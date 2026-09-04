@@ -514,3 +514,20 @@ describe('VNPT token lifecycle', () => {
     expect(vnptConfigured()).toBe(false) // no env in test
   })
 })
+
+describe('mononym holders', () => {
+  // ⛔ A HOLDER WITH ONE NAME IS NOT A MALFORMED SCAN. Requiring a letter after the `<<` separator
+  // treated every mononym line as junk and returned no name at all — for a passport that had been
+  // read perfectly. This is ordinary across Indonesia and much of the region eno serves, and it is
+  // the same failure shape as the misread document code: one over-tight character rule silently
+  // costing the holder their own name.
+  it('reads a surname when there are no given names', () => {
+    expect(namesFromNameLine('P<IDNSUHARTO<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')).toEqual({
+      surname: 'SUHARTO',
+    })
+  })
+
+  it('still refuses a line 2 masquerading as a name line', () => {
+    expect(namesFromNameLine('X1234567<7NLD8802141F3007310<<<<<<<<<<<<<<00')).toEqual({})
+  })
+})

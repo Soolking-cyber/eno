@@ -9,6 +9,9 @@ import SwiftUI
 struct AccountView: View {
     @State private var auth = AuthModel.shared
     @State private var me: MeResponse.User?
+    /// Identity status from GET /api/seller/identity/status — 'unverified' | 'pending' | 'verified'
+    /// | 'rejected' | 'expired' | 'revoked'. nil while unknown; the row simply shows no subtitle.
+    @State private var verification: String?
     @State private var signInSheet = false
     @State private var googleBusy = false
 
@@ -59,11 +62,39 @@ struct AccountView: View {
         .task {
             if auth.isSignedIn, me == nil { await loadMe() }
         }
+        // ⛔ THE STATUS GOES STALE THE MOMENT SOMEONE VERIFIES. `.task` is guarded on `me == nil`
+        // and never runs twice, so a seller who completed verification came back to a red "Not
+        // verified yet" under the row they had just finished — the app contradicting itself about
+        // the one thing it had just been told. Re-reading only the status on every appearance is
+        // cheap and covers every exit path out of the verification screen.
+        .onAppear {
+            guard auth.isSignedIn, me != nil else { return }
+            Task { await loadVerification() }
+        }
+        // ⛔ SIGNING IN DOES NOT MAKE THIS VIEW APPEAR AGAIN. The sign-in sheet is presented OVER the
+        // Account screen, so dismissing it fires no `onAppear` and the unkeyed `.task` had already
+        // finished while signed out — a seller who signed in right here saw no profile and no
+        // verification row until they navigated away and back.
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            guard signedIn else { me = nil; verification = nil; return }
+            Task { await loadMe() }
+        }
     }
 
     private func loadMe() async {
         if let r: MeResponse = try? await APIClient.shared.get("api/me") {
             me = r.user
+        }
+        await loadVerification()
+    }
+
+    /// ⚠️ FAILS OPEN — a status we could not read shows NO claim rather than a stale or wrong one.
+    private func loadVerification() async {
+        struct Status: Decodable { let status: String }
+        if let s: Status = try? await APIClient.shared.get("api/seller/identity/status") {
+            verification = s.status
+        } else {
+            verification = nil
         }
     }
 
@@ -143,6 +174,61 @@ struct AccountView: View {
                         Text(L10n.tr("My listings", "Tin đăng của tôi")).foregroundStyle(EnoColor.fg)
                     }
                 }
+                // ⛔ IDENTITY VERIFICATION HAD NO NATIVE ENTRY POINT AT ALL — the legal gate a
+                // Vietnamese seller must pass before publishing (NĐ 248/2026) existed only on the
+                // web. The web surfaces it twice (a top-level Verification row in DASHBOARD_NAV,
+                // plus the publish refusal that sends people here); this is the native equivalent.
+                // ⛔ DO NOT INVITE SOMEONE TO DO WHAT THEY HAVE ALREADY DONE. A verified seller was
+                // still shown a live "Verify your identity" link into a flow that mints a fresh
+                // consent challenge and then fails — the row now states the outcome and stops being
+                // a way in. Pending is left tappable so they can see where they got to.
+                // ⛔ NEITHER A VERIFIED NOR A REVOKED SELLER SHOULD BE INVITED IN. Verification is
+                // done for one and impossible for the other: a revoked account cannot be remedied by
+                // submitting again, so the flow would mint a consent challenge, spend one of five
+                // daily attempts and refuse — while the row said "Verify your identity" as though it
+                // were the way out. Both are statements of fact; only the states verification can
+                // actually change stay tappable.
+                if verification == "verified" || verification == "revoked" {
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.shield")
+                            .enoIcon(.sm, color: EnoColor.brand)
+                            .frame(width: 26)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(verification == "verified"
+                                 ? L10n.tr("Identity verified", "Danh tính đã xác minh")
+                                 : L10n.tr("Identity verification", "Xác minh danh tính"))
+                                .foregroundStyle(EnoColor.fg)
+                            if verification == "revoked" {
+                                Text(Self.verificationLabel("revoked"))
+                                    .enoText(.caption, color: EnoColor.danger)
+                            }
+                        }
+                        Spacer()
+                        if verification == "verified" {
+                            Image(systemName: "checkmark.seal.fill").enoIcon(.sm, color: EnoColor.success)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                } else {
+                    NavigationLink {
+                        IdentityVerifyView()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.shield")
+                                .enoIcon(.sm, color: EnoColor.brand)
+                                .frame(width: 26)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(L10n.tr("Verify your identity", "Xác minh danh tính"))
+                                    .foregroundStyle(EnoColor.fg)
+                                if let status = verification {
+                                    Text(Self.verificationLabel(status))
+                                        .enoText(.caption, color: status == "pending" ? EnoColor.sub : EnoColor.danger)
+                                }
+                            }
+                            Spacer()
+                        }
+                    }
+                }
                 NavigationLink {
                     SettingsView(initial: me) { Task { await loadMe() } }
                 } label: {
@@ -170,6 +256,18 @@ struct AccountView: View {
 
     // A web-sheet row (icon · title · chevron) — exactly the EnoListRow shape, so the
     // hand-drawn chevron and the hand-set fonts are gone.
+    /// ⚠️ EACH STATE NEEDS ITS OWN WORDS — the server throws a DISTINCT code per state precisely so
+    /// "we are still looking" and "your account is suspended" never reach the same person alike.
+    private static func verificationLabel(_ status: String) -> String {
+        switch status {
+        case "pending": return L10n.tr("In review", "Đang xét duyệt")
+        case "rejected": return L10n.tr("Not accepted — try again", "Chưa được chấp nhận — hãy thử lại")
+        case "expired": return L10n.tr("Expired — verify again", "Đã hết hạn — hãy xác minh lại")
+        case "revoked": return L10n.tr("Suspended — contact support", "Đã bị đình chỉ — liên hệ hỗ trợ")
+        default: return L10n.tr("Not verified yet", "Chưa xác minh")
+        }
+    }
+
     private func link(_ title: String, icon: String, path: String) -> some View {
         EnoListRow(icon: icon, title: title, accessory: .disclosure) {
             sheetPath = WebPath(id: path)

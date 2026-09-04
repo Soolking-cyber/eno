@@ -22,7 +22,7 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
 
     private let supabase = "https://xihiryllwmjoouipkyhw.supabase.co"
     private let publishableKey = "sb_publishable_He0wwlDfz9YW35sjys3O5Q_qyJ5qwB1" // public by design
-    private let scheme = "enonative"
+    private let scheme = Edition.urlScheme
     private var session: ASWebAuthenticationSession?
 
     /// completion(true) on a successful adopt, (false) on cancel/error.

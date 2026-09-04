@@ -56,7 +56,13 @@ targets:
         # + video capture. xcodegen regenerates Info.plist from THESE properties
         # (it is the source of truth), so keys must live here, not only in the
         # generated plist, or a regen silently drops them (App Review rejection).
-        NSCameraUsageDescription: Take photos of your item to add them to your listing.
+        # ⛔ THE PURPOSE STRING MUST NAME IDENTITY CAPTURE, and it is edited HERE — both
+        # Info.plists are GENERATED from this file, so fixing the plist directly is undone by
+        # the next `xcodegen generate` (measured: it silently reverted this exact string).
+        # The camera now also photographs a passport, a CCCD and a selfie for verification;
+        # asking for it under a listing-photos pretext is a false disclosure on the most
+        # sensitive thing the app collects, and App Review rejects on precisely this.
+        NSCameraUsageDescription: eno uses the camera to photograph items you list, and to capture your identity document and a selfie when you verify your account.
         NSMicrophoneUsageDescription: Record sound when you capture a video for your listing.
         NSLocationWhenInUseUsageDescription: Fill your listing's area from your current location. Used once when you tap it; your location is not stored.
         # Our OWN OAuth callback scheme (distinct from the Capacitor app's
@@ -65,6 +71,67 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: vn.eno.app.oauth
             CFBundleURLSchemes: [enonative]
+  # ── THE SERVICES EDITION ──────────────────────────────────────────────────
+  # eno.forum, from the SAME sources. Mirrors src/lib/edition.ts: one codebase,
+  # two apps, the difference carried by a compile-time flag rather than by
+  # literals scattered through the call sites.
+  #
+  # ⛔ WHY A SECOND TARGET AND NOT A RUNTIME SWITCH. The editions are a LICENSING
+  # boundary, not a preference: visa and itinerary are live on eno.forum and may
+  # never appear on the licensed marketplace. A compile-time condition lets the
+  # compiler strip the other edition's branches out of the binary entirely, which
+  # is the same property the web gets from the minifier folding IS_SERVICES.
+  #
+  # ⚠️ A DISTINCT BUNDLE ID so both can sit on one phone during the transition,
+  # exactly as the native app already coexists with the Capacitor build.
+  EnoForum:
+    type: application
+    platform: iOS
+    # ⚠️ EXCLUDE THE OTHER TARGET'S Info.plist. This target's own plist is GENERATED at
+    # EnoForum/Info.plist from `info.properties` below, but its sources are the marketplace's `Eno`
+    # folder — which contains Eno/Info.plist. Without this exclude that file is swept in as a
+    # RESOURCE and Xcode fails with "Multiple commands produce …/EnoForum.app/Info.plist". The Eno
+    # target never hits this because its source dir and its info.path are the same folder.
+    sources:
+      - path: Eno
+        excludes: ["Info.plist"]
+    dependencies:
+      - package: EnoUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: forum.eno.app
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: false
+        INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
+        # The one line that picks the edition — read by Core/Edition.swift.
+        # ⚠️ `$(inherited)` IS LOAD-BEARING. Assigning this key outright REPLACES the value Xcode
+        # sets per configuration, and that value is `DEBUG` — so a Debug build of the services app
+        # quietly became a build with DEBUG undefined: no assertions, and every `#if DEBUG` branch
+        # (the image diagnostics among them) compiled out of the one build meant for diagnosing.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) ENO_SERVICES
+    info:
+      path: EnoForum/Info.plist
+      properties:
+        CFBundleDisplayName: eno.forum
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        ITSAppUsesNonExemptEncryption: false
+        # ⚠️ Purpose strings are REQUIRED and xcodegen regenerates Info.plist from
+        # THESE properties — a missing key here is an App Review rejection, not a
+        # runtime warning. Same set as the marketplace target.
+        # ⛔ THE PURPOSE STRING MUST NAME IDENTITY CAPTURE, and it is edited HERE — both
+        # Info.plists are GENERATED from this file, so fixing the plist directly is undone by
+        # the next `xcodegen generate` (measured: it silently reverted this exact string).
+        # The camera now also photographs a passport, a CCCD and a selfie for verification;
+        # asking for it under a listing-photos pretext is a false disclosure on the most
+        # sensitive thing the app collects, and App Review rejects on precisely this.
+        NSCameraUsageDescription: eno uses the camera to photograph items you list, and to capture your identity document and a selfie when you verify your account.
+        NSMicrophoneUsageDescription: Record sound when you capture a video for your listing.
+        NSLocationWhenInUseUsageDescription: Fill your listing's area from your current location. Used once when you tap it; your location is not stored.
+        CFBundleURLTypes:
+          - CFBundleURLName: forum.eno.app.oauth
+            CFBundleURLSchemes: [enoforum]
   # Unit tests (audit #11) — pure Core logic (ImageURL, Format, RecentStore,
   # ListingCard badge rules, APIErrorBody). Swift Testing (@Test). Run:
   # xcodebuild test -scheme Eno -destination 'platform=iOS Simulator,name=iPhone 16'
@@ -85,5 +152,13 @@ schemes:
         EnoTests: [test]
     test:
       targets: [EnoTests]
+    run:
+      config: Debug
+  # Build/run the services edition:
+  #   xcodebuild -scheme EnoForum -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+  EnoForum:
+    build:
+      targets:
+        EnoForum: all
     run:
       config: Debug

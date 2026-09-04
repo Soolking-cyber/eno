@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>eno.vn</string>
+	<string>eno.forum</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -22,10 +22,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>vn.eno.app.oauth</string>
+			<string>forum.eno.app.oauth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>enonative</string>
+				<string>enoforum</string>
 			</array>
 		</dict>
 	</array>

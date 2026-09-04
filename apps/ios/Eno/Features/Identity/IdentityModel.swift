@@ -1,0 +1,408 @@
+import Foundation
+import UIKit
+
+// ── IDENTITY VERIFICATION (NĐ 248/2026) ─────────────────────────────────────────────────────────
+//
+// The native counterpart of src/app/dashboard/account/verify. It talks to the SAME four endpoints in
+// the same order, because the server owns every rule that matters:
+//
+//   POST /api/seller/identity/challenge   {version, accepted} → {code, expiresAt}
+//   POST /api/seller/identity/documents?kind=document|selfie  (octet-stream) → {path}
+//   POST /api/seller/identity/submit      {tier, challengeCode, paths, mrz…}
+//   GET  /api/seller/identity/status      → {status, gate}
+//
+// ⛔ THE CHALLENGE IS ALSO THE CONSENT RECEIPT. Issuing one requires the declaration, and the
+// documents route refuses an upload without a live challenge — so consent is recorded BEFORE any
+// image is collected, never at submit. That ordering is a compliance property, not a UI preference:
+// do not "optimise" it by uploading first.
+//
+// ⛔ AND THE CLIENT DECIDES NOTHING. A valid MRZ here is a form pre-fill whose accuracy the check
+// digits can prove; `verify-decision.ts` makes the identity decision from evidence this app cannot
+// forge, and a human looks at both photographs. See the trust-boundary note in MrzScanner.
+
+@MainActor
+@Observable
+final class IdentityModel {
+    enum Step { case tier, document, selfie, details }
+    enum Tier: String { case a = "A", b = "B" }
+
+    /// ⚠️ MIRRORS `CURRENT_DECLARATION` in src/lib/compliance/declaration-text.ts. The version the
+    /// seller ACCEPTED is what gets recorded, so this constant and that one must move together.
+    static let declarationVersion = "identity-v1"
+
+    var step: Step = .tier
+    var tier: Tier?
+    var accepted = false
+    var challengeCode: String?
+    var documentPath: String?
+    var selfiePath: String?
+
+    var surname = ""
+    var givenNames = ""
+    var documentNumber = ""
+    var documentExpiry = ""      // ISO yyyy-MM-dd
+    var mrzLine1 = ""
+    var mrzLine2 = ""
+
+    var busy = false
+    var scanning = false
+    /// ⚠️ Did a SCAN supply the MRZ lines? Drives whether the raw-line editor is offered — see the
+    /// note at that field. Cleared by `retakeDocument` and `reset`, because the lines go with it.
+    var mrzFromScan = false
+    var error: String?
+    /// A refusal a retry cannot change — rendered instead of the flow, never beside it.
+    var terminal: String?
+    var submitted = false
+
+    /// The seller has typed in a details field; a late scan must never overwrite them. TD3 line 1
+    /// carries NO check digit, so a misread name could otherwise silently replace a correct one.
+    private var userEdited = false
+    func markEdited() { userEdited = true }
+
+    // ── flow ────────────────────────────────────────────────────────────────────────────────────
+
+    func start(_ chosen: Tier) async {
+        // ⛔ ONE CHALLENGE AT A TIME. Two taps before SwiftUI applies `.disabled` minted two
+        // consent challenges; the replies could land out of order and leave `challengeCode` holding
+        // the superseded one, so every later step failed against a challenge the server had replaced.
+        guard !busy else { return }
+        guard accepted else { return }
+        tier = chosen
+        error = nil; terminal = nil
+        busy = true; defer { busy = false }
+        struct Body: Encodable { let version: String; let accepted: Bool }
+        struct Reply: Decodable { let code: String; let expiresAt: String }
+        do {
+            let r: Reply = try await APIClient.shared.post(
+                "api/seller/identity/challenge",
+                body: Body(version: Self.declarationVersion, accepted: true))
+            challengeCode = r.code
+            step = .document
+        } catch let e as APIError {
+            // ⚠️ THE SERVER'S CODE SURVIVES. Discarding it turned `already_pending` — "you already
+            // have a case in review" — into "try again", which is the one thing that cannot help.
+            let outcome = Self.outcome(for: e.code)
+            if outcome.terminal { terminal = outcome.message; tier = nil } else { error = outcome.message }
+        } catch {
+            self.error = L10n.tr("We could not start verification. Please try again.",
+                                 "Không thể bắt đầu xác minh. Vui lòng thử lại.")
+        }
+    }
+
+    /// Upload one captured image, then — for a passport — read its MRZ on device.
+    func upload(_ image: UIImage, kind: String) async {
+        busy = true; defer { busy = false }
+        // ⚠️ A MODERN PHONE STILL IS FAR BIGGER THAN THE MRZ NEEDS, AND BIGGER THAN THE ROUTE ACCEPTS.
+        // A 48MP capture at quality 0.92 runs to tens of megabytes and fails the upload after the
+        // seller has done all the work, with a generic error. 2400px on the long edge keeps roughly
+        // 55px per MRZ character — twice the ~28 the reader needs — while landing comfortably inside
+        // the request limit. ⛔ Downscale AFTER the local scan, never before: the scan runs on the
+        // full-resolution image the camera produced.
+        guard let data = await Task.detached(priority: .userInitiated, operation: {
+            Self.encodeForUpload(image)
+        }).value else {
+            // Rare, but silence here left an idle capture screen and a seller with nothing to act on.
+            error = L10n.tr("That photo could not be prepared. Please take it again.",
+                            "Không thể xử lý ảnh này. Vui lòng chụp lại.")
+            return
+        }
+        struct Reply: Decodable { let path: String }
+        do {
+            let r: Reply = try await APIClient.shared.postData(
+                "api/seller/identity/documents", query: [URLQueryItem(name: "kind", value: kind)], data: data)
+            error = nil          // a success clears whatever the previous attempt said
+            if kind == "document" {
+                documentPath = r.path
+                // ⚠️ A NEW DOCUMENT INVALIDATES THE SELFIE TAKEN FOR THE PREVIOUS ONE — the pair must
+                // never be submitted mismatched.
+                selfiePath = nil
+                clearReadFields()
+                step = .selfie
+                if tier == .b { await scan(image) }
+            } else {
+                selfiePath = r.path
+                step = .details
+            }
+        } catch let e as APIError {
+            let outcome = Self.outcome(for: e.code)
+            // ⛔ TELLING SOMEONE TO "START AGAIN" WITHOUT STARTING THEM AGAIN IS A TRAP. When the
+            // challenge is gone the copy already says to begin again — but the model kept the dead
+            // code and the current step, so the only control on screen (the shutter) re-uploaded
+            // against the same expired challenge and failed identically, forever. The submit path
+            // has always reset here; the upload path never did.
+            if Self.challengeIsGone(e.code) { reset() }
+            self.error = outcome.message
+        } catch {
+            // ⚠️ A TRANSPORT FAILURE HERE IS RECOVERABLE, UNLIKE THE ONE IN `submit`. Nothing has
+            // been consumed — the challenge is intact and the seller is still on the camera step —
+            // so the honest thing is to say the upload failed and let them press the shutter again,
+            // NOT to reset the flow and make them start over. `explain(nil)` says the form was
+            // cleared, which would be a lie here, so this path gets its own words.
+            self.error = L10n.tr("That photo did not upload. Check your connection and try again.",
+                                 "Không tải được ảnh lên. Hãy kiểm tra kết nối và thử lại.")
+        }
+    }
+
+    /// Parses the `YYYY-MM-DD` the MRZ reader and the picker both produce, in UTC so a device
+    /// timezone cannot move a document's expiry across midnight.
+    static let identityDayFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+
+    /// Longest edge for an uploaded identity photo. See the note in `upload`.
+    private static let uploadMaxEdge: CGFloat = 2400
+
+    /// Downscale (never upscale) and JPEG-encode for upload.
+    /// ⚠️ `nonisolated` DELIBERATELY. Resizing and JPEG-encoding a 48MP still takes hundreds of
+    /// milliseconds; on the main actor that is a visible freeze at the exact moment the seller has
+    /// just pressed the shutter and is waiting to be told it worked. Pure function, no model state.
+    nonisolated static func encodeForUpload(_ image: UIImage) -> Data? {
+        // ⛔ `UIImage.size` IS IN POINTS, NOT PIXELS, and the whole point of this function is a PIXEL
+        // budget. On a 3× image a "2400" long edge measured in points is 7200 pixels — three times
+        // the limit, still passing the check. Camera stills decoded from `fileDataRepresentation()`
+        // happen to have scale 1, which is exactly why this would have survived every manual test and
+        // then bitten a code path that resized an image first. A unit test caught it; the arithmetic
+        // is now in pixels from end to end.
+        let pixelSize = CGSize(width: image.size.width * image.scale,
+                               height: image.size.height * image.scale)
+        let longest = max(pixelSize.width, pixelSize.height)
+        guard longest > uploadMaxEdge else { return image.jpegData(compressionQuality: 0.92) }
+        let ratio = uploadMaxEdge / longest
+        let target = CGSize(width: (pixelSize.width * ratio).rounded(),
+                            height: (pixelSize.height * ratio).rounded())
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1                                  // so `target` is measured in real pixels
+        return UIGraphicsImageRenderer(size: target, format: format)
+            .image { _ in image.draw(in: CGRect(origin: .zero, size: target)) }
+            .jpegData(compressionQuality: 0.92)
+    }
+
+    /// Codes that mean the consent challenge no longer exists, so nothing downstream of it can
+    /// succeed and the flow has to restart from the tier choice.
+    private static func challengeIsGone(_ code: String?) -> Bool {
+        code == "challenge_expired" || code == "no_challenge"
+    }
+
+    /// ⚠️ FILL EMPTY FIELDS ONLY. Never discard a good read because the seller started typing during
+    /// the scan, and never clobber what they typed.
+    private func scan(_ image: UIImage) async {
+        scanning = true; defer { scanning = false }
+        let reading = await MrzScanner.read(image)
+        guard let parsed = reading.parsed, parsed.valid, reading.lines.count == 2 else { return }
+
+        // ⛔ NAME-LESS LINE 1, ALWAYS. The server PREFERS MRZ-derived fields over the typed ones, so a
+        // misread name would overrule the seller correcting it — and line 1 has no check digit to
+        // catch that. The name is authored ONLY by the typed fields, pre-filled from the parse below.
+        mrzFromScan = true
+        let issuing = String(reading.lines[0].prefix(5))
+        mrzLine1 = String((issuing + String(repeating: "<", count: Mrz.lineLength)).prefix(Mrz.lineLength))
+        mrzLine2 = reading.lines[1]
+
+        if !userEdited {
+            if let s = parsed.fields.surname, surname.isEmpty { surname = s }
+            if let g = parsed.fields.givenNames, givenNames.isEmpty { givenNames = g }
+            if let n = parsed.fields.passportNumber, documentNumber.isEmpty { documentNumber = n }
+            if let e = parsed.fields.passportExpiryDate, documentExpiry.isEmpty { documentExpiry = e }
+        }
+    }
+
+    private func clearReadFields() {
+        // A new photo may be a DIFFERENT document — never carry the old one's data forward.
+        surname = ""; givenNames = ""; documentNumber = ""; documentExpiry = ""
+        mrzLine1 = ""; mrzLine2 = ""; userEdited = false
+    }
+
+    // ── gates ───────────────────────────────────────────────────────────────────────────────────
+
+    /// Tier B needs an ACTUALLY-VALID MRZ, not merely non-empty lines: hand-typed garbage would burn
+    /// the single-use challenge on a certain server refusal.
+    var mrzValid: Bool {
+        tier == .b && !mrzLine1.isEmpty && !mrzLine2.isEmpty && Mrz.parse(mrzLine1, mrzLine2).valid
+    }
+
+    /// ⚠️ AT LEAST ONE NAME PART, NOT BOTH — many holders have a single legal name, and requiring both
+    /// locked them out of submitting entirely on the web.
+    var nameMissing: Bool {
+        surname.trimmingCharacters(in: .whitespaces).isEmpty
+            && givenNames.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var canSubmit: Bool {
+        guard documentPath != nil, selfiePath != nil, challengeCode != nil, !busy else { return false }
+        // ⛔ REFUSE AN EXPIRED DOCUMENT HERE, NOT AT THE SERVER. The details screen already says "this
+        // document has expired" — and Send stayed enabled underneath it, so the seller pressed it,
+        // the server refused, and the SINGLE-USE challenge was spent along with one of their five
+        // daily attempts. The client knows the answer; making them pay to hear it from the server is
+        // the worst version of this. (Tier B reads the date off the MRZ; tier A types it.)
+        guard expiryProblem == nil else { return false }
+        switch tier {
+        case .a: return !nameMissing && !documentNumber.isEmpty && !documentExpiry.isEmpty
+        case .b: return !nameMissing && mrzValid
+        case nil: return false
+        }
+    }
+
+    /// Why the expiry we hold would be refused, or nil when it is fine. Unknown or unparseable reads
+    /// as NO problem — this gate exists to stop a CERTAIN refusal, never to invent one.
+    enum ExpiryProblem { case expired, tooSoon }
+
+    /// ⛔ THE TYPED-MRZ PATH HAS AN EXPIRY TOO, AND IT WAS BEING IGNORED. `documentExpiry` is filled
+    /// from a SCAN; a seller whose scan failed and who typed the two MRZ lines by hand left it empty,
+    /// so every expiry check silently passed and an expired passport sailed through to the server —
+    /// spending the single-use challenge and one of five daily attempts on a certain refusal. Line 2
+    /// carries the expiry with its own check digit, so read it from there when the field is empty.
+    /// The passport number, from the typed field or from line 2 — see the note in `submit`.
+    var effectivePassportNumber: String? {
+        if !documentNumber.isEmpty { return documentNumber }
+        guard tier == .b, !mrzLine1.isEmpty, !mrzLine2.isEmpty else { return nil }
+        return Mrz.parse(mrzLine1, mrzLine2).fields.passportNumber
+    }
+
+    var effectiveExpiry: String? {
+        if !documentExpiry.isEmpty { return documentExpiry }
+        guard tier == .b, !mrzLine1.isEmpty, !mrzLine2.isEmpty else { return nil }
+        return Mrz.parse(mrzLine1, mrzLine2).fields.passportExpiryDate
+    }
+
+    var expiryProblem: ExpiryProblem? {
+        guard let raw = effectiveExpiry, !raw.isEmpty,
+              let expiry = Self.identityDayFormatter.date(from: raw + "T00:00:00Z")
+        else { return nil }
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        // ⚠️ COMPARE DAYS, NOT INSTANTS. A document expiring TODAY is valid today — measuring against
+        // `Date()` marked it expired from midnight onward and disabled Send on a usable passport.
+        let today = utc.startOfDay(for: Date())
+        if expiry < today { return .expired }
+        // ⛔ THE SERVER WANTS SIX MONTHS, AND THE REFUSAL COPY ALREADY SAYS SO. Only blocking
+        // already-expired documents let a passport with four months left spend the SINGLE-USE
+        // challenge and one of five daily attempts to be told what the client could have said for
+        // free. Passports only: a CCCD carries no six-month rule.
+        if tier == .b, let sixMonths = utc.date(byAdding: .month, value: 6, to: today),
+           expiry < sixMonths {
+            return .tooSoon
+        }
+        return nil
+    }
+
+    /// Which required field is still missing — so a disabled button is never a mystery.
+    var blockedReason: String? {
+        guard !canSubmit, documentPath != nil, selfiePath != nil else { return nil }
+        var bits: [String] = []
+        if nameMissing { bits.append(L10n.tr("your name", "họ tên của bạn")) }
+        if tier == .b, !mrzValid { bits.append(L10n.tr("the two machine-readable lines", "hai dòng mã máy đọc")) }
+        if tier == .a, documentNumber.isEmpty { bits.append(L10n.tr("your document number", "số giấy tờ")) }
+        if tier == .a, documentExpiry.isEmpty { bits.append(L10n.tr("the expiry date", "ngày hết hạn")) }
+        guard !bits.isEmpty else { return nil }
+        return L10n.tr("To send this we still need ", "Để gửi được, chúng tôi vẫn cần ") + bits.joined(separator: ", ")
+    }
+
+    // ── submit ──────────────────────────────────────────────────────────────────────────────────
+
+    func submit() async {
+        guard canSubmit, let tier, let code = challengeCode,
+              let doc = documentPath, let selfie = selfiePath else { return }
+        busy = true; defer { busy = false }
+        struct Body: Encodable {
+            let tier: String; let challengeCode: String
+            let documentPath: String; let selfiePath: String; let consentVersion: String
+            let surname: String?; let givenNames: String?
+            let passportNumber: String?; let nationality: String?; let documentExpiry: String?
+            let mrzLine1: String?; let mrzLine2: String?
+        }
+        let body = Body(
+            tier: tier.rawValue, challengeCode: code, documentPath: doc, selfiePath: selfie,
+            consentVersion: Self.declarationVersion,
+            surname: surname.isEmpty ? nil : surname,
+            givenNames: givenNames.isEmpty ? nil : givenNames,
+            // ⛔ FALL BACK TO THE MRZ, WHICH HAS BOTH. On the typed path these two text fields stay
+            // empty — the seller typed the raw lines, not the boxes — so the submission stripped the
+            // passport number and expiry to `nil` even though line 2 carries both WITH their own
+            // check digits. `effectiveExpiry` was already written for the client-side gate; the
+            // payload was still reading the raw field.
+            passportNumber: effectivePassportNumber,
+            nationality: tier == .a ? "VNM" : nil,
+            documentExpiry: effectiveExpiry,
+            // ⛔ MRZ ONLY FOR A PASSPORT. A CCCD has no machine-readable zone, and the server REFUSES
+            // a tier-A claim that carries one (`tier_mismatch`) rather than quietly ignoring it.
+            mrzLine1: tier == .b ? mrzLine1.uppercased() : nil,
+            mrzLine2: tier == .b ? mrzLine2.uppercased() : nil)
+        do {
+            struct Reply: Decodable { let status: String }
+            let _: Reply = try await APIClient.shared.post("api/seller/identity/submit", body: body)
+            submitted = true
+        } catch let e as APIError {
+            // ⛔ ANY FAILURE HAS ALREADY BURNED THE CHALLENGE — `consumeChallenge` burns the code on
+            // every answer — so retrying the same submit only hits `no_challenge` and re-uploading
+            // 403s. Reset to the start; the next attempt issues a fresh code.
+            let outcome = Self.outcome(for: e.code)
+            reset()
+            if outcome.terminal { terminal = outcome.message } else { error = outcome.message }
+        } catch {
+            // ⛔ A DROPPED CONNECTION IS THE AMBIGUOUS CASE, AND IT MUST RESET TOO. The server may
+            // have accepted the submission and only the reply was lost — the challenge is spent
+            // either way. Leaving the state intact told the seller the form was cleared while
+            // keeping the dead challenge and an enabled Send, so the retry either hit `no_challenge`
+            // or duplicated a submission that had already succeeded.
+            reset()
+            self.error = Self.explain(nil)
+        }
+    }
+
+    /// Back to the document step, clearing everything downstream — the selfie belongs to the photo
+    /// being replaced, and the read fields to the document that is going away.
+    func retakeDocument() {
+        mrzFromScan = false
+        documentPath = nil; selfiePath = nil
+        clearReadFields()
+        error = nil
+        step = .document
+    }
+
+    func reset() {
+        mrzFromScan = false
+        challengeCode = nil; tier = nil; documentPath = nil; selfiePath = nil
+        clearReadFields(); step = .tier
+    }
+
+    // ── copy ────────────────────────────────────────────────────────────────────────────────────
+
+    /// ⚠️ EVERY CODE THE ROUTE CAN RETURN NEEDS AN ANSWER, and each must say what to DO. Four of these
+    /// are LEGAL states with different remedies — "we couldn't read your photo" and "your account is
+    /// suspended" must never reach the same person with the same words.
+    static func outcome(for code: String?) -> (message: String, terminal: Bool) {
+        switch code {
+        case "already_pending":
+            return (L10n.tr("You already have a verification in review. We'll email you the result, usually within a working day.",
+                            "Bạn đã có hồ sơ xác minh đang được xét duyệt. Chúng tôi sẽ gửi email kết quả, thường trong một ngày làm việc."), true)
+        case "duplicate_identity":
+            return (L10n.tr("This document is already verified on another account. If that account is yours, sign in with it instead.",
+                            "Giấy tờ này đã được xác minh trên tài khoản khác. Nếu đó là tài khoản của bạn, hãy đăng nhập bằng tài khoản đó."), true)
+        case "rejected":
+            return (L10n.tr("We cannot accept this document. A passport must still be valid for at least six months, and the name must match your account.",
+                            "Chúng tôi không thể chấp nhận giấy tờ này. Hộ chiếu phải còn hiệu lực ít nhất sáu tháng và tên phải khớp với tài khoản."), true)
+        case "rate_limited":
+            return (L10n.tr("You have reached the limit of five verification attempts a day. Please try again tomorrow.",
+                            "Bạn đã đạt giới hạn năm lần gửi xác minh mỗi ngày. Vui lòng thử lại vào ngày mai."), true)
+        case "document_unreadable":
+            return (L10n.tr("We could not read the details, so we cleared the form. Start again and photograph the page so the two lines at the bottom are sharp and fully in frame.",
+                            "Không đọc được thông tin nên chúng tôi đã xóa biểu mẫu. Hãy bắt đầu lại và chụp sao cho hai dòng mã ở dưới rõ nét và nằm trọn trong khung."), false)
+        case "challenge_expired":
+            return (L10n.tr("Your code expired before this was sent. Please start again.",
+                            "Mã của bạn đã hết hạn trước khi gửi. Vui lòng bắt đầu lại."), false)
+        case "identity_hashing_unavailable":
+            return (L10n.tr("Verification is temporarily unavailable on our side — nothing is wrong with your documents. Please try again in a few minutes.",
+                            "Hệ thống xác minh tạm thời không khả dụng — giấy tờ của bạn không có vấn đề gì. Vui lòng thử lại sau vài phút."), false)
+        default:
+            return (explain(code), false)
+        }
+    }
+
+    private static func explain(_ code: String?) -> String {
+        L10n.tr("That did not go through, so we cleared the form. Please choose how to verify and start again.",
+                "Chưa gửi được nên chúng tôi đã xóa biểu mẫu. Vui lòng chọn cách xác minh và bắt đầu lại.")
+    }
+}

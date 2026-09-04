@@ -193,8 +193,12 @@ export function extractMrzFields(rawTexts: string[]): MrzFieldPool {
   // surname from given names, which line 2 never contains (line 2's filler is a single run at the
   // end). So: prefer a line that starts with `P`, but fall back to any line carrying a `<<` with real
   // letters around it and no long digit run (which would make it a line 2).
+  // ⚠️ NO LETTER IS REQUIRED AFTER THE `<<` — demanding one drops every MONONYM. A holder with one
+  // name (`P<IDNSUHARTO<<<<<<…`) is ordinary across Indonesia and much of the region this market
+  // serves, and their line 1 has nothing but filler after the separator. A surname followed by the
+  // separator is the whole signature; the digit test is what excludes line 2. Found by a Swift test.
   const looksLikeNameLine = (l: string) =>
-    l.includes('<<') && /[A-Z]{2,}<<[A-Z]/.test(l) && !/\d{6,}/.test(l)
+    l.includes('<<') && /[A-Z]{2,}<</.test(l) && !/\d{6,}/.test(l)
   const nameLine = (
     lines.find((l) => l.startsWith('P') && looksLikeNameLine(l))
     ?? lines.find((l) => l.startsWith('P'))
@@ -298,7 +302,9 @@ export function namesFromNameLine(nameLine: string | undefined): { surname?: str
   // test caught exactly that when this guard was first relaxed. Line 2 is distinguished by its long
   // digit runs (the two YYMMDD dates and their check digits); line 1 has none.
   if (!nameLine || nameLine.length < 8) return {}
-  if (!/[A-Z]{2,}<<[A-Z]/.test(nameLine) || /\d{6,}/.test(nameLine)) return {}
+  // Same rule as `looksLikeNameLine` above, and for the same reason: requiring a letter after the
+  // `<<` here returned NO NAME AT ALL for a mononym, even when the line had been correctly selected.
+  if (!/[A-Z]{2,}<</.test(nameLine) || /\d{6,}/.test(nameLine)) return {}
   // TD3 uses `<<` ONCE, between surname and given names; everything after is single-`<` filler. So the
   // first group is the surname and the second holds all given names — later groups are filler and the
   // OCR misreads that land in it (this capture's trailing `K` for a `<` is exactly that).

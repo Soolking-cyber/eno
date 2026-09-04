@@ -1,6 +1,6 @@
 import Foundation
 
-// One HTTPS client for the whole app: https://eno.vn/api/* is the BFF (same
+// One HTTPS client for the whole app: https://<edition host>/api/* is the BFF (same
 // REST routes the web app uses). Auth is an explicit Bearer header — the server
 // accepts `Authorization: Bearer <supabase jwt>` on every cookie-auth API
 // (Phase 2 M2) — no cookies, no web sessions. The auth lane (Murat) sets
@@ -8,6 +8,20 @@ import Foundation
 enum APIError: Error {
     case http(Int)
     case decoding(Error)
+    /// A non-2xx whose body carried a machine code (`{"error":"identity_pending"}`). ⚠️ The CODE is
+    /// what the UI branches on — the identity routes return a distinct one per legal state, and
+    /// collapsing them into a status number loses exactly the distinction the copy depends on.
+    case coded(Int, String)
+
+    /// The server's machine code when there was one.
+    var code: String? { if case let .coded(_, c) = self { return c }; return nil }
+    var status: Int? {
+        switch self {
+        case let .http(s): return s
+        case let .coded(s, _): return s
+        case .decoding: return nil
+        }
+    }
 }
 
 /// Common server error envelope — `{ "error": "code" }` (some routes use `code`
@@ -23,7 +37,9 @@ struct APIErrorBody: Decodable {
 final class APIClient: @unchecked Sendable {
     static let shared = APIClient()
 
-    private let base = URL(string: "https://eno.vn")!
+    // ⚠️ PER EDITION — see Core/Edition.swift. Hardcoding the host here is what made this a
+    // marketplace-only app.
+    private let base = Edition.baseURL
     private let session: URLSession
 
     /// Supabase access token — set by the auth flow (main actor), read on every
@@ -91,6 +107,41 @@ final class APIClient: @unchecked Sendable {
         let (data, status) = try await run(req)
         guard (200..<300).contains(status) else { throw APIError.http(status) }
         return try decode(data)
+    }
+
+    /// POST an `Encodable` and decode the reply, surfacing the server's error CODE on a refusal.
+    /// ⚠️ Separate from the dictionary `post` above rather than replacing it: that one is used by
+    /// call sites that build heterogeneous bodies, and rewriting them is not this change's job.
+    func post<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        var req = request(url: base.appendingPathComponent(path))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let enc = JSONEncoder()
+        req.httpBody = try enc.encode(body)
+        let (data, status) = try await run(req)
+        guard (200..<300).contains(status) else { throw Self.codedError(data, status) }
+        return try decode(data)
+    }
+
+    /// POST raw bytes (the identity document/selfie upload is `application/octet-stream`).
+    func postData<T: Decodable>(_ path: String, query: [URLQueryItem] = [], data body: Data) async throws -> T {
+        var comps = URLComponents(url: base.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+        if !query.isEmpty { comps.queryItems = query }
+        var req = request(url: comps.url!)
+        req.httpMethod = "POST"
+        req.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        req.httpBody = body
+        let (data, status) = try await run(req)
+        guard (200..<300).contains(status) else { throw Self.codedError(data, status) }
+        return try decode(data)
+    }
+
+    /// Read `{error|code}` off a refusal body; fall back to the bare status when there is none.
+    private static func codedError(_ data: Data, _ status: Int) -> APIError {
+        if let body = try? JSONDecoder().decode(APIErrorBody.self, from: data), let reason = body.reason {
+            return .coded(status, reason)
+        }
+        return .http(status)
     }
 
     /// Fire a request where only the status matters (DELETE, {ok} responses).
