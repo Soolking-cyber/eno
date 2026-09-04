@@ -34,6 +34,14 @@ struct APIErrorBody: Decodable {
     var reason: String? { error ?? code }
 }
 
+/// A body-less POST that still needs the server's error CODE.
+/// ⛔ `post(path, body: [:])` PICKS THE WRONG OVERLOAD. `[:]` is a `[String: Any]`, which resolves to
+/// the dictionary `post` — and that one throws `APIError.http(status)`, discarding the `{"error":…}`
+/// the server sent. Every coded refusal then collapses into one generic message, which is exactly
+/// what a per-code copy table exists to prevent. Naming an Encodable body picks the overload that
+/// keeps the code.
+struct EmptyBody: Encodable {}
+
 final class APIClient: @unchecked Sendable {
     static let shared = APIClient()
 

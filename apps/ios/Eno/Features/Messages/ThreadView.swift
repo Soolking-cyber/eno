@@ -16,8 +16,109 @@ final class ThreadModel {
     var notFound = false
     var actionError: String?
 
+    /// The seller's phone, once the server has agreed to reveal it. ⛔ NEVER PERSISTED AND NEVER
+    /// PRE-FETCHED — see the note on `ContactReveal`. It lives for the life of this screen only.
+    var contact: ContactReveal?
+    var contactBusy = false
+    /// ⛔ ITS OWN CHANNEL, NOT `actionError`. Two of these refusals are not errors — the reply-first
+    /// gate and a partner declining by agreement are the system working — and routing them through
+    /// the alert the thread uses for FAILED SENDS both misframes them and leaves them on screen
+    /// after they stop being true (the seller replies; the gate lifts; the alert stays).
+    var contactNotice: String?
+    /// A refusal that cannot change for this listing, so the ask should stop being offered.
+    var contactRefused = false
+    /// ⛔ THE NEWEST COUNTERPART MESSAGE AT THE MOMENT WE WERE REFUSED — IDENTITY, NOT A COUNT.
+    /// `load()` appends the buyer's own PENDING/FAILED bubbles AFTER the server's messages, so "the
+    /// last N are new" reads those local bubbles instead of the seller's reply. A buyer with one
+    /// failed message — the single most likely state while waiting — would keep reading "once the
+    /// seller replies" under a live button, on every poll, forever.
+    private var noticeSeenCounterpartId: String?
+
+    /// Test seam: the refusal path sets the id above, and the tests need that state without a
+    /// network call. Not `private` only so EnoTests can arrange it.
+    func setNoticeSeenCounterpartIdForTesting(_ id: String?) { noticeSeenCounterpartId = id }
+
     init(convoId: String) {
         self.convoId = convoId
+    }
+
+    /// Ask for the seller's phone number.
+    ///
+    /// ⛔ THE SERVER DECIDES, AND EVERY REFUSAL NEEDS ITS OWN WORDS. The reply-first gate
+    /// (`reply_required`) is a business rule, not an error: a buyer who has not been answered yet is
+    /// not doing anything wrong, and telling them "something went wrong" would read as a broken app.
+    /// An official partner refuses by AGREEMENT (`partner_chat_only`) rather than by omission, so it
+    /// must not fall through to "hasn't added a number" — that would misdescribe the partner.
+    /// The copy here is the web's, word for word (messages/[id]/page.tsx), because the same refusal
+    /// must not say two different things depending on which client the seller happens to open.
+    func requestContact() async {
+        guard let listingId = thread?.listing?.id, !contactBusy else { return }
+        contactBusy = true
+        defer { contactBusy = false }
+        contactNotice = nil
+        do {
+            // ⚠️ `EmptyBody`, NOT `[:]` — see APIClient. The dictionary overload discards the server's
+            // error code, which would collapse every refusal below into the generic fallback.
+            contact = try await APIClient.shared.post("api/listings/\(listingId)/contact", body: EmptyBody())
+        } catch let e as APIError {
+            contactNotice = Self.contactRefusal(e.code)
+            contactRefused = Self.refusalIsPermanent(e.code)
+            noticeSeenCounterpartId = thread?.messages.last(where: { !$0.mine })?.id
+        } catch {
+            contactNotice = Self.contactRefusal(nil)
+            noticeSeenCounterpartId = thread?.messages.last(where: { !$0.mine })?.id
+        }
+    }
+
+    /// ⛔ SOME REFUSALS CANNOT CHANGE, so continuing to offer the ask is a trap. A partner will never
+    /// hand over a phone number and a seller without one has none to give — yet each tap re-hits a
+    /// LOGGED, RATE-LIMITED route, and three taps turn an accurate "this is a partner" into
+    /// "too many requests", which describes the partner worse than saying nothing would.
+    static func refusalIsPermanent(_ code: String?) -> Bool {
+        // ⚠️ `auth_required` BELONGS HERE TOO, for a different reason than the others. It cannot
+        // change by retrying — the session is gone and nothing on this screen renews it — so leaving
+        // the button live just re-hits a logged, rate-limited route to be told the same thing. The
+        // copy tells them to sign in again; the control stops pretending another tap might work.
+        code == "partner_chat_only" || code == "no_contact" || code == "not_found"
+            || code == "auth_required"
+    }
+
+    /// ⛔ THE REPLY GATE LIFTS WHILE THE BUYER IS WATCHING. "You can request contact once the seller
+    /// replies" was written once and never cleared — `requestContact()` is the only thing that reset
+    /// it — so the seller would answer, the button would become usable, and the buyer would still be
+    /// reading that they cannot ask. Any new message from the counterpart makes that sentence false.
+    func clearStaleContactNotice() {
+        guard !contactRefused, contactNotice != nil else { return }
+        let newest = thread?.messages.last(where: { !$0.mine })?.id
+        if newest != noticeSeenCounterpartId { contactNotice = nil }
+    }
+
+    static func contactRefusal(_ code: String?) -> String {
+        switch code {
+        case "partner_chat_only":
+            return L10n.tr("This is an official eno partner — they handle everything here in chat.",
+                           "Đây là đối tác chính thức của eno — mọi trao đổi đều diễn ra tại đây.")
+        case "no_contact":
+            return L10n.tr("This seller hasn't added a phone number yet.",
+                           "Người bán chưa thêm số điện thoại.")
+        case "reply_required":
+            return L10n.tr("You can request contact once the seller replies.",
+                           "Bạn có thể xin liên hệ sau khi người bán trả lời.")
+        case "rate_limited":
+            return L10n.tr("Too many requests — please try again shortly.",
+                           "Quá nhiều yêu cầu — vui lòng thử lại sau.")
+        case "not_found":
+            return L10n.tr("This listing is no longer available.",
+                           "Tin đăng này không còn khả dụng.")
+        case "auth_required":
+            // ⚠️ REACHED FROM INSIDE A THREAD YOU ARE ALREADY IN, so "please sign in" reads as a lie.
+            // What actually happened is the session expired underneath them.
+            return L10n.tr("Your session expired — please sign in again.",
+                           "Phiên đăng nhập đã hết hạn — vui lòng đăng nhập lại.")
+        default:
+            return L10n.tr("Could not get contact — please try again.",
+                           "Không lấy được liên hệ — vui lòng thử lại.")
+        }
     }
 
     func load() async {
@@ -45,6 +146,8 @@ final class ThreadModel {
             var merged = t
             merged.messages.append(contentsOf: keep)
             thread = merged
+            // ⚠️ A reply makes the reply-gate notice false — see clearStaleContactNotice.
+            clearStaleContactNotice()
         } catch {
             if case APIError.http(let s) = error, s == 404 || s == 403 { notFound = true }
         }
@@ -244,6 +347,82 @@ struct ThreadView: View {
         }
     }
 
+    /// The seller's phone — asked for, never assumed.
+    ///
+    /// ⛔ ONLY THE BUYER SEES THIS. `iAmSeller` means the counterpart IS the buyer, and a seller has
+    /// no business asking the server to reveal their own number back to them — the route would refuse
+    /// it, but showing a control that cannot work is its own bug.
+    /// ⚠️ NOT SHOWN ON A SERVICES THREAD on the marketplace edition either: the caller already gates
+    /// this whole bar, and this control inherits that.
+    @ViewBuilder
+    private func contactControl(_ t: ChatThread) -> some View {
+        if t.iAmSeller {
+            EmptyView()
+        } else if let c = model.contact {
+            // Revealed. Two actions, because Zalo is how most of Vietnam actually answers.
+            // ⛔ THE NUMBER IS TEXT FIRST, LINK SECOND. Drawing it only inside `Link(destination:)`
+            // meant a `telHref` that failed to parse took the phone number with it — and since
+            // `contact` is now set, the "Get contact" button is gone too, leaving an EMPTY bar for a
+            // reveal the server had already logged and rate-limited. The number is the thing the
+            // buyer came for; tapping it is a convenience on top.
+            HStack(spacing: EnoSpacing.s2) {
+                let number = Label(c.phone, systemImage: "phone.fill")
+                    .enoText(.caption, color: EnoColor.fg, weight: .bold)
+                    .labelStyle(.titleAndIcon)
+                if let href = c.telHref, let tel = URL(string: href) {
+                    // ⚠️ NO `.textSelection` INSIDE A `Link` — a long-press that begins a selection
+                    // competes with the link's own gesture. Where there is no link the number must
+                    // still be copyable, which is the branch below.
+                    Link(destination: tel) { number }
+                } else {
+                    number.textSelection(.enabled)
+                }
+                if let href = c.zaloHref, let zalo = URL(string: href) {
+                    Link(destination: zalo) {
+                        Text(verbatim: "Zalo")
+                            .enoText(.caption, color: EnoColor.onBrand, weight: .bold)
+                            .padding(.horizontal, EnoSpacing.s2)
+                            .padding(.vertical, 4)
+                            // ⚠️ A PARTNER'S mark, not our palette — see EnoPartnerColor.
+                            .background(EnoPartnerColor.zalo, in: Capsule())
+                    }
+                }
+            }
+        } else if model.contactRefused, let notice = model.contactNotice {
+            // A refusal that cannot change: say it, and stop offering the ask.
+            // ⚠️ A SHARE OF THE BAR, NOT A FIXED 180pt. This sits beside a thumbnail, the listing
+            // title and its price; a fixed width squeezes the title to nothing on a 320pt screen.
+            Text(notice)
+                .enoText(.caption, color: EnoColor.sub)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: 150, alignment: .trailing)
+                .layoutPriority(-1)
+        } else {
+            VStack(alignment: .trailing, spacing: 2) {
+                // ⛔ DISABLED WHILE THE REPLY GATE IS SHOWING, or waiting costs the buyer the ask.
+                // The route is rate-limited: three impatient taps return `rate_limited`, and then the
+                // seller replies, the notice clears — and the buyer is throttled at the exact moment
+                // the gate lifts. Nothing they can do changes the answer until the reply arrives, and
+                // the arrival already re-enables this by clearing the notice.
+                EnoButton(L10n.tr("Get contact", "Xin liên hệ"),
+                          variant: .secondary, size: .compact,
+                          loading: model.contactBusy, fullWidth: false) {
+                    Task { await model.requestContact() }
+                }
+                .disabled(model.contactNotice != nil)
+                // ⚠️ INLINE, NOT AN ALERT. The reply-first gate is the system working; interrupting
+                // with a modal would frame a normal state as a failure.
+                if let notice = model.contactNotice {
+                    Text(notice)
+                        .enoText(.micro, color: EnoColor.sub)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 150, alignment: .trailing)
+                        .layoutPriority(-1)
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private func listingBar(_ t: ChatThread) -> some View {
         // ⛔ SAME LICENSING GATE AS THE BUBBLE AND THE INBOX ROW. Both editions share one database, so
@@ -264,6 +443,7 @@ struct ThreadView: View {
                 Text(Format.vnd(listing.price)).enoText(.caption, color: EnoColor.brand, weight: .bold)
             }
             Spacer()
+            contactControl(t)
         }
         .padding(.horizontal, EnoSpacing.s3)
         .padding(.vertical, EnoSpacing.s2)

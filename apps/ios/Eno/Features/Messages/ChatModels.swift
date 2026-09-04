@@ -141,6 +141,28 @@ struct ChatMsg: Codable, Identifiable, Equatable {
     }
 }
 
+// ── CONTACT REVEAL ──────────────────────────────────────────────────────────────────────────────
+//
+// POST /api/listings/{id}/contact → { phone, telHref, zaloHref }
+//
+// ⛔ THE REPLY-FIRST GATE IS THE WHOLE POINT, AND IT LIVES ON THE SERVER. A buyer gets a seller's
+// phone number only after that seller has ANSWERED them (`reply_required`, 403) — which is why this
+// belongs in the thread and not on the listing page: there is no conversation to have replied in.
+// The app must never cache or pre-fetch it; every reveal is a fresh, rate-limited, logged request.
+//
+// ⚠️ AN OFFICIAL PARTNER REFUSES BY AGREEMENT (`partner_chat_only`), not by omission — that case
+// needs its own words, or a partner reads as a seller who forgot to add a number.
+struct ContactReveal: Codable {
+    let phone: String
+    /// ⚠️ OPTIONAL, THOUGH THE ROUTE ALWAYS SENDS THEM TODAY. Both are derived from the phone number,
+    /// so a future seller without Zalo or a non-VN number could plausibly yield null — and a decode
+    /// failure here would turn a reveal the server GRANTED, LOGGED and rate-limited into "could not
+    /// get contact", with every retry spending another slot. The number is what the buyer came for;
+    /// the links are conveniences, and the view already draws the number without them.
+    let telHref: String?
+    let zaloHref: String?
+}
+
 // POST /api/conversations {listingId, message?} → find-or-create
 struct CreateConvoResponse: Codable {
     let id: String
