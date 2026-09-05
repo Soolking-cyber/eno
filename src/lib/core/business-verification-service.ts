@@ -17,6 +17,7 @@ import {
   type VerificationDocKind,
 } from '@/lib/business-verification-store'
 import { taxVerdict } from '@/lib/tax-lookup'
+import { logError } from '@/lib/log'
 import { after } from 'next/server'
 import { SITE_NAME } from '@/lib/edition'
 import { sendPushToProfile } from '@/lib/push'
@@ -476,21 +477,133 @@ export async function loadVerificationForReview(caseId: string) {
   }
 }
 
-/** Retention sweep — remove documents of decided cases past their window. Best-effort. */
-export async function sweepVerificationRetention(now = new Date(), limit = 200): Promise<number> {
-  const due = await db.sellerVerification.findMany({
-    where: { retentionUntil: { not: null, lt: now }, documents: { not: '[]' } },
-    take: limit,
-    select: { id: true, documents: true },
-  })
+export type RetentionSweep = { swept: number; failed: number; malformed: number; skippedNonTerminal: number; remaining: number }
+
+const TERMINAL = ['approved', 'rejected'] as const
+/** A row that could not be swept is pushed back by this much — still queued, never lost, but no
+ *  longer at the head of the line (see the liveness note below). ⚠️ 23h, not 24h: the timer runs
+ *  every 24h, and a 24h push-back would land within milliseconds of the next run — whether it is
+ *  due again tomorrow or the day after would be decided by systemd jitter. ⚠️ This turns the legal
+ *  deadline column into the retry clock for a failed row: an audit of "past retention and still
+ *  holding documents" will not see such a row, only the journal does. Accepted for liveness; a
+ *  separate attempts column would be the clean answer and is a schema change. */
+const RETRY_BACKOFF_MS = 23 * 60 * 60 * 1000
+const BATCH = 200
+const MAX_BATCHES = 5 // runaway stop: 1,000 cases in one run is a backlog to look at, not a sweep — and the route's budget
+
+/**
+ * Retention sweep — remove the bucket objects of decided cases past their window. Driven by
+ * /api/cron/business-verification-retention (systemd timer on the box). Until 2026-09-05 nothing
+ * called this at all, so `retentionUntil` was written on every decision and acted on never.
+ *
+ * ⛔ FAIL-CLOSED, LIKE THE VISA SWEEP. The row is cleared ONLY after strict object removal
+ * succeeds; a storage failure leaves the row's paths in place and pushes it back, so the next run
+ * finds it again. The row IS the durable queue.
+ *
+ * ⚠️ A NON-NULL `retentionUntil` MEANS "THIS CASE STILL HOLDS OBJECTS". A swept row gets
+ * `retentionUntil: null` together with `documents: []`, which is what keeps it out of the next
+ * query — the previous `documents: { not: '[]' }` filter compared the jsonb column against the
+ * JSON STRING "[]" (measured: Prisma emits `"documents"::jsonb <> $2` with `$2 = '"[]"'`), so it
+ * excluded nothing and every emptied row was "swept" again on every run.
+ *
+ * ⚠️ LIVENESS. Oldest-first with a cap, so anything that stays due and unswept sits at the head of
+ * the line and, at BATCH such rows, starves everything behind it while the run still reports. Three
+ * things are handled: non-terminal rows are excluded IN THE QUERY (a draft/pending case with an
+ * early retentionUntil is a bug's footprint, counted as `skippedNonTerminal` and never stripped
+ * mid-review); a row that fails is pushed back by RETRY_BACKOFF_MS; and the run DRAINS — up to
+ * MAX_BATCHES batches, stopping early only when a batch moved nothing (a push-back IS progress:
+ * the row left the head of the line). Whatever is still due after that is `remaining`, and the
+ * route turns `remaining > 0` into a red run: a backlog beyond the budget needs a human, not a
+ * green journal.
+ *
+ * ⚠️ REMOVAL PRECEDES THE STATUS-GUARDED CLEAR, and that order is deliberate (fail-closed: a row
+ * is never cleared before its objects are gone). The window it leaves — a decided row turning
+ * non-decided between the two calls — has no writer: every status transition in this module goes
+ * draft → pending → approved | rejected and nothing writes a decided row back (a resubmission is a
+ * new version row). A miss on the guard is therefore logged as drift (and the row pushed back so it cannot starve
+ * the head of the line), not handled as a path.
+ *
+ * `documents` is `Json @default("[]")`, NOT NULL, and a decided row cannot gain documents (uploads
+ * are status='draft' only; a resubmission is a NEW version row) — so the clear is guarded on the
+ * status alone, and a row whose column is not a well-formed array is `malformed`: pushed back and
+ * counted separately (never cleared with an object still in the bucket). The route turns ANY
+ * retained document — a storage failure, a malformed record, a backlog, a drift row — into a red
+ * run: PII held past its deadline behind a green journal is the worse outcome.
+ */
+export async function sweepVerificationRetention(now = new Date(), limit = BATCH): Promise<RetentionSweep> {
   let swept = 0
-  for (const row of due) {
-    const paths = parseVerificationDocs(row.documents).map((d) => d.path)
-    await removeVerificationDocs(paths)
-    await db.sellerVerification.update({ where: { id: row.id }, data: { documents: [] } })
-    swept++
+  let failed = 0
+  let malformed = 0
+  const retryAt = new Date(now.getTime() + RETRY_BACKOFF_MS)
+  // ⚠️ LOUD if even the push-back fails: a row that stays due at the head of the line is the
+  // starvation the push-back exists to prevent, so it is logged AND reported as a failure.
+  const pushBack = async (id: string): Promise<boolean> => {
+    try { await db.sellerVerification.update({ where: { id }, data: { retentionUntil: retryAt } }); return true }
+    catch (err) { logError(err, { op: 'business-verification.retention.pushback' }); return false }
   }
-  return swept
+  for (let batch = 0; batch < MAX_BATCHES; batch++) {
+    const due = await db.sellerVerification.findMany({
+      where: { retentionUntil: { not: null, lt: now }, status: { in: [...TERMINAL] } },
+      orderBy: { retentionUntil: 'asc' },
+      take: limit,
+      select: { id: true, status: true, documents: true },
+    })
+    if (!due.length) break
+    let batchMoved = 0
+    for (const row of due) {
+      const docs = parseVerificationDocs(row.documents)
+      if (!Array.isArray(row.documents) || docs.length !== row.documents.length) {
+        malformed++
+        logError(new Error(`malformed documents column on ${row.id}`), { op: 'business-verification.retention.malformed' })
+        if (await pushBack(row.id)) batchMoved++
+        else failed++ // still at the head of the line — that IS a failure of the sweep
+        continue
+      }
+      try {
+        await removeVerificationDocs(docs.map((d) => d.path))
+      } catch (e) {
+        failed++
+        console.error('[business-verification] retention: objects NOT removed, row pushed back for retry', row.id, e instanceof Error ? e.message : e)
+        if (await pushBack(row.id)) batchMoved++
+        continue
+      }
+      // The objects are gone. Clear the pointers — guarded on the status only: a decided row
+      // cannot gain documents, and a retention date that moved meanwhile does not bring an
+      // object back. A miss here means the status left the terminal set under us, which the
+      // transition map does not allow; it is logged and counted as the drift it is.
+      // ⚠️ A DATABASE ERROR HERE MUST NOT ABORT THE RUN: the objects are already gone, the row still
+      // points at them, and the rest of the batch still has work. Counted, pushed back, continued —
+      // the row is re-read tomorrow, finds nothing to remove (absent is fine) and clears then.
+      let cleared: { count: number }
+      try {
+        cleared = await db.sellerVerification.updateMany({
+          where: { id: row.id, status: { in: [...TERMINAL] } },
+          data: { documents: [], retentionUntil: null },
+        })
+      } catch (err) {
+        failed++
+        logError(err, { op: 'business-verification.retention.clear' })
+        if (await pushBack(row.id)) batchMoved++
+        continue
+      }
+      if (cleared.count !== 1) {
+        failed++
+        console.error('[business-verification] retention: row left the decided set under the sweep, pointers not cleared', row.id)
+        if (await pushBack(row.id)) batchMoved++
+        continue
+      }
+      swept++
+      batchMoved++
+    }
+    // Per-batch progress, not cumulative: a batch that moved nothing (no sweep, no push-back) would
+    // only re-read the same heads — stop; the response says what remains.
+    if (due.length < limit || batchMoved === 0) break
+  }
+  const [remaining, skippedNonTerminal] = await Promise.all([
+    db.sellerVerification.count({ where: { retentionUntil: { not: null, lt: now }, status: { in: [...TERMINAL] } } }),
+    db.sellerVerification.count({ where: { retentionUntil: { not: null, lt: now }, status: { notIn: [...TERMINAL] } } }),
+  ])
+  return { swept, failed, malformed, skippedNonTerminal, remaining }
 }
 
 export type { VerificationDocKind }

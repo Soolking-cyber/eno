@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Mirror the Cloud Scheduler jobs as systemd timers on the VN box.
 #
-# ⛔ WHY THIS EXISTS: at cutover the traffic moves but the SCHEDULES do not. All eight
+# ⛔ WHY THIS EXISTS: at cutover the traffic moves but the SCHEDULES do not. All the
 # app crons live in Cloud Scheduler, in the project the migration intends to retire —
 # so without this, PII retention, digests, alerts and GC simply stop the day GCP goes.
 #
@@ -20,6 +20,9 @@ PORT="${2:-3001}"
 
 declare -A SCHED=(
   [visa-retention]="*-*-* 07:00:00 UTC"
+  # Business-registration document retention (SellerVerification). Same shape as visa-retention,
+  # half an hour later so the two PII sweeps never share a minute of the pooler.
+  [business-verification-retention]="*-*-* 07:30:00 UTC"
   [price-stats]="*-*-* 03:00:00 UTC"
   [video-gc]="*-*-* 03:30:00 UTC"
   [warm-translations]="*-*-* 21:00:00 UTC"
@@ -39,6 +42,11 @@ declare -A SCHED=(
 SAFE=(visa-retention price-stats video-gc warm-translations affiliate-prices)
 # Installed, NOT enabled: these send email to real people.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
+# Installed, NOT enabled: the FIRST run acts on a policy nobody has acted on yet — every decided
+# business-verification case older than 30 days loses its registration scans, approved sellers
+# included (VERIFICATION_DOC_RETENTION_MS). Enable it once that retention is confirmed:
+#   systemctl enable --now eno-cron-business-verification-retention.timer
+POLICY=(business-verification-retention)
 
 install -d -m 0755 /opt/eno/bin
 cat > /opt/eno/bin/eno-cron.sh <<'RUN'
@@ -94,6 +102,15 @@ UNIT
 done
 systemctl daemon-reload
 for j in "${SAFE[@]}"; do systemctl enable --now "eno-cron-$j.timer" >/dev/null 2>&1 && echo "  enabled  eno-cron-$j.timer"; done
+# ⚠️ Units for POLICY jobs are written by the SCHED loop above like every other job — only the
+# enable is left to the operator, and this line is how they learn that (and how POLICY is consumed).
+# ⚠️ STATED FROM systemd, NOT ASSUMED: a re-run of this installer neither enables nor disables a
+# POLICY unit (that decision is the operator's and must survive re-installs), so the line reports
+# whatever state the unit is actually in.
+for j in "${POLICY[@]}"; do
+  if systemctl is-enabled --quiet "eno-cron-$j.timer" 2>/dev/null; then echo "  enabled  eno-cron-$j.timer (policy — enabled by an operator earlier)"
+  else echo "  installed, NOT enabled (policy) eno-cron-$j.timer — when confirmed: systemctl enable --now eno-cron-$j.timer"; fi
+done
 for j in "${EMAIL[@]}"; do systemctl disable "eno-cron-$j.timer" >/dev/null 2>&1 || true; echo "  installed (DISABLED, sends email) eno-cron-$j.timer"; done
 echo
 echo "At cutover, enable the email crons:"

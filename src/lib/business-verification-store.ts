@@ -83,11 +83,18 @@ export async function signVerificationDoc(path: string, ttlSeconds = 600): Promi
   return data.signedUrl
 }
 
-/** Remove a decided case's documents (retention job / on hard delete). Best-effort. */
+/**
+ * Remove a case's bucket objects. ⛔ STRICT: a storage failure THROWS. The previous version logged
+ * the error and returned normally, and its only caller then cleared the row's `documents` — so one
+ * object-store blip left business-registration scans in the bucket with no surviving row able to
+ * find them again (2026-09-05 review, S03). The caller must clear the row ONLY after this returns.
+ * An object that is already absent is not a failure: Supabase omits it from `data` without an
+ * error, and absent IS the desired end state.
+ */
 export async function removeVerificationDocs(paths: string[]): Promise<void> {
   if (!paths.length) return
   const { error } = await getSupabaseAdmin().storage.from(BUSINESS_VERIFICATION_BUCKET).remove(paths)
-  if (error) console.error('[business-verification] remove failed', error.message)
+  if (error) throw new Error(`verification_docs_remove_failed: ${error.message}`)
 }
 
 /** Parse the persisted JSON documents column into typed records, dropping anything malformed. */
