@@ -68,7 +68,10 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   const amount = isFree
     ? tr('Free', 'Miễn phí')
     : currency === '₫' ? format(price, locale) : formatMoneyFull(price, currency, locale)
-  const suffix = !isFree && unitRaw && showUnit !== false ? ` / ${unit}` : null
+  // ⚠️ NO LEADING SPACE — the space that separates the suffix from the amount is rendered as its
+  // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the
+  // price line has. See the suffix markup below.
+  const suffix = !isFree && unitRaw && showUnit !== false ? `/ ${unit}` : null
 
   // Approximation: USD unless the display already IS USD (then VND). Rendered only
   // once rates exist (prefetched + cached 12h by the provider) and for real prices.
@@ -189,15 +192,30 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
         * for this span even when the text occupies two lines — that metric is what made me refute
         * this bug as a false positive the first time it was reported.
         */}
-      <span className="whitespace-nowrap">
-        {amount}
-      {/* The bare text node is kept for the default (always-on) case so the other
-          call sites' DOM is byte-identical to before; only the 'sm' variant needs a
-          wrapper element to hang the breakpoint class on. */}
-        {suffix && (showUnit === 'sm'
-          ? <span className="hidden sm:inline">{suffix}</span>
-          : suffix)}
-      </span>
+      <span className="whitespace-nowrap">{amount}</span>
+      {/* ⛔ THE UNIT SUFFIX IS ITS OWN NOWRAP RUN, SEPARATED FROM THE AMOUNT BY A REAL SPACE — so
+          the price can wrap at the unit and NOWHERE else. Until 2026-09-05 the suffix sat INSIDE
+          the amount's nowrap span, which made "2,370,000 VND / service" one unbreakable run; the
+          `unit` doc above promised "if a card cannot fit the price, the price WRAPS" and the DOM
+          could not deliver it. MEASURED on eno.vn ?q=visa, 2-column feed: 8 of 8 service cards
+          overflowed — by 24–40px at 390 (179px column), 39–57px at 360, 73–77px at 320 — and the
+          run painted straight over the neighbouring card. The owner reported it twice ("the text
+          overlaps"); the first fix (`unit="sm"`, f780cc23) applied only to rows that PASS `unit`,
+          and the card never did — hiding "/ month" on a card is the meaning change the doc above
+          forbids anyway. After: "2,370,000 VND" on line 1, "/ service ≈ $91" on line 2, 45px tall —
+          the two-line height the skeleton already reserves. Zero overflowing cards at 320–430.
+          ⚠️ The suffix is nowrap on its own so "/ dịch vụ" never strands a lone "/" at a line end
+          (the same fault the approximation below guards against). ⚠️ The separating space lives
+          OUTSIDE both nowrap spans — a space at the start of a nowrap span is not a break
+          opportunity, and two adjacent nowrap inlines with nothing between them cannot break at all
+          (the `<wbr>` lesson below). For the 'sm' variant the space is inside the hidden wrapper so
+          the compact row's one-line width is unchanged below sm. */}
+      {suffix && (
+        <span className={showUnit === 'sm' ? 'hidden sm:inline' : undefined}>
+          {' '}
+          <span className="whitespace-nowrap">{suffix}</span>
+        </span>
+      )}
       {/* ⛔ A ZERO-WIDTH BREAK OPPORTUNITY, AND WITHOUT IT THIS ROW CANNOT WRAP AT ALL. Both spans
           carry `whitespace-nowrap` and JSX strips the newline between them, so there is no text
           node here — and two adjacent inline boxes with no intervening whitespace offer the line
