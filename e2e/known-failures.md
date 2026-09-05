@@ -103,5 +103,31 @@ A fixture-backed gate closes that without touching production data:
 4. **On merge, not on a schedule** — the point is to stop a regression before the deploy script
    runs, so the job goes beside `check` in `ci.yml`, `--fail-on-flaky-tests`, 12-minute budget.
 
-Not built in the review pass: it needs the branch database (a Supabase plan/billing decision)
-and the CI secrets for it, which are the owner's to provision.
+**BUILT 2026-09-06 — and it needed neither.** The branch database was the wrong shape for the
+problem: a CI job can create its own Postgres in five seconds. `.github/workflows/ci.yml` job
+`marketplace-e2e` now runs on every push and PR:
+
+1. `postgres:17-alpine` as a service container.
+2. `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script` → `psql`. ⛔ NOT
+   `prisma db push`, which reconciles a database TO the schema and emits 18 `DROP TABLE`s against
+   ours; the job greps the generated SQL for `DROP`/`TRUNCATE` and refuses to apply it if one
+   ever appears.
+3. `scripts/ci-fixtures.ts` — 15 categories, two sellers, six verified listings across three
+   categories, plus the visa/trip DESK account. The desk exists because the marketplace edition
+   fails closed when it cannot resolve the desk it must exclude (`DeskResolutionError`), so an
+   empty database cannot render `/` at all. ⛔ The script refuses any non-loopback host: it writes
+   PUBLIC rows, and a verified listing on production is visible to every visitor.
+4. `npm run build` as the marketplace edition, served from `.next/standalone` on :3100.
+5. `npx playwright test --project=ci-fixtures` (`e2e/ci/**`, `E2E_CI_BASE` — its own variable, so
+   the gate cannot be aimed at a real deployment by setting the one everything else uses).
+
+Five assertions, all against rows the job just created: every fixture is in the feed; the desk
+listing reaches neither the feed nor `?q=visa` (the licensing control, in a browser, which is the
+path that leaked on 2026-09-01); a category page shows its own and no others; search finds one by
+title; and no price run spills outside its card at 390px — the overlap the owner reported twice.
+
+No production secret, no Supabase project, no billing decision. Reproducible on a laptop with the
+same commands; measured locally end to end before it was committed (5 passed in 4.6s).
+
+The paragraphs above still describe the LIVE-data guest suite, which stays out of the merge gate
+for the reason given there.

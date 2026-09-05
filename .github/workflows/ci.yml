@@ -116,6 +116,128 @@ jobs:
       - name: Test
         run: npx vitest run
 
+  # ── Marketplace e2e, against fixtures (review Q01) ─────────────────────────────
+  # ⛔ THE GATE THE MARKETPLACE DID NOT HAVE. Until now the only browser suite on merge was the
+  # dormant forum tree's, and the root guest specs read LIVE production data — so they are red on
+  # the licensed edition (the hide-list empties the feed) and green on the services one, which is
+  # why they were never wired here. A marketplace regression therefore reached users before any
+  # browser saw it.
+  #
+  # This job owns its data instead of reading someone else's: a throwaway Postgres, the schema
+  # generated from prisma/schema.prisma, six known listings plus the desk account, and assertions
+  # about exactly those rows (e2e/ci/**). No production secret, no Supabase project, no branch
+  # database — it is reproducible on a laptop with the same three commands.
+  #
+  # ⚠️ THE SCHEMA COMES FROM `migrate diff`, NOT `db push`. `prisma db push` reconciles a database
+  # TO the schema and emits 18 DROP TABLEs against ours (the tables Prisma does not manage) — it is
+  # banned in this repo for that reason, and a CI habit is exactly how a banned command finds its
+  # way to a production URL one day. `migrate diff --from-empty` only ever emits CREATE.
+  marketplace-e2e:
+    name: Marketplace E2E (fixtures)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: eno
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/eno
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/eno
+      # ⚠️ THE EDITION AND ITS URL MUST AGREE — next.config.ts refuses a marketplace build whose
+      # NEXT_PUBLIC_APP_URL is not eno.vn (one domain's identity on the other's pages). The server
+      # still LISTENS on 3100; only the canonical URL baked into the HTML is eno.vn.
+      NEXT_PUBLIC_ENO_EDITION: marketplace
+      NEXT_PUBLIC_APP_URL: https://eno.vn
+      MARKETPLACE_HOSTS_SERVICES: 'true'
+      # Placeholders: nothing in this job authenticates, uploads, or pays. Real keys would buy
+      # nothing and would make the gate un-runnable outside this repository.
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+      SUPABASE_SECRET_KEY: sb_secret_ci_placeholder
+      VISA_DATA_ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+      CRON_SECRET: ci-cron-secret
+      ADMIN_EMAILS: ci-admin@eno.vn
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          ok=0
+          for i in 1 2 3; do
+            if npm ci; then ok=1; break; fi
+            echo "npm ci failed (attempt $i/3) — retrying in $((i * 15))s"
+            sleep $((i * 15))
+          done
+          [ "$ok" = 1 ] || { echo '::error::npm ci failed after 3 attempts'; exit 1; }
+
+      - name: Create the schema (additive SQL only)
+        run: |
+          npx prisma generate
+          npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > /tmp/schema.sql
+          # Fail closed if the generator ever emits a destructive statement into a file we pipe to psql.
+          if grep -qiE '^[[:space:]]*(DROP|TRUNCATE)[[:space:]]' /tmp/schema.sql; then
+            echo '::error::migrate diff emitted a destructive statement — refusing to apply'; exit 1
+          fi
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /tmp/schema.sql > /dev/null
+
+      - name: Seed fixtures
+        run: npx tsx scripts/ci-fixtures.ts
+        env:
+          ALLOW_FIXTURE_WRITES: '1'
+
+      - name: Build the marketplace edition
+        run: npm run build
+
+      - name: Serve it on :3100
+        run: |
+          cp -R .next/static .next/standalone/.next/
+          cp -R public .next/standalone/
+          PORT=3100 HOSTNAME=127.0.0.1 node .next/standalone/server.js > /tmp/server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3100/ || true)" = "200" ]; then
+              echo "serving after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo '::error::the fixture server never answered 200'; tail -50 /tmp/server.log; exit 1
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the fixture gate
+        run: npx playwright test --project=ci-fixtures --workers=1 --retries=1 --fail-on-flaky-tests
+        env:
+          E2E_CI_BASE: http://127.0.0.1:3100
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: marketplace-playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   # ── Forum e2e ──────────────────────────────────────────────────────────────────
   # Added 2026-07-21 after THREE forum specs sat red for weeks with nobody noticing:
   # nothing in CI ran them.

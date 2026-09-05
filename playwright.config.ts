@@ -15,12 +15,22 @@ import { existsSync } from 'node:fs'
 // your build (fail-open verification). The target must now be EXPLICIT every time:
 // local  → E2E_BASE=http://localhost:3000
 // prod   → E2E_BASE=https://eno.vn   (the /ship post-deploy pass sets it deliberately)
-if (!process.env.E2E_BASE && !process.env.E2E_AUTHED_BASE) {
+if (!process.env.E2E_BASE && !process.env.E2E_AUTHED_BASE && !process.env.E2E_CI_BASE) {
   throw new Error('Set E2E_BASE explicitly (http://localhost:3000 for your build, https://eno.vn for the deliberate prod pass) — there is no default.')
 }
 const GUEST_BASE = (process.env.E2E_BASE || 'https://eno.vn').replace(/\/$/, '')
 const AUTHED_BASE = process.env.E2E_AUTHED_BASE?.replace(/\/$/, '') || ''
 const AUTH_DIR = 'e2e/.auth'
+
+// ⛔ THE FIXTURE GATE'S OWN BASE, AND IT IS A THIRD VARIABLE ON PURPOSE (review Q01). `e2e/ci/**`
+// asserts against rows `scripts/ci-fixtures.ts` just created in a throwaway Postgres — "six
+// listings, this one excluded" is a claim about FIXTURES, and pointed at a real deployment it
+// would be a claim about real inventory. Giving it its own variable means the merge gate cannot
+// be aimed at production by setting the variable everything else uses.
+const CI_BASE = process.env.E2E_CI_BASE?.replace(/\/$/, '') || ''
+const ciProjects: Project[] = CI_BASE
+  ? [{ name: 'ci-fixtures', use: { ...devices['Desktop Chrome'], baseURL: CI_BASE }, testMatch: /ci\/.*\.spec\.ts/ }]
+  : []
 
 // ⚠️ E2E_RESOLVE EXISTS FOR ONE REAL CASE: testing an origin whose DNS has not
 // propagated to THIS machine's resolver yet. Pre-cutover, sb.eno.vn was created
@@ -103,5 +113,5 @@ export default defineConfig({
     actionTimeout: 10_000,
     navigationTimeout: 20_000,
   },
-  projects: [...guestProjects, ...authedProjects],
+  projects: [...guestProjects, ...authedProjects, ...ciProjects],
 })
