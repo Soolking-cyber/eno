@@ -2331,7 +2331,17 @@ export function ListingsExplorer({
     // ⚠️ The gap BELOW is NOT simply the space-y class — on mobile it measured 44.3px, not the
     // 32px space-y-8 suggests, because the banner's own section contributes the rest. If you
     // touch the spacing below, RE-MEASURE the real gap rather than recomputing from the classes.
-    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-5 pb-5 sm:pt-6 sm:pb-8">
+    // ⚠️ `pt-3` ON MOBILE IS A MEASURED TRADE, NOT A TIDY-UP (review UI/UX 1, 2026-09-06). At
+    // 390×844 the first card's image began at y=667 and its PRICE at y=856 — below the 772px
+    // bottom nav, so the first screen of a marketplace showed no price and no title, only chrome.
+    // The two safe levers are here and on the promo wrapper below. The dominant term is the
+    // promo's own `aspect-[2.04]` (179px of the 667), and that is the owner's creative, not ours
+    // to crop. RE-MEASURE after touching this, as the note above already says: the gap below is
+    // not the space-y class.
+    // ⛔ A `{/* … */}` COMMENT CANNOT LIVE HERE — right after `return (` is expression position,
+    // where JSX comment syntax is a syntax error (tsc TS1005). This is the second time in one
+    // night; CLAUDE.md records the rule.
+    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-3 pb-5 sm:pt-6 sm:pb-8">
       {/* Width + edge gutter are owned by the parent page <main> (canonical
           max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
       <div className="relative w-full">
@@ -2504,7 +2514,10 @@ export function ListingsExplorer({
           // ⚠️ The padding below is NOT decoration: this block used to be a space-y column whose
           // step set the gap down to the ladder. With one child left the step never fires, so the
           // gap has to be stated here or the banner sits flush against the category rail.
-          <div className="pb-8 sm:pb-12 lg:pb-8">
+          // `pb-4` on mobile: see the first-screen note on the section above. Unchanged at sm+,
+          // where the fold is not the constraint. (A `{…}` comment here would be expression
+          // position again — this sits directly inside `showBanner && (`.)
+          <div className="pb-4 sm:pb-12 lg:pb-8">
             <PromoBanner />
           </div>
         )}
