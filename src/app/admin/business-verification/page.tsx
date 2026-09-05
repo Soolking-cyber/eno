@@ -7,6 +7,6 @@ export const dynamic = 'force-dynamic'
 export default async function LegacyAdminRoute({ searchParams }: { searchParams?: Promise<{ q?: string | string[] }> }) {
   // The history search rode on `?q=`; a bookmark of one keeps working.
   const raw = (await searchParams)?.q
-  const q = Array.isArray(raw) ? raw[0] : raw
+  const q = (Array.isArray(raw) ? raw[0] : raw)?.slice(0, 100) // the same cap the search itself applies
   permanentRedirect(`/admin/verification?tab=business${q ? `&q=${encodeURIComponent(q)}` : ''}`)
 }
