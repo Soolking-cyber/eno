@@ -58,8 +58,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # drops in there is pruned by being in there, with no filename convention to remember. The taxonomy
 # artwork stays in `public/icons/categories/` and ships to both editions, which is correct — those
 # are categories, not services.
+# ⛔ `npm run build &&`, NOT `;`. A RUN step exits with its LAST command's status, and the last
+# command here is the pruning `if`, which always succeeds — so a failed `next build` sailed through
+# this step and only surfaced (if at all) as a missing-file error in a later COPY, far from the real
+# failure (2026-09-05 review, O02). With `&&` the stage stops at the build, on the build's own exit.
 RUN --mount=type=secret,id=buildenv \
-    sh -c 'set -a; [ -f /run/secrets/buildenv ] && . /run/secrets/buildenv; set +a; npm run build; \
+    sh -c 'set -a; [ -f /run/secrets/buildenv ] && . /run/secrets/buildenv; set +a; npm run build && \
            if [ "$NEXT_PUBLIC_ENO_EDITION" = "marketplace" ]; then \
              rm -fv public/banners/evisa-* .next/standalone/public/banners/evisa-* 2>/dev/null || true; \
              rm -rfv public/icons/services .next/standalone/public/icons/services 2>/dev/null || true; \

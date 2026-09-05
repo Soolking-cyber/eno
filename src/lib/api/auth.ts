@@ -43,9 +43,36 @@ export function hashApiKey(raw: string): string {
 
 // Mint a fresh key: returns the FULL secret (return to the user ONCE) + the parts to
 // persist (prefix for display, hash for lookup).
-export function generateApiKey(env: 'live' | 'test' = 'live'): { secret: string; prefix: string; hashedKey: string } {
-  const body = crypto.randomBytes(24).toString('base64url').replace(/[^A-Za-z0-9]/g, '').slice(0, 32)
+/**
+ * ⛔ THE BODY IS DRAWN FROM THE ACCEPTED ALPHABET, NOT STRIPPED DOWN TO IT. The previous version
+ * took 24 random bytes (32 base64url characters) and REMOVED every `-` and `_` — so whenever the
+ * encoding produced one, the body came out shorter than the 32 characters `API_KEY_RE` requires,
+ * and the key the seller had just copied was rejected by every authenticated call. That is not
+ * rare: P(no `-`/`_` in 32 base64url chars) = (62/64)^32 ≈ 36%, so roughly two keys in three were
+ * dead on arrival (a 10,000-key sample in the 2026-09-05 review rejected 6,315). Keys are shown
+ * once and stored hashed, so an invalid one cannot be repaired — only replaced.
+ *
+ * Rejection sampling: each byte is used only when it falls inside 62 × 4 = 248, so every
+ * alphabet character is equally likely (a bare `% 62` would bias the first eight). 32 characters
+ * of base-62 ≈ 190 bits.
+ */
+const KEY_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+export const API_KEY_BODY_LENGTH = 32
+export function generateApiKey(env: 'live' | 'test' = 'live', random: (n: number) => Buffer = crypto.randomBytes): { secret: string; prefix: string; hashedKey: string } {
+  let body = ''
+  // Bounded: a broken `random` that only ever yields rejected bytes must fail loudly, not spin.
+  for (let round = 0; body.length < API_KEY_BODY_LENGTH; round++) {
+    if (round >= 64) throw new Error('api_key_generator_entropy_exhausted')
+    for (const b of random(API_KEY_BODY_LENGTH)) {
+      if (b >= 248) continue
+      body += KEY_ALPHABET[b % 62]
+      if (body.length === API_KEY_BODY_LENGTH) break
+    }
+  }
   const secret = `eno_${env}_${body}`
+  // ⚠️ THE GENERATOR AND THE VALIDATOR ARE THE SAME CONTRACT. A key this function returns that
+  // `API_KEY_RE` would refuse is a bug in one of them, and it must never reach a seller.
+  if (!API_KEY_RE.test(secret)) throw new Error('api_key_generator_contract_violated')
   return { secret, prefix: secret.slice(0, 16), hashedKey: hashApiKey(secret) }
 }
 

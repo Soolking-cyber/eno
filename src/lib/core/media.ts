@@ -6,7 +6,7 @@ import { getSharp } from '@/lib/sharp-lazy'
 import { getSupabaseAdmin, LISTINGS_BUCKET, EVIDENCE_BUCKET, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { watermarkSvg, watermarkPlacement, inkForLuminance } from '@/lib/core/watermark-mark'
 import { dHash } from '@/lib/image-hash'
-import { isListingVideoUrl } from '@/lib/listing-image'
+import { isListingVideoUrl, VIDEO_EXTENSIONS } from '@/lib/listing-image'
 
 // Listing-image media core. Single place that turns raw image bytes into a stored,
 // first-party WebP asset — shared by /api/upload (post wizard), the bulk importer's
@@ -106,6 +106,13 @@ export const VIDEO_ALLOWED = new Map<string, string>([
   ['video/webm', 'webm'],
   ['video/quicktime', 'mov'],
 ])
+// ⛔ DRIFT GUARD. The signed-URL mint stores `${ts}-${rand}.${ext}` for these, and the listing
+// save accepts only what `isListingVideoUrl` parses. An extension added here but not to
+// VIDEO_EXTENSIONS would be stored, then refused on save, with no test going red — so the module
+// refuses to load instead (2026-09-05 review).
+for (const ext of VIDEO_ALLOWED.values()) {
+  if (!(VIDEO_EXTENSIONS as readonly string[]).includes(ext)) throw new Error(`VIDEO_ALLOWED extension "${ext}" is not in listing-image VIDEO_EXTENSIONS`)
+}
 // ⚠️ 50MB is the Supabase PROJECT-WIDE upload ceiling (probed 2026-07-18: updateBucket
 // rejects 51MB+ until the owner raises Project Settings → Storage → upload limit). The
 // wizard therefore accepts big phone clips and COMPRESSES them client-side to fit
