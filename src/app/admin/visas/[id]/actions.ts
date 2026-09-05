@@ -20,7 +20,7 @@ export async function transitionVisaStatus(id: string, next: string): Promise<Vi
   if (!(await visaCaseInScope(id, scope))) return { ok: false, error: 'not_found' }
   const result = await transitionVisaCase(id, next, scope.operator, scope)
   if (result.ok) {
-    revalidatePath('/admin/visas')
+    revalidatePath('/admin/services')
     revalidatePath(`/admin/visas/${id}`)
   }
   return result

@@ -170,7 +170,9 @@ export const SERVICES_NAV_SERVICES: ServicesNavRow = { href: '/dashboard/service
 export const SERVICES_NAV_PAYMENTS: ServicesNavRow = { href: '/dashboard/payments', en: 'Payments', vi: 'Thanh toán' }
 
 /** Admin group. EN-only, by the repo convention that admin chrome is never localized. */
-export const SERVICES_NAV_ADMIN_QUEUE: ServicesNavRow = { href: '/admin/visas', en: 'Visas' }
+// ⚠️ 'Desks', not 'Services': the Marketplace group already has a 'Services' row on this edition, and
+// the rail's e2e asserts every link name is unique (two rows called Services failed it, 2026-09-05).
+export const SERVICES_NAV_ADMIN_QUEUE: ServicesNavRow = { href: '/admin/services', en: 'Desks' }
 
 /** The two home-page desk tiles. */
 export const SERVICES_DESK_TILES: ServicesTile[] = [

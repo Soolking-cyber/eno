@@ -47,7 +47,7 @@ import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_PAYMENTS, SERVICES_NAV_SERVICES 
 import {
   Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Wallet,
   CircleHelp, Route,
-  Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp, Gavel, Filter,
+  Flag, ClipboardList, Star, Stamp, Gavel, Users,
   type IconComponent, ShieldCheck } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 
@@ -266,15 +266,17 @@ export const DASHBOARD_NAV: NavGroup[] = [
       // piece 16: the signature "more fill, same line" must not vanish on the console's most
       // repeated icon moment). They need no per-row opt-in any more — the selected fill is
       // the renderer's one rule, applied to whatever glyph the row carries.
-      { href: '/admin', en: 'Reports', icon: Flag, exact: true },
-      { href: '/admin/funnel', en: 'Publish funnel', icon: Filter },
-      { href: '/admin/disputes', en: 'Disputes', icon: Gavel },
-      { href: '/admin/enforcement', en: 'Enforcement', icon: ShieldAlert },
-      { href: '/admin/listings', en: 'Listings', icon: ClipboardList },
-      { href: '/admin/brands', en: 'Brands', icon: Tags },
-      { href: '/admin/feedback', en: 'Feedback', icon: Star },
+      // ⚠️ CONSOLE v2 (owner, 2026-09-05: "combine, fewer pages, easy to manage"). Seven sections,
+      // each a page with tabs, in the order an operator's day runs: what needs attention, who the
+      // people are, who is verified, what was reported, what is on sale, the service desks, and
+      // what the numbers say. The old eleven rows redirect into these.
+      { href: '/admin', en: 'Overview', icon: Flag, exact: true },
+      { href: '/admin/users', en: 'Users', icon: Users },
+      { href: '/admin/verification', en: 'Verification', icon: ShieldCheck },
+      { href: '/admin/moderation', en: 'Moderation', icon: Gavel },
+      { href: '/admin/catalogue', en: 'Catalogue', icon: ClipboardList },
       ...(IS_SERVICES ? [{ ...SERVICES_NAV_ADMIN_QUEUE, icon: Stamp, servicesOnly: true }] : []),
-      { href: '/admin/business-verification', en: 'Business verification', icon: ShieldCheck },
+      { href: '/admin/insights', en: 'Insights', icon: Star },
     ],
   },
 ]

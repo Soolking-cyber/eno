@@ -61,7 +61,7 @@ export default async function AdminConversationPage({ params }: Props) {
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         {/* Back-affordance chevron = the nav-chrome tier (§2: section-header back
             is STROKE_NAV), same hand as the dashboard section header's back. */}
-        <Link href="/admin" className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
+        <Link href="/admin/moderation" className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
           <ChevronLeft className="h-4 w-4" strokeWidth={STROKE_NAV} /> Back to moderation
         </Link>
 

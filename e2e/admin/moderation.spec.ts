@@ -8,19 +8,19 @@ test.describe('admin moderation', () => {
   test.skip(!process.env.E2E_AUTHED_BASE, 'requires a preview deploy + seeded admin (E2E_AUTHED_BASE)')
 
   test('loads the moderation queue (not the restricted screen)', async ({ page }) => {
-    await page.goto('/admin')
+    await page.goto('/admin/moderation')
     await expect(page.getByRole('heading', { name: /moderation/i })).toBeVisible()
     await expect(page.getByText(/restricted area/i)).toHaveCount(0)
   })
 
   test('shows the filter chips', async ({ page }) => {
-    await page.goto('/admin')
+    await page.goto('/admin/moderation')
     await expect(page.getByRole('button', { name: /^All \(/ })).toBeVisible()
     await expect(page.getByRole('button', { name: /^Critical \(/ })).toBeVisible()
   })
 
   test('two-pane: selecting a case loads it into the detail pane', async ({ page }) => {
-    await page.goto('/admin')
+    await page.goto('/admin/moderation')
     // Desktop two-pane renders at lg+. If there are open cases, the action controls appear in
     // the detail pane; otherwise the empty state shows — both are valid rendered states.
     const decisionControls = page.getByRole('button', { name: /confirm|dismiss/i }).first()

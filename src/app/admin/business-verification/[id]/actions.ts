@@ -14,7 +14,7 @@ export async function approveVerificationAction(caseId: string): Promise<ReviewR
   if (!admin) return { ok: false, error: 'not_found' } // never leak that the id exists to a non-admin
   const result = await approveVerification(caseId, admin)
   if (result.ok) {
-    revalidatePath('/admin/business-verification')
+    revalidatePath('/admin/verification')
     revalidatePath(`/admin/business-verification/${caseId}`)
   }
   return result
@@ -27,7 +27,7 @@ export async function rejectVerificationAction(caseId: string, note: string): Pr
   if (!reason) return { ok: false, error: 'not_pending' }
   const result = await rejectVerification(caseId, admin, reason)
   if (result.ok) {
-    revalidatePath('/admin/business-verification')
+    revalidatePath('/admin/verification')
     revalidatePath(`/admin/business-verification/${caseId}`)
   }
   return result

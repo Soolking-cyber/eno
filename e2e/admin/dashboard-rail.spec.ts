@@ -16,18 +16,19 @@ test.describe('admin dashboard rail', () => {
 
     // Every admin queue row, by its internal href (the Admin group in dashboard-nav.tsx).
     // These render only once the server-computed isAdmin lands, so each expect auto-waits.
-    for (const href of ['/admin', '/admin/disputes', '/admin/enforcement', '/admin/listings', '/admin/brands', '/admin/feedback']) {
+    // Console v2 (2026-09-05): seven sections; the old eleven queue rows redirect into their tabs.
+    for (const href of ['/admin', '/admin/users', '/admin/verification', '/admin/moderation', '/admin/catalogue', '/admin/insights']) {
       await expect(rail.locator(`a[href="${href}"]`), `admin rail row ${href}`).toHaveCount(1)
     }
     // The Visas operator row (aria-label "Visas"). Its href is /admin/visas once the queue is
     // ported into this app; until then dashboard-nav.tsx deliberately points it at the forum
     // operator tool — accept exactly those two targets, nothing else.
-    const visas = rail.getByRole('link', { name: 'Visas', exact: true })
+    const visas = rail.getByRole('link', { name: 'Desks', exact: true })
     await expect(visas).toHaveCount(1)
     const visasHref = await visas.getAttribute('href')
     expect(
-      visasHref === '/admin/visas',
-      `unexpected Visas row target: ${visasHref}`,
+      visasHref === '/admin/services',
+      `unexpected Desks row target: ${visasHref}`,
     ).toBe(true)
 
     // The regular Marketplace/Community groups stay present (role-gated, not path-switched):
@@ -44,8 +45,9 @@ test.describe('admin dashboard rail', () => {
     await expect(rail.getByText('Admin', { exact: true })).toBeVisible()
   })
 
-  test('/admin/visas responds for the admin with the visa queue', async ({ page }) => {
-    // The ported queue page's real heading (root app, /admin/visas).
+  test('/admin/visas redirects the admin into the Services section with the visa queue', async ({ page }) => {
+    // The old URL is a permanent redirect into /admin/services?tab=visas; the tab's own heading is
+    // still "Visa queue".
     const response = await page.goto('/admin/visas')
     expect(response?.status(), '/admin/visas should be a live page for the admin').toBe(200)
     await expect(page.getByText(/restricted area/i)).toHaveCount(0)

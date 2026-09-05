@@ -21,7 +21,7 @@ export async function approveIdentityAction(verificationId: string): Promise<Rev
   const admin = await getAdmin()
   if (!admin) return { ok: false, code: 'not_found' }
   const result = await reviewKycCase({ verificationId, admin, decision: 'approve' })
-  if (result.ok) revalidatePath('/admin/identity')
+  if (result.ok) revalidatePath('/admin/verification')
   return result
 }
 
@@ -36,6 +36,6 @@ export async function rejectIdentityAction(verificationId: string, note: string)
   const reason = (note || '').trim()
   if (!reason) return { ok: false, code: 'not_pending' }
   const result = await reviewKycCase({ verificationId, admin, decision: 'reject', note: reason })
-  if (result.ok) revalidatePath('/admin/identity')
+  if (result.ok) revalidatePath('/admin/verification')
   return result
 }

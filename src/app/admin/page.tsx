@@ -1,114 +1,109 @@
+import type { Metadata } from 'next'
+import Link from 'next/link'
 import { AdminDenied } from '@/components/admin/admin-denied'
+import { AdminSectionShell } from '@/components/admin/section-shell'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
-import { ModerationClient, type ModCase } from '@/components/admin/moderation-client'
-import { reportContext, reportTargetKey, targetContext, type RawReport } from '@/lib/admin-reports'
-import { EmptyState } from '@/components/ui/empty-state'
-import { Monitor } from '@/components/ui/icons'
-import type { Metadata } from 'next'
+import { scopedListingWhere } from '@/lib/edition-scope'
+import { Card } from '@/components/ui/card'
+import { IS_SERVICES } from '@/lib/edition'
+import { openStatuses } from '@/lib/trips/status'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = { title: 'Admin — eno.vn', robots: { index: false, follow: false } }
 
-export const metadata: Metadata = {
-  title: 'Moderation — eno.vn',
-  robots: { index: false, follow: false },
-}
+// CONSOLE v2 HOME: what needs a human right now, and where the console goes. Every tile is a link
+// into the section that does the work, and the queues with something waiting sort first. Until
+// 2026-09-05 the admin home WAS the reports inbox, which is why two identity cases sat unreviewed
+// for two days: the queue that needed a person had no tile, no row and no count anywhere.
+const DAY_MS = 86_400_000
 
-// Priority = severity × reporter-credibility × community pile-on, age-boosted. Tunable.
-const SEV_W: Record<string, number> = { severe: 3, moderate: 2, minor: 1 }
-function credibility(rep: { trustScore: number; strikes: number } | null): number {
-  if (!rep) return 0.6
-  if (rep.strikes > 0) return 0.4 // serial / penalized reporter → down-weight
-  if (rep.trustScore >= 110) return 1.4
-  if (rep.trustScore >= 85) return 1.2
-  return 1.0
-}
-const BUCKET_RANK: Record<ModCase['bucket'], number> = { critical: 0, high: 1, standard: 2 }
-
-export default async function AdminPage() {
+export default async function AdminOverviewPage() {
   const admin = await getAdmin()
-
-  if (!admin) {
-    return <AdminDenied />
-  }
-
-  const SELECT = { id: true, reason: true, detail: true, severity: true, status: true, createdAt: true, resolvedBy: true, resolvedAt: true, internalNote: true, appealNote: true, appealImages: true, appealedAt: true, sellerResponse: true, sellerRespondedAt: true, reporterProfileId: true, listingId: true, conversationId: true, targetSellerId: true, targetProfileId: true } as const
-  const [openRows, resolvedRows] = await Promise.all([
-    db.report.findMany({ where: { status: 'open' }, orderBy: { createdAt: 'desc' }, take: 500, select: SELECT }),
-    db.report.findMany({ where: { status: { not: 'open' } }, orderBy: { resolvedAt: 'desc' }, take: 60, select: SELECT }),
+  if (!admin) return <AdminDenied />
+  const since7d = new Date(Date.now() - 7 * DAY_MS)
+  const [pendingIdentity, pendingBusiness, openReports, appeals, underEnforcement, awaitingListings, usersTotal, users7d, listings7d, openTrips] = await Promise.all([
+    db.identityVerification.count({ where: { status: 'pending' } }),
+    db.sellerVerification.count({ where: { status: 'pending' } }),
+    db.report.count({ where: { status: 'open' } }),
+    db.report.count({ where: { status: 'open', appealedAt: { not: null } } }),
+    db.profile.count({ where: { enforcementState: { not: 'good_standing' } } }),
+    // Unverified-but-active = waiting for the catalogue review. Scoped like every listing read.
+    db.listing.count({ where: await scopedListingWhere({ verified: false, status: 'active' }) }),
+    db.profile.count(),
+    db.profile.count({ where: { createdAt: { gte: since7d } } }),
+    db.listing.count({ where: await scopedListingWhere({ postedAt: { gte: since7d } }) }),
+    // The machine decides what "open" is (openStatuses derives it from the transition map) — a
+    // hard-coded list here is exactly the drift the trips queue forbids.
+    IS_SERVICES ? db.tripAssistanceRequest.count({ where: { status: { in: openStatuses() } } }).catch(() => 0) : Promise.resolve(0),
   ])
-  type Rep = (typeof openRows)[number]
 
-  // Phase 3 reporter ladder: reports filed by a ≥2-strike reporter are pre-screened —
-  // still in the queue (never silently dropped) but triaged LAST. preScreen is
-  // @ignore'd until scripts/add-ban-evasion.mjs runs → guarded raw id lookup
-  // (pre-migration: nothing is screened).
-  let preScreened = new Set<string>()
-  try {
-    const rows = await db.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Report" WHERE "status" = 'open' AND "preScreen" = true LIMIT 500`
-    preScreened = new Set(rows.map((r) => r.id))
-  } catch { /* migration pending */ }
-
-  const raw: RawReport[] = [...openRows, ...resolvedRows].map((r) => ({ id: r.id, reporterProfileId: r.reporterProfileId, listingId: r.listingId, conversationId: r.conversationId, targetSellerId: r.targetSellerId, targetProfileId: r.targetProfileId }))
-  const [{ reporterById, convoByReportId }, { targetByReportId }] = await Promise.all([reportContext(raw), targetContext(raw)])
-
-  // Community = how many OPEN reports share a target (the actionable pile-on).
-  const openByKey = new Map<string, number>()
-  for (const r of openRows) { const k = reportTargetKey(r); openByKey.set(k, (openByKey.get(k) || 0) + 1) }
-
-  const now = Date.now()
-  const buildCase = (r: Rep, resolved: boolean): ModCase => {
-    const reporter = r.reporterProfileId ? reporterById.get(r.reporterProfileId) ?? null : null
-    const target = targetByReportId.get(r.id)!
-    const community = resolved ? 1 : openByKey.get(reportTargetKey(r)) ?? 1
-    const sevKey = r.severity && SEV_W[r.severity] ? r.severity : 'moderate'
-    const cred = credibility(reporter)
-    const ageDays = (now - r.createdAt.getTime()) / 86_400_000
-    const isAppeal = !resolved && !!r.appealedAt
-    const priority = SEV_W[sevKey] * cred * (1 + 0.5 * (community - 1)) + (ageDays > 2 ? 1 : 0) + (isAppeal ? 5 : 0)
-    const bucket: ModCase['bucket'] =
-      isAppeal || community >= 3 || (sevKey === 'severe' && cred >= 1.2) || priority >= 5 ? 'critical' : priority >= 2.8 ? 'high' : 'standard'
-    let appealImages: string[] = []
-    try { appealImages = r.appealImages ? JSON.parse(r.appealImages) : [] } catch { /* ignore */ }
-    return {
-      id: r.id, reason: r.reason, detail: r.detail, severity: r.severity, createdAt: r.createdAt.toISOString(),
-      ageDays: Math.floor(ageDays), bucket, priority,
-      preScreen: preScreened.has(r.id),
-      reporter, conversationId: convoByReportId.get(r.id) ?? null, communityCount: community, target,
-      internalNote: r.internalNote ?? null,
-      // The seller's formal reply (buyer-king SLA) — evidence the admin sees before deciding.
-      sellerResponse: r.sellerResponse ?? null,
-      sellerRespondedAt: r.sellerRespondedAt ? r.sellerRespondedAt.toISOString() : null,
-      appeal: r.appealedAt ? { note: r.appealNote ?? null, images: Array.isArray(appealImages) ? appealImages : [], at: r.appealedAt.toISOString() } : null,
-      resolution: resolved ? { status: r.status, by: r.resolvedBy, at: r.resolvedAt ? r.resolvedAt.toISOString() : null } : null,
-    }
-  }
-
-  const cases: ModCase[] = openRows.map((r) => buildCase(r, false))
-  // preScreen is the LEADING sort key: a pre-screened report sinks below every
-  // bucket (spec: triaged last) — it's still reviewable, just never jumps the line.
-  cases.sort((a, b) => Number(a.preScreen) - Number(b.preScreen) || BUCKET_RANK[a.bucket] - BUCKET_RANK[b.bucket] || b.priority - a.priority || (a.createdAt < b.createdAt ? 1 : -1))
-  const resolved: ModCase[] = resolvedRows.map((r) => buildCase(r, true))
+  const queues = [
+    { label: 'Identity checks waiting', count: pendingIdentity, href: '/admin/verification?tab=identity', hint: 'People who submitted a passport or CCCD' },
+    { label: 'Business verifications waiting', count: pendingBusiness, href: '/admin/verification?tab=business', hint: 'Storefronts that uploaded registration papers' },
+    { label: 'Open reports', count: openReports, href: '/admin/moderation?tab=reports', hint: appeals > 0 ? `${appeals} with an appeal` : 'Triage inbox' },
+    { label: 'Accounts under enforcement', count: underEnforcement, href: '/admin/moderation?tab=enforcement', hint: 'Warned, throttled, held or suspended' },
+    // verified:false = NOT publicly live yet (its page 404s, absent from feed and search) — the
+    // catalogue console's Publish is what makes it live, so this IS the review queue.
+    { label: 'Listings awaiting review', count: awaitingListings, href: '/admin/catalogue?tab=listings', hint: 'Not yet published — Publish makes them live' },
+    ...(IS_SERVICES ? [{ label: 'Open trip requests', count: openTrips, href: '/admin/services?tab=trips', hint: 'Trip desk' }] : []),
+  ].sort((a, b) => Number(b.count > 0) - Number(a.count > 0))
 
   return (
-    <div className="flex flex-1 flex-col bg-background">
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
-        {/* The moderation panel is web/desktop-only. */}
-        <EmptyState
-          tone="admin"
-          icon={Monitor}
-          title="The moderation panel is available on desktop only."
-          subtitle="Open eno.vn/admin on a larger screen."
-          className="py-24 md:hidden"
-        />
-        <div className="hidden md:block">
-          <div className="mb-5">
-            <h1 className="h-title text-foreground">Moderation</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Signed in as {admin}. One triaged inbox — most urgent first. Confirm docks the target&apos;s trust; abusive penalizes the reporter. Listings publish instantly (no review queue); low-trust accounts can&apos;t post until their score recovers.</p>
-          </div>
-          <ModerationClient cases={cases} resolved={resolved} />
-        </div>
-      </main>
-    </div>
+    <AdminSectionShell title="Overview" description={<>Signed in as {admin}. What needs a person, then the sections.</>}>
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-4">Needs attention</h2>
+      <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {queues.map((q) => (
+          <li key={q.href}>
+            <Link href={q.href} className="block">
+              <Card className="px-4 py-3 transition-colors hover:bg-muted/40">
+                <p className={`text-2xl font-bold ${q.count > 0 ? 'text-foreground' : 'text-ink-4'}`}>{q.count}</p>
+                <p className="mt-0.5 text-sm font-semibold text-foreground">{q.label}</p>
+                <p className="text-xs text-muted-foreground">{q.hint}</p>
+              </Card>
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-ink-4">Last 7 days</h2>
+      <ul className="mt-2 grid gap-2 sm:grid-cols-3">
+        {[
+          { label: 'New accounts', value: users7d, href: '/admin/users' },
+          { label: 'New listings', value: listings7d, href: '/admin/catalogue?tab=listings' },
+          { label: 'Accounts in total', value: usersTotal, href: '/admin/users' },
+        ].map((s) => (
+          <li key={s.label}>
+            <Link href={s.href} className="block">
+              <Card className="px-4 py-3 transition-colors hover:bg-muted/40">
+                <p className="text-2xl font-bold text-foreground">{s.value}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">{s.label}</p>
+              </Card>
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-ink-4">Sections</h2>
+      <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {[
+          { href: '/admin/users', label: 'Users', hint: 'Find any account: identity, storefront, reports, enforcement, erasure.' },
+          { href: '/admin/verification', label: 'Verification', hint: 'Identity (the person) and business (the storefront) queues.' },
+          { href: '/admin/moderation', label: 'Moderation', hint: 'Reports, disputes and the enforcement ladder.' },
+          { href: '/admin/catalogue', label: 'Catalogue', hint: 'Listings and the brand taxonomy.' },
+          ...(IS_SERVICES ? [{ href: '/admin/services', label: 'Desks', hint: 'The e-Visa desk and the trip desk.' }] : []),
+          { href: '/admin/insights', label: 'Insights', hint: 'Publish funnel and feedback.' },
+        ].map((s) => (
+          <li key={s.href}>
+            <Link href={s.href} className="block">
+              <Card className="px-4 py-3 transition-colors hover:bg-muted/40">
+                <p className="text-sm font-semibold text-foreground">{s.label}</p>
+                <p className="text-xs text-muted-foreground">{s.hint}</p>
+              </Card>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </AdminSectionShell>
   )
 }

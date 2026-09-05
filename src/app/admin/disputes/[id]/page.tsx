@@ -95,7 +95,7 @@ export default async function AdminDisputeRoomPage({ params }: { params: Promise
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         {/* One back-link idiom across /admin (piece rule: no '←' text glyphs):
             muted ink + nav-tier ChevronLeft, exactly as the conversation viewer. */}
-        <Link href="/admin/disputes" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
+        <Link href="/admin/moderation?tab=disputes" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
           <ChevronLeft className="h-4 w-4" strokeWidth={STROKE_NAV} /> Dispute center
         </Link>
         <DisputeRoomAdmin data={data} />

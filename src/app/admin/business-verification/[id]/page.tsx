@@ -27,7 +27,7 @@ export default async function AdminVerificationDetail({ params }: { params: Prom
   const shell = (children: React.ReactNode) => (
     <div className="flex flex-1 flex-col bg-background">
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
-        <Link href="/admin/business-verification" className="text-sm text-accent-foreground hover:underline">← Queue</Link>
+        <Link href="/admin/verification?tab=business" className="text-sm text-accent-foreground hover:underline">← Queue</Link>
         {children}
       </main>
     </div>
