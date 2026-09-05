@@ -6,7 +6,9 @@ import { encryptVisaPayload, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
 import { recordVisaEvent, serializeVisa, type VisaApplicationRow, type VisaDocumentRow, type VisaEventRow } from '@/lib/visa/records'
 import { visaPayloadSchema } from '@/lib/visa/schema'
-import { removeVisaFiles } from '@/lib/visa/storage'
+import { removeVisaFiles, VISA_BUCKET } from '@/lib/visa/storage'
+import { db as prisma } from '@/lib/db'
+import { clearTombstones, writeTombstones } from '@/lib/core/storage-tombstones'
 
 // In-hub port of apps/forum/src/app/api/visa/applications/[id]/route.ts — cookie-session
 // auth (Profile.id == auth uid == visa_applications.user_id), no CORS layer. GET and
@@ -167,11 +169,19 @@ export const DELETE = route({ auth: 'userId', rateLimit: { bucket: 'visa-delete'
   if (paidRow.data) return NextResponse.json({ error: 'application_not_deletable' }, { status: 409 })
 
   try {
-    // Delete the ROW first, atomically re-checking status + paid_at (CAS, mirrors PATCH): a case
+    // ⛔ TOMBSTONES BEFORE THE ROW (2026-09-05 review, S05). The old order was row first, then
+    // `removeVisaFiles(strict: false)` — a storage failure after the row delete orphaned the
+    // applicant's passport scans with no row able to find them and nothing scheduled to try
+    // again. The objects are recorded as to-be-deleted FIRST; if the delete below is refused, the
+    // rows still reference them and the sweep drops the tombstones unused (it re-checks references
+    // after a grace hour); if it succeeds and the removal below fails, the sweep finishes it.
+    const refs = loaded.documents.map((document) => ({ bucket: VISA_BUCKET, path: document.storage_path }))
+    await writeTombstones(prisma, refs, 'visa_application_deleted')
+    // Delete the ROW next, atomically re-checking status + paid_at (CAS, mirrors PATCH): a case
     // that leaves the deletable set between the read and here (a concurrent submit/payment) is NOT
-    // deleted. Files come off only AFTER the row is gone — an orphaned storage object (swept by the
-    // visa-retention cron) is far less harmful than deleting a live/paid case's documents, and a
-    // post-delete storage error must never report the (committed) delete as failed.
+    // deleted. Files come off only AFTER the row is gone — deleting a live/paid case's documents
+    // is the one unrecoverable outcome, and a post-delete storage error must never report the
+    // (committed) delete as failed.
     const { data, error } = await db.from('visa_applications')
       .delete().eq('id', id).eq('user_id', userId).in('status', DELETABLE_STATUSES).is('paid_at', null).select('id')
     if (error) {
@@ -185,9 +195,11 @@ export const DELETE = route({ auth: 'userId', rateLimit: { bucket: 'visa-delete'
     }
     if (!data || data.length === 0) return NextResponse.json({ error: 'application_not_deletable' }, { status: 409 })
     try {
-      await removeVisaFiles(loaded.documents.map((document) => document.storage_path), { strict: false })
+      const removed = await removeVisaFiles(refs.map((r) => r.path), { strict: false })
+      if (removed) await clearTombstones(refs)
+      else console.error(`[visa] files not yet removed after deleting case ${id} — tombstoned, the sweep finishes`)
     } catch (e) {
-      console.error(`[visa] files orphaned after deleting case ${id} — retention cron will sweep`, e)
+      console.error(`[visa] files not yet removed after deleting case ${id} — tombstoned, the sweep finishes`, e)
     }
     return NextResponse.json({ deleted: true, id })
   } catch {

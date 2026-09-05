@@ -184,6 +184,18 @@ vi.mock('@/lib/supabase-admin', () => ({
   LISTING_VIDEOS_BUCKET: 'listing-videos',
 }))
 vi.mock('@/lib/db', () => ({ db: {} }))
+// The durable erasure queue (2026-09-05, review S05). Recorded into the same sequence as the row
+// delete and the file removal, because the ORDER is the invariant under test.
+vi.mock('@/lib/core/storage-tombstones', () => ({
+  writeTombstones: async (_tx: unknown, refs: Array<{ bucket: string; path: string }>) => {
+    h.state.sequence.push(`tombstoned:${refs.map((r) => r.path).join(',')}`)
+    return refs.length
+  },
+  clearTombstones: async (refs: Array<{ bucket: string; path: string }>) => {
+    h.state.sequence.push(`tombstones-cleared:${refs.map((r) => r.path).join(',')}`)
+    return refs.length
+  },
+}))
 vi.mock('@/lib/mail', () => ({ sendMail: async () => true, mailEnabled: () => false }))
 vi.mock('@/lib/push', () => ({ sendPushToProfile: async () => 0 }))
 
@@ -878,11 +890,17 @@ describe('DELETE — the CAS and the trigger', () => {
     ])
   })
 
-  it('removes the files only AFTER the row is gone', async () => {
+  it('tombstones BEFORE the row, removes the files only AFTER the row is gone, clears the tombstones last', async () => {
     await del()
-    // Ordering is the invariant: an orphaned object is swept by the retention cron, whereas files
-    // removed before a delete that then loses the CAS have destroyed a live case's documents.
-    expect(h.state.sequence).toEqual(['row-deleted', 'files-removed:user-1/app/passport-a.jpg'])
+    // Ordering is the invariant. Tombstones first: from that moment a durable record of the objects
+    // exists whatever fails next (review S05). Files after the row: files removed before a delete
+    // that then loses the CAS have destroyed a live case's documents. Cleared only once removed.
+    expect(h.state.sequence).toEqual([
+      'tombstoned:user-1/app/passport-a.jpg',
+      'row-deleted',
+      'files-removed:user-1/app/passport-a.jpg',
+      'tombstones-cleared:user-1/app/passport-a.jpg',
+    ])
     expect(h.state.removedFiles).toEqual([['user-1/app/passport-a.jpg']])
   })
 
@@ -894,6 +912,9 @@ describe('DELETE — the CAS and the trigger', () => {
     expect(r.status).toBe(409)
     expect(r.body).toBe('{"error":"application_not_deletable"}')
     expect(h.state.removedFiles).toEqual([])
+    // The tombstones written before the miss are left standing on purpose: the sweep re-checks
+    // references after the grace hour, finds the live case's rows, and drops them unused.
+    expect(h.state.sequence).toEqual(['tombstoned:user-1/app/passport-a.jpg'])
   })
 
   it('the DB BEFORE-DELETE trigger (23001) → the same friendly 409, not a 500', async () => {
@@ -926,7 +947,8 @@ describe('DELETE — the CAS and the trigger', () => {
     const r = await del()
     expect(r.status).toBe(200)
     expect(r.body).toBe(`{"deleted":true,"id":"${APP_ID}"}`)
-    expect(h.state.sequence).toEqual(['row-deleted'])
+    // …and the tombstone is NOT cleared, so the sweep finishes what the fast path could not.
+    expect(h.state.sequence).toEqual(['tombstoned:user-1/app/passport-a.jpg', 'row-deleted'])
   })
 
   /**

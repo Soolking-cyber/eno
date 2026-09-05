@@ -7,7 +7,9 @@ import { decryptVisaPayload, encryptVisaPayload, visaCryptoReady } from '@/lib/v
 import { getVisaDb } from '@/lib/visa/db'
 import { MAX_INTAKE_BYTES } from '@/lib/visa/image-normalization'
 import { recordVisaEvent } from '@/lib/visa/records'
-import { removeVisaFiles, storeVisaImage } from '@/lib/visa/storage'
+import { removeVisaFiles, storeVisaImage, VISA_BUCKET } from '@/lib/visa/storage'
+import { db as prisma } from '@/lib/db'
+import { clearTombstones, writeTombstones } from '@/lib/core/storage-tombstones'
 
 /**
  * ⛔ A REFUSED UPLOAD USED TO LEAVE NO TRACE ANYWHERE, WHICH IS WHY "USERS CANNOT UPLOAD" COULD
@@ -70,7 +72,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 //   over 20/h (strict, per user)  429 {"error":"rate_limited"}
 //   non-uuid id                   404 {"error":"not_found"}
 //   case absent or another user's 404 {"error":"not_found"}
-//   status not draft/needs_changes 409 {"error":"application_locked"}
+//   status not draft/needs_changes 409 {"error":"application_locked"}   ← checked twice since
+//                                     2026-09-05: here, and again inside visa_commit_document
+//                                     under the row lock; the second answers the same 409
 //   unreadable multipart          400 {"error":"invalid_body"}
 //   bad `kind` or no File         400 {"error":"invalid_document"}
 //   wrong mime AND wrong ext      415 {"error":"unsupported_image_type"}
@@ -90,7 +94,7 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
   const { id } = params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const db = getVisaDb()
-  const { data: application } = await db.from('visa_applications').select('id,status,encrypted_payload').eq('id', id).eq('user_id', userId).maybeSingle()
+  const { data: application } = await db.from('visa_applications').select('id,status,encrypted_payload,updated_at').eq('id', id).eq('user_id', userId).maybeSingle()
   if (!application) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   if (!['draft', 'needs_changes'].includes(application.status)) return NextResponse.json({ error: 'application_locked' }, { status: 409 })
   let form: FormData
@@ -132,21 +136,55 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     return NextResponse.json({ error: 'image_size_invalid' }, { status: 400 })
   }
   const stored = await storeVisaImage(Buffer.from(await file.arrayBuffer()), userId, id, kind.data)
-    const { data: old } = kind.data === 'supporting' ? { data: [] } : await db.from('visa_documents').select('id,storage_path').eq('application_id', id).eq('kind', kind.data)
+    // ⛔ THE OBJECT IS TOMBSTONED THE MOMENT IT EXISTS, before anything between it and the row
+    // that will reference it can fail. The commit below drops the tombstone; if the commit never
+    // happens — case locked meanwhile, a crash, an outage — the sweep removes the orphan after
+    // its grace hour (2026-09-05 review, S04).
+    await writeTombstones(prisma, [{ bucket: VISA_BUCKET, path: stored.storage_path }], 'visa_upload_intent')
     const document = { id: randomUUID(), application_id: id, kind: kind.data, ...stored, created_at: new Date().toISOString() }
-    const { error } = await db.from('visa_documents').insert(document)
-    if (error) throw error
+    // ⛔ ONE TRANSACTION, HOLDING THE APPLICATION ROW: re-checks the status (the check above is a
+    // TOCTOU on its own — a submit can land while the image is in flight), deletes the previous
+    // rows of this kind, tombstones their objects, inserts the new row and drops the intent
+    // tombstone. scripts/visa-commit-document-fn.mjs. Two concurrent uploads of the same kind
+    // serialise on the row lock and leave exactly one document.
+    const commit = await db.rpc('visa_commit_document', { p_application_id: id, p_user_id: userId, p_document: document, p_replace: kind.data !== 'supporting' })
+    if (commit.error) throw commit.error
+    const result = (commit.data ?? {}) as { ok?: boolean; code?: string; old_paths?: string[] }
+    if (!result.ok) {
+      // The row-level re-check lost: submitted or gone while the image was in flight. Nothing
+      // references the new object; its tombstone stands and the sweep removes it.
+      const gone = result.code === 'not_found'
+      return NextResponse.json({ error: gone ? 'not_found' : 'application_locked' }, { status: gone ? 404 : 409 })
+    }
     if (kind.data === 'passport') {
-      const payload = decryptVisaPayload(application.encrypted_payload)
-      if (!payload.aiDocumentProcessingConsent) {
+      // ⚠️ COMPARE-AND-SET ON updated_at. The consent stamp is a read-modify-write of the whole
+      // encrypted payload; a concurrent PATCH (the applicant editing the form in another tab)
+      // between our read and this write would be overwritten with a stale payload. The write is
+      // gated on the updated_at we read; losing the race re-reads and re-applies on the newer
+      // payload. Three attempts, then a loud failure — the document IS committed either way.
+      let current: { encrypted_payload: string; updated_at: string } = application
+      for (let attempt = 0; ; attempt++) {
+        const payload = decryptVisaPayload(current.encrypted_payload)
+        if (payload.aiDocumentProcessingConsent) break
         payload.aiDocumentProcessingConsent = true
-        const consentUpdate = await db.from('visa_applications').update({ encrypted_payload: encryptVisaPayload(payload), updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+        const consentUpdate = await db.from('visa_applications')
+          .update({ encrypted_payload: encryptVisaPayload(payload), updated_at: new Date().toISOString() })
+          .eq('id', id).eq('user_id', userId).eq('updated_at', current.updated_at).select('id')
         if (consentUpdate.error) throw consentUpdate.error
+        if (consentUpdate.data?.length) break
+        if (attempt >= 2) throw new Error('consent_stamp_lost')
+        const reread = await db.from('visa_applications').select('encrypted_payload,updated_at').eq('id', id).eq('user_id', userId).maybeSingle()
+        if (reread.error) throw reread.error
+        if (!reread.data) throw new Error('consent_stamp_lost')
+        current = reread.data
       }
     }
-    if (old?.length) {
-      await db.from('visa_documents').delete().in('id', old.map((item) => item.id))
-      await removeVisaFiles(old.map((item) => item.storage_path))
+    const oldPaths = result.old_paths ?? []
+    if (oldPaths.length) {
+      // Fast path. The RPC already tombstoned these, so a failure here loses nothing — the sweep
+      // finishes it after the grace hour; a success clears the tombstones now.
+      const removed = await removeVisaFiles(oldPaths, { strict: false })
+      if (removed) await clearTombstones(oldPaths.map((path) => ({ bucket: VISA_BUCKET, path })))
     }
     await recordVisaEvent(id, 'applicant', 'document_uploaded', userId, { kind: kind.data, corrections: document.validation_report.corrections })
     return NextResponse.json({ document: { id: document.id, kind: document.kind, mimeType: document.mime_type, sizeBytes: document.size_bytes, width: document.width, height: document.height, validationStatus: document.validation_status, validationReport: document.validation_report, createdAt: document.created_at } }, { status: 201 })

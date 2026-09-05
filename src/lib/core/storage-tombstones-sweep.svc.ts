@@ -45,11 +45,16 @@ async function referenceVerdict(bucket: string, path: string): Promise<Verdict> 
       // listing images AND the listing video, both seller images, the profile avatar).
       if (!STORAGE_HOST) return 'unknown'
       // Bounded: five `LIKE '%…%'` scans; a slow database must read as "unknown", never "unreferenced".
-      const timeout = new Promise<'unknown'>((resolve) => setTimeout(() => resolve('unknown'), REF_CHECK_TIMEOUT_MS))
-      return Promise.race([
-        isStillReferenced(`${STORAGE_HOST}/storage/v1/object/public/${bucket}/${path}`).then((r): Verdict => (r ? 'referenced' : 'unreferenced'), (): Verdict => 'unknown'),
-        timeout,
-      ])
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const timeout = new Promise<'unknown'>((resolve) => { timer = setTimeout(() => resolve('unknown'), REF_CHECK_TIMEOUT_MS) })
+      try {
+        return await Promise.race([
+          isStillReferenced(`${STORAGE_HOST}/storage/v1/object/public/${bucket}/${path}`).then((r): Verdict => (r ? 'referenced' : 'unreferenced'), (): Verdict => 'unknown'),
+          timeout,
+        ])
+      } finally {
+        if (timer) clearTimeout(timer) // the timer must not outlive the check it bounds
+      }
     }
     case VISA_BUCKET: {
       const { data, error } = await getSupabaseAdmin().from('visa_documents').select('id').eq('storage_path', path).limit(1)
