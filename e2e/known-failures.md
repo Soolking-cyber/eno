@@ -1,4 +1,23 @@
-# The 48 guest-suite failures are expected on eno.vn — here is how to check that cheaply
+# ✅ THE GUEST SUITE IS GREEN ON eno.vn AS OF 2026-09-06 — 143 passed, 3 skipped, 0 failed
+
+⚠️ **READ THIS BEFORE THE SECTION BELOW, WHICH DESCRIBES A BASELINE THAT NO LONGER EXISTS.**
+Measured against production at 76ae4b11: `E2E_BASE=https://eno.vn npx playwright test
+--project=guest-desktop --project=guest-mobile` finishes **143 passed, 3 skipped, 0 failed**. The
+38 trip-assistance and 10 visa failures the section below documents are gone — those specs now
+skip or pass on this edition. **So the new rule is the simple one: any failure is a regression.**
+
+Two specs were repaired on the way to that, and both were real drift rather than flakes:
+- `tabs.spec.ts` asserted an in-page tablist on `/c/electronics`. Review U01 turned a category
+  PREVIEW's sort strip into LINKS into the full query (sorting 48 of thousands in memory was the
+  bug), so the tablist moved to the explorer results view. The spec now asserts the tabs at
+  `/?category=electronics` AND the links on the preview — both halves of the split.
+- `category.spec.ts` clicked a card photo by coordinate without scrolling it into view. On a
+  Pixel 5 the first card's photo CENTRE sits under the fixed bottom navigation, so the click went
+  to `/saved` and the test read as a routing regression. It scrolls first now.
+
+---
+
+# (HISTORICAL) The 48 guest-suite failures were expected on eno.vn — here is how that was checked
 
 `npm run e2e:guest` against the **marketplace** edition finishes red and always has:
 

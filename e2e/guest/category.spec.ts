@@ -33,6 +33,13 @@ test.describe('Guest · category (/c/electronics)', () => {
     const link = page.locator('a[data-card-link]').first()
     await expect(link).toHaveAttribute('href', /\/listings\//)
     const photo = page.locator('[data-protected]').first()
+    // ⛔ SCROLL IT INTO VIEW FIRST, AND THIS IS NOT TEST HYGIENE — IT WAS A FALSE FAILURE WITH A
+    // REAL FINDING BEHIND IT. On a Pixel 5 the first card's photo begins so far down the category
+    // page that its CENTRE sits underneath the fixed bottom navigation: `elementsFromPoint` at
+    // that coordinate returned the nav, and the click went to /saved. The click is by coordinate
+    // (see above), so an off-screen or covered centre silently tests something else.
+    await photo.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(300)
     const box = await photo.boundingBox()
     if (!box) throw new Error('no listing card photo found')
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
