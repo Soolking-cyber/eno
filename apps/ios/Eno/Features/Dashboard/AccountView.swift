@@ -187,6 +187,21 @@ struct AccountView: View {
                         Text(L10n.tr("Saved searches", "Tìm kiếm đã lưu")).foregroundStyle(EnoColor.fg)
                     }
                 }
+                // ⛔ PAYMENTS ARE A SERVICES-EDITION SURFACE. eno.vn is the licensed marketplace and
+                // carries no payout, wallet or order pages (`.forum.svc.` on the web); the row is
+                // gated the same way `PaymentsView` is, so the licensed build has no way in.
+                if Edition.showsPayments {
+                    NavigationLink {
+                        PaymentsView()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "banknote")
+                                .enoIcon(.sm, color: EnoColor.brand)
+                                .frame(width: 26)
+                            Text(L10n.tr("Getting paid", "Nhận thanh toán")).foregroundStyle(EnoColor.fg)
+                        }
+                    }
+                }
                 // ⛔ IDENTITY VERIFICATION HAD NO NATIVE ENTRY POINT AT ALL — the legal gate a
                 // Vietnamese seller must pass before publishing (NĐ 248/2026) existed only on the
                 // web. The web surfaces it twice (a top-level Verification row in DASHBOARD_NAV,
