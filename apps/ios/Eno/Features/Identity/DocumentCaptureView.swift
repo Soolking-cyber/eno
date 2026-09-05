@@ -35,6 +35,8 @@ struct DocumentCaptureView: View {
     /// whose reply could land out of order, overwrite `documentPath`, and clear the selfie taken for
     /// the previous document. Mismatched identity evidence is the worst possible outcome here.
     var externallyBusy: Bool = false
+    /// The question asked over the reviewed shot — supplied by the caller, who knows the document.
+    var reviewPrompt: String? = nil
     let onCapture: (UIImage) -> Void
 
     @Environment(\.scenePhase) private var scenePhase
@@ -44,6 +46,15 @@ struct DocumentCaptureView: View {
     @State private var busy = false
     /// The last capture failed. Cleared on the next attempt.
     @State private var captureError: String?
+    /// ⚠️ THE SHOT IS REVIEWED BEFORE IT IS UPLOADED. The web capture has a review phase ("Use this
+    /// photo" / "Retake"); this one sent every shutter press straight to the server, so a blurred
+    /// passport page was discovered only at the details step, after the upload and the scan, with
+    /// the fix two screens back. Now it is looked at first, on the black ground, at full size.
+    @State private var shot: UIImage?
+    /// ⚠️ SET SYNCHRONOUSLY ON THE TAP. `externallyBusy` turns true only after the parent's task has
+    /// run and the view re-rendered; two taps inside that window sent the same photo twice — the
+    /// out-of-order-reply race the shutter already guards against with its own local flag.
+    @State private var committed = false
 
     var body: some View {
         ZStack {
@@ -73,6 +84,7 @@ struct DocumentCaptureView: View {
                 }
             }
 
+            if shot == nil {
             VStack {
                 Spacer()
                 Text(captureError ?? hint)
@@ -100,7 +112,7 @@ struct DocumentCaptureView: View {
                                                    "Ảnh chưa được lưu. Vui lòng thử lại.")
                             return
                         }
-                        onCapture(image)
+                        shot = image
                     }
                 } label: {
                     Circle().fill(EnoColor.onBrand)
@@ -111,6 +123,56 @@ struct DocumentCaptureView: View {
                 .disabled(!camera.isReady || busy || externallyBusy)
                 .opacity(camera.isReady && !busy && !externallyBusy ? 1 : 0.5)
                 .accessibilityLabel(L10n.tr("Take photo", "Chụp ảnh"))
+            }
+            }
+
+            if let shot {
+                ZStack {
+                    Color.black
+                    Image(uiImage: shot)
+                        .resizable()
+                        .scaledToFit()
+                        .accessibilityLabel(kind == .selfie
+                                            ? L10n.tr("Your selfie", "Ảnh chân dung của bạn")
+                                            : L10n.tr("Your document photo", "Ảnh giấy tờ của bạn"))
+                    VStack {
+                        Spacer()
+                        Text(reviewPrompt ?? L10n.tr("Is everything sharp and in frame?", "Mọi thứ có rõ nét và nằm trong khung không?"))
+                            .enoText(.caption, color: EnoColor.onBrand)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, EnoSpacing.s3).padding(.vertical, EnoSpacing.s2)
+                            .background(Color.black.opacity(0.55), in: Capsule())
+                            .padding(.bottom, EnoSpacing.s3)
+                        // ⚠️ THE SHOT STAYS UP THROUGH THE UPLOAD. A success moves the flow to the next
+                        // step (this view goes with it); a failure leaves the reviewed photo here so
+                        // "Use this photo" can simply be tapped again, instead of the seller having to
+                        // line the page up a second time. Both buttons wait while the upload runs.
+                        HStack(spacing: EnoSpacing.s3) {
+                            EnoButton(L10n.tr("Retake", "Chụp lại"), icon: "arrow.counterclockwise",
+                                      variant: .secondary, fullWidth: false) {
+                                self.shot = nil
+                                committed = false
+                            }
+                            .disabled(externallyBusy || committed)
+                            EnoButton(L10n.tr("Use this photo", "Dùng ảnh này"), icon: "checkmark",
+                                      variant: .primary, loading: externallyBusy || committed, fullWidth: false) {
+                                guard !externallyBusy, !committed else { return }
+                                committed = true
+                                onCapture(shot)
+                                // ⚠️ BOUNDED. The parent's upload flips `externallyBusy` and the
+                                // edge below re-arms the buttons; if it never does (a path that
+                                // returns before going busy), this re-arms them anyway rather than
+                                // leaving a seller on the black screen with two dead buttons.
+                                Task {
+                                    try? await Task.sleep(for: .seconds(3))
+                                    if !externallyBusy { committed = false }
+                                }
+                            }
+                            .disabled(externallyBusy || committed)
+                        }
+                        .padding(.bottom, EnoSpacing.s6)
+                    }
+                }
             }
 
             // The seller's own way back, for an unavailability no notification announces.
@@ -188,6 +250,8 @@ struct DocumentCaptureView: View {
             }
         }
         .onDisappear { camera.stop() }
+        // The upload finished (either way): a failed one leaves the shot up and re-arms the button.
+        .onChange(of: externallyBusy) { if !externallyBusy { committed = false } }
     }
 
     private var hint: String {

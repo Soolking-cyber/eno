@@ -17,6 +17,7 @@ struct IdentityVerifyView: View {
     /// The uncommitted value the wheel edits before the seller confirms it.
     @State private var expiryDraft = IdentityVerifyView.defaultExpiry()
     @State private var model = IdentityModel()
+    @State private var confirmStartOver = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -42,8 +43,11 @@ struct IdentityVerifyView: View {
     private var intro: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: EnoSpacing.s4) {
-                Text(L10n.tr("Vietnamese law requires sellers to verify their identity before publishing.",
-                             "Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin."))
+                // ⚠️ SAYS WHO LOOKS AND HOW LONG. A passport is reviewed by a person on our team —
+                // not by VNPT, whose integration is blocked — and the web page said exactly that
+                // three lines apart from claiming the opposite. One sentence, true on both.
+                Text(L10n.tr("Vietnamese law requires sellers to verify their identity before publishing. A person on our team reviews your document and selfie, usually within a working day, and you do this once per document.",
+                             "Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin. Nhân viên của chúng tôi xem xét giấy tờ và ảnh chân dung của bạn, thường trong một ngày làm việc, và bạn chỉ cần làm một lần cho mỗi giấy tờ."))
                     .enoText(.callout, color: EnoColor.sub)
 
                 EnoCard {
@@ -72,12 +76,21 @@ struct IdentityVerifyView: View {
                            // picked this tier on the strength of the label and then had nowhere to
                            // go. (VNPT eKYC is still blocked on their token endpoint.)
                            note: L10n.tr("CCCD", "CCCD"))
+                // ⚠️ THE SIX-MONTH RULE IS SAID HERE, before a single photograph. It is a refusal the
+                // seller could otherwise only learn about at the details step, two captures in.
                 tierButton(.b, title: L10n.tr("Foreign resident", "Người nước ngoài"),
-                           note: L10n.tr("Passport + a selfie", "Hộ chiếu + ảnh chân dung"))
+                           note: L10n.tr("Passport valid 6+ months, plus a selfie — reviewed by our team",
+                                         "Hộ chiếu còn hạn ít nhất 6 tháng, kèm ảnh chân dung — đội ngũ của chúng tôi xem xét"))
 
                 if let e = model.error {
                     Text(e).enoText(.caption, color: EnoColor.danger)
                 }
+
+                // ⚠️ THE PRIVACY SENTENCE THE WEB PAGE CARRIES, AND THIS SCREEN DID NOT. On a screen
+                // asking for a passport, what happens to the photographs is not a footnote.
+                Text(L10n.tr("Your two photographs are stored privately and opened only by a reviewer on our team, through a link that expires in ten minutes. We keep the result, the document expiry date and a one-way fingerprint that lets us spot duplicate accounts — never the document number itself.",
+                             "Hai ảnh của bạn được lưu trữ riêng tư và chỉ được mở bởi nhân viên xét duyệt của chúng tôi, qua đường dẫn hết hạn sau mười phút. Chúng tôi lưu kết quả, ngày hết hạn giấy tờ và một dấu vân tay một chiều để phát hiện tài khoản trùng lặp — không bao giờ lưu số giấy tờ."))
+                    .enoText(.caption, color: EnoColor.sub)
             }
             .padding(EnoSpacing.s4)
         }
@@ -118,13 +131,38 @@ struct IdentityVerifyView: View {
                 .multilineTextAlignment(.center)
                 .padding(EnoSpacing.s4)
 
+            // ⚠️ THE THINGS THAT ACTUALLY DECIDE A PASSPORT READ, said BEFORE the shutter. Every failed
+            // scan traces to one of them — a cover sleeve, glare on the laminate over the code lines,
+            // a bottom edge out of frame.
+            if kind == .document, model.tier == .b {
+                VStack(alignment: .leading, spacing: EnoSpacing.s1) {
+                    checklistLine(L10n.tr("Out of its cover, held flat, no glare on the two code lines.",
+                                          "Tháo khỏi bao bìa, giữ phẳng, không loá sáng ở hai dòng mã."))
+                    checklistLine(L10n.tr("All four corners of the page inside the frame, in good light.",
+                                          "Cả bốn góc trang nằm trong khung, nơi đủ sáng."))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, EnoSpacing.s4)
+                .padding(.bottom, EnoSpacing.s3)
+            }
+
             DocumentCaptureView(
                 kind: kind,
                 guideAspect: model.tier == .a ? 1.585 : 1.42,
-                externallyBusy: model.busy || model.scanning
+                externallyBusy: model.busy || model.scanning,
+                // ⚠️ THE REVIEW QUESTION KNOWS THE DOCUMENT. A CCCD has no code lines to ask about.
+                reviewPrompt: kind == .selfie
+                    ? L10n.tr("Is your face clear and well lit?", "Khuôn mặt bạn có rõ và đủ sáng không?")
+                    : (model.tier == .a
+                       ? L10n.tr("Is the whole card sharp, with all four corners in?", "Cả thẻ có rõ nét và đủ bốn góc không?")
+                       : L10n.tr("Are the two lines at the bottom sharp, with no glare?", "Hai dòng mã ở cuối trang có rõ nét, không loá sáng không?"))
             ) { image in
                 Task { await model.upload(image, kind: kind == .document ? "document" : "selfie") }
             }
+            // ⛔ A NEW STEP IS A NEW CAPTURE VIEW. The reviewed shot is view state; without a
+            // distinct identity per kind a passport page could sit under "Is your face clear?"
+            // with "Use this photo" armed.
+            .id(kind)
 
             if model.busy || model.scanning {
                 HStack(spacing: EnoSpacing.s2) {
@@ -144,6 +182,30 @@ struct IdentityVerifyView: View {
                     .multilineTextAlignment(.center)
                     .padding(EnoSpacing.s3)
             }
+
+            // ⚠️ THE ESCAPE HATCH IS HERE TOO. The challenge is time-limited and can expire between
+            // the two photographs; a seller with the wrong document in hand must not have to fail an
+            // upload to get back to the tier choice.
+            EnoButton(L10n.tr("Start over", "Bắt đầu lại"), variant: .text, size: .compact, fullWidth: false) {
+                confirmStartOver = true
+            }
+            .disabled(model.busy || model.scanning)
+            .padding(.bottom, EnoSpacing.s2)
+        }
+        .confirmationDialog(L10n.tr("Start over?", "Bắt đầu lại?"), isPresented: $confirmStartOver, titleVisibility: .visible) {
+            Button(L10n.tr("Discard the photos and start over", "Bỏ ảnh và bắt đầu lại"), role: .destructive) {
+                expiryDraft = Self.defaultExpiry()
+                model.startOver()
+            }
+        } message: {
+            Text(L10n.tr("Anything photographed so far will be discarded.", "Ảnh đã chụp sẽ bị bỏ."))
+        }
+    }
+
+    private func checklistLine(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: EnoSpacing.s2) {
+            Image(systemName: "checkmark").enoIcon(.xs, color: EnoColor.success)
+            Text(text).enoText(.caption, color: EnoColor.sub)
         }
     }
 
@@ -212,10 +274,19 @@ struct IdentityVerifyView: View {
             } header: {
                 Text(L10n.tr("Check your details", "Kiểm tra thông tin"))
             } footer: {
-                if model.tier == .b, model.mrzValid {
+                // ⚠️ THREE STATES THE SELLER CAN TELL APART: read cleanly, could not read, and a
+                // read that disagrees with what they typed. The old footer showed the first and
+                // said nothing for the other two.
+                if let d = model.mrzDisagreement {
+                    Text(d).enoText(.caption, color: EnoColor.danger)
+                } else if model.tier == .b, model.mrzFromScan, model.mrzValid {
                     Text(L10n.tr("Read from your passport — please check it is correct.",
                                  "Đã đọc từ hộ chiếu — vui lòng kiểm tra lại."))
                         .enoText(.caption, color: EnoColor.success)
+                } else if model.scanFailed {
+                    Text(L10n.tr("We could not read the two lines at the bottom of your passport from that photo. Retake it with the bottom of the page sharp and free of glare, or type the two lines below.",
+                                 "Chúng tôi không đọc được hai dòng mã ở cuối hộ chiếu từ ảnh đó. Hãy chụp lại sao cho phần cuối trang rõ nét, không loá sáng, hoặc nhập hai dòng bên dưới."))
+                        .enoText(.caption, color: EnoColor.danger)
                 }
             }
 
@@ -234,7 +305,11 @@ struct IdentityVerifyView: View {
             // there was no way to look at what had been entered. A previous version showed them
             // always, which was confusing after a good scan; the honest question is whether the SCAN
             // supplied the lines, which does not change while somebody is typing.
-            if model.tier == .b, !model.mrzFromScan {
+            // ⛔ ALSO SHOWN ON A DISAGREEMENT, not only on a failed scan. A mod-10-blind misread
+            // (G↔6, S↔8, L↔1) passes every check digit; when the seller corrects the visible number
+            // the line that will actually be verified has to be reachable, or the misread cannot be
+            // corrected out of sight.
+            if model.showsMrzLines {
                 Section {
                     EnoField(placeholder: "P<VNMNGUYEN<<VAN<A<<<<<<<<<<<<<<<<<<<<<<<<<<",
                              text: $model.mrzLine1)
@@ -246,8 +321,16 @@ struct IdentityVerifyView: View {
                     Text(L10n.tr("The two lines at the bottom of the page",
                                  "Hai dòng ở cuối trang"))
                 } footer: {
-                    Text(L10n.tr("We read these from your photo. If the scan could not, type them exactly as printed.",
-                                 "Chúng tôi đọc từ ảnh của bạn. Nếu quét không được, hãy nhập đúng như in trên hộ chiếu."))
+                    // ⛔ THE COPY MATCHES WHAT IS IN THE BOXES. Scanned lines are REBUILT — line 1 is
+                    // name-less by design — so "exactly as printed" is wrong for them and right for
+                    // the typed path. Keyed on where the lines came from, not on whether they validate.
+                    if model.mrzFromScan {
+                        Text(L10n.tr("These are rebuilt from what we read, so they will not match your passport character for character. They are what we check your details against — if the number or date above is wrong, correct it here, or retake the photo.",
+                                     "Hai dòng này được dựng lại từ kết quả đọc nên sẽ không trùng từng ký tự với hộ chiếu. Đây là phần chúng tôi dùng để đối chiếu — nếu số hộ chiếu hoặc ngày ở trên bị sai, hãy sửa ở đây, hoặc chụp lại ảnh."))
+                    } else {
+                        Text(L10n.tr("Type the two lines of letters and numbers across the bottom of your passport page, exactly as printed.",
+                                     "Hãy nhập hai dòng chữ và số ở cuối trang hộ chiếu, đúng như in trên hộ chiếu."))
+                    }
                 }
             }
 
@@ -258,6 +341,28 @@ struct IdentityVerifyView: View {
                     model.retakeDocument()
                 }
                 .enoText(.callout, color: EnoColor.brand)
+                // ⛔ ALWAYS AN ESCAPE HATCH. The challenge is single-use and time-limited; if it
+                // expires between the two photographs nothing downstream can succeed. One "Start
+                // over" clears the burned code and both photos so a fresh attempt gets a fresh one.
+                // ⚠️ CONFIRMED FIRST. One tap discards two uploads and the challenge, and it sits
+                // right under Retake.
+                Button(L10n.tr("Start over", "Bắt đầu lại")) {
+                    confirmStartOver = true
+                }
+                .enoText(.callout, color: EnoColor.sub)
+                // ⚠️ NOT WHILE A READ IS IN FLIGHT: a scan completing into a reset model would
+                // write lines and `mrzFromScan` into a flow that no longer has a document.
+                .disabled(model.busy || model.scanning)
+                .confirmationDialog(L10n.tr("Start over?", "Bắt đầu lại?"), isPresented: $confirmStartOver, titleVisibility: .visible) {
+                    Button(L10n.tr("Discard both photos and start over", "Bỏ cả hai ảnh và bắt đầu lại"), role: .destructive) {
+                        // ⚠️ THE WHEEL'S DRAFT IS VIEW STATE and would otherwise carry the previous
+                        // passport's expiry into the next attempt.
+                        expiryDraft = Self.defaultExpiry()
+                        model.startOver()
+                    }
+                } message: {
+                    Text(L10n.tr("Your document photo and selfie will be discarded.", "Ảnh giấy tờ và ảnh chân dung của bạn sẽ bị bỏ."))
+                }
             }
 
             if let reason = model.blockedReason {

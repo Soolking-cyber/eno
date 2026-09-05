@@ -12,6 +12,8 @@ struct AccountView: View {
     /// Identity status from GET /api/seller/identity/status — 'unverified' | 'pending' | 'verified'
     /// | 'rejected' | 'expired' | 'revoked'. nil while unknown; the row simply shows no subtitle.
     @State private var verification: String?
+    /// Why the current case was refused — the reviewer's own words, from the status route. Refusals only.
+    @State private var verificationNote: String?
     @State private var signInSheet = false
     @State private var googleBusy = false
 
@@ -90,11 +92,24 @@ struct AccountView: View {
 
     /// ⚠️ FAILS OPEN — a status we could not read shows NO claim rather than a stale or wrong one.
     private func loadVerification() async {
-        struct Status: Decodable { let status: String }
+        // ⚠️ THE NOTE IS DECODED LENIENTLY. It is a caption; a route that ever emits it in another
+        // shape must not fail the whole decode and blank the status row ("fails open" on a trust claim).
+        struct Status: Decodable {
+            let status: String
+            let note: String?
+            private enum Keys: String, CodingKey { case status, note }
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: Keys.self)
+                status = try c.decode(String.self, forKey: .status)
+                note = try? c.decodeIfPresent(String.self, forKey: .note)
+            }
+        }
         if let s: Status = try? await APIClient.shared.get("api/seller/identity/status") {
             verification = s.status
+            verificationNote = s.status == "rejected" ? s.note?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
         } else {
             verification = nil
+            verificationNote = nil
         }
     }
 
@@ -251,6 +266,14 @@ struct AccountView: View {
                                 if let status = verification {
                                     Text(Self.verificationLabel(status))
                                         .enoText(.caption, color: status == "pending" ? EnoColor.sub : EnoColor.danger)
+                                }
+                                // ⛔ THE SELLER IS TOLD WHY. "Not accepted — try again" with the
+                                // reviewer's reason recorded on the case and shown to nobody sent
+                                // people back through both photographs to repeat the same mistake.
+                                if let note = verificationNote, !note.isEmpty {
+                                    Text(note)
+                                        .enoText(.caption, color: EnoColor.sub)
+                                        .lineLimit(3)
                                 }
                             }
                             Spacer()

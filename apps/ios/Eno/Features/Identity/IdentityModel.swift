@@ -57,7 +57,12 @@ final class IdentityModel {
     /// The seller has typed in a details field; a late scan must never overwrite them. TD3 line 1
     /// carries NO check digit, so a misread name could otherwise silently replace a correct one.
     private var userEdited = false
-    func markEdited() { userEdited = true }
+    /// Every field's edit hook — which is also where the raw-line latch engages: the disagreement is
+    /// produced by an edit to the number or expiry field, and those are always mounted.
+    func markEdited() {
+        userEdited = true
+        revealMrzLinesIfDisagreeing()
+    }
 
     // ── flow ────────────────────────────────────────────────────────────────────────────────────
 
@@ -214,12 +219,16 @@ final class IdentityModel {
             if let n = parsed.fields.passportNumber, documentNumber.isEmpty { documentNumber = n }
             if let e = parsed.fields.passportExpiryDate, documentExpiry.isEmpty { documentExpiry = e }
         }
+        // ⚠️ A LATE SCAN CAN LAND ON A NUMBER THE SELLER ALREADY TYPED and disagree with it at once,
+        // with no edit to latch the raw-line editor open — so the latch is engaged here too.
+        revealMrzLinesIfDisagreeing()
     }
 
     private func clearReadFields() {
         // A new photo may be a DIFFERENT document — never carry the old one's data forward.
         surname = ""; givenNames = ""; documentNumber = ""; documentExpiry = ""
         mrzLine1 = ""; mrzLine2 = ""; userEdited = false
+        mrzLinesRevealed = false
     }
 
     // ── gates ───────────────────────────────────────────────────────────────────────────────────
@@ -259,8 +268,61 @@ final class IdentityModel {
         return digits.count == 12 && digits.allSatisfy { $0.isASCII && $0.isNumber } ? digits : nil
     }
 
+    /// ⛔ THE CONFIRMED FIELDS AND THE MRZ MUST AGREE, OR THE SELLER'S CORRECTION IS THROWN AWAY.
+    /// The MRZ checksum is mod-10 and the ICAO values of G/6, S/8, L/1 differ by exactly ten, so those
+    /// misreads leave every check digit valid: the scan reports success with a WRONG passport number.
+    /// The seller is told to check the details, fixes the number in the visible field — and the server
+    /// prefers MRZ-derived fields, so the misread is what gets recorded. The web refuses to send a
+    /// disagreement and shows where it is; this is that rule. ⚠️ NEVER "fix" it by rewriting line 2 —
+    /// re-minting check digits over a typed expiry is how an expired passport is laundered.
+    var mrzDisagreement: String? {
+        guard tier == .b, mrzValid else { return nil }
+        let read = Mrz.parse(mrzLine1, mrzLine2).fields
+        let typedNumber = documentNumber.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if let r = read.passportNumber, !typedNumber.isEmpty, typedNumber != r {
+            return L10n.tr("The code lines say your passport number is \(r), but the field above says \(typedNumber). Correct whichever is wrong — the code lines are what we verify against.",
+                           "Hai dòng mã ghi số hộ chiếu là \(r), nhưng ô ở trên ghi \(typedNumber). Hãy sửa phần nào sai — chúng tôi đối chiếu theo hai dòng mã.")
+        }
+        let typedExpiry = documentExpiry.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let r = read.passportExpiryDate, !typedExpiry.isEmpty, typedExpiry != r {
+            return L10n.tr("The code lines say your passport expires on \(r), but the field above says \(typedExpiry). Correct whichever is wrong — the code lines are what we verify against.",
+                           "Hai dòng mã ghi ngày hết hạn là \(r), nhưng ô ở trên ghi \(typedExpiry). Hãy sửa phần nào sai — chúng tôi đối chiếu theo hai dòng mã.")
+        }
+        return nil
+    }
+
+    /// The passport was photographed and uploaded, the on-device read has finished, and it did not
+    /// deliver a check-valid MRZ — the state in which the seller must retake or type the lines.
+    /// ⚠️ Says so explicitly: the previous footer ("we read these from your photo…") read the same
+    /// whether the scan had worked or not.
+    var scanFailed: Bool {
+        tier == .b && documentPath != nil && !scanning && !mrzFromScan && !mrzValid
+    }
+
+    /// ⛔ ONCE REVEALED, THE RAW LINES STAY ON SCREEN. They open for a disagreement, and a
+    /// disagreement needs a check-valid MRZ — so the seller's first keystroke into line 2 (which
+    /// breaks a check digit) made the disagreement vanish and unmounted the editor under their
+    /// finger, keyboard and all. A latch, cleared when the lines themselves are cleared.
+    var mrzLinesRevealed = false
+    func revealMrzLinesIfDisagreeing() {
+        if mrzDisagreement != nil { mrzLinesRevealed = true }
+    }
+    var showsMrzLines: Bool {
+        tier == .b && (!mrzFromScan || mrzLinesRevealed || mrzDisagreement != nil)
+    }
+
+    /// The always-present escape hatch. The challenge is single-use and time-limited; if it expires
+    /// between the document and the selfie nothing downstream can succeed, and a seller with the
+    /// wrong document in hand needs a way back to the tier choice that does not involve failing.
+    func startOver() {
+        reset()
+        error = nil
+    }
+
     var canSubmit: Bool {
         guard documentPath != nil, selfiePath != nil, challengeCode != nil, !busy else { return false }
+        // ⛔ A DISAGREEMENT BLOCKS SEND — see `mrzDisagreement`.
+        guard mrzDisagreement == nil else { return false }
         // ⛔ REFUSE AN EXPIRED DOCUMENT HERE, NOT AT THE SERVER. The details screen already says "this
         // document has expired" — and Send stayed enabled underneath it, so the seller pressed it,
         // the server refused, and the SINGLE-USE challenge was spent along with one of their five
