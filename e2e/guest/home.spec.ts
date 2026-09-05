@@ -6,7 +6,13 @@ test.describe('Guest · homepage', () => {
   test.beforeEach(async ({ page }) => { await page.goto('/') })
 
   test('loads with title and hero', async ({ page }) => {
-    await expect(page).toHaveTitle(/eno\.vn/i)
+    // ⚠️ THE BRAND IN THE TITLE IS THE EDITION'S, NOT A CONSTANT. This asserted /eno\.vn/i and so
+    // failed against eno.forum — the SAME codebase deployed as the services edition, whose title
+    // is "eno.forum — …". That is a passing app and a spec written for one of its two deployments;
+    // every fix here is supposed to reach both, so the suite has to be runnable against both.
+    // Derived from the target rather than listed, so a third host would not need an edit.
+    const host = new URL(page.url()).hostname.replace(/^www\./, '')
+    await expect(page).toHaveTitle(new RegExp(host.replace(/\./g, '\\.'), 'i'))
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   })
 
