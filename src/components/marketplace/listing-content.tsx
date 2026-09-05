@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { RelativeTime } from './relative-time'
 import { useLanguage, useTr } from '@/context/language-context'
-import { timeAgo } from '@/lib/types'
 import { detectContentLang } from '@/lib/detect-lang'
 import { formatRichText } from '@/components/marketplace/rich-text'
 
@@ -121,8 +121,8 @@ export function ListingDescription({ text, vi, i18n, className }: { text: string
   return <div lang={cl && cl !== lang ? cl : undefined} className={`allow-select${className ? ` ${className}` : ''}`}>{formatRichText(out)}</div>
 }
 
-/** Relative "x ago" in the active language (client — keeps the page cacheable). */
+/** Relative "x ago" in the active language (client — keeps the page cacheable).
+ *  Hydration-stable: see RelativeTime — the clock is never read before mount. */
 export function PostedAgo({ iso }: { iso: string }) {
-  const { lang } = useLanguage()
-  return <>{timeAgo(iso, lang)}</>
+  return <RelativeTime iso={iso} />
 }

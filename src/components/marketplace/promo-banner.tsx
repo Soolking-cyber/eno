@@ -12,10 +12,14 @@ import {
   type CarouselApi,
 } from '@/components/ui/carousel'
 import { useLanguage } from '@/context/language-context'
+import { Pause, Play } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { PROMO_SLIDES, type PromoSlide } from '@/lib/promo-slides'
 import { SERVICES_PROMO_SLIDES } from '@/lib/promo-slides-services'
 import { IS_SERVICES } from '@/lib/edition'
+
+/** sessionStorage key for the visitor's own carousel pause (A01). */
+const PAUSE_KEY = 'eno-promo-paused'
 
 import { cn } from '@/lib/utils'
 
@@ -101,6 +105,41 @@ export function PromoBanner() {
 
   const paused = useRef(false)
   const hold = useCallback((v: boolean) => { paused.current = v }, [])
+  /**
+   * ⛔ A PERSISTENT PAUSE THE VISITOR OWNS — WCAG 2.2.2 (2026-09-05 review, A01). Hover, focus and
+   * touch-hold only pause while the pointer or focus is ON the carousel: leave, and it rotates
+   * again, so a visitor who wants it still has to keep touching it. This is a real control with a
+   * real state: press once and the slideshow stays stopped for the session (sessionStorage — a
+   * reload does not restart it under them), press again to resume. It is independent of the
+   * transient pauses above and of reduced motion, which is a hard opt-out on its own.
+   */
+  const [userPaused, setUserPaused] = useState(false)
+  useEffect(() => {
+    try { if (sessionStorage.getItem(PAUSE_KEY) === '1') setUserPaused(true) } catch { /* storage may be unavailable */ }
+  }, [])
+  const toggleUserPaused = useCallback(() => {
+    // The write happens HERE, not inside the state updater: updaters must be pure (React may run
+    // them twice in Strict Mode), and a side effect in one is the classic way a toggle goes wrong.
+    const next = !userPaused
+    try { sessionStorage.setItem(PAUSE_KEY, next ? '1' : '0') } catch { /* ignore */ }
+    setUserPaused(next)
+  }, [userPaused])
+  // Reduced motion is honoured LIVE: the OS setting can change mid-session, and a visitor who just
+  // asked for no motion must not wait for the next mount to get it.
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if (!mq) return
+    setReduced(mq.matches)
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches)
+    // Safari ≤ 13 has matchMedia but only the legacy addListener pair.
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange)
+      return () => mq.removeEventListener('change', onChange)
+    }
+    mq.addListener(onChange)
+    return () => mq.removeListener(onChange)
+  }, [])
 
   /**
    * ONE "the page has finished loading" SIGNAL, SERVING TWO PURPOSES: it releases the off-screen
@@ -161,10 +200,11 @@ export function PromoBanner() {
   useEffect(() => {
     if (!api) return
     // Reduced motion is a hard opt-out, not a slower interval: the whole point is no unrequested
-    // movement. Checked once here rather than per tick — a visitor who changes the OS setting
-    // mid-session gets it on the next mount, which is a fair trade for not re-subscribing.
-    const rm = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    if (rm) return
+    // movement. `reduced` tracks the media query LIVE (see above) — and it is ALSO read synchronously
+    // here, because on the very first commit the state is still its server value (false) and this
+    // effect would otherwise schedule one rotation for a reduced-motion visitor before the listener
+    // effect corrects it. `userPaused` is the visitor's own stop; neither is a transient pause.
+    if (reduced || userPaused || window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return
 
     if (!artReady) return // `artReady` IS the "page has loaded" signal — see the effect that sets it.
 
@@ -177,7 +217,7 @@ export function PromoBanner() {
       api.scrollNext()
     }, 5000)
     return () => clearInterval(id)
-  }, [api, artReady])
+  }, [api, artReady, reduced, userPaused])
 
   // ⚠️ NO MARGIN OF ITS OWN. The landing wrapper in listings-explorer.tsx owns vertical rhythm via
   // `space-y-8 sm:space-y-12`; an `mb-*` here ADDS to that gap rather than replacing it, and the
@@ -308,6 +348,23 @@ export function PromoBanner() {
               corner separates the two horizontally, so no vertical overlap can matter. Verified with
               elementFromPoint over both controls; if this row is ever re-centred, re-verify that. */}
           <div className="pointer-events-none absolute inset-x-0 bottom-1 flex justify-end gap-1 pr-3 sm:pr-5">
+            {/* The persistent Pause/Play — keyboard-operable, sitting with the dots so the slide
+                controls are one group. It stops the rotation; the arrows and dots keep working while
+                paused. ⚠️ THE NAME FOLLOWS THE ICON, AND THERE IS NO aria-pressed: what a voice-control
+                user sees is "Play", so "Play" is what the control must be called (WCAG 2.5.3), and a
+                swapping name plus a pressed state reads as "Play, pressed". Under reduced motion the
+                carousel never auto-advances, so the control is hidden by the media query itself
+                (`motion-reduce:hidden`) — CSS, not state, so the server HTML and the first paint
+                already agree and nothing flashes or shifts. */}
+            <Button
+              variant="bare"
+              size="none"
+              onClick={toggleUserPaused}
+              aria-label={userPaused ? tr('Play slideshow', 'Phát trình chiếu') : tr('Pause slideshow', 'Tạm dừng trình chiếu')}
+              className="pointer-events-auto mr-1 flex h-6 min-w-6 items-center justify-center px-1 text-white/90 motion-reduce:hidden"
+            >
+              {userPaused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+            </Button>
             {SLIDES.map((slide, i) => (
               <Button
                 key={slide.key}

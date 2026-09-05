@@ -187,7 +187,19 @@ export default async function CategoryPage({ params }: Props) {
               <h2 className="sr-only"><Tr text="Listings" /></h2>
               {/* A sort strip over a single card reads absurd — the tablist earns its row
                   only once there is something to reorder. */}
-              <SellerListings listings={listings} sortable={listings.length > 1} />
+              {/* ⛔ A SORT LEAVES THIS PAGE. These are the top 48 by relevance of a category that may
+                  hold thousands; sorting them in memory (the previous behaviour) reordered the same
+                  48 ids and could never surface a cheaper or newer item outside the window. Each
+                  sort is a LINK into the explorer's full, paginated query for this category with
+                  the sort in the URL (`sortBase` is a string: this is a Server → Client boundary),
+                  and the strip says what the 48 are. `sortable` keys off `total`, not the preview:
+                  one card shown of two hundred still needs the links to reach the other 199. */}
+              <SellerListings
+                listings={listings}
+                sortable={total > 1}
+                sortBase={`/?category=${encodeURIComponent(cat.slug)}`}
+                scope={{ shown: listings.length, total }}
+              />
             </div>
             <div className="mt-8">
               {/* Real ArrowRight at h-4, not a literal '→' — the SEO-landing CTAs already

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { RelativeTime } from '@/components/marketplace/relative-time'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, MessageCircle, ShieldCheck } from "@/components/ui/icons"
@@ -16,7 +17,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { helpTopic } from '@/lib/help-center'
 import type { HelpPost } from '@/lib/help-center-data'
-import { timeAgo } from '@/lib/types'
 
 export type HelpComment = {
   id: string
@@ -32,7 +32,6 @@ export type HelpComment = {
 }
 
 function CommentRow({ comment, nested = false }: { comment: HelpComment; nested?: boolean }) {
-  const { lang } = useLanguage()
   const body = useTr(comment.body)
   return (
     <li className={cn('flex gap-3 py-4', nested ? 'pl-4' : 'border-b border-border last:border-b-0')}>
@@ -41,7 +40,7 @@ function CommentRow({ comment, nested = false }: { comment: HelpComment; nested?
         <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
           <span className="font-semibold text-foreground">{comment.author.name}</span>
           <span aria-hidden>·</span>
-          <span>{timeAgo(comment.createdAt, lang)}</span>
+          <RelativeTime iso={comment.createdAt} />
           {comment.helpful && (
             <Badge variant="brand" size="sm">
               <CheckCircle2 className="size-3" aria-hidden />
@@ -69,7 +68,7 @@ function CommentRow({ comment, nested = false }: { comment: HelpComment; nested?
 }
 
 export function HelpThreadClient({ post, comments: initial }: { post: HelpPost; comments: HelpComment[] }) {
-  const { tr, lang } = useLanguage()
+  const { tr } = useLanguage()
   const { user, openSignIn } = useAuth()
   const router = useRouter()
   const title = useTr(post.title)
@@ -184,7 +183,7 @@ export function HelpThreadClient({ post, comments: initial }: { post: HelpPost; 
       <p className="mt-2 text-xs text-muted-foreground">
         {post.author.name}
         <span aria-hidden> · </span>
-        {timeAgo(post.createdAt, lang)}
+        <RelativeTime iso={post.createdAt} />
       </p>
 
       {/* Plain text with "•" bullets — no markdown renderer exists in this stack, so

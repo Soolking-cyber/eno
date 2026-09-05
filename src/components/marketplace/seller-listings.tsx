@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Search, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
@@ -21,13 +22,30 @@ export function SellerListings({
   listings,
   searchable = false,
   sortable = false,
+  sortBase,
+  scope,
 }: {
   listings: SerializedListingCard[]
   searchable?: boolean
   sortable?: boolean
+  /**
+   * ⛔ WHEN THE PAGE HOLDS ONLY A PREVIEW, A SORT MUST LEAVE THE PAGE. The /c/* landing pages fetch
+   * the top 48 of a category by relevance and used to sort THOSE 48 in memory while the heading
+   * announced thousands — "Price ↑" reordered the same 48 ids and no cheaper item outside the
+   * window could ever appear (2026-09-05 review, U01). With `sortBase` set (the explorer URL for
+   * this scope, e.g. `/?category=xe-may`), the strip is a row of real LINKS — `${sortBase}&sort=…`
+   * into the explorer's full, server-backed, paginated query — not ARIA tabs that navigate: a link
+   * can be middle-clicked, prefetched and read by a screen reader as what it is. A string, not a
+   * function, because this crosses the Server → Client Component boundary (a function prop there
+   * is a render-time crash). A seller storefront, which holds ALL of its listings, leaves it
+   * undefined and sorts in place.
+   */
+  sortBase?: string
+  /** What the visible set is a preview OF — rendered as one localised sentence under the strip. */
+  scope?: { shown: number; total: number }
 }) {
   const router = useRouter()
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const [q, setQ] = useState('')
   const [sort, setSort] = useState<SortKey>('relevance')
 
@@ -138,6 +156,53 @@ export function SellerListings({
     </Tabs>
   )
 
+  // The preview page's strip: the SAME visuals, but every entry is a link into the explorer, and the
+  // current order (relevance — what this page IS) is a plain selected label, not a tab.
+  // ⚠️ ONLY WHEN THE PAGE IS A PREVIEW. A category whose whole catalogue fits on the page
+  // (`total <= shown`) has nothing beyond the window to reach, so sorting in place is right there —
+  // sending that visitor to the explorer would be a navigation for nothing.
+  // `prefetch={false}`: four distinct explorer URLs per category page would otherwise each render
+  // the full explorer on hover/viewport — four DB-backed requests to show one category.
+  const previewOnly = !!sortBase && !!scope && scope.total > scope.shown
+  const sortLinks = previewOnly && (
+    <nav
+      aria-label={tr('Sort', 'Sắp xếp')}
+      className="-mx-3 block border-b border-border px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+    >
+      <ul className="scrollbar-none flex w-full flex-nowrap items-center justify-start gap-1 overflow-x-auto">
+        {/* Relevance is the order this page already IS — shown selected and announced as the current
+            item of the set (`aria-current="true"`: any element of a set may carry it; "page" is for a
+            link to the page you are on, which this is not). */}
+        <li><span aria-current="true" className={sortTab(true)}>{tr('Relevance', 'Liên quan')}</span></li>
+        {([
+          ['recent', tr('Newest', 'Mới nhất'), null],
+          ['popular', tr('Most contacted', 'Được quan tâm'), null],
+          ['price-low', tr('Price', 'Giá'), <ArrowUp key="up" className="size-3.5" aria-hidden />],
+          ['price-high', tr('Price', 'Giá'), <ArrowDown key="down" className="size-3.5" aria-hidden />],
+        ] as const).map(([key, label, icon]) => (
+          <li key={key}>
+            <Link
+              href={`${sortBase}${sortBase.includes('?') ? '&' : '?'}sort=${key}`}
+              prefetch={false}
+              className={sortTab(false)}
+              aria-label={key === 'price-low' ? tr('Price, low to high', 'Giá, thấp đến cao') : key === 'price-high' ? tr('Price, high to low', 'Giá, cao đến thấp') : undefined}
+            >
+              {label}
+              {icon}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+  const scopeNote = previewOnly && scope && (
+    <p className="text-xs text-muted-foreground">
+      {tr('Showing the top {shown} of {total} by relevance — choosing a sort searches all of them.', 'Đang hiển thị {shown} tin liên quan nhất trong {total} tin — chọn cách sắp xếp để tìm trong tất cả.')
+        .replace('{shown}', scope.shown.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US'))
+        .replace('{total}', scope.total.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US'))}
+    </p>
+  )
+
   const grid = (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {shown.map((l, i) => (
@@ -152,7 +217,8 @@ export function SellerListings({
 
   return (
     <div className="space-y-4">
-      {sortable && sortStrip}
+      {sortable && (previewOnly ? sortLinks : sortStrip)}
+      {sortable && scopeNote}
       {searchable && (
         /* Just a search within this seller's catalog — no category/type filters. */
         <div className="flex items-center gap-2 rounded-xl bg-tint px-3 py-2">
