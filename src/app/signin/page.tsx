@@ -51,7 +51,7 @@ function SignInPageInner() {
               (next.config.ts gates the year on the query being present). It is repeated at four
               call sites and MUST be bumped at all four when the mark is redrawn — the full
               reasoning and the recompute command live in marketplace/footer.tsx. */}
-          <img src="/logo-mark.svg?v=c781b0dc" alt={SITE_NAME} width={48} height={48} className="h-12 w-12" />
+          <img src="/logo-mark.svg?v=2b609517" alt={SITE_NAME} width={48} height={48} className="h-12 w-12" />
         </Link>
         {/* ⚠️ `h1`, NOT `h2`. The brand panel this replaced held the page's only `<h1>`, and
             shipping the card at h2 left a public route with no level-one heading — a

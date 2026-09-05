@@ -268,12 +268,13 @@ HTML from the SAME green build. Without it, a deploy is invisible for up to 6h.
 
 ## Shipping
 
-**Forum deployment boundary — cutover complete (owner, 2026-07-18; narrowed 2026-07-21 and
-again 2026-07-25):** `/Users/mk1e3/eno.vn/apps/forum` is the only source of truth for
-`eno.forum`, including the forum and concierge surfaces (**e-Visa was removed from this list —
-see "Visa ownership" below**). Make all such changes only under `apps/forum/**`.
+**Forum deployment boundary — SUPERSEDED (see the 2026-07-31 reversal below; restated
+2026-09-05):** eno.forum is served by the repository ROOT built as the services edition.
+`/Users/mk1e3/eno.vn/apps/forum` is a dormant tree nothing builds or deploys (its own
+README says so); the paragraphs that follow are kept because they explain WHY itinerary and
+visa live where they live, not because `apps/forum/**` is a place to make changes.
 
-**⚠️ ITINERARY IS NO LONGER A FORUM SURFACE (owner, 2026-07-25).** The trip service belongs to
+**⚠️ ITINERARY IS NO LONGER A FORUM SURFACE (owner, 2026-07-25) — ITSELF REVERSED 2026-07-31 (below: itinerary is a SERVICES-edition surface, eno.forum only; kept for the file history).** The trip service belongs to
 **eno.vn end to end** — the public landing page (`src/app/itinerary/page.tsx`), the builder and
 My Trips (`src/app/dashboard/trips/**`), the APIs (`src/app/api/itineraries/**`) and the libs
 (`src/lib/itinerary-*.ts`). The forum's duplicate builder, its generate/docx routes, its
@@ -345,12 +346,12 @@ Cloud Run service and build trigger were deleted. The owner's instruction was *"
 itself let it sit in git so we can host it later"* — so it is dormant source, not dead source: do
 not delete it, and do not treat its presence as evidence that eno.forum is deployed.
 
-**Codex handoff boundary (owner, 2026-07-18):** Codex only edits and validates
+**Codex handoff boundary — SUPERSEDED 2026-09-05 (codex is a reviewer seat in scripts/second-opinion.mjs; apps/forum is dormant; kept as history):** Codex only edits and validates
 `apps/forum/**`; it must not commit, push, trigger a deploy, or run the shipping workflow.
 Claude owns the whole-monorepo commit and push, after which Cloud Build builds and deploys
 to Cloud Run.
 
-**Mandatory Codex pickup (owner, 2026-07-18):** At the start of every shipping pass
+**Mandatory Codex pickup — SUPERSEDED 2026-09-05 (no forum pickup exists; the ship gate is the second-opinion script on the staged diff):** At the start of every shipping pass
 and immediately before staging, Claude must run `git status --short -- apps/forum` and
 inspect `git diff -- apps/forum`. Pending files there are a Codex handoff. If Codex
 reported the relevant forum gates green, include those files in the same commit; if

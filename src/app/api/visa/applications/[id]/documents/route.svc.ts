@@ -140,7 +140,16 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     // that will reference it can fail. The commit below drops the tombstone; if the commit never
     // happens — case locked meanwhile, a crash, an outage — the sweep removes the orphan after
     // its grace hour (2026-09-05 review, S04).
-    await writeTombstones(prisma, [{ bucket: VISA_BUCKET, path: stored.storage_path }], 'visa_upload_intent')
+    try {
+      await writeTombstones(prisma, [{ bucket: VISA_BUCKET, path: stored.storage_path }], 'visa_upload_intent')
+    } catch (e) {
+      // ⚠️ No row and no tombstone would make the object undiscoverable: take it back out now and
+      // fail the upload. The rollback is best-effort and must never replace the real error — if it
+      // throws too, both are logged and the ORIGINAL failure is what the caller sees.
+      try { await removeVisaFiles([stored.storage_path], { strict: false }) }
+      catch (rollback) { console.error('[visa] upload-intent rollback failed; object may be orphaned', stored.storage_path, rollback) }
+      throw e
+    }
     const document = { id: randomUUID(), application_id: id, kind: kind.data, ...stored, created_at: new Date().toISOString() }
     // ⛔ ONE TRANSACTION, HOLDING THE APPLICATION ROW: re-checks the status (the check above is a
     // TOCTOU on its own — a submit can land while the image is in flight), deletes the previous

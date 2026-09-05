@@ -16,7 +16,11 @@ import { readFileSync } from 'node:fs'
 const [svgPath, out, sizeArg] = process.argv.slice(2)
 if (!svgPath || !out || !sizeArg) { console.error('usage: render-brand-icon.mjs <svg> <out.png> <size>'); process.exit(2) }
 const size = Number(sizeArg)
-const svg = readFileSync(svgPath, 'utf8').replace(/width="\d+" height="\d+"/, `width="${size}" height="${size}"`)
+// FLAT=1: drop the <style> that switches the shadow filter on at ≥160px. Every raster is rendered
+// flat — a phone shows the 1024 store icon at 180px and the launch mark at 120pt, and the blurred
+// drop shadow survives that downsampling only as mud under the glyph (owner, 2026-09-05).
+const raw = readFileSync(svgPath, 'utf8')
+const svg = (process.env.FLAT === '1' ? raw.replace(/<style>.*?<\/style>/s, '') : raw).replace(/width="\d+" height="\d+"/, `width="${size}" height="${size}"`)
 const html = `<!doctype html><html><body style="margin:0;background:transparent"><div style="width:${size}px;height:${size}px;line-height:0">${svg}</div></body></html>`
 const browser = await chromium.launch()
 try {

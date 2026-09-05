@@ -78,3 +78,30 @@ it is trusted.
 while never loading the build you are about to ship.
 
 _Baseline captured against `origin/main` = `92bca678`, marketplace edition._
+
+## Why there is no marketplace browser gate on merge, and what one would take (review Q01, 2026-09-05)
+
+The guest suite reads LIVE listing data, and on eno.vn the hide-list keeps the marketplace
+empty, so the same run is red on the licensed edition and green on eno.forum. That is why
+`ci.yml` deliberately runs only the dormant forum tree's e2e on merge and leaves the root suite
+to the post-deploy pass. The consequence is that a marketplace regression reaches production
+before any browser sees it.
+
+A fixture-backed gate closes that without touching production data:
+
+1. **Fixtures, not live rows.** `scripts/e2e-seed.mjs` already seeds a namespaced seller and one
+   `verified=false` listing over `DIRECT_URL`. A marketplace gate needs ~6 `verified=true`
+   listings across three categories with the three images in `e2e/fixtures/` — and they must
+   NEVER land in the production database, because verified rows are public.
+2. **Therefore a throwaway database.** The gate runs against a preview on `:3100` pointed at a
+   Supabase branch (`supabase branches create`, seeded by the same script) or a Postgres service
+   container with the schema applied by `scripts/*-table.mjs` + `prisma migrate diff`. The
+   preview builds the MARKETPLACE edition with an empty hide-list, so the listings show.
+3. **The specs are the existing guest ones** (`e2e/guest/home|category|listing|search.spec.ts`),
+   with their "expects at least N cards" assertions reading the fixture count rather than a live
+   minimum. `known-failures.md` above then describes a suite that no longer has a baseline.
+4. **On merge, not on a schedule** — the point is to stop a regression before the deploy script
+   runs, so the job goes beside `check` in `ci.yml`, `--fail-on-flaky-tests`, 12-minute budget.
+
+Not built in the review pass: it needs the branch database (a Supabase plan/billing decision)
+and the CI secrets for it, which are the owner's to provision.

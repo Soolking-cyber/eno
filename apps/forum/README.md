@@ -1,16 +1,18 @@
 # eno.forum
 
-Deployable Next.js workspace for the eno.forum community, Vietnam itinerary builder, concierge entry points, and e-Visa assistant. It lives in the `Soolking-cyber/eno` monorepo while retaining its own dependencies, build, tests, environment variables, Vercel project, and browser domains.
+Dormant (formerly deployable) Next.js workspace for the eno.forum community, Vietnam itinerary builder, concierge entry points, and e-Visa assistant. It lives in the `Soolking-cyber/eno` monorepo while retaining its own dependencies, build, tests, environment variables, Vercel project, and browser domains.
 
 > [!IMPORTANT]
-> **Deployment ownership — cutover complete:** `Soolking-cyber/eno/apps/forum` is the
-> sole forum source of truth. The existing `eno-forum` Vercel project deploys this
-> directory with Root Directory `apps/forum`; the root `eno` project continues to
-> deploy eno.vn. The former `Soolking-cyber/eno-forum` repository and local
-> `/Users/mk1e3/eno-forum` checkout are retired migration history and must never be
-> edited, pushed, or used as a deployment source.
+> **This tree is DORMANT (verified 2026-09-05).** eno.forum is served by the repository ROOT,
+> built as the services edition (`eno-forum` image on the VN box, `infra/vn-node/eno-deploy.sh`)
+> — see the root `AGENTS.md` and the "Shipping" section of the root `CLAUDE.md`. Nothing builds
+> or deploys this directory: the Vercel project that once did was retired in July 2026 and the
+> Cloud Run services in August 2026. Its `Dockerfile`, `cloudbuild.yaml`, dependency tree and the
+> `forum-e2e` CI job describe that former deployment. Fix product bugs in the root, never here.
+> The former `Soolking-cyber/eno-forum` repository and local `/Users/mk1e3/eno-forum` checkout
+> are retired migration history and must never be edited, pushed, or used as a deployment source.
 
-Codex works locally inside `apps/forum/**` and hands validated changes back without
+Codex used to work locally inside `apps/forum/**` (retired 2026-09-05 — nothing builds this tree) and handed validated changes back without
 committing, pushing, or triggering a deployment. Claude owns the monorepo-wide commit
 and push; the connected Vercel projects then build automatically.
 

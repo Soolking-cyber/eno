@@ -269,8 +269,8 @@ export function Footer() {
                 any `?v=` reference is stale, so run it. Nothing else enforces it,
                 and the failure is silent and year-long: a Cloudflare purge cannot reach a browser
                 cache, so returning visitors keep the old mark. Recompute with
-                `shasum -a 256 public/logo-mark.svg | cut -c1-8` (c781b0dc on 2026-09-05; d88a7892 before that). */}
-            <img src="/logo-mark.svg?v=c781b0dc" alt={SITE_NAME} width={36} height={36} className="h-9 w-9" />
+                `shasum -a 256 public/logo-mark.svg | cut -c1-8` (2b609517 on 2026-09-05 — the crisp-at-small-sizes mark; c781b0dc and d88a7892 before that). */}
+            <img src="/logo-mark.svg?v=2b609517" alt={SITE_NAME} width={36} height={36} className="h-9 w-9" />
             {/* ⚠️ THIS IS AN <h2>, NOT A <p>, AND IT IS THE FOOTER'S ONLY HEADING AT THAT TIER.
                 It carries no new copy and no new classes — it is the same tagline sentence that
                 has always been painted here, re-tagged (2026-08-23). Two things made that the

@@ -40,15 +40,15 @@ export default function manifest(): MetadataRoute.Manifest {
     // mark would sit behind Cloudflare, browser and installed-PWA caches until expiry. Same value as
     // the /logo-mark.svg call sites — bump them together (scripts/brand-icons.sh says how).
     icons: [
-      { src: '/icon-192.png?v=c781b0dc', sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: '/icon-512.png?v=c781b0dc', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: '/icon-maskable-512.png?v=c781b0dc', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: '/icon-192.png?v=2b609517', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icon-512.png?v=2b609517', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icon-maskable-512.png?v=2b609517', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
     // Long-press quick actions on the installed icon (Android/desktop).
     shortcuts: [
-      { name: 'Post a listing', short_name: 'Post', url: '/post', icons: [{ src: '/icon-192.png?v=c781b0dc', sizes: '192x192', type: 'image/png' }] },
-      { name: 'Saved', short_name: 'Saved', url: '/saved', icons: [{ src: '/icon-192.png?v=c781b0dc', sizes: '192x192', type: 'image/png' }] },
-      { name: 'Messages', short_name: 'Messages', url: '/messages', icons: [{ src: '/icon-192.png?v=c781b0dc', sizes: '192x192', type: 'image/png' }] },
+      { name: 'Post a listing', short_name: 'Post', url: '/post', icons: [{ src: '/icon-192.png?v=2b609517', sizes: '192x192', type: 'image/png' }] },
+      { name: 'Saved', short_name: 'Saved', url: '/saved', icons: [{ src: '/icon-192.png?v=2b609517', sizes: '192x192', type: 'image/png' }] },
+      { name: 'Messages', short_name: 'Messages', url: '/messages', icons: [{ src: '/icon-192.png?v=2b609517', sizes: '192x192', type: 'image/png' }] },
     ],
   }
 }

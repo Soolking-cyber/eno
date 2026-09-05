@@ -32,16 +32,19 @@ square = s.replace(tile, 'M0 0H512V512H0Z')
 open(out, 'w', encoding='utf-8').write(square)
 open('src/app/icon.svg', 'w', encoding='utf-8').write(s)
 at1024 = lambda v: v.replace('width="512" height="512"', 'width="1024" height="1024"', 1)
+flat = lambda v: re.sub(r'<style>.*?</style>', '', v, flags=re.S)  # Capacitor/Android sources: crisp, no size-gated filter
+square = flat(square)  # ⚠️ BEFORE the first derived source is written, or icon-only.svg keeps the filter
 open('assets/icon-only.svg', 'w', encoding='utf-8').write(at1024(square))
-bg = re.sub(r'<g filter="url\(#filter0_di\)">.*?</g>\n', '', at1024(square), flags=re.S)
-assert 'filter0_di)">' not in bg
+bg = re.sub(r'<g class="fx">.*?</g>\n', '', at1024(square), flags=re.S)
+assert 'class="fx"' not in bg
 open('assets/icon-background.svg', 'w', encoding='utf-8').write(bg)
-fg = re.sub(r'<g>\n<path d="M400 0H112.*?</g>\n', '', at1024(s), count=1, flags=re.S)
+fg = re.sub(r'<g>\n<path d="M400 0H112.*?</g>\n', '', at1024(flat(s)), count=1, flags=re.S)
 assert fg.count('<path') == 2, fg.count('<path')
-fg = fg.replace('<g filter="url(#filter0_di)">', '<g transform="translate(87.04 87.04) scale(0.66)" filter="url(#filter0_di)">')
+fg = fg.replace('<g class="fx">', '<g transform="translate(87.04 87.04) scale(0.66)">')
 open('assets/icon-foreground.svg', 'w', encoding='utf-8').write(fg)
 PY
-r() { node scripts/render-brand-icon.mjs "$1" "$2" "$3" >/dev/null; }
+# ⚠️ FLAT=1 — every raster is crisp; the shadow filter only exists for the web SVG at ≥160px.
+r() { FLAT=1 node scripts/render-brand-icon.mjs "$1" "$2" "$3" >/dev/null; }
 for s in 16 32 48 120 192 240 360 512; do r "$ROUNDED" "$TMP/r$s.png" "$s"; done
 for s in 180 512 1024; do r "$SQUARE" "$TMP/s$s.png" "$s"; done
 # ⛔ NO ALPHA CHANNEL ON THE STORE ICONS. Chromium's screenshot encoder writes RGBA even when every
@@ -60,7 +63,7 @@ mkdir -p apps/ios/Eno/Assets.xcassets/LaunchMark.imageset
 cp "$TMP/r120.png" apps/ios/Eno/Assets.xcassets/LaunchMark.imageset/launch-mark.png
 cp "$TMP/r240.png" apps/ios/Eno/Assets.xcassets/LaunchMark.imageset/launch-mark@2x.png
 cp "$TMP/r360.png" apps/ios/Eno/Assets.xcassets/LaunchMark.imageset/launch-mark@3x.png
-# Android launchers: sharp/librsvg renders this filter chain correctly (checked by eye, 2026-09-05).
+# Android launchers: rendered from the FLAT sources above (no filter chain to get wrong).
 # ⚠️ The generator drops the hand-added <monochrome> (Android 13 themed icon) from the two adaptive
 # XMLs) — so they are put back exactly as they were, local edits included, never from git.
 ADAPTIVE=android/app/src/main/res/mipmap-anydpi-v26

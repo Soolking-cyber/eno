@@ -12,8 +12,8 @@ self.addEventListener('push', (event) => {
     // `max-age=31536000, immutable`, so an unstamped request here would pin the OLD mark in the
     // notification for a year. `src/lib/asset-stamps.test.ts` fails if this literal drifts from
     // the file's hash — that guard is the only reason four hand-maintained copies are tolerable.
-    icon: '/logo-mark.svg?v=c781b0dc',
-    badge: '/logo-mark.svg?v=c781b0dc', // the MONOCHROME status-bar glyph — NOT the app-icon count (that's setAppBadge below)
+    icon: '/logo-mark.svg?v=2b609517',
+    badge: '/logo-mark.svg?v=2b609517', // the MONOCHROME status-bar glyph — NOT the app-icon count (that's setAppBadge below)
     tag: data.tag || 'eno-reminder', // collapses repeats into one
     data: { url: data.url || '/dashboard' },
     requireInteraction: false,
