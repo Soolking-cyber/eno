@@ -416,7 +416,7 @@ export function Header() {
               2026-08-02: "make logo mark as tall as the searchbar next to it"), so the two line up
               as one row instead of the mark floating small beside it. Square, so it costs 16px of
               width — the search form is `min-w-0 flex-1` and absorbs it. */}
-          <img src="/logo-mark.svg?v=d88a7892" alt={SITE_NAME} width={1024} height={1024} className="h-12 w-12" />
+          <img src="/logo-mark.svg?v=c781b0dc" alt={SITE_NAME} width={1024} height={1024} className="h-12 w-12" />
           {/* ⚠️ NO TEXT WORDMARK BESIDE THE MARK — removed 2026-08-02 at the owner's request, one
               hour after being added. It was added on the theory that Google's "app name does not
               match" needed the name as PAINTED text somewhere above the fold (an <img alt> is never

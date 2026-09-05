@@ -264,11 +264,13 @@ export function Footer() {
                 FILENAME 404s out of already-cached HTML for hours after a deploy.
 
                 ⛔ REDRAW public/logo-mark.svg AND YOU **MUST** BUMP THE STAMP IN ALL FOUR PLACES IN
-                THE SAME COMMIT — `grep -rn "logo-mark.svg?v=" src/` finds them. Nothing enforces it,
+                THE SAME COMMIT — and the PWA icon srcs in manifest.ts with them. `bash
+                scripts/brand-icons.sh` regenerates every raster, prints the stamp and FAILS while
+                any `?v=` reference is stale, so run it. Nothing else enforces it,
                 and the failure is silent and year-long: a Cloudflare purge cannot reach a browser
                 cache, so returning visitors keep the old mark. Recompute with
-                `shasum -a 256 public/logo-mark.svg | cut -c1-8` (d88a7892 on 2026-08-23). */}
-            <img src="/logo-mark.svg?v=d88a7892" alt={SITE_NAME} width={36} height={36} className="h-9 w-9" />
+                `shasum -a 256 public/logo-mark.svg | cut -c1-8` (c781b0dc on 2026-09-05; d88a7892 before that). */}
+            <img src="/logo-mark.svg?v=c781b0dc" alt={SITE_NAME} width={36} height={36} className="h-9 w-9" />
             {/* ⚠️ THIS IS AN <h2>, NOT A <p>, AND IT IS THE FOOTER'S ONLY HEADING AT THAT TIER.
                 It carries no new copy and no new classes — it is the same tagline sentence that
                 has always been painted here, re-tagged (2026-08-23). Two things made that the

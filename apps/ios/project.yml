@@ -50,6 +50,14 @@ targets:
         CFBundleDisplayName: eno.vn
         UILaunchScreen:
           UIColorName: LaunchBackground
+          # ⚠️ THE SAME IMAGE, AT THE SAME SIZE, THAT LaunchCoverView DRAWS AS ITS FIRST FRAME. The
+          # static launch screen (this) and the SwiftUI cover hand over pixel-for-pixel — the mark
+          # is centred at its intrinsic 120pt here and at 120pt there — so the cold start reads as
+          # one continuous scene: mark → pop → wordmark → zoom into the app. Change one, change both.
+          UIImageName: LaunchMark
+          # Centred on the FULL screen, not the safe area — the cover centres the same way, and on a
+          # notched phone the two centres differ by half the inset difference otherwise.
+          UIImageRespectsSafeAreaInsets: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
         # Purpose strings are REQUIRED — camera/mic are used by the listing photo
@@ -115,6 +123,14 @@ targets:
         CFBundleDisplayName: eno.forum
         UILaunchScreen:
           UIColorName: LaunchBackground
+          # ⚠️ THE SAME IMAGE, AT THE SAME SIZE, THAT LaunchCoverView DRAWS AS ITS FIRST FRAME. The
+          # static launch screen (this) and the SwiftUI cover hand over pixel-for-pixel — the mark
+          # is centred at its intrinsic 120pt here and at 120pt there — so the cold start reads as
+          # one continuous scene: mark → pop → wordmark → zoom into the app. Change one, change both.
+          UIImageName: LaunchMark
+          # Centred on the FULL screen, not the safe area — the cover centres the same way, and on a
+          # notched phone the two centres differ by half the inset difference otherwise.
+          UIImageRespectsSafeAreaInsets: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
         # ⚠️ Purpose strings are REQUIRED and xcodegen regenerates Info.plist from

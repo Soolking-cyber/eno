@@ -338,7 +338,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
             sites and MUST be bumped at all four when the mark is redrawn — the full reasoning and
             the recompute command live in footer.tsx. */}
         <img
-          src="/logo-mark.svg?v=d88a7892"
+          src="/logo-mark.svg?v=c781b0dc"
           alt=""
           aria-hidden
           width={1024}
