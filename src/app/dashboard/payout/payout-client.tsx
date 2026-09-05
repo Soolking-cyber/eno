@@ -189,6 +189,19 @@ export function PayoutClient({ embedded = false }: { embedded?: boolean } = {}) 
     )
   }
 
+  /** Where the holder name in the field actually came from — the suggestion's source only while
+   *  the suggestion IS the field. Case and whitespace aside, NOTHING ELSE: Vietnamese diacritics
+   *  distinguish legal names (Hùng / Hưng, Nguyễn / Nguyên), so a fold that dropped them would
+   *  claim "from your verified ID" for a different person's name — the very false attribution this
+   *  exists to end. A seller who re-types the suggestion in the bank's unaccented ASCII has made it
+   *  their own spelling, and the generic line is the honest one for that. */
+  // ⚠️ NFC FIRST: Apple's Vietnamese keyboards emit decomposed marks, the registries precomposed.
+  const fold = (v: string | null | undefined) => (v ?? '').normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi')
+  const holderSource =
+    current?.suggestedFrom && current.suggestedName && fold(holder) !== '' && fold(holder) === fold(current.suggestedName)
+      ? current.suggestedFrom
+      : null
+
   return (
     <>
       {/* Native stack-nav title bar (mobile only) — the same string the desktop heading uses. */}
@@ -295,12 +308,16 @@ export function PayoutClient({ embedded = false }: { embedded?: boolean } = {}) 
                   what its own account is called, and a shortened company form or a transliterated
                   passport name will legitimately differ. Naming the source is what makes editing it
                   feel allowed. */}
-              {current?.suggestedFrom === 'business'
+              {/* ⛔ ONLY WHILE THE SUGGESTION IS WHAT IS IN THE FIELD. Keyed on `suggestedFrom` alone,
+                  a saved, hand-corrected name sat under "Filled in from your registered company
+                  name" — a false claim about the one field a buyer compares in their banking app
+                  before confirming. (Found by review of the native port, which had copied it.) */}
+              {holderSource === 'business'
                 ? tr(
                     'Filled in from your registered company name — edit it if your bank has it differently.',
                     'Điền sẵn từ tên công ty đã đăng ký — hãy sửa nếu ngân hàng ghi khác.',
                   )
-                : current?.suggestedFrom === 'identity'
+                : holderSource === 'identity'
                   ? tr(
                       'Filled in from your verified ID — edit it if your bank has it differently.',
                       'Điền sẵn từ giấy tờ đã xác minh — hãy sửa nếu ngân hàng ghi khác.',
