@@ -70,7 +70,7 @@ const stmts = [
          select distinct storage_path from gone where storage_path is not null and storage_path <> v_path
        ), stamped as (
          insert into "StorageTombstone" ("id", "bucket", "path", "reason", "createdAt", "notBefore", "attempts")
-         -- ⚠️ `at time zone 'utc'`: the column is timestamp WITHOUT time zone and Prisma reads it as UTC;
+         -- ⚠️ "at time zone 'utc'": the column is timestamp WITHOUT time zone and Prisma reads it as UTC;
          -- a bare now() would be converted through the session zone and could land hours off.
          select gen_random_uuid()::text, 'visa-documents', storage_path, 'visa_document_replaced', (now() at time zone 'utc'), (now() at time zone 'utc') + interval '1 hour', 0
          from distinct_gone
@@ -79,7 +79,7 @@ const stmts = [
        )
        select coalesce(array_agg("path"), '{}'::text[]) into v_old from stamped;
      end if;
-     -- ⚠️ EXPLICIT COLUMNS. `insert … select *` would turn any key missing from the JSON into an
+     -- ⚠️ EXPLICIT COLUMNS. "insert … select *" would turn any key missing from the JSON into an
      -- explicit NULL that bypasses the column default — a future column would break every upload.
      insert into visa_documents (id, application_id, kind, storage_path, mime_type, size_bytes, width, height,
                                  sha256, created_at, validation_status, validation_report)

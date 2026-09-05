@@ -46,6 +46,7 @@ export type SharedApiErrorCode =
   | 'auth_required'                     // 89
   | 'not_found'                         // 73
   | 'rate_limited'                      // 63
+  | 'reason_required'                  // admin Users console: revoke / erase need a written reason for the audit row
   | 'bad_request'                       // 25
   | 'forbidden'                         // 21
   | 'invalid_body'                      // 21
@@ -109,6 +110,7 @@ export type NicheApiErrorCode =
   | 'buyer_not_in_conversations'
   | 'bad_credentials'                    // api/auth/password — the ONE failure shape
   | 'cannot_block_self'
+  | 'cannot_erase_admin'                // admin Users console: an ADMIN_EMAILS account is never erased from the console
   | 'cannot_report_self'
   | 'captcha_failed'
   | 'card_superseded'
@@ -116,6 +118,7 @@ export type NicheApiErrorCode =
   | 'community_not_found'
   | 'complete_failed'
   | 'confirm_failed'
+  | 'confirmation_mismatch'            // admin erase: the retyped email did not match
   | 'consent_required'
   | 'contact_in_text'
   | 'cooldown'
@@ -364,6 +367,7 @@ export type NicheApiErrorCode =
   | 'Unauthorized'
   | 'under_review'
   | 'unknown'
+  | 'unknown_action'                   // admin Users console: POST action not one of revoke-identity | erase
   | 'unknown_category'
   | 'unknown_macro'
   | 'unsafe_url'
@@ -452,10 +456,12 @@ const ALL = [
   'buyer_not_in_conversations',
   'bad_credentials',
   'cannot_block_self',
+  'cannot_erase_admin',
   'cannot_report_self',
   'captcha_failed',
   'community_not_found',
   'complete_failed',
+  'confirmation_mismatch',
   'consent_required',
   'contact_in_text',
   'cooldown',
@@ -554,6 +560,7 @@ const ALL = [
   'question_required',
   'queue_failed',
   'rate_limited',
+  'reason_required',
   'recipient_unreachable',
   'refinement_limit',
   'reply_required',
@@ -598,6 +605,7 @@ const ALL = [
   'unauthorized',
   'under_review',
   'unknown',
+  'unknown_action',
   'unknown_category',
   'unknown_macro',
   'unsafe_url',
