@@ -25,13 +25,26 @@ final class PayoutModel {
     /// keychain state (a simulator that happens to hold a session would otherwise make the
     /// signed-out tests call the live API).
     private let signedIn: @MainActor () -> Bool
+    /// WHO the session belongs to, read before and after every await. ⚠️ A REPLY FROM A SESSION THAT
+    /// IS GONE IS DROPPED: seller A's slow GET landing after A signed out must not repaint A's bank
+    /// details, and B's fetch must not be answered by A's. The view discards the model on an account
+    /// change too; this is the model refusing to be wrong on its own.
+    private let sessionKey: @MainActor () -> String?
     /// The licensing gate, injected for the same reason as `signedIn`: the unit-test host is the
     /// marketplace edition, where the gate is (correctly) closed.
     private let enabled: Bool
+    /// The wire, injected so every status path (200 / 401 / 404 / 429 / 5xx / thrown) can be
+    /// exercised in a test without a server.
+    typealias Transport = @MainActor (_ method: String, _ path: String, _ body: [String: Any]?) async throws -> (Data, Int)
+    private let transport: Transport
     init(signedIn: @escaping @MainActor () -> Bool = { AuthModel.shared.isSignedIn },
-         enabled: Bool = Edition.showsPayments) {
+         sessionKey: @escaping @MainActor () -> String? = { AuthModel.shared.userId },
+         enabled: Bool = Edition.showsPayments,
+         transport: @escaping Transport = { try await APIClient.shared.requestData($0, $1, body: $2) }) {
         self.signedIn = signedIn
+        self.sessionKey = sessionKey
         self.enabled = enabled
+        self.transport = transport
     }
 
     var loaded = false
@@ -110,21 +123,42 @@ final class PayoutModel {
         guard enabled else { failed = true; loaded = true; return }
         // ⚠️ NO SESSION, NO REQUEST. Offline and signed out, the request throws and the seller was
         // told the server could not be reached when the honest answer is "sign in".
-        guard signedIn() else { forgetServerState(); blocked = .signedOut; loaded = true; return }
-        do {
-            let (data, status) = try await APIClient.shared.requestData("GET", "api/seller/payout")
-            // ⚠️ 401 AND 404 ARE DIFFERENT PROBLEMS WITH DIFFERENT ANSWERS. Collapsing them told a
-            // signed-out visitor they had no shop and sent them off to post a listing.
-            if status == 401 { forgetServerState(); blocked = .signedOut; loaded = true; return }
-            if status == 404 { blocked = .noShop; loaded = true; return }
-            guard (200..<300).contains(status) else { blocked = nil; failed = true; loaded = true; return }
-            blocked = nil
-            apply(try JSONDecoder().decode(PayoutState.self, from: data))
-        } catch {
-            blocked = nil
-            failed = true
+        // ⛔ SIGNED OUT WIPES THE DRAFT TOO. The typed account number is the FULL number (the server
+        // only ever returns the last four), sign-out is the hand-over gesture on a shared phone, and
+        // a number kept "for A signing back in" is a number kept for whoever signs in. Retyping
+        // thirteen digits is cheaper than that.
+        guard signedIn() else { forgetServerState(); wipeDraft(); blocked = .signedOut; loaded = true; return }
+        reconcileOwner()
+        let session = sessionKey()
+        let reply: Result<(Data, Int), Error>
+        do { reply = .success(try await transport("GET", "api/seller/payout", nil)) } catch { reply = .failure(error) }
+        // ⛔ THE SESSION IS CHECKED FIRST, BEFORE CANCEL-VS-FAIL. A sign-out that cancels the
+        // in-flight request is still a session change, and a mismatch is the one moment the model
+        // knows its data belongs to a gone session — so it wipes rather than merely dropping the
+        // reply: the card and the prefilled fields go, and the model reads as never loaded (or as
+        // signed out, when that is what happened) so the next appearance asks again.
+        guard session == sessionKey() else { sessionChanged(); return }
+        guard let (data, status) = try? reply.get() else {
+            // ⚠️ A CANCELLED FETCH IS NOT A FAILED ONE. SwiftUI tears the driving task down on a
+            // tab switch or a pop and URLSession throws `cancelled`; rendering that as "could not
+            // load" showed an error card on a healthy network. Leave the model unloaded.
+            if case .failure(let e) = reply, Self.isCancellation(e) { return }
+            blocked = nil; failed = true; loaded = true; return
         }
+        // ⚠️ 401 AND 404 ARE DIFFERENT PROBLEMS WITH DIFFERENT ANSWERS. Collapsing them told a
+        // signed-out visitor they had no shop and sent them off to post a listing.
+        if status == 401 { forgetServerState(); wipeDraft(); blocked = .signedOut; loaded = true; return }
+        if status == 404 { blocked = .noShop; loaded = true; return }
+        guard (200..<300).contains(status), let state = try? JSONDecoder().decode(PayoutState.self, from: data) else {
+            blocked = nil; failed = true; loaded = true; return
+        }
+        blocked = nil
+        apply(state)
         loaded = true
+    }
+
+    static func isCancellation(_ error: Error) -> Bool {
+        error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 
     /// Fold a GET reply into the form. ⚠️ PREFILL ONLY WHAT IS EMPTY: a reload on the SAME model —
@@ -157,26 +191,39 @@ final class PayoutModel {
         // network, and a save on the marketplace build must not read the missing route's 404 as
         // "no shop yet".
         guard enabled else { error = Self.saveFailure(.failed); return }
-        guard signedIn() else { forgetServerState(); blocked = .signedOut; return }
+        guard signedIn() else { forgetServerState(); wipeDraft(); blocked = .signedOut; return }
         saving = true
         defer { saving = false }
         error = nil
         savedSnapshot = nil
+        // ⛔ IF THE OWNER CHANGED, THERE IS NOTHING TO SAVE — the draft was A's and was just wiped;
+        // capturing the body after the wipe sent a PUT of blanks under B's token. Said, not silent.
+        guard !reconcileOwner() else {
+            loaded = false                       // B's own saved details are fetched on the next appearance
+            error = L10n.tr("The account changed, so the form was cleared. Please enter the details again.",
+                            "Tài khoản đã thay đổi nên biểu mẫu đã được xóa. Vui lòng nhập lại thông tin.")
+            return
+        }
         let bin = trimmedBin, account = trimmedAccount, name = trimmedHolder
+        let session = sessionKey()
         let outcome: SaveOutcome
         do {
-            let (_, status) = try await APIClient.shared.requestData(
+            let (_, status) = try await transport(
                 "PUT", "api/seller/payout",
-                body: ["bankBin": bin, "bankAccountNo": account, "bankAccountName": name])
+                ["bankBin": bin, "bankAccountNo": account, "bankAccountName": name])
             outcome = Self.saveOutcome(status)
         } catch {
+            guard session == sessionKey() else { sessionChanged(); return }
+            if Self.isCancellation(error) { return }
             outcome = .offline
         }
+        guard session == sessionKey() else { sessionChanged(); return }
         switch outcome {
         case .saved:
             recordSaved(bin: bin, account: account, holder: name)
         case .signedOut:
             forgetServerState()
+            wipeDraft()                          // a lapsed token is a sign-out: same rule
             blocked = .signedOut
         case .noShop:
             blocked = .noShop
@@ -185,9 +232,6 @@ final class PayoutModel {
         }
     }
 
-    /// ⚠️ WHAT THE SERVER TOLD US ABOUT A SESSION THAT IS GONE IS FORGOTTEN WITH IT — the "ending
-    /// 1234" card and the saved holder name are not left in memory for whoever holds the phone next.
-    /// The typed draft stays: it belongs to the person typing, who may simply be signing back in.
     /// The name the server would put in the holder field: the saved name, else the suggestion,
     /// an EMPTY STRING counting as absent. ⚠️ ONE rule shared by `apply` and `forgetServerState` —
     /// a `??` in the second that stopped at `""` left the identity-sourced name on screen after a
@@ -196,6 +240,54 @@ final class PayoutModel {
         [d.bankAccountName, d.suggestedName].compactMap { $0 }.first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
+    /// The session under an await turned out not to be the one that answered. The server's data AND
+    /// the typed draft go, whichever way the session went — see the rule at the signed-out guard in
+    /// `load()`: a session change of any kind is a hand-over, and the draft was the old session's.
+    private func sessionChanged() {
+        forgetServerState()
+        wipeDraft()                              // whichever way the session went, the draft was the old one's
+        failed = false
+        error = nil
+        reconcileOwner()
+        if sessionKey() == nil {
+            blocked = .signedOut
+            loaded = true
+        } else {
+            blocked = nil
+            loaded = false
+        }
+    }
+
+    /// The last account any request ran under. ⛔ RECORDED ON EVERY PATH, not only mid-flight: an
+    /// account that changes IN PLACE (no signed-out state in between — a different account through
+    /// the sign-in sheet) is a hand-over too, and B's first request must find an empty form. A
+    /// token refresh keeps the subject and therefore the draft.
+    private var lastOwner: String?
+
+    private func wipeDraft() {
+        holder = ""; bankBin = ""; accountNo = ""
+    }
+
+    /// Runs first thing in every request and after every mismatch: a non-nil key that differs from
+    /// the last non-nil key is a different account, and the previous one's draft and data go.
+    @discardableResult
+    private func reconcileOwner() -> Bool {
+        guard let now = sessionKey() else { return false }
+        var wiped = false
+        if let last = lastOwner, last != now {
+            wipeDraft()
+            forgetServerState()
+            failed = false
+            error = nil
+            wiped = true
+        }
+        lastOwner = now
+        return wiped
+    }
+
+    /// ⚠️ WHAT THE SERVER TOLD US ABOUT A SESSION THAT IS GONE IS FORGOTTEN WITH IT — the "ending
+    /// 1234" card and the saved holder name are not left in memory for whoever holds the phone next.
+    /// (The typed draft is handled by `wipeDraft`, which every session-ending path calls as well.)
     private func forgetServerState() {
         // ⚠️ WHAT THE SERVER PREFILLED GOES TOO — a saved holder name and bank sitting in the
         // editable fields under "Please sign in" is the same leak with a text cursor in it. A value

@@ -29,13 +29,23 @@ final class WalletModel {
     }
 
     private let signedIn: @MainActor () -> Bool
+    /// See `PayoutModel.sessionKey` — a reply for a session that is gone is dropped.
+    private let sessionKey: @MainActor () -> String?
     /// The licensing gate, injected for the same reason as `signedIn`: the unit-test host is the
     /// marketplace edition, where the gate is (correctly) closed.
     private let enabled: Bool
+    /// The wire, injected so every status path (200 / 401 / 404 / 429 / 5xx / thrown) can be
+    /// exercised in a test without a server.
+    typealias Transport = @MainActor (_ method: String, _ path: String, _ body: [String: Any]?) async throws -> (Data, Int)
+    private let transport: Transport
     init(signedIn: @escaping @MainActor () -> Bool = { AuthModel.shared.isSignedIn },
-         enabled: Bool = Edition.showsPayments) {
+         sessionKey: @escaping @MainActor () -> String? = { AuthModel.shared.userId },
+         enabled: Bool = Edition.showsPayments,
+         transport: @escaping Transport = { try await APIClient.shared.requestData($0, $1, body: $2) }) {
         self.signedIn = signedIn
+        self.sessionKey = sessionKey
         self.enabled = enabled
+        self.transport = transport
     }
 
     var phase: Phase = .loading
@@ -63,19 +73,28 @@ final class WalletModel {
         // Decided BEFORE the phase moves, so a signed-out re-check never passes through `.loading`.
         guard enabled else { phase = .failed; return }
         guard signedIn() else { view = nil; phase = .signedOut; return }
+        reconcileOwner()
         // ⚠️ A RE-ASK KEEPS ITS CARD — a blocked card is re-checked on every appearance and must
         // not flash a spinner each time. First load and retry show one.
         if view == nil || phase == .failed { phase = .loading }
-        do {
-            let (data, status) = try await APIClient.shared.requestData("GET", "api/wallet")
-            // ⚠️ A GONE SESSION TAKES ITS VIEW WITH IT — no address or balance lingers in memory.
-            if status == 401 { view = nil; phase = .signedOut; return }
-            guard (200..<300).contains(status) else { softFail(); return }
-            view = try JSONDecoder().decode(WalletView_.self, from: data)
-            phase = .ready
-        } catch {
-            softFail()
+        let session = sessionKey()
+        let reply: Result<(Data, Int), Error>
+        do { reply = .success(try await transport("GET", "api/wallet", nil)) } catch { reply = .failure(error) }
+        // The session is checked FIRST — a sign-out that cancelled the request is still a sign-out,
+        // and a gone session takes its view with it (see PayoutModel.load on the mismatch branch).
+        guard session == sessionKey() else { sessionChanged(); return }
+        guard let (data, status) = try? reply.get() else {
+            // A cancelled fetch (tab switch, pop) is not a failed one — see PayoutModel.load.
+            if case .failure(let e) = reply, PayoutModel.isCancellation(e) { return }
+            softFail(); return
         }
+        // ⚠️ A GONE SESSION TAKES ITS VIEW WITH IT — no address or balance lingers in memory.
+        if status == 401 { view = nil; phase = .signedOut; return }
+        guard (200..<300).contains(status), let next = try? JSONDecoder().decode(WalletView_.self, from: data) else {
+            softFail(); return
+        }
+        view = next
+        phase = .ready
     }
 
     /// `provision` opens the wallet; `fund` asks the staging faucet for test money. Both are
@@ -84,11 +103,14 @@ final class WalletModel {
         guard !busy else { return }
         guard enabled else { error = Self.actionFailure(500, action: action); return }
         guard signedIn() else { view = nil; phase = .signedOut; return }
+        reconcileOwner()
         busy = true
         error = nil
         defer { busy = false }
+        let session = sessionKey()
         do {
-            let (data, status) = try await APIClient.shared.requestData("POST", "api/wallet", body: ["action": action])
+            let (data, status) = try await transport("POST", "api/wallet", ["action": action])
+            guard session == sessionKey() else { sessionChanged(); return }
             if status == 401 { view = nil; phase = .signedOut; return }
             guard (200..<300).contains(status) else {
                 error = WalletModel.actionFailure(status, action: action)
@@ -114,8 +136,33 @@ final class WalletModel {
                 await load()
             }
         } catch {
+            guard session == sessionKey() else { sessionChanged(); return }
+            if PayoutModel.isCancellation(error) { return }
             self.error = L10n.tr("Could not reach the server.", "Không kết nối được máy chủ.")
         }
+    }
+
+    /// The session under an await is not the one that answered: the view goes, and the phase says
+    /// what is true now — signed out when the key is nil, otherwise "not loaded yet" for the next ask.
+    private func sessionChanged() {
+        view = nil
+        error = nil
+        reconcileOwner()
+        phase = sessionKey() == nil ? .signedOut : .loading
+    }
+
+    /// The last account any request ran under — see PayoutModel.lastOwner. A different account's
+    /// first request starts from nothing: A's address and balance are not kept on screen for the
+    /// length of B's round trip, nor under a failure line if B's request blips.
+    private var lastOwner: String?
+    private func reconcileOwner() {
+        guard let now = sessionKey() else { return }
+        if let last = lastOwner, last != now {
+            view = nil
+            error = nil
+            phase = .loading
+        }
+        lastOwner = now
     }
 
     /// ⚠️ A RE-FETCH THAT FAILS DOES NOT EVICT A WALLET ALREADY ON SCREEN. A blip during the

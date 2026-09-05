@@ -84,7 +84,7 @@ final class PaymentsTests: XCTestCase {
         await m.load()
         XCTAssertNil(m.current, "what the server said about a gone session is forgotten with it")
         XCTAssertEqual(m.holder, "", "…the prefilled holder name goes with it")
-        XCTAssertEqual(m.bankBin, "970415", "…but what they typed themselves stays")
+        XCTAssertEqual(m.bankBin, "", "…and so does the draft: signed out is the hand-over gesture")
         XCTAssertTrue(m.loaded)
         XCTAssertFalse(m.failed)
         XCTAssertEqual(m.blocked, .signedOut)
@@ -105,6 +105,211 @@ final class PaymentsTests: XCTestCase {
         await m.loadIfNeeded()                 // loaded, unblocked → left alone
         XCTAssertEqual(m.holder, "DRAFT")
         XCTAssertNil(m.blocked)
+    }
+
+    private static func reply(_ status: Int, _ json: String = "{}") -> PayoutModel.Transport {
+        { _, _, _ in (Data(json.utf8), status) }
+    }
+
+    /// A reply for a session that is gone is dropped — and the session is judged AFTER the request
+    /// ran, so the key is flipped from inside the stubbed transport, exactly where a sign-out or an
+    /// account switch would land during a real round trip.
+    @MainActor func testReplyForAGoneSessionIsDropped() async {
+        // A → B while the GET is in flight: the server's data AND A's draft go; the model is unloaded.
+        var key: String? = "A"
+        let m = PayoutModel(signedIn: { true }, sessionKey: { key }, enabled: true,
+                            transport: { _, _, _ in key = "B"; return (Data(#"{"configured":true,"bankBin":"970436","accountLast4":"2418","bankAccountName":"SOMEONE ELSE"}"#.utf8), 200) })
+        m.holder = "DRAFT"
+        m.apply(PayoutState(configured: true, bankBin: "970436", accountLast4: "1111", bankAccountName: "OLD", suggestedName: nil, suggestedFrom: nil))
+        await m.load()
+        XCTAssertFalse(m.failed); XCTAssertNil(m.blocked)
+        XCTAssertNil(m.current, "what belonged to the gone session is wiped, not merely not repainted")
+        XCTAssertFalse(m.loaded, "…and the model reads as never loaded, so the next appearance asks again")
+        XCTAssertEqual(m.holder, "", "A → B: the draft is A's and B must not inherit it")
+
+        // A → signed out while the GET is in flight: the draft stays for A, and the screen says so.
+        var key2: String? = "A"
+        let toNil = PayoutModel(signedIn: { true }, sessionKey: { key2 }, enabled: true,
+                                transport: { _, _, _ in key2 = nil; return (Data(#"{"configured":false}"#.utf8), 200) })
+        toNil.holder = "DRAFT"; toNil.accountNo = "0011001932418"
+        await toNil.load()
+        XCTAssertEqual(toNil.accountNo, "", "A → signed out: the full account number does not wait in memory")
+        XCTAssertEqual(toNil.holder, "")
+        XCTAssertEqual(toNil.blocked, .signedOut, "…and the screen says so, rather than parking on a spinner")
+        XCTAssertTrue(toNil.loaded)
+
+        // A → nil → B on the SAME model: B's first load finds an empty form.
+        var key3: String? = "A"
+        var flipOnce = true
+        let handover = PayoutModel(signedIn: { true }, sessionKey: { key3 }, enabled: true,
+                                   transport: { _, _, _ in if flipOnce { key3 = nil; flipOnce = false }; return (Data(#"{"configured":false}"#.utf8), 200) })
+        handover.holder = "A'S NAME"; handover.accountNo = "0011001932418"
+        await handover.load()                       // A → nil during the request
+        XCTAssertEqual(handover.accountNo, "")
+        key3 = "B"
+        await handover.load()                       // B is signed in now
+        XCTAssertEqual(handover.holder, "", "B never sees A's draft")
+        XCTAssertEqual(handover.accountNo, "")
+
+        // The ORDINARY hand-over — no request in flight: A signs out cleanly, B signs in.
+        var key5: String? = "A"
+        let clean = PayoutModel(signedIn: { key5 != nil }, sessionKey: { key5 }, enabled: true,
+                                transport: Self.reply(200, #"{"configured":true,"bankBin":"970436","accountLast4":"2418","bankAccountName":"A SAVED"}"#))
+        await clean.load()
+        clean.accountNo = "0011001932418"; clean.holder = "A TYPED"
+        key5 = nil
+        await clean.load()                          // signed out: short-circuits, and the draft goes with the session
+        XCTAssertEqual(clean.accountNo, ""); XCTAssertEqual(clean.holder, ""); XCTAssertEqual(clean.blocked, .signedOut)
+        key5 = "B"
+        await clean.load()
+        XCTAssertEqual(clean.accountNo, "", "B never sees A's typed account number")
+        XCTAssertEqual(clean.holder, "A SAVED", "…B's own load prefills from B's server reply (the stub answers the same for both)")
+
+        // Wallet, the same clean hand-over: B's first load starts from nothing, even when it blips.
+        var wk: String? = "A"
+        var blip = false
+        let wclean = WalletModel(signedIn: { wk != nil }, sessionKey: { wk }, enabled: true,
+                                 transport: { _, _, _ in if blip { throw URLError(.timedOut) }; return (Data(#"{"state":"ready","address":"0xA"}"#.utf8), 200) })
+        await wclean.load()
+        XCTAssertEqual(wclean.view?.address, "0xA")
+        wk = nil; await wclean.load()
+        XCTAssertEqual(wclean.phase, .signedOut); XCTAssertNil(wclean.view)
+        wk = "B"; blip = true
+        await wclean.load()
+        XCTAssertNil(wclean.view, "A's address is not kept up under B's failure line")
+        XCTAssertEqual(wclean.phase, .failed)
+
+        // A save whose owner changed since the last request sends NOTHING.
+        var sk: String? = "A"
+        var puts = 0
+        let handoverSave = PayoutModel(signedIn: { true }, sessionKey: { sk }, enabled: true,
+                                       transport: { method, _, _ in if method == "PUT" { puts += 1 }; return (Data(#"{"configured":false}"#.utf8), 200) })
+        await handoverSave.load()
+        handoverSave.bankBin = "970436"; handoverSave.accountNo = "0011001932418"; handoverSave.holder = "A TYPED"
+        sk = "B"
+        await handoverSave.save()
+        XCTAssertEqual(puts, 0, "no PUT of blanks under B's token")
+        XCTAssertEqual(handoverSave.holder, "")
+        XCTAssertNotNil(handoverSave.error, "…and the seller is told the form was cleared")
+        XCTAssertFalse(handoverSave.loaded, "…and B's own saved details are fetched on the next appearance")
+
+        // A → A across a token refresh (same key): the draft survives; only a session CHANGE wipes.
+        let same = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true,
+                               transport: Self.reply(200, #"{"configured":false}"#))
+        same.holder = "MINE"
+        await same.load()
+        await same.load()
+        XCTAssertEqual(same.holder, "MINE")
+
+        // Wallet: A → B mid-flight drops the reply and the old view; A → nil reads as signed out even
+        // when the sign-out CANCELLED the request.
+        var wkey: String? = "A"
+        let w = WalletModel(signedIn: { true }, sessionKey: { wkey }, enabled: true,
+                            transport: { _, _, _ in wkey = "B"; return (Data(#"{"state":"ready","address":"0xabc"}"#.utf8), 200) })
+        w.view = WalletView_(state: "ready", address: "0xold", chain: nil, balances: nil, fundable: nil, reason: nil)
+        await w.load()
+        XCTAssertEqual(w.phase, .loading, "neither failed nor ready: the reply was not ours")
+        XCTAssertNil(w.view, "the old session's address is gone with it")
+        var wkey2: String? = "A"
+        let cancelledOut = WalletModel(signedIn: { true }, sessionKey: { wkey2 }, enabled: true,
+                                       transport: { _, _, _ in wkey2 = nil; throw URLError(.cancelled) })
+        cancelledOut.view = WalletView_(state: "ready", address: "0xold", chain: nil, balances: nil, fundable: nil, reason: nil)
+        cancelledOut.phase = .ready
+        await cancelledOut.load()
+        XCTAssertNil(cancelledOut.view, "cancelled or not, a gone session takes its view with it")
+        XCTAssertEqual(cancelledOut.phase, .signedOut)
+    }
+
+    /// A cancelled fetch (tab switch, pop) is not a failure.
+    @MainActor func testCancelledLoadIsNotAFailure() async {
+        let m = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true,
+                            transport: { _, _, _ in throw URLError(.cancelled) })
+        await m.load()
+        XCTAssertFalse(m.failed); XCTAssertNil(m.blocked); XCTAssertFalse(m.loaded)
+        XCTAssertTrue(PayoutModel.isCancellation(CancellationError()))
+        XCTAssertTrue(PayoutModel.isCancellation(URLError(.cancelled)))
+        XCTAssertFalse(PayoutModel.isCancellation(URLError(.notConnectedToInternet)))
+    }
+
+    /// Every status the GET can answer, routed to its own state.
+    @MainActor func testLoadRoutesEveryStatus() async {
+        let ok = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true,
+                             transport: Self.reply(200, #"{"configured":true,"bankBin":"970436","accountLast4":"2418","bankAccountName":"NGUYEN VAN A"}"#))
+        await ok.load()
+        XCTAssertTrue(ok.loaded); XCTAssertNil(ok.blocked); XCTAssertFalse(ok.failed)
+        XCTAssertEqual(ok.current?.accountLast4, "2418"); XCTAssertEqual(ok.holder, "NGUYEN VAN A")
+
+        let gone = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true, transport: Self.reply(401))
+        gone.apply(ok.current!); gone.accountNo = "0011001932418"
+        await gone.load()
+        XCTAssertEqual(gone.blocked, .signedOut); XCTAssertNil(gone.current); XCTAssertEqual(gone.holder, ""); XCTAssertEqual(gone.accountNo, "")
+
+        let noShop = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true, transport: Self.reply(404))
+        await noShop.load()
+        XCTAssertEqual(noShop.blocked, .noShop); XCTAssertTrue(noShop.loaded)
+
+        let down = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true, transport: Self.reply(503))
+        down.blocked = .noShop
+        await down.load()
+        XCTAssertTrue(down.failed); XCTAssertNil(down.blocked, "a failed reload never keeps a stale card")
+
+        let garbage = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true, transport: Self.reply(200, "not json"))
+        await garbage.load()
+        XCTAssertTrue(garbage.failed)
+
+        let offline = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true,
+                                  transport: { _, _, _ in throw URLError(.notConnectedToInternet) })
+        await offline.load()
+        XCTAssertTrue(offline.failed); XCTAssertTrue(offline.loaded)
+    }
+
+    /// Save: the body is what was validated, and each answer lands in its own state.
+    @MainActor func testSaveSendsTrimmedBodyAndRoutesTheAnswer() async {
+        var sent: [String: Any]?
+        let m = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true,
+                            transport: { method, path, body in sent = body; XCTAssertEqual(method, "PUT"); XCTAssertEqual(path, "api/seller/payout"); return (Data(), 200) })
+        m.bankBin = " 970436 "; m.accountNo = "0011001932418\n"; m.holder = " NGUYEN VAN A "
+        await m.save()
+        XCTAssertEqual(sent?["bankBin"] as? String, "970436")
+        XCTAssertEqual(sent?["bankAccountNo"] as? String, "0011001932418")
+        XCTAssertEqual(sent?["bankAccountName"] as? String, "NGUYEN VAN A")
+        XCTAssertTrue(m.saved); XCTAssertEqual(m.accountNo, ""); XCTAssertEqual(m.current?.accountLast4, "2418")
+
+        let lapsed = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true, transport: Self.reply(401))
+        lapsed.bankBin = "970436"; lapsed.accountNo = "0011001932418"; lapsed.holder = "NGUYEN VAN A"
+        await lapsed.save()
+        XCTAssertEqual(lapsed.blocked, .signedOut); XCTAssertNil(lapsed.error)
+        XCTAssertEqual(lapsed.accountNo, "", "a lapsed token is a sign-out: the full number does not wait in the field")
+        XCTAssertEqual(lapsed.holder, "")
+
+        let outage = PayoutModel(signedIn: { true }, sessionKey: { "A" }, enabled: true, transport: Self.reply(502))
+        outage.bankBin = "970436"; outage.accountNo = "0011001932418"; outage.holder = "NGUYEN VAN A"
+        await outage.save()
+        XCTAssertEqual(outage.error, PayoutModel.saveFailure(.serverError)); XCTAssertFalse(outage.saved)
+    }
+
+    /// Wallet: a provision that comes back pending re-asks the server and STILL shows its message.
+    @MainActor func testProvisionFailureMessageSurvivesTheReask() async {
+        var calls: [String] = []
+        let w = WalletModel(signedIn: { true }, sessionKey: { "A" }, enabled: true, transport: { method, _, body in
+            calls.append(method)
+            if method == "POST" {
+                XCTAssertEqual(body?["action"] as? String, "provision")
+                return (Data(#"{"outcome":"pending_provider","state":"eligible"}"#.utf8), 200)
+            }
+            return (Data(#"{"state":"eligible"}"#.utf8), 200)
+        })
+        await w.load()
+        XCTAssertEqual(w.phase, .ready); XCTAssertEqual(w.view?.state, "eligible")
+        await w.act("provision")
+        XCTAssertEqual(calls, ["GET", "POST", "GET"], "the failed outcome re-asks the server")
+        XCTAssertNotNil(w.error, "…and the message is set AFTER the re-ask, so it is actually seen")
+
+        let blip = WalletModel(signedIn: { true }, sessionKey: { "A" }, enabled: true, transport: { _, _, _ in throw URLError(.timedOut) })
+        blip.view = w.view; blip.phase = .ready
+        await blip.load()
+        XCTAssertEqual(blip.phase, .ready, "a failed refresh keeps the card")
+        XCTAssertNotNil(blip.error)
     }
 
     /// An empty saved name counts as absent on BOTH sides — prefill and forget share one rule.
