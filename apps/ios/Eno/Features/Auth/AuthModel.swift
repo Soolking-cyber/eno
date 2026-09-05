@@ -24,6 +24,16 @@ final class AuthModel {
 
     private(set) var session: StoredSession?
     var isSignedIn: Bool { session != nil }
+    /// WHO is signed in — the JWT subject. ⚠️ Screens holding money-adjacent state key their discard
+    /// on THIS, not on `isSignedIn`: a passwordless re-auth in place, or a different account signing
+    /// in through the sheet, leaves the Bool `true` throughout and only the subject changes.
+    /// ⚠️ TOTAL FOR A STORED SESSION: never nil while signed in, so sign-out is always a change —
+    /// nil-before and nil-after is exactly the case where the discard would not fire and the last
+    /// person's bank details would stay on screen. A token whose payload cannot be read (never a
+    /// Supabase JWT, which always carries `sub`) maps to a CONSTANT rather than the token itself:
+    /// the token rotates on every silent refresh, and keying on it would wipe a half-typed form and
+    /// close the sign-in sheet mid-OTP once an hour.
+    var userId: String? { session.map { Self.jwtSub($0.accessToken) ?? "session" } }
 
     // Session GENERATION (review #2/#3): every event that changes which session
     // is valid — adopt, successful refresh, signOut — bumps it. An in-flight

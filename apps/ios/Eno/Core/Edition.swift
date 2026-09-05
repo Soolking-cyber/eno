@@ -62,4 +62,10 @@ enum Edition {
     /// Supabase redirect allowlist for the services project, which is owner-side config and has no
     /// compiler to catch a half-applied change.
     static var urlScheme: String { isServices ? "enoforum" : "enonative" }
+
+    /// ⛔ PAYMENTS ARE A SERVICES-EDITION SURFACE, and the gate is the same legal line as visa and
+    /// itinerary. The web keeps the whole section off the licensed marketplace with `.forum.svc.`
+    /// page extensions ("how a seller gets paid" — bank payout and the custody wallet); on the
+    /// marketplace build those routes do not exist, so a screen that called them would 404.
+    static var showsPayments: Bool { isServices }
 }
