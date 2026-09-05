@@ -1213,8 +1213,15 @@ export function VerifyClient() {
                   // the OCR effect, and a passport shot cannot carry into a tier-A attempt.
                   key={tier}
                   kind="document"
+                  // ⚠️ ONE PREDICATE FOR ALL THREE, AND IT IS `=== 'B'`. These used to key on two
+                  // different tests — `guide` on `tier === 'B'`, the copy on `tier === 'A'` — so any
+                  // value that is neither (an unset tier while the page loads, a tier added later)
+                  // drew a CARD frame labelled "Passport photo page" (gate, two reviewers). The frame
+                  // shape is what the crop follows, so the label must follow the frame, not the other
+                  // side of a different question.
                   guide={tier === 'B' ? 'passport' : 'id'}
-                  alt={tier === 'A' ? tr('Your CCCD photo', 'Ảnh CCCD của bạn') : tr('Your passport photo', 'Ảnh hộ chiếu của bạn')}
+                  alt={tier === 'B' ? tr('Your passport photo', 'Ảnh hộ chiếu của bạn') : tr('Your CCCD photo', 'Ảnh CCCD của bạn')}
+                  frameLabel={tier === 'B' ? tr('Passport photo page', 'Trang có ảnh') : tr('Front of card', 'Mặt trước thẻ')}
                   onUploaded={onDocUploaded}
                   {...(tier === 'B' ? { onImage: onDocImage } : {})}
                   className="mt-3"

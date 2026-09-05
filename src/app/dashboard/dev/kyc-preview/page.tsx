@@ -60,6 +60,8 @@ export default function KycPreviewPage() {
         kind="document"
         guide="passport"
         alt="Preview"
+        // The harness mirrors what the real caller passes, so the in-frame label is visible here too.
+        frameLabel="Passport photo page"
         onUploaded={(path) => push(`uploaded → ${path}`)}
         onImage={async (img) => {
           if (!img) { push('onImage: null (decode failed)'); return }

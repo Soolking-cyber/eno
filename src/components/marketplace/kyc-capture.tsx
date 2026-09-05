@@ -99,11 +99,15 @@ export function KycCapture({
   kind,
   guide,
   alt,
+  frameLabel,
   onUploaded,
   onImage,
   className,
 }: {
   kind: KycCaptureKind
+  /** The label drawn inside the document frame ("Passport photo page", "Front of card") — the
+   *  caller knows the document; this component does not. */
+  frameLabel?: string
   /** Live-view alignment guide. Document guides ('passport'|'id') draw an aspect-correct frame and
    *  crop the capture to it (clean document-only image); 'selfie' draws a face oval. Defaults by kind. */
   guide?: KycGuide
@@ -679,18 +683,56 @@ export function KycCapture({
 
   return (
     <div className={cn('space-y-3', className)}>
-      {/* ⚠️ TALLER ON MOBILE (3:4), 4:3 on desktop — the owner rejected the short 4:3 box on a phone as
-          "too small", and object-cover means the video ALWAYS fills this box whatever the stream ratio
-          (it never letterboxes, so the container's black is never visible behind the video). Capped at
-          62svh so the shutter stays on-screen. */}
+      {/* ⚠️ A LANDSCAPE BAND FOR A DOCUMENT (5:4 on a phone, 4:3 on desktop) — the composition every
+          KYC vendor's capture uses (Persona/TikTok Shop, the owner's reference 2026-09-05): the
+          document frame sits in a wide band with the instruction above and the shutter below, and
+          the sensor's full WIDTH is kept (the axis the MRZ runs along). The earlier 3:4 portrait box
+          — chosen because a 4:3 box read as "too small" — was the wrong shape for a landscape page:
+          object-cover discarded width, and a landscape frame in a portrait box left the seller
+          composing in a slot. The SELFIE keeps a 3:4 portrait card (a face is portrait). object-cover
+          means the video ALWAYS fills the box whatever the stream ratio (it never letterboxes, so
+          the container's black is never visible behind the video). */}
       <div
         className={cn(
-          'relative overflow-hidden rounded-xl border',
-          // The LIVE box is a fixed portrait/landscape frame to compose against; the REVIEW box is
-          // whatever was actually captured, so `object-contain` has nothing left to letterbox.
-          showingShot ? 'max-h-[62svh] sm:max-h-none' : 'aspect-[3/4] max-h-[62svh] bg-black sm:aspect-[4/3] sm:max-h-none',
+          // ⚠️ `mx-auto`: whenever the height cap binds (a landscape phone, a short laptop window) the
+          // width transfers through aspect-ratio and the box NARROWS — as a plain block it then hugged
+          // the left edge under a centred title (gate). Centred, it stays a band under its title.
+          'relative mx-auto overflow-hidden rounded-xl border',
+          // The LIVE box is a fixed frame to compose against; the REVIEW box is whatever was
+          // actually captured, so `object-contain` has nothing left to letterbox.
+          // ⚠️ THE CAP IS UNCONDITIONAL — `sm:max-h-none` IS GONE FROM EVERY BRANCH, and that is the
+          // fix, not an oversight. `sm` is a WIDTH breakpoint: a phone in landscape (844×390) is
+          // ≥640px wide, so `sm:max-h-none` fired exactly where the viewport was shortest and let a
+          // width-driven band grow to ~600px on a 390px-high screen, shutter off-screen (three
+          // reviewers, independently). A short desktop window has the same shape. The cap costs
+          // nothing when it does not bind, and when it binds the width transfers back through
+          // aspect-ratio (this box has no `w-*`), so the band narrows and keeps its ratio.
+          // ⚠️ AND THE WIDTH IS CAPPED EXPLICITLY ALONGSIDE IT. The height cap alone is enough in
+          // Chromium and WebKit — a definite max block size transfers through `aspect-ratio` to the
+          // inline max size, measured here at 844×390 as a 322×242 box (ratio 1.333 exactly, 261px
+          // of gutter on each side). Two reviewers refused to believe it across three rounds, and
+          // they were arguing the older CSS where `width:auto` simply fills. Rather than rely on
+          // the reader trusting the measurement — or on every future engine implementing the
+          // transfer — the matching `max-w` states the same constraint outright. If the transfer
+          // does happen, this is a no-op; if it ever does not, the band still cannot become a
+          // full-width ribbon with a 500px guide clipped inside it.
+          showingShot
+            ? 'max-h-[62svh]'
+            // ⚠️ BOTH BANDS KEEP A HEIGHT CAP. Dropping it from the document band looked harmless at
+            // 390×844 (5:4 of 366px is 293px, far under 62svh) and was not: rotate the phone and a
+            // width-driven 4:3 band is ~600px tall on a 390px-high viewport — shutter off-screen.
+            // The cap transfers back through aspect-ratio (automatic width, see above), so the band
+            // narrows instead of breaking its ratio. Measured 844×390: band 322×242, shutter visible.
+            : docAspect
+              ? 'aspect-[5/4] max-h-[62svh] max-w-[calc(62svh*1.25)] bg-black sm:aspect-[4/3] sm:max-w-[calc(62svh*1.34)]'
+              : 'aspect-[3/4] max-h-[62svh] max-w-[calc(62svh*0.75)] bg-black sm:aspect-[4/3] sm:max-w-[calc(62svh*1.34)]',
         )}
-        style={showingShot && shot ? { aspectRatio: `${shot.w} / ${shot.h}` } : undefined}
+        // ⚠️ THE REVIEW BOX'S WIDTH CAP IS COMPUTED FROM THE SHOT, NOT FROM A CONSTANT. The live band
+        // has two known ratios so its `max-w` can be a class; a reviewed photo can be any ratio (a
+        // file-picker upload is not the band), and a fixed cap would clamp a WIDER shot's width and
+        // shrink it below the 62svh it was allowed — smaller for no reason, on the screen where the
+        // seller checks whether their MRZ is sharp (gate). Same constraint, stated per shot.
+        style={showingShot && shot ? { aspectRatio: `${shot.w} / ${shot.h}`, maxWidth: `calc(62svh * ${(shot.w / shot.h).toFixed(3)})` } : undefined}
       >
         {showingShot && shot ? (
           // A plain <img>, deliberately: the src is a blob: URL for a frame that exists only in
@@ -724,20 +766,48 @@ export function KycCapture({
               // aspect (and the crop, which follows this rect, would inherit the distortion). The
               // container is a fixed 4:3 box: 92% width makes the frame ~86% of the container's HEIGHT
               // for a passport (0.92/1.42 ÷ 0.75) and ~73% for an ID — both fit, so no clamp is needed.
-              // ⚠️ NO dimmed surround. The old `0 0 0 9999px` box-shadow darkened everything OUTSIDE the
-              // frame, which read as a bright "white backplate" cropping the view inside the camera
-              // (owner, on-device). Just an outlined frame now — a green ring when aligned — over the full
-              // live video, so the whole viewport stays visible.
-              // 92% width (was 80%) puts MORE passport pixels in the crop — the biggest lever on MRZ
-              // readability — while leaving a margin to align against. ⚠️ NO `max-h` here: with a definite
-              // width + aspectRatio it would NOT shrink the width, so the frame (and the crop that follows
-              // its rect) would distort. A 1.42 landscape frame at 92% width fits the portrait box anyway.
-              className={cn('relative w-[86%] rounded-lg border-2 transition-colors', aligned ? 'border-success' : 'border-white/80')}
-              style={{ aspectRatio: String(docAspect), boxShadow: aligned ? '0 0 0 3px rgba(34,197,94,0.55)' : '0 0 0 1px rgba(0,0,0,0.35)' }}
-            />
-            {/* ⚠️ NO caption INSIDE the frame — the step body above already says "line it up inside the
-                frame", and a second bar over the camera was clutter (owner, on-device). The frame border
-                + the single bottom cue carry the in-view guidance. */}
+              // ⚠️ THE SURROUND IS A LIGHT VEIL, AND THE HISTORY HERE IS EASY TO MISREAD. An earlier
+              // `0 0 0 9999px` shadow DARKENED everything outside the frame and the owner rejected it
+              // on-device: against a dim room it read as a black backplate cropping the camera. The
+              // veil that replaced it is the opposite direction and the vendor standard the owner
+              // asked us to match (Persona/TikTok Shop, 2026-09-05): white at 28%, so the live video
+              // outside the frame stays legible while the frame reads as the active area.
+              // 88% width puts MORE document pixels in the crop — the biggest lever on MRZ readability
+              // — while leaving a margin to align against. ⚠️ NO `max-h` here: with a definite width +
+              // aspectRatio it would NOT shrink the width, so the frame (and the crop that follows its
+              // rect) would distort. A 1.42 landscape frame at 88% width fits the LANDSCAPE band.
+              // The frame is the vendor-standard cue: four rounded CORNER BRACKETS (not a full box —
+              // the page's own edges stay visible between them), a light veil over the rest of the
+              // band, and the document's name in a dark pill inside it. Green when aligned.
+              // ⛔ THE CROP FOLLOWS THIS RECT, AND THIS RECT CHANGED: the band went 3:4 → 5:4 and the
+              // frame 86% → 88% of it, so every document crop is wider than before — deliberately, and
+              // it is why the band keeps the sensor's full width. An earlier note here claimed the rect
+              // was "unchanged in size and position"; it was written of the band, not the frame, and a
+              // reviewer was right to call it false. `cropToRect` does generic object-cover maths
+              // against the video's natural size, so it needs no per-aspect change.
+              className={cn('relative w-[88%] rounded-lg', aligned ? 'text-success' : 'text-white')}
+              style={{ aspectRatio: String(docAspect), boxShadow: '0 0 0 9999px rgba(255,255,255,0.28)' }}
+            >
+              {(['top-0 left-0 border-t-4 border-l-4 rounded-tl-lg', 'top-0 right-0 border-t-4 border-r-4 rounded-tr-lg', 'bottom-0 left-0 border-b-4 border-l-4 rounded-bl-lg', 'bottom-0 right-0 border-b-4 border-r-4 rounded-br-lg'] as const).map((c) => (
+                // ⚠️ `drop-shadow` ON EACH BRACKET, NOT ON THE FRAME. The brackets are `currentColor` =
+                // white until alignment turns them green, and a passport page or a CCCD is WHITE —
+                // white-on-white is no cue at all (gate, three reviewers). A 1px dark halo fixes that.
+                // ⛔ It must NOT go on the parent: the parent carries the `0 0 0 9999px` veil, so a
+                // filter there would ask the compositor for a filtered surface the size of that spread
+                // — over a live camera stream, on a phone (gate). On the 28×28 brackets it is free.
+                <span key={c} aria-hidden className={cn('absolute size-7 border-current transition-colors [filter:drop-shadow(0_0_1.5px_rgba(0,0,0,0.55))]', c)} />
+              ))}
+              {/* At the TOP of the frame: a passport's two code lines are at the bottom. */}
+              {frameLabel && (
+                // ⛔ A DARK PILL, NOT BARE WHITE TEXT. This label sits INSIDE the frame, i.e. on the
+                // document the seller is told to fill it with — and a passport page is white, so a
+                // text-shadow alone left it invisible exactly when it was needed (gate). The removed
+                // pre-band label carried `bg-black/55` for the same reason.
+                <span className="absolute inset-x-0 top-2 flex justify-center">
+                  <span className="rounded-full bg-black/55 px-2 py-0.5 text-xs font-medium text-white">{frameLabel}</span>
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -760,11 +830,29 @@ export function KycCapture({
           </div>
         )}
 
+
+        {phase === 'starting' && (
+          <div className="absolute inset-0 grid place-items-center"><Spinner /></div>
+        )}
+        {phase === 'idle' && !shot && (
+          <div className="absolute inset-0 grid place-items-center">
+            <Camera className="size-8 text-muted-foreground" aria-hidden />
+          </div>
+        )}
+      </div>
+
         {/* Live instruction + GREEN cue. Passport: it reads the code and auto-captures (green when it
             reads). Selfie: hold still and it auto-captures (green when still). A tap always works too. */}
-        {phase === 'live' && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
-            <span className={cn('rounded-lg px-3 py-1.5 text-center text-xs font-medium text-white', aligned ? 'bg-success' : 'bg-black/55')}>
+        {/* ⚠️ UNDER the band, not over it: as an overlay it sat on the frame's lower brackets and the
+            document label (measured 2026-09-05, 390px). */}
+        {/* ⛔ RENDERED IN EVERY PHASE, EMPTY WHEN THERE IS NOTHING TO SAY — the row is RESERVED, not
+            conditional. `min-h-8` (two lines at text-xs) covers the toggles WITHIN live; mounting the
+            row only during live moved everything below it by ~44px twice: down at starting→live, and
+            up again when a passport auto-captures on its MRZ read — under the finger already reaching
+            for the shutter (all three reviewers, independently). */}
+        <p className={cn('min-h-8 text-center text-xs font-medium', aligned ? 'text-success' : 'text-muted-foreground')}>
+          {phase === 'live' && (
+            <span>
               {aligned
                 ? tr('Hold still…', 'Giữ yên…')
                 : detectorLoading
@@ -777,18 +865,8 @@ export function KycCapture({
                       ? tr('Whole card inside the frame — or tap Take photo', 'Cả thẻ nằm trong khung — hoặc chạm Chụp ảnh')
                       : tr('Whole page inside the frame — or tap Take photo', 'Cả trang nằm trong khung — hoặc chạm Chụp ảnh')}
             </span>
-          </div>
-        )}
-
-        {phase === 'starting' && (
-          <div className="absolute inset-0 grid place-items-center"><Spinner /></div>
-        )}
-        {phase === 'idle' && !shot && (
-          <div className="absolute inset-0 grid place-items-center">
-            <Camera className="size-8 text-muted-foreground" aria-hidden />
-          </div>
-        )}
-      </div>
+          )}
+        </p>
 
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
