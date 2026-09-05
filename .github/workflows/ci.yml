@@ -193,6 +193,12 @@ jobs:
 
       - name: Create the schema (additive SQL only)
         run: |
+          # ⚠️ EXTENSIONS FIRST. The schema declares a trigram index (`gin_trgm_ops`, the
+          # accent-insensitive search path) and Prisma's generated SQL does not create the
+          # extension it needs — production got pg_trgm from Supabase, so nothing in the repo
+          # ever had to say it out loud. A bare postgres:17 image fails at that one statement
+          # with `operator class "gin_trgm_ops" does not exist` and nothing before it.
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'create extension if not exists pgcrypto; create extension if not exists pg_trgm;'
           npx prisma generate
           npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > /tmp/schema.sql
           # Fail closed if the generator ever emits a destructive statement into a file we pipe to psql.
