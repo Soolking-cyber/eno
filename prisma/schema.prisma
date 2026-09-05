@@ -1942,3 +1942,25 @@ model CustodyWallet {
   @@unique([provider, chain, address])
   @@index([profileId])
 }
+
+/// A storage object that must be deleted once nothing references it — the DURABLE half of every
+/// erasure path (account deletion, visa document replacement and deletion). Written BEFORE the
+/// referencing row goes away — inside the same transaction where there is one — so a crash, a
+/// timeout or a storage outage between "row gone" and "object gone" leaves a record something can
+/// finish. Drained by /api/cron/storage-tombstones, which RE-CHECKS references per bucket before it
+/// deletes: a tombstone for an object that is still (or again) referenced is dropped, never acted
+/// on. `notBefore` gives every tombstone a grace hour so an in-flight write is never raced.
+/// ⚠️ Created by scripts/storage-tombstone-table.mjs (RLS on, no anon access) — never `db push`.
+model StorageTombstone {
+  id        String   @id @default(cuid())
+  bucket    String
+  path      String
+  reason    String
+  createdAt DateTime @default(now())
+  notBefore DateTime @default(now())
+  attempts  Int      @default(0)
+  lastError String?
+
+  @@unique([bucket, path])
+  @@index([notBefore])
+}

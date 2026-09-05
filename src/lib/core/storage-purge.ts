@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { isFirstPartyStorageUrl, listingObjectKey, STORAGE_HOST } from '@/lib/listing-image'
+import type { TombstoneRef } from '@/lib/core/storage-tombstones'
 
 // ── DELETING A USER'S PUBLIC STORAGE OBJECTS ────────────────────────────────────────────────────
 //
@@ -71,12 +72,13 @@ export async function isStillReferenced(url: string): Promise<boolean> {
 //     finishes. A worker then claims the next URL and issues five more, so over a full budget
 //     the abandoned scans ACCUMULATE; concurrency 2 bounds the rate, not the total. It is why
 //     this is 2 and not 8, but do not read it as a hard cap.
-//  2. An account with hundreds of images cannot finish inside the budget, and nothing can retry
-//     because the DB rows are already gone. Such a deletion ends with `failed > 0` and a residue
-//     log. ⛔ THE REAL FIX IS A DURABLE MANIFEST — persist the object list BEFORE deleting the
-//     profile and drain it from a cron — which needs a table and is deliberately not in this
-//     change. Until then this is bounded, loud and finite, where the old `after()` version was
-//     unbounded, silent and lossy.
+//  2. An account with hundreds of images cannot finish inside the budget. With the StorageTombstone
+//     queue (src/lib/core/storage-tombstones.ts) that is no longer a loss: the erasure procedure
+//     (src/lib/core/account-erasure.ts) writes a tombstone for every first-party object INSIDE the
+//     transaction that removes the rows, this purge is the fast path, and whatever it settles
+//     (`settled`) has its tombstone cleared; the rest is drained by /api/cron/storage-tombstones.
+//     `failed > 0` here still means "not finished on the response path" and is logged as such — it
+//     no longer means "lost".
 const PURGE_CONCURRENCY = 2
 // ⚠️ 12s, NOT 25s. This budget is now ON the response path, on top of the transaction and an
 // 8s auth-user delete, so it is the user's spinner. At the measured worst case (15 images for
@@ -123,7 +125,8 @@ function storageRefOf(url: string): string | null {
 // operator finishing one of those by hand runs the reference check FIRST. The log has to keep
 // them apart or it invites the harm the guard prevents.
 type Outcome =
-  | { r: 'deleted' | 'kept' | 'foreign' }
+  | { r: 'deleted' | 'kept'; object: TombstoneRef }
+  | { r: 'foreign' }
   | { r: 'failed'; ref: string | null; why: 'delete-failed' | 'ref-unknown' | 'unreached' | 'unparsed' }
 /** `deleted` = the object is GONE (2xx, or 404/410 — already absent IS the desired end state,
  *  and counting it a failure would raise a false erasure alarm on every retry).
@@ -132,7 +135,12 @@ type Outcome =
  *  `failed` = removal UNCONFIRMED, i.e. residue — including `unparsed`: a first-party URL in a
  *  spelling the canonical parser refuses. ⛔ That one is NOT `kept`: booking it as success would
  *  let a parser tightening turn into invisible un-erasure (2026-09-05 review of this change). */
-export type PurgeResult = { deleted: number; kept: number; foreign: number; failed: number; residue: string[] }
+export type PurgeResult = {
+  deleted: number; kept: number; foreign: number; failed: number; residue: string[]
+  /** Every object this run SETTLED — gone, or found to be somebody else's — so the caller can
+   *  clear its tombstone. Anything not here is still the sweep's to finish. */
+  settled: TombstoneRef[]
+}
 
 export async function purgeStorageObjects(urls: string[]): Promise<PurgeResult> {
   const queue = [...new Set(urls)]
@@ -152,7 +160,7 @@ export async function purgeStorageObjects(urls: string[]): Promise<PurgeResult> 
       const ref = storageRefOf(url)
       if (ref && residue.length < RESIDUE_MAX) residue.push(`${listingObjectKey(url) ? 'unreached' : 'unparsed'}:${ref}`)
     }
-    return { deleted: 0, kept: 0, foreign, failed: queue.length - foreign, residue }
+    return { deleted: 0, kept: 0, foreign, failed: queue.length - foreign, residue, settled: [] }
   }
 
   const deadline = Date.now() + PURGE_BUDGET_MS
@@ -200,13 +208,13 @@ export async function purgeStorageObjects(urls: string[]): Promise<PurgeResult> 
         REF_CHECK_TIMEOUT_MS,
         'unknown' as const,
       )
-      if (ref === 'yes') { outcome[i] = { r: 'kept' }; continue }
+      if (ref === 'yes') { outcome[i] = { r: 'kept', object: { bucket, path: key } }; continue }
       if (ref === 'unknown') { outcome[i] = { r: 'failed', ref: `${bucket}/${key}`, why: 'ref-unknown' }; continue }
       let status = await deleteOnce(bucket, key)
       // ONE inline retry for a transient failure — inline, because re-queueing is what caused the
       // lost-retry race above.
       if (!gone(status) && Date.now() < deadline) status = await deleteOnce(bucket, key)
-      outcome[i] = gone(status) ? { r: 'deleted' } : { r: 'failed', ref: `${bucket}/${key}`, why: 'delete-failed' }
+      outcome[i] = gone(status) ? { r: 'deleted', object: { bucket, path: key } } : { r: 'failed', ref: `${bucket}/${key}`, why: 'delete-failed' }
     }
   }
 
@@ -220,10 +228,11 @@ export async function purgeStorageObjects(urls: string[]): Promise<PurgeResult> 
   let foreign = 0
   let failed = 0
   const residue: string[] = []
+  const settled: TombstoneRef[] = []
   for (let i = 0; i < queue.length; i++) {
     const o = outcome[i]
-    if (o?.r === 'deleted') { deleted++; continue }
-    if (o?.r === 'kept') { kept++; continue }
+    if (o?.r === 'deleted') { deleted++; settled.push(o.object); continue }
+    if (o?.r === 'kept') { kept++; settled.push(o.object); continue }
     if (o?.r === 'foreign') { foreign++; continue }
     // No slot, or an explicit failure: either way the object's removal is UNCONFIRMED.
     failed++
@@ -231,5 +240,5 @@ export async function purgeStorageObjects(urls: string[]): Promise<PurgeResult> 
     const why = o?.r === 'failed' ? o.why : 'unreached'
     if (ref && residue.length < RESIDUE_MAX) residue.push(`${why}:${ref}`)
   }
-  return { deleted, kept, foreign, failed, residue }
+  return { deleted, kept, foreign, failed, residue, settled }
 }

@@ -23,6 +23,10 @@ declare -A SCHED=(
   # Business-registration document retention (SellerVerification). Same shape as visa-retention,
   # half an hour later so the two PII sweeps never share a minute of the pooler.
   [business-verification-retention]="*-*-* 07:30:00 UTC"
+  # Durable erasure queue (StorageTombstone): objects the fast paths could not delete. Every
+  # tombstone carries a grace hour, so a row written at the moment another job runs is due only
+  # well after it — 09:00 keeps this clear of the 07:30 retention sweep and its own grace.
+  [storage-tombstones]="*-*-* 09:00:00 UTC"
   [price-stats]="*-*-* 03:00:00 UTC"
   [video-gc]="*-*-* 03:30:00 UTC"
   [warm-translations]="*-*-* 21:00:00 UTC"
@@ -39,7 +43,7 @@ declare -A SCHED=(
 # NO-OPS with `{skipped:"no_key"}` until ACCESSTRADE_KEY is present in the container env, so
 # installing it before the secret lands is harmless. eno-cron.sh already allows 900s.
 # Enabled now: they only touch this box's own data.
-SAFE=(visa-retention price-stats video-gc warm-translations affiliate-prices)
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices)
 # Installed, NOT enabled: these send email to real people.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 # Installed, NOT enabled: the FIRST run acts on a policy nobody has acted on yet — every decided
@@ -80,13 +84,17 @@ for job in "${!SCHED[@]}"; do
   # on the first line, which is the one that reports the feed error.
   EXTRA=""
   [ "$job" = affiliate-prices ] && EXTRA="ExecStart=-/opt/eno/bin/eno-cron.sh $job eno.forum 3002"
+  # ⚠️ storage-tombstones is a `.svc.` route — it exists only in the SERVICES image (its sweep
+  # reads the visa documents table). It is called on eno.forum:3002 and nowhere else.
+  TARGET="$HOST_HEADER $PORT"
+  [ "$job" = storage-tombstones ] && TARGET="eno.forum 3002"
   cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT
 [Unit]
 Description=eno cron: $job
 After=docker.service
 [Service]
 Type=oneshot
-ExecStart=/opt/eno/bin/eno-cron.sh $job $HOST_HEADER $PORT
+ExecStart=/opt/eno/bin/eno-cron.sh $job $TARGET
 $EXTRA
 UNIT
   cat > "/etc/systemd/system/eno-cron-$job.timer" <<UNIT
