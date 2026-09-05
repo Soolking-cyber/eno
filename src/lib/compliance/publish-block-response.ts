@@ -37,12 +37,15 @@ const IDENTITY_CODES = new Set<PublishBlockCode>([
 
 const COPY: Record<string, { en: string; vi: string }> = {
   identity_unverified: {
-    en: 'Vietnamese law requires sellers to verify their identity before publishing. It takes about two minutes — VNeID for Vietnamese citizens, or your passport if you are a foreign resident.',
-    vi: 'Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin. Việc này mất khoảng hai phút — dùng VNeID nếu bạn là công dân Việt Nam, hoặc hộ chiếu nếu bạn là người nước ngoài cư trú tại Việt Nam.',
+    // ⚠️ "YOUR CCCD", NOT "VNeID" — VNeID is not wired and the flow photographs a card.
+    en: 'Vietnamese law requires sellers to verify their identity before publishing. It takes about two minutes — your CCCD if you are a Vietnamese citizen, or your passport if you are a foreign resident.',
+    vi: 'Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin. Việc này mất khoảng hai phút — dùng thẻ CCCD nếu bạn là công dân Việt Nam, hoặc hộ chiếu nếu bạn là người nước ngoài cư trú tại Việt Nam.',
   },
   identity_pending: {
-    en: 'Your documents are being reviewed. This usually completes within a few minutes; we will email you as soon as it does, and your draft is saved.',
-    vi: 'Hồ sơ của bạn đang được xem xét. Việc này thường hoàn tất trong vài phút; chúng tôi sẽ gửi email ngay khi có kết quả, và bản nháp của bạn đã được lưu.',
+    // ⚠️ "WITHIN A WORKING DAY", NOT "A FEW MINUTES" — a person reviews it, and every other surface
+    // says a working day. The email promise is now true: see lib/kyc/notify-outcome.ts.
+    en: 'Your documents are being reviewed by a person on our team, usually within a working day. We will let you know the result in your dashboard and by email, and your draft is saved.',
+    vi: 'Hồ sơ của bạn đang được nhân viên của chúng tôi xem xét, thường trong một ngày làm việc. Chúng tôi sẽ thông báo kết quả trong bảng điều khiển và qua email, và bản nháp của bạn đã được lưu.',
   },
   identity_expired: {
     // ⚠️ Deliberately NOT phrased as a failure. This person DID verify; a document lapsed. Telling

@@ -32,6 +32,8 @@ type Status = 'unverified' | 'pending' | 'verified' | 'rejected' | 'expired' | '
 export function VerificationClient() {
   const { tr } = useLanguage()
   const [person, setPerson] = useState<Status | null>(null)
+  /** Why the current case was refused — the reviewer's note, or a machine reason. Refusals only. */
+  const [why, setWhy] = useState<{ reason: string | null; note: string | null } | null>(null)
   const [gate, setGate] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
@@ -39,8 +41,9 @@ export function VerificationClient() {
     try {
       const r = await fetch('/api/seller/identity/status', { cache: 'no-store' })
       if (r.ok) {
-        const b = (await r.json()) as { status?: Status; gate?: boolean }
+        const b = (await r.json()) as { status?: Status; gate?: boolean; reason?: string | null; note?: string | null }
         setPerson(b.status ?? 'unverified')
+        setWhy(b.status === 'rejected' ? { reason: b.reason ?? null, note: b.note ?? null } : null)
         setGate(b.gate === true)
       }
     } catch {
@@ -59,6 +62,28 @@ export function VerificationClient() {
 
   const personDone = person === 'verified'
   const personPending = person === 'pending'
+
+  /**
+   * ⛔ THE SELLER IS TOLD WHY. The reviewer's note verbatim when there is one; otherwise the machine
+   * reason in words (a passport that slipped inside the six-month floor between submission and
+   * review gets that sentence, not advice about photography); otherwise the old generic line.
+   */
+  const rejectedLine = (() => {
+    const note = why?.note?.trim()
+    if (note) return `${tr('A reviewer could not accept your document:', 'Nhân viên xét duyệt chưa thể chấp nhận giấy tờ của bạn:')} ${note}`
+    switch (why?.reason) {
+      case 'expired':
+        return tr('Your document had expired by the time it was reviewed. Please verify again with a valid one.', 'Giấy tờ của bạn đã hết hạn tại thời điểm xét duyệt. Vui lòng xác minh lại với giấy tờ còn hiệu lực.')
+      case 'document_expires_soon':
+        return tr('A passport must be valid for at least six more months, and yours was inside that window when it was reviewed.', 'Hộ chiếu phải còn hiệu lực ít nhất sáu tháng nữa, và hộ chiếu của bạn đã nằm trong khoảng đó khi được xét duyệt.')
+      case 'document_expiry_unreadable':
+        return tr('We could not read the expiry date on your document. Please try again with a clearer photograph.', 'Chúng tôi không đọc được ngày hết hạn trên giấy tờ. Vui lòng thử lại với ảnh rõ hơn.')
+      case 'manual':
+        return tr('A reviewer could not accept your document. You can try again with a different document, or a clearer photograph.', 'Nhân viên xét duyệt chưa thể chấp nhận giấy tờ của bạn. Bạn có thể thử lại với giấy tờ khác hoặc ảnh rõ hơn.')
+      default:
+        return tr('That did not pass. You can try again with a clearer photograph.', 'Chưa đạt. Bạn có thể thử lại với ảnh rõ hơn.')
+    }
+  })()
 
   return (
     <>
@@ -111,12 +136,17 @@ export function VerificationClient() {
                       : personPending
                         ? tr('Sent. A person is reviewing it — usually within a working day.', 'Đã gửi. Nhân viên đang xét duyệt — thường trong một ngày làm việc.')
                         : person === 'rejected'
-                          ? tr('That did not pass. You can try again with a clearer photograph.', 'Chưa đạt. Bạn có thể thử lại với ảnh rõ hơn.')
+                          ? rejectedLine
                           : person === 'expired'
                             ? tr('Your document has expired. Please verify again.', 'Giấy tờ của bạn đã hết hạn. Vui lòng xác minh lại.')
+                            // ⛔ NO "HOLDING A CODE". The paper code was removed from the selfie step (owner,
+                            // 2026-09-04) and this line kept promising it — the first thing a seller read
+                            // about the flow described a step that no longer exists.
+                            // ⚠️ THE COMMENT SITS ABOVE THE CALL: the string extractor cannot see past a
+                            // comment placed between `tr(` and its first argument, and skipped this line.
                             : tr(
-                                'A photograph of your ID or passport, and a selfie holding a code we give you. Takes a few minutes, once.',
-                                'Một ảnh giấy tờ tuỳ thân hoặc hộ chiếu, và một ảnh chân dung cầm mã do chúng tôi cấp. Mất vài phút, chỉ một lần.',
+                                'A photograph of your passport or CCCD, and a selfie. Takes a few minutes, once.',
+                                'Một ảnh hộ chiếu hoặc CCCD, và một ảnh chân dung. Mất vài phút, chỉ một lần.',
                               )}
                   </p>
                   {/* ⚠️ `w-full sm:w-auto` — a full-width primary action is the phone convention and

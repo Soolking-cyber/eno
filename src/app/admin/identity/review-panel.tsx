@@ -130,7 +130,7 @@ export function IdentityReviewPanel({ item }: {
         <Textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Reason — required to reject, recorded on the case"
+          placeholder="Reason — required to reject. SHOWN TO THE SELLER (hub, bell, email): write it to them, in their language (Vietnamese for a CCCD), never about them"
           rows={2}
         />
         <div className="flex gap-2">

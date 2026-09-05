@@ -10,6 +10,9 @@ const h = vi.hoisted(() => ({
     recomputed: [] as string[],
     provisioned: [] as string[],
     provisionFails: false,
+    notified: [] as Record<string, unknown>[],
+    recomputeThrows: false,
+    recomputedStatus: 'verified' as string,
   },
 }))
 
@@ -31,9 +34,16 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 vi.mock('@/lib/compliance/recompute-verification', () => ({
-  recomputeVerification: async (id: string) => { h.s.recomputed.push(id); return { status: 'verified', sourceId: null, changed: true } },
+  recomputeVerification: async (id: string) => {
+    if (h.s.recomputeThrows) throw new Error('db down')
+    h.s.recomputed.push(id); return { status: h.s.recomputedStatus, sourceId: null, changed: true }
+  },
 }))
+vi.mock('@/lib/log', () => ({ logError: () => {} }))
 vi.mock('@/lib/business-verification-store', () => ({ signVerificationDoc: async (p: string) => `signed:${p}` }))
+vi.mock('./notify-outcome', () => ({
+  notifyIdentityOutcome: async (id: string, outcome: string, detail: Record<string, unknown>) => { h.s.notified.push({ id, outcome, ...detail }) },
+}))
 vi.mock('./on-verified', () => ({
   provisionWithinBudget: async (id: string) => {
     h.s.provisioned.push(id)
@@ -56,7 +66,7 @@ const caseRow = (over: Record<string, unknown> = {}) => ({
   profile: { displayName: 'Anna Maria Eriksson' }, ...over,
 })
 
-beforeEach(() => { h.s.row = caseRow(); h.s.clash = null; h.s.raced = false; h.s.queue = []; h.s.updates = []; h.s.recomputed = []; h.s.provisioned = []; h.s.provisionFails = false })
+beforeEach(() => { h.s.row = caseRow(); h.s.clash = null; h.s.raced = false; h.s.queue = []; h.s.updates = []; h.s.recomputed = []; h.s.provisioned = []; h.s.provisionFails = false; h.s.notified = []; h.s.recomputeThrows = false; h.s.recomputedStatus = 'verified' })
 
 describe('reviewKycCase', () => {
   it('approving a good case verifies it and records WHO decided', async () => {
@@ -73,6 +83,52 @@ describe('reviewKycCase', () => {
     // 2026-08-30 — a fresh KYC should auto-create the user's wallet without them asking.
     await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
     expect(h.s.provisioned).toEqual(['p1'])
+  })
+
+  it('⛔ TELLS THE SELLER: approve → approved, after the recompute', async () => {
+    await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
+    expect(h.s.notified).toEqual([{ id: 'p1', outcome: 'approved', reason: null, note: null, tier: 'B' }])
+    expect(h.s.recomputed).toEqual(['p1'])
+  })
+
+  it('⛔ TELLS THE SELLER: reject → rejected WITH the reviewer note', async () => {
+    await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'reject', note: 'Photo is blurred', now: NOW })
+    expect(h.s.notified).toEqual([{ id: 'p1', outcome: 'rejected', reason: 'manual', note: 'Photo is blurred', tier: 'B' }])
+  })
+
+  it('⛔ TELLS THE SELLER: approve refused by the six-month floor → the machine reason, no note', async () => {
+    h.s.row = caseRow({ documentExpiresAt: new Date('2026-10-01T00:00:00Z'), evidence: { ...caseRow().evidence, decisionInput: { surname: 'ERIKSSON', givenNames: 'ANNA MARIA', documentExpiry: '2026-10-01', mrzValid: true, accountName: 'Anna Maria Eriksson' } } })
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
+    expect(r).toEqual({ ok: false, code: 'expired_at_review' })
+    expect(h.s.notified).toEqual([{ id: 'p1', outcome: 'rejected', reason: 'document_expires_soon', note: null, tier: 'B' }])
+  })
+
+  it('⛔ a recompute that throws does not cost the seller the REFUSAL notice', async () => {
+    h.s.recomputeThrows = true
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'reject', note: 'x', now: NOW })
+    expect(r).toEqual({ ok: true, status: 'rejected' })
+    expect(h.s.notified).toHaveLength(1)
+  })
+
+  it('⛔ an APPROVAL notice — and the wallet — only when the profile now reads verified', async () => {
+    h.s.recomputedStatus = 'revoked'
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
+    expect(r).toEqual({ ok: true, status: 'verified' })
+    expect(h.s.notified, 'a revoked profile outranks the approved row: no "you are verified"').toEqual([])
+    expect(h.s.provisioned, '…and no custody wallet for a revoked profile').toEqual([])
+  })
+
+  it('approve: a recompute that throws propagates to the admin, as it always did, and nothing is sent', async () => {
+    h.s.recomputeThrows = true
+    await expect(reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })).rejects.toThrow('db down')
+    expect(h.s.notified).toEqual([])
+    expect(h.s.provisioned).toEqual([])
+  })
+
+  it('a lost race notifies nobody', async () => {
+    h.s.raced = true
+    await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'reject', note: 'x', now: NOW })
+    expect(h.s.notified).toEqual([])
   })
 
   it('⛔ REJECTING provisions nothing', async () => {

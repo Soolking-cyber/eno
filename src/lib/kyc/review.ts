@@ -7,6 +7,7 @@ import { signVerificationDoc } from '@/lib/business-verification-store'
 import { provisionWithinBudget } from './on-verified'
 import { logError } from '@/lib/log'
 import { ownsKycPath } from './store'
+import { notifyIdentityOutcome } from './notify-outcome'
 
 // ── THE HUMAN HALF ──────────────────────────────────────────────────────────────────────────────
 //
@@ -196,7 +197,10 @@ export async function reviewKycCase(input: {
       evidence: withNote(row.evidence, input.note),
     })
     if (!wrote) return { ok: false, code: 'not_pending' }
-    if (row.profileId) await recomputeVerification(row.profileId, now)
+    // ⚠️ AFTER the recompute, so the hub the email links to already shows the refusal — and the
+    // notice goes out even if the recompute throws: the row is already decided, and a seller left
+    // untold on a page that promises they will be is worse than a stale cached status.
+    if (row.profileId) await settle(row.profileId, now, () => notifyIdentityOutcome(row.profileId!, 'rejected', { reason: 'manual', note: input.note ?? null, tier: row.tier === 'A' ? 'A' : 'B' }))
     return { ok: true, status: 'rejected' }
   }
 
@@ -253,7 +257,9 @@ export async function reviewKycCase(input: {
       evidence: withNote(row.evidence, input.note),
     })
     if (!wrote) return { ok: false, code: 'not_pending' }
-    if (row.profileId) await recomputeVerification(row.profileId, now)
+    // ⚠️ THE SELLER IS TOLD THE MACHINE'S REASON, not the reviewer's note: the reviewer pressed
+    // Approve, and what refused the case is the six-month floor measured from today.
+    if (row.profileId) await settle(row.profileId, now, () => notifyIdentityOutcome(row.profileId!, 'rejected', { reason: decision.rejectReason ?? 'expired', note: null, tier: row.tier === 'A' ? 'A' : 'B' }))
     return { ok: false, code: 'expired_at_review' }
   }
 
@@ -273,7 +279,15 @@ export async function reviewKycCase(input: {
     evidence: withNote(row.evidence, input.note, decision.checksPassed),
   })
   if (!wrote) return { ok: false, code: 'not_pending' }
-  if (row.profileId) await recomputeVerification(row.profileId, now)
+  // ⛔ "YOU ARE VERIFIED" — AND THE WALLET — ONLY WHEN THE PROFILE NOW READS VERIFIED. A revoked
+  // profile outranks a newly approved row in `deriveVerification`; telling that seller they are
+  // verified, or opening them a custody wallet, would both be wrong. The recompute is awaited as
+  // it always was (a throw propagates to the admin exactly as before this change — nothing new is
+  // swallowed on the approve path), and what it returns decides the rest.
+  const profileStatus = row.profileId ? (await recomputeVerification(row.profileId, now)).status : null
+  if (row.profileId && profileStatus === 'verified') {
+    await notifyIdentityOutcome(row.profileId, 'approved', { reason: null, note: null, tier: row.tier === 'A' ? 'A' : 'B' })
+  }
   /**
    * ⚠️ PROVISIONING RUNS AFTER THE VERIFICATION IS DURABLE, AND CANNOT FAIL THE REVIEW. Owner,
    * 2026-08-30: a fresh KYC should auto-create the user's wallet. The approval is the fact that
@@ -282,7 +296,7 @@ export async function reviewKycCase(input: {
    * admin has to re-drive. `provisionWithinBudget` never throws and cannot outlast its budget, and
    * provisioning is idempotent, so a retry or a backfill converges rather than making a second wallet.
    */
-  if (row.profileId) {
+  if (row.profileId && profileStatus === 'verified') {
     /**
      * ⚠️ CAUGHT HERE TOO, THOUGH `provisionWithinBudget` PROMISES NEVER TO THROW. A reviewer noted
      * this call was untested; writing the test showed the approval had come to DEPEND on that
@@ -309,6 +323,20 @@ export async function reviewKycCase(input: {
  * the looser type on purpose: `unknown` can hold a Date or a class instance that serialises to
  * something nobody intended, and this column is evidence.
  */
+/**
+ * REFUSALS ONLY: recompute the cached status, then tell the seller — and the second happens even
+ * if the first throws. The row is already refused, and a seller left untold on a page that
+ * promises they will be is worse than a stale cache (which the next status write repairs).
+ */
+async function settle(profileId: string, now: Date, notify: () => Promise<void>): Promise<void> {
+  try {
+    await recomputeVerification(profileId, now)
+  } catch (e) {
+    try { logError(e, { at: 'kyc.review.recompute', profileId }) } catch { /* ignore */ }
+  }
+  await notify()
+}
+
 function withNote(existing: unknown, note?: string, checksPassed?: string[]): Prisma.InputJsonObject {
   const base = (existing ?? {}) as Prisma.InputJsonObject
   return {

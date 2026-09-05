@@ -950,10 +950,17 @@ export function VerifyClient() {
           <ShieldCheck className="h-8 w-8" />
           {tr('Verify your identity', 'Xác minh danh tính')}
         </h1>
+        {/* ⛔ NO LONGER "CHECKED BY VNPT eKYC". That integration is blocked and nothing on this page
+            sends anything to VNPT; a passport is reviewed by a person on our team, and the tier
+            button three lines down already said so — the page contradicted itself about who sees
+            the document. This file's own history records two earlier corrections for exactly this
+            class of error: an inaccurate claim on the page asking for a passport is the worst
+            thing on it to get wrong. When the national eKYC is wired for Vietnamese citizens, say
+            so HERE, on that tier only. */}
         <p className="text-body">
           {tr(
-            'Vietnamese law requires sellers to verify their identity before publishing. Your documents are checked by VNPT eKYC, a licensed Vietnamese identity-verification provider.',
-            'Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin. Giấy tờ của bạn được kiểm tra bởi VNPT eKYC — đơn vị xác minh danh tính được cấp phép tại Việt Nam.',
+            'Vietnamese law requires sellers to verify their identity before publishing. A person on our team reviews your document and selfie, usually within a working day, and you do this once.',
+            'Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin. Nhân viên của chúng tôi xem xét giấy tờ và ảnh chân dung của bạn, thường trong một ngày làm việc, và bạn chỉ cần làm một lần.',
           )}
         </p>
         <p className="text-xs text-muted-foreground">
@@ -1016,7 +1023,10 @@ export function VerifyClient() {
             {/* §2: tier-choice leads are BUTTON content, not nav chrome — the hand-typed 2.25
                 was tier drift; the UI default (lucide's own 2) is the law for this surface. */}
             <span className="flex items-center gap-2 font-bold"><Fingerprint className="h-5 w-5" />{tr('Vietnamese citizen', 'Công dân Việt Nam')}</span>
-            <span className="text-xs font-normal opacity-80">{tr('VNeID or CCCD — about two minutes', 'VNeID hoặc CCCD — khoảng hai phút')}</span>
+            {/* ⚠️ CCCD ONLY, BECAUSE VNeID IS NOT WIRED (the native app already says so). The next
+                step unconditionally photographs a CCCD; naming VNeID promised a route that does not
+                exist to a seller who has VNeID and no card to hand. */}
+            <span className="text-xs font-normal opacity-80">{tr('Your CCCD — about two minutes', 'Thẻ CCCD của bạn — khoảng hai phút')}</span>
           </Button>
           <Button
             type="button"
@@ -1037,7 +1047,7 @@ export function VerifyClient() {
                 review by our own team, so the old sentence described a data flow that does not
                 happen. This file's own history warns about exactly this: an inaccurate privacy
                 claim on the page asking for a passport is the worst thing here to get wrong. */}
-            <span className="text-xs font-normal opacity-80">{tr('Passport + a selfie — checked by our team', 'Hộ chiếu + ảnh chân dung — đội ngũ của chúng tôi kiểm tra')}</span>
+            <span className="text-xs font-normal opacity-80">{tr('Passport valid 6+ months, plus a selfie — reviewed by our team', 'Hộ chiếu còn hạn ít nhất 6 tháng, kèm ảnh chân dung — đội ngũ của chúng tôi xem xét')}</span>
           </Button>
         </div>
         </>)}
@@ -1133,8 +1143,8 @@ export function VerifyClient() {
           <Alert>
             <AlertDescription>
               {tr(
-                'Sent. A person reviews this by hand, usually within a working day, and we will email you the result.',
-                'Đã gửi. Một nhân viên sẽ kiểm tra thủ công, thường trong một ngày làm việc, và chúng tôi sẽ gửi email kết quả.',
+                'Sent. A person reviews this by hand, usually within a working day, and we will let you know the result in your dashboard and by email.',
+                'Đã gửi. Một nhân viên sẽ kiểm tra thủ công, thường trong một ngày làm việc, và chúng tôi sẽ thông báo kết quả trong bảng điều khiển và qua email.',
               )}
             </AlertDescription>
           </Alert>
@@ -1187,6 +1197,17 @@ export function VerifyClient() {
                     ? tr('The side with your photo. Line it up inside the frame.', 'Mặt có ảnh của bạn. Căn thẻ vào trong khung.')
                     : tr('The page with your photo and the two lines of code at the bottom. Line it up inside the frame.', 'Trang có ảnh của bạn và hai dòng mã ở dưới cùng. Căn trang vào trong khung.')}
                 </p>
+                {/* ⚠️ THE THINGS THAT ACTUALLY DECIDE A PASSPORT READ, said BEFORE the shutter. Every failed
+                    scan this flow has produced traced to one of them — a cover sleeve, glare on the laminate
+                    over the code lines, a bottom edge out of frame — and the six-month rule is a refusal a
+                    seller could only learn about AFTER both photographs unless it is said here. */}
+                {tier === 'B' && (
+                  <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                    <li>{tr('Valid for at least six more months — the minimum we can accept.', 'Còn hiệu lực ít nhất sáu tháng nữa — mức tối thiểu chúng tôi có thể chấp nhận.')}</li>
+                    <li>{tr('Out of its cover, held flat, no glare on the two code lines.', 'Tháo khỏi bao bìa, giữ phẳng, không loá sáng ở hai dòng mã.')}</li>
+                    <li>{tr('All four corners of the page inside the frame, in good light.', 'Cả bốn góc trang nằm trong khung, nơi đủ sáng.')}</li>
+                  </ul>
+                )}
                 <KycCapture
                   // ⚠️ key={tier}: remount on a tier switch so a CCCD shot cannot linger and re-fire
                   // the OCR effect, and a passport shot cannot carry into a tier-A attempt.

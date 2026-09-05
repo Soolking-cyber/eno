@@ -58,7 +58,11 @@ const asStatus = (v: string): VerificationStatus | null =>
  * pending row and the cache would report `pending` — which `canPublish` treats far more kindly.
  * The transition table already refuses to leave `revoked`; this keeps the DERIVATION honest too.
  */
-export function deriveVerification(rows: Row[], now: Date): { status: VerificationStatus; source: Row | null } {
+/**
+ * ⚠️ GENERIC OVER THE ROW, so a caller that selected more columns (the status route reads the
+ * reviewer's note off the source row) gets them back on `source` without a cast.
+ */
+export function deriveVerification<R extends Row>(rows: R[], now: Date): { status: VerificationStatus; source: R | null } {
   if (rows.length === 0) return { status: 'unverified', source: null }
 
   const revoked = rows.find((r) => r.status === 'revoked')
