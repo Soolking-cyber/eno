@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Regenerate every raster of the brand mark from public/logo-mark.svg (Chromium render — see
 # scripts/render-brand-icon.mjs for why not ImageMagick). Run after redrawing the mark, then
-# set the `?v=` stamp it prints on the four /logo-mark.svg call sites and the PWA icon srcs in
-# manifest.ts — the script lists any that are stale and fails until they match.
+# set the `?v=` stamp it prints on the four /logo-mark.svg call sites, the PWA icon srcs in
+# manifest.ts and the service worker's notification icon (public/sw.js) — the script lists any
+# that are stale and fails until they match.
 #
 #   bash scripts/brand-icons.sh
 #
@@ -45,7 +46,9 @@ for s in 16 32 48 120 192 240 360 512; do r "$ROUNDED" "$TMP/r$s.png" "$s"; done
 for s in 180 512 1024; do r "$SQUARE" "$TMP/s$s.png" "$s"; done
 # ⛔ NO ALPHA CHANNEL ON THE STORE ICONS. Chromium's screenshot encoder writes RGBA even when every
 # pixel is opaque, and App Store Connect refuses an AppIcon with an alpha channel (ITMS-90717).
-for s in 180 512 1024; do magick "$TMP/s$s.png" -background '#0A66C2' -alpha remove -alpha off "$TMP/s$s.png"; done
+# (`exclude-chunk=date` keeps the output byte-stable: ImageMagick otherwise stamps a creation
+# time into the PNG and every regeneration shows up as a changed binary in git.)
+for s in 180 512 1024; do magick "$TMP/s$s.png" -background '#0A66C2' -alpha remove -alpha off -define png:exclude-chunk=date,time "$TMP/s$s.png"; done
 magick "$TMP/r16.png" "$TMP/r32.png" "$TMP/r48.png" src/app/favicon.ico
 cp "$TMP/s180.png"  src/app/apple-icon.png
 cp "$TMP/r192.png"  public/icon-192.png
@@ -67,5 +70,7 @@ cp "$TMP/ic_launcher.xml" "$ADAPTIVE/ic_launcher.xml"; cp "$TMP/ic_launcher_roun
 STAMP="$(shasum -a 256 "$ROUNDED" | cut -c1-8)"
 echo "brand icons regenerated; logo-mark stamp: $STAMP"
 # Every cache-stamped reference must carry THIS stamp; list the ones that do not.
-STALE="$(grep -rnE '(logo-mark\.svg|icon-(192|512|maskable-512)\.png)\?v=' src | grep -v "v=$STAMP" || true)"
+# ⚠️ `src` AND `public` — the service worker (public/sw.js) stamps its notification icon too, and
+# CI's asset-stamps test greps exactly these two trees. Missing it once cost a red CI (2026-09-05).
+STALE="$(grep -rnE '(logo-mark\.svg|icon-(192|512|maskable-512)\.png)\?v=' src public | grep -v "v=$STAMP" || true)"
 if [ -n "$STALE" ]; then echo "⚠️  stale stamps — set them to ?v=$STAMP:"; echo "$STALE"; exit 1; fi
