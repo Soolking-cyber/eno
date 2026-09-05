@@ -172,10 +172,17 @@ final class PayoutModel {
     /// about the one field a buyer compares in their banking app before confirming.
     var holderSource: String? {
         guard let from = current?.suggestedFrom, let suggested = current?.suggestedName else { return nil }
-        let a = trimmedHolder.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-        let b = suggested.trimmingCharacters(in: .whitespacesAndNewlines)
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        // ⚠️ CASE AND WHITESPACE ASIDE, NOTHING ELSE — the web's rule. Diacritics distinguish
+        // Vietnamese legal names (Hùng / Hưng), so folding them claimed "from your verified ID" for a
+        // different person's name. NFC first: Apple's Vietnamese keyboards emit decomposed marks.
+        let a = Self.nameKey(trimmedHolder), b = Self.nameKey(suggested)
         return !a.isEmpty && a == b ? from : nil
+    }
+    static func nameKey(_ v: String) -> String {
+        v.precomposedStringWithCanonicalMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+            .lowercased()
     }
 
     func apply(_ d: PayoutState) {

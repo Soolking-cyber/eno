@@ -332,10 +332,20 @@ final class PaymentsTests: XCTestCase {
         m.apply(try JSONDecoder().decode(PayoutState.self, from: Data(both.utf8)))
         XCTAssertEqual(m.holder, "NGUYEN VAN A", "the saved name wins")
         XCTAssertNil(m.holderSource, "…so the hint must not say it came from the registry")
-        m.holder = " Công ty TNHH abc "
-        XCTAssertEqual(m.holderSource, "business", "case, accents and whitespace aside, the suggestion is in the field")
+        m.holder = " cong  ty tnhh abc "
+        XCTAssertEqual(m.holderSource, "business", "case and whitespace aside, the suggestion is in the field")
         m.holder = "CONG TY TNHH ABC LTD"
         XCTAssertNil(m.holderSource)
+        // Diacritics are name-distinguishing: never folded.
+        let id = PayoutModel()
+        id.apply(try JSONDecoder().decode(PayoutState.self, from: Data(#"{"configured":false,"suggestedName":"NGUYỄN VĂN HÙNG","suggestedFrom":"identity"}"#.utf8)))
+        XCTAssertEqual(id.holderSource, "identity")
+        id.holder = "NGUYỄN VĂN HƯNG"
+        XCTAssertNil(id.holderSource, "a different person's name is not \"from your verified ID\"")
+        id.holder = "NGUYEN VAN HUNG"
+        XCTAssertNil(id.holderSource, "the bank's ASCII spelling is the seller's own")
+        id.holder = "nguye\u{0302}\u{0303}n va\u{0306}n hu\u{0300}ng"   // decomposed (ê + ~, ă, ù), as an Apple keyboard emits it
+        XCTAssertEqual(id.holderSource, "identity", "NFC first")
         let fresh = PayoutModel()
         let onlySuggestion = #"{"configured":false,"suggestedName":"ANNA ERIKSSON","suggestedFrom":"identity"}"#
         fresh.apply(try JSONDecoder().decode(PayoutState.self, from: Data(onlySuggestion.utf8)))
