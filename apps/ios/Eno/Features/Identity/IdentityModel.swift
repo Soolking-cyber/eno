@@ -97,6 +97,10 @@ final class IdentityModel {
     /// Upload one captured image, then — for a passport — read its MRZ on device.
     func upload(_ image: UIImage, kind: String) async {
         busy = true; defer { busy = false }
+        // ⚠️ CLEARED AT THE START, NOT ONLY ON SUCCESS. The capture view hides a stale error under a
+        // new shot and re-shows it when `error` CHANGES — a second failure with the identical text
+        // is not a change unless it passed through nil first.
+        error = nil
         // ⚠️ A MODERN PHONE STILL IS FAR BIGGER THAN THE MRZ NEEDS, AND BIGGER THAN THE ROUTE ACCEPTS.
         // A 48MP capture at quality 0.92 runs to tens of megabytes and fails the upload after the
         // seller has done all the work, with a generic error. 2400px on the long edge keeps roughly

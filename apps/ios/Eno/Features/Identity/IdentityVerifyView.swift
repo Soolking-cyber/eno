@@ -119,37 +119,44 @@ struct IdentityVerifyView: View {
     // ── capture ─────────────────────────────────────────────────────────────────────────────────
 
     private func capture(_ kind: DocumentCaptureView.Kind) -> some View {
+        // ⚠️ THE CAPTURE OWNS THE WHOLE STEP, ON BLACK — title, tips, band, shutter, review, status —
+        // the way every KYC vendor's capture screen is built (Persona/TikTok Shop, the owner's
+        // reference, 2026-09-05). The copy lives HERE because only this screen knows the tier; the
+        // capture view is tier-agnostic. "Start over" stays below it, on the same ground.
         VStack(spacing: 0) {
-            Text(kind == .document
-                 ? (model.tier == .a
-                    ? L10n.tr("Photograph your CCCD — the side with your photo.", "Chụp mặt có ảnh của CCCD.")
-                    : L10n.tr("Photograph the passport page with your photo and the two lines of code.",
-                              "Chụp trang hộ chiếu có ảnh của bạn và hai dòng mã."))
-                 : L10n.tr("Now a selfie, so a reviewer can match your face to the document.",
-                           "Bây giờ chụp ảnh chân dung để nhân viên đối chiếu với giấy tờ."))
-                .enoText(.subheadline, color: EnoColor.sub)
-                .multilineTextAlignment(.center)
-                .padding(EnoSpacing.s4)
-
-            // ⚠️ THE THINGS THAT ACTUALLY DECIDE A PASSPORT READ, said BEFORE the shutter. Every failed
-            // scan traces to one of them — a cover sleeve, glare on the laminate over the code lines,
-            // a bottom edge out of frame.
-            if kind == .document, model.tier == .b {
-                VStack(alignment: .leading, spacing: EnoSpacing.s1) {
-                    checklistLine(L10n.tr("Out of its cover, held flat, no glare on the two code lines.",
-                                          "Tháo khỏi bao bìa, giữ phẳng, không loá sáng ở hai dòng mã."))
-                    checklistLine(L10n.tr("All four corners of the page inside the frame, in good light.",
-                                          "Cả bốn góc trang nằm trong khung, nơi đủ sáng."))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, EnoSpacing.s4)
-                .padding(.bottom, EnoSpacing.s3)
-            }
-
             DocumentCaptureView(
                 kind: kind,
                 guideAspect: model.tier == .a ? 1.585 : 1.42,
+                title: kind == .document
+                    ? (model.tier == .a
+                       ? L10n.tr("Place the side of your CCCD with your photo within the frame",
+                                 "Đặt mặt có ảnh của CCCD vào trong khung")
+                       : L10n.tr("Place the passport page with your photo within the frame",
+                                 "Đặt trang hộ chiếu có ảnh của bạn vào trong khung"))
+                    : L10n.tr("Now a selfie — face inside the oval", "Bây giờ chụp chân dung — khuôn mặt trong khung oval"),
+                // ⚠️ THE THINGS THAT ACTUALLY DECIDE A PASSPORT READ, said BEFORE the shutter. Every
+                // failed scan traces to one of them — a cover sleeve, glare on the laminate over the
+                // code lines, a bottom edge out of frame.
+                tips: kind == .document && model.tier == .b
+                    ? [L10n.tr("Out of its cover, held flat, no glare on the two code lines.",
+                               "Tháo khỏi bao bìa, giữ phẳng, không loá sáng ở hai dòng mã."),
+                       L10n.tr("All four corners of the page inside the frame, in good light.",
+                               "Cả bốn góc trang nằm trong khung, nơi đủ sáng.")]
+                    : kind == .document
+                        ? [L10n.tr("All four corners of the card inside the frame, in good light.",
+                                   "Cả bốn góc thẻ nằm trong khung, nơi đủ sáng.")]
+                        : [L10n.tr("Good light on your face, nothing covering it.",
+                                   "Đủ sáng trên khuôn mặt, không che khuất.")],
+                frameLabel: kind == .document
+                    ? (model.tier == .a ? L10n.tr("Front of card", "Mặt trước thẻ") : L10n.tr("Passport photo page", "Trang có ảnh"))
+                    : nil,
                 externallyBusy: model.busy || model.scanning,
+                busyLabel: model.scanning
+                    ? L10n.tr("Reading your passport…", "Đang đọc hộ chiếu…")
+                    : L10n.tr("Uploading…", "Đang tải lên…"),
+                // ⛔ A REFUSED UPLOAD USED TO JUST END THE SPINNER (fable) — the error is rendered
+                // inside the capture, under the band, where the seller is looking.
+                errorText: model.error,
                 // ⚠️ THE REVIEW QUESTION KNOWS THE DOCUMENT. A CCCD has no code lines to ask about.
                 reviewPrompt: kind == .selfie
                     ? L10n.tr("Is your face clear and well lit?", "Khuôn mặt bạn có rõ và đủ sáng không?")
@@ -164,25 +171,6 @@ struct IdentityVerifyView: View {
             // with "Use this photo" armed.
             .id(kind)
 
-            if model.busy || model.scanning {
-                HStack(spacing: EnoSpacing.s2) {
-                    ProgressView()
-                    Text(model.scanning
-                         ? L10n.tr("Reading your passport…", "Đang đọc hộ chiếu…")
-                         : L10n.tr("Uploading…", "Đang tải lên…"))
-                        .enoText(.caption, color: EnoColor.sub)
-                }
-                .padding(EnoSpacing.s3)
-            } else if let e = model.error {
-                // ⛔ A REFUSED UPLOAD USED TO JUST END THE SPINNER. The error was set on the model and
-                // rendered nowhere on this step, so the seller saw the capture screen return to idle
-                // with no explanation and no reason to try anything different (fable).
-                Text(e)
-                    .enoText(.caption, color: EnoColor.danger)
-                    .multilineTextAlignment(.center)
-                    .padding(EnoSpacing.s3)
-            }
-
             // ⚠️ THE ESCAPE HATCH IS HERE TOO. The challenge is time-limited and can expire between
             // the two photographs; a seller with the wrong document in hand must not have to fail an
             // upload to get back to the tier choice.
@@ -190,7 +178,7 @@ struct IdentityVerifyView: View {
                 confirmStartOver = true
             }
             .disabled(model.busy || model.scanning)
-            .padding(.bottom, EnoSpacing.s2)
+            .padding(.vertical, EnoSpacing.s2)
         }
         .confirmationDialog(L10n.tr("Start over?", "Bắt đầu lại?"), isPresented: $confirmStartOver, titleVisibility: .visible) {
             Button(L10n.tr("Discard the photos and start over", "Bỏ ảnh và bắt đầu lại"), role: .destructive) {
@@ -199,13 +187,6 @@ struct IdentityVerifyView: View {
             }
         } message: {
             Text(L10n.tr("Anything photographed so far will be discarded.", "Ảnh đã chụp sẽ bị bỏ."))
-        }
-    }
-
-    private func checklistLine(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: EnoSpacing.s2) {
-            Image(systemName: "checkmark").enoIcon(.xs, color: EnoColor.success)
-            Text(text).enoText(.caption, color: EnoColor.sub)
         }
     }
 

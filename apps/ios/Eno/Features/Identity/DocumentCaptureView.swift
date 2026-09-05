@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import ImageIO
 import EnoUI
 
 // ── LIVE DOCUMENT / SELFIE CAPTURE ──────────────────────────────────────────────────────────────
@@ -13,9 +14,10 @@ import EnoUI
 //
 // So this view separates two things the web had fused:
 //   · THE GUIDE — what the seller lines the document up against. Cosmetic.
-//   · THE PHOTO — the full-resolution frame `AVCapturePhotoOutput` hands back, UNCROPPED, which is
-//     what goes to Vision and to the upload.
-// Cropping to the guide is what starved the read; the native path simply never does it.
+//   · THE PHOTO — the full-resolution frame `AVCapturePhotoOutput` hands back, cut only to the
+//     BAND the seller composed in (`bandCrop`: the sensor's full width, the middle of its height),
+//     which is what goes to Vision and to the upload, and exactly what the review shows.
+// Cropping to the GUIDE is what starved the read; the band keeps every horizontal pixel.
 
 /// What a running camera session is FOR. Any change here has to restart the session, so it is one
 /// value the `.task` can key on.
@@ -29,12 +31,25 @@ struct DocumentCaptureView: View {
     let kind: Kind
     /// Aspect of the alignment frame: ID-3 passport page 125×88mm ≈ 1.42, a CCCD 85.6×54 ≈ 1.585.
     var guideAspect: CGFloat = 1.42
+    /// The instruction over the camera — the caller knows the document ("Place the passport page
+    /// with your photo within the frame"). Rendered bold, on the black ground, like every KYC
+    /// vendor's capture screen (Persona/TikTok Shop, owner's reference 2026-09-05).
+    var title: String = ""
+    /// Short lines under the title — the two or three things that decide a read (no glare, all
+    /// four corners in). Optional.
+    var tips: [String] = []
+    /// The label inside the frame ("Passport photo page", "Front of card"). Optional.
+    var frameLabel: String? = nil
     /// ⛔ THE SHUTTER MUST STAY SHUT WHILE THE CALLER IS STILL WORKING. `busy` below covers only the
     /// capture itself, which finishes in milliseconds — the UPLOAD that follows takes seconds on a
     /// Vietnamese mobile connection, and a second tap in that window started a concurrent upload
     /// whose reply could land out of order, overwrite `documentPath`, and clear the selfie taken for
     /// the previous document. Mismatched identity evidence is the worst possible outcome here.
     var externallyBusy: Bool = false
+    /// What the caller is doing while `externallyBusy` ("Uploading…", "Reading your passport…").
+    var busyLabel: String? = nil
+    /// The caller's last error, shown under the band so a refused upload never ends in silence.
+    var errorText: String? = nil
     /// The question asked over the reviewed shot — supplied by the caller, who knows the document.
     var reviewPrompt: String? = nil
     let onCapture: (UIImage) -> Void
@@ -46,148 +61,212 @@ struct DocumentCaptureView: View {
     @State private var busy = false
     /// The last capture failed. Cleared on the next attempt.
     @State private var captureError: String?
-    /// ⚠️ THE SHOT IS REVIEWED BEFORE IT IS UPLOADED. The web capture has a review phase ("Use this
-    /// photo" / "Retake"); this one sent every shutter press straight to the server, so a blurred
-    /// passport page was discovered only at the details step, after the upload and the scan, with
-    /// the fix two screens back. Now it is looked at first, on the black ground, at full size.
+    /// ⚠️ THE SHOT IS REVIEWED BEFORE IT IS UPLOADED, in the SAME band it was composed in: what the
+    /// seller sees at review is exactly the region that is uploaded (see `bandCrop`). The first
+    /// version reviewed the full sensor frame `scaledToFit` on a full-screen black canvas — a 3:4
+    /// photo in a 9:19.5 space — and that letterbox was "the black bar on the passport photo"
+    /// the owner reported for three days.
     @State private var shot: UIImage?
     /// ⚠️ SET SYNCHRONOUSLY ON THE TAP. `externallyBusy` turns true only after the parent's task has
     /// run and the view re-rendered; two taps inside that window sent the same photo twice — the
     /// out-of-order-reply race the shutter already guards against with its own local flag.
     @State private var committed = false
+    /// ⚠️ THE CALLER'S ERROR OUTLIVES THE SHOT IT WAS ABOUT. `errorText` is the parent's last upload
+    /// failure; on Retake it stays useful under the live band (it says WHY the seller is retaking)
+    /// but must NOT sit under the NEXT shot's review as if that photo had already been judged. Set
+    /// on Retake, cleared when the caller's error changes (the next upload clears it on start).
+    @State private var errorIsStale = false
+
+    /// The camera band's aspect. Documents: a LANDSCAPE band (5:4) — the sensor's full width is kept
+    /// (the axis the MRZ runs along), only the top and bottom of the portrait frame are outside it.
+    /// Selfie: a 3:4 portrait card, the front camera's own aspect, so nothing is cropped at all.
+    private var bandAspect: CGFloat { kind == .selfie ? 3.0 / 4.0 : 5.0 / 4.0 }
 
     var body: some View {
-        ZStack {
-            // ⚠️ `ready:` IS NOT DECORATION — it is what guarantees `updateUIView` runs again. The
-            // preview's connection does not exist until the session has an input, which happens on a
-            // background queue after this first renders; without a value that CHANGES when that
-            // completes, SwiftUI never revisits the view and the feed stays sideways forever.
-            CameraPreview(controller: camera, ready: camera.isReady)
-                .ignoresSafeArea(edges: .bottom)
-
-            if kind == .selfie {
-                // A head is ~0.75 wide-to-tall. The web shipped 0.54 — a slot, not a face.
-                GeometryReader { geo in
-                    let w = geo.size.width * 0.62
-                    Ellipse()
-                        .stroke(EnoColor.onBrand.opacity(0.85), lineWidth: 2)
-                        .frame(width: w, height: w / 0.75)
-                        .position(x: geo.size.width / 2, y: geo.size.height * 0.46)
+        // ⚠️ SCROLLS ONLY WHEN IT MUST. Title, two tips, the band, the hint and the 84pt shutter fit a
+        // 4.7" phone at default type, but at accessibility text sizes the title alone can be four
+        // lines, and a fixed VStack would push the shutter (or Retake / Use this photo) off the
+        // bottom with no way to reach them. `.basedOnSize` keeps the screen still when it fits.
+        // ⚠️ `minHeight: geo.size.height` IS LOAD-BEARING, NOT TIDINESS. A ScrollView sizes its
+        // content to FIT, which collapses the trailing `Spacer(minLength: 0)` to nothing — on a
+        // 6.7" phone the whole step would float in the top half above a black gap (gate). With the
+        // floor the spacer expands exactly as it did in the fixed VStack, and only accessibility
+        // type sizes push past it and scroll.
+        GeometryReader { geo in
+        ScrollView(.vertical) {
+        VStack(spacing: 0) {
+            // ── instruction ──
+            VStack(spacing: EnoSpacing.s2) {
+                if !title.isEmpty {
+                    Text(title)
+                        .enoText(.title, color: EnoColor.onBrand, weight: .bold)
+                        .multilineTextAlignment(.center)
                 }
-            } else {
-                GeometryReader { geo in
-                    let w = geo.size.width * 0.88
-                    RoundedRectangle(cornerRadius: EnoRadius.card)
-                        .stroke(EnoColor.onBrand.opacity(0.85), lineWidth: 2)
-                        .frame(width: w, height: w / guideAspect)
-                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                ForEach(tips, id: \.self) { tip in
+                    Text(tip)
+                        .enoText(.caption, color: EnoColor.onBrand.opacity(0.75))
+                        .multilineTextAlignment(.center)
                 }
             }
+            .padding(.horizontal, EnoSpacing.s4)
+            .padding(.top, EnoSpacing.s4)
+            .padding(.bottom, EnoSpacing.s4)
 
-            if shot == nil {
-            VStack {
-                Spacer()
-                Text(captureError ?? hint)
-                    .enoText(.caption, color: EnoColor.onBrand)
-                    .padding(.horizontal, EnoSpacing.s3).padding(.vertical, EnoSpacing.s2)
-                    .background(Color.black.opacity(0.55), in: Capsule())
-                    .padding(.bottom, EnoSpacing.s4)
-                // ⚠️ A RAW Button IS CORRECT HERE, AND ONLY HERE. The shutter is a camera-standard
-                // 72pt disc with a ring — a control EnoUI does not model and should not, since it
-                // exists once in the whole app and its shape is a platform convention people already
-                // know. Every other control on this screen uses a primitive. Baselined deliberately.
-                Button {
-                    // ⛔ ONE SHOT AT A TIME. `capturePhoto` before the session is running throws an
-                    // NSException for "no active video connection" — reachable by tapping during the
-                    // permission prompt — and a second tap while the first upload is in flight fires
-                    // a duplicate that wipes the selfie path mid-flow (fable).
-                    guard camera.isReady, !busy, !externallyBusy else { return }
-                    busy = true
-                    captureError = nil
-                    camera.capture { image in
-                        busy = false
-                        guard let image else {
-                            // Say so, rather than looking like a dead button.
-                            captureError = L10n.tr("That photo did not save. Please try again.",
-                                                   "Ảnh chưa được lưu. Vui lòng thử lại.")
-                            return
-                        }
-                        shot = image
-                    }
-                } label: {
-                    Circle().fill(EnoColor.onBrand)
-                        .frame(width: 72, height: 72)
-                        .overlay(Circle().stroke(EnoColor.onBrand.opacity(0.6), lineWidth: 4).frame(width: 84, height: 84))
-                }
-                .padding(.bottom, EnoSpacing.s6)
-                .disabled(!camera.isReady || busy || externallyBusy)
-                .opacity(camera.isReady && !busy && !externallyBusy ? 1 : 0.5)
-                .accessibilityLabel(L10n.tr("Take photo", "Chụp ảnh"))
-            }
-            }
-
-            if let shot {
-                ZStack {
-                    Color.black
+            // ── the band: live camera, or the reviewed shot, in ONE fixed aspect ──
+            ZStack {
+                // ⚠️ THE PREVIEW STAYS MOUNTED THROUGH THE REVIEW. Unmounting it while the shot is up
+                // means a fresh preview view on Retake, whose connection exists only after the session
+                // has an input — and `ready:` would not change again, so `updateUIView` would not run
+                // and the feed would come back sideways. The shot is layered OVER the live preview.
+                // ⚠️ `ready:` IS NOT DECORATION — it is what guarantees `updateUIView` runs again after
+                // the session's input lands on its background queue.
+                CameraPreview(controller: camera, ready: camera.isReady)
+                if let shot {
+                    // scaledToFill in a band of the shot's own aspect: no letterbox, no crop.
                     Image(uiImage: shot)
                         .resizable()
-                        .scaledToFit()
+                        .scaledToFill()
                         .accessibilityLabel(kind == .selfie
                                             ? L10n.tr("Your selfie", "Ảnh chân dung của bạn")
                                             : L10n.tr("Your document photo", "Ảnh giấy tờ của bạn"))
-                    VStack {
-                        Spacer()
-                        Text(reviewPrompt ?? L10n.tr("Is everything sharp and in frame?", "Mọi thứ có rõ nét và nằm trong khung không?"))
-                            .enoText(.caption, color: EnoColor.onBrand)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, EnoSpacing.s3).padding(.vertical, EnoSpacing.s2)
-                            .background(Color.black.opacity(0.55), in: Capsule())
-                            .padding(.bottom, EnoSpacing.s3)
-                        // ⚠️ THE SHOT STAYS UP THROUGH THE UPLOAD. A success moves the flow to the next
-                        // step (this view goes with it); a failure leaves the reviewed photo here so
-                        // "Use this photo" can simply be tapped again, instead of the seller having to
-                        // line the page up a second time. Both buttons wait while the upload runs.
-                        HStack(spacing: EnoSpacing.s3) {
-                            EnoButton(L10n.tr("Retake", "Chụp lại"), icon: "arrow.counterclockwise",
-                                      variant: .secondary, fullWidth: false) {
-                                self.shot = nil
-                                committed = false
-                            }
-                            .disabled(externallyBusy || committed)
-                            EnoButton(L10n.tr("Use this photo", "Dùng ảnh này"), icon: "checkmark",
-                                      variant: .primary, loading: externallyBusy || committed, fullWidth: false) {
-                                guard !externallyBusy, !committed else { return }
-                                committed = true
-                                onCapture(shot)
-                                // ⚠️ BOUNDED. The parent's upload flips `externallyBusy` and the
-                                // edge below re-arms the buttons; if it never does (a path that
-                                // returns before going busy), this re-arms them anyway rather than
-                                // leaving a seller on the black screen with two dead buttons.
-                                Task {
-                                    try? await Task.sleep(for: .seconds(3))
-                                    if !externallyBusy { committed = false }
-                                }
-                            }
-                            .disabled(externallyBusy || committed)
-                        }
-                        .padding(.bottom, EnoSpacing.s6)
-                    }
+                } else {
+                    guide
                 }
             }
+            .aspectRatio(bandAspect, contentMode: .fit)
+            // Bounded in HEIGHT as well as width so a tablet-wide layout does not turn the band into
+            // a wall. ⚠️ PER KIND: the 340pt cap fits the 5:4 document band (390pt → 312pt, width
+            // decides) but is HEIGHT-bound for a 3:4 selfie card — under it the card shrank to
+            // 255×340 on every iPhone, with the oval at ~158pt and black either side (gate). The
+            // selfie cap is 560pt so a phone's card is width-bound (390×520, oval ~242pt as before)
+            // and only a tablet-wide layout is capped; the step scrolls if the copy needs more.
+            .frame(maxWidth: .infinity, maxHeight: kind == .selfie ? 560 : 340)
+            .clipped()
 
-            // The seller's own way back, for an unavailability no notification announces.
-            if !denied, !camera.isReady, captureError != nil {
-                VStack {
-                    Spacer()
+            // ── below the band: hint, then the shutter or the review controls ──
+            VStack(spacing: EnoSpacing.s3) {
+                if shot == nil {
+                    // ⚠️ THE CALLER'S BUSY LABEL SHOWS HERE TOO. After a passport upload the flow moves
+                    // to the selfie step while the model is still reading the MRZ (`scan` runs inside
+                    // `upload`, so `busy` stays true for seconds) — the selfie shutter is disabled for
+                    // that time and, without this, dimmed with no explanation (gate).
+                    Text(externallyBusy ? (busyLabel ?? hint) : (captureError ?? hint))
+                        .enoText(.caption, color: EnoColor.onBrand)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, EnoSpacing.s3).padding(.vertical, EnoSpacing.s2)
+                        .background(Color.black.opacity(0.55), in: Capsule())
+                    Spacer(minLength: EnoSpacing.s2)
+                    // ⚠️ A RAW Button IS CORRECT HERE, AND ONLY HERE. The shutter is a camera-standard
+                    // 72pt disc with a ring — a control EnoUI does not model and should not, since it
+                    // exists once in the whole app and its shape is a platform convention people already
+                    // know. Every other control on this screen uses a primitive. Baselined deliberately.
+                    Button {
+                        // ⛔ ONE SHOT AT A TIME. `capturePhoto` before the session is running throws an
+                        // NSException for "no active video connection" — reachable by tapping during the
+                        // permission prompt — and a second tap while the first upload is in flight fires
+                        // a duplicate that wipes the selfie path mid-flow (fable).
+                        guard camera.isReady, !busy, !externallyBusy else { return }
+                        busy = true
+                        captureError = nil
+                        camera.capture { image in
+                            guard let image else {
+                                busy = false
+                                // Say so, rather than looking like a dead button.
+                                captureError = L10n.tr("That photo did not save. Please try again.",
+                                                       "Ảnh chưa được lưu. Vui lòng thử lại.")
+                                return
+                            }
+                            // The review shows, and the upload receives, the BAND — what was composed.
+                            // ⚠️ OFF THE MAIN ACTOR: `bandCrop` redraws the full sensor frame (a 12MP
+                            // frame is a ~48MB transient) and would stall the tap; `busy` holds the
+                            // shutter until the cropped shot is up.
+                            let aspect = bandAspect
+                            Task {
+                                let cropped = await Task.detached(priority: .userInitiated) {
+                                    Self.bandCrop(image, aspect: aspect)
+                                }.value
+                                shot = cropped
+                                busy = false
+                            }
+                        }
+                    } label: {
+                        Circle().fill(EnoColor.onBrand)
+                            .frame(width: 72, height: 72)
+                            .overlay(Circle().stroke(EnoColor.onBrand.opacity(0.6), lineWidth: 4).frame(width: 84, height: 84))
+                    }
+                    .disabled(!camera.isReady || busy || externallyBusy)
+                    .opacity(camera.isReady && !busy && !externallyBusy ? 1 : 0.5)
+                    .accessibilityLabel(L10n.tr("Take photo", "Chụp ảnh"))
+                } else if let shot {
+                    Text(reviewPrompt ?? L10n.tr("Is everything sharp and in frame?", "Mọi thứ có rõ nét và nằm trong khung không?"))
+                        .enoText(.callout, color: EnoColor.onBrand, weight: .bold)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, EnoSpacing.s4)
+                    if externallyBusy, let busyLabel {
+                        HStack(spacing: EnoSpacing.s2) {
+                            ProgressView().tint(EnoColor.onBrand)
+                            Text(busyLabel).enoText(.caption, color: EnoColor.onBrand.opacity(0.8))
+                        }
+                    }
+                    // ⚠️ THE SHOT STAYS UP THROUGH THE UPLOAD. A success moves the flow to the next
+                    // step (this view goes with it); a failure leaves the reviewed photo here so
+                    // "Use this photo" can simply be tapped again, instead of the seller having to
+                    // line the page up a second time. Both buttons wait while the upload runs.
+                    HStack(spacing: EnoSpacing.s3) {
+                        EnoButton(L10n.tr("Retake", "Chụp lại"), icon: "arrow.counterclockwise",
+                                  variant: .secondary, fullWidth: false) {
+                            self.shot = nil
+                            committed = false
+                            errorIsStale = errorText != nil
+                        }
+                        .disabled(externallyBusy || committed)
+                        EnoButton(L10n.tr("Use this photo", "Dùng ảnh này"), icon: "checkmark",
+                                  variant: .primary, loading: externallyBusy || committed, fullWidth: false) {
+                            guard !externallyBusy, !committed else { return }
+                            committed = true
+                            onCapture(shot)
+                            // ⚠️ BOUNDED. The parent's upload flips `externallyBusy` and the
+                            // edge below re-arms the buttons; if it never does (a path that
+                            // returns before going busy), this re-arms them anyway rather than
+                            // leaving a seller on the black screen with two dead buttons.
+                            Task {
+                                try? await Task.sleep(for: .seconds(3))
+                                if !externallyBusy { committed = false }
+                            }
+                        }
+                        .disabled(externallyBusy || committed)
+                    }
+                }
+                // ⛔ A REFUSED UPLOAD USED TO JUST END THE SPINNER (fable). The caller's error is
+                // rendered HERE, under the band, in every phase — never off-screen.
+                if let errorText, !externallyBusy, !(errorIsStale && shot != nil) {
+                    Text(errorText)
+                        .enoText(.caption, color: EnoColor.danger)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, EnoSpacing.s4)
+                }
+                // The seller's own way back, for an unavailability no notification announces.
+                if !denied, !camera.isReady, captureError != nil, shot == nil {
                     EnoButton(L10n.tr("Try again", "Thử lại"), variant: .secondary, fullWidth: false) {
                         Task {
                             if case .ok = await camera.start(front: kind == .selfie) { captureError = nil }
                         }
                     }
-                    .padding(.bottom, EnoSpacing.s8)
                 }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.top, EnoSpacing.s4)
+            .padding(.bottom, EnoSpacing.s6)
 
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: geo.size.height)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+        .overlay {
             if denied {
                 VStack(spacing: EnoSpacing.s3) {
                     Text(L10n.tr("eno needs the camera to verify your identity.",
@@ -205,7 +284,6 @@ struct DocumentCaptureView: View {
                 .background(Color.black.opacity(0.85))
             }
         }
-        .background(Color.black)
         // ⛔ KEYED ON THE SCENE PHASE, BECAUSE THE FIX FOR A DENIED CAMERA HAPPENS IN ANOTHER APP.
         // The overlay sends people to Settings to grant access — and iOS then returns them here with
         // permission granted and a view that never asks again, so the camera stayed "denied" until
@@ -252,6 +330,8 @@ struct DocumentCaptureView: View {
         .onDisappear { camera.stop() }
         // The upload finished (either way): a failed one leaves the shot up and re-arms the button.
         .onChange(of: externallyBusy) { if !externallyBusy { committed = false } }
+        // A refused upload that never flipped `externallyBusy` still re-arms the review buttons.
+        .onChange(of: errorText) { errorIsStale = false; if errorText != nil { committed = false } }
     }
 
     private var hint: String {
@@ -259,15 +339,120 @@ struct DocumentCaptureView: View {
             ? L10n.tr("Face inside the oval, in good light", "Đưa khuôn mặt vào khung oval, nơi đủ sáng")
             : L10n.tr("Whole page inside the frame", "Cả trang nằm trong khung")
     }
+
+    // ── the guide over the live band: corner brackets, a veil outside, the label inside ──
+    @ViewBuilder private var guide: some View {
+        GeometryReader { geo in
+            if kind == .selfie {
+                // A head is ~0.75 wide-to-tall. The web shipped 0.54 — a slot, not a face.
+                let w = geo.size.width * 0.62
+                let r = CGRect(x: (geo.size.width - w) / 2, y: geo.size.height * 0.5 - (w / 0.75) / 2, width: w, height: w / 0.75)
+                Color.black.opacity(0.35)
+                    .mask(
+                        ZStack {
+                            Rectangle()
+                            Ellipse().frame(width: r.width, height: r.height).position(x: r.midX, y: r.midY).blendMode(.destinationOut)
+                        }
+                        .compositingGroup()
+                    )
+                Ellipse()
+                    .stroke(EnoColor.onBrand.opacity(0.9), lineWidth: 2)
+                    .frame(width: r.width, height: r.height)
+                    .position(x: r.midX, y: r.midY)
+            } else {
+                // 88% of the band's width, the document's own aspect, centred: the four corners are
+                // what the seller aligns; the rest of the band stays visible under a light veil, so
+                // the page's edges are found by eye rather than lost in black.
+                let w = geo.size.width * 0.88
+                let h = w / guideAspect
+                let r = CGRect(x: (geo.size.width - w) / 2, y: (geo.size.height - h) / 2, width: w, height: h)
+                Color.white.opacity(0.28)
+                    .mask(
+                        ZStack {
+                            Rectangle()
+                            RoundedRectangle(cornerRadius: EnoRadius.card).frame(width: r.width, height: r.height).position(x: r.midX, y: r.midY).blendMode(.destinationOut)
+                        }
+                        .compositingGroup()
+                    )
+                CornerBrackets(radius: EnoRadius.card, length: 26)
+                    .stroke(EnoColor.onBrand, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: r.width, height: r.height)
+                    .position(x: r.midX, y: r.midY)
+                if let frameLabel {
+                    // At the TOP of the frame: the bottom of a passport page is its two code lines,
+                    // and nothing may sit over them while the seller composes.
+                    Text(frameLabel)
+                        .enoText(.caption, color: EnoColor.onBrand)
+                        .position(x: r.midX, y: r.minY + 16)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// The region of the sensor frame the band SHOWED (the preview layer is `resizeAspectFill`, so
+    /// the overflowing axis is cropped, centred) — returned upright, at the sensor's resolution.
+    /// For a document band (5:4) on a 3:4 portrait frame that is the FULL WIDTH and the middle
+    /// 60% of the height: every MRZ pixel the sensor captured is kept (the web's three-day OCR
+    /// starvation came from cropping the WIDTH). For the selfie card (3:4) it is the whole frame.
+    // ⚠️ `nonisolated` BECAUSE IT IS CALLED OFF THE MAIN ACTOR, and a static member of a SwiftUI
+    // View inherits that View's main-actor isolation. It compiles today (Swift 5 language mode)
+    // and would be an error the day this target moves to Swift 6 — the shutter's `Task.detached`
+    // is exactly the crossing that would break. Stated now, while the reason is in front of us.
+    nonisolated static func bandCrop(_ image: UIImage, aspect: CGFloat) -> UIImage {
+        // Normalise the orientation first: a camera JPEG is a landscape bitmap with a rotation flag.
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1 // pixels, not points: the camera JPEG is scale 1 and must stay full-resolution
+        format.preferredRange = .standard
+        guard image.size.width > 0, image.size.height > 0 else { return image }
+        // ⚠️ NO REDRAW ON THE NORMAL PATH. PhotoDelegate decodes the capture bounded AND upright
+        // (ImageIO, transform baked in), so the pixels can be cropped where they lie — no second
+        // full-frame buffer. The redraw survives only for an image that arrives rotated, which now
+        // means a fallback decode: correctness first, and it is bounded to the same 4032px.
+        let upright: UIImage
+        if image.imageOrientation == .up, image.cgImage != nil {
+            upright = image
+        } else {
+            let k = min(1, 4032 / max(image.size.width, image.size.height))
+            let size = CGSize(width: (image.size.width * k).rounded(.down), height: (image.size.height * k).rounded(.down))
+            upright = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+                image.draw(in: CGRect(origin: .zero, size: size))
+            }
+        }
+        guard let cg = upright.cgImage else { return upright }
+        let w = CGFloat(cg.width), h = CGFloat(cg.height)
+        let rect: CGRect = (w / h > aspect)
+            ? CGRect(x: ((w - h * aspect) / 2).rounded(.down), y: 0, width: (h * aspect).rounded(.down), height: h)
+            : CGRect(x: 0, y: ((h - w / aspect) / 2).rounded(.down), width: w, height: (w / aspect).rounded(.down))
+        guard rect.width >= 1, rect.height >= 1, let cropped = cg.cropping(to: rect) else { return upright }
+        return UIImage(cgImage: cropped)
+    }
 }
 
-// ── the session ─────────────────────────────────────────────────────────────────────────────────
+/// Four rounded L-shaped corners — the vendor-standard "line the document up here" cue.
+private struct CornerBrackets: Shape {
+    var radius: CGFloat
+    var length: CGFloat
+    func path(in rect: CGRect) -> Path {
+        // ⚠️ TANGENT ARCS, NOT centre/angle arcs: `addArc(center:…clockwise:)` reads its flag in a Y-up
+        // system and draws the other three-quarters of the circle on a Y-down screen — the corners
+        // came out as loops. An arc between two tangents has no direction to get wrong.
+        var p = Path()
+        let r = min(radius, min(rect.width, rect.height) / 2)
+        let l = max(length, r)
+        let tl = CGPoint(x: rect.minX, y: rect.minY), tr = CGPoint(x: rect.maxX, y: rect.minY)
+        let br = CGPoint(x: rect.maxX, y: rect.maxY), bl = CGPoint(x: rect.minX, y: rect.maxY)
+        p.move(to: CGPoint(x: tl.x, y: tl.y + l)); p.addArc(tangent1End: tl, tangent2End: CGPoint(x: tl.x + l, y: tl.y), radius: r); p.addLine(to: CGPoint(x: tl.x + l, y: tl.y))
+        p.move(to: CGPoint(x: tr.x - l, y: tr.y)); p.addArc(tangent1End: tr, tangent2End: CGPoint(x: tr.x, y: tr.y + l), radius: r); p.addLine(to: CGPoint(x: tr.x, y: tr.y + l))
+        p.move(to: CGPoint(x: br.x, y: br.y - l)); p.addArc(tangent1End: br, tangent2End: CGPoint(x: br.x - l, y: br.y), radius: r); p.addLine(to: CGPoint(x: br.x - l, y: br.y))
+        p.move(to: CGPoint(x: bl.x + l, y: bl.y)); p.addArc(tangent1End: bl, tangent2End: CGPoint(x: bl.x, y: bl.y - l), radius: r); p.addLine(to: CGPoint(x: bl.x, y: bl.y - l))
+        return p
+    }
+}
 
-/// Why a start did not succeed. ⛔ "REFUSED" AND "UNAVAILABLE" ARE DIFFERENT THINGS AND MUST NOT
-/// SHARE A SCREEN. Collapsing them into one Bool put the "open Settings and grant camera access"
-/// overlay in front of sellers whose permission was already granted and whose camera was merely
-/// busy, absent (the simulator) or interrupted — telling someone to fix a setting that is already
-/// correct is worse than saying nothing.
+/// ⛔ REFUSED (a permission the person must change in Settings) and UNAVAILABLE (the camera is
+/// busy, absent or interrupted — retry here) MUST NEVER SHARE A SCREEN: sending a busy-camera user
+/// to Settings, or leaving a denied one on a dead retry button, were both shipped bugs.
 enum CameraStart { case ok, refused, unavailable }
 
 @MainActor
@@ -425,11 +610,33 @@ private final class PhotoDelegate: NSObject, AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput,
                      didFinishProcessingPhoto photo: AVCapturePhoto,
                      error: Error?) {
-        // ⚠️ `UIImage(data:)` carries the EXIF orientation into the image, and Vision reads it — a
-        // sideways MRZ never recognises. Nothing here rotates pixels; the orientation tag is enough.
-        guard error == nil, let data = photo.fileDataRepresentation(), let img = UIImage(data: data) else {
+        // ⛔ DECODED BOUNDED, AND UPRIGHT, BY ImageIO — NOT `UIImage(data:)`. A 48MP capture decodes
+        // to a ~195MB uncompressed buffer, and every later step (the upright redraw in `bandCrop`,
+        // the 2400px encode in IdentityModel) held another one; a small phone is jettisoned during
+        // capture and the seller loses the flow (gate, 2026-09-06). `kCGImageSourceThumbnailMaxPixel
+        // Size` bounds the DECODE itself, so the big buffer never exists.
+        // ⚠️ 4032px on the long edge is a 12MP frame exactly: nothing is lost for the common capture,
+        // and it leaves ~90px per MRZ character where the reader needs ~28.
+        // ⚠️ `WithTransform` BAKES THE EXIF ROTATION INTO THE PIXELS, which is why the returned image
+        // is `.up`. The old comment here said the orientation TAG was enough — it was, for Vision,
+        // and it is not for a CGImage crop: `cgImage` is the unrotated buffer, so a landscape-tagged
+        // frame would be cropped along the wrong axis. Upright pixels remove that trap entirely.
+        guard error == nil, let data = photo.fileDataRepresentation() else {
             DispatchQueue.main.async { self.finish(nil) }; return
         }
+        let img: UIImage?
+        if let src = CGImageSourceCreateWithData(data as CFData, nil),
+           let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, [
+               kCGImageSourceCreateThumbnailFromImageAlways: true,
+               kCGImageSourceCreateThumbnailWithTransform: true,
+               kCGImageSourceThumbnailMaxPixelSize: 4032,
+           ] as CFDictionary) {
+            img = UIImage(cgImage: cg)
+        } else {
+            // ImageIO refused the container: the full decode is still better than no capture.
+            img = UIImage(data: data)
+        }
+        guard let img else { DispatchQueue.main.async { self.finish(nil) }; return }
         DispatchQueue.main.async { self.finish(img) }
     }
 }
