@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { hapticTap } from '@/lib/haptics'
+import { chunkListingIds } from '@/lib/listing-ids'
 
 const KEY = 'eno:favorites'
 const SAVED_KEY = 'eno-saved-cache' // { idKey, list } — device-local functional cache
@@ -19,7 +20,10 @@ type FavoritesCtx = {
   // own save once the server value (which now includes it) is reloaded. Reset on nav.
   savedDelta: (id: string) => number
   saved: SerializedListing[] | null // preloaded hydrated saved listings (null = loading)
-  savedError: boolean // the hydrating fetch failed AND there was no cache — /saved shows retry
+  // The hydrating fetch did not fully succeed: either every request failed (with `saved` still
+  // null, so /saved shows its retry state) or some of them did, in which case `saved` holds the
+  // listings that DID load and /saved shows a retry banner above them. Never silently partial.
+  savedError: boolean
   retrySaved: () => void // re-run the hydrating fetch (clears savedError)
 }
 
@@ -128,30 +132,67 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     // Debounce so rapid hearting while browsing coalesces into one request.
     let cancelled = false
     const t = setTimeout(() => {
-      fetch(`/api/listings?ids=${encodeURIComponent(idKey)}${lang !== 'en' && lang !== 'vi' ? `&lang=${lang}` : ''}`)
-        // A non-ok response must land in .catch — treating it as data would both
-        // hide the failure AND let the self-heal below wrongly prune saved ids.
-        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
-        .then((d) => {
-          if (cancelled) return
-          const list: SerializedListing[] = d.listings || []
-          setSavedError(false)
-          setSaved(list)
-          try { localStorage.setItem(SAVED_KEY, JSON.stringify({ idKey, list })) } catch {}
-          // Self-heal: drop saved ids that no longer resolve to a live listing
-          // (deleted / removed), so count + badge match what's actually shown.
-          // Scoped to the ids THIS request asked for, so a heart tapped while the
-          // fetch was in flight isn't wrongly pruned.
-          const requested = new Set(idKey.split(','))
-          const returned = new Set(list.map((l) => l.id))
-          setIds((prev) => {
-            const next = new Set([...prev].filter((id) => !requested.has(id) || returned.has(id)))
-            if (next.size === prev.size) return prev
-            try { localStorage.setItem(KEY, JSON.stringify([...next])) } catch {}
-            return next
-          })
+      const requested = idKey.split(',')
+      const langQuery = lang !== 'en' && lang !== 'vi' ? `&lang=${lang}` : ''
+      // ⛔ CHUNKED, BECAUSE ONE REQUEST ANSWERS AT MOST IDS_FAST_PATH_MAX IDS. Sending all of
+      // them in one go did not fail — it returned 200 with the surplus quietly dropped, and the
+      // self-heal below then deleted every dropped id from the device. A device with 201 saved
+      // listings lost the 201st on its next visit to /saved, permanently and invisibly.
+      const chunks = chunkListingIds(requested)
+      Promise.all(
+        chunks.map((chunk) =>
+          fetch(`/api/listings?ids=${encodeURIComponent(chunk.join(','))}${langQuery}`)
+            // A non-ok response must NOT be read as data — that would both hide the failure and
+            // let the self-heal treat an outage as "all your saved listings were deleted".
+            .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+            .then((d) => ({
+              listings: (d?.listings || []) as SerializedListing[],
+              // ⚠️ ONLY THE SERVER SAYS WHAT WAS EVALUATED, AND ITS ABSENCE MEANS "NOTHING". A
+              // response from an older revision (a rolling deploy, a cached body) carries no
+              // `evaluated`, so this falls back to an empty list and the pass below prunes
+              // nothing at all. Failing closed here costs a stale heart; failing open costs the
+              // user their saved items.
+              evaluated: Array.isArray(d?.evaluated) ? (d.evaluated as string[]) : [],
+            }))
+            .catch(() => null),
+        ),
+      ).then((results) => {
+        if (cancelled) return
+        const ok = results.filter((r): r is NonNullable<typeof r> => !!r)
+        // Every chunk failed — say so and change nothing. `saved` stays null on a first load, so
+        // /saved shows its retry state instead of an empty grid that reads as "you saved nothing".
+        if (ok.length === 0) { setSavedError(true); return }
+
+        const byId = new Map<string, SerializedListing>()
+        for (const r of ok) for (const l of r.listings) byId.set(l.id, l)
+        const list = requested
+          .map((id) => byId.get(id))
+          .filter((l): l is SerializedListing => !!l)
+
+        const complete = ok.length === results.length
+        setSavedError(!complete)
+        setSaved(list)
+        // ⚠️ CACHE ONLY A COMPLETE ANSWER. The cache is keyed by idKey and read back as the whole
+        // set, so storing a partial merge would present a chunk failure as a shrunken library on
+        // every later load — including offline ones.
+        if (complete) { try { localStorage.setItem(SAVED_KEY, JSON.stringify({ idKey, list })) } catch {} }
+
+        // Self-heal: drop saved ids that no longer resolve to a live listing (deleted / removed),
+        // so count + badge match what's actually shown.
+        // ⛔ SCOPED TO WHAT THE SERVER SAID IT EVALUATED — never to what this client asked for. An
+        // id can be missing from `listings` for three different reasons: it is gone, it was never
+        // looked at (past the per-request cap), or its chunk failed. Only the first is a deletion,
+        // and `evaluated` is the only thing that tells them apart. It also still excludes a heart
+        // tapped while the fetch was in flight, since that id was never sent.
+        const evaluated = new Set(ok.flatMap((r) => r.evaluated))
+        if (evaluated.size === 0) return
+        setIds((prev) => {
+          const next = new Set([...prev].filter((id) => !evaluated.has(id) || byId.has(id)))
+          if (next.size === prev.size) return prev
+          try { localStorage.setItem(KEY, JSON.stringify([...next])) } catch {}
+          return next
         })
-        .catch(() => { if (!cancelled) setSavedError(true) })
+      })
     }, 400)
     return () => { cancelled = true; clearTimeout(t) }
   }, [idKey, fetchTick, lang, idsHydrated])

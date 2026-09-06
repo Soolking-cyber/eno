@@ -34,6 +34,21 @@ export default function SavedPage() {
         {/* Saved searches (alerts on new matches) — hidden when signed out / none */}
         <SavedSearches />
 
+        {/* A partial load must say so. With the saved set chunked across several requests, one
+            failing chunk leaves a shorter grid that is indistinguishable from having unsaved
+            things — the one reading a user acts on by re-saving what they already had. */}
+        {savedError && !loading ? (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">
+              {tr("Some saved listings couldn't be loaded.", 'Một số tin đã lưu không tải được.')}
+            </p>
+            <Button variant="cta" size="none" onClick={retrySaved} className="ml-auto rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer">
+              {tr('Try again', 'Thử lại')}
+            </Button>
+          </div>
+        ) : null}
+
         {loading && savedError ? (
           // Fetch failed with no cache — an error must NOT read as endless loading.
           <EmptyState

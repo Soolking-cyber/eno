@@ -72,7 +72,7 @@ export const loadSeller = cache(async (id: string) => {
        * The true total comes from `_count` below, so nothing on screen reports the cap as the
        * inventory.
        */
-      listings: { where: await scopedListingWhere({ verified: true, status: 'active' }), orderBy: { postedAt: 'desc' }, include: { category: true, seller: true }, take: STOREFRONT_LISTINGS },
+      listings: { where: await scopedListingWhere({ verified: true, status: 'active' }), orderBy: [{ postedAt: 'desc' }, { id: 'desc' }], include: { category: true, seller: true }, take: STOREFRONT_LISTINGS },
       _count: { select: { listings: { where: await scopedListingWhere({ verified: true, status: 'active' }) } } },
       handle: { select: { handle: true } }, // public shopname → the shareable eno.vn/<name> link
       // accountType → SellerCard's Business chip; lastSeenAt → the presence bucket
@@ -364,7 +364,19 @@ export async function SellerStorefront({ id }: { id: string }) {
         {listings.length > 0 && (
           <section className="mt-10 space-y-4">
             <h2 className="h-section text-foreground"><Tr text="Listings by" /> {seller.name} ({seller._count.listings})</h2>
-            <SellerListings listings={listings} searchable sortable />
+            {/* ⛔ SEARCH AND SORT RUN AGAINST THE WHOLE SHOP, NOT AGAINST THIS PAGE'S 60 ROWS. The
+                heading above has always shown the true count; the grid below it used to be the 60
+                NEWEST, searched and re-sorted in the browser. On the CellphoneS storefront that is
+                60 of 9,726 — "Price ↑" could not reach the cheapest phone in the shop and typing a
+                model name searched 0.6% of it. `serverScope` keeps the 60 as the server-rendered
+                first page and makes every interaction a scoped /api/listings query. */}
+            <SellerListings
+              listings={listings}
+              searchable
+              sortable
+              initialSort="recent"
+              serverScope={{ params: { seller: seller.id }, total: seller._count.listings, pageSize: STOREFRONT_LISTINGS }}
+            />
           </section>
         )}
       </main>

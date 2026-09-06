@@ -10,6 +10,9 @@ import { isRangeColumn } from '@/lib/taxonomy'
 import { fold } from '@/lib/fold'
 import { localizeListingTitles } from '@/lib/translate'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
+// The cap lives in a client-safe module because the browser has to chunk to the same number.
+import { IDS_FAST_PATH_MAX } from '@/lib/listing-ids'
+import { districtScopeForSlug } from '@/lib/district-slug'
 
 // Subcategory facet counts are expensive (one multi-LIKE COUNT per subcategory)
 // and change slowly. Memoize per filter-signature with a short TTL so the fan-out
@@ -19,15 +22,34 @@ const SUBCOUNT_TTL = 60_000
 const SUBCOUNT_CACHE_MAX = 500
 const subCountCache = new Map<string, { at: number; data: { slug: string; count: number }[] }>()
 
-// Fast path: fetch a specific set of PUBLIC listings by id (used by /saved).
-// Must match the public invariant everywhere else (verified + active) — without
-// status:'active' a saved listing the seller hid or sold would still leak its full
-// payload (title/price/images/coords) to anyone holding the id.
+/**
+ * Fast path: fetch a specific set of PUBLIC listings by id (used by /saved).
+ *
+ * Must match the public invariant everywhere else (verified + active) — without status:'active' a
+ * saved listing the seller hid or sold would still leak its full payload (title/price/images/
+ * coords) to anyone holding the id.
+ *
+ * ⛔ THE RESPONSE SAYS WHICH IDS IT ACTUALLY LOOKED AT, AND IT MUST KEEP DOING SO. This endpoint
+ * used to `.slice(0, 200)` the caller's ids and answer as though that were the whole question. The
+ * caller — FavoritesContext — reads a requested id missing from `listings` as "this listing is
+ * gone" and DELETES it from the device's saved set. So a device with 201 saved listings lost the
+ * 201st permanently on the next load of /saved, silently, with a 200 OK: the id was never
+ * evaluated, only truncated away. `evaluated` is the fix and the contract — the exact ids this
+ * response is an answer about. Anything outside it is unanswered, never absent, and pruning
+ * outside it is data loss. `complete` says whether the caller's list fit; a caller with more must
+ * chunk (`IDS_FAST_PATH_MAX`) rather than assume one round trip covered it.
+ */
 export async function idsFastPath(searchParams: URLSearchParams): Promise<NextResponse | null> {
   const idsParam = searchParams.get('ids')
-  if (!idsParam) return null
-  const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 200)
-  if (ids.length === 0) return NextResponse.json({ listings: [], total: 0 })
+  // ⚠️ ABSENT AND EMPTY ARE DIFFERENT QUESTIONS. No `ids` at all is a browse request and belongs to
+  // the feed below; `?ids=` is a caller asking about an empty set, and answering that with the
+  // whole catalog would hand a hydration call every listing on the site.
+  if (idsParam === null) return null
+  // Dedupe before the cap: a repeated id used to eat one of the 200 slots and push a real
+  // one past the edge, which is the same silent loss this whole contract exists to stop.
+  const requested = [...new Set(idsParam.split(',').map((s) => s.trim()).filter(Boolean))]
+  const ids = requested.slice(0, IDS_FAST_PATH_MAX)
+  if (ids.length === 0) return NextResponse.json({ listings: [], total: 0, evaluated: [], complete: true })
   const rows = await db.listing.findMany({
     where: await scopedListingWhere({ id: { in: ids }, verified: true, status: 'active' }),
     select: LISTING_CARD_SELECT,
@@ -37,6 +59,9 @@ export async function idsFastPath(searchParams: URLSearchParams): Promise<NextRe
   return NextResponse.json({
     listings: await localizeListingTitles(listings, searchParams.get('lang') || undefined),
     total: listings.length,
+    // ⛔ `evaluated` IS THE WHOLE POINT OF THIS RESPONSE SHAPE — see the block comment above.
+    evaluated: ids,
+    complete: requested.length === ids.length,
   })
 }
 
@@ -127,20 +152,21 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
       andFilters.push({ AND: [{ condition: { not: null } }, { NOT: NEWISH }] })
     }
   }
-  // Generic district filter driven by DISTRICTS[].match (EN + VI variants), matched
-  // against both the `district` and `location` fields.
-  const buildDistrictFilter = (districtVal: string): Prisma.ListingWhereInput | undefined => {
-    if (!districtVal || districtVal === 'all') return undefined
-    const def = DISTRICTS.find((d) => d.slug === districtVal)
-    if (!def?.match?.length) return undefined
-    const OR: Prisma.ListingWhereInput[] = []
-    for (const m of def.match) {
-      OR.push({ district: { contains: m } }, { location: { contains: m } })
-    }
-    return { OR }
-  }
-
-  const districtFilter = buildDistrictFilter(district || 'all')
+  /**
+   * Generic district filter driven by DISTRICTS[].match (EN + VI variants), matched against both
+   * the `district` and `location` fields.
+   *
+   * ⛔ AND, FAILING THAT, THE SEO LANDING PAGES' OWN SLUG SPACE. `/c/<category>/<district>` slugifies
+   * the free-text district a seller typed, which is a DIFFERENT vocabulary from these curated keys
+   * — `district-1`, not `d1`. Handing one of those to the explorer used to fall through to
+   * `undefined`, and an undefined filter is NO filter: "Refine in full search" from a district page
+   * returned the whole category with the district silently dropped. See src/lib/district-slug.ts.
+   *
+   * ⚠️ AN UNRESOLVABLE DISTRICT NOW MATCHES NOTHING, WHICH IS A DELIBERATE CHANGE. `?district=junk`
+   * used to return the entire catalogue. A scope the caller asked for and the server cannot honour
+   * is an empty result, not an unscoped one.
+   */
+  const districtFilter = await districtScopeForSlug(district || 'all')
   if (districtFilter) {
     andFilters.push(districtFilter)
   }

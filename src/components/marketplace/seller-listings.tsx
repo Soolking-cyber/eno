@@ -1,16 +1,25 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Search, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
+import { ListingCardSkeleton } from './listing-card-skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { fold } from '@/lib/fold'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
+
+/**
+ * ⚠️ ENGLISH PLURALISES, VIETNAMESE DOES NOT — and the count line read "1 listings." until an
+ * external reviewer caught it. `page.tsx` a few lines away already gets this right; this is the
+ * same rule, stated once here rather than inlined at each call.
+ */
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
 
 // The four learned sorts, applied in-memory to the already-loaded page of listings.
 // The server hands them over in the rankScore blend, which IS "relevance" — so that
@@ -24,6 +33,8 @@ export function SellerListings({
   sortable = false,
   sortBase,
   scope,
+  serverScope,
+  initialSort = 'relevance',
 }: {
   listings: SerializedListingCard[]
   searchable?: boolean
@@ -43,13 +54,134 @@ export function SellerListings({
   sortBase?: string
   /** What the visible set is a preview OF — rendered as one localised sentence under the strip. */
   scope?: { shown: number; total: number }
+  /**
+   * ⛔ MAKES SEARCH, SORT AND LOAD-MORE REAL DATABASE QUERIES OVER THE WHOLE SCOPE. Without it this
+   * component searches and sorts the array it was handed — which is correct only when that array IS
+   * the catalogue. A seller storefront rendered its 60 NEWEST listings under a heading announcing
+   * 9,726, then filtered and re-sorted those 60: "Price ↑" could not reach the cheapest item and
+   * typing "iphone" searched 0.6% of the shop. `params` are the /api/listings filters that DEFINE
+   * the scope (`{ seller: id }`, `{ category, district }`); they are re-sent on every request, so
+   * the scope cannot be lost by a sort, a page or a query the way a hand-built URL can.
+   *
+   * ⚠️ `total` IS THE SCOPE'S TRUE SIZE, and the first page still arrives server-rendered in
+   * `listings` — so a crawler and a cold visitor see real cards, and nothing is fetched until
+   * someone actually searches, sorts or asks for more.
+   */
+  serverScope?: { params: Record<string, string>; total: number; pageSize?: number }
+  /** The order `listings` is already in, so the strip opens on the truth. */
+  initialSort?: SortKey
 }) {
   const router = useRouter()
   const { tr, lang } = useLanguage()
   const [q, setQ] = useState('')
-  const [sort, setSort] = useState<SortKey>('relevance')
+  const [sort, setSort] = useState<SortKey>(initialSort)
+
+  /**
+   * SERVER MODE — every search, sort and page is a scoped query, and the scope is in `params`.
+   *
+   * ⚠️ NOTHING IS FETCHED FOR THE VIEW THE PAGE ALREADY RENDERED. `remote` stays null while the
+   * reader is looking at the server-rendered first page in its original order; the moment they
+   * type or pick a sort it holds the answer to THAT question, from offset 0, over the whole scope.
+   */
+  const serverMode = !!serverScope
+  const pageSize = serverScope?.pageSize ?? 48
+  const [debouncedQ, setDebouncedQ] = useState('')
+  useEffect(() => {
+    if (!serverMode) return
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 350)
+    return () => clearTimeout(t)
+  }, [q, serverMode])
+
+  const [remote, setRemote] = useState<{ key: string; rows: SerializedListingCard[]; total: number } | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  /** Bumped by "Try again" — the query is unchanged, so only this can re-run the effect. */
+  const [refreshTick, setRefreshTick] = useState(0)
+  /**
+   * ⚠️ A READINESS FLAG, NOT DECORATION. This strip and its buttons are server-rendered, so they
+   * are on screen and inert until React hydrates — a click in that window is swallowed silently.
+   * The browser gate waits on `data-listings-ready` rather than on a timeout or on networkidle,
+   * which is what made "Show more" flaky exactly once in five runs.
+   */
+  const [ready, setReady] = useState(false)
+  useEffect(() => { setReady(true) }, [])
+  const queryKey = `${debouncedQ}|${sort}`
+  const isInitialView = serverMode && debouncedQ === '' && sort === initialSort
+
+  const requestUrl = useCallback((offset: number) => {
+    const p = new URLSearchParams(serverScope?.params ?? {})
+    if (debouncedQ) p.set('q', debouncedQ)
+    // 'relevance' is this component's word for the API's default blend; the other four are shared.
+    p.set('sort', sort === 'relevance' ? 'newest' : sort)
+    p.set('limit', String(pageSize))
+    p.set('offset', String(offset))
+    // No facet rails on a scoped surface — they are the explorer's furniture and cost a groupBy.
+    p.set('facets', '0')
+    if (lang !== 'en' && lang !== 'vi') p.set('lang', lang)
+    return `/api/listings?${p.toString()}`
+  }, [serverScope, debouncedQ, sort, pageSize, lang])
+
+  // The in-flight request's key, so a slow answer to an abandoned query can never land.
+  const inFlight = useRef('')
+
+  useEffect(() => {
+    if (!serverMode) return
+    // ⚠️ RETURNING TO THE UNTOUCHED VIEW CANCELS WHATEVER WAS IN FLIGHT. Without clearing the
+    // marker and the flag, picking a sort and then going back to it left the grid dimmed and
+    // "Show more" disabled until a request nobody wants settles — and its failure would print
+    // "Couldn't load listings." over a grid that is correct (external review).
+    if (isInitialView) { inFlight.current = ''; setRemote(null); setLoadError(false); setLoading(false); return }
+    const key = queryKey
+    inFlight.current = key
+    setLoading(true)
+    setLoadError(false)
+    fetch(requestUrl(0))
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then((d) => {
+        if (inFlight.current !== key) return
+        setRemote({ key, rows: d.listings || [], total: typeof d.total === 'number' ? d.total : (d.listings || []).length })
+      })
+      // ⛔ AN ERROR MUST NOT FALL BACK TO THE PAGE'S OWN 60 ROWS. That would answer "cheapest first"
+      // with the newest 60 re-sorted — the exact wrong answer this mode exists to stop — and look
+      // like a successful sort.
+      .catch(() => { if (inFlight.current === key) { setRemote(null); setLoadError(true) } })
+      .finally(() => { if (inFlight.current === key) setLoading(false) })
+  }, [serverMode, isInitialView, queryKey, requestUrl, refreshTick])
+
+  const loadMore = useCallback(() => {
+    if (!serverMode || loading) return
+    const key = queryKey
+    const current = remote?.key === key ? remote.rows : listings
+    inFlight.current = key
+    setLoading(true)
+    setLoadError(false)
+    fetch(requestUrl(current.length))
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then((d) => {
+        if (inFlight.current !== key) return
+        const more: SerializedListingCard[] = d.listings || []
+        // Dedupe on id: a listing posted between two pages shifts the offset window, and the same
+        // row arriving twice would render two identical cards with the same React key.
+        const seen = new Set(current.map((l) => l.id))
+        setRemote({
+          key,
+          rows: [...current, ...more.filter((l) => !seen.has(l.id))],
+          total: typeof d.total === 'number' ? d.total : current.length + more.length,
+        })
+      })
+      .catch(() => { if (inFlight.current === key) setLoadError(true) })
+      .finally(() => { if (inFlight.current === key) setLoading(false) })
+  }, [serverMode, loading, queryKey, remote, listings, requestUrl])
 
   const shown = useMemo(() => {
+    if (serverMode) {
+      if (remote?.key === queryKey) return remote.rows
+      // ⛔ ONLY THE UNTOUCHED VIEW MAY FALL BACK TO THE SERVER-RENDERED PAGE. Once a sort or a
+      // search is asked for, showing those rows again would present the newest 60 as "cheapest
+      // first" — a wrong answer wearing a right answer's clothes, and indistinguishable from a
+      // working sort. While the query is in flight or has failed, the surface shows its own state.
+      return isInitialView ? listings : []
+    }
     let out = listings
     if (searchable && q.trim()) {
       const fq = fold(q.trim())
@@ -69,9 +201,11 @@ export function SellerListings({
       })
     }
     return out
-  }, [listings, searchable, q, sortable, sort])
+  }, [serverMode, remote, queryKey, isInitialView, listings, searchable, q, sortable, sort])
 
-  if (listings.length === 0) return null
+  // ⚠️ IN SERVER MODE AN EMPTY `listings` IS NOT AN EMPTY SHOP. The seller may simply have nothing
+  // matching the first page's filters; the scope's own total decides whether this surface exists.
+  if (listings.length === 0 && !(serverMode && serverScope!.total > 0)) return null
 
   const priceSortActive = sort === 'price-low' || sort === 'price-high'
 
@@ -163,7 +297,10 @@ export function SellerListings({
   // sending that visitor to the explorer would be a navigation for nothing.
   // `prefetch={false}`: four distinct explorer URLs per category page would otherwise each render
   // the full explorer on hover/viewport — four DB-backed requests to show one category.
-  const previewOnly = !!sortBase && !!scope && scope.total > scope.shown
+  // ⚠️ SERVER MODE OUTRANKS PREVIEW MODE. The link strip exists because sorting in place could not
+  // reach past the page; when every sort IS a full query there is nothing to send the reader away
+  // for, and doing so would drop them out of the scope they are standing in.
+  const previewOnly = !serverMode && !!sortBase && !!scope && scope.total > scope.shown
   const sortLinks = previewOnly && (
     <nav
       aria-label={tr('Sort', 'Sắp xếp')}
@@ -203,6 +340,29 @@ export function SellerListings({
     </p>
   )
 
+  /** Server mode's own note: what is on screen, out of the scope's true size. */
+  const resultTotal = serverMode ? (remote?.key === queryKey ? remote.total : serverScope!.total) : 0
+  /**
+   * ⛔ THE GRID IS EMPTY WHILE A NEW QUERY IS IN FLIGHT, AND THE NOTE MUST NOT REPORT THAT AS AN
+   * ANSWER. `shown` is deliberately `[]` between asking for a sort and receiving it — showing the
+   * previous rows would present the newest 60 as "cheapest first". But the count line then read
+   * "Showing 0 of 9,726" over a blank grid, which on a slow connection is several seconds of a shop
+   * that looks empty. Announcing a zero through `aria-live` is worse still. So while it is loading
+   * the surface says it is loading, and skeletons stand in for the cards (external review).
+   */
+  const awaitingFirstRows = serverMode && loading && shown.length === 0
+  const serverNote = serverMode && (
+    <p className="text-xs text-muted-foreground" aria-live="polite">
+      {awaitingFirstRows
+        ? tr('Searching all listings…', 'Đang tìm trong tất cả tin đăng…')
+        : (shown.length >= resultTotal
+            ? plural(resultTotal, tr('{total} listing.', '{total} tin đăng.'), tr('{total} listings.', '{total} tin đăng.'))
+            : tr('Showing {shown} of {total} listings.', 'Đang hiển thị {shown} trong {total} tin đăng.'))
+            .replace('{shown}', shown.length.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US'))
+            .replace('{total}', resultTotal.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US'))}
+    </p>
+  )
+
   const grid = (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {shown.map((l, i) => (
@@ -216,9 +376,10 @@ export function SellerListings({
   if (!searchable && !sortable) return grid
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-listings-ready={ready ? 'true' : undefined}>
       {sortable && (previewOnly ? sortLinks : sortStrip)}
       {sortable && scopeNote}
+      {serverNote}
       {searchable && (
         /* Just a search within this seller's catalog — no category/type filters. */
         <div className="flex items-center gap-2 rounded-xl bg-tint px-3 py-2">
@@ -234,10 +395,43 @@ export function SellerListings({
         </div>
       )}
 
-      {shown.length === 0 ? (
+      {/* ⛔ A FAILED QUERY SAYS SO. Falling back to the page's own rows would present the newest 60
+          as though they were the cheapest in the shop — a wrong answer that looks like a right one. */}
+      {loadError ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
+          <p className="text-sm text-muted-foreground">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
+          <Button
+            variant="cta"
+            size="none"
+            onClick={() => { setLoadError(false); setRemote(null); setRefreshTick((t) => t + 1) }}
+            className="ml-auto rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
+          >
+            {tr('Try again', 'Thử lại')}
+          </Button>
+        </div>
+      ) : null}
+
+      {awaitingFirstRows ? (
+        // Placeholders at the page size, so the grid keeps its height and nothing jumps when the
+        // real cards land.
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-hidden="true">
+          {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <ListingCardSkeleton key={i} />)}
+        </div>
+      ) : shown.length === 0 && !loading && !loadError ? (
         <p className="py-10 text-center text-sm text-muted-foreground">{tr('No listings match.', 'Không có tin nào khớp.')}</p>
       ) : (
-        grid
+        <div className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'} aria-busy={loading || undefined}>
+          {grid}
+        </div>
+      )}
+
+      {/* Load more, only when the scope genuinely holds more than is on screen. */}
+      {serverMode && !loadError && shown.length > 0 && shown.length < resultTotal && (
+        <div className="flex justify-center pt-2">
+          <Button variant="outline" size="none" onClick={loadMore} disabled={loading} className="rounded-xl border-line-strong px-5 py-2.5 text-sm font-bold hover:bg-muted hover:text-foreground">
+            {loading ? tr('Loading…', 'Đang tải…') : tr('Show more', 'Xem thêm')}
+          </Button>
+        </div>
       )}
     </div>
   )

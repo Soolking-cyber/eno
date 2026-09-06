@@ -1986,7 +1986,13 @@ export function ListingsExplorer({
     }
     if (activeDistrict !== 'all') {
       const d = DISTRICTS.find((x) => x.slug === activeDistrict)
-      chips.push({ label: d ? (lang === 'vi' ? d.name : d.nameEn) : activeDistrict, onClear: () => setActiveDistrict('all') })
+      // ⚠️ A DISTRICT SLUG DOES NOT HAVE TO COME FROM `DISTRICTS`. The /c/<category>/<district>
+      // landing pages send their own slugified district name (`thao-dien`), which the API resolves
+      // (src/lib/district-slug.ts) but this list does not carry. The chip must still read as a
+      // place rather than as a URL fragment, so an unknown slug is de-slugified for display — the
+      // filter itself is the server's answer, not this label.
+      const fallback = activeDistrict.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      chips.push({ label: d ? (lang === 'vi' ? d.name : d.nameEn) : fallback, onClear: () => setActiveDistrict('all') })
     }
     // Area / location (new province→ward model + "near you" radius) — so the saved
     // search + alert clearly include where the user is looking.
