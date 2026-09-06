@@ -860,7 +860,28 @@ for (const name of CRITICAL) {
   }
 }
 const coreGlyphs = spriteGlyphs.filter((g) => CRITICAL.has(g.name))
-const restGlyphs = spriteGlyphs.filter((g) => !CRITICAL.has(g.name))
+/**
+ * ⛔ `rest` IS EVERY GLYPH, NOT THE COMPLEMENT — AND THE OVERLAP IS THE WHOLE POINT.
+ *
+ * It was the complement until 2026-09-06, and that made PROMOTING a glyph to the critical list a
+ * silent, delayed way to blank an icon. The path `/icons/glyphs-rest.svg` is stable by design (the
+ * note below explains why a hashed FILENAME is worse), so HTML that still asks for
+ * `glyphs-rest.svg?v=<old>#Pause-r` is answered from the NEW file — which, under a complement
+ * partition, no longer contains `Pause` because this build just moved it into core. A `<use>` whose
+ * target id is missing draws NOTHING.
+ *
+ * ⚠️ AND A CLOUDFLARE PURGE CANNOT SAVE IT. The 6-hour edge TTL is only half the exposure: the
+ * other half is every browser and every Capacitor WebView already holding that HTML, including an
+ * app a user has had open across the deploy. A purge does not reach those. The 2026-08-14 rename
+ * nearly blanked the site through the same hole and needed two reviewers to catch.
+ *
+ * Making `rest` a SUPERSET closes it permanently: no future edit to critical-icons.mjs can remove a
+ * symbol from the file that older markup points at. The cost is ~33 KB gzip on pages that fetch the
+ * deferred sprite at all — never on the home page, which since this change fetches only core.
+ */
+// ⚠️ A COPY, NOT AN ALIAS. `restGlyphs = spriteGlyphs` would hand two names to one array, so any
+// later in-place sort or splice on either would silently reshape the other (external review).
+const restGlyphs = [...spriteGlyphs]
 
 const wrap = (glyphs, hash) =>
   `<svg xmlns="http://www.w3.org/2000/svg"><!-- content ${hash} -->` +

@@ -55,13 +55,43 @@ export const CRITICAL_GLYPHS = [
   // which is the accepted price of one shared partition across two deployments — and it is small:
   // two glyphs against the 5.9-7.3s late-arrival this file exists to prevent.
   'Stamp', 'CalendarDays',
+  /**
+   * ⛔ RE-DERIVED 2026-09-06, AND THE PARTITION HAD LEAKED ON THE BUSIEST PAGE OF ALL. Measured on
+   * the LIVE home page: 44 glyphs came from the core file and exactly TWO came from the deferred
+   * one — `Pause` and `SupportDialog` — and those two cost the full **161 KB** of
+   * `glyphs-rest.svg`, the single largest resource on the page, on a connection this audience pays
+   * for by the megabyte. The file's own comment above said the deferred sprite is "never fetched on
+   * home". It was, on every visit, for two icons.
+   *
+   * How they got there is worth keeping, because both are the same mistake:
+   *  · `Pause` — `Play` was critical from day one, but a play control becomes a PAUSE control the
+   *    moment the clip runs, and the feed autoplays. The pair was split across the two files.
+   *  · `SupportDialog` — the floating help bubble is always mounted on the home page. It was never
+   *    in the derivation because the original four routes were sampled before it shipped.
+   *
+   * `ArrowDown` / `ArrowUp` / `Info` came out of the same re-derivation. They are cheap and they
+   * are painted on arrival, so they belong here by the same rule as everything above.
+   */
+  'Pause', 'SupportDialog', 'ArrowDown', 'ArrowUp', 'Info',
 ]
 
-/** Measured 2026-08-14 so a later reader can tell whether the split still earns its complexity. */
+/** Measured so a later reader can tell whether the split still earns its complexity. */
 export const CRITICAL_MEASUREMENT = {
-  derivedOn: '2026-08-14',
-  routes: ['/', '/listings/<id>', '/c/electronics', '/?q=iphone'],
-  symbolsPerRoute: { home: 58, pdp: 48, category: 36, search: 52 },
-  unionSymbols: 78,
+  derivedOn: '2026-09-06',
+  /**
+   * ⚠️ FIVE ROUTES ACROSS BOTH EDITIONS, not four on one — the 2026-08-17 note above records why a
+   * marketplace-only derivation silently deferred the forum's above-the-fold tiles.
+   */
+  routes: ['/', '/listings/<id>', '/c/electronics', '/?q=iphone', 'eno.forum /'],
+  symbolsPerRoute: { home: 23, pdp: 20, category: 13, search: 22, forumHome: 21 },
+  unionSymbols: 34,
   totalGlyphs: 243,
+  /**
+   * ⚠️ THE UNION IS SMALLER THAN THE LIST, AND NOTHING WAS REMOVED ON THAT BASIS. Five routes
+   * sampled signed-out at one moment cannot prove a glyph is never above the fold — `Plus`,
+   * `Star` and `Eye` are all plausible in states this sweep did not enter. A wrong partition costs
+   * one request and never a blank icon, so the asymmetry is deliberate: add what is measured,
+   * remove only with evidence that it is unreachable on first paint.
+   */
+  note: 'additive re-derivation; entries are never dropped on a single sweep',
 }
