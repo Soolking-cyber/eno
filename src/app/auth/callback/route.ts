@@ -3,6 +3,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect, finishSignIn } from '@/lib/auth-finish'
 import { safeNextPath } from '@/lib/url'
 import { NATIVE_OAUTH_REDIRECT } from '@/lib/native-auth'
+import { IS_SERVICES } from '@/lib/edition'
 import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
 
 // OAuth / magic-link callback — exchanges the code for a session, then redirects.
@@ -97,7 +98,11 @@ export async function GET(request: Request) {
     q.set('next', next)
     return new NextResponse(null, {
       status: 302,
-      headers: { Location: `enonative://auth-callback?${q.toString()}`, 'Cache-Control': 'private, no-store, max-age=0' },
+      // ⚠️ THE SCHEME FOLLOWS THE EDITION SERVING THIS REQUEST. Hardcoding `enonative://` sent the
+      // SERVICES app (which registers `enoforum://`) to a scheme it does not own: iOS had nothing
+      // to hand the code back to, so the sign-in sheet hung until the user cancelled. eno.forum
+      // answers its own callback, so the edition flag here is the right authority.
+      headers: { Location: `${IS_SERVICES ? 'enoforum' : 'enonative'}://auth-callback?${q.toString()}`, 'Cache-Control': 'private, no-store, max-age=0' },
     })
   }
 

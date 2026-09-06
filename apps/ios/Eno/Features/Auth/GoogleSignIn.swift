@@ -20,19 +20,37 @@ import UIKit
 final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProviding {
     static let shared = GoogleSignIn()
 
-    private let supabase = "https://xihiryllwmjoouipkyhw.supabase.co"
-    private let publishableKey = "sb_publishable_He0wwlDfz9YW35sjys3O5Q_qyJ5qwB1" // public by design
+    // ⛔ NO HARDCODED AUTH HOST — Core/AuthConfig.swift asks the site which server it uses. The
+    // literal that stood here was the OLD hosted Supabase project, where the Google provider is
+    // DISABLED; production moved to the box (`https://sb.eno.vn`), where it is enabled. So this
+    // flow opened Google against a server the site had stopped using and came back "provider is
+    // not enabled" — the whole of the owner's "google sign in doesnt work".
     private let scheme = Edition.urlScheme
     private var session: ASWebAuthenticationSession?
 
     /// completion(true) on a successful adopt, (false) on cancel/error.
     func start(completion: @escaping (Bool) -> Void) {
+        Task { await self.begin(completion: completion) }
+    }
+
+    private func begin(completion: @escaping (Bool) -> Void) async {
+        // ⚠️ RESOLVED BEFORE THE BROWSER OPENS. Asking mid-flow would mean a Safari sheet already
+        // on screen when the config fetch fails, and nothing sensible to show in it.
+        guard let authorize = await AuthConfig.shared.endpoint("authorize") else {
+            completion(false)
+            return
+        }
         let verifier = Self.randomVerifier()
         let challenge = Self.challenge(for: verifier)
-        var comps = URLComponents(string: "\(supabase)/auth/v1/authorize")!
+        var comps = URLComponents(url: authorize, resolvingAgainstBaseURL: false)!
         comps.queryItems = [
             URLQueryItem(name: "provider", value: "google"),
-            URLQueryItem(name: "redirect_to", value: "https://eno.vn/auth/callback?native=2"),
+            // ⚠️ THE EDITION'S OWN ORIGIN, NOT eno.vn LITERALLY. The services build (eno.forum)
+            // sent Google back to the marketplace domain, so its callback 302'd to `enonative://`
+            // — a scheme that build does not register (it owns `enoforum://`) — and the session
+            // sheet waited for a callback that could never arrive. `Edition.baseURL` is the same
+            // value the rest of the app talks to, and both origins are allow-listed.
+            URLQueryItem(name: "redirect_to", value: "\(Edition.baseURL.absoluteString)/auth/callback?native=2"),
             URLQueryItem(name: "code_challenge", value: challenge),
             URLQueryItem(name: "code_challenge_method", value: "s256"),
         ]
@@ -60,10 +78,11 @@ final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProvid
     }
 
     private func exchange(code: String, verifier: String) async -> Bool {
-        guard let url = URL(string: "\(supabase)/auth/v1/token?grant_type=pkce") else { return false }
-        var req = URLRequest(url: url)
+        guard let cfg = await AuthConfig.shared.values(),
+              let tokenURL = await AuthConfig.shared.endpoint("token") else { return false }
+        var req = URLRequest(url: tokenURL.appending(queryItems: [URLQueryItem(name: "grant_type", value: "pkce")]))
         req.httpMethod = "POST"
-        req.setValue(publishableKey, forHTTPHeaderField: "apikey")
+        req.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["auth_code": code, "code_verifier": verifier])
         guard let (data, resp) = try? await URLSession.shared.data(for: req),

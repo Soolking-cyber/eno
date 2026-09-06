@@ -18,8 +18,10 @@ struct StoredSession: Codable {
 final class AuthModel {
     static let shared = AuthModel()
 
-    private static let supabase = URL(string: "https://xihiryllwmjoouipkyhw.supabase.co")!
-    private static let publishableKey = "sb_publishable_He0wwlDfz9YW35sjys3O5Q_qyJ5qwB1"
+    // ⛔ THE AUTH SERVER IS NOT A CONSTANT ANY MORE — see Core/AuthConfig.swift. The two literals
+    // that stood here named the OLD hosted Supabase project; production has served auth from the
+    // box (`https://sb.eno.vn`) since the migration, where Google is enabled and on the old
+    // project it is not. Nothing in the app could notice, because a hardcoded host answers.
     private static let keychainKey = "session"
 
     private(set) var session: StoredSession?
@@ -82,11 +84,17 @@ final class AuthModel {
         sessionGen += 1
         // Best-effort server-side revoke, then drop local state either way.
         if let token = session?.accessToken {
-            var req = URLRequest(url: Self.supabase.appending(path: "auth/v1/logout"))
-            req.httpMethod = "POST"
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            req.setValue(Self.publishableKey, forHTTPHeaderField: "apikey")
-            Task { _ = try? await URLSession.shared.data(for: req) }
+            // Best effort, and it stays best effort: local state is dropped below whatever the
+            // server says, so a config fetch that fails must not keep the user signed in.
+            Task {
+                guard let url = await AuthConfig.shared.endpoint("logout"),
+                      let key = await AuthConfig.shared.values()?.anonKey else { return }
+                var req = URLRequest(url: url)
+                req.httpMethod = "POST"
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                req.setValue(key, forHTTPHeaderField: "apikey")
+                _ = try? await URLSession.shared.data(for: req)
+            }
         }
         session = nil
         Keychain.delete(key: Self.keychainKey)
@@ -130,9 +138,11 @@ final class AuthModel {
     private func refresh() async {
         guard let s = session else { return }
         let gen = sessionGen
-        var req = URLRequest(url: Self.supabase.appending(path: "auth/v1/token").appending(queryItems: [URLQueryItem(name: "grant_type", value: "refresh_token")]))
+        guard let cfg = await AuthConfig.shared.values(),
+              let tokenURL = await AuthConfig.shared.endpoint("token") else { return }
+        var req = URLRequest(url: tokenURL.appending(queryItems: [URLQueryItem(name: "grant_type", value: "refresh_token")]))
         req.httpMethod = "POST"
-        req.setValue(Self.publishableKey, forHTTPHeaderField: "apikey")
+        req.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONEncoder().encode(["refresh_token": s.refreshToken])
         guard let (data, response) = try? await URLSession.shared.data(for: req),
