@@ -14,6 +14,14 @@ import { test, expect } from '@playwright/test'
 // real inventory. The workflow builds its own server on :3100 and passes E2E_CI_BASE.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * ⚠️ WAIT FOR HYDRATION, NOT FOR A TIMEOUT. The sort strip and "Show more" are server-rendered and
+ * inert until React attaches; a click in that window is swallowed with no error and the test reads
+ * as a broken feature. `data-listings-ready` is set by the component's own mount effect.
+ */
+const ready = (page: import('@playwright/test').Page) =>
+  expect(page.locator('[data-listings-ready="true"]').first()).toBeAttached()
+
 const FIXTURES = ['Fixture laptop', 'Fixture phone', 'Fixture desk lamp', 'Fixture studio flat', 'Fixture city scooter', 'Fixture bicycle']
 
 test.describe('marketplace, against known fixtures', () => {
@@ -63,6 +71,95 @@ test.describe('marketplace, against known fixtures', () => {
   // price is an inline run, so its own scrollWidth/clientWidth are 0 — only its rect against the
   // CARD's rect shows the spill. Measured on prod before the fix: 8 of 8 service cards overflowed
   // by 24–77px at 320–430px wide. This asserts the geometry, at the width where it was worst.
+
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  // FULL-CATALOGUE SCOPE (review finding 10). The fixtures seed 700 listings for one seller, the
+  // lowest-ranked 50 of them in one district, and the cheapest row of all is last by rank and
+  // oldest by date. Every assertion below is "can this surface reach a record that is off its own
+  // first page" — which is exactly what an in-browser sort over a fetched window cannot do.
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+
+  test('a storefront sorts its whole shop, not the page it rendered', async ({ page }) => {
+    await page.goto('/sellers/ci-bulk-store')
+    await ready(page)
+    // The heading states the true inventory; the grid is a page of it.
+    await expect(page.getByRole('heading', { name: /CI Bulk Warehouse \(700\)/ })).toBeVisible()
+    // ⛔ THE CHEAPEST ROW IS NOT ON THIS PAGE. It is the oldest of 700, so no amount of reordering
+    // the 60 newest can produce it.
+    await expect(page.getByText('Bulk bargain 000')).toHaveCount(0)
+    await page.getByRole('tab', { name: /price/i }).click()
+    await expect(page.getByText('Bulk bargain 000').first()).toBeVisible()
+  })
+
+  test('a storefront searches its whole shop', async ({ page }) => {
+    await page.goto('/sellers/ci-bulk-store')
+    await ready(page)
+    await page.getByLabel('Search this seller').fill('Bulk bargain')
+    await expect(page.getByText('Bulk bargain 000').first()).toBeVisible()
+  })
+
+  test('a storefront pages beyond its first screen', async ({ page }) => {
+    await page.goto('/sellers/ci-bulk-store')
+    await ready(page)
+    await expect(page.locator('[data-card-root]').first()).toBeVisible()
+    const before = await page.locator('[data-card-root]').count()
+    expect(before).toBeGreaterThan(0)
+    await page.getByRole('button', { name: 'Show more' }).click()
+    // The next page is a network round trip; poll rather than assert on the next tick.
+    await expect
+      .poll(async () => page.locator('[data-card-root]').count(), { timeout: 15_000 })
+      .toBeGreaterThan(before)
+  })
+
+  // ⛔ THE FALSE 404. This district's 50 listings are positions 651-700 of their category, so the
+  // page's old 600-row scan found none of them and answered 404 for a place that exists.
+  test('a district page exists even when its listings rank below any scan cap', async ({ page }) => {
+    await page.goto('/c/electronics/thao-dien-fixture')
+    // ⚠️ ASSERT THE PAGE, NOT THE STATUS CODE. Measured on the pre-fix build: this URL served the
+    // "Page not found" body with **HTTP 200** and `x-nextjs-prerender: 1` — `notFound()` on an ISR
+    // route is prerendered and cached, so a status assertion passes on the broken build. The
+    // heading is what tells a real district page from a soft 404.
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Thao Dien Fixture')
+    await expect(page).not.toHaveTitle(/Page not found/)
+  })
+
+  test('a district page counts the district, not the window it fetched', async ({ page }) => {
+    await page.goto('/c/electronics/thao-dien-fixture')
+    await expect(page.getByText('50 electronics listings in Thao Dien Fixture', { exact: false })).toBeVisible()
+  })
+
+  test('a district sort reaches the cheapest listing in the district', async ({ page }) => {
+    await page.goto('/c/electronics/thao-dien-fixture')
+    await ready(page)
+    await page.getByRole('tab', { name: /price/i }).click()
+    await expect(page.getByText('Bulk bargain 000').first()).toBeVisible()
+  })
+
+  // ⛔ THE DISTRICT USED TO BE DROPPED ON THE WAY OUT. "Refine in full search" linked to
+  // `/?category=<slug>`, so one click after choosing a district the reader was in the whole
+  // category — and the API could not have honoured the district anyway, because this slug is not
+  // one of the curated DISTRICTS keys.
+  test('leaving a district page for the full search keeps the district', async ({ page }) => {
+    await page.goto('/c/electronics/thao-dien-fixture')
+    await page.getByRole('link', { name: /Refine in full search/ }).click()
+    await expect(page).toHaveURL(/district=thao-dien-fixture/)
+    // ⚠️ ANCHOR ON A CARD FIRST. `toHaveCount(0)` is trivially true while the feed is still
+    // fetching, so on its own this assertion passes against a build that never filtered at all
+    // (external review). Wait for the district's own rows, THEN assert the sibling ward's are absent.
+    await expect(page.locator('[data-card-root]').first()).toBeVisible()
+    await expect(page.getByText('Bulk item 100')).toHaveCount(0)
+  })
+
+  test('an unresolvable district returns nothing rather than the whole catalogue', async ({ page }) => {
+    // ⚠️ `?district=junk` used to be read as "no district filter" and returned everything.
+    // Anchored the same way: prove the feed has finished by seeing it settle on a zero-results
+    // state, so an empty page cannot pass for a filtered one.
+    await page.goto('/?district=not-a-real-place')
+    await expect(page.locator('[data-card-root]')).toHaveCount(0)
+    await expect(page.getByText(/No listings|Không có tin/i).first()).toBeVisible()
+    await expect(page.getByText('Bulk item')).toHaveCount(0)
+  })
+
   test('no price spills out of its card on a phone', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/')

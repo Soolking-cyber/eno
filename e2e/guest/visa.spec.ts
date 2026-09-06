@@ -54,8 +54,48 @@ test.describe('Guest · e-Visa', () => {
    */
   const VISA_DESK_HANDLE = 'vietkite'
 
-  test('the visa storefront renders its products to a guest', async ({ page }) => {
+  /**
+   * ⛔ THE EXPECTED ANSWER DEPENDS ON WHICH EDITION IS BEING TESTED, AND IT IS NOT A SKIP.
+   *
+   * Measured 2026-09-06: `/vietkite` is 200 on eno.vn and 404 on eno.forum, both apex and www.
+   * The 404 is the OWNER'S PRODUCT DECISION working, not a broken route — 2026-08-17: *"in
+   * eno.forum vietkite and gmbr shouldnt be seen since we promote from our own storefront eno and
+   * vice versa on eno.vn our own visa and itinerary services shouldnt be seen"* — enforced by
+   * `SERVICES_HIDDEN_OWNER_EMAILS` (src/lib/edition-scope.ts), which the live 404 proves is now set
+   * in the services environment.
+   *
+   * So this asserts both halves rather than skipping one. A blanket skip would have retired the
+   * only test that watches the marketplace side, and would equally have hidden the day the forum's
+   * hide-list is unset and a partner reappears where the owner said they must not.
+   *
+   * ⚠️ THE EDITION IS DERIVED FROM THE TARGET HOST, not from a flag, for the same reason
+   * home.spec.ts derives the title: the suite has to be runnable against either deployment without
+   * an edit.
+   */
+  test('the visa storefront renders to a guest on the marketplace, and is hidden on services', async ({ page }) => {
+    /**
+     * ⚠️ THE EDITION IS PROBED, NOT READ OFF THE HOSTNAME. `host.endsWith('eno.forum')` is false for
+     * every localhost preview and CI server, so a services build served on :3000 would be asserted
+     * as a marketplace and fail on a correct app (external review). `/visa` is the licensing
+     * boundary itself: it does not exist in the marketplace bundle and does on services, which is
+     * true on any host the suite is ever pointed at.
+     */
+    const visaProbe = await page.request.get('/visa')
+    const services = visaProbe.status() !== 404
     const res = await page.goto(`/${VISA_DESK_HANDLE}`)
+
+    if (services) {
+      // The partner's storefront must not exist here. A 200 would mean the promotional boundary
+      // the owner asked for has come undone.
+      expect(
+        res?.status(),
+        `/${VISA_DESK_HANDLE} resolved on the services edition — SERVICES_HIDDEN_OWNER_EMAILS is ` +
+        `probably unset in eno-services-env, and a partner is visible where the owner said they ` +
+        `must not be.`,
+      ).toBe(404)
+      return
+    }
+
     expect(
       res?.status(),
       `/${VISA_DESK_HANDLE} did not resolve — the visa desk was probably renamed. Check the ` +

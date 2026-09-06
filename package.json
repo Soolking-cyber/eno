@@ -132,5 +132,10 @@
     "tw-animate-css": "^1.3.5",
     "typescript": "^5",
     "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "fast-uri": "^3.1.7",
+    "mysql2": "^3.24.3",
+    "deepmerge-ts": "^8.0.2"
   }
 }

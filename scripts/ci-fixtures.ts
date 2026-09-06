@@ -62,6 +62,32 @@ const SELLER_PROFILE = '00000000-0000-4000-8000-0000000000s1'.replace('s', 'a')
 const DESK_SELLER_ID = 'ci-desk-store'
 const SELLER_ID = 'ci-fixture-store'
 
+/**
+ * THE OVERSIZED CATALOGUE — the shape every "it only looks at the first page" defect needs.
+ *
+ * ⛔ THE THREE CAPS THIS EXISTS TO EXCEED ARE 48, 60 AND 600. A storefront rendered its 60 NEWEST
+ * listings and then searched and sorted THOSE while the heading showed the true count; a district
+ * landing page fetched its category's top 600 and filtered them in JavaScript, so a district whose
+ * listings all rank below 600 returned nothing and the page answered 404 for a place that exists.
+ * Six fixtures cannot reproduce either. Seven hundred can, and cheaply — they are one createMany.
+ *
+ * ⚠️ THE LAYOUT IS THE ASSERTION. Ties on `rankScore` are broken by `id desc`, so `ci-bulk-699`
+ * ranks first and `ci-bulk-000` last. The 50 rows carrying BULK_DISTRICT are therefore positions
+ * 651-700 of the category — entirely outside the old 600-row window — and the cheapest row in the
+ * whole catalogue is `ci-bulk-000`: last by rank, oldest by date, so it is off the first page of
+ * every surface. If a sort can reach it, the sort ran in the database.
+ */
+const BULK_SELLER_ID = 'ci-bulk-store'
+const BULK_PROFILE = '00000000-0000-4000-8000-0000000000b1'
+const BULK_EMAIL = 'ci-bulk@eno.vn'
+const BULK_COUNT = 700
+/** The district only the lowest-ranked 50 rows carry. Not a DISTRICTS key — the SEO slug path. */
+const BULK_DISTRICT = 'Thao Dien Fixture'
+const BULK_DISTRICT_SLUG = 'thao-dien-fixture'
+const BULK_DISTRICT_ROWS = 50
+/** Cheapest row in the entire fixture set, and the last one any capped scan would reach. */
+const BULK_CHEAPEST_TITLE = 'Bulk bargain 000'
+
 /** Six listings across three categories, with the cheapest and the newest deliberately last —
  *  a sort that only touches the first page cannot find them (review U01's regression case). */
 const LISTINGS = [
@@ -163,10 +189,49 @@ async function main() {
   }
   await db.listing.upsert({ where: { id: 'ci-l-desk' }, update: deskData, create: { id: 'ci-l-desk', ...deskData } })
 
+  // ── The oversized catalogue ────────────────────────────────────────────────────────────────
+  await profile(BULK_PROFILE, BULK_EMAIL, 'CI Bulk Seller')
+  await seller(BULK_SELLER_ID, BULK_PROFILE, 'CI Bulk Warehouse')
+  // Rewritten wholesale each run: 700 upserts is 700 round trips, and the guard above already
+  // proved this database holds nothing but fixtures.
+  await db.listing.deleteMany({ where: { id: { startsWith: 'ci-bulk-' } } })
+  const bulkCategoryId = categories.get('electronics')!
+  await db.listing.createMany({
+    data: Array.from({ length: BULK_COUNT }, (_, n) => {
+      const seq = String(n).padStart(3, '0')
+      // The lowest ids carry the district, so they are the lowest-ranked rows in the category.
+      const inDistrict = n < BULK_DISTRICT_ROWS
+      const title = inDistrict && n === 0 ? BULK_CHEAPEST_TITLE : `Bulk item ${seq}`
+      return {
+        id: `ci-bulk-${seq}`,
+        title,
+        description: `${title} — one of ${BULK_COUNT} deterministic CI fixtures. Not a real listing.`,
+        // ⚠️ STRICTLY INCREASING WITH n, so `ci-bulk-000` is the cheapest row in the fixture set
+        // and every capped-window sort that cannot reach it is visibly wrong.
+        price: 100_000 + n * 1_000,
+        priceUnit: 'VND',
+        location: inDistrict ? `${BULK_DISTRICT}, Ho Chi Minh City` : 'Ho Chi Minh City',
+        city: 'Ho Chi Minh City',
+        district: inDistrict ? BULK_DISTRICT : 'Bulk Ward',
+        images: JSON.stringify([IMAGE]),
+        categoryId: bulkCategoryId,
+        sellerId: BULK_SELLER_ID,
+        verified: true,
+        status: 'active',
+        searchText: `${title} ho chi minh city`.toLowerCase(),
+        // Oldest first for the lowest ids: the cheapest row is also the least recent, so it is off
+        // the storefront's "60 newest" page too.
+        createdAt: new Date(now - (BULK_COUNT - n) * 60_000),
+      }
+    }),
+  })
+
   const counts = {
     categories: await db.category.count(),
     sellers: await db.seller.count(),
     listings: await db.listing.count({ where: { verified: true, status: 'active' } }),
+    bulkCatalog: await db.listing.count({ where: { sellerId: BULK_SELLER_ID } }),
+    bulkDistrict: `${BULK_DISTRICT_SLUG} × ${await db.listing.count({ where: { district: BULK_DISTRICT } })}`,
     deskExcludedFromFeed: 1,
     runId: randomUUID().slice(0, 8),
   }

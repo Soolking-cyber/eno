@@ -11,7 +11,7 @@
 //   2. status must still be draft/needs_changes                              — else → application_locked
 //   3. if p_replace: DELETE the previous rows of this kind and TOMBSTONE their storage paths
 //      (public."StorageTombstone", the durable erasure queue) in the same statement
-//   4. INSERT the new row from p_document with application_id PINNED to $1 (all twelve columns are
+//   4. INSERT the new row from p_document with application_id PINNED to p_application_id (all twelve columns are
 //      supplied by the route; the pin means a mis-built or hostile JSON can never land a document
 //      in somebody else's case)
 //   5. DROP the upload-intent tombstone the route wrote for the new object: it is referenced now
@@ -30,7 +30,17 @@ if (!url) { console.error('Set DIRECT_URL / DATABASE_URL'); process.exit(1) }
 const client = new pg.Client({ connectionString: url })
 await client.connect()
 
-const SIG = 'public.visa_commit_document(uuid, uuid, jsonb, boolean)'
+// ⛔ THE PARAMETERS ARE NAMED, AND THE ROUTE CANNOT CALL THIS FUNCTION OTHERWISE. The first
+// version declared them by TYPE ONLY — `(uuid, uuid, jsonb, boolean)` — so PostgreSQL stored
+// `proargnames = NULL`, while documents/route.svc.ts calls
+// `db.rpc('visa_commit_document', { p_application_id, p_user_id, p_document, p_replace })`.
+// PostgREST resolves an RPC by ARGUMENT NAME, so a nameless function is unreachable from the app:
+// every visa document upload fails. Confirmed against production 2026-09-06 —
+// `select proargnames from pg_proc where proname='visa_commit_document'` returns NULL.
+// ⚠️ SIG (named) IS FOR `create`; IDENTITY (types only) IS FOR `revoke`/`grant`, because
+// `pg_get_function_identity_arguments` never includes names and the two must not be confused.
+const SIG = 'public.visa_commit_document(p_application_id uuid, p_user_id uuid, p_document jsonb, p_replace boolean)'
+const IDENTITY = 'public.visa_commit_document(uuid, uuid, jsonb, boolean)'
 const stmts = [
   // Drop every existing overload by introspection (see visa-capture-payment-fn.mjs for why).
   `do $$
@@ -48,24 +58,24 @@ const stmts = [
    as $$
    declare
      v_status text;
-     v_doc    jsonb := jsonb_set($3, '{application_id}', to_jsonb($1));  -- ⛔ PINNED to the locked case, whatever the JSON says
-     v_kind   text := $3->>'kind';
-     v_path   text := $3->>'storage_path';
+     v_doc    jsonb := jsonb_set(p_document, '{application_id}', to_jsonb(p_application_id));  -- ⛔ PINNED to the locked case, whatever the JSON says
+     v_kind   text := p_document->>'kind';
+     v_path   text := p_document->>'storage_path';
      v_old    text[] := '{}';
    begin
      if v_kind is null or v_path is null then return jsonb_build_object('ok', false, 'code', 'invalid_document'); end if;
-     select status into v_status from visa_applications where id = $1 and user_id = $2 for update;
+     select status into v_status from visa_applications where id = p_application_id and user_id = p_user_id for update;
      if not found then return jsonb_build_object('ok', false, 'code', 'not_found'); end if;
      if v_status not in ('draft', 'needs_changes') then
        return jsonb_build_object('ok', false, 'code', 'application_locked');
      end if;
-     if $4 then
+     if p_replace then
        -- ⚠️ DISTINCT, NOT NULL, AND NEVER THE NEW OBJECT'S OWN PATH: two legacy rows of one kind with
        -- the same path would make the upsert fail ("cannot affect row a second time") and lock the
        -- applicant out of that kind for ever; and a replaced row that happens to share the new path
        -- must not put the just-committed object into old_paths for the route to delete.
        with gone as (
-         delete from visa_documents where application_id = $1 and kind = v_kind returning storage_path
+         delete from visa_documents where application_id = p_application_id and kind = v_kind returning storage_path
        ), distinct_gone as (
          select distinct storage_path from gone where storage_path is not null and storage_path <> v_path
        ), stamped as (
@@ -89,9 +99,13 @@ const stmts = [
      delete from "StorageTombstone" where "bucket" = 'visa-documents' and "path" = v_path;
      return jsonb_build_object('ok', true, 'old_paths', to_jsonb(v_old));
    end $$`,
-  `revoke all on function ${SIG} from public`,
-  `revoke all on function ${SIG} from anon, authenticated`,
-  `grant execute on function ${SIG} to service_role`,
+  `revoke all on function ${IDENTITY} from public`,
+  `revoke all on function ${IDENTITY} from anon, authenticated`,
+  `grant execute on function ${IDENTITY} to service_role`,
+  // ⛔ POSTGREST CACHES THE SCHEMA, INCLUDING ARGUMENT NAMES. Without this the API keeps serving
+  // the previous signature until it happens to restart, so a correct migration can still look
+  // like a broken deploy. The notification is cheap and harmless when nothing is listening.
+  `notify pgrst, 'reload schema'`,
 ]
 
 try {

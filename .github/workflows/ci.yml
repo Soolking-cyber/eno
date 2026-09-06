@@ -207,6 +207,15 @@ jobs:
           fi
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /tmp/schema.sql > /dev/null
 
+      # ⛔ THE CONCURRENCY PROBES RUN AGAINST THIS THROWAWAY POSTGRES, BEFORE THE FIXTURES.
+      # They reproduce defects that only exist at READ COMMITTED — a lost update in the
+      # business-verification document append — which a mocked database cannot show. They opt in on
+      # RACE_DB_TESTS and refuse any host that is not loopback, so they can only ever run here.
+      - name: Concurrency probes (real database)
+        run: npx vitest run src/lib/core/business-verification-race.probe.test.ts
+        env:
+          RACE_DB_TESTS: '1'
+
       - name: Seed fixtures
         run: npx tsx scripts/ci-fixtures.ts
         env:
