@@ -7,6 +7,44 @@
     <color name="colorPrimaryDark">#034078</color><!-- brand-dark -->
     <color name="colorAccent">#0a66c2</color><!-- brand -->
     <!-- card: the web chrome surface. Used as splash + window background so cold start and any
-         system-bar strip the window paints match the page instead of flashing white/black. -->
-    <color name="card">#ffffff</color>
+         system-bar strip the window paints match the page instead of flashing white/black.
+
+         ⛔ THIS HAD DRIFTED FROM globals.css AND THE PULL-TO-REFRESH SHOWED IT. Owner, 2026-09-06:
+         "pulling down cuts top and screen with white in between" — a strip of the wrong colour
+         above the header on every pull.
+         ⚠️ AND NOT FOR THE REASON THE FIRST VERSION OF THIS COMMENT GAVE. It said SwipeRefreshLayout
+         drags the WebView down and reveals the window behind it. It does not: SwipeRefreshLayout.java
+         onLayout lays the child at `getPaddingTop()` unconditionally and moves only the spinner
+         circle. What actually uncovers the window colour is the WebView's own overscroll. The fix
+         is the same either way — the window must not be a colour the page never uses — but the
+         mechanism had to be corrected rather than left as a plausible story.
+         Measured, not guessed: globals.css:250 var(background) #fafafa, :261 var(card) #fafafa,
+         :565 var(background) #1b1b1b, :569 var(card) #1b1b1b. Keep all four in step. -->
+    <color name="card">#fafafa</color>
+    <!-- ⛔ THE PUCK IS WHITE IN BOTH THEMES, AND THERE IS NO values-night OVERRIDE FOR IT ON PURPOSE.
+         It had one (#242424) and that CREATED a regression three reviewers kept returning to: every
+         colour in this file resolves from ANDROID's night mode, while the web app in the WebView has
+         its own switch (html.t-light / t-dark). A user who explicitly picks Light in-app on a Dark
+         phone would have got a #242424 puck over a light page — worse than the platform default
+         they had before. Dropping the night value removes the whole class: white is what Android
+         ships, it is readable on #fafafa and on #1b1b1b alike, and it cannot be wrong for either
+         override. Neither of the owner's actual complaints depended on it — the grey ARC is fixed
+         by refreshSpinner below, and the white BAND by `card` above.
+         ⚠️ `card` STILL FOLLOWS ANDROID'S NIGHT MODE and so still mismatches an in-app override.
+         That one is inherited, not introduced here, and closing it needs a real theme bridge (web
+         preference -> Preferences -> AppCompatDelegate.setDefaultNightMode plus a window repaint).
+         Do not "fix" either by inventing a compromise colour that is wrong in both themes. -->
+    <color name="refreshSpinner">#0a66c2</color><!-- brand arc, instead of the platform's grey -->
+    <color name="refreshSpinnerBg">#ffffff</color><!-- see above: deliberately theme-independent -->
+
+    <!-- ⛔ BOTH THEMES' CANVAS, SPELLED OUT HERE RATHER THAN SPLIT ACROSS values/ AND values-night/,
+         SO JAVA CAN PICK. `card` above still exists for styles.xml windowBackground, which the
+         framework resolves before any web code has run and which therefore has to follow Android.
+         Everything AFTER first paint follows the APP's theme instead, read from the native
+         Preferences mirror — see MainActivity.appIsDark(). Keep these two in step with globals.css
+         var(background)/var(card): #fafafa light, #1b1b1b dark. -->
+    <color name="cardLight">#fafafa</color>
+    <color name="cardDark">#1b1b1b</color>
+    <color name="refreshSpinnerLight">#0a66c2</color><!-- brand -->
+    <color name="refreshSpinnerDark">#3b8ee6</color><!-- brand, brightened for dark surfaces -->
 </resources>

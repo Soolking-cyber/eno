@@ -21,18 +21,30 @@
       In remote mode (no flag) this page remains the webDir placeholder it always was.
     -->
     <style>
+/* ⛔ THE SHELL PAINTS IN THE SITE'S OWN FACE, NOT THE SYSTEM ONE. This screen exists to be the
+   first thing an app launch shows, and until now it drew in -apple-system while the site it hands
+   over to draws in Open Runde — so the launch visibly re-set itself a beat later, which is exactly
+   the mismatch the owner reported (2026-09-06: "ios loading screen is not matched to mobile
+   version loading show eno.vn open runde version").
+   ⚠️ THE FILES ARE BUNDLED, NOT FETCHED. The shell's whole purpose is to paint before the network
+   answers, so a webfont it had to download would arrive after the thing it is meant to style.
+   `font-display:block` is deliberate for the same reason: a brief invisible beat is better than
+   painting the wordmark in the system face and swapping it. */
+@font-face{font-family:"Open Runde";src:url(./open-runde-regular.woff2) format("woff2");font-weight:400;font-style:normal;font-display:block}
+@font-face{font-family:"Open Runde";src:url(./open-runde-bold.woff2) format("woff2");font-weight:700;font-style:normal;font-display:block}
+
       /* Theme: first paint follows the OS scheme; the script below corrects to the APP's
          last resolved choice (mirrored into native Preferences by theme-context) within
          milliseconds — a Light-app-on-Dark-phone paints light, and vice versa. Explicit
          .t-light/.t-dark classes outrank the media query. */
-      :root { --bg:#fafafa; --card:#ffffff; --tint:#eef2f6; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; }
-      @media (prefers-color-scheme: dark){ :root{ --bg:#1b1b1b; --card:#242424; --tint:#2e2e2e; --fg:#f3f4f6; --sub:#9ca3af; --brand:#3b8ee6; --ring:#333; } }
-      html.t-light { --bg:#fafafa; --card:#ffffff; --tint:#eef2f6; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; }
-      html.t-dark { --bg:#1b1b1b; --card:#242424; --tint:#2e2e2e; --fg:#f3f4f6; --sub:#9ca3af; --brand:#3b8ee6; --ring:#333; }
+      :root { --bg:#fafafa; --card:#fafafa; --tint:#eef2f6; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; }
+      @media (prefers-color-scheme: dark){ :root{ --bg:#1b1b1b; --card:#1b1b1b; --tint:#2e2e2e; --fg:#f3f4f6; --sub:#9ca3af; --brand:#3b8ee6; --ring:#333; } }
+      html.t-light { --bg:#fafafa; --card:#fafafa; --tint:#eef2f6; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; }
+      html.t-dark { --bg:#1b1b1b; --card:#1b1b1b; --tint:#2e2e2e; --fg:#f3f4f6; --sub:#9ca3af; --brand:#3b8ee6; --ring:#333; }
       * { box-sizing:border-box; }
       html, body { margin:0; height:100%; background:var(--bg); }
       body {
-        font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color:var(--fg);
+        font-family:"Open Runde",-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color:var(--fg);
         -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
         padding-top:env(safe-area-inset-top);
       }

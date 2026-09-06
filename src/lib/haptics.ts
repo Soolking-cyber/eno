@@ -44,6 +44,12 @@ function isIOS(): boolean {
 
 // In the native Capacitor app we drive the REAL Taptic Engine via @capacitor/haptics — no switch
 // trick, no Vibration API, respects the OS haptic setting. Everything below routes here first.
+/** Android under Capacitor — the one platform whose "selection" haptic is heavier than its impact. */
+function isAndroid(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /android/i.test(navigator.userAgent || '')
+}
+
 function isNativeCap(): boolean {
   if (typeof window === 'undefined') return false
   const c = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
@@ -102,6 +108,111 @@ export function hapticTap(ms = 12): void {
   if (now - lastFiredAt < REPEAT_GAP_MS) return
   lastFiredAt = now
   fire(ms)
+}
+
+/**
+ * A SELECTION TICK — the texture iOS uses for a picker, a segmented control or a tab.
+ *
+ * ⛔ THIS IS NOT AN IMPACT, AND THAT DISTINCTION IS THE WHOLE POINT. `hapticTap` fires
+ * `Haptics.impact`, which is the "something happened" thump meant for a committed action: a save, a
+ * send, a publish. Moving between four sort tabs with an impact under each one feels like the phone
+ * is being knocked, which is what makes an app read as cheap — the same over-firing hapticConfirm's
+ * comment warns about, in a different disguise. UIKit has a separate lighter engine for "the
+ * selection moved", and every native app the audience already uses is on it.
+ *
+ * ⚠️ USE IT FOR A CHANGE OF SELECTION, NOT FOR A COMMIT. A sort tab, a category chip, a facet, a
+ * carousel slide: yes. Publishing a listing: that is `hapticConfirm`.
+ *
+ * ⛔ AND IT IS iOS-ONLY, BECAUSE ANDROID'S "SELECTION" IS THE HEAVIEST OF THE THREE, NOT THE
+ * LIGHTEST. An earlier version of this comment claimed the plugin "maps it to its own light effect"
+ * on Android. Measured in the installed plugin instead of assumed:
+ *     HapticsSelectionType   timings {0,100}  amplitudes {0,100}   → 100ms
+ *     HapticsImpactType.LIGHT timings {0,50}  amplitudes {0,110}   → 50ms
+ * So routing Android through selectionChanged would have doubled the buzz relative to impact LIGHT
+ * and made it roughly eight times the 12ms `hapticTap` this replaces — turning "make it feel good"
+ * into a heavier thump under every tab, which is the exact opposite of the request. Android takes
+ * the light impact path instead. iOS keeps UISelectionFeedbackGenerator, which really is a distinct
+ * lighter engine and is what every native picker on the platform uses.
+ * ⚠️ The web path falls back to a vibration SHORTER than hapticTap's — a selection must feel lighter
+ * than a commit on every platform, not just the one with the API for it.
+ *
+ * ⛔ `selectionChanged()` ALONE IS A SILENT NO-OP ON BOTH PLATFORMS — THE FIRST VERSION OF THIS
+ * FUNCTION SHIPPED NOTHING. Three reviewers said so and the installed plugin source settles it:
+ *   ios/Sources/HapticsPlugin/Haptics.swift — `selectionChanged()` is
+ *     `if let generator = self.selectionFeedbackGenerator { … }`, and that property is nil until
+ *     `selectionStart()` assigns a `UISelectionFeedbackGenerator`.
+ *   android/…/Haptics.java — `selectionChanged()` is `if (this.selectionStarted)`, a flag only
+ *     `selectionStart()` sets.
+ * So the sequence is start → changed → end, every time. This replaced `hapticTap` on the segmented
+ * control and the seller sort strip, both of which HAD working feedback: the regression would have
+ * been a control that silently stopped buzzing on device while every gate stayed green.
+ *
+ * ⚠️ THE PLUGIN IS IMPORTED ONCE, NOT PER TICK. `await import()` inside the handler put a dynamic
+ * import between the finger and the buzz on every tap; a haptic that arrives late is worse than
+ * none, because it lands under the NEXT thing the thumb does.
+ *
+ * ⛔ OVERLAPPING SEQUENCES ARE DROPPED, NOT QUEUED, AND THE DIFFERENCE MATTERS BOTH WAYS. The
+ * native generator is a singleton — `selectionFeedbackGenerator` on iOS, a `selectionStarted` flag
+ * on Android — so two sequences interleaving as start/start/changed/end/changed leave the second
+ * tick landing after the first tore the generator down: silently nothing. Chaining them on one
+ * promise fixes the ordering and creates a worse problem: three awaited bridge calls per tick on a
+ * slow bridge means a backlog that keeps buzzing after the thumb has stopped, and a haptic that
+ * arrives late lands under whatever the user is doing NEXT. A tick is worthless out of time, so a
+ * tick that cannot go now is simply dropped.
+ *
+ * ⚠️ A FAILED IMPORT IS NOT CACHED. `hapticsModule ??= import(...)` alone kept a REJECTED promise
+ * for the life of the page, so one fetch failure — offline for a moment, or a deploy rotating chunk
+ * hashes — silenced the control until a hard reload. The per-call import it replaced retried by
+ * accident; this retries on purpose.
+ */
+let hapticsModule: Promise<typeof import('@capacitor/haptics')> | null = null
+function loadHaptics() {
+  hapticsModule ??= import('@capacitor/haptics').catch((e) => { hapticsModule = null; throw e })
+  return hapticsModule
+}
+let selectionBusy = false
+
+export function hapticSelection(): void {
+  if (typeof window === 'undefined') return
+  const now = Date.now()
+  if (now - lastFiredAt < REPEAT_GAP_MS) return
+  lastFiredAt = now
+  /*
+   * ⚠️ ANDROID IS DELIBERATELY NOT ON THE SELECTION API — see the measurement above. `fire(8)` puts
+   * it on impact LIGHT, which is the lightest thing the platform actually offers.
+   */
+  if (isNativeCap() && !isAndroid()) {
+    if (selectionBusy) return
+    selectionBusy = true
+    void (async () => {
+      try {
+        const { Haptics } = await loadHaptics()
+        await Haptics.selectionStart()
+        /*
+         * ⛔ ONCE STARTED, IT IS ALWAYS ENDED. A rejecting `selectionChanged()` used to skip
+         * `selectionEnd()`, leaving iOS holding a live UISelectionFeedbackGenerator and Android a
+         * `selectionStarted` flag that nothing would ever clear — native state dangling behind a
+         * swallowed error. The inner finally is what makes the pair unconditional.
+         */
+        try {
+          await Haptics.selectionChanged()
+        } finally {
+          await Haptics.selectionEnd()
+        }
+      } catch {
+        /* plugin absent on an older binary — silence is the right degradation */
+      } finally {
+        selectionBusy = false
+      }
+    })()
+    return
+  }
+  if (isNativeCap()) { fire(8); return }
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try { navigator.vibrate(7) } catch { /* ignore */ }
+    return
+  }
+  if (isIOS()) { try { getIosTrigger()?.click() } catch { /* ignore */ } }
 }
 
 /** Legacy alias — a single subtle tap (favorite, send, publish). Kept for existing callers. */

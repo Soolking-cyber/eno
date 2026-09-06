@@ -4,5 +4,11 @@
     <color name="colorPrimary">#3b8ee6</color><!-- brand, brightened for dark surfaces -->
     <color name="colorPrimaryDark">#0c2b48</color><!-- brand-deeper -->
     <color name="colorAccent">#3b8ee6</color><!-- brand -->
-    <color name="card">#242424</color><!-- card -->
+    <!-- ⚠️ THIS ONE IS ONLY FOR THE FIRST FRAME. styles.xml's android:windowBackground resolves
+         through this qualifier before any web code has run, so it must follow ANDROID's night mode
+         — there is nothing else to follow yet. From onResume onward MainActivity repaints the
+         window from cardLight/cardDark according to the APP's own theme, so an in-app override
+         stops mattering after the first paint. Matches globals.css :565/:569 on the dark theme. -->
+    <color name="card">#1b1b1b</color>
+    <color name="refreshSpinner">#3b8ee6</color>
 </resources>

@@ -3,7 +3,7 @@
 import { RadioGroup as BaseRadioGroup } from '@base-ui/react/radio-group'
 import { Radio as BaseRadio } from '@base-ui/react/radio'
 import { cn } from '@/lib/utils'
-import { hapticTap } from '@/lib/haptics'
+import { hapticSelection } from '@/lib/haptics'
 
 // iOS/Material SEGMENTED CONTROL — a single-select control styled as connected segments with ONE
 // sliding pill under the labels. Built on Base UI RadioGroup + Radio so it inherits real a11y for
@@ -49,7 +49,10 @@ export function Segmented<T extends string>({
       value={value}
       onValueChange={(next) => {
         if (next !== value) {
-          hapticTap()
+          // ⚠️ SELECTION, NOT IMPACT. Moving between the segments of a control is the textbook
+          // case for iOS's selection engine; an impact here is the "something committed" thump
+          // and reads as heavy when a user sweeps across three segments in a second.
+          hapticSelection()
           onValueChange(next as T)
         }
       }}

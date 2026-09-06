@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { fold } from '@/lib/fold'
+import { hapticSelection } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 
@@ -214,6 +215,8 @@ export function SellerListings({
   // asc → desc. So Tabs runs CONTROLLED: value is derived from `sort`, never stored.
   const tabValue = priceSortActive ? 'price' : sort
   const onTabValueChange = (next: string) => {
+    // A sort strip is a selection, not a commit — the same rule ui/segmented follows.
+    hapticSelection()
     // Base UI never fires onValueChange for a tab that is ALREADY active, so this
     // only ever runs on the first activation of Price (pointer or Enter/Space) —
     // the asc↔desc cycle lives in the Price tab's own onClick, which always fires.
@@ -272,7 +275,9 @@ export function SellerListings({
         <TabsTrigger
           value="price"
           onClick={() => {
-            if (priceSortActive) setSort(sort === 'price-low' ? 'price-high' : 'price-low')
+            // The asc/desc cycle never reaches onValueChange (Base UI skips an already-active
+            // tab), so the tick has to be fired here or the second Price press feels dead.
+            if (priceSortActive) { hapticSelection(); setSort(sort === 'price-low' ? 'price-high' : 'price-low') }
           }}
           aria-label={tr('Sort by price', 'Sắp xếp theo giá')}
           className={sortTab(priceSortActive)}

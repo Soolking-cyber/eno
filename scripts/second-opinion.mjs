@@ -242,9 +242,32 @@ const AGY_LIMIT = 180_000
 const agyTruncated = prompt.length > AGY_LIMIT
 
 const REVIEWERS = [
-  { name: 'codex', cmd: 'codex', args: ['exec', '-m', 'gpt-5.6-sol', '-c', 'model_reasoning_effort=high', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'], stdin: true },
+  { name: 'codex', lab: 'openai', cmd: 'codex', args: ['exec', '-m', 'gpt-5.6-sol', '-c', 'model_reasoning_effort=high', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'], stdin: true },
+  /**
+   * A SECOND OpenAI SEAT ON A DIFFERENT GENERATION — owner, 2026-09-06: "add codex gpt 6 astra too".
+   *
+   * ⚠️ THE MODEL ID IS `gpt-6-astra`, VERIFIED AGAINST THE CLI RATHER THAN GUESSED. `gpt-6`,
+   * `gpt-6a` and `astra` are all accepted by `codex exec` and all print "Model metadata for `X` not
+   * found. Defaulting to fallback metadata; this can degrade performance" — the run still happens,
+   * on a mis-specified model, and the only sign is a warning nobody reads in a 300-second review.
+   * Probe a new id with a one-word prompt before pinning it here.
+   *
+   * ⛔ IT IS A SEAT, NOT A FAMILY — AND THE QUORUM LINE DOES NOT KNOW THAT. Read this before
+   * trusting a number below. `answered.length` and `counted.length` count ENTRIES in this array;
+   * nothing here carries a lab, so the line that prints "N families answered" is misnamed and
+   * always has been. Adding astra therefore inflates it: a 4/4 is FOUR SEATS across THREE labs
+   * (OpenAI ×2, Google, Anthropic), and a 2-2 split can be two OpenAI seats against Google plus
+   * the author's own cousin — which is one lab disagreeing with two, not an even split.
+   * ⚠️ THIS IS WORSE PAST agy's 180KB CUTOFF, where agy stops counting and the certifying panel is
+   * codex + astra + fable: two seats from one lab plus a cousin of the author. On a diff that big,
+   * weigh the labs yourself.
+   * ⚠️ AND IT DOUBLES THE OpenAI SPEND per review, which is the cost the owner accepted for a
+   * second generation's eyes.
+   */
+  { name: 'astra', lab: 'openai', cmd: 'codex', args: ['exec', '-m', 'gpt-6-astra', '-c', 'model_reasoning_effort=high', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'], stdin: true },
   {
     name: 'agy',
+    lab: 'google',
     cmd: 'agy',
     truncated: agyTruncated,
     // ⚠️ `--print-timeout` MUST SIT ABOVE agy's OWN RUNTIME AND BELOW OUR BOUND. It was 240s, and
@@ -354,6 +377,7 @@ const REVIEWERS = [
    */
   {
     name: 'fable',
+    lab: 'anthropic',
     cmd: 'claude',
     // ⚠️ `--permission-mode plan` IS THE SANDBOX and is not decorative: it keeps this reviewer
     // read-only, so it answers from the diff on stdin and cannot edit, run or commit anything.
@@ -401,7 +425,11 @@ const run = (r) =>
       // tracking, so removal is done by the 'close' handler below, never by finish().
       const secs = Math.round((Date.now() - started) / 1000)
       console.log(`  ${r.name}: ${verdict} (${secs}s)${r.truncated ? ' ⚠️ TRUNCATED — does not count toward quorum' : ''}`)
-      resolve({ name: r.name, verdict, truncated: !!r.truncated, text })
+      // ⛔ CARRY `lab`. Adding it to REVIEWERS but not here made the whole lab quorum inert: every
+      // `r.lab` downstream was undefined, `r.lab ?? r.name` fell back to the seat name, and the
+      // gate printed "4 lab(s)" for three — a single-lab panel would have satisfied a two-lab
+      // minimum. Three reviewers caught it and the gate's own output confirmed it in one run.
+      resolve({ name: r.name, lab: r.lab ?? r.name, verdict, truncated: !!r.truncated, text })
     }
     const reap = (sig) => { try { process.kill(-p.pid, sig) } catch { try { p.kill(sig) } catch {} } }
     const timer = setTimeout(() => {
@@ -462,7 +490,20 @@ for (const r of results) {
 // ⚠️ QUORUM COUNTS ONLY REVIEWERS THAT SAW THE WHOLE DIFF — see the AGY_LIMIT note above.
 const answered = results.filter((r) => r.verdict !== 'no-answer')
 const counted = answered.filter((r) => !r.truncated)
-console.log(`\n${answered.length}/${REVIEWERS.length} families answered (${counted.length} on the full diff).`)
+/**
+ * ⛔ SEATS AND LABS ARE COUNTED SEPARATELY, BECAUSE THEY ARE NOT THE SAME NUMBER AND THIS LINE USED
+ * TO PRETEND THEY WERE. It printed "N families answered" while counting entries in REVIEWERS, which
+ * was harmless while every seat was a different lab and became a lie the moment `astra` joined
+ * `codex` at OpenAI: a 4/4 read as four independent families when it is three, and a 2-2 split can
+ * be two OpenAI seats against Google plus Anthropic — one lab outvoting two. Reviewers flagged the
+ * mismatch on three consecutive runs; documenting it was not the same as fixing it.
+ * ⚠️ THE LAB COUNT IS THE ONE THAT MEANS ANYTHING. fable shares a lab with the author of most diffs
+ * here, so even 3 labs is 2 independent families plus a cousin — which is the panel this repo has
+ * deliberately chosen, and the reason the seat count must not be allowed to flatter it.
+ */
+const labsAnswered = new Set(answered.map((r) => r.lab)).size
+const labsCounted = new Set(counted.map((r) => r.lab)).size
+console.log(`\n${answered.length}/${REVIEWERS.length} seats answered across ${labsAnswered} lab(s) — ${counted.length} seat(s) / ${labsCounted} lab(s) saw the full diff.`)
 // ⛔ THE ONE PLACE THE opus SEAT IS ACTIVELY DANGEROUS, AND IT IS INVISIBLE WITHOUT THIS LINE.
 // Found by the opus seat reviewing its own installation, which is the most useful thing it has done.
 // agy's verdict does not count past AGY_LIMIT, so on a big diff the counted panel is codex + seat 3.
@@ -482,8 +523,13 @@ if (agyTruncated) {
 // writing first meant a run where every reviewer errored STILL produced a receipt the hook accepts,
 // so the guard would have rubber-stamped precisely the case it exists to catch. A gate whose
 // failure mode is "pass" is worse than no gate, because it also removes the suspicion.
-if (counted.length < 2) {
-  console.error(`⚠️  Only ${counted.length} family/families reviewed the FULL diff — that is NOT a passed`)
+/**
+ * ⛔ THE QUORUM IS LABS, NOT SEATS. Two OpenAI seats are one independent opinion twice over; letting
+ * them satisfy a two-family minimum would mean a diff certified by a single lab, which is exactly
+ * the property this gate exists to guarantee against.
+ */
+if (labsCounted < 2) {
+  console.error(`⚠️  Only ${labsCounted} lab(s) reviewed the FULL diff (${counted.length} seat(s)) — that is NOT a passed`)
   console.error('    review, and NO receipt was written. A truncated or errored reviewer does not count.')
   console.error('    Fix the reviewer (missing binary? no key? rate limited?) and re-run.')
   process.exit(1)
@@ -493,9 +539,21 @@ if (counted.length < 2) {
 // the terminal scrollback is not a record. The findings are what the next person needs when this
 // commit is the suspect six weeks from now.
 writeFileSync(join(RECEIPTS, `${hash}.json`), JSON.stringify({
-  hash, lines: diff.split('\n').length, quorum: counted.length,
-  reviewers: results.map(({ name, verdict, truncated, text }) => ({ name, verdict, truncated, findings: text })),
+  // ⚠️ `quorum` STAYS THE SEAT COUNT so older receipts remain comparable; `labs` is the number that
+  // actually gates, and a reader six weeks from now needs to see both to judge what certified this.
+  hash, lines: diff.split('\n').length, quorum: counted.length, labs: labsCounted,
+  // `lab` per seat, not only the total: a receipt read six weeks from now must show WHICH labs
+  // certified this without mapping seat names back by hand.
+  reviewers: results.map(({ name, lab, verdict, truncated, text }) => ({ name, lab, verdict, truncated, findings: text })),
 }, null, 2))
+/**
+ * ⚠️ THE VETO IS PER SEAT AND THE QUORUM IS PER LAB, AND THAT ASYMMETRY IS DELIBERATE. A reviewer
+ * pointed out that OpenAI now holds two vetoes but one vote. That is the right way round: a REFUTED
+ * is a FINDING, and a finding is true or false on its own merits regardless of who else shares its
+ * lab — this line only decides whether a human must read the receipt before committing, which the
+ * answer should always be when any seat objects. The quorum is the opposite question, "did enough
+ * INDEPENDENT eyes see this", and there two seats from one lab genuinely are one pair of eyes.
+ */
 if (answered.some((r) => r.verdict === 'REFUTED')) {
   console.log('⚠️  At least one REFUTED. Read the findings above and VERIFY each by measuring before')
   console.log('    acting — on this repo roughly a third of reviewer claims do not survive checking.')

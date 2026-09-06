@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
@@ -12,6 +13,9 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 
 import androidx.core.splashscreen.SplashScreen;
+import androidx.core.content.ContextCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.getcapacitor.BridgeActivity;
@@ -196,6 +200,83 @@ public class MainActivity extends BridgeActivity {
 
         swipeRefresh = new SwipeRefreshLayout(this);
         swipeRefresh.setLayoutParams(originalParams);
+        /*
+         * ⚠️ THE SPINNER WAS THE PLATFORM DEFAULT — a grey arc on a white puck, in an app whose
+         * every other control is brand blue, and unreadable on the dark theme because the puck
+         * never changed with it. Owner, 2026-09-06: the pull-down should have "a pleasant
+         * animation thats relevant". Brand arc, themed puck; both resolve per night/day from the
+         * res values and values-night colors.xml, which is also where the canvas colour behind
+         * this control lives.
+         */
+        applyRefreshColors();
+        /*
+         * ⛔ THE PUCK SETTLES BELOW THE APP HEADER, AND EVERY NUMBER HERE COMES FROM THE LIBRARY
+         * SOURCE RATHER THAN FROM GUESSING AT IT. Two earlier versions were wrong in two ways:
+         *
+         * 1. setProgressViewOffset(false, 8dp, 72dp) moved the START offset. SwipeRefreshLayout.java
+         *    :437 defaults it to `-mCircleDiameter` — above the top edge, hidden. A positive start
+         *    parks a full-size puck permanently visible inside the header, and with scale=false it
+         *    never fades. Only the REST position may move, so this uses setProgressViewEndTarget and
+         *    leaves `mUsingCustomStart` false.
+         * 2. `end` IS NOT THE PUCK'S TOP. With mUsingCustomStart false, :490 computes
+         *    `endTarget = mSpinnerOffsetEnd + mOriginalOffsetTop`, and mOriginalOffsetTop is that
+         *    negative diameter — so the circle comes to rest with its top at `end - 40dp`
+         *    (CIRCLE_DIAMETER, :88, times density). Passing the header height alone therefore left
+         *    the puck 40dp INSIDE the header. The diameter has to be added back.
+         *
+         * ⚠️ AND THE HEADER IS MEASURED, NOT A CONSTANT, because the WebView runs edge-to-edge under
+         * the status bar: #app-header is a 64dp bar PLUS `padding-top: safe-area-inset-top`
+         * (globals.css `html.native #app-header`). Rest target = inset + 64dp header + 16dp of air
+         * + 40dp circle.
+         *
+         * ⛔ READ THE INSET, DO NOT INTERCEPT IT. An earlier version installed
+         * setOnApplyWindowInsetsListener on this ViewGroup and returned the insets — which REPLACES
+         * the group's own onApplyWindowInsets and stops the dispatch reaching the WebView, so
+         * env(safe-area-inset-top) would have collapsed to 0 and the app header would have slid
+         * under the notch. Reading the root insets after layout touches nothing.
+         */
+        /*
+         * ⛔ NO WINDOW-INSETS LISTENER HERE, AND THAT IS THE POINT. Two earlier versions installed
+         * one on this ViewGroup. Setting a listener REPLACES a view's onApplyWindowInsets, and for
+         * a ViewGroup that method is what forwards insets to children — so the first version left
+         * the WebView with no insets at all, collapsing env(safe-area-inset-top) and sliding
+         * #app-header under the notch. The second forwarded them by hand, which works but had three
+         * reviewers arguing about whether it also double-dispatches. A puck's rest position is not
+         * worth being anywhere near that machinery: the platform's own status_bar_height resource
+         * gives the same number, is available before the first traversal rather than null during
+         * it, and touches no dispatch chain whatsoever.
+         * ⚠️ RE-APPLIED ON CONFIGURATION CHANGE so rotation and a theme switch keep it right; see
+         * onConfigurationChanged below.
+         */
+        /*
+         * ⛔ APPLIED NOW *AND* AGAIN AFTER ATTACH, BECAUSE ONLY THE SECOND ONE CAN SEE THE INSETS.
+         * At this point the view is not attached to the window, so getRootWindowInsets is null and
+         * topInsetPx() returns its status_bar_height fallback — which knows nothing about a display
+         * cutout. Three reviewers pointed out that nothing then corrected it until a configuration
+         * change, so on a hole-punch phone the puck stayed stranded inside the header for the whole
+         * session. The immediate call keeps the first frame sane; the attach callback replaces it
+         * with the real number.
+         */
+        applyRefreshEndTarget();
+        /*
+         * ⛔ ON EVERY LAYOUT, NOT ON A post() — post() ONLY PROMISES "NEXT FRAME", NOT "AFTER THE
+         * INSETS ARRIVED". Two reviewers pointed out the race in both directions: a cold launch
+         * whose runnable beats the first traversal keeps the cutout-blind fallback for the whole
+         * session, and a rotation whose runnable beats the new dispatch reads the PREVIOUS
+         * orientation's inset. A layout pass, by contrast, happens after insets are applied — every
+         * time, on attach, on rotation, and when the system bars change — so reading them here is
+         * ordered by construction rather than by hope. It is still only a READ: no listener is
+         * installed on the inset dispatch chain, which is what broke env(safe-area-inset-top) in an
+         * earlier version of this block.
+         * ⚠️ GUARDED ON A CHANGE, because setProgressViewEndTarget invalidates the circle and an
+         * unconditional call from a layout listener is a layout loop.
+         * ⚠️ KNOWN GAP, STATED RATHER THAN PAPERED OVER: an inset change that lays nothing out —
+         * system bars appearing or disappearing in an immersive window whose bounds do not move —
+         * would not fire this. The app never enters immersive mode, so the case is unreachable
+         * today; if it ever does, the answer is an insets listener that FORWARDS (see the note
+         * above about what happens when one does not), not a poll.
+         */
+        swipeRefresh.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or_, ob) -> applyRefreshEndTarget());
         swipeRefresh.addView(webView, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         parent.addView(swipeRefresh, index);
@@ -393,5 +474,162 @@ public class MainActivity extends BridgeActivity {
         }
         String lower = probe.toLowerCase(Locale.ROOT);
         return !(lower.startsWith("/auth") || lower.startsWith("/signin"));
+    }
+
+    /**
+     * The top safe inset in px: the real one where it can be READ, the platform resource where it
+     * cannot.
+     *
+     * ⛔ THIS READS INSETS, IT NEVER INSTALLS A LISTENER. Two earlier versions did, and setting a
+     * listener REPLACES a ViewGroup's onApplyWindowInsets — which is the method that forwards
+     * insets to children — so the WebView lost env(safe-area-inset-top) and #app-header slid under
+     * the notch. Reading getRootWindowInsets touches no dispatch chain at all.
+     *
+     * ⚠️ AND IT ASKS FOR statusBars() | displayCutout(), because those are what
+     * env(safe-area-inset-top) resolves to in the WebView, and the puck must clear the header the
+     * WebView actually draws. On a hole-punch phone the cutout can exceed the status bar; in
+     * landscape the status bar can collapse while the cutout does not. The `status_bar_height`
+     * resource knows about neither, so it is only the fallback for the first frame, before the
+     * window has been attached and there is nothing to read.
+     */
+    private int topInsetPx() {
+        final View decor = getWindow() != null ? getWindow().getDecorView() : null;
+        if (decor != null) {
+            final WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(decor);
+            if (insets != null) {
+                return insets.getInsets(WindowInsetsCompat.Type.statusBars()
+                        | WindowInsetsCompat.Type.displayCutout()).top;
+            }
+        }
+        final int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : 0;
+    }
+
+    /**
+     * Where the refresh puck comes to rest. `end` is NOT the puck's top: with the default (hidden)
+     * start offset, SwipeRefreshLayout:490 computes `endTarget = mSpinnerOffsetEnd + mOriginalOffsetTop`
+     * and mOriginalOffsetTop is -CIRCLE_DIAMETER, so the circle's top lands at `end - 40dp`. Hence
+     * inset + 64dp header + 16dp of air + the 40dp diameter that gets subtracted straight back off.
+     */
+    private int refreshEndTargetPx = -1;
+
+    private void applyRefreshEndTarget() {
+        if (swipeRefresh == null) return;
+        final float density = getResources().getDisplayMetrics().density;
+        final int target = topInsetPx() + (int) ((64 + 16 + 40) * density);
+        if (target == refreshEndTargetPx) return;   // see the layout-loop note at the call site
+        refreshEndTargetPx = target;
+        swipeRefresh.setProgressViewEndTarget(false, target);
+    }
+
+    /**
+     * ⛔ RESOLVED FROM RESOURCES EVERY TIME, NEVER CACHED — A LIVE THEME SWITCH LEAVES THEM STALE
+     * OTHERWISE, AND THAT REPRODUCES THE EXACT BUG THIS CHANGE WAS MADE TO FIX. AndroidManifest
+     * declares `uiMode` in configChanges (Capacitor's template does), so switching the system theme
+     * while the app is alive does NOT recreate the activity. The WebView repaints through
+     * prefers-color-scheme, but anything resolved once in onCreate keeps the old theme's value —
+     * so the page would go dark while the puck and the window canvas behind the overscroll stayed
+     * light, which is the wrong-colour band the owner reported in the first place. All four
+     * reviewers found this; nothing in the gates could have.
+     */
+    private void applyRefreshColors() {
+        if (swipeRefresh == null) return;
+        final boolean dark = appIsDark();
+        swipeRefresh.setColorSchemeColors(ContextCompat.getColor(
+                this, dark ? R.color.refreshSpinnerDark : R.color.refreshSpinnerLight));
+        // The puck stays white in both themes on purpose — see values/colors.xml.
+        swipeRefresh.setProgressBackgroundColorSchemeColor(
+                ContextCompat.getColor(this, R.color.refreshSpinnerBg));
+        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
+                ContextCompat.getColor(this, dark ? R.color.cardDark : R.color.cardLight)));
+    }
+
+    /**
+     * ⛔ THE APP'S OWN THEME, NOT ANDROID'S NIGHT MODE — AND THE BRIDGE FOR IT ALREADY EXISTED.
+     * Every native colour here used to resolve through values/ vs values-night/, so a user who
+     * explicitly picked Light in-app on a Dark phone got dark native chrome behind a light page:
+     * the wrong-colour overscroll band the owner reported, for exactly the people who had opted out
+     * of the system theme. Four reviewers raised it across three rounds and each time the answer
+     * was "that needs a theme bridge, which is its own change". It is not: `theme-context.tsx:81`
+     * has been mirroring the RESOLVED scheme into Capacitor Preferences as `eno-resolved-theme`
+     * since Phase 2 M1, and Capacitor's Android Preferences plugin stores that in the
+     * `CapacitorStorage` SharedPreferences group (PreferencesConfiguration.java:9). Reading it is
+     * six lines and it makes the native canvas follow the same choice the page does.
+     *
+     * ⚠️ THE FALLBACK IS ANDROID'S NIGHT MODE, which is right for the two cases with no answer yet:
+     * a first launch before the web app has ever resolved a theme, and a user who never overrode it
+     * (the mirror then holds the same value anyway).
+     */
+    private boolean appIsDark() {
+        final String mirrored = getSharedPreferences("CapacitorStorage", MODE_PRIVATE)
+                .getString("eno-resolved-theme", null);
+        if ("dark".equals(mirrored)) return true;
+        if ("light".equals(mirrored)) return false;
+        return (getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    /**
+     * ⛔ HELD AS A FIELD ON PURPOSE: SharedPreferences keeps only a WEAK reference to its listeners,
+     * so a lambda passed inline is collected at the next GC and the theme silently stops following.
+     */
+    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener themeMirrorListener =
+            (prefs, key) -> {
+                if ("eno-resolved-theme".equals(key)) runOnUiThread(this::applyRefreshColors);
+            };
+
+    /**
+     * ⛔ OBSERVE THE MIRROR, DO NOT ONLY SAMPLE IT AT LIFECYCLE POINTS. Reading `eno-resolved-theme`
+     * in onResume and onConfigurationChanged covered a system switch and a trip through the
+     * background, and three reviewers pointed out the case those two miss entirely: eno.vn is a
+     * single-page app, so a user changing the theme in its own settings never pauses this activity
+     * and never changes its configuration. The native canvas and spinner would have stayed on the
+     * old theme until something unrelated happened — which is the same wrong-colour band, reached
+     * by the one route a user is most likely to take deliberately.
+     * Capacitor's Preferences plugin writes through SharedPreferences.Editor, so this fires on the
+     * web app's own write with no bridge, no polling and no new plumbing.
+     */
+    @Override
+    public void onResume() {
+        super.onResume();
+        getSharedPreferences("CapacitorStorage", MODE_PRIVATE)
+                .registerOnSharedPreferenceChangeListener(themeMirrorListener);
+        /*
+         * ⚠️ RE-READ ON RESUME. The mirror is written by the web app whenever its resolved theme
+         * changes, and nothing notifies native when that happens — a user toggling the theme in
+         * app settings would otherwise keep the old canvas until the next configuration change.
+         * Resume covers the realistic paths (settings screen, backgrounding, system switch) and is
+         * cheap: applyRefreshColors only touches two setters and a window drawable.
+         */
+        applyRefreshColors();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        getSharedPreferences("CapacitorStorage", MODE_PRIVATE)
+                .unregisterOnSharedPreferenceChangeListener(themeMirrorListener);
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        /*
+         * Rotation changes the top inset; a rest position computed once at startup would strand the
+         * puck inside the header in the other orientation.
+         * ⚠️ POSTED, NOT IMMEDIATE. onConfigurationChanged runs BEFORE the window manager dispatches
+         * the new insets, so reading them here would produce the previous orientation's number —
+         * the same staleness this call exists to remove, one frame later.
+         */
+        // The layout listener installed in setup already re-reads the insets on the post-rotation
+        // pass; this only makes sure a configuration change that somehow lays nothing out is still
+        // reflected. Cheap, and idempotent thanks to the equality guard.
+        if (swipeRefresh != null) swipeRefresh.post(this::applyRefreshEndTarget);
+        // ⚠️ AND THE COLOURS, for the uiMode case above. `getResources()` has already been updated
+        // with the new configuration by the time this runs, so re-resolving is all that is needed.
+        // applyRefreshColors repaints the window too: styles.xml's android:windowBackground is
+        // resolved by the framework when the theme is applied and does not follow a live change.
+        applyRefreshColors();
     }
 }
