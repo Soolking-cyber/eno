@@ -1,17 +1,19 @@
 {
   "images": [
     {
-      "filename": "nav-account.png",
-      "idiom": "universal",
-      "scale": "3x"
-    },
-    {
+      "filename": "nav-account@1x.png",
       "idiom": "universal",
       "scale": "1x"
     },
     {
+      "filename": "nav-account@2x.png",
       "idiom": "universal",
       "scale": "2x"
+    },
+    {
+      "filename": "nav-account@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
     }
   ],
   "info": {

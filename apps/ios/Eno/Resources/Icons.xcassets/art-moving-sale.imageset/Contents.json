@@ -1,17 +1,19 @@
 {
   "images": [
     {
-      "filename": "art-moving-sale.png",
-      "idiom": "universal",
-      "scale": "3x"
-    },
-    {
+      "filename": "art-moving-sale@1x.png",
       "idiom": "universal",
       "scale": "1x"
     },
     {
+      "filename": "art-moving-sale@2x.png",
       "idiom": "universal",
       "scale": "2x"
+    },
+    {
+      "filename": "art-moving-sale@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
     }
   ],
   "info": {

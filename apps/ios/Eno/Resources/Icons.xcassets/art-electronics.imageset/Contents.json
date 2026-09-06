@@ -1,17 +1,19 @@
 {
   "images": [
     {
-      "filename": "art-electronics.png",
-      "idiom": "universal",
-      "scale": "3x"
-    },
-    {
+      "filename": "art-electronics@1x.png",
       "idiom": "universal",
       "scale": "1x"
     },
     {
+      "filename": "art-electronics@2x.png",
       "idiom": "universal",
       "scale": "2x"
+    },
+    {
+      "filename": "art-electronics@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
     }
   ],
   "info": {

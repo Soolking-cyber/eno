@@ -1,17 +1,19 @@
 {
   "images": [
     {
-      "filename": "art-baby-kids.png",
-      "idiom": "universal",
-      "scale": "3x"
-    },
-    {
+      "filename": "art-baby-kids@1x.png",
       "idiom": "universal",
       "scale": "1x"
     },
     {
+      "filename": "art-baby-kids@2x.png",
       "idiom": "universal",
       "scale": "2x"
+    },
+    {
+      "filename": "art-baby-kids@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
     }
   ],
   "info": {

@@ -56,10 +56,20 @@ for (const { dir, prefix } of ART) {
     const name = prefix + f.replace(/\.webp$/, '')
     const d = join(OUT, `${name}.imageset`)
     mkdirSync(d, { recursive: true })
-    const png = `${name}.png`
-    execFileSync('sips', ['-s', 'format', 'png', join(dir, f), '--out', join(d, png)], { stdio: 'ignore' })
+    // ⛔ REAL @1x/@2x/@3x SLOTS, SIZED FOR THE POINT SIZE THE SURFACE DRAWS AT. A single 184px
+    // file declared as @3x has a 61pt intrinsic size, and `.tabItem` takes the image at its
+    // INTRINSIC size — SwiftUI's `.frame()` does not reach inside a tab item. The bar therefore
+    // drew 61pt glyphs that swallowed their own labels (owner's screenshot, 2026-09-06). Nav art
+    // is emitted at 28pt (28/56/84 px), category art at 44pt, which is what each one is drawn at.
+    const pt = prefix === 'nav-' ? 28 : 44
+    const slots = [1, 2, 3].map((scale) => {
+      const px = pt * scale
+      const file = `${name}@${scale}x.png`
+      execFileSync('sips', ['-s', 'format', 'png', '-z', String(px), String(px), join(dir, f), '--out', join(d, file)], { stdio: 'ignore' })
+      return { filename: file, idiom: 'universal', scale: `${scale}x` }
+    })
     writeFileSync(join(d, 'Contents.json'), JSON.stringify({
-      images: [{ filename: png, idiom: 'universal', scale: '3x' }, { idiom: 'universal', scale: '1x' }, { idiom: 'universal', scale: '2x' }],
+      images: slots,
       info: { author: 'xcode', version: 1 },
     }, null, 2))
     a++

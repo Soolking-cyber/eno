@@ -1,17 +1,19 @@
 {
   "images": [
     {
-      "filename": "nav-explore.png",
-      "idiom": "universal",
-      "scale": "3x"
-    },
-    {
+      "filename": "nav-explore@1x.png",
       "idiom": "universal",
       "scale": "1x"
     },
     {
+      "filename": "nav-explore@2x.png",
       "idiom": "universal",
       "scale": "2x"
+    },
+    {
+      "filename": "nav-explore@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
     }
   ],
   "info": {

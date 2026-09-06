@@ -6,6 +6,8 @@ import EnoUI
 // Outstanding-businesses rail → per-category rails → latest-listings grid.
 // Native extras the web can't give: system pull-to-refresh + edge-swipe back.
 struct FeedView: View {
+    /// The partner page a banner slide asked for — see the note at the banner.
+    @State private var bannerPath: String?
     @State private var savedSearches = SavedSearchStore()
     @State private var savedLabel: String?
     @State private var saving = false
@@ -34,6 +36,15 @@ struct FeedView: View {
                     // discovery rails. The QuickFind facet cascade appears only once
                     // you're inside a category (like the web's FacetBar).
                     if isLanding {
+                        // ⛔ ABOVE THE CATEGORY RAIL, WHERE THE WEB PUTS IT. `/` on the site opens
+                        // with the partner carousel and the app opened with the rail — the first
+                        // screen sold nothing (owner: *"no banner"*). Same order, same 2.04 art.
+                        // ⚠️ A PARTNER SLIDE GOES TO A PARTNER PAGE (`/vinwonders`, `/vietkite`),
+                        // which has no native screen — so it opens the real web page inside native
+                        // chrome, exactly as category and brand routes already do here.
+                        PromoBannerView { path in bannerPath = path }
+                            .padding(.horizontal, EnoSpacing.s3)
+                            .padding(.bottom, EnoSpacing.s3)
                         categoryGrid
                         if !home.recentlyViewed.isEmpty {
                             railSection(icon: "clock.arrow.circlepath", title: L10n.tr("Recently viewed", "Đã xem gần đây"), items: home.recentlyViewed)
@@ -78,6 +89,9 @@ struct FeedView: View {
             }
             // Deep-link routes (audit #3): listing → native loader; category/brand →
             // the real web page embedded in native chrome (no native brand screen yet).
+            .navigationDestination(item: $bannerPath) { path in
+                WebTabView(path: path, title: L10n.tr("Partner", "Đối tác"))
+            }
             .navigationDestination(for: DeepLinkRouter.Route.self) { route in
                 switch route {
                 case .listing(let id): ListingLoaderView(id: id)
@@ -113,8 +127,7 @@ struct FeedView: View {
                 NavigationLink {
                     NotificationsView()
                 } label: {
-                    Image(systemName: "bell")
-                        .enoIcon(.md, color: EnoColor.fg)
+                    EnoIcon("bell", .md, color: EnoColor.fg)
                         .frame(width: 40, height: 40)
                         .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
                         .overlay(alignment: .topTrailing) {
@@ -173,8 +186,10 @@ struct FeedView: View {
         // breathing AND the peek advertises that the row scrolls (at 92/4 the row exactly
         // filled the screen, so it looked complete and nobody scrolled it).
         ScrollView(.horizontal, showsIndicators: false) {
-            LazyHGrid(rows: [GridItem(.fixed(84), spacing: EnoSpacing.s3), GridItem(.fixed(84), spacing: EnoSpacing.s3)],
-                      spacing: EnoSpacing.s3) {
+            // ⛔ ONE ROW, LIKE THE WEB. This was a two-row grid: the site's home draws a SINGLE
+            // scrolling row of category tiles, and the second row cost ~96pt of the first screen
+            // for tiles the same swipe reaches anyway (owner, comparing the two side by side).
+            LazyHGrid(rows: [GridItem(.fixed(84), spacing: EnoSpacing.s3)], spacing: EnoSpacing.s3) {
                 ForEach(Categories.all) { cat in
                     NavigationLink(value: cat) {
                         // Web parity (FINN-style grid, listings-explorer.tsx): a
@@ -205,8 +220,8 @@ struct FeedView: View {
             }
             .padding(.horizontal, EnoSpacing.s3)
         }
-        // 84 + 84 + the 12pt row gap — the old 176 clipped once the rows were spaced.
-        .frame(height: 180)
+        // One 84pt row; the old 180 was two rows plus their gap.
+        .frame(height: 96)
         .enoEdgeFade()
         .padding(.bottom, EnoSpacing.s2)
     }

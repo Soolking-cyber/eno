@@ -1,17 +1,19 @@
 {
   "images": [
     {
-      "filename": "art-wholesale.png",
-      "idiom": "universal",
-      "scale": "3x"
-    },
-    {
+      "filename": "art-wholesale@1x.png",
       "idiom": "universal",
       "scale": "1x"
     },
     {
+      "filename": "art-wholesale@2x.png",
       "idiom": "universal",
       "scale": "2x"
+    },
+    {
+      "filename": "art-wholesale@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
     }
   ],
   "info": {

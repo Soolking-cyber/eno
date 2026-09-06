@@ -1,17 +1,19 @@
 {
   "images": [
     {
-      "filename": "art-all.png",
-      "idiom": "universal",
-      "scale": "3x"
-    },
-    {
+      "filename": "art-all@1x.png",
       "idiom": "universal",
       "scale": "1x"
     },
     {
+      "filename": "art-all@2x.png",
       "idiom": "universal",
       "scale": "2x"
+    },
+    {
+      "filename": "art-all@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
     }
   ],
   "info": {

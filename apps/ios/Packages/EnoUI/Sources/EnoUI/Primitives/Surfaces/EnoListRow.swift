@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // The settings / account / dashboard / messages row: leading accessory · title (+ subtitle) ·
 // trailing accessory (+ chevron). Every hand-rolled version of this drifts — a different
@@ -32,12 +33,19 @@ public enum EnoListRowAccessory { case none, disclosure, checkmark }
 public struct EnoListRowIcon: View {
     private let name: String
 
-    /// - Parameter name: an SF Symbol name.
+    /// - Parameter name: a Solar glyph name from `public/icons/ui` (the web's vocabulary). An SF
+    ///   Symbol name still works and is drawn as one — the settings list is the last place SF
+    ///   names survive, so a row can be migrated glyph by glyph without a flag day.
     public init(_ name: String) { self.name = name }
 
     public var body: some View {
-        Image(systemName: name)
-            .enoIcon(.md, color: EnoColor.sub)
+        Group {
+            if UIImage(named: name) != nil {
+                EnoIcon(name, .md, color: EnoColor.sub)
+            } else {
+                Image(systemName: name).enoIcon(.md, color: EnoColor.sub)
+            }
+        }
             // minWidth (not a fixed width) reserves the alignment column while still letting
             // the glyph grow at accessibility text sizes instead of clipping.
             .frame(minWidth: 28, alignment: .leading)
@@ -130,13 +138,11 @@ public struct EnoListRowLabel<Leading: View, Trailing: View>: View {
             EmptyView()
         case .disclosure:
             // Hidden from VoiceOver: the button/link trait already announces that it opens.
-            Image(systemName: "chevron.right")
-                .enoIcon(.sm, color: EnoColor.ink4)
+            EnoIcon("forward", .sm, color: EnoColor.ink4)
                 .accessibilityHidden(true)
         case .checkmark:
             // The meaning is carried by `.isSelected` on the text, so the glyph is decorative.
-            Image(systemName: "checkmark")
-                .enoIcon(.sm, color: EnoColor.brand)
+            EnoIcon("success", .sm, color: EnoColor.brand)
                 .accessibilityHidden(true)
         }
     }

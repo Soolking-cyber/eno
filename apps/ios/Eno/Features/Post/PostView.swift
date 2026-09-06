@@ -251,8 +251,7 @@ struct PostView: View {
             Button {
                 model.remove(photo.id)
             } label: {
-                Image(systemName: "xmark")
-                    .enoIcon(.xs, color: .white)
+                EnoIcon("close", .xs, color: .white)
                     .frame(width: 22, height: 22)
                     .background(.black.opacity(0.55), in: Circle())
             }
@@ -527,8 +526,7 @@ struct PostView: View {
 
     private func successSheet(_ id: String) -> some View {
         VStack(spacing: 16) {
-            Image(systemName: "checkmark.circle.fill")
-                .enoIcon(.xl, color: EnoColor.success)
+            EnoIcon("success", .xl, color: EnoColor.success)
             Text(L10n.tr("Your listing is live!", "Tin của bạn đã được đăng!"))
                 .enoText(.title, color: EnoColor.fg)
             Text(L10n.tr("Buyers can see it right away. You'll be notified about messages and offers.",

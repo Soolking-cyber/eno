@@ -116,7 +116,13 @@ struct ListingCardView: View {
     // ── price ──
     private var priceRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(Format.compactVnd(listing.price))
+            // ⛔ THE FULL AMOUNT, LIKE THE WEB. The card showed "79k" while eno.vn shows
+            // "79,000 VND" — `price.tsx` carries `void compact // amounts are always shown in full
+            // now`, so the compact form is a rule the web RETIRED and the app kept. Two prices for
+            // the same listing across two surfaces of one product (owner, 2026-09-06, comparing
+            // the two side by side). `minimumScaleFactor` already absorbs the extra width, and the
+            // suffix wraps under the amount exactly as it now does on the web.
+            Text(Format.vnd(listing.price))
                 .enoText(.headline, color: EnoColor.brand)
                 .fontWeight(.bold)
                 .monospacedDigit()
@@ -127,7 +133,7 @@ struct ListingCardView: View {
             // to be either/or, so any drop hid the USD). After the drop window the
             // server drops prevPrice and it reads as a normal price + USD.
             if let prev = listing.prevPrice, prev > listing.price {
-                Text(Format.compactVnd(prev))
+                Text(Format.vnd(prev))
                     .enoText(.caption, color: EnoColor.ink4)
                     .strikethrough()
                     .monospacedDigit()

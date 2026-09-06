@@ -183,8 +183,7 @@ struct AccountView: View {
                     MyListingsView()
                 } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: "square.grid.2x2")
-                            .enoIcon(.sm, color: EnoColor.brand)
+                        EnoIcon("grid", .sm, color: EnoColor.brand)
                             .frame(width: 26)
                         Text(L10n.tr("My listings", "Tin đăng của tôi")).foregroundStyle(EnoColor.fg)
                     }
@@ -196,8 +195,7 @@ struct AccountView: View {
                     SavedSearchesView()
                 } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: "bell.badge")
-                            .enoIcon(.sm, color: EnoColor.brand)
+                        EnoIcon("bell", .sm, color: EnoColor.brand)
                             .frame(width: 26)
                         Text(L10n.tr("Saved searches", "Tìm kiếm đã lưu")).foregroundStyle(EnoColor.fg)
                     }
@@ -210,13 +208,38 @@ struct AccountView: View {
                         PaymentsView()
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "banknote")
-                                .enoIcon(.sm, color: EnoColor.brand)
+                            EnoIcon("money", .sm, color: EnoColor.brand)
                                 .frame(width: 26)
                             Text(L10n.tr("Getting paid", "Nhận thanh toán")).foregroundStyle(EnoColor.fg)
                         }
                     }
                 }
+                // ⛔ THE REST OF THE DASHBOARD, WHICH THE APP SIMPLY DID NOT HAVE. The web's
+                // /dashboard carries availability, bulk upload, disputes and the help centre;
+                // the app's account list stopped at listings and payouts, so a seller had to
+                // open a browser for half of their own tools (owner, 2026-09-06: *"many
+                // dashboard pages missing"*).
+                // ⚠️ THEY OPEN THE REAL WEB PAGE IN NATIVE CHROME — the same choice this app
+                // already makes for category and brand pages. A half-built native availability
+                // editor would be worse than the page that actually works, and these are
+                // low-traffic, high-complexity surfaces (a bulk CSV upload, a dispute room).
+                // Native versions can replace them one at a time behind the same rows.
+                link(L10n.tr("Availability", "Lịch trống"), icon: "calendar", path: "/dashboard/availability")
+                link(L10n.tr("Bulk upload", "Đăng hàng loạt"), icon: "grid", path: "/dashboard/bulk")
+                NavigationLink {
+                    DisputesView()
+                } label: {
+                    HStack(spacing: 12) {
+                        EnoIcon("shield-warning", .sm, color: EnoColor.brand)
+                            .frame(width: 26)
+                        // ⚠️ PROMOTED OUT OF SETTINGS. A dispute is not a preference: it was one
+                        // level deeper than "Theme", behind a screen nobody opens while a case is
+                        // running. The Settings entry stays for muscle memory.
+                        Text(L10n.tr("Disputes", "Khiếu nại")).foregroundStyle(EnoColor.fg)
+                    }
+                }
+                link(L10n.tr("Help centre", "Trung tâm trợ giúp"), icon: "info", path: "/help")
+
                 // ⛔ IDENTITY VERIFICATION HAD NO NATIVE ENTRY POINT AT ALL — the legal gate a
                 // Vietnamese seller must pass before publishing (NĐ 248/2026) existed only on the
                 // web. The web surfaces it twice (a top-level Verification row in DASHBOARD_NAV,
@@ -233,8 +256,7 @@ struct AccountView: View {
                 // actually change stay tappable.
                 if verification == "verified" || verification == "revoked" {
                     HStack(spacing: 12) {
-                        Image(systemName: "checkmark.shield")
-                            .enoIcon(.sm, color: EnoColor.brand)
+                        EnoIcon("shield-verified", .sm, color: EnoColor.brand)
                             .frame(width: 26)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(verification == "verified"
@@ -257,8 +279,7 @@ struct AccountView: View {
                         IdentityVerifyView()
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "checkmark.shield")
-                                .enoIcon(.sm, color: EnoColor.brand)
+                            EnoIcon("shield-verified", .sm, color: EnoColor.brand)
                                 .frame(width: 26)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(L10n.tr("Verify your identity", "Xác minh danh tính"))
@@ -287,8 +308,7 @@ struct AccountView: View {
                     // the system disclosure arrow (matches the My listings row
                     // above). The hand-drawn one here made it show two arrows.
                     HStack(spacing: 12) {
-                        Image(systemName: "gearshape")
-                            .enoIcon(.sm, color: EnoColor.brand)
+                        EnoIcon("settings", .sm, color: EnoColor.brand)
                             .frame(width: 26)
                         Text(L10n.tr("Settings", "Cài đặt")).foregroundStyle(EnoColor.fg)
                     }

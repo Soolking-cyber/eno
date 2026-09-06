@@ -109,7 +109,7 @@ public struct EnoAvatar: View {
             } else {
                 // No usable name (a deleted or unnamed account) — a plain coloured disc looks
                 // like a rendering failure, so say "person" instead.
-                Image(systemName: "person.fill").enoIcon(size.glyph, color: EnoColor.onBrand)
+                EnoIcon("account", size.glyph, color: EnoColor.onBrand)
             }
         }
     }

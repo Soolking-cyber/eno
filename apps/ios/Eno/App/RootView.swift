@@ -36,11 +36,12 @@ struct RootView: View {
         // ⚠️ SIZED EXPLICITLY. The source art is 184px declared at @3x, so its intrinsic size is
         // ~61pt — more than twice a tab bar's glyph. Without a frame UIKit gets artwork it has to
         // squeeze, and the labels shift to make room (gate).
+        // ⚠️ NO `.frame()` HERE, AND THAT IS NOT AN OVERSIGHT. `.tabItem` hands the image to UIKit,
+        // which uses its INTRINSIC size — a SwiftUI frame inside a tab item is ignored, which is
+        // why the first attempt drew 61pt glyphs over their own labels. The size is set where UIKit
+        // can see it: the asset is emitted at 28pt across @1x/@2x/@3x by gen-ios-icons.mjs.
         Image("nav-\(name)")
             .renderingMode(.original)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 28, height: 28)
             .grayscale(selected ? 0 : 1)
     }
 

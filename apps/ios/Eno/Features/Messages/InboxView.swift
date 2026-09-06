@@ -27,8 +27,7 @@ struct MessagesView: View {
     @State private var signInSheet = false
     private var guestHero: some View {
         VStack(spacing: EnoSpacing.s4) {
-            Image(systemName: "message")
-                .enoIcon(.xl, color: EnoColor.brand)
+            EnoIcon("messages", .xl, color: EnoColor.brand)
             Text(L10n.tr("Sign in to see your messages.", "Đăng nhập để xem tin nhắn của bạn."))
                 .enoText(.subheadline, color: EnoColor.sub)
                 .multilineTextAlignment(.center)
@@ -85,8 +84,7 @@ struct InboxView: View {
                 aiSheet = true
             } label: {
                 HStack(spacing: EnoSpacing.s3) {
-                    Image(systemName: "sparkles")
-                        .enoIcon(.md, color: EnoColor.onBrand)
+                    EnoIcon("ai", .md, color: EnoColor.onBrand)
                         .frame(width: 44, height: 44)
                         .background(EnoColor.brand, in: Circle())
                     VStack(alignment: .leading, spacing: 2) {

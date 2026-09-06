@@ -1,17 +1,19 @@
 {
   "images": [
     {
-      "filename": "art-fashion-beauty.png",
-      "idiom": "universal",
-      "scale": "3x"
-    },
-    {
+      "filename": "art-fashion-beauty@1x.png",
       "idiom": "universal",
       "scale": "1x"
     },
     {
+      "filename": "art-fashion-beauty@2x.png",
       "idiom": "universal",
       "scale": "2x"
+    },
+    {
+      "filename": "art-fashion-beauty@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
     }
   ],
   "info": {

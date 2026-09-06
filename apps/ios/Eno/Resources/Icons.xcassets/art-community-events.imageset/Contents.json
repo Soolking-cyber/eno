@@ -1,17 +1,19 @@
 {
   "images": [
     {
-      "filename": "art-community-events.png",
-      "idiom": "universal",
-      "scale": "3x"
-    },
-    {
+      "filename": "art-community-events@1x.png",
       "idiom": "universal",
       "scale": "1x"
     },
     {
+      "filename": "art-community-events@2x.png",
       "idiom": "universal",
       "scale": "2x"
+    },
+    {
+      "filename": "art-community-events@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
     }
   ],
   "info": {

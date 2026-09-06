@@ -7,8 +7,8 @@ import EnoUI
 struct SortBar: View {
     @Bindable var model: FeedModel
 
-    // Web explorer-toolbar tabs: UNDERLINE strip (not pills). Relevance · Newest ·
-    // Price (one tab carrying a direction arrow) · Most contacted.
+    // Web explorer-toolbar tabs: UNDERLINE strip (not pills), in the web's order —
+    // Relevance · Newest · Most contacted · Price (one tab carrying a direction arrow).
     private static let simple: [(value: String, en: String, vi: String)] = [
         ("newest", "Relevance", "Liên quan"),
         ("recent", "Newest", "Mới nhất"),
@@ -25,6 +25,11 @@ struct SortBar: View {
                 ForEach(Self.simple, id: \.value) { opt in
                     tab(L10n.tr(opt.en, opt.vi), active: model.sort == opt.value) { model.sort = opt.value }
                 }
+                // ⚠️ MOST CONTACTED COMES BEFORE PRICE, because that is the web's order
+                // (Relevance · Newest · Most contacted · Price). The app had Price third, so the
+                // same four tabs read in a different sequence on the two surfaces — visible the
+                // moment they are put side by side (owner, 2026-09-06).
+                tab(L10n.tr("Most contacted", "Được quan tâm"), active: model.sort == "popular") { model.sort = "popular" }
                 // Price — one tab that toggles low⇄high and shows the direction.
                 // TODO(EnoUI): EnoSegmentedControl — single-select strip. Not convertible yet:
                 // EnoSegmentedControl wraps the native segmented Picker, which can't express a
@@ -41,7 +46,6 @@ struct SortBar: View {
                     .overlay(alignment: .bottom) { if priceActive { Rectangle().fill(EnoColor.brand).frame(height: 2) } }
                 }
                 .buttonStyle(.plain)
-                tab(L10n.tr("Most contacted", "Được quan tâm"), active: model.sort == "popular") { model.sort = "popular" }
             }
             .padding(.horizontal, EnoSpacing.s3)
         }
