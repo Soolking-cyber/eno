@@ -7,6 +7,11 @@ import EnoUI
 // Native extras the web can't give: system pull-to-refresh + edge-swipe back.
 struct FeedView: View {
     /// The partner page a banner slide asked for — see the note at the banner.
+    /// The home's view mode, mirroring the category screen's — the web offers the same four.
+    @State private var viewMode: ViewMode = .grid
+    @State private var lastMode: ViewMode = .grid
+    @State private var showVideoCover = false
+    @State private var showMapCover = false
     @State private var bannerPath: String?
     @State private var savedSearches = SavedSearchStore()
     @State private var savedLabel: String?
@@ -62,9 +67,17 @@ struct FeedView: View {
                             }
                         }
                     } else {
+                        // The category/subcategory cascade — a DRILL-DOWN, and only once a search
+                        // has started. ⚠️ It is not the web's facet bar: putting it on the landing
+                        // drew a second category row under the tile rail (measured on the
+                        // simulator), which is not what eno.vn shows.
                         QuickFindBar(feed: feed)
                             .padding(.top, 4)
                     }
+                    // ⛔ THE FACET BAR IS ON THE LANDING TOO, BECAUSE THE WEB'S HOME *IS* THE
+                    // EXPLORER ("home-is-search"): eno.vn shows Any type / Price / Area straight
+                    // away, and the app offered no way to narrow anything until a search existed.
+                    FacetBar(feed: feed)
                     latestHeading
                     grid
                 }
@@ -80,6 +93,19 @@ struct FeedView: View {
             }
             .sheet(isPresented: $mapSheet) {
                 WebSheet(path: "/?view=map")
+            }
+            // ▷ Map and video are takeovers, and the toggle reverts so closing one lands back on
+            // the previous mode — the web's `prevViewRef`, and what CategoryFeedView already does.
+            .onChange(of: viewMode) { _, new in
+                if new == .video { showVideoCover = true; viewMode = lastMode }
+                else if new == .map { showMapCover = true; viewMode = lastMode }
+                else { lastMode = new }
+            }
+            .fullScreenCover(isPresented: $showVideoCover) {
+                VideoFeedView(filters: feed.filterItems, onClose: { showVideoCover = false })
+            }
+            .fullScreenCover(isPresented: $showMapCover) {
+                ExplorerMapView(listings: feed.items, onClose: { showMapCover = false })
             }
             .navigationDestination(for: ListingCard.self) { card in
                 ListingDetailView(card: card)
@@ -274,6 +300,30 @@ struct FeedView: View {
     private var latestHeading: some View {
         VStack(spacing: 0) {
             SortBar(model: feed)
+            // ⛔ THE WEB'S COUNT ROW, WHICH THE HOME DID NOT HAVE. eno.vn draws "🕐 Latest listings"
+            // with the list/grid/map/video switcher on the right and the result count beneath it;
+            // the app went from the sort tabs straight into the grid, so a visitor could not see
+            // how much inventory they were looking at or reach the map and video views that the
+            // CATEGORY screen already offers. Same components, same order as CategoryFeedView.
+            HStack(spacing: 8) {
+                EnoIcon("time", .sm, color: EnoColor.brand)
+                Text(L10n.tr("Latest listings", "Tin mới nhất"))
+                    .enoText(.title, weight: .bold)
+                Spacer()
+                ViewToggles(mode: $viewMode)
+            }
+            .padding(.horizontal, EnoSpacing.s3)
+            .padding(.top, EnoSpacing.s2)
+            HStack {
+                // ⛔ THE SERVER'S TOTAL OR NOTHING. Falling back to `items.count` printed
+                // "24 listings" — the page size — under a feed of 10,046, which is a worse lie
+                // than no number at all: it tells the visitor the marketplace is empty. The row
+                // keeps its height either way so the grid does not jump when the total lands.
+                Text(countLabel ?? " ").enoText(.caption, color: EnoColor.sub)
+                Spacer()
+            }
+            .padding(.horizontal, EnoSpacing.s3)
+            .padding(.top, 2)
             saveSearchBar
         }
         .padding(.top, 20)
@@ -286,6 +336,12 @@ struct FeedView: View {
             savedLabel = nil
             savedSearches.error = nil
         }
+    }
+
+    /// The web's count line: "10,046 listings", from the server's total rather than the page.
+    private var countLabel: String? {
+        guard let n = feed.totalCount else { return nil }
+        return L10n.tr("\(n) listings", "\(n) tin đăng")
     }
 
     /// "Save this search" — offered only once the buyer has narrowed something down.

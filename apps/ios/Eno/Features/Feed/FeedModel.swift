@@ -51,6 +51,15 @@ final class FeedModel {
         didSet { if oldValue != priceMax { scheduleReload() } }
     }
     // Condition filter ("new" | "used"), mirroring the web's ?condition param.
+    /// The web's two remaining home facets, which the app had no field for at all. `listingType`
+    /// is the API's `type` (sell / rent / wanted); `province` matches the listing's city, which is
+    /// the only area level the current listings carry (see feed-query.ts).
+    var listingType: String? {
+        didSet { if listingType != oldValue { scheduleReload() } }
+    }
+    var province: String? {
+        didSet { if province != oldValue { scheduleReload() } }
+    }
     var condition: String? {
         didSet { if oldValue != condition { scheduleReload() } }
     }
@@ -200,6 +209,8 @@ final class FeedModel {
         if let priceMin { q.append(URLQueryItem(name: "priceMin", value: String(priceMin))) }
         if let priceMax { q.append(URLQueryItem(name: "priceMax", value: String(priceMax))) }
         if let condition { q.append(URLQueryItem(name: "condition", value: condition)) }
+        if let listingType, listingType != "all" { q.append(URLQueryItem(name: "type", value: listingType)) }
+        if let province { q.append(URLQueryItem(name: "province", value: province)) }
         if !verifiedOnly { q.append(URLQueryItem(name: "verified", value: "all")) }
         for (k, v) in customFilters.sorted(by: { $0.key < $1.key }) {
             q.append(URLQueryItem(name: k, value: v))
