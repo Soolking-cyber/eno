@@ -2,6 +2,10 @@ import { route, ApiError } from '@/lib/api/handler'
 import { KYC_IMAGE_KINDS, KYC_MAX_INTAKE_BYTES, KycImageError, type KycImageKind } from '@/lib/kyc/image'
 import { storeKycImage } from '@/lib/kyc/store'
 import { hasLiveChallenge } from '@/lib/identity/challenge'
+import { db } from '@/lib/db'
+import { writeTombstones } from '@/lib/core/storage-tombstones'
+import { BUSINESS_VERIFICATION_BUCKET } from '@/lib/supabase-admin'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -58,6 +62,40 @@ export const POST = route(
     try {
       const stored = await storeKycImage({ profileId: userId, kind, bytes })
       if (!stored) throw new ApiError('internal_error', 503)
+      /**
+       * ⛔ THE CAPTURE IS TRACKED FROM THE MOMENT IT EXISTS, NOT FROM THE MOMENT IT IS SUBMITTED.
+       * This route stores a passport photograph and a selfie; the `IdentityVerification` row that
+       * points at them is only written when the applicant finishes the form two steps later. Anyone
+       * who photographs their document and then closes the tab therefore left those images in the
+       * private bucket with NOTHING referencing them — and both erasure and retention are
+       * row-driven, so nothing would ever look for them again. Measured as the gap it is: no row,
+       * no reference, no expiry.
+       *
+       * An intent tombstone is the missing reference. The sweep re-checks the surviving rows before
+       * it deletes anything, so a capture that IS submitted is found in the evidence and its
+       * tombstone is dropped; one that is abandoned is removed. This is the same shape the visa
+       * uploads already use (`visa_upload_intent`).
+       *
+       * ⚠️ BEST-EFFORT, AND THE UPLOAD STILL SUCCEEDS IF IT FAILS. Refusing a capture because its
+       * cleanup record could not be written would break verification for a storage-queue problem
+       * that is ours, not the applicant's — and the erasure prefix walk is the backstop.
+       */
+      /**
+       * ⚠️ A DAY OF GRACE, NOT THE DEFAULT HOUR. The sweep reads "no IdentityVerification row points
+       * at this yet" as abandoned, and the default hour is only safe if nobody can still be filling
+       * the form after it. The challenge does expire in ten minutes, so in principle they cannot —
+       * but the cost of being wrong is an applicant's passport photo deleted mid-flow, surfacing to
+       * a reviewer as a missing object after four 201s, and the cost of being generous is an
+       * abandoned capture living one extra day in a bucket the sweep will empty anyway (external
+       * review). `writeTombstones` derives notBefore from this instant plus its own hour.
+       */
+      const KYC_INTENT_GRACE_MS = 23 * 60 * 60 * 1000
+      await writeTombstones(
+        db,
+        [{ bucket: BUSINESS_VERIFICATION_BUCKET, path: stored.path }],
+        'kyc_capture_intent',
+        new Date(Date.now() + KYC_INTENT_GRACE_MS),
+      ).catch((e) => logError(e, { op: 'kyc.capture-intent' }))
       // ⛔ THE PATH GOES BACK, THE URL DOES NOT. This is a private bucket; handing the client a
       // readable link would make a passport photo fetchable by anyone who saw the response.
       return Response.json(

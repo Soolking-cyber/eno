@@ -25,7 +25,7 @@ import { Prisma } from '@/generated/prisma/client'
 export const TOMBSTONE_GRACE_MS = 60 * 60 * 1000
 
 export type TombstoneRef = { bucket: string; path: string }
-export type TombstoneReason = 'account_deleted' | 'visa_document_replaced' | 'visa_application_deleted' | 'visa_upload_intent'
+export type TombstoneReason = 'account_deleted' | 'visa_document_replaced' | 'visa_application_deleted' | 'visa_upload_intent' | 'verification_doc_orphaned' | 'kyc_capture_intent'
 type Writer = Pick<Prisma.TransactionClient, 'storageTombstone' | '$executeRaw'>
 
 /** Record that these objects are to be deleted once nothing references them. Pass the transaction

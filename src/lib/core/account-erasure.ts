@@ -163,6 +163,34 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
     console.error('[account-delete] desk objects NOT queued — auth user kept so the cascade cannot orphan them', profile.id)
   }
 
+  /**
+   * ⛔ AND THE PRIVATE VERIFICATION PREFIX, WHICH THE ROW WALK ABOVE CANNOT SEE. The transaction
+   * collected every path a case or an identity record NAMES; this collects every object the person
+   * actually owns, which is a superset — an abandoned capture has no row to be named by. Both are
+   * needed: the rows are gone by now, so only the prefix can still enumerate them.
+   *
+   * ⚠️ A FAILURE HERE IS LOGGED, NOT FATAL. Unlike the desk listing above it does not gate the
+   * auth-user delete: nothing about removing the auth user destroys the ability to find these
+   * objects again, because the prefix is the person's id and that does not change.
+   */
+  let ownedQueued = 0
+  try {
+    ownedQueued = await writeTombstones(db, await listOwnedVerificationObjects(profile.id), 'account_deleted')
+  } catch (e) {
+    logError(e, { op: 'account-erasure.verification-objects' })
+    /**
+     * ⛔ THE PREFIX IS IN THE LOG BECAUSE NOTHING WILL ASK AGAIN. By this point the profile row is
+     * gone, so no retry can rediscover which person these objects belonged to — an external
+     * reviewer was right that "it is logged" is not a recovery path on its own. The prefix IS the
+     * recovery path: `<profileId>/` in the private bucket, remediable by hand from this line
+     * alone, exactly as `residue` serves the purge below.
+     */
+    console.error(
+      `[account-delete] INCOMPLETE ERASURE — private verification prefix "${profile.id}/" was not enumerated; ` +
+      `objects under it are orphaned and must be removed by hand`,
+    )
+  }
+
   // Remove the auth user (invalidates every session/device). Loud log on failure:
   // ensureProfile would recreate an EMPTY profile on a later sign-in — no data
   // comes back, but the orphan auth user should be cleaned up by hand.
@@ -184,7 +212,7 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
   }
 
   // Audit line (id only — no PII), then the storage purge ON the response path.
-  console.log('[account-delete] completed', profile.id, by, { deskQueued })
+  console.log('[account-delete] completed', profile.id, by, { deskQueued, ownedQueued })
   const { residue, settled, ...purge } = await purgeStorageObjects(imageUrls)
   // Settled = gone, or somebody else's. Clearing can fail without consequence: the sweep re-checks
   // references and finds those objects absent or referenced, and drops the tombstones itself.
@@ -199,19 +227,69 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
   return { ok: true, purge }
 }
 
-/** Every object the desk bucket holds under this user's prefix — two levels (`user/application/file`).
- *  A listing error throws: "could not enumerate" must never read as "nothing there". */
-async function listDeskObjects(userId: string): Promise<TombstoneRef[]> {
-  const storage = getSupabaseAdmin().storage.from(VISA_BUCKET)
-  const top = await storage.list(userId, { limit: 1000 })
-  if (top.error) throw new Error(`desk_list_failed: ${top.error.message}`)
-  const refs: TombstoneRef[] = []
-  for (const entry of top.data ?? []) {
+/** One Supabase listing page. Their maximum; asking for more is silently capped. */
+const LIST_PAGE = 1000
+/** A sanity ceiling, not a policy: past this something is wrong and erasure must say so. */
+const MAX_LISTED_OBJECTS = 100_000
+
+/**
+ * Every entry under `prefix`, PAGINATED.
+ *
+ * ⛔ `list()` RETURNS AT MOST ONE PAGE AND SAYS NOTHING ABOUT THE REST. The two callers below each
+ * asked for `{ limit: 1000 }` and treated the answer as the whole folder — so a user with more than
+ * a thousand objects at either level had the surplus silently skipped, and skipped objects in these
+ * buckets are passport scans and identity captures that nothing will ever look for again. A short
+ * page is the only end-of-list signal there is; anything else keeps asking.
+ *
+ * A listing error THROWS: "could not enumerate" must never read as "nothing there".
+ */
+async function listAllEntries(
+  storage: ReturnType<ReturnType<typeof getSupabaseAdmin>['storage']['from']>,
+  prefix: string,
+  label: string,
+): Promise<Array<{ name: string; isFile: boolean }>> {
+  const out: Array<{ name: string; isFile: boolean }> = []
+  for (let offset = 0; ; offset += LIST_PAGE) {
+    const page = await storage.list(prefix, { limit: LIST_PAGE, offset })
+    if (page.error) throw new Error(`${label}: ${page.error.message}`)
+    const rows = page.data ?? []
     // Supabase lists "folders" as entries with no id; files carry one.
-    if (entry.id) { refs.push({ bucket: VISA_BUCKET, path: `${userId}/${entry.name}` }); continue }
-    const inner = await storage.list(`${userId}/${entry.name}`, { limit: 1000 })
-    if (inner.error) throw new Error(`desk_list_failed: ${inner.error.message}`)
-    for (const f of inner.data ?? []) if (f.id) refs.push({ bucket: VISA_BUCKET, path: `${userId}/${entry.name}/${f.name}` })
+    for (const r of rows) out.push({ name: r.name, isFile: !!r.id })
+    if (rows.length < LIST_PAGE) return out
+    if (out.length > MAX_LISTED_OBJECTS) throw new Error(`${label}: more than ${MAX_LISTED_OBJECTS} entries under "${prefix}"`)
+  }
+}
+
+/** Every object `bucket` holds under this user's prefix, across both levels. */
+async function listOwnedObjects(bucket: string, userId: string, label: string): Promise<TombstoneRef[]> {
+  const storage = getSupabaseAdmin().storage.from(bucket)
+  const refs: TombstoneRef[] = []
+  for (const entry of await listAllEntries(storage, userId, label)) {
+    if (entry.isFile) { refs.push({ bucket, path: `${userId}/${entry.name}` }); continue }
+    for (const f of await listAllEntries(storage, `${userId}/${entry.name}`, label)) {
+      if (f.isFile) refs.push({ bucket, path: `${userId}/${entry.name}/${f.name}` })
+    }
   }
   return refs
+}
+
+/** The visa desk's objects (`user/application/file`). */
+async function listDeskObjects(userId: string): Promise<TombstoneRef[]> {
+  return listOwnedObjects(VISA_BUCKET, userId, 'desk_list_failed')
+}
+
+/**
+ * Everything the PRIVATE verification bucket holds under this person's prefix.
+ *
+ * ⛔ THE ROWS ARE NOT THE WHOLE STORY IN THIS BUCKET, AND THAT IS THE GAP THIS CLOSES. Both writers
+ * here store the object BEFORE any row references it: a KYC capture lands at
+ * `<profile>/identity/…` and only becomes evidence when the applicant finishes the form, and a
+ * business document lands at `<profile>/…` and only becomes a case document when the append
+ * commits. Someone who photographs their passport and closes the tab therefore leaves images that
+ * no row-driven erasure and no row-driven retention will ever find. The prefix does find them —
+ * which is exactly why kyc/store.ts puts the person on top of the path — and the sweep re-checks
+ * each against the surviving rows before deleting anything.
+ */
+async function listOwnedVerificationObjects(profileId: string): Promise<TombstoneRef[]> {
+  return listOwnedObjects(BUSINESS_VERIFICATION_BUCKET, profileId, 'verification_list_failed')
 }

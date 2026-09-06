@@ -8,6 +8,9 @@ import {
   type VerificationDocKind,
 } from '@/lib/business-verification-store'
 import { appendVerificationDoc, getOrCreateDraft } from '@/lib/core/business-verification-service'
+import { writeTombstones } from '@/lib/core/storage-tombstones'
+import { BUSINESS_VERIFICATION_BUCKET } from '@/lib/supabase-admin'
+import { logError } from '@/lib/log'
 import { ApiError, route } from '@/lib/api/handler'
 
 // Applicant uploads one business-verification document (identity / bank / authorization)
@@ -69,7 +72,28 @@ export const POST = route(
     const stored = await storeVerificationDoc({ profileId: userId, kind: kindRaw as VerificationDocKind, bytes, mime })
     if (!stored) throw new ApiError('store_failed', 502)
 
-    const appended = await appendVerificationDoc(draft.id, stored)
+    /**
+     * ⛔ AN UPLOAD THAT IS STORED BUT NOT RECORDED MUST LEAVE A RETRYABLE TRACE. The object goes
+     * into the private bucket first, so every way `appendVerificationDoc` can decline — a submit
+     * that froze the case while this request was in flight, a lost row, a database error — leaves
+     * a scan of somebody's identity document in storage with NOTHING referencing it. Nothing would
+     * ever find it again: erasure and retention both work from the rows, and there are no rows.
+     * A tombstone is that trace; the sweep re-checks references (this path has none by
+     * construction) and removes the object, retrying until it succeeds.
+     *
+     * ⚠️ THE TOMBSTONE IS BEST-EFFORT AND THE UPLOAD STILL FAILS. Failing to queue the cleanup
+     * must not turn a 409 into a 500 — the seller's problem is that their document was refused,
+     * and the orphan is ours.
+     */
+    let appended = false
+    try {
+      appended = await appendVerificationDoc(draft.id, stored)
+    } finally {
+      if (!appended) {
+        await writeTombstones(db, [{ bucket: BUSINESS_VERIFICATION_BUCKET, path: stored.path }], 'verification_doc_orphaned')
+          .catch((e) => logError(e, { op: 'business-verification.orphan-tombstone' }))
+      }
+    }
     if (!appended) throw new ApiError('verification_locked', 409)
 
     return NextResponse.json({ ok: true, kind: stored.kind }, { status: 201 })

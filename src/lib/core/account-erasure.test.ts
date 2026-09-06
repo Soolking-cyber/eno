@@ -20,6 +20,11 @@ const h = vi.hoisted(() => ({
   purged: [] as string[],
   cleared: [] as Array<{ bucket: string; path: string }>,
   deskListError: false,
+  /** Make the PRIVATE verification bucket's prefix walk fail, independently of the desk's. */
+  ownedListError: false,
+  /** Entries the private verification bucket reports under `p1/` — enough to need paging. */
+  ownedTop: [] as Array<{ id: string | null; name: string }>,
+  ownedIdentity: [] as Array<{ id: string | null; name: string }>,
   authDeletes: 0,
 }))
 
@@ -69,14 +74,29 @@ vi.mock('@/lib/business-verification-store', () => ({ parseVerificationDocs: (v:
 vi.mock('@/lib/compliance/audit', () => ({ appendAudit: async (_tx: unknown, input: Record<string, unknown>) => { h.events.push('audited'); h.audits.push(input) } }))
 vi.mock('@/lib/visa-admin', () => ({ VISA_BUCKET: 'visa-documents' }))
 vi.mock('@/lib/log', () => ({ logError: () => {} }))
+/**
+ * ⚠️ THE MOCK IS BUCKET-AWARE NOW, AND UNTIL IT WAS THE TWO PREFIX WALKS WERE INDISTINGUISHABLE.
+ * `from()` ignored its argument, so the desk bucket and the private verification bucket returned
+ * the same listing and a test could not tell which walk had produced a tombstone. It also PAGES:
+ * `list` honours `limit`/`offset`, which is the whole point of the walk being paginated.
+ */
 vi.mock('@/lib/supabase-admin', () => ({
   BUSINESS_VERIFICATION_BUCKET: 'business-verification',
-  getSupabaseAdmin: () => ({ storage: { from: () => ({ list: async (prefix: string) => {
-    if (h.deskListError) return { data: null, error: { message: 'storage down' } }
-    if (prefix === 'p1') return { data: [{ id: null, name: 'app-1' }, { id: 'f0', name: 'loose.jpg' }], error: null }
-    if (prefix === 'p1/app-1') return { data: [{ id: 'f1', name: 'passport-x.jpg' }, { id: 'f2', name: 'portrait-y.jpg' }], error: null }
-    return { data: [], error: null }
-  } }) } }),
+  getSupabaseAdmin: () => ({ storage: { from: (bucket: string) => ({
+    list: async (prefix: string, opts?: { limit?: number; offset?: number }) => {
+      const page = <T,>(rows: T[]) => rows.slice(opts?.offset ?? 0, (opts?.offset ?? 0) + (opts?.limit ?? 1000))
+      if (bucket === 'business-verification') {
+        if (h.ownedListError) return { data: null, error: { message: 'storage down' } }
+        if (prefix === 'p1') return { data: page(h.ownedTop), error: null }
+        if (prefix === 'p1/identity') return { data: page(h.ownedIdentity), error: null }
+        return { data: [], error: null }
+      }
+      if (h.deskListError) return { data: null, error: { message: 'storage down' } }
+      if (prefix === 'p1') return { data: page([{ id: null, name: 'app-1' }, { id: 'f0', name: 'loose.jpg' }]), error: null }
+      if (prefix === 'p1/app-1') return { data: page([{ id: 'f1', name: 'passport-x.jpg' }, { id: 'f2', name: 'portrait-y.jpg' }]), error: null }
+      return { data: [], error: null }
+    },
+  }) } }),
 }))
 
 const { eraseAccount } = await import('./account-erasure')
@@ -88,6 +108,9 @@ beforeEach(() => {
   h.listings = [{ id: 'l1', images: JSON.stringify(['https://proj/listings/1.webp']), video: 'https://proj/listing-videos/1.mp4' }]
   h.identities = [{ id: 'v1', evidence: { documentPath: 'p1/identity/document-1.jpg', selfiePath: 'p1/identity/selfie-1.jpg', decisionInput: { surname: 'DOE' }, checksPassed: ['mrz'], consentVersion: 'identity-v1' } }]
   h.events = []; h.tombstones = []; h.audits = []; h.identityUpdates = []; h.purged = []; h.cleared = []; h.deskListError = false; h.authDeletes = 0
+  h.ownedListError = false
+  h.ownedTop = [{ id: null, name: 'identity' }, { id: 'b1', name: 'licence.pdf' }]
+  h.ownedIdentity = [{ id: 'i1', name: 'document-1.jpg' }, { id: 'i2', name: 'selfie-1.jpg' }]
 })
 
 describe('eraseAccount', () => {
@@ -109,7 +132,9 @@ describe('eraseAccount', () => {
     expect(r.ok).toBe(true)
     // rows first (tombstones + audit inside), then the desk's objects are queued, THEN the auth user
     // (whose cascade takes the visa rows), then the fast-path purge
-    expect(h.events).toEqual(['listings-deleted', 'seller-deleted', 'tombstoned', 'audited', 'profile-deleted', 'tombstoned', 'auth-user-deleted', 'purged', 'cleared'])
+    // rows first (tombstones + audit inside), then the desk's objects, then the PRIVATE
+    // verification prefix, then the auth user, then the fast-path purge
+    expect(h.events).toEqual(['listings-deleted', 'seller-deleted', 'tombstoned', 'audited', 'profile-deleted', 'tombstoned', 'tombstoned', 'auth-user-deleted', 'purged', 'cleared'])
     expect(h.tombstones).toEqual(expect.arrayContaining([
       { bucket: 'visa-documents', path: 'p1/loose.jpg' }, { bucket: 'visa-documents', path: 'p1/app-1/passport-x.jpg' }, { bucket: 'visa-documents', path: 'p1/app-1/portrait-y.jpg' },
     ]))
@@ -131,6 +156,54 @@ describe('eraseAccount', () => {
     expect(r.ok).toBe(true)
     expect(h.authDeletes).toBe(0)
     expect(h.events).not.toContain('auth-user-deleted')
+  })
+
+  /**
+   * ⛔ THE ROW WALK CANNOT SEE AN ABANDONED CAPTURE, AND THIS IS THE PART THAT CAN. Both writers in
+   * the private bucket store the object before any row references it — a KYC photograph becomes
+   * evidence only when the applicant finishes the form, a business document only when the append
+   * commits — so someone who photographs their passport and closes the tab leaves images no
+   * row-driven erasure would ever name. The prefix names them.
+   */
+  it('queues objects under the private prefix that no row references', async () => {
+    h.ownedIdentity = [
+      { id: 'i1', name: 'document-1.jpg' },
+      { id: 'i2', name: 'selfie-1.jpg' },
+      { id: 'i3', name: 'document-abandoned.jpg' }, // never submitted: no row names it
+    ]
+    await eraseAccount('p1', { kind: 'self' })
+    expect(h.tombstones).toEqual(expect.arrayContaining([
+      { bucket: 'business-verification', path: 'p1/identity/document-abandoned.jpg' },
+      { bucket: 'business-verification', path: 'p1/licence.pdf' },
+    ]))
+  })
+
+  /**
+   * ⛔ ONE PAGE IS NOT A FOLDER. `list()` returns at most 1,000 entries and says nothing about the
+   * rest, and both walks used to ask once and treat the answer as complete — so everything past the
+   * thousandth object was silently skipped, at either level. Skipped objects here are identity
+   * captures nothing will look for again.
+   */
+  it('enumerates past the first page, at both levels', async () => {
+    h.ownedTop = [{ id: null, name: 'identity' }, ...Array.from({ length: 1200 }, (_, i) => ({ id: `t${i}`, name: `top-${i}.pdf` }))]
+    h.ownedIdentity = Array.from({ length: 1500 }, (_, i) => ({ id: `d${i}`, name: `capture-${i}.jpg` }))
+    await eraseAccount('p1', { kind: 'self' })
+    const owned = h.tombstones.filter((t) => t.bucket === 'business-verification')
+    expect(owned).toEqual(expect.arrayContaining([
+      { bucket: 'business-verification', path: 'p1/top-1199.pdf' },
+      { bucket: 'business-verification', path: 'p1/identity/capture-1499.jpg' },
+    ]))
+    // 1200 top-level files + 1500 captures, plus the two paths the rows named (deduped by path).
+    expect(owned.length).toBeGreaterThanOrEqual(2700)
+  })
+
+  it('a failed private-prefix walk is logged but does NOT hold back the auth-user delete', async () => {
+    // Unlike the desk listing, nothing about removing the auth user destroys the ability to find
+    // these objects again — the prefix is the person's id, and that does not change.
+    h.ownedListError = true
+    const r = await eraseAccount('p1', { kind: 'self' })
+    expect(r.ok).toBe(true)
+    expect(h.authDeletes).toBe(1)
   })
 
   it('the identity record survives pseudonymised: person cleared, paths and decision inputs dropped, checks and consent kept', async () => {

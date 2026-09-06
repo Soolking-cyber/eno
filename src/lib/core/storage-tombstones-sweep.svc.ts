@@ -61,17 +61,83 @@ async function referenceVerdict(bucket: string, path: string): Promise<Verdict> 
       if (error) return 'unknown'
       return data?.length ? 'referenced' : 'unreferenced'
     }
-    case BUSINESS_VERIFICATION_BUCKET:
-      // One owner per object — every path here is minted under the owner's profile id — and a
-      // tombstone in this bucket is only ever written by an erasure already decided (account
-      // deletion). Nothing to re-check.
-      return 'unreferenced'
+    case BUSINESS_VERIFICATION_BUCKET: {
+      /**
+       * ⛔ CHECKED, NOT ASSUMED — AND IT USED TO BE ASSUMED. This arm returned `'unreferenced'`
+       * unconditionally, on the reasoning that only an already-decided account erasure ever writes
+       * a tombstone in this bucket. That was true when it was written and stopped being true the
+       * moment a FAILED upload started tombstoning its own object: a path whose append lost a race
+       * is an intent, and an intent that skips the reference check is a delete-anything primitive
+       * pointed at the private bucket holding identity documents.
+       *
+       * Two tables can reference an object here: a verification case's `documents` array, and an
+       * identity verification's evidence. Both are checked; a failure reads as `unknown`, which
+       * never deletes.
+       */
+      try {
+        const [inCase, inIdentity] = await Promise.all([
+          db.sellerVerification.findFirst({ where: { documents: { array_contains: [{ path }] } }, select: { id: true } }),
+          db.identityVerification.findFirst({
+            where: { OR: [{ evidence: { path: ['documentPath'], equals: path } }, { evidence: { path: ['selfiePath'], equals: path } }] },
+            select: { id: true },
+          }),
+        ])
+        return inCase || inIdentity ? 'referenced' : 'unreferenced'
+      } catch {
+        return 'unknown'
+      }
+    }
     default:
       throw new Error('unknown_bucket')
   }
 }
 
 export type TombstoneSweep = { removed: number; dropped: number; failed: number; skipped: number; remaining: number; queued: number }
+
+/**
+ * What the queue looks like RIGHT NOW, without touching it.
+ *
+ * ⛔ "ENABLED" IS NOT "DRAINING", AND ONLY THIS CAN TELL THEM APART. The sweep's own response is
+ * the only number anyone had, and reading it means RUNNING the sweep — so the one question an
+ * operator actually needs answered ("is the erasure queue being emptied?") could not be asked
+ * without performing deletions. A timer can be loaded, enabled and firing while every row fails,
+ * and the backlog would be invisible between runs.
+ *
+ * ⚠️ COUNTS AND TIMESTAMPS ONLY. A bucket name is operational; a path is a storage key that
+ * identifies a person's document, so nothing here returns one. `oldestDue` is what an alert should
+ * watch: a due row that keeps getting older is a queue that is not draining, whatever the run
+ * summaries say.
+ */
+export type TombstoneStatus = {
+  queued: number
+  due: number
+  failing: number
+  oldestDueAt: string | null
+  oldestQueuedAt: string | null
+  byReason: Record<string, number>
+  checkedAt: string
+}
+
+export async function tombstoneStatus(now = new Date()): Promise<TombstoneStatus> {
+  const [queued, due, failing, oldestDue, oldestQueued, groups] = await Promise.all([
+    db.storageTombstone.count(),
+    db.storageTombstone.count({ where: { notBefore: { lt: now } } }),
+    // A row that has failed at least once and is still here: the shape a stuck queue takes.
+    db.storageTombstone.count({ where: { attempts: { gt: 0 } } }),
+    db.storageTombstone.findFirst({ where: { notBefore: { lt: now } }, orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
+    db.storageTombstone.findFirst({ orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
+    db.storageTombstone.groupBy({ by: ['reason'], _count: { _all: true }, orderBy: { reason: 'asc' } }),
+  ])
+  return {
+    queued,
+    due,
+    failing,
+    oldestDueAt: oldestDue?.createdAt.toISOString() ?? null,
+    oldestQueuedAt: oldestQueued?.createdAt.toISOString() ?? null,
+    byReason: Object.fromEntries(groups.map((g) => [g.reason, g._count._all])),
+    checkedAt: now.toISOString(),
+  }
+}
 
 /** Drain due tombstones: delete what is unreferenced, drop what is referenced, keep (and count)
  *  what could not be settled. A failure never loses the record — attempts/lastError go on the row,

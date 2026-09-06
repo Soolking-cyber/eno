@@ -211,12 +211,33 @@ export async function getOrCreateDraft(sellerId: string): Promise<{ id: string; 
   return { id: created.id, documents: parseVerificationDocs(created.documents) }
 }
 
-/** Append a stored document to a DRAFT case. The read-modify-write is serialized in a
- *  transaction so two concurrent uploads to the same draft can't lost-update each other
- *  (external review). Guarded on status='draft' so a concurrent submit rejects a late doc. */
+/**
+ * Append a stored document to a DRAFT case.
+ *
+ * ⛔ THE TRANSACTION ALONE DID NOT MAKE THIS SAFE, AND IT READ AS THOUGH IT DID. Postgres runs at
+ * READ COMMITTED, so two concurrent uploads to the same draft each read the documents array as it
+ * was, each append their own file, and each write the whole array back. Both `updateMany`s match
+ * (`status` is still 'draft' for both), both report count 1, both requests answer 201 — and one of
+ * the two paths is simply not in the row. The object sits in the private bucket with nothing
+ * referencing it, and the seller is told their upload succeeded. Reproduced under two parallel
+ * uploads; the loser is whichever commits first.
+ *
+ * ⚠️ `SELECT … FOR UPDATE` IS THE FIX: the second transaction blocks until the first commits and
+ * then re-reads the row it will modify, so the append is applied to the array that actually
+ * exists. It is safe to lock and then write here because this transaction MODIFIES the locked row
+ * — a lock taken without a write does not stop a concurrent predicate re-evaluation (the visa
+ * capture race, EvalPlanQual, learned the hard way).
+ *
+ * The `status = 'draft'` guard stays on the write as well: a submit that froze the case while this
+ * request was waiting for the lock must reject the late document rather than smuggle it into a
+ * case a reviewer has already been handed.
+ */
 export async function appendVerificationDoc(caseId: string, doc: VerificationDoc): Promise<boolean> {
   return db.$transaction(async (tx) => {
-    const row = await tx.sellerVerification.findUnique({ where: { id: caseId }, select: { status: true, documents: true } })
+    const locked = await tx.$queryRaw<{ status: string; documents: unknown }[]>`
+      select "status", "documents" from "SellerVerification" where "id" = ${caseId} for update
+    `
+    const row = locked[0]
     if (!row || row.status !== 'draft') return false
     const docs = [...parseVerificationDocs(row.documents), doc]
     const upd = await tx.sellerVerification.updateMany({
@@ -268,30 +289,43 @@ export async function submitVerification(sellerId: string, consentVersion: strin
   if (!seller.legalName || !seller.legalAddress || !seller.idNumber || !seller.taxCode) {
     return { ok: false, error: 'missing_legal_fields' }
   }
-  const draft = await db.sellerVerification.findFirst({
-    where: { sellerId },
-    orderBy: { version: 'desc' },
-    select: { id: true, status: true, documents: true },
-  })
-  if (!draft || draft.status !== 'draft') return { ok: false, error: draft ? 'already_open' : 'nothing_to_submit' }
-  const docs = parseVerificationDocs(draft.documents)
-  if (!docs.some((d) => d.kind === 'identity')) return { ok: false, error: 'missing_identity_doc' }
-  if (!docs.some((d) => d.kind === 'bank')) return { ok: false, error: 'missing_bank_doc' }
-
-  // One verified badge per tax code: a DIFFERENT seller already holding a live-hash
-  // approval for this MST must not be able to submit against the same identity.
-  const clash = await db.seller.findFirst({
-    where: { taxCode: seller.taxCode, verifiedIdentityHash: { not: null }, id: { not: sellerId } },
-    select: { id: true },
-  })
-  if (clash) return { ok: false, error: 'duplicate_tax' }
-
   const identityHash = sellerIdentityHash(seller)
-  const upd = await db.sellerVerification.updateMany({
-    where: { id: draft.id, status: 'draft' },
-    data: { status: 'pending', identityHash, submittedAt: new Date(), consentAt: new Date(), consentVersion },
+  /**
+   * ⛔ THE SAME ROW LOCK `appendVerificationDoc` TAKES, FOR THE SAME REASON. Freezing a case is a
+   * read-validate-write over the document array, and without the lock an upload that commits
+   * between the read and the freeze lands in a case a reviewer is then handed — a document nobody
+   * validated, in a set that was declared complete without it. With the lock the two orderings are
+   * both correct and both explicit: the upload wins and this freeze validates the full set, or the
+   * freeze wins and the upload is refused with `verification_locked`.
+   *
+   * ⚠️ THE ERROR ORDER IS PRESERVED INSIDE THE LOCK, deliberately — the duplicate-tax check stays
+   * where it was, after the document checks, so no caller sees a different code than before.
+   */
+  return db.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<{ id: string; status: string; documents: unknown }[]>`
+      select "id", "status", "documents" from "SellerVerification"
+      where "sellerId" = ${sellerId} order by "version" desc limit 1 for update
+    `
+    const draft = rows[0]
+    if (!draft || draft.status !== 'draft') return { ok: false, error: draft ? 'already_open' : 'nothing_to_submit' }
+    const docs = parseVerificationDocs(draft.documents)
+    if (!docs.some((d) => d.kind === 'identity')) return { ok: false, error: 'missing_identity_doc' }
+    if (!docs.some((d) => d.kind === 'bank')) return { ok: false, error: 'missing_bank_doc' }
+
+    // One verified badge per tax code: a DIFFERENT seller already holding a live-hash
+    // approval for this MST must not be able to submit against the same identity.
+    const clash = await tx.seller.findFirst({
+      where: { taxCode: seller.taxCode, verifiedIdentityHash: { not: null }, id: { not: sellerId } },
+      select: { id: true },
+    })
+    if (clash) return { ok: false, error: 'duplicate_tax' }
+
+    const upd = await tx.sellerVerification.updateMany({
+      where: { id: draft.id, status: 'draft' },
+      data: { status: 'pending', identityHash, submittedAt: new Date(), consentAt: new Date(), consentVersion },
+    })
+    return upd.count === 1 ? { ok: true } : { ok: false, error: 'already_open' }
   })
-  return upd.count === 1 ? { ok: true } : { ok: false, error: 'already_open' }
 }
 
 export type ReviewResult =

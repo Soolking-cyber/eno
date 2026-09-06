@@ -18,6 +18,12 @@ const h = vi.hoisted(() => ({
   listingImages: [] as string[],
   visaPaths: [] as string[],
   visaQueryError: false,
+  /** Paths a live SellerVerification case still lists in its `documents`. */
+  verificationPaths: [] as string[],
+  /** Paths a live IdentityVerification still names in its evidence. */
+  identityPaths: [] as string[],
+  /** Make both business-verification reference reads throw — the "unknown, never delete" case. */
+  verificationQueryError: false,
   seq: 0,
   /** A hook run on every storage remove — lets a test refresh a row mid-batch like a concurrent writer would. */
   onRemove: null as null | ((bucket: string, paths: string[]) => void),
@@ -67,6 +73,20 @@ vi.mock('@/lib/db', () => ({
         where ? h.rows.filter((r) => r.notBefore < where.notBefore.lt).length : h.rows.length,
     },
     listing: { count: async ({ where }: { where: { images?: { contains: string } } }) => where.images ? h.listingImages.filter((u) => u.includes(where.images!.contains)).length : 0 },
+    sellerVerification: {
+      findFirst: async ({ where }: { where: { documents: { array_contains: Array<{ path: string }> } } }) => {
+        if (h.verificationQueryError) throw new Error('db down')
+        const path = where.documents.array_contains[0].path
+        return h.verificationPaths.includes(path) ? { id: 'case-1' } : null
+      },
+    },
+    identityVerification: {
+      findFirst: async ({ where }: { where: { OR: Array<{ evidence: { path: string[]; equals: string } }> } }) => {
+        if (h.verificationQueryError) throw new Error('db down')
+        const path = where.OR[0].evidence.equals
+        return h.identityPaths.includes(path) ? { id: 'iv-1' } : null
+      },
+    },
     seller: { count: async () => 0 },
     profile: { count: async () => 0 },
   },
@@ -94,7 +114,7 @@ const t0 = new Date('2026-09-05T08:00:00.000Z')
 const later = new Date(t0.getTime() + TOMBSTONE_GRACE_MS + 1)
 const P = 'https://proj.supabase.co/storage/v1/object/public/listings/'
 
-beforeEach(() => { h.rows = []; h.removed = []; h.removeError = null; h.listingImages = []; h.visaPaths = []; h.visaQueryError = false; h.onRemove = null })
+beforeEach(() => { h.rows = []; h.removed = []; h.removeError = null; h.listingImages = []; h.visaPaths = []; h.visaQueryError = false; h.onRemove = null; h.verificationPaths = []; h.identityPaths = []; h.verificationQueryError = false })
 
 describe('the tombstone sweep', () => {
   it('touches nothing younger than its grace', async () => {
@@ -121,11 +141,42 @@ describe('the tombstone sweep', () => {
     expect(r).toMatchObject({ removed: 1, dropped: 1, failed: 0 })
   })
 
-  it('private business-verification bucket: one owner per object, removed without a reference check', async () => {
+  it('private business-verification bucket: an unreferenced object is removed', async () => {
     await writeTombstones(db, [{ bucket: 'business-verification', path: 'p1/identity/selfie-x.jpg' }], 'account_deleted', t0)
     const r = await sweepTombstones(later)
     expect(h.removed).toEqual([{ bucket: 'business-verification', paths: ['p1/identity/selfie-x.jpg'] }])
     expect(r.removed).toBe(1)
+  })
+
+  /**
+   * ⛔ THIS BUCKET USED TO SKIP THE REFERENCE CHECK ENTIRELY — it returned "unreferenced" for every
+   * path on the reasoning that only a decided account erasure ever wrote a tombstone here. That
+   * stopped being true when a FAILED verification upload started tombstoning its own object: an
+   * intent that skips the check is a delete-anything primitive aimed at the private bucket holding
+   * identity documents. The three tests below are the contract that replaced the assumption.
+   */
+  it('drops a business-verification tombstone whose object a live case still lists', async () => {
+    h.verificationPaths = ['p1/bank/statement.pdf']
+    await writeTombstones(db, [{ bucket: 'business-verification', path: 'p1/bank/statement.pdf' }], 'verification_doc_orphaned', t0)
+    const r = await sweepTombstones(later)
+    expect(h.removed).toEqual([])
+    expect(r).toMatchObject({ removed: 0, dropped: 1 })
+  })
+
+  it('drops one whose object is still an identity verification’s evidence', async () => {
+    h.identityPaths = ['p1/identity/passport.jpg']
+    await writeTombstones(db, [{ bucket: 'business-verification', path: 'p1/identity/passport.jpg' }], 'account_deleted', t0)
+    const r = await sweepTombstones(later)
+    expect(h.removed).toEqual([])
+    expect(r).toMatchObject({ removed: 0, dropped: 1 })
+  })
+
+  it('keeps the row when the reference check itself fails — unknown never deletes', async () => {
+    h.verificationQueryError = true
+    await writeTombstones(db, [{ bucket: 'business-verification', path: 'p1/identity/passport.jpg' }], 'account_deleted', t0)
+    const r = await sweepTombstones(later)
+    expect(h.removed).toEqual([])
+    expect(r).toMatchObject({ removed: 0, dropped: 0, failed: 1 })
   })
 
   it('a storage failure, a failed reference check and an unknown bucket all KEEP the row — counted, attempts/lastError set, backed off a DAY', async () => {
