@@ -1229,6 +1229,13 @@ export function ListingsExplorer({
         price: priceRange,
         page,
         customFilters,
+        // ⛔ `lang` IS PART OF THE KEY BECAUSE IT IS NOW PART OF THE RESPONSE. The feed used to
+        // carry titles in every prewarmed language, so an in-place language switch could re-render
+        // from the SAME cached payload. Asking the server for one language (21% smaller) makes the
+        // response language-specific — and a key that ignores it would leave a Korean reader
+        // looking at the English titles react-query already had, with no refetch to correct it.
+        // Caught in review before it shipped; a language switch is rare, so the extra fetch is free.
+        lang,
       },
     ],
     queryFn: async () => {
@@ -1239,6 +1246,15 @@ export function ListingsExplorer({
       const offset = (page - 1) * limit
       params.set('limit', String(limit))
       params.set('offset', String(offset))
+      // ⛔ THE VIEWER'S LANGUAGE, AND IT IS A PAYLOAD FIX, NOT A CORRECTNESS ONE. Without `lang`
+      // the feed route attaches `titleI18n` for EVERY prewarmed language — measured on
+      // /api/listings?limit=24: nine of them (zh-Hans, ko, ja, ru, fr, km, hi, ms, th), 7,924 of
+      // 38,618 bytes, 21% of the response, to a reader who needs one. `localizeListingTitles`
+      // already takes `onlyLang` and early-returns for en/vi (both titles are in the row), so an
+      // English or Vietnamese viewer now receives NONE of it. The one-listing focus fetch below
+      // has always done this; the two feed fetches — the ones every visitor pays on every page —
+      // did not.
+      params.set('lang', lang)
 
       const res = await fetch(`/api/listings?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch listings')
@@ -1593,6 +1609,10 @@ export function ListingsExplorer({
           price: priceRange,
           page: nextPage,
           customFilters,
+          // Same reason as the main query above: the response is language-specific now, so the
+          // prefetched next page must be keyed by language or it would seed the cache with the
+          // wrong one.
+          lang,
         },
       ],
       queryFn: async () => {
@@ -1636,6 +1656,9 @@ export function ListingsExplorer({
         const offset = (nextPage - 1) * limit
         params.set('limit', String(limit))
         params.set('offset', String(offset))
+        // See the note at the first feed fetch: without `lang` the response carries titles in
+        // nine languages the viewer does not read (21% of it).
+        params.set('lang', lang)
 
         const res = await fetch(`/api/listings?${params.toString()}`)
         if (!res.ok) throw new Error('Failed to fetch listings')
