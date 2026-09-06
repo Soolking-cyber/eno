@@ -310,8 +310,17 @@ export function CategoryRail({
   // line-clamp's overflow:hidden can't help, because it's the element, not its content,
   // that overflows. w-full pins it to the tile so the clamp wraps + truncates inside it,
   // and break-words handles a single unbreakable token (a long brand/category word).
+  // ⚠️ `hyphens-auto` SITS BEFORE `break-words` IN THE BROWSER'S ORDER OF LAST RESORTS, and that is
+  // why it is worth adding: given a token wider than the tile, the browser hyphenates at a real
+  // syllable boundary before it resorts to slicing mid-word. Under OS text scaling the app showed
+  // "Electroni / cs" (owner's screenshot from inside the Capacitor app, 2026-09-06); with
+  // hyphenation the same tile reads "Electron- / ics". `break-words` STAYS as the floor for a
+  // token no dictionary can break — a brand name, a slug.
+  // ⚠️ It needs the element's language to be known, which `TileLabel` already sets whenever the
+  // content language differs from the page's (WCAG 3.1.2) — so the hyphenation follows the word,
+  // not the interface.
   const nameCls = (active: boolean) =>
-    cn('line-clamp-2 w-full break-words text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
+    cn('line-clamp-2 w-full hyphens-auto break-words text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
 
 
 

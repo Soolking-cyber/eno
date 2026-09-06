@@ -117,6 +117,28 @@ const bridge = (): CapacitorBridge | undefined =>
  * Nothing is CUT — the labels carry no overflow-hidden, by design — but the spacer has to learn to
  * track the bar before the ceiling goes higher.
  */
+// ⛔ THE APP RENDERS AT ITS DESIGNED SIZE. Owner, 2026-09-06, after finding a two-column feed with
+// prices painted across each other and a category tile reading "Electroni / cs": *"can we enforce
+// default text icon sizes across all platforms so user experience doesnt degrade if they have
+// large text set on their phone ... consistent boring yet efficient app across all platforms that
+// just works as intended"*.
+//
+// ⚠️ WHAT ACTUALLY BROKE, MEASURED, so the next reader does not have to rediscover it. At 430pt
+// with the OS text size raised, the price run "103,000,000 VND" inside a 199px card:
+//     1.00×  160px   fits, 2px spare        ← every browser test only ever saw this
+//     1.30×  208px   overflows by 11px
+//     1.50×  240px   overflows by 43px
+// Text zoom multiplies every computed px, so NO css ceiling can hold it: not clamp(), not a
+// container query, not a smaller role. The layout is tested at one scale and this shipped a
+// different one to whoever had changed a setting three menus deep in iOS.
+//
+// ⚠️ THIS IS A DELIBERATE ACCESSIBILITY TRADE AND IT IS THE OWNER'S TO MAKE. A user who set a
+// larger system size gets our size instead. The counterweight is that the app is legible and
+// intact for everyone rather than pristine for most and broken for some — and the previous
+// behaviour did not serve that user either: an overlapped price is not more readable for being
+// larger. If the app ever wants real large-text support, the way is an IN-APP size control whose
+// steps the layout is actually tested at, not the OS multiplier applied to an untested layout.
+const PINNED_ZOOM = 1
 const MIN_ZOOM = 0.85
 const MAX_ZOOM = 1.75
 
@@ -163,9 +185,13 @@ function applyZoom(value: number): void {
 }
 
 async function applyPreferred(): Promise<void> {
+  // ⚠️ THE OS PREFERENCE IS STILL READ, AND DELIBERATELY DISCARDED. `readPreferred()` is what
+  // establishes we are on a native iOS WebView with the plugin present — the ONLY place we may
+  // stamp a text-size-adjust at all. Web and Android still return null and are left alone, which
+  // is the same contract as before; what changed is the value, not the surface.
   const preferred = await readPreferred()
   if (preferred === null) return
-  applyZoom(preferred)
+  applyZoom(PINNED_ZOOM)
 }
 
 /**

@@ -62,6 +62,14 @@ export const UI_ICON_NAMES = [
   'saved',
   'map-pin',
   'views',
+  // Added 2026-09-06 for the native app, which needed six glyphs the web had never had to name.
+  // They generate into the same two weights as everything else, so the web can use them too.
+  'ai',
+  'business',
+  'money',
+  'settings',
+  'urgent',
+  'video-off',
   // listing + composing
   'post',
   'edit',

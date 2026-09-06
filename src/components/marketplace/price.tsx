@@ -192,7 +192,35 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
         * for this span even when the text occupies two lines — that metric is what made me refute
         * this bug as a false positive the first time it was reported.
         */}
-      <span className="whitespace-nowrap">{amount}</span>
+      {/* ⛔ THE DIGITS ARE THE UNBREAKABLE RUN — THE CURRENCY WORD IS NOT, and that split is what
+          stops a long price painting over the next card. Owner, 2026-09-06, from inside the iOS
+          app: "103,000,000 VND" and "58,990,000 VND" touching in a 2-column feed.
+          ⚠️ IT REPRODUCES ONLY UNDER OS TEXT SIZE, which is why the browser looked clean and the
+          app did not. The native shell injects the device's text scale into the WebView (clamped
+          to 1.75 in native-text-zoom.ts), and text zoom multiplies every computed size — no CSS
+          ceiling can hold it. Measured at 430pt, "103,000,000 VND" inside a 199px card:
+            1.00×  160px  fits (2px of slack — the state every browser test saw)
+            1.30×  208px  overflows by 11px
+            1.50×  240px  overflows by 43px
+          ⚠️ THE OLD COMMENT ABOVE IS STILL RIGHT ABOUT ITS OWN BUG, AND THIS IS NOT THAT BUG. It
+          describes the amount breaking from the currency at NORMAL text size because the `≈ $361`
+          shared the same inline run and filled the line. That cause is gone: the approximation and
+          the unit are each their own run now, so this space is used ONLY when the digits plus the
+          currency genuinely cannot fit — at which point two truthful lines beat painting over the
+          neighbouring card. The digits never split, and nothing is ever truncated.
+          ⚠️ SPLIT AT THE LAST SPACE, not the first: "103,000,000 VND" and the vi form
+          "12.000.000 đ" both put the currency last, and a thousands separator is never a space in
+          either locale. */}
+      {(() => {
+        const cut = amount.lastIndexOf(' ')
+        if (cut < 0) return <span className="whitespace-nowrap">{amount}</span>
+        return (
+          <>
+            <span className="whitespace-nowrap">{amount.slice(0, cut)}</span>{' '}
+            <span className="whitespace-nowrap">{amount.slice(cut + 1)}</span>
+          </>
+        )
+      })()}
       {/* ⛔ THE UNIT SUFFIX IS ITS OWN NOWRAP RUN, SEPARATED FROM THE AMOUNT BY A REAL SPACE — so
           the price can wrap at the unit and NOWHERE else. Until 2026-09-05 the suffix sat INSIDE
           the amount's nowrap span, which made "2,370,000 VND / service" one unbreakable run; the

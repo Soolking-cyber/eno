@@ -71,6 +71,7 @@ export type SharedApiErrorCode =
   | 'bad_origin'                        // 4
   | 'phone_taken'                       // 4
   | 'already_resolved'                  // 3
+  | 'auth_not_configured'                // /api/auth/native-config: this deployment has no Supabase env
   | 'already_submitted'                 // 3
   | 'bad_body'                          // 3
   | 'bad_path'                          // 3
@@ -78,6 +79,7 @@ export type SharedApiErrorCode =
   | 'forum_schema_not_ready'            // 3
   | 'invalid'                           // 3
   | 'invalid_status_transition'         // 3
+  | 'missing_tokens'                    // /api/auth/native-session: an access token without its refresh token
   | 'missing_fields'                    // 3
   | 'shop_unavailable'                  // 3
 /**
@@ -143,6 +145,7 @@ export type NicheApiErrorCode =
   | 'image_too_small_to_review'
   | 'image_official_limit_failed'
   | 'invalid_account_type'
+  | 'invalid_session'                   // /api/auth/native-session: the token pair was refused by the auth server
   | 'invalid_action'
   | 'invalid_analysis_request'
   | 'invalid_block'
@@ -431,6 +434,7 @@ const ALL = [
   'already_paid',
   'already_resolved',
   'already_reviewed',
+  'auth_not_configured',
   'already_submitted',
   'application_changed_retry',
   'application_locked',
@@ -500,6 +504,7 @@ const ALL = [
   'invalid_post',
   'invalid_report',
   'invalid_request',
+  'invalid_session',
   'invalid_scopes',
   'invalid_status_transition',
   'invalid_subscription',
@@ -513,6 +518,7 @@ const ALL = [
   'migration_pending',
   'missing_coords',
   'missing_fields',
+  'missing_tokens',
   'missing_id',
   'missing_listing',
   'missing_name',
