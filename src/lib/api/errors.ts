@@ -140,6 +140,9 @@ export type NicheApiErrorCode =
   // "invalid image" to someone whose only problem is standing too far from the camera.
   | 'document_expired'
   | 'duplicate_identity'
+  // The case's captures can no longer be signed (object gone, or the account was deleted), so
+  // there is nothing for a reviewer to vouch for. The case stays pending.
+  | 'evidence_unavailable'
   | 'image_decode_failed'
   | 'image_dimensions_invalid'
   | 'image_too_small_to_review'
@@ -482,6 +485,7 @@ const ALL = [
   'image_size_invalid',
   'document_expired',
   'duplicate_identity',
+  'evidence_unavailable',
   'image_decode_failed',
   'image_dimensions_invalid',
   'image_too_small_to_review',

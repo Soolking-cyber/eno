@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import type { Prisma } from '@/generated/prisma/client'
 import { recomputeVerification } from '@/lib/compliance/recompute-verification'
 import { decideTierB } from '@/lib/identity/verify-decision'
-import { signVerificationDoc } from '@/lib/business-verification-store'
+import { signVerificationDoc, verificationDocExists } from '@/lib/business-verification-store'
 import { provisionWithinBudget } from './on-verified'
 import { logError } from '@/lib/log'
 import { ownsKycPath } from './store'
@@ -33,6 +33,14 @@ export type KycQueueItem = {
   /** Short-lived links to the two captures. Minted per request, never stored. */
   documentUrl: string | null
   selfieUrl: string | null
+  /**
+   * The ACCOUNT's own contact details, so a reviewer can weigh the person in the photograph against
+   * the account claiming to be them without leaving the queue. Null once the profile is deleted,
+   * which is also when the capture links refuse.
+   */
+  email: string | null
+  phone: string | null
+  accountName: string | null
   /** What the seller was told to write on the paper in the selfie. */
   expectedNote: string
   checksPassed: string[]
@@ -82,6 +90,16 @@ export async function listKycQueue(limit = 50): Promise<KycQueueItem[]> {
       // admin deciding a CCCD by eye needs to know it is not a passport before they judge it.
       id: true, profileId: true, tier: true, fullName: true, nationality: true,
       documentExpiresAt: true, submittedAt: true, method: true, evidence: true,
+      /**
+       * ⚠️ THE ACCOUNT'S OWN CONTACT DETAILS, so the reviewer can tell whether the person in the
+       * photograph is plausibly the account holder without leaving the queue. Owner, 2026-09-06:
+       * *"show relevant infor like ohone number and email"*.
+       *
+       * ⚠️ ONLY email AND phone, AND ONLY THROUGH THIS RELATION. Selecting the whole Profile would
+       * put every column an admin has no reason to see into the most sensitive payload the app
+       * returns; a named pair is auditable at the call site.
+       */
+      profile: { select: { email: true, phone: true, displayName: true } },
     },
   })
   return Promise.all(rows.map(async (r) => {
@@ -92,6 +110,11 @@ export async function listKycQueue(limit = 50): Promise<KycQueueItem[]> {
       profileId: r.profileId,
       fullName: r.fullName,
       nationality: r.nationality,
+      // Null when the profile has been deleted (profileId is SetNull), which is also when the
+      // signed links below refuse — a case with no account behind it can no longer be judged.
+      email: r.profile?.email ?? null,
+      phone: r.profile?.phone ?? null,
+      accountName: r.profile?.displayName ?? null,
       documentExpiresAt: r.documentExpiresAt?.toISOString() ?? null,
       submittedAt: r.submittedAt.toISOString(),
       method: r.method,
@@ -156,10 +179,39 @@ async function signOwned(profileId: string | null, path: string | undefined): Pr
   return signVerificationDoc(path, REVIEW_URL_TTL)
 }
 
+/**
+ * RE-MINT THE TWO SIGNED LINKS FOR ONE CASE. `REVIEW_URL_TTL` is 600 seconds and a reviewer works a
+ * queue for longer than ten minutes, so an expired capture is the NORMAL end state of a long
+ * session, not an error — and before this existed the only recovery the panel could offer was
+ * "reload the page", which throws away every rejection note typed into the other panels.
+ *
+ * ⛔ IT SIGNS BY CASE ID AND RE-PROVES OWNERSHIP, exactly like `listKycQueue`. It deliberately does
+ * NOT take a path from the caller: an action that signs an arbitrary storage path on an admin's
+ * behalf is a read primitive for the whole bucket, and this file's whole discipline is that
+ * `signOwned` is the only door. A missing case, a deleted profile or a foreign path all return
+ * nulls, which the panel already renders as "cannot judge this case".
+ */
+export async function resignKycCaptures(verificationId: string): Promise<{ documentUrl: string | null; selfieUrl: string | null }> {
+  // ⚠️ `status: 'pending'` MIRRORS listKycQueue's OWN FILTER. Without it this mints links for any
+  // verification id an admin can name — approved, rejected, or one whose retention window has
+  // closed — which is strictly more than the screen it serves can already see. Widening a signing
+  // primitive past its caller is how a helper becomes a bucket reader.
+  const row = await db.identityVerification.findFirst({
+    where: { id: verificationId, status: 'pending' },
+    select: { profileId: true, evidence: true },
+  })
+  if (!row) return { documentUrl: null, selfieUrl: null }
+  const ev = (row.evidence ?? {}) as Evidence
+  return {
+    documentUrl: await signOwned(row.profileId, ev.documentPath),
+    selfieUrl: await signOwned(row.profileId, ev.selfiePath),
+  }
+}
+
 export type ReviewDecision = 'approve' | 'reject'
 export type ReviewResult =
   | { ok: true; status: 'verified' | 'rejected' }
-  | { ok: false; code: 'not_found' | 'not_pending' | 'expired_at_review' | 'duplicate_identity' | 'still_pending' | 'failed' }
+  | { ok: false; code: 'not_found' | 'not_pending' | 'expired_at_review' | 'duplicate_identity' | 'still_pending' | 'evidence_unavailable' | 'failed' }
 
 /**
  * Approve or reject one case.
@@ -203,6 +255,76 @@ export async function reviewKycCase(input: {
     if (row.profileId) await settle(row.profileId, now, () => notifyIdentityOutcome(row.profileId!, 'rejected', { reason: 'manual', note: input.note ?? null, tier: row.tier === 'A' ? 'A' : 'B' }))
     return { ok: true, status: 'rejected' }
   }
+
+  /**
+   * ⛔ AN APPROVAL NEEDS EVIDENCE THAT STILL EXISTS, AND THE DISABLED BUTTON IS NOT THE CONTROL.
+   * The panel greys out Approve when a capture is missing or failed to load, and the rejection path
+   * a few lines up already carries the reason that is not enough: "a disabled button in the UI is a
+   * courtesy, not a control". This route is reachable by POST from anywhere once a case id is known,
+   * and there is a second caller in `api/admin/identity/route.ts` that has no UI at all. Signing is
+   * the same test the reviewer's screen used, so a null here means there is no recorded path, the
+   * path is not the profile's, the account was deleted, or storage refused to sign — and in every
+   * one of those a human is being asked to vouch for a document nobody can put in front of them.
+   * ⚠️ WHAT IT DOES NOT PROVE: that the BYTES are still there. `createSignedUrl` mints a signature
+   * over a path and does not fetch the object, so a purged file signs cleanly. That case is caught
+   * on the screen instead — the panel gates Approve on both images having actually decoded — and
+   * this gate closes the half a public endpoint can reach with no browser involved at all. Say the
+   * smaller true thing here rather than the larger one the call cannot support.
+   * ⚠️ REJECTION IS DELIBERATELY NOT GATED. A case whose documents cannot be produced is exactly a
+   * case that should be refusable, and it already requires a written reason.
+   */
+  const ev = (row.evidence ?? {}) as Evidence
+  /**
+   * ⛔ "THERE IS NOTHING TO SHOW" AND "WE COULD NOT SIGN IT RIGHT NOW" ARE DIFFERENT ANSWERS, and
+   * collapsing them is the same mistake the presence probe below already avoids. `signOwned`
+   * returns null for BOTH a case with no recorded path (or a path that is not this profile's) and a
+   * momentary refusal from the object store, because `signVerificationDoc` logs and returns null on
+   * any storage error. Reporting the second as `evidence_unavailable` tells the reviewer to reload
+   * and then "reject with a reason" — refusing somebody's identity over a signing blip. So the
+   * structural question is asked FIRST, from data we already hold, and only then do we sign.
+   */
+  const { documentPath, selfiePath } = ev
+  if (
+    !row.profileId ||
+    !documentPath || !selfiePath ||
+    !ownsKycPath(row.profileId, documentPath) ||
+    !ownsKycPath(row.profileId, selfiePath)
+  ) return { ok: false, code: 'evidence_unavailable' }
+
+  /**
+   * ⛔ THE PRESENCE PROBE RUNS BEFORE SIGNING, AND THE ORDER IS THE WHOLE POINT. Measured
+   * 2026-09-07 against this project's storage: `createSignedUrl` on a deleted object does NOT
+   * quietly sign the path — it answers `Object not found` (status 400, statusCode "404") and
+   * `signVerificationDoc` turns that into null. With signing first, a purged passport therefore
+   * came out as `failed` ("nothing was changed — try again"), so the `evidence_unavailable` branch
+   * built for exactly that case was unreachable in production and the reviewer would have retried
+   * for ever against a file that is never coming back. A reviewer caught the premise; the probe
+   * above settled it. Probing first is what lets the three outcomes stay distinct:
+   *     absent  → evidence_unavailable   (reload, then reject with a reason)
+   *     unknown → failed                 (storage is unwell — retry, do not refuse anyone)
+   *     present → sign, and a null there is also `failed`
+   */
+  const presence = await Promise.all(
+    [documentPath, selfiePath].map((path) => verificationDocExists(path)),
+  )
+  if (presence.includes('absent')) return { ok: false, code: 'evidence_unavailable' }
+  if (presence.includes('unknown')) return { ok: false, code: 'failed' }
+
+  const [docLink, selfieLink] = await Promise.all([
+    signOwned(row.profileId, documentPath),
+    signOwned(row.profileId, selfiePath),
+  ])
+  // Present, owned, recorded — and it still would not sign. That is the object store being unwell,
+  // not the applicant's problem: `failed` reads "nothing was changed" and invites the retry.
+  if (!docLink || !selfieLink) return { ok: false, code: 'failed' }
+  /**
+   * ⚠️ THIS IS A CHECK, NOT A LOCK, AND THE WINDOW IS REAL. Retention sweeps and account erasure can
+   * remove a capture between this probe and the conditional write below. Nothing here can prevent
+   * that — object storage has no transaction to join — so the honest statement is that this closes
+   * the case where the evidence was ALREADY gone when a reviewer (or a bare POST) asked to approve,
+   * which is the reachable one. A capture deleted inside the window leaves a verified row whose
+   * evidence is absent; the erasure path is what must reckon with that, not this.
+   */
 
   // ⛔ SAME HUMAN, SECOND ACCOUNT — RE-CHECKED HERE, NOT ONLY AT SUBMISSION. The submit-side clash
   // check looks for an already-VERIFIED row, so two accounts that submit the SAME passport while

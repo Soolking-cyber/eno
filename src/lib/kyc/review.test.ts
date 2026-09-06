@@ -4,6 +4,15 @@ const h = vi.hoisted(() => ({
   s: {
     row: null as Record<string, unknown> | null,
     clash: null as { id: string } | null,
+    /** What a `findFirst` BY ID answers — the pending row `resignKycCaptures` looks for. */
+    pendingById: null as Record<string, unknown> | null,
+    /**
+     * What a HEAD on a signed capture URL answers. `reviewKycCase` proves the OBJECT exists before
+     * an approval, because signing only signs a path — so every approve test now runs through this.
+     * 'present' | 'gone' (404) | 'unreachable' (throws, i.e. the object store is down).
+     */
+    storage: 'present' as 'present' | 'gone' | 'unreachable',
+    signFails: false,
     raced: false,
     queue: [] as Record<string, unknown>[],
     updates: [] as Record<string, unknown>[],
@@ -20,7 +29,14 @@ vi.mock('@/lib/db', () => ({
   db: {
     identityVerification: {
       findUnique: async () => h.s.row,
-      findFirst: async () => h.s.clash,
+      /**
+       * ⚠️ TWO DIFFERENT `findFirst` QUERIES SHARE THIS MOCK, so it routes on the shape of `where`
+       * rather than answering both with the clash row. `reviewKycCase` asks
+       * `{ subjectHash, status: 'verified', NOT }`; `resignKycCaptures` asks `{ id, status:
+       * 'pending' }`. Returning the clash to the second made every re-sign look like a hit.
+       */
+      findFirst: async ({ where }: { where: Record<string, unknown> }) =>
+        where?.id !== undefined ? h.s.pendingById : h.s.clash,
       findMany: async () => h.s.queue,
       update: async ({ data }: { data: Record<string, unknown> }) => { h.s.updates.push(data); return { id: 'iv1' } },
       // ⚠️ CONDITIONAL WRITE. `h.s.raced` stands in for another admin having decided the case
@@ -40,7 +56,16 @@ vi.mock('@/lib/compliance/recompute-verification', () => ({
   },
 }))
 vi.mock('@/lib/log', () => ({ logError: () => {} }))
-vi.mock('@/lib/business-verification-store', () => ({ signVerificationDoc: async (p: string) => `signed:${p}` }))
+vi.mock('@/lib/business-verification-store', () => ({
+  // ⚠️ SIGNING CAN REFUSE WITHOUT THE EVIDENCE BEING GONE — the real one logs and returns null on
+  // any storage error, which is why approval must call that `failed` and not `evidence_unavailable`.
+  signVerificationDoc: async (p: string) => (h.s.signFails ? null : `signed:${p}`),
+  // ⛔ THE OBJECT-EXISTENCE PROBE. `reviewKycCase` proves the FILE is there before an approval,
+  // because signing only signs a path. Default 'present' so the existing tests keep testing what
+  // they name. The real mapping is measured in business-verification-store.ts — read that comment
+  // before trusting any assumption about what `exists()` returns for a missing object.
+  verificationDocExists: async () => (h.s.storage === 'unreachable' ? 'unknown' : h.s.storage === 'gone' ? 'absent' : 'present'),
+}))
 vi.mock('./notify-outcome', () => ({
   notifyIdentityOutcome: async (id: string, outcome: string, detail: Record<string, unknown>) => { h.s.notified.push({ id, outcome, ...detail }) },
 }))
@@ -53,7 +78,7 @@ vi.mock('./on-verified', () => ({
   },
 }))
 
-const { reviewKycCase, listKycQueue } = await import('./review')
+const { reviewKycCase, listKycQueue, resignKycCaptures } = await import('./review')
 
 const NOW = new Date('2026-08-20T10:00:00+07:00')
 const caseRow = (over: Record<string, unknown> = {}) => ({
@@ -66,7 +91,7 @@ const caseRow = (over: Record<string, unknown> = {}) => ({
   profile: { displayName: 'Anna Maria Eriksson' }, ...over,
 })
 
-beforeEach(() => { h.s.row = caseRow(); h.s.clash = null; h.s.raced = false; h.s.queue = []; h.s.updates = []; h.s.recomputed = []; h.s.provisioned = []; h.s.provisionFails = false; h.s.notified = []; h.s.recomputeThrows = false; h.s.recomputedStatus = 'verified' })
+beforeEach(() => { h.s.row = caseRow(); h.s.clash = null; h.s.pendingById = caseRow(); h.s.storage = 'present'; h.s.signFails = false; h.s.raced = false; h.s.queue = []; h.s.updates = []; h.s.recomputed = []; h.s.provisioned = []; h.s.provisionFails = false; h.s.notified = []; h.s.recomputeThrows = false; h.s.recomputedStatus = 'verified' })
 
 describe('reviewKycCase', () => {
   it('approving a good case verifies it and records WHO decided', async () => {
@@ -265,9 +290,85 @@ describe('reviewKycCase — what external review found', () => {
     // names. Measured floor for this NOW is 2027-02-20, so that is the ONLY date where a UTC slice
     // (reading 2027-02-19) rejects and an ICT read approves.
     const expiry = new Date('2027-02-20T00:00:00+07:00')
-    h.s.row = caseRow({ documentExpiresAt: expiry, evidence: { decisionInput: undefined } })
+    // ⚠️ SPREAD THE DEFAULT EVIDENCE — this used to be a bare `{ decisionInput: undefined }`, which
+    // silently dropped documentPath and selfiePath too. That was invisible until approval started
+    // requiring signable captures, and then this test failed for a reason it does not name.
+    h.s.row = caseRow({ documentExpiresAt: expiry, evidence: { ...(caseRow().evidence as object), decisionInput: undefined } })
     const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
     expect(r).toEqual({ ok: true, status: 'verified' })
+  })
+
+  /**
+   * ⛔ THE DISABLED BUTTON IS NOT THE CONTROL. The panel greys out Approve when a capture cannot be
+   * shown, but a server action is a public endpoint and there is a second caller in
+   * `api/admin/identity/route.ts` with no UI at all. Signing is the honest test: a null means the
+   * object is gone or the path is not the profile's, and either way a human is being asked to
+   * vouch for a document nobody can produce.
+   */
+  it('⛔ REFUSES TO APPROVE A CASE WHOSE CAPTURES CANNOT BE SIGNED', async () => {
+    h.s.row = caseRow({ evidence: { ...(caseRow().evidence as object), documentPath: undefined } })
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
+    expect(r).toEqual({ ok: false, code: 'evidence_unavailable' })
+    expect(h.s.updates).toHaveLength(0)   // the case stays pending
+  })
+
+  /**
+   * ⛔ SIGNING IS NOT PROOF THE FILE IS THERE. `createSignedUrl` signs a path and never fetches, so
+   * a purged passport signs perfectly. Two reviewers found that the path-only gate therefore let an
+   * API caller — which has no browser and no decode step — verify a case whose evidence is gone.
+   */
+  it('⛔ REFUSES TO APPROVE WHEN THE OBJECT IS GONE, THOUGH THE PATH STILL SIGNS', async () => {
+    h.s.storage = 'gone'
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
+    expect(r).toEqual({ ok: false, code: 'evidence_unavailable' })
+    expect(h.s.updates).toHaveLength(0)
+  })
+
+  /**
+   * ⛔ AND AN OUTAGE IS NOT A MISSING FILE. `evidence_unavailable` tells the reviewer to reload and
+   * then reject with a reason; answering that way because the object store blinked would turn a
+   * transient failure into a refusal on somebody's identity. `failed` reads "nothing was changed",
+   * which invites the retry this actually deserves. Still fail-closed: the case stays pending.
+   */
+  it('⛔ A STORAGE OUTAGE IS `failed`, NOT `evidence_unavailable` — never reject someone over a blip', async () => {
+    h.s.storage = 'unreachable'
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
+    expect(r).toEqual({ ok: false, code: 'failed' })
+    expect(h.s.updates).toHaveLength(0)
+  })
+
+  it('a REJECTION never probes storage — an unproducible document is exactly what to refuse', async () => {
+    h.s.storage = 'unreachable'
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'reject', note: 'Document cannot be retrieved', now: NOW })
+    expect(r).toEqual({ ok: true, status: 'rejected' })
+  })
+
+  /**
+   * ⛔ A SIGNING OUTAGE IS NOT MISSING EVIDENCE. `signVerificationDoc` returns null on any storage
+   * error, so an approval that read every null as "the document is gone" would tell the reviewer to
+   * reject a valid applicant because the object store hiccuped. The structural question — is there
+   * a recorded, owned path at all — is answered from data we already hold, before signing.
+   */
+  it('⛔ A SIGNING FAILURE ON GOOD PATHS IS `failed`, NOT `evidence_unavailable`', async () => {
+    h.s.signFails = true
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
+    expect(r).toEqual({ ok: false, code: 'failed' })
+    expect(h.s.updates).toHaveLength(0)
+  })
+
+  // ⚠️ BOTH captures, not just the first. The gate signs a pair, so a missing selfie must refuse
+  // exactly as a missing document does — otherwise half the promise is untested.
+  it('⛔ REFUSES TO APPROVE WHEN THE SELFIE CANNOT BE SIGNED', async () => {
+    h.s.row = caseRow({ evidence: { ...(caseRow().evidence as object), selfiePath: undefined } })
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
+    expect(r).toEqual({ ok: false, code: 'evidence_unavailable' })
+    expect(h.s.updates).toHaveLength(0)
+  })
+
+  it('a REJECTION is never gated on the captures — an unproducible document is exactly what to refuse', async () => {
+    h.s.row = caseRow({ evidence: { ...(caseRow().evidence as object), documentPath: undefined } })
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'reject', note: 'Document cannot be retrieved', now: NOW })
+    expect(r).toEqual({ ok: true, status: 'rejected' })
   })
 
   // ⛔ Two accounts can both be PENDING on one passport, because the submit-side clash check only
@@ -321,5 +422,41 @@ describe('listKycQueue — the freshness code', () => {
     h.s.queue = [{ ...caseRow(), submittedAt: new Date('2026-08-19T08:00:00Z'), evidence: {} }]
     const [item] = await listKycQueue()
     expect(item.expectedNote).toMatch(/none recorded/)
+  })
+})
+
+
+/**
+ * `resignKycCaptures` — THE ONLY THING THAT TURNS A CASE ID INTO A READABLE PASSPORT LINK on the
+ * admin's demand, so its two guards are the whole of its argument and both are asserted here.
+ */
+describe('resignKycCaptures', () => {
+  it('signs both captures for a pending, owned case', async () => {
+    h.s.pendingById = caseRow()
+    const r = await resignKycCaptures('iv1')
+    expect(r.documentUrl).toContain('signed:p1/identity/document-')
+    expect(r.selfieUrl).toContain('signed:p1/identity/selfie-')
+  })
+
+  // ⛔ The query filters `status: 'pending'`, mirroring listKycQueue. A non-pending id therefore
+  // finds nothing — this must never mint a link for an approved, rejected or retention-expired case.
+  it('⛔ REFUSES A CASE THAT IS NOT PENDING', async () => {
+    h.s.pendingById = null
+    expect(await resignKycCaptures('iv1')).toEqual({ documentUrl: null, selfieUrl: null })
+  })
+
+  // ⛔ Ownership is re-proven per path, not trusted from the row: a path under another profile is
+  // not this case's evidence, whoever wrote the row.
+  it('⛔ REFUSES A PATH THAT IS NOT THE PROFILE\'S', async () => {
+    h.s.pendingById = caseRow({ evidence: { ...(caseRow().evidence as object), documentPath: 'p2/identity/document-11111111-2222-4333-8444-555555555555.jpg' } })
+    const r = await resignKycCaptures('iv1')
+    expect(r.documentUrl).toBeNull()
+    expect(r.selfieUrl).not.toBeNull()   // the sibling is untouched
+  })
+
+  // A deleted account (profileId SetNull) is the case that must never resolve to a link.
+  it('⛔ REFUSES WHEN THE ACCOUNT IS GONE', async () => {
+    h.s.pendingById = caseRow({ profileId: null })
+    expect(await resignKycCaptures('iv1')).toEqual({ documentUrl: null, selfieUrl: null })
   })
 })

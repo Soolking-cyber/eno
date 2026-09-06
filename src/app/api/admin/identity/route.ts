@@ -47,6 +47,9 @@ export const POST = route(
       // A decision layer that still says `pending` under an explicit approval is drift between two
       // files, not a reviewer error. 500 is right: nothing the admin did caused it, and it needs a
       // developer. The case stays pending and re-appears in the queue.
+      // ⛔ THE CAPTURES CANNOT BE PRODUCED, SO NOBODY CAN VOUCH FOR THEM. 409, not 500: the case is
+      // untouched and still pending, and this is a state the reviewer must see rather than retry.
+      if (result.code === 'evidence_unavailable') throw new ApiError('evidence_unavailable', 409)
       if (result.code === 'still_pending') throw new ApiError('internal_error', 500)
       throw new ApiError('internal_error', 500)
     }

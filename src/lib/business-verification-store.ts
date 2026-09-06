@@ -72,6 +72,59 @@ export async function storeVerificationDoc(input: {
 
 /** A short-lived (10-min) signed URL for an admin reviewer to view one document. The
  *  Content-Disposition is attachment so a PDF never renders active content inline. */
+/**
+ * DOES THIS OBJECT ACTUALLY EXIST? Three answers, and the third is the one that matters.
+ *
+ * ⛔ IT IS `exists()`, NOT A HEAD ON A SIGNED URL, AND THAT WAS A P0 CAUGHT IN REVIEW. The first
+ * version probed with `fetch(signedUrl, { method: 'HEAD' })`. Two reviewers pointed out that a
+ * signature is scoped to a method and that Supabase's `/object/sign/` route need not answer HEAD at
+ * all — so the probe could have returned 403 or a router 404 for a perfectly present passport, and
+ * the only visible symptom would have been every identity approval in production refusing, while a
+ * suite that stubbed `fetch` stayed green. `exists()` is the documented call, goes through the
+ * service-role client, and returns a boolean rather than a status to interpret.
+ *
+ * ⚠️ 'unknown' IS NOT 'absent'. Storage being unreachable must never be read as "the file is gone":
+ * the caller refuses an approval either way, but only one of those two invites the reviewer to
+ * reject somebody's identity. Keep them apart all the way up.
+ */
+export async function verificationDocExists(path: string): Promise<'present' | 'absent' | 'unknown'> {
+  try {
+    const { data, error } = await getSupabaseAdmin()
+      .storage.from(BUSINESS_VERIFICATION_BUCKET)
+      .exists(path)
+    if (!error) return data ? 'present' : 'absent'
+    /**
+     * ⛔ MEASURED, NOT ASSUMED — AND THE OBVIOUS READING IS WRONG. Probed 2026-09-07 against this
+     * project's storage with the service-role client:
+     *     present object  → { data: true,  error: null }
+     *     absent object   → { data: false, error: "Bad Request", statusCode: 400 }
+     * So `exists()` reports "not there" as an ERROR, and the natural `if (error) return 'unknown'`
+     * would have made `evidence_unavailable` unreachable: every purged passport would have read as
+     * a storage outage and answered `failed`, inviting the reviewer to retry for ever against a
+     * file that is never coming back. Re-probe before changing this mapping; do not reason it out.
+     *
+     * ⚠️ Any OTHER status is genuinely unknown. A 5xx or a transport error is the object store
+     * being unwell, which must never be reported as "the applicant's document is gone".
+     */
+    /**
+     * ⚠️ `statusCode` IS A STRING AND `status` IS A NUMBER — both measured, both read. The error is
+     * a `StorageApiError` whose own keys are exactly
+     * ["__isStorageError","namespace","name","status","statusCode"], with statusCode "400" and
+     * status 400. Reading only one of them, or comparing without a cast, is a silent miss.
+     * ⚠️ AND `data` MUST BE false TOO. A 400 alone is "bad request", not "not found"; pairing it
+     * with the library's own negative answer is what makes this an absence rather than a guess.
+     */
+    const e = error as { statusCode?: string | number; status?: string | number }
+    const status = Number(e.status ?? e.statusCode ?? 0)
+    if (data === false && (status === 400 || status === 404)) return 'absent'
+    console.error('[business-verification] exists failed', error.message)
+    return 'unknown'
+  } catch (e) {
+    console.error('[business-verification] exists threw', (e as Error)?.message)
+    return 'unknown'
+  }
+}
+
 export async function signVerificationDoc(path: string, ttlSeconds = 600): Promise<string | null> {
   const { data, error } = await getSupabaseAdmin()
     .storage.from(BUSINESS_VERIFICATION_BUCKET)

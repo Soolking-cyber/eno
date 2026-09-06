@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAdmin } from '@/lib/admin'
-import { reviewKycCase, type ReviewResult } from '@/lib/kyc/review'
+import { resignKycCaptures, reviewKycCase, type ReviewResult } from '@/lib/kyc/review'
 
 /**
  * SERVER ACTIONS FOR THE IDENTITY REVIEW QUEUE.
@@ -38,4 +38,19 @@ export async function rejectIdentityAction(verificationId: string, note: string)
   const result = await reviewKycCase({ verificationId, admin, decision: 'reject', note: reason })
   if (result.ok) revalidatePath('/admin/verification')
   return result
+}
+
+/**
+ * Hand the panel a fresh pair of signed capture links for one case.
+ *
+ * ⛔ SAME GATE, SAME SILENCE AS ITS SIBLINGS. `getAdmin()` is re-checked because a server action is
+ * a public endpoint, and a non-admin gets nulls rather than a distinguishable refusal — a
+ * `forbidden` here would confirm a case id is real and turn this into an enumeration oracle for
+ * people who have submitted a passport, which is precisely what the note at the top of this file
+ * forbids. Read-only: it mints links, it never touches the case.
+ */
+export async function refreshIdentityCapturesAction(verificationId: string): Promise<{ documentUrl: string | null; selfieUrl: string | null }> {
+  const admin = await getAdmin()
+  if (!admin) return { documentUrl: null, selfieUrl: null }
+  return resignKycCaptures(verificationId)
 }
