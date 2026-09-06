@@ -206,6 +206,26 @@ const UI = [
   { name: 'shield-star', icon: 'shield-star', why: 'A distinguished / top-tier shield.' },
   { name: 'shield-user', icon: 'shield-user', why: 'Identity-verified — a person inside the shield.' },
   { name: 'views', icon: 'eye' },
+
+  // ── added for the NATIVE app (2026-09-06) ────────────────────────────────────────────────────
+  // Owner: *"it doesnt use ... icon pack solar v2"* — the iOS app was drawing SF Symbols while the
+  // web drew these. Six glyphs the app needs and the web had never had to name; they generate into
+  // the same two weights and the same folder, so the web can use them the day it wants them.
+  { name: 'business', icon: 'buildings-2',
+    why: 'The business-seller marker (SF `building.2`). `buildings-2` is the two-tower cut, which ' +
+         'is the same reading as the symbol it replaces; bare `buildings` is a single block.' },
+  { name: 'money', icon: 'banknote-2', why: 'Payouts and wallet rows (SF `banknote`).' },
+  { name: 'urgent', icon: 'bolt', why: 'The "Bán gấp" / fast-processing mark (SF `bolt.fill`).' },
+  { name: 'settings', icon: 'settings', why: 'The account settings row (SF `gearshape`).' },
+  { name: 'ai', icon: 'magic-wand-2',
+    why: '⚠️ NOT `stars` or `hand-stars`: Solar v2 has no sparkle-cluster whose Outline and Bold ' +
+         'differ enough to read as a state change, and `hand-stars` draws a hand. The wand is the ' +
+         'AI affordance across the app (SF `sparkles`).' },
+  { name: 'video-off', icon: 'videocamera',
+    why: '⛔ SOLAR HAS NO `videocamera-slash`, checked against the package: the only camera-with-a-' +
+         'strike glyphs are photo cameras. The video-unavailable state uses the plain camera and ' +
+         'says so in words next to it, rather than borrowing a photo glyph that means something ' +
+         'else. Revisit if Solar ships a struck video camera.' },
 ]
 
 /** `rest` = the idle weight. `selected` = the active weight. */

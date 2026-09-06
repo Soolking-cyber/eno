@@ -138,7 +138,7 @@ public struct EnoField: View {
     @ViewBuilder private var message: some View {
         if let error, !error.isEmpty {
             HStack(alignment: .firstTextBaseline, spacing: EnoSpacing.s1) {
-                Image(systemName: "exclamationmark.circle.fill").enoIcon(.xs, color: EnoColor.danger)
+                EnoIcon("error", .xs, color: EnoColor.danger)
                 Text(error).enoText(.caption, color: EnoColor.danger)
             }
             .accessibilityHidden(true) // already spoken as the field's value

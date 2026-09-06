@@ -138,7 +138,7 @@ public struct EnoTextArea: View {
     @ViewBuilder private var message: some View {
         if hasError, let error {
             HStack(alignment: .firstTextBaseline, spacing: EnoSpacing.s1) {
-                Image(systemName: "exclamationmark.circle.fill").enoIcon(.xs, color: EnoColor.danger)
+                EnoIcon("error", .xs, color: EnoColor.danger)
                 Text(error).enoText(.caption, color: EnoColor.danger)
             }
             .accessibilityHidden(true) // already spoken as the editor's value

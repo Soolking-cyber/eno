@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Shared report sheet (#32, web report-button.tsx parity): a reason radio +
 // optional free-text detail → POST /api/report. Targets a listing and/or a
@@ -51,7 +52,7 @@ struct ReportSheet: View {
                                 Text(L10n.tr(r.1, r.2)).foregroundStyle(Tokens.fg)
                                 Spacer()
                                 if reason == r.0 {
-                                    Image(systemName: "checkmark").foregroundStyle(Tokens.brand)
+                                    EnoIcon("success").foregroundStyle(Tokens.brand)
                                 }
                             }
                         }

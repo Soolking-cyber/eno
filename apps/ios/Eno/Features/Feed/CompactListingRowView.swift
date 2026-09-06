@@ -31,7 +31,7 @@ struct CompactListingRowView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
                             if listing.urgent {
-                                Image(systemName: "bolt.fill").enoText(.caption)
+                                EnoIcon("urgent").enoText(.caption)
                             } else if let pct = listing.dropPercent {
                                 // On a surface (not over a photo) → EnoBadge, not EnoOverlayChip.
                                 EnoBadge("-\(pct)%", kind: .danger)

@@ -21,7 +21,7 @@ public struct EnoTrustChip: View {
 
     public var body: some View {
         let chip = HStack(spacing: EnoSpacing.s1) {
-            Image(systemName: "shield").font(EnoTextRole.micro.font)   // OUTLINE shield (web parity)
+            EnoIcon("trust-shield").font(EnoTextRole.micro.font)   // OUTLINE shield (web parity)
             Text("\(score)")
                 .font(EnoTextRole.micro.font.weight(.bold))
                 .monospacedDigit()

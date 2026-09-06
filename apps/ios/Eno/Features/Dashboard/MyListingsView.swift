@@ -237,16 +237,16 @@ struct MyListingsView: View {
                 // only when savedCount > 0.
                 HStack(spacing: EnoSpacing.s3) {
                     HStack(spacing: EnoSpacing.s1) {
-                        Image(systemName: "eye").enoIcon(.sm, color: EnoColor.ink4)
+                        EnoIcon("views", .sm, color: EnoColor.ink4)
                         Text("\(l.views)").font(EnoTextRole.caption.font)
                     }
                     HStack(spacing: EnoSpacing.s1) {
-                        Image(systemName: "text.bubble").enoIcon(.sm, color: EnoColor.ink4)
+                        EnoIcon("messages", .sm, color: EnoColor.ink4)
                         Text("\(l.contactCount) \(L10n.tr("leads", "liên hệ"))").font(EnoTextRole.caption.font)
                     }
                     if l.savedCount > 0 {
                         HStack(spacing: EnoSpacing.s1) {
-                            Image(systemName: "heart").enoIcon(.sm, color: EnoColor.ink4)
+                            EnoIcon("saved", .sm, color: EnoColor.ink4)
                             Text("\(l.savedCount) \(L10n.tr("saved", "đã lưu"))").font(EnoTextRole.caption.font)
                         }
                     }

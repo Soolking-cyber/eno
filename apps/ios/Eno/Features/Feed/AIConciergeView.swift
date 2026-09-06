@@ -94,7 +94,7 @@ struct AIConciergeView: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: EnoSpacing.s3) {
             HStack(spacing: EnoSpacing.s2) {
-                Image(systemName: "sparkles").enoIcon(.lg, color: EnoColor.brand)
+                EnoIcon("ai", .lg, color: EnoColor.brand)
                 Text(L10n.tr("Tell me what you're looking for", "Bạn đang tìm gì?"))
                     .enoText(.headline)
             }
@@ -189,7 +189,7 @@ struct AIConciergeView: View {
     // swap the whole block onto that primitive when it ships. Tokens below are canon.
     private var guestGate: some View {
         VStack(spacing: EnoSpacing.s3) {
-            Image(systemName: "sparkles").enoIcon(.xl, color: EnoColor.brand)
+            EnoIcon("ai", .xl, color: EnoColor.brand)
             Text(L10n.tr("Sign in to use AI shopping", "Đăng nhập để dùng Mua sắm AI"))
                 .enoText(.headline)
             Text(L10n.tr("The assistant searches the marketplace for you.",

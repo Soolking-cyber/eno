@@ -29,7 +29,7 @@ struct DisputesView: View {
                 HStack { Spacer(); ProgressView(); Spacer() }
             } else if cases.isEmpty {
                 VStack(spacing: 6) {
-                    Image(systemName: "checkmark.shield").font(.system(size: 30)).foregroundStyle(Tokens.sub)
+                    EnoIcon("shield-verified", .xl, color: Tokens.sub)
                     Text(L10n.tr("No disputes", "Chưa có khiếu nại nào")).font(.system(size: 15, weight: .semibold)).foregroundStyle(Tokens.fg)
                 }
                 .frame(maxWidth: .infinity).padding(.vertical, 30)
@@ -63,7 +63,7 @@ struct DisputesView: View {
                 }
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Tokens.sub)
+            EnoIcon("forward", .xs, color: Tokens.sub)
         }
     }
 

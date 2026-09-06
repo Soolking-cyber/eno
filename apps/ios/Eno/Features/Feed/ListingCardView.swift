@@ -48,7 +48,11 @@ struct ListingCardView: View {
         // Replaces a GeometryReader, which sizes reliably for the placeholder but
         // can let a LOADED image drive the height (uneven cards) on device.
         Tokens.tint
-            .aspectRatio(10 / 11, contentMode: .fit)
+            // ⛔ SQUARE, LIKE THE WEB. `listing-card.tsx` draws the photo `aspect-square`; this was
+            // 10:11, a slightly tall box that makes every card in the grid a different shape from
+            // the same card on the site — and taller cards push the price further down the fold.
+            // Measured on eno.vn mobile: the image is 1.00 to two decimals.
+            .aspectRatio(1, contentMode: .fit)
             .overlay {
                 EnoRemoteImage(url: listing.images.first.flatMap { ImageURL.optimized($0) }) { phase in
                     switch phase {
@@ -59,7 +63,8 @@ struct ListingCardView: View {
                     }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: EnoRadius.control))   // image is its own rounded-xl (web)
+            // The web's media corner (rounded-2xl = 16px), not the 9pt button radius this used.
+            .clipShape(RoundedRectangle(cornerRadius: EnoRadius.media, style: .continuous))
             .overlay(alignment: .topLeading) { topBadge.padding(8) }
             // padding 2 (not 8): EnoIconButton carries its own 44pt target, so the glyph
             // lands in the same visual spot the old 34pt frame + 8pt inset did.
@@ -149,7 +154,7 @@ struct ListingCardView: View {
                 .truncationMode(.tail)
             Spacer(minLength: 2)
             if listing.seller.isBusiness {
-                Image(systemName: "building.2")
+                EnoIcon("business")
                     .enoText(.caption, color: EnoColor.sub)
             }
             TrustMini(score: listing.seller.trustScore)

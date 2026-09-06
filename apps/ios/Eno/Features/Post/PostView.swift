@@ -81,7 +81,7 @@ struct PostView: View {
                 // back to browsing — parity with the arrow every pushed page has.
                 ToolbarItem(placement: .topBarLeading) {
                     Button { DeepLinkRouter.shared.selectedTab = 0 } label: {
-                        Image(systemName: "chevron.left")
+                        EnoIcon("back")
                             .fontWeight(.semibold)
                             .foregroundStyle(Tokens.brand)
                     }
@@ -146,7 +146,7 @@ struct PostView: View {
                         }
                     } label: {
                         VStack(spacing: 6) {
-                            Image(systemName: "camera.fill").enoIcon(.md, color: EnoColor.brand)
+                            EnoIcon("camera", .md, color: EnoColor.brand)
                             Text(L10n.tr("Add", "Thêm")).font(EnoTextRole.caption.font.weight(.semibold))
                         }
                         .foregroundStyle(EnoColor.brand)
@@ -171,7 +171,7 @@ struct PostView: View {
                 }
             } else if model.videoURL != nil {
                 HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(EnoColor.success)
+                    EnoIcon("success").foregroundStyle(EnoColor.success)
                     Text(L10n.tr("Video added", "Đã thêm video")).enoText(.caption, color: EnoColor.fg)
                     Spacer()
                     Button(L10n.tr("Remove", "Xóa")) { model.removeVideo() }
@@ -189,7 +189,7 @@ struct PostView: View {
                 } label: {
                     HStack(spacing: 8) {
                         if model.autofilling { ProgressView().tint(EnoColor.brand) }
-                        else { Image(systemName: "sparkles").enoIcon(.sm, color: EnoColor.brand) }
+                        else { EnoIcon("ai", .sm, color: EnoColor.brand) }
                         Text(L10n.tr("Auto-fill from photo", "Điền tự động từ ảnh"))
                             .font(EnoTextRole.subheadline.font.weight(.semibold))
                     }
@@ -242,7 +242,7 @@ struct PostView: View {
                 Button {
                     Task { await model.retryUpload(photo.id) }
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    EnoIcon("retry")
                         .foregroundStyle(.white)
                         .frame(width: 84, height: 84)
                         .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
@@ -416,7 +416,7 @@ struct PostView: View {
                     if model.locating {
                         ProgressView().controlSize(.small)
                     } else {
-                        Image(systemName: "location.fill")
+                        EnoIcon("map-pin")
                     }
                     Text(L10n.tr("Use my current location", "Dùng vị trí hiện tại"))
                         .fontWeight(.semibold)

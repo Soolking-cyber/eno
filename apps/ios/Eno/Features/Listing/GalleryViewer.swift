@@ -81,7 +81,7 @@ private struct ZoomableRemoteImage: UIViewRepresentable {
         EnoRemoteImage(url: url) { phase in
             switch phase {
             case .success(let image): image.resizable().scaledToFit()
-            case .failure: Image(systemName: "photo").foregroundStyle(.gray)
+            case .failure: EnoIcon("gallery").foregroundStyle(.gray)
             default: ProgressView().tint(.white)
             }
         }

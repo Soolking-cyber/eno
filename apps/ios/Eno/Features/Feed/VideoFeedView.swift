@@ -122,7 +122,7 @@ struct VideoFeedView: View {
     // because this one sits on the black media takeover (white ink, not EnoColor.sub).
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image(systemName: "video.slash").enoIcon(.xl, color: .white.opacity(0.7))
+            EnoIcon("video-off", .xl, color: .white.opacity(0.7))
             Text(L10n.tr("No videos here yet", "Chưa có video nào")).enoText(.headline, color: .white)
             Text(L10n.tr("Add a clip to your listing to show up here.", "Thêm video vào tin để xuất hiện ở đây."))
                 .enoText(.caption, color: .white.opacity(0.7)).multilineTextAlignment(.center)
@@ -172,7 +172,7 @@ struct VideoFeedItem: View {
             // Tap surface toggles play/pause on the active clip.
             Color.clear.contentShape(Rectangle()).onTapGesture { togglePlay() }
             if paused {
-                Image(systemName: "play.fill").enoIcon(.xl, color: .white.opacity(0.9))
+                EnoIcon("play", .xl, color: .white.opacity(0.9))
                     .frame(width: 84, height: 84).background(.black.opacity(0.35), in: Circle())
                     .allowsHitTesting(false)
             }

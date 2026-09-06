@@ -87,13 +87,13 @@ struct SellerStorefrontView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Text(s.name).font(EnoTextRole.headline.font.weight(.bold)).foregroundStyle(EnoColor.fg)
-                        if s.isBusiness { Image(systemName: "building.2").enoIcon(.xs, color: EnoColor.sub) }
+                        if s.isBusiness { EnoIcon("business", .xs, color: EnoColor.sub) }
                     }
                     HStack(spacing: 8) {
                         TrustMini(score: s.trustScore)
                         if s.reviewCount > 0 {
                             HStack(spacing: 3) {
-                                Image(systemName: "star.fill").enoIcon(.xs, color: .yellow)
+                                EnoIcon("rating", .xs, color: .yellow)
                                 Text("\(s.rating, specifier: "%.1f") (\(s.reviewCount))").enoText(.caption, color: EnoColor.sub)
                             }
                         }

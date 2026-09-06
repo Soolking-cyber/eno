@@ -98,7 +98,7 @@ struct ExplorerMapView: View {
                         Text(l.displayLocation).enoText(.caption, color: EnoColor.sub).lineLimit(1)
                     }
                     Spacer()
-                    Image(systemName: "chevron.right").enoIcon(.sm, color: EnoColor.sub)
+                    EnoIcon("forward", .sm, color: EnoColor.sub)
                 }
             }
         }

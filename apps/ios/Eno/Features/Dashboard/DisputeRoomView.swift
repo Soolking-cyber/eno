@@ -123,7 +123,7 @@ struct DisputeRoomView: View {
                     .foregroundStyle(i <= idx ? EnoColor.brand : EnoColor.sub)
                     .padding(.horizontal, EnoSpacing.s2).padding(.vertical, EnoSpacing.s1)
                     .background((i <= idx ? EnoColor.brand : EnoColor.sub).opacity(0.1), in: Capsule())
-                if i < 2 { Image(systemName: "chevron.right").enoIcon(.xs, color: EnoColor.sub) }
+                if i < 2 { EnoIcon("forward", .xs, color: EnoColor.sub) }
             }
         }
     }

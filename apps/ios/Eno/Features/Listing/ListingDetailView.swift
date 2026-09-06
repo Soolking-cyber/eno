@@ -143,7 +143,7 @@ struct ListingDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 ShareLink(item: URL(string: "https://eno.vn/listings/\(card.id)")!) {
-                    Image(systemName: "square.and.arrow.up")
+                    EnoIcon("share")
                 }
                 .accessibilityLabel(L10n.tr("Share", "Chia sẻ"))
             }
@@ -158,7 +158,7 @@ struct ListingDetailView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "ellipsis")
+                    EnoIcon("more")
                 }
                 .accessibilityLabel(L10n.tr("More options", "Thêm tùy chọn"))
             }
@@ -293,7 +293,7 @@ struct ListingDetailView: View {
                 }
                 if (detail?.urgent ?? card.urgent) {
                     // Web: a Zap lightning icon, not a text pill.
-                    Image(systemName: "bolt.fill")
+                    EnoIcon("urgent")
                         .font(EnoTextRole.titleL.font.weight(.regular))
                         .foregroundStyle(Tokens.danger)
                 }
@@ -302,7 +302,7 @@ struct ListingDetailView: View {
             // the listing is not negotiable (offers are the default, so this is rare).
             if !negotiable {
                 HStack(spacing: 4) {
-                    Image(systemName: "tag").font(EnoTextRole.micro.font.weight(.regular))
+                    EnoIcon("offer").font(EnoTextRole.micro.font.weight(.regular))
                     Text(L10n.tr("Fixed price", "Giá cố định")).font(EnoTextRole.micro.font)
                 }
                 .foregroundStyle(Tokens.sub)
@@ -312,7 +312,7 @@ struct ListingDetailView: View {
 
     private var metaRow: some View {
         HStack(spacing: 6) {
-            Image(systemName: "mappin.and.ellipse").font(EnoTextRole.callout.font).foregroundStyle(Tokens.ink4)
+            EnoIcon("map-pin").font(EnoTextRole.callout.font).foregroundStyle(Tokens.ink4)
             Text(detail?.displayLocation ?? card.displayLocation).font(EnoTextRole.subheadline.font)
             Text("·").font(EnoTextRole.subheadline.font)
             Text(L10n.tr("Posted ", "Đăng ") + Format.ago(detail?.postedAt ?? card.postedAt)).font(EnoTextRole.subheadline.font)
@@ -324,14 +324,14 @@ struct ListingDetailView: View {
     private var protectionsRow: some View {
         Button { showProtections = true } label: {
             HStack(spacing: 10) {
-                Image(systemName: "checkmark.shield").font(EnoTextRole.headline.font.weight(.regular)).foregroundStyle(Tokens.brand)
+                EnoIcon("shield-verified").font(EnoTextRole.headline.font.weight(.regular)).foregroundStyle(Tokens.brand)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(L10n.tr("ENO protects you", "ENO bảo vệ bạn")).font(EnoTextRole.caption.font.weight(.bold)).foregroundStyle(Tokens.fg)
                     Text(L10n.tr("Disputes handled in 72h · listings screened", "Tranh chấp xử lý trong 72 giờ · tin đã kiểm duyệt"))
                         .font(EnoTextRole.micro.font.weight(.regular)).foregroundStyle(Tokens.sub).lineLimit(1)
                 }
                 Spacer()
-                Image(systemName: "chevron.right").font(EnoTextRole.caption.font).foregroundStyle(Tokens.sub)
+                EnoIcon("forward").font(EnoTextRole.caption.font).foregroundStyle(Tokens.sub)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(Tokens.tint, in: RoundedRectangle(cornerRadius: EnoRadius.card))
@@ -359,7 +359,7 @@ struct ListingDetailView: View {
             }
         }()
         return HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.shield").font(EnoTextRole.callout.font).foregroundStyle(amber)
+            EnoIcon("shield-warning").font(EnoTextRole.callout.font).foregroundStyle(amber)
             Text(line).font(EnoTextRole.caption.font).foregroundStyle(Tokens.fg).lineSpacing(2)
             Spacer(minLength: 0)
         }
@@ -550,7 +550,7 @@ struct ListingDetailView: View {
                     TrustMini(score: seller.trustScore) { showTrust = true }
                     if seller.isBusiness {
                         HStack(spacing: 2) {
-                            Image(systemName: "building.2").font(EnoTextRole.micro.font.weight(.regular))
+                            EnoIcon("business").font(EnoTextRole.micro.font.weight(.regular))
                             Text(L10n.tr("Business", "Doanh nghiệp")).font(EnoTextRole.micro.font)
                         }
                         .foregroundStyle(Tokens.sub)
@@ -560,7 +560,7 @@ struct ListingDetailView: View {
                 }
                 HStack(spacing: 4) {
                     if let rating = seller.rating, seller.reviewCount > 0 {
-                        Image(systemName: "star.fill").font(EnoTextRole.micro.font.weight(.regular)).foregroundStyle(.yellow)
+                        EnoIcon("rating").font(EnoTextRole.micro.font.weight(.regular)).foregroundStyle(.yellow)
                         Text("\(rating, specifier: "%.1f") (\(seller.reviewCount))")
                             .font(EnoTextRole.caption.font).foregroundStyle(Tokens.sub)
                         Text("·").foregroundStyle(Tokens.sub)
@@ -575,7 +575,7 @@ struct ListingDetailView: View {
             // Web PdpShopLink 'Shop ›' visit-storefront affordance.
             HStack(spacing: 2) {
                 Text(L10n.tr("Shop", "Gian hàng")).font(EnoTextRole.caption.font.weight(.semibold))
-                Image(systemName: "chevron.right").font(EnoTextRole.caption.font.weight(.semibold))
+                EnoIcon("forward").font(EnoTextRole.caption.font.weight(.semibold))
             }
             .foregroundStyle(Tokens.brand)
         }
@@ -594,7 +594,7 @@ struct ListingDetailView: View {
                         NavigationLink(value: cat) {
                             HStack(spacing: 2) {
                                 Text(L10n.tr("See all", "Xem tất cả")).font(EnoTextRole.caption.font.weight(.semibold))
-                                Image(systemName: "chevron.right").font(EnoTextRole.micro.font.weight(.bold))
+                                EnoIcon("forward").font(EnoTextRole.micro.font.weight(.bold))
                             }
                             .foregroundStyle(Tokens.brand)
                         }
@@ -632,7 +632,7 @@ struct ListingDetailView: View {
                     Button { sellerSheet = true } label: {
                         HStack(spacing: 2) {
                             Text(L10n.tr("See all", "Xem tất cả")).font(EnoTextRole.subheadline.font.weight(.semibold))
-                            Image(systemName: "chevron.right").font(EnoTextRole.micro.font.weight(.bold))
+                            EnoIcon("forward").font(EnoTextRole.micro.font.weight(.bold))
                         }
                         .foregroundStyle(Tokens.brand)
                     }
@@ -690,7 +690,7 @@ struct ListingDetailView: View {
                     Text(L10n.tr("Buyer reviews", "Đánh giá về người bán")).font(EnoTextRole.callout.font.weight(.bold)).foregroundStyle(Tokens.fg)
                     Text("(\(r.total))").font(EnoTextRole.subheadline.font).foregroundStyle(Tokens.sub)
                     Spacer()
-                    Image(systemName: "star.fill").font(EnoTextRole.caption.font).foregroundStyle(.yellow)
+                    EnoIcon("rating").font(EnoTextRole.caption.font).foregroundStyle(.yellow)
                     Text(String(format: "%.1f", r.avg)).font(EnoTextRole.subheadline.font.weight(.semibold)).foregroundStyle(Tokens.fg)
                 }
                 ForEach(r.reviews.prefix(2)) { rev in

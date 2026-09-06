@@ -133,7 +133,7 @@ struct FeedView: View {
                     SearchView()
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass").enoIcon(.md, color: EnoColor.ink4)
+                        EnoIcon("search", .md, color: EnoColor.ink4)
                         Text(L10n.tr("Search motorbikes, apartments, moving sales...", "Tìm xe máy, căn hộ, đồ thanh lý..."))
                             .enoText(.callout, color: EnoColor.ink4).lineLimit(1)
                         Spacer(minLength: 0)
@@ -182,8 +182,15 @@ struct FeedView: View {
                         // category uses the one brand identity, not per-category
                         // colors (CATEGORY_COLOR_CLASSES collapses all to brand).
                         VStack(spacing: EnoSpacing.s2) {
-                            Image(systemName: cat.symbol)
-                                .enoIcon(.lg, color: EnoColor.sub)   // muted at rest (web text-body), like the FINN grid
+                            // ⛔ THE WEB'S OWN CATEGORY TILE, KEYED BY SLUG. These were SF Symbols
+                            // (`car`, `bag`, `house`) standing in for artwork the web already has:
+                            // `scripts/gen-icons.mjs` draws all 19 tiles from Solar v2 and
+                            // `gen-ios-icons.mjs` copies them into the catalog as `cat-<slug>`, so
+                            // the rail is now the same picture as the home grid on the site.
+                            // ⚠️ The SF fallback stays for a slug the catalog does not carry — a
+                            // category added to the taxonomy before the icons are regenerated draws
+                            // a symbol rather than an empty square.
+                            EnoCategoryIcon(slug: cat.slug, fallback: cat.symbol)
                                 .frame(width: 44, height: 44)
                             Text(cat.name)
                                 .enoText(.caption)
@@ -224,7 +231,7 @@ struct FeedView: View {
                     NavigationLink(value: seeAll) {
                         HStack(spacing: 2) {
                             Text(L10n.tr("See all", "Xem tất cả")).enoText(.label, color: EnoColor.brand)
-                            Image(systemName: "chevron.right").enoIcon(.sm, color: EnoColor.brand)
+                            EnoIcon("forward", .sm, color: EnoColor.brand)
                         }
                     }
                 }

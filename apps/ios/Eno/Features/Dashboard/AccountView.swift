@@ -40,7 +40,7 @@ struct AccountView: View {
                     NavigationLink {
                         PreferencesView()
                     } label: {
-                        Image(systemName: "slider.horizontal.3")
+                        EnoIcon("filters")
                             .foregroundStyle(EnoColor.fg)
                     }
                     .accessibilityLabel(L10n.tr("Preferences", "Tùy chọn"))
@@ -248,7 +248,7 @@ struct AccountView: View {
                         }
                         Spacer()
                         if verification == "verified" {
-                            Image(systemName: "checkmark.seal.fill").enoIcon(.sm, color: EnoColor.success)
+                            EnoIcon("verified", .sm, color: EnoColor.success)
                         }
                     }
                     .accessibilityElement(children: .combine)

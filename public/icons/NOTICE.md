@@ -34,6 +34,6 @@ reasoning behind each choice.
 <!-- provenance:begin -->
     source   @solar-icons/static@2.0.0
     styles   outline, bold
-    glyphs   19 category tiles + 45 UI glyphs
-    sha256   3a5bcea59cecddcdf457bfa9e0fe9fdaaa15691d078a07e9ef0968fbcd6ef165
+    glyphs   19 category tiles + 51 UI glyphs
+    sha256   b50ddde64262b730b97b560df2edc15929a339e7bfc98d854d4aa4c7c08dceb9
 <!-- provenance:end -->
