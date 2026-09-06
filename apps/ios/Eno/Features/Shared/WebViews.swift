@@ -30,7 +30,18 @@ private struct WebView: UIViewRepresentable {
         web.allowsBackForwardNavigationGestures = true
         web.scrollView.contentInsetAdjustmentBehavior = .automatic
         web.navigationDelegate = context.coordinator
-        web.load(URLRequest(url: url))
+        // ⛔ THE SESSION GOES IN BEFORE THE FIRST REQUEST, NOT AFTER. A seller who signed in
+        // NATIVELY (Google) has tokens in the Keychain and no cookie here, so every embedded page
+        // — the dashboard rows, /listings/<id>/edit, /messages/ai — greeted them with a sign-in
+        // screen. `WebSession.prime` posts the tokens and copies the returned cookies into THIS
+        // store; loading first and priming after would just show the sign-in page and then leave
+        // it there.
+        // ⚠️ It is a no-op when there is no session or the jar already has one, so the guest path
+        // costs one dictionary lookup and no request.
+        Task { @MainActor in
+            await WebSession.prime(into: cfg.websiteDataStore.httpCookieStore)
+            web.load(URLRequest(url: url))
+        }
         return web
     }
 
