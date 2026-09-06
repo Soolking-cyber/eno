@@ -57,6 +57,39 @@ public enum EnoTextRole {
     // text size.
     public var font: Font {
         let s = spec
-        return .system(size: UIFontMetrics(forTextStyle: .body).scaledValue(for: s.size), weight: s.weight)
+        return EnoFont.runde(size: UIFontMetrics(forTextStyle: .body).scaledValue(for: s.size), weight: s.weight)
+    }
+}
+
+/// ⛔ THE BRAND FACE, AND THE ONE PLACE THE APP NAMES IT. The native app shipped on SF Pro while
+/// the web has used Open Runde since it launched — the owner spotted it immediately ("it doesnt
+/// use our font open runde"). Every text style in the app already funnels through
+/// `EnoTextRole.font`, so the swap is here and nowhere else; no call site names a family.
+///
+/// ⚠️ TWO STATIC CUTS, NOT A VARIABLE FONT. Open Runde ships Regular and Bold as separate files
+/// (the web declares exactly those two weights in layout.tsx and lets the browser synthesise the
+/// rest). So `weight` picks a FILE rather than an axis: semibold and above take Bold, everything
+/// below takes Regular. Asking for `.custom(…).weight(.semibold)` instead would let the system
+/// synthesise a fake semibold from Regular, which is the smeared look the web deliberately avoids.
+///
+/// ⚠️ THE FALLBACK IS NOT DECORATION. `Font.custom` on a family the bundle does not carry renders
+/// the SYSTEM font silently — no crash, no warning — so a broken resource copy would look like
+/// "the font just didn't change". `isBundled` checks once, at first use, and `EnoFontProbe` in the
+/// test target asserts it is true, so the failure is loud in CI instead of invisible on a phone.
+public enum EnoFont {
+    public static let family = "Open Runde"
+    static let regular = "OpenRunde-Regular"
+    static let bold = "OpenRunde-Bold"
+
+    /// True when the bundled faces actually registered with the font system.
+    public static let isBundled: Bool = {
+        let names = UIFont.fontNames(forFamilyName: family)
+        return names.contains(regular) && names.contains(bold)
+    }()
+
+    public static func runde(size: CGFloat, weight: Font.Weight) -> Font {
+        guard isBundled else { return .system(size: size, weight: weight) }
+        let heavy = weight == .semibold || weight == .bold || weight == .heavy || weight == .black
+        return .custom(heavy ? bold : regular, fixedSize: size)
     }
 }

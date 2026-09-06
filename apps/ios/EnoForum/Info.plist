@@ -39,6 +39,11 @@
 	<string>Fill your listing's area from your current location. Used once when you tap it; your location is not stored.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Record sound when you capture a video for your listing.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>OpenRunde-Regular.ttf</string>
+		<string>OpenRunde-Bold.ttf</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

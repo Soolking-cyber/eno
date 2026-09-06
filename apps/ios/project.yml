@@ -48,6 +48,16 @@ targets:
       path: Eno/Info.plist
       properties:
         CFBundleDisplayName: eno.vn
+        # ⛔ BOTH EDITIONS, BECAUSE project.yml GENERATES Info.plist — an edit made to the plist
+        # itself is reverted by the next xcodegen run, and a key added to only one `properties:`
+        # block ships the brand face on one app and SF Pro on the other. Open Runde is the web's
+        # face since launch; the native app shipped without it until 2026-09-06.
+        # ⚠️ The FILES are picked up automatically (both targets take `Eno/` as sources, which now
+        # contains Resources/Fonts); this key is what REGISTERS them at launch. Without it
+        # `Font.custom` silently falls back to the system font — see EnoFont.isBundled.
+        UIAppFonts:
+          - OpenRunde-Regular.ttf
+          - OpenRunde-Bold.ttf
         UILaunchScreen:
           UIColorName: LaunchBackground
           # ⚠️ THE SAME IMAGE, AT THE SAME SIZE, THAT LaunchCoverView DRAWS AS ITS FIRST FRAME. The
@@ -121,6 +131,16 @@ targets:
       path: EnoForum/Info.plist
       properties:
         CFBundleDisplayName: eno.forum
+        # ⛔ BOTH EDITIONS, BECAUSE project.yml GENERATES Info.plist — an edit made to the plist
+        # itself is reverted by the next xcodegen run, and a key added to only one `properties:`
+        # block ships the brand face on one app and SF Pro on the other. Open Runde is the web's
+        # face since launch; the native app shipped without it until 2026-09-06.
+        # ⚠️ The FILES are picked up automatically (both targets take `Eno/` as sources, which now
+        # contains Resources/Fonts); this key is what REGISTERS them at launch. Without it
+        # `Font.custom` silently falls back to the system font — see EnoFont.isBundled.
+        UIAppFonts:
+          - OpenRunde-Regular.ttf
+          - OpenRunde-Bold.ttf
         UILaunchScreen:
           UIColorName: LaunchBackground
           # ⚠️ THE SAME IMAGE, AT THE SAME SIZE, THAT LaunchCoverView DRAWS AS ITS FIRST FRAME. The
