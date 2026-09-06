@@ -165,7 +165,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               A container query on the text column is the correct tool if the size ever needs to
               scale here — `container-type: inline-size` plus `@sm:text-lg` — not a viewport
               breakpoint that cannot see the column it is sizing text for. */}
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" unit="sm" className="shrink-0 text-base text-accent-foreground" />
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" unit="sm" className="shrink-0 text-base" />
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line

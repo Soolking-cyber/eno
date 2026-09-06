@@ -311,7 +311,7 @@ export function ContactComposer({
       <div className="rounded-2xl bg-accent p-3">
         <span className="text-xs font-semibold text-body">{tr('Your offer', 'Giá đề nghị')}</span>
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-2xl font-bold text-accent-foreground tabular-nums">{formatMoneyFull(offerPrice, currency, locale)}</span>
+          <span className="text-2xl font-bold text-price tabular-nums">{formatMoneyFull(offerPrice, currency, locale)}</span>
           {/* text-body, not muted-foreground: the latter is ~3.5:1 on the bg-accent
               tint → a serious WCAG AA contrast failure (axe caught it on the PDP). */}
           <span className="text-xs font-semibold text-body">−{discount}%</span>

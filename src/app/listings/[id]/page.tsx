@@ -614,7 +614,7 @@ export default async function ListingPage({ params }: Props) {
                     {affiliateUrl && isBooking ? (
                       <span className="text-base font-medium text-body"><Tr text="from" /></span>
                     ) : null}
-                    <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight text-accent-foreground" />
+                    <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight" />
                     {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
                     {/* ⚠️ BOTH CLAIMS ARE WRAPPED IN <LiveUntil> BECAUSE THIS PAGE IS ISR-CACHED
                         FOR 30 DAYS. `prevPrice` and `urgent` are resolved by serialize.ts against

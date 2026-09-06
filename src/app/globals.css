@@ -109,6 +109,7 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-price: var(--price);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
@@ -280,6 +281,19 @@
      background, false on the tinted-callout idiom this app actually uses: on
      bg-destructive/10 it lands at 3.98:1 and fails AA. #b91c1c gives 5.26:1 there and
      6.4:1 on plain, and lifts every white-on-destructive surface with it. */
+  /* THE PRICE. Owner, 2026-09-06: a "subtle pleasant red that matches our blue".
+     ⚠️ BUILT AT THE BRAND BLUE'S OWN PERCEPTUAL LIGHTNESS so price and link carry equal weight on
+     a card: OKLCH L 0.517 against --brand's 0.516, chroma one notch UNDER the blue (0.151 vs
+     0.163) so a price never outshouts an affordance. Hue sits on the carmine side (~6), not the
+     rust side, because --brand is a violet-leaning cool blue — a warm brick red beside it reads as
+     a clash and as the Shopee/Lazada sale klaxon the owner did not ask for.
+     ⛔ IT IS NOT --destructive AND MUST NOT DRIFT INTO IT. Measured contrast on this canvas: price
+     5.80:1, error 6.20:1, brand 5.45:1 — all comfortably over 4.5:1 at the 13-17px/700 a price
+     renders at, which does NOT qualify for the large-text 3:1 allowance. ⚠️ AND ON THE TINTS A
+     PRICE ACTUALLY SITS ON, because measuring only the canvas is what made the DARK value wrong
+     (see its comment): --accent #e8f1fb 5.31:1, --tint #f5f5f5 5.55:1. Separation from the error
+     red is OKLab dE 0.076; light reads wine-rose against the error's brick. */
+  --price: #ab395b;
   --destructive: #b91c1c;
   /* Text/icon colour ON a solid destructive surface. It must FLIP with the theme: the
      dark --destructive is a light red (#f0616b), and white on it is only 3.17:1 — so a
@@ -579,6 +593,18 @@
   --muted-foreground: #b8b8b8; /* ~7:1 on card — readable secondary text */
   --accent: #17314d;       /* blue tint surface */
   --accent-foreground: #74b3f2;
+  /* Dark price. ⛔ TUNE THIS AGAINST --accent, NOT THE CANVAS — THAT IS WHAT MADE THE FIRST VALUE
+     WRONG. It was #d86a85, picked for 5.18:1 on the #1b1b1b canvas, and shipped as a REGRESSION on
+     the one surface a price is most often read against: dark --accent is #17314d, where #d86a85 is
+     3.99:1 while the --accent-foreground it replaced was 5.98:1. The buy-box offer price
+     (contact-composer, `bg-accent p-3`) and the thread slider's `text-xs font-bold` both sit on
+     that tint, and contact-composer already carries a comment about axe catching a WCAG failure on
+     exactly this surface. #e58ba1 measures 5.39:1 on accent, 7.00:1 on canvas, 6.15:1 on --muted.
+     ⚠️ THE DARK THEME IS THE TIGHTER ONE — raising lightness for contrast walks toward the error
+     salmon #f0616b, so this escapes on two axes at once (lower chroma, hue pulled to ~6) rather
+     than by lightness alone. Keep the error's icon or label affordance; do not let hue carry that
+     distinction by itself. */
+  --price: #e58ba1;
   --destructive: #f0616b;
   /* Near-black ON the light dark-mode red: white would be 3.17:1 (fails). 5.5:1. */
   --destructive-foreground: #1b1b1b;

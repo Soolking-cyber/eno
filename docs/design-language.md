@@ -76,6 +76,10 @@ white/`#fafafa` canvas, true-neutral grays, ONE brand blue.
 - Neutral ramp: `ink` (headings) · `ink-2` · `ink-3` · `ink-4`
   (placeholder/meta — AA on tint) · `body` (neutral-600 secondary text) ·
   `tint` (neutral-100 surfaces/chips) · `line-strong` (neutral-300 borders)
+- Money: `price` — prices, and only prices, wear it. It is NOT the palette's only red:
+  `destructive` is red in both themes and globals.css spends a paragraph keeping the two
+  apart (OKLab dE 0.076 in light). Never let hue alone carry that distinction — an error
+  keeps its icon or label. Tune it against `accent` (the buy-box tint), not just the canvas.
 - Trust ladder: `verified`, `pending` + the tier colors on `/trust`
 
 Every token has a `.dark` counterpart — using tokens is what keeps dark mode

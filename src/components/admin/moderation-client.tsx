@@ -376,7 +376,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
           {isListing ? (
             <>
               <a href={`/listings/${t.listing!.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 truncate text-sm font-bold text-foreground hover:text-accent-foreground"><span className="truncate">{t.listing!.title}</span><ExternalLink className="h-3 w-3 shrink-0 opacity-50" /></a>
-              <p className="mt-0.5 text-xs font-semibold text-accent-foreground">{formatMoneyFull(t.listing!.price, t.listing!.currency, moneyLocale(lang))}</p>
+              <p className="mt-0.5 text-xs font-semibold text-price">{formatMoneyFull(t.listing!.price, t.listing!.currency, moneyLocale(lang))}</p>
               <p className="truncate text-2xs text-muted-foreground">{t.listing!.category} · {t.listing!.location}</p>
             </>
           ) : (

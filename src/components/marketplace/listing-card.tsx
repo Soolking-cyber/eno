@@ -1033,7 +1033,7 @@ function ListingCardImpl({
           {listing.isPartnerBooking && isBookingCategory(listing.category?.slug) ? (
             <span className="text-xs font-semibold text-body">{tr('from', 'từ')}</span>
           ) : null}
-          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-lg leading-tight text-accent-foreground" />
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-lg leading-tight" />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, present
               whenever the listing HAS a live drop.
               ⚠️ IT IS NO LONGER TIED TO THE DROP BADGE, AND MUST NOT BE RE-TIED TO IT. The badge

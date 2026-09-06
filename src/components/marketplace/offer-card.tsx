@@ -278,8 +278,14 @@ export function OfferCard({
       </div>
 
       {/* Money ONLY through vnd.ts — Vietnamese reads 12.000.000 đ, never 12,000,000. */}
+      {/* ⚠️ THE AMOUNT WEARS text-price, THE LABEL DOES NOT. An offer IS a price, and the composer
+          that produced this bubble renders its amount in the same red — leaving the bubble on
+          text-foreground meant a buyer saw one colour while typing an offer and another the instant
+          it sent. ⚠️ THE TWO THEMES ARE TWO DIFFERENT TOKENS, so quote both: on this bg-tint the
+          dark --price #e58ba1 is 6.15:1 on #262626, and the light --price #ab395b is 5.55:1 on
+          #f5f5f5. Neither value is legible on the other theme's surface. */}
       <div className="mt-0.5 text-base font-bold text-foreground">
-        {tr('Offered', 'Đã trả giá')} {money}
+        {tr('Offered', 'Đã trả giá')} <span className="text-price">{money}</span>
       </div>
 
       {askPct != null && askingPrice ? (

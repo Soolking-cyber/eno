@@ -159,7 +159,12 @@ export function AvailabilityClient() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className={cn('truncate text-sm font-semibold', sold ? 'text-muted-foreground line-through' : 'text-foreground')}>{l.titleVi || l.title}</p>
-                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="text-sm text-accent-foreground" />
+                    {/* ⚠️ A SOLD ROW MUTES ITS TITLE AND DIMS ITS PHOTO, SO THE PRICE MUST GO
+                        QUIET TOO. Price now defaults to text-price, and a bold red beside a
+                        struck-through muted title reads as live asking money on a listing that is
+                        gone. dashboard-listing-row is deliberately NOT changed to match: it mutes
+                        nothing and states status in a chip, so a red price is consistent there. */}
+                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className={cn('text-sm', sold && 'font-medium text-muted-foreground')} />
                   </div>
                   {/* Unchecked = a clearly-STROKED empty box (border-2, like ui/checkbox and the
                       listing-row select box) — a borderless tint blob read as decoration, not as

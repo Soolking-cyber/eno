@@ -174,7 +174,26 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
     // ("too bold try 800"), then the app moved to Open Runde, whose ceiling IS 700 — four static
     // cuts, no variable axis — and the owner settled on 700 ("make prices 700"). So this is Bold,
     // the heaviest the family has, and globals.css retargets 800/900 to 700 for the same reason.
-    <span className={cn('tabular-nums font-bold', className)}>
+    /* ⛔ THE COLOUR IS THE PRIMITIVE'S NOW, NOT EACH CALL SITE'S. Eight surfaces each passed
+       `text-accent-foreground` — the brand blue — so "make prices red" would otherwise have meant
+       eight edits and a ninth site rendering blue the day someone adds one. It is a default, so
+       tailwind-merge still lets a caller override it where the price is NOT the headline number:
+       the struck-through previous price stays `text-ink-4`, and the price over a video stays
+       `text-white` for legibility on an image. 
+ *
+ *   ✅ BLAST RADIUS, ENUMERATED RATHER THAN ASSERTED — `grep -rn '<Price' src`, all 11 sites:
+ *   listings/[id] 617 and 628 · availability-client 162 · listings-video-feed 378 · listing-card
+ *   1036 and 1054 · dashboard-listing-row 196 and 220 · seo-landing 267 · search-suggest 235 ·
+ *   compact-listing-row 168. ⚠️ GREP FOR `<Price` WITHOUT THE TRAILING SPACE — 628 opens a block
+ *   comment on its own line and a `<Price ` pattern filtered against comments drops it, which is
+ *   exactly how the first version of this list said "all 10" and then cited an eleventh.
+ *   Three override the colour, all on Price's OWN className so tailwind-merge resolves it and the
+ *   caller wins: `text-white drop-shadow` over video (378) and `text-ink-4 line-through` on the two
+ *   struck "was" prices (628, 1054). None sits on a brand fill, and none inherits its colour from a
+ *   wrapper — that is the case that would flip red silently, so re-run the grep before adding a
+ *   twelfth.
+ */
+    <span className={cn('tabular-nums font-bold text-price', className)}>
       {/**
         * ⛔ THE AMOUNT AND ITS UNIT ARE ONE UNBREAKABLE RUN. Without this the price broke between
         * the number and the currency word on EVERY phone width — measured on the home feed, 12 of

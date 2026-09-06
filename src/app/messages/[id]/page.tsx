@@ -2174,7 +2174,7 @@ export default function ThreadPage() {
                         catch 2026-08-07: line-only left the spec's loudest law with no pixel
                         witness on the one card built to show it. Resolved offers return to line. */}
                     <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wide text-accent-foreground"><Tag className={`h-3 w-3 ${m.offerStatus === 'pending' ? 'fill-brand text-brand' : ''}`} aria-hidden /> {tr('Offer', 'Đề nghị')}</div>
-                    <div className="mt-0.5 text-base font-bold text-foreground">{tr('Offered', 'Đã trả giá')} {formatMoneyFull(m.offerAmount || 0, '₫', locale)}</div>
+                    <div className="mt-0.5 text-base font-bold text-foreground">{tr('Offered', 'Đã trả giá')} <span className="text-price">{formatMoneyFull(m.offerAmount || 0, '₫', locale)}</span></div>
                     {askPct != null && (
                       <div className="text-2xs font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({formatMoneyFull(thread!.listing!.price!, '₫', locale)})</div>
                     )}
@@ -2618,7 +2618,7 @@ export default function ThreadPage() {
                   aria-label={tr('Discount', 'Mức giảm')}
                   className="min-w-0 flex-1"
                 />
-                <span className="shrink-0 text-xs font-bold tabular-nums text-accent-foreground">{formatMoneyFull(sliderOffer, '₫', locale)}</span>
+                <span className="shrink-0 text-xs font-bold tabular-nums text-price">{formatMoneyFull(sliderOffer, '₫', locale)}</span>
               </div>
             ) : showOffer ? (
               <div className="relative flex-1">
