@@ -1,5 +1,37 @@
 apply plugin: 'com.android.application'
 
+/**
+ * THE PLAY UPLOAD KEY — read from a file that is NEVER committed.
+ *
+ * ⛔ THE REPOSITORY IS PUBLIC, so neither the keystore nor any password may appear in this file.
+ * `android/keystore.properties` and every *.jks / *.keystore are gitignored at the repo root;
+ * android/.gitignore's own keystore lines ship COMMENTED OUT, which is why the root file states
+ * them rather than trusting this one.
+ *
+ * ⚠️ ABSENT IS NOT AN ERROR. Without the properties file the release build stays UNSIGNED, exactly
+ * as it was before this block existed — so CI, a fresh clone and anyone who only wants a debug
+ * build are unaffected, and only the person actually cutting a release needs the key. A release
+ * task that failed hard here would make the key a prerequisite for compiling the app.
+ *
+ * ⚠️ AN UNSIGNED .aab IS REFUSED BY PLAY WITH A GENERIC ERROR, so `verifyReleaseSigning` below
+ * says so in words instead. Check before uploading:
+ *     ./gradlew :app:verifyReleaseSigning
+ *
+ * Create the properties file as (values are examples; the file is gitignored):
+ *     storeFile=/absolute/path/outside/this/repo/eno-upload.jks
+ *     storePassword=…
+ *     keyAlias=eno-upload
+ *     keyPassword=…
+ * ⛔ Keep the .jks OUTSIDE the working tree. A gitignore is a habit, not a guarantee; a path that
+ * cannot be reached by `git add -A` is.
+ */
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def hasUploadKey = keystoreProps.containsKey('storeFile') && file(keystoreProps['storeFile']).exists()
+
 android {
     namespace = "vn.eno.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +39,18 @@ android {
         applicationId "vn.eno.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        /**
+         * ⚠️ MOST RELEASES OF THIS APP ARE NOT PLAY RELEASES. Capacitor runs in remote-server mode:
+         * the WebView loads https://eno.vn, so every product change ships the moment the site
+         * deploys and reaches installed apps with no store review at all. A new bundle is needed
+         * only when the NATIVE shell changes — a plugin, a permission, the manifest, an icon,
+         * targetSdk. Expect this number to move a handful of times a year, not per feature.
+         *
+         * ⛔ versionCode MUST INCREASE ON EVERY UPLOAD and can never be reused, even for a bundle
+         * that was rejected or never rolled out. Play refuses a duplicate outright.
+         */
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,11 +58,52 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasUploadKey) {
+            release {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+                // Play requires v2; v1 is off because minSdk is 24 and APK Signature Scheme v2
+                // has covered every supported device since Android 7.
+                enableV1Signing false
+                enableV2Signing true
+            }
+        }
+    }
     buildTypes {
         release {
+            /**
+             * ⚠️ SHRINKING IS OFF, DELIBERATELY, AND IT IS NOT AN OVERSIGHT TO "FIX" ON RELEASE DAY.
+             * This is a remote-server WebView shell: essentially all of the app is served from
+             * eno.vn, and the Java side is Capacitor's bridge plus its plugins. R8 buys almost
+             * nothing here and reflection-driven plugin registration is exactly what it breaks —
+             * in a way that shows up as a dead bridge on a user's phone, not as a build error.
+             * Turn it on only with a signed release build installed and exercised on a device.
+             */
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasUploadKey) {
+                signingConfig signingConfigs.release
+            }
         }
+    }
+}
+
+/** Fails with the reason rather than letting an unsigned bundle reach the Play Console. */
+tasks.register('verifyReleaseSigning') {
+    doLast {
+        if (!keystorePropsFile.exists()) {
+            throw new GradleException("android/keystore.properties is missing — the release build would be UNSIGNED and Play will refuse it. See docs/android-play-release.md.")
+        }
+        if (!hasUploadKey) {
+            throw new GradleException("keystore.properties names storeFile=${keystoreProps['storeFile']}, which does not exist — the release build would be UNSIGNED.")
+        }
+        for (k in ['storePassword', 'keyAlias', 'keyPassword']) {
+            if (!keystoreProps[k]) throw new GradleException("keystore.properties is missing ${k}.")
+        }
+        println "release signing: ${keystoreProps['keyAlias']} from ${keystoreProps['storeFile']}"
     }
 }
 

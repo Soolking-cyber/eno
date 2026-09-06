@@ -34,6 +34,9 @@ import vn.eno.native_.ui.WebTab
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // ⚠️ BEFORE Auth.init: restoring a session can lead straight to a refresh, and a refresh
+        // with no config is a no-op rather than a request to the wrong server (AuthConfig.kt).
+        vn.eno.native_.core.AuthConfig.attach(applicationContext)
         vn.eno.native_.core.Auth.init(applicationContext)
         enableEdgeToEdge()
         setContent { EnoApp() }

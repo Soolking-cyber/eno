@@ -99,6 +99,19 @@ supabase/.temp/
 /android/local.properties
 /android/capacitor-cordova-android-plugins/
 
+# ⛔ THE PLAY SIGNING KEY AND ITS PASSWORDS — NEVER, ON ANY PATH. This repository is PUBLIC. An
+# upload keystore committed here is an upload key anyone can use, and android/.gitignore ships with
+# its own *.jks / *.keystore lines COMMENTED OUT (that is the upstream template's default), so
+# without these five lines a keystore dropped next to the app would be staged by an ordinary
+# `git add`. Google can reset a leaked UPLOAD key on request; nothing can reset the passwords you
+# reused, and nothing at all can undo the window in which a stranger could sign an "eno" update.
+*.jks
+*.keystore
+!**/debug.keystore
+/android/keystore.properties
+/android/app/*.jks
+/android/app/*.keystore
+
 # xcodebuild derived data from installing the Capacitor shell on a physical device
 # (`-derivedDataPath`). Pure build output — 160MB+ and regenerated on every device build.
 /apps/ios/devicebuild/
@@ -131,3 +144,6 @@ data/reclassify-snapshot-*.jsonl
 data/repair-snapshot-*.jsonl
 data/describe-snapshot-*.jsonl
 data/brand-snapshot-*.jsonl
+
+# Store screenshots captured from a running build — regenerate rather than version binaries.
+/play-store-assets/

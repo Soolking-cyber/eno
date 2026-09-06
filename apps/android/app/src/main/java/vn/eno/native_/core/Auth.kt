@@ -44,8 +44,10 @@ object Unread {
 // with a session GENERATION so a stale refresh can never wipe a fresh session
 // (#2/#3), and ride every API call as Bearer via Api.ensureFreshToken (#5).
 object Auth {
-    private const val SUPABASE = "https://xihiryllwmjoouipkyhw.supabase.co"
-    private const val KEY = "sb_publishable_He0wwlDfz9YW35sjys3O5Q_qyJ5qwB1" // public by design
+    // ⛔ THE AUTH HOST IS ASKED FOR AT RUNTIME — see AuthConfig.kt. The two constants that used to
+    // live here named the RETIRED hosted Supabase project; auth has been served from the box
+    // (sb.eno.vn) since the migration, and Google is enabled there and disabled on the old one, so
+    // every native Google sign-in was asking a server the site no longer uses.
 
     data class Session(val accessToken: String, val refreshToken: String, val expiresAt: Long)
 
@@ -143,9 +145,13 @@ object Auth {
         if (token != null) {
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
+                    // Config unknown (offline, first run): the LOCAL session is already cleared
+                    // above, so skipping the server-side revoke degrades rather than fails.
+                    val url = AuthConfig.endpoint("logout") ?: return@runCatching
+                    val key = AuthConfig.anonKey() ?: return@runCatching
                     val req = Request.Builder()
-                        .url("$SUPABASE/auth/v1/logout")
-                        .header("apikey", KEY)
+                        .url(url)
+                        .header("apikey", key)
                         .header("Authorization", "Bearer $token")
                         .post(ByteArray(0).toRequestBody(null))
                         .build()
@@ -173,9 +179,14 @@ object Auth {
             runCatching {
                 val body = JSONObject().put("refresh_token", s.refreshToken).toString()
                     .toRequestBody("application/json".toMediaType())
+                // ⚠️ NO CONFIG MEANS NO REFRESH ATTEMPT, NOT A GUESSED HOST. A refresh token sent
+                // to the wrong server is a credential handed to a stranger; the session simply
+                // stays as it is until the config is reachable again.
+                val url = AuthConfig.endpoint("token?grant_type=refresh_token") ?: return@runCatching null
+                val key = AuthConfig.anonKey() ?: return@runCatching null
                 val req = Request.Builder()
-                    .url("$SUPABASE/auth/v1/token?grant_type=refresh_token")
-                    .header("apikey", KEY)
+                    .url(url)
+                    .header("apikey", key)
                     .post(body)
                     .build()
                 Api.client.newCall(req).execute().use { res ->
