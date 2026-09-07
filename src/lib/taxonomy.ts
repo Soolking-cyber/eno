@@ -672,6 +672,29 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'eu-42', label: 'EU 42', labelVi: '42' },
         { value: 'eu-43', label: 'EU 43', labelVi: '43' },
         { value: 'eu-44-plus', label: 'EU 44+', labelVi: '44+' },
+        /**
+         * Footwear that has no size: insoles, heel wedges, shoe care, laces, stretchers.
+         *
+         * Owner, 2026-09-07, from the shoes filter: *"there are footwear products that fit all
+         * sizes add 1 extra sizing unit to select for products that fit all sized"* — sent with
+         * `/?category=fashion-beauty&subcategory=shoes` open over two trimmable insole listings,
+         * both of which had had to pick an EU number that was simply untrue.
+         *
+         * ⚠️ `free-size`, NOT `one-size`, AND LAST RATHER THAN FIRST — both copied from this
+         * category's own `size` facet (key `size`, the womens/mens one), which already answers
+         * exactly this question with exactly this value. Two sibling facets in one category
+         * answering "no particular size" with different values would be the kind of drift nobody
+         * notices until a query has to know about both. "Free size" is also the term Vietnamese
+         * retail actually uses.
+         *
+         * ⚠️ IT IS AN EQUALITY BUCKET, NOT A WILDCARD, and that is worth knowing before someone
+         * calls it a bug. Facet values are matched with `contains '"shoeSize":"free-size"'`
+         * (feed-query.ts), so a free-size insole does NOT appear under `EU 40` — same as a
+         * free-size dress not appearing under `M`. Consistent with the sibling facet and with
+         * every other facet in the app; making it match every numeric size would be a filtering
+         * change, not a taxonomy one.
+         */
+        { value: 'free-size', label: 'Free size', labelVi: 'Free size' },
       ] },
       { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: COLOR_OPTIONS },
     ],
