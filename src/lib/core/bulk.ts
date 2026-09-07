@@ -8,7 +8,7 @@ import { buildSearchText, fold } from '@/lib/fold'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { bulkPostingBudget } from '@/lib/enforcement'
 import { warmTranslations } from '@/lib/translate'
-import { isListingImageUrl } from '@/lib/listing-image'
+import { isListingImageUrl, isListingVideoUrl } from '@/lib/listing-image'
 import { safeFetch } from '@/lib/ssrf'
 import { reindexListing } from '@/lib/listing-index'
 import { moderateListingById } from '@/lib/ai-moderation'
@@ -27,7 +27,7 @@ export const BULK_MAX_ROWS = 200
 // fetch+decode+upload ops). First-party (already-hosted) URLs don't count.
 const MAX_IMG_FETCHES = 120
 
-export type BulkRow = { category_slug?: string; title?: string; description?: string; price?: unknown; district?: string; condition?: string; image_urls?: string; external_id?: string }
+export type BulkRow = { category_slug?: string; title?: string; description?: string; price?: unknown; district?: string; condition?: string; image_urls?: string; video_url?: string; external_id?: string }
 export type BulkRowResult = { row: number; id?: string; external_id?: string; error?: string }
 
 // Server-fetch a remote image and re-host it (first-party, validated) via the media core.
@@ -164,6 +164,18 @@ export async function bulkImportCore(
           title, description, price, priceUnit: 'VND', currency: '₫', negotiable: true,
           location: district || 'Ho Chi Minh City', district, city: 'Ho Chi Minh City',
           condition, images: JSON.stringify(hosted),
+          /**
+           * ⛔ ONLY A URL WE ALREADY HOST. `video_url` arrives from the client, which uploads the
+           * clip through the ordinary signed video flow and sends back what that returned — so the
+           * honest test is "is this in our own listing-videos bucket", not "is this a URL". Any
+           * other string is DROPPED rather than rejected: a bad clip must not cost the seller the
+           * whole row when the photos and the text are fine.
+           *
+           * ⚠️ NOT RE-HOSTED LIKE AN IMAGE, deliberately. `rehost()` pulls a remote image server-side
+           * and re-encodes it; doing that for video would mean pulling up to a 50MB clip into a
+           * serverless function per row. The client already put it in the right bucket.
+           */
+          ...(isListingVideoUrl(r.video_url) ? { video: r.video_url } : {}),
           searchText: buildSearchText([title, description, district, cat.name, cat.nameVi]),
           categoryId: cat.id, sellerId: seller.id, sellerTrustScore: seller.trustScore, verified: true,
           rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),

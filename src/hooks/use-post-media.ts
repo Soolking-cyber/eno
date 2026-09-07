@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { compressVideo, videoCompressionSupported } from '@/lib/video-compress'
+import { hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } from '@/lib/video-upload-client'
 import { compressImageFile } from '@/lib/normalize-image'
 import { centerCropSquare } from '@/lib/square-crop'
 import { uploadInBatches } from '@/lib/upload-client'
@@ -128,33 +129,8 @@ export function usePostMedia({
   // upload. VIDEO_UPLOAD_MAX_BYTES mirrors the server's VIDEO_MAX_BYTES (core/media.ts,
   // server-only — keep in lockstep) and the bucket limit (scripts/setup-storage.mjs).
   const VIDEO_MAX_MB = 200
-  const VIDEO_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
-  // HEVC (H.265) detector: iPhones capture .mov/.mp4 in High-Efficiency HEVC by default, which
-  // mid-range Android Chrome (the majority buyer here) often can't decode — the clip would play
-  // as a black box for most of the audience and the seller would never know. The `hvc1`/`hev1`
-  // codec fourcc lives in the moov box, which sits at the START (faststart) or END of the file —
-  // scan both edges. H.264 (`avc1`) passes. Heuristic by design: a false negative just means the
-  // clip uploads as-is; the sniff costs two 2MB slices, no full read.
-  // ⚠️ ALWAYS slice — never pass the whole File. Blob.slice caps the read at EDGE bytes even
-  // when WKWebView misreports f.size (a real iOS quirk); the old `size ≤ 4MB → whole file`
-  // branch materialized a multi-hundred-MB ArrayBuffer on exactly those picks and jetsam
-  // killed the app. For small files the two slices simply overlap — harmless double scan.
-  const hasHevcTrack = async (f: File): Promise<boolean> => {
-    const EDGE = 2 * 1024 * 1024
-    const edges = [f.slice(0, EDGE), f.slice(Math.max(0, f.size - EDGE))]
-    for (const part of edges) {
-      const arr = new Uint8Array(await part.arrayBuffer())
-      for (let i = 0; i < arr.length - 3; i++) {
-        // 'hvc1' = 104, 118, 99, 49
-        // 'hev1' = 104, 101, 118, 49
-        if (arr[i] === 104) {
-          if (arr[i+1] === 118 && arr[i+2] === 99 && arr[i+3] === 49) return true
-          if (arr[i+1] === 101 && arr[i+2] === 118 && arr[i+3] === 49) return true
-        }
-      }
-    }
-    return false
-  }
+  // HEVC detector + the upload ceiling now live in lib/video-upload-client.ts, shared with bulk
+  // import — see the note there on why bulk needs the same rule.
   const addVideo = async (files: FileList | null) => {
     if (videoBusy) return // one probe/compress at a time — a second pick mid-flight races setVideo
     const f = files?.[0]
@@ -246,74 +222,18 @@ export function usePostMedia({
   // verifies the landed object's magic bytes, then /transcode re-encodes it to a lean H.264
   // MP4 (fixes HEVC-plays-black on Android + cuts egress) and returns the compressed URL.
   const resolveVideoUrl = async (): Promise<string | null> => {
-    let videoUrl: string | null = null
+    // ⛔ THE SEQUENCE LIVES IN `lib/video-upload-client.ts` NOW, shared with bulk import — sign,
+    // upload to the signed URL, complete, transcode-and-poll, including the HEVC-fails-closed rule
+    // and the 330s deadline. It throws the same 'video' / 'video_hevc' codes this wizard's submit
+    // catch already maps to copy, so nothing here changes shape.
     if (video?.file) {
-      // Loaded on demand: only a seller who actually attached a CLIP needs
-      // supabase-js, so it must not sit in /post's first-load bundle for the
-      // photo-only majority. Fetched BEFORE the signing call on purpose — the
-      // signed token is short-lived, and downloading ~242 kB after minting it
-      // would burn part of that window on a slow connection (codex).
-      const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
-      const sig = await fetch('/api/upload/video/sign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: video.file.type, size: video.file.size }),
-      })
-      if (!sig.ok) throw new Error('video')
-      const { path, token } = (await sig.json()) as { path: string; token: string }
-      const { error: upErr } = await createSupabaseBrowser()
-        .storage.from('listing-videos')
-        .uploadToSignedUrl(path, token, video.file, { contentType: video.file.type, cacheControl: '31536000' })
-      if (upErr) throw new Error('video')
-      const done = await fetch('/api/upload/video/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path }),
-      })
-      if (!done.ok) throw new Error('video')
-
-      // Transcode — submit-then-poll: POST claims the job and returns 202 while the encode
-      // runs server-side (a synchronous ~210s response would be severed by Cloudflare's
-      // ~100s proxy budget once eno.vn fronts Cloud Run); we then poll GET ?path= every 3s.
-      // Semantics preserved server-side: H.264 falls open to the raw clip ({fallback});
-      // HEVC fails closed (422 / status:'failed') — a raw HEVC clip plays black on most
-      // Android buyers, so we surface a retry rather than publish a broken video.
-      const xc = await fetch('/api/upload/video/transcode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path, hevc: video.hevc === true }),
-      })
-      if (xc.status === 422) throw new Error('video_hevc')
-      if (!xc.ok && xc.status !== 202) throw new Error('video')
-      let xj = (await xc.json()) as { url?: string; status?: string }
-      if (!xj.url && xj.status === 'running') {
-        // 330s: covers the 210s encode wall + download/upload margins, under the 360s claim.
-        const deadline = Date.now() + 330_000
-        while (Date.now() < deadline && !xj.url) {
-          await new Promise((r) => setTimeout(r, 3000))
-          try {
-            const st = await fetch(`/api/upload/video/transcode?path=${encodeURIComponent(path)}`, {
-              signal: AbortSignal.timeout(10_000),
-            })
-            if (!st.ok) {
-              if (st.status === 404) throw new Error(video.hevc ? 'video_hevc' : 'video') // job lost
-              continue // transient (429/5xx) — keep polling until the deadline
-            }
-            const sj = (await st.json()) as { status?: string; url?: string }
-            if (sj.status === 'failed') throw new Error(video.hevc ? 'video_hevc' : 'video')
-            if (sj.status === 'done' && sj.url) xj = sj
-          } catch (err) {
-            if (err instanceof Error && (err.message === 'video' || err.message === 'video_hevc')) throw err
-            // network blip / poll timeout — keep polling until the deadline
-          }
-        }
-      }
-      videoUrl = xj.url ?? null
-      if (!videoUrl) throw new Error('video')
-    } else if (video && !video.url.startsWith('blob:')) {
-      videoUrl = video.url
+      const { uploadListingVideo } = await import('@/lib/video-upload-client')
+      const url = await uploadListingVideo(video.file, { hevc: video.hevc === true })
+      if (!url) throw new Error('video')
+      return url
     }
-    return videoUrl
+    if (video && !video.url.startsWith('blob:')) return video.url
+    return null
   }
 
   return {
