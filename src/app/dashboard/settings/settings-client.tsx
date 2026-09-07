@@ -25,7 +25,23 @@ import { SectionHeader } from '@/components/marketplace/section-header'
  *  to what the account panel used to drill into: profile, handle, email, account type,
  *  reminders, device prefs, danger zone). Renders as a page in <main>; the nav rail links
  *  here. Reads the shared dashboard cache. */
-export function SettingsClient({ embedded = false }: { embedded?: boolean } = {}) {
+/**
+ * Which group of settings to render.
+ *
+ * ⛔ ONE COMPONENT, NOT FIVE, AND THAT IS DELIBERATE. Every section here needs the same three
+ * things — `useDashboard()`, the signed-out redirect and the loading skeleton — and splitting the
+ * file would have duplicated all three per tab, which is how one of them silently stops redirecting
+ * a guest. The tab decides WHAT to show; the shell around it stays in one place.
+ */
+export type SettingsSection = 'profile' | 'account' | 'notifications' | 'privacy'
+
+/**
+ * ⚠️ `section` IS REQUIRED, WITH NO DEFAULT. A default of `'profile'` meant any caller that forgot
+ * it silently rendered a quarter of Settings — no email, no password, no account deletion, no
+ * cookie-consent withdrawal — and nothing would have failed. There is one caller today
+ * (settings-tabs.tsx); making the prop required is what keeps that true for the next one.
+ */
+export function SettingsClient({ embedded = false, section }: { embedded?: boolean; section: SettingsSection }) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
@@ -105,62 +121,94 @@ export function SettingsClient({ embedded = false }: { embedded?: boolean } = {}
           // No space-y: each SettingsGroup carries its own hairline + rhythm now.
           className="mt-6"
         >
-          <SettingsGroup first caption={isBusiness ? tr('Business profile', 'Hồ sơ doanh nghiệp') : tr('Your profile', 'Hồ sơ của bạn')}>
-            {isBusiness && dash.seller
-              ? <BusinessProfileEditor seller={dash.seller} repName={dash.profile.displayName} onSaved={refresh} />
-              : <ProfileEditor profile={dash.profile} onSaved={refresh} />}
-          </SettingsGroup>
-          {/* ⛔ ANY SELLER, NOT ONLY `isBusiness`. A storefront is gated on holding a HANDLE, so an
-              ordinary seller has a live page at `<handle>.eno.vn` too — gating this control on tier
-              (as the first version did, by living inside <BusinessProfileEditor>) left them with a
-              storefront and nowhere in the product to put a banner on it. */}
-          {dash.seller && (
-            <SettingsGroup caption={tr('Storefront banner', 'Ảnh bìa cửa hàng')}>
-              <StorefrontBannerEditor
-                bannerUrl={dash.seller.bannerUrl ?? null}
-                handle={dash.seller.handle ?? null}
-                onSaved={refresh}
-              />
+          {/*
+            ⛔ SIX TABS INSTEAD OF ONE, and the old shape is why. "Settings" held TEN unrelated
+            groups in a single scroll — a profile editor, a banner uploader, verification, handle,
+            email, password, account type, reminders, cookies and account deletion — while the
+            sibling "Preferences" tab held two. Owner, 2026-09-07: *"all tabs in settings should be
+            intuitively divided to tabs that make sense and industry standard"*.
+
+            The cut follows what Shopify, Stripe and GitHub all land on:
+              Profile        — who you are publicly: profile, storefront banner, handle, verification
+              Account        — the account itself: email, account type, password, deletion
+              Notifications  — reminders
+              Privacy        — consent withdrawal
+              Preferences    — display + sign out (its own tab already)
+              Developers     — API keys, business only (its own tab already)
+
+            ⚠️ DELETION SITS UNDER ACCOUNT, NOT PRIVACY. Both are defensible and the deciding
+            argument is findability: every product the audience already uses puts "delete account"
+            at the foot of Account, so that is where someone looks for it.
+          */}
+          {section === 'profile' && (
+            <>
+              <SettingsGroup first caption={isBusiness ? tr('Business profile', 'Hồ sơ doanh nghiệp') : tr('Your profile', 'Hồ sơ của bạn')}>
+                {isBusiness && dash.seller
+                  ? <BusinessProfileEditor seller={dash.seller} repName={dash.profile.displayName} onSaved={refresh} />
+                  : <ProfileEditor profile={dash.profile} onSaved={refresh} />}
+              </SettingsGroup>
+              {/* ⛔ ANY SELLER, NOT ONLY `isBusiness`. A storefront is gated on holding a HANDLE, so an
+                  ordinary seller has a live page at `<handle>.eno.vn` too — gating this control on tier
+                  (as the first version did, by living inside <BusinessProfileEditor>) left them with a
+                  storefront and nowhere in the product to put a banner on it. */}
+              {dash.seller && (
+                <SettingsGroup caption={tr('Storefront banner', 'Ảnh bìa cửa hàng')}>
+                  <StorefrontBannerEditor
+                    bannerUrl={dash.seller.bannerUrl ?? null}
+                    handle={dash.seller.handle ?? null}
+                    onSaved={refresh}
+                  />
+                </SettingsGroup>
+              )}
+              <SettingsGroup caption={tr('Handle', 'Tên định danh')}><HandleSettings /></SettingsGroup>
+              {/* Its OWN inset card (mt-6 rounded-2xl border bg-card) — must NOT be wrapped in a
+                  SettingsGroup or it double-borders. Renders as a sibling group in the flow. */}
+              {isBusiness && dash.seller && <BusinessVerificationPanel />}
+            </>
+          )}
+          {section === 'account' && (
+            <>
+              <SettingsGroup first caption={tr('Email', 'Email')}><ChangeEmailForm currentEmail={dash.profile.email} /></SettingsGroup>
+              <SettingsGroup caption={tr('Account type', 'Loại tài khoản')}><AccountTypeSwitcher isBusiness={isBusiness} businessName={dash.profile.businessName} onSaved={refresh} /></SettingsGroup>
+              {/* ⚠️ SHOWN TO EVERYONE, DELIBERATELY — AND HIDING IT WAS A SECURITY MISTAKE I MADE
+                  AND ALL THREE REVIEWERS CAUGHT INDEPENDENTLY.
+                  Password SIGN-IN is partner-only (owner, 2026-08-10) and api/auth/password enforces
+                  that. The obvious next step looked like hiding this section from non-partners so
+                  nobody sets a password they cannot use. It is the wrong move, because setting a
+                  password OVERWRITES any password already on the account — and this is the only
+                  place a user can do that. Supabase's signup endpoint is reachable with the public
+                  anon key, so an ordinary user may have a planted credential they never created;
+                  hiding this control would leave them unable to see it, replace it, or rotate it,
+                  while it stayed live against Supabase directly. That converts a hole into a hole
+                  nobody can reach.
+                  So: visible to all, with the copy telling a non-partner the truth — setting one
+                  secures the account without changing how they sign in. `officialPartner` decides
+                  the WORDING, never the presence. */}
+              <SettingsGroup caption={tr('Security', 'Bảo mật')}>
+                <SetPasswordForm signInEnabled={dash.seller?.officialPartner === true} />
+              </SettingsGroup>
+              <SettingsGroup caption={tr('Danger zone', 'Vùng nguy hiểm')} danger><DeleteAccount /></SettingsGroup>
+            </>
+          )}
+          {section === 'notifications' && (
+            <SettingsGroup first caption={tr('Reminders', 'Nhắc nhở')}><ReminderSettings /></SettingsGroup>
+          )}
+          {section === 'privacy' && (
+            /* Consent withdrawal (PDPL): the footer's "Cookie settings" link is the other entry
+               point, but the footer is hidden in the native app — this row must exist so withdrawing
+               consent stays as easy as giving it, on every platform. A tab of its own makes it
+               MORE findable than a group buried ninth in a ten-group scroll. */
+            <SettingsGroup first caption={tr('Privacy', 'Quyền riêng tư')}>
+              <Button
+                variant="ghost"
+                size="none"
+                onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))}
+                className="px-4 py-2 font-semibold text-body hover:bg-muted hover:text-body"
+              >
+                <Cookie className="h-4 w-4" /> {tr('Cookie settings', 'Cài đặt cookie')}
+              </Button>
             </SettingsGroup>
           )}
-          {/* Its OWN inset card (mt-6 rounded-2xl border bg-card) — must NOT be wrapped in a
-              SettingsGroup or it double-borders. Renders as a sibling group in the space-y-6 flow. */}
-          {isBusiness && dash.seller && <BusinessVerificationPanel />}
-          <SettingsGroup caption={tr('Handle', 'Tên định danh')}><HandleSettings /></SettingsGroup>
-          <SettingsGroup caption={tr('Email', 'Email')}><ChangeEmailForm currentEmail={dash.profile.email} /></SettingsGroup>
-          {/* ⚠️ SHOWN TO EVERYONE, DELIBERATELY — AND HIDING IT WAS A SECURITY MISTAKE I MADE
-              AND ALL THREE REVIEWERS CAUGHT INDEPENDENTLY.
-              Password SIGN-IN is partner-only (owner, 2026-08-10) and api/auth/password enforces
-              that. The obvious next step looked like hiding this section from non-partners so
-              nobody sets a password they cannot use. It is the wrong move, because setting a
-              password OVERWRITES any password already on the account — and this is the only
-              place a user can do that. Supabase's signup endpoint is reachable with the public
-              anon key, so an ordinary user may have a planted credential they never created;
-              hiding this control would leave them unable to see it, replace it, or rotate it,
-              while it stayed live against Supabase directly. That converts a hole into a hole
-              nobody can reach.
-              So: visible to all, with the copy telling a non-partner the truth — setting one
-              secures the account without changing how they sign in. `officialPartner` decides
-              the WORDING, never the presence. */}
-          <SettingsGroup caption={tr('Security', 'Bảo mật')}>
-            <SetPasswordForm signInEnabled={dash.seller?.officialPartner === true} />
-          </SettingsGroup>
-          <SettingsGroup caption={tr('Account type', 'Loại tài khoản')}><AccountTypeSwitcher isBusiness={isBusiness} businessName={dash.profile.businessName} onSaved={refresh} /></SettingsGroup>
-          <SettingsGroup caption={tr('Reminders', 'Nhắc nhở')}><ReminderSettings /></SettingsGroup>
-          {/* Consent withdrawal (PDPL): the footer's "Cookie settings" link is the other entry
-              point, but the footer is hidden in the native app — this row must exist so withdrawing
-              consent stays as easy as giving it, on every platform. */}
-          <SettingsGroup caption={tr('Privacy', 'Quyền riêng tư')}>
-            <Button
-              variant="ghost"
-              size="none"
-              onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))}
-              className="px-4 py-2 font-semibold text-body hover:bg-muted hover:text-body"
-            >
-              <Cookie className="h-4 w-4" /> {tr('Cookie settings', 'Cài đặt cookie')}
-            </Button>
-          </SettingsGroup>
-          <SettingsGroup caption={tr('Danger zone', 'Vùng nguy hiểm')} danger><DeleteAccount /></SettingsGroup>
         </div>
       )}
       </div>

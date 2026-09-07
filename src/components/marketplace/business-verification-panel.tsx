@@ -223,7 +223,10 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
           "no storefront" to somebody who has just made one, until a full reload. */}
       <div className="mt-3 flex flex-wrap gap-2">
         <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard/settings">{tr('Go to Settings', 'Đến Cài đặt')}</Link>
+          {/* ⚠️ `?tab=account`, NOT bare `/dashboard/settings`. Settings was re-cut into six tabs on
+              2026-09-07 and the account-type switcher — the control this copy is sending them to —
+              moved to Account, while a tabless link lands on Profile. */}
+          <Link href="/dashboard/settings?tab=account">{tr('Go to Settings', 'Đến Cài đặt')}</Link>
         </Button>
         <Button variant="ghost" size="sm" onClick={() => { setLoading(true); void load() }}>
           {tr('I have one — refresh', 'Tôi đã có — làm mới')}

@@ -1195,6 +1195,7 @@ export const UI_STRINGS: string[] = [
   "Privacy policy",
   "Processing speed",
   "Processing…",
+  "Profile",
   "Prohibited items",
   "Proof (optional)",
   "Property",

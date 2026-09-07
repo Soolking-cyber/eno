@@ -61,10 +61,24 @@ export function SettingsTabs() {
   // ⚠️ DEVELOPERS IS BUSINESS-TIER ONLY — the same gate the nav rail applied as `role: 'business'`.
   // DevClient bounces a non-business viewer to /dashboard/listings on mount, so surfacing the tab to
   // everyone would eject an individual out of Settings the instant they tapped it. Show it only once
-  // the dashboard payload confirms the business tier; a non-business deep link falls back to Settings,
-  // never a bounce.
+  // the dashboard payload confirms the business tier; a non-business deep link falls back to the
+  // first tab (Profile since the 2026-09-07 re-cut, "Settings" before it), never a bounce.
+  /**
+   * ⛔ SIX TABS, NOT TWO — see the long note in settings-client.tsx for the cut and why it is this
+   * one. Order is deliberate and matches what the audience already uses elsewhere: the thing you
+   * edit most first, the account itself second, then the switches, then the quiet ones.
+   *
+   * ⚠️ THE RETIRED `?tab=settings` STILL LANDS SOMEWHERE REAL, and it needs no compatibility entry
+   * to do it: `DashboardTabs` resolves an unrecognised `?tab` to `tabs[0]` (dashboard-tabs.tsx:80),
+   * so an old bookmark opens Profile — the closest thing to what that tab used to show. Verified
+   * there is no in-repo link to `?tab=settings` either. A hidden compatibility tab would have been
+   * a seventh, duplicate entry for no gain; the fallback already does the job.
+   */
   const tabs: DashboardTab[] = [
-    { value: 'settings', label: tr('Settings', 'Cài đặt'), content: <SettingsClient embedded /> },
+    { value: 'profile', label: tr('Profile', 'Hồ sơ'), content: <SettingsClient embedded section="profile" /> },
+    { value: 'account', label: tr('Account', 'Tài khoản'), content: <SettingsClient embedded section="account" /> },
+    { value: 'notifications', label: tr('Notifications', 'Thông báo'), content: <SettingsClient embedded section="notifications" /> },
+    { value: 'privacy', label: tr('Privacy', 'Quyền riêng tư'), content: <SettingsClient embedded section="privacy" /> },
     { value: 'preferences', label: tr('Preferences', 'Tuỳ chọn'), content: <PreferencesTab /> },
   ]
   // `confirmedIndividual` is the ONLY state that hides a requested Developers tab: the payload came
