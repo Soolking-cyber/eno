@@ -69,7 +69,14 @@ describe('resolveNavGroups role gating', () => {
     expect(groups.some((g) => g.caption === 'Admin')).toBe(false)
   })
 
-  it('seller: storefront row appears with the per-seller URL', () => {
+  /**
+   * ⚠️ THE PATH FORM, DELIBERATELY. A shop's canonical home is its subdomain since 2026-09-07, but
+   * this resolver is pure — no database, no request — and cannot run the three guards that decide
+   * whether the subdomain is the right destination (hidden seller, brand-slug handle, real base
+   * host). `/[handle]` owns those and redirects; building the subdomain here would duplicate the
+   * decision without the checks. See dashboard-nav-resolve.ts.
+   */
+  it('seller: storefront row uses the in-app handle path, which redirects onward', () => {
     const groups = resolveNavGroups(FIXTURE, ctx({ seller: { id: 's1', handle: 'shop' } }))
     const storefront = groups[0].items.find((i) => i.external)
     expect(storefront?.href).toBe('/shop')

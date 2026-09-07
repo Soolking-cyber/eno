@@ -6,11 +6,14 @@ import { notFound, redirect } from 'next/navigation'
 import { CalendarDays } from '@/components/ui/icons'
 import { db } from '@/lib/db'
 import { HANDLE_RE } from '@/lib/handle'
+import { storefrontBaseHost, storefrontUrl } from '@/lib/storefront-host'
+import { storefrontByHandle } from '@/lib/storefront'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerStorefront, loadSeller } from '@/components/marketplace/seller-storefront'
+import { isSellerHiddenHere } from '@/lib/edition-scope'
 import { Tr } from '@/context/language-context'
 
 // eno.vn/<handle> — the shareable, Telegram-style clean URL for users and storefronts
@@ -60,6 +63,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const seller = row.seller || row.profile?.seller
+  /**
+   * ⛔ THE HIDDEN CHECK BELONGS HERE TOO. generateMetadata runs independently of the page body, so
+   * a seller this edition refuses to show still had its NAME in the <title>, the description and
+   * the OG tags of a page that 404s — the same leak closed on `/s/[handle]` in this change, left
+   * open on the route it redirects FROM. `loadSeller` returns null for a hidden seller, but the
+   * title above it is built from `seller.name`, which comes straight off the handle row.
+   */
+  if (seller && await isSellerHiddenHere(seller.id)) {
+    return { title: 'Not found', robots: { index: false, follow: false } }
+  }
   if (seller) {
     // Compose a real description from the storefront data the page itself loads —
     // loadSeller is React-cache()d, so this is the SAME DB read SellerStorefront
@@ -108,10 +121,71 @@ export default async function HandlePage({ params }: Props) {
   const row = await resolve(handle)
   if (!row) notFound()
 
-  // Storefront handle — or a user who owns a storefront: render the shop in place so
-  // the clean handle is the URL people see and share (no bounce to /sellers/<id>).
+  /**
+   * ⛔ A SHOP'S CANONICAL HOME IS ITS SUBDOMAIN — owner, 2026-09-07: *"this is the format from now
+   * on … everywhere the businesses storefront is this style"*. `eno.vn/<handle>` used to render
+   * `<SellerStorefront>` in place, a profile-shaped page, while `<handle>.eno.vn` rewrites to
+   * `/s/<handle>` and gets the real shop: the full `ListingsExplorer` with search, facets and
+   * sorting. Two URLs, two different products, and the one people were handed from the dashboard
+   * was the lesser of them. This sends every storefront request to the one that is the shop.
+   *
+   * ⚠️ ONLY WHEN THE SUBDOMAIN CAN ACTUALLY RESOLVE, and that guard is doing real work.
+   * `storefrontUrl()` falls back to the path form for a handle that cannot be a host (an infra
+   * label, a reserved word) — redirecting to that would be a loop. And on a local preview it
+   * happily returns `http://<handle>.localhost:3000`, which Chrome resolves but curl, Playwright
+   * and the guest e2e suite do not: a redirect there would break the one target the ship ritual
+   * points at. A base host with no dot is not a real domain, so it renders in place as before.
+   *
+   * ⚠️ TEMPORARY (307), NOT PERMANENT. A 308 is cached by browsers effectively for ever, and
+   * handle-format.ts already records what that costs when a root-level redirect turns out wrong.
+   * Promote it once the format has settled; the SEO consolidation is worth having, but not at the
+   * price of an un-revertable redirect on every shop.
+   */
   const sellerId = row.seller?.id ?? row.profile?.seller?.id
-  if (sellerId) return <SellerStorefront id={sellerId} />
+  if (sellerId) {
+    /**
+     * ⛔ THE HIDDEN CHECK COMES FIRST. `SellerStorefront` runs the same test and returns null, so
+     * rendering in place used to be the 404 path for a desk seller on eno.vn.
+     * Redirecting before that test would have bounced the visitor onto `<desk>.eno.vn` and served
+     * the storefront from a host this page had just decided must not show it — a licensing bypass
+     * introduced by a redirect that looked purely cosmetic. Reviewer-caught.
+     *
+     * ⛔ AND ONLY THE SHOP'S OWN HANDLE REDIRECTS. `row.seller` is a handle attached to the SELLER;
+     * `row.profile?.seller` is a PERSON's handle who happens to own a shop, and those are different
+     * strings in one namespace. Sending `alice` to `alice.eno.vn` publishes a subdomain for a
+     * handle the shop does not hold — and the `/sellers/{id}` fallback elsewhere proves a
+     * handle-less seller is a real state. A person's handle keeps rendering the shop in place.
+     */
+    if (await isSellerHiddenHere(sellerId)) notFound()
+    if (row.seller?.id) {
+      const origin = process.env.NEXT_PUBLIC_APP_URL ?? ''
+      const canonical = storefrontUrl(row.handle, origin)
+      /**
+       * ⚠️ ONLY WHEN THE SUBDOMAIN CAN ACTUALLY RESOLVE. `storefrontUrl()` falls back to the path
+       * form for a handle that cannot be a host, and it lowercases both branches — so comparing
+       * against the path form is a reliable "did it give me a subdomain", with no loop. On a local
+       * preview it returns `http://<handle>.localhost:3000`, which Chrome resolves but curl,
+       * Playwright and the guest e2e suite do not; a base host with no dot renders in place.
+       */
+      const pathForm = `${origin.replace(/\/$/, '')}/${row.handle.toLowerCase()}`
+      const baseHost = storefrontBaseHost(origin)
+      /**
+       * ⚠️ A DOT IS NOT ENOUGH — AN IP HAS DOTS TOO. A preview served from `http://127.0.0.1:3000`
+       * passes a naive dotted-host test and would redirect to `shop.127.0.0.1:3000`, which resolves
+       * nowhere. Only a name can carry a wildcard subdomain.
+       */
+      const realDomain = baseHost.includes('.') && !/^[\d.]+(:\d+)?$/.test(baseHost)
+      /**
+       * ⛔ ONLY REDIRECT WHERE THE DESTINATION ACTUALLY RESOLVES. `/s/<handle>` 404s when
+       * `storefrontByHandle` returns null, and it returns null for a handle that matches a BRAND
+       * slug — so a shop holding such a handle would have been bounced from a working page to a
+       * 404. Asking the same question the destination asks is the only way to be sure the two
+       * agree; it is one indexed lookup, on the redirect path only.
+       */
+      if (realDomain && canonical !== pathForm && await storefrontByHandle(row.handle)) redirect(canonical)
+    }
+    return <SellerStorefront id={sellerId} />
+  }
   if (!row.profile) notFound()
 
   const name = row.profile.displayName || `@${row.handle}`

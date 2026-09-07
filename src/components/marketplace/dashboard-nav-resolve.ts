@@ -48,6 +48,20 @@ const toRail = (it: NavItem, ctx: NavResolveCtx): ResolvedNavItem | null => {
   let href = it.href
   if (it.dynamic === 'storefront') {
     if (!ctx.seller) return null // role-gated already; belt-and-braces so the placeholder href never renders
+    /**
+     * ⛔ `/{handle}`, WHICH REDIRECTS — ONE PLACE DECIDES THE CANONICAL URL, NOT TWO. Building the
+     * subdomain here directly looked right and duplicated a decision that has three guards on it:
+     * the seller must not be hidden on this edition, the destination must actually resolve
+     * (`/s/<handle>` 404s for a handle that matches a brand slug), and the base host must be a real
+     * domain rather than localhost or an IP. A pure resolver cannot run any of them — it has no
+     * database and no request — so a shop with a brand-slug handle got a "View storefront" button
+     * that led to a 404. Routing through `/[handle]` means the page that owns those checks answers,
+     * and the seller lands on the subdomain whenever it is genuinely the right place.
+     *
+     * ⚠️ IN-APP, SO THE RAIL KEEPS ITS CLIENT-SIDE TRANSITION — the property the 2026-08-07 note
+     * below in dashboard-nav.tsx asked for. The cross-origin hop, when there is one, happens at the
+     * redirect rather than on the click.
+     */
     href = ctx.seller.handle ? `/${ctx.seller.handle}` : `/sellers/${ctx.seller.id}`
   }
   return {

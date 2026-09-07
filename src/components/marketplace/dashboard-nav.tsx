@@ -208,14 +208,21 @@ export const DASHBOARD_NAV: NavGroup[] = [
       // ⚠️ ONE Payments ROW — wallet + payout merged into /dashboard/payments (tabbed). Same
       // three-layer gating as before: IS_SERVICES ternary, servicesOnly flag, aliased copy.
       ...(IS_SERVICES ? [{ ...SERVICES_NAV_PAYMENTS, icon: Wallet, servicesOnly: true, role: 'seller' as const }] : []),
-      // Public storefront of the signed-in seller — href is computed by the renderer.
-      // ⚠️ NOT `external` — it renders as a <Link>, like every other row. The storefront
-      // href resolves to `/{handle}` (or `/sellers/{id}`), which is an ordinary route in THIS
-      // app, so `external: true` bought nothing and cost a full document load: clicking it
-      // white-flashed and jumped the page while every sibling row transitioned client-side
-      // (owner, 2026-08-07: "make sure all pages in dashboard behave similarly and have smooth
-      // transition without jumping"). `external` stays in the type for a genuinely off-app
-      // destination — there is none in the rail today.
+      /**
+       * Public storefront of the signed-in seller — href is computed by the renderer.
+       *
+       * ⚠️ NOT `external` — it renders as a <Link>, like every other row. The storefront href
+       * resolves to `/{handle}` (or `/sellers/{id}`), which is an ordinary route in THIS app, so
+       * `external: true` bought nothing and cost a full document load: clicking it white-flashed
+       * and jumped the page while every sibling row transitioned client-side (owner, 2026-08-07:
+       * "make sure all pages in dashboard behave similarly and have smooth transition without
+       * jumping"). `external` stays in the type for a genuinely off-app destination.
+       *
+       * ⚠️ THAT STAYS TRUE NOW A SHOP'S CANONICAL HOME IS ITS SUBDOMAIN (2026-09-07). The link is
+       * still `/{handle}`; `/[handle]` performs the cross-origin redirect, and only when its three
+       * guards pass. Building the subdomain here instead would duplicate a decision this rail
+       * cannot make — see the note in dashboard-nav-resolve.ts.
+       */
       { href: '/sellers', ...tr('View storefront', 'Xem gian hàng'), icon: SquareArrowOutUpRight, role: 'seller', dynamic: 'storefront' },
     ],
   },

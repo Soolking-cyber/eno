@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
-import { scopedListingWhere } from '@/lib/edition-scope'
+import { isSellerHiddenHere, scopedListingWhere } from '@/lib/edition-scope'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { getCategoriesByDemand } from '@/lib/categories'
@@ -57,7 +57,9 @@ type Props = { params: Promise<{ handle: string }> }
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle } = await params
   const shop = await storefrontByHandle(handle)
-  if (!shop) return { title: 'Not found', robots: { index: false, follow: false } }
+  // ⚠️ THE SAME GATE AS THE PAGE. generateMetadata runs independently of the body, so without this
+  // a hidden seller's NAME still reached the <title> and the OG tags of a page that 404s.
+  if (!shop || await isSellerHiddenHere(shop.sellerId)) return { title: 'Not found', robots: { index: false, follow: false } }
   const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   return {
     title: `${shop.name} — ${SITE_NAME}`,
@@ -134,9 +136,26 @@ export default async function Storefront({ params }: Props) {
   const { handle } = await params
   const shop = await storefrontByHandle(handle)
   /**
-   * ⛔ 404 RATHER THAN A REDIRECT, AND FOR AN UNVERIFIED SHOP TOO. `storefrontByHandle` returns
-   * null both when nobody holds the handle and when the holder is not verified TODAY — see
-   * `storefront.ts` for why that is a live test. Bouncing to `eno.vn/<handle>` instead would be
+   * ⛔ THE SELLER-LEVEL EDITION GATE, WHICH THIS ROUTE DID NOT HAVE — measured against production
+   * 2026-09-07: `eno.vn/enoforum` correctly 404s while `enoforum.eno.vn` answered 200. The listings
+   * were scoped (`scopedListingWhere` below, and the page rendered zero of them with no visa or
+   * itinerary copy anywhere), so it was an empty shell rather than a content leak — but a seller
+   * this edition refuses to show at one URL must not resolve at the other, and an empty storefront
+   * under a shop's own subdomain is a poor answer besides.
+   *
+   * ⚠️ AFTER `storefrontByHandle`, not before: the hidden test needs a seller id, and this is the
+   * one call that turns a handle into one. Same `notFound()` as an unheld handle, deliberately —
+   * see the note below on not confirming which handles exist.
+   */
+  if (shop && await isSellerHiddenHere(shop.sellerId)) notFound()
+  /**
+   * ⛔ 404 RATHER THAN A REDIRECT. `storefrontByHandle` returns null when nobody holds the handle,
+   * when the holder is a person rather than a shop, and when the handle is a BRAND slug.
+   * ⚠️ NOT "and when the holder is not verified TODAY", which this said until 2026-09-07 and which
+   * sent a reviewer down the wrong path. That gate was reversed on 2026-08-30 — storefront.ts says
+   * so in its own words: "ANY SHOP WITH A HANDLE GETS ONE — VERIFICATION IS NOT THE GATE", because
+   * not one shop on the marketplace passed `isBusinessVerified` and a storefront nobody can have is
+   * not a value proposition. Read that file before re-adding a verification condition here. Bouncing to `eno.vn/<handle>` instead would be
    * friendlier and wrong: it would confirm to anyone probing subdomains exactly which handles
    * exist, and it would give a shop whose verification lapsed a working subdomain that quietly
    * stopped being theirs to control.
