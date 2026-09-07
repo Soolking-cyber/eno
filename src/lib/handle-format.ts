@@ -53,6 +53,30 @@ const RESERVED = new Set([
   // dynamic routes, so a seller holding `travel` on eno.forum would have an unreachable
   // storefront. Unclaimed when reserved (measured 2026-08-24: eno.vn/travel 404).
   'travel',
+  /**
+   * ⛔ ROOT-LEVEL PAGE ROUTES — TWELVE OF THEM WERE CLAIMABLE, AND THE INVARIANT ABOVE COULD NOT SEE
+   * THEM. That test reads next.config.ts, so it guarded rewrites and redirects while every real
+   * `src/app/<seg>/page.tsx` sat unprotected: a static route always beats `src/app/[handle]`, so a
+   * seller holding any of these gets a storefront that resolves to somebody else's page for ever,
+   * with nothing in the product telling them why. `handle-format.test.ts` now reads `src/app` too,
+   * so adding a root page without reserving its name fails there instead of in production.
+   * ⚠️ MEASURED BEFORE RESERVING (2026-09-07): none of the twelve was held — 14 handles exist in
+   * total. Reserving a name somebody already owns would break their storefront, so re-run that
+   * check before adding to this block.
+   * ⚠️ THE SEO LANDING SLUGS ARE HERE FOR THE SAME REASON as the app pages: they are ordinary root
+   * routes. ⛔ AND THEY MUST BE SPELLED EXACTLY, because the `-`/`_` fold runs in the direction
+   * OPPOSITE to the one an earlier version of this note claimed. `validateHandle` is
+   * `RESERVED.has(h) || RESERVED.has(h.replace(/[-_]/g, ''))`: it strips separators from the
+   * ATTEMPT and looks that up, so an unhyphenated entry like `about` also catches `ab-out`, but a
+   * hyphenated entry catches only itself. Measured 2026-09-07: `vietnam-evisa` → reserved,
+   * `vietnamevisa` → claimable. That is fine for SHADOWING, which is all this block is for — only
+   * the exact slug is a route — but do not assume one entry covers every spelling here. If these
+   * ever need impersonation cover too, add the folded forms explicitly.
+   */
+  'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'itinerary',
+  'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam',
+  'moving-to-vietnam', 'partners', 'services-for-expats-vietnam', 'unsubscribe',
+  'vietnam-evisa',
   // platform identity / staff impersonation
   'eno', 'enovn', 'eno_vn', 'official', 'support', 'moderator', 'mod', 'staff',
   'team', 'security', 'verify', 'verified', 'system', 'notifications', 'billing',

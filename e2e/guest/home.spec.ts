@@ -91,9 +91,19 @@ test.describe('Guest · homepage', () => {
        */
       expect(new URL(page.url()).hostname.replace(/^www\./, ''), 'navigation left the edition domain')
         .toBe(host)
-      const itinerary = await page.request.get('/itinerary', { failOnStatusCode: false })
-      expect(itinerary.status(), `${host} served /itinerary ${itinerary.status()} — wrong edition bundle`)
-        .toBe(host === 'eno.forum' ? 200 : 404)
+      // Cache-busted: a 404 cached at the edge would outlive a wrong-edition swap. See visa.spec.ts.
+      const itinerary = await page.request.get(`/itinerary?e2e=${Date.now()}`, { failOnStatusCode: false })
+      /**
+       * ⚠️ THE STATUS IS THE WHOLE SIGNAL, AND THAT IS SAFE BECAUSE `itinerary` IS NOW A RESERVED
+       * HANDLE — see the longer note in e2e/guest/visa.spec.ts. Before that, a seller holding the
+       * word made eno.vn answer 200 here and this line reported a wrong-edition deploy over a
+       * username; guarding it by grepping the body was worse, because the squatter controls the
+       * body. `handle-format.ts` reserves every root page route now.
+       */
+      expect(
+        itinerary.status(),
+        `${host} served /itinerary ${itinerary.status()} — wrong edition bundle`,
+      ).toBe(host === 'eno.forum' ? 200 : 404)
     }
     await expect(page).toHaveTitle(new RegExp(declared.replace(/\./g, '\\.'), 'i'))
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()

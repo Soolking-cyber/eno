@@ -71,17 +71,85 @@ test.describe('Guest · e-Visa', () => {
    * ⚠️ THE EDITION IS DERIVED FROM THE TARGET HOST, not from a flag, for the same reason
    * home.spec.ts derives the title: the suite has to be runnable against either deployment without
    * an edit.
+   *
+   * ⛔ THE POLARITY IS NOT A MISTAKE, AND THREE ROUNDS OF REVIEWERS HAVE NOW READ IT AS ONE, so it
+   * is stated here in one place. VietKite is a PARTNER, and its storefront on eno.vn is intended:
+   * "eno.vn visa results are VietKite's, and intended… never hide a partner or the visa-legal
+   * slot" (2026-09-06, correcting a 2026-09-01 report that called it a leak). What moved off
+   * eno.vn for licensing is ENO'S OWN visa and itinerary services, which is what /visa and
+   * /itinerary 404ing there proves. So: the partner's storefront MUST resolve on eno.vn, and must
+   * NOT on eno.forum, where the owner's hide-list applies ("in eno.forum vietkite and gmbr
+   * shouldnt be seen"). A reviewer reading only this file's diff will reliably get this backwards.
    */
-  test('the visa storefront renders to a guest on the marketplace, and is hidden on services', async ({ page }) => {
+  test('the visa storefront renders to a guest on the marketplace, and is hidden on services', async ({ page, baseURL }) => {
     /**
-     * ⚠️ THE EDITION IS PROBED, NOT READ OFF THE HOSTNAME. `host.endsWith('eno.forum')` is false for
-     * every localhost preview and CI server, so a services build served on :3000 would be asserted
-     * as a marketplace and fail on a correct app (external review). `/visa` is the licensing
-     * boundary itself: it does not exist in the marketplace bundle and does on services, which is
-     * true on any host the suite is ever pointed at.
+     * ⛔ ON A PRODUCTION HOST THE EDITION IS NOT INFERRED FROM THE APP AT ALL, AND THE PROBE BECOMES
+     * AN ASSERTION. Deriving it from the app is tautological in precisely the scenario this test
+     * exists for: edition exclusion is resolved at BUILD time, so a services image misrouted onto
+     * eno.vn leaks every `.svc.` route together — `/itinerary` answers 200, the probe concludes
+     * "services", the test then asserts the services expectations, and it PASSES while the licensed
+     * marketplace is serving visa surfaces. The most likely licensing failure was the one this
+     * guard rewarded. The request host is the one fact the deployment does not get to author, so
+     * where we are pointed at an edition's own domain, that decides — and the probe is then held to
+     * it, which turns a wrong-edition deploy into a failure instead of a pass.
+     *
+     * ⚠️ OFF A PRODUCTION HOST THE PROBE STILL DECIDES, deliberately. A preview or CI server is not
+     * an edition domain and cannot be held to one; `host.endsWith('eno.forum')` is false for every
+     * localhost run, so a services build on :3000 would otherwise be asserted as a marketplace and
+     * fail on a correct app (external review made that point and it still stands).
+     *
+     * ⛔ AND THE PROBE ROUTE IS `/itinerary`, NOT `/visa`, WHICH DOES NOT DISCRIMINATE AT ALL.
+     * Measured 2026-09-07 against production:
+     *     /visa       404 on eno.vn   AND   404 on eno.forum
+     *     /itinerary  404 on eno.vn         200 on eno.forum
+     * `/visa` 404s on BOTH editions — the services visa surfaces live under other routes — so
+     * `status() !== 404` was false everywhere and this test always took the MARKETPLACE branch.
+     * Pointed at eno.forum it demanded that the partner storefront resolve on the edition whose
+     * whole purpose is hiding it, and failed on a correct deployment. Worse than the failure: the
+     * services branch — the assertion that watches for a hidden partner REAPPEARING on eno.forum,
+     * which is what the owner forbade — had never once executed.
      */
-    const visaProbe = await page.request.get('/visa')
-    const services = visaProbe.status() !== 404
+    /**
+     * ⚠️ THE STATUS IS THE WHOLE SIGNAL, AND THAT IS SAFE BECAUSE `itinerary` IS NOW A RESERVED
+     * HANDLE. It was not: `src/app/[handle]` is a root dynamic segment, so on the MARKETPLACE —
+     * which ships no static /itinerary — a seller taking that word made eno.vn answer 200 and this
+     * pin would have reported a licensing breach over a username. A first attempt guarded it here
+     * by grepping the response body for planner copy; four reviewers pointed out the squatter's own
+     * listings defeat that regex, and that swallowing an unreadable body silently reported the
+     * marketplace as clean. The fix belongs at the source, not in the test: `handle-format.ts` now
+     * reserves every root page route, and `handle-format.test.ts` reads `src/app` so a new root
+     * page without a reservation fails there. Measured before reserving — none of the twelve names
+     * was held.
+     */
+    /**
+     * ⚠️ CACHE-BUSTED. Both editions sit behind Cloudflare, and a `/itinerary` 404 cached against
+     * eno.vn would survive a wrong-edition swap until a purge — so the probe would report the
+     * pre-swap edition and pass. eno-deploy.sh purges before it verifies, but this suite is also
+     * run by hand against production, where nothing has purged anything.
+     */
+    const editionProbe = await page.request.get(`/itinerary?e2e=${Date.now()}`)
+    const probeStatus = editionProbe.status()
+    /**
+     * ⚠️ ANYTHING BUT 200 OR 404 IS A BROKEN TARGET, NOT A MARKETPLACE. `=== 200` alone silently
+     * classified a 500 on a data-less CI build, a Cloudflare 429/403, or a 503 mid-deploy as
+     * "marketplace" and then failed for a reason that named the wrong thing entirely.
+     */
+    expect(
+      [200, 404],
+      `/itinerary answered ${probeStatus}; the edition cannot be read from a target in that state`,
+    ).toContain(probeStatus)
+
+    const host = baseURL ? new URL(baseURL).hostname.replace(/^www\./, '') : null
+    const productionEdition = host === 'eno.vn' ? false : host === 'eno.forum' ? true : null
+    if (productionEdition !== null) {
+      expect(
+        probeStatus === 200,
+        `${host} served /itinerary ${probeStatus} — that is the WRONG EDITION's bundle, and it is ` +
+        `the licensing failure this suite exists to catch. Do not "fix" the test.`,
+      ).toBe(productionEdition)
+    }
+    const services = productionEdition ?? (probeStatus === 200)
+
     const res = await page.goto(`/${VISA_DESK_HANDLE}`)
 
     if (services) {
