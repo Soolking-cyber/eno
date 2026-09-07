@@ -165,6 +165,9 @@ export async function GET() {
       'jobs-vietnam-expats',
       'motorbikes-for-sale-vietnam',
       'moving-sales-vietnam',
+      // Marketplace commerce copy, not a licensed service — it ships on BOTH editions like any
+      // other listing surface, so no IS_SERVICES gate here.
+      'wholesale-green-coffee-vietnam',
       // ⚠️ SERVICES EDITION ONLY. Two thirds of this page is e-visa and trip-planning copy, so on
       // the licensed marketplace it must not be submitted to Google — see the note below.
       ...(IS_SERVICES ? ['services-for-expats-vietnam'] : []),

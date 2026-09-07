@@ -108,6 +108,7 @@ export function Footer() {
         { label: tr('Jobs in Vietnam for expats', 'Việc làm cho người nước ngoài'), href: '/jobs-vietnam-expats' },
         { label: tr('Motorbikes for sale in Vietnam', 'Mua bán xe máy tại Việt Nam'), href: '/motorbikes-for-sale-vietnam' },
         { label: tr('Moving sales in Vietnam', 'Thanh lý chuyển nhà tại Việt Nam'), href: '/moving-sales-vietnam' },
+        { label: tr('Wholesale green coffee', 'Cà phê nhân xanh bán sỉ'), href: '/wholesale-green-coffee-vietnam' },
         /* ⚠️ SERVICES EDITION ONLY. eno.vn is a licensed sàn TMĐT and may not advertise visa,
            itinerary or PayPal services. The footer is the highest-frequency leak in the repo:
            these are real crawlable <a href> anchors on ~250 routes in BOTH languages, baked

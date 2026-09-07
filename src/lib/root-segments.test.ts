@@ -54,7 +54,8 @@ describe('markdown-404 rewrite scope', () => {
   it('excludes the marketplace SEO pages that ARE live on eno.vn', () => {
     const m = appRootSegments(MARKETPLACE)
     for (const seg of ['moving-sales-vietnam', 'housing-vietnam-expats',
-      'motorbikes-for-sale-vietnam', 'jobs-vietnam-expats', 'llms.txt', 'openapi.json']) {
+      'motorbikes-for-sale-vietnam', 'jobs-vietnam-expats', 'wholesale-green-coffee-vietnam',
+      'llms.txt', 'openapi.json']) {
       expect(m, seg).toContain(seg)
     }
   })

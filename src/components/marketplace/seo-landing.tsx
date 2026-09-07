@@ -1,4 +1,7 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
+// ⚠️ THE TAXONOMY UNION, NOT `string`. A typo silently empties the rail — there is no slug test
+// covering this dimension the way seo-landing-slugs.test.ts covers category/subcategory (fable).
+import type { ListingType } from '@/lib/taxonomy'
 import { SITE_NAME } from '@/lib/edition'
 import { RichBlock } from '@/components/marketplace/rich-text'
 import type { ReactNode } from 'react'
@@ -31,6 +34,18 @@ export type SeoContent = {
    * of failure seo-landing-slugs.test.ts exists to catch a sibling of.
    */
   subcategorySlug?: string
+  /**
+   * Narrow to one listing INTENT — a `ListingType` from `taxonomy.ts` (`wholesale`, `service`,
+   * `wanted`, `rent`, …), matched against `Listing.listingType`.
+   *
+   * ⚠️ INTENT IS NOT A CATEGORY, AND CONFLATING THEM IS HOW A B2B PAGE GOES WRONG. `food-drink`
+   * carries `types: ['sell','service','wanted','wholesale']` over the same four subcategories, so
+   * "wholesale green coffee" and a home baker's cake sit in `coffee-tea`/`home-baking` under one
+   * category with nothing but this column between them. Without it a wholesale landing page would
+   * describe per-tonne lots and then rail retail bags — and the mismatch would be invisible,
+   * because the rail would still be full.
+   */
+  listingType?: ListingType
   /**
    * Narrow further by listing ATTRIBUTES (facet key → value), e.g. `{ visaSpeed: '1H' }`.
    *
@@ -100,6 +115,7 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
         status: 'active',
         category: { slug: content.categorySlug },
         ...(content.subcategorySlug ? { subcategorySlug: content.subcategorySlug } : {}),
+        ...(content.listingType ? { listingType: content.listingType } : {}),
         // One `contains` per attribute rather than one over the whole object: key order inside
         // the stored JSON is whatever the wizard happened to write, so a multi-key substring
         // would match nothing on most rows. Measured — the live visa listings carry

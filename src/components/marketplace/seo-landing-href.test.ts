@@ -51,4 +51,27 @@ describe('seoBrowseHref', () => {
       '/?category=services&attr_note=a+b%26c',
     )
   })
+
+  /**
+   * ⛔ THE SAME REGRESSION AS THE `attributes` CASE ABOVE, ONE DIMENSION LATER. `listingType` is
+   * the third way a page can narrow its rail, and adding it to the query without adding it to the
+   * "narrowed at all" test would have sent the wholesale coffee page's CTA to `/c/food-drink` —
+   * per-tonne parcels described, home bakers delivered. Both destinations are full of listings,
+   * so nothing would look broken.
+   */
+  it('narrows on listingType alone and leaves /c/', () => {
+    expect(seoBrowseHref({ categorySlug: 'food-drink', listingType: 'wholesale' })).toBe(
+      '/?category=food-drink&type=wholesale',
+    )
+  })
+
+  it('combines listingType with a subcategory in the explorer’s own param names', () => {
+    expect(seoBrowseHref({ categorySlug: 'food-drink', subcategorySlug: 'coffee-tea', listingType: 'wholesale' })).toBe(
+      '/?category=food-drink&subcategory=coffee-tea&type=wholesale',
+    )
+  })
+
+  it('still funnels to /c/ when listingType is absent', () => {
+    expect(seoBrowseHref({ categorySlug: 'food-drink' })).toBe('/c/food-drink')
+  })
 })

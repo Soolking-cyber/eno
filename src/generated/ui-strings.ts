@@ -1859,6 +1859,7 @@ export const UI_STRINGS: string[] = [
   "Whole card inside the frame — or tap Take photo",
   "Whole page inside the frame — or tap Take photo",
   "Wholesale",
+  "Wholesale green coffee",
   "Widen the area",
   "With no search query, the order is a single weighted score. Seller trust leads, buyer interest follows, and freshness breaks ties:",
   "Withdraw this case",

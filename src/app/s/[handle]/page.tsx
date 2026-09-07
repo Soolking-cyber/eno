@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { isSellerHiddenHere, scopedListingWhere } from '@/lib/edition-scope'
-import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
+import { serializeListingCard, safeParse, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { getCategoriesByDemand } from '@/lib/categories'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
@@ -18,6 +18,7 @@ import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
 import { storefrontByHandle } from '@/lib/storefront'
 import { storefrontUrl } from '@/lib/storefront-host'
 import { SITE_NAME } from '@/lib/edition'
+import { storefrontJsonLd, type StorefrontLdListing } from './storefront-jsonld'
 
 /**
  * A SHOP'S OWN STOREFRONT — the home page, scoped to one seller.
@@ -78,6 +79,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 async function getData(sellerId: string): Promise<{
   categories: SerializedCategory[]
   listings: SerializedListingCard[]
+  /**
+   * The same rows again, projected for structured data.
+   *
+   * ⚠️ IT CARRIES `listingType`, WHICH `SerializedListingCard` DOES NOT. The card grid has never
+   * needed the intent, but the JSON-LD does: a `wanted` row published as a `Product` + `Offer`
+   * has the shop advertising what it wants to BUY as its own stock. Selecting one extra column
+   * here beats widening `LISTING_CARD_SELECT`, which is shared by every list surface in the app.
+   */
+  ldListings: StorefrontLdListing[]
   total: number
 }> {
   /**
@@ -91,7 +101,7 @@ async function getData(sellerId: string): Promise<{
     getCategoriesByDemand(),
     db.listing.findMany({
       where,
-      select: LISTING_CARD_SELECT,
+      select: { ...LISTING_CARD_SELECT, listingType: true },
       orderBy: { createdAt: 'desc' },
       take: 24,
     }),
@@ -128,6 +138,18 @@ async function getData(sellerId: string): Promise<{
   return {
     categories: serializedCategories,
     listings: await localizeListingTitles(rows.map(serializeListingCard)),
+    /**
+     * ⚠️ IDS AND INTENT ONLY — no title, no price, no currency. The JSON-LD emits Google's SUMMARY
+     * list form (`ListItem` + `url`), so the crawler follows each link to the PDP that already
+     * carries the real `Product` markup. That also sidesteps a question this projection used to
+     * have to answer: `localizeListingTitles` can return the Vietnamese title, so a name copied
+     * from the cards would flip language depending on which render a crawler caught.
+     */
+    ldListings: rows.map((r) => ({
+      id: r.id,
+      images: safeParse<string[]>(r.images, []),
+      listingType: r.listingType,
+    })),
     total,
   }
 }
@@ -161,10 +183,36 @@ export default async function Storefront({ params }: Props) {
    * stopped being theirs to control.
    */
   if (!shop) notFound()
-  const { categories, listings, total } = await getData(shop.sellerId)
+  const { categories, listings, ldListings, total } = await getData(shop.sellerId)
+
+  /**
+   * ⚠️ THE SAME `storefrontUrl(...)` CALL `generateMetadata` MAKES, so the `Store.url` and the
+   * `<link rel="canonical">` cannot disagree. Two different answers for "what is this page's URL"
+   * is the exact shape that splits a shop's ranking between two hosts.
+   */
+  const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  const ld = storefrontJsonLd({
+    name: shop.name,
+    // ⛔ `SITE_NAME`, NEVER THE LITERAL 'eno.vn'. This file compiles on both editions; a hardcoded
+    // name would have the services build publishing an organization called eno.vn at eno.forum.
+    siteName: SITE_NAME,
+    url: storefrontUrl(shop.handle, origin),
+    origin,
+    bannerUrl: shop.bannerUrl,
+    listings: ldListings,
+  })
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
+      {/* `<` escaping matches every other JSON-LD emitter in the app: a `<` inside a listing
+          title would otherwise be able to close this script tag. */}
+      {ld.map((node, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(node).replace(/</g, '\\u003c') }}
+        />
+      ))}
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         {/**

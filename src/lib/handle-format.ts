@@ -76,7 +76,7 @@ const RESERVED = new Set([
   'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'itinerary',
   'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam',
   'moving-to-vietnam', 'partners', 'services-for-expats-vietnam', 'unsubscribe',
-  'vietnam-evisa',
+  'vietnam-evisa', 'wholesale-green-coffee-vietnam',
   // platform identity / staff impersonation
   'eno', 'enovn', 'eno_vn', 'official', 'support', 'moderator', 'mod', 'staff',
   'team', 'security', 'verify', 'verified', 'system', 'notifications', 'billing',

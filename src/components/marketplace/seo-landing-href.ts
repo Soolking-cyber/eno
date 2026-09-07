@@ -19,6 +19,18 @@
 export type SeoBrowseTarget = {
   categorySlug: string
   subcategorySlug?: string
+  /**
+   * Narrow to one listing INTENT — `wholesale`, `service`, `wanted`, `rent`… (`taxonomy.ts`
+   * `ListingType`).
+   *
+   * ⛔ IT IS A THIRD NARROWING DIMENSION AND IT MUST WIDEN THE "NARROWED AT ALL" TEST BELOW, which
+   * is the whole reason this is not a one-line addition. A page setting only `listingType` narrows
+   * its own rail to, say, the wholesale coffee lots, and would then have funnelled to
+   * `/c/food-drink` — a category page mixing wholesale sacks in with home bakers. That is exactly
+   * the silent mismatch the comment inside the function describes, and it is silent for the same
+   * reason: both destinations are valid pages full of listings.
+   */
+  listingType?: string
   attributes?: Record<string, string>
 }
 
@@ -30,9 +42,12 @@ export function seoBrowseHref(content: SeoBrowseTarget): string {
   // whole category — a wider set than the page had just described, and silent, because BOTH
   // destinations are valid pages full of listings. No page does that today; the point is that
   // adding one would not have been a mistake anybody could see.
-  if (!content.subcategorySlug && attrs.length === 0) return `/c/${content.categorySlug}`
+  if (!content.subcategorySlug && !content.listingType && attrs.length === 0) return `/c/${content.categorySlug}`
   const params = new URLSearchParams({ category: content.categorySlug })
   if (content.subcategorySlug) params.set('subcategory', content.subcategorySlug)
+  // `type` is the explorer's own param name — `listings-explorer.tsx` reads `params.get('type')`
+  // and `feed-query.ts` filters `listingType` on it. Same convention, not a second one.
+  if (content.listingType) params.set('type', content.listingType)
   // `attr_<key>=<value>` is the feed's own convention, not a new one — see
   // src/app/api/listings/feed-query.ts, which turns each into a `contains` on the attributes JSON.
   // The landing page's Prisma query builds the same predicate from the same object, which is what
