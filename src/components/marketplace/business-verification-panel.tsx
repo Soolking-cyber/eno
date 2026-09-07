@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
 
 // The seller's own "get verified" surface (mounts under the business profile editor).
 // One badge, granted after >=2 channels: the tax-registry check (Channel 1, automatic,
@@ -39,6 +40,17 @@ const ERROR_COPY: Record<string, [string, string]> = {
   rate_limited: ['Too many attempts — try again in a little while.', 'Thử quá nhiều lần — vui lòng thử lại sau ít phút.'],
   file_too_large: ['That file is over 15 MB.', 'Tệp vượt quá 15 MB.'],
   unsupported_file_type: ['Use a JPG, PNG or PDF.', 'Dùng JPG, PNG hoặc PDF.'],
+  /**
+   * ⛔ THIS WAS MISSING, AND IT IS WHY THE 403 READ AS A MYSTERY. Every seller-verification route
+   * answers `no_storefront` when the signed-in profile owns no Seller row, and with no entry here
+   * the panel fell through to "Something went wrong. Please try again." — advice that cannot work,
+   * for a condition the server had named exactly. Reported from production on eno.forum: two
+   * endpoints 403ing, an upload button that did nothing, and no way to tell why.
+   */
+  no_storefront: [
+    'You do not have a storefront yet. Switch your account to a business in Settings first.',
+    'Bạn chưa có gian hàng. Hãy chuyển tài khoản sang doanh nghiệp trong Cài đặt trước.',
+  ],
 }
 
 export function BusinessVerificationPanel({ showPersonSteps = true }: { showPersonSteps?: boolean } = {}) {
@@ -54,16 +66,62 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
   const [personGate, setPersonGate] = useState(false)
   const [personVerified, setPersonVerified] = useState(true)
   const [loading, setLoading] = useState(true)
+  /**
+   * ⛔ ONE STATUS, NOT TWO BOOLEANS — AND THE LAST RESPONSE WINS. This was `noStorefront` plus
+   * `loadFailed`, and every review round found another way the pair could disagree: the newest one
+   * was that a user on the "no storefront" screen who clicks refresh and hits a 500 stays on it,
+   * because the failure screen rendered on `loadFailed && !noStorefront` while `noStorefront`
+   * cleared only on a 2xx. Masking an outage behind a stale answer is worse than either state
+   * alone. Two booleans could express four states of which only three are real, and the impossible
+   * fourth is where every one of those bugs lived.
+   *
+   * ⚠️ THE PANEL USED TO DRAW ITSELF FOR SOMEBODY WHO CANNOT USE IT, which is the bug that started
+   * this: `load()` was `if (res.ok) { … }` with no else, so a 403 left every field at its default
+   * and the full upload form rendered — two file buttons and a Submit that could only 403 again,
+   * each time with a generic toast because `no_storefront` had no entry in ERROR_COPY. Reported
+   * from production on eno.forum.
+   */
+  const [status, setStatus] = useState<'ok' | 'no-storefront' | 'failed'>('ok')
   const [busy, setBusy] = useState(false)
   const [consent, setConsent] = useState(false)
+  /**
+   * ⚠️ ONLY THE NEWEST `load()` MAY WRITE STATE. `load()` runs on mount and again after every
+   * upload and submit, so two can overlap — and without this an older, slower failure could land
+   * after a newer success and replace a working panel with the retry screen.
+   */
+  const loadSeq = useRef(0)
   const idInput = useRef<HTMLInputElement>(null)
   const bankInput = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
+    const stale = () => seq !== loadSeq.current
     try {
       const res = await fetch('/api/seller/verification', { cache: 'no-store' })
-      if (res.ok) {
-        const b = (await res.json()) as { case: CaseView; view: LiveView; personGate?: boolean; personVerified?: boolean }
+      /**
+       * ⛔ THE LAST RESPONSE WINS, AND THAT IS THE WHOLE STATE MACHINE: a `no_storefront` 403 ⇒
+       * 'no-storefront', a 2xx ⇒ 'ok', anything else ⇒ 'failed'. Earlier versions tried to be
+       * cleverer — keeping a settled "no storefront" across a later outage — and every round of
+       * review found another pair of states that disagreed, ending with a refresh failure masked
+       * behind a stale notice. Whatever the server said MOST RECENTLY is what the reader is shown,
+       * which is also what someone pressing a refresh button expects.
+       */
+      if (res.status === 403) {
+        const b = (await res.json().catch(() => null)) as { error?: string } | null
+        // Only THIS refusal means "there is nothing to verify yet". Any other 403 is a real fault
+        // and must not be dressed up as a missing storefront. The route emits exactly
+        // `{ error: '<code>' }` (lib/api/handler.ts) — verified against production, which answers
+        // `{"error":"auth_required"}` to an anonymous caller.
+        if (b?.error === 'no_storefront') { if (!stale()) setStatus('no-storefront'); return }
+      }
+      if (stale()) return
+      if (!res.ok) { setStatus('failed'); return }
+      const b = (await res.json()) as { case: CaseView; view: LiveView; personGate?: boolean; personVerified?: boolean }
+      // ⚠️ RE-CHECKED AFTER THE AWAIT. `res.json()` suspends, so a load that passed the check above
+      // can resume behind a newer one and overwrite it — the exact race the guard exists to stop.
+      if (stale()) return
+      {
+        setStatus('ok')
         setView(b.case)
         setLive(b.view ?? 'unverified')
         setPersonGate(b.personGate === true)
@@ -71,7 +129,10 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
         // every seller out of a flow that worked yesterday. The server is the gate; this is chrome.
         setPersonVerified(b.personVerified !== false)
       }
-    } finally { setLoading(false) }
+    } catch {
+      // A network failure is the same "we do not know" as a 500 — never a missing storefront.
+      if (!stale()) setStatus('failed')
+    } finally { if (!stale()) setLoading(false) }
   }, [])
   useEffect(() => { void load() }, [load])
 
@@ -113,6 +174,61 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
       <Skeleton className="h-5 w-40 rounded-lg" />
       <Skeleton className="mt-3 h-4 w-full rounded-lg" />
       <Skeleton className="mt-2 h-4 w-2/3 rounded-lg" />
+    </div>
+  )
+
+  /**
+   * ⛔ COULD NOT LOAD ⇒ OFFER A RETRY, DO NOT DRAW THE FORM. Uploads and submit both need the case
+   * this failed to fetch, so drawing them invites a click that can only fail again.
+   */
+  if (status === 'failed') return (
+    <div className="mt-6 rounded-2xl bg-tint p-4">
+      <p className="text-sm font-semibold text-foreground">
+        {tr('Could not load your verification', 'Không tải được thông tin xác minh')}
+      </p>
+      <p className="mt-1 text-sm text-body">
+        {tr(
+          'Your session may have expired. Sign in again, or try once more.',
+          'Phiên đăng nhập có thể đã hết hạn. Hãy đăng nhập lại hoặc thử lại.',
+        )}
+      </p>
+      <Button variant="outline" size="sm" className="mt-3" onClick={() => { setLoading(true); void load() }}>
+        {tr('Try again', 'Thử lại')}
+      </Button>
+    </div>
+  )
+
+  /**
+   * ⛔ NO STOREFRONT ⇒ SAY SO, DO NOT DRAW THE FORM. Business verification verifies a SELLER, so
+   * without one there is nothing this panel can act on — and every button below would 403. It is
+   * an ordinary state, not an error: an individual account reaching a page it can only use after
+   * switching to a business. So it reads as a next step, with the link to take it, rather than as
+   * a failure.
+   */
+  if (status === 'no-storefront') return (
+    <div className="mt-6 rounded-2xl bg-tint p-4">
+      <p className="text-sm font-semibold text-foreground">
+        {tr('You do not have a storefront yet', 'Bạn chưa có gian hàng')}
+      </p>
+      <p className="mt-1 text-sm text-body">
+        {tr(
+          'Business verification confirms a storefront, so there is nothing to verify until you have one. Switch your account to a business and it will appear here.',
+          'Xác minh doanh nghiệp là xác minh cho gian hàng, nên chưa có gì để xác minh cho đến khi bạn có một gian hàng. Hãy chuyển tài khoản sang doanh nghiệp và mục này sẽ xuất hiện.',
+        )}
+      </p>
+      {/* ⚠️ `asChild`, not `render` — ui/button is the ONE primitive that bridges Base UI's render
+          prop to asChild, exactly as CLAUDE.md records. `render` type-errors here. */}
+      {/* ⚠️ A WAY BACK, because the storefront is usually created ELSEWHERE — in Settings, in
+          another tab, or by posting a listing. Without a refresh the panel would keep asserting
+          "no storefront" to somebody who has just made one, until a full reload. */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href="/dashboard/settings">{tr('Go to Settings', 'Đến Cài đặt')}</Link>
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => { setLoading(true); void load() }}>
+          {tr('I have one — refresh', 'Tôi đã có — làm mới')}
+        </Button>
+      </div>
     </div>
   )
 
