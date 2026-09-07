@@ -10,8 +10,18 @@ import { rankScoreExprSql } from '../src/lib/ranking-formula'
 const url = process.env.DIRECT_URL || process.env.DATABASE_URL
 if (!url) { console.error('Set DIRECT_URL / DATABASE_URL'); process.exit(1) }
 
-const client = new pg.Client({ connectionString: url })
-await client.connect()
-const res = await client.query(`UPDATE "Listing" SET "rankScore" = ${rankScoreExprSql()}`)
-console.log(`backfilled rankScore on ${res.rowCount} listing(s) with the live formula`)
-await client.end()
+/**
+ * ⛔ WRAPPED IN A FUNCTION BECAUSE TOP-LEVEL AWAIT DID NOT RUN — this script threw
+ * "Top-level await is currently not supported with the cjs output format" on every invocation of
+ * the exact command in its own usage line, so the documented backfill had never once executed.
+ * Found 2026-09-07 while chasing 152 imported listings stuck at rankScore 0.
+ */
+async function main() {
+  const client = new pg.Client({ connectionString: url })
+  await client.connect()
+  const res = await client.query(`UPDATE "Listing" SET "rankScore" = ${rankScoreExprSql()}`)
+  console.log(`backfilled rankScore on ${res.rowCount} listing(s) with the live formula`)
+  await client.end()
+}
+
+main().catch((e) => { console.error(e); process.exit(1) })

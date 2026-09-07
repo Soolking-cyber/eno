@@ -1,0 +1,143 @@
+[
+  {
+    "domain": "phuongtin.vn",
+    "name": "Phương Tín",
+    "city": "Hồ Chí Minh",
+    "adapter": "woocommerce",
+    "endpoint": "https://phuongtin.vn/wp-json/wc/store/v1/products?category=808&per_page=100&page={page}",
+    "note": "category 808 = Laptop Cũ. Woo's tax_query includes descendants, so the brand children (809 Dell Cũ, 810 HP Cũ …) come with it. ~183 used laptops."
+  },
+  {
+    "domain": "thegioiso365.vn",
+    "name": "Thế Giới Số 365",
+    "city": "Hồ Chí Minh",
+    "adapter": "woocommerce",
+    "endpoint": "https://thegioiso365.vn/wp-json/wc/store/v1/products?category=98&per_page=100&page={page}",
+    "note": "category 98 = Laptop Like New, whole brand subtree. X-WP-Total 486 — larger than the term's own count=393 because the filter rolls in children; 486 is what the endpoint actually returns."
+  },
+  {
+    "domain": "tystore.vn",
+    "name": "Ty Store",
+    "city": "Hồ Chí Minh",
+    "adapter": "woocommerce",
+    "endpoint": "https://tystore.vn/wp-json/wc/store/v1/products?category=17,21,25,27&per_page=100&page={page}",
+    "note": "the four top-level Cũ terms: 17 iPhone, 21 iPad, 25 MacBook, 27 iMac. 68 used of 188 site-wide."
+  },
+  {
+    "domain": "tuannguyenmobile.com",
+    "name": "Tuấn Nguyễn Mobile",
+    "city": "Hồ Chí Minh",
+    "adapter": "woocommerce",
+    "endpoint": "https://tuannguyenmobile.com/wp-json/wc/store/v1/products?category=66,178,187,198,245,246,248,250,283,286,306,314,335,338,341&per_page=100&page={page}",
+    "note": "15 root-level used/liquidation terms (iPhone Cũ, iPad Cũ, Apple Watch cũ, PlayStation Cũ, Laptop Cũ, Macbook Cũ, Máy Ảnh Cũ, Samsung Cũ …). 489 of the shop's 504."
+  },
+  {
+    "domain": "banghethanhly.vn",
+    "name": "Bàn Ghế Thanh Lý",
+    "city": "Hồ Chí Minh",
+    "adapter": "woocommerce",
+    "endpoint": "https://banghethanhly.vn/wp-json/wc/store/v1/products?category=16,17,18,19,20,21,22,23,198,210,211,219,221,222&per_page=100&page={page}",
+    "note": "⚠️ THE FILTER IS AN EXCLUSION, NOT AN INCLUSION. The whole shop is liquidation stock, so the useful question is not 'which category is used' but 'which is already SOLD' — category 15 'Đã bán' holds 7,286 of the 11,124. These 14 ids are everything else: 3,764 still available. robots.txt Disallows ?sort= and ?order=; this importer sends neither."
+  },
+  {
+    "domain": "laptopgiare.vn",
+    "name": "Laptop Giá Rẻ",
+    "city": "Hồ Chí Minh",
+    "adapter": "woocommerce",
+    "endpoint": "https://laptopgiare.vn/wp-json/wc/store/products?per_page=100&page={page}",
+    "note": "⚠️ NO used signal exists here — all 23 categories are brand/form-factor only, so the whole 101-product catalogue is pulled (23 in stock). Note the path is /wc/store/products, NOT /wc/store/v1/products."
+  },
+  {
+    "domain": "digiphone.vn",
+    "name": "Digiphone",
+    "city": "Hồ Chí Minh",
+    "adapter": "haravan",
+    "endpoint": "https://digiphone.vn/collections/hang-cu/products.json?limit=250&page={page}",
+    "note": "⚠️ EXPECT ~45% YIELD, NOT 178. Collection `hang-cu` holds 178 used phones/tablets, but 55% of fetched rows price every variant at \"0\", which the shop's own PDP renders as 'Liên hệ' (call for price). Those are skipped — a 0 price renders as 'Free / Miễn phí' on a card."
+  },
+  {
+    "domain": "vnlaptop.vn",
+    "name": "VN Laptop",
+    "city": "Hồ Chí Minh",
+    "adapter": "haravan",
+    "endpoint": "https://vnlaptop.vn/collections/laptop/products.json?limit=250&page={page}",
+    "note": "⚠️ NO used flag exists — all 61 collections enumerated, none carries a cũ/hàng-cũ cue — so this is the whole 113-machine catalogue rather than a used subset."
+  },
+  {
+    "domain": "hshop.vn",
+    "name": "HShop",
+    "city": "Hồ Chí Minh",
+    "adapter": "sapo",
+    "endpoint": "https://hshop.vn/collections/all/products.json?limit=250&page={page}",
+    "note": "⚠️ CARRIES NO USED STOCK AT ALL — all 85 collections enumerated, not one has a cũ/thanh lý/like new cue; it is an Arduino/components retailer. Included only because the owner asked for full catalogues (~1,090 products)."
+  },
+  {
+    "domain": "minhtuanmobile.com",
+    "name": "Minh Tuấn Mobile",
+    "city": "Hồ Chí Minh",
+    "adapter": "sitemap-jsonld",
+    "endpoint": "",
+    "sitemaps": [
+      "https://minhtuanmobile.com/sitemap-hang-cu-apple.xml/",
+      "https://minhtuanmobile.com/sitemap-hang-cu-other.xml/"
+    ],
+    "urlMatch": "^https://minhtuanmobile\\.com/(?!sitemap)[^/]+/?$",
+    "note": "⚠️ THE TRAILING SLASH ON THE SITEMAP URL IS REQUIRED — without it the server 301s. The shop publishes DEDICATED used sitemaps (hang-cu-apple + hang-cu-other) separate from its new-stock ones, so the used set needs no keyword guessing: 373 Apple + the other file. ⚠️ Product URLs carry a TRAILING SLASH (/iphone-x-cu-dep/) — a [^/]+$ pattern matches none of them."
+  },
+  {
+    "domain": "mayanh24h.com",
+    "name": "Máy Ảnh 24h",
+    "city": "Hồ Chí Minh",
+    "adapter": "sitemap-jsonld",
+    "endpoint": "",
+    "sitemaps": [
+      "https://mayanh24h.com/sitemap/product/sitemap1.xml",
+      "https://mayanh24h.com/sitemap/product/sitemap2.xml",
+      "https://mayanh24h.com/sitemap/product/sitemap3.xml",
+      "https://mayanh24h.com/sitemap/product/sitemap4.xml",
+      "https://mayanh24h.com/sitemap/product/sitemap5.xml",
+      "https://mayanh24h.com/sitemap/product/sitemap6.xml"
+    ],
+    "urlMatch": "-cu\\.html$",
+    "note": "⚠️ THE 6 /product/sitemapN.xml FILES ADVERTISED IN robots.txt 404 — these are the working paths from the sitemap2.xml index. Used stock is the '-cu' slug suffix: 142 of 1,004 in file 1, so expect ~850 across all six. robots.txt blocks ?page= so the category pages are NOT used for discovery."
+  },
+  {
+    "domain": "didongviet.vn",
+    "name": "Di Động Việt",
+    "city": "Hồ Chí Minh",
+    "adapter": "sitemap-jsonld",
+    "endpoint": "",
+    "sitemaps": [
+      "https://didongviet.vn/product-sitemap1.xml",
+      "https://didongviet.vn/product-sitemap2.xml",
+      "https://didongviet.vn/product-sitemap3.xml",
+      "https://didongviet.vn/product-sitemap4.xml",
+      "https://didongviet.vn/product-sitemap5.xml",
+      "https://didongviet.vn/product-sitemap6.xml",
+      "https://didongviet.vn/product-sitemap7.xml",
+      "https://didongviet.vn/product-sitemap8.xml",
+      "https://didongviet.vn/product-sitemap9.xml",
+      "https://didongviet.vn/product-sitemap10.xml",
+      "https://didongviet.vn/product-sitemap11.xml",
+      "https://didongviet.vn/product-sitemap12.xml",
+      "https://didongviet.vn/product-sitemap13.xml",
+      "https://didongviet.vn/product-sitemap14.xml",
+      "https://didongviet.vn/product-sitemap15.xml",
+      "https://didongviet.vn/product-sitemap16.xml"
+    ],
+    "urlMatch": "/may-cu-gia-re/",
+    "note": "Used stock lives under one exclusive path prefix, /may-cu-gia-re/ — measured across two 500-URL sitemaps with zero used-looking URLs outside it, so the prefix is both complete and exclusive."
+  },
+  {
+    "domain": "24hstore.vn",
+    "name": "24hStore",
+    "city": "Hồ Chí Minh",
+    "adapter": "sitemap-jsonld",
+    "endpoint": "",
+    "sitemaps": [
+      "https://24hstore.vn/sitemap_products.xml"
+    ],
+    "urlMatch": "-cu(-\\d+)?-p\\d+$|-cu/",
+    "note": "One flat 1.5 MB sitemap, 5,247 product URLs. Used candidates by slug suffix '-cu…-p<id>' OR a category segment ending '-cu': 498 of them. The /hang-cu landing page renders only 130 cards — a merchandised subset, not the catalogue."
+  }
+]

@@ -24,12 +24,14 @@ import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
 import { makeImageHost } from '../src/lib/host-product-image'
 import { brandSlugify, normalizeBrand } from '../src/lib/brand-normalize'
+import { categoryFor, subcategoryFor, brandFor, FEED_BRANDS } from '../src/lib/feed-taxonomy'
 import { modelFor } from '../src/lib/feed-model'
 import { buildSearchText } from '../src/lib/fold'
 // ⚠️ ONE COPY, SHARED WITH THE NIGHTLY REFRESH. This link repair used to live here; the cron job
 // needs exactly the same rule, and two copies of "which aff_link shapes do we trust" is how one
 // of them quietly rots. It is unit-tested in src/lib/affiliate-price-refresh.test.ts.
 import { repairAffLink } from '../src/lib/affiliate-price-refresh'
+import { browseRankScore } from '../src/lib/ranking-formula'
 /**
  * ⚠️ THE FEED'S aff_links ARE REPAIRED LOCALLY, NOT MINTED PER PRODUCT. `product_link/create`
  * works and would also be correct, but it is one HTTP round trip per product — 9,728 of them for a
@@ -54,91 +56,14 @@ type Feed = { name: string; price: number; discount: number; status_discount: nu
   image: string; url: string; aff_link: string; sku: string; product_id: string; cate: string; desc: string; domain: string }
 
 /**
- * Feed category → our taxonomy.
- * ⚠️ DERIVED FROM THE TITLE, because `cate` is EMPTY on 93% of rows (measured on 1,000 CellphoneS
- * products: 934 blank, 66 "camera"). Keyword order matters — "đồng hồ" before "phụ kiện" so a
- * watch is not filed as an accessory.
+ * ⛔ THE TITLE→TAXONOMY RULES MOVED TO src/lib/feed-taxonomy.ts (2026-09-07) — do not re-inline
+ * them. Same reason `modelFor` left for src/lib/feed-model.ts: this file imports `../src/lib/db`
+ * at module scope, so nothing declared here can be unit-tested, and the rule that stayed inline
+ * invented a product ("Apple Watch Ultra 4", from the 49 in "49mm") across 6 live listings before
+ * anyone could write a test for it. `categoryFor` / `subcategoryFor` / `brandFor` now have their
+ * own tests, and the partner-shop importer shares the exact same mapping rather than a copy that
+ * would drift on the next fridge-versus-wardrobe question.
  */
-const RULES: [RegExp, string][] = [
-  [/tủ lạnh|máy giặt|điều hòa|máy lạnh|lò vi sóng|nồi chiên|máy hút bụi|quạt |bếp /i, 'furniture-appliances'],
-  [/xe đạp|xe điện|scooter/i, 'vehicles'],
-  [/đồng hồ|watch band|dây đeo/i, 'fashion-beauty'],
-  [/loa |tai nghe|headphone|earbud|airpod/i, 'electronics'],
-]
-function categoryFor(name: string): string {
-  for (const [re, slug] of RULES) if (re.test(name)) return slug
-  return 'electronics' // CellphoneS is an electronics retailer; this is the honest default
-}
-
-/**
- * Subcategory, as ORDERED rules per category rather than the taxonomy's own keyword arrays.
- *
- * ⛔ THE TAXONOMY'S KEYWORDS CANNOT BE USED RAW HERE, AND THE REASON IS A REAL MIS-FILING: the
- * `storage` subcategory lists `tủ` (cabinet) and `tủ lạnh` is a REFRIGERATOR, so a first-match scan
- * files every fridge in the feed as a wardrobe. `white-goods` would have caught it, but its
- * keywords are English-only (`fridge|refrigerator|washer`) and this feed is Vietnamese. Order is
- * the fix: the specific two-word appliance terms are tested before the generic one-word ones.
- *
- * ⚠️ NO MATCH LEAVES IT NULL. Half this feed is appliances and accessories with no good home in
- * our taxonomy; guessing would put a phone case under "Phones" and make the facet useless. An
- * unset subcategory is honest and the category filter still works.
- */
-const SUBCATS: Record<string, [RegExp, string][]> = {
-  electronics: [
-    [/iphone|ipad|galaxy tab|điện thoại|máy tính bảng|smartphone|tablet/i, 'phones-tablets'],
-    [/macbook|laptop|thinkpad|máy tính xách tay|pc |desktop/i, 'laptops-pcs'],
-    [/màn hình|monitor|smart tivi|\btivi\b|\btv\b|television/i, 'tv-monitors'],
-    [/tai nghe|headphone|earbud|airpod|\bloa\b|speaker|soundbar/i, 'audio'],
-    [/máy ảnh|camera|ống kính|\blens\b|gopro|\bdji\b|flycam/i, 'cameras'],
-    [/playstation|\bps5\b|xbox|nintendo|switch|tay cầm chơi game/i, 'gaming'],
-    [/sạc|cáp|ốp lưng|bàn phím|chuột|phụ kiện|adapter|charger|cable|keyboard|mouse/i, 'accessories'],
-  ],
-  'furniture-appliances': [
-    // ⛔ These four FIRST — "tủ lạnh" contains "tủ", which `storage` claims.
-    [/tủ lạnh|tủ đông|máy giặt|máy sấy|điều hòa|máy lạnh|máy rửa (bát|chén)/i, 'white-goods'],
-    [/nồi|chảo|bếp |lò vi sóng|máy xay|ấm |máy pha cà phê/i, 'kitchenware'],
-    [/đèn |lamp|light/i, 'lighting-decor'],
-    [/tủ |kệ |wardrobe|cabinet|shelf/i, 'storage'],
-  ],
-}
-function subcategoryFor(categorySlug: string, name: string): string | null {
-  for (const [re, slug] of SUBCATS[categorySlug] ?? []) if (re.test(name)) return slug
-  return null
-}
-
-/**
- * Brands worth having, chosen by FREQUENCY not by recognition.
- *
- * ⚠️ MEASURED ON 2,000 FEED ROWS: these are every brand appearing 15+ times. Twenty more appeared
- * fewer than 15 times and are deliberately left out — the brand facet is a navigation aid, and a
- * list with a 3-product long tail is worse than a short one (owner: "keep tight not too many").
- * A product whose brand is not here simply gets none, which is also true of ~43% of this feed.
- */
-const BRANDS = ['apple', 'samsung', 'lg', 'panasonic', 'toshiba', 'sharp', 'sony', 'asus', 'canon',
-  'dji', 'msi', 'honor', 'fujifilm', 'logitech', 'electrolux', 'xiaomi', 'hp', 'philips', 'casio']
-const BRAND_RE = new RegExp(`\\b(${BRANDS.join('|')})\\b`, 'i')
-/**
- * The MODEL — "iPhone 16 Pro Max", "Galaxy S24 Ultra" — so a shopper can filter to their exact
- * device and find its accessories (owner, 2026-08-24: "easier to find accessories for designated
- * brand model"). `model` is already a live filter (feed-query.ts pushes `{ model }`) and every
- * listing in the database had it null, so this is pure gain.
- *
- * ⚠️ THE CANONICAL CASING IS THE POINT, NOT DECORATION. The filter matches on the STRING, so
- * "Macbook Pro" and "MacBook Pro" are two different filter entries listing half the stock each —
- * and the feed contains both spellings. Measured on 4,000 real titles: 23% carry a model,
- * 122 distinct once canonicalised.
- *
- * ⚠️ NO MATCH LEAVES IT NULL. Most of this feed is appliances and cables with no model; inventing
- * one would fill the facet with noise, which is the opposite of "easier to find".
- */
-// ⛔ MOVED TO src/lib/feed-model.ts (2026-08-26) — do not re-inline it here. This file imports
-// `../src/lib/db` at module scope, so nothing in it can be unit-tested; the rule sat here and
-// invented a product ("Apple Watch Ultra 4", from the 49 in "49mm") across 6 live listings before
-// anyone could write a test for it. It now has 17.
-function brandFor(name: string): string | null {
-  const m = name.match(BRAND_RE)
-  return m ? brandSlugify(m[1]) : null
-}
 
 async function feedPage(page: number, limit: number): Promise<{ data: Feed[]; total: number }> {
   const url = `https://api.accesstrade.vn/v1/datafeeds?campaign=${encodeURIComponent(CAMPAIGN!)}&limit=${limit}&page=${page}`
@@ -200,7 +125,7 @@ async function main() {
   const merchantName = arg('name') ?? (campaign?.name?.trim() || CAMPAIGN!)
   // The merchant's own city. Only used for the storefront and the listings' fallback map pin.
   const MERCHANT_CITY = arg('city') ?? 'Hồ Chí Minh'
-  let seller = await db.seller.findFirst({ where: { name: merchantName }, select: { id: true, name: true, ownerId: true } })
+  let seller = await db.seller.findFirst({ where: { name: merchantName }, select: { id: true, name: true, ownerId: true, trustScore: true } })
   if (seller?.ownerId) { console.error(`"${merchantName}" is owned by a real account — refusing`); process.exit(1) }
   if (!seller) {
     console.log(`storefront "${merchantName}" does not exist — ${APPLY ? 'creating' : 'would create'}`)
@@ -212,7 +137,10 @@ async function main() {
         // CellphoneS's bio and city in would mislabel the next merchant imported through it.
         data: { name: merchantName, bio: `Products are bought and paid for on the ${merchantName} website.`,
                 location: MERCHANT_CITY, officialPartner: false, verified: false },
-        select: { id: true, name: true, ownerId: true },
+        // ⚠️ `trustScore` is selected because rankScore is computed from it at create — see the
+        // note at the field. A new storefront takes the schema default, which is what a brand-new
+        // human seller gets too.
+        select: { id: true, name: true, ownerId: true, trustScore: true },
       })
     }
   }
@@ -221,7 +149,7 @@ async function main() {
   if (APPLY) {
     // Create only the brands this feed actually uses often enough to be worth a facet entry.
     const have = new Set((await db.brand.findMany({ select: { slug: true } })).map((b) => b.slug))
-    const missing = BRANDS.map(brandSlugify).filter((b) => !have.has(b))
+    const missing = FEED_BRANDS.map(brandSlugify).filter((b) => !have.has(b))
     for (const slug of missing) {
       // `normalized` is the uniqueness/typo-dedup key (see brand-normalize.ts) — required, and
       // computed with the app's own helper so an imported brand collides with a human-typed one.
@@ -336,6 +264,25 @@ async function main() {
             MERCHANT_CITY, slug, brandFor(p.name), modelFor(p.name),
           ]),
           affiliateUrl, verified: true, status: 'active',
+          /**
+           * ⛔ WITHOUT THIS EVERY IMPORTED LISTING IS INVISIBLE UNTIL THE NIGHTLY CRON. `rankScore`
+           * defaults to 0 in the schema and this importer never set it, so the 152 rows of the
+           * first partner import all sat at 0.0000 — dead last in a browse feed ordered by
+           * rankScore desc — while every other seller scored 0.48–0.58. Measured on production
+           * 2026-09-07, an hour after the import. `recomputeRankScoreAllActive()` in the
+           * daily-reminders cron repairs it, but "correct within 24 hours" is not correct for the
+           * listings a merchant just handed us.
+           *
+           * ⚠️ CREATE-ONLY, like `verified` and `status` below. A nightly price refresh must not
+           * reset the score — the cron owns re-decay, and `browseRankScore` at age 0 is only the
+           * right value at the moment of creation. Same helper the post wizard uses
+           * (core/listings.ts), so an imported listing and a human's listing start comparable.
+           */
+          // ⚠️ `seller?.` NOT `seller!.` — on a DRY RUN for a storefront that does not exist yet, the
+          // create is skipped and `seller` is null, so the non-null assertion threw a TypeError and
+          // killed the preview on its first row. `!` is a compile-time claim with no runtime effect;
+          // a reviewer caught it before it shipped. 100 is the schema default a new seller gets.
+          rankScore: browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: new Date(), featured: false }),
         }
         /**
          * ⛔ `status` IS SET ONLY ON CREATE — A REFRESH MUST NOT RESURRECT A MODERATED LISTING.
@@ -370,7 +317,7 @@ async function main() {
          * describe script's resume predicate is "description still equals title" — which is now
          * false — so it would never re-select the row to repair it.
          */
-        const { status, verified, title, description, descriptionVi, ...refreshable } = fields
+        const { status, verified, title, description, descriptionVi, rankScore, ...refreshable } = fields
         /**
          * ⚠️ ONE ROW'S FAILURE MUST NOT KILL A 9,728-ROW RUN. This job talks to the database over
          * an SSH tunnel, and a dropped tunnel surfaces as Prisma `ConnectionClosed` — which,
