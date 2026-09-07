@@ -1,6 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { cache, type ReactNode } from 'react'
+import { getListing } from './get-listing'
+import { type ReactNode } from 'react'
 import { db } from '@/lib/db'
 import { formatMoneyFull, dropPercent } from '@/lib/vnd'
 import { serializeListing, safeParse } from '@/lib/serialize'
@@ -78,30 +79,24 @@ export async function generateStaticParams() {
 
 // Cached per-request so generateMetadata + the page share ONE DB query instead of
 // each running its own findUnique for the same listing.
-/**
- * ⚠️ findFirst, NOT findUnique, AND THAT IS FORCED. `scopedListingWhere` returns an
- * `{ AND: [...] }` wrapper, which `ListingWhereUniqueInput` rejects outright. Both callers —
- * generateMetadata and the page body — already notFound() on null, so a desk listing simply becomes
- * a 404 on eno.vn instead of an ISR-cached PDP shipping Product JSON-LD (offers, priceCurrency,
- * seller) for a government e-Visa service from a licensed sàn TMĐT.
- */
-const getListing = cache(async (id: string) =>
-  db.listing.findFirst({
-    where: await scopedListingWhere({ id }),
-    // owner.lastSeenAt: presence for the seller strip — consumed server-side into a
-    // day-coarse bucket input (sellerMetrics), the raw timestamp never serializes.
-    include: { category: true, seller: { include: { owner: { select: { accountType: true, lastSeenAt: true } } } } },
-  }),
-)
+// The loader moved to ./get-listing so `layout.tsx` can share the same cache() memo — see there.
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const listing = await getListing(id)
 
-  // notFound() in generateMetadata (before any streaming/Suspense boundary) makes a
-  // missing/hidden/held/unverified listing a REAL 404 instead of a soft-404 (200 +
-  // not-found UI) — the root loading.tsx boundary otherwise flushes 200 before the
-  // page's own notFound(). Mirrors the page's viewability guard exactly.
+  // ⚠️ THIS notFound() DOES NOT, BY ITSELF, PRODUCE A 404 — the comment here claimed it did, for
+  // months, while production answered 200. Corrected 2026-09-07 after measuring. generateMetadata
+  // renders as a SIBLING of the page element (next/dist/server/app-render/create-component-tree.js),
+  // so it lands INSIDE the Suspense boundary this segment's `loading.tsx` creates. React then routes
+  // the error to Fizz's `onError` rather than `onShellError`; only the latter rejects the render
+  // promise, and only a rejected render promise ever sets `res.statusCode`
+  // (app-render.js — `isHTTPAccessFallbackError` branch). The status stays 200, the ISR entry is
+  // stored with `status: undefined`, and the 200 is then re-served from cache for 30 days.
+  // ⛔ THE 404 COMES FROM `./layout.tsx`, which renders ABOVE that boundary. Next's own docs say so
+  // (loading.md: "Place notFound() before those boundaries"). This call stays as the second line of
+  // defence — it is what still runs if the layout is removed — and it remains the authority on the
+  // FULL policy below, which the layout deliberately does not duplicate.
   // SOLD is the ONE exception: it renders a dedicated "this item has been sold" page
   // (not a 404), so here we return noindex metadata for it rather than notFound() — a
   // sold URL shouldn't stay in search, but it's still a real, on-brand page.

@@ -1,6 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { cache } from 'react'
+import { loadCategory } from './load-category'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
@@ -36,24 +36,24 @@ export async function generateStaticParams() {
  * same idiom the sibling district page uses and for the same reason. Without it, adding the count
  * to the metadata would mean a second COUNT per render purely to decide a robots tag.
  */
-const loadCategory = cache(async (slug: string) => {
-  const cat = await db.category.findUnique({ where: { slug } })
-  if (!cat) return null
-  const live = await db.listing.count({ where: await scopedListingWhere({ categoryId: cat.id, verified: true, status: 'active' }) })
-  return { cat, live }
-})
+// The loader moved to ./load-category so `layout.tsx` shares the same cache() memo — see there.
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category } = await params
   const loaded = await loadCategory(category)
-  // ⚠️ NOT A "REAL 404", and the old comment here said it was. Next 15.2+ streams metadata, so by
-  // the time notFound() runs the response has already committed 200 — the page renders the
-  // not-found boundary (which does inject its own noindex) but the STATUS is 200. Left as-is
-  // deliberately: it was measured, the boundary's noindex is what actually keeps these out of the
-  // index, and every alternative fix regressed something real (deleting loading.tsx trades a
-  // verified CLS of 0 for a status byte; force-dynamic reimposes a Singapore DB hit on every view).
-  // The comment is corrected rather than the code, so the next reader is not misled into "fixing"
-  // an invariant that has not held since the Next upgrade.
+  // ⚠️ THIS *IS* A REAL 404 AGAIN, SINCE 2026-09-07 — and this comment has now been wrong in both
+  // directions, so trust the code and the test, not the prose. It first claimed a real 404 when the
+  // status was 200; it was then corrected to say the soft-404 was unavoidable and should be left
+  // alone, because "every alternative fix regressed something real (deleting loading.tsx trades a
+  // verified CLS of 0 for a status byte; force-dynamic reimposes a Singapore DB hit on every view)".
+  // Both of those judgements were right. The diagnosis underneath them was not: the trigger is this
+  // segment's `loading.tsx`, not Next 15.2+ metadata streaming — proven by moving the file out of
+  // the tree and rebuilding (404), then putting it back (200). A loading boundary makes Next flush
+  // the shell, status included, before this notFound() is reached.
+  // The fix is `./layout.tsx`: App Router nests layout → loading → page, so a guard in the layout
+  // runs above this segment's boundary while the status can still be set, and loading.tsx is left
+  // untouched. Neither the CLS nor the ISR trade-off is taken. This notFound() stays as the
+  // defence-in-depth copy — it is what still runs if the layout is ever removed.
   if (!loaded) notFound()
   const { cat, live } = loaded
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'

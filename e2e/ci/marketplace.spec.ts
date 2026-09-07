@@ -55,6 +55,34 @@ test.describe('marketplace, against known fixtures', () => {
     }
   })
 
+  /**
+   * ⛔ A MISSING PAGE MUST ANSWER 404, NOT 200 — AND THIS ROUTE HAS FAILED THAT TWICE, EACH TIME
+   * WITH A COMMENT IN THE CODE ASSERTING THE OPPOSITE. `listings/[id]/page.tsx` said its
+   * `notFound()` in generateMetadata made "a REAL 404 instead of a soft-404"; production answered
+   * 200. `c/[category]/page.tsx` was then corrected to say the soft-404 was unavoidable and should
+   * be left alone. Both statements were prose, and prose is exactly what rotted — so the invariant
+   * now lives in a test that fetches the route and reads the status byte.
+   *
+   * ⚠️ IT IS THE STATUS THAT IS ASSERTED, NEVER THE BODY. Both routes rendered the correct
+   * not-found UI the whole time they were broken, and the RSC payload even carried
+   * NEXT_HTTP_ERROR_FALLBACK;404 — Next threw correctly and only the status had already gone out
+   * as 200. Any check that looked at what the page SAID would have passed throughout.
+   *
+   * The cause was each segment's own `loading.tsx`: a loading boundary makes Next flush the shell,
+   * status included, before the page's notFound() runs. The fix is a `layout.tsx` guard, which
+   * nests ABOVE that boundary. If someone deletes those layouts, this test is what says so.
+   */
+  test('an unknown listing or category is a real 404, not a soft one', async ({ page }) => {
+    for (const path of [
+      '/listings/no-such-listing-e2e',
+      '/listings/00000000-0000-0000-0000-000000000000',
+      '/c/no-such-category-e2e',
+    ]) {
+      const res = await page.goto(path)
+      expect(res?.status(), `${path} must answer a real 404, not a 200 carrying the not-found UI`).toBe(404)
+    }
+  })
+
   test('a category page shows its own fixtures and no others', async ({ page }) => {
     await page.goto('/c/vehicles')
     await expect(page.getByText('Fixture city scooter').first()).toBeVisible()
