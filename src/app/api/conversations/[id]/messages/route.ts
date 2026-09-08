@@ -6,6 +6,11 @@ import { messagingGate } from '@/lib/enforcement'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
 import { logError } from '@/lib/log'
 import { ApiError, route } from '@/lib/api/handler'
+import { after } from 'next/server'
+import { getAdmin } from '@/lib/admin'
+import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
+import { whatsappRecipientFor } from '@/lib/whatsapp-bridge'
+import { sendWhatsAppText } from '@/lib/whatsapp'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -98,13 +103,26 @@ export const POST = route(
 
     const convo = await db.conversation.findUnique({
       where: { id },
-      select: { id: true, buyerProfileId: true, sellerProfileId: true, listing: { select: { id: true, negotiable: true, status: true } } },
+      select: { id: true, buyerProfileId: true, sellerProfileId: true, sellerId: true, listing: { select: { id: true, negotiable: true, status: true } } },
     })
     if (!convo) { await release(); throw new ApiError('not_found', 404) }
 
     const iAmBuyer = convo.buyerProfileId === meId
     const iAmSeller = convo.sellerProfileId === meId
-    if (!iAmBuyer && !iAmSeller) { await release(); throw new ApiError('forbidden', 403) }
+    /**
+     * ⛔ THE SUPPORT DESK IS A THIRD PARTICIPANT, AND IT HAS NO `sellerProfileId` TO MATCH ON. Both
+     * support seller rows are deliberately UNOWNED (see src/lib/support-thread.ts) — precisely so
+     * no human is impersonated as the counterpart — which means `iAmSeller` is false for everyone
+     * and, before this, a support thread was a conversation nobody could answer. That was fine
+     * while replies went out as one-way notification macros; it is not fine now that a person can
+     * reach the same thread over WhatsApp and is waiting for an answer in it.
+     *
+     * ⚠️ NARROW ON PURPOSE: admin rights let you answer a SUPPORT thread, never an ordinary
+     * buyer↔seller one. `sellerId === SUPPORT_SELLER_ID` is the whole grant, and it is edition-
+     * scoped by that constant, so eno.vn's admin cannot answer into eno.forum's support desk.
+     */
+    const iAmSupport = !iAmBuyer && !iAmSeller && convo.sellerId === SUPPORT_SELLER_ID && !!(await getAdmin())
+    if (!iAmBuyer && !iAmSeller && !iAmSupport) { await release(); throw new ApiError('forbidden', 403) }
 
     // Fixed-price listing → offers are off. The UI hides the offer control, so this is
     // the abuse/stale-tab path: reject the offer. Only a BUYER spamming offers is abuse
@@ -157,6 +175,34 @@ export const POST = route(
     // Store the committed result for replay (best-effort — a miss just means a rare
     // duplicate on the exact old failure pattern, never a lost message).
     if (idemKey) await kv.set(idemKey, message, { ex: 86_400 }).catch((e) => logError(e, { op: 'messages.set' }))
+
+    /**
+     * ⛔ THE OTHER HALF OF THE WHATSAPP BRIDGE — a support reply goes back out over WhatsApp.
+     * Owner: *"backwards user should receive messages from our admin in app messages"*.
+     *
+     * ⚠️ ONLY THE SUPPORT SIDE IS RELAYED. `iAmBuyer` messages came FROM that person — echoing
+     * them back would send someone their own words.
+     * ⚠️ AND ONLY WHEN THEY OPENED THE CHANNEL. `whatsappRecipientFor` answers from the inbound
+     * table, never from `Profile.phone`: a phone on a profile is not permission for a business
+     * account to message someone, and unsolicited sends are what get a WhatsApp sender banned.
+     * ⚠️ IN `after()`, SO GRAPH LATENCY NEVER DELAYS THE SEND. The message is already committed;
+     * the relay is a best-effort second transport, and a WhatsApp outage must not 500 a reply that
+     * is safely in the thread. A failure — including the 24-hour-window rejection, which no retry
+     * can fix — is logged rather than surfaced, because the in-app message stands either way.
+     */
+    if (!iAmBuyer && text) {
+      after(async () => {
+        try {
+          const to = await whatsappRecipientFor(id)
+          if (!to) return
+          const sent = await sendWhatsAppText(to, text)
+          if (!sent.ok) {
+            logError(new Error(`whatsapp relay failed: ${sent.error}${sent.outsideWindow ? ' (24h window closed)' : ''}`),
+              { op: 'whatsapp.relayOut' })
+          }
+        } catch (e) { logError(e, { op: 'whatsapp.relayOut' }) }
+      })
+    }
     return message
   },
 )

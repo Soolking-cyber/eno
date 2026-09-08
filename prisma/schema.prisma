@@ -1964,3 +1964,32 @@ model StorageTombstone {
   @@unique([bucket, path])
   @@index([notBefore])
 }
+
+/// ⛔ THE DEDUPE KEY FOR THE WHATSAPP BRIDGE, AND THE RECORD OF WHO OPENED THE CHANNEL.
+/// A Meta webhook is AT-LEAST-ONCE: any delivery that does not return 200 — including one that
+/// timed out after we had already committed the message — is redelivered, so without a key on
+/// Meta's own `wamid` a slow night duplicates every support message. It is also the CONSENT
+/// record: a support reply is relayed to WhatsApp only for a thread that has a row here, because
+/// a phone on a profile is not permission to message someone from a business account.
+/// ⚠️ DELIBERATELY FK-FREE, the same call schema.prisma already makes for the visa scalars: no
+/// relation to Profile or Conversation, so this ships as one additive CREATE TABLE and needs no
+/// edit to either hot model (and no trip through the profile_auth_fk push flow).
+/// Applied by scripts/whatsapp-inbound-ddl.mjs.
+model WhatsAppInbound {
+  /// Meta's message id. The primary key IS the idempotency key.
+  wamid          String   @id
+  profileId      String   @db.Uuid
+  conversationId String
+  /// E.164 WITHOUT '+', exactly as Meta sends `from`/`wa_id` — the form the send API wants back.
+  waId           String
+  /// ⛔ NULL = CLAIMED BUT NOT YET DELIVERED. The row is written BEFORE the message so two
+  /// concurrent webhook deliveries cannot both author one; this column is what stops a process
+  /// that died in between from turning that claim into permanent silence, because a retry can
+  /// tell an unfinished claim (take it over) from a real duplicate (skip it).
+  deliveredAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([profileId])
+  @@map("whatsapp_inbound")
+}

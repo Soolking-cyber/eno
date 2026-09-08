@@ -1,5 +1,7 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
+import { getAdmin } from '@/lib/admin'
+import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { ApiError, route } from '@/lib/api/handler'
 import { MESSAGE_ROW_SELECT, serializeMessage } from '@/lib/messages'
 import { globalTopReactions } from '@/lib/reaction-tally'
@@ -171,7 +173,15 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
 
   const iAmBuyer = convo.buyerProfileId === meId
   const iAmSeller = convo.sellerProfileId === meId
-  if (!iAmBuyer && !iAmSeller) throw new ApiError('forbidden', 403)
+  /**
+   * ⛔ THE SUPPORT DESK CAN OPEN A SUPPORT THREAD — the read half of the same grant the send route
+   * carries. Both support seller rows are unowned on purpose, so `sellerProfileId` is null and
+   * nobody matched `iAmSeller`: a thread a person can reach over WhatsApp was one support could
+   * not read. The grant is exactly `sellerId === SUPPORT_SELLER_ID` plus admin, edition-scoped by
+   * that constant — it confers nothing on an ordinary buyer↔seller conversation.
+   */
+  const iAmSupport = !iAmBuyer && !iAmSeller && convo.seller?.id === SUPPORT_SELLER_ID && !!(await getAdmin())
+  if (!iAmBuyer && !iAmSeller && !iAmSupport) throw new ApiError('forbidden', 403)
 
   // Mark my side read — but only WRITE when there's actually something to clear,
   // so the ~1.5s polling reads stay write-free.
