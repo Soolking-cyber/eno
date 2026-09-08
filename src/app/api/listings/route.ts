@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
-import { diversifyBySeller, diversityAppliesTo, FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
+import { diversifyBySeller, diversityAppliesTo } from '@/lib/feed-diversity'
+import { diverseFeedWindow, feedPagePlan } from '@/lib/feed-window'
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, PublishBlockedError } from '@/lib/publish-guard'
@@ -142,26 +144,50 @@ export async function GET(req: NextRequest) {
        * every row is — measured on production 2026-08-24 as 0, 30k, 790k, 50k, 1.24M, 60k.
        * See diversityAppliesTo() for why this is the same rule the semantic branch above follows.
        */
-      : diversityAppliesTo(sort) && offset < FEED_DIVERSITY_WINDOW
-        ? db.listing
+      /**
+       * ⛔ NO `offset < FEED_DIVERSITY_WINDOW` GUARD, AND THAT GUARD IS WHAT RE-SERVED ROWS. With
+       * it, only the first page took this branch and every later page fell through to the plain
+       * `findMany` below — natural rank order, NO exclusion — handing back the very rows the
+       * window had pulled UP from below rank 60. Measured on four pages of the live feed with the
+       * guard in place: 240 rows holding 217 distinct listings, i.e. 23 repeats and 23 listings
+       * never shown, with the overlap between page 1 and pages 3-4 rather than between adjacent
+       * pages (page 2 happened to be clean, which is exactly how this hid). The diverse path must
+       * own EVERY offset once diversityAppliesTo(sort) is true, so the same `notIn head` applies
+       * all the way down.
+       */
+      : diversityAppliesTo(sort)
+        ? diverseFeedWindow(where, orderBy, LISTING_CARD_SELECT)
             /**
-             * ⚠️ `max(window, offset+limit)` — A PAGE THAT STRADDLES THE WINDOW EDGE MUST STILL BE
-             * FULL. This fetched exactly FEED_DIVERSITY_WINDOW rows and sliced, so a request like
-             * offset=55&limit=12 came back with FIVE rows even though rows 60-66 exist. A client
-             * reads a short page as "feed exhausted" and stops; one that advances by the requested
-             * limit skips 60-66 entirely. codex caught it on review; the tests only covered
-             * offsets 0/12/24 on a 35-row fixture, where the edge cannot occur.
+             * ⛔ ROWS PAST THE WINDOW MUST EXCLUDE WHAT THE WINDOW ALREADY SERVED. The window no
+             * longer contains the natural top 60 — it contains each seller's best — so continuing
+             * in plain rank order past row 60 re-serves the rows the fan-out pulled UP and skips
+             * the ones it pushed down. Measured before this `notIn`: four pages returned 240 rows
+             * holding 217 distinct listings, i.e. 23 repeats and 23 listings never shown.
+             *
+             * ⚠️ THE WINDOW IS A FIXED 60, so the exclusion list is bounded at 60 ids however deep
+             * the reader scrolls, and the window query itself is the same bounded read on every
+             * page — one extra query past row 60, not a growing one.
              */
-            .findMany({ where, orderBy, take: Math.max(FEED_DIVERSITY_WINDOW, offset + limit), skip: 0, select: LISTING_CARD_SELECT })
-            /**
-             * Diversify the window ONLY, then continue in natural rank order. Reordering past the
-             * window would make the sequence depend on how far the reader had scrolled, and two
-             * readers on different pages would disagree about what row 61 is.
-             */
-            .then((rows) => [
-              ...diversifyBySeller(rows.slice(0, FEED_DIVERSITY_WINDOW)),
-              ...rows.slice(FEED_DIVERSITY_WINDOW),
-            ].slice(offset, offset + limit))
+            .then(async (win) => {
+              const head = diversifyBySeller(win)
+              const plan = feedPagePlan(head.length, offset, limit)
+              /**
+               * ⛔ THE TAIL IS FETCHED WITH `skip` ALREADY APPLIED, so it must NOT then be indexed
+               * as if it began at row 0 of the feed. The first cut did exactly that —
+               * `[...head, ...tail].slice(offset, …)` after fetching the tail at `skip: offset-60`
+               * — which counts the offset twice and serves rows 120-179 where 60-119 belong.
+               * Measured both before and after that attempt: 240 rows holding 217 distinct
+               * listings, 23 repeats, unchanged. Two index spaces, and only one of them may carry
+               * the offset.
+               */
+              const fromHead = plan.fromHead ? head.slice(plan.fromHead.start, plan.fromHead.end) : []
+              if (plan.tailTake <= 0) return fromHead
+              const tail = await db.listing.findMany({
+                where: { AND: [await scopedListingWhere(where), { id: { notIn: head.map((r) => r.id) } }] },
+                orderBy, skip: plan.tailSkip, take: plan.tailTake, select: LISTING_CARD_SELECT,
+              })
+              return [...fromHead, ...tail]
+            })
         : db.listing.findMany({
             where,
             orderBy,

@@ -117,3 +117,28 @@ export function diversityAppliesTo(sort: string): boolean {
  * ⚠️ It is the legacy string 'newest' and does NOT mean "most recent" — that is 'recent'.
  */
 export const DEFAULT_FEED_SORT = 'newest'
+
+/**
+ * Merge already-sorted per-seller groups by taking one from each in turn.
+ *
+ * ⛔ THIS IS THE HALF `diversifyBySeller` COULD NOT DO, AND THE REASON IS THE INPUT. That function
+ * reorders a window it is HANDED — the top 60 by rankScore — so it can only interleave sellers who
+ * are already in that window. Measured on production 2026-09-08 with 10,215 listings across nine
+ * sellers: one seller's 152 rows all scored an identical 0.5772, filled the entire window, and the
+ * round-robin became a no-op because `bySeller.size < 2`. Every card on the front page was one
+ * shop. The file's own note predicted exactly this ("as inventory grows, diversity past row 60
+ * stops being enforced") and named the fix.
+ *
+ * The fix needs each seller's BEST rows fetched separately, then merged here — which is what
+ * `diverseFeedWindow` (feed-window.ts) does. This function is the pure, testable half of it.
+ *
+ * ⚠️ GROUPS ARRIVE IN PRIORITY ORDER AND KEEP IT. Round 1 is groups[0][0], groups[1][0], … so the
+ * strongest seller still leads the page; only the RUN is broken up. Empty groups are skipped rather
+ * than leaving holes, so a seller with two listings simply stops appearing after round two.
+ */
+export function mergeRoundRobin<T>(groups: readonly (readonly T[])[]): T[] {
+  const out: T[] = []
+  const depth = Math.max(0, ...groups.map((g) => g.length))
+  for (let i = 0; i < depth; i++) for (const g of groups) if (i < g.length) out.push(g[i])
+  return out
+}

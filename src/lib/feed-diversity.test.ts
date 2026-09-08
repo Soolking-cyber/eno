@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diversifyBySeller, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW } from './feed-diversity'
+import { mergeRoundRobin, diversifyBySeller, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW } from './feed-diversity'
 
 /**
  * ⚠️ THE FIXTURE IS THE REAL PRODUCTION SHAPE, MEASURED 2026-08-13: 35 active listings, of which 14
@@ -184,5 +184,45 @@ describe('the interaction the gate prevents', () => {
     expect(out).toEqual([30_000, 790_000, 50_000, 1_240_000, 60_000, 1_320_000])
     // Sorted input, unsorted output — which is why the route must not call this on a price sort.
     expect(out).not.toEqual([...out].sort((x, y) => x - y))
+  })
+})
+
+/**
+ * ⛔ THE HALF `diversifyBySeller` CANNOT DO. It reorders a window it is HANDED, so when the top 60
+ * by rankScore are all one seller it returns them untouched (`bySeller.size < 2`) and the front
+ * page is one catalogue. Measured on production 2026-09-08: 10,215 listings, nine sellers, and all
+ * 48 first-page cards from a single shop whose 152 imported rows shared an identical rankScore.
+ * `mergeRoundRobin` is what turns per-seller fetches into an interleaved window.
+ */
+describe('mergeRoundRobin', () => {
+  it('⛔ INTERLEAVES, so no seller can hold a run', () => {
+    expect(mergeRoundRobin([['a1', 'a2', 'a3'], ['b1', 'b2'], ['c1']]))
+      .toEqual(['a1', 'b1', 'c1', 'a2', 'b2', 'a3'])
+  })
+
+  // ⚠️ Group order is priority order: the strongest seller still leads the page.
+  it('keeps the first group leading and preserves order within a group', () => {
+    const out = mergeRoundRobin([['a1', 'a2'], ['b1', 'b2']])
+    expect(out[0]).toBe('a1')
+    expect(out.indexOf('a1')).toBeLessThan(out.indexOf('a2'))
+    expect(out.indexOf('b1')).toBeLessThan(out.indexOf('b2'))
+  })
+
+  // A shallow seller stops appearing rather than leaving a hole in the feed.
+  it('skips exhausted groups instead of leaving gaps', () => {
+    expect(mergeRoundRobin([['a1'], ['b1', 'b2', 'b3']])).toEqual(['a1', 'b1', 'b2', 'b3'])
+  })
+
+  it('loses nothing and invents nothing', () => {
+    const groups = [['a1', 'a2'], ['b1'], [], ['c1', 'c2', 'c3']]
+    const out = mergeRoundRobin(groups)
+    expect(out).toHaveLength(6)
+    expect([...out].sort()).toEqual(['a1', 'a2', 'b1', 'c1', 'c2', 'c3'])
+  })
+
+  it('handles the empty and single-group cases', () => {
+    expect(mergeRoundRobin([])).toEqual([])
+    expect(mergeRoundRobin([[], []])).toEqual([])
+    expect(mergeRoundRobin([['only']])).toEqual(['only'])
   })
 })

@@ -1,5 +1,6 @@
 import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
-import { diversifyBySeller, FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
+import { diversifyBySeller } from '@/lib/feed-diversity'
+import { diverseFeedWindow } from '@/lib/feed-window'
 import type { Metadata } from 'next'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -26,24 +27,16 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
     const [serializedCategories, listings, total, businesses, trending] = await Promise.all([
       // Categories ordered by live DEMAND — most-wanted lead the rail + home grid.
       getCategoriesByDemand(),
-      db.listing.findMany({
+      diverseFeedWindow(
         // ⚠️ EDITION-SCOPED. eno.vn is a licensed sàn TMĐT; the e-visa SKUs are ordinary Listing
         // rows and they rank into this feed. This is the ISR-baked HTML of the root URL, served
         // from disk to every anonymous visitor and every crawler — the most-seen leak there was.
-        where: await scopedListingWhere({ verified: true, status: 'active' }),
+        await scopedListingWhere({ verified: true, status: 'active' }),
         // Match /api/listings' default sort EXACTLY (the balanced rankScore blend, id
         // tiebreaker) so this SSR seed doesn't reshuffle on hydration into the client feed.
-        orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
-        // ⚠️ THE DIVERSITY WINDOW, NOT THE PAGE. This used to `take: 12` — the first page exactly.
-        // It now fetches the window that diversifyBySeller() reorders, and the 12 are sliced out of
-        // the RESULT below. Measured on production: one partner's 14 e-visa SKUs held positions 0
-        // through 13, so every card a first-time visitor saw was the same product from the same
-        // seller while 21 different listings sat underneath. /api/listings applies the identical
-        // window and reorder, which is what keeps the SSR seed and the hydrated client feed in
-        // agreement — see the note on the orderBy above, that agreement is load-bearing.
-        take: FEED_DIVERSITY_WINDOW,
-        select: LISTING_CARD_SELECT,
-      }),
+        [{ rankScore: 'desc' }, { id: 'desc' }],
+        LISTING_CARD_SELECT,
+      ),
       // MUST match the findMany predicate exactly: this seeds the client explorer's `initialTotal`,
       // which terminates its load-more (`listings.length < total`). A count that disagrees with the
       // cards either stops the infinite feed 14 items early or never lets it finish.
@@ -59,6 +52,13 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
 
     // Interleave sellers across the window, then take the page. Slicing AFTER the reorder is the
     // whole point: slicing first would hand the reorder the same monopolised twelve rows.
+    /**
+     * ⚠️ `diversifyBySeller` STILL RUNS, AND IT IS NOT REDUNDANT. `diverseFeedWindow` decides WHICH
+     * rows are in the window (each seller's best, merged); this reorders whatever came back, which
+     * matters on the fallback paths inside it — a groupBy failure, one seller, or a window the
+     * fan-out under-filled all return the plain top-N. /api/listings applies the identical pair,
+     * which is what keeps the SSR seed and the hydrated client feed in agreement.
+     */
     const firstPage = diversifyBySeller(listings).slice(0, 12)
     const serializedListings: SerializedListingCard[] = await localizeListingTitles(firstPage.map(serializeListingCard))
 
