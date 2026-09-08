@@ -6,6 +6,7 @@
  *   node scripts/play-api.mjs listing --apply        # write it from PLAY_LISTING below
  *   node scripts/play-api.mjs tracks                 # releases per track
  *   node scripts/play-api.mjs details [--apply]      # the required contact fields
+ *   node scripts/play-api.mjs signing <versionCode>  # the PLAY APP SIGNING SHA-256, for assetlinks
  *
  * ⚠️ EVEN THE READ COMMANDS OPEN A SERVER-SIDE EDIT, because `details`, `listings` and `tracks` are
  * only readable inside one — that is the API's shape, not a choice here. Each run deletes its edit
@@ -190,6 +191,38 @@ async function main() {
     return
   }
 
+  /**
+   * ⛔ THE FINGERPRINT App Links ACTUALLY NEED, AND IT IS NOT THE UPLOAD KEY. With Play App Signing
+   * Google strips the upload signature and re-signs every generated APK with THEIR key, so the
+   * certificate on a downloaded app matches neither the debug key nor the upload key. Until this
+   * hash is in assetlinks.json, verified App Links fail for 100% of Play installs — silently, with
+   * no error anywhere; the feature is simply absent.
+   *
+   * ⚠️ IT IS AVAILABLE OVER THE API, which the release doc did not know: it told the owner to hunt
+   * for it in Play Console under App integrity. `generatedApks` reports it per signing key for a
+   * given versionCode, so this is one command instead of a click path that changes with the Console.
+   */
+  if (cmd === 'signing') {
+    const versionCode = process.argv[3]
+    if (!versionCode) { console.error('usage: signing <versionCode>   e.g. signing 1'); process.exit(1) }
+    const res = await fetch(`${API}/applications/${PACKAGE}/generatedApks/${versionCode}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+    if (!res.ok) { console.error(`${res.status}: ${(await res.text()).slice(0, 200)}`); process.exit(1) }
+    const { generatedApks = [] } = await res.json()
+    if (!generatedApks.length) {
+      // A versionCode that was uploaded but never had APKs generated for a track reports nothing.
+      console.error(`No generated APKs for versionCode ${versionCode} — has it been released to a track?`)
+      process.exit(1)
+    }
+    for (const g of generatedApks) console.log(g.certificateSha256Hash)
+    console.error(`\nFeed it to the assetlinks writer together with the UPLOAD key, because the second`)
+    console.error(`argument REPLACES the file rather than appending to it:`)
+    console.error(`  node scripts/android-assetlinks.mjs <the hash above> <upload key sha256>`)
+    console.error(`Then DEPLOY — the file reaches users only through infra/vn-node/eno-deploy.sh.`)
+    return
+  }
+
   if (cmd === 'details') {
     await withEdit(async (id) => {
       const before = await api(`/edits/${id}/details`)
@@ -240,7 +273,7 @@ async function main() {
     return
   }
 
-  console.log('usage: node scripts/play-api.mjs <status|listing|details|tracks> [--apply]')
+  console.log('usage: node scripts/play-api.mjs <status|listing|details|tracks|signing> [--apply]')
 }
 
 main().catch((e) => { console.error('\n' + e.message); process.exit(1) })

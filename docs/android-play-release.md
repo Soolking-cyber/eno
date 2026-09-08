@@ -353,9 +353,18 @@ Signing, Google re-signs the bundle with *their* key, so the certificate on a do
 neither the debug key nor the upload key. Until the app signing fingerprint is added, a shared
 `eno.vn/listings/…` link keeps opening in the browser. Nothing errors; the feature is just absent.
 
-Once the bundle is uploaded, Play Console → Test and release → Setup → **App integrity** → App
-signing key certificate → copy the SHA-256, then pass **both**, because the second argument replaces
-the file rather than appending to it:
+✅ **YOU DO NOT HAVE TO HUNT FOR IT IN THE CONSOLE — IT IS ON THE API.** `generatedApks` reports the
+Play app-signing certificate per version code, so this is one command rather than a click path that
+moves between Console redesigns:
+
+```bash
+node scripts/play-api.mjs signing 1
+# 7B:5B:57:78:21:69:58:5D:89:FB:3C:A8:69:06:C8:AF:DE:0F:8D:08:FC:B5:65:8D:72:BB:CE:5B:C2:EC:F5:8D
+```
+
+(The Console path still exists if the API is unavailable: Test and release → Setup → **App
+integrity** → App signing key certificate → SHA-256.) Then pass **both**, because the second
+argument replaces the file rather than appending to it:
 
 ```bash
 node scripts/android-assetlinks.mjs <APP_SIGNING_SHA256> 3E:71:F7:BA:92:E1:85:60:5A:19:43:08:33:5C:BC:62:68:44:72:3B:0C:73:A0:75:86:56:9B:1E:0F:27:04:4F
