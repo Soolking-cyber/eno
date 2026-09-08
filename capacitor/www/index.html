@@ -107,8 +107,21 @@
           '<div class="bar b1 shimmer"></div><div class="bar b2 shimmer"></div><div class="bar b3 shimmer"></div></div></div>')
       }
 
-      var ORIGIN = 'https://eno.vn'
-      var HOSTS = { 'eno.vn': 1, 'www.eno.vn': 1, 'eno.forum': 1, 'www.eno.forum': 1 }
+      var ORIGIN = 'https://www.eno.forum' /* ⛔ THE APP'S OWN ORIGIN, moved 2026-09-08. This is the
+           fallback the offline page returns to whenever the stored `eno:last-url` is absent or
+           stale — i.e. every first-launch-offline — so leaving it on eno.vn would have made the
+           retry button evict the user from the app's own site onto the edition that is not the
+           app, carries no Capacitor bridge, and shows the "not yet officially launched" banner.
+           Carries the www: on this domain the apex is a SECOND live origin, not a redirect. */
+      /* ⚠️ The app's own hosts only — same reasoning as error.html: a stored URL for a host the
+         app no longer renders must fall through to ORIGIN rather than bounce to the browser. */
+      var HOSTS = { 'www.eno.forum': 1, 'eno.forum': 1 }
+      /* ⛔ AND THE APEX IS NORMALISED TO www BEFORE IT IS LOADED. Both forum hosts answer
+         200 with no redirect, but only the canonical www holds the Capacitor bridge, so
+         restoring a stored apex URL would put the user back on a live page with no
+         splash hide, no hardware back and no camera — the exact trap this file's ORIGIN
+         note describes. A reviewer caught that the allowlist alone does not fix it. */
+      function toCanonicalHost(u) { if (u.hostname === 'eno.forum') u.hostname = 'www.eno.forum'; return u }
 
       // Cold-start deep link → same-origin path (mirrors src/lib/deep-link.ts's contract:
       // first-party hosts only, auth paths blocked, anything unknown lands on home).
@@ -118,7 +131,11 @@
           if (!HOSTS[u.hostname]) return ORIGIN + '/'
           var path = u.pathname + u.search
           if (u.pathname.indexOf('/auth') === 0) return ORIGIN + '/'
-          return (u.hostname.indexOf('forum') !== -1 ? 'https://' + u.hostname : ORIGIN) + path
+          /* ⚠️ ALWAYS ORIGIN, NEVER THE INCOMING HOST. This used to keep a 'forum' hostname as it
+             arrived, from when the app rendered eno.vn and the forum was the other origin. Now the
+             forum IS the app, and echoing the incoming host would hand back the bridge-less apex
+             for an eno.forum link. ORIGIN is the canonical www. */
+          return ORIGIN + path
         } catch (e) { return ORIGIN + '/' }
       }
 

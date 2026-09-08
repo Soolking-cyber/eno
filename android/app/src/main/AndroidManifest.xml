@@ -44,11 +44,36 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
+                <!-- ⛔ THE APP'S OWN DOMAIN. These were eno.vn until 2026-09-08; the app now renders
+                     the forum edition, so an eno.vn App Link would have opened the app onto the one
+                     origin that carries no Capacitor bridge — and onto the "not yet officially
+                     launched" banner. Both hosts are claimed because both answer 200 with no
+                     redirect and both serve the same /.well-known/assetlinks.json.
+                     ⚠️ www.eno.vn was never verifiable anyway: its assetlinks.json is a 308 and the
+                     Android verifier does not follow redirects, so one unreachable host was quietly
+                     failing verification for the whole filter. -->
+                <data android:host="eno.forum" />
+                <data android:host="www.eno.forum" />
+                <!-- ⚠️ eno.vn IS STILL CLAIMED, AND THAT IS NOT A LEFTOVER. Every marketplace link
+                     ever shared points at eno.vn; dropping these hosts would stop all of them
+                     opening the app. The router translates an eno.vn path onto this app's own
+                     origin (the forum serves a superset), so the link opens in the app, on the
+                     edition that has the Capacitor bridge and no prelaunch banner.
+                     ⛔ www.eno.vn is NOT claimed: its /.well-known/assetlinks.json answers 308 and
+                     the Android verifier does not follow redirects, so including it would fail
+                     verification for every host in this filter. -->
                 <data android:host="eno.vn" />
-                <data android:host="www.eno.vn" />
+                <!-- ⚠️ pathPrefix IS A STRING PREFIX, NOT A PATH SEGMENT — "/c" also matches
+                     /checkout and /contact. Kept because those are first-party pages the app can
+                     render anyway, but do not add a short prefix without checking what else starts
+                     with it. -->
                 <data android:pathPrefix="/listings" />
                 <data android:pathPrefix="/c" />
                 <data android:pathPrefix="/brands" />
+                <!-- The forum-exclusive surfaces, which are the reason the app points here at all.
+                     Measured 2026-09-08: 200 on eno.forum, 404 on eno.vn. -->
+                <data android:pathPrefix="/vietnam-evisa" />
+                <data android:pathPrefix="/itinerary" />
             </intent-filter>
 
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />

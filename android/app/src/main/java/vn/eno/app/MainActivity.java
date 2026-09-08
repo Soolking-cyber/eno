@@ -72,10 +72,27 @@ public class MainActivity extends BridgeActivity {
     // The two first-party origins this ONE app renders (mirrors server.allowNavigation in
     // capacitor.config.ts). Nothing outside this set may ever be loaded from an external intent:
     // allowNavigation origins are the ones Capacitor treats as trusted.
-    private static final Set<String> MARKET_HOSTS = new HashSet<>(Arrays.asList("eno.vn", "www.eno.vn"));
+    /**
+     * ⛔ THESE ARE THE BRIDGE ORIGIN'S HOSTS, AND THEY MOVED TO eno.forum ON 2026-09-08.
+     * The name MARKET_* is historical: it means "the origin this app actually renders", which used
+     * to be the marketplace and is now the forum edition (a superset — the same listings plus
+     * e-visa and itinerary). Every shortcut target is built from MARKET_ORIGIN, so leaving these on
+     * eno.vn would have sent all three launcher shortcuts to the one origin that no longer carries
+     * the Capacitor bridge.
+     *
+     * ⚠️ MARKET_ORIGIN CARRIES THE www, DELIBERATELY. Both eno.forum hosts answer 200 with no
+     * redirect and the build's canonical is https://www.eno.forum — the apex would be a second live
+     * origin with no bridge. capacitor.config.ts's server.url must stay byte-identical to this.
+     */
+    private static final Set<String> MARKET_HOSTS = new HashSet<>(Arrays.asList("eno.forum", "www.eno.forum"));
+    /**
+     * ⚠️ STILL BOTH DOMAINS. This set governs which EXTERNAL intents may be loaded at all, and an
+     * eno.vn link is still first-party — it is simply no longer rendered in the WebView (it is not
+     * in allowNavigation any more), so it leaves for the system browser rather than being refused.
+     */
     private static final Set<String> FIRST_PARTY_HOSTS = new HashSet<>(
             Arrays.asList("eno.vn", "www.eno.vn", "eno.forum", "www.eno.forum"));
-    private static final String MARKET_ORIGIN = "https://eno.vn";
+    private static final String MARKET_ORIGIN = "https://www.eno.forum";
 
     /**
      * JS bridge (window.EnoNative). addJavascriptInterface is safe here: minSdk 24 (>= 17, so only

@@ -49,20 +49,50 @@ const config: CapacitorConfig = {
   appId: 'vn.eno.app',
   appName: 'eno',
   webDir: 'capacitor/www',
-  // The cross-origin app-mode signal — Android does not inject Capacitor into non-server origins,
-  // so eno.forum detects the app via UA, server- and client-side.
+  /**
+   * The cross-origin app-mode signal — Android does not inject Capacitor into non-server origins,
+   * so the OTHER edition detects the app via UA, server- and client-side.
+   *
+   * ⚠️ THE SIDE THIS DESCRIBES INVERTED ON 2026-09-08. It used to mean "eno.forum detects the app
+   * via UA" because eno.vn held the bridge; the app now loads eno.forum, so it is eno.vn that has
+   * only the UA. The token itself is unchanged and rides every origin, which is why nothing that
+   * reads it had to move.
+   */
   appendUserAgent: 'EnoNativeApp/1',
   server: {
     // The one URL the app renders (remote mode). For LOCAL native dev, override to your
     // machine's LAN IP (http://192.168.x.x:3100 + cleartext:true) — dev-only, never committed.
     // In LOCAL_SHELL mode `url` is omitted → Capacitor serves webDir, whose index.html
     // forwards to the live site after painting instantly.
-    ...(LOCAL_SHELL ? {} : { url: 'https://eno.vn' }),
+    /**
+     * ⛔ THE CANONICAL HOST, WITH THE www — AND ON THIS DOMAIN THAT IS NOT THE APEX. The bridge is
+     * injected into exactly ONE origin (see the block above), and the services build bakes
+     * NEXT_PUBLIC_APP_URL=https://www.eno.forum: every canonical tag, og:url and absolute link the
+     * forum emits says www. Unlike eno.vn — where www 308s to the apex, so the apex IS canonical —
+     * BOTH eno.forum hosts answer 200 with no redirect, so they are two live origins serving one
+     * app and only one of them can hold the bridge. Point it at the apex and the first canonical
+     * link moves the user to www with no window.Capacitor: no splash hide, no keyboard geometry, no
+     * hardware back, no camera, no safe-area CSS. Measured 2026-09-08.
+     */
+    ...(LOCAL_SHELL ? {} : { url: 'https://www.eno.forum' }),
     cleartext: false,
     // First-party links stay in the WebView; everything else opens in the system browser.
     // First-party only — iOS injects the full Capacitor bridge into every allowNavigation origin,
     // so NEVER add third-party hosts.
-    allowNavigation: ['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum'],
+    /**
+     * ⛔ THE APP IS THE FORUM EDITION, AND eno.vn IS DELIBERATELY NOT IN HERE ANY MORE.
+     *
+     * eno.forum is a SUPERSET — the same marketplace listings plus e-visa, itinerary and the
+     * services pages — so there is nothing on eno.vn the app cannot show from its own origin.
+     * Keeping eno.vn navigable would buy two problems and no feature: (1) it is the NON-bridge
+     * origin now, so an in-app eno.vn page renders with no `html.native` class, no safe-area
+     * padding, no splash hide and no camera; and (2) eno.vn carries the statutory "website is under
+     * construction — not yet officially launched" banner while its MoIT registration is pending,
+     * which is the last thing an app should show a user, or a store reviewer.
+     * Dropping the hosts means those links open in the system browser instead, which is the honest
+     * behaviour for a link that leaves the app's own site.
+     */
+    allowNavigation: ['www.eno.forum', 'eno.forum'],
     // If the remote load FAILS (offline / dropped connection), show a branded offline page from the
     // local webDir instead of a blank WebView. It auto-retries + offers a "Try again" button. The
     // MainViewController watchdog still backstops the pure-blank (-1005) case.

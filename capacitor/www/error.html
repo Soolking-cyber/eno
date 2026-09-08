@@ -59,10 +59,26 @@
       (function () {
         'use strict'
 
-        var ORIGIN = 'https://eno.vn'
+        var ORIGIN = 'https://www.eno.forum' /* ⛔ THE APP'S OWN ORIGIN, moved 2026-09-08. This is the
+           fallback the offline page returns to whenever the stored `eno:last-url` is absent or
+           stale — i.e. every first-launch-offline — so leaving it on eno.vn would have made the
+           retry button evict the user from the app's own site onto the edition that is not the
+           app, carries no Capacitor bridge, and shows the "not yet officially launched" banner.
+           Carries the www: on this domain the apex is a SECOND live origin, not a redirect. */
         // Mirrors capacitor.config.ts server.allowNavigation — the only hosts we may send the
         // WebView to. A stored target that isn't one of these is ignored, not followed.
-        var HOSTS = { 'eno.vn': 1, 'www.eno.vn': 1, 'eno.forum': 1, 'www.eno.forum': 1 }
+        /* ⚠️ THE APP'S OWN HOSTS ONLY. This allowlist decides which stored `eno:last-url` may be
+           restored; leaving eno.vn in it meant a URL saved before the 2026-09-08 repoint would
+           be restored into a host the app no longer renders, bounce out to the system browser,
+           and read as the retry button ejecting the user. An unrecognised stored host now
+           falls through to ORIGIN, which is the app's home. */
+        var HOSTS = { 'www.eno.forum': 1, 'eno.forum': 1 }
+        /* ⛔ AND THE APEX IS NORMALISED TO www BEFORE IT IS LOADED. Both forum hosts answer
+           200 with no redirect, but only the canonical www holds the Capacitor bridge, so
+           restoring a stored apex URL would put the user back on a live page with no
+           splash hide, no hardware back and no camera — the exact trap this file's ORIGIN
+           note describes. A reviewer caught that the allowlist alone does not fix it. */
+        function toCanonicalHost(u) { if (u.hostname === 'eno.forum') u.hostname = 'www.eno.forum'; return u }
         var LAST_URL_KEY = 'eno:last-url'   // written by native-bootstrap over the Capacitor bridge
         var NAV_KEY = 'eno:offline-navs'    // this page's own origin; survives its reloads
         // A location this old is not "where I was", it's "where I was last time" — past it we go
@@ -91,7 +107,7 @@
             var u = new URL(String(raw))
             if (u.protocol !== 'https:' || HOSTS[u.hostname] !== 1) return null
             if (u.pathname.indexOf('/auth/') === 0 || u.pathname.indexOf('/api/') === 0) return null
-            return u.href
+            return toCanonicalHost(u).href
           } catch (e) { return null }
         }
 

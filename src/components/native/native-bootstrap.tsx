@@ -523,32 +523,53 @@ export function NativeBootstrap() {
         router.refresh()
       }))
 
-      // Deep-link router (App Links + app shortcuts + share targets). Three shapes:
-      //   · https://eno.vn/... | https://www.eno.vn/... → route the path in the SPA
-      //   · https://eno.forum/... | https://www.eno.forum/... → full-page navigate (cross-origin)
-      //   · enovn://open?path=<url-encoded app path>    → route the decoded path
-      // ⚠️ Known limitation: a deep link that arrives while the WebView sits ON eno.forum is
-      // queued-not-acted — this file's JS (eno.vn's bundle) isn't running there, so nothing
-      // handles the event until the WebView returns to eno.vn. No native-side fix attempted here.
+      /**
+       * Deep-link router (App Links + app shortcuts + share targets). Three shapes:
+       *   · https://www.eno.forum/… | https://eno.forum/… → route the path in the SPA
+       *   · https://eno.vn/… | https://www.eno.vn/…       → route the SAME PATH in the SPA, because
+       *     the forum serves a superset of the marketplace and one app answers both domains
+       *   · enovn://open?path=<url-encoded app path>      → route the decoded path
+       *
+       * ⛔ THESE TWO BRANCHES SWAPPED ON 2026-09-08 AND THAT IS THE WHOLE POINT OF THE EDIT. The app
+       * used to render eno.vn, so the forum was the cross-origin side and got a hard navigate. The
+       * app now renders eno.forum: the forum is THIS origin — the branch that hard-navigated it was
+       * reloading the page the user was already on, losing SPA state on every shared link — and
+       * eno.vn became the cross-origin side. Leaving them as they were would have been silently
+       * backwards for every App Link the app now claims.
+       *
+       * ⚠️ AND THE FORUM ORIGIN CARRIES THE www. The old branch resolved against 'https://eno.forum'
+       * and then REQUIRED that exact origin, so a canonical www.eno.forum link — which is what the
+       * site actually emits — failed the check and was dropped in silence.
+       */
       const routeDeepLink = (url: string) => {
         try {
           const u = new URL(url)
           let raw: string | null = null
-          if (u.protocol === 'https:' && (u.hostname === 'eno.forum' || u.hostname === 'www.eno.forum')) {
-            // Same canonicalize-then-validate discipline as the eno.vn branch: resolving the path
-            // against the forum origin catches the protocol-relative escapes (`//evil.com`,
-            // `/\evil.com`). Cross-origin, so the Next router can't take it — full-page assign;
-            // allowNavigation keeps it inside the WebView.
-            const fr = u.pathname + u.search + u.hash
-            if (!fr.startsWith('/')) return
-            const forumResolved = new URL(fr, 'https://eno.forum')
-            if (forumResolved.origin !== 'https://eno.forum') return
-            hardNavAt = Date.now()
-            window.location.assign(forumResolved.toString())
-            return
-          }
-          if (u.protocol === 'https:' && (u.hostname === 'eno.vn' || u.hostname === 'www.eno.vn')) {
+          if (u.protocol === 'https:' && (u.hostname === 'www.eno.forum' || u.hostname === 'eno.forum')) {
+            // THIS origin now — fall through to the shared canonicalize-then-validate below and let
+            // the Next router take it, which is what keeps a shared link from reloading the app.
             raw = u.pathname + u.search + u.hash
+          } else if (u.protocol === 'https:' && (u.hostname === 'eno.vn' || u.hostname === 'www.eno.vn')) {
+            /**
+             * ⛔ AN eno.vn LINK IS SERVED FROM THE FORUM, NOT SENT TO THE BROWSER. The first cut
+             * hard-navigated these out of the app, and a reviewer put the cost plainly: every
+             * marketplace link anyone has ever shared — a listing, a category, a brand — would stop
+             * opening in the app and dump the user in Chrome, on the edition that carries the "not
+             * yet officially launched" banner.
+             *
+             * The forum is a SUPERSET of the marketplace (same listings, plus e-visa and itinerary),
+             * so every eno.vn path this app can be handed also resolves here. Taking the PATH and
+             * routing it in the SPA is what makes one app answer both domains' links, which is the
+             * whole point of pointing the app at the forum.
+             *
+             * ⚠️ THE PATH ONLY — the origin is deliberately discarded. Resolving against eno.vn
+             * first is what rejects the protocol-relative escapes (`//evil.com`, `/\evil.com`)
+             * before the path is reused; `canonicalAppPath` below then applies the shared rules.
+             */
+            const vr = u.pathname + u.search + u.hash
+            if (!vr.startsWith('/')) return
+            if (new URL(vr, 'https://eno.vn').origin !== 'https://eno.vn') return
+            raw = vr
           } else if (u.protocol === 'enovn:' && u.host === 'open') {
             // Two forms (docs/UNIFIED_MOBILE_APP.md in the forum repo):
             //   ?path=<url-encoded eno.vn app path>
