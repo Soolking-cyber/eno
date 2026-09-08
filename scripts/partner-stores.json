@@ -98,8 +98,8 @@
       "https://mayanh24h.com/sitemap/product/sitemap5.xml",
       "https://mayanh24h.com/sitemap/product/sitemap6.xml"
     ],
-    "urlMatch": "-cu\\.html$",
-    "note": "⚠️ THE 6 /product/sitemapN.xml FILES ADVERTISED IN robots.txt 404 — these are the working paths from the sitemap2.xml index. Used stock is the '-cu' slug suffix: 142 of 1,004 in file 1, so expect ~850 across all six. robots.txt blocks ?page= so the category pages are NOT used for discovery."
+    "urlMatch": "-cu$",
+    "note": "⚠️ PRODUCT URLs ARE EXTENSIONLESS — https://mayanh24h.com/canon-650d-cu, not .html. A '-cu\\.html$' filter matched 0 of 1,004. Used stock is the '-cu' slug suffix: 144 in file 1, ~850 across all six. The 6 /product/sitemapN.xml paths advertised in robots.txt 404; these come from the /sitemap/sitemap2.xml index. robots.txt blocks ?page= so category pages are not used for discovery."
   },
   {
     "domain": "didongviet.vn",
