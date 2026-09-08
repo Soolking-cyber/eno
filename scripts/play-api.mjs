@@ -5,6 +5,7 @@
  *   node scripts/play-api.mjs listing                # read the current store listing
  *   node scripts/play-api.mjs listing --apply        # write it from PLAY_LISTING below
  *   node scripts/play-api.mjs tracks                 # releases per track
+ *   node scripts/play-api.mjs details [--apply]      # the required contact fields
  *
  * ⚠️ EVEN THE READ COMMANDS OPEN A SERVER-SIDE EDIT, because `details`, `listings` and `tracks` are
  * only readable inside one — that is the API's shape, not a choice here. Each run deletes its edit
@@ -74,6 +75,14 @@ The whole app works in English and Tiếng Việt, with nine more languages for 
 MADE FOR VIETNAM
 Search by city and district, see listings on a map, and message sellers directly. Offers are built in, so you can negotiate without leaving the app.`,
 }
+
+/**
+ * The developer contact Play REQUIRES on the listing. It is published to users, so it is the
+ * EDITION'S OWN address: the app renders eno.forum, and support@eno.vn is the licensed
+ * marketplace's inbox — printing that here would put the wrong operator's contact on an app that
+ * sells visa services.
+ */
+const PLAY_DETAILS = { contactEmail: 'support@eno.forum', contactWebsite: 'https://www.eno.forum' }
 
 // Play's hard limits. Checked HERE rather than discovered at the API, because the API's error for an
 // over-long field names the field and not the limit, and the old hand-written listing was 86/80.
@@ -181,6 +190,19 @@ async function main() {
     return
   }
 
+  if (cmd === 'details') {
+    await withEdit(async (id) => {
+      const before = await api(`/edits/${id}/details`)
+      console.log(`  contactEmail   ${before.contactEmail || '(unset)'}  ->  ${PLAY_DETAILS.contactEmail}`)
+      console.log(`  contactWebsite ${before.contactWebsite || '(unset)'}  ->  ${PLAY_DETAILS.contactWebsite}`)
+      if (!APPLY) return
+      // PATCH, not PUT: defaultLanguage is set and must not be cleared by an omitted field.
+      await api(`/edits/${id}/details`, { method: 'PATCH', body: PLAY_DETAILS })
+      console.log('  wrote contact details')
+    })
+    return
+  }
+
   if (cmd === 'tracks') {
     await withEdit(async (id) => {
       const { tracks = [] } = await api(`/edits/${id}/tracks`)
@@ -218,7 +240,7 @@ async function main() {
     return
   }
 
-  console.log('usage: node scripts/play-api.mjs <status|listing|tracks> [--apply]')
+  console.log('usage: node scripts/play-api.mjs <status|listing|details|tracks> [--apply]')
 }
 
 main().catch((e) => { console.error('\n' + e.message); process.exit(1) })
