@@ -495,6 +495,12 @@ export function Footer() {
             <a href="/terms" className="transition-colors hover:text-accent-foreground">{tr('Terms', 'Điều khoản')}</a>
             <a href="/privacy" className="transition-colors hover:text-accent-foreground">{tr('Privacy', 'Quyền riêng tư')}</a>
             <a href="/regulations" className="transition-colors hover:text-accent-foreground">{tr('Regulations', 'Quy chế')}</a>
+            {/* ⚠️ REACHABLE WITHOUT SIGNING IN, AND THAT IS THE POINT. Google Play's Data safety
+                form requires a public URL where account + data deletion can be requested by someone
+                who has not installed the app and is not logged in — uninstalling must not be the
+                only way out. The real control lives behind auth in Settings; this is the doorway to
+                it, and a link in the footer is what makes it findable rather than merely existing. */}
+            <a href="/account-deletion" className="transition-colors hover:text-accent-foreground">{tr('Delete account', 'Xoá tài khoản')}</a>
             {/* Consent withdrawal entry point — reopens the cookie banner (PDPL). */}
             <Button type="button" variant="bare" size="none" onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))} className="cursor-pointer text-xs font-normal transition-colors hover:text-accent-foreground">{tr('Cookie settings', 'Cài đặt cookie')}</Button>
           </div>
