@@ -1,10 +1,23 @@
 # Shipping the Android app to Google Play
 
-The Capacitor Android app for **eno.vn**, package `vn.eno.app`. Written 2026-09-06 against a
-verified signed build; every command here was run.
+The Capacitor Android app, package `vn.eno.app`. Written 2026-09-06 against a verified signed
+build; every command here was run.
+
+⛔⛔ **THE APP RENDERS eno.forum, NOT eno.vn — CHANGED 2026-09-08, AND IT IS WHY THE LAUNCH IS
+POSSIBLE AT ALL.** eno.vn serves a statutory *"website is under construction and in test operation
+— not yet officially launched"* banner on every page while its MoIT sàn TMĐT registration is
+pending (`src/lib/site-legal.ts` PRELAUNCH). The app is a WebView of that site, so a Play reviewer
+would have opened it and been told by the app itself that the service is not launched. Measured on
+production the same day: eno.forum carries no such banner, serves the SAME 16,966 listings, and
+adds `/vietnam-evisa`, `/itinerary` and the services pages — 200 on the forum, 404 on eno.vn. The
+forum is a superset, so nothing is lost.
+
+⚠️ **THE ORIGIN IS `https://www.eno.forum`, WITH THE www.** Both forum hosts answer 200 with no
+redirect — unlike eno.vn, where www 308s to the apex — so they are two live origins and only one
+can carry the Capacitor bridge. The canonical is www. See the long note in `capacitor.config.ts`.
 
 ⛔ **Most releases of this app are NOT Play releases.** Capacitor runs in remote-server mode: the
-WebView loads `https://eno.vn`, so a product change reaches installed apps the moment the site
+WebView loads the live site, so a product change reaches installed apps the moment the site
 deploys, with no store review at all. A new bundle is needed only when the NATIVE shell changes —
 a plugin, a permission, the manifest, an icon, `targetSdk`. Expect a handful of uploads a year.
 
@@ -79,11 +92,22 @@ needed nothing: emulator 37.1.11 and API 36 are the newest on every channel, sta
 
 ## Play Console, in order
 
-### 0. There is no developer account yet — this is step zero
+### 0. ✅ DEVELOPER ACCOUNT — DONE (owner, 2026-09-08: "the dev account is verified ready")
+The account exists and is verified, so everything below is unblocked. The paragraphs that follow
+are kept because they record WHY the organization path was chosen and what it cost.
+
+⛔ **THE ENTITY QUESTION IS STILL OPEN AND THE OWNER IS CLEARING IT** (owner, 2026-09-08: "we will
+clear entity issues"). Stated here so nobody assumes it was settled: the only registered entity is
+Công ty TNHH ENO (ERC 0319679107), the licensed marketplace, which by this codebase's own edition
+rules may not offer e-visa, itinerary or PayPal — and eno.forum has no incorporated entity at all
+(`site-legal.ts` PENDING_SERVICES_ENTITY, `registered: false`). The app now offers exactly those
+services. That is a lawyer question, not a code one.
+
+### 0b. The original step zero, for the record
 Checked 2026-09-06 in the browser: `play.google.com/console` redirects **both**
-`shanazar15071994@gmail.com` and `support@eno.forum` to `/signup`. No Play developer account exists
-on either. Everything below is blocked until one is created, and creating it is an owner action:
-it takes a $25 registration fee and identity verification, neither of which can be delegated.
+`shanazar15071994@gmail.com` and `support@eno.forum` to `/signup`. No Play developer account existed
+on either AT THAT TIME. ⚠️ SUPERSEDED — see step 0 above: the account now exists and is verified.
+This paragraph is kept only for the reasoning that follows it.
 
 Choose **An organization → A company or business**, signed in as `support@eno.forum` (the account
 that owns the rest of eno's Google surface). Two reasons, and the second one is a fortnight:
@@ -101,10 +125,29 @@ Dun & Bradstreet first — it is free and takes roughly a week or two, and it ga
 All apps → Create app. Name **eno**, default language English (United States), app not game, free.
 
 ### 2. App access — this one blocks review if skipped
+
+⛔ **AND THE REVIEWER CANNOT USE THE ORDINARY SIGN-IN.** Password auth is partner-gated
+(`src/app/api/auth/password/route.ts`), so the normal path is an emailed code — which a reviewer
+cannot wait for you to relay, because review is asynchronous. Seed a partner-flagged account with a
+password and give Play those credentials. Verify it signs in on a clean device BEFORE submitting:
+this is the single most common cause of a rejection that costs a week.
 Most of the marketplace is behind a sign-in. Under **App access**, choose "All or some
-functionality is restricted" and give the reviewer a working account: email, password, and the note
-that sign-in is by email code so the reviewer needs an inbox they control, or supply a seeded
-account whose code you can relay. A reviewer who cannot get past the sign-in wall rejects the app.
+functionality is restricted" and give the reviewer a working account. A reviewer who cannot get past
+the sign-in wall rejects the app.
+
+⚠️ **AND AN EMAILED CODE IS NOT A WORKABLE REVIEWER CREDENTIAL, WHICH IS WHY THE PASSWORD ACCOUNT
+BELOW IS THE ANSWER.** Review is asynchronous — nobody is standing by to relay a code — so "supply
+an account whose code you can relay", which this section used to say, is not a procedure that
+survives contact with a real review queue.
+
+✅ **AND ORDINARY USERS ARE FINE — THIS WAS CHECKED, BECAUSE IT IS THE OBVIOUS WORRY.** A reviewer
+asked whether passwordless sign-in is broken in the app: the App Links filter deliberately excludes
+`/auth`, so an emailed magic LINK opens in Chrome, lands the session in the browser's cookie jar,
+and leaves the WebView signed out. It does not happen. `sign-in-form.tsx` auto-detects native /
+in-app-browser / PWA contexts and FORCES the email CODE instead of the link — the toggle is
+one-way there — for exactly that reason, and Google OAuth in the Capacitor app goes through
+`native=1` → `enovn://auth-callback`, a scheme the manifest registers. (`native=2` →
+`enoforum://` belongs to the shelved SwiftUI app, not this one.)
 
 ### 3. Content rating
 Questionnaire: user-generated content **yes**, user-to-user communication **yes** (in-app chat),
@@ -119,6 +162,35 @@ they do: per-surface report dedup, chat reports, admin one-way messaging, the di
 own campaigns, not advertising shown inside the app.
 
 ### 6. Data safety
+
+⛔⛔ **THE TABLE BELOW WAS WRITTEN FOR THE MARKETPLACE AND IS NOW INCOMPLETE — READ THIS FIRST.**
+The app renders eno.forum, which does everything eno.vn did AND sells e-Visas and takes payments.
+Under-declaring is the mismatch that gets an app suspended after the fact, so the additions are
+listed before the original table rather than after it.
+
+| Additional category | Collected | Where, in the code |
+|---|---|---|
+| Government ID — passport image and MRZ | yes | the e-Visa application flow, `src/lib/visa/**`; the MRZ is read on-device (Tesseract) and the image is uploaded |
+| Name, date of birth, nationality, passport number, entry dates | yes | the e-Visa dossier |
+| Portrait photo | yes | the e-Visa portrait capture |
+| Payment info | yes | the forum edition ships the real payments path — `src/lib/payments/**` — where eno.vn aliases it to a stub |
+| Financial info (wallet) | capability ships | `src/lib/payments/crossmint.ts` is the REAL adapter on this edition (eno.vn gets `crossmint.stub.ts` via a next.config alias). Env-gated on `CROSSMINT_SERVER_SIDE_API_KEY` + `CROSSMINT_SIGNER_SECRET` |
+
+⚠️ **DECLARE THE CAPABILITY THE APP SHIPS WITH, NOT TODAY'S ENV VALUES** — the same rule this file
+already applies to Meta CAPI below. A custody wallet that is dormant because a key is unset is
+still a custody wallet in the artifact.
+
+⛔ **PLAY'S "FINANCIAL FEATURES" DECLARATION IS A SEPARATE FORM AND THE OLD CHECKLIST HAD NONE.**
+This edition ships a payments path and a wallet adapter. Answer it, and answer it before someone
+notices it was skipped.
+
+⚠️ **"SHARED WITH THIRD PARTIES" — CONFIRM THE VISA RECIPIENT BEFORE SUBMITTING.** An e-Visa
+dossier is fulfilled through a partner, and passport OCR may reach a cloud vision service. Both are
+transfers of sensitive data and both must be named on the form. I did not verify the fulfilment
+partner's identity from the code with enough confidence to write it down here; establish it and put
+it in this file.
+
+### 6b. The original marketplace table
 Answer from what the app actually does. Collected, linked to the user, not sold:
 
 | Category | Collected | Purpose |
@@ -161,58 +233,100 @@ permission and the Samsung badge permissions. Nothing requests them at runtime.
 
 ### 7. Store listing
 
-**App name (30 max)**
+⚠️ **REWRITTEN 2026-09-08 FOR THE FORUM APP.** The previous copy sold a marketplace and nothing
+else, and its short description was 86 characters against an 80 limit — it could not have been
+pasted in. Every string below is counted.
+
+**App name (30 max)** — 25
 ```
-eno — Vietnam Expat Market
+eno: Marketplace & e-Visa
 ```
 
-**Short description (80 max)**
+**Short description (80 max)** — 75
 ```
-Buy, sell and rent in Vietnam. Trusted sellers, real listings, English and Tiếng Việt.
+Buy, sell and rent in Vietnam. Plus Vietnam e-Visas and free trip planning.
 ```
 
 **Full description (4000 max)**
 ```
-eno is the marketplace for expats and internationals living in Vietnam.
+eno is the app for expats and internationals living in or travelling to Vietnam. One place to buy
+and sell, sort your visa, and plan the trip.
 
-Find what you need
+BUY AND SELL
 • Housing and rentals, from studios to serviced apartments
 • Motorbikes, bicycles and cars
 • Furniture and appliances, including whole moving sales
-• Electronics and phones
+• Electronics, phones and laptops — new, used and refurbished
 • Jobs and local services
 
-Sell in minutes
 Post a listing with photos from your phone, set a price in VND, and reply to buyers in the app.
 No listing fees.
 
-Built for trust
+VIETNAM e-VISA
+Apply for a Vietnam e-Visa without deciphering a government form. Choose standard or express
+processing, see the price and the timeline before you commit, and ask a human first if you are not
+sure which option fits. Your documents are handled securely and you are told what happens at each
+step.
+
+PLAN THE TRIP
+Build an itinerary, save the places you like, and get help with bookings — free.
+
+BUILT FOR TRUST
 Every seller carries a public trust score built from real evidence, not stars alone. Business
 sellers can verify their registration. Listings that break the rules get reported by the community
 and reviewed. Prices are shown in Vietnamese đồng with a US dollar reference, so you always know
-what you are paying.
+what you are paying. Nobody can pay to rank higher.
 
-Your language
+YOUR LANGUAGE
 The whole app works in English and Tiếng Việt, with nine more languages for listing content.
 
-Made for Vietnam
+MADE FOR VIETNAM
 Search by city and district, see listings on a map, and message sellers directly. Offers are built
 in, so you can negotiate without leaving the app.
 ```
 
-Graphics: three phone screenshots are already captured from the **signed release build** running
-on a Pixel emulator at 1080×2400, in `play-store-assets/`:
+⚠️ **WHAT THE DESCRIPTION DELIBERATELY DOES NOT SAY.** It does not name a processing time or a
+price for the e-Visa (both live in the listing and change), does not promise approval, and does not
+call the trip planner a booking agency. A store description is a publication by the developer
+entity — see the entity note in step 0.
+
+**Graphics.** Captured 2026-09-08 from the SIGNED RELEASE BUILD on the `eno_pixel` emulator at
+1080×2400, in `play-store-assets/forum/`:
 
 | File | Shows |
 |---|---|
-| `01-explore.png` | header search, partner banner, category rail, facets, "10,046 listings", grid |
-| `02-listing.png` | price in VND with a USD reference, trust score, seller, safety notice |
-| `03-saved.png` | the saved-listings tab |
+| `01-marketplace.png` | a real imported listing — HONOR 400 5G, 7,990,000 VND ≈ $312, Used, Hồ Chí Minh, "Buy on Minh Tuấn Mobile" |
+| `02-evisa.png` | the Vietnam e-Visa landing page |
+| `03-evisa-detail.png` | the e-Visa explainer and the product cards |
+| `04-evisa-pdp.png` | an e-Visa product: fixed price in VND + USD, "Apply in chat", seller trust score |
 
-Still to make: app icon 512×512 PNG and feature graphic 1024×500. Both need a designer or an export
-from the brand mark; they are the only listing assets not covered.
+⚠️ **STILL TO CAPTURE:** a browse/grid screenshot of the marketplace itself. The four above lean
+e-Visa because the deep links that reach those pages are the ones that worked reliably from `adb`;
+the browse screen needs a couple of taps past the first-run consent banner and the six-step Quick
+Tour. Play wants at least two and takes up to eight.
 
-Privacy policy URL: `https://eno.vn/privacy` (live, verified 200).
+⚠️ **THE PRODUCT IMAGES ARE WATERMARKED `eno.vn`** — visible in every screenshot, on an app that is
+now eno.forum. Not a blocker and not a policy problem, but it is the app's own branding
+contradicting itself in its own store listing. The watermark is applied at import/upload time, so
+changing it is a re-watermark of existing images, not a config flip.
+
+**Icon and feature graphic.** `play-store-assets/play-icon-512.png` (512×512) and
+`play-feature-graphic-1024x500.png` (1024×500, no alpha) already exist and meet spec. ⚠️ The
+feature graphic promises a marketplace only — worth re-cutting to say marketplace + e-Visa.
+
+**Privacy policy URL:** `https://www.eno.forum/privacy` — ⚠️ NOT the eno.vn one the old listing
+named. The app is the forum edition and Play expects the policy of the app it is reviewing.
+
+**Account deletion URL:** `https://www.eno.forum/account-deletion` (added 2026-09-08 — Play's Data
+safety form requires a URL reachable WITHOUT installing the app or signing in).
+
+**Contact details** — required Console fields the old draft omitted entirely: a public support
+email, and optionally a website and phone. Use the address the forum edition itself publishes,
+`support@eno.forum`.
+
+**Category and tags** — also absent from the old draft. `Shopping` is the honest primary category
+(the marketplace is the bulk of the app); `Travel & Local` is the alternative if the e-Visa is to
+lead. Pick one deliberately: it changes who the app is shown to.
 
 ### 8. Release
 Start with **Internal testing**, install from the Play link on a real device, and only then promote
@@ -261,7 +375,34 @@ adb shell pm get-app-links vn.eno.app      # every host should read "verified"
 ```
 
 One file serves both editions: eno.vn and eno.forum are the same root built twice and share
-`public/`.
+`public/`. Verified 2026-09-08 by md5: the live bytes on eno.vn, eno.forum and www.eno.forum are
+all the repo-root `public/.well-known/assetlinks.json`. The debug-key copy in
+`apps/forum/public/` is DEAD CODE — that tree is dormant and nothing deploys it — but it is
+git-tracked in a public repo and should be deleted or corrected as hygiene.
+
+✅ **VERIFIED END TO END ON THE EMULATOR, 2026-09-08**, with the upload-key build installed:
+
+```
+$ adb shell pm get-app-links vn.eno.app
+    Signatures: [3E:71:F7:BA:…:04:4F]
+    Domain verification state:
+      eno.vn: verified
+      www.eno.forum: verified
+      eno.forum: verified
+```
+
+⚠️ **eno.vn IS STILL CLAIMED, DELIBERATELY.** Every marketplace link ever shared points there;
+dropping it would stop all of them opening the app. The router translates an eno.vn PATH onto the
+app's own origin, which the forum can serve because it is a superset. `www.eno.vn` is NOT claimed —
+its assetlinks.json answers 308 and the Android verifier does not follow redirects, so including it
+would have failed verification for every host in the filter.
+
+⚠️ **A BARE `https://www.eno.forum/` LINK OPENS THE BROWSER, NOT THE APP, AND THAT IS BY DESIGN.**
+The filter is a path-prefix allowlist (`/listings`, `/c`, `/brands`, `/vietnam-evisa`, `/itinerary`)
+because an Android intent-filter cannot express an exclusion, and `/auth` must never be captured —
+a PKCE code is single-use, so an intercepted callback lands on an error. Widening to `/` would
+capture it. Measured: a root link went to Chrome; `/listings/<id>` and `/vietnam-evisa` opened the
+app and routed correctly, both cold and warm.
 
 ---
 
