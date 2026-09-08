@@ -62,6 +62,7 @@ export type SharedApiErrorCode =
   // links earn nothing. Reported rather than guessed at, so a silent zero-commission run is
   // visible in the journal.
   | 'not_an_approved_campaign'          // 1
+  | 'fetch_failed'                      // 1 — a partner shop's catalogue could not be read (cron/partner-stock)
   | 'account_restricted'                // 6
   | 'business_only'                     // 6
   | 'application_locked'                // 5
@@ -541,6 +542,7 @@ const ALL = [
   'no_shop',
   'no_storefront',
   'not_an_approved_campaign',
+  'fetch_failed',
   'no_suggestions',
   'not_a_flag',
   'not_a_video',

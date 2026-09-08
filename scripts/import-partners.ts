@@ -35,6 +35,7 @@ import { categoryFor, subcategoryFor, brandFor, FEED_BRANDS } from '../src/lib/f
 import { modelFor } from '../src/lib/feed-model'
 import { buildSearchText } from '../src/lib/fold'
 import { browseRankScore } from '../src/lib/ranking-formula'
+import { PARTNER_STORES } from '../src/lib/partner-stores'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
@@ -77,7 +78,7 @@ function imagesOf(r: Staged): string[] {
 }
 
 async function main() {
-  const stores: Store[] = JSON.parse(readFileSync('scripts/partner-stores.json', 'utf8'))
+  const stores: Store[] = PARTNER_STORES
   const storeByDomain = new Map(stores.map((s) => [s.domain, s]))
   const all: Staged[] = JSON.parse(readFileSync(FILE!, 'utf8'))
   const rows = (ONLY ? all.filter((r) => r.domain === ONLY) : all).slice(0, LIMIT || undefined)
@@ -106,14 +107,14 @@ async function main() {
   const sellerFor = new Map<string, { id: string; trustScore: number }>()
   /**
    * ⚠️ TWO DIFFERENT QUESTIONS, AND CONFLATING THEM BROKE THE PREVIEW. "Is this store allowed?"
-   * (known to partner-stores.json, not owned by a real account) is answered here for both modes;
+   * (known to partner-stores.ts, not owned by a real account) is answered here for both modes;
    * "does a Seller row exist?" is only ever true on a dry run for a shop imported before. Gating on
    * the second made a first-ever preview report every product as refused.
    */
   const allowedDomains = new Set<string>()
   for (const domain of new Set(rows.map((r) => r.domain))) {
     const store = storeByDomain.get(domain)
-    if (!store) { console.error(`  ⚠️ ${domain}: not in partner-stores.json — skipping its products`); continue }
+    if (!store) { console.error(`  ⚠️ ${domain}: not in partner-stores.ts — skipping its products`); continue }
     const existing = await db.seller.findFirst({ where: { name: store.name }, select: { id: true, ownerId: true, trustScore: true } })
     if (existing?.ownerId) { console.error(`  ⛔ "${store.name}" is owned by a real account — skipping`); continue }
     allowedDomains.add(domain)

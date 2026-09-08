@@ -1,4 +1,25 @@
-[
+import type { StoreConfig } from './partner-fetch'
+
+/**
+ * THE THIRTEEN PARTNER SHOPS, AND WHAT WAS MEASURED TO REACH EACH ONE.
+ *
+ * ⛔ A TypeScript MODULE, NOT scripts/partner-stores.json — AND THE REASON IS THE DEPLOY SHAPE.
+ * next.config sets `output: 'standalone'`, which traces IMPORTS to decide what ships in the
+ * container. A `readFileSync(process.cwd() + '/scripts/…')` traces to nothing, so the daily cron
+ * would have read a file that is not in the image and answered `partner_stores_unreadable` on
+ * every run — a job that looks installed, runs nightly, and does nothing. A reviewer caught it
+ * before it shipped. Imported, the list is part of the bundle by construction.
+ *
+ * ⚠️ EVERY `endpoint` HERE WAS PROVEN BY FETCHING TWO REAL PRODUCTS THROUGH IT. A guessed endpoint
+ * that 404s is worse than an honest gap, so nothing is listed on inference — each `note` records
+ * what was measured, including the ones that cost something to find.
+ *
+ * ⚠️ `condition` IS A CLAIM ABOUT THE GOODS, taken from that same evidence: `used` where the
+ * endpoint is a used/liquidation collection, `new` for the one components retailer, and `null`
+ * where the shop exposes no signal at all — which is excluded from both facet chips rather than
+ * guessed. See the note on each entry.
+ */
+export const PARTNER_STORES: StoreConfig[] = [
   {
     "domain": "phuongtin.vn",
     "name": "Phương Tín",

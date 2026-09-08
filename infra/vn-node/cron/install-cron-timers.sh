@@ -37,13 +37,26 @@ declare -A SCHED=(
   # CellphoneS's own overnight repricing and well outside VN shopping hours — a ~50-page datafeed
   # walk plus a few thousand row updates should not compete with real traffic.
   [affiliate-prices]="*-*-* 20:00:00 UTC"
+  # Availability + price refresh for the thirteen SCRAPED partner shops (owner, 2026-09-08: "a
+  # daily cron to fetch availability for all partner stores and price updates for existing
+  # products"). 19:00 UTC = 02:00 ICT — an hour before affiliate-prices, so the two multi-minute
+  # outbound jobs never overlap, and squarely outside VN shopping hours because this one re-reads
+  # thirteen small shops on shared hosting rather than calling one datafeed API.
+  [partner-stock]="*-*-* 19:00:00 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It is safe to
 # enable because it writes only price/affiliateUrl on imported rows and emails nobody — and it
 # NO-OPS with `{skipped:"no_key"}` until ACCESSTRADE_KEY is present in the container env, so
 # installing it before the secret lands is harmless. eno-cron.sh already allows 900s.
 # Enabled now: they only touch this box's own data.
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices)
+# ⚠️ partner-stock reaches OUT to thirteen third-party shops and can run for many minutes. Safe to
+# enable for the same reasons as affiliate-prices, plus one of its own: it NEVER creates a listing
+# and never fetches an image, so the worst a bad night can do is move price/availability on rows a
+# human already imported. It no-ops per shop with `{skipped:"no_storefront"}` until that shop's
+# catalogue has been imported, so installing it before the import lands is harmless.
+# ⛔ AND IT DECLINES TO RETIRE ANYTHING ON AN INCOMPLETE FETCH — see MIN_ROWS_TO_RECONCILE in the
+# route. A shop whose host has a bad minute reports `reconcileSkipped`, not a sold-out catalogue.
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock)
 # Installed, NOT enabled: these send email to real people.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 # Installed, NOT enabled: the FIRST run acts on a policy nobody has acted on yet — every decided
