@@ -269,7 +269,7 @@ export function serializeCategoryBasic(c: { id: string; name: string; nameVi: st
  */
 
 export const LISTING_FEED_SELECT = {
-  id: true, title: true, titleVi: true, description: true, price: true, currency: true,
+  id: true, title: true, titleVi: true, description: true, descriptionVi: true, price: true, currency: true,
   condition: true, images: true, brandSlug: true,
   category: { select: { slug: true, name: true } },
 } as const

@@ -107,7 +107,13 @@ export async function GET(req: Request) {
       const listing = serializeFeedListing(l)
       if (excludeMock && isMockImages(listing.images)) continue
 
-      // Lead the title with the real brand for stronger matching (avoid duplication).
+      /**
+       * ⛔ THE TITLE AND THE DESCRIPTION MUST PREFER THE SAME LANGUAGE. Both lines below read
+       * Vietnamese-first because this catalogue sells to Vietnamese buyers. Until 2026-09-08 only
+       * the title did, and the description fell through to `description` — which the bilingual
+       * backfill rewrites to ENGLISH. The result was a catalogue row with a Vietnamese product
+       * name and an English description, on a feed that declares itself Vietnamese.
+       */
       const baseTitle = listing.titleVi || listing.title
       const bName = l.brandSlug ? brandName.get(l.brandSlug) ?? null : null
       const title = bName && !baseTitle.toLowerCase().includes(bName.toLowerCase())
@@ -131,7 +137,7 @@ export async function GET(req: Request) {
       const row = [
         escapeCsv(listing.id),
         escapeCsv(title.slice(0, 150)),
-        escapeCsv(listing.description.slice(0, 400)),
+        escapeCsv((listing.descriptionVi || listing.description).slice(0, 400)),
         'in stock',
         condition,
         escapeCsv(formattedPrice),

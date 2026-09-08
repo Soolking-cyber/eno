@@ -93,7 +93,10 @@ export async function GET(req: Request) {
       const listing = serializeFeedListing(l)
       if (excludeMock && isMockImages(listing.images)) continue
       const baseTitle = listing.titleVi || listing.title
-      const displayDesc = listing.description
+      // Same language preference as the title above — the channel declares <language>vi-vn</language>,
+      // so an English description here contradicts the feed's own header. See the note in the
+      // facebook-catalog route.
+      const displayDesc = listing.descriptionVi || listing.description
       const itemUrl = `${hostUrl}/listings/${listing.id}?utm_source=google&utm_medium=shopping`
       const imageUrl = listing.images[0] || `${hostUrl}/placeholder.png`
       const extraImages = listing.images.slice(1, 11)

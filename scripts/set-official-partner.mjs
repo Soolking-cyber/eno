@@ -4,6 +4,16 @@
  *   node --env-file=.env scripts/set-official-partner.mjs vietkite            # dry run
  *   node --env-file=.env scripts/set-official-partner.mjs vietkite --apply
  *   node --env-file=.env scripts/set-official-partner.mjs vietkite --off --apply
+ *   node --env-file=.env scripts/set-official-partner.mjs --name "Di Động Việt" --apply
+ *   node --env-file=.env scripts/set-official-partner.mjs cmtsev0f2000b9zq41nbihmvl --apply
+ *
+ * ⚠️ A HANDLE IS NOT THE ONLY WAY TO NAME A STOREFRONT, AND REQUIRING ONE BLOCKED REAL WORK. This
+ * looked up `"Handle" h on h."sellerId" = s.id` and nothing else, so it could not reach a seller
+ * without one — which is MOST of them: measured 2026-09-08, 14 of the 15 imported merchant
+ * storefronts have no Handle row at all (they are reached at /sellers/<id>), and CellphoneS already
+ * carries the badge despite having none, so a handle was never the flag's precondition. The
+ * positional argument now falls back to the seller id, and `--name` takes the exact storefront name.
+ * The selector widened; not one of the guards below did.
  *
  * ⚠️ THIS IS THE ONLY WRITE PATH, AND THAT IS THE DESIGN. There is deliberately no admin UI and no
  * API for this flag. `officialPartner` asserts that eno has a commercial agreement with a company —
@@ -30,10 +40,15 @@ const OFF = args.includes('--off')
 // number is stored, --off additionally requires --republish-phone: the operator has to name the
 // consequence before it happens.
 const REPUBLISH_OK = args.includes('--republish-phone')
-const handle = args.find((a) => !a.startsWith('--'))
+const nameIdx = args.indexOf('--name')
+const byName = nameIdx >= 0 ? args[nameIdx + 1] : undefined
+// The positional argument, ignoring the value that belongs to --name.
+// ⚠️ THE GUARD MUST BE `nameIdx >= 0`, NOT `i !== nameIdx + 1` ALONE. With --name absent nameIdx is
+// -1, so nameIdx + 1 is 0 — which silently excluded args[0], i.e. every plain `<handle>` call.
+const handle = args.find((a, i) => !a.startsWith('--') && !(nameIdx >= 0 && i === nameIdx + 1))
 
-if (!handle) {
-  console.error('Usage: node --env-file=.env scripts/set-official-partner.mjs <handle> [--off] [--apply]')
+if (!handle && !byName) {
+  console.error('Usage: node --env-file=.env scripts/set-official-partner.mjs <handle|sellerId> | --name "<storefront name>" [--off] [--apply] [--republish-phone]')
   process.exit(1)
 }
 const DB = process.env.DIRECT_URL
@@ -45,20 +60,38 @@ if (!DB) {
 const c = new Client({ connectionString: DB })
 await c.connect()
 try {
-  const found = await c.query(
-    `select s.id, s.name, s."officialPartner", s.phone
-       from "Seller" s join "Handle" h on h."sellerId" = s.id
-      where h.handle = $1`,
-    [handle],
-  )
+  // ⚠️ EXACT MATCH ON ALL THREE. No ILIKE and no prefix: this grants a public claim about a
+  // commercial agreement, and "the storefront whose name starts with what I typed" is not a thing
+  // an operator should be able to do by accident.
+  const found = byName
+    ? await c.query(`select s.id, s.name, s."officialPartner", s.phone from "Seller" s where s.name = $1`, [byName])
+    : await c.query(
+        `select s.id, s.name, s."officialPartner", s.phone
+           from "Seller" s left join "Handle" h on h."sellerId" = s.id
+          where h.handle = $1 or s.id = $1`,
+        [handle],
+      )
+  // ⚠️ DEDUPE BY SELLER ID BEFORE COUNTING. The positional lookup LEFT JOINs "Handle", which has
+  // one row PER HANDLE — so a storefront that owns two handles came back as two rows and was
+  // refused as "matches 2 storefronts", telling the operator to re-run with the seller id they had
+  // just used. Only DISTINCT sellers are an ambiguity; duplicate rows for one seller are not.
+  const rows = [...new Map(found.rows.map((r) => [r.id, r])).values()]
+  // Two storefronts may legitimately share a name (there are two "eno Support" rows in production).
+  // Picking the first would flip an arbitrary one, so this refuses and asks for the id instead.
+  if (rows.length > 1) {
+    console.error(`"${byName ?? handle}" matches ${rows.length} storefronts — re-run with the seller id:`)
+    for (const r of rows) console.error(`  ${r.id}  ${r.name}`)
+    process.exitCode = 1
+  } else
   // ⚠️ NO `process.exit()` ANYWHERE IN THIS BLOCK — it skips `finally`, so the client would never
   // close. Every terminating path sets `process.exitCode` and falls through instead. An earlier
   // version carried this comment while STILL exiting on the not-found path below; two reviewers
   // caught it independently. A comment asserting a property the code lacks is worse than the lapse
   // it describes, because it stops the next reader checking. Hence the nesting rather than guards.
-  const s = found.rows[0]
+  {
+  const s = rows[0]
   if (!s) {
-    console.error(`No storefront with handle "${handle}".`)
+    console.error(`No storefront matching "${byName ?? handle}" (tried handle, seller id and exact name).`)
     process.exitCode = 1
   } else {
   const next = !OFF
@@ -100,6 +133,7 @@ try {
     console.log(`  · purge Cloudflare (purge_everything, never by URL) for the storefront HTML`)
     console.log(`  · / is ISR 6h and /listings/[id] is ISR 30d — deploy, or edit each listing, to`)
     console.log(`    refresh the card seal and the PDP badge. Flipping the flag alone will NOT.`)
+  }
   }
   }
 } catch (e) {

@@ -293,6 +293,9 @@ export async function updateListingCore(
     where: { id: listingId },
     select: {
       title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true, video: true,
+      // Read-only here (the wizard cannot edit them), but load-bearing: the folded search blob
+      // below must keep BOTH languages or an edit deletes the Vietnamese half of the index.
+      titleVi: true, descriptionVi: true,
       // Price-drop pipeline + urgent gate inputs
       price: true, createdAt: true, sellerId: true, previousPrice: true, priceDropAt: true, lowestNotifiedPrice: true, priceDropNotifiedAt: true, urgentUntil: true,
       seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
@@ -306,12 +309,64 @@ export async function updateListingCore(
   const description = body.description !== undefined ? String(body.description).trim().slice(0, 5000) : undefined
   const contactName = body.contactName !== undefined ? String(body.contactName).trim().slice(0, 80) : undefined
 
+  /**
+   * ⛔ CLEAR THE *Vi COUNTERPART ONLY WHEN THE PRIMARY ACTUALLY CHANGED, NOT WHENEVER IT IS SENT.
+   * The wizard ROUND-TRIPS EVERY FIELD (the `warm` array below says so in its own comment and
+   * exists for the same reason), so `description !== undefined` is true on a price-only save that
+   * resubmitted byte-identical text. Nulling on that discards a perfectly current Vietnamese
+   * translation — and for an imported listing it discards the MERCHANT'S OWN wording, which no
+   * cache can give back: the Translation table is keyed by sha1(source) and stores the hash, never
+   * the source. Comparing against `current` makes an edit clear it and a no-op leave it alone.
+   */
+  /**
+   * ⚠️ AND THE COMPARISON MUST NORMALISE BOTH SIDES, OR IT REPORTS A CHANGE THAT DID NOT HAPPEN.
+   * The incoming value has been through `.trim().slice()` and a textarea round-trip (CRLF → LF);
+   * the STORED value never was — scraped imports carry `\r\n` and trailing whitespace. Comparing
+   * the normalised input against the raw column therefore reads "changed" on a price-only save of
+   * untouched text, which nulls the *Vi column and destroys the merchant's original: precisely the
+   * loss the comparison exists to prevent.
+   *
+   * ⛔ NORMALISE BOTH SIDES, AND APPLY THE LENGTH CAP TO BOTH. Two reviewers found the half-done
+   * version, each from a different direction, and both are right:
+   *   · A browser textarea submits `\r\n`, so normalising only the STORED side left every
+   *     multi-line description comparing unequal — the spurious "changed" this guard exists to
+   *     stop, now firing on the common case instead of the rare one.
+   *   · `incoming` has already been `.slice()`d to the column cap while the stored value has not,
+   *     so any row longer than the cap can never compare equal and would null on every save.
+   * One `norm` applied identically to both sides closes both. It is a COMPARISON helper only —
+   * what gets STORED is still the caller's value, unchanged.
+   */
+  const norm = (v: string, cap: number) => v.replace(/\r\n/g, '\n').trim().slice(0, cap)
+  const sameText = (incoming: string, stored: string | null, cap: number) =>
+    norm(incoming, cap) === norm(stored ?? '', cap)
+
   if (title !== undefined) {
     if (title.length < 3) return { ok: false, code: 400, error: 'title_too_short' }
     data.title = title
-    data.titleVi = null // drop the stale VI title; display falls back to the new EN title (re-warmed below)
+    if (!sameText(title, current.title, 140)) data.titleVi = null // stale now; display falls back to the new title (re-warmed below)
   }
-  if (description !== undefined) data.description = description
+  if (description !== undefined) {
+    data.description = description
+    /**
+     * ⛔ THE SAME RULE AS titleVi ABOVE, AND ITS ABSENCE HERE WAS A REAL STALENESS BUG. The two
+     * columns are read by the same precedence — useLocalized() prefers the *Vi value over the
+     * translation cache, and (since 2026-09-08) both product feeds prefer it over the primary
+     * column — so a description edit that left descriptionVi untouched served every Vietnamese
+     * reader, the Meta catalogue and the Google Merchant feed the text the seller had just
+     * REPLACED, with no way for them to reach the new one.
+     *
+     * ⚠️ IT WAS HARMLESS UNTIL THE COLUMN WAS POPULATED. descriptionVi was null on almost
+     * everything a human posted, so "prefer *Vi" fell through to the primary column and the edit
+     * showed. scripts/backfill-bilingual.ts filled it on 11,831 rows; that is what turned a dormant
+     * asymmetry into a live one, and it is why this line ships in the same commit.
+     *
+     * Clearing rather than re-translating is deliberate: warmTranslations() re-warms the changed
+     * text a few lines below, so the Vietnamese reader gets a fresh machine translation instead of
+     * a stale human one. Losing an imported merchant's original Vietnamese is the right trade when
+     * the text it described is gone — and ONLY then, hence the comparison.
+     */
+    if (!sameText(description, current.description, 5000)) data.descriptionVi = null
+  }
 
   // Phone numbers are never allowed in public text (same rule as create).
   if (containsPhoneNumber(title ?? '') || containsPhoneNumber(description ?? '') || containsPhoneNumber(contactName ?? '')) {
@@ -498,7 +553,20 @@ export async function updateListingCore(
   const newDistrict = (data.district as string | null) ?? current.district
   const newBrand = (data.brandSlug as string | null | undefined) ?? current.brandSlug
   const newModel = (data.model as string | null | undefined) ?? current.model
-  data.searchText = buildSearchText([newTitle, newDesc, newDistrict, current.category.name, current.category.nameVi, newBrand, newModel])
+  /**
+   * ⛔ BOTH LANGUAGES, OR THE FIRST SELLER EDIT SILENTLY DELETES HALF THE SEARCH INDEX. An imported
+   * listing carries an English `title` AND a Vietnamese `titleVi` (scripts/backfill-bilingual.ts),
+   * and a buyer may type either — which is why scripts/rebuild-search-text.ts folds all four fields
+   * in. This line folded only the primary pair, so editing the price on such a listing rebuilt the
+   * blob without any Vietnamese in it and made the row unfindable by the words its own seller used.
+   * The *Vi values are not editable here, so they are read from `current`.
+   */
+  // ⚠️ THE VALUES THAT WILL BE STORED, NOT THE ONES THAT WERE. An edit above sets `data.titleVi` /
+  // `data.descriptionVi` to null, so folding `current.*Vi` here would index Vietnamese text the row
+  // is not going to have — the search blob would keep matching words the listing no longer says.
+  const newTitleVi = 'titleVi' in data ? (data.titleVi as string | null) : current.titleVi
+  const newDescVi = 'descriptionVi' in data ? (data.descriptionVi as string | null) : current.descriptionVi
+  data.searchText = buildSearchText([newTitle, newTitleVi, newDesc, newDescVi, newDistrict, current.category.name, current.category.nameVi, newBrand, newModel])
 
   // ⚠️ THERE IS NO AUTO-REPUBLISH ANY MORE, AND REMOVING IT IS THE FIX — not a regression.
   //
