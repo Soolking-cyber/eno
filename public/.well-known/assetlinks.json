@@ -5,7 +5,7 @@
     ],
     "target": {
       "namespace": "android_app",
-      "package_name": "vn.eno.app",
+      "package_name": "eno.vn",
       "sha256_cert_fingerprints": [
         "3E:71:F7:BA:92:E1:85:60:5A:19:43:08:33:5C:BC:62:68:44:72:3B:0C:73:A0:75:86:56:9B:1E:0F:27:04:4F"
       ]

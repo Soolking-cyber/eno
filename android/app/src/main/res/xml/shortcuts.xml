@@ -12,7 +12,7 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:data="enovn://open?path=/post"
-            android:targetPackage="vn.eno.app"
+            android:targetPackage="eno.vn"
             android:targetClass="vn.eno.app.MainActivity" />
     </shortcut>
     <shortcut
@@ -23,7 +23,7 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:data="enovn://open?path=/messages"
-            android:targetPackage="vn.eno.app"
+            android:targetPackage="eno.vn"
             android:targetClass="vn.eno.app.MainActivity" />
     </shortcut>
     <shortcut
@@ -34,7 +34,7 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:data="enovn://open?path=/saved"
-            android:targetPackage="vn.eno.app"
+            android:targetPackage="eno.vn"
             android:targetClass="vn.eno.app.MainActivity" />
     </shortcut>
 </shortcuts>

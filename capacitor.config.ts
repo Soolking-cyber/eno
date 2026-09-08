@@ -46,7 +46,9 @@ if (LOCAL_SHELL && !process.argv.includes('ios')) {
 }
 
 const config: CapacitorConfig = {
-  appId: 'vn.eno.app',
+  // ⚠️ THE PLAY PACKAGE NAME — see the note on applicationId in android/app/build.gradle. The Java
+  // namespace is still vn.eno.app; only what Play sees changed.
+  appId: 'eno.vn',
   appName: 'eno',
   webDir: 'capacitor/www',
   /**

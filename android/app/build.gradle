@@ -36,7 +36,18 @@ android {
     namespace = "vn.eno.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "vn.eno.app"
+        /**
+         * ⛔ THE PLAY PACKAGE NAME, AND IT IS NOT THE JAVA `namespace` ABOVE. Google Play bound the
+         * app entry to `eno.vn` before this bundle existed, and a package name is PERMANENT once
+         * published — so the applicationId follows Play rather than the other way round (owner
+         * decision, 2026-09-08, after being shown both options).
+         * ⚠️ `namespace` STAYS `vn.eno.app`: it is the Java/R package, it never reaches Play, and
+         * moving it would relocate MainActivity and every resource reference for no benefit. AGP
+         * has kept the two separate since 7.x precisely so this is a one-line change.
+         * ⚠️ It reads backwards on purpose — `eno.vn` is a DOMAIN, not reverse-domain — and that is
+         * the cost of matching an entry that cannot be renamed.
+         */
+        applicationId "eno.vn"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         /**

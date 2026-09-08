@@ -4,7 +4,7 @@
 <resources>
     <string name="app_name">eno</string>
     <string name="title_activity_main">eno</string>
-    <string name="package_name">vn.eno.app</string>
+    <string name="package_name">eno.vn</string>
     <string name="custom_url_scheme">enovn</string>
     <string name="shortcut_post">Đăng tin</string>
     <string name="shortcut_messages">Tin nhắn</string>

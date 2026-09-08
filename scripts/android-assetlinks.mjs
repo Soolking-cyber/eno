@@ -30,7 +30,10 @@ import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const FILE = join(ROOT, 'public/.well-known/assetlinks.json')
-const PACKAGE = 'vn.eno.app'
+// ⛔ THE PLAY PACKAGE NAME, which is NOT the Java namespace (still vn.eno.app). Play bound the app
+// entry to `eno.vn` and a package name is permanent once published. Digital Asset Links matches on
+// THIS value, so a stale one here means every App Link silently fails to verify.
+const PACKAGE = 'eno.vn'
 const SHA256 = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/
 
 /** This machine's debug fingerprint, so `--check` can name the exact problem rather than guess. */
@@ -88,4 +91,4 @@ writeFileSync(FILE, JSON.stringify([
 console.log(`wrote ${unique.length} fingerprint(s) to public/.well-known/assetlinks.json`)
 console.log('⚠️ It reaches users only after a DEPLOY. Verify with:')
 console.log('   curl -s https://eno.vn/.well-known/assetlinks.json')
-console.log('   adb shell pm verify-app-links --re-verify vn.eno.app   # then: adb shell pm get-app-links vn.eno.app')
+console.log('   adb shell pm verify-app-links --re-verify eno.vn   # then: adb shell pm get-app-links eno.vn')
