@@ -244,3 +244,136 @@ export function verifyVietQrPayload(payload: string): boolean {
   if (!body.endsWith('6304')) return false
   return crc16ccitt(body) === payload.slice(-4).toUpperCase()
 }
+
+// ── READING A MERCHANT'S CODE ───────────────────────────────────────────────────────────────────
+//
+// Everything above BUILDS a code for someone to scan. This reads one a tourist has POINTED THEIR
+// PHONE AT, which is the opposite direction and a different threat model: the payload is now
+// untrusted input from a sticker on a counter, not something we produced.
+
+/** What a scanned VietQR turns out to be asking for. */
+export type ScannedVietQr = {
+  target: VietQrTarget
+  /** Dong, or `null` on a STATIC code — a reusable poster that names no amount. */
+  amountVnd: number | null
+  /** The merchant's own reference/description, if it carried one. Never trusted, only shown. */
+  memo: string | null
+  /** `QRIBFTTA` (to account) or `QRIBFTTC` (to card). We only pay the first. */
+  service: string | null
+}
+
+export type ScanError =
+  /** Not a payment code at all — a URL, a wifi QR, a tracking number. */
+  | 'not_vietqr'
+  /** The code's own checksum disagrees with its contents: misread, or tampered with. */
+  | 'bad_checksum'
+  /** A VietQR, but not one paying a Vietnamese bank account in dong. */
+  | 'unsupported'
+  /** Structurally a VietQR whose beneficiary fields are not usable. */
+  | 'bad_target'
+
+/**
+ * Read a scanned VietQR payload.
+ *
+ * ⛔ THE CHECKSUM IS VERIFIED FIRST AND REFUSAL IS THE DEFAULT. A camera misreading one character
+ * of a bank account is not a rare event, and the difference between paying a merchant and paying a
+ * stranger is exactly that character. EMVCo puts a CRC on the payload for this reason; ignoring it
+ * because "the scanner said it decoded" is how money goes to the wrong account with nothing to
+ * point at afterwards.
+ *
+ * ⛔ AND IT MIRRORS `buildVietQrPayload` FIELD FOR FIELD RATHER THAN RE-DERIVING EMVCo. The nested
+ * shape — 38 → { 00: AID, 01: { 00: bin, 01: account }, 02: service } — is read straight back out
+ * of the builder above, so the two cannot drift and the round-trip is testable in one file.
+ *
+ * ⚠️ `parseEmvTlv`, NOT `emvRecord`, FOR THE NESTED TEMPLATE. Order does not matter for lookup, but
+ * a duplicate tag in a hostile payload would silently win in an object; taking the FIRST occurrence
+ * of each tag is the conservative reading.
+ * ⚠️ A STATIC CODE (no tag 54) IS VALID AND COMMON — the poster on a coffee-shop counter. It
+ * returns `amountVnd: null` so the caller must ask the payer for an amount rather than invent one.
+ */
+export function readVietQrPayload(raw: string): { ok: true; value: ScannedVietQr } | { ok: false; reason: ScanError } {
+  const payload = (raw ?? '').trim()
+  // A VietQR always begins with the payload format indicator and ends with the CRC tag.
+  if (!/^00\d{2}01/.test(payload) || payload.length < 20) return { ok: false, reason: 'not_vietqr' }
+  if (!verifyVietQrPayload(payload)) return { ok: false, reason: 'bad_checksum' }
+
+  const first = (entries: Array<[string, string]>, tag: string): string | null => {
+    for (const [t, v] of entries) if (t === tag) return v
+    return null
+  }
+  const top = parseEmvTlv(payload)
+
+  /**
+   * ⛔ DONG ONLY, AND AN ABSENT TAG IS NOT DONG. Tag 53 is MANDATORY in EMVCo, so a payload without
+   * it is malformed rather than implicitly Vietnamese — and the first cut wrote `!== null &&`,
+   * which is the "STATED RATHER THAN ASSUMED" this comment claims to be, inverted (the Opus seat,
+   * on the diff, 2026-09-09). Requiring the tag costs a refusal on a broken code; assuming it costs
+   * a payment in the wrong currency.
+   */
+  if (first(top, '53') !== VND) return { ok: false, reason: 'unsupported' }
+
+  const merchant = first(top, '38')
+  if (!merchant) return { ok: false, reason: 'not_vietqr' }
+  const merchantEntries = parseEmvTlv(merchant)
+  // ⛔ THE NAPAS APPLICATION ID. Tag 38 is a generic merchant-account template that other schemes
+  // also use; without this check a non-NAPAS code's bytes would be read as a bank BIN.
+  if (first(merchantEntries, '00') !== NAPAS_AID) return { ok: false, reason: 'unsupported' }
+
+  const beneficiary = first(merchantEntries, '01')
+  if (!beneficiary) return { ok: false, reason: 'bad_target' }
+  const beneficiaryEntries = parseEmvTlv(beneficiary)
+  const target = vietqrTargetFrom({
+    bankBin: first(beneficiaryEntries, '00'),
+    bankAccountNo: first(beneficiaryEntries, '01'),
+  })
+  // ⚠️ THE SAME VALIDATOR THE BUILDER USES, so a code we would refuse to CREATE is a code we refuse
+  // to PAY. A five-digit BIN is unpayable in both directions.
+  if (!target) return { ok: false, reason: 'bad_target' }
+
+  /**
+   * ⛔ TRANSFER-TO-ACCOUNT ONLY, AND THE TAG MUST BE PRESENT TO SAY SO. `QRIBFTTC` pays a CARD
+   * number, and a card number in beneficiary field 01 is 16 digits — which `vietqrTargetFrom`
+   * happily accepts as an account number. So a `!== null &&` guard let a QRIBFTTC sticker that
+   * simply OMITS tag 02 through as a transfer-to-account, paying the right digits into the wrong
+   * kind of destination: exactly the outcome the QRIBFTTC branch existed to prevent (the Opus seat,
+   * 2026-09-09). Absent is refused.
+   */
+  const service = first(merchantEntries, '02')
+  if (service !== SERVICE_TRANSFER_TO_ACCOUNT) return { ok: false, reason: 'unsupported' }
+
+  /**
+   * ⚠️ THE AMOUNT IS PARSED STRICTLY AND MAY LEGITIMATELY BE ABSENT. Tag 54 is optional: a static
+   * poster carries no amount. What is NOT acceptable is a malformed one — `Number('12,000')` is
+   * NaN and `Number('')` is 0, and both would be a wrong payment if allowed through.
+   */
+  const rawAmount = first(top, '54')
+  let amountVnd: number | null = null
+  if (rawAmount !== null) {
+    /**
+     * ⚠️ A TRAILING `.00` IS REAL AND MUST NOT BE A DEAD END. EMVCo permits a decimal point in tag
+     * 54 and generators do emit `120000.00`; refusing it outright handed the payer "unsupported" on
+     * a perfectly good merchant code (the Opus seat, 2026-09-09). Dong has no minor unit, so a
+     * NON-ZERO fraction is a misread rather than a rounding question and is still refused.
+     */
+    const m = /^(\d{1,13})(?:\.(\d{1,2}))?$/.exec(rawAmount)
+    if (!m || (m[2] !== undefined && Number(m[2]) !== 0)) return { ok: false, reason: 'unsupported' }
+    const n = Number(m[1])
+    if (!Number.isSafeInteger(n) || n <= 0) return { ok: false, reason: 'unsupported' }
+    amountVnd = n
+  }
+
+  /**
+   * ⛔ THE MEMO IS SANITISED ON THE WAY IN, NOT JUST ON THE WAY OUT — AND THE CHECKSUM IS NOT WHAT
+   * PROTECTS US HERE. A CRC catches a camera misreading a digit; it does nothing about a hostile
+   * sticker, because whoever prints one computes a matching CRC. That makes this field arbitrary
+   * attacker-controlled text rendered on a confirm screen: a memo reading "Verified eno partner ·
+   * 12.000.000 d" would be shown next to the amount the payer is about to send. `sanitiseMemo`
+   * already exists for the build side and caps length and character set; applying it on the read
+   * side is what stops the confirm screen being writable by the merchant (the Opus seat, 2026-09-09).
+   */
+  const additional = first(top, '62')
+  const rawMemo = additional ? first(parseEmvTlv(additional), '08') : null
+  const memo = rawMemo ? sanitiseMemo(rawMemo) : ''
+
+  return { ok: true, value: { target, amountVnd, memo: memo || null, service } }
+}

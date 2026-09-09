@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   buildVietQrPayload, crc16ccitt, emvRecord, parseEmvTlv, sanitiseMemo, verifyVietQrPayload,
   vietqrTargetFrom,
+  readVietQrPayload,
 } from './vietqr'
 
 /**
@@ -245,5 +246,154 @@ describe('sanitiseMemo — the only link between a transfer and an order', () =>
   it('an order reference survives it unchanged — the case that matters most', () => {
     // If the reference itself were mangled, every payment would need reconciling by hand.
     for (const ref of ['ENO7X2K', 'ENO 7X2K', 'ENOABC123']) expect(sanitiseMemo(ref)).toBe(ref.toUpperCase())
+  })
+})
+
+/**
+ * READING A MERCHANT'S CODE — the opposite direction from everything above, and a different threat
+ * model: this payload came off a sticker on a counter, not out of the builder.
+ */
+describe('readVietQrPayload — an untrusted payload from somebody else\'s counter', () => {
+  const built = (over: Partial<Parameters<typeof buildVietQrPayload>[0]> = {}) => {
+    const r = buildVietQrPayload({
+      target: { bankBin: '970415', accountNo: '113366668888' },
+      amountVnd: 120000,
+      memo: 'ENO7X2K9MQ4Z',
+      ...over,
+    } as Parameters<typeof buildVietQrPayload>[0])
+    if (!r.ok) throw new Error(`fixture did not build: ${r.reason}`)
+    return r.payload
+  }
+
+  it('⛔ ROUND-TRIPS THE BUILDER — the reader and the writer cannot drift', () => {
+    const r = readVietQrPayload(built())
+    expect(r).toEqual({
+      ok: true,
+      value: {
+        target: { bankBin: '970415', accountNo: '113366668888' },
+        amountVnd: 120000,
+        memo: 'ENO7X2K9MQ4Z',
+        service: 'QRIBFTTA',
+      },
+    })
+  })
+
+  it('⛔ REFUSES A PAYLOAD WHOSE CHECKSUM DISAGREES — one misread digit is a stranger\'s account', () => {
+    const good = built()
+    // Flip a character inside the account number, leaving the CRC stale.
+    const tampered = good.replace('113366668888', '113366668889')
+    expect(readVietQrPayload(tampered)).toEqual({ ok: false, reason: 'bad_checksum' })
+  })
+
+  it('refuses things that are not payment codes at all', () => {
+    for (const junk of ['', 'https://example.com', 'WIFI:S:x;;', '00', 'hello world']) {
+      expect(readVietQrPayload(junk).ok, JSON.stringify(junk)).toBe(false)
+    }
+  })
+
+  it('⛔ a STATIC code carries no amount, and that is valid rather than zero', () => {
+    // Rebuild without tag 54 the way a poster on a counter is printed.
+    const withAmount = built()
+    const stripped = withAmount.replace(/54\d{2}120000/, '')
+    const body = stripped.slice(0, -8) + '6304'
+    const payload = body + crc16ccitt(body)
+    const r = readVietQrPayload(payload)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    // ⛔ null, NOT 0. Zero would render as "pay ₫0" and could be sent.
+    expect(r.value.amountVnd).toBeNull()
+    expect(r.value.target.accountNo).toBe('113366668888')
+  })
+
+  it('⛔ refuses a non-NAPAS merchant template rather than reading its bytes as a bank BIN', () => {
+    const good = built()
+    const other = good.replace('A000000727', 'A000000728')
+    const body = other.slice(0, -8) + '6304'
+    expect(readVietQrPayload(body + crc16ccitt(body))).toEqual({ ok: false, reason: 'unsupported' })
+  })
+
+  it('⛔ refuses transfer-to-CARD — a different beneficiary shape, not a different flag', () => {
+    const good = built()
+    const card = good.replace('QRIBFTTA', 'QRIBFTTC')
+    const body = card.slice(0, -8) + '6304'
+    expect(readVietQrPayload(body + crc16ccitt(body))).toEqual({ ok: false, reason: 'unsupported' })
+  })
+
+  it('refuses a currency that is not dong', () => {
+    const good = built()
+    const usd = good.replace('5303704', '5303840')
+    const body = usd.slice(0, -8) + '6304'
+    expect(readVietQrPayload(body + crc16ccitt(body))).toEqual({ ok: false, reason: 'unsupported' })
+  })
+
+  it('⛔ refuses a BIN the BUILDER would also refuse — unpayable in both directions', () => {
+    // A five-digit BIN shifts the TLV parse; the reader reuses vietqrTargetFrom so both agree.
+    const good = built()
+    const shortBin = good.replace('0006970415', '000597041')
+    const body = shortBin.slice(0, -8) + '6304'
+    const r = readVietQrPayload(body + crc16ccitt(body))
+    expect(r.ok).toBe(false)
+  })
+})
+
+/**
+ * ⛔ A CRC PROVES THE CODE WAS READ CORRECTLY, NOT THAT IT IS HONEST. Whoever prints a hostile
+ * sticker computes a matching checksum, so every field below is attacker-controlled text that ends
+ * up on a confirm screen next to an amount.
+ */
+describe('readVietQrPayload — a CRC-valid but HOSTILE sticker', () => {
+  const rebuild = (body: string) => {
+    const withTag = body + '6304'
+    return withTag + crc16ccitt(withTag)
+  }
+  const base = () => {
+    const r = buildVietQrPayload({
+      target: { bankBin: '970415', accountNo: '113366668888' },
+      amountVnd: 120000,
+      memo: 'ENO7X2K9MQ4Z',
+    })
+    if (!r.ok) throw new Error('fixture')
+    return r.payload
+  }
+
+  it('⛔ SANITISES THE MERCHANT MEMO — it is rendered, so it is an injection surface', () => {
+    const long = 'Verified eno partner 12.000.000d PAY NOW!!!'
+    const good = base()
+    const swapped = good.replace(/6208.{8}/, `62${String(long.length + 4).padStart(2, '0')}08${String(long.length).padStart(2, '0')}${long}`)
+    const r = readVietQrPayload(rebuild(swapped.slice(0, -8)))
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    // sanitiseMemo caps length and strips the characters that make a memo read like our own UI.
+    expect(r.value.memo?.length ?? 0).toBeLessThanOrEqual(25)
+    expect(r.value.memo).not.toContain('!')
+  })
+
+  it('⛔ an OMITTED service tag is refused — a card number is 16 digits and looks like an account', () => {
+    const good = base()
+    // Drop tag 02 (QRIBFTTA) from the nested merchant template entirely.
+    const noService = good.replace('0208QRIBFTTA', '')
+    // The nested 38 length must be corrected or the parse breaks; either way it must not succeed.
+    expect(readVietQrPayload(rebuild(noService.slice(0, -8))).ok).toBe(false)
+  })
+
+  it('⛔ an OMITTED currency tag is refused rather than assumed to be dong', () => {
+    const good = base()
+    const noCurrency = good.replace('5303704', '')
+    expect(readVietQrPayload(rebuild(noCurrency.slice(0, -8))).ok).toBe(false)
+  })
+
+  it('accepts a trailing .00 on the amount — real generators emit it', () => {
+    const good = base()
+    const withDecimals = good.replace('5406120000', '5409120000.00')
+    const r = readVietQrPayload(rebuild(withDecimals.slice(0, -8)))
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.amountVnd).toBe(120000)
+  })
+
+  it('⛔ refuses a NON-ZERO fraction — dong has no minor unit, so that is a misread', () => {
+    const good = base()
+    const cents = good.replace('5406120000', '5409120000.50')
+    expect(readVietQrPayload(rebuild(cents.slice(0, -8)))).toEqual({ ok: false, reason: 'unsupported' })
   })
 })

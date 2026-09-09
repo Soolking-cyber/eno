@@ -93,6 +93,11 @@ export async function readOrder(_orderId: string): Promise<typeof REFUSED> {
   return REFUSED
 }
 
+/** A payout is a payment, and this edition has none. */
+export async function createVndPayout(_input: { payerAddress: string; amountVnd: number }): Promise<typeof REFUSED> {
+  return REFUSED
+}
+
 export async function createWallet(_profileId: string): Promise<Result<WalletRef>> {
   return REFUSED
 }

@@ -558,6 +558,84 @@ export async function createTopupOrder(input: {
 }
 
 /**
+ * PAY A VIETNAMESE BANK ACCOUNT OUT OF A USDC WALLET — the second half of "scan a QR and pay".
+ *
+ * ⛔ THIS CANNOT SUCCEED YET, AND THAT IS A PROVIDER FACT, NOT A MISSING FUNCTION. Measured against
+ * Crossmint's own docs (116k lines, 2026-09-09): the offramp payout table lists ACH/RTP/wire (USD),
+ * SEPA (EUR), SPEI (MXN) and Bre-B (COP), with SWIFT, Faster Payments and Pix marked Q4. VND is on
+ * none of them. The only `currencyLocator` values that appear anywhere are `fiat:usd` and
+ * `fiat:mxn`. The `vnd` that DOES appear in the docs is in the CHECKOUT currency enum and the Swift
+ * `FiatCurrency` enum — currencies a user may be CHARGED in, not paid out in.
+ *
+ * ⛔ AND THE DEEPER BLOCKER IS THE VESSEL, NOT THE STRING. `recipient.paymentMethodId` names a bank
+ * account already registered with Crossmint through their team; there is no self-serve API to
+ * create one, and none of the four account-capture schemas can hold a Vietnamese account. So even
+ * with `fiat:vnd` accepted there is nowhere for the money to land.
+ *
+ * ⛔ WHICH MEANS THIS PAYS A REGISTERED ACCOUNT, NOT AN ARBITRARY MERCHANT. A scanned QR names a
+ * beneficiary chosen by whoever printed the sticker; a payout here goes to a payment method we
+ * registered in advance. Bridging those two is not an API call — paying a stranger's bank account
+ * out of a customer's balance is money transmission, and it is the thing to put to counsel and to
+ * Crossmint before any of this is switched on. The function exists so the rest of the flow can be
+ * built and tested against a real contract instead of a placeholder.
+ *
+ * ⚠️ `exact-out`, NOT `exact-in`. A merchant is owed a specific number of dong; the USDC spent is
+ * whatever that costs. `exact-in` would send a fixed amount of stablecoin and let the payout float,
+ * which underpays a bill.
+ */
+export async function createVndPayout(input: {
+  payerAddress: string
+  amountVnd: number
+}): Promise<Result<{ orderId: string }>> {
+  const g = guard()
+  if (!g.ok) return g
+  const cfg = g.value
+
+  /**
+   * ⚠️ THE PAYMENT METHOD IS CONFIGURATION, AND ITS ABSENCE IS THE ORDINARY STATE. Crossmint issues
+   * the id out of band, so there is nothing to look up and nothing to create. `not_configured` with
+   * a named variable is what turns "the button did nothing" into a one-line answer.
+   */
+  const paymentMethodId = (process.env.PAYMENTS_VND_PAYMENT_METHOD_ID || '').trim()
+  if (!paymentMethodId) {
+    return { ok: false, reason: 'not_configured', detail: 'PAYMENTS_VND_PAYMENT_METHOD_ID is not set — no VND payout rail' }
+  }
+
+  // Whole dong, matching buildVietQrPayload's own rule: a fractional dong is a misread field.
+  if (!Number.isSafeInteger(input.amountVnd) || input.amountVnd <= 0) {
+    return { ok: false, reason: 'misconfigured', detail: 'amountVnd must be a positive whole number' }
+  }
+
+  const r = await call<{ order?: { orderId?: string } }>(cfg, 'orders', {
+    method: 'POST',
+    apiVersion: ORDERS_API_VERSION,
+    body: {
+      recipient: { paymentMethodId },
+      payment: { method: cfg.chain, currency: 'usdc', payerAddress: input.payerAddress },
+      lineItems: {
+        currencyLocator: 'fiat:vnd',
+        executionParameters: { mode: 'exact-out', amount: String(input.amountVnd) },
+      },
+    },
+  })
+  if (!r.ok) return r
+  const orderId = r.value?.order?.orderId
+  /**
+   * ⛔ `provider_rejected`, NOT `provider_unreachable` — AND THE DIFFERENCE IS A DOUBLE PAYMENT.
+   * Crossmint ANSWERED; we could not read the answer. `provider_unreachable` is the reason a caller
+   * would naturally retry on, and retrying a payout the provider may already have accepted pays the
+   * merchant twice, with no local row recording either attempt. A response we reached but could not
+   * parse must never look transient (the Opus seat, on the diff, 2026-09-09).
+   * ⚠️ THE REAL FIX IS AN IDEMPOTENCY KEY, and it is not in the docs this was built from — so the
+   * conservative reason is the guard until that is confirmed with Crossmint. Do not soften it.
+   */
+  if (typeof orderId !== 'string' || !orderId) {
+    return { ok: false, reason: 'provider_rejected', detail: 'payout was accepted but the response had no orderId — DO NOT RETRY' }
+  }
+  return { ok: true, value: { orderId } }
+}
+
+/**
  * Read one order back — the only way to learn a top-up completed.
  *
  * ⛔ THERE IS NO RETURN URL. The embedded checkout takes exactly five parameters and none of them is

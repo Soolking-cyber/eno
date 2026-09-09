@@ -17,7 +17,7 @@ const VECTOR_ADDR = '0x7e5f4552091a69125d5dfcb7b8c2659029395bdf' // the address 
 
 const {
   signerAddress, crossmintConfig, createWallet, walletBalances, stagingFund,
-  createTopupOrder, readOrder,
+  createTopupOrder, readOrder, createVndPayout,
 } = await import('./crossmint')
 
 const fetchMock = vi.fn()
@@ -479,5 +479,62 @@ describe('readOrder — polling is how a top-up is learned about', () => {
     reply(200, { phase: 'quote' })
     await readOrder('ord/../1')
     expect(fetchMock.mock.calls[0][0]).toBe('https://staging.crossmint.com/api/2022-06-09/orders/ord%2F..%2F1')
+  })
+})
+
+/**
+ * THE VND PAYOUT LEG. It cannot succeed against Crossmint today — no VND rail, and no payment-method
+ * schema that can hold a Vietnamese account — so what these pin is that it fails in a way an
+ * operator can act on, and that the request it WOULD send is the right one when a rail exists.
+ */
+describe('createVndPayout — the half that has no rail yet', () => {
+  it('⛔ refuses with a NAMED variable when no payout method is configured', async () => {
+    vi.stubEnv('PAYMENTS_VND_PAYMENT_METHOD_ID', '')
+    const r = await createVndPayout({ payerAddress: '0xabc', amountVnd: 120000 })
+    expect(r).toMatchObject({ ok: false, reason: 'not_configured' })
+    // ⛔ AND IT NEVER REACHES THE PROVIDER. A request that cannot name a recipient is not worth
+    // sending, and a 4xx from Crossmint would read as "their fault" rather than "our env".
+    expect(fetchMock).not.toHaveBeenCalled()
+    if (r.ok) return
+    expect(r.detail).toContain('PAYMENTS_VND_PAYMENT_METHOD_ID')
+  })
+
+  it('sends exact-out against fiat:vnd when a rail is configured', async () => {
+    vi.stubEnv('PAYMENTS_VND_PAYMENT_METHOD_ID', 'pm_test')
+    reply(200, { order: { orderId: 'ord_p1' } })
+    const r = await createVndPayout({ payerAddress: '0xabc', amountVnd: 120000 })
+    expect(r).toEqual({ ok: true, value: { orderId: 'ord_p1' } })
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.recipient).toEqual({ paymentMethodId: 'pm_test' })
+    expect(body.payment).toEqual({ method: 'base-sepolia', currency: 'usdc', payerAddress: '0xabc' })
+    // ⛔ exact-OUT: the merchant is owed a number of DONG; the USDC spent is whatever that costs.
+    // exact-in would send a fixed amount of stablecoin and underpay the bill.
+    expect(body.lineItems).toEqual({
+      currencyLocator: 'fiat:vnd',
+      executionParameters: { mode: 'exact-out', amount: '120000' },
+    })
+  })
+
+  it('refuses a fractional or non-positive amount before sending anything', async () => {
+    vi.stubEnv('PAYMENTS_VND_PAYMENT_METHOD_ID', 'pm_test')
+    for (const bad of [0, -1, 1.5, Number.NaN]) {
+      const r = await createVndPayout({ payerAddress: '0xabc', amountVnd: bad })
+      expect(r, String(bad)).toMatchObject({ ok: false, reason: 'misconfigured' })
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * ⛔ A 200 WE COULD NOT READ MUST NOT LOOK TRANSIENT. Crossmint answered; the shape was wrong.
+   * `provider_unreachable` is the reason a caller retries on, and retrying a payout the provider may
+   * already have accepted pays the merchant twice with no local row recording either attempt.
+   */
+  it('⛔ an unreadable 200 is provider_REJECTED — retrying it would pay twice', async () => {
+    vi.stubEnv('PAYMENTS_VND_PAYMENT_METHOD_ID', 'pm_test')
+    reply(200, { order: {} })
+    const r = await createVndPayout({ payerAddress: '0xabc', amountVnd: 1 })
+    expect(r).toMatchObject({ ok: false, reason: 'provider_rejected' })
+    if (r.ok) return
+    expect(r.detail).toContain('DO NOT RETRY')
   })
 })
