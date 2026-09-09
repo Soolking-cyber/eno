@@ -8,6 +8,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { Card } from '@/components/ui/card'
 import { IS_SERVICES } from '@/lib/edition'
 import { openStatuses } from '@/lib/trips/status'
+import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Admin — eno.vn', robots: { index: false, follow: false } }
@@ -22,7 +23,7 @@ export default async function AdminOverviewPage() {
   const admin = await getAdmin()
   if (!admin) return <AdminDenied />
   const since7d = new Date(Date.now() - 7 * DAY_MS)
-  const [pendingIdentity, pendingBusiness, openReports, appeals, underEnforcement, awaitingListings, usersTotal, users7d, listings7d, openTrips] = await Promise.all([
+  const [pendingIdentity, pendingBusiness, openReports, appeals, underEnforcement, awaitingListings, usersTotal, users7d, listings7d, openTrips, supportUnread] = await Promise.all([
     db.identityVerification.count({ where: { status: 'pending' } }),
     db.sellerVerification.count({ where: { status: 'pending' } }),
     db.report.count({ where: { status: 'open' } }),
@@ -36,6 +37,13 @@ export default async function AdminOverviewPage() {
     // The machine decides what "open" is (openStatuses derives it from the transition map) — a
     // hard-coded list here is exactly the drift the trips queue forbids.
     IS_SERVICES ? db.tripAssistanceRequest.count({ where: { status: { in: openStatuses() } } }).catch(() => 0) : Promise.resolve(0),
+    /**
+     * ⛔ THE QUEUE THAT HAD NO TILE, WHICH IS THE FAILURE THIS PAGE'S OWN HEADER DESCRIBES. Support
+     * threads — including every WhatsApp message to the business number — were reachable by no URL
+     * an operator could find, so six real customer messages sat unanswered while every pipeline
+     * was green. `sellerUnread` is the desk's side of the count, so this is "waiting for us".
+     */
+    db.conversation.aggregate({ _sum: { sellerUnread: true }, where: { sellerId: SUPPORT_SELLER_ID } }).then((r) => r._sum.sellerUnread ?? 0).catch(() => 0),
   ])
 
   const queues = [
@@ -47,6 +55,7 @@ export default async function AdminOverviewPage() {
     // catalogue console's Publish is what makes it live, so this IS the review queue.
     { label: 'Listings awaiting review', count: awaitingListings, href: '/admin/catalogue?tab=listings', hint: 'Not yet published — Publish makes them live' },
     ...(IS_SERVICES ? [{ label: 'Open trip requests', count: openTrips, href: '/admin/services?tab=trips', hint: 'Trip desk' }] : []),
+    { label: 'Support messages waiting', count: supportUnread, href: '/admin/support', hint: 'In-app and WhatsApp — a reply goes back to WhatsApp' },
   ].sort((a, b) => Number(b.count > 0) - Number(a.count > 0))
 
   return (
