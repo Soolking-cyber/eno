@@ -31,7 +31,7 @@ import { join } from 'node:path'
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
 const RECEIPTS = join(ROOT, '.second-opinion')
 // Declared up here because `--status` validates receipts long before REVIEWERS is built below.
-const REVIEWER_NAMES = ['codex', 'agy', 'fable']
+const REVIEWER_NAMES = ['codex', 'agy', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -115,7 +115,8 @@ if (process.argv.includes('--status')) {
       /**
        * ⚠️ ONLY CURRENTLY-KNOWN REVIEWERS COUNT, WHICH MATTERS WHEN THE PANEL CHANGES.
        * Receipts naming a RETIRED reviewer keep working, and that is deliberate rather than lucky.
-       * Pre-2026-08-06 receipts list `qwen`; those written 2026-08-14..26 list `fable`. Either one
+       * Pre-2026-08-06 receipts list `qwen`; those written 2026-08-14..26 and 2026-08-30..09-09
+       * list `fable`. Either one
        * still validates whenever the other two answered (codex + agy = 2, the quorum), and is
        * correctly rejected if the retired name was one of only two verdicts — a review by a
        * reviewer we no longer run is not a review. The cost is re-running the gate on a stale
@@ -376,14 +377,20 @@ const REVIEWERS = [
    * independent family ever becomes reachable — an OpenRouter key, an opencode login — take it.
    */
   {
-    name: 'fable',
+    name: 'opus',
     lab: 'anthropic',
     cmd: 'claude',
     // ⚠️ `--permission-mode plan` IS THE SANDBOX and is not decorative: it keeps this reviewer
     // read-only, so it answers from the diff on stdin and cannot edit, run or commit anything.
-    // ✅ FABLE 5.1 since 2026-09-02 (owner). The prior id was `claude-fable-5`; `claude-fable-5-1`
-    // is accepted by the current CLI (2.1.258 — already latest, no upgrade was needed).
-    args: ['-p', '--model', 'claude-fable-5-1', '--effort', 'max', '--permission-mode', 'plan'],
+    // ⛔ BACK TO OPUS ON 2026-09-09, AND THE REASON IS BUDGET, NOT QUALITY — owner: "change back to
+    // opus 2nd opinion from fable we are out of tokens". The seat has now been
+    // qwen -> opus -> fable -> opus -> fable -> opus; the paragraphs above are live history, not a
+    // description of the current state, so read them as such.
+    // ⚠️ THIS COSTS THE SEAT ITS INDEPENDENCE AND THAT IS THE KNOWN TRADE. fable was a DIFFERENT
+    // MODEL from the author; opus is THE SAME MODEL that writes most of these diffs, so a
+    // unanimous 3/3 is now codex + agy agreeing plus the author nodding at itself. Weight
+    // dissent from codex or agy accordingly, and do not read a 3/3 as three independent families.
+    args: ['-p', '--model', 'claude-opus-5', '--effort', 'max', '--permission-mode', 'plan'],
     stdin: true,
   },
 ]

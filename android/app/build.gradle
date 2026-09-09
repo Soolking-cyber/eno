@@ -60,7 +60,16 @@ android {
          * ⛔ versionCode MUST INCREASE ON EVERY UPLOAD and can never be reused, even for a bundle
          * that was rejected or never rolled out. Play refuses a duplicate outright.
          */
-        versionCode 1
+        /**
+         * ⚠️ 2, NOT 1, AND THE REASON IS THE WARNING DIRECTLY ABOVE — measured, not theorised.
+         * versionCode 1 was uploaded 2026-09-08 and is now consumed by the closed- and open-testing
+         * releases. Adding it to PRODUCTION on 2026-09-09 failed two ways at once: re-uploading the
+         * same .aab was refused with "Version code 1 has already been used. Try another version
+         * code", and Play's "Add from library" showed "No app bundles" because a consumed code is
+         * not offered for promotion. Production therefore needs its own build, and every later
+         * upload needs the next number again — a rejected or discarded bundle burns its code too.
+         */
+        versionCode 2
         versionName "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

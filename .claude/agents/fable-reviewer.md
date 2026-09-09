@@ -1,8 +1,12 @@
 ---
 name: fable-reviewer
-description: Independent second opinion from a different model (Fable 5) — adversarial review of a diff, a plan, or a finding the main thread already believes. Use to break agreement bias: when the main thread and its reviewers all agree, this is the one asked to disagree. Also use to verify a claimed fix, stress-test a design before it's built, or referee two competing approaches.
+description: "⛔ OUT OF BUDGET — DO NOT DISPATCH (owner, 2026-09-09: 'change back to opus 2nd opinion from fable we are out of tokens'). Independent second opinion from a different model (Fable 5) — adversarial review of a diff, a plan, or a finding the main thread already believes. Until the owner says the budget is back, send this work to codex (non-Anthropic, the seat that actually differs) and fall back to Opus at xhigh only if codex is unavailable."
 tools: Read, Grep, Glob, Bash
-model: fable
+# ⛔ THE PIN FOLLOWS THE BAN. Leaving `model: fable` here while the description said "do not
+# dispatch" meant anything invoking this agent by NAME — a skill, another session, a habit — still
+# billed Fable 5 at xhigh, which is the exact spend the owner stopped (the Opus seat, 2026-09-09).
+# A ban that lives only in prose is a label, not a control.
+model: opus
 effort: xhigh
 ---
 

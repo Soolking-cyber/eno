@@ -43,16 +43,24 @@ than review, and a reviewer that did not answer is NOT a passed review — lives
   that is not a review. Re-run with `--dangerously-skip-permissions` (it is read-only anyway) or add an
   allow-rule. Seen 2026-07-22. Feed the file CONTENT inline in the
   prompt (its agentic file-reading mode times out on `--print-timeout`); use `--print-timeout 240s`.
-- **fable** (the panel's third seat; restored 2026-08-23 after one day on opus) —
-  `claude -p --model claude-fable-5-1 --effort max --permission-mode plan < prompt.txt`, prompt on
+- **opus** (the panel's third seat) —
+  `claude -p --model claude-opus-5 --effort max --permission-mode plan < prompt.txt`, prompt on
   **stdin** so it sees the whole diff and counts toward quorum. `--permission-mode plan` is the
   sandbox: read-only, cannot edit or run anything.
-  ⚠️ **Same lab as the main thread, different model.** A unanimous 3/3 is two families agreeing,
-  not three — when codex and agy agree and fable dissents, weight the dissent.
-  ⛔ **On a diff over 180KB agy does not count**, so the counted panel becomes codex + fable. The
+  ⛔ **fable held this seat until 2026-09-09 and is now OUT OF BUDGET** — owner: *"change back to
+  opus 2nd opinion from fable we are out of tokens"*. Do not dispatch `fable-reviewer` or
+  `claude-fable-5-1` until the owner says the budget is back.
+  ⚠️ **Same lab AND the same model as the main thread.** This seat is now the author reviewing
+  itself, so a unanimous 3/3 is codex + agy agreeing plus a self-check — treat any codex or agy
+  dissent as the signal and go and measure. fable at least differed as a model; opus does not.
+  ⛔ **On a diff over 180KB agy does not count**, so the counted panel becomes codex + opus — i.e.
+  ONE non-author reviewer. At that size call the gate single-sourced out loud rather than 2/2. The
   script prints a warning when that happens; do not ignore it.
-  ⚠️ It is **budget-limited** per CLAUDE.md. If it starts going quiet, check budget before config —
-  a silent seat drops the panel to its quorum minimum, which is the qwen failure this file records.
+  ⚠️ THIS SEAT IS OPUS SINCE 2026-09-09, AND THE OLD BUDGET WARNING BELONGED TO FABLE. The line
+  here used to say "budget-limited, check budget before config" — true of fable, not of Opus, and
+  aimed at the wrong cause for whoever debugs the next silent seat (the Opus seat, on its own diff).
+  A silent seat still drops the panel to its quorum minimum, which is the qwen failure this file
+  records; the thing to check first is now the CLI and the config, not a budget.
   ⛔ A cloaked `oxalpha` via the opencode CLI was built and abandoned 2026-08-22: opencode holds no
   credentials and there is no API key. The traps found are in [[opencode-reviewer-sandbox]] if it
   ever comes back.

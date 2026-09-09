@@ -19,10 +19,17 @@
  * roles/iam.serviceAccountTokenCreator on it. Nothing secret is ever written to disk, so nothing can
  * leak from a repo that is public.
  *
- * ⚠️ WHAT THIS API CANNOT DO, so nobody goes looking:
- *   · Data safety            — Console only. Use its Export/Import CSV, which is the bulk path.
+ * ⚠️ WHAT THIS API CANNOT DO, so nobody goes looking. Measured 2026-09-09 against the LIVE
+ * discovery doc (`androidpublisher.googleapis.com/$discovery/rest?version=v3`), not from memory:
+ *   · Data safety            — ⚠️ CORRECTED: this line used to say "Console only" and it is WRONG.
+ *     `POST applications/{package}/dataSafety` exists (SafetyLabelsUpdateRequest) and takes the
+ *     Console's own Data-safety CSV as one string. It is a WRITE with no read counterpart, so the
+ *     round-trip is Console Export-to-CSV → edit → this endpoint. Not implemented here yet.
  *   · Content rating         — Console only (it is a questionnaire, not a resource).
- *   · Target audience, ads, financial features — Console only.
+ *   · Sign in details, Target audience, ads, financial features, government apps, health,
+ *     advertising ID, APP CATEGORY — Console only, no endpoint at any of them. `edits.details`
+ *     covers ONLY contactEmail / contactPhone / contactWebsite / defaultLanguage; the store
+ *     category is not in AppDetails and cannot be set from here.
  *   · INDIVIDUAL tester emails — the API's `testers` resource takes Google GROUPS, not addresses.
  *     A raw email list is Console-only. Point a group at it once and this becomes scriptable.
  * WHAT THIS SCRIPT IMPLEMENTS TODAY: reading app details (`status`), reading tracks and their
