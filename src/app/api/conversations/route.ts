@@ -1,3 +1,5 @@
+import { getAdmin } from '@/lib/admin'
+import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { editionSellerScope, scopedListingWhere } from '@/lib/edition-scope'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { NextResponse } from 'next/server'
@@ -493,10 +495,40 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
   // edition-BLIND (it always answers "who may eno.vn not surface"), and which would have kept both
   // newer rules from ever applying here. See src/lib/edition-scope.ts.
   const sellerScope = await editionSellerScope()
+  /**
+   * ⛔ THE SUPPORT DESK IS A THIRD WAY TO BE A PARTICIPANT, AND WITHOUT IT THE DESK HAS NO INBOX.
+   * Both support seller rows are deliberately UNOWNED (src/lib/support-thread.ts), so
+   * `sellerProfileId` is null and neither branch above can ever match — a customer writes in over
+   * WhatsApp, the thread is created correctly, and it appears in nobody's Messages. The operator
+   * was expected to find it in a separate console, which is not where anyone looks.
+   *
+   * ⚠️ THE GRANT IS THE SAME ONE THE THREAD ROUTES ALREADY CARRY — `sellerId === SUPPORT_SELLER_ID`
+   * plus admin (conversations/[id]/route.ts:183, …/messages/route.ts:124) — so the list can show
+   * exactly the threads those routes will let the same person open and answer. It is edition-scoped
+   * by that constant, so eno.vn's operator never sees eno.forum's desk.
+   *
+   * ⚠️ NOTHING BELOW NEEDS CHANGING FOR THESE ROWS. The serializer keys on `iAmBuyer`, which is
+   * false here, so `unread` already reads `sellerUnread` (the desk's side) and `counterpart`
+   * already resolves to the CUSTOMER — which is the name an operator needs to see.
+   */
+  const isSupportOperator = !!(await getAdmin())
+  /**
+   * ⚠️ THE SCOPE IS APPLIED PER BRANCH, NOT AT THE TOP LEVEL, AND THE DESK IS EXEMPT. A top-level
+   * `...sellerScope` ANDs with the whole OR, so on an edition with an ALLOW-list it would filter
+   * the support thread straight back out: `editionAllowedSellerIds()` resolves ids from seller
+   * OWNER emails, and both support sellers are deliberately UNOWNED — they can never be in it.
+   * eno.vn has no allow-list configured today (measured on the container), so this is latent
+   * rather than live, which is exactly the kind of thing that breaks silently the day someone
+   * turns the list on. The desk needs no scope of its own: `SUPPORT_SELLER_ID` is build-scoped, so
+   * it IS this edition's desk by construction and cannot name the other one's.
+   */
   const rows = await db.conversation.findMany({
     where: {
-      OR: [{ buyerProfileId: meId }, { sellerProfileId: meId }],
-      ...sellerScope,
+      OR: [
+        { buyerProfileId: meId, ...sellerScope },
+        { sellerProfileId: meId, ...sellerScope },
+        ...(isSupportOperator ? [{ sellerId: SUPPORT_SELLER_ID }] : []),
+      ],
     },
     orderBy: { lastMessageAt: 'desc' },
     take: 100,

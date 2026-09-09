@@ -1,3 +1,5 @@
+import { getAdmin } from '@/lib/admin'
+import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { editionSellerScope } from '@/lib/edition-scope'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
@@ -30,10 +32,33 @@ export async function GET() {
   // Per-edition now — see the note in src/lib/edition-scope.ts on editionHiddenSellerIds.
   // One rule for both the hide-list and the allow-list — see editionSellerScope.
   const notDesk = await editionSellerScope()
-  const [asBuyer, asSeller] = await Promise.all([
+  const [asBuyer, asSeller, asSupport] = await Promise.all([
     db.conversation.aggregate({ where: { buyerProfileId: meId, ...notDesk }, _sum: { buyerUnread: true } }),
     db.conversation.aggregate({ where: { sellerProfileId: meId, ...notDesk }, _sum: { sellerUnread: true } }),
+    /**
+     * ⛔ THE THIRD AGGREGATE MIRRORS THE THIRD `OR` IN THE LIST. The comment above says it exactly:
+     * both aggregates, or the badge counts threads the inbox refuses to show. The inverse is just
+     * as bad and is what shipped — the inbox now shows support threads while the badge ignored
+     * them, so a customer's message sat unread with nothing anywhere saying so.
+     */
+    (async () => (await getAdmin())
+      /**
+       * ⛔ NO EDITION SCOPE ON THIS ONE, AND IT MUST MATCH THE LIST EXACTLY. Two drafts got this
+       * wrong in opposite directions and two reviewers caught the pair disagreeing:
+       *   · `{ sellerId: SUPPORT_SELLER_ID, ...notDesk }` — a SPREAD, and edition-scope.ts already
+       *     documents that trap in as many words ("Object spread overwrites on key collision, so
+       *     the obvious usage silently loses"). `notDesk` IS `{ sellerId: … }` whenever an edition
+       *     hides anyone, which eno.forum does, so the support filter was discarded outright and
+       *     the badge summed sellerUnread across EVERY seller.
+       *   · `AND: [{ sellerId }, notDesk]` — no longer wrong, but no longer the same question the
+       *     LIST asks: that exempts the desk from the scope entirely. A badge that counts a
+       *     different set from the inbox is the phantom this file's own header warns about.
+       * `SUPPORT_SELLER_ID` is build-scoped, so naming it IS the edition scope; nothing further to
+       * intersect with, and the list branch says exactly this.
+       */
+      ? db.conversation.aggregate({ where: { sellerId: SUPPORT_SELLER_ID }, _sum: { sellerUnread: true } })
+      : { _sum: { sellerUnread: 0 } })(),
   ])
-  const unread = (asBuyer._sum.buyerUnread ?? 0) + (asSeller._sum.sellerUnread ?? 0)
+  const unread = (asBuyer._sum.buyerUnread ?? 0) + (asSeller._sum.sellerUnread ?? 0) + (asSupport._sum.sellerUnread ?? 0)
   return NextResponse.json({ unread })
 }
