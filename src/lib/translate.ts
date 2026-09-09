@@ -4,6 +4,7 @@ import { db } from './db'
 import { detectContentLang } from './detect-lang'
 import { LANGS, type Lang } from './i18n/langs'
 import { rateLimit } from '@/lib/ratelimit'
+import { INTERACTIVE_TIMEOUT_MS, localMtConfigured, localTranslate } from './mt-local'
 
 // Supported-language roster: canonical definition lives in the isomorphic
 // @/lib/i18n/langs; re-exported here so existing importers keep working.
@@ -258,14 +259,189 @@ async function googleTranslate(chunk: string[], target: Lang): Promise<string[] 
   return null
 }
 
-/** Provider dispatch: Google first (preferred), Azure as fallback. */
-async function translateChunk(chunk: string[], target: Lang): Promise<string[] | null> {
-  if (GOOGLE_KEY) {
-    const g = await googleTranslate(chunk, target)
-    if (g) return g
+/**
+ * Provider dispatch: the SELF-HOSTED model first, paid providers only for what it refuses.
+ *
+ * ⛔ WHY LOCAL IS FIRST AND NOT A FALLBACK. Google billed $56.69 for a 2.83M-character
+ * backfill; the Tiki import is ~15M characters into Vietnamese alone and ~90M once
+ * warmTranslations fans it across the eager languages — roughly $1,800 for one catalogue.
+ * Owner, 2026-09-09: "we would need permanent solution run in the box for it no api since
+ * its too costly". The box model is free and unmetered, so it gets first refusal on
+ * everything and the paid providers become an exception path.
+ *
+ * ⛔ RETURNS PER-STRING RESULTS, AND THE NULLS ARE THE WHOLE POINT. An earlier version
+ * returned `string[] | null` and so had to answer "all or nothing" for a chunk. In the
+ * configuration the owner actually asked for — MT_LOCAL_URL set, no paid key — ONE gated
+ * string then discarded every good translation beside it: a single reject in a 50-string
+ * chunk sent all 50 back as untranslated source with providerFailed set, and the next page
+ * load re-ran the whole inference. Per-string nulls let the caller keep 49 free translations
+ * and leave the 50th untranslated-but-uncached. (Found by opus and agy.)
+ */
+type ChunkResult = {
+  /** Translation per input, or null where nothing could translate it. */
+  values: (string | null)[]
+  /**
+   * True where the string NEEDS no translation because it is already in the target language.
+   * ⛔ This is not the same as a null, and conflating them was a defect: a same-language string
+   * used to be left null, which made the caller serve source text AND raise providerFailed AND
+   * re-attempt it on every render, forever. It is also not the same as a translation — writing
+   * it to the cache would persist "this string translates to itself", and for undiacriticked
+   * Vietnamese misread as English that would permanently freeze the wrong answer. Serve the
+   * source, cache nothing, report no failure. (codex and agy, reviewing this diff.)
+   */
+  passthrough: boolean[]
+}
+
+/**
+ * The source language to declare for a string.
+ *
+ * ⚠️ THIS IS DETECTION, NOT A GUESS — the previous version assumed "vi unless the target is
+ * vi", which sent English-source listings to ko/ja/ru/zh-Hans labelled Vietnamese, and the
+ * header comment claimed a fallback branch that did not exist (found by codex, astra and
+ * opus). m2m100 needs an explicit source tag and mislabelling it produces fluent, wrong output
+ * that passes every gate and caches forever.
+ *
+ * detectContentLang returns null for plain Latin script because it refuses to separate
+ * en/fr/ms/km. Null resolves to English here, which is correct by this schema's convention:
+ * `Listing.title`/`description` ARE the English slots and the merchant's own words live in
+ * the *Vi columns. A French or Malay source would be mislabelled English — accepted, because
+ * neither is an authoring language on this marketplace, and the alternative is refusing to
+ * translate the entire English catalogue.
+ */
+function sourceLangFor(text: string): { lang: string; detected: boolean } {
+  const detected = detectContentLang(text)
+  // ⛔ `detected: false` IS LOAD-BEARING — it is what stops an assumption becoming a decision.
+  // Plain Latin gets translated AS English (the only workable assumption), but it must never be
+  // treated as PROVEN English: undiacriticked Vietnamese — ordinary marketplace input — detects
+  // as null, and marking it "already English" would serve raw Vietnamese to English readers and
+  // skip the paid provider that can actually identify it. Assume for the source tag; never
+  // assume for the passthrough. (codex and astra, reviewing this diff.)
+  if (!detected) return { lang: 'en', detected: false }
+  // The detector reports Han script as 'zh'; our supported code is zh-Hans.
+  if (detected === 'zh') return { lang: 'zh-Hans', detected: true }
+  return LANGS.includes(detected as Lang) ? { lang: detected, detected: true } : { lang: 'en', detected: false }
+}
+
+/**
+ * Callers a person is waiting on: live chat, and the on-demand /api/translate a PDP first view
+ * hits. ⛔ 'api' BELONGS HERE AND WAS MISSING — the chat carve-out named the stall victim in its
+ * own comment and then protected only chat, leaving a visitor's first uncached listing render to
+ * queue behind import chunks (opus). Background warming is deliberately absent: waiting is
+ * exactly what it should do rather than pay.
+ */
+const LATENCY_CRITICAL = new Set(['chat', 'api'])
+
+/**
+ * One paid attempt across the configured providers.
+ *
+ * ⚠️ A WRONG-LENGTH GOOGLE RESPONSE MUST STILL FALL THROUGH TO AZURE. `if (!paid)` alone treats
+ * any non-null array as success, so a misaligned (or empty) result blocked the configured
+ * fallback and left strings untranslated even though another provider was available (codex).
+ * Length is part of "did this succeed".
+ *
+ * ⚠️ BILLING IS COUNTED HERE, WHERE THE PAID CALL ACTUALLY HAPPENS — an earlier version skipped
+ * the counters entirely whenever MT_LOCAL_URL was set and called that an "upper bound"; it was a
+ * floor of ZERO. It counts REQUESTS THAT PRODUCED A USABLE ANSWER, which reviewers correctly
+ * note still undercounts a Google call that was billed and then returned a malformed array. That
+ * residual is accepted: the providers bill per character sent, we cannot observe their meters,
+ * and a log that over-reports on every retry would be just as misleading. Treat this as a
+ * spike detector, not an invoice.
+ */
+async function payFor(
+  texts: string[],
+  target: Lang,
+  billed?: { chars: number; strings: number },
+): Promise<string[] | null> {
+  if (texts.length === 0) return []
+  const usable = (r: string[] | null): r is string[] => Array.isArray(r) && r.length === texts.length
+  let paid: string[] | null = null
+  if (GOOGLE_KEY) { const g = await googleTranslate(texts, target); if (usable(g)) paid = g }
+  if (!paid && AZURE_KEY) { const a = await azureTranslate(texts, target); if (usable(a)) paid = a }
+  if (paid && billed) {
+    billed.chars += texts.reduce((n, t) => n + t.length, 0)
+    billed.strings += texts.length
   }
-  if (AZURE_KEY) return azureTranslate(chunk, target)
-  return null
+  return paid
+}
+
+async function translateChunk(
+  chunk: string[],
+  target: Lang,
+  billed?: { chars: number; strings: number },
+  /**
+   * Try the PAID provider first and use the box model only if it fails. For latency-critical
+   * callers (chat), not a way to disable local translation — see the call site.
+   */
+  paidFirst?: boolean,
+): Promise<ChunkResult | null> {
+  // A caller that asks the paid provider first is by definition latency-critical, so it must
+  // also not wait out a batch on the local side when it falls back.
+  const localTimeout = paidFirst ? INTERACTIVE_TIMEOUT_MS : undefined
+  const out: (string | null)[] = new Array(chunk.length).fill(null)
+  const passthrough: boolean[] = new Array(chunk.length).fill(false)
+  let pending = chunk.map((text, i) => ({ text, i }))
+
+  // ⛔ PAID-FIRST IS AN ORDERING, NOT A BYPASS. An earlier version simply skipped local for
+  // chat, which meant chat had NO provider at all whenever the paid one was absent or failing —
+  // broken on the local-only box this change exists to enable, and broken again on any Google
+  // outage or quota exhaustion (found by codex, astra and agy across two rounds). Slow beats
+  // silent, so local always remains reachable as the fallback.
+  if (paidFirst) {
+    const paidUp = await payFor(pending.map((p) => p.text), target, billed)
+    if (paidUp) {
+      pending.forEach((p, n) => { out[p.i] = paidUp[n] })
+      return { values: out, passthrough }
+    }
+  }
+
+  if (localMtConfigured()) {
+    // Group by DETECTED source: one server round trip per source language, not per string.
+    const bySource = new Map<string, { text: string; i: number }[]>()
+    for (const item of pending) {
+      const { lang: source, detected } = sourceLangFor(item.text)
+      // A same-language leg is not a translation. Mark it rather than dropping it through to
+      // the paid provider, which would BILL for translating Vietnamese into Vietnamese — the
+      // exact shape of the Tiki backfill plus eager 'vi' warming.
+      // ⛔ ONLY ON A POSITIVE DETECTION. An ASSUMED source that happens to equal the target is
+      // not evidence of anything; claiming passthrough there hands the reader untranslated text
+      // and reports success.
+      if (source === target) {
+        // ⚠️ An UNDETECTED source is only left for the paid provider when there IS one. With no
+        // paid key the string has nowhere else to go, and marking it failed would re-run the
+        // same losing inference on every render forever (codex). Serve it, cache nothing.
+        if (detected || (!GOOGLE_KEY && !AZURE_KEY)) { passthrough[item.i] = true }
+        continue
+      }
+      const group = bySource.get(source)
+      if (group) group.push(item)
+      else bySource.set(source, [item])
+    }
+    const rejects: Record<string, number> = {}
+    for (const [source, group] of bySource) {
+      const local = await localTranslate(group.map((g) => g.text), source, target, localTimeout)
+      if (!local) continue // server down — everything in this group falls through to paid
+      group.forEach((g, n) => { out[g.i] = local.values[n] })
+      for (const [reason, count] of Object.entries(local.rejects)) {
+        rejects[reason] = (rejects[reason] ?? 0) + (count ?? 0)
+      }
+    }
+    const refused = Object.values(rejects).reduce((a, b) => a + b, 0)
+    if (refused > 0) console.log('[mt-local:reject]', JSON.stringify({ target, refused, of: chunk.length, ...rejects }))
+    pending = pending.filter((p) => out[p.i] == null && !passthrough[p.i])
+    if (pending.length === 0) return { values: out, passthrough }
+  }
+
+  // Whatever the box model could not translate (or refused) still deserves a good answer.
+  const remaining = pending.map((p) => p.text)
+  const paid = await payFor(remaining, target, billed)
+
+  if (!paid || paid.length !== remaining.length) {
+    // No paid answer. Keep whatever the box model DID translate; the rest stay null and the
+    // caller leaves them untranslated rather than caching source text as a translation.
+    return out.some((v) => v != null) || passthrough.some(Boolean) ? { values: out, passthrough } : null
+  }
+  pending.forEach((p, n) => { out[p.i] = paid![n] })
+  return { values: out, passthrough }
 }
 
 /**
@@ -346,29 +522,59 @@ export async function translateBatch(
     // serve the free cache hits, pass misses through as source, call NO provider.
     if (opts?.cachedOnly) {
       for (const t of misses) out.set(t, t)
-    } else if (!GOOGLE_KEY && !AZURE_KEY) {
+    } else if (!GOOGLE_KEY && !AZURE_KEY && !localMtConfigured()) {
+      // ⚠️ localMtConfigured() BELONGS IN THIS GUARD. Without it a box running ONLY the
+      // self-hosted model — the whole point of MT_LOCAL_URL — takes this branch and passes
+      // every string through untranslated, silently, because the check only ever asked
+      // about the PAID providers.
       if (!warnedNoKey) {
-        console.warn('[translate] no provider configured (set GOOGLE_TRANSLATE_API_KEY) — returning source text untranslated.')
+        console.warn('[translate] no provider configured (set MT_LOCAL_URL or GOOGLE_TRANSLATE_API_KEY) — returning source text untranslated.')
         warnedNoKey = true
       }
       for (const t of misses) out.set(t, t)
     } else {
-      let billedChars = 0
-      let billedStrings = 0
+      const billed = { chars: 0, strings: 0 }
       for (const chunk of chunkTexts(misses)) {
-        const translated = await translateChunk(chunk, target)
+        // ⛔ LIVE CHAT STAYS ON THE PAID PROVIDER, ON PURPOSE. The box model has ONE inference
+        // worker behind one lock: measured, a small request issued while a 120-string import
+        // batch was running took 5.8s (the batch itself took 14.7s — the slicing bounds the
+        // wait, it does not remove it). Google answers chat in ~200ms. Chat is also the one
+        // caller where volume is trivial and latency is the product, so the trade that makes
+        // sense for 90M characters of catalogue is exactly backwards here. `skipWrite` already
+        // marks this traffic as private and uncached; this marks it as latency-critical.
+        // ⛔ INTERACTIVE CALLERS ASK THE PAID PROVIDER FIRST — an ORDERING, not a bypass. The box model has
+        // ONE inference worker behind one lock: measured, a small request issued during a
+        // 120-string import batch took ~6s, where Google answers in ~200ms. Chat is the one
+        // caller whose volume is trivial and whose latency IS the product, so the trade that
+        // makes sense for 90M characters of catalogue is backwards here. It still falls back to
+        // local if the paid provider is missing or failing, because slow beats silent.
+        const translated = await translateChunk(chunk, target, billed, LATENCY_CRITICAL.has(opts?.source ?? ''))
         // A response with a DIFFERENT length than the request is misaligned — pairing
         // translated[i] with chunk[i] would cache wrong translations forever (audit).
-        if (!translated || translated.length !== chunk.length) {
+        if (!translated || translated.values.length !== chunk.length) {
           for (const t of chunk) out.set(t, t) // failure/misalignment → source fallback
           if (opts?.stats) opts.stats.providerFailed = true
           continue
         }
-        billedChars += chunk.reduce((n, s) => n + s.length, 0) // this chunk reached the paid provider
-        billedStrings += chunk.length
         await Promise.all(
           chunk.map(async (src, i) => {
-            const value = translated[i] ?? src
+            if (translated.passthrough[i]) {
+              // Already in the target language: serve it, cache nothing, report no failure.
+              out.set(src, src)
+              return
+            }
+            const value = translated.values[i]
+            // ⛔ A NULL IS "NO TRANSLATION", NOT "TRANSLATES TO ITSELF". The box model's gate
+            // refuses output it believes is a hallucination, and if no paid provider answered
+            // either, the honest result is untranslated source — served, but NEVER cached.
+            // Writing `value = src` here would persist "this string translates to itself" in a
+            // table with no expiry, so the bad row would outlive the outage and no later run
+            // would ever retry it. Serve source, mark the batch as failed, cache nothing.
+            if (value == null) {
+              out.set(src, src)
+              if (opts?.stats) opts.stats.providerFailed = true
+              return
+            }
             out.set(src, value)
             // skipWrite = private text (chat): serve the translation, persist nothing.
             if (opts?.skipWrite) return
@@ -384,6 +590,8 @@ export async function translateBatch(
           }),
         )
       }
+      const billedChars = billed.chars
+      const billedStrings = billed.strings
       // Per-source billable-char attribution (structured log): a future cost spike is one
       // `[translate:spend]` grep away, source-tagged — including ephemeral chat, which never
       // reaches the cache table a SQL tally could see.
@@ -446,7 +654,7 @@ const EAGER_WARM_LANGS: Lang[] = (['vi', 'zh-Hans', 'ko', 'ja', 'ru'] as Lang[])
  */
 export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_WARM_LANGS): Promise<void> {
   const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
-  if (clean.length === 0 || (!GOOGLE_KEY && !AZURE_KEY)) return
+  if (clean.length === 0 || (!GOOGLE_KEY && !AZURE_KEY && !localMtConfigured())) return
   // ⚠️ A GLOBAL, FAIL-CLOSED CEILING ON THE ONLY UNCAPPED PAID CALL IN THE PUBLISH PATH.
   // This runs from `after()` on EVERY listing create and bulk-import row, and it calls Google/Azure
   // translate once per language — six of them. Until now nothing bounded it: chargeCharBudget()
