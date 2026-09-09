@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAdmin } from '@/lib/admin'
-import { resignKycCaptures, reviewKycCase, type ReviewResult } from '@/lib/kyc/review'
+import { correctVerifiedIdentity, resignKycCaptures, reviewKycCase, type ReviewResult } from '@/lib/kyc/review'
 
 /**
  * SERVER ACTIONS FOR THE IDENTITY REVIEW QUEUE.
@@ -17,10 +17,23 @@ import { resignKycCaptures, reviewKycCase, type ReviewResult } from '@/lib/kyc/r
  * which turns this into an oracle for enumerating people who have submitted a passport.
  */
 
-export async function approveIdentityAction(verificationId: string): Promise<ReviewResult> {
+/**
+ * ⚠️ `nationality` IS OPTIONAL AND IS THE REVIEWER'S OWN READ OF THE DOCUMENT. It exists because the
+ * MRZ nationality field carries no check digit (mrz.ts:74 steps over it), so a case can arrive with
+ * that column blank or quietly wrong while every checksummed field passed.
+ *
+ * ⛔ OMITTED AND EMPTY ARE DIFFERENT REQUESTS AND THE FIRST CUT MADE THEM THE SAME. `undefined` is
+ * "no opinion, leave it"; `''` is "this document gives no assessable nationality — clear it". An
+ * earlier version of this comment claimed that distinction while the line below destroyed it.
+ */
+export async function approveIdentityAction(verificationId: string, nationality?: string): Promise<ReviewResult> {
   const admin = await getAdmin()
   if (!admin) return { ok: false, code: 'not_found' }
-  const result = await reviewKycCase({ verificationId, admin, decision: 'approve' })
+  // ⛔ `''` IS FORWARDED, NOT SWALLOWED. Emptying the box is the reviewer saying "this document
+  // gives no assessable nationality" — the only way to clear a wrong one, since the stateless codes
+  // are deliberately unmapped. Folding it into `undefined` made that correction impossible.
+  const nat = nationality === undefined ? undefined : nationality.trim().toUpperCase()
+  const result = await reviewKycCase({ verificationId, admin, decision: 'approve', nationality: nat })
   if (result.ok) revalidatePath('/admin/verification')
   return result
 }
@@ -53,4 +66,39 @@ export async function refreshIdentityCapturesAction(verificationId: string): Pro
   const admin = await getAdmin()
   if (!admin) return { documentUrl: null, selfieUrl: null }
   return resignKycCaptures(verificationId)
+}
+
+/**
+ * CORRECT A FIELD ON AN ALREADY-VERIFIED IDENTITY. Separate from approve on purpose — see
+ * `correctVerifiedIdentity`. Same admin re-check and same `not_found`-not-`forbidden` discipline as
+ * every other action in this file: confirming an id is real turns this into an enumerator for people
+ * who have submitted a passport.
+ *
+ * ⚠️ `''` REACHES THE DOMAIN AND MEANS "CLEAR IT"; `undefined` means "leave it alone". Collapsing
+ * those made a WRONG value unfixable in the review path, and the same trap applies here.
+ */
+export async function correctIdentityAction(input: {
+  verificationId: string
+  nationality?: string
+  residenceCountry?: string
+  note: string
+}) {
+  const admin = await getAdmin()
+  if (!admin) return { ok: false as const, code: 'not_found' as const }
+  const result = await correctVerifiedIdentity({
+    verificationId: input.verificationId,
+    admin,
+    nationality: input.nationality === undefined ? undefined : input.nationality.trim().toUpperCase(),
+    residenceCountry: input.residenceCountry === undefined ? undefined : input.residenceCountry.trim().toUpperCase(),
+    note: input.note,
+  })
+  /**
+   * ⚠️ THE DYNAMIC ROUTE, NOT THE LIST. The corrected values render on `/admin/users/[id]`, and
+   * `revalidatePath('/admin/users')` revalidates the LIST path only — the detail page it was meant
+   * to refresh kept serving the old value (antigravity, on the finished diff, 2026-09-09). Passing
+   * the route pattern with `'page'` invalidates every instance of it, which is what is wanted here:
+   * the action holds a verification id, not the profile id the URL is keyed by.
+   */
+  if (result.ok) revalidatePath('/admin/users/[id]', 'page')
+  return result
 }

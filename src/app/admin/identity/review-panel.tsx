@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { approveIdentityAction, refreshIdentityCapturesAction, rejectIdentityAction } from './actions'
 
@@ -51,16 +52,22 @@ const ERROR_TEXT: Record<string, string> = {
   expired_at_review: 'Cannot approve: the document is inside the six-month validity floor measured from TODAY. It was valid at submission and is not now.',
   duplicate_identity: 'Cannot approve: this identity is already verified on another account.',
   still_pending: 'The decision did not stick — reload and try again.',
+  nationality_invalid: 'That is not a country code this app can assess. Use the alpha-3 code from the passport (ICAO “D” for Germany is accepted). Stateless/refugee codes (XXA, XXB, XXC, XXX) are not assessable — approve without a nationality and the wallet stays closed with an honest reason.',
   evidence_unavailable: 'Cannot approve: the captures for this case can no longer be produced. Use “Reload captures”; if they still fail, reject with a reason.',
   failed: 'Something went wrong. Nothing was changed.',
 }
 
-export function IdentityReviewPanel({ item }: {
-  item: {
-    id: string
+type ReviewCase = {
+  id: string
     tier: string
     fullName: string | null
     nationality: string | null
+    nationalitySuggested: string | null
+    /**
+     * Whether `nationality` is a machine reading (`true`), the applicant's own claim (`false`), or
+     * unrecorded because the case predates the field (`null`) — see KycQueueItem.
+     */
+    nationalityFromMrz: boolean | null
     documentExpiresAt: string | null
     submittedAt: string
     method: string
@@ -70,11 +77,63 @@ export function IdentityReviewPanel({ item }: {
     checksPassed: string[]
     email: string | null
     phone: string | null
-    accountName: string | null
-  }
-}) {
+  accountName: string | null
+}
+
+/**
+ * ⛔ ONE `key` INSTEAD OF TEN RESETS, AND THAT IS THE ENTIRE POINT. Every piece of state below is
+ * scoped to ONE case — the reviewer's note, the nationality they typed, which capture is open, which
+ * images failed to load — and `useState` initialises once per MOUNT, not once per prop change. Hand
+ * this component a different `item` without remounting and all of it leaks across: the previous
+ * person's note is written onto this person's rejection, the previous nationality onto their
+ * compliance record, the previous passport left open on screen.
+ *
+ * codex found it field by field over two review rounds (2026-09-09) — first the nationality, then
+ * `note` and `full` — which is the tell that per-field guards were the wrong shape: the NEXT field
+ * anyone adds would have been unsafe again by default. Remounting on `item.id` makes every field
+ * safe at once, including ones not yet written, and lets each stay a plain `useState`.
+ *
+ * ⚠️ The caller today wraps this in `<li key={c.id}>` so it already remounts. That is the CALLER's
+ * property; a screen that writes identity records must not depend on it.
+ */
+export function IdentityReviewPanel({ item }: { item: ReviewCase }) {
+  return <IdentityReviewPanelCase key={item.id} item={item} />
+}
+
+function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
+  /**
+   * ⚠️ PREFILLED FROM THE STORED VALUE, INCLUDING WHEN THAT VALUE IS WRONG. The MRZ nationality
+   * field is the one field no check digit covers (mrz.ts:74 steps over `line2.slice(10,13)`), so a
+   * case can show a perfectly plausible code the passport does not say. Showing the box only when
+   * the value is MISSING would hide exactly the corrupted reads this exists to catch.
+   * A plain `useState` is safe here ONLY because the exported wrapper remounts per case.
+   */
+  /**
+   * ⛔ NEVER SEEDED FROM THE SUGGESTION — ONLY FROM WHAT THE DOCUMENT ACTUALLY READ. Prefilling the
+   * box with the issuing state was the first cut and codex refuted it (2026-09-09): a reviewer who
+   * simply clicks Approve, as they do all day, would store it without ever having confirmed it. "A
+   * human clicked Approve" is not "a human confirmed the nationality", and the two diverge on
+   * precisely the documents this care is for — a refugee or stateless travel document, where the
+   * issuing state is NOT the nationality and storing it OPENS a wallet on a country the holder is
+   * not a national of. A null closes the wallet honestly; a plausible wrong value opens it.
+   * The suggestion is one click away below, which is an act; a prefill is an omission.
+   */
+  const [nationality, setNationality] = useState(item.nationality ?? '')
+  /**
+   * ⛔ AN UNTOUCHED BOX SENDS NOTHING, AND SENDING IT UNCONDITIONALLY BLOCKED APPROVALS OUTRIGHT.
+   * service.ts stores the RAW MRZ nationality field, so a refugee document reading `XXB` — or an
+   * OCR misread like `U5A` — arrives prefilled here. The value was sent on every Approve, the
+   * server refused it as `nationality_invalid`, and the case could not be approved at all until the
+   * reviewer worked out they had to empty a box they never touched (the Opus seat, on the diff,
+   * 2026-09-09). Untouched is `undefined` — "no opinion, leave the column alone" — which is the
+   * three-state contract the action already implements and the UI was quietly collapsing.
+   *
+   * ⚠️ EMPTYING IT IS STILL AN EDIT, so it sends `''` and clears the column. That is the only way
+   * to remove a wrong value, and it stays reachable.
+   */
+  const [natTouched, setNatTouched] = useState(false)
   /** Which capture is open full-screen, if any. */
   const [full, setFull] = useState<null | { url: string; label: string }>(null)
   /** Survives `full` going null so the closing animation still has a title and an image. */
@@ -267,7 +326,7 @@ export function IdentityReviewPanel({ item }: {
     setBusy(true)
     try {
       const res = decision === 'approve'
-        ? await approveIdentityAction(item.id)
+        ? await approveIdentityAction(item.id, natTouched ? nationality : undefined)
         : await rejectIdentityAction(item.id, note)
       if (res.ok) {
         toast.success(res.status === 'verified' ? 'Approved.' : 'Rejected.')
@@ -511,6 +570,76 @@ export function IdentityReviewPanel({ item }: {
       </Dialog>
 
       <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <label htmlFor={`nat-${item.id}`} className="text-sm text-body">
+            Nationality (alpha-3)
+          </label>
+          <Input
+            id={`nat-${item.id}`}
+            value={nationality}
+            onChange={(e) => { setNationality(e.target.value.toUpperCase().slice(0, 3)); setNatTouched(true) }}
+            placeholder="read it off the passport"
+            className="w-40 font-mono uppercase"
+          />
+          {/*
+            ⚠️ SAYS WHERE THE CURRENT VALUE CAME FROM, because "blank" and "read from an unchecked
+            field" are different situations for the person about to vouch for this document.
+          */}
+          {/*
+            ⚠️ WHERE THE PREFILLED VALUE CAME FROM, because "the MRZ nationality field said this" and
+            "the ISSUING STATE said this, and the nationality field was unreadable" are different
+            things to be asked to vouch for — and they differ on exactly the documents that matter,
+            a refugee or stateless travel document being issued by a state to a non-national.
+          */}
+          {item.tier === 'A' ? (
+            /*
+              ⛔ A CCCD HAS NO MRZ AND NOTHING WAS DECLARED — SAYING EITHER IS A FALSEHOOD TO THE
+              PERSON VOUCHING. `readDocument` hardcodes 'VNM' because a CCCD is issued only to
+              Vietnamese citizens; it is a rule about the document, not a scan and not a claim. The
+              first cut of this label dropped tier A into the "declared by the applicant" branch,
+              which would have greeted a reviewer with "the MRZ nationality field was unreadable" on
+              every domestic case in the queue (both answering seats, 2026-09-09).
+            */
+            <span className="text-sm text-body">VNM — a CCCD is issued only to Vietnamese citizens. No MRZ to read.</span>
+          ) : item.nationality && item.nationalityFromMrz ? (
+            <span className="text-sm text-body">MRZ nationality field: {item.nationality}</span>
+          ) : item.nationality && item.nationalityFromMrz === null ? (
+            /*
+              ⚠️ SUBMITTED BEFORE THE PROVENANCE WAS RECORDED — SAY THAT, DO NOT GUESS. Coercing the
+              missing key to `false` would tell a reviewer a cleanly-read MRZ was a self-declaration
+              and that the strip was unreadable, which is the same false machine/human claim this
+              label exists to remove, pointed the other way.
+            */
+            <span className="text-sm text-body">Nationality on file: {item.nationality} — recorded before this queue tracked whether it came from the MRZ. Check the page.</span>
+          ) : item.nationality && !item.nationalitySuggested ? (
+            /*
+              ⛔ SELF-DECLARED, AND SAYING SO IS THE POINT. service.ts falls back to what the
+              APPLICANT TYPED when the MRZ nationality field is unreadable, and this panel used to
+              present that as "MRZ nationality field: X" — a machine reading no machine made, to the
+              person being asked to vouch for it (the Opus seat, on the diff, 2026-09-09).
+            */
+            <span className="text-sm text-body">Declared by the applicant: {item.nationality} — the MRZ nationality field was unreadable. Check the page.</span>
+          ) : item.nationalitySuggested ? (
+            <>
+              <span className="text-sm text-body">
+                {item.nationality ? `Declared by the applicant: ${item.nationality}. ` : ''}
+                Nationality field unreadable. Issuing state was {item.nationalitySuggested} — the same
+                country on almost every passport, but NOT on a refugee or stateless travel document.
+                Check the page, then:
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { setNationality(item.nationalitySuggested ?? ''); setNatTouched(true) }}
+              >
+                Use {item.nationalitySuggested}
+              </Button>
+            </>
+          ) : (
+            <span className="text-sm text-body">Nothing was read from the document.</span>
+          )}
+        </div>
         <Textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}

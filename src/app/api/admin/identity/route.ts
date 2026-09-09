@@ -21,6 +21,16 @@ const bodySchema = z.object({
   verificationId: z.string().min(1).max(60),
   decision: z.enum(['approve', 'reject']),
   note: z.string().max(500).optional(),
+  /**
+   * ⚠️ SHAPE ONLY HERE — MEMBERSHIP IS `isoNationality`'s JOB, in reviewKycCase. Validating
+   * `/^[A-Z]{3}$/` and stopping would accept `ZZZ`, which is the exact mistake eligibility.ts
+   * records having made: a three-letter shape is not a country. The route bounds the input; the
+   * domain decides whether it means anything.
+   */
+  // ⚠️ 1–3 LETTERS, AND `''` IS MEANINGFUL. Exactly-three rejected the ICAO alias `D` (Germany),
+  // which the domain accepts — so an API client could not make the one correction the alias exists
+  // for. The empty string is the explicit "clear it" signal; see reviewKycCase.
+  nationality: z.union([z.literal(''), z.string().regex(/^[A-Za-z]{1,3}$/)]).optional(),
 })
 
 export const POST = route(
@@ -32,6 +42,11 @@ export const POST = route(
       admin: admin ?? 'unknown',
       decision: body.decision,
       note: body.note,
+      // ⚠️ NORMALISED HERE TOO, MATCHING BOTH SERVER ACTIONS. `isoNationality` upper-cases
+      // internally (identity.ts), so `swe` already worked — but the route was the one caller
+      // forwarding the raw string, and a contract that depends on a helper's internals is one
+      // refactor away from 400-ing a value its own schema advertises as valid (the Opus seat).
+      nationality: body.nationality === undefined ? undefined : body.nationality.trim().toUpperCase(),
     })
     if (!result.ok) {
       if (result.code === 'not_found') throw new ApiError('not_found', 404)
@@ -50,6 +65,10 @@ export const POST = route(
       // ⛔ THE CAPTURES CANNOT BE PRODUCED, SO NOBODY CAN VOUCH FOR THEM. 409, not 500: the case is
       // untouched and still pending, and this is a state the reviewer must see rather than retry.
       if (result.code === 'evidence_unavailable') throw new ApiError('evidence_unavailable', 409)
+      // ⚠️ 400, NOT 409 — the reviewer typed a code that is not a country this app can assess
+      // (`ZZZ`, a typo, or a deliberately-unmapped `XXA`/`GBD`). Nothing about the CASE is wrong,
+      // so it must not read as a conflict the reviewer should stop and investigate.
+      if (result.code === 'nationality_invalid') throw new ApiError('nationality_invalid', 400)
       if (result.code === 'still_pending') throw new ApiError('internal_error', 500)
       throw new ApiError('internal_error', 500)
     }

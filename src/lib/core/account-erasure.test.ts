@@ -214,4 +214,32 @@ describe('eraseAccount', () => {
     }])
     expect(h.audits[0]).toMatchObject({ actorType: 'user', actorId: 'p1', detail: { by: 'self', reason: 'self_service' } })
   })
+
+  /**
+   * ⛔ THE CORRECTION LOG IS PII AND IS NEWER THAN THIS FUNCTION. review.ts appends who changed
+   * which field, from what value to what — the person's nationality and residence in plain text,
+   * plus a free-text reason. Keeping it would leave an erased record still able to answer "where
+   * did they live". The tamper-evident record of the correction lives in complianceAudit and
+   * deliberately carries no values.
+   */
+  it('⛔ DROPS THE CORRECTION LOG AND EVERY NATIONALITY KEY — they hold the codes in plain text', async () => {
+    h.identities = [{ id: 'v1', evidence: {
+      checksPassed: ['mrz'],
+      consentVersion: 'identity-v1',
+      // Written by the APPROVE path (withNationality) — the keys a fixed destructure missed.
+      nationalitySource: 'reviewer',
+      nationalityBefore: 'NOR',
+      nationalityAfter: 'SWE',
+      nationalitySetBy: 'desk@eno.vn',
+      nationalitySetAt: '2026-09-09T00:00:00.000Z',
+      // Written by service.ts when the MRZ nationality was unreadable.
+      nationalitySuggested: 'DEU',
+      nationalitySuggestedFrom: 'mrz_issuing_state',
+      // Written by the CORRECTION path — codes plus a free-text reason.
+      corrections: [{ nationalityBefore: null, nationalityAfter: 'SWE', by: 'desk@eno.vn', note: 'passport page 2' }],
+    } }]
+    await eraseAccount('p1', { kind: 'self' })
+    expect(h.identityUpdates[0].evidence).toEqual({ checksPassed: ['mrz'], consentVersion: 'identity-v1' })
+    expect(JSON.stringify(h.identityUpdates[0].evidence)).not.toContain('SWE')
+  })
 })

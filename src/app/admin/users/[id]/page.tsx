@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ChevronLeft } from '@/components/ui/icons'
 import { getAdmin, isAdminEmail } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
+import { CorrectIdentity } from '@/app/admin/identity/correct-identity'
 import { AdminSectionShell } from '@/components/admin/section-shell'
 import { getAdminUserDetail } from '@/lib/admin-users'
 import { Badge } from '@/components/ui/badge'
@@ -110,6 +111,12 @@ export default async function AdminUserPage({ params }: { params: Promise<{ id: 
                   <span>tier {v.tier} · {v.method}{v.nationality ? ` · ${v.nationality}` : ''}</span>
                   <span>· submitted {when(v.submittedAt)}</span>
                   {v.decidedAt && <span>· decided {when(v.decidedAt)} by {v.decidedBy}{v.rejectReason ? ` (${v.rejectReason})` : ''}</span>}
+                  <span>· residence {v.residenceCountry ?? 'none'}{v.residenceSource ? ` (${v.residenceSource})` : ''}</span>
+                  {/*
+                    ⚠️ ONLY ON A VERIFIED ROW. A pending case belongs to the review queue, which
+                    re-runs the whole decision; a rejected one is not a record of anyone's details.
+                  */}
+                  {v.status === 'verified' && <CorrectIdentity v={v} />}
                 </li>
               ))}
             </ul>

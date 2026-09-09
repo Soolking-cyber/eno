@@ -144,6 +144,9 @@ export type NicheApiErrorCode =
   // The case's captures can no longer be signed (object gone, or the account was deleted), so
   // there is nothing for a reviewer to vouch for. The case stays pending.
   | 'evidence_unavailable'
+  // The reviewer typed a nationality that is not a country this app can assess — a typo, `ZZZ`, or
+  // one of the deliberately-unmapped codes (`XXA`/`XXB`/`XXC`/`XXX`, `GBD`…`GBS`). The CASE is fine.
+  | 'nationality_invalid'
   | 'image_decode_failed'
   | 'image_dimensions_invalid'
   | 'image_too_small_to_review'
@@ -487,6 +490,7 @@ const ALL = [
   'document_expired',
   'duplicate_identity',
   'evidence_unavailable',
+  'nationality_invalid',
   'image_decode_failed',
   'image_dimensions_invalid',
   'image_too_small_to_review',

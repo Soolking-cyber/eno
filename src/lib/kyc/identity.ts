@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { IS_SERVICES } from '@/lib/edition'
+import { logWarn } from '@/lib/log'
 import { deriveVerification } from '@/lib/compliance/recompute-verification'
 import { availableRails, ISO_ALPHA3, type PartyIdentity, type PaymentRailId } from '@/lib/payments/eligibility'
 
@@ -78,10 +79,41 @@ export type VerifiedIdentity = {
  * that the first writer of the column, whoever they turn out to be, would silently become law. An
  * allow-list of provenances is the difference between a documented intention and a rule.
  */
-const ADDRESS_VERIFYING_SOURCES: ReadonlySet<string> = new Set([
-  /** The payment provider's own KYC/AML — it verifies an address and is the regulated party for it. */
-  'provider_kyc',
-])
+const BUILT_IN_ADDRESS_SOURCE = 'provider_kyc'
+
+/**
+ * ⛔ THE DEFAULT IS UNCHANGED AND THE WIDENING IS A DELIBERATE CONFIGURATION ACT, NOT A CODE EDIT.
+ * Measured 2026-09-09: NOTHING in this repository has ever written `residenceSource` except the
+ * erasure job, which nulls it — so `residenceFrom` could never return a country, and the stablecoin
+ * rail was closed for every user who has ever existed, permanently and silently. The missing half is
+ * a WRITE path (see recordReviewedResidence in review.ts); this is the half that decides whose
+ * writes count, and that is a legal question about who may hold a stablecoin wallet.
+ *
+ * ⚠️ SO IT IS READ FROM `PAYMENTS_ADDRESS_SOURCES` AND DEFAULTS TO `provider_kyc` ALONE. Adding
+ * `admin_document_review` opens the rail to residence a member of staff read off a document — which
+ * may be exactly right, and is counsel's call to make in an env var they can point at, not mine to
+ * hardcode. An unset or empty variable leaves today's behaviour bit-for-bit.
+ *
+ * ⚠️ VALIDATED, NOT SPLIT AND TRUSTED. A deploy typo must not invent a provenance: only names this
+ * file knows are honoured, for the same reason settlementAllowedCountries() checks its codes against
+ * the real ISO list rather than a three-letter shape.
+ */
+const KNOWN_ADDRESS_SOURCES: readonly string[] = [BUILT_IN_ADDRESS_SOURCE, 'admin_document_review']
+
+export function addressVerifyingSources(): ReadonlySet<string> {
+  const out = new Set<string>([BUILT_IN_ADDRESS_SOURCE])
+  for (const part of (process.env.PAYMENTS_ADDRESS_SOURCES || '').split(',')) {
+    const v = norm(part)
+    if (!v) continue
+    if (KNOWN_ADDRESS_SOURCES.includes(v)) out.add(v)
+    // ⚠️ A TYPO MUST NOT FAIL SILENTLY. Dropping an unrecognised name with no word anywhere left
+    // ops looking at a configured variable and a rail that stayed shut, with nothing to read (the
+    // Opus seat, 2026-09-09). It is still DROPPED — a deploy typo may not invent a provenance —
+    // but now it says so.
+    else logWarn('payments.address_source_ignored', { value: v, known: KNOWN_ADDRESS_SOURCES.join(',') })
+  }
+  return out
+}
 /**
  * ⛔ AND `residence_document` WAS REMOVED FROM THAT LIST, NOT FORGOTTEN. It looked harmless — "a
  * Vietnamese residence document, which only ever yields VNM anyway" — but two reviewers noticed the
@@ -291,8 +323,12 @@ function residenceFrom(rows: IdentityRow[]): string | null {
    * several of them collapsed to 0 and ordered by whatever the database returned. A verified row
    * always has one.
    */
+  // ⚠️ HOISTED OUT OF THE FILTER — it re-split the env var and allocated a Set PER ROW (the Opus
+  // seat, on the diff, 2026-09-09). The value cannot change mid-loop, so reading it once is both
+  // cheaper and the more honest statement of what it is: one policy applied to every row.
+  const verifying = addressVerifyingSources()
   const trusted = rows
-    .filter((r) => r.status === 'verified' && ADDRESS_VERIFYING_SOURCES.has(norm(r.residenceSource)))
+    .filter((r) => r.status === 'verified' && verifying.has(norm(r.residenceSource)))
     .sort((a, b) => (b.decidedAt?.getTime() ?? 0) - (a.decidedAt?.getTime() ?? 0))[0]
   if (!trusted) return null
 

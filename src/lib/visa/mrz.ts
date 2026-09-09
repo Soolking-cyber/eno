@@ -9,6 +9,15 @@ export type PassportMrzResult = {
     dateOfBirth: string
     sex: 'male' | 'female'
     passportExpiryDate: string
+    /**
+     * ⚠️ THE ISSUING STATE (line 1, chars 2–5) — NOT THE HOLDER'S NATIONALITY, which is line 2
+     * chars 10–13. They agree on the overwhelming majority of ordinary passports and diverge on
+     * exactly the documents where guessing would be worst: a refugee or stateless travel document
+     * is issued BY a state TO someone who is not its national. So this is exposed as its own field
+     * and never silently substituted — see service.ts, which offers it to a human as a suggestion
+     * and never writes it to the nationality column.
+     */
+    issuingState: string
   }>
 }
 
@@ -83,6 +92,15 @@ export function parsePassportMrz(rawLine1: string, rawLine2: string): PassportMr
     ...(checks.expiryDate && passportExpiryDate ? { passportExpiryDate } : {}),
     ...(sex ? { sex } : {}),
     ...(line2.slice(10, 13).replace(/</g, '') ? { nationalityCode: line2.slice(10, 13).replace(/</g, '') } : {}),
+    /**
+     * ⚠️ READ BECAUSE THE NATIONALITY FIELD IS THE ONE FIELD NO CHECK DIGIT COVERS. The composite
+     * above spans `slice(0,10)` + `slice(13,20)` + `slice(21,43)` and steps straight over
+     * `slice(10,13)`, so OCR can blank or corrupt the nationality while every checksum still
+     * passes — measured 2026-09-09 as the cause of a verified identity stored with NULL
+     * nationality and a permanently blocked wallet. The issuing state is three DIFFERENT
+     * characters on a DIFFERENT line, so a smudge that destroys one rarely destroys both.
+     */
+    ...(line1.slice(2, 5).replace(/</g, '') ? { issuingState: line1.slice(2, 5).replace(/</g, '') } : {}),
   }
   if (checks.composite || [checks.passportNumber, checks.dateOfBirth, checks.expiryDate].filter(Boolean).length === 3) {
     // ⚠️ ONLY THE FIRST `<<`-GROUP IS THE GIVEN NAMES. TD3 uses `<<` once (surname↔given separator);

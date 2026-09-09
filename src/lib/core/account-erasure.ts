@@ -114,7 +114,33 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
       for (const key of ['documentPath', 'selfiePath'] as const) {
         if (typeof ev[key] === 'string' && ev[key]) privateRefs.push({ bucket: BUSINESS_VERIFICATION_BUCKET, path: ev[key] as string })
       }
-      const { documentPath: _d, selfiePath: _s, decisionInput: _i, ...kept } = ev
+      /**
+       * ⛔ THE EVIDENCE IS FILTERED BY RULE, NOT BY A LIST OF FOUR NAMES — BECAUSE THE LIST WENT
+       * STALE THE FIRST TIME SOMEONE ADDED A KEY. §4.2 says clear the name and the nationality and
+       * keep the hash, decision and expiry; a fixed destructure honours that only for the keys that
+       * existed the day it was written. The review path since grew `nationalitySource`,
+       * `nationalityBefore`, `nationalityAfter`, `nationalitySetBy`, `nationalitySetAt`,
+       * service.ts grew `nationalitySuggested`/`nationalitySuggestedFrom`, and review.ts grew a
+       * `corrections` log holding both codes AND a free-text reason. Every one of those survived an
+       * erasure through `...kept` — so an erased record still answered "what nationality", which is
+       * the exact question the nulled column exists to stop answering. Three reviewer seats found
+       * it independently (2026-09-09).
+       *
+       * ⛔ SO THE RULE IS DROP-BY-DEFAULT FOR ANYTHING NATIONALITY-SHAPED, plus the named
+       * object-path and decision-input keys. A future `nationalityWhatever` is dropped without
+       * anyone remembering to come back here, and being wrong in that direction costs an audit
+       * detail; being wrong in the other direction is a failed deletion request.
+       *
+       * ⚠️ ONE PREFIX IS NOT A GENERAL RULE, AND SAYING SO HERE IS THE POINT. `residence*` or any
+       * other family of PII keys added later still needs a line in this filter — the prefix bought
+       * safety for the keys that exist, not immunity from thinking (the Opus seat, 2026-09-09).
+       * Anything added to `evidence` that identifies the PERSON rather than the CHECK belongs on
+       * one of these two lists the day it is written.
+       */
+      const DROP_EXACT = new Set(['documentPath', 'selfiePath', 'decisionInput', 'corrections'])
+      const kept = Object.fromEntries(
+        Object.entries(ev).filter(([k]) => !DROP_EXACT.has(k) && !k.startsWith('nationality')),
+      )
       await tx.identityVerification.update({
         where: { id: v.id },
         data: { fullName: null, nationality: null, residenceCountry: null, residenceSource: null, evidence: kept as Prisma.InputJsonValue },

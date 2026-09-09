@@ -98,7 +98,7 @@ export type AdminUserDetail = {
     listings: { total: number; active: number }
     verificationCases: Array<{ id: string; status: string; submittedAt: string | null; reviewedAt: string | null; reviewedBy: string | null }>
   } | null
-  identity: Array<{ id: string; tier: string; method: string; status: string; submittedAt: string; decidedAt: string | null; decidedBy: string | null; rejectReason: string | null; documentExpiresAt: string | null; nationality: string | null }>
+  identity: Array<{ id: string; tier: string; method: string; status: string; submittedAt: string; decidedAt: string | null; decidedBy: string | null; rejectReason: string | null; documentExpiresAt: string | null; nationality: string | null; residenceCountry: string | null; residenceSource: string | null }>
   reports: { filed: number; against: number; openAgainst: number }
   enforcement: Array<{ id: string; state: string; reason: string; status: string; decidedBy: string; createdAt: string; expiresAt: string | null; liftedAt: string | null; adminNote: string | null }>
   audit: Array<{ occurredAt: string; actorType: string; actorId: string | null; action: string }>
@@ -129,7 +129,10 @@ export async function getAdminUserDetail(id: string): Promise<AdminUserDetail | 
       where: { profileId: id },
       orderBy: { submittedAt: 'desc' },
       take: 10,
-      select: { id: true, tier: true, method: true, status: true, submittedAt: true, decidedAt: true, decidedBy: true, rejectReason: true, documentExpiresAt: true, nationality: true },
+      // ⚠️ RESIDENCE COMES WITH ITS SOURCE OR NOT AT ALL. identity.ts decides whether a country
+      // counts by reading `residenceSource`, so showing the country alone would tell an admin the
+      // wallet rail is open when the only code that consults it ignores the value.
+      select: { id: true, tier: true, method: true, status: true, submittedAt: true, decidedAt: true, decidedBy: true, rejectReason: true, documentExpiresAt: true, nationality: true, residenceCountry: true, residenceSource: true },
     }),
     db.report.count({ where: { reporterProfileId: id } }),
     db.report.count({ where: { OR: [{ targetProfileId: id }, ...(sellerId ? [{ targetSellerId: sellerId }] : [])] } }),
@@ -169,6 +172,7 @@ export async function getAdminUserDetail(id: string): Promise<AdminUserDetail | 
     identity: identity.map((v) => ({
       id: v.id, tier: v.tier, method: v.method, status: v.status, submittedAt: v.submittedAt.toISOString(), decidedAt: iso(v.decidedAt),
       decidedBy: v.decidedBy, rejectReason: v.rejectReason, documentExpiresAt: iso(v.documentExpiresAt), nationality: v.nationality,
+      residenceCountry: v.residenceCountry, residenceSource: v.residenceSource,
     })),
     reports: { filed, against, openAgainst },
     enforcement: enforcement.map((e) => ({ ...e, createdAt: e.createdAt.toISOString(), expiresAt: iso(e.expiresAt), liftedAt: iso(e.liftedAt) })),

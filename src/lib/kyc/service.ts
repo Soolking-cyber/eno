@@ -130,6 +130,12 @@ function readDocument(input: KycSubmitInput) {
       // storing 'USA' on a `cccd_manual` row would be exactly the false statement in a compliance
       // record that the `method` field above is careful to avoid.
       nationality: 'VNM',
+      // A CCCD has no MRZ and therefore no issuing-state field; the branch below fills this.
+      issuingState: undefined as string | undefined,
+      // ⚠️ FALSE FOR A CCCD FOR THE SAME REASON `mrzValid` IS: there is no strip to read. 'VNM' is
+      // a rule about who a CCCD is issued to, not a machine reading, and the shape stays uniform so
+      // a caller never has to ask which branch produced the object.
+      nationalityFromMrz: false,
       documentNumber: digits ?? undefined,
       // ⚠️ FALSE, AND HONESTLY SO. Nothing machine-checked this card; the reviewer is the check, and
       // the compliance record must not claim otherwise. `decideTierB` returns `pending` for tier A
@@ -149,6 +155,25 @@ function readDocument(input: KycSubmitInput) {
         // normalised by the parser — pass it straight through rather than re-deriving the century.
         documentExpiry: f.passportExpiryDate ?? input.documentExpiry,
         nationality: f.nationalityCode ?? input.nationality,
+        /**
+         * ⛔ WHICH OF THOSE TWO IT WAS, BECAUSE THE PANEL LABELS IT AND THE LABEL WAS LYING. The
+         * line above falls back to what the APPLICANT TYPED when the MRZ nationality field is
+         * unreadable, and the review panel then announced "MRZ nationality field: DEU" — a
+         * machine-read claim no machine made — while the issuing-state cross-check was suppressed
+         * for exactly that case, because a value was present (the Opus seat, on the diff,
+         * 2026-09-09). A reviewer vouching for a document must be told which of the two they are
+         * looking at.
+         */
+        nationalityFromMrz: !!f.nationalityCode,
+        /**
+         * ⚠️ A SUGGESTION FOR THE HUMAN, NEVER A VALUE FOR THE COLUMN. When the MRZ's nationality
+         * field is unreadable — and it is the one field no check digit protects — the issuing state
+         * off line 1 is very nearly always the same country, so it saves the reviewer transcribing
+         * three characters they can already see. It is NOT written as the nationality because the
+         * documents where the two differ are exactly the ones that matter: a refugee or stateless
+         * travel document is issued by a state to someone who is not its national.
+         */
+        issuingState: f.issuingState,
         documentNumber: f.passportNumber ?? input.passportNumber,
         mrzValid: true,
       }
@@ -307,6 +332,20 @@ export async function submitKycForReview(
         // document; the applicant chose the tier and a human confirms it. Naming the provenance in
         // the compliance record stops a later reader treating it as a machine determination.
         tierClaimedBy: 'applicant',
+        /**
+         * ⛔ OFFERED TO THE REVIEWER, NOT TREATED AS THE ANSWER. Present only when the MRZ's own
+         * nationality field could not be read — the one field no check digit covers. The admin
+         * panel prefills its nationality box from this so a reviewer confirms three characters
+         * instead of transcribing them, and `nationality` stays NULL until a human says otherwise.
+         */
+        ...(doc.nationalityFromMrz || !doc.issuingState ? {} : {
+          nationalitySuggested: doc.issuingState,
+          nationalitySuggestedFrom: 'mrz_issuing_state',
+        }),
+        // ⚠️ AND WHETHER THE STORED VALUE IS A MACHINE READING OR A SELF-DECLARATION. Same reason:
+        // the reviewer is being asked to vouch, and "the strip said so" and "they typed it" are not
+        // the same evidence. Absent on tier A, which has no MRZ at all.
+        ...(input.tier === 'A' ? {} : { nationalityFromMrz: !!doc.nationalityFromMrz }),
         documentPath: input.documentPath,
         selfiePath: input.selfiePath,
         // ⛔ THE DECISION INPUTS ARE CARRIED, NOT REBUILT. reviewKycCase has to re-run decideTierB
