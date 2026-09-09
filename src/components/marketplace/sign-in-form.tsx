@@ -612,9 +612,32 @@ export function SignInForm({ className }: { className?: string }) {
       return t('The code arrives in a messaging app — Zalo, WhatsApp or Telegram.', 'Mã sẽ được gửi qua ứng dụng nhắn tin — Zalo, WhatsApp hoặc Telegram.')
     }
     const usable: string[] = []
-    if (phoneWantsZalo && configured.zalo) usable.push('Zalo')
-    if (!phoneWantsZalo && configured.whatsapp) usable.push('WhatsApp')
-    if (configured.telegram) usable.push('Telegram')
+    /**
+     * ⛔ `preferredOtpChannel` DECIDES ORDER, NOT AVAILABILITY, AND READING IT AS AVAILABILITY TOLD
+     * VIETNAMESE USERS A FALSEHOOD. The hook's VN path is Zalo -> Telegram -> WHATSAPP
+     * (api/auth/send-sms), so a +84 number with WhatsApp installed can absolutely receive the code
+     * there. This line excluded WhatsApp whenever the number was Vietnamese, so with no Zalo keys
+     * in production a VN user with only WhatsApp was told no app could reach them and pushed to
+     * email — while the server would have delivered. Zalo stays conditional because it genuinely is
+     * Vietnam-only; WhatsApp is not.
+     */
+    /**
+     * ⚠️ PUSHED IN THE ORDER THE HOOK ACTUALLY TRIES THEM, because this list is read left to right
+     * as "where your code will arrive". api/auth/send-sms cascades
+     *   VN      -> Zalo, Telegram, WhatsApp
+     *   foreign -> WhatsApp, Telegram        (Zalo is Vietnam-only, so it is never reached)
+     * An earlier version of this fix pushed WhatsApp second for VN numbers, which named the wrong
+     * app first for exactly the user it was written to help — the same "the hint lies about
+     * delivery" bug in a smaller size.
+     */
+    if (phoneWantsZalo) {
+      if (configured.zalo) usable.push('Zalo')
+      if (configured.telegram) usable.push('Telegram')
+      if (configured.whatsapp) usable.push('WhatsApp')
+    } else {
+      if (configured.whatsapp) usable.push('WhatsApp')
+      if (configured.telegram) usable.push('Telegram')
+    }
     if (usable.length === 0) {
       // The dead end, said out loud instead of discovered by waiting. Email needs no app at all.
       return t('Phone codes are unavailable right now — please sign in with email instead.', 'Hiện chưa gửi được mã qua điện thoại — vui lòng đăng nhập bằng email nhé.')
