@@ -130,18 +130,39 @@ describe('residence — only an address-verifying source can establish it', () =
     expect((await verifiedIdentityFor(PROFILE))?.residenceCountry).toBe('VNM')
   })
 
-  it('a temporary residence card establishes Vietnamese residence', async () => {
+  /**
+   * ⛔ A TRC NO LONGER ESTABLISHES ANYTHING — OWNER DECISION, 2026-09-09: *"remove trc bullshit
+   * other than viet document wallet allowed"*. A temporary-residence card is the document a
+   * FOREIGNER holds to live in Vietnam, and vetoing on it is precisely what kept foreign residents
+   * off the wallet. The Vietnamese CITIZEN documents (CCCD/CMND, tier A) still veto.
+   * ⚠️ THIS TEST IS INVERTED, NOT DELETED. What it used to assert is the behaviour that was
+   * deliberately removed, and leaving the case here records that it was a decision.
+   */
+  it('⛔ a temporary residence card NO LONGER establishes Vietnamese residence', async () => {
     h.rows = [row({ documentType: 'trc' })]
+    expect((await verifiedIdentityFor(PROFILE))?.residenceCountry).toBeNull()
+  })
+
+  it('a CCCD still does — a citizen document is what remains', async () => {
+    h.rows = [row({ documentType: 'cccd' })]
     expect((await verifiedIdentityFor(PROFILE))?.residenceCountry).toBe('VNM')
   })
 
   it('⛔ case and whitespace cannot change the legal answer', async () => {
     // Two reviewers found the exact-case comparison: a `'TRC'` from any producer fell straight
     // through to a stored foreign residence, which is the direction that opens the rail.
-    for (const dt of ['TRC', ' Trc ', 'CCCD']) {
+    // ⚠️ TRC VARIANTS MOVED OUT on 2026-09-09 — they no longer veto at all (owner decision).
+    for (const dt of ['CCCD', ' Cccd ', 'CMND']) {
       h.rows = [foreignResident({ documentType: dt })]
       expect((await verifiedIdentityFor(PROFILE))?.residenceCountry, dt).toBe('VNM')
     }
+    for (const dt of ['TRC', ' Trc ', 'tạm trú']) {
+      h.rows = [foreignResident({ documentType: dt })]
+      expect((await verifiedIdentityFor(PROFILE))?.residenceCountry, dt).toBe('GBR')
+    }
+    // ⚠️ PERMANENT residence is a CITIZEN record and still vetoes — it was wrongly cut once.
+    h.rows = [foreignResident({ documentType: 'thường trú' })]
+    expect((await verifiedIdentityFor(PROFILE))?.residenceCountry).toBe('VNM')
     h.rows = [foreignResident({ tier: 'a', documentType: 'passport' })]
     expect((await verifiedIdentityFor(PROFILE))?.residenceCountry).toBe('VNM')
   })
@@ -191,8 +212,11 @@ describe('residence — only an address-verifying source can establish it', () =
      * carrying provider_kyc/GBR had the newer row chosen, the TRC went invisible, and a Vietnam
      * resident got a foreign residence — with no untrusted source involved anywhere.
      */
+    // ⚠️ RE-POINTED AT A CCCD on 2026-09-09. The per-row hole is still the thing under test — a
+    // Vietnamese citizen document anywhere in the history must not be hidden by a newer row — but
+    // the TRC no longer participates in that veto at all.
     h.rows = [
-      row({ documentType: 'trc', decidedAt: new Date('2026-01-01T00:00:00Z') }),
+      row({ documentType: 'cccd', decidedAt: new Date('2026-01-01T00:00:00Z') }),
       foreignResident({ documentType: 'passport', decidedAt: new Date('2026-08-01T00:00:00Z') }),
     ]
     expect((await verifiedIdentityFor(PROFILE))?.residenceCountry).toBe('VNM')
@@ -203,13 +227,13 @@ describe('residence — only an address-verifying source can establish it', () =
   it('⛔ and so does a REVOKED or REJECTED Vietnamese document', async () => {
     // A TRC that was rejected is still evidence the person was living in Vietnam. The veto is about
     // where they are, not about whether that particular submission qualified.
-    h.rows = [row({ status: 'rejected', documentType: 'trc' }), foreignResident()]
+    h.rows = [row({ status: 'rejected', documentType: 'cccd' }), foreignResident()]
     expect((await verifiedIdentityFor(PROFILE))?.residenceCountry).toBe('VNM')
   })
 
   it('⛔ a Vietnamese document OVERRIDES a verified foreign residence', async () => {
     // The direction that must never be wrong is the one that opens the stablecoin rail.
-    h.rows = [foreignResident({ documentType: 'trc' })]
+    h.rows = [foreignResident({ documentType: 'cccd' })]
     expect((await verifiedIdentityFor(PROFILE))?.residenceCountry).toBe('VNM')
   })
 })
@@ -278,7 +302,7 @@ describe('capabilities — one verification unlocks all of them', () => {
     // whatever renders from it. A Vietnamese resident holding a stablecoin wallet is one render
     // away from a settlement the DTI Law does not permit, so the rail decides, not the document.
     vi.stubEnv('PAYMENTS_SETTLEMENT_COUNTRIES', 'GBR,DEU') // ⚠️ or this passes against a shut gate
-    h.rows = [row({ documentType: 'trc' })] // residence VNM
+    h.rows = [row({ documentType: 'cccd' })] // residence VNM (a TRC no longer does — owner, 2026-09-09)
     const caps = await identityCapabilities(PROFILE)
     expect(caps.has('wallet')).toBe(false)
     expect(caps.has('esim')).toBe(true) // identity still proved — an eSIM is not a payment
@@ -297,7 +321,7 @@ describe('capabilities — one verification unlocks all of them', () => {
 
   it('⛔ and NOT for a Vietnamese resident, even with the allow-list switched on', async () => {
     vi.stubEnv('PAYMENTS_SETTLEMENT_COUNTRIES', 'GBR,DEU,VNM')
-    h.rows = [foreignResident({ documentType: 'trc' })] // TRC forces VNM over the stored GBR
+    h.rows = [foreignResident({ documentType: 'cccd' })] // a CITIZEN document forces VNM over the stored GBR
     expect((await identityCapabilities(PROFILE)).has('wallet')).toBe(false)
   })
 
@@ -322,8 +346,25 @@ describe('capabilities — one verification unlocks all of them', () => {
     expect(caps.has('esim'), 'esim').toBe(true) // identity is still proved — an eSIM is not a payment
   })
 
-  it('⛔ an unknown residence is treated as Vietnam and gets no wallet', async () => {
+  /**
+   * ⛔ INVERTED BY OWNER DECISION, 2026-09-09: *"set residency according to passport"*. An unknown
+   * residence used to be read as Vietnam and got no wallet — the safe-direction default this file
+   * was built around. It now falls back to the passport nationality, which is what opens the rail
+   * for a visitor whose residence nobody ever captured. The exposure that creates is recorded at
+   * `isSettlementEligibleParty`; this test exists so the change is visible rather than implied.
+   * ⚠️ THE FALLBACK IS SCOPED TO THE SETTLEMENT GATE. `residenceCountry` on the read model is still
+   * null here — that is what keeps the VietQR rail offered to the same person.
+   */
+  it('⛔ an unknown residence now falls back to the PASSPORT and DOES get a wallet', async () => {
     vi.stubEnv('PAYMENTS_SETTLEMENT_COUNTRIES', 'GBR,DEU') // ⚠️ or this passes against a shut gate
+    h.rows = [row({ residenceCountry: null })]
+    expect((await verifiedIdentityFor(PROFILE))?.residenceCountry, 'stored residence stays honest').toBeNull()
+    expect((await identityCapabilities(PROFILE)).has('wallet')).toBe(true)
+  })
+
+  it('⛔ and the fallback is OFF-SWITCHABLE without a deploy', async () => {
+    vi.stubEnv('PAYMENTS_SETTLEMENT_COUNTRIES', 'GBR,DEU')
+    vi.stubEnv('PAYMENTS_PASSPORT_RESIDENCE', 'off')
     h.rows = [row({ residenceCountry: null })]
     expect((await identityCapabilities(PROFILE)).has('wallet')).toBe(false)
   })
@@ -399,9 +440,22 @@ describe('capabilities — one verification unlocks all of them', () => {
   it('⛔ a variant or LOCALISED document label still vetoes', async () => {
     // Exact matching missed `trc_renewal`; a prefix match still missed `thẻ tạm trú`, which the
     // prefix fix's own comment had cited as the case it handled. Two rounds, one substring.
-    for (const dt of ['TRC_renewal', 'thẻ tạm trú', 'The Tam Tru', 'cccd_gan_chip', 'CMND']) {
+    /**
+     * ⛔ THE DIACRITIC CASES ARE THE POINT. Cutting the stem list to `cccd`/`cmnd` left only Latin
+     * abbreviations, so a label written the way the document actually reads matched nothing — the
+     * exact regression this file took two rounds to close, silently reopened. The Opus seat caught
+     * it on the diff (2026-09-09).
+     */
+    for (const dt of ['cccd_gan_chip', 'CMND', 'CCCD_moi', 'căn cước công dân', 'Chứng minh nhân dân',
+                      'can cuoc cong dan', 'đăng ký thường trú', 'Thuong Tru']) {
       h.rows = [foreignResident({ documentType: dt })]
       expect((await verifiedIdentityFor(PROFILE))?.residenceCountry, dt).toBe('VNM')
+    }
+    // ⚠️ ONLY THE FOREIGNER'S TEMPORARY CARD STOPPED VETOING (owner, 2026-09-09) — pinned so the
+    // removal is deliberate rather than a substring that quietly stopped matching.
+    for (const dt of ['TRC_renewal', 'thẻ tạm trú', 'The Tam Tru']) {
+      h.rows = [foreignResident({ documentType: dt })]
+      expect((await verifiedIdentityFor(PROFILE))?.residenceCountry, dt).toBe('GBR')
     }
   })
 
@@ -421,7 +475,7 @@ describe('capabilities — one verification unlocks all of them', () => {
     expect((await verifiedIdentityFor(PROFILE))?.residenceCountry, 'superseded').toBe('GBR')
 
     // ⚠️ BUT A DOCUMENT STILL OVERRIDES BOTH — that ratchet is unchanged.
-    h.rows = [row({ documentType: 'trc' }), foreignResident({ decidedAt: new Date('2026-08-01T00:00:00Z') })]
+    h.rows = [row({ documentType: 'cccd' }), foreignResident({ decidedAt: new Date('2026-08-01T00:00:00Z') })]
     expect((await verifiedIdentityFor(PROFILE))?.residenceCountry, 'document wins').toBe('VNM')
   })
 
@@ -509,7 +563,7 @@ describe('capabilities — one verification unlocks all of them', () => {
     // a Vietnamese party; what the DTI Law forbids is PAYING with digital assets. So on the
     // services edition a VN resident gets `payments` and never `wallet`.
     vi.stubEnv('PAYMENTS_SETTLEMENT_COUNTRIES', 'GBR,DEU')
-    h.rows = [row({ documentType: 'trc' })]
+    h.rows = [row({ documentType: 'cccd' })]
     const caps = await identityCapabilities(PROFILE)
     expect(caps.has('payments')).toBe(true)
     expect(caps.has('wallet')).toBe(false)

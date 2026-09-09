@@ -128,7 +128,39 @@ export function addressVerifyingSources(): ReadonlySet<string> {
  * vetoes. Vietnamese diacritics survive `toLowerCase()`, so the localised forms are listed as
  * written rather than transliterated.
  */
-const VN_RESIDENCE_DOC_STEMS: readonly string[] = ['trc', 'cccd', 'cmnd', 'tam tru', 'tạm trú', 'thuong tru', 'thường trú']
+/**
+ * ⛔ ONLY THE FOREIGNER'S TEMPORARY CARD WAS REMOVED — OWNER DECISION, 2026-09-09: *"remove trc
+ * bullshit other than viet document wallet allowed"*. `trc` and `tam tru`/`tạm trú` are the
+ * temporary-residence card a FOREIGNER holds to live in Vietnam, and vetoing on those is exactly
+ * what kept foreign residents off the wallet. Everything left in the list is a VIETNAMESE CITIZEN
+ * record, which is what "other than a Viet document" leaves standing.
+ *
+ * ⚠️ SO THE ONE-WAY RATCHET NOW CATCHES CITIZENS ONLY, and a foreign resident of Vietnam reaches
+ * the settlement gate on their passport. The exposure that creates is recorded at
+ * `isSettlementEligibleParty` in eligibility.ts; it is the same decision, seen from the other end.
+ *
+ * ⚠️ THE DIACRITIC ENTRIES ARE LOAD-BEARING AND WERE BRIEFLY LOST. Cutting the list to `cccd`/`cmnd`
+ * left only Latin abbreviations, so `căn cước công dân` and `chứng minh nhân dân` — how the document
+ * is actually written in Vietnamese — matched nothing, silently reopening the regression this file
+ * took two rounds to close. `norm()` lowercases without stripping diacritics, so both the accented
+ * and unaccented spellings have to be listed.
+ * ⚠️ THE SUBSTRING MATCH STAYS: an exact match let `cccd_renewal` through and a prefix match missed
+ * labels that do not START with the stem. Erring toward the veto is the safe direction for the
+ * documents that are still vetoed.
+ */
+const VN_RESIDENCE_DOC_STEMS: readonly string[] = [
+  // Citizen ID card, current and legacy, Latin abbreviation and written-out forms.
+  'cccd', 'cmnd', 'can cuoc', 'căn cước', 'chung minh', 'chứng minh',
+  /**
+   * ⛔ PERMANENT RESIDENCE IS A CITIZEN RECORD AND WAS WRONGLY CUT IN THE FIRST PASS. `thường trú`
+   * is đăng ký thường trú — the household registration every Vietnamese citizen has, the successor
+   * to hộ khẩu. Only `tạm trú` / TRC is the foreigner's temporary card the owner named. Removing
+   * both read the instruction "other than viet document" too widely, in the DTI-Law-dangerous
+   * direction: a permanent-residence record would have stopped vetoing a stored foreign residence.
+   * The Opus seat caught it on the diff (2026-09-09).
+   */
+  'thuong tru', 'thường trú',
+]
 
 /**
  * ⛔ AN MRZ NATIONALITY CODE IS NOT AN ISO ALPHA-3 CODE, AND THE SCHEMA SAYING "straight from the
@@ -257,10 +289,17 @@ export async function readVerifiedIdentity(profileId: string): Promise<VerifiedI
  * Residence: a Vietnamese residence document decides it, otherwise a verified source does, otherwise
  * nobody.
  *
- * ⚠️ A VNeID (tier A) and a TRC/CCCD ARE evidence of living in Vietnam. A PASSPORT is not — it says
+ * ⚠️ A VNeID (tier A) and a CCCD/CMND ARE evidence of living in Vietnam. A PASSPORT is not — it says
  * where someone is FROM, never where they are — and neither is a VISA, which is permission to enter
  * rather than a statement of residence. This marketplace's audience is foreign nationals living in
  * Vietnam, so reading either as foreign residence would be wrong in the dangerous direction.
+ *
+ * ⛔ AND THIS FUNCTION STILL DOES NOT READ A PASSPORT — DELIBERATELY, EVEN AFTER THE 2026-09-09
+ * OWNER DECISION TO LET A PASSPORT STAND IN FOR RESIDENCE. That substitution lives ONLY in
+ * `isSettlementEligibleParty`, because doing it here was measured to strip the VietQR rail from
+ * every tourist: that rail is offered when the buyer's residence is Vietnam or UNKNOWN, so writing
+ * a foreign residence here would close the country's default payment method for exactly the people
+ * the change exists to serve. The stored answer stays honest; only the stablecoin gate substitutes.
  */
 function residenceFrom(rows: IdentityRow[]): string | null {
   /**

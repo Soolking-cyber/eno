@@ -200,6 +200,29 @@ export async function walletGate(profileId: string): Promise<WalletGate> {
   if (!railsFor(identity).includes('crossmint')) return { blocked: whyClosed(identity), cfg: null }
 
   /**
+   * ⛔ RECORD WHEN THE RAIL OPENED ON A SUBSTITUTED RESIDENCE, BECAUSE THE OFF-SWITCH IS NOT A
+   * ROLLBACK. `PAYMENTS_PASSPORT_RESIDENCE=off` stops NEW wallets and revokes none, so if the
+   * passport fallback is ever withdrawn — by counsel, or because the DTI position moves — somebody
+   * has to be able to answer "which wallets were minted on a residence nobody verified?". Without
+   * this line the answer is a full re-derivation of every profile's history. Two reviewer seats
+   * named the dangling state on the diff (2026-09-09); this is what makes that population findable.
+   *
+   * ⚠️ IT LOGS, IT DOES NOT BLOCK. The owner's decision is that these wallets open; the job here is
+   * to leave a trail, not to relitigate it. `residenceCountry === null` at this point means the
+   * fallback is the only reason the gate passed — a recorded residence would have been used.
+   */
+  // ⛔ THE SAME "ABSENT" TEST THE FALLBACK ITSELF USES, NOT `=== null`. eligibility.ts substitutes
+  // the passport for null, undefined, '' AND whitespace-only; logging only the null case would have
+  // left the other three out of the population this line exists to make findable, which is a
+  // remediation list that quietly under-reports (codex, on the diff, 2026-09-09).
+  if ((identity.residenceCountry ?? '').trim() === '') {
+    logWarn('kyc.wallet.residence_from_passport', {
+      profileId,
+      nationalities: identity.nationalities.join(','),
+    })
+  }
+
+  /**
    * ⛔ THE EXISTING ROW IS CHECKED FIRST, AND THAT IS WHAT MAKES THIS SAFE TO RE-RUN. A second
    * approval, a retry after a timeout, or a backfill over already-verified users all reach here;
    * without this they would ask the provider for another wallet each time. Crossmint is idempotent

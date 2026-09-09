@@ -254,10 +254,55 @@ export function partiesEligible(buyer: PartyIdentity, seller: PartyIdentity): El
  * for this purpose; a Vietnamese national in Singapore is too. Neither passport alone grants
  * anything — the residence must be on the cleared list first.
  */
+/**
+ * Is a passport nationality allowed to stand in for an unknown residence on the stablecoin gate?
+ *
+ * ⚠️ DEFAULTS TO ON, because that is the behaviour the owner asked for; the variable exists so it
+ * can be turned OFF in seconds without a deploy if counsel objects, which is the direction that
+ * needs to be fast. Set `PAYMENTS_PASSPORT_RESIDENCE=off` to restore the original rule.
+ */
+export function passportResidenceFallback(): boolean {
+  return (process.env.PAYMENTS_PASSPORT_RESIDENCE || '').trim().toLowerCase() !== 'off'
+}
+
 export function isSettlementEligibleParty(p: PartyIdentity): boolean {
   if (!p.kycVerified) return false // unverified identity is unverified country
-  const residence = norm(p.residenceCountry)
   const nationality = norm(p.nationality)
+  /**
+   * ⛔ THE PASSPORT STANDS IN FOR AN UNKNOWN RESIDENCE — OWNER DECISION, 2026-09-09, AND IT IS A
+   * DELIBERATE WEAKENING OF THIS MODULE'S CENTRAL RULE. Owner: *"set residency according to
+   * passport … other than viet document wallet allowed"*, reaffirmed after being shown the
+   * objection this file already records. Recorded here rather than argued again, because whoever
+   * reads this next needs to know it was a decision and not an oversight.
+   *
+   * ⚠️ WHAT IT COSTS, IN THIS FILE'S OWN WORDS (the header, unchanged above): "'We did not ask
+   * where you live' is not evidence that you live abroad, and on this marketplace it is actively
+   * misleading: the audience is overwhelmingly foreign nationals who DO live in Vietnam." So a
+   * French national living in Hanoi now clears this predicate on a French passport. That is the
+   * accepted exposure, and it is why the fallback is a NAMED, GREPPABLE, ENV-REVERSIBLE line
+   * rather than a quiet `|| nationality`.
+   *
+   * ⛔ IT IS SCOPED TO THIS PREDICATE AND MUST STAY THAT WAY. Deriving residence globally (in
+   * `residenceFrom`) was measured to REMOVE the VietQR rail from the very tourists it was meant to
+   * serve — `railAllowed`'s vietqr branch offers the rail only when the buyer's residence is
+   * Vietnam or UNKNOWN, so stamping `FRA` on a visitor closes the country's default payment
+   * method. Owner chose the scoped shape on 2026-09-09 once that was measured. Keep the stored
+   * residence honest; let only the stablecoin gate substitute.
+   *
+   * ⚠️ THE ALLOW-LIST STILL APPLIES to the substituted value, so this widens WHO has a residence,
+   * never WHICH countries may settle. VNM can never arrive here anyway: it is stripped from the
+   * allow-list unconditionally, and the nationality veto below refuses it a second time.
+   */
+  /**
+   * ⛔ ONLY AN *ABSENT* RESIDENCE FALLS BACK — A MALFORMED ONE IS STILL REFUSED. Written first as
+   * `norm(p.residenceCountry) ?? nationality`, which silently promoted a garbage value: `norm`
+   * answers null for both "nothing recorded" and "recorded, but `ZZZ`", so a corrupt residence
+   * quietly became the passport instead of being denied. The suite caught it — `a malformed
+   * three-letter code is unknown, not a country` went green-to-red — and that test is right: a
+   * value we failed to parse is not a value we may substitute for.
+   */
+  const recorded = (p.residenceCountry ?? '').trim()
+  const residence = recorded ? norm(recorded) : (passportResidenceFallback() ? nationality : null)
   // ⛔ ALLOW-LIST, NOT "≠ VNM". An unknown, malformed or simply unlisted country lands here and is
   // denied — which is what makes a typo'd code and a country we have never assessed behave the same.
   if (!residence || !settlementAllowedCountries().has(residence)) return false

@@ -88,8 +88,54 @@ describe('isSettlementEligibleParty — three allow-lists, all of which must pas
 
   it('⛔ a malformed three-letter code is unknown, not a country', () => {
     // `ZZZ`/`GBX` passed the old shape-only check and unlocked the rail.
-    for (const bad of ['ZZZ', 'GBX', 'AAA', '', '  ', 'VN', 'Vietnam', 'XX']) {
+    // ⚠️ `''`/`'  '` MOVED OUT OF THIS LIST on 2026-09-09 and into the test below. They mean
+    // "nothing recorded", which the passport fallback now answers; these are values that WERE
+    // recorded and could not be parsed, which is a different thing and still refused.
+    for (const bad of ['ZZZ', 'GBX', 'AAA', 'VN', 'Vietnam', 'XX']) {
       expect(isSettlementEligibleParty(verified({ residenceCountry: bad })), JSON.stringify(bad)).toBe(false)
+    }
+  })
+
+  /**
+   * ⛔ THE PASSPORT STANDS IN FOR AN ABSENT RESIDENCE — owner decision, 2026-09-09: *"set residency
+   * according to passport … other than viet document wallet allowed"*. This is the deliberate
+   * weakening of this module's central rule, and it is pinned so nobody restores the old behaviour
+   * by accident or removes the fallback without meaning to.
+   */
+  it('⛔ AN ABSENT RESIDENCE FALLS BACK TO THE PASSPORT, and a MALFORMED one still does not', () => {
+    for (const absent of [null, undefined, '', '   ']) {
+      expect(isSettlementEligibleParty(verified({ residenceCountry: absent })), JSON.stringify(absent)).toBe(true)
+    }
+    // Recorded-but-unparseable is not "unknown" and must not borrow the passport.
+    expect(isSettlementEligibleParty(verified({ residenceCountry: 'ZZZ' }))).toBe(false)
+  })
+
+  it('⛔ THE FALLBACK CANNOT LET A VIETNAMESE PASSPORT THROUGH — vetoed twice over', () => {
+    // VNM is stripped from the allow-list unconditionally AND refused by the nationality veto.
+    expect(isSettlementEligibleParty(verified({ nationality: 'VNM', residenceCountry: null }))).toBe(false)
+  })
+
+  it('⛔ THE FALLBACK RESPECTS THE ALLOW-LIST — it widens WHO has a residence, never WHICH countries settle', () => {
+    const prev = process.env.PAYMENTS_SETTLEMENT_COUNTRIES
+    process.env.PAYMENTS_SETTLEMENT_COUNTRIES = 'DEU'
+    try {
+      // GBR passport, no residence: the fallback supplies GBR, which is not on this allow-list.
+      expect(isSettlementEligibleParty(verified({ residenceCountry: null }))).toBe(false)
+      expect(isSettlementEligibleParty(verified({ nationality: 'DEU', residenceCountry: null }))).toBe(true)
+    } finally {
+      if (prev === undefined) delete process.env.PAYMENTS_SETTLEMENT_COUNTRIES
+      else process.env.PAYMENTS_SETTLEMENT_COUNTRIES = prev
+    }
+  })
+
+  it('PAYMENTS_PASSPORT_RESIDENCE=off restores the original rule without a deploy', () => {
+    const prev = process.env.PAYMENTS_PASSPORT_RESIDENCE
+    process.env.PAYMENTS_PASSPORT_RESIDENCE = 'off'
+    try {
+      expect(isSettlementEligibleParty(verified({ residenceCountry: null }))).toBe(false)
+    } finally {
+      if (prev === undefined) delete process.env.PAYMENTS_PASSPORT_RESIDENCE
+      else process.env.PAYMENTS_PASSPORT_RESIDENCE = prev
     }
   })
 

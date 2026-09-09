@@ -129,15 +129,22 @@ describe('provisionForVerifiedIdentity', () => {
     expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'skipped_ineligible' })
   })
 
-  it('⛔ an unknown residence fails CLOSED — and says WHY, rather than "the law says no"', async () => {
-    /**
-     * ⚠️ NO WALLET EITHER WAY; WHAT CHANGED IS THE REASON. A reviewer traced the circularity:
-     * `residenceCountry`'s only trusted writer is the payment provider's KYC, which runs after the
-     * desk approval this hook fires on — so the column is null for essentially every real expat at
-     * this moment. Reporting that as `skipped_ineligible` buried the whole user base under the
-     * outcome reserved for people who are genuinely barred, and a backfill reading those logs would
-     * have found nobody to help.
-     */
+  /**
+   * ⛔ INVERTED BY OWNER DECISION, 2026-09-09: *"set residency according to passport"*. This used to
+   * be the circularity a reviewer traced — `residenceCountry`'s only trusted writer is the payment
+   * provider's KYC, which runs AFTER the desk approval this hook fires on, so the column was null
+   * for essentially every real user and everyone stalled at `awaiting_residence`. The passport now
+   * answers instead, which is what unblocks them; the taxonomy string survives for a residence that
+   * was RECORDED and could not be parsed.
+   * ⚠️ THE EXPOSURE IS RECORDED AT `isSettlementEligibleParty`, not re-argued here.
+   */
+  it('⛔ an unknown residence now falls back to the PASSPORT and the wallet is created', async () => {
+    h.identity = { ...h.identity, residenceCountry: null }
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'created' })
+  })
+
+  it('⛔ and with the fallback switched off it stalls exactly as before', async () => {
+    vi.stubEnv('PAYMENTS_PASSPORT_RESIDENCE', 'off')
     h.identity = { ...h.identity, residenceCountry: null }
     expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'awaiting_residence' })
   })
@@ -431,8 +438,17 @@ describe('provisionForVerifiedIdentity', () => {
         'skipped_ineligible', 'was escalated to counsel though residence already settles it'],
       ['barred + unreadable together', { nationalities: ['VNM', 'GBN'], residenceCountry: null },
         'skipped_ineligible', 'the prohibition outranks the open question'],
-      ['readable and lawful, waiting on the provider', { nationalities: ['GBR'], residenceCountry: null },
-        'awaiting_residence', 'the ordinary state of essentially every real expat at approval time'],
+      /**
+       * ⚠️ RE-POINTED 2026-09-09, AND THE OUTCOME MOVED WITH IT. A null residence is no longer
+       * `awaiting_residence` — the passport answers it — so this row now pins the neighbouring
+       * case: a residence that WAS recorded and could not be parsed. `whyClosed` classifies that as
+       * barred (`couldBeAllowListed('ZZZ')` is false), which is the correct reading: an unparseable
+       * value is not a jurisdiction waiting to be opened.
+       * ⛔ `awaiting_residence` IS NOW REACHABLE ONLY WITH THE FALLBACK OFF — pinned in its own test
+       * above, so deleting the outcome string does not go unnoticed.
+       */
+      ['readable and lawful, residence recorded but unparseable', { nationalities: ['GBR'], residenceCountry: 'ZZZ' },
+        'skipped_ineligible', 'a value we failed to parse is not a value we may substitute for'],
     ]
 
     for (const [name, over, expected, why] of cases) {
