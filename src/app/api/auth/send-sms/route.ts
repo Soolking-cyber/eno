@@ -182,5 +182,61 @@ export async function POST(req: Request) {
   // ESMS/Telegram/WhatsApp — it does not: this line records no channel at all, only that every
   // channel failed. `channel` above is the one that carries delivery routing.)
   if (!delivered) console.error('[send-sms] all channels failed', { prefix: phone.slice(0, 6) })
+
+  /**
+   * ⛔⛔ THE CODE IS ALSO WRITTEN INTO THE CALLER'S SUPPORT THREAD. THIS IS A SECURITY TRADE THE
+   * OWNER MADE WITH THE FACTS IN FRONT OF THEM — NOT AN OVERSIGHT, AND NOT A PATTERN TO COPY.
+   *
+   * What it costs: a login code becomes a MESSAGE. Anyone who can open that thread can read it,
+   * and /admin/support lists every support thread to every ADMIN_EMAILS address. The rest of this
+   * codebase separates the two deliberately — src/lib/whatsapp.ts:12 says merging them "would put
+   * a login secret through a relay that writes into a readable conversation" — so this is that
+   * file's stated hazard, accepted knowingly rather than walked into.
+   *
+   * Why it is defensible TODAY: ADMIN_EMAILS on the box is `support@eno.forum` and nothing else
+   * (measured 2026-09-09 on BOTH containers), so the only person who can read the thread is the
+   * only person the code is for. It exists because a WhatsApp Cloud API number cannot receive —
+   * a number registered to the API has no consumer inbox — so the owner had no way to complete a
+   * phone sign-in at all.
+   *
+   * ⚠️ THE FLAG IS THE EXIT, AND IT MUST BE TURNED OFF THE DAY A SECOND OPERATOR IS ADDED.
+   * `OTP_TO_SUPPORT_THREAD` is opt-in and unset everywhere by default, so this path does not exist
+   * for any deployment that has not deliberately switched it on. Adding one address to
+   * ADMIN_EMAILS silently turns "the owner reads their own code" into "a colleague reads yours",
+   * and no check here can notice that for you.
+   *
+   * ⚠️ AFTER the delivery attempt, in its own try/catch, and never fatal: a thread write must not
+   * be able to fail a login, and this route must keep returning 200 whatever happens.
+   */
+  if (process.env.OTP_TO_SUPPORT_THREAD === 'true') {
+    try {
+      const { db } = await import('@/lib/db')
+      const { getOrCreateSupportThread } = await import('@/lib/support-thread')
+      const { insertMessage } = await import('@/lib/messages')
+      const { isAdminEmail } = await import('@/lib/admin')
+      const profile = await db.profile.findUnique({ where: { phone }, select: { id: true, email: true } })
+      /**
+       * ⛔ THE OWNER'S OWN CODE, AND NOBODY ELSE'S — THE FLAG ALONE WAS NOT THE SCOPE, AND ALL FOUR
+       * REVIEWERS SAID SO INDEPENDENTLY. The justification for this path is "the only person who
+       * can read the thread is the person the code is for". An unscoped flag does not say that: it
+       * copies EVERY user's code into a thread /admin/support shows to every ADMIN_EMAILS address,
+       * and under passwordless auth the OTP *is* the credential — so it is an admin-to-any-account
+       * takeover, which is a different and much larger trade than the one that was agreed.
+       * Requiring the RECIPIENT to be an admin makes the comment above true of the code below.
+       */
+      if (profile && isAdminEmail(profile.email)) {
+        const thread = await getOrCreateSupportThread(db, profile.id)
+        await insertMessage(
+          { id: thread.id, buyerProfileId: profile.id, sellerProfileId: null, listingId: null },
+          profile.id,
+          `eno sign-in code: ${otp}`,
+        )
+      }
+    } catch (e) {
+      // Never surfaced, never fatal — every configured channel has already been tried above.
+      console.error('[send-sms] support-thread copy failed', (e as Error).name)
+    }
+  }
+
   return NextResponse.json({}, { status: 200 })
 }
