@@ -66,6 +66,64 @@ export async function POST(req: NextRequest) {
   }
 
   const { messages, skipped, foreign } = parseInboundWhatsApp(payload)
+  /**
+   * ⛔ SAY WHAT WAS DROPPED, BECAUSE "200 AND NOTHING HAPPENED" IS INDISTINGUISHABLE FROM WORKING.
+   * These counters were computed and then returned only in the RESPONSE BODY, which nothing reads —
+   * Meta discards it. So a delivery status (nothing to store, correct) and a real message the
+   * parser refused (a customer wrote and nobody will ever see it) produced the identical trace: a
+   * 200 with no row. MEASURED 2026-09-09 while chasing exactly that: fourteen POSTs from
+   * `facebookexternalua` in one afternoon, every one 200 with no inbound row, and the box held no
+   * evidence of which kind they were.
+   *
+   * `types` is the shape of what was refused, never the content: parseInboundWhatsApp keeps only
+   * `type: 'text'`, so knowing whether Meta sent `template`, `interactive` or `button` is the whole
+   * question when a code addressed to this number can be read nowhere else. A login code must not
+   * be logged, and no body reaches this line.
+   */
+  /**
+   * ⚠️ OUTSIDE the `!messages.length` branch, because a MIXED batch is the case that hides most.
+   * The first version logged only when a payload delivered nothing at all, so one text message
+   * alongside a refused template reported success and said nothing about the refusal — the same
+   * silence, arriving on the batch shape hardest to notice. Three reviewers found it.
+   *
+   * ⚠️ EVERY VALUE HERE IS CALLER-CONTROLLED, so `types` is deduped, capped at 6 entries and each
+   * clipped to 24 characters. It is a message SHAPE, never a body: parseInboundWhatsApp keeps only
+   * `type: 'text'`, and a login code addressed to this number can be read nowhere else, so what
+   * matters is whether Meta sent `template`, `interactive` or `button` — never what it said.
+   *
+   * ⚠️ `Array.isArray` GUARDS EVERY HOP. `payload` is whatever JSON.parse returned — `null` and
+   * scalars included — and this runs after the signature check but outside any try/catch, so a
+   * throw here is a 500 and a Meta redelivery loop over a body that will never parse differently.
+   */
+  const entries = Array.isArray((payload as { entry?: unknown } | null)?.entry)
+    ? ((payload as { entry: unknown[] }).entry)
+    : []
+  const changes = entries.flatMap((e) => {
+    const c = (e as { changes?: unknown } | null)?.changes
+    return Array.isArray(c) ? c : []
+  })
+  const inboundTypes = Array.from(new Set(
+    changes
+      .flatMap((c) => {
+        const m = (c as { value?: { messages?: unknown } } | null)?.value?.messages
+        return Array.isArray(m) ? m : []
+      })
+      .map((m) => String((m as { type?: unknown } | null)?.type ?? 'unknown').slice(0, 24)),
+  )).slice(0, 6)
+  const statuses = changes.reduce<number>((n, c) => {
+    const s = (c as { value?: { statuses?: unknown } } | null)?.value?.statuses
+    return n + (Array.isArray(s) ? s.length : 0)
+  }, 0)
+  const refusedTypes = inboundTypes.filter((t) => t !== 'text')
+  if (skipped || foreign || refusedTypes.length) {
+    // ⚠️ NEUTRAL LABEL, because `statuses` are delivery RECEIPTS and nothing was refused about
+    // them. Calling the line "messages refused" put receipts under a heading that reads as an
+    // error, which is how an operator ends up chasing a number that was never a problem.
+    console.warn('[whatsapp] inbound batch: not everything was stored', {
+      delivered: messages.length, skipped, foreign, statusReceipts: statuses, refusedTypes,
+    })
+  }
+
   // Delivery STATUSES and non-text messages arrive on this same subscription and are not errors.
   if (!messages.length) return NextResponse.json({ ok: true, delivered: 0, skipped, foreign })
 
