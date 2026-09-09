@@ -130,6 +130,12 @@ export type NicheApiErrorCode =
   | 'failed'
   | 'file_too_large'
   | 'fund_failed'
+  /**
+   * The card top-up could not be started or read back. Deliberately ONE code for every provider
+   * failure: `not_configured`, `misconfigured`, `provider_rejected` and `provider_unreachable` are
+   * an operator's diagnosis and go to the log, not to a buyer who would learn how the rail is wired.
+   */
+  | 'topup_unavailable'
   | 'fx_unavailable'
   | 'geocode_failed'
   | 'id_number_required'

@@ -17,6 +17,7 @@ const VECTOR_ADDR = '0x7e5f4552091a69125d5dfcb7b8c2659029395bdf' // the address 
 
 const {
   signerAddress, crossmintConfig, createWallet, walletBalances, stagingFund,
+  createTopupOrder, readOrder,
 } = await import('./crossmint')
 
 const fetchMock = vi.fn()
@@ -365,5 +366,118 @@ describe('stagingFund — test money, and only ever on staging', () => {
     const r = await stagingFund('0xabc', 10)
     expect(r.ok).toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * CARD TOP-UP. The server's only job is to create the order and hand the browser the two values
+ * that authorise it — so what these assert is the shape of that hand-off and, mostly, what it
+ * refuses: a chain with no USDC locator, a missing or wrong-environment client key, and a 200 that
+ * did not actually carry an order.
+ */
+describe('createTopupOrder — the server creates the order, the browser pays the card', () => {
+  const CK = 'ck_staging_zzz'
+  beforeEach(() => { vi.stubEnv('NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY', CK) })
+
+  const created = () => reply(200, { clientSecret: 'jwt.for.this.order', order: { orderId: 'ord_1' } })
+
+  it('posts to the ORDERS api version, not the wallets one', async () => {
+    created()
+    await createTopupOrder({ walletAddress: '0xabc', amountUsd: '25' })
+    const [url, init] = fetchMock.mock.calls[0]
+    // ⚠️ THREE API VERSIONS LIVE IN THIS ADAPTER. Orders are 2022-06-09; wallets are 2025-06-09;
+    // the faucet is v1-alpha2. Posting an order to the wallets version is a 404 that reads like a
+    // bad address.
+    expect(url).toBe('https://staging.crossmint.com/api/2022-06-09/orders')
+    expect(init.method).toBe('POST')
+  })
+
+  it('⛔ sends the USDC locator for the CONFIGURED chain, and the amount as a display string', async () => {
+    created()
+    await createTopupOrder({ walletAddress: '0xabc', amountUsd: '25' })
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.lineItems[0].tokenLocator).toBe('base-sepolia:0x036CbD53842c5426634e7929541eC2318f3dCF7e')
+    // ⛔ "25" MEANS TWENTY-FIVE DOLLARS. Orders take a DISPLAY amount — the opposite of the
+    // base-unit rule the balance parser follows. Sending base units here would buy 0.000025 USDC.
+    expect(body.lineItems[0].executionParameters).toEqual({ mode: 'exact-in', amount: '25' })
+    expect(body.payment).toEqual({ method: 'card' })
+    expect(body.recipient).toEqual({ walletAddress: '0xabc' })
+  })
+
+  it('returns a checkout URL carrying the CLIENT key, never the server key', async () => {
+    created()
+    const r = await createTopupOrder({ walletAddress: '0xabc', amountUsd: '10' })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const u = new URL(r.value.checkoutUrl)
+    expect(u.pathname).toBe('/sdk/2024-03-05/embedded-checkout')
+    expect(u.searchParams.get('apiKey')).toBe(CK)
+    expect(u.searchParams.get('orderId')).toBe('ord_1')
+    // ⛔ THE SERVER KEY MUST NEVER REACH A URL THE BROWSER LOADS.
+    expect(r.value.checkoutUrl).not.toContain('sk_')
+  })
+
+  it('⛔ refuses a client key from the WRONG environment', async () => {
+    created()
+    vi.stubEnv('NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY', 'ck_production_zzz') // server key is staging
+    const r = await createTopupOrder({ walletAddress: '0xabc', amountUsd: '10' })
+    expect(r).toMatchObject({ ok: false, reason: 'misconfigured' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses when no client key is set at all, and says which', async () => {
+    created()
+    vi.stubEnv('NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY', '')
+    const r = await createTopupOrder({ walletAddress: '0xabc', amountUsd: '10' })
+    expect(r).toMatchObject({ ok: false, reason: 'not_configured' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('⛔ a 200 with no orderId or clientSecret is a FAILURE, not an order', async () => {
+    // The same rule createWallet applies to a missing address: a status code is not a result.
+    reply(200, { order: {} })
+    expect(await createTopupOrder({ walletAddress: '0xabc', amountUsd: '10' }))
+      .toMatchObject({ ok: false, reason: 'provider_unreachable' })
+    reply(200, { clientSecret: 'x' })
+    expect(await createTopupOrder({ walletAddress: '0xabc', amountUsd: '10' }))
+      .toMatchObject({ ok: false, reason: 'provider_unreachable' })
+  })
+
+  it('⛔ reads orderId from the WRAPPER — create wraps, get does not', async () => {
+    // `POST /orders` answers { clientSecret, order: { orderId } }; reading orderId off the top
+    // level yields undefined and no error.
+    reply(200, { orderId: 'top-level', clientSecret: 'x' })
+    expect(await createTopupOrder({ walletAddress: '0xabc', amountUsd: '10' }))
+      .toMatchObject({ ok: false, reason: 'provider_unreachable' })
+  })
+
+  it('carries a receipt email only when given one', async () => {
+    created()
+    await createTopupOrder({ walletAddress: '0xabc', amountUsd: '10', receiptEmail: 'a@b.c' })
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).payment).toEqual({ method: 'card', receiptEmail: 'a@b.c' })
+  })
+})
+
+describe('readOrder — polling is how a top-up is learned about', () => {
+  it('reads phase and payment status off a FLAT response', async () => {
+    // ⚠️ GET returns the order flat — no `order` wrapper and no clientSecret, unlike create.
+    reply(200, { orderId: 'ord_1', phase: 'completed', payment: { status: 'completed' } })
+    expect(await readOrder('ord_1')).toEqual({ ok: true, value: { phase: 'completed', paymentStatus: 'completed' } })
+  })
+
+  it('a response with no phase is a failure rather than an invented status', async () => {
+    reply(200, { orderId: 'ord_1' })
+    expect(await readOrder('ord_1')).toMatchObject({ ok: false, reason: 'provider_unreachable' })
+  })
+
+  it('tolerates a missing payment block — phase alone is a real answer', async () => {
+    reply(200, { phase: 'quote' })
+    expect(await readOrder('ord_1')).toEqual({ ok: true, value: { phase: 'quote', paymentStatus: null } })
+  })
+
+  it('encodes the order id into the path', async () => {
+    reply(200, { phase: 'quote' })
+    await readOrder('ord/../1')
+    expect(fetchMock.mock.calls[0][0]).toBe('https://staging.crossmint.com/api/2022-06-09/orders/ord%2F..%2F1')
   })
 })

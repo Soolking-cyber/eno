@@ -68,6 +68,31 @@ export function signerAddress(_secret: string): string {
   throw new Error('crossmint is not available on the marketplace edition')
 }
 
+/**
+ * ⚠️ THE TYPE IS RE-DECLARED, NOT IMPORTED FROM THE REAL MODULE. The alias replaces that module
+ * wholesale in a marketplace build, so importing from it here would reintroduce exactly what the
+ * stub exists to remove. `edition-stubs.test.ts` compares the two export lists and fails the build
+ * when they drift — which is how these two were caught the moment they were added.
+ */
+export type TopupOrder = { orderId: string; clientSecret: string; checkoutUrl: string }
+
+/**
+ * ⛔ A CARD TOP-UP IS A PAYMENT, AND THIS EDITION HAS NONE. eno.vn is a licensed sàn TMĐT that may
+ * not be the merchant of record; refusing here is the same rule as `createWallet`'s, one step
+ * closer to the money.
+ */
+export async function createTopupOrder(_input: {
+  walletAddress: string
+  amountUsd: string
+  receiptEmail?: string
+}): Promise<typeof REFUSED> {
+  return REFUSED
+}
+
+export async function readOrder(_orderId: string): Promise<typeof REFUSED> {
+  return REFUSED
+}
+
 export async function createWallet(_profileId: string): Promise<Result<WalletRef>> {
   return REFUSED
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Check, Copy } from '@/components/ui/icons'
@@ -41,11 +42,39 @@ type View = {
   fundable?: boolean
 }
 
+/**
+ * A comparable snapshot of what the wallet holds.
+ *
+ * ⚠️ `null` AND `[]` ARE DIFFERENT ANSWERS AND MUST NOT COLLAPSE HERE EITHER. `null` means the
+ * provider could not be read; `[]` means it was read and the wallet is empty. Folding them together
+ * would make a provider outage look like "the balance changed" the moment it recovered, and end the
+ * poll on a lie. They get distinct keys.
+ * ⚠️ BUILT FROM `rawAmount` — the base-unit field — for the same reason the parser is strict about
+ * it: `amount` is a rounded display string and two different balances can share one.
+ */
+/** A USD amount for the card charge. Not `tr()`: there is no wording here, only a number. */
+const usd = (v: string) => `$${v}`
+
+function balanceKey(v: View | null): string {
+  if (!v || v.balances === undefined) return 'unknown'
+  if (v.balances === null) return 'unreadable'
+  return v.balances.map((b) => `${b.token}:${b.rawAmount}`).sort().join('|')
+}
+
 export function WalletClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { tr } = useLanguage()
   const [view, setView] = useState<View | null>(null)
   const [blocked, setBlocked] = useState<'signed_out' | null>(null)
-  const [busy, setBusy] = useState<'provision' | 'fund' | null>(null)
+  const [busy, setBusy] = useState<'provision' | 'fund' | 'topup' | null>(null)
+  /**
+   * ⛔ THE CHECKOUT IS AN IFRAME BECAUSE THERE IS NOWHERE TO COME BACK FROM. Crossmint's embedded
+   * checkout URL takes exactly five parameters — orderId, clientSecret, apiKey, payment, appearance
+   * — and NONE of them is a return, success or callback URL. A top-level redirect would strand the
+   * buyer on crossmint.com with no documented way back and no way for this page to hear the result.
+   * Keeping the page mounted is what makes the poll below possible.
+   */
+  const [topup, setTopup] = useState<{ orderId: string; checkoutUrl: string } | null>(null)
+  const [topupAmount, setTopupAmount] = useState('25')
   const [error, setError] = useState<string | null>(null)
   /**
    * ⚠️ A FLAG, NOT A PRE-RENDERED SENTENCE. Storing the translated string would freeze it in the
@@ -87,6 +116,107 @@ export function WalletClient({ embedded = false }: { embedded?: boolean } = {}) 
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  async function startTopup() {
+    setBusy('topup')
+    setError(null)
+    try {
+      const r = await fetch('/api/wallet', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'topup', amountUsd: topupAmount }),
+      })
+      if (!r.ok) {
+        setError(r.status === 429
+          ? tr('Too many attempts. Please try again later.', 'Quá nhiều lần thử. Vui lòng thử lại sau.')
+          : tr('Top-up is unavailable right now.', 'Hiện chưa thể nạp tiền.'))
+        return
+      }
+      const body = (await r.json()) as { orderId: string; checkoutUrl: string }
+      /**
+       * ⛔ THE BASELINE IS READ FRESH, NOT TAKEN FROM `view`. `view` holds whatever was fetched on
+       * MOUNT, so a balance that moved since page load — an earlier top-up settling late, an
+       * incoming transfer, a faucet click in another tab — made the very first tick differ and tore
+       * the checkout down at t+3s while the buyer was still typing their card number. The
+       * unknown/unreadable guard covers a MISSING snapshot; this covers a STALE one, and they are
+       * different bugs (the Opus seat, twice, 2026-09-09).
+       */
+      let baseline = 'unknown'
+      try {
+        const fresh = await fetch('/api/wallet', { cache: 'no-store' })
+        if (fresh.ok) baseline = balanceKey((await fresh.json()) as View)
+      } catch { /* an unreadable baseline is handled by pollBalance, not here */ }
+      setTopup(body)
+      void pollBalance(baseline)
+    } catch {
+      setError(tr('Top-up is unavailable right now.', 'Hiện chưa thể nạp tiền.'))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /**
+   * ⛔ POLL THE USER'S OWN BALANCE, NOT THE ORDER — AND THE FIRST CUT GOT THIS BADLY WRONG TWICE.
+   * It POSTed a `topup_status` action every 3 seconds against a route whose limiter is SIX PER HOUR
+   * and strict, so the seventh request — at t+18s — 429'd and the loop exited silently, while card
+   * entry plus 3-D Secure takes 30 to 120 seconds. The buyer never saw their balance update, the
+   * iframe kept promising it would, and they were locked out of provision, fund and topup for the
+   * rest of the hour. Calling that loop "bounded" because the limiter was low had it exactly
+   * backwards (the Opus seat, on the diff, 2026-09-09).
+   *
+   * ⛔ AND POLLING AN ORDER ID WAS AN OWNERSHIP HOLE ON TOP OF THAT. Nothing persists an order, so
+   * there was no profileId to check the id against — any signed-in user could read back any order.
+   * The GET below is the session's OWN view: no id crosses the wire, so there is nothing to
+   * authorise, and GET carries no limiter because it spends nothing.
+   *
+   * ⚠️ A GENERATION REF, NOT A BOOLEAN. Close must actually stop the loop — leaving it running let
+   * a second click start a second real order with a second poll — and comparing a captured
+   * generation is what makes a stale loop exit at its next tick rather than fight the new one.
+   */
+  const topupRun = useRef(0)
+
+  const pollBalance = useCallback(async (snapshot: string) => {
+    const mine = ++topupRun.current
+    /**
+     * ⛔ A NON-READABLE SNAPSHOT IS NOT A BASELINE, AND TREATING IT AS ONE UNMOUNTED THE CHECKOUT
+     * MID-PAYMENT. If the balance was still loading (`unknown`) or the provider had blipped
+     * (`unreadable`) at the moment of the click, the very first successful tick differed from it,
+     * the poll declared success at t+3s and tore down the iframe while the buyer was in 3-D Secure
+     * (the Opus seat, on the diff, 2026-09-09). So an unusable snapshot is REPLACED by the first
+     * readable reading instead of being compared against.
+     */
+    let before = snapshot === 'unknown' || snapshot === 'unreadable' ? null : snapshot
+    // ~4 minutes: comfortably past 3-D Secure, and short enough that a forgotten tab stops.
+    for (let i = 0; i < 80 && topupRun.current === mine; i++) {
+      await new Promise((r) => setTimeout(r, 3000))
+      if (topupRun.current !== mine) return
+      const r = await fetch('/api/wallet', { cache: 'no-store' })
+      // ⚠️ A SIGNED-OUT SESSION IS TERMINAL — retrying it 80 times is four minutes of noise that
+      // can never succeed.
+      if (r.status === 401 || r.status === 403) { setTopup(null); return }
+      if (!r.ok) continue
+      const body = (await r.json()) as View
+      setView(body)
+      const now = balanceKey(body)
+      if (now === 'unknown' || now === 'unreadable') continue
+      if (before === null) { before = now; continue }
+      if (now !== before) { setTopup(null); return }
+    }
+    /**
+     * ⛔ A DECLINED CARD LOOKS EXACTLY LIKE A SLOW ONE FROM HERE, so say that rather than spin
+     * forever. Without an order row there is nothing to ask "did it fail?", and pretending
+     * otherwise is how a spinner becomes the only thing a buyer ever sees.
+     */
+    if (topupRun.current === mine) {
+      setTopup(null)
+      setError(tr(
+        'We did not see the money arrive. If your card was charged it can take a few minutes — reload to check.',
+        'Chưa thấy tiền vào ví. Nếu thẻ đã bị trừ, có thể mất vài phút — hãy tải lại để kiểm tra.',
+      ))
+    }
+    // ⚠️ `tr` IS A REAL DEPENDENCY — the timeout sentence is user-facing copy, and an empty array
+    // would freeze it in whatever language was mounted first.
+  }, [tr])
 
   async function act(action: 'provision' | 'fund') {
     setBusy(action)
@@ -337,6 +467,80 @@ export function WalletClient({ embedded = false }: { embedded?: boolean } = {}) 
                   a production key cannot reach the endpoint at all — but the button still names
                   what it does, because a button that adds money without saying it is test money is
                   the one a person screenshots. */}
+              {/*
+                ⛔ REAL MONEY, AND IT SITS ABOVE THE TEST FAUCET SO THE TWO ARE NEVER CONFUSED. The
+                faucet below is dashed-bordered and labelled "Test environment" for the same reason.
+              */}
+              <div className="rounded-xl border border-line p-3">
+                <p className="text-sm font-medium">{tr('Add money', 'Nạp tiền')}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {tr(
+                    'Pay by card. The amount arrives in your wallet as USDC.',
+                    'Thanh toán bằng thẻ. Số tiền sẽ vào ví của bạn dưới dạng USDC.',
+                  )}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {/*
+                    ⚠️ WHOLE DOLLARS AS A STRING, MATCHING THE SERVER'S CONTRACT EXACTLY. Crossmint's
+                    Orders API takes a DISPLAY amount ("25" is twenty-five dollars), which is the
+                    inverse of the base-unit rule the balance parser follows — so nothing here
+                    converts, and a number input that could produce "25.001" is deliberately not used.
+                  */}
+                  {/* Base UI via the ui/* primitive — a raw <select> is a hand-roll the standing
+                      policy refuses, and this control had no reason to be the exception. */}
+                  <Select value={topupAmount} onValueChange={(v) => setTopupAmount(v as string)}>
+                    <SelectTrigger aria-label={tr('Amount in USD', 'Số tiền USD')} className="h-9 w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* A currency amount is a value, not copy — `usd()` formats it rather than
+                          translating it, which is also what keeps it out of the string catalogue. */}
+                      {['10', '25', '50', '100', '200'].map((v) => (
+                        <SelectItem key={v} value={v}>{usd(v)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="cta"
+                    size="sm"
+                    disabled={busy !== null || topup !== null}
+                    onClick={() => void startTopup()}
+                  >
+                    {busy === 'topup' && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                    {tr('Add money', 'Nạp tiền')}
+                  </Button>
+                </div>
+
+                {/*
+                  ⛔ THE CHECKOUT IS RENDERED IN AN IFRAME AND THE PAGE STAYS MOUNTED. Card entry,
+                  3-D Secure and the provider's KYC all happen inside Crossmint's own component —
+                  no card detail ever reaches this origin, which is the point of using theirs.
+                  ⚠️ `allow="payment"` IS REQUIRED for Apple Pay / Google Pay inside a frame.
+                */}
+                {topup && (
+                  <div className="mt-3">
+                    <iframe
+                      src={topup.checkoutUrl}
+                      title={tr('Card payment', 'Thanh toán thẻ')}
+                      allow="payment"
+                      className="h-[32rem] w-full rounded-lg border border-line bg-surface"
+                    />
+                    <div className="mt-2 flex items-center gap-2">
+                      <Loader2 className="size-3 animate-spin text-muted-foreground" aria-hidden="true" />
+                      <p className="text-xs text-muted-foreground">
+                        {tr(
+                          'Waiting for the payment to settle. Your balance updates here automatically.',
+                          'Đang chờ thanh toán hoàn tất. Số dư của bạn sẽ tự cập nhật tại đây.',
+                        )}
+                      </p>
+                      <Button variant="ghost" size="sm" onClick={() => { topupRun.current++; setTopup(null) }}>
+                        {tr('Close', 'Đóng')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {view.fundable && (
                 <div className="rounded-xl border border-dashed border-line-strong p-3">
                   <p className="text-xs text-muted-foreground">

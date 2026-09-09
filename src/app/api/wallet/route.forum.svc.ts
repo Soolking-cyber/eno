@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
 import { walletGate, provisionWithinBudget, type ProvisionOutcome } from '@/lib/kyc/on-verified'
-import { walletBalances, stagingFund, crossmintConfig } from '@/lib/payments/crossmint'
-import { logWarn } from '@/lib/log'
+import { walletBalances, stagingFund, crossmintConfig, createTopupOrder } from '@/lib/payments/crossmint'
+import { logWarn, logInfo } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,7 +31,26 @@ export const dynamic = 'force-dynamic'
  * provider call. A GET that provisioned would mean a page load spending money at a third party.
  */
 
-const actionSchema = z.object({ action: z.enum(['provision', 'fund']) })
+/**
+ * ⛔ A DISCRIMINATED UNION, NOT A FLAT ENUM — because `topup` carries an amount and `fund` must not.
+ * A flat enum plus an optional `amount` would let the amount ride along on any action, which is the
+ * shape that turns a fixed-amount faucet into a caller-controlled one.
+ */
+const actionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('provision') }),
+  z.object({ action: z.literal('fund') }),
+  z.object({
+    action: z.literal('topup'),
+    /**
+     * ⚠️ WHOLE DOLLARS AS A STRING, VALIDATED AS A STRING. Crossmint's Orders API takes a DISPLAY
+     * amount ("25"), the inverse of the base-unit rule the balance parser follows — so this is
+     * never converted, only bounded. A float would introduce the rounding this avoids entirely.
+     * ⚠️ THE CEILING IS A BLAST-RADIUS CONTROL, not a product decision: the first real card payment
+     * should not be able to be for ten thousand dollars because a client sent one.
+     */
+    amountUsd: z.string().regex(/^[1-9][0-9]{0,3}$/, 'whole dollars, 1–9999'),
+  }),
+])
 
 /** What the client is told. Deliberately small: an address and a balance, never an identity. */
 type WalletView = {
@@ -138,7 +157,8 @@ export const POST = route(
     rateLimit: { bucket: 'wallet-action', limit: 6, window: '1 h', strict: true },
   },
   async ({ userId, body }) => {
-    const { action } = body as z.infer<typeof actionSchema>
+    const input = body as z.infer<typeof actionSchema>
+    const { action } = input
 
     if (action === 'provision') {
       /**
@@ -153,6 +173,65 @@ export const POST = route(
         { headers: { 'cache-control': 'no-store' } },
       )
     }
+
+    /**
+     * ⛔ CARD TOP-UP. The server creates the order and returns the two values that authorise the
+     * browser to complete it; the card itself never touches this process. Crossmint's own words:
+     * "Onramp is a UI flow, not a headless API" — card authorisation, 3-D Secure and the provider's
+     * KYC all happen inside their hosted component.
+     *
+     * ⛔ THE WALLET ADDRESS COMES FROM THE SIGNED-IN USER'S OWN ROW, exactly as the faucet's does
+     * and for exactly the same reason: a caller-supplied address would make this an authenticated
+     * way to buy stablecoin into somebody else's wallet. There is no address field in the schema.
+     */
+    if (action === 'topup') {
+      const row = await db.custodyWallet.findUnique({ where: { profileId: userId }, select: { address: true } })
+      if (!row) return Response.json({ error: 'no_wallet' }, { status: 409 })
+
+      const order = await createTopupOrder({ walletAddress: row.address, amountUsd: input.amountUsd })
+      if (!order.ok) {
+        // ⚠️ THE REASON IS LOGGED AND NOT RETURNED. `misconfigured` vs `not_configured` tells an
+        // operator which deploy is wrong; telling a buyer would leak how the provider is wired.
+        logWarn('topup order refused', { at: 'wallet.topup', profileId: userId, reason: order.reason })
+        return Response.json({ error: 'topup_unavailable' }, { status: 502 })
+      }
+      /**
+       * ⚠️ `clientSecret` IS RETURNED TO THE BROWSER ON PURPOSE, and it is a bearer credential for
+       * this ONE order — that is Crossmint's design, and it is why it is scoped to a single order
+       * with a ~24h expiry rather than being an API key. It is inside `checkoutUrl` anyway.
+       */
+      /**
+       * ⛔ THE ONLY RECORD THAT A CARD WAS CHARGED, UNTIL AN ORDER ROW EXISTS. Nothing persists a
+       * Crossmint order today, so if settlement runs past the client's poll, or the tab closes,
+       * money can move with no artifact tying it to a person. Two reviewer seats named that as the
+       * sharpest gap in this build and they are right. A structured log is not a substitute for a
+       * row — it cannot be joined, and retention is not forever — but it makes reconciliation
+       * possible with `readOrder(orderId)` instead of impossible.
+       * ⚠️ THE DURABLE FIX IS A `CrossmintOrder` MODEL plus a webhook, and it needs an additive
+       * migration reviewed under this repo's schema rules rather than smuggled into a UI change.
+       * ⚠️ AMOUNT AND ID ONLY — no card data ever reaches this process, and none should reach a log.
+       */
+      logInfo('wallet.topup.order_created', {
+        profileId: userId,
+        orderId: order.value.orderId,
+        amountUsd: input.amountUsd,
+      })
+      return Response.json(
+        { orderId: order.value.orderId, checkoutUrl: order.value.checkoutUrl },
+        { headers: { 'cache-control': 'no-store' } },
+      )
+    }
+
+    /**
+     * ⛔ EVERYTHING BELOW IS THE FAUCET, AND UNTIL THIS COMMENT EXISTED IT WAS THE FALL-THROUGH.
+     * The dispatch had no `else` and no default: `provision` was an `if` and the faucet was
+     * whatever was left, so ADDING A MEMBER TO THE ACTION ENUM WITHOUT A BRANCH silently routed it
+     * into `stagingFund(row.address, 10)`. That is why each new action returns above rather than
+     * falling past, and why the union is exhaustively narrowed — a future action that forgets its
+     * branch is now a tsc error at the assertion below rather than a surprise faucet call.
+     */
+    const exhaustive: 'fund' = action
+    void exhaustive
 
     // ⛔ THE FAUCET REFUSES BEFORE IT READS ANYTHING. On a production key this is a 404 — not a 403,
     // which would confirm the endpoint exists.

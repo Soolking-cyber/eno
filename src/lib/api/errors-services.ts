@@ -76,6 +76,8 @@ export const SERVICES_ALL = [
   'confirm_failed',
   'field_not_in_step',
   'fund_failed',
+  // Card top-up: services edition only, like every other payments code here.
+  'topup_unavailable',
   'human_help_pending',
   'image_analysis_rate_limited',
   'image_download_failed',

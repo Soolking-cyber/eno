@@ -992,6 +992,22 @@ const nextConfig: NextConfig = {
     const gsiFrame = gis ? " https://accounts.google.com/gsi/" : "";
     const gsiConnect = gis ? " https://accounts.google.com/gsi/" : "";
     const gsiStyle = gis ? " https://accounts.google.com/gsi/style" : "";
+    /**
+     * ⛔ THE CARD-TOP-UP CHECKOUT IS A CROSSMINT-HOSTED IFRAME, AND WITHOUT THESE TWO HEADERS IT IS
+     * A BLANK BOX THAT NOTHING REPORTS. `frame-src` blocks the frame outright; `Permissions-Policy:
+     * payment=()` silently disables the `allow="payment"` the frame needs for Apple Pay and Google
+     * Pay. Both fail the way this repo has been bitten before — a site-wide `camera=()` once broke
+     * our own KYC camera app-wide — so they are set together, next to each other, with the reason.
+     *
+     * ⛔ SERVICES EDITION ONLY. eno.vn is a licensed sàn TMĐT with no settlement layer: the wallet
+     * UI is not compiled into that build at all, so the frame can never render there and naming a
+     * payment provider in its headers would advertise a capability it deliberately does not have.
+     * ⚠️ BOTH HOSTS, because the adapter's base URL follows the API key's prefix — a staging deploy
+     * talks to staging.crossmint.com and would otherwise be blocked in exactly the environment
+     * where this gets tested first.
+     */
+    const xmFrame = EDITION_ENV === "services" ? " https://www.crossmint.com https://staging.crossmint.com" : "";
+    const xmPayment = EDITION_ENV === "services" ? ' payment=(self "https://www.crossmint.com" "https://staging.crossmint.com")' : " payment=()";
     const csp = [
       "default-src 'self'",
       "base-uri 'self'",
@@ -1049,7 +1065,7 @@ const nextConfig: NextConfig = {
       // fetch; Chrome has a fallback path but iOS Safari does not, so the engine silently fails to init
       // and passport autofill never runs on iPhone. data: is inline (no network egress), so this is safe.
       `connect-src 'self' data: capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com https://connect.facebook.net` + gsiConnect,
-      "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com" + gsiFrame,
+      "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com" + gsiFrame + xmFrame,
       "worker-src 'self' blob:",
       "manifest-src 'self'",
       // Where violations are sent: report-to (modern, paired with the Reporting-Endpoints
@@ -1072,7 +1088,7 @@ const nextConfig: NextConfig = {
           // origin (third-party iframes still need both this grant AND an `allow="camera"` attribute),
           // and the browser's per-site permission prompt stays the real gate. microphone/payment stay
           // fully closed — the KYC flow requests `audio:false` and never needs them.
-          { key: "Permissions-Policy", value: "camera=(self), microphone=(), payment=()" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=()," + xmPayment },
           { key: "X-DNS-Prefetch-Control", value: "on" },
           // Named endpoint group for the CSP `report-to` directive (Reporting API).
           { key: "Reporting-Endpoints", value: 'csp-endpoint="/api/csp-report"' },

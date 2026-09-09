@@ -42,6 +42,39 @@ const API_VERSION = '2025-06-09'
 const FUND_API_VERSION = 'v1-alpha2'
 
 /**
+ * ⚠️ ORDERS LIVE ON A THIRD API VERSION, AND `2022-06-09` IS NOT A TYPO EITHER. Crossmint's Orders
+ * API — which is what a card top-up is — is pinned at that date while wallets sit on `2025-06-09`.
+ * Isolated here for the same reason as the faucet above: a version is a contract, and the only way
+ * to keep three of them straight is to name each one where it is used.
+ */
+const ORDERS_API_VERSION = '2022-06-09'
+
+/**
+ * ⚠️ THE EMBEDDED-CHECKOUT PATH IS ITS OWN VERSIONED SURFACE, and it is NOT under `/api/`. It is a
+ * page we render in an iframe, not an endpoint we call.
+ */
+const EMBEDDED_CHECKOUT_PATH = 'sdk/2024-03-05/embedded-checkout'
+
+/**
+ * ⛔ USDC'S CONTRACT ADDRESS IS PER-CHAIN AND MUST NEVER BE GUESSED AT RUNTIME. A wrong address here
+ * does not fail loudly — it creates an order to buy some other token, or nothing at all, and the
+ * money is real. The docs give the Base Sepolia address verbatim; the mainnet address is Circle's
+ * canonical USDC on Base and is pinned as a literal so a typo is a code review, not a deploy.
+ * ⚠️ ONLY THE TWO CHAINS THIS ADAPTER CAN BE CONFIGURED FOR. An unknown chain returns null and the
+ * caller refuses, rather than composing a locator for a chain nobody checked.
+ */
+const USDC_BY_CHAIN: Readonly<Record<string, string>> = {
+  base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  'base-sepolia': '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+}
+
+/** `<chain>:<contractAddress>` — the EVM fungible token locator Crossmint's Orders API expects. */
+function usdcTokenLocator(chain: string): string | null {
+  const addr = USDC_BY_CHAIN[chain]
+  return addr ? `${chain}:${addr}` : null
+}
+
+/**
  * ⚠️ THE CHAIN IS PART OF THE IDENTITY OF A WALLET, not a detail. The same address exists on
  * `base` and `base-sepolia`, which is exactly why CustodyWallet is keyed on (provider, chain,
  * address): a staging wallet must not be able to masquerade as a production one.
@@ -425,6 +458,137 @@ export async function walletBalances(address: string, tokens = ['usdc']): Promis
  * ⚠️ NEEDS THE `wallets.fund` SCOPE on the API key, and uses the ALPHA api version — see
  * FUND_API_VERSION. A 404 here usually means the version, and a 403 usually means the scope.
  */
+/**
+ * CARD TOP-UP: create a Crossmint ORDER that buys USDC and delivers it into a wallet we already own.
+ *
+ * ⛔ THIS IS A UI FLOW, NOT A HEADLESS API, AND THE DOCS SAY SO IN THOSE WORDS. Card authorisation,
+ * 3-D Secure and the provider's own KYC all happen inside a Crossmint-hosted component. The server's
+ * whole job is to create the order and hand back the two values that authorise the browser to
+ * complete it. Any attempt to "just POST the card details" is a misunderstanding of the product.
+ *
+ * ⛔ NO SDK. `@crossmint/client-sdk-react-ui` is refused here for the same reason the wallets SDK
+ * was: it drags in a dependency tree this repo audits. The embedded checkout also renders from a
+ * plain URL, which is a documented, supported path ("To integrate without the SDK … render the
+ * checkout URL in your own WebView"), so the iframe below is not a workaround.
+ *
+ * ⚠️ `amount` IS A DISPLAY STRING IN USD, WHICH IS THE OPPOSITE OF THIS FILE'S OTHER RULE. Balances
+ * are base units (`rawAmount`) and reading `amount` there would be a four-orders-of-magnitude bug —
+ * see the note above `Balance`. Orders are the other way round: `executionParameters.amount` is
+ * "10" meaning ten dollars. The two conventions live in one file, so each says which it is.
+ *
+ * ⚠️ THE SERVER KEY NEEDS `orders.create` AND `orders.read` on top of the wallet scopes.
+ */
+export type TopupOrder = {
+  orderId: string
+  /** A JWT scoped to THIS order. It authorises the browser without an API key — treat as a secret. */
+  clientSecret: string
+  /** The URL to render in an iframe. Carries the client key, so it is public by construction. */
+  checkoutUrl: string
+}
+
+export async function createTopupOrder(input: {
+  walletAddress: string
+  /** Whole USD as a display string, e.g. "25". */
+  amountUsd: string
+  receiptEmail?: string
+}): Promise<Result<TopupOrder>> {
+  const g = guard()
+  if (!g.ok) return g
+  const cfg = g.value
+
+  const tokenLocator = usdcTokenLocator(cfg.chain)
+  // ⛔ REFUSE RATHER THAN COMPOSE A LOCATOR FOR A CHAIN NOBODY CHECKED. `misconfigured` and not
+  // `provider_rejected`: the deploy is wrong, Crossmint has not said anything yet.
+  if (!tokenLocator) {
+    return { ok: false, reason: 'misconfigured', detail: `no USDC locator for chain ${cfg.chain}` }
+  }
+
+  /**
+   * ⛔ THE CLIENT KEY IS REQUIRED AND IS A SEPARATE CREDENTIAL FROM THE SERVER KEY. It is
+   * NEXT_PUBLIC_ by design — it ends up in a URL the browser loads — so it is read here rather than
+   * threaded through `crossmintConfig`, which holds secrets only.
+   * ⚠️ A CLIENT KEY WITH "JWT Auth Required" SWITCHED ON WILL NOT WORK HERE. The checkout URL takes
+   * no jwt parameter, so the key used for this must have that setting OFF. Refusing early with a
+   * named reason beats a blank iframe nobody can diagnose.
+   */
+  const clientKey = (process.env.NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY || '').trim()
+  const wantedPrefix = cfg.env === 'production' ? 'ck_production_' : 'ck_staging_'
+  if (!clientKey) return { ok: false, reason: 'not_configured', detail: 'NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY is not set' }
+  if (!clientKey.startsWith(wantedPrefix)) {
+    // A staging client key against a production server key would render a checkout for the wrong
+    // environment — the same class of mistake as a staging wallet on a production deploy.
+    return { ok: false, reason: 'misconfigured', detail: `client key is not ${wantedPrefix}*` }
+  }
+
+  const r = await call<{ clientSecret?: string; order?: { orderId?: string } }>(cfg, 'orders', {
+    method: 'POST',
+    apiVersion: ORDERS_API_VERSION,
+    body: {
+      recipient: { walletAddress: input.walletAddress },
+      payment: { method: 'card', ...(input.receiptEmail ? { receiptEmail: input.receiptEmail } : {}) },
+      lineItems: [{ tokenLocator, executionParameters: { mode: 'exact-in', amount: input.amountUsd } }],
+    },
+  })
+  if (!r.ok) return r
+
+  /**
+   * ⚠️ THE CREATE RESPONSE WRAPS THE ORDER AND THE GET RESPONSE DOES NOT. `POST /orders` answers
+   * `{ clientSecret, order: { orderId, … } }`; `GET /orders/{id}` answers the order flat, with no
+   * wrapper and no clientSecret. Reading `orderId` off the top level of a create response is the
+   * obvious mistake and it yields `undefined` rather than an error.
+   */
+  const orderId = r.value?.order?.orderId
+  const clientSecret = r.value?.clientSecret
+  // ⛔ A 200 WITHOUT BOTH VALUES IS A FAILURE, not an order — the same rule as createWallet's
+  // address check. Without either one the browser cannot complete the payment.
+  if (typeof orderId !== 'string' || !orderId || typeof clientSecret !== 'string' || !clientSecret) {
+    return { ok: false, reason: 'provider_unreachable', detail: 'order response had no orderId/clientSecret' }
+  }
+
+  const params = new URLSearchParams({
+    orderId,
+    clientSecret,
+    apiKey: clientKey,
+    payment: JSON.stringify({ fiat: { enabled: true }, crypto: { enabled: false }, defaultMethod: 'fiat' }),
+  })
+  return {
+    ok: true,
+    value: { orderId, clientSecret, checkoutUrl: `${cfg.baseUrl}/${EMBEDDED_CHECKOUT_PATH}?${params}` },
+  }
+}
+
+/**
+ * Read one order back — the only way to learn a top-up completed.
+ *
+ * ⛔ THERE IS NO RETURN URL. The embedded checkout takes exactly five parameters and none of them is
+ * a success or callback URL, so nothing navigates the user back with a result.
+ *
+ * ⛔ AND NO ROUTE EXPOSES THIS YET, DELIBERATELY. The first cut wired it to a `topup_status` action
+ * and the Opus seat refuted it twice over: nothing persists an order, so there is no `profileId` to
+ * check an `orderId` against and the endpoint was an authenticated proxy for reading back ANY
+ * Crossmint order; and polling it every 3s burned the wallet route's 6-per-hour limiter in eighteen
+ * seconds, locking the buyer out mid-payment. The UI now watches the user's OWN balance instead,
+ * which needs no ownership check because it never leaves their session.
+ *
+ * ⚠️ KEPT BECAUSE RECONCILIATION WILL NEED IT. The moment an order row exists — with a profileId to
+ * authorise against — this is how a charge is confirmed, and it is how a webhook handler will verify
+ * what it is told. Until then it is called by tests only.
+ */
+export async function readOrder(orderId: string): Promise<Result<{ phase: string; paymentStatus: string | null }>> {
+  const g = guard()
+  if (!g.ok) return g
+  const r = await call<{ phase?: unknown; payment?: { status?: unknown } }>(
+    g.value,
+    `orders/${encodeURIComponent(orderId)}`,
+    { apiVersion: ORDERS_API_VERSION },
+  )
+  if (!r.ok) return r
+  const phase = typeof r.value?.phase === 'string' ? r.value.phase : null
+  if (!phase) return { ok: false, reason: 'provider_unreachable', detail: 'order response had no phase' }
+  const status = r.value?.payment?.status
+  return { ok: true, value: { phase, paymentStatus: typeof status === 'string' ? status : null } }
+}
+
 export async function stagingFund(address: string, amount: number): Promise<Result<true>> {
   const g = guard()
   if (!g.ok) return g
