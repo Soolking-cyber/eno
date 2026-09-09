@@ -52,6 +52,23 @@ const actionSchema = z.discriminatedUnion('action', [
   }),
 ])
 
+/**
+ * A provider's error text, made safe to keep.
+ *
+ * ⛔ `detail` IS UNREDACTED THIRD-PARTY OUTPUT — the status plus the first 300 characters of
+ * whatever the provider sent back. It is worth logging (without it a live `provider_rejected` said
+ * only "the provider said no", and finding out it meant "Onramp is not yet enabled for production
+ * use in this project" took a hand-crafted request against Crossmint). But an error envelope is not
+ * a contract: a provider can start echoing request context back, and a credential landing in log
+ * storage is not something to discover later (the Opus seat, on the diff, 2026-09-09).
+ * ⚠️ SO ANYTHING KEY-SHAPED IS REMOVED BEFORE IT IS KEPT, and the length is capped again here rather
+ * than trusting the caller's cap. Both are cheap; neither is a substitute for the other.
+ */
+function safeDetail(detail: string | undefined): string | null {
+  if (!detail) return null
+  return detail.replace(/\b(?:sk|ck|pk)_[A-Za-z0-9_-]{8,}/g, '[key]').slice(0, 300)
+}
+
 /** What the client is told. Deliberately small: an address and a balance, never an identity. */
 type WalletView = {
   state: 'ready' | 'eligible' | 'blocked'
@@ -190,9 +207,23 @@ export const POST = route(
 
       const order = await createTopupOrder({ walletAddress: row.address, amountUsd: input.amountUsd })
       if (!order.ok) {
-        // ⚠️ THE REASON IS LOGGED AND NOT RETURNED. `misconfigured` vs `not_configured` tells an
-        // operator which deploy is wrong; telling a buyer would leak how the provider is wired.
-        logWarn('topup order refused', { at: 'wallet.topup', profileId: userId, reason: order.reason })
+        /**
+         * ⚠️ THE REASON AND THE DETAIL ARE LOGGED; NEITHER IS RETURNED. `misconfigured` vs
+         * `not_configured` tells an operator which deploy is wrong, and telling a buyer would leak
+         * how the provider is wired.
+         * ⛔ AND THE DETAIL IS THE HALF THAT WAS MISSING. The first cut logged the reason alone, so
+         * a live `provider_rejected` said only "the provider said no" — the operator had to
+         * hand-craft the same request against Crossmint to discover it was "Onramp is not yet
+         * enabled for production use in this project" (measured 2026-09-09). `call()` already puts
+         * the status and the first 300 characters of the body in `detail`; dropping it on the floor
+         * turned a self-explaining failure into an investigation.
+         */
+        logWarn('topup order refused', {
+          at: 'wallet.topup',
+          profileId: userId,
+          reason: order.reason,
+          detail: safeDetail(order.detail),
+        })
         return Response.json({ error: 'topup_unavailable' }, { status: 502 })
       }
       /**
