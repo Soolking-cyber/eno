@@ -32,9 +32,46 @@ export type FeedRow = {
   aff_link?: string
 }
 
-/** The storefront name a campaign's products hang off. Mirrors import-accesstrade.ts. */
+/**
+ * The storefront name a campaign's products hang off. Mirrors `--name` in import-accesstrade.ts.
+ *
+ * ⛔ AN IMPORT THAT PASSES `--name` AND IS NOT LISTED HERE NEVER GETS ITS PRICES REFRESHED.
+ * The nightly cron finds the storefront by `merchantNameFor(campaign)`
+ * (api/cron/affiliate-prices/route.ts:77); a campaign whose products were imported under a
+ * prettier display name resolves to the raw slug, matches no seller, and the run records
+ * `no_storefront` and moves on. The listings keep whatever price they had on import, forever.
+ *
+ * MEASURED 2026-09-09, and it is not hypothetical: `ACCESSTRADE_CAMPAIGNS` is UNSET on both
+ * containers, so the cron only ever walks `cellphones_cps`. BỀN COMPUTER (258 rows, campaign
+ * `ben`) and Điện Thoại Vui (152 rows, `dienthoaivui`) have not had a price refreshed since the
+ * day they were imported. Adding a campaign here is half the fix; the other half is putting its
+ * slug in ACCESSTRADE_CAMPAIGNS on the box, and neither half works alone.
+ *
+ * ✅ THE OTHER HALF IS DONE. ACCESSTRADE_CAMPAIGNS was written to both container env files and
+ * verified live on 2026-09-09 (`docker exec eno-vn-app printenv` and the forum sibling both
+ * return `cellphones_cps,ben,dienthoaivui,tiki_creator`), and all four storefronts exist in prod
+ * under exactly these names, NFC-normalized: CellphoneS 9,726 listings · Tiki 17,435 ·
+ * BỀN COMPUTER 258 · Điện Thoại Vui 152. This mapping is therefore live, not inert.
+ *
+ * ⛔ A `Map`, NOT AN OBJECT LITERAL — and that is a correctness fix, not a style preference.
+ * With a plain object, `MERCHANT_NAMES[campaign] ?? campaign` reads through Object.prototype, so
+ * a campaign slug of `constructor` or `toString` returns a FUNCTION: `??` only catches
+ * null/undefined, and an inherited method is neither. Measured — `merchantNameFor('constructor')`
+ * returned `typeof 'function'` while the signature promises `string`, and the value then flows
+ * straight into a `Seller.name` lookup. The slugs come from the operator-set ACCESSTRADE_CAMPAIGNS
+ * env, so this is not attacker-reachable, but a typed function that can return a function is
+ * wrong regardless of who can trigger it. A Map has no prototype chain to fall through.
+ * (Found by all three review seats, 2026-09-09.)
+ */
+const MERCHANT_NAMES = new Map<string, string>([
+  ['cellphones_cps', 'CellphoneS'],
+  ['ben', 'BỀN COMPUTER'],
+  ['dienthoaivui', 'Điện Thoại Vui'],
+  ['tiki_creator', 'Tiki'],
+])
+
 export function merchantNameFor(campaign: string): string {
-  return campaign === 'cellphones_cps' ? 'CellphoneS' : campaign
+  return MERCHANT_NAMES.get(campaign) ?? campaign
 }
 
 /**

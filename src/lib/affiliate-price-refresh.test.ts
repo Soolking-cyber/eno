@@ -69,4 +69,32 @@ describe('merchantNameFor', () => {
     expect(merchantNameFor('cellphones_cps')).toBe('CellphoneS')
     expect(merchantNameFor('other_cps')).toBe('other_cps')
   })
+
+  /**
+   * ⛔ EVERY CAMPAIGN IMPORTED UNDER A `--name` MUST BE HERE, because the miss is SILENT and
+   * permanent: the cron looks the storefront up by this name, finds nothing, records
+   * `no_storefront`, and those listings keep their import-day price forever. Measured
+   * 2026-09-09 — `ben` and `dienthoaivui` had never once been refreshed.
+   */
+  it('knows every storefront imported under a display name', () => {
+    expect(merchantNameFor('ben')).toBe('BỀN COMPUTER')
+    expect(merchantNameFor('dienthoaivui')).toBe('Điện Thoại Vui')
+    expect(merchantNameFor('tiki_creator')).toBe('Tiki')
+  })
+
+  it('falls back to the slug for an unmapped campaign, rather than inventing a name', () => {
+    expect(merchantNameFor('shopee_cps')).toBe('shopee_cps')
+  })
+
+  /**
+   * ⛔ REGRESSION GUARD FOR A REAL DEFECT, not a hypothetical. When this was an object literal,
+   * `MERCHANT_NAMES[campaign] ?? campaign` read through Object.prototype and returned a FUNCTION
+   * for these slugs — `??` only catches null/undefined, and an inherited method is neither. The
+   * signature says `string`. Do not "simplify" the Map back to an object literal.
+   */
+  it('falls back to the slug for inherited Object properties, not to a function', () => {
+    for (const slug of ['constructor', 'toString', 'hasOwnProperty', 'valueOf', '__proto__']) {
+      expect(merchantNameFor(slug)).toBe(slug)
+    }
+  })
 })
