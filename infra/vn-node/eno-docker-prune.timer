@@ -1,0 +1,20 @@
+[Unit]
+Description=Nightly Docker prune on the VN box
+
+[Timer]
+# 04:30 ICT. The box runs local time (see eno-backup.timer, which learned this the hard
+# way), so this is local, and the slot is chosen to collide with nothing:
+#   01:15  eno-backup            — the database dump, which needs the disk it has
+#   02:00  daily-reminders       (03:00 ICT via the UTC app crons)
+#   03:00  affiliate-prices      (10:00 ICT)
+#   04:30  THIS
+# It also sits well after a working-hours deploy has finished, and the script refuses
+# to run during one regardless.
+OnCalendar=*-*-* 04:30:00
+# ⚠️ If the box was off at the scheduled time, run at next boot. Skipped prunes
+# compound: the disk only ever grows between runs.
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

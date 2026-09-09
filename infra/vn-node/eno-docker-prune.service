@@ -1,0 +1,16 @@
+[Unit]
+Description=eno nightly Docker prune — reclaim layers left by deploys
+# ⚠️ Wants, not Requires: matching eno-backup. If docker is slow to settle we still
+# try, and the script's own checks decide the outcome rather than systemd skipping.
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/eno/bin/eno-docker-prune.sh
+# ⛔ VISIBLE WHEN IT MATTERS. Type=oneshot propagates the exit code, and the script
+# exits non-zero ONLY when the disk is still nearly full after pruning — i.e. when the
+# growth is storage or Postgres and needs a person. A skipped run (deploy in flight)
+# exits 0 on purpose, so `systemctl --failed` stays meaningful instead of crying wolf.
+StandardOutput=journal
+StandardError=journal
