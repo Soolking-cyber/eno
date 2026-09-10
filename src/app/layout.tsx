@@ -215,10 +215,26 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
+// Meta Business domain verification (Business settings → Brand safety → Domains). Meta fetches the
+// domain root's HTML and looks for this exact tag, so it belongs in the ROOT layout — Meta's own
+// instructions warn that a tag outside <head>, or injected by client JS, does not count.
+//
+// ⛔ THE TOKEN IS PER DOMAIN, NOT PER BUSINESS ACCOUNT. Both domains sit in the same "eno.vn"
+// business portfolio and each still carries its own hash; shipping one domain's token to the other
+// fails verification silently — nothing in this repo, in CI or in the served HTML looks wrong, and
+// the only symptom is "Not verified" staying put in Business settings. Read the value off each
+// domain's own "Add a meta-tag" panel, never copy one across.
+const FACEBOOK_DOMAIN_VERIFICATION = IS_SERVICES
+  ? "wnisdnwkny81xfc3kvrk57sqe48ydz" // eno.forum — domain id 1411665247722044
+  : "vsntngz30tke7wuhj0w6zeg21cnj3i"; // eno.vn — domain id 1784442246037978
+
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
   // Google Search Console / Merchant Center domain verification.
-  verification: { google: "alQ9GmeeCLxBtPVZM8CEvEDmieP7JuS4wGTrYHW5hCY" },
+  verification: {
+    google: "alQ9GmeeCLxBtPVZM8CEvEDmieP7JuS4wGTrYHW5hCY",
+    other: { "facebook-domain-verification": FACEBOOK_DOMAIN_VERIFICATION },
+  },
   title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
