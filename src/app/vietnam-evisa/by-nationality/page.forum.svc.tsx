@@ -1,4 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
+import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -31,6 +32,11 @@ const CONTENT: SeoContent = {
   h1: 'Who needs a Vietnam e-visa? Eligibility by nationality',
   intro:
     'Vietnam’s e-visa is open to citizens of every country and territory — there is no eligibility list to check yourself against, and the application is the same whatever passport you hold. The question worth asking is the other one: whether you need a visa at all, because a number of nationalities can enter visa-free for a limited stay.',
+  /**
+   * ⛔ ABOVE THE FOLD AND OUTSIDE `.web-only` — the Play rejection in one line. This page named the
+   * Immigration Department while carrying no disclaimer a reviewer could see in the native build.
+   */
+  disclosure: { text: PROVIDER_OF_RECORD.en, textVi: PROVIDER_OF_RECORD.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'See e-visa options',

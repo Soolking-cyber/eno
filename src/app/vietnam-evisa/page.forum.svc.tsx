@@ -56,6 +56,12 @@ We make essential services simpler for internationals — from **Vietnam e-Visas
 Not sure which option is right for you? **Message us before ordering — we’re happy to help.**
 
 **Eno — e-commerce with no drama.**`,
+  /**
+   * ⛔ ABOVE THE FOLD AND OUTSIDE `.web-only` — the Play rejection in one line. The disclaimer this
+   * page already had lived in `sections`, which SeoLanding hides in the native build, so the app
+   * showed prices and an Apply button with no disclaimer at all.
+   */
+  disclosure: { text: PROVIDER_OF_RECORD.en, textVi: PROVIDER_OF_RECORD.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'See all e-visa options',

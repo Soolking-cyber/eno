@@ -1,5 +1,7 @@
 'use client'
 
+import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
+import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { BubbleChrome, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
 import Link from 'next/link'
@@ -2480,6 +2482,20 @@ export default function ThreadPage() {
               />
             )}
             {visaInfo && (<>
+              {/*
+                ⛔ THE THREAD WHERE A GOVERNMENT APPLICATION IS PAID FOR AND DELIVERED, AND IT HAD NO
+                DISCLAIMER AT ALL. visa-cards.tsx runs all five steps, the checkout ("Pay for your
+                e-Visa") and the result ("Your e-Visa is ready" / "Download your visa") without once
+                saying eno is not the government or naming the official portal — the Misleading
+                Claims finding, on the surface where it matters most (2026-09-10).
+                ⚠️ ABOVE THE COMPOSER, so it is on screen for every step rather than scrolled past
+                once at the top of a long conversation.
+              */}
+              <VisaDisclosure
+                className="mb-2"
+                text={tr(PROVIDER_OF_RECORD.en, PROVIDER_OF_RECORD.vi)}
+                linkLabel={tr('Official Vietnam e-Visa portal (Immigration Department)', 'Cổng thông tin e-Visa chính thức (Cục Quản lý xuất nhập cảnh)')}
+              />
               {iAmApplicant && (conciergeAvailable ? (
                 <VisaAssistChips
                   armed={conciergeArmed}

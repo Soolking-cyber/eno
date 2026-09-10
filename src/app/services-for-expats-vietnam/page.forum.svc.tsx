@@ -41,6 +41,12 @@ const CONTENT: SeoContent = {
   eyebrow: 'Services · Vietnam',
   h1: 'Services for Expats in Vietnam',
   intro: `One service category is genuinely live here today: Vietnam e-visa applications, at every processing speed from standard to one-hour express. Each combination is its own listing with its own price, so you can compare before you talk to anyone. The e-visa services are provided by a licensed Vietnamese travel company — ${SITE_NAME} is the platform that lists them, not the provider — and every provider on the site carries a public trust score.`,
+  /**
+   * ⛔ ABOVE THE FOLD AND OUTSIDE `.web-only` — the Play rejection in one line. The disclaimer this
+   * page already had lived in `sections`, which SeoLanding hides in the native build, so the app
+   * showed prices and an Apply button with no disclaimer at all.
+   */
+  disclosure: { text: PROVIDER_OF_RECORD.en, textVi: PROVIDER_OF_RECORD.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
   categorySlug: 'services',
   cta: 'Browse services',
   sections: [

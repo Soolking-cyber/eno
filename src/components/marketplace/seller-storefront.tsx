@@ -1,4 +1,6 @@
 import { isSellerHiddenHere, scopedListingWhere } from '@/lib/edition-scope'
+import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
+import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, Star, ShieldCheck } from "@/components/ui/icons"
@@ -231,6 +233,21 @@ export async function SellerStorefront({ id }: { id: string }) {
                 stacking into two more blocks under the card. Owner 2026-07-24: "what can be put
                 in one line put, small chips" — the header was five stacked blocks on a phone
                 (identity · metrics · Chat · chips · Report) before any content. */}
+            {/*
+              ⛔ THE VISA DESK'S OWN STOREFRONT NEEDS THE DISCLAIMER TOO. The services footer links
+              here as "Vietnam e-Visa help" from every page, and the page rendered the desk's
+              identity, its e-visa listings and their prices with no statement of who we are not and
+              no link to the official portal — one of the surfaces the Play Misleading Claims
+              rejection covered (2026-09-10).
+            */}
+            {isVisaDesk && (
+              <VisaDisclosure
+                className="mb-4"
+                text={PROVIDER_OF_RECORD.en}
+                textVi={PROVIDER_OF_RECORD.vi}
+                linkLabel="Official Vietnam e-Visa portal (Immigration Department)"
+              />
+            )}
             {/* ⚠️ THE CTA NOW LIVES ON THIS ROW, so the guard has to admit it. The row used to
                 render only when there was a handle or an owner; a seller with a chat target but
                 neither would have lost their "Chat now" entirely when it moved here. */}

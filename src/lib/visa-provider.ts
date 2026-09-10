@@ -96,6 +96,21 @@ export const PROVIDER_LICENCE_ON_FILE = VISA_PROVIDER.licenceOnFile
  * Render with tr(PROVIDER_OF_RECORD.en, PROVIDER_OF_RECORD.vi) rather than putting legal copy
  * through the machine translation layer.
  */
+/**
+ * THE OFFICIAL PORTAL — one constant, because Play requires the link to be valid and functional and
+ * because this repo has already got it wrong once in both directions.
+ *
+ * ⛔ DO NOT "VERIFY" THIS WITH curl. `evisa.gov.vn` refuses non-browser clients and returns exit 000
+ * from every network, which reads exactly like a dead host. On 2026-09-10 that false negative led to
+ * every link in the app being rewritten to `evisa.xuatnhapcanh.gov.vn` — which is the RETIRED portal,
+ * and which says so on its own front page: "From 08:00 on 11/11/2024 the Vietnam Electronic Visa
+ * Portal will operate on two new domains: https://thithucdientu.gov.vn and https://evisa.gov.vn."
+ * Opened in a browser, evisa.gov.vn is "Vietnam National Electronic Visa system", headed MINISTRY OF
+ * PUBLIC SECURITY / IMMIGRATION DEPARTMENT. Check it in a BROWSER.
+ */
+export const OFFICIAL_EVISA_URL = 'https://evisa.gov.vn/'
+export const OFFICIAL_EVISA_HOST = 'evisa.gov.vn'
+
 export const PROVIDER_OF_RECORD = {
   en: `Vietnam e-visa services listed here are provided by ${VISA_PROVIDER.brand}, a Vietnamese travel company holding an international travel-service licence. ${VISA_PROVIDER.brand} is the provider of record: it performs the visa work under its own licence and is responsible for that service and its outcome. eno.forum operates the platform, passes your application to ${VISA_PROVIDER.brand} and receives a commission. eno.forum is not a government body, is not an immigration agency, and does not decide visa applications.`,
   vi: `Dịch vụ e-visa Việt Nam niêm yết tại đây do ${VISA_PROVIDER.brand} — doanh nghiệp lữ hành Việt Nam có giấy phép kinh doanh dịch vụ lữ hành quốc tế — cung cấp. ${VISA_PROVIDER.brand} là bên cung cấp dịch vụ chính thức: thực hiện công việc xin thị thực theo giấy phép của mình và chịu trách nhiệm về dịch vụ cũng như kết quả. eno.forum vận hành nền tảng, chuyển hồ sơ của bạn cho ${VISA_PROVIDER.brand} và nhận hoa hồng. eno.forum không phải cơ quan nhà nước, không phải đại lý xuất nhập cảnh và không quyết định kết quả hồ sơ thị thực.`,

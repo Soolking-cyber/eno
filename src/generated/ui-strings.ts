@@ -1075,6 +1075,7 @@ export const UI_STRINGS: string[] = [
   "Offering {price} if we can agree this week. Would that work?",
   "Offering {price}, cash, and I can collect this week. Would that work?",
   "Office",
+  "Official Vietnam e-Visa portal (Immigration Department)",
   "Official partner",
   "Official partner — chosen and checked by eno",
   "On this page",

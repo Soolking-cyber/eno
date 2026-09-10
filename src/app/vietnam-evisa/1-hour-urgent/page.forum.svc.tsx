@@ -1,4 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
+import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -28,6 +29,12 @@ const CONTENT: SeoContent = {
   // literal named the LICENSED marketplace as the seller of an express visa tier, which is precisely
   // the service that company may not offer. Same fix as the hub's intro.
   intro: `Flying tonight and no visa? The fastest tier listed on ${SITE_NAME} is sold on a one-hour turnaround — a result within an hour of your application reaching the Immigration Department. It is real, it is the most expensive option on the page, and it depends on one thing people are rarely told before they pay: the desk’s daily intake times.`,
+  /**
+   * ⛔ ABOVE THE FOLD AND OUTSIDE `.web-only` — the Play rejection in one line. The disclaimer this
+   * page already had lived in `sections`, which SeoLanding hides in the native build, so the app
+   * showed prices and an Apply button with no disclaimer at all.
+   */
+  disclosure: { text: PROVIDER_OF_RECORD.en, textVi: PROVIDER_OF_RECORD.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   attributes: { visaSpeed: '1H' },

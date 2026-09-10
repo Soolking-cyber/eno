@@ -1,4 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
+import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -37,6 +38,11 @@ const CONTENT: SeoContent = {
   h1: 'Vietnam e-visa rejected — what to do next',
   intro:
     'A refusal notice from the Immigration Department rarely explains itself. It does not have to: the department is not obliged to give reasons, and no agent can appeal on your behalf. What you can do is work out which of the fixable causes applies, correct it, and apply again — which is allowed, and is what most refused applicants end up doing.',
+  /**
+   * ⛔ ABOVE THE FOLD AND OUTSIDE `.web-only` — the Play rejection in one line. This page named the
+   * Immigration Department while carrying no disclaimer a reviewer could see in the native build.
+   */
+  disclosure: { text: PROVIDER_OF_RECORD.en, textVi: PROVIDER_OF_RECORD.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'Start a new application',

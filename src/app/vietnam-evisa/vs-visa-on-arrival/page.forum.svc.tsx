@@ -1,4 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
+import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -17,6 +18,11 @@ const CONTENT: SeoContent = {
   h1: 'Vietnam e-visa vs visa on arrival: which one applies to you',
   intro:
     'These are two different products with confusingly similar names, and the difference is not price — it is how you are arriving. Pick the wrong one and you find out at the airport, which is the worst possible place to find out.',
+  /**
+   * ⛔ ABOVE THE FOLD AND OUTSIDE `.web-only` — the Play rejection in one line. This page named the
+   * Immigration Department while carrying no disclaimer a reviewer could see in the native build.
+   */
+  disclosure: { text: PROVIDER_OF_RECORD.en, textVi: PROVIDER_OF_RECORD.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'See e-visa options',

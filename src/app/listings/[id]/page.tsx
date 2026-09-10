@@ -1,4 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
+import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
+import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { getListing } from './get-listing'
 import { type ReactNode } from 'react'
@@ -740,7 +742,27 @@ export default async function ListingPage({ params }: Props) {
                       booking={isBooking}
                     />
                   : isVisaProduct
-                  ? <VisaStart listingId={listing.id} className="w-full" />
+                  ? <>
+                      {/*
+                        ⛔ THE PAGE THAT TAKES THE ORDER MUST SAY WHO WE ARE NOT. Before this, an
+                        e-visa PDP was a price, a speed tier and "Apply in chat" — no disclaimer, no
+                        official link, and `SafetyStrip` has no visa branch. That is the surface a
+                        Play reviewer reaches from the store listing, and it is where they found the
+                        Misleading Claims violation (2026-09-10).
+                      */}
+                      <VisaDisclosure
+                        text={PROVIDER_OF_RECORD.en}
+                        textVi={PROVIDER_OF_RECORD.vi}
+                        linkLabel="Official Vietnam e-Visa portal (Immigration Department)"
+                      />
+                      {/*
+                        ⛔ THE CTA COMES AFTER THE DISCLAIMER, NOT BEFORE IT. Rendered first, "Apply
+                        in chat" sat above the fold with the disclosure below it — a mobile buyer
+                        could start the order without the disclaimer ever being on screen, which is
+                        the same failure as hiding it (codex, on the diff, 2026-09-10).
+                      */}
+                      <VisaStart listingId={listing.id} className="mt-4 w-full" />
+                    </>
                   : <ContactComposer
                       listingId={listing.id}
                       listingTitle={displayTitle}

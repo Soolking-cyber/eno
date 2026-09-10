@@ -52,3 +52,12 @@ export const PROVIDER_OF_RECORD = {
   shortEn: '',
   shortVi: '',
 }
+
+/**
+ * ⚠️ EMPTY, LIKE EVERY OTHER VALUE IN THIS FILE — the marketplace edition has no visa surface, so
+ * there is nothing for a link to sit on. They exist only so the export lists match: the alias
+ * replaces the real module wholesale in an eno.vn build, and edition-stubs.test.ts fails the build
+ * when the two drift, which is exactly how these two were caught the moment they were added.
+ */
+export const OFFICIAL_EVISA_URL = ''
+export const OFFICIAL_EVISA_HOST = ''

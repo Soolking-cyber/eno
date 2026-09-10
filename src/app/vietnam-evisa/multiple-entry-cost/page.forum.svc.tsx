@@ -1,4 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
+import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -22,6 +23,11 @@ const CONTENT: SeoContent = {
   h1: 'Vietnam multiple entry e-visa: what it costs and when it pays off',
   intro:
     'A multiple-entry e-visa costs more than a single-entry one at every processing speed. Whether that difference is worth paying comes down to a single question — are you leaving Vietnam and coming back inside the same 90 days? If the answer is no, you are buying a permission you will not use.',
+  /**
+   * ⛔ ABOVE THE FOLD AND OUTSIDE `.web-only` — the Play rejection in one line. This page named the
+   * Immigration Department while carrying no disclaimer a reviewer could see in the native build.
+   */
+  disclosure: { text: PROVIDER_OF_RECORD.en, textVi: PROVIDER_OF_RECORD.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   attributes: { visaEntryType: 'multiple' },

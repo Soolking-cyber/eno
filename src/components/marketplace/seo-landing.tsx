@@ -1,6 +1,7 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
 // ⚠️ THE TAXONOMY UNION, NOT `string`. A typo silently empties the rail — there is no slug test
 // covering this dimension the way seo-landing-slugs.test.ts covers category/subcategory (fable).
+import { VisaDisclosure } from './visa-disclosure'
 import type { ListingType } from '@/lib/taxonomy'
 import { SITE_NAME } from '@/lib/edition'
 import { RichBlock } from '@/components/marketplace/rich-text'
@@ -23,6 +24,13 @@ export type SeoContent = {
   eyebrow: string
   h1: string
   intro: string
+  /**
+   * ⛔ THE NON-GOVERNMENT DISCLAIMER, RENDERED ABOVE THE FOLD AND NEVER INSIDE `.web-only`.
+   * SeoArticle has had this for a while; SeoLanding did not, which is why five of the six
+   * /vietnam-evisa routes shipped with no disclaimer a Play reviewer could see. Set it on any page
+   * that sells a government-adjacent service.
+   */
+  disclosure?: { text: string; textVi?: string; linkLabel: string }
   categorySlug: string
   /**
    * Narrow the page to ONE subcategory of `categorySlug`.
@@ -180,6 +188,22 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
             was always intended. Plain prose is unaffected — a paragraph with no markers formats to
             exactly one <p>. */}
         <RichBlock text={content.intro} className="mt-4 max-w-prose space-y-4 text-base leading-relaxed text-body" />
+
+        {/*
+          ⛔ ABOVE THE CTA AND THE PRICE GRID, AND OUTSIDE `.web-only`. Google Play rejected this app
+          because the disclaimer was invisible: it lived in `sections` below, which the wrapper at
+          the bottom of this file hides in the native build via `html.native .web-only`. A reviewer
+          saw prices and an Apply button and nothing else. Anything that moves this below the grid,
+          or inside that wrapper, reopens the rejection.
+        */}
+        {content.disclosure && (
+          <VisaDisclosure
+            text={content.disclosure.text}
+            textVi={content.disclosure.textVi}
+            linkLabel={content.disclosure.linkLabel}
+            className="mt-6"
+          />
+        )}
         {/* gap/weight on the BUTTON — see header.tsx: asChild concatenates the child's
             className instead of twMerging it, so overrides there are settled by
             stylesheet order rather than by intent. */}
