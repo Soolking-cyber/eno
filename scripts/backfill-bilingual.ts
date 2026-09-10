@@ -419,7 +419,17 @@ async function main() {
     }
   }
 
-  console.log(`\nAPPLIED: ${written} row updates, ${spent.toLocaleString()} chars bought (~$${(spent / 1e6 * 20).toFixed(2)})${failed ? `, ${failed} strings FAILED — re-run to retry` : ''}`)
+  // ⛔ "BOUGHT" IS A CLAIM ABOUT MONEY AND MUST NOT BE MADE WHEN NONE CHANGED HANDS. With
+  // MT_LOCAL_URL set this run cannot reach a paid provider at all, so printing "6,859 chars
+  // bought (~$0.14)" reported a spend that did not happen — the mirror of the bug fixed in
+  // src/lib/translate.ts, where the counters read $0 for work that WAS paid for. Same rule
+  // either way: name the provider that actually did the work.
+  const tail = failed ? `, ${failed} strings FAILED — re-run to retry` : ''
+  console.log(
+    MT_URL
+      ? `\nAPPLIED: ${written} row updates, ${spent.toLocaleString()} chars translated in the box — $0.00 (Google would have been ~$${(spent / 1e6 * 20).toFixed(2)})${tail}`
+      : `\nAPPLIED: ${written} row updates, ${spent.toLocaleString()} chars bought (~$${(spent / 1e6 * 20).toFixed(2)})${tail}`,
+  )
   console.log('\nNEXT, all three:')
   console.log('  1. npx tsx scripts/rebuild-search-text.ts --all --force --apply   <- --force is REQUIRED')
   console.log('  2. node scripts/purge-isr-listings.mjs')

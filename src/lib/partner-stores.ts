@@ -1,7 +1,7 @@
 import type { StoreConfig } from './partner-fetch'
 
 /**
- * THE THIRTEEN PARTNER SHOPS, AND WHAT WAS MEASURED TO REACH EACH ONE.
+ * THE PARTNER SHOPS, AND WHAT WAS MEASURED TO REACH EACH ONE.
  *
  * ⛔ A TypeScript MODULE, NOT scripts/partner-stores.json — AND THE REASON IS THE DEPLOY SHAPE.
  * next.config sets `output: 'standalone'`, which traces IMPORTS to decide what ships in the
@@ -20,6 +20,15 @@ import type { StoreConfig } from './partner-fetch'
  * guessed. See the note on each entry.
  */
 export const PARTNER_STORES: StoreConfig[] = [
+  {
+    "domain": "dienmaysaigon.com",
+    "name": "Điện Máy Sài Gòn",
+    "city": "Hồ Chí Minh",
+    "adapter": "woocommerce",
+    "endpoint": "https://dienmaysaigon.com/wp-json/wc/store/v1/products?category=2572&per_page=100&page={page}",
+    "note": "category 2572 = 'Sản phẩm đã qua sử dụng', the used section the owner's URL (/hang-thanh-ly-hang-da-qua-su-dung/) points at. Woo's tax_query includes descendants, so the children come with it — 7573 Máy Giặt Thanh Lý, 7574 Máy Lạnh Thanh Lý, 8298 Tivi cũ. X-WP-Total 79, and the page returns all 79. Measured 2026-09-10: 6-12 images per product and real prices, though at least one row prices at 0 (a 55\" LG) which feedPrice refuses — that is the guard working, not a gap.",
+    "condition": "used"
+  },
   {
     "domain": "phuongtin.vn",
     "name": "Phương Tín",
