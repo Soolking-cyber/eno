@@ -2,7 +2,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { LISTING_FEED_SELECT, serializeFeedListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
-import { feedCategories, feedListingTypes, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
+import { feedCategories, feedListingTypes, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
 
 // Helper to escape XML special characters
 function escapeXml(unsafe: string): string {
@@ -89,10 +89,21 @@ export async function GET(req: Request) {
     <language>vi-vn</language>
 `
 
+    // Tallied and returned on X-Feed-Excluded — see the note in the facebook-catalog route.
+    const excluded: Record<string, number> = {}
+
     for (const l of listings) {
       const listing = serializeFeedListing(l)
       if (excludeMock && isMockImages(listing.images)) continue
       const baseTitle = listing.titleVi || listing.title
+
+      /**
+       * Lawful here, refused by Google Shopping's policy — the SAME list Meta is filtered against
+       * (FEED_EXCLUDE_RULES), because both platforms ban these classes. Filtering one feed and not
+       * the other is how the two catalogues drift apart.
+       */
+      const refused = feedExcluded(baseTitle)
+      if (refused) { excluded[refused] = (excluded[refused] ?? 0) + 1; continue }
       // Same language preference as the title above — the channel declares <language>vi-vn</language>,
       // so an English description here contradicts the feed's own header. See the note in the
       // facebook-catalog route.
@@ -134,9 +145,23 @@ ${gpc ? `      <g:google_product_category>${gpc}</g:google_product_category>\n` 
     xml += `  </channel>
 </rss>`
 
+    /**
+     * ⚠️ A RESPONSE HEADER IS NOT OBSERVABILITY. `X-Feed-Excluded` below is convenient for a
+     * curl, but it is spread alongside `feedCacheHeaders()` so a CDN hit returns whatever build
+     * filled the cache, and Meta and Google never show you response headers at all — so
+     * the tally is ALSO logged, where the box's container logs keep it. The whole reason
+     * these rules exist is that a silent rejection went unnoticed for weeks; a silent
+     * exclusion would be the same mistake wearing the other hat.
+     * ⚠️ AND IT CARRIES THE DENOMINATOR. `{medical: 60}` and `{medical: 5400}` read identically
+     * without one; against the eligible row count, a rule that suddenly takes 8% of the catalogue
+     * is obvious at a glance.
+     */
+    if (Object.keys(excluded).length) console.info('google-shopping: withheld %o of %d eligible rows', excluded, listings.length)
+
     return new Response(xml, {
       headers: {
         'Content-Type': 'application/xml; charset=utf-8',
+        'X-Feed-Excluded': JSON.stringify(excluded),
         ...feedCacheHeaders(),
       },
     })

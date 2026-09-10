@@ -2,7 +2,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { LISTING_FEED_SELECT, serializeFeedListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
-import { feedCategories, feedListingTypes, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
+import { feedCategories, feedListingTypes, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
 
 // Meta/Facebook commerce catalog feed (Commerce Manager CSV format). Powers the
 // Facebook/Instagram Shop + Advantage+ catalog (DPA) ads — each item links back to
@@ -103,9 +103,27 @@ export async function GET(req: Request) {
     ]
     let csv = headers.join(',') + '\n'
 
+    // ⚠️ COUNTED, NOT SILENT. A feed that quietly drops rows is indistinguishable from a shop that
+    // never had them — and the whole reason these rules exist is that a silent policy rejection
+    // took three weeks to notice. The tally rides out on X-Feed-Excluded below.
+    const excluded: Record<string, number> = {}
+
     for (const l of listings) {
       const listing = serializeFeedListing(l)
       if (excludeMock && isMockImages(listing.images)) continue
+
+      /**
+       * Lawful here, refused by Meta's commerce policy — see FEED_EXCLUDE_RULES. The listing stays
+       * live on the site; only its catalogue row is withheld.
+       * ⚠️ MATCHED ON THE VIETNAMESE TITLE FIRST, because that is what the partner shops supply and
+       * what Meta rejected; `title` below is the same value the row would have carried.
+       * ⚠️ NOT NULLABLE, AND THREE SEPARATE REVIEWS HAVE CALLED THIS A 500. `Listing.title` is
+       * `String` (NOT `String?`) in prisma/schema.prisma — only `titleVi` is optional — so the
+       * `||` always lands on a string. `baseTitle` — the same expression, declared a few lines
+       * further down — has been dereferenced unguarded since long before this filter existed.
+       */
+      const refused = feedExcluded(listing.titleVi || listing.title)
+      if (refused) { excluded[refused] = (excluded[refused] ?? 0) + 1; continue }
 
       /**
        * ⛔ THE TITLE AND THE DESCRIPTION MUST PREFER THE SAME LANGUAGE. Both lines below read
@@ -152,10 +170,24 @@ export async function GET(req: Request) {
       csv += row.join(',') + '\n'
     }
 
+    /**
+     * ⚠️ A RESPONSE HEADER IS NOT OBSERVABILITY. `X-Feed-Excluded` below is convenient for a
+     * curl, but it is spread alongside `feedCacheHeaders()` so a CDN hit returns whatever build
+     * filled the cache, and Meta and Google never show you response headers at all — so
+     * the tally is ALSO logged, where the box's container logs keep it. The whole reason
+     * these rules exist is that a silent rejection went unnoticed for weeks; a silent
+     * exclusion would be the same mistake wearing the other hat.
+     * ⚠️ AND IT CARRIES THE DENOMINATOR. `{medical: 60}` and `{medical: 5400}` read identically
+     * without one; against the eligible row count, a rule that suddenly takes 8% of the catalogue
+     * is obvious at a glance.
+     */
+    if (Object.keys(excluded).length) console.info('facebook-catalog: withheld %o of %d eligible rows', excluded, listings.length)
+
     return new Response(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': 'attachment; filename=facebook_catalog.csv',
+        'X-Feed-Excluded': JSON.stringify(excluded),
         ...feedCacheHeaders(),
       },
     })
