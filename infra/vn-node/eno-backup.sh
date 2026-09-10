@@ -103,7 +103,17 @@ rm -f "$MARKER"
 # it protects, which does NOT survive losing this box. Set ENO_BACKUP_REMOTE and
 # this block starts working.
 if [ -n "${ENO_BACKUP_REMOTE:-}" ]; then
-  rclone copy "$OUT/eno-$STAMP.dump" "$ENO_BACKUP_REMOTE" 2>/dev/null || fail "off-box copy"
+  # ⛔ rclone's STDERR IS KEPT, AND THROWING IT AWAY COST THREE NIGHTS. This read
+  # `2>/dev/null || fail "off-box copy"`, so when the upload started failing on 2026-09-09 the
+  # journal said only "BACKUP FAILED: off-box copy" — no status, no reason — and the dumps sat on
+  # the box for three days while the bucket kept a stale copy. A backup that fails is survivable;
+  # a backup that fails WITHOUT SAYING WHY is how three days pass before anyone notices.
+  # ⚠️ Captured rather than streamed so the reason lands in the journal ON FAILURE, without
+  # rclone's ordinary progress chatter on every successful night.
+  if ! rclone_err=$(rclone copy "$OUT/eno-$STAMP.dump" "$ENO_BACKUP_REMOTE" 2>&1); then
+    echo "off-box copy failed: ${rclone_err:-(rclone said nothing)}" >&2
+    fail "off-box copy"
+  fi
   echo "off-box copy ok"
 
   # ⛔ THE REMOTE HAD NO RETENTION AT ALL. The local dumps are pruned above, but every off-box
@@ -115,17 +125,18 @@ if [ -n "${ENO_BACKUP_REMOTE:-}" ]; then
   # cheerfully deletes the last good copy and leaves nothing. Keeping the newest N means a broken
   # backup degrades to "stale but present" instead of "gone".
   #
-  # ⚠️ WHY NOT 1, WHICH IS WHAT WAS ASKED FOR. A single copy is one corrupt dump away from no
-  # backup, and corruption is silent until a restore — the one moment it cannot be discovered
-  # safely. Three daily dumps of a ~5MB database cost nothing and survive that. Set
-  # ENO_BACKUP_KEEP_REMOTE=1 in /etc/default/eno-backup to make it exactly the latest.
-  KEEP_REMOTE="${ENO_BACKUP_KEEP_REMOTE:-3}"
+  # ⚠️ TWO (owner, 2026-09-10: "keep only 2 copies at a time"), DOWN FROM THREE.
+  # ⛔ AND NOT 1, WHICH IS WHAT WAS ORIGINALLY ASKED FOR. A single copy is one corrupt dump away
+  # from no backup at all, and corruption is silent until a restore — the one moment it cannot be
+  # discovered safely. Two is the smallest number that still survives last night's dump being
+  # itself bad. Set ENO_BACKUP_KEEP_REMOTE=1 in /etc/default/eno-backup to override per box.
+  KEEP_REMOTE="${ENO_BACKUP_KEEP_REMOTE:-2}"
   # ⛔ VALIDATE BEFORE DELETING ANYTHING. `ENO_BACKUP_KEEP_REMOTE=0` — or a typo, or an empty
   # value — would otherwise mean "keep none" and wipe the bucket including the dump uploaded
   # seconds ago. A retention setting that can be misread as "delete everything" has no business
   # near a backup, so anything that is not a positive integer falls back to the default.
   case "$KEEP_REMOTE" in
-    ''|*[!0-9]*) echo "WARNING: ENO_BACKUP_KEEP_REMOTE='$KEEP_REMOTE' is not a number — using 3"; KEEP_REMOTE=3 ;;
+    ''|*[!0-9]*) echo "WARNING: ENO_BACKUP_KEEP_REMOTE='$KEEP_REMOTE' is not a number — using 2"; KEEP_REMOTE=2 ;;
   esac
   # ⚠️ STRIP LEADING ZEROS BEFORE COMPARING OR DOING ARITHMETIC. "00" is not the string "0", so a
   # bare `0)` case never matched it — and `$(( KEEP_REMOTE - 1 ))` then gave -1, which selects
