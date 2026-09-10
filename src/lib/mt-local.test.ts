@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gateTranslation } from './mt-local'
+import { gateTranslation } from './mt-gate'
 
 /**
  * ⛔ EVERY REJECT CASE BELOW IS A REAL OUTPUT MEASURED ON THE BOX, not an invented one.
@@ -276,5 +276,266 @@ describe('gateTranslation — two-digit specifications', () => {
 
   it('does not accept a longer number that merely contains it', () => {
     expect(gateTranslation('Màn hình 27 inch Full HD', 'A 270 inch Full HD monitor')).toBe('entity-loss')
+  })
+})
+
+/**
+ * ⛔ THE STAKES ROSE WHEN scripts/backfill-bilingual.ts STARTED USING THIS GATE. That script does
+ * not fill an evictable cache — it MOVES COLUMNS, writing into `title`/`description`, which
+ * useLocalized() prefers over every other source. Each case below is a way a wrong value used to
+ * reach those columns permanently.
+ */
+describe('gateTranslation — numbers that must not drift', () => {
+  it('rejects a size that gained a decimal', () => {
+    expect(gateTranslation('Màn hình 27 inch', 'A 27.5-inch monitor')).toBe('entity-loss')
+  })
+
+  it('accepts a decimal size carried through, hyphen-compounded', () => {
+    expect(gateTranslation('Màn hình 27.5 inch', 'A 27.5-inch monitor')).toBeNull()
+  })
+
+  /** ⛔ Grouped thousands used to reduce to "500" and "000", so 1.5M → 2.5M passed. A PRICE. */
+  it('rejects a changed grouped price', () => {
+    expect(gateTranslation('Giá 1.500.000 đồng', 'Price 2.500.000 dong')).toBe('entity-loss')
+    expect(gateTranslation('Giá 1.500.000 đồng', 'Price 1.500.000 dong')).toBeNull()
+  })
+
+  it('accepts a unit that gained a space, which MT does routinely', () => {
+    expect(gateTranslation('Máy lạnh 1.0HP', 'A 1.0 HP air conditioner')).toBeNull()
+    expect(gateTranslation('Ổ cứng 500GB', 'A 500 GB hard drive')).toBeNull()
+  })
+
+  it('still rejects the substitution behind that leniency', () => {
+    expect(gateTranslation('Máy lạnh 1.0HP', 'A 2.0 HP air conditioner')).toBe('entity-loss')
+  })
+})
+
+/**
+ * ⛔ AN ECHO IS THE ONE FAILURE THE BACKFILL EXISTS TO REMOVE. It moves Vietnamese OUT of the
+ * English column; a model returning the input unchanged, accepted, writes Vietnamese into the
+ * English slot and marks the row done — recreating the defect and putting the row beyond the
+ * reach of its own selection predicate. Ratio 1, every entity trivially intact, no boilerplate.
+ */
+describe('gateTranslation — an echo is not a translation', () => {
+  it('rejects output identical to the input', () => {
+    expect(gateTranslation('Áo thun nam', 'Áo thun nam')).toBe('untranslated')
+    expect(gateTranslation('Sách Trúng Số Tái Bản', 'Sách Trúng Số Tái Bản')).toBe('untranslated')
+  })
+
+  it('rejects an echo that differs only in case and punctuation', () => {
+    expect(gateTranslation('Sách Trúng Số Tái Bản', 'sách trúng số, tái bản!')).toBe('untranslated')
+  })
+
+  it('accepts a real translation of the same row', () => {
+    expect(gateTranslation('Sách Trúng Số Tái Bản', 'Lottery Winning Book, Reprint')).toBeNull()
+  })
+})
+
+/**
+ * ⛔ NUMBERS ARE COMPARED BY VALUE, NOT BY STRING BOUNDARY. A regex-boundary version was wrong in
+ * BOTH directions at once — it rejected ordinary punctuation and correct locale conversion while
+ * accepting a thousandfold capacity change. Each case below pins one half of that.
+ */
+describe('gateTranslation — quantities survive formatting, not substitution', () => {
+  it('accepts a trailing full stop after a protected number', () => {
+    expect(gateTranslation('Số lượng 12', 'Quantity: 12.')).toBeNull()
+  })
+
+  it('accepts a Vietnamese thousands separator converted to English', () => {
+    // 1.500.000 and 1,500,000 are the same number — refusing this refused a CORRECT translation.
+    expect(gateTranslation('Giá 1.500.000 đồng', 'Price 1,500,000 dong')).toBeNull()
+  })
+
+  it('rejects a capacity that gained a leading decimal', () => {
+    // ⚠️ THE LANGUAGES MATTER AND THE REAL CALLER ALWAYS PASSES THEM. Read as Vietnamese on both
+    // sides — the default — "0.500" IS 500, correctly, because `.` groups thousands there. The
+    // error only exists across the vi→en boundary, which is the direction this backfill runs.
+    expect(gateTranslation('Ổ cứng 500GB', 'A 0.500GB hard drive', 'en', 'vi')).toBe('entity-loss')
+  })
+
+  it('rejects a code whose letters changed across the hyphen', () => {
+    // "AB-1234" was never captured whole, so only "1234" was protected and "CD-1234" passed.
+    expect(gateTranslation('Mẫu AB-1234', 'Model CD-1234')).toBe('entity-loss')
+  })
+})
+
+describe('gateTranslation — an echo is only a failure when it had to change', () => {
+  it('accepts a brand-and-model title that is identical in both languages', () => {
+    // Flagging these left every such row unenriched and re-selected on every run.
+    expect(gateTranslation('iPhone 15 Pro', 'iPhone 15 Pro')).toBeNull()
+  })
+
+  it('accepts a single diacriticked name', () => {
+    expect(gateTranslation('Phở', 'Phở')).toBeNull()
+  })
+
+  it('still rejects an echoed Vietnamese phrase', () => {
+    expect(gateTranslation('Áo thun nam', 'Áo thun nam')).toBe('untranslated')
+  })
+
+  it('never flags an echo when Vietnamese is the TARGET', () => {
+    expect(gateTranslation('Áo thun nam', 'Áo thun nam', 'vi')).toBeNull()
+  })
+})
+
+/**
+ * ⛔ SEPARATOR CONVENTIONS ARE INVERTED BETWEEN THE TWO LANGUAGES THIS MOSTLY TRANSLATES, so a
+ * language-blind number parser is wrong in the expensive direction: English "1.250" is one and a
+ * quarter, Vietnamese "1.250" is one thousand two hundred and fifty.
+ */
+describe('gateTranslation — numbers are parsed in their own language', () => {
+  it('rejects an English decimal read as thousands', () => {
+    expect(gateTranslation('Weight 1.250 kg', 'Khối lượng 1250 kg', 'vi', 'en')).toBe('entity-loss')
+  })
+
+  it('accepts an English grouping converted to the Vietnamese one', () => {
+    expect(gateTranslation('Weight 1,250 kg', 'Khối lượng 1.250 kg', 'vi', 'en')).toBeNull()
+  })
+
+  it('does not mistake a Vietnamese-parsed decimal for a grouping', () => {
+    // "1.0" cannot be a grouping (a group is exactly three digits), so it is a decimal — reading
+    // it as "10" made a faithful translation compare unequal.
+    expect(gateTranslation('Máy lạnh 1.0HP, công suất 2.0kW', 'Air conditioner 1.0HP, power 2.0kW')).toBeNull()
+  })
+
+  /** ⛔ Bare-number comparison let capacity and power simply trade places. */
+  it('rejects two specifications swapping their units', () => {
+    expect(gateTranslation('Máy lạnh 1.0HP, công suất 2.0kW', 'Air conditioner 2.0HP, power 1.0kW'))
+      .toBe('entity-loss')
+  })
+
+  it('still allows a unit that genuinely translates', () => {
+    expect(gateTranslation('Bảo hành 12 tháng', 'Warranty 12 months')).toBeNull()
+  })
+
+  /** ⚠️ A set would let one surviving 12 satisfy both occurrences. */
+  it('counts repeated quantities', () => {
+    expect(gateTranslation('Kích thước 12 x 12 cm', 'Size 12 cm')).toBe('entity-loss')
+    expect(gateTranslation('Kích thước 12 x 12 cm', 'Size 12 x 12 cm')).toBeNull()
+  })
+
+  it('protects a slash-joined model code', () => {
+    expect(gateTranslation('Mẫu AB/1234', 'Model CD/1234')).toBe('entity-loss')
+  })
+})
+
+describe('gateTranslation — echo detection is directional', () => {
+  it('catches an echoed English phrase on the EN->VI leg', () => {
+    expect(gateTranslation(
+      'Brand new sealed laptop with free nationwide delivery',
+      'Brand new sealed laptop with free nationwide delivery', 'vi', 'en',
+    )).toBe('untranslated')
+  })
+
+  /**
+   * ⚠️ A DOCUMENTED GAP, NOT AN OVERSIGHT. Going INTO Vietnamese there is no proof the text had
+   * to change: a short undiacriticked string that comes back unchanged may be untranslated
+   * English or a brand identical in every language. Rejecting those would strand every
+   * brand-titled row forever, so short EN->VI echoes are accepted.
+   */
+  it('accepts a short EN->VI echo, which is indistinguishable from a brand', () => {
+    expect(gateTranslation('Black table', 'Black table', 'vi', 'en')).toBeNull()
+    expect(gateTranslation('iPhone 15 Pro', 'iPhone 15 Pro', 'vi', 'en')).toBeNull()
+  })
+})
+
+/**
+ * ⛔ EACH SIDE IS READ IN ITS OWN SEPARATOR CONVENTION, PLUS THE RAW LITERAL — and nothing more.
+ * Recording the other convention's reading too made both sides so permissive that real errors
+ * matched (English "0.500GB" reads as 500 under Vietnamese grouping). A correct re-localisation
+ * matches on the VALUE, a verbatim echo matches on the RAW, a substitution matches on neither.
+ */
+describe('gateTranslation — a quantity may be re-localised or echoed, never changed', () => {
+  it('accepts a price echoed verbatim, formatting and all', () => {
+    // The model very often keeps the source formatting. The digits are unchanged: a cosmetic
+    // nit, not a wrong price, and rejecting it would strand a large share of the catalogue.
+    expect(gateTranslation('Giá 1.500.000 đồng', 'Price 1.500.000 dong')).toBeNull()
+  })
+
+  it('accepts a price correctly re-localised', () => {
+    expect(gateTranslation('Giá 1.500.000 đồng', 'Price 1,500,000 dong')).toBeNull()
+  })
+
+  it('rejects a price whose digits changed', () => {
+    expect(gateTranslation('Giá 1.500.000 đồng', 'Price 2.500.000 dong')).toBe('entity-loss')
+  })
+
+  it('rejects a thousandfold capacity change that looks like formatting', () => {
+    expect(gateTranslation('Ổ cứng 500GB', 'A 0.500GB hard drive', 'en', 'vi')).toBe('entity-loss')
+  })
+
+  it('reads an English decimal as a decimal, not as thousands', () => {
+    expect(gateTranslation('Weight 1.250 kg', 'Khối lượng 1250 kg', 'vi', 'en')).toBe('entity-loss')
+    expect(gateTranslation('Weight 1,250 kg', 'Khối lượng 1.250 kg', 'vi', 'en')).toBeNull()
+  })
+
+  it('rejects two specifications trading their units', () => {
+    expect(gateTranslation('Máy lạnh 1.0HP, công suất 2.0kW', 'Air conditioner 2.0HP, power 1.0kW'))
+      .toBe('entity-loss')
+  })
+
+  it('accepts a decimal rendered without its trailing zero', () => {
+    expect(gateTranslation('Máy lạnh 1.0 HP', 'Air conditioner 1 HP')).toBeNull()
+  })
+
+  it('rejects a code that gained a suffix even when it has no hyphen of its own', () => {
+    expect(gateTranslation('Mẫu VX2779', 'Model VX2779-FAKE')).toBe('entity-loss')
+  })
+})
+
+/**
+ * ⛔ THE LAST ROUND OF REVIEW FINDINGS, each reproduced before it was fixed. All four are ways a
+ * wrong value reached — or a right value was blocked from reaching — an authoritative column.
+ */
+describe('gateTranslation — units, separators and normalisation forms', () => {
+  it('accepts a decimal spec normalised without its trailing zero', () => {
+    // "1.0HP" had its tail "0HP" mis-extracted as a model code, so the faithful "1 HP" — which
+    // the quantity check already equated — was rejected as entity loss.
+    expect(gateTranslation('Máy lạnh 1.0HP', 'Air conditioner 1 HP', 'en', 'vi')).toBeNull()
+    expect(gateTranslation('Máy lạnh 1.0HP', 'Air conditioner 2 HP', 'en', 'vi')).toBe('entity-loss')
+  })
+
+  it('rejects a code extended by EITHER joiner', () => {
+    // A dynamic exclusion let each separator terminate a code that did not contain it.
+    expect(gateTranslation('Mẫu VX2779', 'Model VX2779-FAKE', 'en', 'vi')).toBe('entity-loss')
+    expect(gateTranslation('Mẫu VX2779', 'Model VX2779_FAKE', 'en', 'vi')).toBe('entity-loss')
+  })
+
+  /** ⛔ kg → g is a thousandfold change that passed because `g` was not a recognised unit. */
+  it('rejects a mass unit swapped for its thousandth', () => {
+    expect(gateTranslation('Khối lượng 500 kg', 'Weight 500 g', 'en', 'vi')).toBe('entity-loss')
+    expect(gateTranslation('Khối lượng 500 kg', 'Weight 500 kg', 'en', 'vi')).toBeNull()
+  })
+
+  it('does not mistake the first letter of a word for a unit', () => {
+    // Recognising single-letter units is only safe because the unit must be a WHOLE word:
+    // "500 gói" (500 packs) must not pair 500 with grams.
+    expect(gateTranslation('Gói 500 gói', 'Pack of 500 packs', 'en', 'vi')).toBeNull()
+  })
+
+  it('detects an echo in decomposed (NFD) Vietnamese', () => {
+    // VI_MARK lists precomposed characters; Vietnamese arrives in both normalisation forms, and
+    // an unmatched NFD source let untranslated Vietnamese into the English column.
+    const nfd = 'Áo thun nam'.normalize('NFD')
+    expect(gateTranslation(nfd, nfd, 'en', 'vi')).toBe('untranslated')
+  })
+})
+
+describe('gateTranslation — the last review round', () => {
+  it('rejects a weight whose unit changed to a non-metric one', () => {
+    // `lb` was unrecognised, so it read as "no unit" and matched anything.
+    expect(gateTranslation('Khối lượng 500 kg', 'Weight 500 lb', 'en', 'vi')).toBe('entity-loss')
+  })
+
+  it('rejects a code given a slash suffix, while leaving a slash separator alone', () => {
+    // The boundary now mirrors codesIn: a slash ends a code UNLESS a digit follows it.
+    expect(gateTranslation('Mẫu VX2779', 'Model VX2779/2', 'en', 'vi')).toBe('entity-loss')
+    expect(gateTranslation('Sim 12MXH100 1GB/Ngày', 'SIM 12MXH100 1GB/day', 'en', 'vi')).toBeNull()
+  })
+
+  it('handles a value carrying BOTH a grouping and a decimal separator', () => {
+    // "1.500,50" → "1,500.50" is a correct conversion; neither form parsed before.
+    expect(gateTranslation('Giá 1.500,50 đồng', 'Price 1,500.50 dong', 'en', 'vi')).toBeNull()
+    expect(gateTranslation('Giá 1.500,50 đồng', 'Price 2,500.50 dong', 'en', 'vi')).toBe('entity-loss')
   })
 })

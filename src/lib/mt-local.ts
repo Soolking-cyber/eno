@@ -51,132 +51,14 @@ export function localMtConfigured(): boolean {
 }
 
 /**
- * Tokens a translation MUST carry through untouched: model codes (VX2779-HD-PRO, FTKB25ZVMV),
- * mixed alphanumerics (12MXH100), and any run of 3+ digits (capacities, years, wattages).
- *
- * ⛔ A MODEL CODE CARRIES BOTH A LETTER AND A DIGIT — that lookahead pair is the whole rule, and
- * the earlier `[A-Z0-9]{2,}` version was wrong in three separate ways at once, all found in
- * review and all reproduced before changing anything:
- *  · IT MADE ORDINARY CAPITALISED WORDS MANDATORY. "BLACK TABLE" and the Vietnamese "THUN"
- *    became required tokens, so a perfectly good translation ("Bàn đen", "t-shirt") was
- *    REJECTED and sent to the paid provider — the gate spending money to punish correct work.
- *  · IT TRUNCATED REAL CODES. Allowing a single `-` captured only "VX2779-HD" of
- *    "VX2779-HD-PRO", so a hallucinated "VX2779-HD-FAKE" satisfied it.
- *  · IT MISSED LOWERCASE ENTIRELY. "ftkb25zvmv" extracted nothing, so dropping it passed.
- *
- * ⛔ A DECIMAL SPEC IS ONE ENTITY, AND IT MUST BE MATCHED FIRST. Without the leading
- * alternative, `\b` fires between the "." and the "0" of "1.0HP", so the mandatory token was
- * "0HP" — which "2.0HP" also contains. The gate happily accepted a translation that DOUBLED the
- * advertised capacity of an air conditioner (astra, reviewing this diff). Decimal specs are
- * exactly the numbers a buyer decides on.
- *
- * ⚠️ `-` CONTINUES A CODE, `/` DOES NOT. "VX2779-HD-PRO" is one token, but "1GB/Ngày" is
- * "1GB per day" — treating `/` as a joiner glued the translatable word "Ngày" onto the code and
- * then demanded the English output contain it, rejecting a correct translation.
- *
- * ⚠️ 2+ DIGITS FOR THE PURE-NUMBER CASE. This was 3+ for a while because gating two-digit
- * numbers rejected good translations — but that was the BOUNDARY's fault, not the threshold's:
- * "27 inch" → "27-inch" failed a hyphen-excluding boundary. Numbers now use a NON-DIGIT
- * boundary (see keepsEntity), so "27-inch" passes and "32-inch" does not. That closes a real
- * hole reviewers were right to keep pressing on: with two-digit numbers ungated,
- * "Màn hình 27 inch" → "32-inch monitor" carried no required entity, had a plausible ratio, and
- * passed every check — publishing the wrong screen size, permanently.
+ * ⚠️ THE GATE LIVES IN `mt-gate.ts`, NOT HERE, and is re-exported so existing importers and the
+ * test file keep working. It moved because `scripts/backfill-bilingual.ts` translates the whole
+ * catalogue offline through Node and cannot import a `server-only` module — and a backfill that
+ * writes straight into `title`/`description` needs the SAME gate as the request path, not a
+ * hand-rolled copy that drifts.
  */
-const ENTITY =
-  /\b\d+(?:[.,]\d+)+[A-Za-z]+\b|\b(?=[A-Za-z0-9]*[A-Za-z])(?=[A-Za-z0-9]*[0-9])[A-Za-z0-9]{3,}(?:-[A-Za-z0-9]+)*\b|\b\d{2,}\b/g
-
-/**
- * Fluent boilerplate a seq2seq model falls into when it loses the input. These are VERBATIM
- * openings observed in the benchmark, not guesses — each appeared on a title whose meaning was
- * entirely invented. They were produced by NLLB-600M (rejected on licence, see the server
- * header); they are kept because the failure mode is generic to the architecture, cheap to
- * test for, and impossible to detect once cached.
- */
-const BOILERPLATE =
-  /(is designed to be used|the following is (a|the) list|for the manufacture of|in accordance with the provisions of)/i
-
-/** Why a translation was refused — surfaced in logs so the reject rate stays observable. */
-export type MtReject = 'entity-loss' | 'length-ratio' | 'boilerplate' | 'repetition' | 'empty'
-
-/**
- * Relative character density per language — how many characters that language needs to say the
- * same thing, with Latin script as 1.0.
- *
- * ⛔ A FIXED RATIO BAND CANNOT WORK ACROSS THESE SCRIPTS, IN EITHER DIRECTION. Measured on the
- * box over 60 real listing strings, the share of GOOD vi→X translations falling under a flat
- * 0.45 floor: zh-Hans 50% · ko 27% · ja 20% · ru 2% · th 0% · en 0%. Four of the five
- * EAGER_WARM_LANGS are CJK-adjacent, so a shared floor rejected roughly half of all Chinese
- * output as "collapsed" and paid Google for it — the exact spend this module exists to remove.
- *
- * ⛔ AND THE CEILING HAS THE MIRROR BUG, which a target-only table would have missed: a
- * faithful zh→en translation EXPANDS 3-5x, so a shared 2.5 ceiling rejects every Chinese- or
- * Japanese-SOURCE translation (found by agy). The band therefore has to be computed from the
- * pair — expected ratio ≈ density(target) / density(source) — not from the target alone.
- *
- * ⚠️ THE BAND IS WIDE ON PURPOSE. This is a smoke alarm for collapse and runaway repetition,
- * not a quality metric; a translation can be entirely wrong at a perfect 1.0 ratio, which is
- * why the entity and boilerplate checks carry the real load. Do not tighten it to "catch more"
- * — a false reject costs a paid call on a translation that was already good.
- */
-const DENSITY: Record<string, number> = {
-  'zh-Hans': 0.25,
-  ja: 0.35,
-  ko: 0.45,
-  km: 0.6,
-  th: 0.7,
-}
-const LATIN_DENSITY = 1.0
-const density = (lang?: string) => (lang ? DENSITY[lang] : undefined) ?? LATIN_DENSITY
-/** How far either side of the expected ratio still counts as plausible. */
-const BAND_LOW = 0.45
-const BAND_HIGH = 2.5
-
-/**
- * Does `hyp` still contain `entity`, as a WHOLE token?
- *
- * ⛔ A BARE `includes` IS NOT ENOUGH: it accepts "VX27790" as proof that "VX2779" survived, and
- * those are different products.
- *
- * ⛔ AND THE BOUNDARY MUST EXCLUDE `-`, NOT JUST ALPHANUMERICS. A hyphen is a non-alphanumeric,
- * so a boundary of `[^A-Za-z0-9]` accepted "VX2779-HD-PRO-FAKE" as proof that "VX2779-HD-PRO"
- * survived — a different model, passing the one check that exists to catch exactly that. Since
- * `-` also CONTINUES a code inside ENTITY, it cannot simultaneously terminate one here (both
- * found by astra, reviewing this diff).
- */
-function keepsEntity(hyp: string, entity: string): boolean {
-  const escaped = entity.replace(/[.*+?^${}()|[\]\\/-]/g, '\\$&')
-  // ⚠️ TWO BOUNDARY RULES, because the two kinds of entity abut different things. A pure NUMBER
-  // is legitimately followed by a hyphen when a translator compounds it ("27 inch" → "27-inch"),
-  // so only a DIGIT may not follow it — that is what lets two-digit specs be gated at all. A
-  // model CODE is the opposite: a hyphen continues it, so "VX2779-HD-PRO-FAKE" must not satisfy
-  // "VX2779-HD-PRO".
-  const boundary = /^\d+$/.test(entity) ? '[^0-9]' : '[^A-Za-z0-9-]'
-  return new RegExp(`(^|${boundary})${escaped}(${boundary}|$)`, 'i').test(hyp)
-}
-
-export function gateTranslation(src: string, hyp: string, target?: string, source?: string): MtReject | null {
-  if (!hyp || !hyp.trim()) return 'empty'
-
-  // ⚠️ Case-INSENSITIVE (via keepsEntity). Measured impact on the real corpus was zero — the
-  // case-sensitive and case-insensitive checks flagged the same 2/60 strings — so this is
-  // insurance: a model code the translator title-cased is still preserved, and rejecting it
-  // would hand a perfectly good translation to the paid provider for nothing.
-  const entities = src.match(ENTITY)
-  if (entities && entities.some((e) => !keepsEntity(hyp, e))) return 'entity-loss'
-
-  const expected = density(target) / density(source)
-  const ratio = hyp.length / Math.max(src.length, 1)
-  if (ratio < expected * BAND_LOW || ratio > expected * BAND_HIGH) return 'length-ratio'
-
-  if (BOILERPLATE.test(hyp)) return 'boilerplate'
-
-  // Degenerate repetition: the decoder looping on one phrase. Only meaningful once there are
-  // enough words for the ratio to mean something.
-  const words = hyp.toLowerCase().split(/\s+/).filter(Boolean)
-  if (words.length > 8 && new Set(words).size / words.length < 0.5) return 'repetition'
-
-  return null
-}
+export { gateTranslation, type MtReject } from './mt-gate'
+import { gateTranslation, type MtReject } from './mt-gate'
 
 export type LocalMtResult = {
   /** Translated text, or null where the gate refused / the server had no answer. */

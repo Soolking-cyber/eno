@@ -88,14 +88,24 @@ import 'dotenv/config'
 import crypto from 'node:crypto'
 import { db } from '../src/lib/db'
 import { detectContentLang } from '../src/lib/detect-lang'
+import { gateTranslation } from '../src/lib/mt-gate'
 
 const KEY = process.env.GOOGLE_TRANSLATE_API_KEY
+/**
+ * The self-hosted translator (infra/vn-node/mt-server). PREFERRED over Google when set.
+ *
+ * ⛔ THIS SCRIPT IS THE REASON THE BOX MODEL EXISTS. Its own estimate for the Tiki catalogue is
+ * 15,779,619 characters ≈ $315.59 at Google's $20/M — on top of the $56.69 an earlier 2.83M-char
+ * run already cost. Owner, 2026-09-09: "we would need permanent solution run in the box for it no
+ * api since its too costly". With MT_LOCAL_URL set the same job costs nothing.
+ */
+const MT_URL = process.env.MT_LOCAL_URL
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
 const AUDIT = process.argv.includes('--audit')
 const SELLER = arg('seller')
 const INCLUDE_OWNED = process.argv.includes('--include-owned')
-if (APPLY && !KEY) { console.error('GOOGLE_TRANSLATE_API_KEY required to apply'); process.exit(1) }
+if (APPLY && !KEY && !MT_URL) { console.error('set MT_LOCAL_URL (free, preferred) or GOOGLE_TRANSLATE_API_KEY to apply'); process.exit(1) }
 
 // ── The gate ───────────────────────────────────────────────────────────────────────────────────
 /** Every Vietnamese diacritic, including the accents shared with other Latin languages. */
@@ -139,10 +149,60 @@ function chunk(texts: string[]): string[][] {
 }
 
 /**
+ * One batch through the self-hosted model, gated.
+ *
+ * ⛔ THE GATE IS NOT OPTIONAL HERE — IT IS STRICTER THAN THE REQUEST PATH NEEDS. This script does
+ * not fill a cache that can be evicted; it MOVES COLUMNS, writing straight into `title` and
+ * `description`, which useLocalized() prefers over every other source. A hallucination written
+ * here is what every reader sees, forever, with no way back. So a refused string is simply LEFT
+ * ALONE — the row keeps its Vietnamese in both slots (visibly untranslated, obviously wrong to a
+ * human, and re-selectable by a later run) rather than being given confident nonsense.
+ *
+ * ⚠️ SAME GATE AS THE REQUEST PATH, imported rather than re-implemented (src/lib/mt-gate.ts).
+ * Two copies of "which translations are trustworthy" is how one of them quietly stops rejecting.
+ */
+async function localChunk(batch: string[], source: 'vi' | 'en', target: 'en' | 'vi'): Promise<Map<string, string> | null> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt) await sleep(2 ** attempt * 1000)
+    try {
+      const res = await fetch(`${MT_URL}/translate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texts: batch, source, target }),
+        // The box model runs on 4 shared cores at ~300 chars/sec; a full batch is minutes, and
+        // this is a background job where waiting costs nothing and giving up costs money.
+        signal: AbortSignal.timeout(900_000),
+      })
+      if (!res.ok) { if (res.status >= 500) continue; console.error(`  mt HTTP ${res.status}`); return null }
+      const j = await res.json() as { translations?: unknown }
+      const tr = j?.translations
+      // ⛔ A RESPONSE OF A DIFFERENT LENGTH IS MISALIGNED — pairing batch[i] with tr[i] would
+      // write one listing's text into another's columns, permanently.
+      if (!Array.isArray(tr) || tr.length !== batch.length) {
+        console.error(`  mt misaligned: sent ${batch.length}, got ${Array.isArray(tr) ? tr.length : 'none'} — batch skipped`)
+        return null
+      }
+      const map = new Map<string, string>()
+      let refused = 0
+      batch.forEach((src, i) => {
+        const v = tr[i]
+        if (typeof v !== 'string') { refused++; return }
+        if (gateTranslation(src, v, target, source)) { refused++; return }
+        map.set(src, v)
+      })
+      if (refused) console.log(`  gate refused ${refused}/${batch.length} (left untranslated, not guessed)`)
+      return map
+    } catch (e) {
+      if (attempt === 3) { console.error(`  mt failure after 4 attempts: ${(e as Error).message}`); return null }
+    }
+  }
+  return null
+}
+
+/**
  * One paid batch. Returns null instead of throwing so the caller keeps what it has already
  * committed — a thrown fetch (DNS blip, ECONNRESET, the 60s timeout) used to abort the whole run.
  */
-async function translateChunk(batch: string[], source: 'vi' | 'en', target: 'en' | 'vi'): Promise<Map<string, string> | null> {
+async function googleChunk(batch: string[], source: 'vi' | 'en', target: 'en' | 'vi'): Promise<Map<string, string> | null> {
   for (let attempt = 0; attempt < 6; attempt++) {
     if (attempt) await sleep(2 ** attempt * 1000) // a limit that just tripped trips again immediately
     try {
@@ -172,6 +232,17 @@ async function translateChunk(batch: string[], source: 'vi' | 'en', target: 'en'
     }
   }
   return null
+}
+
+/**
+ * Free first, paid only if the box model is not configured.
+ * ⚠️ NOT paid-as-a-fallback-on-failure: a local failure means the server is down or the gate
+ * refused, and quietly spending $315 because a container was restarting is not a decision this
+ * script should make on its own. Fix the box, re-run — the run is idempotent.
+ */
+async function translateChunk(batch: string[], source: 'vi' | 'en', target: 'en' | 'vi'): Promise<Map<string, string> | null> {
+  if (MT_URL) return localChunk(batch, source, target)
+  return googleChunk(batch, source, target)
 }
 
 /** Fill the shared cache so other surfaces read it instead of paying again. Never overwrites. */
@@ -283,7 +354,15 @@ async function main() {
     'descr EN->VI  (fills descVi) ': todo.filter((j) => j.field === 'description' && j.target === 'vi'),
   })) { const c = uniqChars(js); chars += c; console.log(`  ${k}  ${String(js.length).padStart(6)} jobs  ${String(c).padStart(9)} unique chars`) }
   console.log(`\n  ${free} jobs already in the translation cache (free)`)
-  console.log(`  TOTAL ${chars.toLocaleString()} chars -> about $${(chars / 1e6 * 20).toFixed(2)} at $20/M`)
+  // ⚠️ REPORT THE PRICE OF THE PROVIDER THAT WILL ACTUALLY RUN. Printing $315.59 for a run that
+  // costs nothing trains whoever reads it to ignore the number — and the reverse mistake, printing
+  // "free" while Google is the configured provider, is worse.
+  if (MT_URL) {
+    console.log(`  TOTAL ${chars.toLocaleString()} chars -> $0.00 (self-hosted at ${MT_URL}; ~${Math.round(chars / 300 / 3600)}h at the measured ~300 chars/sec)`)
+    console.log(`         for reference, the same work on Google would be about $${(chars / 1e6 * 20).toFixed(2)} at $20/M`)
+  } else {
+    console.log(`  TOTAL ${chars.toLocaleString()} chars -> about $${(chars / 1e6 * 20).toFixed(2)} at $20/M (set MT_LOCAL_URL to make this free)`)
+  }
 
   if (AUDIT) { await audit(); await db.$disconnect(); return }
   if (!APPLY) { console.log('\nDRY RUN — re-run with --apply.'); await db.$disconnect(); return }
