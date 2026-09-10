@@ -61,3 +61,5 @@ export const PROVIDER_OF_RECORD = {
  */
 export const OFFICIAL_EVISA_URL = ''
 export const OFFICIAL_EVISA_HOST = ''
+
+export const NOT_GOVERNMENT = { en: '', vi: '' }

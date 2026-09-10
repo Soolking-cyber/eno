@@ -2,7 +2,7 @@ import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
-import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
+import { NOT_GOVERNMENT, PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { expatGuidesExcept } from '@/lib/expat-guides'
 import { EVISA_HUB_PATH, evisaChildPath } from '@/app/vietnam-evisa/links'
 import { visaServiceLd } from '@/app/vietnam-evisa/service-jsonld'
@@ -46,7 +46,7 @@ const CONTENT: SeoContent = {
    * page already had lived in `sections`, which SeoLanding hides in the native build, so the app
    * showed prices and an Apply button with no disclaimer at all.
    */
-  disclosure: { text: PROVIDER_OF_RECORD.en, textVi: PROVIDER_OF_RECORD.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
+  disclosure: { text: NOT_GOVERNMENT.en, textVi: NOT_GOVERNMENT.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
   categorySlug: 'services',
   cta: 'Browse services',
   sections: [

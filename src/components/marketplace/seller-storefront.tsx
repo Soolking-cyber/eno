@@ -1,6 +1,6 @@
 import { isSellerHiddenHere, scopedListingWhere } from '@/lib/edition-scope'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
-import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
+import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, Star, ShieldCheck } from "@/components/ui/icons"
@@ -243,8 +243,8 @@ export async function SellerStorefront({ id }: { id: string }) {
             {isVisaDesk && (
               <VisaDisclosure
                 className="mb-4"
-                text={PROVIDER_OF_RECORD.en}
-                textVi={PROVIDER_OF_RECORD.vi}
+                text={NOT_GOVERNMENT.en}
+                textVi={NOT_GOVERNMENT.vi}
                 linkLabel="Official Vietnam e-Visa portal (Immigration Department)"
               />
             )}

@@ -1,5 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
-import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
+import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -36,7 +36,7 @@ const CONTENT: SeoContent = {
    * ⛔ ABOVE THE FOLD AND OUTSIDE `.web-only` — the Play rejection in one line. This page named the
    * Immigration Department while carrying no disclaimer a reviewer could see in the native build.
    */
-  disclosure: { text: PROVIDER_OF_RECORD.en, textVi: PROVIDER_OF_RECORD.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
+  disclosure: { text: NOT_GOVERNMENT.en, textVi: NOT_GOVERNMENT.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'See e-visa options',

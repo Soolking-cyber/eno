@@ -108,6 +108,27 @@ export const PROVIDER_LICENCE_ON_FILE = VISA_PROVIDER.licenceOnFile
  * Opened in a browser, evisa.gov.vn is "Vietnam National Electronic Visa system", headed MINISTRY OF
  * PUBLIC SECURITY / IMMIGRATION DEPARTMENT. Check it in a BROWSER.
  */
+/**
+ * THE COMPACT FORM — what Play requires, and nothing else.
+ *
+ * ⛔ `PROVIDER_OF_RECORD` IS TOO HEAVY FOR ABOVE THE FOLD, and using it there was a real mistake:
+ * English plus Vietnamese stacked to eight lines and pushed the page's own CTA off the first
+ * screen (owner, 2026-09-10: "eno.forum shouldnt have top warning"). Most of that paragraph exists
+ * for a DIFFERENT purpose — attributing the provider of record to VietKite — which belongs in the
+ * body copy, not in a compliance notice.
+ *
+ * ⚠️ WHAT PLAY ACTUALLY ASKED FOR IS TWO THINGS: that the app does not represent a government
+ * entity, and a clear link to the official source. That is one sentence each. Trimming to them is
+ * not weakening the disclosure — it is what makes it READ as a disclosure instead of as a wall of
+ * text people skip.
+ * ⛔ DO NOT TRIM FURTHER, AND DO NOT COLLAPSE IT BEHIND A TOGGLE. "Clear and easy-to-see" is the
+ * policy's wording, and a disclaimer behind a tap is the finding that was already made once.
+ */
+export const NOT_GOVERNMENT = {
+  en: `eno is not a government agency and does not decide visa applications. Services listed here are provided by ${VISA_PROVIDER.brand}, a licensed Vietnamese travel company.`,
+  vi: `eno không phải cơ quan nhà nước và không quyết định kết quả hồ sơ thị thực. Dịch vụ niêm yết tại đây do ${VISA_PROVIDER.brand} — doanh nghiệp lữ hành Việt Nam có giấy phép — cung cấp.`,
+}
+
 export const OFFICIAL_EVISA_URL = 'https://evisa.gov.vn/'
 export const OFFICIAL_EVISA_HOST = 'evisa.gov.vn'
 

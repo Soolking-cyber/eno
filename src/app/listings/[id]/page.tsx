@@ -1,6 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
-import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
+import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { getListing } from './get-listing'
 import { type ReactNode } from 'react'
@@ -751,8 +751,8 @@ export default async function ListingPage({ params }: Props) {
                         Misleading Claims violation (2026-09-10).
                       */}
                       <VisaDisclosure
-                        text={PROVIDER_OF_RECORD.en}
-                        textVi={PROVIDER_OF_RECORD.vi}
+                        text={NOT_GOVERNMENT.en}
+                        textVi={NOT_GOVERNMENT.vi}
                         linkLabel="Official Vietnam e-Visa portal (Immigration Department)"
                       />
                       {/*

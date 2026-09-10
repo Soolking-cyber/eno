@@ -1,7 +1,7 @@
 'use client'
 
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
-import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
+import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { BubbleChrome, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
 import Link from 'next/link'
@@ -2493,7 +2493,7 @@ export default function ThreadPage() {
               */}
               <VisaDisclosure
                 className="mb-2"
-                text={tr(PROVIDER_OF_RECORD.en, PROVIDER_OF_RECORD.vi)}
+                text={tr(NOT_GOVERNMENT.en, NOT_GOVERNMENT.vi)}
                 linkLabel={tr('Official Vietnam e-Visa portal (Immigration Department)', 'Cổng thông tin e-Visa chính thức (Cục Quản lý xuất nhập cảnh)')}
               />
               {iAmApplicant && (conciergeAvailable ? (

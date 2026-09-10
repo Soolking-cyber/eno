@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
-import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
+import { NOT_GOVERNMENT, PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { evisaRelated } from './links'
 import { visaServiceLd } from './service-jsonld'
 
@@ -61,7 +61,7 @@ Not sure which option is right for you? **Message us before ordering — we’re
    * page already had lived in `sections`, which SeoLanding hides in the native build, so the app
    * showed prices and an Apply button with no disclaimer at all.
    */
-  disclosure: { text: PROVIDER_OF_RECORD.en, textVi: PROVIDER_OF_RECORD.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
+  disclosure: { text: NOT_GOVERNMENT.en, textVi: NOT_GOVERNMENT.vi, linkLabel: 'Official Vietnam e-Visa portal (Immigration Department)' },
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'See all e-visa options',
