@@ -60,12 +60,19 @@ const cmd = process.argv[2]
  * official, valid and FUNCTIONAL source, and must say in an easy-to-see place that it does not
  * represent a government entity. Do not trim either of them for length.
  *
- * ⛔ AND THE SOURCE IS evisa.xuatnhapcanh.gov.vn, NOT evisa.gov.vn. Measured 2026-09-10 from two
- * networks including one inside Vietnam: `evisa.gov.vn` resolves (101.99.57.35) and then answers
- * NOTHING — curl exit 000 from both. The live portal's TLS certificate is issued to
- * `O = Cục Quản lý xuất nhập cảnh` (the Immigration Department), CN `xuatnhapcanh.gov.vn`, and the
- * page titles itself "National portal on Immigration". A source link Play cannot fetch is the
- * rejection all over again, so verify it responds before changing it.
+ * ⛔ THE SOURCE IS evisa.gov.vn, AND `curl` WILL TELL YOU IT IS DEAD. It is not. The site refuses
+ * non-browser clients, so curl returns exit 000 from any network — I measured that from two,
+ * including one inside Vietnam, concluded the domain was dead, and swapped every link in the app to
+ * the OLD portal before the owner pointed out it loads fine in a browser (2026-09-10). Opened in
+ * Chrome it is "Vietnam National Electronic Visa system", headed MINISTRY OF PUBLIC SECURITY /
+ * IMMIGRATION DEPARTMENT.
+ * ⚠️ AND THE SUPERSEDED PORTAL SAYS SO ITSELF. evisa.xuatnhapcanh.gov.vn carries an Immigration
+ * Department notice: "From 08:00 on 11/11/2024 (GMT+7), the Vietnam Electronic Visa Portal will
+ * operate on two new domains: https://thithucdientu.gov.vn and https://evisa.gov.vn. Please visit
+ * these new addresses to submit your application." So the domain curl cannot reach is the CURRENT
+ * one, and the one curl reaches is the retired one telling you to leave.
+ * ⛔ VERIFY THIS LINK IN A BROWSER, NEVER WITH curl. A bot-blocked 000 reads exactly like a dead
+ * host, and this repo has been caught by that before (sb.eno.vn).
  */
 const PLAY_LISTING = {
   language: 'en-US',
@@ -85,7 +92,7 @@ Post a listing with photos from your phone, set a price in VND, and reply to buy
 VIETNAM e-VISA (INDEPENDENT ASSISTANCE SERVICE)
 eno is NOT a government agency. eno is not affiliated with, endorsed by, or acting on behalf of the Government of Vietnam, the Ministry of Public Security, or the Vietnam Immigration Department. We are a private company offering an optional paid assistance service.
 
-Official source: the Vietnam Immigration Department's National Portal on Immigration — https://evisa.xuatnhapcanh.gov.vn — is the only place a Vietnam e-Visa is issued. Every application is decided there, whether you submit it yourself or ask us to help. You can always apply directly on that official site yourself, and the government fee is payable to the government.
+Official source: the Vietnam Immigration Department's official e-Visa portal — https://evisa.gov.vn — is the only place a Vietnam e-Visa is issued. Every application is decided there, whether you submit it yourself or ask us to help. You can always apply directly on that official site yourself, and the government fee is payable to the government.
 
 What eno does: helps you complete the application correctly, checks your photo and passport details against the published requirements before submission, and keeps you informed at each step. Choose standard or express handling, see our service fee and the timeline before you commit, and ask a human first if you are not sure which option fits. Approval, refusal and processing time are decided solely by the Vietnamese authorities — no service, including ours, can guarantee or speed up their decision.
 

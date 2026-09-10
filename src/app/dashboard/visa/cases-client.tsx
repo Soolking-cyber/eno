@@ -763,7 +763,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
             {/* ⚠️ DELIBERATELY NOT routed through handleExternalClick (Alex's ruling on
                 Gemini's dissent, 2026-07-25) — the one external link in the app that keeps
                 the HARD handoff to the system browser. Two reasons, both specific to this
-                destination: (1) evisa.xuatnhapcanh.gov.vn is a document flow — applicants download and
+                destination: (1) evisa.gov.vn is a document flow — applicants download and
                 print the e-visa PDF, upload photos and pay official fees, and
                 SFSafariViewController is a poor host for downloads; (2) this link exists so a
                 user can INDEPENDENTLY verify the disclaimer directly above it — that eno is
@@ -771,7 +771,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
                 whose toolbar we tint with our brand colour. The flight/stay links in
                 plan-results.tsx are the opposite case (pure "go look at a price", one Done tap
                 back) and correctly keep the in-app browser. */}
-            <a href="https://evisa.xuatnhapcanh.gov.vn/" target="_blank" rel="noreferrer" className="font-semibold text-accent-foreground hover:underline">{tr('Official e-Visa website', 'Trang E-Visa chính thức')}</a>
+            <a href="https://evisa.gov.vn/" target="_blank" rel="noreferrer" className="font-semibold text-accent-foreground hover:underline">{tr('Official e-Visa website', 'Trang E-Visa chính thức')}</a>
           </p>
         </div>
       </>

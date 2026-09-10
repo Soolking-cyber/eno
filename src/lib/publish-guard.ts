@@ -137,11 +137,11 @@ const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i
 //
 // Split by separator to stop the ENGLISH PREPOSITION "at" from reading as "@" in
 // ordinary prose (user report: e-visa/service listings — "submit your application at
-// evisa.xuatnhapcanh.gov.vn", "processed at immigration.gov" were blocked as hidden emails):
+// evisa.gov.vn", "processed at immigration.gov" were blocked as hidden emails):
 //   • literal "@" → accepts a literal OR spelled dot (real/typed addresses).
 //   • spelled "at" → REQUIRES a spelled "dot"/"cham" (genuine obfuscation spells both).
 // A literal-dot domain after "at" is prose, and stays consistent with a bare
-// "evisa.xuatnhapcanh.gov.vn" mention, which is already allowed. Real .com/.net/… domains after
+// "evisa.gov.vn" mention, which is already allowed. Real .com/.net/… domains after
 // "at" are still caught by LINK; real "@" emails by EMAIL.
 const EMAIL_OBF_AT_SIGN = /[a-z0-9._%+-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}@[ \t]{0,4}[)\]]?[ \t]{0,4}[a-z0-9-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}(?:\.|\bdot\b|\bcham\b)[ \t]{0,4}[)\]]?[ \t]{0,4}(?:com|net|org|vn|io|co|info|mail|edu|gov)\b/i
 const EMAIL_OBF_AT_WORD = /[a-z0-9._%+-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}\bat\b[ \t]{0,4}[)\]]?[ \t]{0,4}[a-z0-9-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}(?:\bdot\b|\bcham\b)[ \t]{0,4}[)\]]?[ \t]{0,4}(?:com|net|org|vn|io|co|info|mail|edu|gov)\b/i

@@ -65,7 +65,7 @@ const CONTENT: ArticleContent = {
             valid for up to 90 days, single or multiple entry, and issued electronically so there is
             nothing to collect on arrival. The application is the same for every nationality. It is
             handled by the Immigration Department through its own portal at{' '}
-            <OfficialLink href="https://evisa.xuatnhapcanh.gov.vn">evisa.xuatnhapcanh.gov.vn</OfficialLink>, and the government
+            <OfficialLink href="https://evisa.gov.vn">evisa.gov.vn</OfficialLink>, and the government
             fee at the time of writing is US$25 for single entry and US$50 for multiple entry —
             payable whether the application succeeds or not.
           </P>

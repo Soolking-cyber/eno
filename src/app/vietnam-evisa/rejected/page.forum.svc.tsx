@@ -29,7 +29,7 @@ export const revalidate = 86400
 //
 // Note the section above it — "A portrait that is not a plain-background, head-and-shoulders,
 // hat-and-glasses-free photo" — is deliberately left alone. That sentence describes what the
-// DEPARTMENT refuses on, and per apps/forum/docs/VISA_ASSISTANCE.md (checked at evisa.xuatnhapcanh.gov.vn on
+// DEPARTMENT refuses on, and per apps/forum/docs/VISA_ASSISTANCE.md (checked at evisa.gov.vn on
 // 2026-07-16) a white background really is on the official form. Our demotion is a statement about
 // what our AI can reliably judge, NOT a claim that the department does not care.
 const CONTENT: SeoContent = {

@@ -73,7 +73,7 @@ const CONTENT: SeoContent = {
     {
       href: evisaChildPath('official-process'),
       label: 'The official e-visa process and fee',
-      blurb: 'What evisa.xuatnhapcanh.gov.vn does, what the government charges, and the honest limits of any service.',
+      blurb: 'What evisa.gov.vn does, what the government charges, and the honest limits of any service.',
     },
     ...expatGuidesExcept(),
   ],

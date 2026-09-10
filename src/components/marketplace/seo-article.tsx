@@ -162,7 +162,7 @@ export function VnLink({ href, children }: { href: string; children: React.React
   )
 }
 
-/** An outbound link to an authority (evisa.xuatnhapcanh.gov.vn and friends). Named so it reads differently. */
+/** An outbound link to an authority (evisa.gov.vn and friends). Named so it reads differently. */
 export function OfficialLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a

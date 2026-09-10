@@ -6,7 +6,7 @@ import { EXPAT_GUIDES, EXPAT_GUIDE_PATHS, expatGuidesExcept } from './expat-guid
  * THE ARRIVAL GUIDES — two guarantees that nothing else in the toolchain can check.
  *
  * ⚠️ ONE: THE ROUTES MUST BE SERVICES-ONLY, AND "IS IT `.svc.`?" IS A FILENAME QUESTION. Both guides
- * name the e-visa, evisa.xuatnhapcanh.gov.vn and the licensed partner in their prose, so on eno.vn — a licensed
+ * name the e-visa, evisa.gov.vn and the licensed partner in their prose, so on eno.vn — a licensed
  * sàn TMĐT that may not mention the service — the route must not exist. `pageExtensions` in
  * next.config.ts delivers that from the FILENAME alone, which means a rename from `page.svc.tsx` to
  * `page.tsx` ships the vocabulary in the licensed image while looking like a tidy-up in the diff.

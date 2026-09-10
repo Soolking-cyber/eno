@@ -228,7 +228,7 @@ const CONTENT: ArticleContent = {
             Whether a stay can be extended from inside Vietnam, and on what terms, depends on the
             visa you hold and is decided by the Immigration Department — check the current position
             on{' '}
-            <OfficialLink href="https://evisa.xuatnhapcanh.gov.vn">evisa.xuatnhapcanh.gov.vn</OfficialLink> or with the
+            <OfficialLink href="https://evisa.gov.vn">evisa.gov.vn</OfficialLink> or with the
             department rather than on a forum. If a fresh application is the answer,{' '}
             <HereLink href={evisaChildPath('official-process')}>the official process and what it
             costs</HereLink> sets out what is a government fee and what is a service fee.
