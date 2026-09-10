@@ -66,6 +66,63 @@ describe('watermarkPlacement', () => {
     expect(800 - (tall.left + tall.markWidth)).toBe(24)
   })
 
+  /**
+   * ⛔ PINS A KNOWN DEFECT RATHER THAN A WISH. My first version asserted "some of the mark stays
+   * visible after a square cover-crop" and PASSED — because it compared `left` against a
+   * `visibleRight` that falls back to the full width on a portrait, so the vertical crop was never
+   * checked. Three reviewers caught it. The truth is worse than the assertion: on a portrait card
+   * the mark is cropped away completely.
+   *
+   * Cards use `aspect-square` + `object-cover` (listing-card.tsx:329), which crops the LONG axis
+   * centred while the mark is anchored to the image's own corner. This records what that costs, so
+   * that a future fix — anchoring to the centre-crop box — has a number to move.
+   */
+  it('records how much of the mark a square cover-crop actually leaves', () => {
+    const visible = (w: number, h: number) => {
+      const { left, top, markWidth } = watermarkPlacement(w, h)
+      const mh = Math.round((markWidth / 9132.3) * 1588.3)
+      const [vx0, vx1] = w > h ? [(w - h) / 2, (w + h) / 2] : [0, w]
+      const [vy0, vy1] = h > w ? [(h - w) / 2, (h + w) / 2] : [0, h]
+      const sx = Math.max(0, Math.min(left + markWidth, vx1) - Math.max(left, vx0))
+      const sy = Math.max(0, Math.min(top + mh, vy1) - Math.max(top, vy0))
+      return (sx / markWidth) * (sy / mh)
+    }
+    expect(visible(1200, 1200)).toBeCloseTo(1, 2)   // square: fully visible — ~90% of live photos
+    expect(visible(1600, 900)).toBeGreaterThan(0.2) // landscape: partly cropped
+    expect(visible(1600, 900)).toBeLessThan(0.4)
+    expect(visible(900, 1200)).toBe(0)              // ⛔ portrait: gone entirely
+  })
+
+  /**
+   * ⛔ THE OVERLAY MUST FIT ON BOTH AXES. sharp refuses one larger than its base. Width was clamped
+   * and height was not: an 800×30 banner asked for a 224×39 mark and threw whatever `top` did.
+   */
+  it('never asks for a mark that overflows the image, on either axis', () => {
+    // ⚠️ 2×100 is in here because `mh` rounded to ZERO on it, which fed the luminance probe a
+    // zero-height region — a reviewer's case, not one I would have thought of.
+    for (const [w, h] of [[100, 100], [800, 30], [150, 90], [60, 400], [1600, 900], [2, 100]]) {
+      const p = watermarkPlacement(w, h)
+      const mh = Math.max(1, Math.round((p.markWidth / 9132.3) * 1588.3))
+      expect(p.region.width).toBeGreaterThan(0)
+      expect(p.region.height).toBeGreaterThan(0)
+      expect(p.markWidth).toBeLessThanOrEqual(w)
+      expect(p.left + p.markWidth).toBeLessThanOrEqual(w)
+      expect(p.top + mh).toBeLessThanOrEqual(h)
+    }
+  })
+
+  /**
+   * ⚠️ 23% of live listing photos are 600px wide (measured, 10 of a 44-image sample): partner CDNs
+   * serve small images and MAX_EDGE only ever shrinks. The old 190px floor made those a 31.7% mark
+   * beside a 1200px photo's 28.0% — the inconsistency the owner reported.
+   */
+  it('does not let the floor inflate the mark on the sizes partners actually serve', () => {
+    for (const edge of [600, 800, 900, 1200]) {
+      const p = watermarkPlacement(edge, edge)
+      expect(p.markWidth / edge).toBeCloseTo(0.28, 2)
+    }
+  })
+
   it('keeps the probe region inside the image on a tiny source', () => {
     const p = watermarkPlacement(200, 200)
     expect(p.region.left + p.region.width).toBeLessThanOrEqual(200)

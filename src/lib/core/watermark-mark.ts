@@ -112,17 +112,69 @@ export function inkForLuminance(mean: number | null): { fill: string; opacity: n
 }
 
 /**
- * Where the mark goes on an image of the given size: ~28% of the width (prominent, for
- * web-address memorability — owner ask 2026-07-07), clamped, anchored bottom-right.
+ * Where the mark goes on an image of the given size: ~28% of the WIDTH (prominent, for web-address
+ * memorability — owner ask 2026-07-07), clamped, anchored bottom-right.
+ *
+ * ⛔ SIZING OFF THE SHORT EDGE WAS TRIED ON 2026-09-10 AND IS A REGRESSION — DO NOT REDO IT.
+ * The reasoning looked airtight: cards render into an `aspect-square` box with `object-cover`
+ * (listing-card.tsx:329), cover-crop scales until the SHORT edge fills the box, so a width-based
+ * mark renders at `0.28 × aspect-ratio` of the card — 40.3% on a 1035×719 photo beside 28.0% on a
+ * square one. Sizing off `min(width, height)` does make the on-card fraction constant.
+ *
+ * What it forgets is that cover-crop also CROPS the long axis, centred, and the mark is anchored to
+ * the image's own right edge — outside that crop. Measured:
+ *
+ *   1600×900   width-based 448px → 28% of the mark visible on the card
+ *              short-edge  252px →  0% — the watermark disappears entirely
+ *
+ * A smaller mark sits further inside the image, which on a landscape photo means further outside
+ * the visible square. All four reviewers caught it. An inconsistent watermark is a blemish; an
+ * absent one defeats the point of baking it in.
+ *
+ * ⚠️ SO THE LANDSCAPE CROP IS A REAL, PRE-EXISTING BUG THAT THIS FUNCTION CANNOT FIX ALONE. Even
+ * at 448px only 28% of the mark survives a 16:9 card. Fixing it properly means anchoring to the
+ * centre-crop box rather than the image edge, which moves the mark off the corner on the full-size
+ * photo everywhere else it is shown — a product decision, not a clamp.
+ *
+ * ⚠️ THE FLOOR CAME DOWN FROM 190 TO 120, AND THAT IS THE PART THAT SHIPPED. Partner CDNs serve
+ * small images and `MAX_EDGE` only ever shrinks, so 23% of live listing photos (measured, 10 of a
+ * 44-image sample) are 600px wide and hit the old floor for a 31.7% mark beside a 1200px photo's
+ * 28.0%. That is the inconsistency the owner reported, and ~90% of the sample is square, so the
+ * floor — not the aspect ratio — is what they were seeing. At 120 the clamp binds below 429px, and
+ * a 120px mark is still ~21px tall.
+ *
+ * ⚠️ AND THE MARK IS CLAMPED TO FIT ON BOTH AXES. A 100×100 source asked for 120px, wider than the
+ * image, and sharp refuses to composite an overlay larger than its base — the old 72px floor
+ * happened to fit and hid this. The HEIGHT was never checked at all: an 800×30 banner asked for a
+ * 224×39 mark and threw regardless of the floor. Raising a floor is never safe without both.
+ *
+ * ⛔ KNOWN AND NOT FIXED HERE: ON A NON-SQUARE PHOTO THE CARD CROPS THE MARK AWAY. Measured against
+ * the `aspect-square` + `object-cover` thumbnail — 1600×900 shows 28% of the mark, 900×1200 shows
+ * NONE, 1200×1200 shows all of it. Roughly 90% of live listing photos are square, which is why the
+ * mark is visible at all. Fixing it means anchoring to the centre-crop box instead of the image
+ * corner, which moves the mark off the corner of the full-size photo everywhere else it appears —
+ * the PDP, and every copy a buyer saves. That is the owner's call, not a clamp.
+ *
+ * ⚠️ THE 580 CEILING IS DEAD CODE, kept as a guard: `MAX_EDGE` is 1600 and 0.28 × 1600 = 448.
  *
  * ⚠️ PADDING IS MEASURED OFF THE SHORT EDGE (owner-picked 2026-07-14: the mark must never touch a
  * border). Off the width, a tall portrait shot got a hairline gap at the bottom while a panorama
  * got a canyon; the short edge keeps the inset even.
  */
 export function watermarkPlacement(width: number, height: number) {
-  const mw = Math.min(580, Math.max(190, Math.round(width * 0.28)))
-  const mh = Math.round((mw / MARK_W) * MARK_H)
   const pad = Math.round(Math.min(width, height) * 0.03)
+  // 28% of the width, floored so a small image still carries a legible mark, ceilinged as a guard,
+  // and finally clamped to what actually fits inside the padding.
+  const wanted = Math.min(580, Math.max(120, Math.round(width * 0.28)))
+  // ⛔ CLAMP AGAINST BOTH AXES. sharp refuses an overlay that extends past its base, and the
+  // height was never checked: an 800×30 banner asked for a 224×39 mark, `top` clamped to 0, and
+  // the composite threw anyway. Deriving the width cap from the HEIGHT budget as well is what
+  // makes the mark always fit — three reviewers found this independently.
+  const byHeight = Math.floor(((height - 2 * pad) * MARK_W) / MARK_H)
+  const mw = Math.max(1, Math.min(wanted, width - 2 * pad, byHeight))
+  // ⚠️ AT LEAST ONE PIXEL. On a degenerate 2×100 source `mh` rounded to 0, which makes `top` the
+  // full height and hands the luminance probe a zero-height region to `extract`.
+  const mh = Math.max(1, Math.round((mw / MARK_W) * MARK_H))
   const left = Math.max(0, width - mw - pad)
   const top = Math.max(0, height - mh - pad)
   return { markWidth: mw, left, top, region: { left, top, width: Math.min(mw, width - left), height: Math.min(mh, height - top) } }
