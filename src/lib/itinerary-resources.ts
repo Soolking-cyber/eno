@@ -113,7 +113,7 @@ export function buildItineraryResourceGroups(result: GeneratedItineraryResponse)
       title: 'Official Vietnam e-Visa', titleVi: 'E-Visa Việt Nam chính thức', kind: 'visa',
       description: 'Check eligibility and apply through the Immigration Department website; verify requirements before paying.',
       descriptionVi: 'Kiểm tra điều kiện và nộp hồ sơ trên trang của Cục Quản lý xuất nhập cảnh; xác minh yêu cầu trước khi thanh toán.',
-      url: 'https://evisa.gov.vn/',
+      url: 'https://evisa.xuatnhapcanh.gov.vn/',
     },
     {
       title: 'Grab Vietnam', titleVi: 'Grab Việt Nam', kind: 'ride',

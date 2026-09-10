@@ -53,6 +53,20 @@ const APPLY = process.argv.includes('--apply')
 const cmd = process.argv[2]
 
 /** The listing copy, counted against Play's limits. Single source — edit here, not in the Console. */
+/**
+ * ⛔ THE e-VISA SECTION CARRIES A DISCLAIMER AND AN OFFICIAL SOURCE LINK, AND BOTH ARE THERE
+ * BECAUSE PLAY REJECTED THE APP WITHOUT THEM (Misleading Claims policy, 2026-09-10). The evidence
+ * they cited was this exact field: an app that provides government information must name a clear,
+ * official, valid and FUNCTIONAL source, and must say in an easy-to-see place that it does not
+ * represent a government entity. Do not trim either of them for length.
+ *
+ * ⛔ AND THE SOURCE IS evisa.xuatnhapcanh.gov.vn, NOT evisa.gov.vn. Measured 2026-09-10 from two
+ * networks including one inside Vietnam: `evisa.gov.vn` resolves (101.99.57.35) and then answers
+ * NOTHING — curl exit 000 from both. The live portal's TLS certificate is issued to
+ * `O = Cục Quản lý xuất nhập cảnh` (the Immigration Department), CN `xuatnhapcanh.gov.vn`, and the
+ * page titles itself "National portal on Immigration". A source link Play cannot fetch is the
+ * rejection all over again, so verify it responds before changing it.
+ */
 const PLAY_LISTING = {
   language: 'en-US',
   title: 'eno: Marketplace & e-Visa',
@@ -68,8 +82,12 @@ BUY AND SELL
 
 Post a listing with photos from your phone, set a price in VND, and reply to buyers in the app. No listing fees.
 
-VIETNAM e-VISA
-Apply for a Vietnam e-Visa without deciphering a government form. Choose standard or express processing, see the price and the timeline before you commit, and ask a human first if you are not sure which option fits. Your documents are handled securely and you are told what happens at each step.
+VIETNAM e-VISA (INDEPENDENT ASSISTANCE SERVICE)
+eno is NOT a government agency. eno is not affiliated with, endorsed by, or acting on behalf of the Government of Vietnam, the Ministry of Public Security, or the Vietnam Immigration Department. We are a private company offering an optional paid assistance service.
+
+Official source: the Vietnam Immigration Department's National Portal on Immigration — https://evisa.xuatnhapcanh.gov.vn — is the only place a Vietnam e-Visa is issued. Every application is decided there, whether you submit it yourself or ask us to help. You can always apply directly on that official site yourself, and the government fee is payable to the government.
+
+What eno does: helps you complete the application correctly, checks your photo and passport details against the published requirements before submission, and keeps you informed at each step. Choose standard or express handling, see our service fee and the timeline before you commit, and ask a human first if you are not sure which option fits. Approval, refusal and processing time are decided solely by the Vietnamese authorities — no service, including ours, can guarantee or speed up their decision.
 
 PLAN THE TRIP
 Build an itinerary, save the places you like, and get help with bookings — free.

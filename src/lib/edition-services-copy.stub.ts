@@ -71,7 +71,7 @@ export type ServicesSafetyCopy = {
 
 /**
  * ⚠️ EMPTY, AND THE EMPTY ARRAYS ARE LOAD-BEARING. /safety renders on BOTH editions from one file;
- * its visa block is gated on IS_SERVICES, and this is what additionally keeps "evisa.gov.vn" and the
+ * its visa block is gated on IS_SERVICES, and this is what additionally keeps "evisa.xuatnhapcanh.gov.vn" and the
  * surrounding vocabulary out of the artifact eno.vn serves. The page maps over `tips`/`will`/`wont`,
  * so empty arrays also make the section render nothing if a future build ever loses the gate.
  *

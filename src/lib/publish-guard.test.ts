@@ -73,7 +73,7 @@ describe('containsContactInfo — off-platform bypass', () => {
   // email — e-visa/service listings kept getting blocked (user report 2026-07-21).
   // Genuine obfuscation spells BOTH parts ("shop at gmail dot com") and still blocks.
   it('does NOT read prose "at <site>.gov/.vn" as an obfuscated email', () => {
-    expect(containsContactInfo('Submit your application at evisa.gov.vn')).toBe(false)
+    expect(containsContactInfo('Submit your application at evisa.xuatnhapcanh.gov.vn')).toBe(false)
     expect(containsContactInfo('Documents are processed at immigration.gov')).toBe(false)
     expect(containsContactInfo('Apply at the official portal before 10:00 AM')).toBe(false)
     // still catches real obfuscation + real domains/emails:

@@ -35,7 +35,7 @@ export const EVISA_CHILDREN: readonly EvisaChild[] = [
     slug: 'official-process',
     label: 'The official process, the official fee, and what a service can add',
     blurb:
-      'What evisa.gov.vn does, what the government charges, and the honest limits of what any agent can do for you.',
+      'What evisa.xuatnhapcanh.gov.vn does, what the government charges, and the honest limits of what any agent can do for you.',
   },
   {
     slug: '1-hour-urgent',

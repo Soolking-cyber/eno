@@ -23,7 +23,7 @@ import { visaServiceLd } from '../service-jsonld'
  * first-time applicant is actually asking, which is "is this a government thing or a shop thing, and
  * what is the real price?" Publishing the official portal and the official fee, and stating plainly
  * what an agent cannot do, is the page that earns the trust the rest of the cluster spends. It also
- * happens to be what the query deserves: a page that hides evisa.gov.vn while ranking for the
+ * happens to be what the query deserves: a page that hides evisa.xuatnhapcanh.gov.vn while ranking for the
  * official process is the behaviour that makes agent sites indistinguishable from each other.
  *
  * ⚠️ AND IT IS THE PAGE MOST EXPOSED TO A LEGAL DEFECT, so three rules hold here without exception.
@@ -63,7 +63,7 @@ const CONTENT: ArticleContent = {
         <>
           <P>
             The e-visa is applied for at{' '}
-            <OfficialLink href="https://evisa.gov.vn">evisa.gov.vn</OfficialLink>, the Immigration
+            <OfficialLink href="https://evisa.xuatnhapcanh.gov.vn">evisa.xuatnhapcanh.gov.vn</OfficialLink>, the Immigration
             Department’s own portal. Whether you apply yourself or through a service, this is where
             the application ends up and where the decision is made. The steps are:
           </P>
@@ -220,7 +220,7 @@ const CONTENT: ArticleContent = {
       body: (
         <>
           <P>
-            The official portal is <OfficialLink href="https://evisa.gov.vn">evisa.gov.vn</OfficialLink>{' '}
+            The official portal is <OfficialLink href="https://evisa.xuatnhapcanh.gov.vn">evisa.xuatnhapcanh.gov.vn</OfficialLink>{' '}
             and there is only one of it. A large number of sites imitate the layout, the colour scheme
             and the naming conventions closely enough that people believe they have paid a government
             fee when they have paid an agent’s total. Being an agent is not the problem — being an
@@ -295,7 +295,7 @@ const CONTENT: ArticleContent = {
   faqs: [
     {
       q: 'What is the official Vietnam e-visa website?',
-      a: 'evisa.gov.vn, the Immigration Department’s portal. Every e-visa application is decided there, whether it is submitted by you or by a service on your behalf.',
+      a: 'evisa.xuatnhapcanh.gov.vn, the Immigration Department’s portal. Every e-visa application is decided there, whether it is submitted by you or by a service on your behalf.',
     },
     {
       q: 'How much does the Vietnam e-visa cost officially?',
@@ -323,7 +323,7 @@ const CONTENT: ArticleContent = {
 export const metadata: Metadata = {
   title: `Vietnam e-Visa: Official Process, Official Fee & What a Service Can Do | ${SITE_NAME}`,
   description:
-    'The official Vietnam e-visa process at evisa.gov.vn, the government fee (US$25 single / US$50 multiple entry at the time of writing), the official processing time, and an honest account of what an agent can and cannot do for you.',
+    'The official Vietnam e-visa process at evisa.xuatnhapcanh.gov.vn, the government fee (US$25 single / US$50 multiple entry at the time of writing), the official processing time, and an honest account of what an agent can and cannot do for you.',
   alternates: { canonical: '/vietnam-evisa/official-process' },
   openGraph: {
     title: `Vietnam e-Visa: Official Process, Official Fee & What a Service Can Do | ${SITE_NAME}`,

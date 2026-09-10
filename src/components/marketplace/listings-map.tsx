@@ -198,7 +198,7 @@ function MapCredit({ className }: { className?: string }) {
           Capacitor shell a bare target=_blank hands the URL to Safari/Chrome and LEAVES eno —
           src/lib/native-browser.ts calls that hard exit "the most jarring thing a wrapped app
           does". These are pure go-and-look destinations, so they belong in the in-app browser, one
-          Done tap from the map. (The single documented exception is evisa.gov.vn, for reasons that
+          Done tap from the map. (The single documented exception is evisa.xuatnhapcanh.gov.vn, for reasons that
           do not apply here.) A credit the native app cannot follow is decoration. */}
       {/* ⛔ THE GLYPH'S OWN CIRCLE IS THE CIRCLE — there is no bordered ring around it any more
           (owner, 2026-08-18: "any icon with circle around either make them big so outline circle

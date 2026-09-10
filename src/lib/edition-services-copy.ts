@@ -31,7 +31,7 @@ import { VIETNAM_EVISA_PATHS } from '@/app/vietnam-evisa/links'
  * SHARED route — a marketplace build compiles it — and it used to `import { VIETNAM_EVISA_PATHS }
  * from '@/app/vietnam-evisa/links'` directly. That module is a plain `.ts`, so unlike its
  * `page.svc.tsx` neighbours it is NOT excluded by `pageExtensions`, and it was not aliased: every
- * label and blurb in it ("Urgent Vietnam visa in 1 hour", "evisa.gov.vn", "Vietnam e-visa
+ * label and blurb in it ("Urgent Vietnam visa in 1 hour", "evisa.xuatnhapcanh.gov.vn", "Vietnam e-visa
  * rejected") therefore compiled into eno.vn's server bundle. The sitemap's `IS_SERVICES` gate
  * stopped the URLs being EMITTED, which is behaviour — it could not remove the strings.
  *
@@ -266,12 +266,12 @@ export type ServicesSafetyCopy = {
  * THE VISA-SAFETY BLOCK ON /safety — services edition only.
  *
  * ⚠️ /safety IS ONE FILE RENDERED BY BOTH EDITIONS, which is why this copy lives here rather than in
- * the page. The page gates the render on IS_SERVICES; only the alias keeps "evisa.gov.vn", "e-visa"
+ * the page. The page gates the render on IS_SERVICES; only the alias keeps "evisa.xuatnhapcanh.gov.vn", "e-visa"
  * and the rest of the vocabulary out of the artifact eno.vn serves. Both halves are required — see
  * the header of this file.
  *
  * ⚠️ THIS IS CONSUMER-PROTECTION COPY AND ALSO THE ANTI-IMPERSONATION SIGNAL. A visitor who lands
- * here must finish it certain of two things: the government's portal is evisa.gov.vn, and this site
+ * here must finish it certain of two things: the government's portal is evisa.xuatnhapcanh.gov.vn, and this site
  * is a private platform that cannot decide an application. Every edit has to leave both intact.
  *
  * ⚠️ THREE THINGS IT MAY NEVER SAY, each with its own way of being wrong:
@@ -284,7 +284,7 @@ export type ServicesSafetyCopy = {
  *     is actually maintained carry the numbers.
  *
  * ⚠️ IT NAMES NO DOMAIN OF OURS. "this site" rather than "eno.forum", so the copy survives a domain
- * change and cannot contradict SITE_NAME. The one domain that IS hardcoded — evisa.gov.vn — is the
+ * change and cannot contradict SITE_NAME. The one domain that IS hardcoded — evisa.xuatnhapcanh.gov.vn — is the
  * government's, and hardcoding it is the entire point.
  *
  * ⚠️ VIETNAMESE IS MACHINE-TRANSLATED HERE, DELIBERATELY, AND IT IS THE ONLY OPTION. /safety is a
@@ -306,7 +306,7 @@ export const SERVICES_SAFETY: ServicesSafetyCopy = {
       icon: 'Landmark',
       title: 'Know a government channel from a private one',
       body:
-        'Vietnam’s government runs the official e-visa portal at evisa.gov.vn, and only a website on a .gov.vn domain is a government website. Everyone else — this site included — is a private business. A private business can prepare, check and submit an application; it can never decide one. This site is not a government body and not an immigration agency.',
+        'Vietnam’s government runs the official e-visa portal at evisa.xuatnhapcanh.gov.vn, and only a website on a .gov.vn domain is a government website. Everyone else — this site included — is a private business. A private business can prepare, check and submit an application; it can never decide one. This site is not a government body and not an immigration agency.',
     },
     {
       icon: 'Globe',
