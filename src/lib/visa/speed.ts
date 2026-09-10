@@ -50,6 +50,13 @@ export const VISA_ENTRY_TYPE_LABELS: Record<VisaEntryType, { en: string; vi: str
 /**
  * Operational tier facts — cutoffs and turnaround copy. NOT prices.
  *
+ * ⛔ THE COPY DESCRIBES WHAT *WE* DO, NOT WHAT THE DEPARTMENT DECIDES — Google Play, Misleading
+ * Claims, 2026-09-10. It used to read "Result within 1 hour of submission", which promises an
+ * outcome no service controls: the Immigration Department approves, refuses and times every e-visa,
+ * and a tier is a submission speed we sell, not a decision we can deliver. This string renders
+ * beside the price on both money screens, so it is exactly where a reviewer looks for a guarantee.
+ * ⚠️ KEEP THE TIMING — it is the product. What changed is whose act it describes.
+ *
  * `cutoffs` are "HH:MM" wall-clock times in Asia/Ho_Chi_Minh, ASCENDING: an application
  * handed in strictly BEFORE one of these times is worked in that batch. An empty array
  * means the tier has no cutoff at all (standard processing).
@@ -83,8 +90,8 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     labelVi: 'Trong vòng 1 giờ',
     cutoffs: ['10:00', '16:00'],
     turnaroundBusinessHours: 1,
-    turnaround: 'Result within 1 hour of submission.',
-    turnaroundVi: 'Có kết quả trong vòng 1 giờ sau khi nộp hồ sơ.',
+    turnaround: 'Submitted within 1 hour. The Immigration Department decides the result.',
+    turnaroundVi: 'Nộp hồ sơ trong vòng 1 giờ. Kết quả do Cục Quản lý xuất nhập cảnh quyết định.',
   },
   '2H': {
     code: '2H',
@@ -92,8 +99,8 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     labelVi: 'Trong vòng 2 giờ',
     cutoffs: ['10:00', '15:00'],
     turnaroundBusinessHours: 2,
-    turnaround: 'Result within 2 hours of submission.',
-    turnaroundVi: 'Có kết quả trong vòng 2 giờ sau khi nộp hồ sơ.',
+    turnaround: 'Submitted within 2 hours. The Immigration Department decides the result.',
+    turnaroundVi: 'Nộp hồ sơ trong vòng 2 giờ. Kết quả do Cục Quản lý xuất nhập cảnh quyết định.',
   },
   '4H': {
     code: '4H',
@@ -101,8 +108,8 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     labelVi: 'Trong vòng 4 giờ',
     cutoffs: ['08:30', '14:30'],
     turnaroundBusinessHours: 4,
-    turnaround: 'Result within 4 hours of submission.',
-    turnaroundVi: 'Có kết quả trong vòng 4 giờ sau khi nộp hồ sơ.',
+    turnaround: 'Submitted within 4 hours. The Immigration Department decides the result.',
+    turnaroundVi: 'Nộp hồ sơ trong vòng 4 giờ. Kết quả do Cục Quản lý xuất nhập cảnh quyết định.',
   },
   '1D': {
     code: '1D',
@@ -111,8 +118,8 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     // The grid words these as "morning before 09:00, afternoon before 13:00".
     cutoffs: ['09:00', '13:00'],
     turnaroundBusinessDays: 1,
-    turnaround: 'Result within one working day of submission.',
-    turnaroundVi: 'Có kết quả trong vòng một ngày làm việc sau khi nộp hồ sơ.',
+    turnaround: 'Submitted within one working day. The Immigration Department decides the result.',
+    turnaroundVi: 'Nộp hồ sơ trong vòng một ngày làm việc. Kết quả do Cục Quản lý xuất nhập cảnh quyết định.',
   },
   '2D': {
     code: '2D',
@@ -120,8 +127,8 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     labelVi: '2 ngày làm việc',
     cutoffs: ['15:30'],
     turnaroundBusinessDays: 2,
-    turnaround: 'Submitted before 15:30 — result the following afternoon.',
-    turnaroundVi: 'Nộp trước 15:30 — có kết quả vào chiều hôm sau.',
+    turnaround: 'Submitted before 15:30 — the Department typically decides by the following afternoon.',
+    turnaroundVi: 'Nộp trước 15:30 — Cục thường trả kết quả vào chiều hôm sau.',
   },
   '3D': {
     code: '3D',
@@ -129,7 +136,7 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     labelVi: '3 ngày làm việc',
     cutoffs: ['15:30'],
     turnaroundBusinessDays: 3,
-    turnaround: 'Submitted before 15:30 — result on the afternoon of the second day after submission.',
+    turnaround: 'Submitted before 15:30 — the Department typically decides by the afternoon of the second day.',
     turnaroundVi: 'Nộp trước 15:30 — có kết quả vào chiều ngày thứ hai sau khi nộp hồ sơ.',
   },
   normal: {
