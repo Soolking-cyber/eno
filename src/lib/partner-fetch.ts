@@ -31,6 +31,30 @@ export type StoreConfig = {
   maxPages?: number
   /** Both URL-discovery adapters: a regex a product URL must match. */
   urlMatch?: string
+  /**
+   * A regex with ONE capture group holding the price, read from the page HTML when the shop's
+   * JSON-LD carries a Product node but no usable `offers`.
+   *
+   * ⛔ PER-SHOP AND EXPLICIT, NEVER A GENERIC "FIND A NUMBER FOLLOWED BY đ". A product page is
+   * full of prices that are not this product's — a struck-through was-price, a discount
+   * percentage, an accessory rail, a "customers also bought" row. bachlongstore.vn publishes
+   * BOTH `id="ext_price"` and `id="ext_price_old"`, so a loose pattern picks the old price about
+   * as often as the real one and nothing downstream can tell. Each shop's selector is proven
+   * against real pages before it is written here.
+   */
+  htmlPrice?: string
+  /**
+   * Where `externalId` comes from. Default `slug` — the last path segment.
+   *
+   * ⛔ SET THIS TO `path` FOR ANY SHOP THAT PUTS PART OF THE SPEC IN ITS OWN PATH SEGMENT.
+   * bachlongstore.vn writes `/samsung-galaxy-z-fold7-12gb/512gb-cu.html`, so 298 of its 2,517
+   * products end in a segment like `512gb-cu.html` that several other products also end in — 38
+   * collision groups over 169 products. The slug is not an identity there, and the collision
+   * guard would drop every affected row and mark the read incomplete forever. It is a per-shop
+   * DECLARATION rather than something detected per run, because identity must not depend on
+   * which products a given run happened to fetch.
+   */
+  idFrom?: 'slug' | 'path'
   endpoint: string
   note?: string
   /** ⚠️ A CLAIM ABOUT THE GOODS, from the endpoint's own evidence — `null` where there is none. */
@@ -300,6 +324,28 @@ function findProductNode(json: unknown): Record<string, unknown> | null {
   return null
 }
 
+/**
+ * The price a shop prints in its HTML, for the shops whose JSON-LD omits it.
+ *
+ * ⚠️ MEASURED NEED, NOT A PRECAUTION: bachlongstore.vn publishes a complete Product node — name,
+ * brand, description, aggregateRating — and NO `offers` at all, so every one of its 2,500
+ * products parsed to price 0 and was dropped. The name comes from JSON-LD and the price from the
+ * page.
+ *
+ * ⚠️ AND THE QUOTE STYLE VARIES WITHIN ONE SHOP — the same template emits id="ext_price" on most
+ * pages and id='ext_price' on others, so a double-quote-only pattern reported "no price" on a
+ * subset with nothing to distinguish it from a genuinely unpriced product. Selectors written here
+ * must accept both.
+ */
+function htmlPriceFrom(html: string, cfg: StoreConfig): number {
+  if (!cfg.htmlPrice) return 0
+  const m = new RegExp(cfg.htmlPrice, 'i').exec(html)
+  if (!m?.[1]) return 0
+  // Vietnamese prices group thousands with dots: "14.750.000 đ" is 14,750,000.
+  const n = Number(m[1].replace(/[^0-9]/g, ''))
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
 /** `offers` is an object, an array, or an AggregateOffer — price lives in a different place in each. */
 function priceFrom(node: Record<string, unknown>): number {
   const offers = node.offers
@@ -530,9 +576,11 @@ async function readProductPages(cfg: StoreConfig, urls: Set<string>, LIMIT: numb
          * function of the batch. These adapters discover products BY URL, the URL list is a set,
          * so the slug is unique by construction and stable across every run.
          */
-        externalId: url.replace(/\/+$/, '').split('/').pop() || url,
+        externalId: cfg.idFrom === 'path'
+          ? new URL(url).pathname.replace(/^\/+|\/+$/g, '') || url
+          : url.replace(/\/+$/, '').split('/').pop() || url,
         name: clean(String(node.name ?? '')),
-        price: priceFrom(node),
+        price: priceFrom(node) || htmlPriceFrom(html, cfg),
         url,
         // JSON-LD first (the merchant's declared product image), then the page gallery to reach 5.
         images: [...new Set([...imagesFrom(node), ...galleryFrom(html, imagesFrom(node)[0] ?? '', url)])].slice(0, MAX_IMAGES),
