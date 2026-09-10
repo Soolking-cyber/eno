@@ -20,9 +20,16 @@ export type StoreConfig = {
   domain: string
   name: string
   city: string
-  adapter: 'woocommerce' | 'haravan' | 'sapo' | 'sitemap-jsonld'
-  /** sitemap-jsonld only: the sitemap(s) to enumerate, and a regex a product URL must match. */
+  adapter: 'woocommerce' | 'haravan' | 'sapo' | 'sitemap-jsonld' | 'collection-crawl'
+  /** sitemap-jsonld only: the sitemap(s) to enumerate. */
   sitemaps?: string[]
+  /** collection-crawl only: the USED-stock collection pages to page through. */
+  collections?: string[]
+  /** collection-crawl only: how this theme paginates. `{n}` is the page number. */
+  pageParam?: string
+  /** collection-crawl only: stop after this many pages per collection (default 40). */
+  maxPages?: number
+  /** Both URL-discovery adapters: a regex a product URL must match. */
   urlMatch?: string
   endpoint: string
   note?: string
@@ -269,10 +276,20 @@ async function fetchHaravan(cfg: StoreConfig, LIMIT: number, log: ReadLog): Prom
  * roughly half of them.
  */
 function findProductNode(json: unknown): Record<string, unknown> | null {
+  /**
+   * ⛔ `@type` IS OFTEN THE FULLY-QUALIFIED URI, NOT THE BARE WORD. schema.org permits both, and
+   * comparing against the string 'Product' silently rejects every shop that emits the URI form.
+   * MEASURED 2026-09-10: zshop.vn publishes `"@type": "http://schema.org/Product"` on every
+   * product page, so a crawl that found 70 real product URLs reported "18 of 18 pages had no
+   * Product JSON-LD" — a whole shop reading as unreachable because of a prefix. Compare the LAST
+   * path segment, which is the type name in either spelling.
+   */
+  const typeName = (t: unknown) => String(t).split(/[/#]/).pop()
   const isProduct = (n: unknown): n is Record<string, unknown> => {
     if (!n || typeof n !== 'object') return false
     const t = (n as Record<string, unknown>)['@type']
-    return t === 'Product' || (Array.isArray(t) && t.includes('Product'))
+    const names = Array.isArray(t) ? t.map(typeName) : [typeName(t)]
+    return names.some((x) => x === 'Product' || x === 'IndividualProduct')
   }
   if (isProduct(json)) return json
   if (Array.isArray(json)) { for (const n of json) { const f = findProductNode(n); if (f) return f } return null }
@@ -374,6 +391,78 @@ function galleryFrom(html: string, seed: string, productUrl: string): string[] {
   return out.slice(0, MAX_IMAGES)
 }
 
+/**
+ * Crawl the shop's own USED-STOCK COLLECTION PAGES for product links.
+ *
+ * ⛔ WHY THIS EXISTS ALONGSIDE THE SITEMAP ADAPTER. Measured across the owner's shop list
+ * 2026-09-10: most of these shops publish a sitemap of CATEGORY pages, not product pages, and
+ * several publish no product JSON feed at all — `/products.json`, the Haravan collection
+ * variant of it, and the Woo Store API were all tried on every one. Their used stock is reachable only the way
+ * a shopper reaches it — by paging through the collection the owner linked.
+ *
+ * ⛔ AND IT IS WHAT KEEPS A USED-GOODS MARKETPLACE FROM SWALLOWING A NEW-GOODS CATALOGUE. The big
+ * retailers (fptshop, thegioididong, dienmaycholon) carry Product JSON-LD on every page and a
+ * sitemap enumerating their WHOLE inventory — overwhelmingly new. Pointed at a sitemap they would
+ * import tens of thousands of new products. Pointed at `/may-doi-tra` they import the returns
+ * counter, which is the thing that was asked for. The collection URL IS the filter.
+ *
+ * ⚠️ PAGINATION STOPS ON NO-NEW-URLS, not on an empty page. Several of these themes serve the
+ * LAST page's markup for any page beyond the end (a 200, fully populated) rather than a 404, so
+ * "did this page return products" is not a termination condition — "did it return any product I
+ * have not already seen" is.
+ */
+async function crawlCollections(cfg: StoreConfig, LIMIT: number, log: ReadLog): Promise<Set<string>> {
+  const urls = new Set<string>()
+  const match = cfg.urlMatch ? new RegExp(cfg.urlMatch) : null
+  const pageParam = cfg.pageParam ?? '?page={n}'
+  const host = cfg.domain.replace(/^www\./, '')
+  for (const base of cfg.collections ?? []) {
+    // ⚠️ PER-COLLECTION PROGRESS, not global. Measured against the shared set, a collection whose
+    // first pages duplicate an earlier collection's products looks exhausted and stops before its
+    // own unseen stock (astra).
+    const mine = new Set<string>()
+    let emptyRuns = 0
+    for (let page = 1; page <= (cfg.maxPages ?? 40); page++) {
+      const url = page === 1 ? base : base.replace(/\/+$/, '') + pageParam.replace('{n}', String(page))
+      const res = await get(url)
+      if (!res.ok) {
+        // ⛔ A 404 IS THE END OF A COLLECTION; A 429 OR 5xx IS A FAILED READ. Treating them alike
+        // let a rate-limit on page 2 look like "the shop only has 40 products", and a read that
+        // short is exactly what must never be allowed to retire the rest (astra).
+        if (page === 1) { console.error(`  collection ${url}: HTTP ${res.status}`); log.fatal = true }
+        else if (res.status !== 404 && res.status !== 410) {
+          console.error(`  collection ${url}: HTTP ${res.status} — pagination cut short`)
+          log.fatal = true
+        }
+        break
+      }
+      const html = await res.text()
+      const before = mine.size
+      // ⚠️ BOTH QUOTE STYLES. Half these themes emit href='...'; matching only double quotes read
+      // a live shop as empty, with nothing to distinguish that from a sold-out one (codex).
+      for (const m of html.matchAll(/href=(?:"([^"#?]+)"|'([^'#?]+)')/g)) {
+        let h = m[1] ?? m[2]
+        if (h.startsWith('//')) h = 'https:' + h
+        else if (h.startsWith('/')) h = `https://${cfg.domain}${h}`
+        // ⛔ PARSED-HOST EQUALITY, NOT `includes`. A substring test accepts
+        // `https://zshop.vn.attacker.example/x`, so a link in someone else's markup could walk
+        // the crawler off-site — and `urlMatch` is optional, so nothing else would stop it.
+        let u: URL
+        try { u = new URL(h) } catch { continue }
+        const hh = u.hostname.replace(/^www\./, '')
+        if (hh !== host) continue
+        if (match && !match.test(h)) continue
+        mine.add(h)
+        urls.add(h)
+      }
+      await sleep(DELAY_MS)
+      if (mine.size === before) { if (++emptyRuns >= 2) break } else emptyRuns = 0
+      if (LIMIT && urls.size >= LIMIT) break
+    }
+  }
+  return urls
+}
+
 async function fetchSitemapJsonLd(cfg: StoreConfig, LIMIT: number, log: ReadLog): Promise<PartnerProduct[]> {
   const urls = new Set<string>()
   const match = cfg.urlMatch ? new RegExp(cfg.urlMatch) : null
@@ -389,6 +478,11 @@ async function fetchSitemapJsonLd(cfg: StoreConfig, LIMIT: number, log: ReadLog)
     }
     await sleep(DELAY_MS)
   }
+  return readProductPages(cfg, urls, LIMIT, log)
+}
+
+/** The half both URL-discovery strategies share: fetch each product page and read its JSON-LD. */
+async function readProductPages(cfg: StoreConfig, urls: Set<string>, LIMIT: number, log: ReadLog): Promise<PartnerProduct[]> {
   const list = [...urls].slice(0, LIMIT || undefined)
   console.log(`  ${cfg.domain}: ${urls.size} product URLs matched${LIMIT ? `, taking ${list.length}` : ''}`)
 
@@ -422,7 +516,21 @@ async function fetchSitemapJsonLd(cfg: StoreConfig, LIMIT: number, log: ReadLog)
          * on import. Measured: minhtuanmobile publishes real SKUs so the fallback never fires
          * there, but the next shop may not, and the failure is silent.
          */
-        externalId: String(node.sku || node.mpn || node.productID || url.replace(/\/+$/, '').split('/').pop() || ''),
+        /**
+         * ⛔ THE URL IS THE IDENTITY HERE, NOT THE SHOP'S SKU — and this must not depend on what
+         * a given run happened to fetch. Keying on `sku` looked right until laptoptrunghau.com
+         * turned out to publish `"sku": "laptoptrunghau"` (the SHOP's name) on every page, which
+         * collapsed 35 laptops into ONE listing under the `@@unique([sellerId, externalId])`
+         * upsert and reported it as "6 created, 29 updated".
+         *
+         * ⛔ AND DETECTING THAT COLLISION PER-RUN WAS WORSE THAN NOT DETECTING IT. A run that
+         * fetched two colliding products switched to slugs; a run limited to one product, or one
+         * where the sibling 404'd, kept the SKU — so the SAME product changed externalId between
+         * runs and the next import wrote to a different row (codex, astra). Identity cannot be a
+         * function of the batch. These adapters discover products BY URL, the URL list is a set,
+         * so the slug is unique by construction and stable across every run.
+         */
+        externalId: url.replace(/\/+$/, '').split('/').pop() || url,
         name: clean(String(node.name ?? '')),
         price: priceFrom(node),
         url,
@@ -435,6 +543,22 @@ async function fetchSitemapJsonLd(cfg: StoreConfig, LIMIT: number, log: ReadLog)
     await sleep(DELAY_MS)
   }
   if (noLd) console.log(`  ${cfg.domain}: ${noLd} pages had no Product JSON-LD (stale sitemap entries / soft 404s)`)
+
+  /**
+   * ⚠️ THE SLUG IS UNIQUE BY CONSTRUCTION — this asserts it rather than trusting it. A collision
+   * here means the URL list was not a set (a fetch bug, not a shop quirk), and importing would
+   * silently overwrite one product with another, so the colliding rows are DROPPED and the read
+   * is marked incomplete: an incomplete read never retires anything.
+   */
+  const seen = new Map<string, number>()
+  for (const p of out) seen.set(p.externalId, (seen.get(p.externalId) ?? 0) + 1)
+  const dupes = [...seen].filter(([, n]) => n > 1)
+  if (dupes.length) {
+    console.error(`  ⛔ ${cfg.domain}: ${dupes.length} externalId(s) collide — dropping them and marking the read incomplete`)
+    log.fatal = true
+    const bad = new Set(dupes.map(([k]) => k))
+    return out.filter((p) => !bad.has(p.externalId))
+  }
   return out
 }
 
@@ -449,6 +573,7 @@ export async function fetchStore(cfg: StoreConfig, limit = 0): Promise<{ product
   console.log(`\n${cfg.name} (${cfg.domain}) — ${cfg.adapter}`)
   const rows = cfg.adapter === 'woocommerce' ? await fetchWoo(cfg, LIMIT, log)
     : cfg.adapter === 'sitemap-jsonld' ? await fetchSitemapJsonLd(cfg, LIMIT, log)
+    : cfg.adapter === 'collection-crawl' ? await readProductPages(cfg, await crawlCollections(cfg, LIMIT, log), LIMIT, log)
     : await fetchHaravan(cfg, LIMIT, log)
   /**
    * ⛔ A ZERO PRICE RENDERS AS "Free / Miễn phí" ON A CARD (src/components/marketplace/price.tsx),

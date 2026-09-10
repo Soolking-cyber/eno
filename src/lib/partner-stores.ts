@@ -21,6 +21,66 @@ import type { StoreConfig } from './partner-fetch'
  */
 export const PARTNER_STORES: StoreConfig[] = [
   {
+    "domain": "daitailoc.com",
+    "name": "Đại Tài Lộc",
+    "city": "Hồ Chí Minh",
+    "adapter": "sitemap-jsonld",
+    "endpoint": "",
+    "sitemaps": ["https://daitailoc.com/sitemap-products.xml"],
+    "urlMatch": "^https://daitailoc\\.com/[a-z0-9-]+$",
+    "note": "⚠️ CONDITION IS UNCLAIMED: the evidence here is prices and JSON-LD, not condition — nothing on these pages says used, and the owner's instruction was \"add all used new doesnt matter\", so no claim is made about the goods. ⛔ THIS SHOP WAS WRONGLY WRITTEN OFF AS 'NO PRICES'. An earlier pass sampled 14 products and found a price on none of them — the real cause was findProductNode comparing `@type` against the bare string 'Product' while these pages publish the FULLY-QUALIFIED `http://schema.org/Product`. With that fixed, 4 of 5 sampled carry a price (e.g. 'Màn hình máy tính LCD VSP V2408S' @ 1,850,000). 4,642 URLs in its own sitemap-products.xml; a stale one 404s here and there, which counts as a failed read rather than a delisting.",
+    "condition": null
+  },
+  {
+    "domain": "hoanghamobile.com",
+    "name": "Hoàng Hà Mobile",
+    "city": "Hồ Chí Minh",
+    "adapter": "sitemap-jsonld",
+    "endpoint": "",
+    "sitemaps": ["https://hoanghamobile.com/sitemap.xml"],
+    "urlMatch": "^https://hoanghamobile\\.com/[a-z0-9-]+/[a-z0-9-]+",
+    "note": "One flat sitemap, 9,608 URLs, 4 of 5 sampled carry a JSON-LD price. ⚠️ DO NOT FILTER THIS SHOP ON 'cu' — `/cu-sac-day-cap` is 'củ sạc' (a CHARGER), not 'cũ' (used), and a used-only regex matched 251 charger and cable categories while missing the actual stock. Owner, 2026-09-10: \"add all used new doesnt matter\", so the whole catalogue is taken and the condition is left unclaimed.",
+    "condition": null
+  },
+  {
+    "domain": "laptoptrunghau.com",
+    "name": "Laptop Trung Hậu",
+    "city": "Hồ Chí Minh",
+    "adapter": "collection-crawl",
+    "endpoint": "",
+    "collections": [
+      "https://laptoptrunghau.com/laptop-cu.htm",
+      "https://laptoptrunghau.com/laptop-acer-cu-gia-re.htm",
+      "https://laptoptrunghau.com/laptop-asus-cu-gia-re.htm",
+      "https://laptoptrunghau.com/laptop-dell-cu-gia-re.htm",
+      "https://laptoptrunghau.com/laptop-hp-cu-gia-re.htm",
+      "https://laptoptrunghau.com/laptop-lenovo-ibm-cu-gia-re.htm",
+      "https://laptoptrunghau.com/laptop-msi-cu-gia-re.htm",
+      "https://laptoptrunghau.com/laptop-panasonic-cu-gia-re.htm",
+      "https://laptoptrunghau.com/laptop-samsung-cu-gia-re.htm",
+      "https://laptoptrunghau.com/laptop-sony-vaio-cu-gia-re.htm",
+      "https://laptoptrunghau.com/laptop-surface-cu-gia-re.htm",
+      "https://laptoptrunghau.com/laptop-toshiba-cu-gia-re.htm",
+      "https://laptoptrunghau.com/macbook-cu-gia-re.htm"
+    ],
+    "urlMatch": "^https://laptoptrunghau\\.com/[a-z0-9-]+\\.htm$",
+    "maxPages": 1,
+    "note": "The whole shop is used laptops, and it publishes 13 brand collections under /laptop-cu.htm — all of them are listed because the crawler does not recurse. ⚠️ maxPages 1: the collections carry NO pagination links at all, so asking for page 2 just refetches page 1. ⛔ PRODUCTS AND CATEGORIES SHARE ONE URL SHAPE (both are /<slug>.htm at depth 1) and cannot be told apart by the URL — the JSON-LD check does it instead: a category page has no Product node and drops out, exactly as zshop's about page does. Verified 3 of 4 sampled products carry a price (ASUS X441UVK @ 5,200,000).",
+    "condition": "used"
+  },
+  {
+    "domain": "zshop.vn",
+    "name": "ZShop",
+    "city": "Hồ Chí Minh",
+    "adapter": "collection-crawl",
+    "endpoint": "",
+    "collections": ["https://zshop.vn/kho-hang-cu/"],
+    "pageParam": "/page-{n}/",
+    "urlMatch": "^https://zshop\\.vn/[a-z0-9-]+\\.html$",
+    "note": "The owner's own link: /kho-hang-cu/ is the used warehouse. ⚠️ PAGINATION IS PATH-BASED (/kho-hang-cu/page-2/), not a query string — the default ?page={n} returns page 1 forever, which reads as a shop with 20 products. ⛔ PRODUCTS END IN .html AND CATEGORIES END IN /, which is the only reliable discriminator here: depth alone matches 210 links of which most are category pages. Measured 2026-09-10: 109 product URLs over the first 3 pages; of 6 real products sampled, 4 carry a JSON-LD price (12.99M, 30.99M, 34.99M, 7.5M) and the rest are sold — the importer drops those. Two of the eight sampled .html URLs were an about page and a profile page; they have no Product node and fall out on their own.",
+    "condition": "used"
+  },
+  {
     "domain": "dienmaysaigon.com",
     "name": "Điện Máy Sài Gòn",
     "city": "Hồ Chí Minh",
