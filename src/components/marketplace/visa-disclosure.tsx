@@ -45,9 +45,22 @@ export function VisaDisclosure({
   linkLabel: string
   className?: string
 }) {
+  /**
+   * ⛔ RENDER NOTHING RATHER THAN AN EMPTY BOX. On the marketplace edition `@/lib/visa-provider` is
+   * aliased to a stub whose strings are all `''`, so this component drew a tinted panel containing
+   * an info icon, a blank paragraph and a dangling "—" — a compliance notice that says nothing,
+   * which is worse than no notice at all because it looks like one. Seen in the app (owner,
+   * 2026-09-10). The caller cannot easily know: on eno.vn the alias is applied at BUILD time and
+   * every call site passes what looks like real copy.
+   * ⚠️ THIS IS NOT A WAY TO SUPPRESS THE DISCLAIMER. It fires only where there is no visa surface
+   * to disclaim — eno.vn compiles no wallet, no checkout and a stubbed provider. Anywhere the copy
+   * is real, so is the panel.
+   */
+  if (!text.trim() || !OFFICIAL_EVISA_URL) return null
+
   // Built outside JSX: a bare template literal in markup trips the no-literals rule, and this is a
   // domain name rather than copy — there is nothing here to translate.
-  const hostSuffix = ` — ${OFFICIAL_EVISA_HOST}`
+  const hostSuffix = OFFICIAL_EVISA_HOST ? ` — ${OFFICIAL_EVISA_HOST}` : ''
   return (
     <aside className={`flex max-w-3xl items-start gap-3 rounded-xl bg-tint p-4 ${className}`}>
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />

@@ -62,4 +62,18 @@ export const PROVIDER_OF_RECORD = {
 export const OFFICIAL_EVISA_URL = ''
 export const OFFICIAL_EVISA_HOST = ''
 
+/**
+ * ⛔ EMPTY, AND IT MUST STAY EMPTY — I TRIED THE OTHER THING AND THE GUARD WAS RIGHT. Filling these
+ * with "eno is not a government agency and does not decide visa applications" looked like an
+ * improvement: eno.vn does reach a visa thread through the VietKite partner slot, so a disclaimer
+ * there seemed better than none. `edition-stubs.test.ts` refused it — the sentence carries visa
+ * vocabulary ("thị thực"), and keeping that off the licensed sàn TMĐT is the whole reason this file
+ * exists. The boundary outranks the convenience.
+ *
+ * ⚠️ SO THE EMPTY VALUE IS HANDLED AT THE RENDER SITE INSTEAD. `VisaDisclosure` returns null when
+ * the text or the URL is blank, because with `''` it drew a panel containing an icon, a blank
+ * paragraph and a dangling "—", and `<a href="">` navigates to the CURRENT page — which is why
+ * tapping the government link reloaded the message thread (owner, 2026-09-10). One empty string,
+ * two visible bugs, and neither is fixed by pretending the string is not empty.
+ */
 export const NOT_GOVERNMENT = { en: '', vi: '' }
