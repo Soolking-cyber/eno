@@ -6,12 +6,14 @@ import { isMockImageUrl } from '@/lib/listing-image'
 import { useEffect, useRef, useState } from 'react'
 import { Heart, Info } from '@/components/ui/icons'
 import { TrustScore } from './trust-score'
+import { PartnerBadge } from './partner-badge'
 import { MapTravel, MapsDirectionsButton } from './map-travel'
 import type { LatLng } from '@/lib/travel'
 import type { SerializedListingCard } from '@/lib/types'
 import { formatMoneyFull, compactPrice, moneyLocale, type MoneyLocale } from '@/lib/vnd'
-import { useCurrency } from '@/context/currency-context'
-import { useLanguage } from '@/context/language-context'
+import { useCurrency, vndPerUsd } from '@/context/currency-context'
+import { Price } from './price'
+import { useLanguage, useTr } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
@@ -31,10 +33,16 @@ import { IconButton } from '@/components/ui/icon-button'
 function pinLabel(l: SerializedListingCard, locale: MoneyLocale, currency?: string, rate?: number): string {
   // ⚠️ A PIN MUST NOT SHOW A BARE ĐỒNG MAGNITUDE TO SOMEONE READING IN DOLLARS. This returned
   // `compactPrice(l.price, locale)` unconditionally for ₫ listings — a unit-less "51M" — while every
-  // other surface, including the popup this very pin opens, honoured the viewer's display currency.
-  // A USD reader saw "51M" on the pin and "$1,950" one tap later, on the same listing.
+  // other surface honoured the viewer's display currency. A USD reader saw "51M" on the pin and
+  // "$1,950" one tap later, on the same listing.
   // Mirrors price-range-filter.tsx's compactAmt: convert first, keep the vi shorthand only when the
   // viewer is actually reading đồng, and never emit a magnitude without its unit.
+  // ⚠️ SINCE THE 2026-09-13 CARD REWORK THE "FOREIGN" FIGURE IS ALWAYS DOLLARS. The popup (and every
+  // card) now reads "51,000,000 đ ≈ $1,950" — đồng first, USD as the estimate — for every viewer. So a
+  // viewer who picked ANY foreign currency gets a dollar pin ("$1.9k") that matches the popup's "≈";
+  // converting to their EUR/KRW pick would put "€1.7k" on the pin and "$1,950" one tap later, which all
+  // four reviewers flagged. The currency picker still drives the PDP. A first pass switched pins to
+  // đồng-only instead, and reviewers flagged the unit-less "51M" that handed a dollar reader.
   if (l.currency === '₫') {
     const foreign = currency && currency !== 'VND' && currency !== '₫' && rate
     if (!foreign) return compactPrice(l.price, locale)
@@ -47,6 +55,17 @@ function pinLabel(l: SerializedListingCard, locale: MoneyLocale, currency?: stri
   // Rare non-₫ listing: same canonical vnd.ts formatter the popup one tap away uses
   // (the old local formatPrice hardcoded Intl en-US — audit P1 #9; it's deleted).
   return formatMoneyFull(l.price, l.currency, locale)
+}
+
+/** The popup's place line — the city goes through the same `useTr` the card uses (identity in
+ *  English and Vietnamese; machine-translated for the other UI languages). The district is printed as
+ *  stored, exactly as on the card: it is a proper noun, and machine translation of ward names is how
+ *  "Bình Thạnh" becomes a word salad. The full city name stays (the popup is 300px; the card's "HCM"
+ *  is a width fix). A component because the popup's listing changes while the map stays mounted, and
+ *  a hook cannot be called conditionally inside it. */
+function PopupPlace({ district, location }: { district: string | null; location: string }) {
+  const city = useTr(location)
+  return <>{district && district !== location ? `${district}, ${city}` : city}</>
 }
 
 type Props = {
@@ -245,9 +264,12 @@ function MapCredit({ className }: { className?: string }) {
 export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove }: Props) {
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
-  const { format: formatPrice, currency: displayCurrency, rates: fxRates } = useCurrency()
-  // /api/fx publishes 'currency per 1 VND', so this multiplies. Undefined until the rates land.
-  const displayRate = displayCurrency && displayCurrency !== 'VND' && displayCurrency !== '₫' ? fxRates[displayCurrency] : undefined
+  const { currency: pickedCurrency, rates: fxRates } = useCurrency()
+  // Any foreign pick → a DOLLAR pin, matching the popup's "≈ $" (see pinLabel). /api/fx publishes
+  // 'currency per 1 VND', so this multiplies; `vndPerUsd` is the same plausibility band <Price> uses,
+  // so a pin never shows a dollar figure the popup would refuse to. Undefined until the rates land.
+  const displayCurrency = pickedCurrency && pickedCurrency !== 'VND' && pickedCurrency !== '₫' ? 'USD' : pickedCurrency
+  const displayRate = displayCurrency === 'USD' && vndPerUsd(fxRates) ? fxRates.USD : undefined
   // Pin + card amounts follow the viewer's UI language from CONTEXT — a former
   // `lang` prop was a content-localization hint some hosts hardcoded (listing-
   // detail-map passed 'vi'), so it could never drive money formatting; it was
@@ -638,12 +660,15 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     )}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-bold text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></span>
-                    <span className="block text-xs font-bold text-price">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</span>
+                    {/* Same order as <ListingCard>: price → one-line title (owner, 2026-09-13). */}
+                    <Price native price={card.price} currency={card.currency} priceUnit={card.priceUnit} className="block text-sm leading-tight" />
+                    <span className="block truncate text-xs text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></span>
                     <span className="mt-0.5 block"><MapTravel to={getListingCoordinates(card)} userLoc={userLoc} state={locState} onRequest={requestLoc} compact /></span>
                   </span>
                 </Button>
-                <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
+                {card.seller.officialPartner
+                  ? <PartnerBadge asLink={false} className="shrink-0" />
+                  : <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />}
                 <MapsDirectionsButton to={getListingCoordinates(card)} className="h-8 w-8 shrink-0" />
               </div>
             ) : (
@@ -690,13 +715,19 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                       <Image src={card.images[0]} alt="" fill sizes="280px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
                     )}
                   </div>
-                  <div className="p-3 pb-1.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="truncate text-sm font-bold text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></p>
-                      <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
+                  {/* Same shape as <ListingCard>: price → one-line title → location, with the trust
+                      chip closing the location line (owner, 2026-09-13). The price is the STORED đồng
+                      amount, as on the cards and the pin — see pinLabel. */}
+                  <div className="flex flex-col gap-0.5 p-3 pb-1.5">
+                    <Price native price={card.price} currency={card.currency} priceUnit={card.priceUnit} className="text-lg leading-tight" />
+                    <p className="truncate text-sm leading-snug text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></p>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="min-w-0 flex-1 truncate"><PopupPlace district={card.district} location={card.location} /></span>
+                      {/* PARTNER REPLACES TRUST, as on the card — a partner must read the same one tap later. */}
+                      {card.seller.officialPartner
+                        ? <PartnerBadge asLink={false} className="shrink-0" />
+                        : <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />}
                     </div>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
-                    <p className="mt-1 text-sm font-bold text-price">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</p>
                   </div>
                 </Button>
                 {/* Travel estimate — separate tap target, below the open-listing button.

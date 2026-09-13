@@ -2647,8 +2647,10 @@ export default function ThreadPage() {
                   inputMode="numeric"
                   enterKeyHint="send"
                   autoFocus
-                  aria-label={tr('Offer amount (VND)', 'Số tiền đề nghị (VND)')}
-                  placeholder={tr('Offer amount (VND)', 'Số tiền đề nghị (VND)')}
+                  // The visible mark is "đ" (owner, 2026-09-13); the NAME spells the currency out, because
+                  // a screen reader announces a bare "đ" as a letter, not as money.
+                  aria-label={tr('Offer amount in Vietnamese đồng', 'Số tiền đề nghị (đồng)')}
+                  placeholder={tr('Offer amount (đ)', 'Số tiền đề nghị (đ)')}
                   onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
                   className="rounded-2xl border-brand px-3.5 py-2.5 pr-16 text-base focus:ring-brand/20 lg:text-sm"
                 />

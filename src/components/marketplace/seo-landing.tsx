@@ -9,7 +9,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
-import { ArrowRight, MapPin, ShieldCheck } from "@/components/ui/icons"
+import { ArrowRight, ShieldCheck } from "@/components/ui/icons"
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { Button } from '@/components/ui/button'
@@ -302,13 +302,11 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
                       />
                     )}
                   </div>
-                  <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2.5">
-                    <span className="line-clamp-1 text-sm font-semibold text-foreground group-hover:text-accent-foreground">{l.title}</span>
-                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="text-sm" />
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <MapPin className="h-3 w-3 shrink-0 text-ink-4" />
-                      <span className="truncate">{l.location}</span>
-                    </span>
+                  {/* Same shape as <ListingCard>: price → one-line title → location (owner, 2026-09-13). */}
+                  <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2">
+                    <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="text-base leading-tight sm:text-lg" />
+                    <span className="truncate text-sm leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">{l.title}</span>
+                    <span className="truncate text-xs text-muted-foreground">{l.location}</span>
                   </div>
                 </Link>
               ))}

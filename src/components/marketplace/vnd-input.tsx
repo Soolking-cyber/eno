@@ -73,11 +73,11 @@ export function VndInput({
           aria-invalid={invalid || undefined}
           aria-label={ariaLabel}
           aria-describedby={describedBy}
-          // pr-14 is LOAD-BEARING: it reserves the room for the "VND" suffix span
+          // pr-14 is LOAD-BEARING: it reserves the room for the "đ" suffix span
           // below — without it the digits run under the suffix.
           className={cn('py-2.5 pl-3.5 pr-14 text-lg font-bold tabular-nums focus:ring-brand/20', invalid && 'ring-2 ring-destructive/60')}
         />
-        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-4">VND</span>
+        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-4">đ</span>
       </div>
 
       {/* Readability helper — reserves its line so the chips don't jump */}

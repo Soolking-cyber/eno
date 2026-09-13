@@ -14,7 +14,7 @@ export const SAVED_SKELETON_COUNT = 8
  *  Was hand-rolled in 6 places with drifting bar counts.
  *
  *  ⚠️ THE BODY IS THE REAL CARD'S BOX MODEL, CLASS FOR CLASS — `flex flex-col
- *  gap-0.5 px-0.5 pt-2.5` (listing-card.tsx:503). It used to be `space-y-3` with
+ *  gap-0.5 px-0.5 pt-2` (listing-card.tsx, the body div). It used to be `space-y-3` with
  *  mt-2/space-y-1.5 bars, which put every bar at a different offset from the text it
  *  stood in for and made the card the wrong TOTAL height at every breakpoint.
  *  Measured against the live feed (2026-08-07, body height of the dominant card):
@@ -33,25 +33,16 @@ export function ListingCardSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn('flex flex-col', className)}>
       <div className="aspect-square w-full rounded-xl shimmer skeleton-photo" />
-      <div className="flex flex-col gap-0.5 px-0.5 pt-2.5">
-        {/* PRICE — text-lg/leading-tight, a 23px line box. The dual-currency "≈ $…"
-            wraps onto a SECOND line on a narrow card (measured at 390px: 17 of 25
-            feed cards run two lines), so it is reserved below sm and dropped above,
-            where the card is wide enough to keep the amount on one line.
-            gap-px, not the parent's gap-0.5: two line boxes of one wrapped element
-            are contiguous, so 23 + 1 + 21 = the 45px the real price measures. */}
-        <div className="flex flex-col gap-px">
-          <Skeleton className="h-[23px] w-1/2" />
-          <Skeleton className="h-[21px] w-1/3 sm:hidden" />
-        </div>
-        {/* TITLE — line-clamp-2 text-sm/leading-snug, 19px per line. Two lines
-            everywhere but the widest card: a grid ROW is as tall as its tallest
-            card, and below xl most rows contain a wrapped title. */}
-        <div className="flex flex-col gap-px">
-          <Skeleton className="h-[19px] w-full" />
-          <Skeleton className="h-[19px] w-3/5 xl:hidden" />
-        </div>
-        {/* META — one text-2xs line under the real row's pt-1 (4px). */}
+      {/* Mirrors the Facebook-Marketplace-shaped card body (2026-09-13): one price line, ONE title
+          line, one info line. Heights are the real line boxes — re-measure against the card if
+          any of its type sizes change. */}
+      <div className="flex flex-col gap-0.5 px-0.5 pt-2">
+        {/* PRICE — text-base/leading-tight below sm (20px), text-lg above (22.5px). No second
+            line reserved any more: the "≈ $…" slot that used to wrap is gone from cards. */}
+        <Skeleton className="h-[20px] w-1/2 sm:h-[23px]" />
+        {/* TITLE — `truncate` text-sm/leading-snug, one 19px line. */}
+        <Skeleton className="h-[19px] w-4/5" />
+        {/* META — the unchanged info line: one text-2xs line under the real row's pt-1 (4px). */}
         <Skeleton className="mt-1 h-[15px] w-1/2" />
       </div>
     </div>

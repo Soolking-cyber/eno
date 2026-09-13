@@ -32,7 +32,7 @@ export const CURRENCY_CODES = CURRENCIES.map((c) => c.code)
 /**
  * Format a VND amount in the chosen display currency. `rates` are "currency per
  * 1 VND" (from /api/fx). VND keeps the app's locale-aware suffix style
- * ("12,000,000 VND" en / "12.000.000 đ" vi — see vnd.ts); other currencies use
+ * ("12,000,000 đ" en / "12.000.000 đ" vi — see vnd.ts); other currencies use
  * their native symbol via Intl (rounded to whole units — cleaner for marketplace
  * prices; a viewer who picked a foreign display currency gets its international
  * rendering regardless of UI language). Falls back to VND if the rate isn't

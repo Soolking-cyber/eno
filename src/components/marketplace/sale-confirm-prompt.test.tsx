@@ -87,7 +87,7 @@ describe('SaleConfirmPrompt asks ONE question', () => {
     expect(prompt.textContent).toContain('Minh')
     expect(prompt.textContent).toContain('Honda Vision 2021')
     expect(prompt.textContent).toContain('says you bought')
-    expect(prompt.textContent).toContain('11,200,000 VND')
+    expect(prompt.textContent).toContain('11,200,000 đ')
   })
 
   it('says confirming is what makes it count FOR BOTH — the reason a buyer answers at all', () => {
@@ -428,7 +428,7 @@ describe('SaleConfirmPrompt — hostile inputs', () => {
   it('a zero or negative price never renders a negative amount', () => {
     renderPrompt(<SaleConfirmPrompt {...BASE} price={-5} />)
     const text = screen.getByRole('group').textContent ?? ''
-    expect(text).toContain('0 VND')
+    expect(text).toContain('0 đ')
     expect(text).not.toContain('-5')
   })
 })

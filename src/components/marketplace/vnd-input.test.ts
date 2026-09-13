@@ -84,15 +84,15 @@ describe('VndInput — the ₫ unit ladder', () => {
 })
 
 describe('VndInput — the field is đồng and says so', () => {
-  it('suffixes VND', () => {
-    expect(markup()).toContain('>VND</span>')
+  it('suffixes đ', () => {
+    expect(markup()).toContain('>đ</span>')
     // ⚠️ No currency prop, no other symbol: a listing is never composed in anything else.
     expect(markup()).not.toContain('>USD</span>')
     expect(markup()).not.toContain('$')
   })
 
   it('reads the amount out in đồng units', () => {
-    expect(markup('12000000')).toContain('= 12 triệu VND')
+    expect(markup('12000000')).toContain('= 12 triệu đ')
   })
 
   it('reserves the readability line when there is no amount, so the chips do not jump', () => {

@@ -30,6 +30,16 @@ type Props = {
    *  lines beat one misleading one. Only `dual` gets the container treatment, because an FX
    *  approximation is the one part that carries no meaning of its own. */
   unit?: boolean | 'sm'
+  /** The STORED đồng amount always LEADS ("2,250,000 đ ≈ $87"), whatever display currency the
+   *  viewer picked — for scan surfaces: feed cards, rows, map popups, search suggestions (owner,
+   *  2026-09-13). The "≈ $" approximation behaves exactly as on every other price (same rate band,
+   *  same reserved slot while rates load, same `dual` control); only the PRIMARY figure changes.
+   *  ⚠️ History, so it is not re-tried: a first cut dropped the approximation for the default viewer
+   *  to make the card "clean", and the owner asked for it back the same day ("approximate price in
+   *  usd disappeared add it back after d price"). A second cut showed the viewer's PICKED currency as
+   *  the "≈" instead, which reviewers showed had no rate sanity check outside USD.
+   *  ⚠️ For a ₫ listing this can never render a foreign-only figure (ND 340/2025). */
+  native?: boolean
   className?: string
 }
 
@@ -49,7 +59,7 @@ type Props = {
  *  number of digits wide. */
 const FX_RESERVE_RATES = { USD: 1 / 26_000 }
 
-export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, className }: Props) {
+export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, native = false, className }: Props) {
   void compact // amounts are always shown in full now
   const { lang, tr } = useLanguage()
   const { currency: displayCur, rates, ratesPending, format } = useCurrency()
@@ -60,14 +70,20 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // than a deliberate offer. The unit suffix is dropped with it: "Free / service" is nonsense.
   // Guarded on price > 0 rather than truthiness so a negative never slips through as free.
   // Unit suffix is translatable; bare "VND"/empty has none.
-  const unitRaw = !priceUnit || priceUnit === 'VND' ? null : priceUnit.replace(/^VND\/?/, '').trim() || null
+  // ⚠️ "/ service" IS NOT SHOWN, ANYWHERE (owner, 2026-09-13: "remove /service from price on services
+  // category"). Unlike "/ month" it carries no meaning a buyer could misread — a service is priced per
+  // service by definition — and it was the widest, least informative run on every visa and trip card.
+  // DISPLAY ONLY: the stored `priceUnit` stays 'VND/service', which openers.ts's isRatePrice() still
+  // reads to avoid "can I collect it today?" openers on a service. "/ month" stays; see `unit` above.
+  const unitStripped = !priceUnit || priceUnit === 'VND' ? null : priceUnit.replace(/^VND\/?/, '').trim() || null
+  const unitRaw = unitStripped === 'service' ? null : unitStripped
   const unit = useTr(unitRaw ?? '') // hook called unconditionally (no-op when empty)
   // VND-stored listings convert to the display currency; the rare non-VND listing
   // is shown in its own currency, unconverted.
   const isFree = price === 0
   const amount = isFree
     ? tr('Free', 'Miễn phí')
-    : currency === '₫' ? format(price, locale) : formatMoneyFull(price, currency, locale)
+    : currency === '₫' && !native ? format(price, locale) : formatMoneyFull(price, currency, locale)
   // ⚠️ NO LEADING SPACE — the space that separates the suffix from the amount is rendered as its
   // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the
   // price line has. See the suffix markup below.
@@ -89,7 +105,8 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // by a container query in CSS. Deciding it in JS would need the container's width, which is not
   // known at render and would tear on resize.
   if (dual !== false && currency === '₫' && price > 0) {
-    if (displayCur === 'USD') approx = formatMoneyFull(price, '₫', locale)
+    // `native` already leads with đồng, so a USD viewer gets "đ ≈ $", never the đồng figure twice.
+    if (displayCur === 'USD' && !native) approx = formatMoneyFull(price, '₫', locale)
     else if (vndPerUsd(rates)) approx = formatMoney(price, 'USD', rates, locale)
     // ⛔ THIS BRANCH RENDERS A FIGURE THAT IS NEVER SHOWN, AND THAT IS THE ENTIRE POINT.
     // /api/fx is deferred to an idle slot for the default VND viewer, so the "≈ $x" slot used to
@@ -137,7 +154,7 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // displaying prices in USD is sanctionable, so the đồng figure is the last thing that may be
   // dropped for space. 'fit' therefore only ever hides a genuine approximation.
   // A reviewer caught this; the first version applied the container query unconditionally.
-  const approxIsEstimate = displayCur !== 'USD'
+  const approxIsEstimate = native || displayCur !== 'USD'
 
   return (
     // tabular-nums: fixed-width digits so price columns align across card grids.

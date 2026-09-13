@@ -137,8 +137,8 @@ describe('on a card', () => {
 describe('while posting', () => {
   it('states the range, the sample size and what it is comparing against', () => {
     const { container } = renderIn('en', props())
-    expect(container.textContent).toContain('10,875,000 VND')
-    expect(container.textContent).toContain('12,625,000 VND')
+    expect(container.textContent).toContain('10,875,000 đ')
+    expect(container.textContent).toContain('12,625,000 đ')
     expect(container.textContent).toContain('Based on 8 confirmed sales')
     expect(container.textContent).toContain('Same model, year and condition')
   })
@@ -212,7 +212,7 @@ describe('while posting', () => {
     expect(typical).not.toContain('Below the range')
     cleanup()
     const empty = renderIn('en', props({ price: null })).container.textContent ?? ''
-    expect(empty).toContain('10,875,000 VND')
+    expect(empty).toContain('10,875,000 đ')
     expect(empty).not.toContain('Higher than')
     expect(empty).not.toContain('Below the range')
   })
@@ -253,6 +253,6 @@ describe('server rendering', () => {
       </LanguageProvider>,
     )
     expect(first).toBe(second)
-    expect(first).toContain('10,875,000 VND')
+    expect(first).toContain('10,875,000 đ')
   })
 })

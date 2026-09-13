@@ -211,7 +211,7 @@ export function QuickDiscount({
                   value={amount}
                   onChange={(e) => onAmount(e.target.value)}
                 />
-                <span className="shrink-0 text-xs font-semibold text-muted-foreground">VND</span>
+                <span className="shrink-0 text-xs font-semibold text-muted-foreground">đ</span>
               </div>
               {/* role="alert" as well as being the field's description: a validation
                   message that appears while typing is otherwise announced to nobody. */}

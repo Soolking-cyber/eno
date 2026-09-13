@@ -452,7 +452,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // Display suffix beside the amount. The STORED unit is the server's business
   // (listingMoneyFor in @/lib/taxonomy); this is only its translated shorthand.
   // Currency is not a variable here — every listing is composed and stored in ₫.
-  const priceUnit = listingType === 'rent' || listingType === 'job' ? t('/ tháng', '/ month') : listingType === 'service' ? t('/ dịch vụ', '/ service') : ''
+  // No "/ service" suffix — the published card does not show one either (see price.tsx, 2026-09-13).
+  const priceUnit = listingType === 'rent' || listingType === 'job' ? t('/ tháng', '/ month') : ''
   /**
    * ⚠️ ON A `wanted` POST THE AMOUNT IS A BUDGET, NOT AN ASK — the poster is the BUYER, which is
    * the one intent that reverses the direction of a listing. Heading it "Price" asks someone what

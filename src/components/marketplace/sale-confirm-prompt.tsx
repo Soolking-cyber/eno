@@ -50,7 +50,7 @@ import { cn } from '@/lib/utils'
  * Deliberately NOT a dialog. This is an in-flow card (a chat thread, a notification list), so it
  * must not seize focus or dim the page — a modal for a question this small is a hijack, and the
  * buyer is mid-conversation with the very person the question is about. Money is rendered by
- * `src/lib/vnd.ts` in the viewer's own convention: "11,200,000 VND" for en, "11.200.000 đ" for vi.
+ * `src/lib/vnd.ts` in the viewer's own convention: "11,200,000 đ" for en, "11.200.000 đ" for vi.
  */
 
 /** `asking` shows the question; the other two are terminal acknowledgements with NO buttons —

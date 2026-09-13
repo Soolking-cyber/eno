@@ -1,11 +1,16 @@
 // Money formatting. Across the app we show the FULL grouped amount everywhere
 // (cards, detail, input, offers) — but the SEPARATORS follow the viewer's
 // language. Vietnamese convention is the exact reverse of English: DOT for
-// thousands, COMMA for decimals, and the "đ" suffix (Shopee: "₫1.250.000",
-// ratings "4,9") — comma-grouped "12,000,000 VND" reads foreign/untrustworthy
-// to the home market. So every formatter takes a MoneyLocale that DEFAULTS to
-// 'en' ("12,000,000 VND", unchanged for the expat audience and every untouched
-// call site) and renders native Vietnamese for 'vi' ("12.000.000 đ").
+// thousands, COMMA for decimals. The currency mark is "đ" in EVERY language.
+//
+// ⚠️ "đ", NOT "VND", FOR ENGLISH TOO — owner, 2026-09-13: "vietnamese price shows in đ not VND",
+// pointing at a Facebook Marketplace grid that renders "2,250,000 đ" under an English UI. This
+// used to print "12,000,000 VND" for every non-Vietnamese viewer on the theory that the ISO code
+// read clearer to expats; the owner's call is that the local mark is what the market uses and what
+// a shopper in Vietnam actually sees on a price tag. It also buys width: " VND" is 4 characters on
+// a card price line that its own comments document as being at its width limit.
+// Only the MARK changed — English keeps comma grouping ("12,000,000 đ"), Vietnamese keeps dots
+// ("12.000.000 đ"). parseVnd still accepts "VND" because pasted and legacy text carries it.
 
 export type MoneyLocale = 'en' | 'vi'
 
@@ -25,15 +30,22 @@ function group(n: number, locale: MoneyLocale): string {
   return (locale === 'vi' ? VI : EN).format(n)
 }
 
-/** Full grouped amount. en: "12,000,000 VND" / "$1,200". vi: "12.000.000 đ"
+/** Full grouped amount. en: "12,000,000 đ" / "$1,200". vi: "12.000.000 đ"
  *  (space before đ); the rare non-VND listing keeps its symbol prefix with
  *  vi grouping. */
 export function formatMoneyFull(price: number, currency: string, locale: MoneyLocale = 'en'): string {
   const amount = group(Math.round(price), locale)
-  if (currency === '₫') return locale === 'vi' ? `${amount} đ` : `${amount} VND`
+  if (currency === '₫') return `${amount} đ`
   return `${currency}${amount}`
 }
 
+
+/** "3,000,000 VND" — the ISO-coded form, for text read OUTSIDE the market: payment-provider line items
+ *  a dispute analyst reads (visa/payments.ts). Every on-site price uses formatMoneyFull's "đ" instead;
+ *  this exists so that change did not silently reach a Stripe/PayPal description. */
+export function formatVndIso(price: number): string {
+  return `${group(Math.round(price), 'en')} VND`
+}
 
 /** USD amount from cents — the rare USD fee (e.g. the visa service fee). Currency
  *  style with the viewer's separators: "$25.00" (en) / "25,00 US$" (vi). */
@@ -78,7 +90,7 @@ function short(n: number, locale: MoneyLocale = 'en'): string {
 
 /**
  * Compact VND label for MAP PINS ONLY — the single sanctioned exception to the
- * full-grouped format (pins are too narrow for "51,000,000 VND"). en keeps the
+ * full-grouped format (pins are too narrow for "51,000,000 đ"). en keeps the
  * explicit international suffixes ("850K", "51M", "1.2B") — the Vietnamese
  * shorthand is opaque to the expat audience — while vi uses the native
  * abbreviations every local reads instantly: "500k", "51tr", "1,2 tỷ".
@@ -111,7 +123,7 @@ export function formatRating(n: number, locale: MoneyLocale = 'en'): string {
   return locale === 'vi' ? s.replace('.', ',') : s
 }
 
-/** Readable helper under the price input: "12 million VND" / "12 triệu VND".
+/** Readable helper under the price input: "12 million đ" / "12 triệu đ".
  *  Accepts the full UI language (any non-vi value behaves as en). */
 export function vndWords(n: number, lang: string): string {
   if (!n) return ''
@@ -122,6 +134,6 @@ export function vndWords(n: number, lang: string): string {
   if (n >= 1_000_000_000) { val = n / 1_000_000_000; word = vi ? 'tỷ' : 'billion' }
   else if (n >= 1_000_000) { val = n / 1_000_000; word = vi ? 'triệu' : 'million' }
   else if (n >= 1_000) { val = n / 1_000; word = vi ? 'nghìn' : 'thousand' }
-  else return `${group(n, locale)} VND`
-  return `${short(val, locale)} ${word} VND`
+  else return `${group(n, locale)} đ`
+  return `${short(val, locale)} ${word} đ`
 }

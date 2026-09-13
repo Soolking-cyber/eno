@@ -274,13 +274,13 @@ describe('the money — derived, and formatted by src/lib/vnd.ts', () => {
     expect(openerOfferAmount(1)).toBeNull()
   })
 
-  it('renders 11.400.000 đ for a Vietnamese reader and 11,400,000 VND for everyone else', () => {
+  it('renders 11.400.000 đ for a Vietnamese reader and 11,400,000 đ for everyone else', () => {
     const offer = openersFor(MOTORBIKE, MORNING).find((o) => o.kind === 'offer')!
     expect(fillOpener(offer, offer.text.vi, 'vi')).toContain('11.400.000 đ')
-    expect(fillOpener(offer, offer.text.en, 'en')).toContain('11,400,000 VND')
+    expect(fillOpener(offer, offer.text.en, 'en')).toContain('11,400,000 đ')
     // The eleven machine-translated languages inherit the international grouping — moneyLocale()
     // narrows anything that is not 'vi' to 'en'.
-    expect(fillOpener(offer, offer.text.en, 'ru')).toContain('11,400,000 VND')
+    expect(fillOpener(offer, offer.text.en, 'ru')).toContain('11,400,000 đ')
   })
 
   it('leaves no {price} token in anything a buyer can read', () => {
@@ -422,7 +422,7 @@ describe('the translation guard — a token a machine translator lost', () => {
 
   it('falls back to the English source rather than showing a raw {price}', () => {
     const offer = openersFor(MOTORBIKE, MORNING).find((o) => o.kind === 'offer')!
-    expect(openerString(offer, offer.text, trMangling, 'ru')).toContain('11,400,000 VND')
+    expect(openerString(offer, offer.text, trMangling, 'ru')).toContain('11,400,000 đ')
     expect(openerString(offer, offer.text, trMangling, 'ru')).not.toContain(PRICE_TOKEN)
     expect(openerString(offer, offer.text, trMangling, 'ru')).not.toContain('{цена}')
     // A translation that KEEPS the token is used as-is — the fallback must not fire needlessly.

@@ -1,6 +1,6 @@
 import 'server-only'
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatVndIso } from '@/lib/vnd'
 import { decryptVisaPayload, visaApplicantSnapshotHash } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
@@ -249,11 +249,12 @@ function providerProductLabel(title: string | null | undefined, max: number): st
  * string — a truncated title is cosmetic, a missing price is the evidence gone.
  *
  * 'en' grouping on purpose: "3,000,000 VND" is the internationally legible rendering, and
- * this string is read by a dispute analyst as often as by the buyer. (formatMoneyFull's
+ * this string is read by a dispute analyst as often as by the buyer — hence formatVndIso, not the
+ * on-site "đ" form (formatMoneyFull switched to "đ" for English on 2026-09-13). (formatMoneyFull's
  * 'vi' form, "3.000.000 đ", reads as three thousand to anyone outside the market.)
  */
 function providerLineLabel(title: string | null | undefined, priceVnd: number, max: number): string {
-  const note = ` — ${formatMoneyFull(priceVnd, '₫', 'en')}`
+  const note = ` — ${formatVndIso(priceVnd)}`
   return `${providerProductLabel(title, Math.max(1, max - note.length))}${note}`
 }
 

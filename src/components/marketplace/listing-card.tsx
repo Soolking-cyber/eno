@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { Heart, Building2, MapPin, MessageCircle, Tag, Play, ArrowRight } from '@/components/ui/icons'
 import { OwnerEditButton } from '@/components/marketplace/owner-edit-button'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { PartnerBadge } from './partner-badge'
@@ -973,67 +972,42 @@ function ListingCardImpl({
         )}
       </div>
 
-      {/* Body — a strict, scannable native hierarchy: price (the anchor) → title →
-          one tightly-packed subdued metadata line → (mobile only) a quiet action row.
-          gap-0.5 keeps it dense; the metadata line is pushed to the bottom (mt-auto)
-          so cards with 1- vs 2-line titles still align their footers across the grid. */}
-      {/* ⛔ AN `@container` + `<Price dual="fit">` PAIR WAS BUILT HERE AND REMOVED — DO NOT REDO IT
-          WITHOUT READING THIS. The goal was real: this price wraps to two lines on a narrow card
-          (179px at 390, 229px at 768, against ~262px of "3,030,000 VND / service ≈ $115"), and a
-          viewport breakpoint cannot fix it because a wider viewport adds COLUMNS and makes the
-          card NARROWER. A container query is the right tool. What sank it was that a FIXED
-          threshold cannot gate a VARIABLE-LENGTH string: it hid the ≈ conversion on a small card
-          showing "81,000 VND ≈ $3" that had room to spare, while a property price still overflowed
-          a container comfortably past the threshold. It over-fired and under-fired at once — and
-          `container-type: inline-size` additionally makes this box a containing block and a
-          stacking context for anything absolutely positioned inside it.
-          If this is attempted again it needs to key on the RENDERED width of the amount, not on a
-          constant — and the wrap it fixes has been there all along, so it is a deliberate piece of
-          work, not a tidy-up. */}
-      <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2.5">
-        {/* PRIMARY — price. The card's single blue accent, bold and a step larger than
-            everything else so the eye lands here first.
-            ⚠️ `flex-wrap`, AND THE COMMENT ABOVE IT USED TO CLAIM THE OPPOSITE ("deal chips sit
-            INLINE … so 'was'/'Good price' add no vertical bulk"). That held only while the current
-            price fitted on one line. Owner, 2026-08-13, pointing at a 2-up rail card: "the discount
-            price is off … it doesnt look nice and cohesive". Measured at 390px, where the price
-            column is 175px: "1,800,000 VND ≈ $68" already needs TWO lines, and because this was a
-            non-wrapping baseline row the struck-through anchor stayed pinned to the FIRST baseline
-            and `truncate` clipped it mid-number — "2,000,000…" floating to the right of a wrapped
-            price, with its own ≈ conversion cut off entirely.
-            Wrapping lets the anchor take its own line, complete and left-aligned under the price it
-            refers to. It costs 21px on a discounted card (45px → 66px, measured) and nothing on any
-            other card — the row only wraps when there is genuinely no room. That is the honest
-            price of showing a complete number, and a clipped one was not worth the 21px it saved.
-            ⚠️ listing-card-skeleton.tsx reserves the TWO-line case (23+1+21=45px) and is correct to:
-            it cannot know which listings carry a drop, and most do not. */}
+      {/* Body — the Facebook Marketplace shape (owner, 2026-09-13, with a Marketplace grid as the
+          reference: "image price 1 line description … similar format for cleaner view all cards
+          across the app including on map view"): PRICE → ONE-LINE TITLE → the info line.
+          ⛔ THE INFO LINE IS UNCHANGED, ON PURPOSE. A first cut reduced it to the location alone and
+          the owner rejected that the same day: "dont alter this info line it should function as
+          before not only location" — condition · area · posted-ago · brand·model, the Business glyph
+          and the trust/partner chip all stay exactly as documented at the TERTIARY block below.
+          What the rework DID remove: the second title line and the "Good price" chip (the market band
+          still renders on the PDP). The "≈ $x" approximation stays after the đồng price — owner, same
+          day: "approximate price in usd disappeared add it back after d price". */}
+      <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2">
+        {/* PRIMARY — price. `flex-wrap` so a struck "was" price takes its own line, complete,
+            instead of being clipped mid-number beside a price that already fills the row. */}
         <span className="flex flex-wrap items-baseline gap-x-1.5">
-          {/* ⛔ `text-lg` IS THE CEILING HERE — `text-xl` WAS TRIED AND REVERTED IN THE SAME PASS.
-              Context, because "make the prices bolder" keeps coming back: the WEIGHT lever is
-              already spent. Every feed price was ALREADY `font-extrabold` (800) before that
-              request; the pass that answered it moved the weight into <Price> and briefly tried
-              900 before landing back on 800 (Be Vietnam Pro has no 900), so the net visual change
-              was zero — which is exactly what kept being reported. That leaves the type scale.
-              ⚠️ And the type scale is spent too, for width reasons, measured on a real card:
-              a 272px card renders "3,030,000 VND / service ≈ $115" at 271px on ONE line at 18px,
-              and at 20px it WRAPS — the approximation drops to a second line, which breaks the
-              `mt-auto` footer alignment across the grid and reads as a broken card. A property
-              price ("9,500,000,000 VND / month") is already 299px at 18px, so this line is at its
-              limit today. Any future attempt to enlarge the price has to buy the width first —
-              by dropping the unit suffix or the ≈ approximation on this surface — not by bumping
-              the size and hoping. */}
           {/* ⚠️ "from" ONLY ON A PARTNER TICKET, and it is not decoration: the number we hold is the
               LOWEST adult ticket, while the price the visitor actually pays is set at the partner's
               checkout and varies by date. Without the qualifier the card states a price we do not
               control as if it were the price — the PDP already says "from" for the same reason.
               ⚠️ It is safe on the width budget documented above ONLY because partner tickets are
-              short: a 5-6 digit VND price with no unit suffix. Do not extend this prefix to
-              ordinary listings without re-measuring — "from 9,500,000,000 VND / month ≈ $361,000"
+              short: a 5-6 digit đ price with no unit suffix. Do not extend this prefix to
+              ordinary listings without re-measuring — "from 9,500,000,000 đ / month ≈ $361,000"
               is exactly the line that wraps and breaks the grid's mt-auto footer alignment. */}
           {listing.isPartnerBooking && isBookingCategory(listing.category?.slug) ? (
             <span className="text-xs font-semibold text-body">{tr('from', 'từ')}</span>
           ) : null}
-          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-lg leading-tight" />
+          {/* ⛔ `native`: the STORED đồng amount always LEADS. A card is a scan surface; for the
+              price reads "2,250,000 đ ≈ $87" for every viewer, including one who picked USD — the
+              dollar figure is always the quiet estimate after the đồng figure, never instead of it
+              (the ND 340/2025-safe order).
+              ⚠️ ONE LINE IS WHAT THE SKELETON RESERVES, AND IT IS MEASURED, NOT ASSUMED (preview build,
+              "đ ≈ $" restored): 0 of 124 cards wrapped at 390px (home, vehicles, electronics) and 1 of
+              182 at 360px ("41,990,000 đ ≈ $1,638"). The " VND" → " đ" change is what bought the room
+              the old two-line reserve existed for. What can
+              still wrap: a struck "was" price (0 of 36 feed cards carried one) and a long rent or
+              property price with its unit — neither category had live cards to measure. */}
+          <Price native price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-base leading-tight sm:text-lg" />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, present
               whenever the listing HAS a live drop.
               ⚠️ IT IS NO LONGER TIED TO THE DROP BADGE, AND MUST NOT BE RE-TIED TO IT. The badge
@@ -1041,31 +1015,18 @@ function ListingCardImpl({
               shows no "-24%" chip — and this struck price is then the ONLY place the card states
               the drop. `hasDrop` is computed here, from prevPrice, exactly so this line survives
               a badge the overlay chose not to render.
-              ⚠️ `whitespace-nowrap`, NOT `truncate`, AND THE ≈ CONVERSION STAYS. `truncate` is what
-              produced "2,000,000…" — an anchor price is a NUMBER, and half a number is worse than no
-              number, because a shopper reads the fragment as the real figure. Now that the row above
-              wraps there is a full line for it, so it never needs clipping.
-              ⛔ Do NOT "simplify" this by passing `dual={false}` to shorten it. It was tried and
-              rejected on the same pass: for a viewer whose display currency is USD, <Price>'s first
-              slot is the CONVERTED dollar figure and this second one holds the stored đồng price
-              (price.tsx documents it) — so dropping the dual would leave a USD-only struck price,
-              which ND 340/2025 makes sanctionable for a licensed Vietnamese marketplace. */}
+              ⚠️ `whitespace-nowrap`, NOT `truncate` — half a number reads as the whole number.
+              ⛔ `native`, NEVER `dual={false}`: đồng leads, so a USD viewer can never be left with a
+              USD-only struck price (ND 340/2025). */}
           {hasDrop && (
-            <Price price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" compact className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" />
-          )}
-          {/* Below the market band (< P25) → a quiet "Good price" cue tied to the price.
-              Deal-positive only; yields to a live price-drop so the two cheapness signals
-              never stack. */}
-          {listing.goodPrice && !hasDrop && (
-            <Badge variant="success" className="shrink-0 self-center px-1.5 py-0.5 text-3xs">
-              {tr('Good price', 'Giá tốt')}
-            </Badge>
+            <Price native price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" />
           )}
         </span>
 
-        {/* SECONDARY — title. Medium weight + neutral ink so it never competes with the
-            price above it. Two lines max, then ellipsis. */}
-        <h3 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">
+        {/* SECONDARY — title, ONE line. `truncate` rather than `line-clamp-1`: a single-line clamp
+            still reserves the second line's leading in some engines, and one line is the spec. The
+            full title is the card's accessible name via the h3 and is on the PDP. */}
+        <h3 title={displayTitle} className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">
           {displayTitle}
         </h3>
 

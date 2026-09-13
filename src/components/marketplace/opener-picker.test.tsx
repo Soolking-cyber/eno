@@ -111,7 +111,7 @@ describe('the chips', () => {
     renderIn('en', props({ onPick: (opener, text) => picked.push({ opener, text }) }))
 
     screen.getByRole('button', { name: /^Offer/i }).click()
-    expect(picked[0].text).toContain('11,400,000 VND')
+    expect(picked[0].text).toContain('11,400,000 đ')
     expect(picked[0].text).not.toContain(PRICE_TOKEN)
     // ⚠️ The amount rides along so the caller can send a STRUCTURED offer (kind='offer') rather
     // than a number baked into a sentence nobody can accept.
@@ -221,7 +221,7 @@ describe('the honest warning', () => {
     expect(links).toHaveLength(2)
     expect(links[0].getAttribute('href')).toBe('/listing/a')
     // Prices on an alternative go through the same money formatter as everything else.
-    expect(links[0].textContent).toContain('24,000,000 VND')
+    expect(links[0].textContent).toContain('24,000,000 đ')
   })
 
   it('shows no alternatives when there is no warning to attach them to', () => {

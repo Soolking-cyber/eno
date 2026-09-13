@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { parseVnd, formatMoneyFull, compactPrice, formatCount, formatRating, groupVnd } from './vnd'
+import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatRating, groupVnd } from './vnd'
 
-// Money is always displayed grouped + suffixed "VND"; parseVnd is the inverse used
+// Money is always displayed grouped + suffixed "đ"; parseVnd is the inverse used
 // on every price input. They must round-trip.
 describe('parseVnd', () => {
   it('strips dot/comma separators to an integer', () => {
     expect(parseVnd('1.080.000.000')).toBe(1_080_000_000)
     expect(parseVnd('5,000,000 VND')).toBe(5_000_000)
+    // The round-trip half: what formatMoneyFull prints now, in both locales.
+    expect(parseVnd(formatMoneyFull(1_200_000, '₫'))).toBe(1_200_000)
+    expect(parseVnd(formatMoneyFull(1_200_000, '₫', 'vi'))).toBe(1_200_000)
   })
 
   it('returns 0 for empty / non-numeric', () => {
@@ -16,9 +19,13 @@ describe('parseVnd', () => {
 })
 
 describe('formatMoneyFull', () => {
-  it('formats ₫ as grouped digits + VND suffix (en default)', () => {
-    expect(formatMoneyFull(1_080_000_000, '₫')).toBe('1,080,000,000 VND')
-    expect(formatMoneyFull(0, '₫')).toBe('0 VND')
+  it('formats ₫ as grouped digits + đ suffix (en default)', () => {
+    expect(formatMoneyFull(1_080_000_000, '₫')).toBe('1,080,000,000 đ')
+    expect(formatMoneyFull(0, '₫')).toBe('0 đ')
+  })
+
+  it('formatVndIso keeps the ISO code for provider-facing text', () => {
+    expect(formatVndIso(3_000_000)).toBe('3,000,000 VND')
   })
 
   it('vi: dot thousands + đ suffix', () => {

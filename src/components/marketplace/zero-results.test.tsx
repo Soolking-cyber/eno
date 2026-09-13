@@ -73,7 +73,7 @@ describe('ZeroResults states the fact', () => {
 describe('ZeroResults points at the nearest true thing', () => {
   it('quotes the count, what the set is, and the real floor price', () => {
     renderZero(<ZeroResults reason="price" nearest={{ count: 38, label: 'Honda Vision', fromPrice: 11_500_000 }} />)
-    expect(screen.getByText('38 Honda Vision from 11,500,000 VND')).toBeTruthy()
+    expect(screen.getByText('38 Honda Vision from 11,500,000 đ')).toBeTruthy()
   })
 
   it('omits the price clause when there is no floor worth quoting', () => {
@@ -398,7 +398,7 @@ describe('ZeroResults — save the search, and be told when one appears', () => 
 describe('ZeroResults in Vietnamese', () => {
   /**
    * ⚠️ THE SEPARATORS ARE THE ASSERTION. Vietnamese groups thousands with DOTS and suffixes "đ";
-   * a comma-grouped "11,500,000 VND" reads foreign to the home market (src/lib/vnd.ts states the
+   * a comma-grouped "11,500,000 đ" reads foreign to the home market (src/lib/vnd.ts states the
    * rule at length). This is also the test that would catch anyone hand-formatting the figure here
    * instead of going through formatMoneyFull.
    */

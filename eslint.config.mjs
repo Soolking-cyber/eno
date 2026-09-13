@@ -221,7 +221,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
         // symbols / punctuation / units that read the same in every language
         "·", "—", "–", "-", "•", "…", "/", "|", "+", "%", "°", "★", "☆", "✓", "×", "→", "←", "@",
         "(", ")", ":", ",", ".", "?", "!", "&", "#",
-        "VND", "₫", "km", "m²", "cc", "L", "kg", "GB", "TB", "MB",
+        "VND", "₫", "đ", "km", "m²", "cc", "L", "kg", "GB", "TB", "MB",
         "1 km", "20 km", "=", "−", "↓", "©", "“", "”", "💰", "❤️", "+000", "1", "/600", "≈", "~", "% ·", "★ ·",
         "×1,000", "×1,000,000", "×1,000,000,000",
         "support@eno.vn", "eno.vn/", "eno.vn ·", "eno.vn —", ") · Email:", "Email:",

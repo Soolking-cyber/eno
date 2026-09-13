@@ -296,8 +296,8 @@ describe('MarkSoldSheet — the agreed price', () => {
     expect(document.activeElement?.getAttribute('role')).toBe('checkbox')
 
     // It never BLOCKS: ticking the box is one tap, and the CTA then carries the figure.
-    await user.click(screen.getByRole('checkbox', { name: 'Yes, it sold for 1,200,000 VND' }))
-    await user.click(screen.getByRole('button', { name: 'Yes, sold at 1,200,000 VND' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Yes, it sold for 1,200,000 đ' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, sold at 1,200,000 đ' }))
     expect(onConfirm).toHaveBeenCalledWith({ buyerId: 'u1', price: 1_200_000 })
   })
 
@@ -362,14 +362,14 @@ describe('MarkSoldSheet — the agreed price', () => {
     await user.clear(priceField())
     await user.type(priceField(), '1200000')
     await user.click(cta())
-    await user.click(screen.getByRole('checkbox', { name: 'Yes, it sold for 1,200,000 VND' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Yes, it sold for 1,200,000 đ' }))
 
     await user.clear(priceField())
     await user.type(priceField(), '120000') // a DIFFERENT suspicious figure
     expect(screen.queryByRole('checkbox')).toBeNull() // the question is withdrawn, not carried over
     await user.click(cta())
     expect(onConfirm).not.toHaveBeenCalled()
-    expect(screen.getByRole('checkbox', { name: 'Yes, it sold for 120,000 VND' })).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: 'Yes, it sold for 120,000 đ' })).toBeTruthy()
   })
 
   it('stays quiet on an ordinary haggle', async () => {

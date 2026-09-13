@@ -103,7 +103,7 @@ export function PriceBand({ band, price, placement, className }: PriceBandProps)
 
   // ₫ — Listing.salePrice is đồng by definition (see the schema comment on the column), so the
   // band has no currency of its own to carry. formatMoneyFull renders the viewer's own
-  // convention: "12.000.000 đ" for vi, "12,000,000 VND" for en.
+  // convention: "12.000.000 đ" for vi, "12,000,000 đ" for en.
   const low = formatMoneyFull(band.p25, '₫', loc)
   const high = formatMoneyFull(band.p75, '₫', loc)
 
