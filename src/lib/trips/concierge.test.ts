@@ -231,7 +231,8 @@ describe('⚠️ a visa applicant can still get back to edit from checkout', () 
     // render a card with nothing on it. Four is the last step that carries fields, and the act
     // route's writable set is `1..meta.step`, so from there every earlier answer is reachable.
     const flow = readSrc('lib/visa/dm-flow.ts')
-    expect(flow).toMatch(/input\.mode === 'review' && rawStep === null \? \(4 as VisaDmStep\) : rawStep/)
+    // `&& !IS_SERVICES` since 2026-09-13: eno.forum's quick flow has no step 4 to go back to.
+    expect(flow).toMatch(/input\.mode === 'review' && rawStep === null && !IS_SERVICES \? \(4 as VisaDmStep\) : rawStep/)
   })
 
   it('⚠️ review does not weaken any existing gate', () => {

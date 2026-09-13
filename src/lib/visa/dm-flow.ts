@@ -22,7 +22,7 @@ import {
 } from '../visa-shop'
 import { decryptVisaPayload, encryptVisaPayload, visaCryptoReady } from './crypto'
 import { getVisaDb, visaTableMissing } from './db'
-import { firstIncompleteVisaDmStep, VISA_DM_STEP_FIELDS, type VisaDmStep } from './dm-steps'
+import { firstIncompleteVisaDmStep, firstIncompleteVisaQuickStep, VISA_DM_STEP_FIELDS, type VisaDmStep, type VisaDmDoc } from './dm-steps'
 import {
   bindVisaThread,
   findVisaThread,
@@ -32,7 +32,6 @@ import {
   sendVisaStepCard,
 } from './dm-thread'
 import { quoteVisaUsd, type VisaQuote } from './fx'
-import { visaPaymentsConfig } from './payments'
 // The edition flag, so a deployment that is SUPPOSED to charge still fails closed.
 import { IS_SERVICES } from '../edition'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from './records'
@@ -643,6 +642,15 @@ export async function applyVisaDmFieldEdit(input: {
  * mid-conversation is exactly the interruption the rule exists to prevent. The admin ending
  * their takeover returns the thread to 'ai' and the next call resumes.
  */
+/**
+ * The step the applicant is on. ⛔ eno.forum RUNS THE QUICK FLOW (owner, 2026-09-13): documents, then
+ * straight to the send-to-desk card where they pick an entry date — steps 2-4 are never sent there.
+ * The marketplace keeps the full five steps.
+ */
+function currentVisaDmStep(payload: VisaDmCase['payload'], documents: VisaDmDoc[]): VisaDmStep | null {
+  return IS_SERVICES ? firstIncompleteVisaQuickStep(payload, documents) : firstIncompleteVisaDmStep(payload, documents)
+}
+
 export async function advanceVisaDmFlow(input: { applicationId: string; userId: string }): Promise<VisaDmAdvance> {
   if (!visaCryptoReady()) return fail('visa_encryption_not_configured', 503)
   const kase = await loadVisaDmCase(input.applicationId, input.userId)
@@ -665,7 +673,7 @@ export async function advanceVisaDmFlow(input: { applicationId: string; userId: 
     return { ok: true, step: 5, messageId: existing?.id ?? null, complete: true }
   }
 
-  const step = firstIncompleteVisaDmStep(kase.payload, kase.documents)
+  const step = currentVisaDmStep(kase.payload, kase.documents)
   const mode = await getVisaThreadMode(input.applicationId)
   if (mode === 'admin') {
     return { ok: true, step: step ?? 5, messageId: null, complete: step === null }
@@ -744,11 +752,21 @@ async function emitVisaCheckoutCard(kase: VisaDmCase, conversationId: string): P
    * unconfigured one is broken and must refuse exactly as before. A marketplace build is supposed
    * NOT to charge, so dormant is correct there and the flow continues.
    */
-  if (IS_SERVICES && !visaPaymentsConfig()) {
-    return fail('payments_not_configured', 503, { step: 5, complete: true })
+  /**
+   * ⛔ SUPERSEDED 2026-09-13 FOR eno.forum: the services edition takes NO online payment any more
+   * (owner: "admin will resolve payment through chat"). The card is the send-to-desk card, and a price
+   * it cannot quote (FX down, product unpriced) must not stop an applicant reaching the desk. The
+   * reasoning above is kept as the record of the pay-before-review rule this replaced.
+   */
+  const quote = await priceVisaCheckout(applicationId)
+  if (isFailure(quote) && !IS_SERVICES) return { ...quote, step: 5, complete: true }
+  if (isFailure(quote)) {
+    if (existing && existing.meta.status === 'unpaid') return { ok: true, step: 5, messageId: existing.id, complete: true }
+    const card = await sendVisaCheckoutCard({ conversationId, applicationId, amountUsd: 0 })
+    if (!card) return fail('checkout_card_refused', 503, { step: 5, complete: true })
+    return { ok: true, step: 5, messageId: card.messageId, complete: true }
   }
-  const priced = await priceVisaCheckout(applicationId)
-  if (isFailure(priced)) return { ...priced, step: 5, complete: true }
+  const priced = quote
 
   if (existing && existing.meta.status === 'unpaid' && existing.meta.amountUsd === priced.amountUsd) {
     return { ok: true, step: 5, messageId: existing.id, complete: true }
@@ -901,7 +919,7 @@ export async function resendVisaDmCard(input: {
     return { ok: true, messageId: picker.messageId, step: 1, kind: 'visa_picker' }
   }
 
-  const rawStep = firstIncompleteVisaDmStep(kase.payload, kase.documents)
+  const rawStep = currentVisaDmStep(kase.payload, kase.documents)
 
   // ── "REVIEW & EDIT" FROM THE PAY CARD ───────────────────────────────────────────────
   // ⚠️ ONCE YOU REACHED CHECKOUT THERE WAS NO WAY BACK (owner, 2026-07-30: "when you go to
@@ -925,7 +943,8 @@ export async function resendVisaDmCard(input: {
   // re-posting step 5 would render a card with nothing on it. Four is the last step that actually
   // carries fields, and from there the review UI reaches 1..4 — which is also exactly the writable
   // set the act route allows (`1..meta.step`).
-  const step = input.mode === 'review' && rawStep === null ? (4 as VisaDmStep) : rawStep
+  // The quick flow has no step 4 to review (eno.forum, 2026-09-13) — a review request there re-posts the send card.
+  const step = input.mode === 'review' && rawStep === null && !IS_SERVICES ? (4 as VisaDmStep) : rawStep
 
   if (step === null) {
     // ── THE PAY CARD ───────────────────────────────────────────────────────────────
@@ -943,7 +962,8 @@ export async function resendVisaDmCard(input: {
     // the WRONG BLOCK — inside the finished-case early return above, where it would have 503'd a
     // case that was already paid and under review, while leaving THIS path, the one that actually
     // re-posts a pay card, ungated. Two reviewers caught the gap; the misplacement was mine.
-    if (IS_SERVICES && !visaPaymentsConfig()) return fail('payments_not_configured', 503, { step: 5, complete: true })
+    // ⛔ SUPERSEDED 2026-09-13: eno.forum takes no online payment, so an unconfigured services edition
+    // is the intended state and the send-to-desk card is re-posted like any other.
     const existing = await newestVisaCheckoutCard(conversationId, input.applicationId)
     // ⚠️ THE AMOUNT IS COPIED FROM THE LIVE CARD. A re-send must not become a re-quote:
     // the buyer is looking at a price, and the chip's job is to move that card, not to
@@ -954,8 +974,9 @@ export async function resendVisaDmCard(input: {
       // Never asked yet — so there is nothing to re-send and nothing to preserve. This is
       // a FIRST emission and it goes through the ordinary server price chain.
       const priced = await priceVisaCheckout(input.applicationId)
-      if (isFailure(priced)) return priced
-      amountUsd = priced.amountUsd
+      // eno.forum: an unquotable price does not block the send-to-desk card (see emitVisaCheckoutCard).
+      if (isFailure(priced) && !IS_SERVICES) return priced
+      amountUsd = isFailure(priced) ? 0 : priced.amountUsd
     }
     const card = await sendVisaCheckoutCard({ conversationId, applicationId: input.applicationId, amountUsd })
     if (!card) return fail('checkout_card_refused', 503, { step: 5, complete: true })

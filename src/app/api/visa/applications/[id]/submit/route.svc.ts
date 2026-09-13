@@ -2,14 +2,14 @@ import { z } from 'zod'
 import { NextResponse } from 'next/server'
 import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
-import { decryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '@/lib/visa/crypto'
+import { decryptVisaPayload, encryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
 import { canonicalVisaListingId } from '@/lib/visa/dm-flow'
 import { IS_SERVICES } from '@/lib/edition'
 import { visaCaseOnLocalDesk } from '@/lib/visa-admin'
-import { visaPaymentsConfig } from '@/lib/visa/payments'
 import { recordVisaEvent, serializeVisa, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
-import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview } from '@/lib/visa/schema'
+import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview, visaDateDefaultsForStart } from '@/lib/visa/schema'
+import { VISA_QUICK_DECLARATION_VERSION, validateVisaQuickSubmit } from '@/lib/visa/dm-steps'
 
 // In-hub port of apps/forum/src/app/api/visa/applications/[id]/submit/route.ts —
 // cookie-session auth, no CORS layer. Every action here reads the payload (cancel's
@@ -17,7 +17,8 @@ import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForRe
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 const actionSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('send_for_review'), declarationAccepted: z.literal(true), prefillAuthorized: z.literal(true) }),
+  // `intendedEntryDate` — the eno.forum quick flow's one answer, picked on the send-to-desk card.
+  z.object({ action: z.literal('send_for_review'), declarationAccepted: z.literal(true), prefillAuthorized: z.literal(true), intendedEntryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }),
   z.object({ action: z.literal('approve_for_prefill'), declarationAccepted: z.literal(true), prefillAuthorized: z.literal(true) }),
   z.object({ action: z.literal('cancel') }),
 ])
@@ -76,9 +77,30 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     await recordVisaEvent(id, 'applicant', 'application_cancelled', userId)
     return NextResponse.json({ application: serializeVisa(data as VisaApplicationRow, docs) })
   }
-  const payload = decryptVisaPayload(app.encrypted_payload)
+  /**
+   * ⛔ THE eno.forum QUICK FLOW (owner, 2026-09-13): "user only uploads images picks entry date and
+   * submits then admin will resolve payment through chat". On the services edition `send_for_review`
+   * takes the entry date, derives the 90-day window from it, and requires ONLY the documents and that
+   * window; the desk collects the rest in chat and files with the government off-system (owner's pick).
+   * The full validator still guards `approve_for_prefill` below — nothing is authorised for the
+   * hosted prefill on a quick case's partial answers.
+   */
+  // ⚠️ NOT for a case already PAID through the old checkout: that applicant answered every step, and a
+  // needs_changes resubmit must keep its full declaration and prefill authorisation (a reviewer's catch).
+  const quick = IS_SERVICES && parsed.data.action === 'send_for_review' && !app.paid_at
+  let payload = decryptVisaPayload(app.encrypted_payload)
+  let payloadChanged = false
+  if (quick && parsed.data.action === 'send_for_review' && parsed.data.intendedEntryDate) {
+    const date = parsed.data.intendedEntryDate
+    const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10) // Vietnam date
+    if (Number.isNaN(Date.parse(`${date}T00:00:00Z`)) || date < today) {
+      return NextResponse.json({ error: 'entry_date_invalid' }, { status: 400 })
+    }
+    payload = { ...payload, ...visaDateDefaultsForStart(date) }
+    payloadChanged = true
+  }
   const snapshotHash = visaApplicantSnapshotHash(payload)
-  const issues = validateVisaForReview(payload, docs)
+  const issues = quick ? validateVisaQuickSubmit(payload, docs) : validateVisaForReview(payload, docs)
   if (issues.length) {
     await db.from('visa_applications').update({ checklist: issues, updated_at: new Date().toISOString() }).eq('id', id)
     return NextResponse.json({ error: 'application_incomplete', issues }, { status: 400 })
@@ -129,11 +151,19 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
      * it refuses outright. On the marketplace, which takes no money and whose checkout route does
      * not exist, neither refusal applies and the handoff proceeds.
      */
-    if (IS_SERVICES && !visaPaymentsConfig()) {
-      return NextResponse.json({ error: 'payments_not_configured' }, { status: 503 })
-    }
+    // ⛔ NO PAYMENT GATE ON eno.forum ANY MORE — the desk takes payment in chat (owner, 2026-09-13).
+    // Free submissions cost the desk's time and hold passport images, so an account may have only a
+    // few cases waiting with the desk at once.
     if (IS_SERVICES && !app.paid_at) {
-      return NextResponse.json({ error: 'payment_required_first' }, { status: 402 })
+      // Counts the account's OTHER unpaid cases the desk has touched in the last 30 days — never this one,
+      // and never stale ones, so an old abandoned case cannot lock a user out for good.
+      const { count: open, error: openError } = await db.from('visa_applications').select('id', { count: 'exact', head: true })
+        .eq('user_id', userId).is('paid_at', null).neq('id', id)
+        .in('status', ['ready_for_review', 'under_review', 'applicant_approval', 'ready_to_submit'])
+        .gte('updated_at', new Date(Date.now() - 30 * 86400_000).toISOString())
+      // A failed count is not a pass: the cap is the only brake on free submissions now.
+      if (openError) throw openError
+      if ((open ?? 0) >= 3) return NextResponse.json({ error: 'too_many_open_cases' }, { status: 429 })
     }
     /**
      * ⛔ AND THE FEE-FREE PATH IS ONLY FOR *THIS* DEPLOYMENT'S OWN DESK — closing a cross-edition
@@ -152,12 +182,15 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     const sfr = await db.from('visa_applications').update({
       status: 'ready_for_review',
       checklist: [],
+      ...(payloadChanged ? { encrypted_payload: encryptVisaPayload(payload) } : {}),
       applicant_confirmed_at: now,
-      applicant_confirmation_version: VISA_DECLARATION_VERSION,
+      // A quick case's applicant vouched for their images and date only — record THAT text's version.
+      applicant_confirmation_version: quick ? VISA_QUICK_DECLARATION_VERSION : VISA_DECLARATION_VERSION,
       applicant_snapshot_hash: snapshotHash,
-      authorized_at: now,
-      authorization_version: VISA_AUTHORIZATION_VERSION,
-      authorization_snapshot_hash: snapshotHash,
+      // A quick case authorises NO hosted prefill: its answers are partial and the desk files off-system.
+      authorized_at: quick ? null : now,
+      authorization_version: quick ? null : VISA_AUTHORIZATION_VERSION,
+      authorization_snapshot_hash: quick ? null : snapshotHash,
       last_applicant_action_at: now,
       updated_at: now,
     // CAS on status + updated_at (audit P1 #4): the stamped snapshot hash must
@@ -167,11 +200,13 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     if (sfr.error) throw sfr.error
     if (!sfr.data) return NextResponse.json({ error: 'application_status_changed' }, { status: 409 })
     const data = sfr.data
-    await recordVisaEvent(id, 'applicant', 'sent_for_review', userId, {
-      declarationVersion: VISA_DECLARATION_VERSION,
-      authorizationVersion: VISA_AUTHORIZATION_VERSION,
-      officialPrefillAuthorized: true,
-    })
+    await recordVisaEvent(id, 'applicant', 'sent_for_review', userId, quick
+      ? { declarationVersion: VISA_QUICK_DECLARATION_VERSION, quickFlow: true, officialPrefillAuthorized: false }
+      : {
+        declarationVersion: VISA_DECLARATION_VERSION,
+        authorizationVersion: VISA_AUTHORIZATION_VERSION,
+        officialPrefillAuthorized: true,
+      })
     return NextResponse.json({ application: serializeVisa(data as VisaApplicationRow, docs) })
   }
   if (app.status !== 'applicant_approval') return NextResponse.json({ error: 'invalid_status_transition' }, { status: 409 })

@@ -973,6 +973,8 @@ const ERROR_COPY: Record<string, [string, string]> = {
   not_your_card: ['That step belongs to another conversation.', 'Bước đó thuộc về cuộc trò chuyện khác.'],
   card_superseded: ['This step is out of date — scroll down for the current one.', 'Bước này đã cũ — hãy kéo xuống bước hiện tại.'],
   application_cancelled: ['This application was cancelled.', 'Hồ sơ này đã bị hủy.'],
+  too_many_open_cases: ['You already have cases waiting with the desk — they will reply in this chat first.', 'Bạn đã có hồ sơ đang chờ bộ phận hỗ trợ — họ sẽ trả lời bạn trong cuộc trò chuyện này trước.'],
+  entry_date_invalid: ['Pick an entry date from today onwards.', 'Hãy chọn ngày nhập cảnh từ hôm nay trở đi.'],
   application_locked: ['This application is with eno now and can no longer be edited.', 'Hồ sơ đang ở chỗ eno và không thể chỉnh sửa nữa.'],
   application_changed_retry: ['Something else updated this application. Please try again.', 'Hồ sơ vừa được cập nhật ở nơi khác. Vui lòng thử lại.'],
   invalid_fields: ['Please check the highlighted answers.', 'Vui lòng kiểm tra lại các câu trả lời được đánh dấu.'],
@@ -2207,7 +2209,8 @@ export type VisaCheckoutCardProps = {
    * excludes drafts, so the desk never saw an application the applicant had fully completed.
    * Applicant-only, like `onReview`.
    */
-  onSendToDesk?: () => void | Promise<void>
+  /** Hand the case to the desk. On the eno.forum quick flow it carries the entry date the applicant picked. */
+  onSendToDesk?: (entryDate?: string) => void | Promise<void>
 }
 
 /**
@@ -2253,7 +2256,25 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
   // server-side too, so this is a courtesy, not the guard.
   const unpromisable = closed && !closedReadyIso
 
-  const title = tr('Pay for your e-Visa', 'Thanh toán E-Visa')
+  /**
+   * ⛔ THE eno.forum QUICK FLOW (owner, 2026-09-13): "user only uploads images picks entry date and
+   * submits then admin will resolve payment through chat". No provider is ever offered there, so this
+   * card becomes the whole application: pick the entry date, tick one consent, send. The desk agrees
+   * the fee and collects the remaining details in chat.
+   */
+  // ⚠️ THE EDITION ALONE, NOT "AND NO PROVIDERS": the submit route runs the quick flow on every services
+  // submission, so a stray STRIPE key must not flip this card back to a pay card with no date field and
+  // leave the applicant unable to submit (a reviewer's catch).
+  const quickFlow = IS_SERVICES
+  const savedEntryDate = typeof (kase?.payload as unknown as Record<string, unknown> | undefined)?.intendedEntryDate === 'string'
+    ? String((kase?.payload as unknown as Record<string, unknown>).intendedEntryDate)
+    : ''
+  const [entryDate, setEntryDate] = useState(savedEntryDate)
+  // The earliest date the server accepts is today in Vietnam; the control enforces it while picking.
+  const todayVn = useMemo(() => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10), [])
+  const entryDateOk = /^\d{4}-\d{2}-\d{2}$/.test(entryDate) && entryDate >= todayVn
+
+  const title = quickFlow ? tr('Pick your entry date and send', 'Chọn ngày nhập cảnh và gửi') : tr('Pay for your e-Visa', 'Thanh toán E-Visa')
 
   if (paid) {
     return (
@@ -2272,8 +2293,9 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
   return (
     <CardShell step={5} title={title} tone={live ? 'live' : 'settled'}>
       {/* Decorative here — no onSelect. The pay card is not a form to go back into, and once the
-          case is paid the server refuses every field edit anyway (EDITABLE_STATUSES). */}
-      <StepDots step={5} current={5} />
+          case is paid the server refuses every field edit anyway (EDITABLE_STATUSES).
+          Not on the quick flow: five dots would promise steps that flow does not have. */}
+      {!quickFlow && <StepDots step={5} current={5} />}
 
       <div className="mt-3 rounded-xl border border-line-strong bg-tint p-3">
         <p className="text-xs font-bold text-foreground">{product?.title || tr('e-Visa service', 'Dịch vụ E-Visa')}</p>
@@ -2287,12 +2309,12 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
               {product ? formatMoneyFull(product.priceVnd, '₫', locale) : '—'}
             </p>
           </div>
-          <div className="min-w-0 text-right">
+          {!quickFlow && <div className="min-w-0 text-right">
             <p className="text-2xs font-semibold uppercase tracking-wide text-ink-4">{tr('You pay', 'Bạn trả')}</p>
             <p className={cn('text-base font-bold tabular-nums', quote ? 'text-accent-foreground' : 'text-ink-4')}>
               {quote ? formatUsdCents(quote.amountUsdCents, locale) : '—'}
             </p>
-          </div>
+          </div>}
         </div>
         {/* ⚠️ IF A PROCESSING FEE IS IN THE TOTAL, THE CARD MUST SAY SO. "You pay" is a gross-up
             (see src/lib/visa/fx.ts), so it is deliberately MORE than priceVnd ÷ rate — and the old
@@ -2300,7 +2322,12 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
             the arithmetic found a gap the card could not account for, on the screen where they
             hand over money. Quotes issued before the fee change carry no breakdown and correctly
             fall back to the original sentence. */}
-        {quote && (
+        {quickFlow && (
+          <p className="mt-1.5 text-2xs leading-relaxed text-ink-4">
+            {tr('Nothing is charged here. The desk confirms the fee and how to pay with you in this chat.', 'Không thu tiền tại đây. Bộ phận hỗ trợ sẽ xác nhận phí và cách thanh toán với bạn trong cuộc trò chuyện này.')}
+          </p>
+        )}
+        {quote && !quickFlow && (
           <p className="mt-1.5 text-2xs leading-relaxed text-ink-4">
             {quote.processingUsdCents != null && quote.serviceUsdCents != null && quote.processingUsdCents > 0
               ? tr(
@@ -2315,7 +2342,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
         )}
       </div>
 
-      {!quote && (
+      {!quote && !quickFlow && (
         <p className="mt-2 flex items-start gap-1.5 rounded-xl bg-warning/10 p-2.5 text-2xs leading-relaxed text-warning">
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
           {tr('The US dollar amount is not available right now, so paying is paused. Nothing has been charged — try again in a moment.', 'Hiện chưa có số tiền đô la Mỹ nên thanh toán tạm dừng. Chưa có khoản nào bị trừ — vui lòng thử lại sau giây lát.')}
@@ -2340,7 +2367,29 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
           {closedReadyAt ? ` ${tr('Expected ready', 'Dự kiến xong')}: ${closedReadyAt}.` : ''}
         </p>
       )}
-      {live && !providers.length && (
+      {live && quickFlow && (
+        <Field className="mt-3">
+          <FieldLabel htmlFor="visa-quick-entry-date" className="text-xs font-bold text-foreground">
+            {tr('When will you enter Vietnam?', 'Bạn sẽ nhập cảnh Việt Nam khi nào?')}
+          </FieldLabel>
+          <FieldControl
+            id="visa-quick-entry-date"
+            render={
+              <Input
+                id="visa-quick-entry-date"
+                variant="outline"
+                type="date"
+                min={todayVn}
+                value={entryDate}
+                onChange={(event) => setEntryDate(event.target.value)}
+                // text-base on mobile: iOS zooms the viewport when focusing smaller text.
+                className="text-base lg:text-sm"
+              />
+            }
+          />
+        </Field>
+      )}
+      {live && !providers.length && !quickFlow && (
         <p className="mt-2 rounded-xl bg-tint p-2.5 text-2xs leading-relaxed text-body">
           {tr('Paying in chat is not switched on yet — send this to the desk and they will arrange payment with you here.', 'Thanh toán trong tin nhắn chưa được bật — hãy gửi hồ sơ cho bộ phận hỗ trợ, họ sẽ sắp xếp thanh toán với bạn tại đây.')}
         </p>
@@ -2372,22 +2421,15 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
               date, not a per-surface text hash — do not suffix it with anything surface-specific. */}
           <label className="flex cursor-pointer items-start gap-2 text-2xs leading-relaxed text-body">
             <Checkbox checked={consented} onChange={setConsented} className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{tr('I confirm that every answer and image I have approved is true, complete and accurate, and I authorise eno to use them to prefill the official e-Visa form. False information can cause refusal and legal consequences; a person still reviews the form before it is submitted.', 'Tôi xác nhận mọi câu trả lời và hình ảnh tôi đã duyệt đều trung thực, đầy đủ và chính xác, và tôi cho phép eno dùng chúng để điền trước biểu mẫu E-Visa chính thức. Thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý; vẫn có người kiểm tra biểu mẫu trước khi nộp.')}</span>
+            {/* ⚠️ THE QUICK FLOW'S CONSENT IS NARROWER, AND IT IS VERSIONED SEPARATELY
+                (VISA_QUICK_DECLARATION_VERSION): the applicant vouches for their photos and date only —
+                they have given no other answers to vouch for, and the desk files off-system. */}
+            <span>{quickFlow
+              ? tr('I confirm the passport and portrait photos I uploaded are mine and accurate, and that I plan to enter Vietnam on this date. I authorise the eno desk to prepare my e-Visa application with them and to contact me in this chat for any other details and for payment. False information can cause refusal and legal consequences.', 'Tôi xác nhận ảnh hộ chiếu và ảnh chân dung tôi đã tải lên là của tôi và chính xác, và tôi dự định nhập cảnh Việt Nam vào ngày này. Tôi cho phép bộ phận hỗ trợ eno chuẩn bị hồ sơ E-Visa của tôi với các thông tin đó và liên hệ tôi trong cuộc trò chuyện này về các thông tin khác và việc thanh toán. Thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý.')
+              : tr('I confirm that every answer and image I have approved is true, complete and accurate, and I authorise eno to use them to prefill the official e-Visa form. False information can cause refusal and legal consequences; a person still reviews the form before it is submitted.', 'Tôi xác nhận mọi câu trả lời và hình ảnh tôi đã duyệt đều trung thực, đầy đủ và chính xác, và tôi cho phép eno dùng chúng để điền trước biểu mẫu E-Visa chính thức. Thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý; vẫn có người kiểm tra biểu mẫu trước khi nộp.')}</span>
           </label>
 
           <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {providers.includes('paypal') && (
-              <Button
-                variant="cta"
-                size="none"
-                disabled={busy || !quote || !consented || unpromisable}
-                onClick={() => quote && void onPay('paypal', quote)}
-                className="rounded-xl px-3.5 py-2.5 text-xs"
-              >
-                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Wallet className="h-3.5 w-3.5" aria-hidden />}
-                {tr('Pay with PayPal', 'Thanh toán bằng PayPal')}
-              </Button>
-            )}
             {/* ⚠️ THE HANDOFF, and it is the ONLY action on this card when nobody is charging here.
                 Same consent gate as a payment: `send_for_review` is what freezes the applicant's
                 answers and hands them to the desk, so it needs the same declaration + prefill
@@ -2399,19 +2441,20 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
                 the gate each one kept an active Send-to-desk button an applicant could scroll back
                 to and press. `live` means "this is the CURRENT unpaid card AND you are the
                 applicant" — exactly the condition under which a handoff is meaningful. */}
-            {live && !providers.length && onSendToDesk && (
+            {live && (quickFlow || !providers.length) && onSendToDesk && (
               <Button
                 variant="cta"
                 size="none"
-                disabled={busy || !consented || unpromisable}
-                onClick={() => void onSendToDesk()}
+                // The closed-desk "no honest ready time" block is about taking money; the quick flow takes none.
+                disabled={busy || !consented || (!quickFlow && unpromisable) || (quickFlow && !entryDateOk)}
+                onClick={() => void onSendToDesk(quickFlow ? entryDate : undefined)}
                 className="rounded-xl px-3.5 py-2.5 text-xs"
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
                 {tr('Send to the desk', 'Gửi cho bộ phận hỗ trợ')}
               </Button>
             )}
-            {providers.includes('stripe') && (
+            {providers.includes('stripe') && !quickFlow && (
               <Button
                 variant="outline"
                 size="none"

@@ -201,3 +201,32 @@ const VISA_DM_STEP_PREVIEW: Record<VisaDmStep, string> = {
 export function visaDmStepPreview(step: VisaDmStep): string {
   return VISA_DM_STEP_PREVIEW[step] ?? VISA_DM_STEP_PREVIEW[1]
 }
+
+// ── THE QUICK FLOW (eno.forum, owner 2026-09-13) ───────────────────────────────────────
+// "user only uploads images picks entry date and submits then admin will resolve payment through
+// chat". The applicant answers step 1 (portrait + passport) and picks ONE date on the send-to-desk
+// card; the desk collects everything else in chat and files with the government OFF-SYSTEM (owner's
+// pick). Steps 2-4 are not shown on this flow. The step NUMBERS are unchanged — stored cards keep
+// their meaning — and VISA_DM_STEP_ISSUES above still partitions the full validator, which the
+// dashboard's approve-for-prefill path keeps using.
+//
+// ⚠️ The consent the applicant gives here is NOT the full declaration: they vouch for their images and
+// their date only, so the stored version names THIS text, never VISA_DECLARATION_VERSION (whose words
+// cover "every answer … approved").
+export const VISA_QUICK_DECLARATION_VERSION = 'evisa-quick-declaration-2026-09-13'
+
+/** Codes the quick flow requires before it can go to the desk: the documents and a usable date window. */
+export const VISA_QUICK_REQUIRED: ReadonlySet<string> = new Set([
+  ...VISA_DM_STEP_ISSUES[1],
+  'entry_date_required', 'visa_start_required', 'visa_end_required', 'visa_dates_invalid', 'visa_period_exceeds_90_days',
+])
+
+export function validateVisaQuickSubmit(payload: VisaPayload, documents: VisaDmDoc[]): string[] {
+  return validateVisaForReview(payload, documents).filter((issue) => VISA_QUICK_REQUIRED.has(issue))
+}
+
+/** 1 while a document is missing or unverified, otherwise null — the date is picked on the send card. */
+export function firstIncompleteVisaQuickStep(payload: VisaPayload, documents: VisaDmDoc[]): 1 | null {
+  const owned = VISA_DM_STEP_ISSUES[1]
+  return validateVisaForReview(payload, documents).some((issue) => owned.has(issue)) ? 1 : null
+}

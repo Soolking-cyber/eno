@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 import {
   VISA_DM_STEP_FIELDS,
   VISA_DM_STEP_ISSUES,
+  VISA_QUICK_REQUIRED,
   firstIncompleteVisaDmStep,
+  firstIncompleteVisaQuickStep,
+  validateVisaQuickSubmit,
   validateVisaDmStep,
   visaDmStepPreview,
   type VisaDmStep,
@@ -248,5 +251,31 @@ describe('visaDmStepPreview', () => {
     for (const bogus of [0, 6, -1, 99, Number.NaN]) {
       expect(visaDmStepPreview(bogus as VisaDmStep)).toBe(visaDmStepPreview(1))
     }
+  })
+})
+
+// The eno.forum quick flow (owner, 2026-09-13): documents + one entry date, the desk does the rest.
+describe('the quick flow', () => {
+  it('asks only for the documents, then goes straight to the send card', () => {
+    const empty = visaPayloadSchema.parse({})
+    expect(firstIncompleteVisaQuickStep(empty, [])).toBe(1)
+    // documents passed, nothing else answered — the full flow would stop at step 2, the quick one does not
+    expect(firstIncompleteVisaDmStep(empty, PASSED_DOCS)).toBe(2)
+    expect(firstIncompleteVisaQuickStep(empty, PASSED_DOCS)).toBeNull()
+  })
+
+  it('submits with documents + an entry date alone', () => {
+    const empty = visaPayloadSchema.parse({})
+    expect(validateVisaQuickSubmit(empty, PASSED_DOCS)).toContain('entry_date_required')
+    const dated = { ...empty, ...visaDateDefaultsForStart('2099-01-10') }
+    expect(validateVisaQuickSubmit(dated, PASSED_DOCS)).toEqual([])
+    // the full validator still sees the rest outstanding — the dashboard prefill path keeps it
+    expect(validateVisaForReview(dated, PASSED_DOCS).length).toBeGreaterThan(5)
+    expect(validateVisaQuickSubmit(dated, [])).toEqual(expect.arrayContaining(['portrait_required', 'passport_image_required']))
+  })
+
+  it('requires only codes the validator can actually emit', () => {
+    const emittable = emittableCodes(source)
+    for (const code of VISA_QUICK_REQUIRED) expect(emittable.has(code), code).toBe(true)
   })
 })

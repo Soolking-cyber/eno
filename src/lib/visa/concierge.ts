@@ -9,7 +9,8 @@ import { rateLimit } from '../ratelimit'
 import { resolveVisaProduct, getVisaShopSeller, type VisaShopProduct } from '../visa-shop'
 import { visaCryptoReady } from './crypto'
 import { canonicalVisaListingId, loadVisaDmCase } from './dm-flow'
-import { firstIncompleteVisaDmStep, VISA_DM_STEP_ISSUES, type VisaDmDoc, type VisaDmStep } from './dm-steps'
+import { firstIncompleteVisaDmStep, firstIncompleteVisaQuickStep, VISA_DM_STEP_ISSUES, VISA_QUICK_REQUIRED, type VisaDmDoc, type VisaDmStep } from './dm-steps'
+import { IS_SERVICES } from '../edition'
 import { getVisaThreadMode,
   readVisaThreadModeStrict, type VisaThreadMode } from './dm-thread'
 import { recordVisaEvent } from './records'
@@ -209,7 +210,9 @@ export function buildVisaConciergeGrounding(input: {
   paid: boolean
   product: VisaShopProduct | null
 }): VisaConciergeGrounding {
-  const issues = validateVisaForReview(input.payload, input.documents)
+  // eno.forum runs the quick flow (2026-09-13): only the documents and the entry date are the applicant's
+  // to give, so the assistant must not tell them to fill steps 2-4 that the desk now handles.
+  const issues = validateVisaForReview(input.payload, input.documents).filter((issue) => !IS_SERVICES || VISA_QUICK_REQUIRED.has(issue))
   const outstanding: Array<{ step: VisaDmStep; codes: string[] }> = []
   for (const step of ALL_STEPS) {
     const owned = VISA_DM_STEP_ISSUES[step]
@@ -219,7 +222,7 @@ export function buildVisaConciergeGrounding(input: {
   // The SAME step function the cards use, not a second opinion derived from the partition
   // above: the concierge saying "you are on step 3" while the live card says step 4 would be
   // the assistant contradicting the form it is meant to explain.
-  const step = firstIncompleteVisaDmStep(input.payload, input.documents)
+  const step = IS_SERVICES ? firstIncompleteVisaQuickStep(input.payload, input.documents) : firstIncompleteVisaDmStep(input.payload, input.documents)
   const spec = input.product?.speed ? VISA_SPEED_SPECS[input.product.speed] : null
   return {
     step: step ?? 5,

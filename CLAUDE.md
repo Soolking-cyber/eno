@@ -310,7 +310,8 @@ this replaces. `apps/forum` (a separate 102-file app sharing no code with the ro
 | | eno.vn | eno.forum |
 |---|---|---|
 | marketplace | ✅ | ✅ (identical) |
-| visa · itinerary · PayPal | ⛔ **not even a mention** | ✅ |
+| visa · itinerary | ⛔ **not even a mention** | ✅ |
+| PayPal / online visa payment | ⛔ | ⛔ **off since 2026-09-13** — owner: "no paypal … admin will resolve payment through chat"; the forum is an exact copy of eno.vn plus the e-Visa desk, and the visa application is photos + entry date |
 
 ⚠️ **This is a legal boundary, not a feature flag.** The failure mode is a LEAK: any place
 eno.vn still shows, links to, describes, indexes, emails or serves one of those surfaces

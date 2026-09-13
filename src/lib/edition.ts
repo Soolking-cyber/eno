@@ -5,6 +5,10 @@
  * services, itinerary services, or PayPal checkout. eno.forum serves those instead. Both are built
  * from THIS repo — one codebase, two images — and this module is the only place that knows which.
  *
+ * ⛔ 2026-09-13 (owner): eno.forum is now an exact COPY of eno.vn's marketplace plus the e-Visa desk,
+ * and takes NO online payment — PayPal is no longer offered anywhere; the desk arranges payment in
+ * chat. The licensing boundary below is unchanged: eno.vn still carries no visa/itinerary routes.
+ *
  * ⚠️ THE FAILURE MODE IS A LEAK, NOT A BUG. Anywhere the marketplace edition still shows, links to,
  * describes, indexes, emails or serves one of those surfaces, the licensed company is advertising a
  * service it is not licensed for. Read that sentence again before relaxing anything in this file.
@@ -94,7 +98,7 @@ export type Edition = 'marketplace' | 'services'
 export const EDITION: Edition =
   process.env.NEXT_PUBLIC_ENO_EDITION === 'marketplace' ? 'marketplace' : 'services'
 
-/** True on eno.forum: visa, itinerary and PayPal are live. */
+/** True on eno.forum: visa and itinerary are live (online payment is off since 2026-09-13). */
 export const IS_SERVICES = EDITION === 'services'
 
 /** True on eno.vn: the licensed marketplace, where none of those may appear. */

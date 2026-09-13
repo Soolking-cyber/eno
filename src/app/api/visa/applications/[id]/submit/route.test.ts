@@ -85,6 +85,7 @@ const h = vi.hoisted(() => ({
      * The three tests that are actually about the fee gate set this to true themselves.
      */
     isServices: false,
+    openCases: 0,
     /** Is this case answered by THIS deployment's visa desk? See the cross-edition guard. */
     caseOnLocalDesk: true,
     canonicalListingId: 'listing-1' as string | null,
@@ -125,6 +126,8 @@ function fakeVisaDb() {
         eq: (c: string, v: unknown) => { q.filters.push(['eq', c, v]); return api },
         in: (c: string, v: unknown) => { q.filters.push(['in', c, v]); return api },
         is: (c: string, v: unknown) => { q.filters.push(['is', c, v]); return api },
+        neq: (c: string, v: unknown) => { q.filters.push(['neq', c, v]); return api },
+        gte: (c: string, v: unknown) => { q.filters.push(['gte', c, v]); return api },
         order: (c: string) => { q.filters.push(['order', c, null]); return api },
         limit: (n: number) => { q.filters.push(['limit', '', n]); return api },
         maybeSingle: () => { q.terminal = 'maybeSingle'; return Promise.resolve(answer(q)) },
@@ -145,6 +148,8 @@ function answer(q: Query): Row {
   const s = h.state
   s.queries.push(q)
   if (q.table === 'visa_applications') {
+    // the open-case cap's head count
+    if (q.op === 'select' && q.columns === 'id') return { count: s.openCases, data: null, error: null }
     if (q.op === 'select') return { data: s.application, error: null }
     if (q.op === 'update') {
       if (s.updateError) return { data: null, error: s.updateError }
@@ -529,20 +534,42 @@ describe('submit — send_for_review', () => {
   })
 
   /**
-   * ⚠️ THE 402 IS THE BRANCH THIS SUITE MOST NEEDED. `route()` passes a handler-returned `Response`
-   * through UNCHANGED (`handler.ts:244`) — but "unchanged" is exactly the kind of claim that is
-   * argued rather than measured, and this is the only NON-200 SUCCESS-SHAPED return in either
-   * route: a wrapper that re-wrapped the value would answer 200 and the applicant would be handed
-   * a government form they have not paid for.
+   * ⛔ eno.forum TAKES NO ONLINE PAYMENT SINCE 2026-09-13 (owner: "user only uploads images picks entry
+   * date and submits then admin will resolve payment through chat"). These replace the 402/503
+   * pay-before-review assertions that pinned the old rule.
    */
-  it('payments configured + unpaid → 402 {"error":"payment_required_first"} — the status survives the wrapper', async () => {
-    h.state.isServices = true // the fee gate only exists where the deployment charges
-    h.state.paymentsConfigured = true
-    const r = await submit(SEND)
-    expect(r.status).toBe(402)
-    expect(r.body).toBe('{"error":"payment_required_first"}')
-    expect(r.res.headers.get('content-type')).toMatch(/application\/json/)
+  it('services + unpaid → the quick submission reaches the desk, with no prefill authorisation', async () => {
+    h.state.isServices = true
+    const r = await submit({ ...SEND, intendedEntryDate: '2099-01-10' })
+    expect(r.status).toBe(200)
+    const update = writes()[0].payload as Row
+    expect(update).toMatchObject({
+      status: 'ready_for_review',
+      encrypted_payload: 'cipher',
+      applicant_confirmation_version: 'evisa-quick-declaration-2026-09-13',
+      authorized_at: null, authorization_version: null, authorization_snapshot_hash: null,
+    })
+  })
+
+  it('services + an entry date in the past → 400, nothing written', async () => {
+    h.state.isServices = true
+    const r = await submit({ ...SEND, intendedEntryDate: '2001-01-01' })
+    expect(r.status).toBe(400)
+    expect(json(r)).toEqual({ error: 'entry_date_invalid' })
     expect(writes()).toEqual([])
+  })
+
+  it('services + three cases already waiting unpaid → 429, the desk is not flooded', async () => {
+    h.state.isServices = true
+    h.state.openCases = 3
+    const r = await submit({ ...SEND, intendedEntryDate: '2099-01-10' })
+    expect(r.status).toBe(429)
+    expect(json(r)).toEqual({ error: 'too_many_open_cases' })
+    expect(writes()).toEqual([])
+    // never counts the case being submitted, and only recent cases
+    const countQuery = appQueries().find((q) => q.columns === 'id')!
+    expect(countQuery.filters).toEqual(expect.arrayContaining([['neq', 'id', APP_ID], ['is', 'paid_at', null]]))
+    expect(countQuery.filters.some(([op, c]) => op === 'gte' && c === 'updated_at')).toBe(true)
   })
 
   it('payments configured + already paid → proceeds (needs_changes resubmit, consent re-stamp)', async () => {
@@ -596,13 +623,6 @@ describe('submit — send_for_review', () => {
     const r = await submit(SEND)
     expect(r.status).toBe(402)
     expect(json(r)).toEqual({ error: 'payment_required_first' })
-  })
-
-  it('services + payments dormant → 503, never a free submission', async () => {
-    h.state.isServices = true
-    const r = await submit(SEND)
-    expect(r.status).toBe(503)
-    expect(json(r)).toEqual({ error: 'payments_not_configured' })
   })
 
   it('success → 200 {application}, consent stamped under a CAS on status + updated_at', async () => {

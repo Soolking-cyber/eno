@@ -234,6 +234,8 @@ export type NicheApiErrorCode =
                                          // that is never coming. 403 (policy), not 404 (absence).
   | 'payload_too_large'
   | 'payment_required_first'
+  | 'too_many_open_cases'                // visa submit (eno.forum quick flow) — unpaid cases waiting cap
+  | 'entry_date_invalid'                 // visa submit (eno.forum quick flow) — date missing or in the past
   | 'payments_not_configured'
   | 'post_not_found_or_locked'
   | 'processing_failed'

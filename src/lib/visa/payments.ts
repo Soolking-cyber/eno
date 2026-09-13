@@ -67,17 +67,25 @@ export type VisaPaymentsConfig = {
  *  one provider. Deliberately byte-identical to the flat-fee version: an unconfigured
  *  host must behave EXACTLY as it did before per-product pricing. */
 export function visaPaymentsConfig(): VisaPaymentsConfig | null {
+  /**
+   * ⛔ ONLINE VISA PAYMENT IS OFF, WHATEVER THE ENV HOLDS (owner, 2026-09-13: "no paypal … admin will
+   * resolve payment through chat"). Returning null here is what makes the checkout and confirm routes
+   * refuse (`payments_not_configured`) — hiding the buttons alone would have left a direct POST able to
+   * charge a card if a Stripe key were ever set (a reviewer's catch). The code below is kept, dormant,
+   * for the record and for reconciling the cases already paid through PayPal.
+   */
+  if (process.env.VISA_ONLINE_PAYMENTS_ENABLED !== 'true') return null
   const fee = process.env.VISA_SERVICE_FEE_USD
   if (!fee) return null
   const feeCents = Math.round(Number.parseFloat(fee) * 100)
   if (!Number.isFinite(feeCents) || feeCents <= 0) return null
   const providers: VisaPaymentProvider[] = []
   if (process.env.STRIPE_SECRET_KEY) providers.push('stripe')
-  // PayPal requires an EXPLICIT mode — a typo'd PAYPAL_ENV ("prod", "production")
-  // must fail closed as unconfigured, never silently fall back to sandbox where
-  // play-money orders would satisfy real payment state (review #2).
-  if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET
-    && ['live', 'sandbox'].includes(process.env.PAYPAL_ENV || '')) providers.push('paypal')
+  // ⛔ PAYPAL IS NO LONGER OFFERED, WHATEVER THE ENV HOLDS (owner, 2026-09-13: "no paypal … admin will
+  // resolve payment through chat"). The PayPal functions below stay for the cases already paid through
+  // it (one live case in ready_to_submit when this landed) — refund and reconcile need them — but no new
+  // checkout can pick it. With no Stripe key either, this returns null and the applicant gets the
+  // send-to-desk card.
   if (!providers.length) return null
   return { providers, feeCents, currency: 'USD' }
 }

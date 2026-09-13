@@ -1572,13 +1572,15 @@ export default function ThreadPage() {
    * along because `send_for_review` freezes the applicant's answers exactly as a paid submission
    * does, and the server records both versions.
    */
-  const sendVisaToDesk = async () => {
+  const sendVisaToDesk = async (entryDate?: string) => {
     const applicationId = visaInfo?.applicationId
     if (!applicationId || visaBusy) return
     setVisaBusy(true)
     try {
       const res = await visaPost(`/api/visa/applications/${applicationId}/submit`, {
         action: 'send_for_review', declarationAccepted: true, prefillAuthorized: true,
+        // eno.forum quick flow (2026-09-13): the one answer the applicant gives on the send card.
+        ...(entryDate ? { intendedEntryDate: entryDate } : {}),
       })
       if (!res.ok) { toast.error(visaErrorCopy(res.error, tr)); return }
       haptic()

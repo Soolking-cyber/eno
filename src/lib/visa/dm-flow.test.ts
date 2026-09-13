@@ -319,10 +319,12 @@ function seedProductChoice(listingId = 'listing-1') {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  // ⚠️ RESET THE EDITION TOO. It defaults to the services build — the deployment that charges, and
-  // the one vitest.config.ts pins — so a test that flips it to marketplace cannot leak that into
-  // the next one and silently relax a fail-closed assertion somewhere else in the file.
-  h.state.isServices = true
+  // ⚠️ RESET THE EDITION TOO, so a test that flips it cannot leak into the next one.
+  // ⛔ THE DEFAULT IS NOW THE MARKETPLACE (2026-09-13). This file pins the FIVE-step flow, and since the
+  // owner moved eno.forum to the quick flow (documents + entry date, no online payment) the full flow
+  // only runs on the marketplace. The services edition's behaviour is pinned in 'the eno.forum quick
+  // flow' below.
+  h.state.isServices = false
   h.state.tables = {}
   h.state.dbError = null
   h.state.messages = []
@@ -892,22 +894,6 @@ describe('the pay card fails closed', () => {
     expect(dmThread.sendVisaCheckoutCard).toHaveBeenCalled()
   })
 
-  /**
-   * ⛔ THE OTHER HALF OF THE SAME RULE, AND THE ONE TWO REVIEWERS ASKED FOR. Dropping the dormant
-   * refusal everywhere would have made "payment env is missing" indistinguishable from "this
-   * deployment does not charge" — on eno.forum, which does. A lost PAYPAL_* would have quietly
-   * accepted unpaid applications instead of failing.
-   */
-  it('STILL refuses on the SERVICES edition — there, dormant means broken', async () => {
-    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
-    seedProductChoice()
-    h.state.payments = null
-    h.state.isServices = true
-    const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
-    expect(result).toMatchObject({ ok: false, error: 'payments_not_configured', status: 503 })
-    expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
-  })
-
   /** FX is a different thing from payments, and it must STILL fail — a card that cannot state a
    *  price honestly is worse than no card. Guards against the fix above being over-applied. */
   it('still refuses when FX is unavailable, even with payments dormant', async () => {
@@ -1411,5 +1397,42 @@ describe('an unreadable draft never bricks the account', () => {
     const denied = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', allowCreate: async () => false })
     expect(denied).toMatchObject({ ok: false, error: 'rate_limited', status: 429 })
     expect(h.state.tables.visa_applications).toHaveLength(1)
+  })
+})
+
+/**
+ * ⛔ eno.forum's QUICK FLOW (owner, 2026-09-13): "user only uploads images picks entry date and submits
+ * then admin will resolve payment through chat". Documents, then straight to the send-to-desk card —
+ * no step 2-4 cards, no payment configuration required, and an unquotable price does not block it.
+ */
+describe('the eno.forum quick flow', () => {
+  it('goes from documents straight to the send-to-desk card, with payments dormant', async () => {
+    h.state.isServices = true
+    h.state.payments = null
+    seedCase({ payload: visaPayloadSchema.parse({}), documents: PASSED_DOCUMENTS })
+    seedProductChoice()
+    const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(result).toMatchObject({ ok: true, step: 5, complete: true })
+    expect(dmThread.sendVisaCheckoutCard).toHaveBeenCalled()
+    expect(h.state.stepCards ?? []).toHaveLength(0)
+  })
+
+  it('still asks for the documents first', async () => {
+    h.state.isServices = true
+    seedCase({ payload: visaPayloadSchema.parse({}), documents: [] })
+    seedProductChoice()
+    const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(result).toMatchObject({ ok: true, step: 1, complete: false })
+  })
+
+  it('posts the card at no quoted price when FX is down — the desk agrees the fee in chat', async () => {
+    h.state.isServices = true
+    h.state.payments = null
+    h.state.quote = null
+    seedCase({ payload: visaPayloadSchema.parse({}), documents: PASSED_DOCUMENTS })
+    seedProductChoice()
+    const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(result).toMatchObject({ ok: true, step: 5, complete: true })
+    expect(dmThread.sendVisaCheckoutCard).toHaveBeenCalledWith(expect.objectContaining({ amountUsd: 0 }))
   })
 })

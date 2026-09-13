@@ -74,6 +74,7 @@ export const SERVICES_ALL = [
   'checkout_failed',
   'concierge_unavailable',
   'confirm_failed',
+  'entry_date_invalid',
   'field_not_in_step',
   'fund_failed',
   // Card top-up: services edition only, like every other payments code here.
@@ -112,6 +113,7 @@ export const SERVICES_ALL = [
   'submission_window_closed',
   'too_many',
   'too_many_applications',
+  'too_many_open_cases',
   'unsupported_image_type',
   'update_failed',
   'visa_database_unavailable',
