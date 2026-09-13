@@ -44,7 +44,7 @@
 //
 // ⚠️ KEEP IN SYNC WITH scripts/watermark-existing.mjs, which re-stamps already-uploaded photos
 // and carries its own copy of this path and these bounds.
-const WORDMARK_D =
+export const WORDMARK_D =
   'M870.0 30.0C1201.0 30.0 1438.0 -111.0 1533.0 -335.0C1560.0 -399.0 1513.0 -443.0 1428.0 -449.0L1270.0 -460.0C1203.0 -464.0 1167.0 -435.0 1122.0 -383.0C1066.0 -320.0 980.0 -288.0 877.0 -288.0C664.0 -288.0 529.0 -429.0 529.0 -658.0V-659.0H1455.0C1533.0 -659.0 1575.0 -700.0 1575.0 -776.0C1575.0 -1298.0 1259.0 -1556.0 853.0 -1556.0C401.0 -1556.0 108.0 -1235.0 108.0 -761.0C108.0 -274.0 397.0 30.0 870.0 30.0ZM529.0 -923.0C538.0 -1098.0 671.0 -1238.0 860.0 -1238.0C1045.0 -1238.0 1173.0 -1106.0 1174.0 -923.0Z M2279.0 -120.0V-888.0C2280.0 -1086.0 2398.0 -1202.0 2570.0 -1202.0C2741.0 -1202.0 2844.0 -1090.0 2843.0 -902.0V-120.0C2843.0 -42.0 2885.0 0.0 2963.0 0.0H3149.0C3227.0 0.0 3269.0 -42.0 3269.0 -120.0V-978.0C3269.0 -1336.0 3059.0 -1556.0 2739.0 -1556.0C2511.0 -1556.0 2346.0 -1444.0 2277.0 -1265.0H2259.0V-1416.0C2259.0 -1494.0 2217.0 -1536.0 2139.0 -1536.0H1973.0C1895.0 -1536.0 1853.0 -1494.0 1853.0 -1416.0V-120.0C1853.0 -42.0 1895.0 0.0 1973.0 0.0H2159.0C2237.0 0.0 2279.0 -42.0 2279.0 -120.0Z M4298.0 30.0C4764.0 30.0 5054.0 -289.0 5054.0 -762.0C5054.0 -1238.0 4764.0 -1556.0 4298.0 -1556.0C3832.0 -1556.0 3542.0 -1238.0 3542.0 -762.0C3542.0 -289.0 3832.0 30.0 4298.0 30.0ZM3975.0 -765.0C3975.0 -1033.0 4085.0 -1231.0 4300.0 -1231.0C4511.0 -1231.0 4621.0 -1033.0 4621.0 -765.0C4621.0 -497.0 4511.0 -300.0 4300.0 -300.0C4085.0 -300.0 3975.0 -497.0 3975.0 -765.0Z M5581.0 26.0C5709.0 26.0 5820.0 -81.0 5821.0 -214.0C5820.0 -345.0 5709.0 -452.0 5581.0 -452.0C5449.0 -452.0 5340.0 -345.0 5341.0 -214.0C5340.0 -81.0 5449.0 26.0 5581.0 26.0Z M7099.0 -97.0 7554.0 -1399.0C7583.0 -1482.0 7544.0 -1536.0 7456.0 -1536.0H7256.0C7185.0 -1536.0 7142.0 -1504.0 7122.0 -1435.0L6833.0 -437.0H6817.0L6527.0 -1435.0C6507.0 -1504.0 6464.0 -1536.0 6393.0 -1536.0H6194.0C6106.0 -1536.0 6067.0 -1482.0 6096.0 -1399.0L6551.0 -97.0C6574.0 -31.0 6618.0 0.0 6688.0 0.0H6962.0C7032.0 0.0 7076.0 -31.0 7099.0 -97.0Z M8246.0 -120.0V-888.0C8247.0 -1086.0 8365.0 -1202.0 8537.0 -1202.0C8708.0 -1202.0 8811.0 -1090.0 8810.0 -902.0V-120.0C8810.0 -42.0 8852.0 0.0 8930.0 0.0H9116.0C9194.0 0.0 9236.0 -42.0 9236.0 -120.0V-978.0C9236.0 -1336.0 9026.0 -1556.0 8706.0 -1556.0C8478.0 -1556.0 8313.0 -1444.0 8244.0 -1265.0H8226.0V-1416.0C8226.0 -1494.0 8184.0 -1536.0 8106.0 -1536.0H7940.0C7862.0 -1536.0 7820.0 -1494.0 7820.0 -1416.0V-120.0C7820.0 -42.0 7862.0 0.0 7940.0 0.0H8126.0C8204.0 0.0 8246.0 -42.0 8246.0 -120.0Z'
 // TIGHT INK BOUNDS — measured by rendering the path and trimming, NOT copied from
 // public/logo-dotvn.svg's viewBox.
@@ -60,7 +60,7 @@ const WORDMARK_D =
 // ⚠️ AND THE ASPECT BARELY MOVED, which the em box also hid: 5.88:1 hand-drawn → 5.75:1 Open Runde
 // on the real ink. The first version of this comment claimed 4.52:1 and "the mark is TALLER" —
 // that was the padding talking. The watermark keeps essentially the proportions it always had.
-const MARK_W = 9132.3, MARK_H = 1588.3, MARK_X = 105.9, MARK_Y = -1556.4
+export const MARK_W = 9132.3, MARK_H = 1588.3, MARK_X = 105.9, MARK_Y = -1556.4
 
 /** The "eno.vn" wordmark as ONE flat, crisp pass — no shadow, no outline, no second
  *  copy (user-picked 2026-07-14).
@@ -178,4 +178,39 @@ export function watermarkPlacement(width: number, height: number) {
   const left = Math.max(0, width - mw - pad)
   const top = Math.max(0, height - mh - pad)
   return { markWidth: mw, left, top, region: { left, top, width: Math.min(mw, width - left), height: Math.min(mh, height - top) } }
+}
+
+/**
+ * THE PATCH AN APP-DRAWN OVERLAY MARK COVERS ON A CARD — in the IMAGE's own pixel coordinates.
+ *
+ * Since 2026-09-13 imported product photos are stored CLEAN and the app draws the mark over them
+ * (owner picked the overlay: one size and one corner on every image, instead of a burned mark that
+ * the square card crop cut off or shrank). The overlay sits bottom-right of the card's SQUARE frame,
+ * and `object-cover` shows the centred square of the photo — so the pixels it lands on are the
+ * bottom-right of that centred square, not of the whole image. Probing the whole image's corner
+ * would pick ink for a patch the viewer never sees under the mark.
+ */
+export function cardMarkRegion(width: number, height: number) {
+  const side = Math.max(1, Math.min(width, height))
+  const ox = Math.max(0, Math.floor((width - side) / 2))
+  const oy = Math.max(0, Math.floor((height - side) / 2))
+  const { region } = watermarkPlacement(side, side)
+  return { left: ox + region.left, top: oy + region.top, width: region.width, height: region.height }
+}
+
+/**
+ * Ink for the overlay from the patch's greyscale pixels, by MAJORITY COVERAGE — not by the mean.
+ *
+ * ⛔ THE MEAN IS WHAT MADE MARKS "MISSING". inkForLuminance takes the patch average, and a corner
+ * that is half white studio backdrop and half black lens averages ~0.57 — below its 0.62 threshold —
+ * so it chose WHITE ink, which vanished on the white half. Measured on the live Tamron 17-50mm listing:
+ * the mark is visible only as a sliver where it crosses the lens body. Whichever ink is visible over
+ * MORE of the patch wins: dark ink shows on bright pixels, white ink on dark ones.
+ */
+export function inkForGreyPixels(grey: ArrayLike<number> | null): 'dark' | 'light' {
+  if (!grey || grey.length === 0) return 'light'
+  const cut = Math.round(0.62 * 255)
+  let bright = 0
+  for (let i = 0; i < grey.length; i++) if (grey[i] > cut) bright++
+  return bright * 2 >= grey.length ? 'dark' : 'light'
 }

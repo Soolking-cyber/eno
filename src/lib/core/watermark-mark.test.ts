@@ -129,3 +129,60 @@ describe('watermarkPlacement', () => {
     expect(p.region.top + p.region.height).toBeLessThanOrEqual(200)
   })
 })
+
+describe('cardMarkRegion', () => {
+  it('is the bottom-right of the CENTRED square, where the card overlay actually lands', async () => {
+    const { cardMarkRegion } = await import('./watermark-mark')
+    // 1600x900: the card shows x 350..1250, so the patch must end inside that, not at x=1600
+    const r = cardMarkRegion(1600, 900)
+    expect(r.left + r.width).toBeLessThanOrEqual(1250)
+    expect(r.left).toBeGreaterThan(350)
+    expect(r.top + r.height).toBeLessThanOrEqual(900)
+    // a square image is unchanged from watermarkPlacement
+    expect(cardMarkRegion(1000, 1000)).toEqual(watermarkPlacement(1000, 1000).region)
+  })
+})
+
+describe('inkForGreyPixels', () => {
+  it('picks the ink visible over MORE of the patch, not the one the mean suggests', async () => {
+    const { inkForGreyPixels } = await import('./watermark-mark')
+    // the Tamron corner: 55% white backdrop, 45% black lens — mean ≈ 0.58, which inkForLuminance
+    // calls "light" (white ink, invisible on the white majority)
+    const patch = [...Array(55).fill(250), ...Array(45).fill(40)]
+    expect(inkForLuminance(patch.reduce((a, b) => a + b, 0) / patch.length / 255).fill).toBe('#ffffff')
+    expect(inkForGreyPixels(patch)).toBe('dark')
+    expect(inkForGreyPixels(Array(100).fill(30))).toBe('light')
+    expect(inkForGreyPixels(null)).toBe('light')
+  })
+})
+
+describe('the overlay sprite', () => {
+  // ⛔ THE MARK DRIFTED THREE WAYS ONCE (see the module header). public/brand/eno-mark.svg is a
+  // generated copy of WORDMARK_D for the app-drawn overlay; this pins it to the source.
+  it('is byte-for-byte the shared wordmark path and box', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { WORDMARK_D, MARK_W, MARK_H, MARK_X, MARK_Y } = await import('./watermark-mark')
+    const svg = readFileSync('public/brand/eno-mark.svg', 'utf8')
+    expect(svg).toContain(`d="${WORDMARK_D}"`)
+    expect(svg).toContain(`viewBox="${MARK_X} ${MARK_Y} ${MARK_W} ${MARK_H}"`)
+    expect(svg).toContain('fill="currentColor"')
+    expect(svg).toContain('id="m"')
+    const { IMAGE_MARK_BOX } = await import('../../components/marketplace/image-mark')
+    expect(IMAGE_MARK_BOX).toEqual({ w: MARK_W, h: MARK_H })
+  })
+})
+
+describe('regions handed to sharp.extract', () => {
+  // sharp.extract throws on a non-integer box, and the importer's ink probe would then fall back to
+  // one fixed ink for every photo. Pin integers across awkward sizes.
+  it('are whole pixels for every shape', async () => {
+    const { cardMarkRegion } = await import('./watermark-mark')
+    for (const [w, h] of [[1200, 797], [675, 1200], [1035, 719], [501, 333], [1200, 1200], [431, 1199]]) {
+      for (const r of [cardMarkRegion(w, h), watermarkPlacement(w, h).region]) {
+        for (const v of [r.left, r.top, r.width, r.height]) expect(Number.isInteger(v)).toBe(true)
+        expect(r.left + r.width).toBeLessThanOrEqual(w)
+        expect(r.top + r.height).toBeLessThanOrEqual(h)
+      }
+    }
+  })
+})

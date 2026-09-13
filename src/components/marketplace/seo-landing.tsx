@@ -8,6 +8,7 @@ import { RichBlock } from '@/components/marketplace/rich-text'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { ImageMark } from './image-mark'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { ArrowRight, ShieldCheck } from "@/components/ui/icons"
 import { db } from '@/lib/db'
@@ -301,6 +302,7 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
                         className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
                       />
                     )}
+                    <ImageMark src={l.images[0]} />
                   </div>
                   {/* Same shape as <ListingCard>: price → one-line title → location (owner, 2026-09-13). */}
                   <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2">

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { PartnerBadge } from './partner-badge'
+import { ImageMark } from './image-mark'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
 import Image from 'next/image'
@@ -559,6 +560,9 @@ function ListingCardImpl({
                       : { loading: i === 0 ? (priority ? 'eager' : 'lazy') : 'eager' })}
                   />
                 )}
+                {/* The app-drawn eno.vn mark, per SLIDE so each photo gets the ink measured for it. Renders
+                    nothing for a photo that still carries a burned mark — see image-mark.tsx. */}
+                {!slideDown[i] && <ImageMark src={src} />}
               </div>
             ))}
 

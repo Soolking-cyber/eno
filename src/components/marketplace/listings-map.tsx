@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Heart, Info } from '@/components/ui/icons'
 import { TrustScore } from './trust-score'
 import { PartnerBadge } from './partner-badge'
+import { ImageMark } from './image-mark'
 import { MapTravel, MapsDirectionsButton } from './map-travel'
 import type { LatLng } from '@/lib/travel'
 import type { SerializedListingCard } from '@/lib/types'
@@ -714,6 +715,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     {card.images[0] && (
                       <Image src={card.images[0]} alt="" fill sizes="280px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
                     )}
+                    <ImageMark src={card.images[0]} />
                   </div>
                   {/* Same shape as <ListingCard>: price → one-line title → location, with the trust
                       chip closing the location line (owner, 2026-09-13). The price is the STORED đồng

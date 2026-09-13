@@ -29,7 +29,8 @@ import 'dotenv/config'
 import { chromium, type Browser } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
-import { watermarkSvg, watermarkPlacement, inkForLuminance } from '../src/lib/core/watermark-mark'
+import { makeImageHost } from '../src/lib/host-product-image'
+import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { hammingHex } from '../src/lib/image-hash-url'
 import { appendFileSync } from 'node:fs'
 
@@ -42,7 +43,15 @@ const BLOCK_LIMIT = 8
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
-const REFETCH = process.argv.includes('--refetch')
+/**
+ * `--overlay` — re-fetch every product whose photos still carry a BURNED mark and store them CLEAN
+ * under `affiliate/m/`, for the app-drawn eno.vn mark (owner, 2026-09-13: one size and one corner on
+ * every image; see src/components/marketplace/image-mark.tsx). Implies `--refetch`'s "at least as
+ * many" rule, selects highest rankScore first, and skips listings already fully on clean photos, so
+ * a killed run resumes by construction.
+ */
+const OVERLAY = process.argv.includes('--overlay')
+const REFETCH = process.argv.includes('--refetch') || OVERLAY
 /**
  * `--refetch --stale-before <iso>` — re-fetch ONLY the listings whose every stored image predates
  * <iso>, instead of the whole catalogue.
@@ -91,6 +100,8 @@ const STALE_BEFORE = (() => {
    */
   if (!raw || raw.startsWith('--')) { console.error('--stale-before needs an ISO timestamp, e.g. 2026-08-25T18:57:04+07:00'); process.exit(1) }
   if (!REFETCH) { console.error('--stale-before only narrows --refetch; pass both or neither'); process.exit(1) }
+  // --overlay selects by "still on burned photos", not by age; combining them silently ignored one.
+  if (OVERLAY) { console.error('--stale-before does not apply to --overlay (it selects every listing still on burned photos)'); process.exit(1) }
   if (!/(?:Z|[+-]\d{2}:?\d{2})$/.test(raw)) { console.error(`--stale-before: "${raw}" has no UTC offset — pass e.g. 2026-08-25T18:57:04+07:00`); process.exit(1) }
   const t = Date.parse(raw)
   if (Number.isNaN(t)) { console.error(`--stale-before: "${raw}" is not a date`); process.exit(1) }
@@ -143,6 +154,8 @@ const secret = process.env.SUPABASE_SECRET_KEY
 if (APPLY && (!storageUrl || !secret)) { console.error('supabase env required'); process.exit(1) }
 if (APPLY && /supabase\.co$/.test(new URL(storageUrl!).hostname)) { console.error('refusing the retired project'); process.exit(1) }
 const storage = APPLY ? createClient(storageUrl!, secret!, { auth: { persistSession: false } }).storage.from(BUCKET) : null
+// Clean hosting for --overlay: same resize, hash and upload path as the importers, no burned mark.
+const overlayHost = makeImageHost({ storage, storageUrl: storageUrl ?? '', bucket: BUCKET, edge: EDGE, quality: 80, mark: 'overlay' })
 
 /**
  * ⛔ ONE PAGE VISIT, TWO OUTPUTS. The merchant's own category path lives in the same Nuxt payload
@@ -257,67 +270,19 @@ async function pageDataFor(holder: BrowserHolder, url: string): Promise<{ galler
   } finally { await page.close() }
 }
 
-async function perceptualHash(png: Buffer): Promise<string | null> {
-  try {
-    const sharp = (await import('sharp')).default
-    const px = await sharp(png).greyscale().resize(9, 8, { fit: 'fill' }).raw().toBuffer()
-    if (px.length < 72) return null
-    let hex = '', nib = 0, c = 0
-    for (let r = 0; r < 8; r++) for (let col = 0; col < 8; col++) {
-      nib = (nib << 1) | (px[r * 9 + col] > px[r * 9 + col + 1] ? 1 : 0)
-      if (++c === 4) { hex += nib.toString(16); nib = 0; c = 0 }
-    }
-    return hex
-  } catch { return null }
-}
 
-/** Square-crop, stamp with the app's own mark, encode, upload. Returns the public url. */
-async function store(src: string, slug: string): Promise<{ url: string; hash: string } | null> {
-  try {
-    const res = await fetch(src.startsWith('http') ? src : `https://${src}`, { signal: AbortSignal.timeout(25_000) })
-    if (!res.ok) return null
-    const sharp = (await import('sharp')).default
-    const img = sharp(Buffer.from(await res.arrayBuffer()), { limitInputPixels: 50_000_000 }).rotate()
-    const meta = await img.metadata()
-    /**
-     * ⛔ NO SQUARE CROP. This read `side = min(width, height, EDGE)` and then `fit: 'cover'`, which
-     * takes a centre square out of every image — so a 1200x600 marketing banner lost half its
-     * width, and the text on it was sliced through the middle. Owner, 2026-08-25: "we have to
-     * import images without cropping since most products have broken bad looking images."
-     * Measured: every stored image was exactly 1:1 (1100x1100, 800x800, 600x600).
-     * ⚠️ `fit: 'inside'` + `withoutEnlargement` keeps the WHOLE frame and never upscales a small
-     * source into a blurry big one. Cards still show a square thumbnail — that crop belongs in CSS,
-     * where it is reversible, not baked into the file we store forever.
-     */
-    /**
-     * ⚠️ EXIF ORIENTATION SWAPS THE AXES, AND `metadata()` REPORTS THE PRE-ROTATION FRAME.
-     * `.rotate()` applies the EXIF flag at render time, so for orientations 5-8 the rendered image
-     * is H x W while `meta` still says W x H. Computing the target from the unrotated numbers makes
-     * `watermarkPlacement` place the mark outside the real canvas and `composite` throws
-     * "image to composite must have same dimensions or smaller" — killing that image, and with it
-     * the whole batch. Swapping here costs nothing; re-encoding to measure would cost a decode.
-     */
-    const swapped = (meta.orientation ?? 1) >= 5
-    const srcW = (swapped ? meta.height : meta.width) ?? EDGE
-    const srcH = (swapped ? meta.width : meta.height) ?? EDGE
-    const scale = Math.min(1, EDGE / Math.max(srcW, srcH))
-    const outW = Math.max(1, Math.round(srcW * scale))
-    const outH = Math.max(1, Math.round(srcH * scale))
-    // Product shots are usually on white already; flatten keeps a transparent PNG from going black.
-    const png = await img.resize({ width: outW, height: outH, fit: 'inside', withoutEnlargement: true })
-      .flatten({ background: '#ffffff' }).png().toBuffer()
-    const hash = await perceptualHash(png)
-    if (!hash) return null
-    const { markWidth, left, top, region } = watermarkPlacement(outW, outH)
-    let mean: number | null = null
-    try { const { channels } = await sharp(png).extract(region).greyscale().stats(); mean = (channels[0]?.mean ?? 0) / 255 } catch {}
-    const out = await sharp(png).composite([{ input: watermarkSvg(markWidth, inkForLuminance(mean)).svg, left, top }])
-      .webp({ quality: 80 }).toBuffer()
-    const path = `affiliate/${slug}-g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}-h${hash}.webp`
-    const { error } = await storage!.upload(path, out, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' })
-    if (error) return null
-    return { url: `${storageUrl}/storage/v1/object/public/${BUCKET}/${path}`, hash }
-  } catch { return null }
+/**
+ * Fetch, resize, hash and upload one gallery photo CLEAN, for the app-drawn eno.vn mark. Returns the
+ * public url and the dHash of the stored photo.
+ *
+ * ⛔ EVERY MODE HOSTS CLEAN SINCE 2026-09-13, NOT ONLY --overlay. The burned-mark pipeline that lived
+ * here was deleted rather than kept behind the flag: a plain `--refetch` would otherwise re-stamp a
+ * listing the overlay run had already migrated, bringing back exactly the per-file mark sizes the owner
+ * reported (a reviewer's catch). The resize, EXIF handling and dHash now live in makeImageHost, which
+ * uses the same 9x8 difference hash this file computed, so DUP_DISTANCE keeps its meaning.
+ */
+async function store(src: string, slug: string): Promise<{ url: string; hash: string | null } | null> {
+  return overlayHost.detailed(src.startsWith('http') ? src : `https://${src}`, `cellphones-${slug}`)
 }
 
 async function main() {
@@ -337,7 +302,16 @@ async function main() {
   const rows = (await db.listing.findMany({
     where: { sellerId: seller.id },
     select: { id: true, title: true, images: true, affiliateUrl: true, externalId: true },
+    // Highest rank first, so the photos people actually see are fixed first (matters for --overlay,
+    // which is a ~10h crawl; harmless ordering for the other modes).
+    orderBy: [{ rankScore: 'desc' }, { id: 'asc' }],
   })).filter((r) => {
+    if (OVERLAY) {
+      try {
+        const list = JSON.parse(r.images || '[]')
+        return !(Array.isArray(list) && list.length > 0 && list.every((u) => typeof u === 'string' && isOverlayImageUrl(u)))
+      } catch { return true }
+    }
     if (REFETCH) return STALE_BEFORE == null || hasImageOlderThan(r.images, STALE_BEFORE)
     try { return JSON.parse(r.images || '[]').length <= 1 } catch { return true }
   })
@@ -373,12 +347,15 @@ async function main() {
 
       const kept: string[] = []
       const hashes: string[] = []
+      let hostFailed = false
       for (const u of urls) {
         if (kept.length >= MAX_IMAGES) break
         const s = await store(u, (r.externalId || 'p').replace(/[^a-z0-9]+/gi, '').slice(0, 24))
-        if (!s) continue
-        if (hashes.some((h) => hammingHex(h, s.hash) <= DUP_DISTANCE)) continue
-        hashes.push(s.hash); kept.push(s.url)
+        if (!s) { hostFailed = true; continue }
+        // A photo whose hash could not be computed is kept as distinct — fail open, as countDistinctAngles does.
+        if (s.hash && hashes.some((h) => hammingHex(h, s.hash!) <= DUP_DISTANCE)) continue
+        if (s.hash) hashes.push(s.hash)
+        kept.push(s.url)
       }
       /**
        * ⚠️ NEVER SHRINK A GALLERY. If scraping produced less than we already had, keep what we had.
@@ -389,12 +366,28 @@ async function main() {
        * scrape is a normal event, not an edge case. Two reviewers caught this independently.
        * A shortfall is logged so it can be picked up by a second pass.
        */
-      const existing: string[] = (() => { try { return JSON.parse(r.images || '[]') } catch { return [] } })()
-      const enough = kept.length >= Math.min(existing.length, MAX_IMAGES)
+      const existing: string[] = (() => { try { const v = JSON.parse(r.images || '[]'); return Array.isArray(v) ? v : [] } catch { return [] } })()
+      // Under --overlay the rule is strict — at least as many as the listing holds, not capped at the
+      // max: a reviewer showed the cap lets a gallery above the limit shrink to it. Measured: no
+      // CellphoneS listing holds more than 6, the --max-images default.
+      const enough = OVERLAY ? kept.length >= existing.length : kept.length >= Math.min(existing.length, MAX_IMAGES)
       if (REFETCH && kept.length > 0 && !enough) short++
+      // ⛔ UNDER --overlay A HOSTING FAILURE REFUSES THE WRITE. Counting survivors is not enough: with
+      // [A, B] stored and [A, B, C] scraped, a failed B still leaves two, "enough" — and B is gone
+      // (a reviewer's worked example). Duplicates skipped by hash are not failures.
+      if (OVERLAY && hostFailed) { short++; return }
       if (kept.length > existing.length || (REFETCH && enough && kept.length > 0)) {
-        await db.listing.update({ where: { id: r.id }, data: { images: JSON.stringify(kept) } }).catch(() => {})
-        added += kept.length
+        // ⛔ OPTIMISTIC under --overlay: this crawl runs for hours, so match the images value read at
+        // selection rather than overwriting whatever an importer wrote since.
+        if (OVERLAY) {
+          const res = await db.listing.updateMany({ where: { id: r.id, images: r.images }, data: { images: JSON.stringify(kept) } })
+            .catch((e: unknown) => { console.error(`  ${r.id}: write failed — ${String(e).slice(0, 120)}`); return null })
+          if (res && res.count > 0) added += kept.length
+          else if (res) console.log(`  ${r.id}: images changed underneath us — kept theirs`)
+        } else {
+          await db.listing.update({ where: { id: r.id }, data: { images: JSON.stringify(kept) } }).catch(() => {})
+          added += kept.length
+        }
       }
     }))
     // ⚠️ A REAL PAUSE BETWEEN BATCHES. This is thousands of requests to someone else's shop; the

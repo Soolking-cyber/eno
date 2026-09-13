@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
+import { ImageMark } from './image-mark'
 import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from '@/components/ui/icons'
 import { STROKE_FLOAT } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
@@ -174,6 +175,9 @@ const ZOOM = 2.5
 function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
   img: string; alt: string; sizes: string; mock?: boolean; priority?: boolean; eager?: boolean
 }) {
+  // A photo that failed to load takes its mark with it — never an eno.vn wordmark over an empty frame.
+  // Keyed by the source, so a reused instance showing a different photo starts clean.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
   return (
     <>
       {/* quality MUST be one of next.config `qualities: [60, 70]` — any other value (e.g. the
@@ -190,7 +194,9 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
         priority={priority}
         loading={eager && !priority ? 'eager' : undefined}
         className="object-contain"
+        onError={() => setFailedSrc(img)}
       />
+      {failedSrc !== img && <ImageMark src={img} fit="contain" />}
       <span className="img-watermark" aria-hidden />
     </>
   )
@@ -272,6 +278,8 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
 
   // Double-tap zoom state: null = fit; {tx,ty} = zoomed at ZOOM, panned by (tx,ty).
   const [zoom, setZoom] = useState<{ tx: number; ty: number } | null>(null)
+  // Lightbox photos that failed to load (by source), so their eno.vn mark is not left floating.
+  const [lightboxFailed, setLightboxFailed] = useState<ReadonlySet<string>>(() => new Set())
   /**
    * ⛔ A DIRECTLY MANIPULATED ELEMENT MUST NOT CARRY A TRANSITION. The zoomed photo had
    * `transition-transform duration-200` permanently, while `onTouchMove` rewrote its transform on
@@ -441,8 +449,11 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               ))}
             </div>
             {/* black/60 not /50: white text on the translucent chip must hold 4.5:1
-                even over a white photo (axe computes ~5.7:1 at 60%). */}
-            <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-2xs font-semibold text-white">
+                even over a white photo (axe computes ~5.7:1 at 60%).
+                ⚠️ BOTTOM-CENTRE since 2026-09-13: bottom-right belongs to the app-drawn eno.vn mark
+                (image-mark.tsx, one corner on every image), and bottom-left is the video slide's
+                mute toggle. */}
+            <span className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-1 text-2xs font-semibold text-white">
               {slide + 1} / {mediaCount}
             </span>
           </div>
@@ -483,8 +494,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                    product photo happens to be — on a white-background shot (which most of this
                    catalogue is) a drop-shadow leaves it barely there, the same failure measured on
                    the icons: contrast 0 against white. Same translucent plate the over-media icons
-                   now use, so the two read as one language. */
-                className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white cursor-pointer active:scale-100"
+                   now use, so the two read as one language.
+                   ⚠️ BOTTOM-CENTRE since 2026-09-13: bottom-right is where the app-drawn eno.vn mark
+                   sits on every image (image-mark.tsx), and the owner asked for that corner to be the
+                   same everywhere — the chip moved rather than the mark. Not bottom-left: that is the
+                   video slide's mute toggle (a reviewer caught the first move colliding with it). */
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white cursor-pointer active:scale-100"
               >
                 <Images className="h-4 w-4" /> <Tr text={showAllLabel} /> · {images.length}
               </Button>
@@ -775,7 +790,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 // zoom branch above already owns that cost only while it is needed.
                 : dragX !== 0 ? { transform: `translateX(${dragX}px)` } : undefined}
             >
-              <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} unoptimized={isMockImageUrl(images[idx]) || undefined} className="object-contain" />
+              <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} unoptimized={isMockImageUrl(images[idx]) || undefined} className="object-contain" onError={() => setLightboxFailed((prev) => new Set(prev).add(images[idx]))} />
               {/* Max-quality detail layer: on an explicit zoom (double-tap/-click) load the
                   ≤1600px stored master via `unoptimized` (the raw stored WebP, higher-res than
                   the ≤1080 fit variant that CSS-scale(2.5) would just upscale into blur). It
@@ -794,6 +809,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                   onError={(e) => { e.currentTarget.style.display = 'none' }}
                 />
               )}
+              {!lightboxFailed.has(images[idx]) && <ImageMark src={images[idx]} fit="contain" />}
               <span className="img-watermark" aria-hidden />
             </div>
           </div>

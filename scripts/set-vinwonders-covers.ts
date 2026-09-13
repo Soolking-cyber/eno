@@ -34,7 +34,7 @@ if (APPLY && (!storageUrl || !secret)) { console.error('NEXT_PUBLIC_SUPABASE_URL
 if (APPLY && /supabase\.co$/.test(new URL(storageUrl!).hostname)) { console.error(`Refusing to upload to ${storageUrl} — retired project`); process.exit(1) }
 const storage = APPLY ? createClient(storageUrl!, secret!, { auth: { persistSession: false } }).storage.from('listings') : null
 /** Covers are hero images, not thumbnails — 1600 is the listing-photo edge the app uses elsewhere. */
-const host = makeImageHost({ storage, storageUrl: storageUrl ?? '', bucket: 'listings', edge: 1600, prefix: 'covers' })
+const host = makeImageHost({ storage, storageUrl: storageUrl ?? '', bucket: 'listings', edge: 1600, prefix: 'covers', mark: 'burned' })
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd')
   .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()

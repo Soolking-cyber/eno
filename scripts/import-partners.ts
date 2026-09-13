@@ -36,9 +36,17 @@ import { modelFor } from '../src/lib/feed-model'
 import { buildSearchText } from '../src/lib/fold'
 import { browseRankScore } from '../src/lib/ranking-formula'
 import { PARTNER_STORES } from '../src/lib/partner-stores'
+import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
+/**
+ * `--overlay` — ALSO re-fetch the photos of existing listings that still carry a burned mark. New
+ * photos are always hosted CLEAN under `affiliate/m/` for the app-drawn eno.vn mark (owner, 2026-09-13:
+ * one size and one corner on every image; see image-mark.tsx) — the flag only widens WHICH listings get
+ * photos, so a routine run can never reintroduce a burned mark (a reviewer's catch).
+ */
+const OVERLAY = process.argv.includes('--overlay')
 const FILE = arg('file')
 const ONLY = arg('store')
 const LIMIT = Number(arg('limit') ?? 0)
@@ -61,7 +69,7 @@ const secret = process.env.SUPABASE_SECRET_KEY
 if (APPLY && (!storageUrl || !secret)) { console.error('NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SECRET_KEY required'); process.exit(1) }
 if (APPLY && /supabase\.co$/.test(new URL(storageUrl!).hostname)) { console.error(`Refusing to upload to ${storageUrl} — retired project`); process.exit(1) }
 const storage = APPLY ? createClient(storageUrl!, secret!, { auth: { persistSession: false } }).storage.from(BUCKET) : null
-const hostImage = makeImageHost({ storage, storageUrl: storageUrl!, bucket: BUCKET, edge: EDGE, quality: WEBP_QUALITY })
+const hostImage = makeImageHost({ storage, storageUrl: storageUrl!, bucket: BUCKET, edge: EDGE, quality: WEBP_QUALITY, mark: 'overlay' })
 
 type Staged = { domain: string; externalId: string; name: string; price: string | number
                 url: string; images: string[] | string; desc?: string; inStock?: boolean | string }
@@ -130,7 +138,7 @@ async function main() {
   }
   console.log()
 
-  let seen = 0, created = 0, updated = 0, skipped = 0, imaged = 0
+  let seen = 0, created = 0, updated = 0, skipped = 0, imaged = 0, rehostKept = 0
   const failures: string[] = []
   const dropped: Record<string, number> = {}
   const drop = (why: string) => { dropped[why] = (dropped[why] || 0) + 1; skipped++ }
@@ -195,10 +203,26 @@ async function main() {
        * trips; repeating them on every nightly price refresh would grow storage without bound.
        */
       let images = existing?.images
-      const hasImage = (() => { try { return JSON.parse(images || '[]').length > 0 } catch { return false } })()
+      const current: string[] = (() => { try { const v = JSON.parse(images || '[]'); return Array.isArray(v) ? v.filter((u): u is string => typeof u === 'string') : [] } catch { return [] } })()
+      const hasImage = current.length > 0
+      const burned = hasImage && !current.every(isOverlayImageUrl)
       if (!hasImage) {
         const hosted = (await Promise.all(srcImages.map((u) => hostImage(u, slug)))).filter((u): u is string => !!u)
         if (hosted.length) { images = JSON.stringify(hosted); imaged += hosted.length }
+      } else if (OVERLAY && burned && srcImages.length < current.length) {
+        rehostKept++ // the shop now shows fewer photos than we hold — keep ours, never shrink
+      } else if (OVERLAY && burned) {
+        /**
+         * ⛔ NEVER SHRINK A GALLERY, AND ALL-OR-NOTHING. Entered only when the shop returns at least as
+         * many photos as the listing holds (checked BEFORE uploading), and written only when every one
+         * hosted. A shorter gallery or a partial upload keeps the current photos — a stale burned mark
+         * is a blemish, a lost photo is data loss. A partial upload's survivors are orphans for the
+         * separate cleanup.
+         */
+        const hosted = (await Promise.all(srcImages.map((u) => hostImage(u, slug)))).filter((u): u is string => !!u)
+        if (hosted.length === srcImages.length) {
+          images = JSON.stringify(hosted); imaged += hosted.length
+        } else rehostKept++
       }
       if (!images || images === '[]') { drop('image host failed'); return }
 
@@ -306,7 +330,7 @@ async function main() {
       }
   }
 
-  console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${created} created, ${updated} updated, ${imaged} images hosted, ${skipped} skipped`)
+  console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${created} created, ${updated} updated, ${imaged} images hosted, ${skipped} skipped${OVERLAY ? `, ${rehostKept} kept their burned photos (shorter or partial re-fetch)` : ''}`)
   if (Object.keys(dropped).length) console.log(`  dropped: ${JSON.stringify(dropped)}`)
   if (failures.length) {
     const kinds: Record<string, number> = {}
