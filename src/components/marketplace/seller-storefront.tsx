@@ -16,6 +16,10 @@ import { Tr } from '@/context/language-context'
 import { RichText } from '@/components/marketplace/listing-content'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
+import { ShareButton } from '@/components/marketplace/share-button'
+import { storefrontUrl } from '@/lib/storefront-host'
+import { storefrontByHandle } from '@/lib/storefront'
+import { IS_SERVICES } from '@/lib/edition'
 import { Badge } from '@/components/ui/badge'
 import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
 import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
@@ -114,6 +118,13 @@ const loadReviews = cache(async (sellerId: string) => {
 })
 
 export async function SellerStorefront({ id }: { id: string }) {
+  // The share address: the subdomain where `/s/<handle>` will actually serve this shop, otherwise the
+  // path — this component is also the fallback for handles the subdomain rejects (brand-slug collisions),
+  // and sharing a subdomain that 404s would be worse than the path. The origin falls back to THIS
+  // edition's own domain, so a forum build missing its env can never hand out an eno.vn address.
+  const shareOrigin = process.env.NEXT_PUBLIC_APP_URL || (IS_SERVICES ? 'https://www.eno.forum' : 'https://eno.vn')
+  const shareUrlFor = async (handle: string | null | undefined) =>
+    !handle ? null : (await storefrontByHandle(handle)) ? storefrontUrl(handle, shareOrigin) : `${shareOrigin.replace(/\/$/, '')}/${handle}`
   // 90d conversation count → the responsiveness bucket's honesty gate (suppressed
   // below RESPONSE_MIN_CONVOS so a fresh seller never shows a fake "100%"). Same
   // window + query shape the trust engine uses; one cheap indexed count, batched.
@@ -123,6 +134,7 @@ export async function SellerStorefront({ id }: { id: string }) {
     db.conversation.count({ where: { sellerId: id, createdAt: { gte: new Date(Date.now() - 90 * 86400000) } } }),
   ])
   if (!seller) notFound()
+  const shareUrl = await shareUrlFor(seller.handle?.handle)
 
   // Owner enforcement state (Phase 2 caution line). The columns are @ignore'd in
   // Prisma (deploy-order safety) so they can't ride the seller join — getEnforcement
@@ -260,6 +272,9 @@ export async function SellerStorefront({ id }: { id: string }) {
                     one is physically impossible; everywhere else it is the single row asked for. */}
                 {!isVisaDesk && !isAffiliatePartner && <StorefrontChatButton chatListingId={chatListingId} />}
                 {seller.handle && <HandleChip handle={seller.handle.handle} />}
+                {/* Share hands out the SUBDOMAIN (owner, 2026-09-13: "when user selects to share storefront
+                    use slug like vietkite.eno.vn or vietkite.eno.forum") — this edition's own domain. */}
+                {shareUrl && <ShareButton url={shareUrl} title={seller.name} compact />}
                 {/* ONE badge only (owner 2026-07-23: "only 1 badge, no 2 badge system").
                     A business that passed the >=2-channel verification shows "Business
                     verified"; everyone else shows just "Active account". The standalone

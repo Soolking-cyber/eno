@@ -1,7 +1,5 @@
-import { SERVICES_DESK_TILES } from '@/lib/edition-services-copy'
 // The edition flag itself — import-free by design so client components can read it and have the
 // dead branch minified away. See the note on DESK_SHORTCUTS below for why the gate is load-bearing.
-import { IS_SERVICES } from '@/lib/edition'
 // ─────────────────────────────────────────────────────────────────────────────
 // CANONICAL TAXONOMY — single source of truth for categories, subcategories,
 // listing types (intent), and per-category facets.
@@ -233,11 +231,10 @@ export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string
  */
 export const DESK_SHORTCUTS: {
   key: string; name: string; nameVi: string; icon: string; kind: 'filter' | 'route'; href: string
-}[] = IS_SERVICES
-  // ⚠️ e-Visa ONLY, since 2026-09-13 (owner: eno.forum is an exact copy of eno.vn plus one e-Visa entry).
-  // The Trip tile is forum-only marketing the copy drops; /itinerary itself stays reachable on the forum.
-  ? SERVICES_DESK_TILES.filter((t) => t.key === 'evisa')
-  : []
+}[] = []
+// ⛔ NO DESK TILES ON EITHER EDITION SINCE 2026-09-13 — owner, pointing at the "Vn e-Visa" and "Trip
+// planner" tiles: "also remove these 2 on eno.forum too". The visa desk stays reachable from its
+// listings and the footer's e-Visa link; /itinerary still works.
 
 // Entry-type copy. The VALUES and their order come from VISA_ENTRY_TYPES (the engine's
 // own union), so a new entry type is a TYPE ERROR here instead of a chip that silently

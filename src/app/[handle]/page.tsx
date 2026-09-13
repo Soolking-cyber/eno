@@ -6,13 +6,14 @@ import { notFound, redirect } from 'next/navigation'
 import { CalendarDays } from '@/components/ui/icons'
 import { db } from '@/lib/db'
 import { HANDLE_RE } from '@/lib/handle'
-import { storefrontBaseHost, storefrontUrl } from '@/lib/storefront-host'
+import { storefrontUrl } from '@/lib/storefront-host'
 import { storefrontByHandle } from '@/lib/storefront'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerStorefront, loadSeller } from '@/components/marketplace/seller-storefront'
+import SubdomainStorefront from '@/app/s/[handle]/page'
 import { isSellerHiddenHere } from '@/lib/edition-scope'
 import { Tr } from '@/context/language-context'
 
@@ -91,7 +92,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return {
       title: `${seller.name} | ${SITE_NAME}`,
       description,
-      alternates: { canonical: `${hostUrl}/${row.handle}` },
+      // The shop's subdomain is its canonical address when the subdomain actually serves it (the same
+      // storefrontByHandle question /s/<handle> asks); a brand-slug handle it rejects keeps the path.
+      alternates: { canonical: (await storefrontByHandle(row.handle)) ? storefrontUrl(row.handle, hostUrl) : `${hostUrl}/${row.handle}` },
       openGraph: {
         title: `${seller.name} | ${SITE_NAME}`,
         description,
@@ -158,31 +161,18 @@ export default async function HandlePage({ params }: Props) {
      */
     if (await isSellerHiddenHere(sellerId)) notFound()
     if (row.seller?.id) {
-      const origin = process.env.NEXT_PUBLIC_APP_URL ?? ''
-      const canonical = storefrontUrl(row.handle, origin)
       /**
-       * ⚠️ ONLY WHEN THE SUBDOMAIN CAN ACTUALLY RESOLVE. `storefrontUrl()` falls back to the path
-       * form for a handle that cannot be a host, and it lowercases both branches — so comparing
-       * against the path form is a reliable "did it give me a subdomain", with no loop. On a local
-       * preview it returns `http://<handle>.localhost:3000`, which Chrome resolves but curl,
-       * Playwright and the guest e2e suite do not; a base host with no dot renders in place.
+       * ⛔ SUPERSEDED 2026-09-13 — NO REDIRECT, THE SHOP RENDERS RIGHT HERE. Owner: "when seller clicks
+       * my storefront use page redirect only; when user selects to share storefront use slug like
+       * vietkite.eno.vn or vietkite.eno.forum". This path is the dashboard's "View storefront" link, and
+       * the 2026-09-07 307 to `<handle>.eno.vn` took the seller out of the app. The full shop — the same
+       * component the subdomain rewrite serves, so the two URLs are one product — renders in place;
+       * the subdomain is what the Share button hands out, and stays the canonical in generateMetadata.
+       * ⚠️ `storefrontByHandle` is the same question `/s/<handle>` asks (null for a handle that matches a
+       * brand slug), so a shop that page would 404 keeps the profile-shaped storefront below.
+       * The hidden check above still runs first.
        */
-      const pathForm = `${origin.replace(/\/$/, '')}/${row.handle.toLowerCase()}`
-      const baseHost = storefrontBaseHost(origin)
-      /**
-       * ⚠️ A DOT IS NOT ENOUGH — AN IP HAS DOTS TOO. A preview served from `http://127.0.0.1:3000`
-       * passes a naive dotted-host test and would redirect to `shop.127.0.0.1:3000`, which resolves
-       * nowhere. Only a name can carry a wildcard subdomain.
-       */
-      const realDomain = baseHost.includes('.') && !/^[\d.]+(:\d+)?$/.test(baseHost)
-      /**
-       * ⛔ ONLY REDIRECT WHERE THE DESTINATION ACTUALLY RESOLVES. `/s/<handle>` 404s when
-       * `storefrontByHandle` returns null, and it returns null for a handle that matches a BRAND
-       * slug — so a shop holding such a handle would have been bounced from a working page to a
-       * 404. Asking the same question the destination asks is the only way to be sure the two
-       * agree; it is one indexed lookup, on the redirect path only.
-       */
-      if (realDomain && canonical !== pathForm && await storefrontByHandle(row.handle)) redirect(canonical)
+      if (await storefrontByHandle(row.handle)) return <SubdomainStorefront params={Promise.resolve({ handle: row.handle })} />
     }
     return <SellerStorefront id={sellerId} />
   }

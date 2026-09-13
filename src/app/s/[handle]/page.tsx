@@ -17,6 +17,7 @@ import Link from 'next/link'
 import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
 import { storefrontByHandle } from '@/lib/storefront'
 import { storefrontUrl } from '@/lib/storefront-host'
+import { ShareButton } from '@/components/marketplace/share-button'
 import { SITE_NAME } from '@/lib/edition'
 import { storefrontJsonLd, type StorefrontLdListing } from './storefront-jsonld'
 
@@ -230,6 +231,13 @@ export default async function Storefront({ params }: Props) {
           * mobile fallback (`bannerMobileUrl` null falls back to the wide one).
           */}
         <StorefrontBanner url={shop.bannerUrl} mobileUrl={shop.bannerMobileUrl} />
+        {/* Share hands out the shop's SUBDOMAIN on this edition's domain (owner, 2026-09-13: "when user
+            selects to share storefront use slug like vietkite.eno.vn or vietkite.eno.forum"), whether the
+            shop was opened at the subdomain or in place at eno.vn/<handle>. */}
+        <div className="flex items-center justify-between gap-3 pb-2 pt-3">
+          <p className="min-w-0 truncate text-lg font-bold text-foreground">{shop.name}</p>
+          <ShareButton url={storefrontUrl(shop.handle, origin)} title={shop.name} compact />
+        </div>
         {total === 0 ? (
           /**
            * A SHOP WITH NOTHING IN IT GETS A WELCOME, NOT AN EMPTY MARKETPLACE. Owner, 2026-08-30:

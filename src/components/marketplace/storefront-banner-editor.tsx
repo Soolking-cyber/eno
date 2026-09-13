@@ -117,7 +117,9 @@ export function StorefrontBannerEditor({ bannerUrl, handle, onSaved }: Props) {
       {shopUrl && (
         <p className="mt-1 text-xs text-muted-foreground">
           {tr('Your storefront:', 'Cửa hàng của bạn:')}{' '}
-          <a href={shopUrl} target="_blank" rel="noreferrer" className="font-semibold text-accent-foreground underline underline-offset-2">
+          {/* Opens the shop IN THE APP at eno.vn/<handle> (owner, 2026-09-13: "when seller clicks my storefront
+              use page redirect only"); the text is the shareable subdomain address. */}
+          <a href={`/${handle}`} className="font-semibold text-accent-foreground underline underline-offset-2">
             {shopUrl.replace(/^https?:\/\//, '')}
           </a>
         </p>
