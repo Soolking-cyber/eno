@@ -43,6 +43,15 @@ export function buildBatchPrompt(titles: string[]): string {
     'Translate these Vietnamese e-commerce product titles into natural, professional English.',
     '',
     'Rules:',
+    /**
+     * ⚠️ NO TOOLS — MEASURED, NOT DEFENSIVE. agy is an AGENT: on 2026-09-13, 150-title batches started
+     * reaching for `read_file` and `command` (probably to write a long answer to disk), headless mode
+     * auto-denied them, the reply came back empty, and each denial forced a halving. The run sat on one
+     * batch for 24 minutes. The answer is plain text on stdout, so the model is told so up front.
+     * A prompt line is not a control — headless auto-deny still is — but it removed the stall: 0
+     * denials in the first 2,700 titles after the change, 7 in the 900 before it.
+     */
+    '- Do NOT use any tools. Do not read or write files and do not run commands. Reply in plain text only.',
     '- Output ONLY a numbered list matching the input numbering exactly, one translation per line.',
     '- Every input number MUST appear exactly once. No preamble, no commentary, no blank lines.',
     '- Keep model codes, capacities, sizes and numbers EXACTLY as written.',

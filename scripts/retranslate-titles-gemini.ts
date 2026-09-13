@@ -29,7 +29,9 @@
  * from what is already written rather than paying for it twice.
  */
 import { spawn } from 'node:child_process'
-import { readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, renameSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { buildBatchPrompt, parseBatchReply } from '../src/lib/mt-batch-protocol'
 import { gateTranslation } from '../src/lib/mt-gate'
 
@@ -54,6 +56,11 @@ type Done = { id: string; vi: string; en: string }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+const EMPTY_CWD = mkdtempSync(join(tmpdir(), 'eno-agy-'))
+// Removed on a normal exit. ⚠️ Ctrl-C / SIGTERM / SIGKILL skip `exit` listeners, so an interrupted
+// run can leave one EMPTY eno-agy-* directory in tmp — harmless, and the OS clears tmp.
+process.on('exit', () => { try { rmSync(EMPTY_CWD, { recursive: true, force: true }) } catch { /* best effort */ } })
+
 /**
  * One `agy` call.
  *
@@ -76,9 +83,14 @@ function askGemini(prompt: string, timeoutMs: number): Promise<string | null> {
      * would pass the parser and land in production. That is what the entity gate and the
      * everything-must-align rule are for — neither trusts the content of the reply.
      */
+    // ⚠️ AN EMPTY WORKING DIRECTORY — a tidiness measure, NOT a security boundary. It stops a relative
+    // path resolving into the repo; an absolute path still would, and the child inherits this
+    // process's environment (this script loads no .env and holds no DB credentials — see the header).
+    // Containment is `--sandbox` plus headless auto-deny. MEASURED after adding it and the no-tools
+    // prompt line: 0 tool denials across the first 2,700 titles, against 7 in the 900 before.
     const p = spawn('agy', ['-p', prompt, '--model', 'Gemini 3.8 Flash (High)',
       '--sandbox', '--print-timeout', `${Math.round(timeoutMs / 1000)}s`],
-      { stdio: ['ignore', 'pipe', 'pipe'] })
+      { stdio: ['ignore', 'pipe', 'pipe'], cwd: EMPTY_CWD })
     let out = ''
     let err = ''
     const timer = setTimeout(() => { p.kill('SIGKILL'); resolve(null) }, timeoutMs + 30_000)

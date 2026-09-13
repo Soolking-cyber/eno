@@ -388,9 +388,13 @@ const REVIEWERS = [
     // description of the current state, so read them as such.
     // ⚠️ THIS COSTS THE SEAT ITS INDEPENDENCE AND THAT IS THE KNOWN TRADE. fable was a DIFFERENT
     // MODEL from the author; opus is THE SAME MODEL that writes most of these diffs, so a
-    // unanimous 3/3 is now codex + agy agreeing plus the author nodding at itself. Weight
-    // dissent from codex or agy accordingly, and do not read a 3/3 as three independent families.
-    args: ['-p', '--model', 'claude-opus-5', '--effort', 'max', '--permission-mode', 'plan'],
+    // unanimous 4/4 is codex + astra (both OpenAI) + agy agreeing plus the author nodding at itself.
+    // Weight dissent from codex, astra or agy accordingly; a 4/4 is three labs, not four families.
+    // ⚠️ `--effort high`, NOT max — owner, 2026-09-13: "2nd opinion is codex astra on high agy 3.8
+    // flash and claude opus 5 on high efforts". Every seat now runs at the same tier (codex and astra
+    // were already `model_reasoning_effort=high`, agy is Gemini 3.8 Flash (High)), so no single seat
+    // is the slow one the 420s bound below has to be tuned around.
+    args: ['-p', '--model', 'claude-opus-5', '--effort', 'high', '--permission-mode', 'plan'],
     stdin: true,
   },
 ]
