@@ -81,7 +81,7 @@ test.describe('Guest · e-Visa', () => {
    * NOT on eno.forum, where the owner's hide-list applies ("in eno.forum vietkite and gmbr
    * shouldnt be seen"). A reviewer reading only this file's diff will reliably get this backwards.
    */
-  test('the visa storefront renders to a guest on the marketplace, and is hidden on services', async ({ page, baseURL }) => {
+  test('the visa partner storefront renders to a guest on both editions', async ({ page, baseURL }) => {
     /**
      * ⛔ ON A PRODUCTION HOST THE EDITION IS NOT INFERRED FROM THE APP AT ALL, AND THE PROBE BECOMES
      * AN ASSERTION. Deriving it from the app is tautological in precisely the scenario this test
@@ -152,18 +152,11 @@ test.describe('Guest · e-Visa', () => {
 
     const res = await page.goto(`/${VISA_DESK_HANDLE}`)
 
-    if (services) {
-      // The partner's storefront must not exist here. A 200 would mean the promotional boundary
-      // the owner asked for has come undone.
-      expect(
-        res?.status(),
-        `/${VISA_DESK_HANDLE} resolved on the services edition — SERVICES_HIDDEN_OWNER_EMAILS is ` +
-        `probably unset in eno-services-env, and a partner is visible where the owner said they ` +
-        `must not be.`,
-      ).toBe(404)
-      return
-    }
-
+    // ⛔ REVERSED 2026-09-13 — BOTH EDITIONS NOW SHOW THE PARTNER. Owner: "Make eno.forum 1v1 copy of
+    // eno.vn", then "same sellers as eno.vn": the forum's hide-list is gone and it reads eno.vn's
+    // allow-list. So /vietkite must resolve on BOTH hosts; the edition probe above still guards the
+    // licensing half (the wrong bundle on a host fails before this line).
+    void services
     expect(
       res?.status(),
       `/${VISA_DESK_HANDLE} did not resolve — the visa desk was probably renamed. Check the ` +

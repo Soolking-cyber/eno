@@ -10,7 +10,7 @@ import { handleExternalClick } from '@/lib/native-browser'
 import { APP_STORE_URL, COMPANY, PLAY_STORE_URL } from '@/lib/site-legal'
 import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
 import { FooterStats } from '@/components/marketplace/footer-stats'
-import { SERVICES_FOOTER_GROUPS, SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
+import { SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
 import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
 
 /**
@@ -123,13 +123,15 @@ export function Footer() {
            /itinerary into ~250 prerendered files in both languages — the exact leak these comments
            describe defending against. A gate decides what renders; an alias decides what ships. Keep
            BOTH. */
-        ...(IS_SERVICES ? SERVICES_FOOTER_LINKS.popular.slice(0, 1).map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })) : []),
+        // ⛔ 2026-09-13: eno.forum's footer is eno.vn's (owner: "1v1 copy"), plus ONE link — the e-Visa
+        // landing, kept because it is the only one-hop crawl path into the /vietnam-evisa cluster (see
+        // below). The other forum-only link groups were marketing the copy drops.
         // ⚠️ THE WHOLE SEO HALF OF THE FIX, IN ONE LINE. `grep -rn "vietnam-evisa" src` returned
         // exactly ONE inbound internal link — from /services-for-expats-vietnam, which is itself
         // only reachable from this same column. So the 6-page e-Visa cluster sat TWO footer hops
         // from anywhere, on a site Googlebot visited 15 times in two days. This puts it one hop
         // from every page. A real <a href>, unlike the home tiles, which are Buttons.
-        ...(IS_SERVICES ? SERVICES_FOOTER_LINKS.popular.slice(1).map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })) : []),
+        ...(IS_SERVICES ? SERVICES_FOOTER_LINKS.popular.filter((l) => l.href === '/vietnam-evisa').map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })) : []),
       ],
     },
     {
@@ -178,7 +180,6 @@ export function Footer() {
         // ⚠️ IT NOW DUPLICATES "Help center" IN THE CUSTOMER SERVICE COLUMN — same destination,
         // different words, two columns apart. Flagged rather than silently deduped: which of the
         // two rows should survive is a product call, not a cleanup.
-        ...(IS_SERVICES ? [{ label: tr('Community forum', 'Diễn đàn cộng đồng'), href: '/help' }] : []),
         // ⚠️ THIS COMMENT WAS STALE AND IT MISLED TWO REVIEWERS INTO REPORTING A LICENSING BREACH
         // THAT DOES NOT EXIST. It said (2026-07-25) that the itinerary service had moved TO eno.vn
         // and "/itinerary is a real page here" — true when written, REVERSED by the owner on
@@ -190,7 +191,6 @@ export function Footer() {
         // greps a comment, they trust it. On the SERVICES edition these are same-origin, so they
         // must NOT carry forumPath — routing a same-origin link through the SSO handoff would
         // bounce the visitor through /auth/bridge to fetch a session they already have.
-        ...(IS_SERVICES ? SERVICES_FOOTER_LINKS.explore.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })) : []),
         // ⚠️ SERVICES EDITION ONLY, AND THIS COMMENT ONCE SAID THE OPPOSITE — two lines below the
         // block above that exists to warn about exactly this. It read "e-Visa lives on eno.vn now
         // (ownership row, 2026-07-21): the desk's storefront is where a visitor applies". True when
@@ -204,7 +204,6 @@ export function Footer() {
         // rank; the storefront holds 14 of the 34 live listings and nothing reachable pointed at it.
         // `/eno_vietnam` is 301'd in next.config.ts rather than simply dropped, because Bing has it
         // indexed under the title "Eno Visa" — deleting it would strip a real inbound path.
-        ...(IS_SERVICES ? SERVICES_FOOTER_LINKS.help.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })) : []),
       ],
     },
     /**
@@ -220,10 +219,6 @@ export function Footer() {
      * FIRST_PARTY_HOSTS) — the WebView is allowed to navigate there directly. Adding forumPath here
      * would send a reader who tapped "Housing in Vietnam" to the forum's auth bridge instead.
      */
-    ...(IS_SERVICES ? SERVICES_FOOTER_GROUPS : []).map((g) => ({
-      title: tr(g.titleEn, g.titleVi),
-      links: g.links.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href, rel: l.rel })),
-    })),
   // ⚠️ A COLUMN WITH NO LINKS MUST NOT RENDER ITS HEADING. On a marketplace build the Community
   // column's other two entries are already empty (`SERVICES_FOOTER_LINKS.explore`/`.help` are `[]`
   // in the stub), so gating the forum link above empties the column entirely — and without this

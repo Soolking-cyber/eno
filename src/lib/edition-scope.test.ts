@@ -341,12 +341,13 @@ describe('the services edition hide-list', () => {
     expect(await m.scopedListingWhere({ status: 'active' })).toEqual({ status: 'active' })
   })
 
-  it('excludes the configured sellers on the services edition', async () => {
+  // ⛔ REVERSED 2026-09-13 (owner: eno.forum is an exact copy of eno.vn, VietKite and GMBR included):
+  // the list is still parsed but no longer applied on the services edition.
+  it('is NOT applied on the services edition any more, even when the env still sets it', async () => {
     const m = await load('info@vietkite.com.vn, info@giacmobayre.com')
     h.services = true
     h.sellers = [{ id: 'vietkite' }, { id: 'gmbr' }]
-    expect(await m.marketplaceListingScope()).toEqual({ sellerId: { notIn: ['vietkite', 'gmbr'] } })
-    expect(h.lastWhere).toEqual({ owner: { email: { in: ['info@vietkite.com.vn', 'info@giacmobayre.com'] } } })
+    expect(await m.marketplaceListingScope()).toEqual({})
   })
 
   it('does NOT apply the services list on the marketplace edition', async () => {
@@ -452,9 +453,56 @@ describe('the marketplace allow-list', () => {
     await expect(m.editionAllowedSellerIds()).rejects.toThrow(m.DeskResolutionError)
   })
 
-  it('never applies on the services edition — eno.forum adds sellers freely', async () => {
+  // ⛔ REVERSED 2026-09-13: this asserted the list "never applies on the services edition". The owner
+  // made eno.forum an exact copy of eno.vn ("same sellers"), so it now applies there too — covered by
+  // 'the allow-list on eno.forum' below.
+})
+
+/**
+ * eno.forum READS THE SAME ALLOW-LIST (owner, 2026-09-13: "same sellers as eno.vn"), plus eno's own
+ * desks, and FAILS OPEN — a wrong list there is a catalogue preference, not a licensing breach.
+ */
+describe('the allow-list on eno.forum', () => {
+  const load = async (value?: string) => {
+    vi.resetModules()
+    if (value === undefined) delete process.env.MARKETPLACE_ALLOWED_OWNER_EMAILS
+    else process.env.MARKETPLACE_ALLOWED_OWNER_EMAILS = value
+    return import('./edition-scope')
+  }
+  const clear = () => { delete process.env.MARKETPLACE_ALLOWED_OWNER_EMAILS; delete process.env.SERVICES_HIDDEN_OWNER_EMAILS }
+  beforeEach(clear)
+  afterEach(() => { clear(); vi.resetModules() })
+
+  it('shows only the allowed sellers plus the desks', async () => {
     const m = await load('info@vietkite.com.vn')
     h.services = true
-    expect(await m.editionAllowedSellerIds()).toBeNull()
+    h.sellersFor = (emails) => emails.includes('info@vietkite.com.vn') ? [{ id: 'vietkite' }] : [{ id: 'desk-1' }]
+    const scope = await m.marketplaceListingScope()
+    // the desks are added, so eno's own visa listings stay on the forum
+    expect(scope.sellerId?.in).toEqual(['vietkite', 'desk-1'])
+    expect(await m.isSellerHiddenHere('some-new-seller')).toBe(true)
+  })
+
+  it('fails OPEN when only some partners resolve — never shrinks the forum to the desks', async () => {
+    const m = await load('info@vietkite.com.vn,typo@nowhere.example')
+    h.services = true
+    h.sellersFor = (emails) => emails.includes('info@vietkite.com.vn') ? [{ id: 'vietkite' }] : [{ id: 'desk-1' }]
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await expect(m.editionAllowedSellerIds()).resolves.toBeNull()
+    err.mockRestore()
+  })
+
+  it('is off when unset — the forum shows everyone, as before', async () => {
+    const m = await load(undefined)
+    h.services = true
+    expect(await m.marketplaceListingScope()).toEqual({})
+  })
+
+  it('fails OPEN when nothing resolves — never takes the forum down', async () => {
+    const m = await load('typo@nowhere.example')
+    h.services = true
+    h.sellers = []
+    h.sellersFor = null
+    await expect(m.editionAllowedSellerIds()).resolves.toBeNull()
   })
 })

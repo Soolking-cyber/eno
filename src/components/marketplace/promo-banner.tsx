@@ -15,8 +15,6 @@ import { useLanguage } from '@/context/language-context'
 import { Pause, Play } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { PROMO_SLIDES, type PromoSlide } from '@/lib/promo-slides'
-import { SERVICES_PROMO_SLIDES } from '@/lib/promo-slides-services'
-import { IS_SERVICES } from '@/lib/edition'
 
 /** sessionStorage key for the visitor's own carousel pause (A01). */
 const PAUSE_KEY = 'eno-promo-paused'
@@ -41,7 +39,11 @@ import { cn } from '@/lib/utils'
  * marketplace build — so eno.vn's bundle contains neither the branch nor the words. The flag alone
  * would only decide what renders.
  */
-const SLIDES: PromoSlide[] = IS_SERVICES ? SERVICES_PROMO_SLIDES : PROMO_SLIDES
+// ⛔ SUPERSEDED 2026-09-13 — ONE LIST FOR BOTH EDITIONS. Owner: "Make eno.forum 1v1 copy of eno.vn …
+// no paypal". The blocker the note above names (PayPal checkout living on eno.forum) is gone: the forum
+// takes no online payment any more, the desk arranges it in chat. So eno.forum shows eno.vn's slides
+// exactly; SERVICES_PROMO_SLIDES is no longer rendered. The history above is kept as the record.
+const SLIDES: PromoSlide[] = PROMO_SLIDES
 
 /**
  * ⛔ DO NOT ADD `preload(PROMO_SLIDES[0].image)` HERE — IT WAS TRIED AND IT LEAKS.

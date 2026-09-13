@@ -367,7 +367,6 @@ export const UI_STRINGS: string[] = [
   "Collect tomorrow at 10am",
   "Color",
   "Community",
-  "Community forum",
   "Company name on the ERC, or your full legal name",
   "Compare on price and quality together",
   "Compressing video… 0%",

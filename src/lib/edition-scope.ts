@@ -161,8 +161,12 @@ export const SERVICES_HIDDEN_OWNER_EMAILS: readonly string[] = [
  * that answer regardless of who is writing. This one answers "which sellers does the site I am
  * serving right now decline to show", which is a different question with a different failure mode.
  */
+// ⛔ eno.forum HIDES NOBODY SINCE 2026-09-13. Owner: eno.forum is an exact copy of eno.vn — VietKite and
+// GMBR are shown there too — so SERVICES_HIDDEN_OWNER_EMAILS is no longer applied, whatever the env file
+// still holds (a reviewer pointed out that relying on unsetting it at deploy would leave the forum hiding
+// partners the moment someone forgot). The variable is still parsed so an old env file is harmless.
 const editionHiddenEmails = (): readonly string[] =>
-  IS_SERVICES ? SERVICES_HIDDEN_OWNER_EMAILS : HIDDEN_DESK_OWNER_EMAILS
+  IS_SERVICES ? [] : HIDDEN_DESK_OWNER_EMAILS
 
 /**
  * ⛔ THE ALLOW-LIST: THE ONLY SELLERS eno.vn MAY SURFACE AT ALL.
@@ -188,8 +192,9 @@ const editionHiddenEmails = (): readonly string[] =>
  * everyone". Same reasoning as the desk exclusion above: on a licensing control, a visible 500 is
  * recoverable in ten minutes and a silently unfiltered feed is not.
  *
- * ⚠️ MARKETPLACE ONLY. eno.forum is not the licensed entity and adds sellers freely; it has its own
- * deny-list (SERVICES_HIDDEN_OWNER_EMAILS) for the partners it does not promote.
+ * ⚠️ BOTH EDITIONS SINCE 2026-09-13 (owner: eno.forum shows "same sellers as eno.vn"). Until then it
+ * was marketplace-only and eno.forum added sellers freely behind its own deny-list. The forum reads the
+ * same variable but FAILS OPEN — see servicesAllowedSellerIds.
  */
 export const MARKETPLACE_ALLOWED_OWNER_EMAILS: readonly string[] = [
   ...new Set(
@@ -201,13 +206,53 @@ export const MARKETPLACE_ALLOWED_OWNER_EMAILS: readonly string[] = [
 ]
 
 /**
- * The seller ids eno.vn is allowed to show, or `null` when the allow-list is not configured.
+ * eno.forum's SELLER ALLOW-LIST — eno.vn's list plus eno's own visa and trip desks.
+ *
+ * Owner, 2026-09-13: eno.forum is an exact copy of eno.vn, "same sellers as eno.vn". So the forum reads
+ * the same MARKETPLACE_ALLOWED_OWNER_EMAILS (set it in BOTH env files) and adds the desk owners, whose
+ * visa listings are the one thing eno.forum carries that eno.vn may not.
+ * ⚠️ FAILS OPEN, UNLIKE THE MARKETPLACE'S: unset, or nothing resolves → null, i.e. no allow-list and the
+ * forum shows everyone as it did before. The marketplace throws because a wrong list there is a
+ * licensing failure; on the forum it is a catalogue preference, and taking the site down over it would
+ * be the worse outcome (the same reasoning the hide-list above records).
+ */
+const servicesAllowedSellerIds = async (): Promise<string[] | null> => {
+  if (!MARKETPLACE_ALLOWED_OWNER_EMAILS.length) return null
+  // ⚠️ PARTIAL RESOLUTION FAILS OPEN TOO. The desks almost always resolve, so checking the union for
+  // "anything" would let one mistyped partner address shrink the forum to the desks alone with no
+  // error (a reviewer's catch). The partner list must resolve IN FULL before the desks are added.
+  let partners: string[], desks: string[]
+  try {
+    partners = await sellerIdsForEmails(MARKETPLACE_ALLOWED_OWNER_EMAILS)
+    desks = await sellerIdsForEmails([...VISA_SHOP_OWNER_EMAILS, ...TRIP_DESK_OWNER_EMAILS])
+  } catch (e) {
+    // A database error is not a reason to take the forum down over a catalogue preference.
+    console.error('[edition-scope] eno.forum allow-list lookup failed — showing every seller', e)
+    return null
+  }
+  if (partners.length < MARKETPLACE_ALLOWED_OWNER_EMAILS.length) {
+    console.error(`[edition-scope] eno.forum allow-list: ${MARKETPLACE_ALLOWED_OWNER_EMAILS.length} address(es) configured, ${partners.length} resolved — showing every seller instead`)
+    return null
+  }
+  // The desks are why eno.forum exists; an allow-list that resolved the partners but lost the desks
+  // would silently delete every visa listing from the forum. Fail open instead, loudly.
+  if (desks.length === 0) {
+    console.error('[edition-scope] eno.forum allow-list: no desk seller resolved — showing every seller instead')
+    return null
+  }
+  return [...new Set([...partners, ...desks])]
+}
+
+/**
+ * The seller ids this edition is allowed to show, or `null` when the allow-list is not configured.
  * `null` and `[]` mean opposite things here, which is why this cannot return a bare array:
  * `null` = "no allow-list, show everyone", `[]` = "configured but nothing resolved" — and the
  * second one throws rather than being handed to a query.
  */
 export const editionAllowedSellerIds = cache(async (): Promise<string[] | null> => {
-  if (IS_SERVICES || !MARKETPLACE_ALLOWED_OWNER_EMAILS.length) return null
+  // eno.forum: the same list, plus eno's desks, failing open — see servicesAllowedSellerIds.
+  if (IS_SERVICES) return servicesAllowedSellerIds()
+  if (!MARKETPLACE_ALLOWED_OWNER_EMAILS.length) return null
   const ids = await sellerIdsForEmails(MARKETPLACE_ALLOWED_OWNER_EMAILS)
   /**
    * ⚠️ PARTIAL RESOLUTION THROWS TOO, not just total failure — reviewer-caught, and the partial
@@ -285,6 +330,7 @@ const sellerIdsForEmails = async (emails: readonly string[]): Promise<string[]> 
 export const editionHiddenSellerIds = cache(async (): Promise<string[]> =>
   sellerIdsForEmails(editionHiddenEmails()))
 
+
 export const deskSellerIds = cache(async (): Promise<string[]> => {
   const emails = [...new Set(HIDDEN_DESK_OWNER_EMAILS)]
   // An explicitly EMPTY list is a legitimate configuration — it says "this edition hides nobody",
@@ -337,7 +383,9 @@ export async function marketplaceListingScope(): Promise<{ sellerId?: { in?: str
    * taking the site down over that would be the worse outcome by a distance.
    */
   if (IS_SERVICES) {
-    const hidden = await editionHiddenSellerIds()
+    const [hidden, allowed] = await Promise.all([editionHiddenSellerIds(), editionAllowedSellerIds()])
+    // Same one-filter composition as the marketplace below: `{ in, notIn }` is a conjunction.
+    if (allowed) return { sellerId: { in: allowed, notIn: hidden } }
     return hidden.length ? { sellerId: { notIn: hidden } } : {}
   }
   const notIn = await requiredDeskSellerIds()

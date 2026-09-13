@@ -1,5 +1,4 @@
 import { overlayMarkFromUrl } from '@/lib/image-mark-url'
-import { IS_MARKETPLACE } from '@/lib/edition'
 import { cn } from '@/lib/utils'
 
 /** The wordmark's own sprite — ONE cached file, referenced by every card (see eno-mark.svg). */
@@ -32,13 +31,13 @@ const INK = { dark: 'text-black/40', light: 'text-white/85' } as const
  * gets one — see image-mark-url.ts. Everything stored before keeps its single burned mark until it is
  * re-fetched; nothing is ever marked twice. (`.img-watermark` beside it is a different thing: opacity 0
  * until a save/copy attempt, see image-shield.tsx.)
- * ⛔ MARKETPLACE ONLY. The wordmark SPELLS the licensed company's domain, and edition.ts forbids any new
- * call site of it on eno.forum.
+ * ⚠️ BOTH EDITIONS, BY THE OWNER'S CHOICE (2026-09-13): eno.forum is an exact copy of eno.vn and shows
+ * the same eno.vn mark. This is a deliberate exception to edition.ts's rule that a domain-spelling
+ * wordmark needs an edition gate — it applies to this image mark only.
  * ⚠️ The parent must be `relative` and clip. ⚠️ Ink travels as `currentColor` through `<use>` — a class
  * cannot style inside a `<use>` shadow tree, but inherited `color` crosses it.
  */
 export function ImageMark({ src, fit = 'cover', className }: { src: string | null | undefined; fit?: 'cover' | 'contain'; className?: string }) {
-  if (!IS_MARKETPLACE) return null
   const mark = overlayMarkFromUrl(src)
   if (!mark) return null
 

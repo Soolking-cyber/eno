@@ -233,7 +233,11 @@ export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string
  */
 export const DESK_SHORTCUTS: {
   key: string; name: string; nameVi: string; icon: string; kind: 'filter' | 'route'; href: string
-}[] = IS_SERVICES ? SERVICES_DESK_TILES : []
+}[] = IS_SERVICES
+  // ⚠️ e-Visa ONLY, since 2026-09-13 (owner: eno.forum is an exact copy of eno.vn plus one e-Visa entry).
+  // The Trip tile is forum-only marketing the copy drops; /itinerary itself stays reachable on the forum.
+  ? SERVICES_DESK_TILES.filter((t) => t.key === 'evisa')
+  : []
 
 // Entry-type copy. The VALUES and their order come from VISA_ENTRY_TYPES (the engine's
 // own union), so a new entry type is a TYPE ERROR here instead of a chip that silently
