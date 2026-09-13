@@ -40,7 +40,7 @@ import { Button } from '@/components/ui/button'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
-import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor } from '@/lib/taxonomy'
+import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor, migrateLegacyCategoryParams } from '@/lib/taxonomy'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
@@ -949,7 +949,8 @@ export function ListingsExplorer({
 
   // Parse a query-string into the explorer's filter state. Shared by the mount/popstate
   // reader and the notification deep-link handler below.
-  const applyParams = useCallback((params: URLSearchParams) => {
+  const applyParams = useCallback((raw: URLSearchParams) => {
+    const params = migrateLegacyCategoryParams(raw)
     setQuery(params.get('q') || '')
     setLooseMatch(params.get('match') === 'any') // visual search lands with ?match=any
     setActiveCategory(params.get('category') || 'all')

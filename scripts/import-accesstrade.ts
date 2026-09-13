@@ -24,7 +24,7 @@ import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
 import { makeImageHost } from '../src/lib/host-product-image'
 import { brandSlugify, normalizeBrand } from '../src/lib/brand-normalize'
-import { categoryFor, subcategoryFor, brandFor, FEED_BRANDS } from '../src/lib/feed-taxonomy'
+import { categoryFor, subcategoryFor, brandFor, FEED_BRANDS, refreshPlacement } from '../src/lib/feed-taxonomy'
 import { modelFor } from '../src/lib/feed-model'
 import { buildSearchText } from '../src/lib/fold'
 // ⚠️ ONE COPY, SHARED WITH THE NIGHTLY REFRESH. This link repair used to live here; the cron job
@@ -95,6 +95,7 @@ async function main() {
 
   const cats = await db.category.findMany({ select: { id: true, slug: true } })
   const catId = new Map(cats.map((c) => [c.slug, c.id]))
+  const catSlug = new Map(cats.map((c) => [c.id, c.slug]))
 
   // ⛔ IDENTIFIED BY NAME, AND REFUSED IF IT HAS AN OWNER. A storefront with an ownerId belongs to
   // a real person; hanging 9,728 affiliate rows off it would hand them a catalogue they never
@@ -195,7 +196,7 @@ async function main() {
         const existing = seller
           // ⚠️ `title`/`description` are read so a REFRESH can keep the text a human or a model
           // wrote (see the searchText build below), not just to decide create-vs-update.
-          ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true, images: true, title: true, titleVi: true, description: true, descriptionVi: true } })
+          ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true, images: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true } })
           : null
         if (!APPLY) { existing ? updated++ : created++; return }
         let images = existing?.images
@@ -207,6 +208,11 @@ async function main() {
         if (!images || images === '[]') { skipped++; return }
 
         const feedTitle = p.name.slice(0, 180)
+        // ⛔ The row's stored category wins over the title rules on a refresh — see refreshPlacement.
+        const placed = refreshPlacement(
+          existing ? { categorySlug: catSlug.get(existing.categoryId) ?? null, subcategorySlug: existing.subcategorySlug } : null,
+          { categorySlug: slug, subcategorySlug: subcategoryFor(slug, p.name) },
+        )
         const feedDesc = (p.desc || p.name).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 1800)
         const fields = {
           title: feedTitle, description: feedDesc,
@@ -228,8 +234,8 @@ async function main() {
            * how a one-character mistake stayed invisible: every page still rendered a price.
            */
           price, priceUnit: '', currency: '₫', negotiable: false, condition: 'new',
-          images, categoryId, location: MERCHANT_CITY, city: MERCHANT_CITY,
-          subcategorySlug: subcategoryFor(slug, p.name), brandSlug: brandFor(p.name), model: modelFor(p.name),
+          images, categoryId: catId.get(placed.categorySlug) ?? categoryId, location: MERCHANT_CITY, city: MERCHANT_CITY,
+          subcategorySlug: placed.subcategorySlug, brandSlug: brandFor(p.name), model: modelFor(p.name),
           /**
            * ⛔ WITHOUT THIS EVERY IMPORTED PRODUCT IS INVISIBLE TO SEARCH. feed-query.ts matches
            * keywords against this folded blob, and it is built in core/listings.ts on the POST
@@ -249,9 +255,10 @@ async function main() {
            * ⚠️ AND THE REPAIR PATH CANNOT SEE IT: scripts/rebuild-search-text.ts selects
            * `where: { searchText: '' }`, and a clobbered blob is wrong, not empty — so nothing in
            * the repo could detect or fix it. Preserving here is cheaper than detecting later.
-           * ⚠️ Deliberately NOT solved by making searchText create-only: `titleVi`, `brandSlug`,
-           * `model` and the category all stay refreshable, so a create-only blob would silently
-           * stop matching a renamed or re-branded product — a different silent regression.
+           * ⚠️ Deliberately NOT solved by making searchText create-only: `titleVi`, `brandSlug` and
+           * `model` stay refreshable, so a create-only blob would silently stop matching a renamed or
+           * re-branded product — a different silent regression. The CATEGORY token is the row's
+           * effective placement (refreshPlacement), never the title rule's guess over a re-filed row.
            */
           // ⚠️ BOTH DESCRIPTION COLUMNS. Folding only the English one dropped the model's
           // VIETNAMESE prose out of the blob on every re-import — silently un-indexing the text
@@ -261,7 +268,7 @@ async function main() {
             existing?.titleVi ?? feedTitle,
             existing?.description ?? feedDesc, feedDesc,
             existing?.descriptionVi ?? feedDesc,
-            MERCHANT_CITY, slug, brandFor(p.name), modelFor(p.name),
+            MERCHANT_CITY, placed.categorySlug, brandFor(p.name), modelFor(p.name),
           ]),
           affiliateUrl, verified: true, status: 'active',
           /**
@@ -306,8 +313,8 @@ async function main() {
          * moderation state. An admin who un-verifies or deactivates one of these must not have the
          * next run quietly re-stamp it.
          *
-         * A refresh therefore updates: price, images, affiliateUrl, category/brand/model, and the
-         * merchant's own Vietnamese text. Everything a human or a translator decided is left alone.
+         * A refresh therefore updates: price, images, affiliateUrl, brand/model, a MISSING category or
+         * subcategory (refreshPlacement), and the merchant's own Vietnamese text. Everything a human or a translator decided is left alone.
          */
         /**
          * ⛔ `descriptionVi` IS CREATE-ONLY TOO. It was refreshable, so a re-import overwrote it with

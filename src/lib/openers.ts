@@ -474,6 +474,7 @@ const CATEGORY_PLANS: Record<string, Plan> = {
   electronics: { commitment: 'collect', question: 'ask.warranty-box' },
   'fashion-beauty': { commitment: 'collect', question: 'ask.size-condition' },
   'baby-kids': { commitment: 'collect', question: 'ask.age-condition' },
+  'books-stationery': { commitment: 'collect', question: 'ask.condition-age' },
   'hobbies-sports': { commitment: 'collect', question: 'ask.condition-age' },
   pets: { commitment: 'view', question: 'ask.age-vaccination' },
   jobs: { commitment: 'start', question: 'ask.hours-salary' },

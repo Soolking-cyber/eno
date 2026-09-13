@@ -13,6 +13,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { postingGate } from '@/lib/enforcement'
 import { rateLimit } from '@/lib/ratelimit'
 import { createListingCore } from '@/lib/core/listings'
+import { migrateLegacyCategoryParams } from '@/lib/taxonomy'
 import { idsFastPath, buildFeedFilters, buildFeedOrderBy, getSubcategoryCounts } from './feed-query'
 import { computeFacetCounts, subcategoryDimension, type FacetCounts } from '@/lib/facet-counts'
 import { semanticRank } from './semantic-rank'
@@ -29,7 +30,9 @@ export const dynamic = 'force-dynamic'
 // take the wrapper's Response escape hatch and the auto-JSON that is most of its value would
 // never fire. Wrapping it would add an indirection and remove nothing.
 export async function GET(req: NextRequest) {
-  const searchParams = req.nextUrl.searchParams
+  // A moved subcategory (hobbies-sports/books → books-stationery) is rewritten once here, so the feed
+  // filters and the facet counts below read the same answer.
+  const searchParams = migrateLegacyCategoryParams(req.nextUrl.searchParams)
 
   // Fast path: fetch a specific set of PUBLIC listings by id (used by /saved).
   const fastPath = await idsFastPath(searchParams)

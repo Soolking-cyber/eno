@@ -94,6 +94,9 @@ const CATEGORIES = [
          'pacifier, teddy or toy. The category is "Mẹ & Bé" and `balloon` is the most child-coded ' +
          'mark the set has. This row is the one to overrule: it wants a bespoke first-party glyph ' +
          '(the MotorbikeIcon precedent) or lucide Baby kept for this tile alone.' },
+  { slug: 'books-stationery', icon: 'book-2', lucide: 'BookOpen',
+    why: 'A closed book (2026-09-13, the new Books aisle). `book-2` over `notebook`, which reads as ' +
+         'stationery alone, and over `book-bookmark`, whose ribbon disappears at 44px.' },
   { slug: 'hobbies-sports', icon: 'dumbbell', lucide: 'Dumbbell', why: 'Same idea as lucide Dumbbell.' },
   { slug: 'pets', icon: 'paw', lucide: 'PawPrint', why: 'Same idea as lucide PawPrint.' },
   { slug: 'jobs', icon: 'case', lucide: 'Briefcase',

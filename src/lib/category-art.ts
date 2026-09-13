@@ -45,7 +45,7 @@ import { CATEGORY_ART_STAMP } from '@/generated/category-art-stamp'
 export type CategoryArtState = 'rest' | 'selected'
 
 /**
- * Every slug with artwork: the 15 taxonomy categories in `TAXONOMY` order, then the four tiles that
+ * Every slug with artwork: the 16 taxonomy categories in `TAXONOMY` order, then the four tiles that
  * are NOT categories (three intent shortcuts + the browse rail's reset).
  *
  * ⚠️ `free` IS THE ONLY INTENT TILE WITH ARTWORK, AND IT IS NO LONGER THE ONLY INTENT TILE.
@@ -65,6 +65,7 @@ export const CATEGORY_ART_SLUGS = [
   'electronics',
   'fashion-beauty',
   'baby-kids',
+  'books-stationery',
   'hobbies-sports',
   'pets',
   'jobs',

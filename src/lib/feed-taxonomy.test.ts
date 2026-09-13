@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { categoryFor, subcategoryFor, brandFor, FEED_BRANDS } from './feed-taxonomy'
+import { categoryFor, subcategoryFor, brandFor, FEED_BRANDS, refreshPlacement } from './feed-taxonomy'
 
 /**
  * These rules ran untested against ~9,700 live listings because they were trapped inside a script
@@ -158,5 +158,66 @@ describe('brandFor', () => {
   it('keeps the brand list tight and slug-shaped', () => {
     expect(FEED_BRANDS.length).toBeLessThan(30)
     for (const b of FEED_BRANDS) expect(b, b).toMatch(/^[a-z0-9-]+$/)
+  })
+})
+
+// ── The Books aisle (2026-09-13): real Tiki title shapes that all landed in `electronics` ─────────
+describe('books and stationery', () => {
+  it.each([
+    'Sách Tâm Lý Học Thành Công Tái Bản',
+    'Combo 2 Cuốn Sách Kỹ Năng Làm Việc Hay Đừng Bao Giờ Đi Ăn Một Mình Tái bản',
+    'Sách Bàn Về Tự Do',
+    'Truyện Tranh Thám Tử Lừng Danh Conan - Tập 12',
+    'Từ Điển Đức - Việt Hiện Đại',
+    'Lịch Sử Thế Giới Cổ Đại Tái bản năm 2020',
+    'Sổ lò xo kép bìa nhựa 320 trang, Klong 906 - Xanh dương',
+  ])('files %s as books-stationery', (title) => {
+    expect(categoryFor(title)).toBe('books-stationery')
+  })
+
+  it.each(['Kệ sách gỗ 5 tầng', 'Giá sách treo tường', 'Bàn phím Bluetooth Hyper HS2310US', 'Hộp carton bìa cứng 30x20cm', 'Máy in laser in giấy A4 Canon LBP2900'])(
+    'does not file %s (shelf, rack, keyboard, carton, printer) as a book or stationery', (title) => {
+      expect(categoryFor(title)).not.toBe('books-stationery')
+    })
+
+  it.each([
+    ['Truyện Tranh Dragon Ball Full Color - Tập 4', 'comics-manga'],
+    ['Từ Điển Đức - Việt Hiện Đại', 'languages-dictionaries'],
+    ['Sách Bài Tập Tiếng Anh Lớp 7', 'languages-dictionaries'],
+    ['Sách Ôn Tập Luyện Thi Hóa Hữu Cơ', 'textbooks-exam'],
+    ['Sổ lò xo kép bìa nhựa 320 trang', 'stationery-office'],
+    ['Sách Tâm Lý Học Thành Công', null],
+  ])('shelves %s under %s', (title, sub) => {
+    expect(subcategoryFor('books-stationery', title)).toBe(sub)
+  })
+})
+
+describe('refreshPlacement', () => {
+  const feed = { categorySlug: 'electronics', subcategorySlug: 'audio' }
+
+  it('a new row takes the feed placement', () => {
+    expect(refreshPlacement(null, feed)).toEqual(feed)
+  })
+
+  it('a re-filed row keeps its placement over the title rules', () => {
+    const kept = { categorySlug: 'books-stationery', subcategorySlug: 'literature' }
+    expect(refreshPlacement(kept, feed)).toEqual(kept)
+    expect(refreshPlacement({ categorySlug: 'books-stationery', subcategorySlug: null }, feed))
+      .toEqual({ categorySlug: 'books-stationery', subcategorySlug: null })
+  })
+
+  it('a row in the same aisle with no shelf takes the feed shelf', () => {
+    expect(refreshPlacement({ categorySlug: 'electronics', subcategorySlug: null }, feed)).toEqual(feed)
+  })
+
+  it('a row still in the importer\'s default bucket takes the new rule\'s answer', () => {
+    const book = { categorySlug: 'books-stationery', subcategorySlug: null }
+    expect(refreshPlacement({ categorySlug: 'electronics', subcategorySlug: null }, book)).toEqual(book)
+    // …but an electronics row WITH a shelf was filed on purpose and stays.
+    expect(refreshPlacement({ categorySlug: 'electronics', subcategorySlug: 'audio' }, book)).toEqual({ categorySlug: 'electronics', subcategorySlug: 'audio' })
+  })
+
+  it('a row whose category is unknown takes the feed placement', () => {
+    expect(refreshPlacement({ categorySlug: null, subcategorySlug: null }, feed)).toEqual(feed)
   })
 })

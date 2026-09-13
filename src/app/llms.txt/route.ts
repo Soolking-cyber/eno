@@ -125,7 +125,7 @@ ${MARKETPLACE_WHEN_TO_USE}
 - [Vehicles](${SITE_ORIGIN}/c/vehicles): motorbikes, scooters, bicycles, cars, e-bikes, parts.
 - [Property](${SITE_ORIGIN}/c/property): apartments, houses, rooms, serviced and short-term stays.
 - [Electronics](${SITE_ORIGIN}/c/electronics), [Furniture](${SITE_ORIGIN}/c/furniture-appliances), [Moving Sale](${SITE_ORIGIN}/c/moving-sale).
-- [Fashion & Beauty](${SITE_ORIGIN}/c/fashion-beauty), [Baby & Kids](${SITE_ORIGIN}/c/baby-kids), [Hobbies, Sports & Books](${SITE_ORIGIN}/c/hobbies-sports), [Jobs](${SITE_ORIGIN}/c/jobs), [Services](${SITE_ORIGIN}/c/services), [Pets](${SITE_ORIGIN}/c/pets).
+- [Fashion & Beauty](${SITE_ORIGIN}/c/fashion-beauty), [Baby & Kids](${SITE_ORIGIN}/c/baby-kids), [Books & Stationery](${SITE_ORIGIN}/c/books-stationery), [Hobbies & Sports](${SITE_ORIGIN}/c/hobbies-sports), [Jobs](${SITE_ORIGIN}/c/jobs), [Services](${SITE_ORIGIN}/c/services), [Pets](${SITE_ORIGIN}/c/pets).
 
 ${DEVELOPER_SECTION}
 

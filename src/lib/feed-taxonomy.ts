@@ -38,6 +38,16 @@ const w = (...words: string[]) => new RegExp(`(?<!\\p{L})(?:${words.join('|')})(
  */
 const RULES: [RegExp, string][] = [
   /**
+   * ⛔ BOOKS FIRST, AND ONLY WHEN THE TITLE SAYS SO UP FRONT (2026-09-13). Tiki's feed is half books and
+   * every one of them fell through to the `electronics` default — measured: ~23,100 of 48,775 unfiled
+   * electronics rows. First, because a book title is ordinary Vietnamese prose and the furniture rule
+   * below claims any standalone `bàn` ("Sách Bàn Về Tự Do" is a book about liberty, not a table).
+   * ⚠️ ANCHORED AT THE START for `sách`/`truyện`, so "Kệ sách" and "Giá sách" (bookshelves) stay furniture.
+   */
+  [new RegExp(`^(?:combo\\s+(?:\\d+\\s+)?(?:cuốn\\s+)?)?(?:sách|bộ sách|truyện tranh|truyện|tiểu thuyết|từ điển)(?!\\p{L})|(?<!\\p{L})tái bản(?!\\p{L})|nhà xuất bản|(?<!\\p{L})nxb(?!\\p{L})`, 'iu'), 'books-stationery'],
+  // ⚠️ No `bìa cứng` (a carton box is "hộp carton bìa cứng") and no `giấy a4` ("Máy in giấy A4" is a printer).
+  [w('văn phòng phẩm', 'bút bi', 'bút gel', 'sổ tay', 'sổ lò xo', 'bìa hồ sơ'), 'books-stationery'],
+  /**
    * ⛔ THE KEYBOARD-VERSUS-DESK TRAP, AND IT MUST BE TESTED FIRST. "bàn phím" is a KEYBOARD and
    * "bàn" is a TABLE, so a naive `bàn` rule files every keyboard as furniture. Same shape as the
    * `tủ lạnh`/`tủ` fridge-versus-wardrobe bug the subcategory rules already carry a warning about.
@@ -69,9 +79,11 @@ const RULES: [RegExp, string][] = [
   [/loa |tai nghe|headphone|earbud|airpod/i, 'electronics'],
 ]
 
+const DEFAULT_CATEGORY = 'electronics'
+
 export function categoryFor(name: string): string {
   for (const [re, slug] of RULES) if (re.test(name)) return slug
-  return 'electronics'
+  return DEFAULT_CATEGORY
 }
 
 /**
@@ -88,6 +100,13 @@ export function categoryFor(name: string): string {
  * unset subcategory is honest and the category filter still works.
  */
 const SUBCATS: Record<string, [RegExp, string][]> = {
+  'books-stationery': [
+    [w('văn phòng phẩm', 'bút bi', 'bút gel', 'sổ tay', 'sổ lò xo', 'giấy a4', 'bìa hồ sơ'), 'stationery-office'],
+    [/truyện tranh|manga|comic/i, 'comics-manga'],
+    [/từ điển|dictionary|ielts|toeic|tiếng anh|tiếng nhật|tiếng hàn|tiếng trung/i, 'languages-dictionaries'],
+    [/giáo khoa|luyện thi|bài tập|tham khảo|(?<!\p{L})lớp \d/iu, 'textbooks-exam'],
+    [/thiếu nhi|cho bé|mẫu giáo|tuổi thơ/i, 'childrens-books'],
+  ],
   electronics: [
     /**
      * ⛔ PRODUCT TYPE BEATS SPEC TOKEN, AND THE FIRST ORDERING GOT THIS EXACTLY BACKWARDS.
@@ -139,6 +158,30 @@ const SUBCATS: Record<string, [RegExp, string][]> = {
     [/đèn |lamp|light|tranh |gương/i, 'lighting-decor'],
     [w('tủ', 'kệ', 'locker', 'wardrobe', 'cabinet', 'shelf'), 'storage'],
   ],
+}
+
+/**
+ * ⛔ A REFRESH KEEPS THE ROW'S PLACEMENT (2026-09-13). The importers re-ran `categoryFor` on every refresh
+ * and wrote the answer over whatever the row held — so a product re-filed by the Gemini pass, a
+ * classify script or an admin went straight back to the title rules' guess (and for Tiki, that guess was
+ * `electronics` for tens of thousands of books). The row's stored placement wins; the feed's answer only
+ * fills what is missing: a row with no category takes the feed's, and a row whose category AGREES with
+ * the feed but has no subcategory takes the feed's subcategory, which is how an improved rule still
+ * reaches old rows without overruling a deliberate re-file.
+ */
+export function refreshPlacement(
+  existing: { categorySlug: string | null; subcategorySlug: string | null } | null,
+  feed: { categorySlug: string; subcategorySlug: string | null },
+): { categorySlug: string; subcategorySlug: string | null } {
+  if (!existing?.categorySlug) return feed
+  // ⛔ THE DEFAULT BUCKET IS NOT A DECISION. `electronics` with no subcategory is where categoryFor() put
+  // everything it could not recognise, so a row still sitting there was never re-filed by anyone — and
+  // pinning it would have kept ~23,000 Tiki books in Electronics forever while the book rule could see
+  // them (four reviewers). A deliberate re-file never lands in that bucket, so it is safe to let the feed
+  // move those rows, and only those.
+  if (existing.categorySlug === DEFAULT_CATEGORY && !existing.subcategorySlug && feed.categorySlug !== DEFAULT_CATEGORY) return feed
+  if (existing.categorySlug === feed.categorySlug && !existing.subcategorySlug) return feed
+  return { categorySlug: existing.categorySlug, subcategorySlug: existing.subcategorySlug }
 }
 
 export function subcategoryFor(categorySlug: string, name: string): string | null {

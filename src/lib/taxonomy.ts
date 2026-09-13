@@ -547,6 +547,12 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'white-goods', name: 'Appliances', nameVi: 'Điện máy', icon: 'WashingMachine', keywords: ['fridge', 'refrigerator', 'washer', 'air conditioner', 'aircon', 'tủ lạnh', 'máy giặt', 'máy lạnh'] },
       { slug: 'kitchenware', name: 'Kitchen', nameVi: 'Đồ bếp', icon: 'CookingPot', keywords: ['kitchen', 'cookware', 'pan', 'pot', 'bếp', 'nồi', 'chảo'] },
       { slug: 'plants-garden', name: 'Plants', nameVi: 'Cây cảnh', icon: 'Sprout', keywords: ['plant', 'garden', 'pot', 'cây', 'cây cảnh', 'sân vườn'] },
+      /**
+       * ⚠️ ADDED 2026-09-13 FROM MEASURED STOCK, NOT FOR COMPLETENESS: Tiki's catalogue carries hundreds
+       * of consumables and hand tools (dishwasher tablets, detergent, tissue, bin bags, packing tape,
+       * winches, drain covers) that are none of the furniture or appliance aisles above.
+       */
+      { slug: 'household-supplies', name: 'Household', nameVi: 'Đồ gia dụng', icon: 'BrushCleaning', keywords: ['detergent', 'cleaning', 'tissue', 'tools', 'nước giặt', 'nước rửa', 'giấy vệ sinh', 'khăn giấy', 'dụng cụ', 'túi rác'] },
     ],
     facets: [
       COND,
@@ -737,33 +743,68 @@ export const TAXONOMY: CategoryDef[] = [
     ],
   },
 
-  // 8 ── HOBBIES, SPORTS & BOOKS ────────────────────────────────────────────────
+  // 8 ── BOOKS & STATIONERY ─────────────────────────────────────────────────────
+  /**
+   * ⛔ ITS OWN AISLE BECAUSE HALF THE CATALOGUE IS BOOKS (owner, 2026-09-13: "products should be sorted
+   * properly for the users to find fast precisely what they need"). Measured on prod that day: 48,775
+   * listings sat in `electronics` with NO subcategory, 46,585 of them Tiki's, and title keywords alone
+   * put ~23,100 of that bucket in books (a sample of the unmatched rest was mostly books too) — against
+   * ~100 actual electronics. Books used to be one `hobbies-sports` subcategory with 0 listings; tens of
+   * thousands of titles under "Hobbies" is not a place anyone looks.
+   * ⚠️ SPLIT BY WHAT A VIETNAMESE BOOKSHOP SHELVES SEPARATELY (Tiki/Fahasa): literature, skills &
+   * business, children's, textbooks, languages, comics. `books-other` keeps history/science/health from
+   * forcing a guess. Stationery shares the aisle because the same shops sell it beside the books.
+   */
+  {
+    slug: 'books-stationery',
+    name: 'Books',
+    nameVi: 'Sách',
+    icon: 'BookOpen',
+    color: 'sky',
+    description: 'Books in Vietnamese and other languages, textbooks, children\'s books, comics, dictionaries and stationery.',
+    types: ['sell', 'free', 'wanted', 'wholesale'],
+    subcategories: [
+      { slug: 'literature', name: 'Literature', nameVi: 'Văn học', icon: 'BookOpen', keywords: ['novel', 'fiction', 'literature', 'tiểu thuyết', 'văn học', 'truyện ngắn', 'thơ'] },
+      { slug: 'self-help-business', name: 'Skills & business', nameVi: 'Kỹ năng & Kinh tế', icon: 'Presentation', keywords: ['self-help', 'business', 'kỹ năng', 'kinh tế', 'quản trị', 'marketing', 'đầu tư', 'tâm lý'] },
+      { slug: 'childrens-books', name: "Children's books", nameVi: 'Sách thiếu nhi', icon: 'ToyBrick', keywords: ["children's book", 'picture book', 'thiếu nhi', 'truyện tranh cho bé', 'sách cho bé', 'mẫu giáo'] },
+      { slug: 'textbooks-exam', name: 'Textbooks', nameVi: 'Giáo khoa & Tham khảo', icon: 'GraduationCap', keywords: ['textbook', 'workbook', 'exam', 'giáo khoa', 'tham khảo', 'luyện thi', 'bài tập', 'lớp'] },
+      { slug: 'languages-dictionaries', name: 'Languages', nameVi: 'Ngoại ngữ & Từ điển', icon: 'Languages', keywords: ['dictionary', 'ielts', 'toeic', 'english', 'từ điển', 'tiếng anh', 'tiếng nhật', 'tiếng hàn', 'tiếng trung'] },
+      { slug: 'comics-manga', name: 'Comics & manga', nameVi: 'Truyện tranh', icon: 'Palette', keywords: ['manga', 'comic', 'truyện tranh', 'light novel', 'conan', 'doraemon'] },
+      { slug: 'books-other', name: 'Other books', nameVi: 'Sách khác', icon: 'Shapes', keywords: ['history', 'science', 'lịch sử', 'khoa học', 'văn hóa', 'sức khỏe', 'nấu ăn'] },
+      { slug: 'stationery-office', name: 'Stationery', nameVi: 'Văn phòng phẩm', icon: 'ClipboardList', keywords: ['stationery', 'notebook', 'pen', 'văn phòng phẩm', 'bút', 'sổ', 'vở', 'giấy'] },
+    ],
+    facets: [
+      COND,
+      // High-value for the bilingual audience: book language. ⚠️ Scoped to the BOOK subcategories —
+      // category-wide it would ask a stationery seller for the "language" of a pen.
+      { key: 'bookLanguage', label: 'Language', labelVi: 'Ngôn ngữ', kind: 'toggle',
+        subcats: ['literature', 'self-help-business', 'childrens-books', 'textbooks-exam', 'languages-dictionaries', 'comics-manga', 'books-other'], options: [
+        { value: 'english', label: 'English', labelVi: 'Tiếng Anh' },
+        { value: 'vietnamese', label: 'Vietnamese', labelVi: 'Tiếng Việt' },
+        { value: 'other', label: 'Other', labelVi: 'Khác' },
+      ] },
+    ],
+  },
+
+  // 9 ── HOBBIES & SPORTS ───────────────────────────────────────────────────────
   {
     slug: 'hobbies-sports',
     name: 'Hobbies',
     nameVi: 'Sở thích',
     icon: 'Dumbbell',
     color: 'sky',
-    description: 'Fitness gear, instruments, English books, board games, collectibles, camping & outdoors.',
+    description: 'Fitness gear, instruments, board games, collectibles, art supplies, camping & outdoors.',
     types: ['sell', 'free', 'wanted', 'wholesale'],
     subcategories: [
       { slug: 'fitness', name: 'Sports', nameVi: 'Thể thao', icon: 'Dumbbell', keywords: ['dumbbell', 'weights', 'yoga', 'gym', 'treadmill', 'tạ', 'thể thao'] },
       { slug: 'instruments', name: 'Instruments', nameVi: 'Nhạc cụ', icon: 'Guitar', keywords: ['guitar', 'piano', 'keyboard', 'instrument', 'đàn', 'nhạc cụ'] },
-      { slug: 'books', name: 'Books', nameVi: 'Sách', icon: 'BookOpen', keywords: ['book', 'novel', 'english book', 'sách', 'truyện'] },
+      // ⚠️ `books` MOVED to `books-stationery` (2026-09-13). Old `?category=hobbies-sports&subcategory=books`
+      // links are rewritten by LEGACY_SUBCATEGORY_MOVES below, not dropped.
       { slug: 'board-games', name: 'Board games', nameVi: 'Board game', icon: 'Dices', keywords: ['board game', 'boardgame', 'collectible', 'figure', 'lego', 'sưu tầm'] },
       { slug: 'camping-outdoor', name: 'Camping', nameVi: 'Cắm trại', icon: 'Tent', keywords: ['camping', 'tent', 'hiking', 'outdoor', 'cắm trại', 'lều'] },
       { slug: 'art-crafts', name: 'Art', nameVi: 'Nghệ thuật', icon: 'Palette', keywords: ['art', 'painting', 'craft', 'tranh', 'thủ công'] },
     ],
-    facets: [
-      COND,
-      // High-value for the bilingual audience: book language.
-      { key: 'bookLanguage', label: 'Language', labelVi: 'Ngôn ngữ', kind: 'toggle',
-        subcats: ['books'], options: [
-        { value: 'english', label: 'English', labelVi: 'Tiếng Anh' },
-        { value: 'vietnamese', label: 'Vietnamese', labelVi: 'Tiếng Việt' },
-        { value: 'other', label: 'Other', labelVi: 'Khác' },
-      ] },
-    ],
+    facets: [COND],
   },
 
   // 9 ── PETS ───────────────────────────────────────────────────────────────────
@@ -1113,6 +1154,28 @@ export function listingMoneyFor(input: {
     priceUnit: t === 'rent' || t === 'job' ? 'VND/month' : t === 'service' ? 'VND/service' : 'VND',
     isoCode: 'VND',
   }
+}
+
+/**
+ * Subcategories that became a CATEGORY: `from` category + subcategory → `to` category, no subcategory.
+ * ⚠️ A saved link or back-button URL still says `category=hobbies-sports&subcategory=books`, and the feed
+ * filters on both together, so without this it would show an empty aisle rather than the books.
+ */
+const LEGACY_SUBCATEGORY_MOVES: { from: string; sub: string; to: string; dropParams: string[] }[] = [
+  // `attr_bookLanguage` is dropped: that chip only exists under a BOOK subcategory, so on the bare aisle it
+  // would keep filtering with no visible control to clear it.
+  { from: 'hobbies-sports', sub: 'books', to: 'books-stationery', dropParams: ['attr_bookLanguage'] },
+]
+
+/** A copy of `params` with any moved subcategory rewritten; the same object when nothing matched. */
+export function migrateLegacyCategoryParams(params: URLSearchParams): URLSearchParams {
+  const move = LEGACY_SUBCATEGORY_MOVES.find((m) => params.get('category') === m.from && params.get('subcategory') === m.sub)
+  if (!move) return params
+  const next = new URLSearchParams(params)
+  next.set('category', move.to)
+  next.delete('subcategory')
+  for (const p of move.dropParams) next.delete(p)
+  return next
 }
 
 // Pick the best subcategory slug for a free-text title (post-wizard auto-suggest

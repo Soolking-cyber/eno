@@ -31,7 +31,7 @@ import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
 import { makeImageHost } from '../src/lib/host-product-image'
 import { brandSlugify, normalizeBrand } from '../src/lib/brand-normalize'
-import { categoryFor, subcategoryFor, brandFor, FEED_BRANDS } from '../src/lib/feed-taxonomy'
+import { categoryFor, subcategoryFor, brandFor, FEED_BRANDS, refreshPlacement } from '../src/lib/feed-taxonomy'
 import { modelFor } from '../src/lib/feed-model'
 import { buildSearchText } from '../src/lib/fold'
 import { browseRankScore } from '../src/lib/ranking-formula'
@@ -97,6 +97,7 @@ async function main() {
 
   const cats = await db.category.findMany({ select: { id: true, slug: true } })
   const catId = new Map(cats.map((c) => [c.slug, c.id]))
+  const catSlug = new Map(cats.map((c) => [c.id, c.slug]))
 
   if (APPLY) {
     const have = new Set((await db.brand.findMany({ select: { slug: true } })).map((b) => b.slug))
@@ -219,7 +220,7 @@ async function main() {
 
       const existing = seller
         ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId },
-            select: { id: true, images: true, status: true, title: true, titleVi: true, description: true, descriptionVi: true } })
+            select: { id: true, images: true, status: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true } })
         : null
       if (!APPLY) { existing ? updated++ : created++; return }
 
@@ -253,6 +254,11 @@ async function main() {
       if (!images || images === '[]') { drop('image host failed'); return }
 
       const feedTitle = title.slice(0, 180)
+      // ⛔ The row's stored category wins over the title rules on a refresh — see refreshPlacement.
+      const placed = refreshPlacement(
+        existing ? { categorySlug: catSlug.get(existing.categoryId) ?? null, subcategorySlug: existing.subcategorySlug } : null,
+        { categorySlug: slug, subcategorySlug: subcategoryFor(slug, feedTitle) },
+      )
       const feedDesc = String(r.desc || title).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1800)
       const store = storeByDomain.get(r.domain)!
       const fields = {
@@ -278,8 +284,8 @@ async function main() {
          * there because nothing said "cũ" would be the same error in the other direction.
          */
         condition: store.condition,
-        images, categoryId, location: store.city, city: store.city,
-        subcategorySlug: subcategoryFor(slug, feedTitle), brandSlug: brandFor(feedTitle), model: modelFor(feedTitle),
+        images, categoryId: catId.get(placed.categorySlug) ?? categoryId, location: store.city, city: store.city,
+        subcategorySlug: placed.subcategorySlug, brandSlug: brandFor(feedTitle), model: modelFor(feedTitle),
         // ⛔ WITHOUT THIS THE PRODUCT IS INVISIBLE TO SEARCH — feed-query.ts matches the folded
         // blob, and a direct Prisma write never runs the POST path that builds it. Preserve any
         // text a human or the translator wrote rather than collapsing it to the merchant's title.
@@ -288,7 +294,7 @@ async function main() {
           existing?.titleVi ?? feedTitle,
           existing?.description ?? feedDesc, feedDesc,
           existing?.descriptionVi ?? feedDesc,
-          store.city, slug, brandFor(feedTitle), modelFor(feedTitle),
+          store.city, placed.categorySlug, brandFor(feedTitle), modelFor(feedTitle),
         ]),
         /**
          * ⚠️ THE MERCHANT'S PRODUCT PAGE, IN THE FIELD THE CARD ALREADY USES FOR "buy on the
