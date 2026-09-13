@@ -246,7 +246,7 @@ describe('decideEnrichment — text', () => {
   it('refuses hyphenated or plural licensing terms, invented origin and invented brands', () => {
     expect(decideEnrichment(monitor, { ...goodMonitor, en: goodMonitor.en + '\nWe arrange travel itineraries.' }).refused).toContain('en:forbidden-term')
     expect(decideEnrichment(monitor, { ...goodMonitor, vi: goodMonitor.vi + '\nHỗ trợ làm vi-sa.' }).refused).toContain('vi:forbidden-term')
-    expect(decideEnrichment(monitor, { ...goodMonitor, vi: goodMonitor.vi + '\nHàng xách tay Nhật.' }).refused).toContain('vi:invented-claim')
+    expect(decideEnrichment(monitor, { ...goodMonitor, vi: goodMonitor.vi + '\nHàng xách tay Nhật.' }).refused).toContain('vi:origin-statement')
     expect(decideEnrichment(monitor, { ...goodMonitor, en: goodMonitor.en + '\nDesigned with Nike.' }).refused).toContain('en:invented-term')
   })
 
@@ -262,6 +262,26 @@ describe('decideEnrichment — text', () => {
 
   it('a spec repeated in the summary and the bullets is not an invented quantity', () => {
     expect(decideEnrichment(monitor, { ...goodMonitor, en: 'A 27-inch ViewSonic VX2779-HD-PRO monitor with an IPS panel, 5.2 kg.\n\n**Key specs**\n- Size: 27 inch\n- Refresh rate: 180Hz\n- Weight: 5.2 kg' }).refused).toEqual([])
+  })
+
+  it('invisible characters do not hide a payment provider', () => {
+    expect(decideEnrichment(monitor, { ...goodMonitor, en: goodMonitor.en + '\nWe accept Str\u200Bipe payments.' }).refused).toContain('en:forbidden-term')
+    expect(decideEnrichment(monitor, { ...goodMonitor, en: goodMonitor.en + '\nPay with Pay\u034FPal.' }).refused).toContain('en:forbidden-term')
+    expect(decideEnrichment(monitor, { ...goodMonitor, en: goodMonitor.en + '\nPay with Pay\u{E0100}Pal.' }).refused).toContain('en:forbidden-term')
+  })
+
+  it('a rewrite states no origin at all — even one the shop gave — in any wording', () => {
+    const china: EnrichInput = { ...monitor, description: monitor.description + ' Made in China.', descriptionVi: monitor.descriptionVi + ' Sản xuất tại Trung Quốc.' }
+    for (const line of ['- Made in China', '- **Xuất xứ:** Nhật Bản', 'Hàng Đức.', 'Imported from the USA', 'Nội địa Nhật', 'Japanese-made build', 'Made\u00A0in Japan', 'Produced in Japan', 'Hàng Việt Nam chất lượng cao', 'Hàng nhập khẩu', 'Hàng Pháp.', 'Hàng Thái.', 'Origin: Japan', 'Nguồn gốc: Nhật Bản']) {
+      expect(decideEnrichment(china, { ...goodMonitor, vi: goodMonitor.vi + '\n' + line }).refused).toContain('vi:origin-statement')
+    }
+    // …while everyday words are not origin statements: cosmetics, a store's customers, average quality, an original box.
+    for (const line of ['Mỹ phẩm dưỡng da.', 'Phù hợp cho khách hàng văn phòng.', 'Chất lượng hàng trung bình khá.', 'Hộp nguyên bản.', 'Hỗ trợ khách hàng anh chị.', 'Mặt hàng pháp lý rõ ràng.', 'Mặt hàng thái lát sẵn.', 'Thương hiệu mỹ phẩm uy tín.']) {
+      expect(decideEnrichment(monitor, { ...goodMonitor, vi: goodMonitor.vi + '\n' + line }).refused.filter((r) => r.includes('origin'))).toEqual([])
+    }
+    for (const line of ['Original box included.', 'Well made and hand made.', 'Built-in speakers.', 'Made from 100% cotton.', 'Assembled in 5 minutes.']) {
+      expect(decideEnrichment(monitor, { ...goodMonitor, en: goodMonitor.en + '\n' + line }).refused.filter((r) => r.includes('origin'))).toEqual([])
+    }
   })
 
   it('refuses a changed model code', () => {
@@ -328,6 +348,13 @@ describe('parseEnrichReply', () => {
   it('fails the batch when an entry is missing its descriptions', () => {
     const { vi: _vi, ...noVi } = item(2)
     expect(parseEnrichReply(reply([item(1), noVi]), 2)).toEqual({ ok: false, reason: 'bad-item' })
+  })
+
+  it('fails the batch when confidence, subcategory or attributes are missing', () => {
+    const { confidence: _c, ...noConfidence } = item(2)
+    const { subcategory: _s, ...noSub } = item(2)
+    const { attributes: _a, ...noAttrs } = item(2)
+    for (const bad of [noConfidence, noSub, noAttrs]) expect(parseEnrichReply(reply([item(1), bad]), 2)).toEqual({ ok: false, reason: 'bad-item' })
   })
 
   it('fails the batch, not the run, on a null item', () => {

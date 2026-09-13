@@ -59,30 +59,52 @@ function isBackupLine(v: unknown): v is BackupLine {
 
 async function restore() {
   const files = readdirSync(RESTORE!).filter((f) => f.endsWith('.jsonl')).sort().reverse()
+  // ⚠️ VALIDATE EVERYTHING BEFORE WRITING ANYTHING. A corrupt line anywhere — including a last line that is complete
+  // JSON of the wrong shape — aborts the whole restore up front, so a failed restore never leaves half the rows
+  // restored (codex, agy). Only a final line that is not even complete JSON is a torn write, and is skipped.
+  const plan: BackupLine[][] = []
+  let torn = 0
+  const corrupt: string[] = []
+  for (const file of files) {
+    const rawLines = readFileSync(join(RESTORE!, file), 'utf8').split('\n').filter((l) => l.trim())
+    const lines: BackupLine[] = []
+    rawLines.forEach((raw, idx) => {
+      let parsed: unknown
+      try { parsed = JSON.parse(raw) } catch {
+        // Torn = the LAST line and visibly incomplete (a write cut short never ends in "}"); anything else is corruption.
+        if (idx === rawLines.length - 1 && !raw.trimEnd().endsWith('}')) torn++
+        else corrupt.push(`${file}:${idx + 1}`)
+        return
+      }
+      if (isBackupLine(parsed)) lines.push(parsed)
+      else corrupt.push(`${file}:${idx + 1}`)
+    })
+    plan.push(lines.reverse())
+  }
+  if (corrupt.length) {
+    console.error(`REFUSING TO RESTORE: ${corrupt.length} corrupt backup line(s): ${corrupt.slice(0, 10).join(', ')}${corrupt.length > 10 ? ' …' : ''}`)
+    process.exitCode = 1
+    return
+  }
+
   let restored = 0
   let skipped = 0
-  let torn = 0
   const simulated = new Map<string, Fields & Context>()
-  for (const file of files) {
-    const lines: BackupLine[] = []
-    for (const raw of readFileSync(join(RESTORE!, file), 'utf8').split('\n')) {
-      if (!raw.trim()) continue
-      let parsed: unknown
-      try { parsed = JSON.parse(raw) } catch { torn++; continue }
-      // ⚠️ SHAPE-CHECKED, and the write below names its columns: a line with an empty `after` must not become an
-      // unguarded update, and `before` must not smuggle any other column into Prisma (astra).
-      if (isBackupLine(parsed)) lines.push(parsed)
-      else torn++
+  for (const lines of plan) {
+    if (APPLY) {
+      // ⚠️ ONE TRANSACTION PER BACKUP FILE (≤200 rows): a connection lost mid-file rolls that file back whole instead of
+      // leaving it half restored; a re-run then picks the file up again (codex). ⚠️ NO in-scope requirement: a listing
+      // enriched and later delisted or unverified must still be undoable (codex, opus). `after` + `context` guard it.
+      const counts = await db.$transaction(lines.map(({ id, before, after, context }) => db.listing.updateMany({
+        where: { id, ...Object.fromEntries(FIELD_KEYS.map((k) => [k, after[k]])), ...Object.fromEntries(CONTEXT_KEYS.map((k) => [k, context[k]])) },
+        data: Object.fromEntries(FIELD_KEYS.map((k) => [k, before[k]])) as Fields,
+      })))
+      for (const c of counts) { if (c.count) restored++; else skipped++ }
+      continue
     }
-    for (const { id, before, after, context } of lines.reverse()) {
+    for (const { id, before, after, context } of lines) {
       let hit = false
-      if (APPLY) {
-        const data = Object.fromEntries(FIELD_KEYS.map((k) => [k, before[k]])) as Fields
-        const guard = { ...Object.fromEntries(FIELD_KEYS.map((k) => [k, after[k]])), ...Object.fromEntries(CONTEXT_KEYS.map((k) => [k, context[k]])) }
-        // ⚠️ NO in-scope requirement: a listing enriched and later delisted or unverified must still be undoable, or the
-        // rewrite resurfaces if it is ever relisted (codex, opus). `after` + `context` are the whole guard.
-        hit = (await db.listing.updateMany({ where: { id, ...guard }, data })).count > 0
-      } else {
+      {
         // The dry run replays the unwind in memory from the rows as they are now, so a row written twice previews both steps.
         let now = simulated.get(id)
         if (!now) {
@@ -96,7 +118,7 @@ async function restore() {
       else skipped++
     }
   }
-  console.log(`${APPLY ? 'RESTORED' : 'DRY RUN'}: ${restored} rows ${APPLY ? 'restored' : 'would be restored'}, ${skipped} left alone (changed since, or the write never landed)${torn ? `, ${torn} torn lines ignored` : ''}`)
+  console.log(`${APPLY ? 'RESTORED' : 'DRY RUN'}: ${restored} rows ${APPLY ? 'restored' : 'would be restored'}, ${skipped} left alone (changed since, or the write never landed)${torn ? `, ${torn} torn last lines ignored` : ''}`)
   if (APPLY && restored) console.log('\nNEXT: purge the listing ISR tags (scripts/purge-isr-listings.mjs) and Cloudflare (purge_everything on both zones).')
 }
 
