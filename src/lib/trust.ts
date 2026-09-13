@@ -262,7 +262,10 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
         },
       }),
       db.listing.findMany({
-        where: { sellerId: seller.id, status: 'sold', updatedAt: { gte: txSince } },
+        // ⛔ NOT AFFILIATE/PARTNER LISTINGS: an imported shop's `sold` means "out of stock at the merchant"
+        // (import-partners / the price refresh flip it both ways), never a sale made through eno — counting
+        // them handed partner storefronts thousands of phantom transactions (audit, 2026-09-13).
+        where: { sellerId: seller.id, status: 'sold', affiliateUrl: null, updatedAt: { gte: txSince } },
         select: { id: true, updatedAt: true },
         take: 5000,
       }),

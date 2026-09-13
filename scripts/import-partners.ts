@@ -60,6 +60,9 @@ if (!Number.isInteger(MAX_IMAGES) || MAX_IMAGES < 1) { console.error('--images m
 if (!Number.isInteger(LIMIT) || LIMIT < 0) { console.error('--limit must be a non-negative integer'); process.exit(1) }
 if (!FILE) { console.error('--file <staging.json> required'); process.exit(1) }
 
+/** Per-shop "contact for price" placeholder ceilings (inclusive), measured — see importRow. */
+const PLACEHOLDER_PRICE_MAX: Record<string, number> = { 'dienthoaigiakho.vn': 1000 }
+
 const BUCKET = 'listings'
 const EDGE = 1200
 const WEBP_QUALITY = 80
@@ -168,8 +171,31 @@ async function main() {
       if (!allowedDomains.has(r.domain)) { drop('store not allowed'); return }
       if (!seller && APPLY) { drop('no storefront'); return }
       const price = Number(r.price)
-      // ⛔ A ZERO PRICE RENDERS AS "Free / Miễn phí" (src/components/marketplace/price.tsx).
-      if (!Number.isFinite(price) || price <= 0) { drop('no price'); return }
+      /**
+       * ⛔ A PLACEHOLDER PRICE IS NOT A PRICE. Measured 2026-09-13 (price/stock audit of every partner
+       * shop): 24hstore publishes "Liên hệ" (contact us) products with a machine price of 100đ in its
+       * JSON-LD — 205 live listings read "100 đ" — and dienthoaigiakho does the same at 1,000đ on
+       * phone cases and screen protectors. hshop sells a genuine 500đ part and 1,000-9,000đ components,
+       * so everywhere the floor is BELOW 500đ, and a shop gets a higher ceiling only where measured.
+       * A placeholder row is not purchasable at a listed price: an existing listing goes `sold` — the
+       * stock rule below revives sold↔active, so the first refresh with a real price brings it back —
+       * and a new one is not created. (`sold` on an affiliate listing is not a sale: trust.ts excludes
+       * affiliate listings from transaction evidence for exactly this reason.)
+       */
+      // ⛔ A ZERO / MISSING PRICE IS THE SAME CASE (it renders as "Free / Miễn phí", price.tsx), so it
+      // retires an existing listing too rather than leaving yesterday's price live.
+      const domain = (() => {
+        const raw = String(r.domain || '') || (() => { try { return new URL(r.url).hostname } catch { return '' } })()
+        return raw.toLowerCase().replace(/^www\./, '').replace(/\.$/, '')
+      })()
+      if (!Number.isFinite(price) || price < 500 || price <= (PLACEHOLDER_PRICE_MAX[domain] ?? 0)) {
+        const ext = String(r.externalId || r.url || '').slice(0, 190)
+        // Same key the upsert below writes (externalId || url, 190 chars); never an empty key.
+        if (APPLY && seller && ext) {
+          await db.listing.updateMany({ where: { sellerId: seller.id, externalId: ext, status: 'active', affiliateUrl: { not: null } }, data: { status: 'sold' } })
+        }
+        drop(Number.isFinite(price) && price > 0 ? 'placeholder price' : 'no price'); return
+      }
       const srcImages = imagesOf(r).slice(0, MAX_IMAGES)
       if (!srcImages.length) { drop('no image'); return }
       const title = String(r.name || '').trim()
