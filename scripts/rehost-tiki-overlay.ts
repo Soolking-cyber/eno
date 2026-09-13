@@ -37,6 +37,8 @@
  * reviewed cleanup — deleting in the same pass would make a bad run unrecoverable.
  */
 import 'dotenv/config'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
 import { makeImageHost } from '../src/lib/host-product-image'
@@ -76,8 +78,45 @@ function storedImages(raw: string | null): string[] {
 }
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
-async function fetchGallery(pid: string, spid: string | null): Promise<string[] | null> {
+const execFileP = promisify(execFile)
+/**
+ * ⛔ THE TIKI API IS READ WITH curl, NOT NODE'S fetch. Measured 2026-09-13 on the VN box, same second,
+ * same URL and headers: curl → 200 application/json; Node 24 fetch (undici) → 200 text/html, the 18KB
+ * bot challenge. Tiki now fingerprints the client, not just the IP, so the first deployed run read
+ * every product as "blocked" and sat in cooldowns. argv array, no shell — the ids come from our own
+ * rows but the rule stays. Run in the `node:24` image (the slim one has no curl); without curl this
+ * falls back to fetch so a laptop dry run still works. The CDN images themselves fetch fine in Node.
+ */
+let warnedFallback = false
+const curlErrors = new Map<string, number>()
+async function fetchGallery(pid: string, spidRaw: string | null): Promise<string[] | null> {
+  // An empty spid is "no spid", exactly as the URL below has always treated it.
+  const spid = spidRaw ? spidRaw : null
+  if (!/^\d+$/.test(pid) || (spid != null && !/^\d+$/.test(spid))) return null
   const url = `https://api.tiki.vn/product-detail/api/v1/products/${pid}?platform=web${spid ? `&spid=${spid}` : ''}`
+  try {
+    // --compressed and -L for parity with fetch (which decompresses and follows redirects);
+    // https-only, including across a redirect. No --fail: parseTikiGallery judges every body.
+    const { stdout } = await execFileP('curl', [
+      '-sS', '-L', '--max-redirs', '3', '--proto', '=https', '--proto-redir', '=https', '--compressed', '--max-time', '25',
+      '-H', `User-Agent: ${UA}`, '-H', 'Accept: application/json', '-H', 'Referer: https://tiki.vn/', url,
+    ], { maxBuffer: 8 * 1024 * 1024 })
+    return parseTikiGallery(stdout, MAX_IMAGES, pid)
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT') {
+      // Counted and reported by kind, so "Tiki blocked us" and "the network is down" read differently.
+      const kind = String(code ?? (e as Error).name)
+      const n = (curlErrors.get(kind) ?? 0) + 1
+      curlErrors.set(kind, n)
+      if (n === 1 || n % 50 === 0) console.log(`  curl failed (${kind}) ×${n}`)
+      return null
+    }
+  }
+  if (!warnedFallback) {
+    warnedFallback = true
+    console.warn('⚠️  curl not found — falling back to fetch, which Tiki answers with a bot challenge from the box. Run in the node:24 image.')
+  }
   try {
     const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json', Referer: 'https://tiki.vn/' }, signal: AbortSignal.timeout(25_000) })
     return parseTikiGallery(await res.text(), MAX_IMAGES, pid)
