@@ -51,3 +51,20 @@ export function stripMarkdown(input: string): string {
 
   return s.trim()
 }
+
+/**
+ * A rich description flattened to ONE line of plain prose, for surfaces that print text verbatim: the meta
+ * description, JSON-LD and the Google / Meta product feeds.
+ * ⚠️ WHY IT EXISTS (2026-09-14). The Gemini product pass writes descriptions as a short paragraph, `**Thông số
+ * chính**` headings and `- ` bullets — which the PDP renders through formatRichText, but which those four surfaces
+ * would have shown as literal asterisks and dashes to buyers, crawlers and ad catalogues (opus).
+ * A heading becomes "Heading:", each bullet or line becomes a sentence.
+ */
+export function plainSnippet(input: string): string {
+  const lines = input.replace(/\r\n?/g, '\n').split('\n')
+    .map((l) => l.replace(/^\s*\*\*([^*\n]+?):?\*\*:?\s*$/, '$1:'))
+    .map((l) => stripMarkdown(l).replace(/^\s*-\s+/, '').trim())
+    .filter(Boolean)
+  // A line already ending in punctuation ("đen,", "(M)") joins with a space, never ",." (opus).
+  return lines.reduce((acc, l) => (acc ? `${acc}${/[:.!?;,)\]]$/.test(acc) ? ' ' : '. '}${l}` : l), '').replace(/\s+/g, ' ').trim()
+}

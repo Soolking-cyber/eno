@@ -1156,6 +1156,9 @@ export function listingMoneyFor(input: {
   }
 }
 
+/** Display-only book fields (Gemini product pass). Never facets — a name has no option list — and never machine-translated on the PDP. */
+export const FREE_TEXT_ATTRIBUTES = ['author', 'publisher'] as const
+
 /**
  * Subcategories that became a CATEGORY: `from` category + subcategory → `to` category, no subcategory.
  * ⚠️ A saved link or back-button URL still says `category=hobbies-sports&subcategory=books`, and the feed

@@ -2,6 +2,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { LISTING_FEED_SELECT, serializeFeedListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
+import { plainSnippet } from '@/lib/strip-md'
 import { feedCategories, feedListingTypes, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
 
 // Meta/Facebook commerce catalog feed (Commerce Manager CSV format). Powers the
@@ -155,7 +156,7 @@ export async function GET(req: Request) {
       const row = [
         escapeCsv(listing.id),
         escapeCsv(title.slice(0, 150)),
-        escapeCsv((listing.descriptionVi || listing.description).slice(0, 400)),
+        escapeCsv(plainSnippet(listing.descriptionVi || listing.description).slice(0, 400)),
         'in stock',
         condition,
         escapeCsv(formattedPrice),

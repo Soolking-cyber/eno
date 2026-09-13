@@ -2,6 +2,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { LISTING_FEED_SELECT, serializeFeedListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
+import { plainSnippet } from '@/lib/strip-md'
 import { feedCategories, feedListingTypes, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
 
 // Helper to escape XML special characters
@@ -131,7 +132,7 @@ export async function GET(req: Request) {
       xml += `    <item>
       <g:id>${escapeXml(listing.id)}</g:id>
       <g:title>${escapeXml(title.slice(0, 150))}</g:title>
-      <g:description>${escapeXml(displayDesc.slice(0, 500))}</g:description>
+      <g:description>${escapeXml(plainSnippet(displayDesc).slice(0, 500))}</g:description>
       <g:link>${escapeXml(itemUrl)}</g:link>
       <g:image_link>${escapeXml(imageUrl)}</g:image_link>
 ${extraImages.map((img) => `      <g:additional_image_link>${escapeXml(img)}</g:additional_image_link>`).join('\n')}${extraImages.length ? '\n' : ''}      <g:condition>${condition}</g:condition>

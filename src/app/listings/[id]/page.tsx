@@ -1,4 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
+import { FREE_TEXT_ATTRIBUTES } from '@/lib/taxonomy'
+import { plainSnippet } from '@/lib/strip-md'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { scopedListingWhere } from '@/lib/edition-scope'
@@ -125,7 +127,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Meta description: the listing body when the seller wrote one; otherwise a
   // composed fallback ("TITLE — PRICE, CATEGORY in LOCATION on eno.vn") so an
   // empty body never ships a junk description like "21,000,000 VND · ".
-  const bodyDesc = listing.description.trim()
+  // Flattened: a rich body's headings and bullets must not reach the meta tag as literal ** and - (plainSnippet).
+  const bodyDesc = plainSnippet(listing.description)
   const facts = [priceLabel, listing.category.name].filter(Boolean).join(', ')
   const fallbackDesc = `${displayTitle}${facts ? ` — ${facts}` : ''}${listing.location ? ` in ${listing.location}` : ''} on eno.vn`
   const desc = (bodyDesc || fallbackDesc).slice(0, 160)
@@ -356,7 +359,7 @@ export default async function ListingPage({ params }: Props) {
     '@type': 'Product',
     'name': displayTitle,
     'image': listing.images,
-    'description': displayDesc,
+    'description': plainSnippet(displayDesc),
     'sku': listing.id,
     // Real product brand (drives Google free product listings + matching). Only
     // emitted when the listing carries a canonical brand.
@@ -866,8 +869,12 @@ export default async function ListingPage({ params }: Props) {
                     {attrs.map(([k, v]) => (
                       <div key={k} className="flex items-start justify-between gap-4 py-2.5">
                         <dt className="capitalize text-muted-foreground"><Tr text={k.replace(/([A-Z])/g, ' $1')} /></dt>
-                        {/* Attribute values are stored lowercase — capitalize like the keys. */}
-                        <dd className="text-right font-medium capitalize text-foreground"><Tr text={String(v)} /></dd>
+                        {/* Attribute values are stored lowercase — capitalize like the keys. ⚠️ Except a NAME
+                            (author, publisher): it is stored as written and must never go through machine
+                            translation, which would "translate" a person. */}
+                        {(FREE_TEXT_ATTRIBUTES as readonly string[]).includes(k)
+                          ? <dd className="text-right font-medium text-foreground">{String(v)}</dd>
+                          : <dd className="text-right font-medium capitalize text-foreground"><Tr text={String(v)} /></dd>}
                       </div>
                     ))}
                   </dl>

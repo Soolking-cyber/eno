@@ -132,7 +132,7 @@ function parseNumber(raw: string, lang?: string): string {
 
 /** One quantity found in a string: its value in both separator conventions, its raw literal,
  *  and its unit when that unit is a symbol translation leaves alone. */
-type Quantity = { values: Set<string>; raw: string; unit: string }
+export type Quantity = { values: Set<string>; raw: string; unit: string }
 
 /**
  * Every quantity in `text`. `requireTwoDigits` applies to the SOURCE only — see the note below.
@@ -143,7 +143,7 @@ type Quantity = { values: Set<string>; raw: string; unit: string }
  * "1,500,000": the digits are unchanged, so that is a cosmetic nit, not a wrong price. A real
  * SUBSTITUTION still shares no representation at all — "1.0" has nothing in common with "2.0".
  */
-function quantitiesIn(text: string, lang?: string, requireTwoDigits = true): Quantity[] {
+export function quantitiesIn(text: string, lang?: string, requireTwoDigits = true): Quantity[] {
   const out: Quantity[] = []
   // ⚠️ `(?!\p{L})` MAKES THE UNIT A WHOLE WORD. Without it, "500 gói" (500 packs) captured "g"
   // and paired the quantity with a mass unit that was never written. That guard is what makes
@@ -191,7 +191,7 @@ function quantitiesIn(text: string, lang?: string, requireTwoDigits = true): Qua
  * side still matches, because "12 tháng" → "12 months" legitimately loses the symbol into a
  * translated word.
  */
-function keepsQuantities(srcQ: Quantity[], hypQ: Quantity[]): boolean {
+export function keepsQuantities(srcQ: Quantity[], hypQ: Quantity[]): boolean {
   const used = new Array(hypQ.length).fill(false)
   for (const s of srcQ) {
     const i = hypQ.findIndex((h, idx) => {
@@ -215,7 +215,7 @@ function keepsQuantities(srcQ: Quantity[], hypQ: Quantity[]): boolean {
  * Candidates are matched loosely and filtered in code, which is clearer than a regex that tries
  * to express "contains both, anywhere".
  */
-function codesIn(text: string): string[] {
+export function codesIn(text: string): string[] {
   const out: string[] = []
   // ⛔ `/` IS BOTH A JOINER AND A SEPARATOR, AND THE DIFFERENCE IS WHAT FOLLOWS IT. "AB/1234" is
   // one model code, so joining only on `-` left just "1234" protected and "CD/1234" passed as
@@ -237,7 +237,7 @@ function codesIn(text: string): string[] {
   return out
 }
 
-function keepsCode(hyp: string, code: string): boolean {
+export function keepsCode(hyp: string, code: string): boolean {
   const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\/-]/g, '\\$&')
   // ⛔ A SEPARATOR TERMINATES A CODE UNLESS THAT CODE CONTAINS IT. A joiner must not act as a
   // terminator — otherwise "VX2779-HD-PRO-FAKE" satisfies "VX2779-HD-PRO", a different model.
