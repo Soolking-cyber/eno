@@ -44,6 +44,8 @@ const h = vi.hoisted(() => ({
     genericAnchor: null as null | { id: string },
     /** Fault injection for the fail-soft Conversation.listingId retarget. */
     retargetError: null as unknown,
+    /** Conversation rows bound to a case: `{ visaApplicationId, sellerProfileId }`. */
+    boundThreads: [] as Array<{ visaApplicationId: string; sellerProfileId: string }>,
     // observations
     stepCards: [] as Array<{ conversationId: string; applicationId: string; step: number; needsReview?: string[] }>,
     checkoutCards: [] as Array<{ conversationId: string; applicationId: string; amountUsd: number }>,
@@ -132,6 +134,9 @@ vi.mock('../db', () => ({
       }),
     },
     conversation: {
+      // Which desk each case's thread belongs to — the reuse lookup skips drafts bound elsewhere.
+      findMany: vi.fn(async ({ where }: any) =>
+        h.state.boundThreads.filter((t) => where.visaApplicationId.in.includes(t.visaApplicationId))),
       // retargetVisaThreadListing's write. `retargetError` injects the P2002 collision.
       updateMany: vi.fn(async ({ where, data }: any) => {
         if (h.state.retargetError) throw h.state.retargetError
@@ -328,6 +333,7 @@ beforeEach(() => {
   h.state.tables = {}
   h.state.dbError = null
   h.state.messages = []
+  h.state.boundThreads = []
   h.state.thread = { conversationId: 'convo-1', buyerProfileId: BUYER, sellerProfileId: 'shop-owner' }
   h.state.mode = 'ai'
   h.state.bindResult = { ok: true, conversationId: 'convo-1', created: false }
@@ -940,6 +946,28 @@ describe('start', () => {
     const choice = h.state.events.find((e) => e.event === VISA_DM_PRODUCT_EVENT)
     expect(choice!.metadata.listingId).toBe('listing-1')
     expect(h.state.stepCards).toHaveLength(1)
+  })
+
+  // ── The desk moved (owner, 2026-09-13: eno.forum's visa desk is VietKite now) ──────────
+  it('a draft bound to ANOTHER desk thread is left alone and a new case is minted on this desk', async () => {
+    seedCase()
+    const before = { ...h.state.tables.visa_applications[0] }
+    h.state.boundThreads = [{ visaApplicationId: APPLICATION, sellerProfileId: 'previous-desk-owner' }]
+    const result = await startVisaDmFlow({ userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1' })
+    expect(result).toMatchObject({ ok: true })
+    expect(h.state.tables.visa_applications).toHaveLength(2)
+    const minted = h.state.tables.visa_applications.find((r: Row) => r.id !== APPLICATION)!
+    expect(dmThread.bindVisaThread).toHaveBeenCalledWith({ applicationId: minted.id, buyerProfileId: BUYER })
+    // The old desk's draft is untouched — nothing of it is rewritten or rebound.
+    expect(h.state.tables.visa_applications.find((r: Row) => r.id === APPLICATION)).toEqual(before)
+  })
+
+  it('a draft already bound to THIS desk thread is still reused', async () => {
+    seedCase()
+    h.state.boundThreads = [{ visaApplicationId: APPLICATION, sellerProfileId: 'shop-owner' }]
+    const result = await startVisaDmFlow({ userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1' })
+    expect(result).toMatchObject({ ok: true, applicationId: APPLICATION })
+    expect(h.state.tables.visa_applications).toHaveLength(1)
   })
 
   it('prefills the entry type the picked product determines', async () => {

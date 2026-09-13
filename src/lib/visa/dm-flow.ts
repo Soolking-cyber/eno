@@ -1124,6 +1124,25 @@ function reusableVisaCandidates(
   ]
 }
 
+/**
+ * ⚠️ A DRAFT BOUND TO ANOTHER DESK'S THREAD IS NOT REUSABLE (owner, 2026-09-13: eno.forum's visa desk
+ * moved from eno's support account to VietKite, "people click on apply in chat from vietkite product
+ * posts"). bindVisaThread hands back an already-bound thread as it is, so re-opening such a draft would
+ * put the applicant back in the OLD desk's conversation, where every next step refuses with
+ * `shop_unavailable` (advanceVisaDmFlow's desk check). Skipping it mints a fresh case on the current
+ * desk and leaves the old draft exactly as it was — its passport data is never moved to another company.
+ * An unbound draft stays reusable: it has no desk yet.
+ */
+async function draftsOnThisDesk(rows: VisaApplicationRow[], deskProfileId: string): Promise<VisaApplicationRow[]> {
+  if (!rows.length) return rows
+  const threads = await db.conversation.findMany({
+    where: { visaApplicationId: { in: rows.map((r) => r.id) } },
+    select: { visaApplicationId: true, sellerProfileId: true },
+  })
+  const elsewhere = new Set(threads.filter((t) => t.sellerProfileId !== deskProfileId).map((t) => t.visaApplicationId))
+  return rows.filter((r) => !elsewhere.has(r.id))
+}
+
 /** Does the row's canonical selection already record exactly this product? */
 const selectionMatches = (application: VisaApplicationRow, product: VisaShopProduct): boolean => {
   const stored = typeof application.selected_listing_id === 'string' ? application.selected_listing_id.trim() : ''
@@ -1192,7 +1211,8 @@ export async function startVisaDmFlow(input: {
   // type sits behind it (codex). Only when none of them opens do we fall through and create.
   let existing: VisaApplicationRow | null = null
   let existingPayload: VisaPayload | null = null
-  for (const candidate of reusableVisaCandidates(await reusableVisaApplications(input.userId), product)) {
+  const drafts = await draftsOnThisDesk(await reusableVisaApplications(input.userId), shop.ownerId)
+  for (const candidate of reusableVisaCandidates(drafts, product)) {
     try {
       existingPayload = decryptVisaPayload(candidate.encrypted_payload)
       existing = candidate

@@ -2360,10 +2360,17 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
           <strong className="font-bold">
             {tr('Processed on the next working day.', 'Được xử lý vào ngày làm việc tiếp theo.')}
           </strong>{' '}
-          {tr(
-            'The desk is closed right now, so processing starts when it opens — not when you pay.',
-            'Bộ phận hiện đã đóng, nên việc xử lý bắt đầu khi mở cửa — không phải khi bạn thanh toán.',
-          )}
+          {quickFlow
+            // The quick flow takes no money in the card, so "not when you pay" would be false here.
+            // Sending stays open around the clock; only the start of processing waits.
+            ? tr(
+              'You can send your application now. The desk is closed, so processing starts when it opens.',
+              'Bạn có thể gửi hồ sơ ngay. Bộ phận hiện đã đóng, nên việc xử lý bắt đầu khi mở cửa.',
+            )
+            : tr(
+              'The desk is closed right now, so processing starts when it opens — not when you pay.',
+              'Bộ phận hiện đã đóng, nên việc xử lý bắt đầu khi mở cửa — không phải khi bạn thanh toán.',
+            )}
           {closedReadyAt ? ` ${tr('Expected ready', 'Dự kiến xong')}: ${closedReadyAt}.` : ''}
         </p>
       )}

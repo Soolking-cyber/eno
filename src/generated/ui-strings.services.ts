@@ -397,6 +397,7 @@ export const UI_STRINGS_SERVICES: string[] = [
   "You already have 10 e-Visa applications in progress. Finish or delete one in your applications list before starting a new one.",
   "You ask in a normal conversation. We come back with what is available, what it costs, and what we would change.",
   "You can open a wallet now. It takes a moment and costs nothing.",
+  "You can send your application now. The desk is closed, so processing starts when it opens.",
   "You finish paying on the provider’s own secure page, then come back here.",
   "You have reached today’s planning limit. Try again later.",
   "You pay",
