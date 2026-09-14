@@ -24,7 +24,7 @@ export type ScopeRow = {
   snap: Snapshot
 }
 
-export type DoneRow = { id: string; key: string; version: string; from: { category: string; subcategory: string | null }; snap: Snapshot; answer: EnrichAnswer }
+export type DoneRow = { id: string; key: string; version: string; engine?: 'agy' | 'opus'; from: { category: string; subcategory: string | null }; snap: Snapshot; answer: EnrichAnswer }
 
 const isStr = (v: unknown): v is string => typeof v === 'string'
 const isStrOrNull = (v: unknown) => v === null || typeof v === 'string'
