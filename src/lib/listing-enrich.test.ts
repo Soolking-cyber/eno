@@ -81,6 +81,65 @@ describe('decideEnrichment — placement', () => {
     expect(d.refused).toContain('placement:unknown-subcategory')
   })
 
+  // Owner, 2026-09-14: "accessories most of them are in smartwatches subcategory". Measured: the model answers the right
+  // accessory shelf, and a number slip in its rewritten spec list used to veto the move.
+  const watchProtector: EnrichInput = {
+    id: 'a1',
+    titleVi: 'Kính Cường Lực Màn Hình Viền Nhôm Kai.N Cho Apple Watch Ultra 49mm',
+    title: 'Genuine Kai.N AluGlass Tempered Glass Screen Protector for Apple Watch Ultra 49mm',
+    descriptionVi: 'Kính cường lực Kai.N cho Apple Watch Ultra 49mm, độ cứng 9H.',
+    description: 'Kai.N tempered glass for Apple Watch Ultra 49mm, 9H hardness.',
+    category: 'electronics',
+    subcategory: 'smartwatch',
+    attributes: {},
+    brand: 'apple',
+    model: 'Apple Watch Ultra',
+  }
+  const protectorAnswer: EnrichAnswer = {
+    category: 'electronics',
+    subcategory: 'screen-protectors',
+    confidence: 'high',
+    vi: 'Kính cường lực Kai.N cho Apple Watch Ultra 49mm.\n\n**Thông số chính**\n- Độ cứng: 9H\n- Kích thước: 49mm',
+    en: 'Kai.N tempered glass for Apple Watch Ultra 49mm.\n\n**Key specs**\n- Hardness: 9H\n- Size: 49mm',
+    attributes: [],
+    brand: 'Kai.N',
+    model: null,
+  }
+  const numberSlip = { ...protectorAnswer, en: protectorAnswer.en + '\n- Weight: 20 g' }
+
+  it('a number slip in the text does not veto a confident shelf move inside the same aisle', () => {
+    const d = decideEnrichment(watchProtector, numberSlip)
+    expect(d.refused).toContain('en:invented-quantity')
+    expect([d.category, d.subcategory]).toEqual(['electronics', 'screen-protectors'])
+    expect(d.refused).toContain('placement:number-slip-allowed')
+    expect(d.description).toBeNull() // the slipped text still does not land
+    // …and the device it FITS stops being its brand and model ("for Apple Watch Ultra").
+    expect([d.brand, d.model]).toEqual([null, null])
+  })
+
+  it('but a number slip still vetoes a move to ANOTHER aisle, and an invented claim or a hijack vetoes any move', () => {
+    expect(decideEnrichment(book, { ...goodBook, en: goodBook.en + '\n- Weight: 450 g' }).category).toBe('electronics')
+    const claim = decideEnrichment(watchProtector, { ...protectorAnswer, en: protectorAnswer.en + '\n- Waterproof' })
+    expect(claim.subcategory).toBe('smartwatch')
+    expect(claim.refused).toContain('placement:untrusted-answer')
+    const hijack = decideEnrichment(watchProtector, { ...numberSlip, en: numberSlip.en + '\nCall 0901234567 to order.' })
+    expect(hijack.subcategory).toBe('smartwatch')
+  })
+
+  it('a medium-confidence answer with a number slip moves nothing — not even into an empty shelf — and leaves no trace', () => {
+    expect(decideEnrichment(watchProtector, { ...numberSlip, confidence: 'medium' }).subcategory).toBe('smartwatch')
+    const empty = decideEnrichment({ ...watchProtector, subcategory: null }, { ...numberSlip, confidence: 'medium' })
+    expect(empty.subcategory).toBeNull()
+    expect(empty.refused).not.toContain('placement:number-slip-allowed')
+  })
+
+  it('a stored model the title does not mention is not cleared as a compatibility target', () => {
+    // (No stored brand: clearing an unsupported brand takes its model with it, which is a different, older rule.)
+    const d = decideEnrichment({ ...watchProtector, brand: null, model: 'AluGlass Pro' }, numberSlip)
+    expect(d.subcategory).toBe('screen-protectors')
+    expect(d.model).toBe('AluGlass Pro')
+  })
+
   it('fills a missing shelf in the same aisle at medium confidence, but does not overrule one', () => {
     const noShelf = { ...monitor, subcategory: null }
     expect(decideEnrichment(noShelf, { ...goodMonitor, confidence: 'medium' }).subcategory).toBe('tv-monitors')

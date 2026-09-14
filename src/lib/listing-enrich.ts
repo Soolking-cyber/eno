@@ -544,11 +544,20 @@ function decideBrand(input: EnrichInput, answer: EnrichAnswer, category: string,
   const keep = { brand: input.brand, brandName: null }
   // Re-filed into an aisle with no brand facet (books, food…): the old shelf's brand no longer applies (agy).
   if (!categoryHasBrand(category)) return { brand: category === input.category ? input.brand : null, brandName: null }
-  if (untrusted) return keep
   const catalogue = new Set(known)
   // Is the listing's CURRENT brand one the title supports? Almost every stored brand came from a title regex; one the
   // inference does not back (an "Ốp lưng cho iPhone" filed under apple) may be cleared by a confident answer (opus).
   const existingSupported = !input.brand || inferBrand(input.title, input.titleVi, subcategory, [...catalogue, input.brand]) === input.brand
+  // An untrusted answer names no brand — but a listing it moved ONTO an accessory shelf sheds a stored brand that the
+  // title gives only as the device it fits ("Kai.N … for Apple Watch" filed under apple). That is inferBrand reading the
+  // TITLE on the new shelf, not the answer.
+  if (untrusted) {
+    if (subcategory !== input.subcategory && subcategory && ACCESSORY_SHELVES.has(subcategory) && input.brand && !existingSupported) {
+      refused.push('brand:cleared-unsupported')
+      return { brand: null, brandName: null }
+    }
+    return keep
+  }
   if (!answer.brand) {
     if (input.brand && !existingSupported && answer.confidence === 'high') { refused.push('brand:cleared-unsupported'); return { brand: null, brandName: null } }
     return keep
@@ -666,12 +675,30 @@ export function decideEnrichment(input: EnrichInput, answer: EnrichAnswer, opts:
   // its category and tags are no more reliable than its prose (codex).
   // Price, contact and forbidden copy count too: a hijacked answer is the least trustworthy one (opus).
   const untrusted = [...viFails, ...enFails].some((r) => /^(?:invented|price|contact|forbidden)/.test(r))
-  if (untrusted && movable) refused.push('placement:untrusted-answer')
+  /**
+   * ⚠️ PLACEMENT HAS ITS OWN, NARROWER TRUST TEST — owner, 2026-09-14, on a Smartwatches shelf full of Kai.N screen
+   * protectors, charging docks and bands: "subcategories are mostly wrong … accessories most of them are in smartwatches
+   * subcategory". Measured on 40 of the 178 such rows in scope: the model put ALL 40 on the right accessory shelf at high
+   * confidence, and this gate kept 12 on Smartwatches — 11 of them only because the rewritten spec list read "454442mm"
+   * as three sizes or "Set of 3" as a count (invented-quantity). A number slip says the PROSE is unreliable; it says
+   * nothing about what kind of product the answer recognised.
+   * So one refusal kind is lifted for ONE decision: an answer whose only untrusting failure is `invented-quantity` may
+   * still move a listing to another shelf IN THE SAME AISLE at high confidence. Everything else still vetoes a move — an
+   * invented claim, code or term (the answer invented what the product IS or DOES), and price, contact or forbidden copy
+   * (a hijacked answer) — and a CROSS-aisle move (a book out of electronics) still needs a clean answer. The refused text,
+   * the attributes and the answer's brand and model still do not land (`untrusted` below is unchanged).
+   * (A title-matching "accessory for device" rule was written first and abandoned after four review rounds each found
+   * real device titles it misread — unknown watch makers, "Smart Watch", bundles, "có dây" headsets.)
+   */
+  const sameAisle = answer.category === input.category
+  const untrustedPlacement = [...viFails, ...enFails].some((r) => /^(?:price|contact|forbidden)/.test(r)
+    || (/^invented/.test(r) && !(sameAisle && answer.confidence === 'high' && /^invented-quantity/.test(r))))
+  if (untrustedPlacement && movable) refused.push('placement:untrusted-answer')
 
   const answerSubOk = (cat: string, sub: string | null) => sub === null || subcategoriesFor(cat).some((s) => s.slug === sub)
   if (!movable) {
     if (answer.category !== input.category) refused.push('placement:not-movable')
-  } else if (untrusted) {
+  } else if (untrustedPlacement) {
     // placement stays
   } else if (!targets.has(answer.category) || !CATEGORY_BY_SLUG[answer.category]) {
     refused.push('placement:unknown-category')
@@ -687,6 +714,8 @@ export function decideEnrichment(input: EnrichInput, answer: EnrichAnswer, opts:
   }
 
   const placementChanged = category !== input.category || subcategory !== input.subcategory
+  // The one path where a refused text still moved a listing leaves a trace — written after the move is DECIDED (astra, opus).
+  if (untrusted && !untrustedPlacement && placementChanged) refused.push('placement:number-slip-allowed')
   const allowed = allowedAttributes(category, subcategory)
   const attributes: Record<string, string> = {}
   for (const [k, v] of Object.entries(input.attributes)) {
@@ -728,7 +757,15 @@ export function decideEnrichment(input: EnrichInput, answer: EnrichAnswer, opts:
     return at >= 0 && !(subcategory && ACCESSORY_SHELVES.has(subcategory) && compatWord.test(t.slice(0, at)))
   })
   const brandChanged = !!brand && brand !== input.brand && !modelInTitle
-  const model = brandCleared ? null : modelTrusted ? decideModel(brandChanged ? { ...input, model: null } : input, answer, brand, untrusted, refused, category, subcategory)
+  // Moved onto an accessory shelf on an untrusted answer: a stored model the title names only as the device it fits goes
+  // too — "Apple Watch Ultra" on a screen protector FOR the Apple Watch Ultra (the owner's screenshot).
+  // Only a model the title names AFTER "for/cho" — a model the title does not mention at all is not evidence of anything (astra).
+  const modelAsCompat = !!input.model && [input.title, input.titleVi ?? ''].some((t) => {
+    const at = t.toLowerCase().indexOf(input.model!.toLowerCase())
+    return at >= 0 && compatWord.test(t.slice(0, at))
+  })
+  const staleAccessoryModel = untrusted && subcategory !== input.subcategory && !!subcategory && ACCESSORY_SHELVES.has(subcategory) && modelAsCompat
+  const model = brandCleared || staleAccessoryModel ? null : modelTrusted ? decideModel(brandChanged ? { ...input, model: null } : input, answer, brand, untrusted, refused, category, subcategory)
     : (refused.push('model:brand-mismatch'), categoryHasBrand(category) || category === input.category ? input.model : null)
 
   return {
