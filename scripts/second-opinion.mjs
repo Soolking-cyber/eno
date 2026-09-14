@@ -31,14 +31,14 @@ import { join } from 'node:path'
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
 const RECEIPTS = join(ROOT, '.second-opinion')
 // Declared up here because `--status` validates receipts long before REVIEWERS is built below.
-// ⛔ PANEL SINCE 2026-09-14 = astra + opus, BOTH ON HIGH — owner: "2nd opinions update agy no token codex use
-// astra in high and opus 5 in high". agy is out of subscription quota (every run that day timed out at 400s with
-// `429 Individual quota reached`), and the codex seat now runs astra, so the separate gpt-5.6-sol seat is gone.
-// ⚠️ TWO SEATS, TWO LABS, AND THE QUORUM IS TWO LABS: both must answer or no receipt is written. That was
-// already the minimum; it is now also the maximum, so one silent seat blocks every commit until it is fixed.
+// ⛔ PANEL SINCE 2026-09-14 (afternoon) = astra + agy + opus, all on high. Owner, that morning: "2nd opinions update agy
+// no token codex use astra in high and opus 5 in high" — agy was out of subscription quota (429 "Individual quota
+// reached") and the gpt-5.6-sol seat was dropped for astra. Hours later, once the quota reset: "add agy back to 2nd
+// opinion set". The sol seat stays retired.
+// ⚠️ THREE SEATS, THREE LABS; THE QUORUM IS TWO LABS, so one silent seat no longer blocks every commit.
 // ⚠️ `astra` WAS MISSING FROM THIS LIST while it sat on the panel (2026-09-06..14), so `--status` never counted
 // its verdicts — receipts validated on codex + opus alone. It counts now.
-const REVIEWER_NAMES = ['astra', 'opus']
+const REVIEWER_NAMES = ['astra', 'agy', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -233,8 +233,26 @@ process.on('exit', () => {
 process.on('SIGINT', () => process.exit(130))
 process.on('SIGTERM', () => process.exit(143))
 
-// (agy took the prompt as argv and was truncated past 180KB; both remaining seats read stdin, so every counted
-// verdict now saw the whole diff. The truncation machinery left with agy on 2026-09-14.)
+// ⚠️ agy TAKES THE PROMPT AS AN ARGV STRING, which the OS caps (ARG_MAX). agy flagged this
+// reviewing its own invocation: a big enough diff makes spawn fail with E2BIG, agy silently becomes
+// 'no-answer', and the quorum quietly drops to two. Truncating keeps it answering on a large diff
+// and says so inside the prompt, rather than failing in a way that looks like silence.
+//
+// ⚠️ BUT A TRUNCATED REVIEW DOES NOT COUNT TOWARD THE QUORUM, and this is the subtler half — agy and
+// qwen independently caught it. The receipt is keyed to the hash of the FULL staged diff, so an agy
+// that only saw the first 180KB would still have its verdict certify bytes it never read. On a
+// codebase where the failure mode is a visa/PayPal surface leaking onto the licensed marketplace,
+// "reviewed" must mean the reviewer saw the licensing-relevant hunk — which, in a big diff, is as
+// likely to be at the end as the start. astra and opus BOTH take the prompt on stdin and so both
+// get the whole thing, which is what keeps the quorum reachable; agy's truncated verdict is
+// recorded but deliberately not counted.
+const AGY_LIMIT = 180_000
+// ⚠️ BYTES, NOT CHARACTERS (astra, agy, opus, 2026-09-14): ARG_MAX is a byte limit, and `prompt.length` counts UTF-16
+// units — a diff full of Vietnamese copy and ⚠️ marks is 2–4 bytes a character, so a "180KB" string could be 400KB on
+// the wire and still hit E2BIG. The cut is made on the byte buffer; a multi-byte character split at the edge decodes
+// as one replacement mark, which is harmless in a prompt that already says it was truncated.
+const promptBytes = Buffer.from(prompt, 'utf8')
+const agyTruncated = promptBytes.length > AGY_LIMIT
 
 const REVIEWERS = [
   /**
@@ -262,6 +280,21 @@ const REVIEWERS = [
    * second generation's eyes.
    */
   { name: 'astra', lab: 'openai', cmd: 'codex', args: ['exec', '-m', 'gpt-6-astra', '-c', 'model_reasoning_effort=high', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'], stdin: true },
+  {
+    name: 'agy',
+    lab: 'google',
+    cmd: 'agy',
+    truncated: agyTruncated,
+    // ⚠️ `--print-timeout` MUST SIT ABOVE agy's OWN RUNTIME AND BELOW OUR BOUND. It was 240s, and
+    // measured across four runs agy takes 219s, 224s, 245s, 246s — a distribution the deadline cut
+    // straight through. The two runs under 240s answered; the two over it were recorded as
+    // `no-answer` and dropped the quorum, once to 1/3, which REFUSED A CORRECT COMMIT. agy was
+    // working fine each time; the flag killed it.
+    // 400s keeps it under the 420s harness bound ON PURPOSE: agy gets to report its own failure
+    // before we SIGKILL the process group, which is the difference between a diagnosable error and
+    // silence. Whenever TIMEOUT_MS changes, this must stay below it.
+    args: ['-p', agyTruncated ? promptBytes.subarray(0, AGY_LIMIT).toString('utf8') + '\n\n[DIFF TRUNCATED at 180KB for argv limits — judge only what is shown]' : prompt, '--model', 'Gemini 3.8 Flash (High)', '--dangerously-skip-permissions', '--print-timeout', '400s'],
+  },
   /**
    * ⛔ THE THIRD SEAT'S HISTORY, KEPT BECAUSE IT IS THE ARGUMENT FOR THE CURRENT PANEL.
    *
@@ -479,8 +512,7 @@ for (const r of results) {
   }
 }
 
-// ⚠️ QUORUM COUNTS ONLY REVIEWERS THAT SAW THE WHOLE DIFF. No current seat is truncated (both read stdin); the
-// filter stays so a future argv-fed seat cannot certify bytes it never read.
+// ⚠️ QUORUM COUNTS ONLY REVIEWERS THAT SAW THE WHOLE DIFF — see the AGY_LIMIT note above.
 const answered = results.filter((r) => r.verdict !== 'no-answer')
 const counted = answered.filter((r) => !r.truncated)
 /**
@@ -497,14 +529,21 @@ const counted = answered.filter((r) => !r.truncated)
 const labsAnswered = new Set(answered.map((r) => r.lab)).size
 const labsCounted = new Set(counted.map((r) => r.lab)).size
 console.log(`\n${answered.length}/${REVIEWERS.length} seats answered across ${labsAnswered} lab(s) — ${counted.length} seat(s) / ${labsCounted} lab(s) saw the full diff.`)
-// ⛔ opus IS THE SAME MODEL THAT WRITES MOST OF THESE DIFFS, and on the two-seat panel it is HALF the quorum.
-// A CONFIRMED from opus beside a REFUTED from astra is one independent reviewer objecting — weight it that way.
+// ⛔ opus IS THE SAME MODEL THAT WRITES MOST OF THESE DIFFS. A CONFIRMED from opus beside a REFUTED from astra or
+// agy is an independent reviewer objecting — weight it that way.
 // ⚠️ PRINTED ON EVERY RUN, not only written here (astra): the agy-truncation banner used to say this out loud on
 // big diffs, and on this panel it is true of every diff, so a "2/2 across 2 labs" must never read as two
 // independent families.
+// ⚠️ PAST agy's 180KB CUTOFF agy does not count, and the certifying panel is astra + opus: one independent lab plus
+// the author's own model. On a diff that big, read the licensing-relevant hunks yourself or split the change.
+if (agyTruncated) {
+  console.log('\n⛔ THIS DIFF IS OVER 180KB, SO agy DOES NOT COUNT — the panel that certified it is')
+  console.log('   astra + opus, and opus is the SAME MODEL that wrote the change. Read the licensing-relevant')
+  console.log('   hunks yourself before trusting it, or split the change until agy can see all of it.')
+}
 if (counted.some((r) => r.name === 'opus')) {
-  console.log('⚠️  opus is the SAME MODEL that wrote most diffs here — half of this quorum is a self-review. astra is the')
-  console.log('   only independent seat: if it REFUTED, that dissent is the one to measure.')
+  console.log('⚠️  opus is the SAME MODEL that wrote most diffs here — its verdict is a self-review. astra and agy are the')
+  console.log('   independent seats: if either REFUTED, that dissent is the one to measure.')
 }
 
 // ⚠️ THE RECEIPT IS WRITTEN ONLY AFTER THE QUORUM HOLDS — AND THIS ORDER IS THE GATE.
