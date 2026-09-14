@@ -3,12 +3,12 @@ import * as React from 'react'
 
 import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
-import { Handshake } from '@/components/ui/icons'
+import { UI_ART } from '@/generated/icon-paths'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
 /**
- * THE OFFICIAL-PARTNER BADGE — a handshake + "P" plate in partner green that explains itself when tapped.
+ * THE OFFICIAL-PARTNER BADGE — a shield + "P" plate in partner green that explains itself when tapped.
  * (Since 2026-09-14; the history below is of the worded pill it replaced — see the plate comment.)
  *
  * Owner, 2026-08-13: "official partner badge with gold outline similar to trust badge, short
@@ -89,10 +89,9 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
             to trust badge". So the box is the trust chip's exact class string (px-1.5 py-0.5 text-2xs leading-none,
             an 11px glyph setting the 15px height) — the two sit on one line at one height because they are the same
             declaration, the fix the owner asked for on 2026-08-13 when a separately-sized pill measured taller.
-            ⚠️ A HANDSHAKE, NOT A SHIELD. The trust chip beside it on other surfaces is a shield + number; a shield + "P"
-            would read as a trust score, which is the exact conflation (an EARNED score vs a GRANTED relationship) the
-            partner mark has kept apart since it left gold. The handshake also says what "P" stands for — the letter
-            alone cannot be decoded on touch, where the tooltip never opens.
+            ⛔ THE SAME SHIELD AS THE TRUST CHIP, NOT A HANDSHAKE (owner, 2026-09-14: "just have the same shield icon for
+            partners not the waving one"). A handshake shipped for a few hours in 67802694; the owner prefers one mark
+            across both badges, told apart by the partner green and the "P" where the trust chip has a number.
             This reverses the 2026-08-13 rule that the word "Partner" stays at every width — the owner's call. The full
             "Official partner" is still the accessible name (role=img / the link's label) and the tooltip.
             ⚠️ THE SAME `.badge-plate` AS THE TRUST CHIP, tinted and inked with the partner green; the contrast
@@ -104,7 +103,12 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
           )}
           style={{ '--plate-tint': 'var(--partner-ink)', '--plate-ink': 'var(--partner-ink)' } as React.CSSProperties}
         >
-          <Handshake aria-hidden size={11} className="shrink-0" />
+          {/* The trust chip's exact glyph — Solar shield-verified at 11px, painted the same way (trust-score.tsx mini). */}
+          <svg width={11} height={11} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
+            {UI_ART['shield-verified'].rest.map((p, i) => (
+              <path key={i} d={p.d} fill="currentColor" fillRule={p.evenOdd ? 'evenodd' : undefined} clipRule={p.evenOdd ? 'evenodd' : undefined} />
+            ))}
+          </svg>
           {/* Through tr() like every visible string (react/jsx-no-literals). "P" in both languages is the
               owner's letter; the Vietnamese side is where an "Đ" would go if that is ever asked for. */}
           {tr('P', 'P')}
