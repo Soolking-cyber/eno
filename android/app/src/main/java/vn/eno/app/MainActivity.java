@@ -144,6 +144,8 @@ public class MainActivity extends BridgeActivity {
         // the theme — without it the activity would keep the launch theme). Must run before
         // super.onCreate.
         SplashScreen.installSplashScreen(this);
+        // Local plugins must be registered BEFORE super.onCreate, which builds the bridge (Capacitor docs).
+        registerPlugin(EnoHapticsPlugin.class);
         super.onCreate(savedInstanceState);
         // Everything from here on is a WARM event (see the field comment).
         started = true;

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from '@/context/theme-context'
 import { useLanguage } from '@/context/language-context'
 import { setNativeKeyboard } from '@/hooks/use-virtual-keyboard'
-import { hapticTap } from '@/lib/haptics'
+import { hapticLongPress, hapticTap } from '@/lib/haptics'
 import { canonicalAppPath } from '@/lib/deep-link'
 
 // The status bar sits over the bg-card header, so it must match it. Read the LIVE --card token
@@ -287,11 +287,16 @@ export function NativeBootstrap() {
       const url = new URL(href, window.location.origin).toString()
       const title = link.getAttribute('aria-label') || document.title
       suppressClick = true // the touchend fires a click we must swallow so it doesn't navigate
-      hapticTap()
+      hapticLongPress()
       try {
         const { ActionSheet, ActionSheetButtonStyle } = await import('@capacitor/action-sheet')
         const res = await ActionSheet.showActions({
           title,
+          // ⛔ `cancelable: true` — WITHOUT IT THE SHEET COULD ONLY BE LEFT BY ITS "Cancel" ROW (owner, 2026-09-14: "on long
+          // press on product it shows share panel closes only on pressing x … closed on swipe action"). The plugin defaults
+          // to false, and on Android that is a Material BottomSheetDialogFragment with outside-tap, swipe-down AND the back key
+          // all disabled (ActionSheetPlugin.java: setCancelable). A dismissal resolves index -1, which the chain below ignores.
+          cancelable: true,
           options: [
             { title: tr('Share', 'Chia sẻ') },
             { title: tr('Copy link', 'Sao chép liên kết') },

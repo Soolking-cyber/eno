@@ -55,6 +55,30 @@ function isNativeCap(): boolean {
   const c = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
   return !!c?.isNativePlatform?.()
 }
+/**
+ * ANDROID: THE SYSTEM'S TUNED HAPTICS FIRST (owner, 2026-09-14: "more pleasant haptics … best industry standards").
+ * The app binary ships `EnoHaptics` (android/…/EnoHapticsPlugin.java), which calls View.performHapticFeedback with the
+ * semantic HapticFeedbackConstants — crisp device-tuned ticks that respect the user's touch-feedback setting — where
+ * @capacitor/haptics plays a hand-timed 50 ms buzz. The site is served to every installed version, so an older binary
+ * without the plugin falls back to the previous path: `false` here means "not handled, use the fallback".
+ */
+type EnoHapticKind = 'tap' | 'selection' | 'confirm' | 'error' | 'longPress'
+type EnoHapticsPlugin = { perform(o: { kind: EnoHapticKind }): Promise<unknown> }
+// ⚠️ THROUGH registerPlugin, NOT `Capacitor.Plugins.EnoHaptics` (astra): a native plugin being AVAILABLE does not
+// guarantee a JS proxy on that legacy object; registerPlugin builds the proxy the documented way. Loaded once, lazily —
+// @capacitor/core is already in the app bundle, this only avoids pulling it into the first paint.
+let enoHapticsProxy: Promise<EnoHapticsPlugin> | null = null
+function androidSystemHaptic(kind: EnoHapticKind): boolean {
+  if (typeof window === 'undefined' || !isAndroid()) return false
+  const c = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; isPluginAvailable?: (n: string) => boolean } }).Capacitor
+  if (!c?.isNativePlatform?.() || !c.isPluginAvailable?.('EnoHaptics')) return false
+  enoHapticsProxy ??= import('@capacitor/core').then(({ registerPlugin }) => registerPlugin<EnoHapticsPlugin>('EnoHaptics'))
+  void (async () => {
+    try { await (await enoHapticsProxy!).perform({ kind }) } catch { enoHapticsProxy = null /* retried next call; a failed tick is silence */ }
+  })()
+  return true
+}
+
 async function nativeImpact(style: 'Light' | 'Medium' | 'Heavy'): Promise<void> {
   try {
     const { Haptics, ImpactStyle } = await import('@capacitor/haptics')
@@ -93,6 +117,7 @@ function getIosTrigger(): HTMLLabelElement | null {
 const REPEAT_GAP_MS = 40
 let lastFiredAt = 0
 function fire(ms: number) {
+  if (androidSystemHaptic('tap')) return
   if (isNativeCap()) { void nativeImpact(ms >= 18 ? 'Medium' : 'Light'); return }
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
     try { navigator.vibrate(ms) } catch { /* ignore */ }
@@ -181,6 +206,7 @@ export function hapticSelection(): void {
    * ⚠️ ANDROID IS DELIBERATELY NOT ON THE SELECTION API — see the measurement above. `fire(8)` puts
    * it on impact LIGHT, which is the lightest thing the platform actually offers.
    */
+  if (androidSystemHaptic('selection')) return
   if (isNativeCap() && !isAndroid()) {
     if (selectionBusy) return
     selectionBusy = true
@@ -228,6 +254,7 @@ export function haptic(ms = 12): void {
 export function hapticConfirm(): void {
   if (typeof window === 'undefined') return
   lastFiredAt = Date.now()
+  if (androidSystemHaptic('confirm')) return
   if (isNativeCap()) { void nativeNotify('Success'); return } // real Taptic success pattern
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) { try { navigator.vibrate([10, 50, 10]) } catch { /* ignore */ }; return }
   fire(10); setTimeout(() => fire(10), 90) // iOS: two spaced ticks
@@ -240,7 +267,18 @@ export function hapticConfirm(): void {
 export function hapticError(): void {
   if (typeof window === 'undefined') return
   lastFiredAt = Date.now()
+  if (androidSystemHaptic('error')) return
   if (isNativeCap()) { void nativeNotify('Error'); return } // real Taptic error pattern
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) { try { navigator.vibrate([12, 40, 12, 40, 12]) } catch { /* ignore */ }; return }
   fire(12); setTimeout(() => fire(12), 70); setTimeout(() => fire(12), 140)
+}
+
+/** A long press that OPENED something (the card's share sheet). Android: the system LONG_PRESS; elsewhere a normal tap. */
+export function hapticLongPress(): void {
+  if (typeof window === 'undefined') return
+  const now = Date.now()
+  if (now - lastFiredAt < REPEAT_GAP_MS) return
+  lastFiredAt = now
+  if (androidSystemHaptic('longPress')) return
+  fire(18)
 }
