@@ -3,12 +3,12 @@ import * as React from 'react'
 
 import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
-import { ShieldCheck } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
 /**
- * THE OFFICIAL-PARTNER BADGE — a worded gold pill that explains itself when tapped.
+ * THE OFFICIAL-PARTNER BADGE — a round "P" plate in partner green that explains itself when tapped.
+ * (Since 2026-09-14; the history below is of the worded pill it replaced — see the plate comment.)
  *
  * Owner, 2026-08-13: "official partner badge with gold outline similar to trust badge, short
  * precise partner in white inside golden pill and when clicked similar to trust explanation".
@@ -44,11 +44,7 @@ import { cn } from '@/lib/utils'
  */
 export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?: 'sm' | 'md'; className?: string; asLink?: boolean }) {
   const { tr } = useLanguage()
-  // Short and precise, per the brief. The TOOLTIP and the link's accessible name carry the full
-  // "Official partner" — the pill itself only has room for the noun, and a badge that wraps onto
-  // two lines inside a card meta row is worse than a shorter word.
-  const word = tr('Partner', 'Đối tác')
-  // The full phrase, reused so the visible word and the announced name cannot drift apart.
+  // The full phrase is the accessible name and the tooltip; the plate itself shows only "P".
   const full = tr('Official partner', 'Đối tác chính thức')
   return (
     /* ⚠️ NO "tap to find out" IN THE TOOLTIP. A tooltip does not open on touch, so the one
@@ -78,39 +74,37 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
         className={cn(
           'inline-flex shrink-0 rounded-full',
           asLink && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          // ⚠️ `-m-[4.5px] p-[4.5px]` ON THE LINK: the "P" is 15px, under the 24px minimum as a tap target
+          // (codex). 4.5px a side makes the target exactly 24px and the negative margin gives the space
+          // back, so nothing moves. The link branch only renders standalone (shop link, seller card,
+          // /partners) and partner REPLACES the trust chip, so the grown box has no neighbouring target.
+          // Not an absolute hit-area pseudo-element: that needs `relative`, which the note above forbids.
+          asLink && '-m-[4.5px] p-[4.5px]',
         )}
       >
-        {/* ⚠️ A PLAIN <span> WITH THE TRUST CHIP'S EXACT CLASS STRING, NOT <Badge>. Owner,
-            2026-08-13: "height is still taller than other trust pills" — it measured 18.8px against
-            the trust chip's ~16px even though both were given px-1.5 py-0.5 text-2xs leading-none.
-            The cause is the trap CLAUDE.md names: `text-2xs` is a Tailwind text utility, so it sets
-            font-size AND line-height, and whether it or `leading-none` wins is decided by
-            STYLESHEET ORDER, not by which class was passed last. Through ui/badge the size class
-            arrived from the variant and the override from the caller, and the line-height came out
-            of the size. Copying trust-score.tsx's own string verbatim removes the question: the two
-            chips are the same box because they are the same declaration, and any future drift shows
-            up in one place. `.partner-fill` supplies the ground and the ink. */}
-        <span className={cn(
-          'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-bold leading-none',
-          'partner-fill',
-          className,
-        )}>
-          {/* Solar's shield-check, the same family the trust chip uses for its seal. Deliberately
-              NOT the eno seal: the seal means "eno verified this account", and a partnership is a
-              commercial agreement rather than a verification outcome. */}
-          {/* ⚠️ 11px, MATCHING trust-score.tsx's mini glyph EXACTLY (`width={11} height={11}`).
-              This is the last pixel of the height match the owner asked for: at h-3 (12px) the
-              glyph, not the text, set the box and the pill measured 16px against the trust chip's
-              15px. The icon is the tallest child, so its size IS the chip's height. */}
-          <ShieldCheck aria-hidden size={11} className="shrink-0" />
-          {/* ⛔ THE WORD STAYS AT EVERY WIDTH, and hiding it below `sm` was tried and reverted.
-              It would have bought 44px in the feed card's meta row — but the row's truncation was
-              fixed by abbreviating the city instead (listing-card.tsx), and measuring showed that
-              alone is enough: 0 of 12 rows truncate at 320px with this badge at its full 67px.
-              ⛔ AND THE COST WOULD HAVE BEEN REAL: below `sm` is exactly where hover does not
-              exist, so a bare shield's only remaining explanation is a tooltip that can never
-              open. A reviewer named that; the measurement is what made it unnecessary to argue. */}
-          {word}
+        {/* ⚠️ A LETTER "P" ON A ROUND TRANSLUCENT PLATE (owner, 2026-09-14: "semitransparent plates
+            similar to heart icons plate on product cards but with their respective subtle coloring.
+            also have letter P only for partner badge"). This reverses the 2026-08-13 rule that the
+            word "Partner" stays at every width — the owner's call. What that rule protected still
+            holds: the full "Official partner" is the accessible name (role=img / the link's label)
+            and the tooltip, so the plate is never an unnamed mark; on touch the tooltip does not open,
+            which is the accepted cost of the letter.
+            ⚠️ 15px SQUARE = THE TRUST CHIP'S MEASURED HEIGHT (its 11px glyph + py-0.5), so the two sit
+            on one line at one height. `size-[15px]` fixes the box instead of letting the glyph's
+            line-height decide it — the height mismatch the owner flagged on 2026-08-13 came from
+            exactly that (`text-2xs` sets line-height too, and stylesheet order picks the winner).
+            ⚠️ THE SAME `.badge-plate` AS THE TRUST CHIP, tinted and inked with the partner green; the
+            contrast measurements are on that rule in globals.css. */}
+        <span
+          className={cn(
+            'badge-plate inline-flex size-[15px] shrink-0 items-center justify-center rounded-full text-2xs font-bold leading-none',
+            className,
+          )}
+          style={{ '--plate-tint': 'var(--partner-ink)', '--plate-ink': 'var(--partner-ink)' } as React.CSSProperties}
+        >
+          {/* Through tr() like every visible string (react/jsx-no-literals). "P" in both languages is the
+              owner's letter; the Vietnamese side is where an "Đ" would go if that is ever asked for. */}
+          {tr('P', 'P')}
         </span>
       </LinkOrSpan>
     </Tooltip>

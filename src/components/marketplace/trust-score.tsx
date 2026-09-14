@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useLanguage } from '@/context/language-context'
-import { trustScoreColor, trustFillClass } from '@/lib/trust-score'
+import { trustScoreColor } from '@/lib/trust-score'
 import { UI_ART } from '@/generated/icon-paths'
 import { cn } from '@/lib/utils'
 
@@ -24,9 +24,9 @@ type Props = {
 // Pixel size of the square shield badge per size.
 const PX = { sm: 28, md: 38, lg: 48 } as const
 
-// Gradient stops + in-badge text color per EARNED tier (mirrors the .trust-fill-*
-// classes in globals.css — SVG needs its own <linearGradient>, CSS classes can't
-// paint SVG fills).
+// Gradient stops + in-badge text color per EARNED tier, for the SVG shield only. (The feed chip
+// mirrored these as .trust-fill-* classes until 2026-09-14, when it became a translucent
+// `.badge-plate`; the shield is now the sole owner of the gradients.)
 //
 // ⚠️ TEXT HOLDS ≥4.5:1 AGAINST THE WORST STOP, AND THE WORST STOP DEPENDS ON THE INK.
 // This comment used to say "against the lightest stop", and that wrong rule is exactly why
@@ -42,10 +42,7 @@ const PX = { sm: 28, md: 38, lg: 48 } as const
 // contrast. It is the same inverted reasoning that produced the original bug, which is why
 // it is written down here rather than just fixed.
 //
-// ⚠️ THESE VALUES ARE DUPLICATED IN `globals.css` (.trust-fill-*) BY NECESSITY — a CSS class
-// cannot paint an SVG fill, so the chip and the shield each need their own copy. They are a
-// sync pair with no compiler to enforce it: change one, change the other, or the same score
-// renders two different blues on one screen.
+// trust-contrast.test.ts checks every stop against its ink.
 const SHIELD_GRADIENT: Record<string, { from: string; mid: string; to: string; text: string }> = {
   trusted: { from: '#3473da', mid: '#2563eb', to: '#1d4ed8', text: '#ffffff' },
   exceptional: { from: '#fde047', mid: '#facc15', to: '#f59e0b', text: '#5c330e' },
@@ -62,7 +59,6 @@ const SHIELD_GRADIENT: Record<string, { from: string; mid: string; to: string; t
 export function TrustScore({ score, size = 'sm', showLabel = false, variant = 'shield', href, className }: Props) {
   const { lang, tr } = useLanguage()
   const { color, label, labelVi, band } = trustScoreColor(score)
-  const fill = trustFillClass(band)
   const n = Math.round(score)
   const title = `${tr('Trust score', 'Điểm uy tín')}: ${n} · ${lang === 'vi' ? labelVi : label}`
   // The inner span carries a NATIVE title only when there is NO href — that is the unwrapped case
@@ -80,17 +76,21 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   if (variant === 'mini') {
     // Card-facing chip: shield + score ONLY (user decision 2026-07-13 — a tier
     // word made cards too verbose; the `title` tooltip and every tap-through
-    // surface still name the tier). Earned tiers get the glossy gradient fill;
-    // building/restricted keep the quiet 10%-tint treatment.
+    // surface still name the tier).
+    // ⚠️ EVERY TIER IS A TRANSLUCENT PLATE NOW, earned tiers included (owner, 2026-09-14:
+    // "semitransparent plates similar to heart icons plate … with their respective subtle
+    // coloring"). The glossy gradient fills are gone from the chip; `.badge-plate` in globals.css
+    // carries the tint and the contrast measurements. Gold alone takes a darker ink token in light
+    // mode, because yellow-700 on its own wash is 4.0:1.
+    const plate = { '--plate-tint': color, '--plate-ink': band === 'exceptional' ? 'var(--trust-exceptional-ink)' : color } as React.CSSProperties
     return wrap(
       <span
         title={nativeTitle}
         className={cn(
-          'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-bold leading-none tabular-nums',
-          fill,
+          'badge-plate inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-bold leading-none tabular-nums',
           className,
         )}
-        style={fill ? undefined : { color, background: 'color-mix(in srgb, currentColor 10%, transparent)' }}
+        style={plate}
       >
         {/* ⚠️ SOLAR'S `shield-check`, NOT THE eno SEAL. This is the one variant where the tick
             belongs: the score sits BESIDE the shield as text, so nothing competes for the

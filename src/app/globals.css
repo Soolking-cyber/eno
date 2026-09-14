@@ -330,8 +330,14 @@
   --trust-restricted: #b91c1c; /* red-700    ~4.9:1 — bad (vivid crimson) */
   --trust-standard:   #525252; /* neutral-600  ~7.6:1 — building (neutral, not punitive) */
   --trust-trusted:    #1d4ed8; /* blue-700   ~6.4:1 — Trusted (electric brand blue) */
-  --trust-exceptional:#a16207; /* yellow-700 ~5.0:1 — Exceptional TEXT contexts (true gold family; the shiny badge fill is .trust-fill-exceptional) */
+  --trust-exceptional:#a16207; /* yellow-700 ~5.0:1 — Exceptional TEXT contexts (true gold family; the badge plate inks with --trust-exceptional-ink) */
   --trust-elite:      #6d28d9; /* violet-700 ~6.1:1 — Elite (top, 160+) */
+  /* Ink for the two badge plates whose tier colour is too light to sit on its own 14% tint (see
+     .badge-plate). Measured on --muted #f5f5f5, the darkest light surface a chip sits on: yellow-700 ink
+     was 4.0:1 and green-700 4.1:1; one step darker is 5.26 and 5.30. The tint stays the tier's. */
+  --trust-exceptional-ink: #854d0e; /* yellow-800 */
+  --partner-ink:           #166534; /* green-800 */
+  --plate-alpha:           14%;     /* the badge plate's wash — see .badge-plate */
 
   /* Semantic status (light): AA on white/tint cards. */
   --success: #166534; /* green-800 — green-700 (#15803d) is only 4.22:1 as text on
@@ -628,6 +634,13 @@
   --trust-trusted:    #60a5fa; /* blue-400    — Trusted (electric on dark) */
   --trust-exceptional:#facc15; /* yellow-400  — Exceptional (true gold, vivid on dark) */
   --trust-elite:      #a78bfa; /* violet-400  — Elite */
+  /* Dark plates: the vivid tier colour IS the ink (≥4.62:1 on its 8% wash over #2a2a2a). Partner
+     lifts to green-400 here — green-700 ink on a dark card is 2.9:1 — and tints with it too. */
+  --trust-exceptional-ink: #facc15;
+  --partner-ink:           #4ade80;
+  /* 8%, not the light theme's 14%: a light ink loses contrast as its own wash brightens the ground,
+     and chips also sit on popovers (#2a2a2a), where 12% put restricted red at 4.34:1. At 8%: 4.62. */
+  --plate-alpha:           8%;
 
   /* Semantic status (dark): lightened so they read on dark cards. */
   --success: #4ade80; /* green-400 */
@@ -2422,35 +2435,6 @@ html.dark .leaflet-tile-pane {
   }
 }
 
-/* ── Trust badge fills — the EARNED tiers get vivid, glossy gradient chips ──────
-   (Trusted = electric blue, Exceptional = true yellow gold, Elite = royal violet).
-   ⚠️ TEXT HOLDS ≥4.5:1 AGAINST THE WORST STOP — AND THE WORST STOP IS NOT ALWAYS THE
-   LIGHTEST. That sentence used to read "the LIGHTEST gradient stop", and the rule being
-   stated wrong is what let two of the three tiers ship failing. It only holds for LIGHT ink:
-   white text is worst over the lightest stop, but DARK text is worst over the DARKEST one.
-   Exceptional carries dark ink on gold, so checking its lightest stop measured a comfortable
-   6.58:1 while the end of the same gradient sat at 4.04:1. The rule is: compare against the
-   stop CLOSEST IN LUMINANCE to the text, and check all three. The gloss is a
-   static inner highlight (no animation on feed chips — dozens per screen); the
-   larger shield SVG carries its own glassy highlight. Same fills in both themes. */
-.trust-fill-trusted {
-  /* ⚠️ #3473da, NOT #3b82f6 (blue-500). The lighter stop measured 3.68:1 against white —
-     under AA — and this chip renders the score at 10px on EVERY listing card, so the
-     large-text allowance does not apply. Verified across all three stops: 4.55 / 5.17 / 6.70. */
-  background-image: linear-gradient(135deg, #3473da 0%, #2563eb 55%, #1d4ed8 100%);
-  color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
-}
-/* THE WORDED OFFICIAL-PARTNER PILL. Deep gold ground + bright foil rim + white label —
-   see the --partner-solid block for the contrast measurements that forced the ground dark
-   and the rim bright, and for why this must not resemble .trust-fill-exceptional above.
-   ⚠️ THE RIM IS A `box-shadow` INSET, NOT A `border`. A border would grow the pill's box and
-   push it out of line with the trust chip beside it, which carries no border; an inset ring
-   paints inside the same box. It is also why the radius needs no separate handling — an
-   inset shadow follows whatever `rounded-full` (or corner-shape) the element already has.
-   ⚠️ FORCED COLORS: the gradient and the shadow are both dropped, so the pill reduces to the
-   UA's own button colours and the LABEL still says "Official partner". That is the whole
-   reason this badge carries a word rather than only a ring — the ring had no fallback. */
 /* ── THE ONE OVERLAY SCRIM ────────────────────────────────────────────────────────────────────
    Owner, 2026-08-13: "look at the background blur and popup emphasis apply similar style for all
    popups and dropdowns now its inconsistent we need consistency throughout the app".
@@ -2493,36 +2477,44 @@ html.dark .leaflet-tile-pane {
   }
 }
 
-.partner-fill {
-  /* ⚠️ NO RIM AND NO GRADIENT (owner: "no gold outline but the badge itself gold", then "make the
-     pill 1 bright gold same as outline no gradient"). One flat --partner-solid, dark ink. The
-     measurements and the reason this may now look like the Exceptional trust chip are on the
-     --partner-solid block above; do not re-add a ramp or a ring without reading it. */
-  background-color: var(--partner-solid);
-  color: #fff;
-}
-
-.trust-fill-exceptional {
-  /* ⚠️ MID AT 55%, MATCHING THE SHIELD — it was 45% here and 55% in the SVG, so this one
-     tier rendered a visibly different gold in the chip than in the badge. Colours alone are
-     not the sync pair; the STOP POSITIONS are half of it. */
-  background-image: linear-gradient(135deg, #fde047 0%, #facc15 55%, #f59e0b 100%);
-  /* ⚠️ THE TEXT MOVED, NOT THE GOLD — the gradient is the brand's, and darkening the ink is
-     the change nobody sees. #713f12 measured 4.04:1 against the DARKEST stop (#f59e0b); the
-     old "≈7:1" note was reading the lightest stop only, the wrong end for dark ink.
-     Measured for #5c330e: 8.23 / 7.09 / 5.05 across the three stops.
-     ⚠️ DARKEN THE INK, NEVER THE GOLD, TO BUY HEADROOM. A reviewer proposed darkening the
-     `to` stop instead; measured, that makes it WORSE — dark ink on darker gold loses
-     contrast (4.51 → 3.75 → 3.04 as the end stop darkens). That is the same
-     wrong-direction reasoning the original comment shipped. An intermediate #673910 also
-     cleared AA, but only by 0.007, which is not a margin — hence #5c330e. */
-  color: #5c330e;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
-}
-.trust-fill-elite {
-  background-image: linear-gradient(135deg, #7c3aed 0%, #6d28d9 55%, #5b21b6 100%);
-  color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+/* ── BADGE PLATES — the trust chip and the partner "P" ─────────────────────────────────────────
+   Owner, 2026-09-14: "make sure the trust badges and partner badges have semitransparent plates
+   similar to heart icons plate on product cards but with their respective subtle coloring. also
+   have letter P only for partner badge". This REPLACES the solid chips — the glossy tier gradients
+   (.trust-fill-*, deleted; the shield keeps its own SVG gradient) and the flat green partner pill.
+   (Older comments above still name .trust-fill-exceptional: they record why partner left gold.)
+   The heart's plate is a translucent disc; these are the same idea in the badge's own colour: a 14%
+   wash of the tier hue behind ink of that hue, so every tier reads as one family and the colour, not
+   a slab of fill, carries the tier.
+   The call site sets two custom properties: `--plate-tint` (the hue) and `--plate-ink` (the text).
+   ⚠️ THE WASH IS --plate-alpha, 14% LIGHT / 8% DARK, AND BOTH ARE MEASURED CEILINGS, NOT TASTE. Contrast
+   falls as the wash rises. Worst light chip: restricted red on --muted #f5f5f5, 4.70:1 at 14% (4.54 at 16%,
+   just over the 10px-bold floor). Worst dark chip: restricted red on the popover #2a2a2a, 4.62:1 at 8%. Raise either and
+   re-measure every tier on the darkest light surface and the lightest dark one a chip sits on —
+   trust-contrast.test.ts does exactly that, so it fails first.
+   ⚠️ color-mix() needs Safari 16.2; this repo's floor is 16.0. There the wash is invalid and dropped, so
+   the fallback below draws the plate as a hairline ring in the ink instead — a plate you can still see
+   (a bare floating "P" is not a badge), and one that costs no contrast, where any solid neutral wash
+   under the ink would (6% black over --muted puts restricted red at ~4.1:1). */
+@layer components {
+  .badge-plate {
+    background-color: color-mix(in srgb, var(--plate-tint) var(--plate-alpha), transparent);
+    color: var(--plate-ink);
+  }
+  @supports not (background-color: color-mix(in srgb, red 50%, transparent)) {
+    .badge-plate {
+      box-shadow: inset 0 0 0 1px currentColor;
+    }
+  }
+  /* ⚠️ FORCED COLORS drop both the wash and box-shadow, which would leave a bare "P" or number. An
+     OUTLINE survives (the UA recolours it to CanvasText) and, inset by its own width, adds no box —
+     the 15px height match with the trust chip holds. */
+  @media (forced-colors: active) {
+    .badge-plate {
+      outline: 1px solid;
+      outline-offset: -1px;
+    }
+  }
 }
 
 /* ── The category duotone: fill the whole body, exclude the decorations ──────────
