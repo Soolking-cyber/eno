@@ -49,7 +49,8 @@ const config: CapacitorConfig = {
   // ⚠️ THE PLAY PACKAGE NAME — see the note on applicationId in android/app/build.gradle. The Java
   // namespace is still vn.eno.app; only what Play sees changed.
   appId: 'eno.vn',
-  appName: 'eno',
+  // Owner, 2026-09-14: "name should be Eno Marketplace" (Android's launcher label lives in res/values/strings.xml).
+  appName: 'Eno Marketplace',
   webDir: 'capacitor/www',
   /**
    * The cross-origin app-mode signal — Android does not inject Capacitor into non-server origins,
