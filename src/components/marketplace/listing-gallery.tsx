@@ -301,6 +301,18 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
    */
   const [dragX, setDragX] = useState(0)
   /**
+   * SWIPE DOWN (OR UP) TO CLOSE — the photo viewer gesture every native gallery has (owner, 2026-09-14: "make sure all
+   * pages panels are closed on swipe action use mobile native swiping all across the app properly"). The vertical axis
+   * was locked out and ignored before, so the lightbox could only be left by its X, a tap on the scrim or the back key.
+   * The photo follows the finger and fades; past 120px, or a flick (≥0.5 px/ms over ≥40px), it closes through the same
+   * `closeLightbox` the X uses. Never while zoomed (that drag pans) and never after a second finger joined (a pinch).
+   */
+  const [dragY, setDragY] = useState(0)
+  const pinched = useRef(false)
+  // After a BROWSER pinch-zoom (the `pinch-zoom` touch-action hands two fingers to the browser) a later one-finger drag is
+  // a pan around the zoomed view, not a dismissal — `pinched` only covers the gesture the second finger joined (opus).
+  const browserZoomed = () => typeof window !== 'undefined' && (window.visualViewport?.scale ?? 1) > 1.01
+  /**
    * Which way this gesture was going when it declared itself: 'x' tracks, 'y' never will.
    * ⚠️ DECIDED ONCE PER GESTURE, NOT PER MOVE. Re-testing `|dx| < |dy|` on every touchmove let a
    * swipe that drifted vertically half-way through simply stop updating — the photo froze at
@@ -324,7 +336,8 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
    *  thumbnail is reachable underneath it — a reviewer's "reopen mid-exit" case cannot be reached
    *  today. It costs one call to guarantee a fresh open never inherits `animate-out` plus an armed
    *  400ms timer, and removes the need to re-derive that argument next time this file changes. */
-  const openAt = (n: number) => { setClosing(false); setIdx(n); setOpen(true) }
+  // `setDragY(0)`: a swipe-down dismissal leaves the photo where the finger let go, so the next open must start centred.
+  const openAt = (n: number) => { setClosing(false); setDragY(0); setIdx(n); setOpen(true) }
 
   // Leaving a photo (or the lightbox) always resets the zoom.
   useEffect(() => { setZoom(null) }, [idx, open])
@@ -628,6 +641,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               startX.current = t.clientX
               startY.current = t.clientY
               startT.current = Date.now()
+              pinched.current = e.touches.length > 1
               if (zoom) { panStart.current = { x: t.clientX, y: t.clientY, tx: zoom.tx, ty: zoom.ty }; setPanning(true) }
             }}
             onTouchMove={(e) => {
@@ -654,13 +668,17 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                * `pinch-zoom` here precisely so that gesture belongs to the browser. A reviewer
                * caught it. Anything already dragged is returned before handing the gesture over.
                */
-              if (e.touches.length > 1) { if (dragX !== 0) setDragX(0); dragAxis.current = 'y'; return }
+              if (e.touches.length > 1) { pinched.current = true; if (dragX !== 0) setDragX(0); if (dragY !== 0) setDragY(0); dragAxis.current = 'y'; return }
               if (startX.current == null) return
               const t = e.touches[0]
               const dx = t.clientX - startX.current
               const dy = startY.current == null ? 0 : t.clientY - startY.current
               if (dragAxis.current === null && Math.hypot(dx, dy) > 8) {
                 dragAxis.current = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+              }
+              if (dragAxis.current === 'y') {
+                if (!pinched.current && !browserZoomed()) { setPanning(true); setDragY(dy) }
+                return
               }
               if (dragAxis.current !== 'x') return
               setPanning(true)
@@ -680,6 +698,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               dragAxis.current = null
               setPanning(false)
               setDragX(0)
+              setDragY(0)
             }}
             onTouchEnd={(e) => {
               // Set by the swipe branch below; decides whether the offset animates back or snaps.
@@ -718,6 +737,14 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                * crosses the 8px classification threshold, and that flick is exactly the gesture the
                * velocity rule below exists to serve. Only an explicit 'y' is refused.
                */
+              let dismissed = false
+              if (!zoom && dragAxis.current === 'y' && !pinched.current && !browserZoomed() && startY.current != null) {
+                const dy = t.clientY - startY.current
+                const ms = Math.max(1, Date.now() - startT.current)
+                if (Math.abs(dy) > 120 || (Math.abs(dy) >= 40 && Math.abs(dy) / ms >= 0.5)) { dismissed = true; closeLightbox() }
+              }
+              // A dismissal keeps the photo where the finger left it while the lightbox fades out.
+              if (!dismissed) setDragY(0)
               if (!zoom && startX.current != null && dragAxis.current !== 'y') {
                 const dx = t.clientX - startX.current
                 /**
@@ -788,7 +815,9 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 // ⚠️ `undefined` WHEN AT REST, not `translateX(0px)` — an always-present transform
                 // would put this element on its own compositor layer for the whole session, and the
                 // zoom branch above already owns that cost only while it is needed.
-                : dragX !== 0 ? { transform: `translateX(${dragX}px)` } : undefined}
+                : dragX !== 0 || dragY !== 0
+                  ? { transform: `translate(${dragX}px, ${dragY}px)`, opacity: 1 - Math.min(0.6, Math.abs(dragY) / 500) }
+                  : undefined}
             >
               <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} unoptimized={isMockImageUrl(images[idx]) || undefined} className="object-contain" onError={() => setLightboxFailed((prev) => new Set(prev).add(images[idx]))} />
               {/* Max-quality detail layer: on an explicit zoom (double-tap/-click) load the

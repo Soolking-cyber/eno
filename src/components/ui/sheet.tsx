@@ -6,6 +6,7 @@ import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 import { cn } from "@/lib/utils"
 import { Tr } from "@/context/language-context"
 import { XIcon } from "@/components/ui/icons"
+import { useSwipeDismiss } from "@/hooks/use-swipe-dismiss"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -41,11 +42,34 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  swipeToDismiss = showCloseButton,
+  ref,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
+  /** Defaults to `showCloseButton`: a sheet whose author hid the X (a required-action flow) is not swiped away (opus). */
+  swipeToDismiss?: boolean
 }) {
+  // ⚠️ SWIPE TOWARDS THE EDGE IT CAME FROM CLOSES IT (owner, 2026-09-14: "all pages panels are closed on swipe action use
+  // mobile native swiping"). Dismissal goes through a hidden Close so Base UI runs its own exit — onOpenChange, focus
+  // return, the exit animation — exactly as the X does; the hook only decides WHEN.
+  const closeRef = React.useRef<HTMLButtonElement>(null)
+  const swipeRef = useSwipeDismiss<HTMLDivElement>({
+    direction: side === "bottom" ? "down" : side === "top" ? "up" : side,
+    onDismiss: () => closeRef.current?.click(),
+    disabled: !swipeToDismiss,
+  })
+  // A caller's own ref still reaches the popup alongside the gesture's — including a React 19 callback ref's cleanup (astra).
+  const popupRef = React.useCallback((node: HTMLDivElement | null) => {
+    swipeRef(node)
+    if (typeof ref === "function") {
+      const cleanup = ref(node)
+      return typeof cleanup === "function" ? () => { swipeRef(null); cleanup() } : undefined
+    }
+    if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node
+    return undefined
+  }, [swipeRef, ref])
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -60,6 +84,7 @@ function SheetContent({
           ⚠️ Do NOT name a stock shadow utility in this comment — Tailwind scans raw TEXT, so
           spelling one here re-emits it into the bundle (see the same warning in select.tsx). */}
       <SheetPrimitive.Popup
+        ref={popupRef}
         data-slot="sheet-content"
         data-side={side}
         className={cn(
@@ -78,6 +103,7 @@ function SheetContent({
         {...props}
       >
         {children}
+        <SheetPrimitive.Close ref={closeRef} tabIndex={-1} aria-hidden className="sr-only" />
         {showCloseButton && (
           <SheetPrimitive.Close
             data-slot="sheet-close"
