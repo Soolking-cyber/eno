@@ -220,7 +220,7 @@ async function main() {
 
       const existing = seller
         ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId },
-            select: { id: true, images: true, status: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true } })
+            select: { id: true, images: true, status: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true, brandSlug: true, model: true } })
         : null
       if (!APPLY) { existing ? updated++ : created++; return }
 
@@ -259,6 +259,12 @@ async function main() {
         existing ? { categorySlug: catSlug.get(existing.categoryId) ?? null, subcategorySlug: existing.subcategorySlug } : null,
         { categorySlug: slug, subcategorySlug: subcategoryFor(slug, feedTitle) },
       )
+      // ⛔ BRAND AND MODEL ARE SET ON CREATE ONLY (2026-09-14). A refresh used to rewrite them from the title rules, which
+      // undid every correction the Gemini pass or `backfill-brands --recheck` made — and "fill when missing" refilled a
+      // brand those passes had deliberately cleared (an iPhone case is not Apple's). The refresh keeps the stored values;
+      // the title rules name a brand/model only for a product seen for the first time (reviewers, three rounds).
+      const effBrand = existing ? existing.brandSlug : brandFor(feedTitle)
+      const effModel = existing ? existing.model : modelFor(feedTitle)
       const feedDesc = String(r.desc || title).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1800)
       const store = storeByDomain.get(r.domain)!
       const fields = {
@@ -285,7 +291,8 @@ async function main() {
          */
         condition: store.condition,
         images, categoryId: catId.get(placed.categorySlug) ?? categoryId, location: store.city, city: store.city,
-        subcategorySlug: placed.subcategorySlug, brandSlug: brandFor(feedTitle), model: modelFor(feedTitle),
+        // Brand/model: set on create only — see effBrand above.
+        subcategorySlug: placed.subcategorySlug, brandSlug: effBrand, model: effModel,
         // ⛔ WITHOUT THIS THE PRODUCT IS INVISIBLE TO SEARCH — feed-query.ts matches the folded
         // blob, and a direct Prisma write never runs the POST path that builds it. Preserve any
         // text a human or the translator wrote rather than collapsing it to the merchant's title.
@@ -294,7 +301,7 @@ async function main() {
           existing?.titleVi ?? feedTitle,
           existing?.description ?? feedDesc, feedDesc,
           existing?.descriptionVi ?? feedDesc,
-          store.city, placed.categorySlug, brandFor(feedTitle), modelFor(feedTitle),
+          store.city, placed.categorySlug, effBrand, effModel,
         ]),
         /**
          * ⚠️ THE MERCHANT'S PRODUCT PAGE, IN THE FIELD THE CARD ALREADY USES FOR "buy on the

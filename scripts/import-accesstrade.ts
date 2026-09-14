@@ -196,7 +196,7 @@ async function main() {
         const existing = seller
           // ⚠️ `title`/`description` are read so a REFRESH can keep the text a human or a model
           // wrote (see the searchText build below), not just to decide create-vs-update.
-          ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true, images: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true } })
+          ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true, images: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true, brandSlug: true, model: true } })
           : null
         if (!APPLY) { existing ? updated++ : created++; return }
         let images = existing?.images
@@ -213,6 +213,12 @@ async function main() {
           existing ? { categorySlug: catSlug.get(existing.categoryId) ?? null, subcategorySlug: existing.subcategorySlug } : null,
           { categorySlug: slug, subcategorySlug: subcategoryFor(slug, p.name) },
         )
+        // ⛔ BRAND AND MODEL ARE SET ON CREATE ONLY (2026-09-14). A refresh used to rewrite them from the title rules, which
+        // undid every correction the Gemini pass or `backfill-brands --recheck` made — and "fill when missing" refilled a
+        // brand those passes had deliberately cleared (an iPhone case is not Apple's). The refresh keeps the stored values;
+        // the title rules name a brand/model only for a product seen for the first time (reviewers, three rounds).
+        const effBrand = existing ? existing.brandSlug : brandFor(p.name)
+        const effModel = existing ? existing.model : modelFor(p.name)
         const feedDesc = (p.desc || p.name).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 1800)
         const fields = {
           title: feedTitle, description: feedDesc,
@@ -235,7 +241,8 @@ async function main() {
            */
           price, priceUnit: '', currency: '₫', negotiable: false, condition: 'new',
           images, categoryId: catId.get(placed.categorySlug) ?? categoryId, location: MERCHANT_CITY, city: MERCHANT_CITY,
-          subcategorySlug: placed.subcategorySlug, brandSlug: brandFor(p.name), model: modelFor(p.name),
+          // Brand/model: set on create only — see effBrand above.
+          subcategorySlug: placed.subcategorySlug, brandSlug: effBrand, model: effModel,
           /**
            * ⛔ WITHOUT THIS EVERY IMPORTED PRODUCT IS INVISIBLE TO SEARCH. feed-query.ts matches
            * keywords against this folded blob, and it is built in core/listings.ts on the POST
@@ -255,9 +262,9 @@ async function main() {
            * ⚠️ AND THE REPAIR PATH CANNOT SEE IT: scripts/rebuild-search-text.ts selects
            * `where: { searchText: '' }`, and a clobbered blob is wrong, not empty — so nothing in
            * the repo could detect or fix it. Preserving here is cheaper than detecting later.
-           * ⚠️ Deliberately NOT solved by making searchText create-only: `titleVi`, `brandSlug` and
-           * `model` stay refreshable, so a create-only blob would silently stop matching a renamed or
-           * re-branded product — a different silent regression. The CATEGORY token is the row's
+           * ⚠️ Deliberately NOT solved by making searchText create-only: `titleVi` stays refreshable, so a
+           * create-only blob would silently stop matching a renamed product. Brand and model are the row's
+           * STORED values (title rules only for a new product), so the blob and columns agree. The CATEGORY token is the row's
            * effective placement (refreshPlacement), never the title rule's guess over a re-filed row.
            */
           // ⚠️ BOTH DESCRIPTION COLUMNS. Folding only the English one dropped the model's
@@ -268,7 +275,7 @@ async function main() {
             existing?.titleVi ?? feedTitle,
             existing?.description ?? feedDesc, feedDesc,
             existing?.descriptionVi ?? feedDesc,
-            MERCHANT_CITY, placed.categorySlug, brandFor(p.name), modelFor(p.name),
+            MERCHANT_CITY, placed.categorySlug, effBrand, effModel,
           ]),
           affiliateUrl, verified: true, status: 'active',
           /**
@@ -313,7 +320,7 @@ async function main() {
          * moderation state. An admin who un-verifies or deactivates one of these must not have the
          * next run quietly re-stamp it.
          *
-         * A refresh therefore updates: price, images, affiliateUrl, brand/model, a MISSING category or
+         * A refresh therefore updates: price, images, affiliateUrl, a MISSING category or
          * subcategory (refreshPlacement), and the merchant's own Vietnamese text. Everything a human or a translator decided is left alone.
          */
         /**

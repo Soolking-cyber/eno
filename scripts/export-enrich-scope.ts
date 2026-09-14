@@ -44,13 +44,13 @@ async function main() {
   const where = { affiliateUrl: { not: null }, status: { in: ['active', 'sold'] }, verified: true, category: { slug: { in: [...ENRICH_TARGET_CATEGORIES] } } }
   const select = {
     id: true, title: true, titleVi: true, description: true, descriptionVi: true,
-    categoryId: true, subcategorySlug: true, attributes: true, category: { select: { slug: true } },
+    categoryId: true, subcategorySlug: true, attributes: true, brandSlug: true, model: true, category: { select: { slug: true } },
   } as const
-  type Row = { id: string; title: string; titleVi: string | null; description: string; descriptionVi: string | null; categoryId: string; subcategorySlug: string | null; attributes: string | null; category: { slug: string } }
+  type Row = { id: string; title: string; titleVi: string | null; description: string; descriptionVi: string | null; categoryId: string; subcategorySlug: string | null; attributes: string | null; brandSlug: string | null; model: string | null; category: { slug: string } }
   const toScope = (r: Row): ScopeRow => ({
     id: r.id, titleVi: r.titleVi, title: r.title, descriptionVi: r.descriptionVi, description: r.description,
-    category: r.category.slug, subcategory: r.subcategorySlug, attributes: parseAttributes(r.attributes),
-    snap: { title: r.title, titleVi: r.titleVi, description: r.description, descriptionVi: r.descriptionVi, categoryId: r.categoryId, subcategorySlug: r.subcategorySlug, attributes: r.attributes },
+    category: r.category.slug, subcategory: r.subcategorySlug, attributes: parseAttributes(r.attributes), brand: r.brandSlug, model: r.model,
+    snap: { title: r.title, titleVi: r.titleVi, description: r.description, descriptionVi: r.descriptionVi, categoryId: r.categoryId, subcategorySlug: r.subcategorySlug, attributes: r.attributes, brandSlug: r.brandSlug, model: r.model },
   })
 
   const fd = openSync(`${OUT}.tmp`, 'w')

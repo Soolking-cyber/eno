@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { EnrichAnswer } from '../src/lib/listing-enrich'
 
-export type Snapshot = { title: string; titleVi: string | null; description: string; descriptionVi: string | null; categoryId: string; subcategorySlug: string | null; attributes: string | null }
+export type Snapshot = { title: string; titleVi: string | null; description: string; descriptionVi: string | null; categoryId: string; subcategorySlug: string | null; attributes: string | null; brandSlug: string | null; model: string | null }
 
 export type ScopeRow = {
   id: string
@@ -19,6 +19,8 @@ export type ScopeRow = {
   category: string
   subcategory: string | null
   attributes: Record<string, string>
+  brand: string | null
+  model: string | null
   snap: Snapshot
 }
 
@@ -38,10 +40,10 @@ export function isDoneRow(v: unknown): v is DoneRow {
   const a = d?.answer
   return !!d && isStr(d.id) && isStr(d.key) && isStr(d.version) && !!d.from && isStr(d.from.category) && isStrOrNull(d.from.subcategory)
     && !!s && isStr(s.title) && isStrOrNull(s.titleVi) && isStr(s.description) && isStrOrNull(s.descriptionVi)
-    && isStr(s.categoryId) && isStrOrNull(s.subcategorySlug) && isStrOrNull(s.attributes)
+    && isStr(s.categoryId) && isStrOrNull(s.subcategorySlug) && isStrOrNull(s.attributes) && isStrOrNull(s.brandSlug) && isStrOrNull(s.model)
     && !!a && isStr(a.category) && isStrOrNull(a.subcategory) && isStr(a.vi) && isStr(a.en)
     && (a.confidence === 'high' || a.confidence === 'medium' || a.confidence === 'low')
-    && Array.isArray(a.attributes) && a.attributes.every((kv) => !!kv && isStr(kv.key) && isStr(kv.value))
+    && Array.isArray(a.attributes) && a.attributes.every((kv) => !!kv && isStr(kv.key) && isStr(kv.value)) && isStrOrNull(a.brand) && isStrOrNull(a.model)
 }
 
 /** Every complete, well-formed row of every `part-NNNN.jsonl`, in part order. A torn or malformed line is skipped. */
@@ -69,7 +71,7 @@ export async function readScope(file: string): Promise<{ rows: ScopeRow[]; bad: 
       const s = r?.snap
       // The full snapshot shape, as isDoneRow will demand of the answer — otherwise a row is paid for, then rejected forever (codex).
       if (isStr(r?.id) && isStrOrNull(r.titleVi) && isStr(r.title) && isStrOrNull(r.descriptionVi) && isStr(r.description) && isStr(r.category) && isStrOrNull(r.subcategory)
-        && !!s && isStr(s.title) && isStrOrNull(s.titleVi) && isStr(s.description) && isStrOrNull(s.descriptionVi) && isStr(s.categoryId) && isStrOrNull(s.subcategorySlug) && isStrOrNull(s.attributes)) rows.push({ ...r, attributes: r.attributes ?? {} })
+        && !!s && isStr(s.title) && isStrOrNull(s.titleVi) && isStr(s.description) && isStrOrNull(s.descriptionVi) && isStr(s.categoryId) && isStrOrNull(s.subcategorySlug) && isStrOrNull(s.attributes) && isStrOrNull(s.brandSlug) && isStrOrNull(s.model)) rows.push({ ...r, attributes: r.attributes ?? {} })
       else bad++
     } catch { bad++ }
   }

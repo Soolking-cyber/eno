@@ -12,6 +12,8 @@ const book: EnrichInput = {
   category: 'electronics',
   subcategory: null,
   attributes: {},
+  brand: null,
+  model: null,
 }
 
 const goodBook: EnrichAnswer = {
@@ -21,6 +23,8 @@ const goodBook: EnrichAnswer = {
   vi: 'Cuốn sách về tư duy phát triển của Carol S. Dweck.\n\n**Thông tin sách**\n- Tác giả: Carol S. Dweck\n- Nhà xuất bản: Thế Giới\n- Số trang: 320\n- Khổ: 14.5 x 20.5 cm',
   en: 'A book on the growth mindset by Carol S. Dweck.\n\n**Book details**\n- Author: Carol S. Dweck\n- Publisher: The Gioi\n- Pages: 320\n- Size: 14.5 x 20.5 cm',
   attributes: [{ key: 'author', value: 'Carol S. Dweck' }, { key: 'bookLanguage', value: 'vietnamese' }],
+  brand: null,
+  model: null,
 }
 
 const monitor: EnrichInput = {
@@ -32,6 +36,8 @@ const monitor: EnrichInput = {
   category: 'electronics',
   subcategory: 'tv-monitors',
   attributes: { ram: '8gb' },
+  brand: 'viewsonic',
+  model: null,
 }
 
 const goodMonitor: EnrichAnswer = {
@@ -41,6 +47,8 @@ const goodMonitor: EnrichAnswer = {
   vi: 'Màn hình ViewSonic VX2779-HD-PRO 27 inch với tấm nền IPS.\n\n**Thông số chính**\n- Kích thước: 27 inch\n- Tần số quét: 180Hz\n- Tấm nền: IPS\n- Trọng lượng: 5.2 kg',
   en: 'A ViewSonic VX2779-HD-PRO 27-inch monitor with an IPS panel.\n\n**Key specs**\n- Size: 27 inch\n- Refresh rate: 180Hz\n- Panel: IPS\n- Weight: 5.2 kg',
   attributes: [],
+  brand: 'ViewSonic',
+  model: 'VX2779-HD-PRO',
 }
 
 describe('decideEnrichment — placement', () => {
@@ -108,16 +116,16 @@ describe('decideEnrichment — text', () => {
   it('lets a rewrite drop a promotion and a repeated model list', () => {
     const cases: EnrichInput = { ...monitor, descriptionVi: 'Ốp lưng cho iPhone 11 12 13 14 11 Pro 12 Pro. Mua lần 2 giảm 50%.', description: 'Case for iPhone 11 12 13 14 11 Pro 12 Pro.', titleVi: 'Ốp lưng iPhone 11 12 13 14', title: 'iPhone 11 12 13 14 case', subcategory: 'phone-cases', attributes: {} }
     const d = decideEnrichment(cases, { ...goodMonitor, subcategory: 'phone-cases', vi: 'Ốp lưng dành cho iPhone 11, 12, 13 và 14.\n\n**Thông số chính**\n- Tương thích: iPhone 11, 12, 13, 14 (cả bản Pro)', en: 'A case for iPhone 11, 12, 13 and 14.\n\n**Key specs**\n- Fits: iPhone 11, 12, 13, 14 (Pro models too)' })
-    expect(d.refused).toEqual([])
+    expect(d.refused.filter((r) => !/^(?:brand|model):/.test(r))).toEqual([])
     expect(d.descriptionVi).not.toBeNull()
   })
 
   it('lets a rewrite reformat sizes and spec pairs and write English compounds', () => {
     const bed: EnrichInput = { ...monitor, titleVi: 'Giường Ngủ Gỗ Cao Su 1M6x2M Cũ', title: 'Rubberwood bed 1M6x2M used', descriptionVi: 'Giường ngủ gỗ cao su 1M6x2M, bảo hành 12 tháng.', description: 'Rubberwood bed 1M6x2M, 12-month warranty.', category: 'furniture-appliances', subcategory: 'beds-mattresses', attributes: {} }
     const d = decideEnrichment(bed, { ...goodMonitor, category: 'furniture-appliances', subcategory: 'beds-mattresses', vi: 'Giường ngủ bằng gỗ cao su đã qua sử dụng.\n\n**Thông số chính**\n- Kích thước: 1m6 x 2m\n\n**Bảo hành**\n- 12 tháng', en: 'A used rubberwood bed.\n\n**Key specs**\n- Size: 1m6 x 2m\n\n**Warranty**\n- 12-month warranty' })
-    expect(d.refused).toEqual([])
+    expect(d.refused.filter((r) => !/^(?:brand|model):/.test(r))).toEqual([])
     const phone: EnrichInput = { ...monitor, titleVi: 'OPPO A6 Pro 4G 8GB-128GB', title: 'OPPO A6 Pro 4G 8GB-128GB', descriptionVi: 'OPPO A6 Pro 4G 8GB-128GB', description: 'OPPO A6 Pro 4G 8GB-128GB', subcategory: 'phones-tablets', attributes: {} }
-    expect(decideEnrichment(phone, { ...goodMonitor, subcategory: 'phones-tablets', vi: 'Điện thoại OPPO A6 Pro bản 4G.\n\n**Thông số chính**\n- RAM: 8GB\n- Bộ nhớ: 128GB', en: 'The OPPO A6 Pro 4G phone.\n\n**Key specs**\n- RAM: 8GB\n- Storage: 128GB' }).refused).toEqual([])
+    expect(decideEnrichment(phone, { ...goodMonitor, subcategory: 'phones-tablets', vi: 'Điện thoại OPPO A6 Pro bản 4G.\n\n**Thông số chính**\n- RAM: 8GB\n- Bộ nhớ: 128GB', en: 'The OPPO A6 Pro 4G phone.\n\n**Key specs**\n- RAM: 8GB\n- Storage: 128GB' }).refused.filter((r) => !/^(?:brand|model):/.test(r))).toEqual([])
   })
 
   it('refuses an invented single-digit count', () => {
@@ -130,7 +138,7 @@ describe('decideEnrichment — text', () => {
     const d = decideEnrichment(noWarranty, { ...goodMonitor, vi: goodMonitor.vi + '\n\n**Bảo hành**\n- Có bảo hành', en: goodMonitor.en + '\n\n**Warranty**\n- Covered by warranty' })
     expect(d.refused).toContain('vi:invented-claim')
     // …while repeating the shop's own "no warranty" is fine.
-    expect(decideEnrichment(noWarranty, { ...goodMonitor, vi: goodMonitor.vi + '\n- Không bảo hành', en: goodMonitor.en + '\n- No warranty' }).refused).toEqual([])
+    expect(decideEnrichment(noWarranty, { ...goodMonitor, vi: goodMonitor.vi + '\n- Không bảo hành', en: goodMonitor.en + '\n- No warranty' }).refused.filter((r) => !/^(?:brand|model):/.test(r))).toEqual([])
   })
 
   it('an English-only import still needs Vietnamese in the Vietnamese slot, and keeps its English specs', () => {
@@ -146,7 +154,7 @@ describe('decideEnrichment — text', () => {
 
   it('a heading above the shop\'s own denial is not a promise; "warranty not included" does not license one', () => {
     const noWarranty: EnrichInput = { ...monitor, descriptionVi: monitor.descriptionVi + ' Không hỗ trợ bảo hành.', description: monitor.description + ' Warranty not included.' }
-    expect(decideEnrichment(noWarranty, { ...goodMonitor, vi: goodMonitor.vi + '\n\n**Bảo hành**\n- Không hỗ trợ bảo hành', en: goodMonitor.en + '\n\n**Warranty**\n- Not included' }).refused).toEqual([])
+    expect(decideEnrichment(noWarranty, { ...goodMonitor, vi: goodMonitor.vi + '\n\n**Bảo hành**\n- Không hỗ trợ bảo hành', en: goodMonitor.en + '\n\n**Warranty**\n- Not included' }).refused.filter((r) => !/^(?:brand|model):/.test(r))).toEqual([])
     expect(decideEnrichment(noWarranty, { ...goodMonitor, en: goodMonitor.en + '\n- Covered by warranty' }).refused).toContain('en:invented-claim')
   })
 
@@ -169,7 +177,7 @@ describe('decideEnrichment — text', () => {
   it('iPhone is not iPad, water-resistant is not waterproof', () => {
     const caseFor: EnrichInput = { ...monitor, titleVi: 'Ốp lưng iPhone 15 kháng nước', title: 'iPhone 15 water-resistant case', descriptionVi: 'Ốp lưng iPhone 15 kháng nước.', description: 'Water-resistant iPhone 15 case.', subcategory: 'phone-cases', attributes: {} }
     const base = { ...goodMonitor, subcategory: 'phone-cases', vi: 'Ốp lưng kháng nước cho iPhone 15.', en: 'A water-resistant case for iPhone 15.' }
-    expect(decideEnrichment(caseFor, base).refused).toEqual([])
+    expect(decideEnrichment(caseFor, base).refused.filter((r) => !/^(?:brand|model):/.test(r))).toEqual([])
     expect(decideEnrichment(caseFor, { ...base, en: 'A water-resistant case for iPad 15.' }).refused).toContain('en:invented-term')
     expect(decideEnrichment(caseFor, { ...base, en: 'A waterproof case for iPhone 15.' }).refused).toContain('en:invented-claim')
   })
@@ -177,7 +185,7 @@ describe('decideEnrichment — text', () => {
   it('a snack weighing 128g does not become 128GB of storage', () => {
     const snack: EnrichInput = { ...monitor, titleVi: 'Hạt điều rang muối 128g', title: 'Salted cashews 128g', descriptionVi: 'Hạt điều rang muối, gói 128g.', description: 'Salted cashews, 128g pack.', category: 'food-drink', subcategory: null, attributes: {} }
     const ok = { ...goodMonitor, category: 'food-drink', subcategory: null, vi: 'Hạt điều rang muối đóng gói.\n\n**Thông số chính**\n- Khối lượng: 128g', en: 'Salted cashews in a pack.\n\n**Key specs**\n- Weight: 128g' }
-    expect(decideEnrichment(snack, ok).refused).toEqual([])
+    expect(decideEnrichment(snack, ok).refused.filter((r) => !/^(?:brand|model):/.test(r))).toEqual([])
     expect(decideEnrichment(snack, { ...ok, en: 'Salted cashews in a pack.\n\n**Key specs**\n- Storage: 128GB' }).refused).toContain('en:invented-quantity')
   })
 
@@ -261,7 +269,7 @@ describe('decideEnrichment — text', () => {
   })
 
   it('a spec repeated in the summary and the bullets is not an invented quantity', () => {
-    expect(decideEnrichment(monitor, { ...goodMonitor, en: 'A 27-inch ViewSonic VX2779-HD-PRO monitor with an IPS panel, 5.2 kg.\n\n**Key specs**\n- Size: 27 inch\n- Refresh rate: 180Hz\n- Weight: 5.2 kg' }).refused).toEqual([])
+    expect(decideEnrichment(monitor, { ...goodMonitor, en: 'A 27-inch ViewSonic VX2779-HD-PRO monitor with an IPS panel, 5.2 kg.\n\n**Key specs**\n- Size: 27 inch\n- Refresh rate: 180Hz\n- Weight: 5.2 kg' }).refused.filter((r) => !/^(?:brand|model):/.test(r))).toEqual([])
   })
 
   it('invisible characters do not hide a payment provider', () => {
@@ -287,6 +295,103 @@ describe('decideEnrichment — text', () => {
   it('refuses a changed model code', () => {
     const d = decideEnrichment(monitor, { ...goodMonitor, vi: goodMonitor.vi.replaceAll('VX2779-HD-PRO', 'VX2779-HD'), en: goodMonitor.en.replaceAll('VX2779-HD-PRO', 'VX2779-HD') })
     expect(d.refused.some((r) => r.endsWith('lost-code'))).toBe(true)
+  })
+})
+
+describe('decideEnrichment — brand and model', () => {
+  const known = ['samsung', 'apple', 'spigen', 'viewsonic']
+  const phone: EnrichInput = { ...monitor, titleVi: 'Điện thoại Samsung Galaxy S24 Ultra 12GB 256GB', title: 'Samsung Galaxy S24 Ultra 12GB 256GB phone', descriptionVi: 'Điện thoại Samsung Galaxy S24 Ultra, RAM 12GB, bộ nhớ 256GB.', description: 'Samsung Galaxy S24 Ultra phone, 12GB RAM, 256GB storage.', subcategory: 'phones-tablets', attributes: {}, brand: null, model: null }
+  const phoneAnswer: EnrichAnswer = { ...goodMonitor, subcategory: 'phones-tablets', vi: 'Điện thoại Samsung Galaxy S24 Ultra.\n\n**Thông số chính**\n- RAM: 12GB\n- Bộ nhớ: 256GB', en: 'The Samsung Galaxy S24 Ultra phone.\n\n**Key specs**\n- RAM: 12GB\n- Storage: 256GB', brand: 'Samsung', model: 'Galaxy S24 Ultra' }
+
+  it('fills brand and model the title supports', () => {
+    const d = decideEnrichment(phone, phoneAnswer, { knownBrands: known })
+    expect([d.brand, d.model]).toEqual(['samsung', 'Galaxy S24 Ultra'])
+  })
+
+  it('an iPhone case is not an Apple product unless Apple made it', () => {
+    const caseIn: EnrichInput = { ...phone, titleVi: 'Ốp lưng cho iPhone 15 Pro chống sốc', title: 'Shockproof case for iPhone 15 Pro', subcategory: 'phone-cases' }
+    const d = decideEnrichment(caseIn, { ...phoneAnswer, subcategory: 'phone-cases', brand: 'Apple', model: null }, { knownBrands: known })
+    expect(d.brand).toBeNull()
+    expect(d.refused).toContain('brand:not-supported')
+    const spigen = decideEnrichment({ ...caseIn, titleVi: 'Ốp lưng Spigen cho iPhone 15 Pro', title: 'Spigen case for iPhone 15 Pro' }, { ...phoneAnswer, subcategory: 'phone-cases', brand: 'Spigen', model: null }, { knownBrands: known })
+    expect(spigen.brand).toBe('spigen')
+  })
+
+  it('a brand new to the catalogue is proposed with its display name', () => {
+    const d = decideEnrichment({ ...phone, titleVi: 'Tai nghe Soundpeats Air4 Pro', title: 'Soundpeats Air4 Pro earbuds', subcategory: 'audio' }, { ...phoneAnswer, subcategory: 'audio', brand: 'Soundpeats', model: 'Air4 Pro', vi: 'Tai nghe Soundpeats Air4 Pro.', en: 'Soundpeats Air4 Pro earbuds.' }, { knownBrands: known })
+    expect([d.brand, d.brandName, d.model]).toEqual(['soundpeats', 'Soundpeats', 'Air4 Pro'])
+  })
+
+  it('never creates a brand out of a product or marketing phrase, and needs high confidence for a new one', () => {
+    const genuine: EnrichInput = { ...phone, titleVi: 'Cáp sạc nhanh Chính Hãng Chống Sốc 1m', title: 'Genuine shockproof fast charging cable 1m', subcategory: 'cables-chargers' }
+    for (const b of ['Chính Hãng', 'Chống Sốc', 'Genuine']) {
+      expect(decideEnrichment(genuine, { ...phoneAnswer, subcategory: 'cables-chargers', brand: b, model: null }, { knownBrands: known }).brand).toBeNull()
+    }
+    const soundpeats: EnrichInput = { ...phone, titleVi: 'Tai nghe Soundpeats Air4 Pro', title: 'Soundpeats Air4 Pro earbuds', subcategory: 'audio' }
+    expect(decideEnrichment(soundpeats, { ...phoneAnswer, subcategory: 'audio', brand: 'Soundpeats', model: 'Air4 Pro', confidence: 'medium' }, { knownBrands: known }).brand).toBeNull()
+  })
+
+  it('refuses a model the title does not contain, or a capacity passed off as a model', () => {
+    expect(decideEnrichment(phone, { ...phoneAnswer, model: 'Galaxy S25 Ultra' }, { knownBrands: known }).model).toBeNull()
+    expect(decideEnrichment(phone, { ...phoneAnswer, model: '256GB' }, { knownBrands: known }).model).toBeNull()
+  })
+
+  it('corrects a stored brand the title does not support, keeps one it does, and fills a fuller model under the right brand', () => {
+    // A stored "apple" on a Samsung title (an old regex guess) is corrected even at medium confidence…
+    expect(decideEnrichment({ ...phone, brand: 'apple', model: 'Galaxy S24' }, { ...phoneAnswer, confidence: 'medium' }, { knownBrands: known }).brand).toBe('samsung')
+    // …while a brand the title supports is not changed by a medium-confidence answer naming another.
+    const supported = decideEnrichment({ ...phone, brand: 'samsung' }, { ...phoneAnswer, confidence: 'medium', brand: 'Apple' }, { knownBrands: known })
+    expect(supported.brand).toBe('samsung')
+    // A fuller name of the same model replaces a shorter one when the brand agrees; a shorter one never replaces a fuller.
+    expect(decideEnrichment({ ...phone, brand: 'samsung', model: 'Galaxy S24' }, phoneAnswer, { knownBrands: known }).model).toBe('Galaxy S24 Ultra')
+    expect(decideEnrichment({ ...phone, model: 'Galaxy S24 Ultra' }, { ...phoneAnswer, model: 'Galaxy' }, { knownBrands: known }).model).toBe('Galaxy S24 Ultra')
+  })
+
+  it('a brand corrected to another maker does not keep the old maker\'s model', () => {
+    const d = decideEnrichment({ ...phone, brand: 'apple', model: 'iPhone 15' }, { ...phoneAnswer, model: null }, { knownBrands: known })
+    expect([d.brand, d.model]).toEqual(['samsung', null])
+  })
+
+  it('setting a brand on an unbranded listing does not keep a stale model', () => {
+    const d = decideEnrichment({ ...phone, brand: null, model: 'iPhone 15' }, { ...phoneAnswer, model: null }, { knownBrands: known })
+    expect([d.brand, d.model]).toEqual(['samsung', null])
+  })
+
+  it('a Spigen case stored as apple / iPhone 15 loses the device model when its brand is corrected', () => {
+    const caseIn: EnrichInput = { ...phone, titleVi: 'Ốp lưng Spigen cho iPhone 15', title: 'Spigen case for iPhone 15', subcategory: 'phone-cases', brand: 'apple', model: 'iPhone 15' }
+    const d = decideEnrichment(caseIn, { ...phoneAnswer, subcategory: 'phone-cases', brand: 'Spigen', model: null }, { knownBrands: known })
+    expect([d.brand, d.model]).toEqual(['spigen', null])
+  })
+
+  it('clears a device maker wrongly stored on an accessory when a confident answer names no brand', () => {
+    const caseIn: EnrichInput = { ...phone, titleVi: 'Ốp lưng chống sốc cho iPhone 15 Pro', title: 'Shockproof case for iPhone 15 Pro', subcategory: 'phone-cases', brand: 'apple' }
+    const cleared = decideEnrichment({ ...caseIn, model: 'iPhone 15 Pro' }, { ...phoneAnswer, subcategory: 'phone-cases', brand: null, model: null }, { knownBrands: known })
+    expect([cleared.brand, cleared.model]).toEqual([null, null])
+    // …but not on a medium-confidence answer.
+    expect(decideEnrichment(caseIn, { ...phoneAnswer, subcategory: 'phone-cases', brand: null, model: null, confidence: 'medium' }, { knownBrands: known }).brand).toBe('apple')
+  })
+
+  it('the device an accessory fits is not its model; a colour or a capacity is not a model', () => {
+    const caseIn: EnrichInput = { ...phone, titleVi: 'Ốp lưng Spigen cho iPhone 15 Pro', title: 'Spigen case for iPhone 15 Pro', subcategory: 'phone-cases' }
+    expect(decideEnrichment(caseIn, { ...phoneAnswer, subcategory: 'phone-cases', brand: 'Spigen', model: 'iPhone 15 Pro' }, { knownBrands: known }).refused).toContain('model:compatibility')
+    // The Vietnamese "cho" counts even when the English title has no "for".
+    const bilingual: EnrichInput = { ...caseIn, title: 'Spigen iPhone 15 Pro case', titleVi: 'Ốp lưng Spigen cho iPhone 15 Pro' }
+    expect(decideEnrichment(bilingual, { ...phoneAnswer, subcategory: 'phone-cases', brand: 'Spigen', model: 'iPhone 15 Pro' }, { knownBrands: known }).refused).toContain('model:compatibility')
+    const black: EnrichInput = { ...phone, titleVi: 'Điện thoại Samsung Galaxy S24 Ultra 8GB/256GB Black', title: 'Samsung Galaxy S24 Ultra 8GB/256GB Black' }
+    for (const m of ['Black', '8GB/256GB', 'Pro']) {
+      expect(decideEnrichment(black, { ...phoneAnswer, model: m }, { knownBrands: known }).model).toBeNull()
+    }
+  })
+
+  it('a listing re-filed into an aisle without brands drops its brand and model; a low-confidence brand is not filled', () => {
+    const d = decideEnrichment({ ...book, brand: 'apple', model: 'iPad' }, goodBook, { knownBrands: known })
+    expect([d.category, d.brand, d.model]).toEqual(['books-stationery', null, null])
+    expect(decideEnrichment(phone, { ...phoneAnswer, confidence: 'low' }, { knownBrands: known }).brand).toBeNull()
+  })
+
+  it('an untrusted answer changes neither', () => {
+    const d = decideEnrichment(phone, { ...phoneAnswer, vi: phoneAnswer.vi + '\nHotline 0901234567' }, { knownBrands: known })
+    expect([d.brand, d.model]).toEqual([null, null])
   })
 })
 
@@ -330,7 +435,7 @@ describe('decideEnrichment — attributes', () => {
 
 describe('parseEnrichReply', () => {
   const reply = (items: unknown[]) => 'Here you go:\n```json\n' + JSON.stringify({ items }) + '\n```'
-  const item = (i: number) => ({ i, category: 'electronics', subcategory: null, confidence: 'high', vi: 'x', en: 'y', attributes: [] })
+  const item = (i: number) => ({ i, category: 'electronics', subcategory: null, confidence: 'high', vi: 'x', en: 'y', attributes: [], brand: null, model: null })
 
   it('reads a fenced reply in index order', () => {
     const r = parseEnrichReply(reply([item(2), item(1)]), 2)
