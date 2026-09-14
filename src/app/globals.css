@@ -2492,26 +2492,27 @@ html.dark .leaflet-tile-pane {
    just over the 10px-bold floor). Worst dark chip: restricted red on the popover #2a2a2a, 4.62:1 at 8%. Raise either and
    re-measure every tier on the darkest light surface and the lightest dark one a chip sits on —
    trust-contrast.test.ts does exactly that, so it fails first.
-   ⚠️ color-mix() needs Safari 16.2; this repo's floor is 16.0. There the wash is invalid and dropped, so
-   the fallback below draws the plate as a hairline ring in the ink instead — a plate you can still see
+   ⚠️ color-mix() needs Safari 16.2; this repo's floor is 16.0. There the build's solid polyfill is overridden to
+   transparent (see .badge-plate), and the fallback below draws the plate as a hairline ring in the ink instead — a plate you can still see
    (a bare floating "P" is not a badge), and one that costs no contrast, where any solid neutral wash
    under the ink would (6% black over --muted puts restricted red at ~4.1:1). */
 @layer components {
   .badge-plate {
-    /* ⛔ THROUGH A CUSTOM PROPERTY, OR OLD SAFARI GETS INVISIBLE TEXT. Tailwind's build polyfills color-mix()
-       in ordinary properties by emitting an UNCONDITIONAL fallback that drops the percentage — a bare
-       `background-color:var(--plate-tint)` rule, then the real one inside `@supports (color:color-mix(in lab,
-       red, red))` — found in the deployed CSS of 48897cee. (No braces in this comment: the test reads the rule
-       body up to its first closing brace.) On Safari 16.0–16.1 that paints a SOLID tint
-       under ink of the SAME colour: a green "P" on green, a blue score on blue. Custom-property declarations
-       are left alone (the shipped `--tw-ring-color:color-mix(…)` proves it), and there `var(--plate-bg)` is
-       invalid at computed-value time, so the ground is transparent and the ring fallback below draws the plate. */
+    /* ⛔ OLD SAFARI GETS A SOLID TINT UNDER SAME-COLOUR INK UNLESS THE FALLBACK BELOW CLEARS IT. Tailwind's build
+       polyfills every color-mix() whose colour is a var() by emitting an UNCONDITIONAL declaration of that var — measured
+       in the deployed CSS twice: first as `background-color:var(--plate-tint)` (48897cee), then, after this value moved into
+       a custom property on the belief that custom properties are left alone (92b865a4, WRONG — the shipped
+       `--tw-ring-color` is polyfilled the same way), as `--plate-bg:var(--plate-tint)` (67802694). Either way Safari
+       16.0–16.1 painted a green "P" on green. So the defence is not the declaration's shape: it is the not-supported
+       block below, which compiles untouched, comes after the polyfilled line in this layer, and forces the ground
+       transparent there. (No braces in this comment: the test reads the rule body up to its first closing brace.) */
     --plate-bg: color-mix(in srgb, var(--plate-tint) var(--plate-alpha), transparent);
     background-color: var(--plate-bg);
     color: var(--plate-ink);
   }
   @supports not (background-color: color-mix(in srgb, red 50%, transparent)) {
     .badge-plate {
+      background-color: transparent;
       box-shadow: inset 0 0 0 1px currentColor;
     }
   }
