@@ -160,7 +160,11 @@ describe('badge plates — ink clears AA over its own wash on the worst surface'
 
   it('the plate rule and both call sites still use these tokens', () => {
     const css = readFileSync(repoFile('src/app/globals.css'), 'utf8')
-    expect(css).toMatch(/\.badge-plate\s*\{[^}]*color-mix\(in srgb, var\(--plate-tint\) var\(--plate-alpha\), transparent\)/)
+    expect(css).toMatch(/\.badge-plate\s*\{[^}]*--plate-bg:\s*color-mix\(in srgb, var\(--plate-tint\) var\(--plate-alpha\), transparent\)/)
+    // ⛔ The wash must reach background-color ONLY through the custom property: written directly, Tailwind's build
+    // emits a solid `var(--plate-tint)` fallback that hides the ink on Safari 16.0–16.1 (see .badge-plate).
+    expect(css).toMatch(/\.badge-plate\s*\{[^}]*background-color:\s*var\(--plate-bg\)/)
+    expect(css).not.toMatch(/\.badge-plate\s*\{[^}]*background-color:\s*color-mix/)
     expect(css).toMatch(/\.badge-plate\s*\{[^}]*color:\s*var\(--plate-ink\)/)
     const trust = readFileSync(repoFile('src/components/marketplace/trust-score.tsx'), 'utf8')
     expect(trust).toContain("band === 'exceptional' ? 'var(--trust-exceptional-ink)' : color")
