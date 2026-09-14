@@ -69,8 +69,10 @@ android {
          * not offered for promotion. Production therefore needs its own build, and every later
          * upload needs the next number again — a rejected or discarded bundle burns its code too.
          */
-        versionCode 2
-        versionName "1.0.0"
+        // 3 (2026-09-14): the launcher icon at its real size, the name "Eno Marketplace", and the EnoHaptics plugin — all
+        // native, so a new bundle. 2 is the one on production.
+        versionCode 3
+        versionName "1.0.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
