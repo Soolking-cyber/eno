@@ -255,7 +255,13 @@ export function RemovableBadge({
         onClick={onRemove}
         aria-label={removeLabel}
         data-slot="removable-badge-remove"
-        className="size-6 text-brand-dark transition-colors hover:bg-brand-100"
+        // ⚠️ THE GLYPH'S OPACITY IS RESTORED FROM HERE, NOT FROM THE <X> BELOW. A `hover:` variant
+        // written on the svg itself keys off the SVG's own hover, which on a 14px glyph inside a
+        // 24px button means the dismiss only brightens on the few pixels of ink — the rest of the
+        // target stays faded while the pointer is plainly on it. Scoping it to the button gives the
+        // whole tap target one state. Specificity is fine: `[&_svg]:` emits `.cls:hover svg`
+        // (0,2,1) and beats the plain `opacity-60` utility (0,1,0) on the glyph.
+        className="size-6 text-brand-dark transition-colors hover:bg-brand-100 hover:[&_svg]:opacity-100 focus-visible:[&_svg]:opacity-100"
       >
         {/* 14px, the chip-glyph step (docs/icon-language.md §4). Written as `size-3.5` rather
             than `h-3.5 w-3.5`: identical geometry, but it also satisfies the `[class*='size-']`
@@ -263,7 +269,25 @@ export function RemovableBadge({
             that rule a primitive happens to carry. (Measured: ui/icon-button ships NO svg rule
             at all today — it wraps Base UI's Button, not ui/button — so this is insurance
             against a future recomposition, not a live fix.) */}
-        <X className="h-[29px] w-[29px] shrink-0" />
+        {/* ⚠️ RECEDED, BUT NOT TO THE PLATE'S OWN ALPHA — 60% IS A CONTRAST FLOOR, NOT A TASTE
+            CHOICE (owner, 2026-09-14: "make this icon less noticable semitranslucent ... match
+            plate translucency so it wont stick out"). `.icon-plate` is rgb(0 0 0/.45) light and
+            rgb(255 255 255/.75) dark, and matching those literally was the first version. It
+            FAILS in light: measured on the rendered chip, brand-dark rgb(3,64,120) over brand-50
+            rgb(232,241,251) at .45 composites to rgb(129,161,192) = 2.36:1, under the 3:1 that
+            WCAG 1.4.11 requires of a control's visual boundary. This is a real button, not
+            decoration, so the floor binds. 60% is the first 5% step clearing 3:1 in BOTH themes
+            (3.32:1 light, 3.16:1 dark) — and because one value serves both, the plate's
+            light/dark asymmetry drops out and this is a single utility.
+            ⚠️ DARK'S MARGIN IS THIN (3.16:1). Anything that darkens the chip ground or lightens
+            --color-brand-* eats it; re-measure the composite rather than eyeballing, and step to
+            opacity-65 (3.75/3.46) if it moves.
+            ⚠️ ON THE <svg>, NOT ON `.i-on`. The two `<use>` layers are the weight grammar
+            (.i-rest outline / .i-on bold) and their opacity is driven by the ancestor control's
+            selection state. IconButton sets none of those attributes, so .i-on sits at opacity 0
+            here and styling it would change nothing on screen; the parent svg composites both
+            layers uniformly and leaves the grammar alone. See the sprite notes in globals.css. */}
+        <X className="h-[29px] w-[29px] shrink-0 opacity-60 transition-opacity" />
       </IconButton>
     </Badge>
   )
