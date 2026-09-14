@@ -565,6 +565,29 @@ say "7. swap"
 # running with NO marker — and the next run's pin_prev would then tag those as :prev,
 # overwriting the only good rollback. Written first, removed only on success.
 touch /opt/eno/deploy-incomplete
+# ⚠️ ONCE, ABOVE THE PER-SERVICE LOOP. The first version sat inside `for svc in eno-vn
+# eno-forum`, so it installed the same units twice per deploy — harmless but noise, and a
+# reviewer was right to call it out.
+# ⚠️ STDERR IS KEPT. Discarding it made the warning below name a failure with no reason
+# attached, which is the kind of "loud" that tells an operator nothing.
+# ⛔ THE CACHE VOLUME AND ITS CEILING SHIP TOGETHER, OR NEITHER SHIPS. apps.compose.yml makes
+# the image-optimizer cache permanent the moment this line runs; the only thing bounding its
+# growth is eno-image-cache-prune.timer. Three reviewers made the same point independently:
+# persistence is automatic and the ceiling was a five-line snippet in a markdown file that
+# nothing executes, so the ordinary deploy path produced an unbounded volume on a disk with
+# 22GB free. Installing it here is idempotent and costs a few milliseconds.
+# ⚠️ NON-FATAL ON PURPOSE. A failure to install the janitor must not abort a deploy that is
+# otherwise good — but it is loud, because the volume it guards is already live by then.
+if [ -f "$APP/infra/vn-node/eno-image-cache-prune.sh" ]; then
+  install -m 0755 "$APP/infra/vn-node/eno-image-cache-prune.sh" /opt/eno/bin/ \
+    && install -m 0644 "$APP/infra/vn-node/eno-image-cache-prune.service" \
+                       "$APP/infra/vn-node/eno-image-cache-prune.timer" /etc/systemd/system/ \
+    && systemctl daemon-reload \
+    && systemctl enable --now eno-image-cache-prune.timer >/dev/null \
+    && say "image-cache prune timer installed and enabled" \
+    || bad "⚠️ could not install eno-image-cache-prune.timer — the optimizer cache volume is now UNBOUNDED; install it by hand (see infra/vn-node/image-serving.md)"
+fi
+
 for svc in eno-vn eno-forum; do
   # ⛔ ADOPTING A HAND-CREATED CONTAINER IS A ONE-WAY DOOR, SO IT IS EXPLICIT.
   # Both app containers were started by hand with `docker run --name …` and carry no

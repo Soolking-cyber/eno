@@ -119,6 +119,19 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@img ./node_modules/@im
 # throws synchronously, and the rejection path exits 1 too); with it present it exits 0 and prints
 # the version. It also EXERCISES libvips rather than just resolving the module, so a binary that
 # loads but cannot decode still fails here.
+# ⛔ THE IMAGE CACHE DIR IS CREATED HERE SO A NAMED VOLUME CAN INHERIT ITS OWNERSHIP.
+# Measured 2026-09-14: `docker inspect eno-vn-app` returned `Mounts: []`, so the 173MB /
+# 3,330-entry optimizer cache at this path lived in the container layer and was destroyed by
+# every deploy. At ~505ms per cold AVIF encode (measured on this box, against 120ms warm) that
+# is ~28 minutes of CPU thrown away per deploy — and it is not paid by the deploy, it is paid by
+# whichever real users scroll the feed next, which is exactly the "images load slowly" report.
+# ⚠️ IT MUST EXIST IN THE IMAGE, AND THIS IS THE ONLY REASON THE LINE IS HERE. Docker seeds a
+# NEW named volume from the image's content at the mount path, ownership included. If the path
+# is absent the daemon creates it root-owned, server.js runs as nextjs(1001), every write fails,
+# and the optimizer silently falls back to re-encoding on every request — a slower site with no
+# error anywhere. Creating it owned by nextjs is what makes the volume writable.
+RUN install -d -o nextjs -g nodejs /app/.next/cache /app/.next/cache/images
+
 USER nextjs
 # ⚠️ NO `require('sharp/package.json')` HERE. The guard used to print the version that way and it
 # broke the moment sharp 0.35 landed — 0.35's `exports` map does not expose ./package.json, so the

@@ -22,6 +22,20 @@ services:
     image: eno-vn:local
     container_name: eno-vn-app
     env_file: [/opt/eno/secrets/eno-vn.env]
+    # ⛔ THE OPTIMIZER CACHE SURVIVES THE DEPLOY, AND UNTIL 2026-09-14 IT DID NOT.
+    # `docker inspect eno-vn-app` returned `Mounts: []`: 173MB / 3,330 encoded variants sat in
+    # the container layer and every `up -d --force-recreate` threw them away. Measured on this
+    # box, a cold AVIF encode is ~505ms against ~120ms served warm, and the feed asks for six
+    # widths per photo — so a deploy silently handed the next visitors ~3s of CPU per new image,
+    # eight of them at once on eight Broadwell cores. That is the scroll stutter.
+    # ⚠️ The volume is seeded from the image path, which the Dockerfile creates owned by
+    # nextjs(1001). Do not replace this with a bare `docker volume create`: an empty root-owned
+    # volume is unwritable by server.js and degrades to re-encoding everything, with no error.
+    # ⚠️ UNBOUNDED, THIS FILLS THE DISK. 496,377 listing rasters x 6 widths at the measured
+    # ~52KB/entry is ~156GB against 22GB free. eno-image-cache-prune.timer holds the ceiling;
+    # the volume is only safe with that timer installed.
+    volumes:
+      - eno-vn-image-cache:/app/.next/cache/images
     # Loopback only — nginx is the sole way in, and the origin firewall assumes it.
     ports: ["127.0.0.1:3001:8080"]
     restart: unless-stopped
@@ -40,6 +54,9 @@ services:
     image: eno-forum:local
     container_name: eno-forum-app
     env_file: [/opt/eno/secrets/eno-forum.env]
+    # Same argument as eno-vn above; measured 145MB / 3,259 entries, equally ephemeral.
+    volumes:
+      - eno-forum-image-cache:/app/.next/cache/images
     ports: ["127.0.0.1:3002:8080"]
     restart: unless-stopped
     networks: [supabase_default]
@@ -55,3 +72,12 @@ services:
 networks:
   supabase_default:
     external: true
+
+# ⚠️ NAMED, NOT BIND-MOUNTED. A host path under /opt/eno would land inside the 47GB the backup
+# and prune scripts already reason about; these are pure derived data that must never be backed
+# up (see eno-backup.README.md, where the ISR cache was 1,585MB of a 1,616MB dump). Docker owns
+# them, `docker volume inspect` finds them, and the prune timer reads the mountpoint from there.
+volumes:
+  eno-vn-image-cache:
+  eno-forum-image-cache:
+

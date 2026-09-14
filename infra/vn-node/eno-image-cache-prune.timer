@@ -1,0 +1,19 @@
+[Unit]
+Description=Hourly image-optimizer cache prune on the VN box
+
+[Timer]
+# ⚠️ HOURLY, NOT NIGHTLY, AND THE FIRST VERSION WAS NIGHTLY. A once-a-day ceiling is not a
+# ceiling: between runs growth is unbounded, and a crawler walking 496,377 rasters x 6 widths
+# can cross the 22GB of free disk in well under a day. The run is a no-op when under cap — one
+# `du` per edition — so the cost of checking often is close to nothing, and the cost of checking
+# rarely is the disk. Local time, like every unit here (eno-backup learned that the hard way).
+OnCalendar=hourly
+# If the box was off at the scheduled time, run at next boot. Skipped prunes compound: the cache
+# only grows between runs.
+Persistent=true
+# Spread off the top of the hour so this never lands on eno-backup (01:15), daily-reminders
+# (02:00), affiliate-prices (03:00) or eno-docker-prune (04:30) at the minute they start.
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

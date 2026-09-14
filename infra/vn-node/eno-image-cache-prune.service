@@ -1,0 +1,18 @@
+[Unit]
+Description=eno · hold the Next image-optimizer caches under their ceiling
+# Wants, not Requires: matching eno-docker-prune. If docker is slow to settle we still try and
+# let the script's own checks decide, rather than having systemd skip the run silently.
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/eno/bin/eno-image-cache-prune.sh
+# Raise on the 24GB/150GB box; 4096MB per edition is sized for the 22GB free on the current one.
+Environment=ENO_IMAGE_CACHE_CAP_MB=4096
+# ⛔ NOT A DISK SETTING. This bounds how long the origin can keep serving an encoded copy of a
+# photo whose source has been deleted — see the header of eno-image-cache-prune.sh. Raising it
+# lengthens that window; it does not save meaningful CPU.
+Environment=ENO_IMAGE_CACHE_MAX_AGE_DAYS=7
+StandardOutput=journal
+StandardError=journal
