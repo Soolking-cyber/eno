@@ -7,6 +7,9 @@
  *   node scripts/play-api.mjs tracks                 # releases per track
  *   node scripts/play-api.mjs details [--apply]      # the required contact fields
  *   node scripts/play-api.mjs signing <versionCode>  # the PLAY APP SIGNING SHA-256, for assetlinks
+ *   node scripts/play-api.mjs release <app.aab> [--track production] [--shots <dir>] [--apply]
+ *                                                   # ⛔ WITH --apply THIS PUBLISHES TO USERS: bundle,
+ *                                                   # track release, listing and phone screenshots, one edit.
  *
  * ⚠️ EVEN THE READ COMMANDS OPEN A SERVER-SIDE EDIT, because `details`, `listings` and `tracks` are
  * only readable inside one — that is the API's shape, not a choice here. Each run deletes its edit
@@ -33,11 +36,19 @@
  *   · INDIVIDUAL tester emails — the API's `testers` resource takes Google GROUPS, not addresses.
  *     A raw email list is Console-only. Point a group at it once and this becomes scriptable.
  * WHAT THIS SCRIPT IMPLEMENTS TODAY: reading app details (`status`), reading tracks and their
- * releases (`tracks`), and reading/writing the en-US store listing (`listing`). The API itself also
- * covers AAB upload, creating releases and release notes — those are NOT implemented here, and the
- * header used to imply they were.
+ * releases (`tracks`), reading/writing the en-US store listing (`listing`), and the whole release —
+ * AAB upload, track release with notes, listing and phone screenshots — in ONE edit (`release`).
+ *
+ * ⛔ THE IMAGE ENDPOINTS LIVE UNDER `listings/`, NOT `images/`, AND GUESSING COSTS A ROLLED-BACK
+ * RELEASE. `edits.images.upload/deleteall` are addressed as
+ * `/edits/{id}/listings/{language}/{imageType}` — the resource is called images, the path says
+ * listings. A run on 2026-09-14 uploaded the bundle, wrote the track and the listing, then took an
+ * HTML 404 from `/edits/{id}/images/...` and discarded the edit, undoing all three. Read the live
+ * discovery doc for a path rather than inferring it from the resource name:
+ *   curl -s 'https://androidpublisher.googleapis.com/$discovery/rest?version=v3'
  */
 import { execFileSync } from 'node:child_process'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 
 /**
  * ⚠️ THE PLAY PACKAGE NAME — AND IT IS NOT THE SITE THE APP RENDERS. Two reviewers read `eno.vn`
@@ -51,6 +62,33 @@ const SA = 'play-publisher@speedy-victory-500106-h8.iam.gserviceaccount.com'
 const API = 'https://androidpublisher.googleapis.com/androidpublisher/v3'
 const APPLY = process.argv.includes('--apply')
 const cmd = process.argv[2]
+/**
+ * `--track production` → "production". A flag that is PRESENT WITH NO VALUE is an error, never a default: `--track
+ * --apply` used to read as "no track given" and fall through to a full production rollout, which is the opposite of
+ * what someone who typed `--track` meant (astra, agy).
+ */
+const argValue = (flag) => {
+  const i = process.argv.indexOf(flag)
+  if (i === -1) return null
+  const v = process.argv[i + 1]
+  if (!v || v.startsWith('--')) { console.error(`⛔ ${flag} needs a value`); process.exit(1) }
+  return v
+}
+
+/**
+ * What the user reads on the Play update card, for THIS build (1.0.1 / versionCode 3). Play's cap is 500 characters
+ * per language, and notes cannot be edited afterwards without a new edit and rollout.
+ * ⚠️ A LATER RELEASE MUST NOT INHERIT THESE. They describe one build; `--notes <file>` is how the next one carries its
+ * own, and `release` refuses to publish these to any versionCode but 3 (opus: the second person to run the command
+ * would have shipped correct bytes with 1.0.1's changelog).
+ */
+const NOTES_VERSION_CODE = 3
+const RELEASE_NOTES = `• New app icon — the full eno mark, at every launcher size
+• Now called Eno Marketplace, so it is easy to find
+• Smoother, quieter haptics across the app
+• Swipe down or sideways to close any panel or photo viewer
+• Share sheet closes with a swipe or a tap outside
+• Bottom navigation icons refreshed`
 
 /** The listing copy, counted against Play's limits. Single source — edit here, not in the Console. */
 /**
@@ -76,7 +114,13 @@ const cmd = process.argv[2]
  */
 const PLAY_LISTING = {
   language: 'en-US',
-  title: 'eno: Marketplace & e-Visa',
+  /**
+   * ⚠️ THE STORE NAME IS "Eno Marketplace", AND THE OWNER ASKED FOR EXACTLY THIS (2026-09-14): "name of the app eno.vn
+   * is hard to find and from visa from name name should be Eno Marketplace". The old title led with a lowercase
+   * wordmark and an "& e-Visa" tail, which is what made it unfindable by name in Play search. The e-Visa service is
+   * still described — and still disclaimed — in fullDescription below; it is the NAME it has left.
+   */
+  title: 'Eno Marketplace',
   shortDescription: 'Buy, sell and rent in Vietnam. Plus Vietnam e-Visas and free trip planning.',
   fullDescription: `eno is the app for expats and internationals living in or travelling to Vietnam. One place to buy and sell, sort your visa, and plan the trip.
 
@@ -173,6 +217,23 @@ async function api(path, { method = 'GET', body } = {}) {
     throw new Error(`${method} ${path} -> ${res.status}: ${msg}`)
   }
   return json
+}
+
+/**
+ * A MEDIA UPLOAD IS A DIFFERENT HOST PREFIX, NOT A DIFFERENT API — `/upload/androidpublisher/v3/...`, with the file as
+ * the raw body. The JSON `api()` above cannot be reused: it sets a JSON content type and stringifies, and either one
+ * corrupts a bundle. `uploadType=media` is the simple form; Play accepts it well past the 7MB this app's AAB weighs.
+ */
+async function upload(path, { file, contentType }) {
+  const body = readFileSync(file)
+  const res = await fetch(`https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/${PACKAGE}${path}?uploadType=media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token()}`, 'Content-Type': contentType, 'Content-Length': String(body.length) },
+    body,
+  })
+  const text = await res.text()
+  if (!res.ok) throw new Error(`upload ${path} -> ${res.status}: ${text.slice(0, 300)}`)
+  return text ? JSON.parse(text) : null
 }
 
 /** An edit is a transaction: everything is staged against one id and only :commit makes it real. */
@@ -305,7 +366,85 @@ async function main() {
     return
   }
 
-  console.log('usage: node scripts/play-api.mjs <status|listing|details|tracks|signing> [--apply]')
+  /**
+   * THE WHOLE RELEASE IN ONE EDIT — bundle, track, listing, screenshots — because an edit is a transaction and these
+   * four belong together: a store listing that promises a new icon while the bundle carrying it sits in a separate,
+   * uncommitted edit is the half-shipped state this command exists to make impossible.
+   *
+   *   node scripts/play-api.mjs release <app.aab> [--track production] [--shots <dir>] [--apply]
+   *
+   * ⛔ WITH --apply THIS PUBLISHES TO USERS. `status: completed` is a FULL rollout of the named track, which for
+   * `production` means every install. That is the owner's call, never this script's default behaviour — it is a dry run
+   * until someone types --apply.
+   */
+  if (cmd === 'release') {
+    const usage = 'usage: release <path/to/app.aab> [--track production] [--shots <dir>] [--notes <file>] [--apply]'
+    const aab = process.argv[3]
+    const trackFlag = argValue('--track')
+    const track = trackFlag || 'production'
+    const shotsDir = argValue('--shots') || 'play-store-assets/phone/en'
+    const notesFile = argValue('--notes')
+    if (!aab || aab.startsWith('--') || !aab.endsWith('.aab')) { console.error(usage); process.exit(1) }
+    if (!statSync(aab, { throwIfNoEntry: false })) { console.error(`⛔ no bundle at ${aab}`); process.exit(1) }
+    /**
+     * ⛔ A FULL PRODUCTION ROLLOUT IS NEVER SOMETHING YOU GET BY TYPING NOTHING (opus). `production` stays the default
+     * for the dry run, so `release app.aab` prints the plan people actually want to see — but publishing it demands
+     * that the caller name the track out loud.
+     */
+    if (APPLY && !trackFlag) { console.error(`⛔ --apply to ${track} requires naming it: --track ${track}\n   ${usage}`); process.exit(1) }
+    if (!statSync(shotsDir, { throwIfNoEntry: false })?.isDirectory()) { console.error(`⛔ no screenshot directory at ${shotsDir}`); process.exit(1) }
+    // Sorted by filename: the order they are uploaded in is the order Play shows them, and 01-…04- is the story order.
+    const shots = readdirSync(shotsDir).filter((f) => f.endsWith('.png')).sort().map((f) => `${shotsDir}/${f}`)
+    // Play's own bounds for a phone listing: at least 2, at most 8. The MAXIMUM is checked here rather than discovered
+    // at the ninth upload, which would be after the delete-all has already emptied the live set (astra, agy).
+    if (shots.length < 2 || shots.length > 8) { console.error(`⛔ ${shotsDir} holds ${shots.length} PNG(s); Play takes 2 to 8 phone screenshots`); process.exit(1) }
+    const notes = notesFile ? readFileSync(notesFile, 'utf8').trim() : RELEASE_NOTES
+    if (notes.length > 500) { console.error(`⛔ release notes are ${notes.length} chars, limit 500`); process.exit(1) }
+    for (const [k, max] of Object.entries(LIMITS)) {
+      const n = PLAY_LISTING[k].length
+      if (n > max) { console.error(`⛔ ${k} is ${n} chars, limit ${max}`); process.exit(1) }
+    }
+    console.log(`bundle       ${aab} (${(statSync(aab).size / 1e6).toFixed(1)} MB)`)
+    console.log(`track        ${track} — status "completed" (full rollout)`)
+    console.log(`title        ${PLAY_LISTING.title}`)
+    console.log(`screenshots  ${shots.length} file(s), replacing every phone screenshot on ${PLAY_LISTING.language}`)
+    console.log(`notes        ${notesFile || `built in (versionCode ${NOTES_VERSION_CODE} only)`} — ${notes.replace(/\n/g, ' / ').slice(0, 80)}…`)
+    await withEdit(async (id) => {
+      const { tracks = [] } = await api(`/edits/${id}/tracks`)
+      const before = tracks.find((t) => t.track === track)
+      const releases = before?.releases || []
+      console.log(`\ncurrent ${track}: ${releases.map((r) => `${r.status} v${(r.versionCodes || []).join(',')}`).join(' | ') || '(no releases)'}`)
+      // ⛔ PATCHING `releases` REPLACES THE WHOLE ARRAY, so ANYTHING already on this track is discarded silently by a
+      // command that only means to add one (opus, astra). One completed release is the shape this replaces on purpose;
+      // a staged rollout, a halted release, a prepared draft, or a second completed release serving older devices are
+      // all human decisions, and this stops rather than guessing which of them to drop.
+      const keep = releases.filter((r) => r.status !== 'completed' || releases.length > 1)
+      if (keep.length) throw new Error(`${track} carries ${releases.map((r) => `${r.status} v${(r.versionCodes || []).join(',')}`).join(' | ')}. Writing this release replaces that whole list — resolve it in Play Console first, or release to another track.`)
+      // A typo'd track name would otherwise CREATE a track rather than fail.
+      if (!tracks.some((t) => t.track === track)) throw new Error(`no track "${track}" on this app — it has ${tracks.map((t) => t.track).join(', ')}`)
+      if (!APPLY) return
+      const bundle = await upload(`/edits/${id}/bundles`, { file: aab, contentType: 'application/octet-stream' })
+      console.log(`  uploaded versionCode ${bundle.versionCode}`)
+      // The built-in notes describe ONE build. A different bundle must bring its own --notes.
+      if (!notesFile && bundle.versionCode !== NOTES_VERSION_CODE) throw new Error(`the built-in release notes describe versionCode ${NOTES_VERSION_CODE}, and this bundle is ${bundle.versionCode} — pass --notes <file> with this build's changes`)
+      await api(`/edits/${id}/tracks/${track}`, { method: 'PATCH', body: {
+        releases: [{ status: 'completed', versionCodes: [String(bundle.versionCode)], releaseNotes: [{ language: PLAY_LISTING.language, text: notes }] }],
+      } })
+      console.log(`  ${track}: release with v${bundle.versionCode}`)
+      await api(`/edits/${id}/listings/${PLAY_LISTING.language}`, { method: 'PUT', body: PLAY_LISTING })
+      console.log(`  listing: "${PLAY_LISTING.title}"`)
+      // ⚠️ DELETE-ALL FIRST, AND IT IS A PLAIN DELETE ON THE COLLECTION. Uploading alone APPENDS — Play caps phone
+      // screenshots at 8, so a second run without this would fail on the ninth and leave the old set in front.
+      await api(`/edits/${id}/listings/${PLAY_LISTING.language}/phoneScreenshots`, { method: 'DELETE' })
+      for (const shot of shots) {
+        await upload(`/edits/${id}/listings/${PLAY_LISTING.language}/phoneScreenshots`, { file: shot, contentType: 'image/png' })
+        console.log(`  screenshot ${shot}`)
+      }
+    })
+    return
+  }
+
+  console.log('usage: node scripts/play-api.mjs <status|listing|details|tracks|signing|release> [--apply]')
 }
 
 main().catch((e) => { console.error('\n' + e.message); process.exit(1) })
