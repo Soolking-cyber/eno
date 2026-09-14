@@ -1,7 +1,5 @@
 'use client'
 
-import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
-import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { BubbleChrome, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
 import Link from 'next/link'
@@ -2485,19 +2483,11 @@ export default function ThreadPage() {
             )}
             {visaInfo && (<>
               {/*
-                ⛔ THE THREAD WHERE A GOVERNMENT APPLICATION IS PAID FOR AND DELIVERED, AND IT HAD NO
-                DISCLAIMER AT ALL. visa-cards.tsx runs all five steps, the checkout ("Pay for your
-                e-Visa") and the result ("Your e-Visa is ready" / "Download your visa") without once
-                saying eno is not the government or naming the official portal — the Misleading
-                Claims finding, on the surface where it matters most (2026-09-10).
-                ⚠️ ABOVE THE COMPOSER, so it is on screen for every step rather than scrolled past
-                once at the top of a long conversation.
+                ⚠️ NO "NOT A GOVERNMENT AGENCY" PANEL IN THE CHAT (owner, 2026-09-14: "remove this warning in the
+                chat only on product page is ok … covers too much space of chat ui"). It sat above the composer on
+                every step and took a third of a phone screen. The disclosure and the official-portal link stay on the
+                product page, where the applicant decides to apply (listings/[id]/page.tsx).
               */}
-              <VisaDisclosure
-                className="mb-2"
-                text={tr(NOT_GOVERNMENT.en, NOT_GOVERNMENT.vi)}
-                linkLabel={tr('Official Vietnam e-Visa portal (Immigration Department)', 'Cổng thông tin e-Visa chính thức (Cục Quản lý xuất nhập cảnh)')}
-              />
               {iAmApplicant && (conciergeAvailable ? (
                 <VisaAssistChips
                   armed={conciergeArmed}
