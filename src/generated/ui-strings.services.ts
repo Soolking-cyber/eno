@@ -403,6 +403,7 @@ export const UI_STRINGS_SERVICES: string[] = [
   "You pay",
   "You pay suppliers directly",
   "You pay suppliers directly. Nothing is charged here.",
+  "You're signed in as the e-Visa desk — customers apply here and their chats come to you. To try the flow, use a customer account.",
   "You've used all the suggestions for this trip. You can still ask the desk in the chat.",
   "You've used all the suggestions for this trip. You can still remove the activity.",
   "Your Word file is ready.",

@@ -345,6 +345,7 @@ export type NicheApiErrorCode =
   | 'case_changed_reload'
   | 'checkout_card_refused'
   | 'concierge_unavailable'
+  | 'desk_self'
   | 'field_not_in_step'
   | 'human_help_pending'
   | 'invalid_amount'

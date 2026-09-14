@@ -159,6 +159,13 @@ function useVisaStart(onStarted?: () => void) {
       case 'product_not_configured':
       case 'product_price_unavailable':
         return tr('This service is not available to buy right now.', 'Hiện chưa thể mua dịch vụ này.')
+      case 'desk_self':
+        // The account tapping IS the e-Visa desk (dm-flow's `desk_self`): nothing is down, and "try again later"
+        // would send the desk owner hunting for an outage that does not exist (owner, 2026-09-14).
+        return tr(
+          "You're signed in as the e-Visa desk — customers apply here and their chats come to you. To try the flow, use a customer account.",
+          'Bạn đang đăng nhập bằng tài khoản bộ phận e-Visa — khách hàng nộp hồ sơ tại đây và cuộc trò chuyện sẽ gửi đến bạn. Để thử quy trình, hãy dùng một tài khoản khách hàng.',
+        )
       case 'shop_unavailable':
       case 'visa_encryption_not_configured':
       case 'visa_schema_not_ready':

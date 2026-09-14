@@ -995,6 +995,7 @@ const ERROR_COPY: Record<string, [string, string]> = {
   result_unavailable: ['The file could not be opened just now. Please try again.', 'Chưa mở được tệp lúc này. Vui lòng thử lại.'],
   visa_database_unavailable: ['We could not reach your application just now. Please try again.', 'Chưa truy cập được hồ sơ của bạn lúc này. Vui lòng thử lại.'],
   shop_unavailable: ['The e-Visa desk is unavailable right now.', 'Bộ phận E-Visa hiện không khả dụng.'],
+  desk_self: ["You're signed in as the e-Visa desk — customers apply here and their chats come to you. To try the flow, use a customer account.", 'Bạn đang đăng nhập bằng tài khoản bộ phận e-Visa — khách hàng nộp hồ sơ tại đây và cuộc trò chuyện sẽ gửi đến bạn. Để thử quy trình, hãy dùng một tài khoản khách hàng.'],
   internal_error: ['Something went wrong. Please try again.', 'Đã xảy ra lỗi. Vui lòng thử lại.'],
   thread_not_bound: ['This chat is not linked to an application yet.', 'Cuộc trò chuyện này chưa được liên kết với hồ sơ nào.'],
   thread_conflict: ['This application belongs to another chat.', 'Hồ sơ này thuộc về cuộc trò chuyện khác.'],

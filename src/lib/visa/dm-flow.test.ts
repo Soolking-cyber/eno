@@ -1137,6 +1137,15 @@ describe('start', () => {
     expect(result).toMatchObject({ ok: false, error: 'shop_unavailable', status: 503 })
     expect(h.state.tables.visa_applications).toHaveLength(0)
   })
+
+  // Measured 2026-09-14: signed in as the desk, "Apply in chat" said the desk was unavailable and left an orphan draft.
+  it('tells the desk it cannot apply to itself — its own code, a 409, and no case minted', async () => {
+    h.state.tables.visa_applications = []
+    const result = await startVisaDmFlow({ userId: 'shop-owner', email: 'desk@example.com', listingId: 'listing-1', allowCreate: async () => true })
+    expect(result).toMatchObject({ ok: false, error: 'desk_self', status: 409 })
+    expect(h.state.tables.visa_applications).toHaveLength(0)
+    expect(dmThread.bindVisaThread).not.toHaveBeenCalled()
+  })
 })
 
 // ── PHASE 2: THE STEP-0 PICKER ─────────────────────────────────────────────────────

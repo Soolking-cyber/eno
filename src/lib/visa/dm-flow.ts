@@ -167,6 +167,7 @@ export type VisaDmErrorCode =
   | 'not_a_participant'
   | 'not_found'
   | 'payload_unreadable'
+  | 'desk_self'
   | 'payments_not_configured'
   | 'product_not_configured'
   | 'product_not_for_sale'
@@ -1197,6 +1198,13 @@ export async function startVisaDmFlow(input: {
   // is an orphan the applicant then has to be told about.
   const shop = await getVisaShopSeller()
   if (!shop?.ownerId) return fail('shop_unavailable', 503)
+  // ⛔ THE DESK CANNOT APPLY TO ITSELF, AND IT MUST BE TOLD SO BEFORE A CASE EXISTS. Measured 2026-09-14: signed in as
+  // the VietKite desk, "Apply in chat" on the desk's own product showed "The e-Visa desk is unavailable right now"
+  // and left an orphan draft (5625516e…, no thread). bindVisaThread does refuse the desk — a conversation needs two
+  // parties — but only AFTER the draft below is picked or minted, and it reports the refusal as `shop_unavailable`,
+  // a retry-shaped lie about a desk that is open. Owner: "people should always be able to text and apply in chat" —
+  // they can; the account tapping was the desk. So: its own code, a 409 (nothing will change on retry), no write.
+  if (shop.ownerId === input.userId) return fail('desk_self', 409)
 
   // Which draft (if any) this start re-opens. A named product prefers a draft ALREADY on its
   // visa type, so applying for a DIFFERENT type leaves the earlier one untouched and mints its

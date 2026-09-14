@@ -124,9 +124,18 @@ export const PROVIDER_LICENCE_ON_FILE = VISA_PROVIDER.licenceOnFile
  * ⛔ DO NOT TRIM FURTHER, AND DO NOT COLLAPSE IT BEHIND A TOGGLE. "Clear and easy-to-see" is the
  * policy's wording, and a disclaimer behind a tap is the finding that was already made once.
  */
+/**
+ * ⚠️ FRIENDLIER, SAME TWO FACTS (owner, 2026-09-14: "this warning should have more friendlier tone like. Your e-visa is
+ * processes by licensed professionals to learn more about e-visa refer to official government website"). The owner's
+ * example leads with the reassurance and ends at the official site; this keeps that shape and changes NO FACT: the
+ * licence stays the COMPANY's (VietKite holds it, not individual "professionals"), and "isn't a government agency and
+ * doesn't decide visa applications" stays — the first half of what Play asked for (see the block above), the second
+ * being the official-portal link every call site renders beside this text. Tone moved; the disclosure did not shrink
+ * (astra, agy, opus caught a first draft that dropped "doesn't decide" and moved the licence onto people).
+ */
 export const NOT_GOVERNMENT = {
-  en: `eno is not a government agency and does not decide visa applications. Services listed here are provided by ${VISA_PROVIDER.brand}, a licensed Vietnamese travel company.`,
-  vi: `eno không phải cơ quan nhà nước và không quyết định kết quả hồ sơ thị thực. Dịch vụ niêm yết tại đây do ${VISA_PROVIDER.brand} — doanh nghiệp lữ hành Việt Nam có giấy phép — cung cấp.`,
+  en: `Your e-Visa is handled by ${VISA_PROVIDER.brand}, a licensed Vietnamese travel company. eno isn't a government agency and doesn't decide visa applications — for official e-Visa information, visit the government portal.`,
+  vi: `Hồ sơ e-Visa của bạn do ${VISA_PROVIDER.brand} — doanh nghiệp lữ hành Việt Nam có giấy phép — xử lý. eno không phải cơ quan nhà nước và không quyết định kết quả hồ sơ thị thực — để xem thông tin e-Visa chính thức, hãy truy cập cổng thông tin của Chính phủ.`,
 }
 
 export const OFFICIAL_EVISA_URL = 'https://evisa.gov.vn/'

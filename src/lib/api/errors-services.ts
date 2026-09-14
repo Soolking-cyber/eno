@@ -74,6 +74,7 @@ export const SERVICES_ALL = [
   'checkout_failed',
   'concierge_unavailable',
   'confirm_failed',
+  'desk_self',
   'entry_date_invalid',
   'field_not_in_step',
   'fund_failed',
