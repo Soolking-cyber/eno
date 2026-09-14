@@ -150,7 +150,8 @@ export type CategoryDef = {
   facets: FacetDef[]
 }
 
-const COND: FacetDef = {
+// Exported for the facet bar's quick "Condition" pill, which also offers it on the "all" browse state (no category).
+export const CONDITION_FACET: FacetDef = {
   key: 'condition',
   label: 'Condition',
   labelVi: 'Tình trạng',
@@ -160,6 +161,7 @@ const COND: FacetDef = {
     { value: 'used', label: 'Used', labelVi: 'Đã dùng' },
   ],
 }
+const COND = CONDITION_FACET
 
 // ── Visa products ────────────────────────────────────────────────────────────
 // A Vietnam e-Visa service is sold as an ORDINARY listing: one product = one entry

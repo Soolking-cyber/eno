@@ -118,6 +118,9 @@ const MAP = {
   '17_Free & Giveaways.png': 'free',
   '18_ Wanted.png': 'wanted',
   '19_Wholesale.png': 'wholesale',
+  // Owner, 2026-09-14 ("categories book icon use this"): delivered separately as Icon_books.png — add it to the pack
+  // under this name before running. Until then books-stationery carried a flat placeholder (9b59f4b5).
+  '20_Books.png': 'books-stationery',
 }
 
 /**

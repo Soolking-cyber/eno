@@ -13,19 +13,25 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
-import { NavArt } from '@/components/marketplace/nav-art'
+import { Compass, Heart, Plus, User, MessageSquare } from '@/components/ui/icons'
+import { STROKE_NAV } from '@/lib/icon-tokens'
+// ⚠️ FROM category-glyph, NOT category-icons — importing the renderer from the registry file
+// drags its 99-icon map into this route's chunk (see category-glyph.tsx's header).
+import { CategoryGlyphArt } from './category-glyph'
 import { scrollBehavior } from '@/lib/reduced-motion'
 
 /**
- * ⚠️ THERE IS NO STROKE IN THIS BAR ANY MORE, and the two things that went with it are worth
- * recording. All five tabs are `NavArt` rasters, so `STROKE_NAV` (the platform lucide weight, and
- * the reason every tab used to read at one visual weight) has nothing left to apply to — and the
- * `CategoryGlyphArt` import went with it. That import carried its own warning: reach for
- * `category-glyph`, never `category-icons`, or a 99-icon map lands in the chunk of the one
- * component on every mobile screen. The bar now imports neither, which is strictly better.
- * ⚠️ SYMMETRY IS NOW THE ARTWORK'S JOB, not a shared stroke constant. If a redrawn pack ships one
- * icon visibly heavier than the other four, nothing in this file will even it out.
+ * ⛔ SOLAR v2 GLYPHS AGAIN, NOT THE 3D ART — owner, 2026-09-14: "on mobile bottom navbar icons move back to solar v2
+ * version". The five `NavArt` rasters (793d05d2, 2026-08-28) are gone from this bar; the glyphs are the ones it drew
+ * before them (Outline at rest, Bold + brand when the link is `aria-current`, via the sprite's .i-rest/.i-on layers).
+ * `nav-art.tsx` and `/icons/nav/*` stay: the iOS app's tab bar still paints that artwork (ae94af3b).
+ * ⚠️ WHAT THE 3D ERA DECIDED AND THIS KEEPS: colour means "you are here" and nothing else (owner, 2026-08-28, 05eb62fe).
+ * The pre-art glyphs filled the Heart when anything was saved and the bubble on unread; those fills are NOT restored —
+ * the count badges carry that signal.
+ * One uniform stroke across the bar (STROKE_NAV, docs/icon-language.md §2, shared with the header) keeps all five
+ * tabs at one visual weight.
  */
+const STROKE = STROKE_NAV
 
 // Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay.
 const TAB = 'flex flex-1 cursor-pointer transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.96] active:duration-[60ms] [touch-action:manipulation]'
@@ -343,20 +349,17 @@ export function MobileNav() {
           compresses the icons out of the bar. */}
       <div className="flex min-h-[4.5rem] items-stretch">
       <Link href="/" prefetch={at('/') ? false : undefined} aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
-        {/* ⚠️ THE PACK SHIPS A HOUSE AND THE LABEL STILL SAYS "Explore". Deliberate: the tab points
-            at `/`, which IS the home page, and the owner asked for this pack without asking for a
-            copy change. Say so here rather than quietly renaming a string that is translated,
-            tested and in `ui-strings.ts`.
-            ⚠️ THE COMPASS DUOTONE PROBLEM IS GONE WITH THE COMPASS. lucide drew its needle first
-            and the outer circle second, so filling the whole svg painted the circle over the needle
-            and the glyph collapsed into a disc (owner, 2026-08-07: "mobile explore icon when filled
-            inside disappears") — which is why this one tab rendered through `CategoryGlyphArt`'s
-            two-layer path while the others were single svgs. A raster has no layer order to get
-            wrong, so that special case and its import are deleted. */}
+        {/* ⚠️ COMPASS RENDERS AS THE TWO-LAYER DUOTONE, not a single filled svg. The glyph draws
+            the needle FIRST and the outer circle SECOND, so a fill applied to the whole svg
+            paints the circle over the needle and the glyph collapses into a solid disc (owner,
+            2026-08-07: "mobile explore icon when filled inside disappears"). CategoryGlyphArt
+            paints the tint UNDERNEATH an untouched ink layer, so the needle survives the fill —
+            the same reason the category tiles never had this problem. The other three tabs
+            (Heart, MessageSquare, User) have no self-covering child and stay single-svg. */}
         <TabBody
           active={at('/')}
           label={tr('Explore', 'Khám phá')}
-          icon={(on) => <NavArt name="explore" lit={on} />}
+          icon={(on) => <CategoryGlyphArt Icon={Compass} selected={on} stroke={STROKE} className="h-7 w-7" />}
         />
       </Link>
 
@@ -366,20 +369,14 @@ export function MobileNav() {
         <TabBody
           active={at('/saved')}
           label={tr('Saved', 'Đã lưu')}
-          icon={(on) => (
+          icon={(
             <>
-              {/* ⛔ COLOUR MEANS "YOU ARE HERE", AND NOTHING ELSE — owner, 2026-08-28, looking at a
-                  blue heart while standing on Explore: "only blue if button is pressed not when has
-                  noticification or saved counter increases". This DID carry `|| count > 0`, ported
-                  from the lucide Heart which painted itself `fill-brand` whenever anything was
-                  saved. Keeping it looked like preserving a signal; what it actually did was give
-                  the bar two unrelated meanings for one colour, so a visitor with saves and unread
-                  saw three lit tabs and the row stopped saying which one they were on. A reviewer
-                  had made the same argument independently. The COUNT BADGE says there is something
-                  to see — that is its whole job, it is louder than a tint, and it is unaffected.
-                  ⚠️ `on` comes from `TabBody`, which already computed the active state; re-deriving
-                  `at('/saved')` here was a second source of truth that could drift from the label. */}
-              <NavArt name="saved" lit={on} />
+              {/* ⛔ COLOUR MEANS "YOU ARE HERE", AND NOTHING ELSE — owner, 2026-08-28: "only blue if button
+                  is pressed not when has noticification or saved counter increases". The pre-2026-08-28
+                  glyph carried `count > 0 && 'fill-brand text-brand'`; it is not restored with the glyph.
+                  The COUNT BADGE says there is something to see. Location comes from TabBody's wash and the
+                  link's aria-current (Solar Bold). */}
+              <Heart className="h-7 w-7" strokeWidth={STROKE} />
               {count > 0 && (
                 <Badge variant="counter" size="count" className="absolute -right-2 -top-1">
                   {count}
@@ -401,8 +398,8 @@ export function MobileNav() {
         // brand-blue plus — no shadow, no FAB lift, no heavy solid fill. It reads as the primary
         // action while staying part of the same flat canvas as the other tabs.
         // bg-brand-50, not bg-tint (icon-language §6): the Post coin is the one chrome coin in
-        // the bar, and the brand-tinted disc keeps it in the same blue family as the artwork it
-        // now holds — still flat.
+        // the bar, and the brand-tinted disc ties it to the category-glyph wash — same blue
+        // family, still flat.
         stack={STACK}
         icon={
           // ⚠️ THE MARK FILLS THE COIN — same treatment as the floating support control, owner
@@ -412,17 +409,8 @@ export function MobileNav() {
           // ⚠️ THE RADIUS ALREADY MATCHES THE GLYPH and needs no change: this icon is Solar's
           // `add-circle` — a plus inside a CIRCLE — and the coin is `rounded-full`. Concentric by
           // construction, which is the whole reason the fill reads as deliberate.
-          /* ⚠️ ALWAYS LIT, ALONE AMONG THE FIVE. Post is the bar's primary action, not a place you
-             can be — the coin exists to say so (owner: emphasised but FLAT, a tinted chip rather
-             than a FAB). Greying it on every screen except /post would read as disabled on the one
-             control the bar is built around. The other four earn their colour from the route.
-             ⚠️ The glyph is smaller than the 42px lucide plus it replaces: that number came from
-             Solar's `add-circle`, whose ink fills 0.896 of its box, so it was oversized on purpose
-             to paint 37.6px inside the 40px coin. This artwork is a bare plus with its own margins,
-             so `size-8` inside `size-10` gives it room to read as a mark in a disc rather than
-             touching the edges. */
-          <span className="flex size-10 items-center justify-center rounded-full bg-brand-50">
-            <NavArt name="post" lit className="size-8" />
+          <span className="flex size-10 items-center justify-center rounded-full bg-brand-50 text-brand">
+            <Plus className="h-[42px] w-[42px] shrink-0" strokeWidth={STROKE} />
           </span>
         }
       />
@@ -440,11 +428,11 @@ export function MobileNav() {
         // must navigate back OUT to the inbox.
         onClick={(e) => onTabClick(e, pathname === '/messages')}
         label={tr('Messages', 'Tin nhắn')}
-        icon={(on) => (
+        icon={(
           <>
-            {/* Same rule as Saved: colour is location only. Unread is the badge's job — see the
-                note there for why lighting the glyph too cost more than it carried. */}
-            <NavArt name="messages" lit={on} />
+            {/* Same rule as Saved: colour is location only — the pre-2026-08-28 unread fill is not restored;
+                unread is the badge's job. */}
+            <MessageSquare className="h-7 w-7" strokeWidth={STROKE} />
             {user && unread > 0 && (
               <Badge variant="counter" size="count" className="absolute -right-2 -top-1">
                 {unread > 9 ? '9+' : unread}
@@ -474,7 +462,7 @@ export function MobileNav() {
         // dashboard scrolls to top, exactly like the other four.
         onClick={(e) => onTabClick(e, accountActive)}
         label={tr('Account', 'Tài khoản')}
-        icon={(on) => <NavArt name="account" lit={on} />}
+        icon={<User className="h-7 w-7" strokeWidth={STROKE} />}
       />
       </div>
     </nav>

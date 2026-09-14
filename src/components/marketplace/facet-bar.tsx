@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useLanguage } from '@/context/language-context'
-import { facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
+import { CONDITION_FACET, facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
 import { formatCount, moneyLocale } from '@/lib/vnd'
 // The chip counter's SPOKEN form. Reused rather than re-worded: this helper already groups per
@@ -374,6 +374,48 @@ export function FacetBar({
       <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', areaOpen && 'rotate-180')} />
     </Button>,
   )
+
+  /**
+   * CONDITION — the 4th quick pill (owner, 2026-09-14: "4th dropdown here to select used or new items").
+   * Offered on the "all" browse state (the home page, where there is no Filter panel at all) and in every category
+   * whose taxonomy has a `condition` facet; a category without one (services, jobs…) gets no pill, because every
+   * row there has condition null and the filter could only empty the feed.
+   * ⚠️ IT IS A SECOND CONTROL FOR THE SAME VALUE AS THE PANEL'S Condition GROUP, deliberately: both read and write
+   * `conditionFilter`, so they cannot disagree, and the panel group is what facet-bar.test.tsx pins. Same shape as
+   * the listing-type pill — counts on the OPTIONS from `facetCounts.condition`, a countless trigger, so the one
+   * horizontally scrolling row at 390px does not widen when a count arrives.
+   */
+  // ⚠️ A SET FILTER KEEPS ITS PILL (astra, opus): pick "Used" on the home page, then open Services — no condition facet
+  // there, and without this the pill would vanish while `conditionFilter` still emptied the feed, with nothing on the
+  // bar saying why. So a category without the facet still shows the pill while a value is set, to be read and cleared.
+  const conditionFacet = activeCategory === 'all'
+    ? CONDITION_FACET
+    : facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory).find((f) => f.key === 'condition')
+      ?? (conditionFilter !== 'all' ? CONDITION_FACET : undefined)
+  if (conditionFacet) {
+    const conditionLabels: [string, string][] = [
+      ['all', tr('Any condition', 'Mọi tình trạng')],
+      ...conditionFacet.options.map((o) => [o.value, tr(o.label, o.labelVi)] as [string, string]),
+    ]
+    const conditionCounts = railDimension(facetCounts.condition, conditionFacet.options.map((o) => o.value))
+    facets.push(
+      <CustomSelect
+        key="condition"
+        value={conditionFilter}
+        onChange={setConditionFilter}
+        options={conditionLabels.map(([value, label]) => ({
+          value,
+          label: labelWithCount(label, value === 'all' ? allCount(conditionCounts) : chipCount(conditionCounts, value), lang),
+        }))}
+        label={tr('Condition', 'Tình trạng')}
+        placeholder={tr('Condition', 'Tình trạng')}
+        triggerLabel={conditionLabels.find(([v]) => v === conditionFilter)?.[1]}
+        className={cls}
+        activeClassName={active}
+        wrapperClassName={wrap}
+      />,
+    )
+  }
 
   // All category facets live in the advanced "Filter" panel — a real per-category
   // form (condition + the per-category fields). The quick bar keeps area/type/price.

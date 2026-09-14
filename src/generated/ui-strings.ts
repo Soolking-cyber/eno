@@ -116,6 +116,7 @@ export const UI_STRINGS: string[] = [
   "Answers",
   "Answers about buying, selling, trust and staying safe on eno.vn — plus practical guides for getting around Vietnam. Upvote what helped you, and ask anything that is missing.",
   "Any",
+  "Any condition",
   "Any type",
   "Anything this shop posts shows up here automatically.",
   "Anything to add? (optional)",

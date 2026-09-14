@@ -3,11 +3,12 @@ import * as React from 'react'
 
 import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
+import { Handshake } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
 /**
- * THE OFFICIAL-PARTNER BADGE — a round "P" plate in partner green that explains itself when tapped.
+ * THE OFFICIAL-PARTNER BADGE — a handshake + "P" plate in partner green that explains itself when tapped.
  * (Since 2026-09-14; the history below is of the worded pill it replaced — see the plate comment.)
  *
  * Owner, 2026-08-13: "official partner badge with gold outline similar to trust badge, short
@@ -74,34 +75,36 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
         className={cn(
           'inline-flex shrink-0 rounded-full',
           asLink && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          // ⚠️ `-m-[4.5px] p-[4.5px]` ON THE LINK: the "P" is 15px, under the 24px minimum as a tap target
-          // (codex). 4.5px a side makes the target exactly 24px and the negative margin gives the space
+          // ⚠️ `-m-[4.5px] p-[4.5px]` ON THE LINK: the plate is 15px tall, under the 24px minimum as a tap target
+          // (codex). 4.5px a side makes it exactly 24px tall and the negative margin gives the space
           // back, so nothing moves. The link branch only renders standalone (shop link, seller card,
           // /partners) and partner REPLACES the trust chip, so the grown box has no neighbouring target.
           // Not an absolute hit-area pseudo-element: that needs `relative`, which the note above forbids.
           asLink && '-m-[4.5px] p-[4.5px]',
         )}
       >
-        {/* ⚠️ A LETTER "P" ON A ROUND TRANSLUCENT PLATE (owner, 2026-09-14: "semitransparent plates
-            similar to heart icons plate on product cards but with their respective subtle coloring.
-            also have letter P only for partner badge"). This reverses the 2026-08-13 rule that the
-            word "Partner" stays at every width — the owner's call. What that rule protected still
-            holds: the full "Official partner" is the accessible name (role=img / the link's label)
-            and the tooltip, so the plate is never an unnamed mark; on touch the tooltip does not open,
-            which is the accepted cost of the letter.
-            ⚠️ 15px SQUARE = THE TRUST CHIP'S MEASURED HEIGHT (its 11px glyph + py-0.5), so the two sit
-            on one line at one height. `size-[15px]` fixes the box instead of letting the glyph's
-            line-height decide it — the height mismatch the owner flagged on 2026-08-13 came from
-            exactly that (`text-2xs` sets line-height too, and stylesheet order picks the winner).
-            ⚠️ THE SAME `.badge-plate` AS THE TRUST CHIP, tinted and inked with the partner green; the
-            contrast measurements are on that rule in globals.css. */}
+        {/* ⚠️ A GLYPH + "P" ON A TRANSLUCENT PLATE — THE TRUST CHIP'S OWN SHAPE. Owner, 2026-09-14: "semitransparent
+            plates similar to heart icons plate on product cards but with their respective subtle coloring. also have
+            letter P only for partner badge", then the same day: "partner badge should have an icon next to it similar
+            to trust badge". So the box is the trust chip's exact class string (px-1.5 py-0.5 text-2xs leading-none,
+            an 11px glyph setting the 15px height) — the two sit on one line at one height because they are the same
+            declaration, the fix the owner asked for on 2026-08-13 when a separately-sized pill measured taller.
+            ⚠️ A HANDSHAKE, NOT A SHIELD. The trust chip beside it on other surfaces is a shield + number; a shield + "P"
+            would read as a trust score, which is the exact conflation (an EARNED score vs a GRANTED relationship) the
+            partner mark has kept apart since it left gold. The handshake also says what "P" stands for — the letter
+            alone cannot be decoded on touch, where the tooltip never opens.
+            This reverses the 2026-08-13 rule that the word "Partner" stays at every width — the owner's call. The full
+            "Official partner" is still the accessible name (role=img / the link's label) and the tooltip.
+            ⚠️ THE SAME `.badge-plate` AS THE TRUST CHIP, tinted and inked with the partner green; the contrast
+            measurements are on that rule in globals.css. */}
         <span
           className={cn(
-            'badge-plate inline-flex size-[15px] shrink-0 items-center justify-center rounded-full text-2xs font-bold leading-none',
+            'badge-plate inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-bold leading-none',
             className,
           )}
           style={{ '--plate-tint': 'var(--partner-ink)', '--plate-ink': 'var(--partner-ink)' } as React.CSSProperties}
         >
+          <Handshake aria-hidden size={11} className="shrink-0" />
           {/* Through tr() like every visible string (react/jsx-no-literals). "P" in both languages is the
               owner's letter; the Vietnamese side is where an "Đ" would go if that is ever asked for. */}
           {tr('P', 'P')}
