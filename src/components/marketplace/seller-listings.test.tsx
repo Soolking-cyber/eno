@@ -187,3 +187,33 @@ describe('SellerListings in server-scoped mode', () => {
     expect(urls).toHaveLength(0)
   })
 })
+
+describe('SellerListings as a paged continuation with no controls', () => {
+  // The "More on eno.vn" grid under a storefront opts out of search and sort. Before the fix the
+  // no-controls shortcut returned a bare grid and silently dropped Show-more, capping it at page one.
+  it('still offers Show more, and asks for the next page in the SAME scope and sort', async () => {
+    const urls = stubFetch(() => ({ listings: [card('next-0', 1)], total: 76000 }))
+    render(
+      <SellerListings
+        listings={PAGE}
+        initialSort="relevance"
+        serverScope={{ params: { excludeSeller: 's1' }, total: 76000, pageSize: 60 }}
+      />,
+    )
+    expect(screen.queryByLabelText('Search this seller')).toBeNull()
+    expect(screen.queryByRole('tab', { name: /price/i })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    await waitFor(() => expect(urls.length).toBe(1))
+    const u = new URL(urls[0], 'http://x')
+    expect(u.searchParams.get('excludeSeller')).toBe('s1')
+    expect(u.searchParams.get('offset')).toBe('60')
+    // 'relevance' travels as the balanced blend the API interleaves sellers under — not literal recency.
+    expect(u.searchParams.get('sort')).toBe('newest')
+  })
+
+  it('stays a bare grid when there is nothing further to load (district pages with one listing)', () => {
+    render(<SellerListings listings={[card('only', 1)]} serverScope={{ params: { category: 'c' }, total: 1, pageSize: 24 }} />)
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
+    expect(screen.queryByText(/listing\./)).toBeNull()
+  })
+})

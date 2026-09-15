@@ -378,7 +378,14 @@ export function SellerListings({
     </div>
   )
 
-  if (!searchable && !sortable) return grid
+  /**
+   * ⚠️ A BARE GRID ONLY WHEN THERE IS NOTHING MORE TO FETCH. This shortcut used to fire on "no search, no
+   * sort" alone, which also dropped the count line and Show-more — so a server-paged grid that opts out of
+   * the controls (the "More on eno.vn" continuation under a storefront) was silently capped at its first
+   * page: measured 24 cards of 76,000 and no way to reach the rest. District pages pass serverScope with
+   * sorting off when they hold ≤1 listing; they have nothing further to load and keep the bare grid.
+   */
+  if (!searchable && !sortable && !(serverMode && serverScope!.total > listings.length)) return grid
 
   return (
     <div className="space-y-4" data-listings-ready={ready ? 'true' : undefined}>

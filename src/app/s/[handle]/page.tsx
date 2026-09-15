@@ -383,8 +383,11 @@ export default async function Storefront({ params }: Props) {
             <h2 className="h-section mb-4 text-foreground"><Tr text="More on" /> {SITE_NAME}</h2>
             <SellerListings
               listings={otherListings}
-              searchable
-              sortable
+              /* ⛔ NO SEARCH BOX AND NO SORT TABS ON THIS GRID. The shop's own grid above already has both,
+                 labelled "Search this seller" — a second copy here said the same words while searching
+                 the REST of the marketplace, and gave the page two identical controls (CI caught it:
+                 getByLabel('Search this seller') and the price tab each resolved to 2 elements).
+                 Searching and sorting the whole catalogue is /search's job; this is a continuation. */
               /* ⚠️ 'relevance' IS THIS COMPONENT'S NAME FOR DEFAULT_FEED_SORT, and the mapping is the
                  point: seller-listings sends `sort === 'relevance' ? 'newest' : sort`, and 'newest'
                  is the balanced blend that `diversityAppliesTo` gates the interleave on — it does

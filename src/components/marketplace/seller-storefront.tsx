@@ -499,8 +499,11 @@ export async function SellerStorefront({ id }: { id: string }) {
                 than 60: this is the continuation, not the reason the visitor came. */}
             <SellerListings
               listings={otherListings}
-              searchable
-              sortable
+              /* ⛔ NO SEARCH BOX AND NO SORT TABS ON THIS GRID. The shop's own grid above already has both,
+                 labelled "Search this seller" — a second copy here said the same words while searching
+                 the REST of the marketplace, and gave the page two identical controls (CI caught it:
+                 getByLabel('Search this seller') and the price tab each resolved to 2 elements).
+                 Searching and sorting the whole catalogue is /search's job; this is a continuation. */
               /* 'relevance' is this component's name for DEFAULT_FEED_SORT ('newest' on the wire —
                  the balanced blend, NOT most-recent), which is the only sort the API interleaves
                  under. 'recent' here would disable the interleave on every Show-more. */
