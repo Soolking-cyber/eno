@@ -633,6 +633,33 @@ for svc in eno-vn eno-forum; do
   ok "$svc up"
 done
 
+# ⛔ DROP ISR ROWS NO RUNNING CONTAINER CAN READ. The payload key is eno:isr:<edition>:<BUILD_ID>:…, so the
+# moment the swap above completes, every row from the previous build is unreadable — and it still sits in
+# next_cache until its TTL (up to 30 days) runs out. Measured 2026-09-15: ~5 GB/day of payloads on the box,
+# with two deploys that day each stranding a build's worth, against 24 GB free. cache-handler.cjs no longer
+# writes payloads on the box (pgPayloads), so this is the backstop for any that remain or that an
+# ENO_ISR_PG_PAYLOADS opt-in writes later.
+# ⚠️ ONLY `eno:isr:` KEYS, and ONLY when BOTH build ids were read. An empty id would turn "not current" into
+# "everything"; the rate-limit and site-stats KV share this table under other prefixes and are not touched.
+# ⚠️ NON-FATAL: the swap has already succeeded, and a failed tidy must not fail a good deploy.
+# ⚠️ VALIDATE THE IDS, DO NOT SANITISE THEM. Rewriting an unexpected id (stripping a ".") would leave it
+# non-empty and delete the very rows it names; an id that is not the shape Next writes skips the cleanup.
+BID_VN=$(docker exec eno-vn-app cat /app/.next/BUILD_ID 2>/dev/null) || BID_VN=
+BID_FO=$(docker exec eno-forum-app cat /app/.next/BUILD_ID 2>/dev/null) || BID_FO=
+BID_VN=${BID_VN//[$'\n\r']/}; BID_FO=${BID_FO//[$'\n\r']/}
+if [[ "$BID_VN" =~ ^[A-Za-z0-9_-]+$ ]] && [[ "$BID_FO" =~ ^[A-Za-z0-9_-]+$ ]]; then
+  # A statement timeout, because both apps read this table; and psql's EXIT STATUS decides the message —
+  # a failed delete must not be reported as "dropped 0".
+  if stale=$(docker exec supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t -c \
+      "set statement_timeout = '60s'; with d as (delete from next_cache where key like 'eno:isr:%' and split_part(key, ':', 4) not in ('$BID_VN', '$BID_FO') returning 1) select count(*) from d" </dev/null 2>&1); then
+    ok "dropped $(printf '%s' "$stale" | tail -1 | tr -dc '0-9') ISR rows from builds no container can read (current: vn=$BID_VN forum=$BID_FO)"
+  else
+    bad "stale ISR cleanup FAILED (deploy unaffected): $(printf '%s' "$stale" | grep -m1 -E 'ERROR|FATAL|Error' || printf '%s' "$stale" | head -1)"
+  fi
+else
+  bad "BUILD_IDs not readable or unexpected (vn='$BID_VN' forum='$BID_FO') — skipped the stale ISR cleanup"
+fi
+
 say "8. purge Cloudflare — BEFORE verifying, not after"
 # ⛔ ORDER MATTERS AND IT WAS WRONG. All three reviewers caught it: this ran AFTER the
 # health probe, so the probe could be answered from cache by the PRE-DEPLOY build and

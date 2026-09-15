@@ -46,8 +46,9 @@
 //
 // DUAL MODE (the standalone server EMBEDS the build-time config, so runtime env
 // can't choose whether a handler exists — the handler itself chooses):
-// · Production (ENO_ISR_PG=1, or K_SERVICE on Cloud Run) → L1 + Postgres L2 + shared
-//   tombstones, across every process.
+// · Production (ENO_ISR_PG=1, or K_SERVICE on Cloud Run) → L1 + shared tombstones across every
+//   process. Postgres L2 PAYLOADS only on Cloud Run or with ENO_ISR_PG_PAYLOADS=1 — see pgPayloads
+//   in the constructor for the measured reason they are off on the box.
 // · Everywhere else (local dev, `next build`, e2e) → L1 only, same tombstone semantics:
 //   correct for a single process and free of network RTT.
 //
@@ -203,6 +204,19 @@ module.exports = class EnoCacheHandler {
     // See DUAL MODE above: ENO_ISR_PG is the box's explicit opt-in; K_SERVICE is kept so a
     // Cloud Run fallback revision still behaves as it always did.
     this.pg = Boolean((process.env.ENO_ISR_PG === '1' || process.env.K_SERVICE) && process.env.DATABASE_URL)
+    /**
+     * ⛔ PAYLOADS IN POSTGRES ARE A SEPARATE, NARROWER SWITCH THAN TOMBSTONES — AND OFF ON THE BOX.
+     * Measured 2026-09-15, the first hour of ENO_ISR_PG on the VN box: ~235 entries / ~53 MB written every
+     * 15 minutes, 98% product pages at 234 kB each — ~5 GB a day, toward ~18 GB per build (76k PDPs, 30d
+     * TTL), and every deploy strands the previous build's rows until they expire, against 24 GB free.
+     * What L2 payloads buy is a WARM START for a new instance. That is worth it on Cloud Run, which scales
+     * out; on the box there is ONE process per edition, BUILD_ID is in the key so every deploy is cold
+     * regardless, and a warm restart is all that remains. Tombstones are the part that must cross
+     * processes (this file's own header: "INVALIDATIONS … THE only thing that must cross instance
+     * boundaries") and they stay on.
+     * So payloads go to Postgres only on Cloud Run (K_SERVICE) or when explicitly asked for.
+     */
+    this.pgPayloads = this.pg && Boolean(process.env.K_SERVICE || process.env.ENO_ISR_PG_PAYLOADS === '1')
   }
 
   // One small pool per process, lazily created — Supavisor (pooled DATABASE_URL,
@@ -281,7 +295,9 @@ module.exports = class EnoCacheHandler {
       }
     }
 
-    if (!this.pg) return null
+    // L2 read only where payloads are stored at all (see pgPayloads). Tombstones were already consulted
+    // above through syncTags(), which is what makes a cross-process purge work without it.
+    if (!this.pgPayloads) return null
 
     try {
       // ONE round trip, and it transfers the payload ONLY if the entry is still live.
@@ -319,7 +335,7 @@ module.exports = class EnoCacheHandler {
     // have to fetch it back over the network.
     l1Set(k, { lastModified, tags, value, bytes: sizeOf(value) })
 
-    if (!this.pg) return
+    if (!this.pgPayloads) return
 
     try {
       // Next 16 carries the revalidate hint in different places per entry kind:
