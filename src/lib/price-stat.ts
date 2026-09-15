@@ -14,30 +14,68 @@ export const PRICE_STAT_MAX_SPREAD = 3
 
 export type PriceBand = { n: number; p25: number; median: number; p75: number }
 
-/** Segment key — MUST stay identical to the cron's SQL: condition, plus a 2-year band when a
- *  year is present (vehicles). year 2015 → band 2014; null year → condition only. */
-export function listingSegment(condition: string | null | undefined, year: number | null | undefined): string {
-  // ⚠️ `|| 'any'` maps BOTH null and '' to 'any'; the SQL twin uses COALESCE(condition,'any'),
-  // which substitutes only NULL and leaves '' as ''. A whitespace-only condition from the partner
-  // sync trims to '' and is stored, so the cron filed those rows under ':2018' while every reader
-  // asked for 'any:2018' and missed — the band silently never rendered. Normalising here makes the
-  // two sides agree on emptiness, which is what the note above requires of this pair.
-  const c = (condition || '').trim() || 'any'
-  return year != null ? `${c}:${Math.floor(year / 2) * 2}` : c
+/**
+ * ⛔ A BAND IS A SALE PRICE, SO ONLY SALE LISTINGS FORM ONE OR ARE JUDGED BY ONE. Rent is charged per
+ * month and "wanted" states a budget; either in the same distribution makes both numbers a fiction —
+ * a ₫4m monthly rental would read as a spectacular deal against ₫40m purchase prices (astra). Today
+ * every branded listing is `sell`, so this changes nothing yet and prevents the day it would.
+ * The cron's ELIGIBLE_SQL uses this same value.
+ */
+export const SALE_LISTING_TYPE = 'sell'
+
+/**
+ * Segment key — MUST stay identical to the cron's SQL (`SEGMENT_SQL` in /api/cron/price-stats):
+ * `<category>/<subcategory>|<condition>`, plus a 2-year band when a year is present (vehicles).
+ * year 2015 → band 2014; null year → no suffix.
+ *
+ * ⛔ THE SHELF IS PART OF THE KEY, AND WITHOUT IT "GOOD PRICE" WAS WRONG FOR THE OWNER'S OWN EXAMPLE.
+ * The band used to be keyed on brand+model+condition alone, so every listing that NAMES a device was
+ * banded together with the device: measured 2026-09-15, "Mipow Transparent Silicon Case for iPhone
+ * 14 Pro" at 119,000đ was 'low' against a band of p25 294,000, "Spigen Liquid Crystal iPhone 15 Pro
+ * Max Case" 344,000đ against a band whose median was 952,000 (cases and phones averaged), and
+ * "AppleCare+ cho iPhone 16 Plus" (filed under services) was a good price against the phone. 114
+ * phone-cases, 59 screen-protectors and 24 services rows carried the badge — and a real phone in a
+ * band dragged down by ₫300k cases could almost never be 'low'. A case is now compared with cases.
+ *
+ * ⛔ NO SUBCATEGORY, NO BAND: the caller gets `null` and the cron skips the row. A category-wide
+ * "unfiled" bucket would re-mix exactly what this key separates (astra) — it is where a case with no
+ * shelf and the phone it fits both land.
+ */
+export function listingSegment(input: {
+  categorySlug: string | null | undefined
+  subcategorySlug: string | null | undefined
+  condition: string | null | undefined
+  year: number | null | undefined
+}): string | null {
+  const category = (input.categorySlug || '').trim()
+  const subcategory = (input.subcategorySlug || '').trim()
+  if (!category || !subcategory) return null
+  // ⚠️ `|| 'any'` maps BOTH null and '' to 'any'; the SQL twin uses NULLIF(btrim(condition),'') for
+  // the same reason. A whitespace-only condition from the partner sync trims to '' and is stored, so
+  // the cron once filed those rows under ':2018' while every reader asked for 'any:2018' and missed —
+  // the band silently never rendered. Both sides must agree on emptiness.
+  const c = (input.condition || '').trim() || 'any'
+  const shelf = `${category}/${subcategory}|${c}`
+  return input.year != null ? `${shelf}:${Math.floor(input.year / 2) * 2}` : shelf
 }
 
-/** The market band for a listing's (brand, model, segment), or null when there is no reliable
- *  one — no brand/model, or the segment is below the sample floor (we show nothing rather than
- *  a range built on a couple of listings). Fail-safe: any error → null (module just hides). */
+/** The market band for a listing's (brand, model, shelf, segment), or null when there is no
+ *  reliable one — no brand/model/subcategory, or the segment is below the sample floor (we show
+ *  nothing rather than a range built on a couple of listings). Fail-safe: any error → null. */
 export async function getPriceBand(input: {
   brandSlug: string | null
   model: string | null
+  categorySlug: string | null
+  subcategorySlug: string | null
+  listingType: string | null
   condition: string | null
   year: number | null
 }): Promise<PriceBand | null> {
   if (!input.brandSlug || !input.model) return null
+  if (input.listingType !== SALE_LISTING_TYPE) return null
+  const segment = listingSegment(input)
+  if (!segment) return null
   try {
-    const segment = listingSegment(input.condition, input.year)
     const rows = await db.$queryRaw<PriceBand[]>(Prisma.sql`
       SELECT n, p25, median, p75 FROM "PriceStat"
       WHERE "brandSlug" = ${input.brandSlug} AND model = ${input.model} AND segment = ${segment}

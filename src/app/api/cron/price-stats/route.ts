@@ -1,7 +1,7 @@
 import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
-import { PRICE_STAT_MIN_SAMPLE, PRICE_STAT_MAX_SPREAD } from '@/lib/price-stat'
+import { PRICE_STAT_MIN_SAMPLE, PRICE_STAT_MAX_SPREAD, SALE_LISTING_TYPE } from '@/lib/price-stat'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,29 +23,61 @@ export const maxDuration = 60
 // `{"error":"internal_error"}` 500 instead of Next's default 500 HTML. There is no try/catch here
 // at all — the two `$executeRaw` calls and the `$transaction` are bare — so this is the live
 // behaviour on a DB error, not a hypothetical.
+/**
+ * The segment, in SQL, for a `"Listing" l JOIN "Category" c`. ⛔ MUST MATCH listingSegment() in
+ * src/lib/price-stat.ts character for character — `<category>/<subcategory>|<condition>[:<year band>]`
+ * — and price-stat.test.ts pins the TS half, having been checked against this SQL on every production
+ * row when the key changed (27,133 rows, 0 mismatches — the test's header records the method; nothing
+ * in CI executes this expression, so a change HERE must be re-measured the same way).
+ * The shelf is in the key so a phone case is never banded with the phone it fits; see listingSegment()
+ * for the measured cases that made it necessary.
+ * ⚠️ regexp_replace ON `\s`, NOT btrim — btrim's default set is the SPACE CHARACTER ONLY, while the TS
+ * side's String.trim() also eats tabs and newlines. A subcategory stored as "\tphone-cases" would then
+ * be filed under one key by the cron and read under another by the PDP, and the band would silently
+ * never render (astra). Postgres `\s` in a regex is the whitespace class, which is the same intent.
+ * NULLIF(…,'') because a whitespace-only condition must read as 'any' on both sides.
+ */
+const TRIM = (col: string) => Prisma.raw(`regexp_replace(${col}, '^\\s+|\\s+$', '', 'g')`)
+const SEGMENT_SQL = Prisma.sql`(${TRIM('c.slug')} || '/' || ${TRIM('l."subcategorySlug"')} || '|' || COALESCE(NULLIF(${TRIM('l.condition')}, ''), 'any')
+  || CASE WHEN l.year IS NOT NULL THEN ':' || ((l.year / 2) * 2)::text ELSE '' END)`
+
+/**
+ * Which listings may form a band AND be judged against one. ONE predicate for both statements —
+ * the positioning UPDATE used to omit `verified` and `currency`, so a listing that could never be
+ * part of a band could still be badged by one (a non-₫ price compared with đồng percentiles).
+ * No subcategory → no band (listingSegment returns null for it too), and SALE only — a band is a sale
+ * price, so a monthly rental neither forms one nor is judged by one (see SALE_LISTING_TYPE).
+ */
+const ELIGIBLE_SQL = Prisma.sql`l.status = 'active' AND l.verified = true
+  AND l."brandSlug" IS NOT NULL AND l.model IS NOT NULL
+  AND NULLIF(${TRIM('l."subcategorySlug"')}, '') IS NOT NULL
+  AND l."listingType" = ${SALE_LISTING_TYPE}
+  AND l.currency = '₫' AND l.price > 0`
+
 export const GET = route({ auth: 'cron' }, async () => {
   const upserted = await db.$executeRaw(Prisma.sql`
     INSERT INTO "PriceStat" ("brandSlug", model, segment, n, p25, median, p75, "updatedAt")
     SELECT
-      "brandSlug",
-      model,
-      COALESCE(condition, 'any') || CASE WHEN year IS NOT NULL THEN ':' || ((year / 2) * 2)::text ELSE '' END AS segment,
+      l."brandSlug",
+      l.model,
+      ${SEGMENT_SQL} AS segment,
       count(*)::int,
-      round(percentile_cont(0.25) WITHIN GROUP (ORDER BY price))::int,
-      round(percentile_cont(0.5)  WITHIN GROUP (ORDER BY price))::int,
-      round(percentile_cont(0.75) WITHIN GROUP (ORDER BY price))::int,
+      round(percentile_cont(0.25) WITHIN GROUP (ORDER BY l.price))::int,
+      round(percentile_cont(0.5)  WITHIN GROUP (ORDER BY l.price))::int,
+      round(percentile_cont(0.75) WITHIN GROUP (ORDER BY l.price))::int,
       now()
-    FROM "Listing"
-    WHERE status = 'active' AND verified = true
-      AND "brandSlug" IS NOT NULL AND model IS NOT NULL
-      AND currency = '₫' AND price > 0
-    GROUP BY "brandSlug", model, segment
+    FROM "Listing" l
+    JOIN "Category" c ON c.id = l."categoryId"
+    WHERE ${ELIGIBLE_SQL}
+    GROUP BY l."brandSlug", l.model, segment
     HAVING count(*) >= ${PRICE_STAT_MIN_SAMPLE}
     ON CONFLICT ("brandSlug", model, segment)
       DO UPDATE SET n = EXCLUDED.n, p25 = EXCLUDED.p25, median = EXCLUDED.median,
                     p75 = EXCLUDED.p75, "updatedAt" = now()
   `)
   // Prune segments that weren't refreshed this run (fell below the sample floor / went stale).
+  // ⚠️ This is also what retires the pre-2026-09-15 keys (condition-only, no shelf): no reader asks
+  // for them any more and they stop being refreshed, so they age out here within 36 hours.
   const removed = await db.$executeRaw(Prisma.sql`
     DELETE FROM "PriceStat" WHERE "updatedAt" < now() - interval '36 hours'
   `)
@@ -63,10 +95,10 @@ export const GET = route({ auth: 'cron' }, async () => {
     db.$executeRaw(Prisma.sql`
     UPDATE "Listing" l SET "marketPosition" =
       CASE WHEN l.price < ps.p25 THEN 'low' WHEN l.price > ps.p75 THEN 'high' ELSE 'typical' END
-    FROM "PriceStat" ps
-    WHERE l.status = 'active' AND l.price > 0
+    FROM "PriceStat" ps, "Category" c
+    WHERE c.id = l."categoryId" AND ${ELIGIBLE_SQL}
       AND l."brandSlug" = ps."brandSlug" AND l.model = ps.model
-      AND ps.segment = COALESCE(l.condition, 'any') || CASE WHEN l.year IS NOT NULL THEN ':' || ((l.year / 2) * 2)::text ELSE '' END
+      AND ps.segment = ${SEGMENT_SQL}
       AND ps.p75 <= ps.p25 * ${PRICE_STAT_MAX_SPREAD}
   `),
   ])

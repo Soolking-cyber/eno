@@ -1417,6 +1417,7 @@ export const UI_STRINGS: string[] = [
   "Shortcuts",
   "Show more",
   "Show on map",
+  "Show only listings priced below the market for the same item",
   "Show original",
   "Show password",
   "Show the code lines",

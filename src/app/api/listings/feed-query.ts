@@ -241,6 +241,23 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
   if (model && model !== 'all') {
     andFilters.push({ model })
   }
+  /**
+   * "Good price" — only listings priced below their market band (Listing.marketPosition = 'low', set by
+   * the nightly price-stats cron against brand + model + shelf + condition). Owner, 2026-09-15: "tap good
+   * price will show prices that are good in that subcategory model or generally all good prices across
+   * the app when category brand not chosen" — which is exactly an AND with whatever else is chosen.
+   *
+   * ⚠️ A FILTER, NOT A SORT VALUE, AND THE DIFFERENCE IS WHERE IT IS HONOURED. It changes WHICH rows
+   * exist, and `sort` is a presentation param: facet-counts.ts strips it before counting, the price
+   * histogram ignores it, and the explorer's landing gate and empty state treat a sort tap as "not a
+   * search". As its own param in `andFilters` it reaches findMany, the total, the sub-category counts,
+   * the facet counts and the semantic path's structural filters without any of them knowing about it.
+   * Only the literal 'good' is accepted — anything else is no filter, never an error.
+   * Measured 2026-09-15 on production: 4.7ms for the first page unfiltered, 25ms for Apple › phones,
+   * 216ms for the bare count — no index needed at 76k rows.
+   */
+  if (searchParams.get('deal') === 'good') andFilters.push({ marketPosition: 'low' })
+
   // Soft hierarchy: a brand search spans ALL categories, but the category the user
   // was browsing is surfaced FIRST (then the rest of the brand). Not a hard filter.
   const priorityCategory = searchParams.get('priorityCategory')?.trim()

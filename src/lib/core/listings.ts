@@ -293,6 +293,10 @@ export async function updateListingCore(
     where: { id: listingId },
     select: {
       title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true, video: true,
+      // The market band's key fields besides brand/model/shelf — a change to any of them moves the
+      // listing to a different band (or out of banding entirely), so its "Good price" verdict is
+      // cleared below. listingType decides eligibility: only a sale is judged against sale prices.
+      condition: true, year: true, listingType: true,
       // Read-only here (the wizard cannot edit them), but load-bearing: the folded search blob
       // below must keep BOTH languages or an edit deletes the Vietnamese half of the index.
       titleVi: true, descriptionVi: true,
@@ -593,6 +597,29 @@ export async function updateListingCore(
   // The escape hatch is real and already built: an operator re-publishes with the admin `verify`
   // action (api/admin/listings/route.ts:86). Restoring a listing a human or a moderation system
   // pulled should take a human, which is the whole point.
+
+  // ⚠️ THE "Good price" VERDICT IS ALSO VOID WHEN THE LISTING CHANGES BAND, not only price. The band
+  // is keyed on brand + model + shelf (subcategory) + condition + year band (listingSegment), and
+  // "Good price" is now a FILTER people narrow by shelf and model — so a case re-filed from phones to
+  // phone-cases, or a model corrected from "iPhone 15" to "iPhone 15 Pro Max", would otherwise keep a
+  // verdict judged against the wrong comparables and keep appearing under Good price until 03:00
+  // (astra). Compared with the stored value, so an edit that resends the same fields keeps the badge.
+  // The category is the sixth key field and is deliberately absent: this path cannot write it (the
+  // wizard offers no category change on an edit), so there is nothing to compare against.
+  // ⚠️ THIS COVERS THE WIZARD'S EDIT, NOT EVERY WRITER. The partner sync, admin tools and the import
+  // scripts move brand/model/shelf without coming through here, and the enrichment apply re-files
+  // listings in bulk — for those the nightly cron is the repair, because it CLEARS every active
+  // marketPosition before re-deriving. Re-run it after any bulk re-filing instead of waiting for 03:00.
+  // `data[k] !== undefined`, not `k in data`: a key present but undefined would read as null and clear a
+  // perfectly good verdict on an edit that moved nothing (opus). Nothing writes undefined today —
+  // clampRangeFacets `continue`s instead, and every branch above assigns a value or null — so this is a
+  // guard on the shape rather than a fix. Both sides are normalised (slug vs slug, '' already → null).
+  // `listingType` is in the list because it decides ELIGIBILITY, not just which band: a listing flipped
+  // from sell to wanted is no longer judged against sale prices at all, and keeping its old verdict
+  // would leave a budget ad under "Good price" until the cron (opus).
+  const bandMoved = (['subcategorySlug', 'brandSlug', 'model', 'condition', 'year', 'listingType'] as const)
+    .some((k) => data[k] !== undefined && (data[k] ?? null) !== (current[k] ?? null))
+  if (bandMoved) data.marketPosition = null
 
   // Price-drop pipeline — runs LAST, once every validation above has passed, so a
   // rejected edit never writes an audit row. Reads history, computes the 30-day-min

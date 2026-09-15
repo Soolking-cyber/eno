@@ -1,9 +1,10 @@
 'use client'
 
-import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/ui/icons'
+import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown, Tag } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Toggle } from '@/components/ui/toggle'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -78,11 +79,22 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMo
 export function SortStrip({
   sort,
   onPickSort,
+  goodPrice,
+  onGoodPrice,
   headerHidden,
   leading,
 }: {
   sort: SortKey
   onPickSort: (s: SortKey) => void
+  /**
+   * The "Good price" filter (owner, 2026-09-15: "add good price sorting here … tap good price will show
+   * prices that are good in that subcategory model"; "good price button should be green when tapped").
+   * It lives in this strip because that is where the owner asked for it, but it is a FILTER, not a
+   * fifth sort: it narrows the rows and combines with whichever tab is selected, so Good price + Price ↑
+   * lists the cheapest good deals. Hence a Toggle beside the tablist, never a tab inside it.
+   */
+  goodPrice: boolean
+  onGoodPrice: (on: boolean) => void
   headerHidden: boolean
   /**
    * The filter controls, rendered on the LEFT of this same row.
@@ -273,6 +285,12 @@ export function SortStrip({
           beneath it instead of overshooting into the gutter. */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 border-b border-border">
       {leading ? <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">{leading}</div> : null}
+      {/* ⚠️ THE TABLIST AND THE GOOD-PRICE TOGGLE SHARE ONE FLEX ROW, AND THE WRAPPER IS WHAT KEEPS THEM
+          ON ONE LINE. The TabsList is `w-full` on a phone (its own line, see `leading`); as a direct child
+          of the wrapping row above, anything after it would wrap onto a third line. Inside this row the
+          list takes the rest (`min-w-0 flex-1` — it is the scroller) and the toggle keeps its own width
+          at the end, always visible without scrolling the strip. */}
+      <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
       <TabsList
         // variant=line: the default variant paints a bg-muted pill behind the strip.
         variant="line"
@@ -284,7 +302,7 @@ export function SortStrip({
           // tailwind-merge removes h-8 rather than racing it on specificity.
           // w-full/justify-start on mobile (own line); from sm it shrinks and sits at the
           // row's right edge beside the filters — the wireframe's arrangement.
-          'flex w-full justify-start p-0 group-data-horizontal/tabs:h-auto sm:w-auto sm:shrink-0 sm:justify-end',
+          'flex w-full min-w-0 flex-1 justify-start p-0 group-data-horizontal/tabs:h-auto sm:w-auto sm:shrink-0 sm:flex-none sm:justify-end',
           // HORIZONTAL RAIL, NOT A DRAGGABLE OBJECT. Three things are load-bearing here:
           //
           //   ⛔ THE FIX FOR "cant scroll app on mobile" (owner, 2026-08-26) IS THE DELETED
@@ -371,6 +389,25 @@ export function SortStrip({
           )}
         </TabsTrigger>
       </TabsList>
+      <Toggle
+        pressed={goodPrice}
+        onPressedChange={onGoodPrice}
+        title={tr('Show only listings priced below the market for the same item', 'Chỉ hiện tin có giá thấp hơn thị trường cho cùng sản phẩm')}
+        className={cn(
+          // A pill, not an underlined tab — it must not read as a fifth sort. Same type size and weight
+          // as the tabs so the row is one line of text; shrink-0 so the scroller beside it gives way.
+          'flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors duration-150 active:scale-[0.97]',
+          'border-border text-body hover:text-foreground',
+          // GREEN WHEN PRESSED (owner). `--success` is green-800 in light and green-400 in dark, so the
+          // ink flips with it: the page background colour reads on both (white on green-800, near-black
+          // on green-400) where a fixed white would fail contrast on the dark theme's light green.
+          'data-pressed:border-success data-pressed:bg-success data-pressed:text-background data-pressed:hover:text-background',
+        )}
+      >
+        <Tag className="size-4" />
+        {tr('Good price', 'Giá tốt')}
+      </Toggle>
+      </div>
       </div>
     </Tabs>
   )

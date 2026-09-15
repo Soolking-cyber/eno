@@ -276,6 +276,15 @@ export function ListingsExplorer({
   const [activeWard, setActiveWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null) // {lat,lng,radiusKm} when "search near you" is on
   const [conditionFilter, setConditionFilter] = useState('all') // 'all' | 'new' | 'used'
+  /**
+   * "Good price" — a FILTER (URL/API `deal=good`), not a sort, so it narrows the result set, its count
+   * and its facet counts, and combines with the sort the visitor chose (Good price + Price ↑ = the
+   * cheapest good deals). ⛔ It is an applied axis EVERYWHERE conditionFilter is — the show/un-latch
+   * pair, the URL writer, filterSig, feedSig, the fetch params, the react-query key, the hand-built
+   * prefetch key, the ISR-seed gate, the histogram params and the result chips. Miss one and that
+   * surface shows the unfiltered feed under a pressed "Good price" button.
+   */
+  const [goodPriceOnly, setGoodPriceOnly] = useState(false)
   const [listingType, setListingType] = useState('all') // intent axis: all | sell | rent | wanted | free | service | job | event
   const [priceRange, setPriceRange] = useState('all') // 'all' | 'min-max' (VND, empty max = open)
   const [customFilters, setCustomFilters] = useState<Record<string, string>>({})
@@ -598,6 +607,7 @@ export function ListingsExplorer({
     // re-open the explorer but would silently haunt the NEXT search from landing.
     setListingType('all')
     setConditionFilter('all')
+    setGoodPriceOnly(false)
     setLooseMatch(false)
     setSort('newest')
     setCustomFilters({})
@@ -664,12 +674,13 @@ export function ListingsExplorer({
       activeModel !== 'all' ||
       listingType !== 'all' ||
       conditionFilter !== 'all' ||
+      goodPriceOnly ||
       priceRange !== 'all' ||
       Object.keys(customFilters).length > 0
     ) {
       setShowExplorer(true)
     }
-  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, priceRange])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange])
   // ⚠️ THE AXIS LIST ABOVE IS THE CONTRACT THE UN-LATCH BELOW MIRRORS. Add an axis here and add
   // it there, or the pair disagrees about what "applied" means and the disagreement is a trap
   // rather than a bug: an axis this effect ignores but the un-latch honours can never be
@@ -729,6 +740,7 @@ export function ListingsExplorer({
       activeModel !== 'all' ||
       listingType !== 'all' ||
       conditionFilter !== 'all' ||
+      goodPriceOnly ||
       priceRange !== 'all' ||
       activeProvince !== null || activeWard !== null || nearby !== null ||
       Object.keys(customFilters).length > 0
@@ -739,7 +751,7 @@ export function ListingsExplorer({
     setFeedUnlocked(false)
   }, [
     showExplorer, viewMode, activeCategory, query, debouncedQuery, activeDistrict, activeSubcategory, activeBrand,
-    activeModel, listingType, conditionFilter, priceRange, activeProvince, activeWard,
+    activeModel, listingType, conditionFilter, goodPriceOnly, priceRange, activeProvince, activeWard,
     nearby, customFilters,
   ])
 
@@ -960,6 +972,8 @@ export function ListingsExplorer({
     setActiveModel(params.get('model') || 'all')
     setListingType(params.get('type') || 'all')
     setConditionFilter(params.get('condition') || 'all')
+    // Only the literal 'good' — the same allowlist the server applies.
+    setGoodPriceOnly(params.get('deal') === 'good')
     // Sort is shareable/back-button state like any filter; unknown/absent → the
     // default relevance blend ('newest' — legacy param name, see SortKey).
     const sortParam = params.get('sort')
@@ -1073,6 +1087,9 @@ export function ListingsExplorer({
     if (conditionFilter !== 'all') params.set('condition', conditionFilter)
     else params.delete('condition')
 
+    if (goodPriceOnly) params.set('deal', 'good')
+    else params.delete('deal')
+
     // The default relevance blend stays out of the URL so plain links keep clean.
     if (sort !== 'newest') params.set('sort', sort)
     else params.delete('sort')
@@ -1104,7 +1121,7 @@ export function ListingsExplorer({
       ? [prettyBrand(activeBrand), activeModel !== 'all' ? activeModel : null].filter(Boolean).join(' ')
       : ''
     window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() || brandLabel } }))
-  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, priceRange, sort, looseMatch])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange, sort, looseMatch])
 
   // Debounce search query input to avoid making API requests on every keystroke
   useEffect(() => {
@@ -1121,7 +1138,7 @@ export function ListingsExplorer({
   // Doing it here means useQuery (below) reads page=1 on the SAME render → a single offset-0
   // fetch, no flip. Skips the back-nav restore (which intentionally rehydrates a deeper page).
   const filterSig = JSON.stringify([
-    activeCategory, debouncedQuery, activeDistrict, conditionFilter, listingType, verifiedOnly,
+    activeCategory, debouncedQuery, activeDistrict, conditionFilter, goodPriceOnly, listingType, verifiedOnly,
     sort, activeSubcategory, activeBrand, activeModel, customFilters, priceRange, nearby,
     activeProvince?.code ?? null, activeWard?.code ?? null,
   ])
@@ -1193,6 +1210,7 @@ export function ListingsExplorer({
     if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
     if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
     if (conditionFilter !== 'all') params.set('condition', conditionFilter)
+    if (goodPriceOnly) params.set('deal', 'good')
     if (listingType !== 'all') params.set('type', listingType)
     if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
     if (looseMatch && debouncedQuery.trim()) params.set('match', 'any')
@@ -1207,7 +1225,7 @@ export function ListingsExplorer({
     return params.toString()
     // ⚠️ `scopedParams` IS A DEPENDENCY, not decoration: it carries the shop. Omitting it would
     // memoise the marketplace's params on a storefront's first render and never widen them again.
-  }, [scopedParams, activeBrand, activeModel, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters, lang])
+  }, [scopedParams, activeBrand, activeModel, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters, lang])
 
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isPlaceholderData: queryShowingStaleSet, isError: queryError, refetch: refetchListings } = useQuery({
     queryKey: [
@@ -1222,6 +1240,7 @@ export function ListingsExplorer({
         ward: activeWard?.code ?? null,
         near: nearby ? 1 : 0,
         condition: conditionFilter,
+        deal: goodPriceOnly ? 'good' : 'all',
         type: listingType,
         q: debouncedQuery,
         match: looseMatch ? 'any' : 'all',
@@ -1269,7 +1288,7 @@ export function ListingsExplorer({
     initialData:
       page === 1 && activeCategory === 'all' && activeSubcategory === 'all' &&
       activeBrand === 'all' && activeModel === 'all' &&
-      activeDistrict === 'all' && conditionFilter === 'all' && priceRange === 'all' &&
+      activeDistrict === 'all' && conditionFilter === 'all' && !goodPriceOnly && priceRange === 'all' &&
       listingType === 'all' &&
       sort === 'newest' && verifiedOnly && !debouncedQuery.trim() &&
       Object.keys(customFilters).length === 0
@@ -1339,11 +1358,13 @@ export function ListingsExplorer({
     if (!nearby && activeProvince) p.set('province', activeProvince.nameEn)
     if (!nearby && activeWard) p.set('ward', activeWard.nameEn)
     if (conditionFilter !== 'all') p.set('condition', conditionFilter)
+    // The price slider must describe the good-price rows it filters, not the whole shelf.
+    if (goodPriceOnly) p.set('deal', 'good')
     if (listingType !== 'all') p.set('type', listingType)
     if (debouncedQuery.trim()) p.set('q', debouncedQuery.trim())
     applyFilterParams(p, customFilters, activeCategory, activeSubcategory)
     return p.toString()
-  }, [activeCategory, activeSubcategory, activeBrand, activeModel, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, customFilters])
+  }, [activeCategory, activeSubcategory, activeBrand, activeModel, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, debouncedQuery, customFilters])
 
   // Identity of the current feed (every filter that defines "this result set"), used
   // to key the back-nav snapshot so it only restores onto the exact same feed.
@@ -1351,9 +1372,9 @@ export function ListingsExplorer({
     () => JSON.stringify([
       activeCategory, activeSubcategory, activeBrand, activeModel, activeDistrict,
       activeProvince?.code ?? null, activeWard?.code ?? null, nearby ? 1 : 0,
-      conditionFilter, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters,
+      conditionFilter, goodPriceOnly, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters,
     ]),
-    [activeCategory, activeSubcategory, activeBrand, activeModel, activeDistrict, activeProvince?.code, activeWard?.code, nearby, conditionFilter, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters],
+    [activeCategory, activeSubcategory, activeBrand, activeModel, activeDistrict, activeProvince?.code, activeWard?.code, nearby, conditionFilter, goodPriceOnly, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters],
   )
 
   // Rehydrate the feed after a back-nav from a listing: restore the accumulated rows,
@@ -1603,6 +1624,7 @@ export function ListingsExplorer({
           ward: activeWard?.code ?? null,
           near: nearby ? 1 : 0,
           condition: conditionFilter,
+          deal: goodPriceOnly ? 'good' : 'all',
           type: listingType,
           q: debouncedQuery,
           sort,
@@ -1641,6 +1663,7 @@ export function ListingsExplorer({
         if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
         if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
         if (conditionFilter !== 'all') params.set('condition', conditionFilter)
+        if (goodPriceOnly) params.set('deal', 'good')
         if (listingType !== 'all') params.set('type', listingType)
         if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
         params.set('sort', sort)
@@ -1679,6 +1702,7 @@ export function ListingsExplorer({
     activeWard,
     nearby,
     conditionFilter,
+    goodPriceOnly,
     listingType,
     debouncedQuery,
     sort,
@@ -2006,6 +2030,9 @@ export function ListingsExplorer({
     }
     if (priceRange !== 'all') chips.push({ label: tr('Price range', 'Khoảng giá'), onClear: () => setPriceRange('all') })
     if (conditionFilter !== 'all') chips.push({ label: conditionFilter === 'new' ? tr('New', 'Mới') : tr('Used', 'Đã dùng'), onClear: () => setConditionFilter('all') })
+    // A chip as well as the pressed toggle: the chip row is what the empty state and "Clear all"
+    // read, and a filter with no chip would leave "No listings found" with nothing to remove.
+    if (goodPriceOnly) chips.push({ label: tr('Good price', 'Giá tốt'), onClear: () => setGoodPriceOnly(false) })
     if (listingType !== 'all') {
       const lt = LISTING_TYPES.find((t) => t.value === listingType)
       chips.push({ label: lt ? (lang === 'vi' ? lt.labelVi : lt.label) : listingType, onClear: () => setListingType('all') })
@@ -2028,7 +2055,7 @@ export function ListingsExplorer({
       .filter((c) => !ladderChipLabels.has(c.label))
       .map((c) => ({ id: c.label, label: c.label, onRemove: c.onClear })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [debouncedQuery, activeSubcategory, activeBrand, activeModel, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, priceRange, customFilters, verifiedOnly, nearby, lang],
+    [debouncedQuery, activeSubcategory, activeBrand, activeModel, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, priceRange, customFilters, verifiedOnly, nearby, lang],
   )
 
 
@@ -2053,6 +2080,7 @@ export function ListingsExplorer({
     setNearby(null)
     setPriceRange('all')
     setConditionFilter('all')
+    setGoodPriceOnly(false)
     setListingType('all')
     setCustomFilters({})
     setVerifiedOnly(true)
@@ -2693,6 +2721,8 @@ export function ListingsExplorer({
           <SortStrip
             sort={sort}
             onPickSort={pickSort}
+            goodPrice={goodPriceOnly}
+            onGoodPrice={(on) => startFilterTransition(() => setGoodPriceOnly(on))}
             headerHidden={headerHidden}
             leading={
               <div className="min-h-12">

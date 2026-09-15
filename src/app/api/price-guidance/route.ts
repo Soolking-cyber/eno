@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
 import { normalizeBrand } from '@/lib/brand-normalize'
-import { getPriceBand } from '@/lib/price-stat'
+import { getPriceBand, SALE_LISTING_TYPE } from '@/lib/price-stat'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
@@ -38,6 +38,12 @@ export async function GET(req: NextRequest) {
   const condition = (p.get('condition') || '').trim() || null
   const yearNum = Number.parseInt(p.get('year') || '', 10)
   const year = Number.isFinite(yearNum) ? yearNum : null
+  // The band is per SHELF since 2026-09-15 (see listingSegment): a seller pricing a case is coached
+  // against cases, not the phone it fits. No subcategory chosen yet → no guidance, same as the PDP.
+  const categorySlug = (p.get('category') || '').trim().slice(0, 60) || null
+  const subcategorySlug = (p.get('subcategory') || '').trim().slice(0, 60) || null
+  const listingType = (p.get('type') || '').trim().slice(0, 20) || SALE_LISTING_TYPE
+  if (!categorySlug || !subcategorySlug) return NextResponse.json(EMPTY)
 
   try {
     if (!brandSlug) {
@@ -54,7 +60,11 @@ export async function GET(req: NextRequest) {
       SELECT model FROM "PriceStat"
       WHERE "brandSlug" = ${brandSlug} AND lower(model) = lower(${model})
       LIMIT 1`
-    const band = await getPriceBand({ brandSlug, model: canonical[0]?.model ?? model, condition, year })
+    // ⚠️ THE CALLER'S OWN INTENT, NOT A HARDCODED 'sell'. The bands are sale prices, and the reader
+    // refuses anything else — but hardcoding the sale type HERE would have handed sale guidance to a
+    // rental seller the day a branded category offers renting, which is the guard defeating itself
+    // (astra). Absent → 'sell', which is what a wizard that never sends it is writing.
+    const band = await getPriceBand({ brandSlug, model: canonical[0]?.model ?? model, categorySlug, subcategorySlug, listingType, condition, year })
     return NextResponse.json(
       band ?? EMPTY,
       // Aggregated public stats refreshed by a daily cron → safe to let the CDN

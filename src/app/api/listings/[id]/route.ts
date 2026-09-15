@@ -68,6 +68,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     getPriceBand({
       brandSlug: listing.brandSlug,
       model: listing.model,
+      categorySlug: listing.category.slug,
+      subcategorySlug: listing.subcategorySlug,
+      listingType: listing.listingType,
       condition: listing.condition,
       year: listing.year,
     }),

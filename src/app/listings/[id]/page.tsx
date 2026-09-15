@@ -291,8 +291,9 @@ export default async function ListingPage({ params }: Props) {
     db.conversation.count({
       where: { sellerId: listing.sellerId, createdAt: { gte: new Date(Date.now() - NINETY_DAYS_MS) } },
     }),
-    // Market-price band for this brand+model+segment (null when there aren't enough comparables).
-    getPriceBand({ brandSlug: listing.brandSlug, model: listing.model, condition: listing.condition, year: listing.year }),
+    // Market-price band for this brand+model on THIS shelf (null when there aren't enough comparables,
+    // or the listing has no subcategory — a case is never judged against the phone it fits).
+    getPriceBand({ brandSlug: listing.brandSlug, model: listing.model, categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: rawListing.listingType, condition: listing.condition, year: listing.year }),
   ])
   // Honest, decomposed seller display bundle (raw responseRate never leaves here —
   // only the suppressed/bucketed label rides into the client SellerCard). The two

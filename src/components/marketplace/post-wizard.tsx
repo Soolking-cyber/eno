@@ -385,10 +385,21 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   useEffect(() => {
     // rentals price per MONTH — the PriceStat bands are sale prices, so guidance
     // there would coach sellers against the wrong market. Skip entirely.
-    if (!categoryHasBrand(categorySlug) || categorySlug === 'rentals' || brand.trim().length < 2 || !model.trim()) { setPriceBand(null); return }
+    // The band is per shelf (category + subcategory), so there is nothing to compare against until a
+    // subcategory is picked — the server answers { n: 0 } without one; skipping saves the round trip.
+    if (!categoryHasBrand(categorySlug) || categorySlug === 'rentals' || !subcategorySlug || brand.trim().length < 2 || !model.trim()) { setPriceBand(null); return }
+    // ⚠️ DROP THE OLD BAND BEFORE ASKING FOR THE NEW ONE. Aborting the in-flight request does not
+    // un-render its answer: moving the listing from Phones to Phone cases left the PHONE's guidance
+    // on screen for the debounce plus a round trip, under the case's own subcategory (astra).
+    setPriceBand(null)
     const ctrl = new AbortController()
     const timer = setTimeout(() => {
-      const qs = new URLSearchParams({ brand: brand.trim(), model: model.trim() })
+      // ⚠️ THE LISTING'S OWN TYPE, WHICH IS NOT ALWAYS 'sell' IN A BRANDED CATEGORY. The bands are sale
+      // prices; a Wanted ad states a budget and a Free item has no price at all, so coaching either
+      // against sale percentiles is the hole the reader's SALE_LISTING_TYPE guard exists to close —
+      // and deriving the type from `categorySlug === 'rentals'` was dead code that always said 'sell'
+      // (opus). The server refuses anything but a sale, so this just tells it the truth.
+      const qs = new URLSearchParams({ brand: brand.trim(), model: model.trim(), category: categorySlug, subcategory: subcategorySlug, type: listingType })
       if (condition) qs.set('condition', condition)
       if (bandYear != null) qs.set('year', String(bandYear))
       fetch(`/api/price-guidance?${qs}`, { signal: ctrl.signal })
@@ -397,7 +408,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         .catch(() => { if (!ctrl.signal.aborted) setPriceBand(null) })
     }, 400)
     return () => { clearTimeout(timer); ctrl.abort() }
-  }, [categorySlug, brand, model, condition, bandYear])
+  }, [categorySlug, subcategorySlug, listingType, brand, model, condition, bandYear])
 
   const cat = categories.find((c) => c.slug === categorySlug)
   const subOptions = subcategoriesFor(categorySlug)
