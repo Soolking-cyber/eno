@@ -9,6 +9,12 @@
 // L1s refresh the tag table within seconds, and every listing page carries the
 // route-level tag _N_T_/listings/[id]/page — one row kills them all.
 //
+// ⛔ A SILENT NO-OP ON THE VN BOX UNTIL ENO_ISR_PG EXISTED. cache-handler.cjs only read tombstones
+// when K_SERVICE was set — a Cloud Run variable — so after the 2026-08-21 move this script wrote its
+// rows correctly and no container ever looked at them (run 2026-09-14: nothing changed). It works
+// only where apps.compose.yml sets ENO_ISR_PG=1; check `docker exec eno-vn-app printenv ENO_ISR_PG`
+// before trusting it.
+//
 // Run after ANY visual/structural change to src/app/listings/[id] or the components
 // it bakes (listing-gallery, pdp-shop-link, seller cards…). Each page re-renders on
 // its next visit.

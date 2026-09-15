@@ -46,9 +46,26 @@
 //
 // DUAL MODE (the standalone server EMBEDS the build-time config, so runtime env
 // can't choose whether a handler exists — the handler itself chooses):
-// · On Cloud Run (K_SERVICE set) → L1 + Postgres L2, shared across instances.
-// · Everywhere else (local dev/build/e2e, Cloud Build) → L1 only, same tombstone
-//   semantics: correct for a single instance and free of network RTT.
+// · Production (ENO_ISR_PG=1, or K_SERVICE on Cloud Run) → L1 + Postgres L2 + shared
+//   tombstones, across every process.
+// · Everywhere else (local dev, `next build`, e2e) → L1 only, same tombstone semantics:
+//   correct for a single process and free of network RTT.
+//
+// ⛔ K_SERVICE ALONE SWITCHED THIS OFF IN PRODUCTION FOR THREE WEEKS. It is a Cloud Run
+// variable, and production left Cloud Run for the VN box on 2026-08-21. Measured
+// 2026-09-15: `printenv K_SERVICE` UNSET in both app containers, every next_cache row
+// expiring by 09-20 (the 30d TTL of the last Cloud Run writes), and nothing since. The
+// damage was not the lost warm start — the key is `eno:isr:<edition>:<buildId>:…` (K below), so a
+// deploy is cold either way, and the EDITION in it keeps the two apps' payloads apart now that they
+// share the table (see the edition note above K). It was that TOMBSTONES STOPPED CROSSING PROCESSES:
+//   · the box runs TWO processes, eno-vn-app and eno-forum-app. A listing sold or
+//     moderated through one edition was purged only from that process's L1; the other
+//     kept serving it for up to its 30-day revalidate — the exact failure this file was
+//     written to prevent, now between editions instead of between instances.
+//   · every OUT-OF-PROCESS purge was a silent no-op. scripts/purge-isr-listings.mjs was
+//     run on 2026-09-14 and wrote its tombstones correctly; no container ever read them.
+// So the switch is now an explicit opt-in that apps.compose.yml sets, rather than an
+// inference from which cloud happens to be hosting us.
 // Build-time prerenders land in the throwaway L1; prod first-hits re-render once and
 // converge into Postgres. CJS on purpose: Next requires the handler synchronously.
 
@@ -183,7 +200,9 @@ function tombstoned(entry) {
 
 module.exports = class EnoCacheHandler {
   constructor() {
-    this.pg = Boolean(process.env.K_SERVICE && process.env.DATABASE_URL)
+    // See DUAL MODE above: ENO_ISR_PG is the box's explicit opt-in; K_SERVICE is kept so a
+    // Cloud Run fallback revision still behaves as it always did.
+    this.pg = Boolean((process.env.ENO_ISR_PG === '1' || process.env.K_SERVICE) && process.env.DATABASE_URL)
   }
 
   // One small pool per process, lazily created — Supavisor (pooled DATABASE_URL,

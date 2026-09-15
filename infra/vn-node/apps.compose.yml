@@ -22,6 +22,12 @@ services:
     image: eno-vn:local
     container_name: eno-vn-app
     env_file: [/opt/eno/secrets/eno-vn.env]
+    environment:
+      # ⛔ TURNS ON THE SHARED POSTGRES ISR LAYER (cache-handler.cjs, DUAL MODE). Without it the
+      # handler ran L1-only on this box for three weeks: a purge made in one edition's process never
+      # reached the other's, and scripts/purge-isr-listings.mjs silently did nothing. Runtime-only
+      # on purpose — `next build` never sees compose env, so build prerenders stay in-memory.
+      ENO_ISR_PG: '1'
     # ⛔ THE OPTIMIZER CACHE SURVIVES THE DEPLOY, AND UNTIL 2026-09-14 IT DID NOT.
     # `docker inspect eno-vn-app` returned `Mounts: []`: 173MB / 3,330 encoded variants sat in
     # the container layer and every `up -d --force-recreate` threw them away. Measured on this
@@ -54,6 +60,10 @@ services:
     image: eno-forum:local
     container_name: eno-forum-app
     env_file: [/opt/eno/secrets/eno-forum.env]
+    environment:
+      # Same switch as eno-vn above. BOTH processes must read tombstones, or a purge made through
+      # one edition leaves the other serving the purged page.
+      ENO_ISR_PG: '1'
     # Same argument as eno-vn above; measured 145MB / 3,259 entries, equally ephemeral.
     volumes:
       - eno-forum-image-cache:/app/.next/cache/images

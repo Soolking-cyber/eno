@@ -1,0 +1,11 @@
+# Listings translate-titles-google.ts must never translate automatically.
+#
+# ⛔ WHY A FILE AND NOT A RULE. Each of these produced a wrong English title that passed every automatic
+# check, was put back by hand with --restore-ids — and the NEXT ordinary run selected it again (the
+# original is back in the English slot, so it looks untranslated) and wrote the same wrong English.
+# Measured 2026-09-15 on the first two below. A restore only holds if the row is excluded here.
+#
+# One id per line; everything after the id is a note. Add a row only with the translation it broke.
+cmtv9x3qh00960ip8j7a9lt76  # Google renders "(Gold)" as "(Meta)" in batch context; the colour check now rejects it, pinned anyway — iPad Air 2 - 16GB/ Wifi + 4G (Gold) - Likenew 99%
+cmtuq530z117t0ipapdo1lpvo  # French book title (not Vietnamese); Google renders "De Dautes" as "De Daughters" — 50 Règles Et Astuces Pour Ne Plus Faire De Dautes
+cmtuqni6j13db0ipahy958ud6  # scrape glued "2.0 16 Port"; Google renders it "2,016-Port" — digits unchanged, spec nonsense — Bô chia Hub USB 2.016 Port Hô trơ công nguôn 12V-4A mau Bac 
