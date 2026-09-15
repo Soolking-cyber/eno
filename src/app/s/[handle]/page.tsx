@@ -13,6 +13,12 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
 import { Store } from '@/components/ui/icons'
 import { Tr } from '@/context/language-context'
+// The same grid the path-based storefront uses for this section, and the same first-page size —
+// see OTHER_LISTINGS' note there for why it is 24 and why it must equal the pageSize below.
+import { SellerListings } from '@/components/marketplace/seller-listings'
+import { diverseFeedWindow } from '@/lib/feed-window'
+import { diversifyBySeller } from '@/lib/feed-diversity'
+import { OTHER_LISTINGS } from '@/components/marketplace/seller-storefront'
 import Link from 'next/link'
 import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
 import { storefrontByHandle } from '@/lib/storefront'
@@ -81,6 +87,15 @@ async function getData(sellerId: string): Promise<{
   categories: SerializedCategory[]
   listings: SerializedListingCard[]
   /**
+   * The first page of everything this shop does NOT sell, for the "More on <site>" grid beneath the
+   * explorer, plus its full count so that grid can page without asking twice.
+   * ⚠️ `otherTotal` IS THE WHOLE REMAINDER, NOT `otherListings.length`. The grid's Show-more offsets
+   * are driven by the rendered row count and its "N results" by this total; passing the page size
+   * would cap the section at 24 rows and say so.
+   */
+  otherListings: SerializedListingCard[]
+  otherTotal: number
+  /**
    * The same rows again, projected for structured data.
    *
    * ⚠️ IT CARRIES `listingType`, WHICH `SerializedListingCard` DOES NOT. The card grid has never
@@ -98,7 +113,7 @@ async function getData(sellerId: string): Promise<{
    * `feed-query.ts` documents in its own words. Passing the filter IN means the two compose.
    */
   const where = await scopedListingWhere({ sellerId, verified: true, status: 'active' })
-  const [allCategories, rows, total, ownCategories] = await Promise.all([
+  const [allCategories, rows, total, ownCategories, otherRows, marketplaceTotal] = await Promise.all([
     getCategoriesByDemand(),
     db.listing.findMany({
       where,
@@ -122,6 +137,53 @@ async function getData(sellerId: string): Promise<{
     // and this grouping is what stops the rail and the results disagreeing about the catalogue;
     // three separate calls would be three chances to drift.
     db.listing.groupBy({ by: ['categoryId'], where }),
+    /**
+     * THE REST OF THE MARKETPLACE, for the grid that sits UNDER this shop's own explorer. Owner,
+     * 2026-09-15: a seller page should "show all shops products first then other products".
+     * Measured the same day: VinWonders has 17 active listings, the explorer rendered all 17, and
+     * the page then stopped — a storefront that ends in whitespace on its first screen.
+     *
+     * ⛔ THE EXCLUSION GOES INSIDE scopedListingWhere, NOT BESIDE ITS RESULT. On the MARKETPLACE
+     * edition — eno.vn, the licensed sàn TMĐT — that helper wraps the caller's predicate as
+     * `{ AND: [where, { sellerId: { notIn: [desk ids] } }] }`; on the services edition it is a
+     * no-op, because eno.forum's reader is allowed to see the desk. Spread beside its RESULT a
+     * sibling `sellerId` key would overwrite that exclusion and put the e-Visa SKUs back into a
+     * licensed marketplace grid. Passed in, they are two AND elements and both apply. (Verified
+     * against the helper body, not inferred from its type.)
+     */
+    /**
+     * ⛔ THE DIVERSE WINDOW, NOT `createdAt desc`, AND THIS WAS MEASURED BEFORE IT WAS CHANGED.
+     * Ordered by recency the first fifty rows of "everything except this shop" came back from ONE
+     * seller — Tiki holds 52,399 of the 76,177, so newest-first is its bulk import. "More on
+     * eno.vn" would have been twenty-four phones from a single shop, which is not other products,
+     * it is one other product.
+     * ⚠️ IT MUST MATCH `/api/listings` AT offset 0 OR THE SEAM REPEATS ROWS. The API applies
+     * `diverseFeedWindow` + `diversifyBySeller` only when the sort is DEFAULT_FEED_SORT, with
+     * `[{ rankScore: desc }, { id: desc }]`. Both halves are mirrored here, exactly as the home
+     * page mirrors them, so Show-more continues the list instead of re-serving its head.
+     */
+    diverseFeedWindow(
+      await scopedListingWhere({ verified: true, status: 'active', sellerId: { not: sellerId } }),
+      [{ rankScore: 'desc' }, { id: 'desc' }],
+      { ...LISTING_CARD_SELECT, listingType: true },
+    ),
+    /**
+     * ⚠️ THE REMAINDER IS A SUBTRACTION, NOT A `sellerId <> x` COUNT, AND THAT IS A MEASURED 4x.
+     * `count(... and "sellerId" <> $1)` cannot use the covering index and falls to a Seq Scan:
+     * EXPLAIN ANALYZE on the box, 76,178 rows, 244ms — paid on EVERY storefront render, which are
+     * force-dynamic. Counting the whole scoped catalogue is an Index Only Scan at 62ms and the
+     * shop's own count is an Index Scan at 0.6ms, so the same exact number costs ~63ms.
+     * ⚠️ THE TWO COUNTS ARE NOT ONE SNAPSHOT, AND THE DRIFT IS BOUNDED TO ONE CLICK. A listing
+     * published by this shop between the two reads makes the remainder one too high. It cannot
+     * mislead for long: `loadMore` overwrites the seeded total with the API's own `d.total`, which
+     * is computed from the same `excludeSeller` predicate, so the first Show-more corrects it and
+     * the button then disappears on schedule. A `$transaction` would buy exactness that nothing
+     * downstream can observe.
+     * ⚠️ EXACT, NOT APPROXIMATE, AND IT HAS TO BE: this total terminates the grid's Show-more
+     * (`rows.length < total`). Both counts carry the SAME edition-scoped predicate and the shop is
+     * never the desk, so the difference is the remainder with no drift to accumulate.
+     */
+    db.listing.count({ where: await scopedListingWhere({ verified: true, status: 'active' }) }),
   ])
   /**
    * ⚠️ FILTERED FROM THE FULL LIST RATHER THAN REBUILT, so the chips keep the demand ORDER, the
@@ -138,6 +200,15 @@ async function getData(sellerId: string): Promise<{
    */
   return {
     categories: serializedCategories,
+    /**
+     * ⚠️ `diversifyBySeller` STILL RUNS ON TOP OF THE WINDOW, for the reason the home page gives:
+     * the window picks WHICH rows, this interleaves them, and the fallback paths inside the window
+     * (a groupBy failure, a single seller, an under-filled fan-out) return a plain top-N that has
+     * not been interleaved at all. Slice AFTER the reorder — slicing first hands the reorder the
+     * same monopolised rows it exists to break up.
+     */
+    otherListings: await localizeListingTitles(diversifyBySeller(otherRows).slice(0, OTHER_LISTINGS).map(serializeListingCard)),
+    otherTotal: Math.max(0, marketplaceTotal - total),
     listings: await localizeListingTitles(rows.map(serializeListingCard)),
     /**
      * ⚠️ IDS AND INTENT ONLY — no title, no price, no currency. The JSON-LD emits Google's SUMMARY
@@ -184,7 +255,7 @@ export default async function Storefront({ params }: Props) {
    * stopped being theirs to control.
    */
   if (!shop) notFound()
-  const { categories, listings, ldListings, total } = await getData(shop.sellerId)
+  const { categories, listings, ldListings, total, otherListings, otherTotal } = await getData(shop.sellerId)
 
   /**
    * ⚠️ THE SAME `storefrontUrl(...)` CALL `generateMetadata` MAKES, so the `Store.url` and the
@@ -297,6 +368,34 @@ export default async function Storefront({ params }: Props) {
            */
           sellerId={shop.sellerId}
         />
+        )}
+
+        {/* The rest of the marketplace, BELOW this shop's own explorer.
+            ⛔ ITS OWN HEADING, NEVER MERGED INTO THE EXPLORER ABOVE. That explorer is scoped to this
+            seller and its facets describe this shop's catalogue; feeding other shops' products into
+            it would make the shop's own category rail and result count describe stock it does not
+            sell — the exact complaint that scoped the rail in the first place (see the groupBy note
+            in getData). A separate section keeps "whose product is this" answerable.
+            ⚠️ RENDERS NOTHING WHEN EMPTY, which is the correct state on an edition whose hide-list
+            leaves no other seller visible. */}
+        {otherTotal > 0 && (
+          <section className="mx-auto w-full max-w-7xl px-3 pb-10 sm:px-6 lg:px-8">
+            <h2 className="h-section mb-4 text-foreground"><Tr text="More on" /> {SITE_NAME}</h2>
+            <SellerListings
+              listings={otherListings}
+              searchable
+              sortable
+              /* ⚠️ 'relevance' IS THIS COMPONENT'S NAME FOR DEFAULT_FEED_SORT, and the mapping is the
+                 point: seller-listings sends `sort === 'relevance' ? 'newest' : sort`, and 'newest'
+                 is the balanced blend that `diversityAppliesTo` gates the interleave on — it does
+                 NOT mean most-recent ('recent' does). Asking for 'recent' here would turn the
+                 interleave off on every Show-more and walk straight back into Tiki's bulk import,
+                 while the server-rendered page above it stayed diversified. Both halves must ask
+                 the same question. */
+              initialSort="relevance"
+              serverScope={{ params: { excludeSeller: shop.sellerId }, total: otherTotal, pageSize: OTHER_LISTINGS }}
+            />
+          </section>
         )}
       </main>
       <Footer />

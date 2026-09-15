@@ -951,6 +951,7 @@ export const UI_STRINGS: string[] = [
   "More from eno.vn",
   "More from this seller",
   "More like this",
+  "More on",
   "More reactions",
   "More…",
   "Most contacted",

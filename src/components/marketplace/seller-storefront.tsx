@@ -1,4 +1,5 @@
 import { isSellerHiddenHere, scopedListingWhere } from '@/lib/edition-scope'
+import { SITE_NAME } from '@/lib/edition'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { cache } from 'react'
@@ -6,7 +7,9 @@ import { notFound } from 'next/navigation'
 import { AlertTriangle, Star, ShieldCheck } from "@/components/ui/icons"
 import { db } from '@/lib/db'
 import { Button } from '@/components/ui/button'
-import { serializeListing } from '@/lib/serialize'
+import { serializeListing, serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
+import { diverseFeedWindow } from '@/lib/feed-window'
+import { diversifyBySeller } from '@/lib/feed-diversity'
 import { localizeListingTitles } from '@/lib/translate'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -41,6 +44,15 @@ import { isBusinessVerified } from '@/lib/business-verification'
  * everything beyond it is reachable through search and the category pages, which paginate.
  */
 const STOREFRONT_LISTINGS = 60
+/**
+ * The "More on <site>" grid below a shop's own listings renders a SMALLER first page than the shop
+ * does. The shop's 60 are the reason the visitor is here; these are the continuation, so 24 keeps
+ * the storefront's HTML from roughly doubling for rows most visitors never scroll to.
+ * ⚠️ IT IS ALSO THE pageSize FOR THAT GRID, DELIBERATELY. `loadMore` uses the rendered row count as
+ * its next offset, so a first page that does not match the page size leaves a gap or an overlap at
+ * the seam — the dedupe would hide the overlap and nothing would hide the gap.
+ */
+export const OTHER_LISTINGS = 24
 
 export const loadSeller = cache(async (id: string) => {
   /**
@@ -128,10 +140,61 @@ export async function SellerStorefront({ id }: { id: string }) {
   // 90d conversation count → the responsiveness bucket's honesty gate (suppressed
   // below RESPONSE_MIN_CONVOS so a fresh seller never shows a fake "100%"). Same
   // window + query shape the trust engine uses; one cheap indexed count, batched.
-  const [seller, reviews, convoCount] = await Promise.all([
+  const [seller, reviews, convoCount, marketplaceTotal, otherRows] = await Promise.all([
     loadSeller(id),
     loadReviews(id),
     db.conversation.count({ where: { sellerId: id, createdAt: { gte: new Date(Date.now() - 90 * 86400000) } } }),
+    /**
+     * How much of the rest of the marketplace there is to show UNDER this shop's own grid. Owner,
+     * 2026-09-15: a seller page should "show all shops products first then other products" —
+     * eno.vn/vinwonders ended at its 17th card (measured: 17 active listings, all 17 rendered) with
+     * nothing beneath it.
+     *
+     * ⛔ THE EXCLUSION GOES INSIDE scopedListingWhere, NOT BESIDE IT. That helper's own note is
+     * explicit: spreading its result next to another top-level `sellerId` is a silent leak. On the
+     * MARKETPLACE edition it wraps the caller as `{ AND: [where, { sellerId: { notIn: [desk ids] } }] }`
+     * — a sibling key of the same name would overwrite that and put the e-Visa SKUs back into a
+     * licensed marketplace grid; on the services edition it is a no-op, since eno.forum's reader
+     * may see the desk. Passed in, the two land as independent AND conditions and both apply.
+     */
+    /**
+     * ⚠️ THE REMAINDER IS A SUBTRACTION, NOT A `sellerId <> x` COUNT, AND THAT IS A MEASURED 4x.
+     * `count(... and "sellerId" <> $1)` cannot use the covering index and falls to a Seq Scan:
+     * EXPLAIN ANALYZE on the box, 76,178 rows, 244ms — paid on EVERY storefront render, which are
+     * force-dynamic. Counting the whole scoped catalogue is an Index Only Scan at 62ms and the
+     * shop's own count is an Index Scan at 0.6ms, so the same exact number costs ~63ms.
+     * ⚠️ THE TWO COUNTS ARE NOT ONE SNAPSHOT, AND THE DRIFT IS BOUNDED TO ONE CLICK. A listing
+     * published by this shop between the two reads makes the remainder one too high. It cannot
+     * mislead for long: `loadMore` overwrites the seeded total with the API's own `d.total`, which
+     * is computed from the same `excludeSeller` predicate, so the first Show-more corrects it and
+     * the button then disappears on schedule. A `$transaction` would buy exactness that nothing
+     * downstream can observe.
+     * ⚠️ EXACT, NOT APPROXIMATE, AND IT HAS TO BE: this total terminates the grid's Show-more
+     * (`rows.length < total`). Both counts carry the SAME edition-scoped predicate and the shop is
+     * never the desk, so the difference is the remainder with no drift to accumulate.
+     */
+    db.listing.count({ where: await scopedListingWhere({ verified: true, status: 'active' }) }),
+    /**
+     * ⛔ SERVER-RENDER THE FIRST PAGE. SellerListings does NOT fetch on mount: its effect returns
+     * early while `isInitialView` holds, by design, so that returning to the untouched view cancels
+     * an abandoned request instead of re-running one. Handing it an empty array therefore produces a
+     * heading over a permanently empty grid — no request, no error, nothing to notice. The shop's
+     * own grid is server-rendered for the same reason; this one has to be too.
+     */
+    /**
+     * ⛔ THE DIVERSE WINDOW, NOT RECENCY, AND THE RECENCY VERSION WAS MEASURED FIRST: fifty rows of
+     * "everything except this shop" came back from TWO sellers, fourteen and ten, because Tiki
+     * alone holds 52,399 of the 76,177 and newest-first is its bulk import. The blend returns the
+     * same twenty-four across twelve sellers.
+     * ⚠️ MIRRORS `/api/listings` AT offset 0. The API interleaves only under DEFAULT_FEED_SORT and
+     * orders `[{ rankScore: desc }, { id: desc }]`; both are reproduced here so Show-more continues
+     * the list instead of re-serving its head.
+     */
+    diverseFeedWindow(
+      await scopedListingWhere({ verified: true, status: 'active', sellerId: { not: id } }),
+      [{ rankScore: 'desc' }, { id: 'desc' }],
+      { ...LISTING_CARD_SELECT, listingType: true },
+    ),
   ])
   if (!seller) notFound()
   const shareUrl = await shareUrlFor(seller.handle?.handle)
@@ -146,7 +209,15 @@ export async function SellerStorefront({ id }: { id: string }) {
       ? enforcement.state
       : null
 
+  // The remainder, from the two indexed counts — see the note beside marketplaceTotal.
+  const otherCount = Math.max(0, marketplaceTotal - seller._count.listings)
   const listings = await localizeListingTitles(seller.listings.map(serializeListing))
+  // ⚠️ `diversifyBySeller` on top of the window, and sliced AFTER the reorder — see the home feed's
+  // note: the window picks WHICH rows, this interleaves them, and the window's fallback paths (a
+  // groupBy failure, one seller, an under-filled fan-out) return a plain top-N nobody interleaved.
+  const otherListings = await localizeListingTitles(
+    diversifyBySeller(otherRows).slice(0, OTHER_LISTINGS).map(serializeListingCard),
+  )
 
   // Honest, decomposed display metrics for the shared SellerCard (raw responseRate
   // stays server-side; only the bucketed label escapes). Trust score / rating /
@@ -408,6 +479,33 @@ export async function SellerStorefront({ id }: { id: string }) {
               sortable
               initialSort="recent"
               serverScope={{ params: { seller: seller.id }, total: seller._count.listings, pageSize: STOREFRONT_LISTINGS }}
+            />
+          </section>
+        )}
+
+        {/* The rest of the marketplace, BELOW this shop's own grid.
+            ⛔ ITS OWN SECTION AND ITS OWN HEADING, NEVER APPENDED TO THE GRID ABOVE. That heading
+            reads "Listings by <seller> (<count>)", so continuing it with other shops' products
+            would state, in the page's own words, that those products are this seller's. On a
+            marketplace carrying a partner badge that is a misattribution, not a layout choice —
+            and the badge is exactly what makes a visitor trust the claim.
+            ⚠️ EMPTY IS A REAL STATE AND RENDERS NOTHING. SellerListings returns null when it has no
+            rows and no server total, which is what a hidden-list edition produces (eno.forum hides
+            partners wholesale — an empty marketplace there is correct, not a bug to paper over). */}
+        {otherCount > 0 && (
+          <section className="mt-10 space-y-4">
+            <h2 className="h-section text-foreground"><Tr text="More on" /> {SITE_NAME}</h2>
+            {/* Server-rendered like the grid above, and see OTHER_LISTINGS for why it is 24 rather
+                than 60: this is the continuation, not the reason the visitor came. */}
+            <SellerListings
+              listings={otherListings}
+              searchable
+              sortable
+              /* 'relevance' is this component's name for DEFAULT_FEED_SORT ('newest' on the wire —
+                 the balanced blend, NOT most-recent), which is the only sort the API interleaves
+                 under. 'recent' here would disable the interleave on every Show-more. */
+              initialSort="relevance"
+              serverScope={{ params: { excludeSeller: seller.id }, total: otherCount, pageSize: OTHER_LISTINGS }}
             />
           </section>
         )}

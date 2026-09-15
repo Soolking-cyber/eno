@@ -128,6 +128,23 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
    */
   const sellerParam = searchParams.get('seller')?.trim()
   if (sellerParam) andFilters.push({ sellerId: sellerParam })
+  /**
+   * THE INVERSE, for the "more on eno" grid a storefront renders UNDER its own listings: everything
+   * except this shop. Owner, 2026-09-15: a seller page should "show all shops products first then
+   * other products" — and eno.vn/vinwonders dead-ended at its 17th card with nothing below it.
+   *
+   * ⚠️ ITS OWN AND ELEMENT TOO, and for the reason spelled out above rather than by imitation. On
+   * the services edition `editionScope.sellerId` pins the feed to the desk; merging this exclusion
+   * into that object would overwrite the pin and widen the result past the edition scope, which is
+   * a licensing boundary, not a preference. As a separate condition Postgres intersects them, so
+   * the worst this can do is return nothing.
+   *
+   * ⚠️ IT DOES NOT PAIR WITH `seller`. Passing both asks for "this shop and not this shop"; that is
+   * an empty set by construction and is left to behave that way rather than being special-cased —
+   * a caller doing it has a bug, and silently picking one of the two would hide it.
+   */
+  const excludeSellerParam = searchParams.get('excludeSeller')?.trim()
+  if (excludeSellerParam) andFilters.push({ sellerId: { not: excludeSellerParam } })
   if (featuredOnly) {
     andFilters.push({ featured: true })
   }
