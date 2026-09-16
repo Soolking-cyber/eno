@@ -1,6 +1,6 @@
 'use client'
 
-import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown, Tag } from '@/components/ui/icons'
+import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -396,7 +396,9 @@ export function SortStrip({
         className={cn(
           // A pill, not an underlined tab — it must not read as a fifth sort. Same type size and weight
           // as the tabs so the row is one line of text; shrink-0 so the scroller beside it gives way.
-          'flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors duration-150 active:scale-[0.97]',
+          // No icon, text only (owner, 2026-09-16) — hence no `gap`, which would otherwise pad an empty
+          // flex row and make the pill wider than its label.
+          'flex shrink-0 items-center rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors duration-150 active:scale-[0.97]',
           'border-border text-body hover:text-foreground',
           // GREEN WHEN PRESSED (owner). `--success` is green-800 in light and green-400 in dark, so the
           // ink flips with it: the page background colour reads on both (white on green-800, near-black
@@ -404,7 +406,6 @@ export function SortStrip({
           'data-pressed:border-success data-pressed:bg-success data-pressed:text-background data-pressed:hover:text-background',
         )}
       >
-        <Tag className="size-4" />
         {tr('Good price', 'Giá tốt')}
       </Toggle>
       </div>
