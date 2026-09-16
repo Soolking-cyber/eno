@@ -8,13 +8,19 @@ import { isIOS } from '@/lib/in-app-browser'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 
-// Store links — set by the owner once the apps are published (env, so no code change to flip on).
-// iOS needs Apple's numeric app id (assigned at submission); Android is predictable but the app
-// still has to be live. Until BOTH exist the prompt stays hidden (no dead links).
-//   NEXT_PUBLIC_IOS_APP_URL      e.g. https://apps.apple.com/app/id0000000000
-//   NEXT_PUBLIC_ANDROID_APP_URL  e.g. https://play.google.com/store/apps/details?id=vn.eno.app
-const IOS_URL = process.env.NEXT_PUBLIC_IOS_APP_URL
-const ANDROID_URL = process.env.NEXT_PUBLIC_ANDROID_APP_URL
+// ⚠️ THE STORE LINKS MOVED TO src/lib/app-store-links.ts and this prompt now WAKES UP on Android as
+// a side effect: it used to read an unset NEXT_PUBLIC_ANDROID_APP_URL and return early on every
+// device, and the shared module falls back to the live Play listing (production v3, 2026-09-15). The
+// engagement gate below is unchanged — a returning visitor after 4s, a first-timer after 75s dwell —
+// so the prompt is still never a first-load banner. iOS stays silent until its listing exists.
+import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
+import { IS_SERVICES } from '@/lib/edition'
+
+// ⛔⛔ AND IT WAKES ON THE SERVICES EDITION ONLY, for the same licensing reason app-download.tsx carries
+// in full: the published Android app renders eno.forum, so prompting an eno.vn visitor to install it
+// would have the licensed marketplace advertising e-Visa. Drop the gate when an eno.vn build exists.
+const IOS_URL = IS_SERVICES ? IOS_APP_URL : null
+const ANDROID_URL = IS_SERVICES ? ANDROID_APP_URL : null
 
 const DISMISS_KEY = 'eno-app-hint-dismissed'
 const VISITS_KEY = 'eno-visits'

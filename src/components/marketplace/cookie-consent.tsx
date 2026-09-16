@@ -224,14 +224,14 @@ export function CookieConsent() {
     setOpenedByUser(false)
     setView('ask')
     /**
-     * ⚠️ THE TOUR STARTS ON EITHER CHOICE, AND THAT IS A COMPLIANCE POINT rather than a nicety.
-     * Owner, 2026-08-28: "once they close popup the onboarding process should start". Starting it
-     * only after "Allow" would make the walkthrough a reward for consenting — the exact nudge
-     * PDPL/GDPR mean by consent not being freely given. Allow, Decline and Esc all lead here.
-     * ⚠️ NOT fired for the footer re-open: someone editing their choice a month later is not a
-     * first-run visitor. `intro-tour.tsx` also refuses to run twice, so this is belt and braces.
+     * ⛔ CLOSING THIS NO LONGER STARTS ANYTHING. It used to dispatch `eno:start-tour`, because the
+     * owner asked for onboarding to begin here (2026-08-28: "once they close popup the onboarding
+     * process should start") — and on 2026-09-16 they asked for that tour to go: "remove onboarding
+     * autoplay where it shows top seach bar and taps the category brand too jittery". The compliance
+     * reasoning that surrounded it (start on EITHER choice, so a walkthrough is never a reward for
+     * consenting) is moot now that nothing starts; if onboarding ever returns, it belongs on both
+     * branches for that reason, not just on "Allow".
      */
-    if (!openedByUser) window.dispatchEvent(new CustomEvent('eno:start-tour'))
   }
   const allow = () => { setConsent('all'); close() }
   const save = () => { setConsent(ads ? 'all' : perso ? 'personalized' : 'essential'); close() }

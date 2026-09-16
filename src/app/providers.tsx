@@ -16,7 +16,6 @@ import { SkipLink } from "@/components/marketplace/skip-link";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
-import { IntroTour } from "@/components/marketplace/intro-tour";
 import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
@@ -118,8 +117,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     <SaveSignupSheet />
                     <ImageShield />
                     <CookieConsent />
-                    {/* Starts when the intro card closes, on either choice — see intro-tour.tsx. */}
-                    <IntroTour />
+                    {/* ⛔ THE FIRST-RUN TOUR IS GONE (owner, 2026-09-16: "remove onboarding autoplay
+                        where it shows top seach bar and taps the category brand too jittery"). It typed
+                        into the header search itself and then pointed at the category/brand chips for the
+                        visitor to tap; the movement read as jitter on the first screen anyone sees.
+                        Deleted rather than disabled: intro-tour.tsx, src/lib/intro-tour.ts, their tests,
+                        the `eno:start-tour` dispatch in cookie-consent.tsx and the `eno:search-preview`
+                        listener in header.tsx all went with it. Recover from git if it is ever wanted
+                        back — it is 1,340 lines and a behaviour, not a flag. */}
                     <InstallHint />
                     {/* ⚠️ MOUNTED GLOBALLY BECAUSE THE FAILURE LANDS ON THE HOME PAGE, NOT ON
                         /signin. /auth/callback redirects a failed sign-in to `/?auth_error=…`, so

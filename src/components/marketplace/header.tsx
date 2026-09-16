@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { NotificationBell } from './notification-bell'
+import { AppDownload } from './app-download'
 import type { Nearby, Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { buildSuggestItems, type SuggestItem } from './search-suggest'
@@ -134,25 +135,13 @@ export function Header() {
   const [searchVal, setSearchVal] = useState('')
 
   /**
-   * ⛔ THE FIRST-RUN TOUR TYPES INTO THIS INPUT, AND THIS IS THE ONLY DOOR IN. The tour demonstrates
-   * a search by revealing a query character by character in the real search bar, and this input is
-   * controlled state owned here — so without a listener the tour's only options were to fake a bar
-   * on top of the real one, or to reach into the DOM and fight React for the value. Both are worse
-   * than four lines.
-   * ⚠️ IT SETS THE TEXT AND NOTHING ELSE. No focus, no suggestions panel, no submit: stealing focus
-   * would take the keyboard from someone already typing (and on a phone would raise the keyboard
-   * over the very results the tour is about to show), and the tour submits through the existing
-   * `eno:search` path when it is ready. The suggestions panel opens `onFocus`, so leaving focus
-   * alone is also what keeps it shut.
-   * ⚠️ THE VISITOR ALWAYS WINS. `intro-tour.tsx` cancels its own typing on any real keystroke or
-   * pointer press, so these two states cannot fight — but the tour is the only sender, and if that
-   * ever stops being true this listener needs a guard of its own.
+   * ⛔ THE `eno:search-preview` LISTENER IS GONE WITH THE TOUR THAT WAS ITS ONLY SENDER (owner,
+   * 2026-09-16: "remove onboarding autoplay where it shows top seach bar and taps the category brand
+   * too jittery"). It existed so the first-run tour could reveal a query character by character in
+   * THIS input — `searchVal` is controlled state owned here, so the alternatives were faking a second
+   * bar or fighting React for the DOM value. Nothing dispatches that event any more; re-add the four
+   * lines with the sender if a demo search ever comes back.
    */
-  useEffect(() => {
-    const onPreview = (e: Event) => setSearchVal(String((e as CustomEvent<{ text?: string }>).detail?.text ?? ''))
-    window.addEventListener('eno:search-preview', onPreview)
-    return () => window.removeEventListener('eno:search-preview', onPreview)
-  }, [])
   // Quick-select suggestions (same store as the hero/in-explorer search): the user's
   // recent searches + recently-used areas, shown when the header search is focused.
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -503,10 +492,7 @@ export function Header() {
                 // with the suggestions they came for.
                 : 'search-beam rounded-2xl bg-tint',
             )}
-            /* ⚠️ THE FIRST-RUN TOUR POINTS AT THIS ELEMENT (src/lib/intro-tour.ts, TOUR_TARGETS).
-               A step whose anchor is missing is skipped, so removing this shortens the tour
-               silently rather than breaking it — intro-tour.test.ts asserts both ends exist. */
-            data-tour="search">
+            >
               <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" strokeWidth={STROKE} />
               <Input
                 variant="unstyled"
@@ -733,6 +719,11 @@ export function Header() {
           {/* Saved + Messages live in the LEFT nav rail (desktop) / bottom nav (mobile) for signed-in
               users — removed from here (owner 2026-07-18) so the top bar doesn't duplicate them. */}
           <NotificationBell />
+          {/* "Get the app" — ONE control placed to satisfy both placements the owner asked for
+              (2026-09-16): on a phone, where Post lives in the bottom nav, it lands immediately to the
+              RIGHT OF THE BELL; on desktop it is the control immediately LEFT OF POST. Renders nothing
+              inside the native shell. */}
+          <AppDownload />
           {/* Signed-in users reach their account via the persistent LEFT nav rail (desktop) / the
               bottom-nav Account tab (mobile/tablet) — no header avatar (owner 2026-07-17). Guests
               still get a Sign in link here. */}

@@ -394,16 +394,22 @@ export function SortStrip({
         onPressedChange={onGoodPrice}
         title={tr('Show only listings priced below the market for the same item', 'Chỉ hiện tin có giá thấp hơn thị trường cho cùng sản phẩm')}
         className={cn(
-          // A pill, not an underlined tab — it must not read as a fifth sort. Same type size and weight
-          // as the tabs so the row is one line of text; shrink-0 so the scroller beside it gives way.
-          // No icon, text only (owner, 2026-09-16) — hence no `gap`, which would otherwise pad an empty
-          // flex row and make the pill wider than its label.
-          'flex shrink-0 items-center rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors duration-150 active:scale-[0.97]',
-          'border-border text-body hover:text-foreground',
-          // GREEN WHEN PRESSED (owner). `--success` is green-800 in light and green-400 in dark, so the
-          // ink flips with it: the page background colour reads on both (white on green-800, near-black
-          // on green-400) where a fixed white would fail contrast on the dark theme's light green.
-          'data-pressed:border-success data-pressed:bg-success data-pressed:text-background data-pressed:hover:text-background',
+          // ⚠️ IT WEARS THE FACET PILLS' CLOTHES, NOT ITS OWN (owner, 2026-09-16: "match the good price
+          // style to other dropdowns so it wont pop out just on press turns green"). It sat in this row
+          // as a bordered rounded-full chip, which read as a fifth, louder control beside Any type /
+          // Price / Area / Any condition. These are those pills' exact classes from facet-bar.tsx —
+          // borderless, rounded-xl, px-4, h-12 tap target, muted hover, same press scale and duration —
+          // minus their chevron, because this one opens nothing. Keep the two in step if that file moves.
+          // ⚠️ THE HEIGHT IS THE TABS', NOT THE FACET PILLS'. facet-bar's own pills are min-h-12 (48px)
+          // because they sit on their own row; measured here, 48 beside 42px tabs grew this row to 48
+          // and left the toggle overhanging the tab strip's baseline (agy). It matches its neighbours.
+          'flex h-[42px] w-auto shrink-0 items-center justify-between rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96]',
+          'text-body hover:bg-muted',
+          // GREEN ONLY WHEN PRESSED, and it is the whole affordance now that the border is gone.
+          // `--success` is green-800 in light and green-400 in dark, so the ink flips with it: the page
+          // background colour reads on both (white on green-800, near-black on green-400) where a fixed
+          // white would fail contrast on the dark theme's light green.
+          'data-pressed:bg-success data-pressed:text-background data-pressed:hover:bg-success data-pressed:hover:text-background',
         )}
       >
         {tr('Good price', 'Giá tốt')}
