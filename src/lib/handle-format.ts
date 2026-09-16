@@ -38,7 +38,7 @@ export const HANDLE_RE = /^[a-z][a-z0-9_-]{1,28}[a-z0-9]$/
 const RESERVED = new Set([
   // app routes
   'about', 'account', 'account-deletion', 'admin', 'api', 'appeal', 'auth', 'brands', 'c', 'dashboard',
-  'developers', 'dispute', 'disputes', 'guide', 'help', 'listings', 'messages', 'onboard', 'post', 'privacy',
+  'developers', 'dispute', 'disputes', 'guide', 'help', 'listings', 'listing-images', 'messages', 'onboard', 'post', 'privacy',
   'prohibited', 'regulations', 'reports', 'safety', 'saved', 'search', 'sellers',
   'signin', 'signup', 'sitemap', 'terms', 'trust',
   // ⚠️ `docs` IS NOT AN app ROUTE — IT IS A REWRITE, WHICH IS EXACTLY WHY IT IS EASY TO MISS.
@@ -73,6 +73,10 @@ const RESERVED = new Set([
    * the exact slug is a route — but do not assume one entry covers every spelling here. If these
    * ever need impersonation cover too, add the folded forms explicitly.
    */
+  // ⚠️ `app` IS THE QR REDIRECT SHIPPED 2026-09-16 (src/app/app/route.ts) and it was claimable until
+  // handle-format.test.ts caught it — the test reads the route tree, which is exactly why it exists.
+  // A member holding @app would have shadowed the one URL the download QR encodes.
+  'app', 'furnishing-a-home-in-vietnam', 'selling-up-before-you-leave-vietnam',
   'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'itinerary',
   'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam',
   'moving-to-vietnam', 'partners', 'services-for-expats-vietnam', 'unsubscribe',

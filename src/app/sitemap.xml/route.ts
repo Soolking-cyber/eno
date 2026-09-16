@@ -8,7 +8,7 @@ import { db } from '@/lib/db'
 // strings. `@/lib/edition-services-copy` is aliased to an empty stub on a marketplace build, so the
 // import is severed there. See the note on SERVICES_SITEMAP_PATHS in that module.
 import { SERVICES_SITEMAP_PATHS } from '@/lib/edition-services-copy'
-import { EXPAT_GUIDE_PATHS } from '@/lib/expat-guides'
+import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS } from '@/lib/expat-guides'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { slugify } from '@/lib/slug'
 import { NextResponse } from 'next/server'
@@ -214,6 +214,14 @@ export async function GET() {
       for (const path of EXPAT_GUIDE_PATHS) {
         xml += `  <url><loc>${hostUrl}${path}</loc></url>\n`
       }
+    }
+
+    // The MARKETPLACE guides, and note the missing gate: unlike the block above, these are ordinary
+    // `page.tsx` routes that exist on BOTH editions, so both submit them from their own host — the same
+    // arrangement the five keyword landings already have. No lastmod, for the reason just above: they
+    // are static editorial with no data behind them.
+    for (const path of MARKETPLACE_GUIDE_PATHS) {
+      xml += `  <url><loc>${hostUrl}${path}</loc></url>\n`
     }
 
     // Indexing decoupled from PRELAUNCH (owner, 2026-07-18): the full data-driven

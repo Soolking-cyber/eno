@@ -3,7 +3,12 @@ import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { storefrontUrl } from '@/lib/storefront-host'
 
-export const revalidate = 604800 // 7d — static SEO copy; weekly regen is plenty (fewer ISR writes)
+// 1h, not 7d. The copy IS static, but the page also renders a LIVE 8-listing rail and an
+// "inventory is empty" branch — so at weekly regeneration a category that filled on Monday kept
+// telling visitors "this part of the marketplace is just getting started" until the following
+// Monday. One page per hour is a rounding error against the feed's own traffic; a week of wrong
+// copy on the pages built to convert search traffic is not (astra).
+export const revalidate = 3600
 
 export const metadata: Metadata = {
   title: `Wholesale Green Coffee Beans Vietnam — Robusta by the Kilo | ${SITE_NAME}`,

@@ -46,11 +46,44 @@ export const EXPAT_GUIDES: readonly ExpatGuide[] = [
   },
 ] as const
 
+/**
+ * THE MARKETPLACE'S OWN GUIDES — a separate list, because the two above cannot be shared.
+ *
+ * ⛔ WHY NOT JUST UN-GATE THE SERVICES GUIDES: their BODIES are about the e-visa at length (they import
+ * `@/lib/visa-provider` and link the e-visa hub), so they are `page.forum.svc.tsx` and a marketplace
+ * build never compiles them. That left the licensed marketplace with no long-form expat content at all
+ * — someone searching "moving to Vietnam" landed on the services site instead of the shop. These two
+ * are written from scratch for eno.vn's own subject: furnishing a home here, and selling it again when
+ * you leave. Both are ordinary `page.tsx` routes, so they exist on BOTH editions and each self-
+ * canonicalises to its own origin, exactly as the five landing pages already do.
+ *
+ * ⚠️ THE SAME VOCABULARY RULE APPLIES HERE AND IT IS WIDER THAN IT LOOKS: no visa, no itinerary AND no
+ * PayPal in any value — the third is the one a reviewer had to point out, because the licensing note
+ * everyone quotes lists all three (astra).
+ */
+export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
+  {
+    slug: 'furnishing-a-home-in-vietnam',
+    label: 'Furnishing a home in Vietnam without overpaying',
+    blurb:
+      'What to buy new, what to buy used, what the landlord should already provide — and how to check a secondhand piece before money moves.',
+  },
+  {
+    slug: 'selling-up-before-you-leave-vietnam',
+    label: 'Selling up before you leave Vietnam',
+    blurb:
+      'Start six weeks out, price against what is actually listed, and hand over in a way that does not cost you the deposit.',
+  },
+] as const
+
 /** Route path for a guide, e.g. `/moving-to-vietnam`. */
 export const expatGuidePath = (slug: string) => `/${slug}`
 
-/** Every guide path, for the sitemap. */
+/** Every services-edition guide path, for the sitemap. */
 export const EXPAT_GUIDE_PATHS: readonly string[] = EXPAT_GUIDES.map((g) => expatGuidePath(g.slug))
+
+/** Every marketplace guide path, for the sitemap. These routes exist on both editions. */
+export const MARKETPLACE_GUIDE_PATHS: readonly string[] = MARKETPLACE_GUIDES.map((g) => expatGuidePath(g.slug))
 
 /**
  * Crawlable links to the other guides. Pass the current guide's slug so a page does not link to
@@ -58,6 +91,15 @@ export const EXPAT_GUIDE_PATHS: readonly string[] = EXPAT_GUIDES.map((g) => expa
  */
 export function expatGuidesExcept(slug?: string) {
   return EXPAT_GUIDES.filter((g) => g.slug !== slug).map((g) => ({
+    href: expatGuidePath(g.slug),
+    label: g.label,
+    blurb: g.blurb,
+  }))
+}
+
+/** The marketplace guides' "Keep reading" block — same shape, its own list. */
+export function marketplaceGuidesExcept(slug?: string) {
+  return MARKETPLACE_GUIDES.filter((g) => g.slug !== slug).map((g) => ({
     href: expatGuidePath(g.slug),
     label: g.label,
     blurb: g.blurb,

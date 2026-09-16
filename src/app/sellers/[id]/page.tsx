@@ -23,8 +23,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${seller.name} | ${SITE_NAME}`,
     description: `${seller.name} — ${seller.reviewCount} reviews · ${seller.rating.toFixed(1)}★`,
-    // The public @handle URL is canonical; the /sellers/<id> URL points at it.
-    alternates: seller.handle ? { canonical: `${hostUrl}/${seller.handle.handle}` } : undefined,
+    /**
+     * The public @handle URL is canonical; the /sellers/<id> URL points at it.
+     * ⚠️ AND A HANDLE-LESS SELLER SELF-CANONICALISES rather than declaring nothing. `undefined` left
+     * this page with no canonical at all — and it is `force-dynamic`, reachable by id, and submitted
+     * to the sitemap under exactly this shape, so the only signal Google had for which URL to keep was
+     * its own guess (astra). Handle-less storefronts are the minority, but they are the ones with no
+     * second URL to inherit a canonical from.
+     */
+    alternates: { canonical: seller.handle ? `${hostUrl}/${seller.handle.handle}` : `${hostUrl}/sellers/${id}` },
   }
 }
 

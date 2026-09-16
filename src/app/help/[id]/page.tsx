@@ -65,8 +65,49 @@ export default async function HelpThreadPage({ params }: { params: Promise<{ id:
     else comments.push(comment)
   }
 
+  /**
+   * ⛔ Article, NOT QAPage OR FAQPage — CHOSEN AGAINST THE DATA, NOT AGAINST THE URL SHAPE. These read
+   * like questions, so QAPage is the obvious guess and it would be a lie: QAPage describes a question
+   * with ANSWERS, and this corpus has none — measured on production, 44 published help posts and 0
+   * published comments. The answer IS the post body, written by us. FAQPage is the other tempting
+   * miss: it describes a LIST of question/answer pairs on one page, not a page that is one answer, and
+   * Google has restricted its rich result to a handful of authoritative sites anyway.
+   * Article is what this actually is — an editorial answer with a title, a body, a date and a
+   * publisher — and it is the type that stays true the day someone does reply.
+   * `dateModified` comes from the row's own updatedAt (the serializer carries it, and the sitemap already
+   * submits it as this URL's lastmod) — so the two agree rather than telling Google different stories.
+   */
+  /**
+   * ⚠️ THE EDITION'S OWN ORIGIN, AND THE FALLBACK IS THE POINT OF THE COMMENT. Both editions serve
+   * /help, so a bare `|| 'https://eno.vn'` would, on a services build with the env unset, publish
+   * structured data naming the LICENSED MARKETPLACE as the author and publisher of the services site's
+   * help — attributing one operator's content to another (opus). SITE_NAME is inlined per edition, so
+   * it is the honest thing to fall back on.
+   */
+  const origin = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`
+  const helpJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    'headline': thread.post.title,
+    'articleBody': thread.post.body,
+    'datePublished': thread.post.createdAt,
+    'dateModified': thread.post.updatedAt,
+    'inLanguage': 'en',
+    'mainEntityOfPage': { '@type': 'WebPage', '@id': `${origin}/help/${id}` },
+    'author': { '@type': 'Organization', 'name': SITE_NAME, 'url': origin },
+    'publisher': { '@type': 'Organization', 'name': SITE_NAME, 'url': origin },
+  }
+
   return (
     <div className="flex min-h-screen flex-col blob-bg">
+      {/* JSON.stringify of a locally built object — no user HTML reaches this sink. */}
+      {/**
+        * ⛔ `<` IS ESCAPED, AND JSON.stringify DOES NOT DO IT FOR YOU. Help threads are DB rows — a body
+        * containing `</script><img src=x onerror=…>` closes this element and the rest executes as markup.
+        * JSON escaping is not HTML escaping; the site's other JSON-LD blocks use the same `\u003c` trick
+        * (seo-article.tsx's `ldJson`). Found by review before it shipped, on a sink that reads user text.
+        */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(helpJsonLd).replace(/</g, '\\u003c') }} />
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-16">
         {/* key = the thread id. HelpThreadClient seeds useState from these props, and a
