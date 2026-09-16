@@ -292,7 +292,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   const [card, setCard] = useState<SerializedListingCard | null>(null)
   // Card pops ABOVE the tapped pin (anchored to its screen position) — `above`
   // flips it below the pin when there isn't room near the top edge.
-  const [cardPos, setCardPos] = useState<{ x: number; y: number; above: boolean } | null>(null)
+  const [cardPos, setCardPos] = useState<{ x: number; y: number; above: boolean; centered?: boolean } | null>(null)
   const cardIdRef = useRef<string | null>(null)
 
   // Viewer location for the popup's travel estimate. Reuse the "search near you"
@@ -318,15 +318,44 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   // Card sizes ADAPT to the map viewport: on a short map (e.g. the listing-detail
   // location map ~260px tall) we use a slim, image-less horizontal card so the popup
   // never dwarfs the map; on a full-screen map it's the tall Airbnb-style card.
+  /** Breathing room above and below a centred card, and the gap that keeps the pin out from under it. */
+  const CARD_MARGIN = 12
+  // 40, not 26: the pin is a PILL CENTRED ON ITS ANCHOR (see pinHtml), so ~half its height sits above
+  // the point we pan to, and a selected pin is scaled up on top of that. Measured at 26 the pin's top
+  // edge still overlapped the card by ~5px on a tall map.
+  const PIN_CLEARANCE = 40
   const cardDims = () => {
     const el = mapRef.current
     const mapW = el?.clientWidth ?? 360
     const mapH = el?.clientHeight ?? 500
-    const compact = mapH < 360
+    /**
+     * ⛔ THE TALL CARD IS USED ONLY WHERE IT FITS, WHICH IS NOT THE SAME AS "the map is over 360px".
+     * The tall card is `w + 118` ≈ 418px. A phone's map view is 60dvh — about 400px on a common
+     * handset — so the old `mapH < 360` test happily chose the TALL card for a map that cannot hold
+     * it: centred, it clipped at both edges and swallowed the pin underneath (astra, opus, measured
+     * on exactly those numbers). The rule is now the honest one — take the tall card when the map has
+     * room for it AND the margins around it; otherwise take the compact horizontal card, which is
+     * 96px and fits anywhere.
+     * ⚠️ `PIN_CLEARANCE` is what keeps the tapped pin OUT from under its own card: the pan puts the pin
+     * half a card below centre plus this much, so the map must be able to give back that space too.
+     */
+    const tallW = Math.round(Math.min(300, mapW - 24))
+    const tallH = Math.round(tallW + 118) // square image (= w tall) + content block (~92) + travel row (~26); keep in sync with the card render so the flip + recenter math is right
+    /**
+     * ⚠️ THE SPACE A CENTRED CARD NEEDS IS TWO-SIDED, and the first cut counted it once. A card centred
+     * at H/2 only has H/2 below it, and the pin has to fit in what is left: ch/2 + PIN_CLEARANCE + a
+     * margin. So the map must be at least ch + 2·(PIN_CLEARANCE + CARD_MARGIN) — 522px, not 482px. At
+     * 482 the clamp squeezed the gap to 20px and the card swallowed the top of the pin, which is the
+     * very bug this rule exists to prevent (astra and opus, with the same arithmetic).
+     * ⚠️ AND THE RULE IS TOUCH-ONLY. Desktop ANCHORS the card above the pin instead of centring it, so
+     * it needs none of this clearance; applying it there dropped every 360–521px desktop map to the
+     * compact card for no reason (opus).
+     */
+    const compact = mapH < 360 || (!isHoverable() && mapH < tallH + (PIN_CLEARANCE + CARD_MARGIN) * 2)
     // Compact is a horizontal card (thumb + title/price/travel + trust + Maps FAB) — it needs
     // real width so the "~19 min · 7.1 km from you" line sits on ONE row instead of wrapping.
-    const w = Math.round(Math.min(compact ? 320 : 300, mapW - 24))
-    const h = compact ? 96 : Math.round(w + 118) // square image (= w tall) + content block (~92) + travel row (~26); keep in sync with the card render so the flip + recenter math is right
+    const w = compact ? Math.round(Math.min(320, mapW - 24)) : tallW
+    const h = compact ? 96 : tallH
     return { w, h, compact }
   }
   const placeCardFor = (l: SerializedListingCard) => {
@@ -336,6 +365,20 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     const { lat, lng } = getListingCoordinates(l)
     const pt = map.latLngToContainerPoint([lat, lng])
     const W = el.clientWidth
+    /**
+     * ⛔ ON TOUCH THE CARD SITS AT THE MAP'S CENTRE, FULL STOP (owner, 2026-09-16: "when in map mode
+     * click on product on map it doest center the card instead shows under annoying make it center the
+     * product card to the map center").
+     * WHY IT DRIFTED: the anchored placement below flips the card BELOW the pin whenever it will not fit
+     * above (`pt.y > ch + 24`). On a phone the map is 60dvh — roughly 400px — while the tall card is
+     * w + 118 ≈ 418px, so it never fits above, always flipped under the pin, and then ran off the bottom
+     * edge. Recentring could not save it: the pan shift is clamped to 40% of the map height, which on a
+     * short map is less than half the card.
+     * So on touch the card is centred on the map and the MAP moves under it (see recenterOnPin), which is
+     * also the Airbnb/Grab pattern. Desktop keeps the anchored popup: with a cursor the tie between pin
+     * and card is the whole affordance, and there the map is tall enough for it to fit.
+     */
+    if (!isHoverable()) { setCardPos({ x: W / 2, y: el.clientHeight / 2, above: false, centered: true }); return }
     const x = Math.max(cw / 2 + 8, Math.min(W - cw / 2 - 8, pt.x))
     setCardPos({ x, y: pt.y, above: pt.y > ch + 24 })
   }
@@ -353,7 +396,23 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     // Push the pin BELOW centre by ~half the card height so the card — which pops ABOVE the
     // pin — lands vertically CENTRED on the map instead of clipped at the top edge. Clamp so
     // the pin never pans off the bottom on a short map.
-    const shift = Math.min(cardDims().h / 2 + 10, el.clientHeight * 0.4)
+    const { h: ch } = cardDims()
+    const H = el.clientHeight
+    /**
+     * TOUCH: the card is pinned to the map's centre, so the PIN is panned to sit just below it — the
+     * listing you tapped stays visible, under its own card, instead of being covered by it. Clamped to
+     * the map's bottom edge so a short map still shows the pin.
+     * DESKTOP: unchanged — push the pin below centre by half the card, so the card that pops ABOVE it
+     * lands centred.
+     */
+    // Panning to `pt.y - shift` puts that point at the map's centre, so the PIN lands `shift` px BELOW
+    // centre. Touch wants it clear of the centred card (half a card + a margin); desktop wants just
+    // enough room for the card that opens above it.
+    const shift = isHoverable()
+      ? Math.min(ch / 2 + 10, H * 0.4)
+      // cardDims() guarantees the room on touch (it drops to the compact card when the tall one would
+      // not fit), so this clamp is a floor against a freak viewport rather than the usual path.
+      : Math.min(ch / 2 + PIN_CLEARANCE, H / 2 - CARD_MARGIN)
     map.panTo(map.unproject(L.point(pt.x, pt.y - shift), z), { animate: true, duration: 0.25 })
   }
   const onMoveRef = useRef(onMove)
@@ -637,8 +696,12 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
           className="absolute z-[1100] pointer-events-none"
           style={{
             left: cardPos.x,
-            top: cardPos.above ? cardPos.y - 14 : cardPos.y + 14,
-            transform: cardPos.above ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
+            top: cardPos.centered ? cardPos.y : cardPos.above ? cardPos.y - 14 : cardPos.y + 14,
+            transform: cardPos.centered
+              ? 'translate(-50%, -50%)'
+              : cardPos.above
+                ? 'translate(-50%, -100%)'
+                : 'translate(-50%, 0)',
           }}
         >
           <div
@@ -646,7 +709,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
             onMouseLeave={scheduleClose}
             className={cn(
               'pointer-events-auto relative overflow-hidden rounded-2xl bg-popover shadow-pop duration-150 ease-out animate-in fade-in zoom-in-95',
-              cardPos.above ? 'origin-bottom' : 'origin-top',
+              cardPos.centered ? 'origin-center' : cardPos.above ? 'origin-bottom' : 'origin-top',
             )}
             style={{ width: cardDims().w }}
           >
