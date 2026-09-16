@@ -2199,6 +2199,106 @@ html.dark .leaflet-tile-pane {
    design-lint's checkTourMask went too — it guarded a class that no longer exists. */
 
 /* ============================================================
+   THE LAUNCH REVEAL (src/components/marketplace/app-splash.tsx)
+   ============================================================ */
+/**
+ * The wordmark wipes in left→right behind a soft edge while the page actually loads, then the whole
+ * overlay fades and the app is there (owner, 2026-09-16). `--splash-reveal` runs 0→1 and is set by the
+ * component from REAL milestones — hydration, fonts.ready, window load, a painted frame.
+ *
+ * ⛔ THE BAILOUT ANIMATION IS NOT OPTIONAL. This overlay is server-rendered so it covers the first
+ * paint, which means that WITHOUT JAVASCRIPT — a broken chunk, a blocked script, an old browser — it
+ * would cover the site forever. The keyframes below hide it at 5s on the CSS clock alone, one second
+ * past the component's own 4s ceiling, so the failure mode is "the splash left a little late" rather
+ * than "the site is a blank page with a logo on it".
+ */
+#app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 90; /* over page chrome, under overlays (z-100+) so a dialog can never open behind it */
+  display: grid;
+  place-items: center;
+  background-color: var(--background);
+  opacity: 1;
+  transition: opacity 320ms var(--ease-out, ease-out);
+  /* ⚠️ 8s, NOT 5s. The component's ceiling only SETS the target at 4s; easing into it plus the fade runs
+     past 5s on a 30fps device, and a bailout that fires then would hard-cut the wordmark mid-sweep — the
+     margin has to be positive on the devices that need it (opus, agy). The blanket reduced-motion rule
+     above shortens animation DURATION, not delay, so this still fires for those readers. */
+  animation: splash-bailout 1ms linear 8s forwards;
+  /* ⚠️ THE VARIABLE IS DECLARED ON THE CONTAINER, WHICH IS THE ELEMENT THE COMPONENT WRITES TO. It was
+     declared on the <img> below, where it SHADOWED the inherited value — the component set
+     --splash-reveal on #app-splash, the img kept its own 0, and the mark stayed invisible for the whole
+     reveal. Measured: a blank white screen with a faint ghost. A local declaration wins over inheritance;
+     that is the entire bug.
+     ⛔ AND IT STARTS AT 0.12, NOT 0, BECAUSE THE SERVER RENDERS THIS ELEMENT. At 0 the mask's transparent
+     stop lands at 0% and the whole mark is hidden — so between first paint and hydration (and forever,
+     if the bundle never arrives) the "splash" was an empty coloured rectangle. Both external reviewers
+     found it. 0.12 puts the leading edge just inside the `e`, so the first painted frame already reads
+     as a wordmark emerging. */
+  --splash-reveal: 0.12;
+}
+
+#app-splash[data-done] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#app-splash img {
+  /* Sized by WIDTH, not height: eno.forum's f-ascender makes that mark taller for the same letters,
+     and width is what makes the two read at one size. */
+  width: min(58vw, 340px);
+  height: auto;
+  /**
+   * THE SOFT EDGE. One mask, three stops: solid behind the revealed part, a feathered band at the
+   * leading edge, nothing ahead of it. The band is 22% of the mark wide — enough to read as a drift of
+   * cloud rather than a hard wipe — and the whole thing is nudged past 100% at the end so the final
+   * frame is a clean, fully-painted wordmark with no residual haze.
+   */
+  --splash-edge: calc(var(--splash-reveal) * 122% - 22%);
+  -webkit-mask-image: linear-gradient(90deg, #000 var(--splash-edge), rgb(0 0 0 / 0.55) calc(var(--splash-edge) + 11%), transparent calc(var(--splash-edge) + 22%));
+  mask-image: linear-gradient(90deg, #000 var(--splash-edge), rgb(0 0 0 / 0.55) calc(var(--splash-edge) + 11%), transparent calc(var(--splash-edge) + 22%));
+}
+
+/* The wisp that travels with the edge — a blurred sliver of the background colour riding just ahead of
+   the reveal, which is what turns a gradient into weather. Purely decorative, and it leaves with the
+   overlay. */
+/* eno.forum is NINE glyphs against eno.vn's six, so one width would set its letters smaller (agy).
+   MEASURED, not guessed: at 412px the marketplace mark renders 239px wide over a 9356.9-unit viewBox —
+   0.02554 px per font unit. Matching that against this mark's 14238.8-unit box needs ~364px, which is
+   what 88vw gives at that width. The two wordmarks then have letters of the same size. */
+#app-splash[data-edition='services'] img {
+  width: min(88vw, 470px);
+}
+
+#app-splash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(38% 60% at calc(var(--splash-reveal, 0) * 100%) 50%, var(--background) 0%, transparent 70%);
+  opacity: 0.55;
+  filter: blur(14px);
+  transition: opacity 320ms ease-out;
+}
+
+#app-splash[data-done]::after { opacity: 0; }
+
+@keyframes splash-bailout {
+  to { opacity: 0; visibility: hidden; }
+}
+
+/* Reduced motion: no wisp. The sweep itself is skipped in the component (it paints the mark whole and
+   waits for ready), so there is nothing here to neutralise — the only decoration to remove is the drifting
+   wisp.
+   ⚠️ THIS BLOCK BRIEFLY CARRIED A DUPLICATE of the services width rule and its comment, pasted in by an
+   edit whose anchor matched twice. It parsed, braces balanced, no gate saw it — and it had overwritten
+   whatever the block was meant to say (opus). A width override inside a motion query is always a tell. */
+@media (prefers-reduced-motion: reduce) {
+  #app-splash::after { display: none; }
+}
+
+/* ============================================================
    ACCESSIBILITY — honor reduced-motion preference
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {

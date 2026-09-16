@@ -1,0 +1,31 @@
+<!--
+  eno.forum WORDMARK — generated exactly like logo-dotvn.svg, from the app's own typeface.
+
+  Owner, 2026-09-16: the launch reveal sweeps the wordmark. The services edition needs its own name in
+  the same treatment, and it must be OUTLINES rather than live text — the splash paints before a webfont
+  can load, and a wordmark in a fallback face is worse than no wordmark.
+
+  Provenance — regenerate exactly like this if the font moves:
+    face      src/fonts/open-runde-bold.woff2 (Open Runde Bold, 700, OFL-1.1, unitsPerEm 2816)
+    text      "eno.forum", outlines via fontTools SVGPathPen, y flipped for SVG
+    kerning   the font's own GPOS pair adjustments applied between glyphs
+    fill      #0A66C2, baked, exactly like logo-dotvn.svg. ⚠️ currentColor WAS TRIED AND IS WRONG HERE:
+              this file is referenced with <img src>, and an SVG loaded as an image has no parent to
+              inherit from — currentColor resolves to the initial black, so the mark would go black on
+              both themes. The brand blue reads on the light and the dark background alike.
+    winding   nonzero, like its sibling: these are FONT outlines, so the counters in e/o/u are wound
+              against their outers and drop out on their own. Do NOT add fill-rule="evenodd".
+    viewBox   ink 14010x2174, padded vertically so the ink fills 76.7% of the box height and
+              horizontally by the same 114.4 units logo-dotvn.svg carries — so "eno.vn" and
+              "eno.forum" render at the same optical size from one height class.
+              ⚠️ IT IS TALLER THAN ITS SIBLING BECAUSE OF THE f's ASCENDER (2174 units against 1586).
+              That is the type, not a bug: sizing by height alone would make this mark's LETTERS
+              smaller than eno.vn's. The splash sizes by width for that reason.
+
+  ⚠️ SPELLS A DOMAIN, SO IT IS PER-EDITION: this names the SERVICES site and must never render on
+  eno.vn, exactly as logo-dotvn.svg must never render on eno.forum. See src/lib/edition.ts.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6.4 -2474.2 14238.8 2834.4" role="img" aria-label="eno.forum">
+  <title>eno.forum</title>
+  <path fill="#0A66C2" d="M870.0 30C1201.0 30 1438.0 -111 1533.0 -335C1560.0 -399 1513.0 -443 1428.0 -449L1270.0 -460C1203.0 -464 1167.0 -435 1122.0 -383C1066.0 -320 980.0 -288 877.0 -288C664.0 -288 529.0 -429 529.0 -658V-659H1455.0C1533.0 -659 1575.0 -700 1575.0 -776C1575.0 -1298 1259.0 -1556 853.0 -1556C401.0 -1556 108.0 -1235 108.0 -761C108.0 -274 397.0 30 870.0 30ZM529.0 -923C538.0 -1098 671.0 -1238 860.0 -1238C1045.0 -1238 1173.0 -1106 1174.0 -923Z M2279.0 -120V-888C2280.0 -1086 2398.0 -1202 2570.0 -1202C2741.0 -1202 2844.0 -1090 2843.0 -902V-120C2843.0 -42 2885.0 0 2963.0 0H3149.0C3227.0 0 3269.0 -42 3269.0 -120V-978C3269.0 -1336 3059.0 -1556 2739.0 -1556C2511.0 -1556 2346.0 -1444 2277.0 -1265H2259.0V-1416C2259.0 -1494 2217.0 -1536 2139.0 -1536H1973.0C1895.0 -1536 1853.0 -1494 1853.0 -1416V-120C1853.0 -42 1895.0 0 1973.0 0H2159.0C2237.0 0 2279.0 -42 2279.0 -120Z M4298.0 30C4764.0 30 5054.0 -289 5054.0 -762C5054.0 -1238 4764.0 -1556 4298.0 -1556C3832.0 -1556 3542.0 -1238 3542.0 -762C3542.0 -289 3832.0 30 4298.0 30ZM3975.0 -765C3975.0 -1033 4085.0 -1231 4300.0 -1231C4511.0 -1231 4621.0 -1033 4621.0 -765C4621.0 -497 4511.0 -300 4300.0 -300C4085.0 -300 3975.0 -497 3975.0 -765Z M5581.0 26C5709.0 26 5820.0 -81 5821.0 -214C5820.0 -345 5709.0 -452 5581.0 -452C5449.0 -452 5340.0 -345 5341.0 -214C5340.0 -81 5449.0 26 5581.0 26Z M6996.0 -1336V-1416C6996.0 -1494 6954.0 -1536 6876.0 -1536H6691.0V-1639C6691.0 -1743 6733.0 -1804 6858.0 -1804C6882.0 -1804 6905.0 -1802 6928.0 -1798C6972.0 -1791 7005.0 -1821 7022.0 -1895L7043.0 -1985C7061.0 -2061 7030.0 -2115 6953.0 -2128C6900.0 -2137 6836.0 -2144 6769.0 -2144C6480.0 -2144 6265.0 -1981 6265.0 -1647V-1536H6157.0C6087.0 -1536 6048.0 -1494 6048.0 -1416V-1336C6048.0 -1258 6090.0 -1216 6168.0 -1216H6265.0V-120C6265.0 -42 6307.0 0 6385.0 0H6571.0C6649.0 0 6691.0 -42 6691.0 -120V-1216H6876.0C6954.0 -1216 6996.0 -1258 6996.0 -1336Z M7950.0 30C8416.0 30 8706.0 -289 8706.0 -762C8706.0 -1238 8416.0 -1556 7950.0 -1556C7484.0 -1556 7194.0 -1238 7194.0 -762C7194.0 -289 7484.0 30 7950.0 30ZM7627.0 -765C7627.0 -1033 7737.0 -1231 7952.0 -1231C8163.0 -1231 8273.0 -1033 8273.0 -765C8273.0 -497 8163.0 -300 7952.0 -300C7737.0 -300 7627.0 -497 7627.0 -765Z M8984.0 -1416V-120C8984.0 -42 9026.0 0 9104.0 0H9290.0C9368.0 0 9410.0 -42 9410.0 -120V-869C9410.0 -1058 9548.0 -1188 9736.0 -1188C9764.0 -1188 9796.0 -1186 9827.0 -1182C9884.0 -1175 9916.0 -1212 9916.0 -1294V-1431C9916.0 -1505 9879.0 -1554 9805.0 -1557C9797.0 -1558 9789.0 -1558 9782.0 -1558C9610.0 -1558 9469.0 -1458 9413.0 -1268H9397.0V-1416C9397.0 -1494 9355.0 -1536 9277.0 -1536H9104.0C9026.0 -1536 8984.0 -1494 8984.0 -1416Z M11120.0 -1416V-654C11121.0 -448 10980.0 -340 10827.0 -340C10666.0 -340 10562.0 -453 10561.0 -634V-1416C10561.0 -1494 10519.0 -1536 10441.0 -1536H10255.0C10177.0 -1536 10135.0 -1494 10135.0 -1416V-558C10136.0 -199 10346.0 20 10655.0 20C10886.0 20 11052.0 -99 11121.0 -279H11137.0V-120C11137.0 -42 11179.0 0 11257.0 0H11426.0C11504.0 0 11546.0 -42 11546.0 -120V-1416C11546.0 -1494 11504.0 -1536 11426.0 -1536H11240.0C11162.0 -1536 11120.0 -1494 11120.0 -1416Z M11886.0 -1416V-120C11886.0 -42 11928.0 0 12006.0 0H12192.0C12270.0 0 12312.0 -42 12312.0 -120V-922C12312.0 -1092 12420.0 -1205 12562.0 -1205C12702.0 -1205 12796.0 -1109 12796.0 -958V-120C12796.0 -42 12838.0 0 12916.0 0H13089.0C13167.0 0 13209.0 -42 13209.0 -120V-938C13209.0 -1097 13300.0 -1205 13455.0 -1205C13591.0 -1205 13693.0 -1120 13693.0 -949V-120C13693.0 -42 13735.0 0 13813.0 0H13998.0C14076.0 0 14118.0 -42 14118.0 -120V-1033C14118.0 -1366 13920.0 -1556 13634.0 -1556C13409.0 -1556 13234.0 -1441 13171.0 -1265H13155.0C13106.0 -1443 12949.0 -1556 12738.0 -1556C12531.0 -1556 12374.0 -1446 12310.0 -1265H12292.0V-1416C12292.0 -1494 12250.0 -1536 12172.0 -1536H12006.0C11928.0 -1536 11886.0 -1494 11886.0 -1416Z"/>
+</svg>

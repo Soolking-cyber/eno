@@ -16,6 +16,7 @@ import { SkipLink } from "@/components/marketplace/skip-link";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
+import { AppSplash } from "@/components/marketplace/app-splash";
 import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
@@ -114,6 +115,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
                         it is the only gate that saw either failure, and both were invisible to tsc,
                         lint and the unit suite. The load-speed wins that survived (two font weights,
                         the carousel's load gate, the off-screen banner art) are all elsewhere. */}
+                    {/* The launch reveal. FIRST in this group so its overlay is early in the DOM, and
+                        server-rendered so it covers the first paint rather than arriving after
+                        hydration — in the native shell that is what Capacitor's own splash hands over
+                        to. It removes itself once the page is actually ready; see app-splash.tsx. */}
+                    <AppSplash />
                     <SaveSignupSheet />
                     <ImageShield />
                     <CookieConsent />

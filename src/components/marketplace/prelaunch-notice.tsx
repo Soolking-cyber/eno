@@ -1,13 +1,15 @@
 /* eslint-disable react/jsx-no-literals -- deliberately bilingual (VI+EN shown simultaneously per ND52 test-operation notice) */
-import { PRELAUNCH } from '@/lib/site-legal'
+import { PRELAUNCH_BANNER } from '@/lib/site-legal'
 
 // Always-visible pre-launch notice (both languages at once, deliberately NOT
 // dismissible and NOT behind the language toggle): while the MoIT sàn TMĐT
 // registration is pending, the site must clearly read as "under construction /
 // test operation — not officially operational" to anyone who lands on it.
-// Server component, zero JS. Remove by flipping PRELAUNCH in src/lib/site-legal.ts.
+// Server component, zero JS. Gated by PRELAUNCH_BANNER in src/lib/site-legal.ts — OFF since
+// 2026-09-16 at the owner's request, so this renders nothing today. The legal disclosure that used to
+// share its flag lives on in /regulations under PRELAUNCH; see the note beside both flags.
 export function PrelaunchNotice() {
-  if (!PRELAUNCH) return null
+  if (!PRELAUNCH_BANNER) return null
   return (
     /* ⚠️ LOUDER ON PURPOSE (owner, 2026-08-02: "put the test mode warning back but bolder more
        visible"). It had been a 11px tinted whisper that read as decoration; the whole point of the

@@ -38,7 +38,16 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // ⚠️ THREE SEATS, THREE LABS; THE QUORUM IS TWO LABS, so one silent seat no longer blocks every commit.
 // ⚠️ `astra` WAS MISSING FROM THIS LIST while it sat on the panel (2026-09-06..14), so `--status` never counted
 // its verdicts — receipts validated on codex + opus alone. It counts now.
-const REVIEWER_NAMES = ['astra', 'agy', 'opus']
+/**
+ * ⛔ agy IS OUT — OWNER, 2026-09-16: "agy usege depleted so remove it". It had already stopped returning
+ * a verdict on every round that day (a 400s print timeout with the turn still in progress, which the
+ * panel counts as NO ANSWER, not as a pass). The seat definition is kept below, commented, so restoring
+ * it is one line when the quota is back.
+ * ⚠️ THAT LEAVES TWO SEATS AND ONE INDEPENDENT LAB: astra (openai) and opus (anthropic) — and opus is the
+ * same model that writes most diffs here, so it is a self-review. The 2-lab rule below therefore means
+ * astra alone decides whether anything can be committed.
+ */
+const REVIEWER_NAMES = ['astra', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.

@@ -309,3 +309,19 @@ export const TOS_VERSION = '1'
 // (CLAUDE.md) — the owner specified it. Do not widen it to eno.forum without a reason of the same
 // kind: a filing eno.forum itself has pending.
 export const PRELAUNCH = EDITION === 'marketplace'
+
+/**
+ * ⛔ THE VISIBLE BANNER IS OFF — AND IT IS A SEPARATE FLAG FROM THE LEGAL DISCLOSURE ON PURPOSE.
+ * Owner, 2026-09-16, pointing at the bar: "remove this from eno.vn also". That is their call to make,
+ * and it is one line to reverse.
+ *
+ * ⚠️ WHAT WAS **NOT** REMOVED WITH IT: `PRELAUNCH` above still gates the Quy chế paragraph on
+ * /regulations that says the MoIT sàn TMĐT registration is in progress and the platform trades
+ * officially only once it completes. Flipping a single flag would have deleted that paragraph too —
+ * a statutory disclosure about a filing that is, as far as this repo knows, still pending. Taking a
+ * banner down is the owner's judgement about how the site presents; silently dropping the disclosure
+ * while the filing is open is a different act, and not one to perform as a side effect.
+ * ⚠️ WHEN THE REGISTRATION NUMBER IS ISSUED: set `PRELAUNCH` false as well and add the number to the
+ * Quy chế, which is what that paragraph itself promises readers.
+ */
+export const PRELAUNCH_BANNER = false

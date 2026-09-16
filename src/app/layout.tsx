@@ -228,12 +228,29 @@ const FACEBOOK_DOMAIN_VERIFICATION = IS_SERVICES
   ? "wnisdnwkny81xfc3kvrk57sqe48ydz" // eno.forum — domain id 1411665247722044
   : "vsntngz30tke7wuhj0w6zeg21cnj3i"; // eno.vn — domain id 1784442246037978
 
+/**
+ * MyLead traffic-source verification (owner, 2026-09-16 — their panel offers a meta tag, an HTML
+ * comment or a bare token, and the meta tag is the one that cannot be stripped by a cache or an
+ * optimiser). Their crawler fetches the homepage and looks for this exact tag in the source.
+ *
+ * ⛔ eno.vn ONLY. The panel that issued this hash names https://eno.vn as the traffic source, and a
+ * verification token is per SITE — the same reasoning the Facebook block above spells out. eno.forum
+ * is a different operator and has no MyLead source registered; shipping this hash there would claim
+ * ownership of a site this token was not issued for.
+ * ⚠️ IT IS A PUBLIC OWNERSHIP PROOF, NOT A SECRET: it only means "whoever controls this HTML controls
+ * the domain", which is why it belongs in the repo rather than in an env var.
+ */
+const MYLEAD_VERIFICATION = IS_SERVICES ? null : "0278b78162cad9a93d0071ce2c5cc83a";
+
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
   // Google Search Console / Merchant Center domain verification.
   verification: {
     google: "alQ9GmeeCLxBtPVZM8CEvEDmieP7JuS4wGTrYHW5hCY",
-    other: { "facebook-domain-verification": FACEBOOK_DOMAIN_VERIFICATION },
+    other: {
+      "facebook-domain-verification": FACEBOOK_DOMAIN_VERIFICATION,
+      ...(MYLEAD_VERIFICATION ? { "mylead-verification": MYLEAD_VERIFICATION } : {}),
+    },
   },
   title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
   description: SITE_DESCRIPTION,
