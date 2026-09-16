@@ -14,13 +14,11 @@ import { IconButton } from '@/components/ui/icon-button'
 // engagement gate below is unchanged — a returning visitor after 4s, a first-timer after 75s dwell —
 // so the prompt is still never a first-load banner. iOS stays silent until its listing exists.
 import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
-import { IS_SERVICES } from '@/lib/edition'
-
-// ⛔⛔ AND IT WAKES ON THE SERVICES EDITION ONLY, for the same licensing reason app-download.tsx carries
-// in full: the published Android app renders eno.forum, so prompting an eno.vn visitor to install it
-// would have the licensed marketplace advertising e-Visa. Drop the gate when an eno.vn build exists.
-const IOS_URL = IS_SERVICES ? IOS_APP_URL : null
-const ANDROID_URL = IS_SERVICES ? ANDROID_APP_URL : null
+// ⚠️ BOTH EDITIONS, BY THE OWNER'S DECISION (2026-09-16: "put on both"), taken after they were told the
+// published Android build renders eno.forum. The reasoning — and the real fix, an eno.vn build of the
+// app — is written out in app-download.tsx; this prompt follows that decision rather than restating it.
+const IOS_URL = IOS_APP_URL
+const ANDROID_URL = ANDROID_APP_URL
 
 const DISMISS_KEY = 'eno-app-hint-dismissed'
 const VISITS_KEY = 'eno-visits'
