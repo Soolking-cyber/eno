@@ -39,7 +39,7 @@ const RESERVED = new Set([
   // app routes
   'about', 'account', 'account-deletion', 'admin', 'api', 'appeal', 'auth', 'brands', 'c', 'dashboard',
   'developers', 'dispute', 'disputes', 'guide', 'help', 'listings', 'listing-images', 'messages', 'onboard', 'post', 'privacy',
-  'prohibited', 'regulations', 'reports', 'safety', 'saved', 'search', 'sellers',
+  'prohibited', 'regulations', 'reports', 'returns', 'safety', 'saved', 'search', 'sellers',
   'signin', 'signup', 'sitemap', 'terms', 'trust',
   // ⚠️ `docs` IS NOT AN app ROUTE — IT IS A REWRITE, WHICH IS EXACTLY WHY IT IS EASY TO MISS.
   // next.config.ts rewrites /docs -> /developers in `afterFiles`, which Next resolves BEFORE

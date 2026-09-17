@@ -142,7 +142,7 @@ export async function GET() {
     // Partner API, the OpenAPI spec and both .well-known documents are served identically by
     // eno.vn and eno.forum (curled, 200 on every path on both hosts, 2026-08-23). Nothing on
     // /developers names a service either edition may not offer.
-    for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'prohibited', 'brands', 'developers']) {
+    for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'returns', 'prohibited', 'brands', 'developers']) {
       xml += `  <url><loc>${hostUrl}/${p}</loc></url>\n`
     }
 

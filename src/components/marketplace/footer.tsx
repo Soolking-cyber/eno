@@ -490,6 +490,11 @@ export function Footer() {
             <a href="/terms" className="transition-colors hover:text-accent-foreground">{tr('Terms', 'Điều khoản')}</a>
             <a href="/privacy" className="transition-colors hover:text-accent-foreground">{tr('Privacy', 'Quyền riêng tư')}</a>
             <a href="/regulations" className="transition-colors hover:text-accent-foreground">{tr('Regulations', 'Quy chế')}</a>
+            {/* ⚠️ IN THE LEGAL ROW ON EVERY PAGE, AND NOT ONLY FOR TIDINESS. Google Merchant Center
+                verifies a store partly by FINDING the return policy on the site, and a page nothing
+                links to is a page a crawler cannot report — the same failure /developers had in the
+                2026-08-23 audit. It is also what a buyer looks for before paying a stranger. */}
+            <a href="/returns" className="transition-colors hover:text-accent-foreground">{tr('Returns', 'Đổi trả')}</a>
             {/* ⚠️ REACHABLE WITHOUT SIGNING IN, AND THAT IS THE POINT. Google Play's Data safety
                 form requires a public URL where account + data deletion can be requested by someone
                 who has not installed the app and is not logged in — uninstalling must not be the

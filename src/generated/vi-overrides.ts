@@ -3,6 +3,19 @@
 // vi language (before any machine translation) by language-context.
 // Regenerate with the translate-vi-overrides workflow.
 export const VI_OVERRIDES: Record<string, string> = {
+  "Open a case in the Dispute Center": "Mở khiếu nại tại Trung tâm giải quyết tranh chấp",
+  "Returns": "Đổi trả",
+  "Returns and exchanges": "Trả hàng và đổi hàng",
+  "Applies to purchases in Vietnam": "Áp dụng cho giao dịch mua tại Việt Nam",
+  "Last updated: September 2026": "Cập nhật lần cuối: Tháng 9 năm 2026",
+  "This translation is provided for your convenience. The English version of this policy is the authoritative one.": "Bản dịch này chỉ nhằm thuận tiện cho bạn. Bản tiếng Anh của chính sách này là bản có giá trị pháp lý.",
+  "Who this policy covers": "Chính sách này áp dụng cho ai",
+  "Your return window": "Thời hạn trả hàng 7 ngày của bạn",
+  "Who pays, and what you get back": "Ai chịu chi phí và bạn được hoàn lại những gì",
+  "Exchanges": "Đổi hàng",
+  "How to start a return": "Cách bắt đầu trả hàng",
+  "What cannot be returned": "Những mặt hàng không được trả lại",
+  "Your rights under Vietnamese law": "Quyền của bạn theo pháp luật Việt Nam",
   "min": "phút",
   "required": "bắt buộc",
   "1 Bedroom": "1 phòng ngủ",
