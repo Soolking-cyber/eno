@@ -46,6 +46,19 @@ const APPLY = process.argv.includes('--apply')
 const CAMPAIGN = arg('campaign')
 const LIMIT = Number(arg('limit') ?? 0)
 const CONCURRENCY = Number(arg('concurrency') ?? 6)
+/**
+ * Import only feed rows whose NAME matches this pattern (case-insensitive) — and, with --cate, only rows
+ * in that feed category. Owner, 2026-09-15: bring in the iPhone 18 phones CellphoneS added after the
+ * 2026-08-24 import, and nothing else. Without a filter the only option was the whole campaign: 9,688
+ * rows refreshed and every product added since created, when the ask was eight phones.
+ * ⚠️ --cate IS WHAT KEEPS ACCESSORIES OUT. Measured on the live feed: /iphone\s*18/ matched 115 rows, 107
+ * of them cases and screen protectors ("Ốp lưng iPhone 18 Pro/17 Pro …") in `electronic_accessories`;
+ * the 8 phones are exactly the `phone_tablets` rows. A name pattern alone would import the cases too.
+ * ⚠️ The whole feed is still paged — the datafeeds API ignores `keyword` (measured: identical totals with
+ * and without it), so filtering has to happen here.
+ */
+const MATCH = arg('match') ? new RegExp(arg('match')!, 'i') : null
+const CATE = arg('cate') ?? null
 if (!CAMPAIGN) { console.error('--campaign <name> required'); process.exit(1) }
 
 const BUCKET = 'listings'
@@ -166,7 +179,7 @@ async function main() {
     if (missing.length) console.log(`brands created: ${missing.join(', ')}\n`)
   }
 
-  let seen = 0, created = 0, updated = 0, skipped = 0, imaged = 0
+  let seen = 0, matched = 0, created = 0, updated = 0, skipped = 0, imaged = 0
   const failures: string[] = []
   const PAGE = 200
   for (let page = 1; seen < total; page++) {
@@ -186,6 +199,9 @@ async function main() {
     for (let i = 0; i < data.length; i += CONCURRENCY) {
       await Promise.all(data.slice(i, i + CONCURRENCY).map(async (p) => {
         seen++
+        if (MATCH && !MATCH.test(p.name)) return
+        if (CATE && (p as { cate?: string }).cate !== CATE) return
+        matched++
         const price = Number(p.status_discount) === 1 && Number(p.discount) > 0 ? Number(p.discount) : Number(p.price)
         // ⛔ A ZERO PRICE RENDERS AS "Free / Miễn phí" (src/components/marketplace/price.tsx).
         if (!Number.isFinite(price) || price <= 0) { skipped++; return }
@@ -361,7 +377,7 @@ async function main() {
         }
       }))
     }
-    if (page % 2 === 0 || seen >= total) console.log(`  ${seen}/${total}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
+    if (page % 2 === 0 || seen >= total) console.log(`  ${seen}/${total}${MATCH || CATE ? `  matched=${matched}` : ''}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
   }
   console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${created} created, ${updated} updated, ${imaged} images hosted, ${skipped} skipped`)
   // ⚠️ Name the failures rather than leaving "skipped" to mean four different things.

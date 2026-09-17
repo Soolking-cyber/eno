@@ -77,7 +77,7 @@ const RESERVED = new Set([
   // handle-format.test.ts caught it — the test reads the route tree, which is exactly why it exists.
   // A member holding @app would have shadowed the one URL the download QR encodes.
   'app', 'furnishing-a-home-in-vietnam', 'selling-up-before-you-leave-vietnam',
-  'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'itinerary',
+  'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'iphone-18-vietnam', 'itinerary',
   'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam',
   'moving-to-vietnam', 'partners', 'services-for-expats-vietnam', 'unsubscribe',
   'vietnam-evisa', 'wholesale-green-coffee-vietnam',

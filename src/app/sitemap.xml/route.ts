@@ -162,6 +162,10 @@ export async function GET() {
     // SEO keyword landing pages (funnel to categories → track the site's freshest content)
     for (const p of [
       'housing-vietnam-expats',
+      // A product page, not a category funnel — it ranks for "iPhone 18 price Vietnam" and links
+      // into the phone listings. Both editions: it is marketplace commerce copy, like the coffee
+      // page below and unlike anything licensed.
+      'iphone-18-vietnam',
       'jobs-vietnam-expats',
       'motorbikes-for-sale-vietnam',
       'moving-sales-vietnam',

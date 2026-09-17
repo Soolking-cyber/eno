@@ -75,3 +75,36 @@ describe('seoBrowseHref', () => {
     expect(seoBrowseHref({ categorySlug: 'food-drink' })).toBe('/c/food-drink')
   })
 })
+
+/**
+ * Brand/model narrowing, added for the iPhone 18 launch page (2026-09-17). The trap here is the
+ * explorer's `model` param, which takes exactly ONE value: a family page that set both lines would
+ * silently browse half of what it described.
+ */
+describe('seoBrowseHref — brand and model', () => {
+  it('narrows on a brand alone', () => {
+    expect(seoBrowseHref({ categorySlug: 'electronics', brandSlug: 'apple' })).toBe(
+      '/?category=electronics&brand=apple',
+    )
+  })
+
+  it('uses the model facet when the page covers exactly one line', () => {
+    expect(seoBrowseHref({ categorySlug: 'electronics', subcategorySlug: 'phones-tablets', brandSlug: 'apple', models: ['iPhone 18 Pro'] })).toBe(
+      '/?category=electronics&subcategory=phones-tablets&brand=apple&model=iPhone+18+Pro',
+    )
+  })
+
+  it('falls back to the search term when the page covers a family', () => {
+    expect(seoBrowseHref({
+      categorySlug: 'electronics', subcategorySlug: 'phones-tablets', brandSlug: 'apple',
+      models: ['iPhone 18 Pro', 'iPhone 18 Pro Max'], browseQuery: 'iPhone 18',
+    })).toBe('/?category=electronics&subcategory=phones-tablets&brand=apple&q=iPhone+18')
+  })
+
+  // Without a term there is nothing honest to put in `model`, so the page browses its brand.
+  it('drops the model filter for a family with no search term rather than picking one line', () => {
+    expect(seoBrowseHref({ categorySlug: 'electronics', brandSlug: 'apple', models: ['iPhone 18 Pro', 'iPhone 18 Pro Max'] })).toBe(
+      '/?category=electronics&brand=apple',
+    )
+  })
+})

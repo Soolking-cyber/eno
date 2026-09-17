@@ -31,6 +31,24 @@ export type SeoBrowseTarget = {
    * reason: both destinations are valid pages full of listings.
    */
   listingType?: string
+  /**
+   * Narrow to one BRAND (`Listing.brandSlug`) and, with `models`, to named product lines.
+   *
+   * ⛔ THE FOURTH AND FIFTH NARROWING DIMENSIONS, AND THEY MUST WIDEN THE "NARROWED AT ALL" TEST
+   * BELOW for the reason the `listingType` note already gives. A page about one phone that funnelled
+   * to `/c/electronics` would send a visitor who just read eight iPhone 18 prices into a category
+   * holding every fridge-sized television in the catalogue.
+   */
+  brandSlug?: string
+  /**
+   * ⚠️ THE EXPLORER'S `model` PARAM TAKES EXACTLY ONE VALUE (`feed-query.ts` filters `{ model }`),
+   * so a page covering a FAMILY — "iPhone 18 Pro" and "iPhone 18 Pro Max" — cannot express itself
+   * as a model filter. With more than one, the CTA falls back to the search term in `browseQuery`,
+   * which `feed-query.ts` tokenises over `searchText` and which therefore spans both lines.
+   */
+  models?: string[]
+  /** The search term a multi-model page browses with; required when `models` holds more than one. */
+  browseQuery?: string
   attributes?: Record<string, string>
 }
 
@@ -42,9 +60,16 @@ export function seoBrowseHref(content: SeoBrowseTarget): string {
   // whole category — a wider set than the page had just described, and silent, because BOTH
   // destinations are valid pages full of listings. No page does that today; the point is that
   // adding one would not have been a mistake anybody could see.
-  if (!content.subcategorySlug && !content.listingType && attrs.length === 0) return `/c/${content.categorySlug}`
+  const models = content.models ?? []
+  if (!content.subcategorySlug && !content.listingType && !content.brandSlug && models.length === 0 && attrs.length === 0) {
+    return `/c/${content.categorySlug}`
+  }
   const params = new URLSearchParams({ category: content.categorySlug })
   if (content.subcategorySlug) params.set('subcategory', content.subcategorySlug)
+  if (content.brandSlug) params.set('brand', content.brandSlug)
+  // One model is a facet; a family is a search. See the `models` note above.
+  if (models.length === 1) params.set('model', models[0])
+  else if (models.length > 1 && content.browseQuery) params.set('q', content.browseQuery)
   // `type` is the explorer's own param name — `listings-explorer.tsx` reads `params.get('type')`
   // and `feed-query.ts` filters `listingType` on it. Same convention, not a second one.
   if (content.listingType) params.set('type', content.listingType)

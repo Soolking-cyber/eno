@@ -20,6 +20,10 @@ import { Footer } from './footer'
 import { Price } from './price'
 import { seoBrowseHref } from './seo-landing-href'
 import { hasNoInventory } from './seo-landing-inventory'
+import { categoryFor, subcategoryFor } from '@/lib/feed-taxonomy'
+
+/** Shelves whose products are made FOR a device. A model page's rail must never show one. */
+const ACCESSORY_SHELVES = new Set(['phone-cases', 'screen-protectors', 'cables-chargers', 'power-banks', 'accessories'])
 
 export type SeoContent = {
   eyebrow: string
@@ -66,6 +70,19 @@ export type SeoContent = {
    * view then fails to show. Keys/values are authored in this repo, never user input.
    */
   attributes?: Record<string, string>
+  /**
+   * Narrow to one BRAND and its named product lines — `Listing.brandSlug` and `Listing.model`.
+   *
+   * ⛔ A PRODUCT PAGE IS NOT A CATEGORY PAGE, AND WITHOUT THIS IT SILENTLY WAS ONE. The rail below
+   * filters on category+subcategory, so an "iPhone 18" page narrowed only that far would rail eight
+   * arbitrary phones — a Samsung, a Xiaomi — under a headline about one Apple product, and the
+   * ItemList JSON-LD would say the same to Google. `models` takes the whole family ("iPhone 18 Pro",
+   * "iPhone 18 Pro Max") because `Listing.model` is exact free text, not a prefix.
+   */
+  brandSlug?: string
+  models?: string[]
+  /** The search term the CTA browses with when `models` names more than one line. */
+  browseQuery?: string
   /** CTA label, e.g. "Browse verified housing". */
   cta: string
   sections: { title: string; body: string }[]
@@ -105,7 +122,7 @@ export type SeoContent = {
  *  prop needs no alias to be correct). It also keeps the placement decision at the call site, where
  *  "which pages carry the promo" is a question somebody can answer by grepping for the component.
  */
-export async function SeoLanding({ content, after }: { content: SeoContent; after?: ReactNode }) {
+export async function SeoLanding({ content, lede, after }: { content: SeoContent; lede?: ReactNode; after?: ReactNode }) {
   let listings: ReturnType<typeof serializeListing>[] = []
   // ⚠️ NOT `listings.length === 0` — the catch below ALSO leaves the array empty when the
   // database is unreachable at build time, and those two states must not share a UI. Treating a
@@ -125,6 +142,16 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
         category: { slug: content.categorySlug },
         ...(content.subcategorySlug ? { subcategorySlug: content.subcategorySlug } : {}),
         ...(content.listingType ? { listingType: content.listingType } : {}),
+        ...(content.brandSlug ? { brandSlug: content.brandSlug } : {}),
+        ...(content.models?.length ? { model: { in: content.models } } : {}),
+        /**
+         * ⚠️ ONE CURRENCY, AND ONLY ON A PRODUCT PAGE. A model-narrowed rail sorts by price ASC, so
+         * a listing priced in USD sorts above every đồng listing — $1,200 is a smaller number than
+         * 38,000,000 (agy, twice). Scoped to `models` rather than applied to the whole component
+         * because the five category landing pages do not sort by price and have lived happily with
+         * mixed-currency inventory; widening it there would change pages this diff is not about.
+         */
+        ...(content.models?.length ? { currency: '₫' } : {}),
         // One `contains` per attribute rather than one over the whole object: key order inside
         // the stored JSON is whatever the wizard happened to write, so a multi-key substring
         // would match nothing on most rows. Measured — the live visa listings carry
@@ -135,11 +162,26 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
       }),
       // Narrowed pages sort by price: these are products (one entry type × one speed), and the
       // question a visitor arrives with is what it costs. Category pages keep featured-then-newest.
-      orderBy: content.subcategorySlug ? [{ price: 'asc' }] : [{ featured: 'desc' }, { postedAt: 'desc' }],
-      take: 8,
+      // Narrowed pages sort by price — and a brand/model page is the narrowest of them.
+      orderBy: content.subcategorySlug || content.models?.length ? [{ price: 'asc' }] : [{ featured: 'desc' }, { postedAt: 'desc' }],
+      // A model page over-fetches so the accessory guard below can drop rows and still fill the rail.
+      take: content.models?.length ? 64 : 8,
       include: { category: true, seller: true },
     })
-    listings = await localizeListingTitles(rows.map(serializeListing))
+    /**
+     * ⚠️ THE RAIL, LIKE THE PRICE TABLE, MUST NOT DEPEND ON A REPAIR SCRIPT HAVING RUN. Both external
+     * reviewers found that the table re-derives the shelf from the title and this rail did not, so a
+     * case still stored on `phones-tablets` with a phone's model — the exact state 95 live rows were
+     * in — would sort to the top of a price-ascending iPhone rail. Only model pages pay for it.
+     */
+    const shown = content.models?.length
+      ? rows.filter((r) => {
+          const name = r.titleVi || r.title
+          const shelf = subcategoryFor(categoryFor(name), name)
+          return !(shelf && ACCESSORY_SHELVES.has(shelf))
+        }).slice(0, 8)
+      : rows
+    listings = await localizeListingTitles(shown.map(serializeListing))
     inventoryKnown = true
   } catch {
     /* DB unreachable at build → render the content shell; ISR fills listings later */
@@ -278,6 +320,12 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
             </Link>
           </Button>
         )}
+
+        {/* ⚠️ THE `lede` SLOT IS ABOVE THE FOLD ON PURPOSE, WHICH IS WHAT SEPARATES IT FROM
+            `after`. `after` renders below the FAQ and the brand line — correct for a cross-site
+            promo, wrong for the thing the visitor searched for. A page answering "what does it
+            cost" must answer it before the editorial prose, or the answer is three screens down. */}
+        {lede}
 
         {/* Full-bleed masthead hairline — same negative-margin coupling the category pages use,
             so the SEO-landing family shares their statement-header close. */}

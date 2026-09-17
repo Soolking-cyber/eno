@@ -221,3 +221,84 @@ describe('refreshPlacement', () => {
     expect(refreshPlacement({ categorySlug: null, subcategorySlug: null }, feed)).toEqual(feed)
   })
 })
+
+/**
+ * ⛔ THE ACCESSORY-NAMES-THE-DEVICE BUG (2026-09-17). 95 of the 127 live "iPhone 18" listings were
+ * cases and tempered glass filed as `phones-tablets`, because the phone rule read the phone's name
+ * out of the accessory's title. Every title below is a real one, and each pins a distinct trap the
+ * first fix introduced and the 60,000-title replay caught.
+ */
+describe('subcategoryFor — accessories that name the device they fit', () => {
+  const sub = (name: string) => subcategoryFor(categoryFor(name), name)
+
+  it('files a case as a case, not as the phone it fits', () => {
+    expect(sub('Ốp lưng iPhone 18 Pro Max/17 Pro Max Wiwu Areoshield Ultra Airbag AS-203')).toBe('phone-cases')
+    expect(sub('Bayer II PC TPU AVA+ OCM17004B Magnetic iPhone 18 Pro Case with Button Control')).toBe('phone-cases')
+    expect(sub('Bao da Mutural Design Folio cho Apple iPad 10.2 2021')).toBe('phone-cases')
+  })
+
+  it('files glass and film as protectors — including the ones that said "màn hình" or "lens"', () => {
+    expect(sub('Dán kính cường lực màn hình iPhone 18 Pro Zagg Invisibleshield Xtr6')).toBe('screen-protectors')
+    // `màn hình` used to reach the tv-monitors rule first: 144 phone films were filed as monitors.
+    expect(sub('Dán kính cường lực màn hình Samsung Galaxy A13 Mocoll')).toBe('screen-protectors')
+    // astra's catch: the camera rule owns the bare token `lens`.
+    expect(sub('JCPal Preserver Aluminosilicate Camera Lens Protector for iPhone 18 Pro')).toBe('screen-protectors')
+    expect(sub('Mipow IRONBULL BJ804-BK Tempered Glass Screen Protector for iPhone 18 Pro')).toBe('screen-protectors')
+  })
+
+  it('still files the phone itself as a phone', () => {
+    expect(sub('iPhone 18 Pro 256GB')).toBe('phones-tablets')
+    expect(sub('iPhone 18 Pro Max 2TB | Chính Hãng Apple Việt Nam')).toBe('phones-tablets')
+    expect(sub('Canon EOS R50 Kit 18-45mm')).toBe('cameras')
+  })
+
+  it('does not read a free gift as the product (agy)', () => {
+    // A tablet whose bundle includes a folio is NOT a case. It lands unfiled rather than in
+    // `phones-tablets` because the phone rule has no token for "Redmi Pad" — honest, and the
+    // category filter still works. Before the gift clause was cut it was filed as a phone case.
+    expect(sub('Xiaomi Redmi Pad 2 Wifi 8GB/256GB Chính Hãng (Tặng Kèm Bao Da Chính Hãng)')).toBe(null)
+    // …but "mua 1 tặng 1" is buy-one-get-one: the product comes AFTER the word, so nothing is cut.
+    expect(sub('Mua 1 tặng 1 Tấm dán màn hình curved film full viền 3D cho Samsung Galaxy S23 Ultra Nillkin')).toBe('screen-protectors')
+  })
+
+  it('reads a trailing "- Kèm …" bundle as part of the device, not as the product', () => {
+    expect(sub('Lenovo Idea Tab Wifi 8GB 128GB ZAFR0366VN - Kèm bút- ốp lưng')).not.toBe('phone-cases')
+    // …but a case that COMES WITH a keyboard is still a case.
+    expect(sub('Ốp lưng kèm bàn phím ZAGG Pro Keys iPad Pro 12.9 inch - Hàng chính hãng')).toBe('phone-cases')
+  })
+
+  it('does not file a phone as a case when the gift clause comes FIRST', () => {
+    // ⛔ agy, on the final diff: an unbounded cut ate the whole title, the length guard then fell
+    // back to the original, and `ốp lưng` at the front filed the handset as a phone case.
+    expect(sub('Tặng kèm ốp lưng chính hãng khi mua iPhone 18 Pro 256GB')).toBe('phones-tablets')
+  })
+
+  it('does not read a watch body material as a watch case (opus — 22 live Apple Watches were moved)', () => {
+    // ⛔ Apple titles its own watches with the case MATERIAL. A repair pass filed these as accessories
+    // before review caught it; they were restored from the pass's snapshot.
+    expect(sub('Apple Watch SE 2025 44mm GPS Aluminum Case with Sport')).toBe('smartwatch')
+    expect(sub('Apple Watch Series 8 45mm Aluminum Case with Sport cũ ( Esim )')).toBe('smartwatch')
+    // …while a real case FOR the watch is still an accessory.
+    expect(sub('Ốp Case Siêu Mỏng Thinfit cho Apple Watch Series 7 Series 8 Size 4145mm')).toBe('accessories')
+    expect(sub('Case RM Yoshi cho Apple Watch Ultra 49mm')).toBe('accessories')
+  })
+
+  it('keeps the English word "case" away from chassis, enclosures and charging cases', () => {
+    expect(sub('[Like New] Dell Latitude 7430 (Core i7-1265U, 32GB, 256GB, Iris Xe, 14.0 FHD Alumium Case)')).toBe('laptops-pcs')
+    // The dev-board rule claims it — an enclosure for a Pi, not a phone case.
+    expect(sub('Vỏ bảo vệ bằng nhựa ABS Case for Raspberry Pi 5 V2')).toBe('accessories')
+    expect(sub('Microphone không dây DJI Mic Mini 2 (2 TX + 1 MOBILE RX + CHARGING CASE)')).toBe('cameras')
+    expect(sub('Case máy tính Corsair 6500X Tempered Glass Mid-Tower')).toBe('accessories')
+  })
+
+  it('sends laptop sleeves and MacBook shells to accessories, not to phone cases', () => {
+    expect(sub('Túi Chống sốc Tomtoc Protective cho Macbook Pro 15.6 - 16 inch A13-E01')).toBe('accessories')
+    expect(sub('Ốp lưng MacBook Air 13 (M2/M3/M4) UAG Chống Sốc Lucent Ice/Black')).toBe('accessories')
+  })
+
+  it('does not let a foam or a bookmark masquerade as an accessory', () => {
+    // `\bốp\b` matched "Xốp" (foam) — JavaScript word boundaries are ASCII-only.
+    expect(sub('Cây Lau Nhà MyJae Đài Loan Dạng Mút Xốp PVA Thông Minh')).not.toBe('phone-cases')
+    expect(sub('Hộp 20 miếng dán mắt 3M 1539 hỗ trợ nhược thị cho trẻ trên 4 tuổi')).not.toBe('screen-protectors')
+  })
+})

@@ -120,6 +120,67 @@ const SUBCATS: Record<string, [RegExp, string][]> = {
      * are FALLBACKS for titles that are genuinely about a cable, a drive or a router — so they
      * come last, not first.
      */
+    /**
+     * ⛔ AN ACCESSORY NAMES THE DEVICE IT FITS, AND THE RULE ABOVE READS THAT NAME AS THE PRODUCT.
+     * Measured on live rows 2026-09-17: **95 of the 127 "iPhone 18" listings were cases, tempered
+     * glass and protector combos filed under `phones-tablets`** — "Ốp lưng iPhone 18 Pro Max Wiwu
+     * Areoshield…" matched `iphone` before it ever reached the `ốp lưng` rule below, so the phone
+     * model facet and every brand/model browse view were three-quarters phone cases. That is not
+     * the "spec token" mistake the note above describes: `ốp lưng`/`case`/`cường lực` ARE what the
+     * thing IS. The product word is in the title, just not first.
+     *
+     * ⚠️ ABOVE `cameras`, NOT MERELY ABOVE `phones-tablets` — astra's catch when this plan was
+     * reviewed. The camera rule owns the bare token `\blens\b`, so "JCPAL … Camera Lens Protector
+     * for iPhone 18 Pro" (a real live title) files as a CAMERA unless the protector rule is tested
+     * first. Protectors therefore come before cases: a title carrying both words ("case with
+     * tempered glass") is sold as the glass.
+     *
+     * ⚠️ ENGLISH TERMS ARE NOT OPTIONAL HERE. The partner-shop importer stores machine-translated
+     * titles, so the same product arrives as "Ốp lưng…" from AccessTrade and "… Case …" from a
+     * shop catalogue; a Vietnamese-only rule set fixes one importer and silently misses the other.
+     */
+    /**
+     * ⚠️ EVERY NARROWING BELOW IS A MEASURED FALSE POSITIVE, not caution. Re-classifying all 60,000
+     * imported titles with the first cut of these two rules moved 1,712 rows, and the diff showed:
+     *   · `miếng dán` alone claimed eye patches, scar dressings and reflective car stickers — so it
+     *     must be followed by the thing being covered (`màn hình|camera|cường lực|kính`).
+     *   · `\bốp\b` matched **"Xốp"** (foam) in a mop and a coaster set, because JavaScript's `\b` is
+     *     ASCII-only and fires between `X` and `ố` — the exact trap this file's `w()` helper exists
+     *     for. `ốp lưng` is the real term and needs no bare fallback.
+     *   · `\bcase\b` matched "Giá đỡ Laptop S-Case" (a stand) on the hyphen boundary; requiring no
+     *     preceding word character or hyphen keeps "iPhone 18 Pro Case" and drops "S-Case".
+     * A laptop case is routed to `accessories` on the line above these, because `phone-cases` would
+     * file 67 MacBook sleeves under phone cases — the same class of lie this whole block removes.
+     */
+    // ⛔ A DEVICE'S SPEC LINE SAYS "Case" TOO. Apple titles its own watches "Apple Watch SE 2025 44mm
+    // GPS Aluminum Case with Sport Band" — the MATERIAL of the watch body — and the first version of
+    // this carve-out read that as a watch case: a repair pass moved 22 real Apple Watches (and 5 DJI
+    // mics sold with a charging case) onto `accessories` before opus caught it on review. They were
+    // restored from the pass's snapshot. `case` after a material word is a spec, never a product.
+    // ⚠️ THE HOST LIST IS NOT JUST LAPTOPS. `ốp lưng`/`bao da` now outrank the camera and watch
+    // rules, so a camera bag or an e-reader sleeve would file as a phone case — opus's catch on the
+    // diff. Measured: 3 live titles, all e-readers, none a camera today; the carve-out is here so
+    // the next Fujifilm case does not have to be.
+    [/(ốp lưng|bao da|túi chống sốc|(?<![\w-])(?<!charging )(?<!(?:alumin(?:i)?um|titanium|steel|nhôm|carbon fiber) )case\b)[^|]*(macbook|laptop|máy tính xách tay|máy ảnh|ống kính|gopro|\bdji\b|máy đọc sách|kindle|apple watch|galaxy watch)|(macbook|laptop|máy tính xách tay|máy ảnh|ống kính|gopro|\bdji\b|máy đọc sách|kindle|apple watch|galaxy watch)[^|]*(ốp lưng|bao da|túi chống sốc|(?<![\w-])(?<!charging )(?<!(?:alumin(?:i)?um|titanium|steel|nhôm|carbon fiber) )case\b)/i, 'accessories'],
+    // A desktop chassis is a "case" and is often sold WITH a tempered-glass side panel — both of
+    // the rules below would claim it, and neither answer is true. Measured: "Case máy tính Corsair
+    // 6500X Tempered Glass Mid-Tower".
+    [/case máy tính|vỏ máy tính|mid[- ]?tower|full[- ]?tower/i, 'accessories'],
+    // A bundle of protection for a phone is a bundle of ACCESSORIES — 4 live rows ("Combo Bảo Vệ
+    // iPhone 18 Series", ₫1,050,000) sat in `phones-tablets` at a tenth of any phone's price.
+    // ⚠️ …UNLESS IT NAMES A STORAGE TIER, which a protection bundle never does and a bundled HANDSET
+    // always does ("Combo Xiaomi Redmi Note 14 8GB/256GB + sạc nhanh"). Without that guard the rule
+    // reaches past the 4 rows it was measured on and files phones as accessories (opus).
+    [/(?<!\p{L})combo(?!\p{L})(?![^|]*\d+\s*(?:GB|TB)(?![\p{L}\p{N}]))[^|]{0,40}(iphone|ipad|galaxy|samsung|xiaomi|oppo|vivo|realme|pixel)/iu, 'accessories'],
+    [/kính cường lực|cường lực|dán (bảo vệ|màn hình|camera|lưng)|miếng dán (màn hình|camera|cường lực|kính)|screen protector|tempered glass|lens protector|camera protector/i, 'screen-protectors'],
+    /**
+     * ⚠️ THE ENGLISH WORD `case` NEEDS A DEVICE NEXT TO IT; the Vietnamese terms do not. Measured on
+     * the 60,000 imported titles: a bare `\bcase\b` claimed 10 Dell laptops ("14.0 FHD Alumium
+     * Case" — the chassis), 7 Raspberry Pi enclosures, a GoPro housing, a DJI mic's charging case
+     * and a Waveshare LCD "with Case". `ốp lưng` and `bao da` have no such second meaning, which is
+     * why they stay unconditional — including for the iPad folios that make up most of this bucket.
+     */
+    [/ốp lưng|bao da|(?:iphone|ipad|galaxy|samsung|xiaomi|oppo|vivo|realme|pixel|điện thoại|smartphone|tablet|máy tính bảng)[^|]{0,60}(?<![\w-])(?<!charging )(?<!(?:alumin(?:i)?um|titanium|steel|nhôm|carbon fiber) )case\b|(?<![\w-])(?<!charging )(?<!(?:alumin(?:i)?um|titanium|steel|nhôm|carbon fiber) )case\b[^|]{0,30}(?:for|cho)\s+(?:iphone|ipad|galaxy|samsung|xiaomi|oppo|vivo|realme|pixel|điện thoại|máy tính bảng)/i, 'phone-cases'],
     // ── what the thing IS ───────────────────────────────────────────────────────────────
     [w('apple watch', 'galaxy watch', 'smartwatch', 'đồng hồ thông minh'), 'smartwatch'],
     [/máy ảnh|máy quay|ống kính|\blens\b|gopro|\bdji\b|flycam|canon|nikon|fujifilm|\bngàm\b/i, 'cameras'],
@@ -140,8 +201,9 @@ const SUBCATS: Record<string, [RegExp, string][]> = {
     // `sạc` rule would otherwise claim, leaving power-banks permanently unreachable.
     [/pin dự phòng|pin sạc dự phòng|sạc dự phòng|power ?bank/i, 'power-banks'],
     [w('bàn phím', 'chuột', 'keyboard', 'mouse'), 'keyboards-mice'],
-    [/ốp lưng|bao da|\bcase\b/i, 'phone-cases'],
-    [/cường lực|dán màn hình|screen protector/i, 'screen-protectors'],
+    // ⚠️ THE `phone-cases` / `screen-protectors` RULES USED TO SIT HERE and are now at the top of
+    // this table — see the note there. They are not duplicated back into the fallback section: two
+    // copies of the same pattern in one ordered list is a rule set that can disagree with itself.
     [/sạc|cáp |adapter|charger|\bcable\b|củ sạc/i, 'cables-chargers'],
     [/\bssd\b|\bhdd\b|ổ cứng|thẻ nhớ|\busb\b|memory card/i, 'storage'],
     [/phụ kiện|dock|hub |giá đỡ|balo|túi chống sốc/i, 'accessories'],
@@ -184,8 +246,50 @@ export function refreshPlacement(
   return { categorySlug: existing.categorySlug, subcategorySlug: existing.subcategorySlug }
 }
 
+/**
+ * A FREE GIFT IS NOT THE PRODUCT. VN retail titles advertise the bundle inline — "Xiaomi Redmi Pad
+ * 2 Wifi 8GB/256GB Chính Hãng (Tặng Kèm Bao Da Chính Hãng)" is a TABLET, and every accessory rule
+ * below would read `bao da` and file it as a case. agy raised this against the accessory reordering
+ * and it is real, if rare: measured across 2,201 live titles carrying a gift clause, exactly one
+ * product flipped (the two other hits were genuine accessories whose own gift clause changed
+ * nothing). Cutting the clause is better than special-casing the accessory rules, because the same
+ * clause misleads every rule in the table — "tặng kèm tai nghe" on a phone reaches `audio` too.
+ *
+ * ⚠️ THE CLAUSE IS BOUNDED TO SIX WORDS, not "to the next separator". Unbounded, a title that LEADS
+ * with the gift — "Tặng kèm ốp lưng chính hãng khi mua iPhone 18 Pro 256GB" — was cut to nothing,
+ * fell back to the original, and then filed a PHONE as a phone case off the words it was supposed to
+ * ignore (agy). Six words covers the real clauses ("tặng kèm bao da chính hãng") and leaves the
+ * product standing when the clause comes first.
+ *
+ * Cut from `tặng`, and drop a parenthesis that contains it. "Mua 1 tặng 1 Tấm
+ * dán màn hình…" survives correctly — "mua N tặng N" is a buy-one-get-one offer whose product
+ * comes AFTER the word, so that idiom is excluded and the title is matched whole.
+ */
+export function withoutGiftClause(name: string): string {
+  const cut = name
+    // ⚠️ A TRAILING "- Kèm …" IS THE BUNDLE TOO. "Lenovo Idea Tab Wifi 8GB 128GB ZAFR0366VN - Kèm bút- ốp
+    // lưng" is a TABLET that ships with a stylus and a case; the first repair pass read `ốp lưng` and
+    // filed it under phone cases (restored from its snapshot; opus predicted the class). Only after a
+    // separator — "Ốp lưng kèm bàn phím ZAGG" is a case whose `kèm` describes the product itself.
+    .replace(/\s[-–|,]\s*kèm(?!\p{L})[^|]*$/giu, ' ')
+    .replace(/[([][^)\]]*tặng[^)\]]*[)\]]/giu, ' ')
+    .replace(/(?<!mua\s*\d+\s*)(?<!\p{L})tặng(?!\p{L})(?:\s+(?!khi(?!\p{L})|mua(?!\p{L}))[^\s\-|,;([]+){0,6}/giu, ' ')
+    .replace(/[\s-]{2,}/g, ' ')
+    .trim()
+  /**
+   * ⚠️ A CUT THAT TAKES MOST OF THE TITLE TOOK THE PRODUCT WITH IT. The clause runs to the next
+   * separator, so a title that LEADS with the gift — "Tặng kèm ốp lưng khi mua iPhone 18 Pro 256GB"
+   * — would be cut to nothing and the phone would file as unclassified. Both reviewers raised it on
+   * the diff; measured, 53 live titles (all books with a trailing clause) lose more than 60% of
+   * their letters. Below that threshold the original is the safer input: a gift clause misleads a
+   * rule occasionally, an empty string misleads it always.
+   */
+  return cut.length >= name.length * 0.4 ? cut : name
+}
+
 export function subcategoryFor(categorySlug: string, name: string): string | null {
-  for (const [re, slug] of SUBCATS[categorySlug] ?? []) if (re.test(name)) return slug
+  const clean = withoutGiftClause(name)
+  for (const [re, slug] of SUBCATS[categorySlug] ?? []) if (re.test(clean)) return slug
   return null
 }
 
@@ -207,7 +311,148 @@ export const FEED_BRANDS = ['apple', 'samsung', 'lg', 'panasonic', 'toshiba', 's
  */
 const BRAND_RE = new RegExp(`\\b(${FEED_BRANDS.join('|')})\\b`, 'i')
 
-export function brandFor(name: string): string | null {
-  const m = name.match(BRAND_RE)
-  return m ? brandSlugify(m[1]) : null
+/**
+ * ⛔ A PRODUCT LINE THAT ONLY ONE COMPANY MAKES NAMES ITS BRAND. Merchants title Apple devices by the line
+ * alone — CellphoneS lists "iPhone 18 Pro 256GB", never "Apple iPhone 18 Pro" — so the brand-word regex
+ * returned null and the phone landed with NO brand. Measured 2026-09-15: 4 of the 8 live iPhone 18 phones
+ * had an empty brandSlug, which drops them from the Apple brand facet, the brand page and the market-price
+ * band that is keyed on brand + model.
+ * ⚠️ Only lines that are unambiguous trademarks of one maker, whole-word. "Galaxy" is NOT here: "Galaxy
+ * Buds" is Samsung, but Galaxy also appears in unrelated product names and toy titles.
+ */
+const LINE_BRAND: [RegExp, string][] = [
+  [/\b(iphone|ipad|macbook|imac|airpods|apple\s*watch|apple\s*pencil|homepod|vision\s*pro)\b/i, 'apple'],
+]
+
+/**
+ * ⚠️ …BUT NOT WHEN THE PRODUCT IS SOMETHING MADE *FOR* THAT LINE. The same CellphoneS feed carries 107
+ * accessories that name the phone — "Ốp lưng iPhone 18 Pro/17 Pro Zagg …", "Miếng dán camera iPhone 18 Pro
+ * … Mipow" — and those are Zagg and Mipow products, not Apple's. Accessory nouns and "for"-words
+ * ("cho", "dành cho", "for", "compatible") mean the line is the TARGET, so no brand is inferred from it.
+ */
+const ACCESSORY_RE = /(?:^|[^\p{L}])(ốp|op lung|case|bao da|miếng dán|dán|kính cường lực|cường lực|dây đeo|dây|cáp|củ sạc|sạc|giá đỡ|túi|ví|bút cảm ứng|phụ kiện|cho|dành cho|for|compatible)(?![\p{L}])/iu
+
+/**
+ * ⛔ A DEVICE MAKER'S NAME INSIDE AN ACCESSORY TITLE IS THE TARGET, NOT THE MAKER — and until
+ * 2026-09-17 that only held for the `LINE_BRAND` fallback below, never for the brand WORD. Measured
+ * on the live catalogue: **914 cases, films and folios were branded with the phone they fit** —
+ * "Miếng Dán Cường Lực Camera Lens Dành Cho Samsung Galaxy S23 Ultra Zeelot" filed under `samsung`,
+ * a Zeelot product. Both external reviewers found it independently on the diff review.
+ *
+ * The rule is not "an accessory has no brand": a Zagg case is a Zagg. So on an accessory title the
+ * host-device brands are SKIPPED and the search continues — the first brand that is not a device
+ * maker wins, and only when there is none does this return null.
+ */
+export const HOST_BRANDS = new Set([
+  'apple', 'samsung', 'xiaomi', 'oppo', 'vivo', 'realme', 'huawei', 'honor', 'google', 'sony',
+  'nokia', 'oneplus', 'motorola', 'asus', 'lenovo', 'dell', 'hp', 'msi', 'acer',
+])
+const BRAND_RE_G = new RegExp(BRAND_RE.source, 'gi')
+
+/**
+ * ⚠️ THE TEST IS THE SHELF, NOT THE ACCESSORY WORDS — and the first cut got that wrong in a way
+ * only a measurement showed. Keying on `ACCESSORY_RE` unbranded **2,888 rows**, among them "Tai
+ * nghe Bluetooth Apple AirPods 3 2022 sạc có dây", "AppleCare+ cho AirPods" and Apple's own
+ * "Dây đeo Apple Watch Alpine Loop", because that pattern holds `sạc`, `dây`, `túi`, `cho` and
+ * `for` — words that appear in plenty of titles for the device itself. opus predicted exactly this
+ * on the diff review. Cases and protectors are the two shelves whose products are DEFINED by the
+ * device they fit, so they are the only ones where a device maker's name is presumed to be the
+ * target rather than the maker.
+ */
+/** Shelves whose products are made FOR another device — a product line named there is the target. */
+const ACCESSORY_SHELVES = new Set(['phone-cases', 'screen-protectors', 'cables-chargers', 'power-banks', 'accessories'])
+
+/**
+ * What follows a device maker's name when the name refers to the DEVICE ("Samsung Galaxy S26",
+ * "Apple iPad Pro") rather than to the maker of the product in hand.
+ *
+ * ⛔ WITHOUT THIS, A MAKER'S OWN CASE LOST ITS MAKER. The rule used to treat every host brand on a
+ * case shelf as the target, so "Ốp lưng Galaxy S26 Ultra PC Samsung Chính hãng" and "Ốp lưng iPhone
+ * 17 Pro Apple With Magsafe Clear" — Samsung's and Apple's own products — were unbranded along with
+ * the Mutural and Nillkin folios the rule was aimed at. Measured: 67 of the 497 brands a repair pass
+ * removed were the manufacturer's own; they were restored. The tell is word order: a brand followed
+ * by a device line names the device, a brand followed by anything else names the maker.
+ */
+const DEVICE_AFTER_BRAND: Record<string, RegExp> = {
+  apple: /^\s*(iphone|ipad|watch|pencil|macbook|airpods|imac|tv|vision)/i,
+  samsung: /^\s*(galaxy|s\d|note|z\s?(fold|flip)|tab|a\d)/i,
+  xiaomi: /^\s*(redmi|pad|mi\b|poco|\d|civi|mix)/i,
+  oppo: /^\s*(reno|find|a\d|f\d|k\d)/i,
+  vivo: /^\s*(v\d|y\d|x\d|t\d|s\d)/i,
+  realme: /^\s*(\d|c\d|gt|note|narzo)/i,
+  huawei: /^\s*(p\d|mate|nova|pura|matepad|y\d)/i,
+  honor: /^\s*(x\d|magic|\d)/i,
+  google: /^\s*(pixel)/i,
+  sony: /^\s*(xperia)/i,
+}
+const namesTheDevice = (slug: string, after: string) => (DEVICE_AFTER_BRAND[slug] ?? /^\s*[a-z]*\d/i).test(after)
+
+const fitsAHostDevice = (name: string) => {
+  const shelf = subcategoryFor('electronics', name)
+  return shelf === 'phone-cases' || shelf === 'screen-protectors'
+}
+
+export function brandFor(rawName: string): string | null {
+  // ⚠️ THE GIFT CLAUSE IS CUT HERE TOO, for the reason `subcategoryFor` cuts it: "Xiaomi Redmi Pad 2
+  // (Tặng Kèm Bao Da)" is a TABLET, and the free folio in its title would otherwise route it down
+  // the accessory path, where `xiaomi` is skipped as a host brand and the tablet ends up unbranded.
+  const name = withoutGiftClause(rawName)
+  /**
+   * ⛔ A BRAND NAMED AFTER "cho" / "for" IS THE TARGET, NOT THE MAKER. This is the precise version
+   * of the rule the shelf test above approximates: "Cáp sạc USB-C cho iPhone 18" is somebody's
+   * cable, while "Dây đeo Apple Watch Alpine Loop Titanium" is Apple's own strap — and the only
+   * difference between them is which side of that word the device name sits on. A blunter guard
+   * (any accessory noun anywhere) unbranded 2,888 rows including Apple's own products.
+   */
+  const hostFitting = fitsAHostDevice(name)
+  /**
+   * ⚠️ …AND ONLY WHEN THE PRODUCT IS AN ACCESSORY. On a device the same word is ordinary prose —
+   * "Laptop dành cho sinh viên Dell Inspiron 15", "Tai nghe cho game thủ Sony INZONE" — and reading
+   * the brand after it as a target unbranded the device itself (opus). The marker only means
+   * "fits this" on a product that is made to fit something.
+   */
+  const shelf = subcategoryFor('electronics', name)
+  const found = name.match(/(?:^|[^\p{L}])(?:dành cho|cho|for|compatible with|fits)(?![\p{L}])/iu)
+  // The shelf alone misses cables: the phone rule outranks the charger rule, so "Cáp sạc USB-C cho
+  // iPhone 18" sits on `phones-tablets`. An accessory NOUN in front of the marker settles it.
+  const nounBefore = found?.index !== undefined
+    && /(cáp|sạc|cable|charger|adapter|giá đỡ|dây đeo|ốp|bao da|túi|miếng dán|cường lực|bút cảm ứng|phụ kiện|case|cover|stand|holder|mount)/i.test(name.slice(0, found.index))
+  const isAccessory = hostFitting || nounBefore || (shelf !== null && ACCESSORY_SHELVES.has(shelf))
+  const marker = isAccessory ? found : null
+  const targetFrom = marker?.index ?? Number.POSITIVE_INFINITY
+
+  let accessoryMaker: string | null = null
+  for (const m of name.matchAll(BRAND_RE_G)) {
+    const slug = brandSlugify(m[1])
+    const isHost = HOST_BRANDS.has(slug)
+    /**
+     * ⚠️ ON A CASE SHELF A DEVICE MAKER IS THE TARGET **UNLESS IT IS NAMED BEFORE THE "cho"**.
+     * Apple sells cases for its own phones and titles them "Ốp lưng Apple MagSafe cho iPhone 15
+     * Pro" — 77 such rows would have been unbranded by the blunter version of this line. The
+     * device-as-target shape is the one with no compatibility marker at all ("Ốp lưng Samsung
+     * Galaxy S26 Ultra Slimcase"), where the phone's name IS the product description.
+     */
+    const namesTheTarget = (m.index ?? 0) > targetFrom
+      || (hostFitting && isHost && namesTheDevice(slug, name.slice((m.index ?? 0) + m[0].length)))
+    if (!namesTheTarget) return slug
+    // A maker named inside the compatibility half is still the maker when it makes no devices —
+    // "… for iPhone 18 Pro, by Zagg" — so it is remembered rather than returned immediately.
+    if (!isHost) accessoryMaker ??= slug
+  }
+  if (accessoryMaker) return accessoryMaker
+
+  if (hostFitting) return null
+  /**
+   * ⚠️ THE LINE PATH IS GUARDED BY THE SHELF, NOT BY ACCESSORY WORDS ANYWHERE IN THE TITLE. Testing
+   * `ACCESSORY_RE` here read "iPhone 18 Pro 256GB kèm sạc nhanh" as an accessory — the word `sạc` is
+   * in that pattern — and returned null for a phone (agy). The shelf answers the same question
+   * without the collateral: a laptop sleeve lands on `accessories`, a case on `phone-cases`, while a
+   * phone that merely mentions its charger stays on `phones-tablets` and keeps its brand.
+   */
+  if (isAccessory) return null
+  for (const [re, brand] of LINE_BRAND) {
+    const m = name.match(re)
+    if (m && (m.index ?? 0) < targetFrom) return brand
+  }
+  return null
 }
