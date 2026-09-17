@@ -38,7 +38,7 @@ export const revalidate = 86400
 
 export async function GET() {
   try {
-    const [listings, categories, sellers, helpArticles] = await Promise.all([
+    const [listings, ownListings, categories, sellers, helpArticles] = await Promise.all([
       /**
        * ⚠️ SCOPED HERE AND NOWHERE ELSE, DELIBERATELY. The category maxima, the category/district
        * combos and the seller-storefront URLs further down are all DERIVED from exactly these rows,
@@ -56,6 +56,32 @@ export async function GET() {
         orderBy: { updatedAt: 'desc' },
         // Sitemap protocol caps a file at 50k URLs — leave headroom for the
         // category/combo/seller/static entries above the listing block.
+        take: 45000,
+      }),
+      /**
+       * ⛔ A SECOND QUERY, NOT A FILTER OVER THE FIRST — all three reviewers refused the filter and
+       * they were right. The row above is capped at 45,000 and ordered `updatedAt: 'desc'`, and
+       * 82,084 of the 82,130 live sale listings are imported: one affiliate sync that touches
+       * `updatedAt` fills the whole window, and an in-memory `continue` would then emit ZERO of our
+       * own listings while reporting nothing wrong. The 37 that survive today do so by luck of
+       * ordering, which is not a property to ship.
+       * ⚠️ IT IS A DIFFERENT QUESTION FROM THE ONE ABOVE, WHICH IS WHY IT IS A DIFFERENT QUERY. That
+       * row answers "what is live here" and feeds the category maxima, the district combos and the
+       * storefront URLs — all of which SHOULD count imported stock, because a category with 9,726
+       * live products is a real page. This row answers "what do we ask Google to index", and the
+       * answer is only what is ours. Same scope predicate, so the edition boundary holds on both.
+       */
+      db.listing.findMany({
+        /**
+         * ⚠️ NESTED IN AN `AND`, NOT SPREAD ALONGSIDE — two reviewers asked whether the extra key
+         * could overwrite part of the edition scope, and the honest answer is "not today".
+         * `scopedListingWhere` returns either the bare `where` or `{ AND: [where, { sellerId }] }`,
+         * so a spread happens to be safe right now; it stops being safe the day that helper grows a
+         * key this one also sets. Wrapping cannot collide whatever it returns, and it costs nothing.
+         */
+        where: { AND: [await scopedListingWhere({ verified: true, status: 'active' }), { affiliateUrl: null }] },
+        select: { id: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
         take: 45000,
       }),
       db.category.findMany({ select: { slug: true } }),
@@ -254,7 +280,32 @@ export async function GET() {
       xml += `  <url><loc>${loc}</loc>${lm(sellerMax.get(s.id))}</url>\n`
     }
 
-    for (const listing of listings) {
+    /**
+     * ⛔ IMPORTED LISTINGS ARE CRAWLABLE BUT NOT SUBMITTED, AND THE NUMBERS ARE WHY. Measured
+     * 2026-09-17: this file was asking Google to index 45,000 listing URLs and Search Console had
+     * indexed 756 of them — 1.7%. Of the 82,130 live sale listings, 82,084 carry an `affiliateUrl`:
+     * they are a third-party catalogue (Tiki, Thế Giới Di Động, CellphoneS…) republished here with
+     * a link out, and eno.forum submits the SAME 44,999 ids, so the pair asked for ~90,000 URLs of
+     * one borrowed catalogue. Google's spam policy names that shape directly — aggregator pages
+     * that add nothing beyond the source data — and the August 2026 update moved enforcement from
+     * ranking suppression to removal from the index. 756/45,117 is that policy working, not a crawl
+     * bug, and it is a judgement about the WHOLE domain: the 77 listings that are genuinely ours and
+     * the editorial pages pay for it too.
+     *
+     * ⚠️ NOT `noindex`, AND THE DIFFERENCE IS THE POINT (owner, 2026-09-17: "add value then to those
+     * pages"). These pages stay 200, stay linked, stay crawlable, and stay eligible the day they
+     * carry something of their own — a live floor price across every retailer that stocks the
+     * model, the way /iphone-18-vietnam does. All that changes is that we stop ASKING for 45,000 of
+     * them. A sitemap is a request, and this one was spending the domain's credibility on pages we
+     * would not defend.
+     *
+     * ⚠️ THE SPLIT IS TWO QUERIES AND NOT ONE FILTER — see the note on `ownListings` above for the
+     * starvation that made it so. The derivation rows must keep carrying imported stock:
+     * /c/electronics and a merchant's storefront are real pages worth indexing, and they are real
+     * precisely BECAUSE that stock sits behind them. Narrow the FIRST query and the categories lose
+     * their lastmod and 25 storefronts leave the sitemap with them.
+     */
+    for (const listing of ownListings) {
       xml += `  <url>
     <loc>${hostUrl}/listings/${listing.id}</loc>
     <lastmod>${iso(listing.updatedAt)}</lastmod>
