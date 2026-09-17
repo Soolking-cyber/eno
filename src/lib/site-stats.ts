@@ -5,6 +5,7 @@ import { IS_SERVICES } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { logError } from '@/lib/log'
 import { HEARTBEAT_MS, coarseUserAgent, type SiteStats } from '@/lib/site-stats-shared'
+import { isBotUserAgent } from '@/lib/bot-ua'
 
 /**
  * The four numbers under the footer: how many people have ever been here, how many are here right
@@ -44,6 +45,7 @@ const ENO_STAFF_EMAILS = ['support@eno.vn', 'support@eno.forum'] as const
 // dragging node:crypto and Prisma into the browser bundle. Re-exported here so server callers have
 // one import.
 export { HEARTBEAT_MS, coarseUserAgent }
+export { isBotUserAgent }
 export type { SiteStats }
 /** eno.vn and eno.forum share one database — every key is scoped or they pool each other's traffic. */
 export const SITE_KEY = IS_SERVICES ? 'services' : 'marketplace'
@@ -183,6 +185,19 @@ async function communityCounts(): Promise<{ members: number; sellers: number }> 
  * hiccup must not turn into a 500 on the page it decorates. The client renders nothing for a zero.
  */
 export async function recordAndRead(ip: string, userAgent: string): Promise<SiteStats> {
+  /**
+   * ⛔ A CRAWLER IS NOT A VISITOR — AND IT WAS BEING COUNTED AS SEVERAL. Measured 2026-09-17:
+   * eno.forum's footer read "5 here now" while Cloudflare's log for this exact endpoint over the
+   * same ten minutes held ONE human session and SIX `meta-externalagent/1.1` hits, each from a
+   * different address in Meta's `2a03:2880:f816::/48` and three different platform strings. The
+   * identity here is ip + coarseUserAgent, so a renderer that rotates both halves is a new person
+   * every request — in `site_presence`, and durably in `site_visit_total`.
+   * ⚠️ ZEROS RATHER THAN A READ-ONLY PATH, deliberately: the caller is a footer widget that renders
+   * NOTHING for a zero (site-stats-shared.hasAnyStat), which is exactly the right answer for a
+   * crawler, and it keeps the record-and-read round trip as the single statement it is meant to be.
+   * Nothing a bot sees feeds anything, so there is no second consumer to disappoint.
+   */
+  if (isBotUserAgent(userAgent)) return { visits: 0, now: 0, members: 0, sellers: 0 }
   try {
     const digest = await visitorDigest(ip, userAgent)
     const [live, community] = await Promise.all([touch(digest), communityCounts()])

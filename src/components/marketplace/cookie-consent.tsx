@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
 import { getConsent, setConsent, syncConsentCookie } from '@/lib/consent'
@@ -9,8 +10,6 @@ import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
-
-import { ShieldCheck, Sparkles, MessageCircle } from '@/components/ui/icons'
 
 /**
  * ⚠️ THE ONE ROUTE THIS CARD MUST NOT COVER. `/signin` centres the sign-in card in exactly the
@@ -278,7 +277,18 @@ export function CookieConsent() {
             on the page behind it, so it is load-bearing rather than tidy. Padded on all sides so
             the card never touches the edge, and `py-` clears the mobile tab bar / safe area when a
             short viewport pushes it low. */}
-        <div className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center px-3 py-[calc(4.5rem+env(safe-area-inset-bottom))] lg:px-4 lg:py-4">
+        {/* ⚠️ THE TOP GUTTER COLLAPSES ON A SHORT VIEWPORT AND THE BOTTOM ONE NEVER DOES — they look
+            symmetrical and they are not doing the same job. The BOTTOM 4.5rem clears the fixed
+            mobile tab bar (it tracks <BottomNavSpacer/>) plus the home indicator, so it is load
+            bearing at every height. The TOP 4.5rem is only breathing room, and on a 320px-tall
+            landscape phone the pair took 144px — 45% of the screen — leaving the card 176px of
+            `max-h-full`, which is LESS than the pinned consent half needs. MEASURED at 480x320:
+            Allow sat on screen but the Cookie settings / Decline row began 12px below the fold and
+            took a scroll to reach, which is the one failure this card must not have. Collapsing the
+            top gutter alone gives the card 232px and the whole pinned half fits with room over.
+            ⚠️ This is a GUTTER, not content: nothing is hidden by viewport here, which is the trap
+            recorded further down. */}
+        <div className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center px-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pt-[4.5rem] [@media(max-height:480px)]:pt-4 lg:px-4 lg:py-4">
           <DialogPrimitive.Popup
             ref={popupRef}
             /**
@@ -335,120 +345,91 @@ export function CookieConsent() {
           {view === 'ask' ? (
             <>
               {/**
-                * ⛔ AN INTRODUCTION THAT STILL ASKS — AND IT MUST NOT GROW INTO AN INTERSTITIAL.
-                * Owner, 2026-08-28: the card should say who we are, what we do and why to use us,
-                * "to industry standards". The standard landing shape is value proposition → proof →
-                * one action, and that is what this is: a headline that names the marketplace, one
-                * line of what it does, three proof points, then the consent question.
-                * ⚠️ WHAT IT DELIBERATELY IS NOT is a full-page splash. Read the note above the
-                * Root: a centred card over a backdrop cost THREE Google OAuth verification
-                * rejections. The proof points are one tight row precisely so the card stays a card;
-                * if a future edit makes this scroll on a landscape phone, cut copy rather than
-                * raising the height.
-                * ⚠️ EDITION-AWARE, BECAUSE THE COPY IS A LEGAL SURFACE. eno.vn may not describe
-                * visa or trip services at all, so the services line only exists on the forum build.
-                */}
-              {/* ⚠️ `tracking-tight` IS SIZE-SPECIFIC, NOT DECORATION. Letters read too far apart as
-                  type grows, so display sizes want negative tracking while body stays near zero —
-                  a single letter-spacing across the ramp is wrong somewhere. This is the one line
-                  on the card big enough to need it; nothing else here gets tracking.
-                  ⚠️ `text-lg`, not larger: it is the canon's display step (SECTION_TITLE), and the
-                  card has to keep its Decline reachable on a 320x480 landscape phone. */}
-              <DialogPrimitive.Title className="text-lg font-bold leading-tight tracking-tight text-foreground">
-                {tr('Buy and sell in Vietnam, without the guesswork', 'Mua bán tại Việt Nam, không còn mơ hồ')}
-              </DialogPrimitive.Title>
-              {/* ⛔ NOTHING IS HIDDEN BY VIEWPORT ANY MORE — THE ACTIONS ARE PINNED INSTEAD, and
-                  the three drafts it took to get here are worth knowing. The card grew, and at
-                  740x360 the actions fell below the fold. First fix hid the intro under a height
-                  query; that deleted the whole introduction for a desktop reader at 200% zoom,
-                  whose CSS viewport is also short (WCAG 1.4.4). Second fix added `pointer:coarse`
-                  to keep it to phones; that re-opened the original bug for a touch device docked
-                  to a trackpad — an iPad with a keyboard, a 2-in-1 in laptop posture — which
-                  reports `pointer: fine` at 740x360 and got the overflow back. Each fix moved the
-                  failure to a population the previous one had not thought about.
-                  ⛔ THE REQUIREMENT WAS NEVER "hide the intro", IT WAS "the consent controls are
-                  always on screen". So the consent block is `sticky bottom-0` inside the card's own
-                  scrollport: the introduction scrolls away behind it when there is no room, and
-                  Allow, Decline and Cookie settings never leave. No viewport is special-cased, no
-                  reader loses the explanation, and zoom is irrelevant. */}
-              <p className="mt-1 text-sm leading-snug text-muted-foreground">
-                {/* ⛔ ONE LINE FOR BOTH EDITIONS, AND AN EDITION TERNARY HERE WAS A LICENSING LEAK.
-                    The first version branched on IS_MARKETPLACE to mention trips and e-visa on the
-                    forum — correct at RENDER, and wrong in the artifact: scripts/gen-ui-strings.mjs
-                    scrapes tr() calls out of the source, so BOTH branches landed in the MARKETPLACE
-                    string table and eno.vn shipped a bundle containing "listings, trips and e-visa
-                    in one place". A reviewer caught it; measured in src/generated/ui-strings.ts
-                    before believing it. eno.vn may not name those services in any form.
-                    ⚠️ So the rule for this file: never put an edition branch inside `tr()`. If the
-                    editions ever genuinely need different intro copy, the services variant belongs
-                    in its own `.svc.` module that the marketplace build never compiles — not in a
-                    ternary the generator will flatten. */}
-                {tr(
-                  'eno is the marketplace for people living in Vietnam — everything from phones to apartments, in English and Vietnamese, with prices in đồng and dollars.',
-                  'eno là chợ trực tuyến cho người sống tại Việt Nam — từ điện thoại đến căn hộ, bằng tiếng Việt và tiếng Anh, giá theo đồng và đô la.',
-                )}
-              </p>
-              {/**
-                * ⛔ EVERY CLAIM HERE HAS TO BE TRUE TODAY, AND THE FIRST VERSION'S WAS NOT. It led
-                * with "Verified sellers — ID-checked, with a trust score". Measured against the
-                * production database before shipping it: 9 sellers, `verified` = 0,
-                * `verifiedSeller` = 0. Not "mostly unverified" — none. VNPT eKYC is still blocked
-                * on their token endpoint (`VNPT_MONTHLY_QUOTA` defaults to 0 and the flow reports
-                * "eKYC quota not configured"), so the badge exists in the schema and nothing wears
-                * it. A pre-consent trust claim that is flatly false is a consumer-protection
-                * problem on any marketplace and a worse one for a company mid-way through a sàn
-                * TMĐT licence. A reviewer flagged it as unverified; the database settled it.
-                * ⚠️ THE RULE THIS LEAVES BEHIND: this card is the first thing a stranger reads, so
-                * nothing goes in it that cannot be checked in the product on the day it ships.
-                * When eKYC actually goes live, the verified-sellers line is a good one — add it
-                * back then, not before.
+                * ⛔ THE INTRODUCTION IS A PHOTOGRAPH NOW — owner, 2026-09-17: remove the headline,
+                * the one-line pitch and the three proof points, "replace with image make it fit
+                * nicely across all platforms". What went is recorded rather than mourned: a
+                * headline, a what-we-do line and three claims that each had to be checkable in the
+                * product on the day it shipped. Those claims are gone WITH the copy, so this card
+                * now asserts nothing about verification, pricing or placement — which is the
+                * safest state a pre-consent surface can be in.
+                * ⚠️ WHAT MUST NOT COME BACK IS A SPLASH. The note above the Root records three
+                * Google OAuth verification rejections that a centred card over a backdrop cost us.
+                * A photograph is a cheaper introduction than five blocks of copy and it has to stay
+                * that way: if this grows a headline AND a pitch AND bullets again, the card is back
+                * to scrolling on a landscape phone.
                 *
-                * ⛔ AND THE RULE HAD TO BE APPLIED TWICE. The replacement bullets were WRITTEN, not
-                * measured, and a reviewer caught that: "Chat in-app — never hand out your number"
-                * was false in the same way. `api/listings/[id]/contact/route.ts` says it in its own
-                * comment — "this route reveals a seller's phone number to a buyer" — so a seller
-                * does hand one over, and OTP sign-in takes one too. The claim now describes what is
-                * actually guaranteed: you can message a seller without swapping contact details,
-                * because revealing a phone is a separate, deliberate step.
-                * ⚠️ The price line is scoped to "popular models" rather than claiming a band
-                * everywhere: the band is computed per brand+model+segment and is suppressed under
-                * five samples, so a thin category genuinely has none.
-                * ⚠️ Paid placement: the schema carries no isFeatured/boostedUntil/bumpedAt column,
-                * so nothing can be bought up the list today. Free republish exists and moves
-                * `postedAt` — which is why the word is "paid" and has to stay.
-                * ⚠️ EN AND VI MUST PROMISE THE SAME THING, and two pairs had to be fixed for it.
-                * "never hand out your number" was absolute where the Vietnamese said "no need to
-                * give your number"; and "buy their way up the list" described RANKING while the
-                * Vietnamese described display SLOTS — a gap that matters because free republish
-                * does move `postedAt` and therefore does move a listing up. Both now say the same
-                * narrow, true thing: nobody can PAY to rank higher. Vietnamese is the primary
-                * market and this is a pre-consent representation; a promise cannot differ by
-                * locale.
-                * ⚠️ Wrapping, not truncating — an earlier `truncate` cut the qualifier off exactly
-                * where Vietnamese runs longest, deleting the proof in the primary market's own
-                * language. `gap`, not margins, so removing one row cannot collapse the spacing.
-                * ⚠️ `text-xs` AND `text-ink-4`, NOT `text-2xs` / `text-muted-foreground`. The
-                * qualifiers are what make these claims TRUE — "on popular models" is the scope that
-                * keeps the price line honest, "without swapping contact details" is the whole
-                * distinction on the chat line. They were set as the smallest, faintest text on a
-                * card a stranger reads before consenting, which is a qualifier nobody reads and so
-                * a claim nobody has actually seen scoped. `--ink-4` is ~6:1 rather than ~4.6:1.
+                * ⛔ THE TAGLINE IS LIVE TEXT, NOT THE PIXELS IT ARRIVED IN, AND THAT IS NOT A LIBERTY
+                * TAKEN WITH THE ARTWORK. The supplied image bakes "We help you to buy, sell, rent,
+                * connect." into itself, in dark blue on a white plate. Two things make that
+                * unshippable on this card, both measurable rather than aesthetic:
+                *   · IT WOULD BE ENGLISH ONLY. Vietnamese is the primary market, every user-facing
+                *     string here goes through tr(), and this one is a promise read BEFORE consent.
+                *     A promise that exists in one language only is the thing this repo does not do.
+                *   · IT WOULD BE UNREADABLE IN DARK MODE. Keeping the white plate puts a white slab
+                *     inside a dark popover; dropping the plate leaves dark-blue lettering on a
+                *     near-black card.
+                * So the photograph is cut out of its white background and the words are set as type
+                * that follows the theme and the language. ⚠️ The cut-out floods IN FROM THE BORDER,
+                * which is why the white `e` on each polo and the white collar trim survive — they
+                * are enclosed by blue and never reachable from an edge. Source artwork is the
+                * owner's original; the asset is public/consent-team.webp and nothing regenerates
+                * it, so keep the original if it ever needs re-cropping.
+                *
+                * ⛔ THE RULE THE DELETED COPY LEFT BEHIND, KEPT HERE BECAUSE IT OUTLIVED ITS TEXT:
+                * NEVER PUT AN EDITION BRANCH INSIDE `tr()` ON THIS CARD. The old intro line briefly
+                * branched on IS_MARKETPLACE to name trips and e-visa on the forum — correct at
+                * RENDER and wrong in the ARTIFACT, because scripts/gen-ui-strings.mjs scrapes tr()
+                * calls out of the SOURCE, so both branches landed in the marketplace string table
+                * and eno.vn shipped a bundle containing copy for services it may not advertise. A
+                * reviewer caught it and src/generated/ui-strings.ts settled it. If the editions
+                * ever need different copy here, the services variant belongs in its own `.svc.`
+                * module the marketplace build never compiles — not in a ternary the generator
+                * flattens. The photograph and the tagline below name no service, so today this
+                * file is edition-neutral and must stay that way.
                 */}
-              <ul className="mt-2 flex flex-col gap-1">
-                {[
-                  { Icon: Sparkles, label: tr('Market prices', 'Giá thị trường'), sub: tr('see the going rate on popular models', 'xem mức giá phổ biến của các mẫu thông dụng') },
-                  { Icon: MessageCircle, label: tr('Chat in-app', 'Nhắn tin trong ứng dụng'), sub: tr('message a seller without swapping contact details', 'nhắn tin với người bán mà không cần trao đổi thông tin liên hệ') },
-                  { Icon: ShieldCheck, label: tr('No paid placement', 'Không có vị trí trả tiền'), sub: tr('nobody can pay to rank higher', 'không ai trả tiền để được xếp hạng cao hơn') },
-                ].map(({ Icon, label, sub }) => (
-                  <li key={label} className="flex items-start gap-1.5 text-xs leading-snug">
-                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-foreground" />
-                    <span className="min-w-0">
-                      <span className="font-semibold text-foreground">{label}</span>
-                      <span className="text-ink-4"> — {sub}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              {/* ⚠️ HEIGHT-CLAMPED, NOT WIDTH-CLAMPED — that is what "fit nicely across all
+                  platforms" actually requires here. The cut-out is ~1.2:1, so sizing it by width
+                  would make it ~375px tall inside a 448px card, taller than the whole consent half,
+                  and it would push Allow off a landscape phone. `clamp(6.5rem,24vh,12.5rem)` ties
+                  the photo to the VIEWPORT's height instead: 200px on a phone held upright, ~104px
+                  on a 360px-tall landscape one, never more than 200px on a desktop card. `w-auto`
+                  lets the width follow, so it stays centred and uncropped at every size.
+                  ⚠️ `alt=""` ON PURPOSE. The two lines below ARE the words in the picture and they
+                  are the dialog's accessible name; a descriptive alt would announce that sentence
+                  twice. */}
+              <div className="flex justify-center">
+                <Image
+                  src="/consent-team.webp"
+                  alt=""
+                  width={1000}
+                  height={837}
+                  sizes="250px"
+                  className="h-[clamp(6.5rem,24vh,12.5rem)] w-auto max-w-full object-contain"
+                />
+              </div>
+              {/* ⛔ THE TITLE IS "Cookie consent" AND IT IS INVISIBLE; THE TAGLINE IS ORDINARY TEXT
+                  BESIDE IT. The tagline WAS the Title, and an `aria-label` on the popup was then
+                  added to correct the name — both wrong, and a reviewer caught the second one from
+                  the spec. Accessible-name computation takes `aria-labelledby` FIRST and ignores
+                  `aria-label` when both are present; Base UI always points `aria-labelledby` at the
+                  Title, so the label did nothing and the dialog kept announcing itself as "We help
+                  you to buy, sell, rent, connect." Verified in the rendered accessibility tree, not
+                  from the argument.
+                  ⚠️ So the Title says what the dialog IS — the one thing a screen reader user needs
+                  before deciding whether to engage with it, on a surface that asks for consent —
+                  and the tagline stays in the reading order as content, announced when they reach
+                  it. Neither is hidden from anyone; they are in the order each is useful.
+                  ⚠️ `tracking-tight` on the display line only: letters read too far apart as type
+                  grows, so the canon wants negative tracking at display sizes and none at body. */}
+              <DialogPrimitive.Title className="sr-only">{tr('Cookie consent', 'Đồng ý cookie')}</DialogPrimitive.Title>
+              <p className="mt-1.5 text-center leading-tight">
+                <span className="block text-sm font-bold text-foreground">
+                  {tr('We help you to', 'Chúng tôi giúp bạn')}
+                </span>
+                <span className="block text-xl font-extrabold tracking-tight text-accent-foreground">
+                  {tr('buy, sell, rent, connect.', 'mua, bán, thuê, kết nối.')}
+                </span>
+              </p>
               {/**
                 * ⛔ THE CONSENT ASK IS ITS OWN SECTION, AT FULL SIZE, AND THE FIRST DRAFT BROKE THAT.
                 * Adding the introduction pushed this line to `text-2xs` under a marketing headline —
@@ -465,18 +446,15 @@ export function CookieConsent() {
                   ⚠️ Still `sticky bottom-0` — this whole half stays pinned, so the introduction
                   scrolls behind it and the controls never leave the screen. `bg-popover` matches
                   the card's own token so the pinned half is opaque in both themes. */}
-              <div className="sticky bottom-0 z-10 -mx-3 mt-2.5 flex items-center gap-3 border-t border-line bg-popover px-3 pt-2.5 sm:-mx-4 sm:px-4">
-              {/* ⛔ THE MASCOT DROPS ON A SHORT VIEWPORT, AND IT IS THE RIGHT THING TO DROP.
-                  It now lives inside the pinned half, so it costs that half ~92px of permanent
-                  height — measured at 740x360, the sticky block was 185px of a 216px card, leaving
-                  31px of scroll room and an introduction nobody could reach. That is the trade the
-                  comment above warns about.
-                  ⚠️ Hiding THIS is not the same as hiding the introduction, which is why there is
-                  no `pointer` gate here: the mascot is decoration and carries no claim, so a
-                  zoomed desktop reader losing a drawing loses nothing. The copy, the proof and the
-                  consent question stay for everyone at every size. */}
-              <Mascot name="cookie" className="h-20 w-20 shrink-0 self-center text-foreground [@media(max-height:560px)]:hidden sm:h-24 sm:w-24" />
-              <div className="min-w-0 flex-1">
+              <div className="sticky bottom-0 z-10 -mx-3 mt-2.5 border-t border-line bg-popover px-3 pt-2.5 sm:-mx-4 sm:px-4">
+              {/* ⛔ THE COOKIE MASCOT IS GONE FROM THIS VIEW — owner, 2026-09-17, pointing straight at
+                  the node: "remove this". It shared the pinned half with the consent question and it
+                  cost that half ~92px of permanent height, which is why it used to hide itself under
+                  `max-height:560px`. The card now opens on a photograph of the team, so a second
+                  illustration two inches below it was competing with the thing it introduces.
+                  ⚠️ THE SETTINGS VIEW KEEPS ITS COPY, and that is not an oversight: that view has no
+                  photo, so the mascot is the only thing standing between three toggles and a wall of
+                  plain rows. Removing it there is a separate decision nobody has made. */}
               <p className="text-sm leading-snug text-muted-foreground">
                 {isNative
                   ? tr(
@@ -553,7 +531,6 @@ export function CookieConsent() {
                 >
                   {tr('Decline', 'Từ chối')}
                 </Button>
-              </div>
               </div>
               </div>
             </>
