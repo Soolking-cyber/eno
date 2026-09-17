@@ -4,7 +4,7 @@
  * MARKETPLACE-EDITION STUB for visa-start.tsx.
  *
  * ⚠️ THIS ONE WAS MISSED FOR A MONTH, AND THE MEASUREMENT IS WHY IT EXISTS. The real module is 505
- * lines of e-Visa picker, and `src/app/listings/[id]/page.tsx` — the PRODUCT DETAIL PAGE, the most
+ * lines of e-Visa picker, and `src/app/[lang]/listings/[id]/page.tsx` — the PRODUCT DETAIL PAGE, the most
  * crawled and most visited surface on eno.vn — imports it at module top level. Both editions
  * compile that page, so a clean marketplace build put eight distinct e-Visa sentences into a 61KB
  * client chunk that every eno.vn listing page downloads. The call site is correctly gated behind

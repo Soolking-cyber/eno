@@ -58,7 +58,7 @@
  *      service" and "PayPal". `.next/server/app/index.html` carries 12 occurrences of "E-Visa",
  *      including the live listing title "E-Visa - Standard Processing". A runtime `if` cannot
  *      un-bake a file that is served from disk before any of our code runs.
- *   2. INLINED HOST. `src/app/layout.tsx` constant-folds `NEXT_PUBLIC_APP_URL || 'https://eno.vn'`
+ *   2. INLINED HOST. `src/app/[lang]/layout.tsx` constant-folds `NEXT_PUBLIC_APP_URL || 'https://eno.vn'`
  *      at build time. ONE image physically cannot emit two hostnames, so a shared artifact would
  *      have eno.forum serving `<link rel="canonical" href="https://eno.vn/vietnam-evisa">` — the
  *      licensed company claiming authorship of the visa pages. This alone forces two builds even if

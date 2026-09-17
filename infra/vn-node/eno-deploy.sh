@@ -76,6 +76,22 @@ probe(){
   check https://eno.vn/visa         404
   check https://eno.vn/itinerary    404
   check https://eno.forum/itinerary 200
+  # ⛔ THE SAME URL IN TWO LANGUAGES, WITH NO CACHE-BUSTER. Pages render in the visitor's language
+  # at one public URL (src/proxy.ts), so a shared cache keyed on the URL alone would hand the first
+  # visitor's language to everyone. `check` above appends ?d=… and can never see that; this cannot miss it.
+  langcheck(){ local url="$1" al="$2" want="$3" got
+               got=$(curl -s --max-time 25 -H "Accept-Language: $al" "$url" | grep -o '<html[^>]*lang="[a-z]*"' | head -1 | grep -o 'lang="[a-z]*"' | cut -d'"' -f2)
+               if [ "$got" = "$want" ]; then printf '  %-38s lang=%s (%s)\n' "$url" "$got" "$al"
+               else printf '  %-38s lang=%s for %s (want %s) ⛔ edge or proxy serving the wrong language\n' "$url" "${got:-none}" "$al" "$want"; fail=1; fi; }
+  # ⚠️ EVERY HOSTNAME, NOT ONE PER ZONE. The documented past failure was apex-vs-www divergence: a
+  # cache rule left on `www.eno.vn` or on the `eno.forum` apex would pass a one-host probe and break
+  # real traffic (CLAUDE.md, 2026-08-02).
+  for h in https://eno.vn https://www.eno.vn https://eno.forum https://www.eno.forum; do
+    langcheck "$h/" vi-VN vi
+    langcheck "$h/" en-US en
+  done
+  langcheck https://eno.vn/privacy vi-VN vi
+  langcheck https://eno.vn/privacy en-US en
   return $fail
 }
 
@@ -472,7 +488,10 @@ ok "manifest read: $(printf '%s\n' "$ROUTES" | wc -l | tr -d ' ') routes"
 # exactly the kind of refactor that would be made without a thought for this check.
 # ⚠️ The allowances still hold, and they are what stop this being `grep -i visa`: `/api/visa/*`,
 # `/dashboard/visa` and `/admin/visas` do not start with a group, so they still do not match.
-LEAK=$(printf '%s\n' "$ROUTES" | grep -Ei '"(/\([^)]*\))*/(visa|itinerary)(/|")')
+# ⛔ `(/\[lang\])?` — EVERY PAGE KEY STARTS WITH THE HIDDEN LANGUAGE SEGMENT SINCE 2026-09-17
+# (`/[lang]/visa/page`). Without it this anchor matched NOTHING and printed "no visa/itinerary routes"
+# over any bundle — the exact vacuous pass the route-group note above describes, one level up.
+LEAK=$(printf '%s\n' "$ROUTES" | grep -Ei '"(/\[lang\])?(/\([^)]*\))*/(visa|itinerary)(/|")')
 PAYPAL=$(printf '%s' "$MANIFEST" | grep -Ei 'paypal')
 # ⛔ AND THE SAME EVIDENCE FOR VISA/ITINERARY, BECAUSE A URL CANNOT ALWAYS SHOW IT. A route group
 # named for the thing it holds — `app/(visa)/apply/page.tsx` — produces the URL `/apply` and the key
@@ -494,7 +513,7 @@ PAYPAL=$(printf '%s' "$MANIFEST" | grep -Ei 'paypal')
 # `app/api/visa-checkout-session` and `app/dashboard/visa-apply` — a whole family of plausible names
 # auto-vouched-for by an allow-list whose comment promised it fails closed. A reviewer caught it.
 VISA_FILES=$(printf '%s' "$MANIFEST" | grep -oE '"app/[^"]*"' | grep -Ei '(visa|itinerary)' \
-  | grep -viE '"app/(\([^)]*\)/)*(admin/visas|api/cron|api/trips|api/visa|dashboard/visa)(/|")')
+  | grep -viE '"app/(\[lang\]/)?(\([^)]*\)/)*(admin/visas|api/cron|api/trips|api/visa|dashboard/visa)(/|")')
 [ -n "$VISA_FILES" ] && LEAK=$(printf '%s\n%s' "$LEAK" "$VISA_FILES" | grep -v '^$')
 # ⚠️ `grep -v '^$'` — appending to an empty $LEAK leaves a leading newline, which `sed 's/^/      /'`
 # below then prints as a stray indented blank line above the real evidence.
@@ -548,7 +567,9 @@ if ! complete_manifest "$FMAN"; then
   bad "(a READ failure unless the exit code says otherwise — NOT evidence about the edition)"
   untag_bad; exit 1
 fi
-if ! printf '%s' "$FMAN" | grep -q '"/itinerary/page"'; then
+# ⚠️ `(/\[lang\])?` for the same reason as LEAK above: the key is `/[lang]/itinerary/page` now, and
+# the old literal would have refused every healthy forum build.
+if ! printf '%s' "$FMAN" | grep -qE '"(/\[lang\])?/itinerary/page"'; then
   bad "eno-forum:local was read cleanly ($(printf '%s' "$FMAN" | grep -oE '\"/[^\"]*\"' | sort -u | wc -l | tr -d ' ') routes) but has NO /itinerary/page."
   bad "It is not the services edition — built with the wrong env file."
   untag_bad; exit 1

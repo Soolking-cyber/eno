@@ -6,7 +6,7 @@ import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
  * The markdown representation of `/privacy`, reached by the Accept-header rewrite in next.config.ts.
  *
  * ⛔ THIS IS A SUMMARY WITH A POINTER, NOT A MARKDOWN PORT OF THE POLICY — AND THAT IS THE SAFE
- * CHOICE, NOT THE LAZY ONE. `src/app/privacy/page.tsx` is ~230 lines of statutory drafting whose
+ * CHOICE, NOT THE LAZY ONE. `src/app/[lang]/privacy/page.tsx` is ~230 lines of statutory drafting whose
  * section list itself forks by edition (line 93 spreads PRIVACY_SERVICES_SECTIONS on the services
  * build, and three more sections take extra paragraphs). Hand-converting it would produce a second
  * legal text that is byte-identical to the first only until the next edit — and a markdown /privacy

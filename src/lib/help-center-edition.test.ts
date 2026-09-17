@@ -196,7 +196,7 @@ describe('the topic declaration', () => {
 describe('/help/[id] on the licensed marketplace', () => {
   /**
    * ⚠️ THE TEST THIS FILE EXISTS FOR. `loadHelpThread` returning null is precisely what makes
-   * src/app/help/[id]/page.tsx call `notFound()` — a real 404 status, not a redirect and not an
+   * src/app/[lang]/help/[id]/page.tsx call `notFound()` — a real 404 status, not a redirect and not an
    * empty page that Google would keep in its index as a soft-404.
    */
   it('does not resolve a services-only article — the route 404s', async () => {

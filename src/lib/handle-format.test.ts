@@ -90,7 +90,7 @@ describe('validateHandle', () => {
   /**
    * ⛔ THE INVARIANT THAT MAKES ROOT-LEVEL REWRITES SAFE, not a spot-check of one name.
    *
-   * `src/app/[handle]` is a ROOT dynamic segment, so any single-segment path next.config.ts
+   * `src/app/[lang]/[handle]` is a ROOT dynamic segment, so any single-segment path next.config.ts
    * claims — a rewrite or a redirect — sits at the same address as somebody's storefront. Next
    * resolves both `afterFiles` rewrites and redirects BEFORE dynamic routes, so config always
    * wins: a seller who held that handle would have a permanently unreachable page, and for a
@@ -106,7 +106,7 @@ describe('validateHandle', () => {
    * guarded rewrites and redirects and left every `src/app/<seg>/page.tsx` unprotected — twelve of
    * them were claimable when this was written (2026-09-07), including `itinerary` and
    * `vietnam-evisa`, the two routes the e2e suite uses to tell the editions apart. A static route
-   * always outranks `src/app/[handle]`, so a seller holding one of those names gets a storefront
+   * always outranks `src/app/[lang]/[handle]`, so a seller holding one of those names gets a storefront
    * that silently resolves to somebody else's page.
    * ⚠️ IT READS THE DIRECTORY, NOT A LIST, so adding a root page without reserving its name fails
    * here rather than in production. Mutation-checked: dropping 'itinerary' from RESERVED turns this
@@ -115,7 +115,7 @@ describe('validateHandle', () => {
   it('reserves every root-level page route in src/app', () => {
     const appDir = new URL('../app/', import.meta.url)
     /**
-     * ⚠️ ROUTE GROUPS ARE TRAVERSED, NOT SKIPPED. `src/app/(home)/page.tsx` proves the shape is in
+     * ⚠️ ROUTE GROUPS ARE TRAVERSED, NOT SKIPPED. `src/app/[lang]/(home)/page.tsx` proves the shape is in
      * use here: a `(group)` contributes NOTHING to the URL, so `src/app/(marketing)/offers/page.tsx`
      * serves `/offers` and would collide with a handle exactly as a top-level directory does. The
      * first version of this guard filtered `(` out along with `[` and `_` and would have missed
@@ -141,7 +141,9 @@ describe('validateHandle', () => {
         .filter((d) => d.isDirectory())
         .flatMap((d) =>
           // A route group is transparent: recurse and treat its children as root segments.
-          /^\(.*\)$/.test(d.name)
+          // ⚠️ `[lang]` IS TRANSPARENT TOO: every page lives under the hidden language segment that
+          // src/proxy.ts rewrites into, so its children are the public root segments.
+          /^\(.*\)$/.test(d.name) || d.name === '[lang]'
             ? rootSegments(new URL(`${d.name}/`, dir))
             // `[dynamic]`, `_private` and `api` can never collide with a root handle.
             : /^[[_]/.test(d.name) || d.name === 'api'
@@ -165,7 +167,7 @@ describe('validateHandle', () => {
 
   it('reserves every root-level path next.config.ts claims', () => {
     const cfg = readFileSync(new URL('../../next.config.ts', import.meta.url), 'utf8')
-    const claimed = [...cfg.matchAll(/source:\s*["'](\/[a-z][a-z0-9_]*)["']/g)]
+    const claimed = [...cfg.matchAll(/source:\s*["'](?:\/:lang\(en\|vi\))?(\/[a-z][a-z0-9_]*)["']/g)]
       .map((m) => m[1].slice(1))
       .filter((seg) => HANDLE_RE.test(seg))
     // Guard the guard: if the regex ever stops matching, this test must not silently pass.

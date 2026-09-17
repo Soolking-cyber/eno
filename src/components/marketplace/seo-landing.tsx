@@ -100,7 +100,7 @@ export type SeoContent = {
    * licensed partner is the `provider` of the service and this site only the `broker`. The visible
    * copy has said so since the provider-of-record model landed; structured data that stayed silent
    * would leave a search engine free to read the page as the site's own offering. The node itself is
-   * built in src/app/vietnam-evisa/service-jsonld.ts, which never compiles on a marketplace build.
+   * built in src/app/[lang]/vietnam-evisa/service-jsonld.ts, which never compiles on a marketplace build.
    *
    * Optional and unused by the four marketplace landing pages, so nothing about eno.vn changes.
    */

@@ -153,7 +153,7 @@ describe('⚠️ the person/AI toggle must work in BOTH directions', () => {
   it('⚠️ the composer disarms whenever the thread goes human, not only on the tap', () => {
     // conciergeAvailable now stays TRUE in human mode so the toggle keeps its seat, which silently
     // disabled the reset this guard exists for.
-    const page = read2('app/messages/[id]/page.tsx')
+    const page = read2('app/[lang]/messages/[id]/page.tsx')
     expect(page).toMatch(/if \(!conciergeAvailable \|\| visaHumanRequested\) setConciergeArmed\(false\)/)
   })
 })
@@ -248,7 +248,7 @@ describe('⚠️ a visa applicant can still get back to edit from checkout', () 
 
   it('only the applicant is offered it', () => {
     // The desk reads this card; it has no business escaping somebody else's checkout.
-    expect(readSrc('app/messages/[id]/page.tsx')).toMatch(/onReview=\{iAmApplicant \? \(\) => resendVisaCard\('review'\) : undefined\}/)
+    expect(readSrc('app/[lang]/messages/[id]/page.tsx')).toMatch(/onReview=\{iAmApplicant \? \(\) => resendVisaCard\('review'\) : undefined\}/)
   })
 })
 

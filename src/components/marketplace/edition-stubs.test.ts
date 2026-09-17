@@ -46,7 +46,7 @@ function exportedNames(source: string): Set<string> {
   return out
 }
 
-const PAGE = read('src/app/messages/[id]/page.tsx')
+const PAGE = read('src/app/[lang]/messages/[id]/page.tsx')
 
 describe.each([
   ['visa-cards', '@/components/marketplace/visa-cards', 'src/components/marketplace/visa-cards.stub.tsx'],
@@ -99,7 +99,7 @@ describe.each([
     'src/components/marketplace/cross-site-promo.stub.tsx',
   ],
   // ⚠️ THE ONE THIS GUARD ACTUALLY CAUGHT. visa-start is imported at module top level by
-  // src/app/listings/[id]/page.tsx — the product detail page — so a missing or drifted export is a
+  // src/app/[lang]/listings/[id]/page.tsx — the product detail page — so a missing or drifted export is a
   // white screen on every eno.vn listing. It was aliased only after a clean build measured eight
   // e-Visa sentences shipping in a 61KB chunk the PDP downloads; this row is what stops the stub
   // rotting away from the real module afterwards. The guard below refused the new alias until it

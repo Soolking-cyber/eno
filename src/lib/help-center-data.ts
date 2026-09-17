@@ -8,7 +8,7 @@ import { forumAuthorSelect, serializeForumPost } from '@/lib/forum/serialize'
 //
 // WHY Prisma and not a fetch to /api/forum/*: eno.vn and eno.forum share ONE database,
 // and Prisma lives here. /dashboard/forum already reads the Forum* tables directly for
-// exactly this reason (src/app/dashboard/forum/load-activity.ts). Going out over HTTP to
+// exactly this reason (src/app/[lang]/dashboard/forum/load-activity.ts). Going out over HTTP to
 // our own API would add a hop, lose the request's cookie identity, and buy nothing.
 //
 // The payload shape is produced by the SAME serializer the API uses
@@ -146,7 +146,7 @@ export async function loadHelpCenter(): Promise<HelpCenterData> {
  * ⚠️ AND `HELP_TOPIC_SLUGS` IS EDITION-SCOPED, WHICH MAKES THIS FUNCTION THE 404 ITSELF.
  * A topic declared services-only in src/lib/help-center.ts is absent from that list on a
  * MARKETPLACE build, so its articles do not match, this returns null, and
- * src/app/help/[id]/page.tsx calls `notFound()`. That is a genuine 404 — no redirect, no
+ * src/app/[lang]/help/[id]/page.tsx calls `notFound()`. That is a genuine 404 — no redirect, no
  * empty shell, no soft-404 that Google keeps in the index.
  *
  * This was live in production: `/help/help-vietnam-evisa-entry-basics` returned 200 on

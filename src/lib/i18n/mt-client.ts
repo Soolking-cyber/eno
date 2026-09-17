@@ -47,6 +47,21 @@ export function loadViOverrides(): Promise<void> {
   return viLoading
 }
 
+/**
+ * ⛔ SEEDED SYNCHRONOUSLY WHEN THE SERVER RENDERED VIETNAMESE. The lazy import above is right for a
+ * visitor who switches INTO Vietnamese, and wrong for a page whose HTML is already Vietnamese: the
+ * server would render `viDict` strings that the client cannot see until a chunk lands, so hydration
+ * would disagree with the HTML. The root layout passes the dictionary as a prop on the `vi` variant
+ * only (src/app/[lang]/layout.tsx) and LanguageProvider calls this before its first render — on the
+ * server and on the client alike. Idempotent; a later loadViOverrides() resolves immediately.
+ */
+export function seedViDict(dict: Record<string, string>) {
+  if (viLoaded) return
+  viDict = dict
+  viLoaded = true
+  viLoading = Promise.resolve()
+}
+
 export function emitTrChange() {
   trVersion++
   trListeners.forEach((l) => l())

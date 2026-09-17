@@ -26,7 +26,7 @@
  *
  * RULE C — shared files may not import an unaliased module out of a services tree.
  *   Rule B gates ROUTES, and it does that by checking Next SPECIAL files (page/layout/route/…).
- *   A services tree also holds ordinary modules — `src/app/vietnam-evisa/links.ts` — and those are
+ *   A services tree also holds ordinary modules — `src/app/[lang]/vietnam-evisa/links.ts` — and those are
  *   NOT excluded by `pageExtensions`, because `pageExtensions` only decides what counts as a route.
  *   So a shared file importing one compiles every literal in it straight into the licensed image.
  *   Measured 2026-08-01: the sitemap route imported `VIETNAM_EVISA_PATHS` from that module, putting
@@ -110,7 +110,7 @@ const ALLOW = new Map([
   ["src/app/api/v1/shop/route.ts", "`where: { id: r.auth.sellerId }`; the nested listings _count is therefore confined to the key's own shop."],
   ["src/app/api/webhooks/[id]/route.ts", "ownedHook() resolves `where: { ownerId: profile.id }` from the session; the endpoint lookup is a WebhookEndpoint selected down to sellerId purely a\u2026"],
   ["src/app/api/webhooks/route.ts", "callerShop() is `where: { ownerId: profile.id }` behind a business-tier check; the endpoint list is WebhookEndpoint keyed on that sellerId, not Lis\u2026"],
-  ["src/app/listings/[id]/edit/page.tsx", "Seller is `where: { ownerId: profile.id }` (redirect to /signin otherwise) and line 44 does `if (!seller || listing.sellerId !== seller.id) notFoun\u2026"],
+  ["src/app/[lang]/listings/[id]/edit/page.tsx", "Seller is `where: { ownerId: profile.id }` (redirect to /signin otherwise) and line 44 does `if (!seller || listing.sellerId !== seller.id) notFoun\u2026"],
   ["src/lib/admin-reports.ts", "Every call site is getAdmin()-gated (admin/page.tsx:29, admin/disputes/page.tsx:28, admin/disputes/[id]/page.tsx:18, api/admin/ai-review/route.ts:9\u2026"],
   ["src/lib/ai-moderation.ts", "moderateListingById returns Promise<void>: the row feeds Gemini and a hide+Report+Notification write; scoping would silently disable illegal-conten\u2026"],
   ["src/lib/api/auth.ts", "listingOwnedBy() selects only sellerId and returns a boolean; scoping would turn an ownership check into an edition check and break the desk's own\u2026"],
@@ -148,7 +148,7 @@ const ALLOW_DIRS = [
   'src/app/api/itineraries/',
   'src/app/api/trips/',
   'src/app/api/admin/',
-  'src/app/admin/',
+  'src/app/[lang]/admin/',
   'src/lib/visa/',
   'src/lib/trips/',
 ]
@@ -161,21 +161,21 @@ const ALLOW_DIRS = [
  * prefix list is a maintenance hazard, and the reason Rule B reports rather than assumes.
  */
 const SERVICES_TREES = [
-  'src/app/vietnam-evisa/',
-  'src/app/itinerary/',
-  'src/app/services-for-expats-vietnam/',
+  'src/app/[lang]/vietnam-evisa/',
+  'src/app/[lang]/itinerary/',
+  'src/app/[lang]/services-for-expats-vietnam/',
   // ⚠️ THE TWO ARRIVAL GUIDES LOOK HARMLESS AND ARE NOT. "Moving to Vietnam" and "first month in
   // Vietnam" read like ordinary marketplace content — which is exactly why they belong in this list:
   // both name the e-visa, evisa.gov.vn and the licensed partner in their prose, so a future edit
   // that renamed page.svc.tsx to page.tsx would ship that vocabulary in the licensed image while
   // looking like a tidy-up in the diff. A route tree whose services-ness is not obvious from its
   // name is the one that most needs the rule.
-  'src/app/moving-to-vietnam/',
-  'src/app/first-month-in-vietnam/',
-  'src/app/dashboard/visa/',
-  'src/app/dashboard/trips/',
-  'src/app/admin/visas/',
-  'src/app/admin/trips/',
+  'src/app/[lang]/moving-to-vietnam/',
+  'src/app/[lang]/first-month-in-vietnam/',
+  'src/app/[lang]/dashboard/visa/',
+  'src/app/[lang]/dashboard/trips/',
+  'src/app/[lang]/admin/visas/',
+  'src/app/[lang]/admin/trips/',
   'src/app/api/visa/',
   'src/app/api/trips/',
   'src/app/api/itineraries/',
@@ -316,7 +316,7 @@ for (const full of files) {
   // RULE B — every Next special file in a services tree carries `.svc.`
   //
   // ⚠️ IT CHECKS KNOWN TREES, NOT A (services) ROUTE GROUP, because the group turned out to be the
-  // wrong home. /dashboard/visa and /dashboard/trips inherit src/app/dashboard/layout.tsx, and Next
+  // wrong home. /dashboard/visa and /dashboard/trips inherit src/app/[lang]/dashboard/layout.tsx, and Next
   // resolves layouts by FILESYSTEM nesting — relocating them under src/app/(services)/ would have
   // silently stripped the dashboard chrome from both. The `.svc.` extension is what actually gates
   // the route (next.config.ts sets pageExtensions per edition); the directory was only ever

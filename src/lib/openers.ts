@@ -37,7 +37,7 @@ import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 //
 //    ⚠️ THIS RULE IS ONLY AS FRESH AS THE `negotiable` THE CALLER HANDS IT, AND ON THE PDP THAT
 //    IS NOT VERY FRESH. All three reviewers raised it on 2026-08-12 and the measurement backs
-//    them: `src/app/listings/[id]/page.tsx` sets `revalidate = 2592000` (30 days), and the only
+//    them: `src/app/[lang]/listings/[id]/page.tsx` sets `revalidate = 2592000` (30 days), and the only
 //    routes that call `revalidatePath('/listings/<id>')` are mark-sold
 //    (api/listings/availability) and admin moderation — a seller EDITING their listing from
 //    negotiable to fixed price revalidates nothing. So the flag can be up to a month stale, the

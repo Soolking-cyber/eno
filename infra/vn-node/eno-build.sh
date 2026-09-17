@@ -32,7 +32,7 @@ printf '\nNEXT_PUBLIC_ENO_EDITION=%s\n' "$ED" >> "$B"
 [ "$ED" = "marketplace" ] && printf 'MARKETPLACE_HOSTS_SERVICES=true\n' >> "$B"
 
 # ⛔ THE BUILD NEEDS A DATABASE, AND NOT THE ONE THE RUNTIME USES. `next build`
-# prerenders 64 static pages and several of them QUERY POSTGRES — src/app/brands
+# prerenders 64 static pages and several of them QUERY POSTGRES — src/app/[lang]/brands
 # calls db.brand.findMany() at build time. The runtime address `db:5432` is a
 # docker-compose hostname that does not resolve inside `docker build`, so every
 # prerender failed P1001 DatabaseNotReachable. The Dockerfile runs `npm run build;`

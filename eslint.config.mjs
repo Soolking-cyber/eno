@@ -191,7 +191,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   // of which is English-only SEO copy and all of which must stay behind the i18n gate.
   files: ["src/components/**/*.tsx", "src/app/**/*.tsx"],
   ignores: [
-    "src/app/developers/**",
+    "src/app/\\[lang\\]/developers/**",
     "src/components/marketplace/developers-panel.tsx",
     "src/components/marketplace/seo-landing.tsx",
     "src/components/marketplace/seo-article.tsx",
@@ -206,18 +206,18 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // because their prose NAMES the e-visa, evisa.gov.vn and the licensed partner (the same reason
     // scripts/edition-lint.mjs lists them), not because a marketplace may not publish a guide about
     // moving to Vietnam. If that vocabulary ever comes out of them, they can come back to eno.vn.
-    "src/app/moving-to-vietnam/page.forum.svc.tsx",
-    "src/app/first-month-in-vietnam/page.forum.svc.tsx",
-    "src/app/vietnam-evisa/official-process/page.forum.svc.tsx",
+    "src/app/\\[lang\\]/moving-to-vietnam/page.forum.svc.tsx",
+    "src/app/\\[lang\\]/first-month-in-vietnam/page.forum.svc.tsx",
+    "src/app/\\[lang\\]/vietnam-evisa/official-process/page.forum.svc.tsx",
     // The MARKETPLACE guides — same exemption, same reason as the five keyword landings: English-only
     // SEO prose aimed at English search queries, not app copy. Written out rather than globbed, per the
     // note above, so that a rename is a loud failure instead of a silent un-exemption.
     // ⚠️ THESE TWO ARE ORDINARY `page.tsx`, i.e. they ship on BOTH editions — which is exactly why their
     // prose may not name a visa, an itinerary or PayPal. scripts/edition-lint.mjs is what enforces that;
     // this list only decides whether the words have to go through tr().
-    "src/app/furnishing-a-home-in-vietnam/page.tsx",
-    "src/app/selling-up-before-you-leave-vietnam/page.tsx",
-    "src/app/admin/**",
+    "src/app/\\[lang\\]/furnishing-a-home-in-vietnam/page.tsx",
+    "src/app/\\[lang\\]/selling-up-before-you-leave-vietnam/page.tsx",
+    "src/app/\\[lang\\]/admin/**",
     "src/components/admin/**",
   ],
   rules: {

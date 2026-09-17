@@ -46,7 +46,7 @@ export default defineConfig({
      * ⚠️ THE SUITE'S ANSWER MUST NOT DEPEND ON THE MACHINE RUNNING IT.
      *
      * Measured 2026-08-05: `npm test` was RED locally and GREEN in CI on the legal-boundary test
-     * `src/app/vietnam-evisa/service-jsonld.test.ts` — same commit, opposite results — because this
+     * `src/app/[lang]/vietnam-evisa/service-jsonld.test.ts` — same commit, opposite results — because this
      * developer's shell exports the repo `.env` (NEXT_PUBLIC_APP_URL=https://eno.vn) while CI's
      * fresh checkout exports nothing. A local gate that disagrees with CI is not a gate, and this
      * project's standing rule is that changes are verified locally before they ship.

@@ -1,4 +1,4 @@
-import { revalidatePath } from 'next/cache'
+import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { fetchStore, mayReconcile } from '@/lib/partner-fetch'
@@ -164,9 +164,9 @@ export const GET = route({ auth: 'cron' }, async () => {
      * right in the database and wrong on the page for a month unless it is flushed. Past the cap,
      * flush the ROUTE rather than truncating: a silent top-N reads as "everything was flushed".
      */
-    if (touched.length > REVALIDATE_CAP) revalidatePath('/listings/[id]', 'page')
-    else for (const id of touched) revalidatePath(`/listings/${id}`)
-    if (touched.length) { revalidatePath('/'); revalidatePath('/search') }
+    if (touched.length > REVALIDATE_CAP) revalidatePublicPath('/listings/[id]', 'page')
+    else for (const id of touched) revalidatePublicPath(`/listings/${id}`)
+    if (touched.length) { revalidatePublicPath('/'); revalidatePublicPath('/search') }
 
     results.push({
       store: cfg.domain, feedRows: feed.products.length, fetchComplete: feed.complete,

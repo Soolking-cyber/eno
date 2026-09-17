@@ -63,7 +63,7 @@ export type VisaEventRow = {
 // with byte-identical object paths so both surfaces stay interoperable.
 export const VISA_BUCKET = 'visa-documents'
 
-// Missing-table fail-soft (the P2021 idiom from src/app/dashboard/page.tsx, in
+// Missing-table fail-soft (the P2021 idiom from src/app/[lang]/dashboard/page.tsx, in
 // PostgREST dialect): 42P01 = postgres undefined_table, PGRST205 = table absent
 // from the PostgREST schema cache. Only THESE degrade softly — any other error is
 // a real failure and must surface, not read as an empty queue.
@@ -333,7 +333,7 @@ export const VISA_ADMIN_TRANSITIONS: Record<string, string[]> = {
  *
  * ⚠️ NAMED FOR THE SAME REASON AS `ListingUpdateErrorCode` — BUT DELIBERATELY *NOT* COUPLED TO
  * `ApiErrorCode`, AND THE DIFFERENCE MATTERS. `transitionVisaCase` has exactly one consumer,
- * `src/app/admin/visas/[id]/actions.ts`, which is a SERVER ACTION rather than a route: its return
+ * `src/app/[lang]/admin/visas/[id]/actions.ts`, which is a SERVER ACTION rather than a route: its return
  * value is an RPC result, not an HTTP response body. So these codes are not on the API wire and
  * forcing them into that union would make it describe something it does not describe. An earlier
  * draft of this comment said "the visa-admin routes answer `{ error: result.error }`" — there are
@@ -350,7 +350,7 @@ export type VisaTransitionErrorCode =
   | 'update_failed'
   | 'case_changed_reload'
   // ⚠️ NOT emitted by `transitionVisaCase` itself — the server action wrapper
-  // `src/app/admin/visas/[id]/actions.ts:14` re-checks getAdmin() and returns this as a
+  // `src/app/[lang]/admin/visas/[id]/actions.ts:14` re-checks getAdmin() and returns this as a
   // `VisaTransitionResult`. Naming the union surfaced that; while the type was `string` the
   // wrapper could widen the contract without anyone noticing, which is exactly the drift this
   // narrowing exists to stop.

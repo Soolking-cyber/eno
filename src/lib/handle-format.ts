@@ -43,7 +43,7 @@ const RESERVED = new Set([
   'signin', 'signup', 'sitemap', 'terms', 'trust',
   // ⚠️ `docs` IS NOT AN app ROUTE — IT IS A REWRITE, WHICH IS EXACTLY WHY IT IS EASY TO MISS.
   // next.config.ts rewrites /docs -> /developers in `afterFiles`, which Next resolves BEFORE
-  // dynamic routes, so it outranks src/app/[handle]. A seller holding `docs` would have a
+  // dynamic routes, so it outranks src/app/[lang]/[handle]. A seller holding `docs` would have a
   // permanently unreachable storefront. If this list is ever regenerated from `src/app/*`
   // directories, a rewrite-only path is precisely what such a generator would drop — keep it.
   'docs',
@@ -56,7 +56,7 @@ const RESERVED = new Set([
   /**
    * ⛔ ROOT-LEVEL PAGE ROUTES — TWELVE OF THEM WERE CLAIMABLE, AND THE INVARIANT ABOVE COULD NOT SEE
    * THEM. That test reads next.config.ts, so it guarded rewrites and redirects while every real
-   * `src/app/<seg>/page.tsx` sat unprotected: a static route always beats `src/app/[handle]`, so a
+   * `src/app/<seg>/page.tsx` sat unprotected: a static route always beats `src/app/[lang]/[handle]`, so a
    * seller holding any of these gets a storefront that resolves to somebody else's page for ever,
    * with nothing in the product telling them why. `handle-format.test.ts` now reads `src/app` too,
    * so adding a root page without reserving its name fails there instead of in production.

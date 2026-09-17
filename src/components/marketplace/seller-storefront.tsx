@@ -33,7 +33,7 @@ import { getEnforcement } from '@/lib/enforcement'
 import { isBusinessVerified } from '@/lib/business-verification'
 
 // Shared storefront body — rendered by BOTH the canonical clean-handle URL
-// (src/app/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
+// (src/app/[lang]/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
 // The handle is the public destination people share, so it's the primary URL; the id
 // route redirects to it when a handle exists.
 

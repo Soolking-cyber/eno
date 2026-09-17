@@ -14,7 +14,7 @@ import { SITE_NAME } from '@/lib/edition'
  */
 
 /**
- * ⚠️ SAME DERIVATION AS src/app/llms.txt/route.ts:30 AND src/app/layout.tsx, DELIBERATELY.
+ * ⚠️ SAME DERIVATION AS src/app/llms.txt/route.ts:30 AND src/app/[lang]/layout.tsx, DELIBERATELY.
  * next.config.ts asserts NEXT_PUBLIC_APP_URL matches the edition, so this is the one value
  * guaranteed to describe THIS deployment. Hardcoding eno.vn here would reintroduce exactly the bug
  * that moved llms.txt off `public/`: eno.forum introducing itself with the licensed marketplace's

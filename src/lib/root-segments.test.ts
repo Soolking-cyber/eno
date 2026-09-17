@@ -33,7 +33,7 @@ describe('markdown-404 rewrite scope', () => {
     })
 
   /**
-   * ⛔ THE LICENSING ASSERTION. `src/app/itinerary` holds only `page.forum.svc.tsx`, so it is a
+   * ⛔ THE LICENSING ASSERTION. `src/app/[lang]/itinerary` holds only `page.forum.svc.tsx`, so it is a
    * route on eno.forum and NOT ONE on eno.vn. A directory-name-only derivation wrote `itinerary`
    * into the MARKETPLACE artifact's config — an edition leak that passes tsc, lint and every other
    * test. Mutation-checked: dropping the pageExtensions filter turns this red.
@@ -43,7 +43,7 @@ describe('markdown-404 rewrite scope', () => {
     expect(appRootSegments(SERVICES)).toContain('itinerary')
     // Same shape, the other direction: a forum-only SEO page eno.vn genuinely 404s.
     expect(appRootSegments(MARKETPLACE)).not.toContain('moving-to-vietnam')
-    // ⛔ THE REGRESSION THAT ACTUALLY SHIPPED IN A DRAFT. `src/app/vietnam-evisa` holds
+    // ⛔ THE REGRESSION THAT ACTUALLY SHIPPED IN A DRAFT. `src/app/[lang]/vietnam-evisa` holds
     // `page.forum.svc.tsx` AND child route directories. A "…but it has subdirectories" fallback
     // put it in the marketplace list even though eno.vn 404s it (measured). Nested children must
     // never promote a parent that has no page for this edition.
@@ -88,7 +88,7 @@ describe('markdown-404 rewrite scope', () => {
     // ⚠️ THE HYPHENATED CASES LEFT THIS LIST ON 2026-08-30 AND THAT IS NOT A REGRESSION. The
     // handle grammar gained `-` so a handle can also be a hostname, so `some-path-that-does-not-
     // exist` is now handle-SHAPED and this rewrite correctly declines to claim it. The visitor's
-    // outcome is unchanged — it falls through to src/app/[handle], which 404s an unclaimed name —
+    // outcome is unchanged — it falls through to src/app/[lang]/[handle], which 404s an unclaimed name —
     // it is simply a different route answering. What this rewrite still claims is what can be
     // neither: uppercase, too short, and dotted or otherwise unhandle-like segments.
     for (const junk of ['THISISUPPER', 'ab', 'v1']) {

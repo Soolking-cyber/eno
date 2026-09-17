@@ -312,7 +312,7 @@ const SHARED_REQUIREMENTS =
   'Before you start: a passport valid for at least six months, one clear portrait photo, a photo page with no glare, and a planned arrival date. You must be outside Vietnam when the application is made.'
 // ⚠️ The currency sentence is deliberate buyer-facing copy, not decoration: the price on
 // this listing is đồng and the card is charged dollars, so the PDP says so in the same
-// words the application flow uses (src/app/dashboard/visa/apply-client.tsx).
+// words the application flow uses (src/app/[lang]/dashboard/visa/apply-client.tsx).
 const SHARED_FEE =
   'The price shown is the eno assistance service fee, paid securely inside the chat. It is set in Vietnamese đồng; if you pay by card or PayPal, you are charged the equivalent in US dollars and the exact amount is shown before you pay. Ask anything in the thread — a person can take over from the assistant at any time.'
 

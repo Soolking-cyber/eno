@@ -77,7 +77,7 @@ describe('the Cloud Logging / Error Reporting contract', () => {
   })
 
   it('carries Next\'s `digest`, which is the code shown to the user', async () => {
-    // src/app/error.tsx prints `error.digest` as "Reference". If it is not ALSO on the log entry,
+    // src/app/[lang]/error.tsx prints `error.digest` as "Reference". If it is not ALSO on the log entry,
     // that reference resolves to nothing and the screen is making a promise the backend cannot
     // keep. An earlier version of normaliseError destructured only message/stack/name and dropped
     // it — found by review, and otherwise findable only by someone searching for a code that was

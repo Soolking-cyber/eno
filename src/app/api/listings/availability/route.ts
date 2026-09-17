@@ -1,5 +1,5 @@
 import { NextResponse, after } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { BUMP_COOLDOWN_DAYS } from '@/lib/stale'
 import { removeFromIndex } from '@/lib/listing-index'
@@ -85,7 +85,7 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
   // availability confirm just bumps feed recency — surfaced live via the client
   // /api/listings fetch — so revalidating its detail page every day per listing is
   // pure ISR-write waste (the dominant write driver). Let it ride its time window.
-  for (const id of sold) revalidatePath(`/listings/${id}`)
+  for (const id of sold) revalidatePublicPath(`/listings/${id}`)
   after(() => { for (const id of sold) removeFromIndex(id) }) // pull sold items from AI search
   // The seller engaged with the review → reset the consecutive-skip counter.
   if (profile.availabilitySkips > 0) after(() => db.profile.update({ where: { id: profile.id }, data: { availabilitySkips: 0 } }).catch((e) => logError(e, { op: 'availability.resetSkips' })))

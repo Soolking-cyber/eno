@@ -16,7 +16,9 @@ import {
   subscribeTr,
   getTrSnapshot,
   translateText,
+  seedViDict,
 } from '@/lib/i18n/mt-client'
+import { LANG_COOKIE, variantOfLanguage } from '@/lib/lang-variant'
 
 // Re-exported so the many existing importers of the roster keep working
 // (the canonical definition now lives in the isomorphic @/lib/i18n/langs).
@@ -37,9 +39,38 @@ function matchLanguage(raw: string): Language | null {
 
 // Mirror the active language into a cookie so the server can read it for SSR
 // translation / <html lang> / hreflang (a later phase). Purely additive today.
-function writeLangCookie(lang: Language) {
+/**
+ * ⚠️ AN EXPLICIT CHOICE ALSO LEAVES A MARKER COOKIE, FOR BROWSERS THAT BLOCK localStorage. The `lang`
+ * cookie alone cannot say whether the visitor CHOSE a language or it was only detected, and only a
+ * choice may outrank the device language. Without this, choosing English where storage is blocked
+ * reloaded, found no stored choice, re-detected Vietnamese and reloaded straight back (a reviewer's catch).
+ */
+const LANG_CHOICE_COOKIE = 'lang-choice'
+function writeChoiceCookie() {
   if (typeof document === 'undefined') return
-  document.cookie = `lang=${lang};path=/;max-age=31536000;samesite=lax`
+  document.cookie = `${LANG_CHOICE_COOKIE}=1;path=/;max-age=31536000;samesite=lax`
+}
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+  const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
+  return m ? decodeURIComponent(m[1]) : null
+}
+function chosenCookieLanguage(): Language | null {
+  if (readCookie(LANG_CHOICE_COOKIE) !== '1') return null
+  const v = readCookie(LANG_COOKIE)
+  return v && LANGUAGES.some((l) => l.code === v) ? (v as Language) : null
+}
+
+// ⛔ THE SERVER READS THIS NOW (src/proxy.ts → src/lib/lang-variant.ts). It decides which HTML the
+// NEXT request renders, so it must always hold the language the visitor is actually reading.
+function writeLangCookie(lang: Language): boolean {
+  if (typeof document === 'undefined') return false
+  document.cookie = `${LANG_COOKIE}=${lang};path=/;max-age=31536000;samesite=lax`
+  // ⛔ READ IT BACK — THIS IS THE LOOP GUARD. A reload only helps if the server will SEE the cookie,
+  // and it is the one condition that makes a second reload impossible: the next render matches the
+  // variant and reconciliation stops. Where cookies are blocked the write silently does nothing, so
+  // reloading would land on the same variant forever; that visitor keeps the client-side swap instead.
+  return readCookie(LANG_COOKIE) === lang
 }
 
 // localStorage access can throw (Safari private mode, storage-blocked WebViews,
@@ -84,41 +115,96 @@ interface LanguageContextProps {
 
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined)
 
-export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Language>('en')
+/**
+ * ⛔ `initialLang` IS THE LANGUAGE THE SERVER ALREADY RENDERED, AND STARTING ANYWHERE ELSE UNDOES THE
+ * FEATURE. This provider used to start at 'en' on every request and switch after hydration, so a
+ * Vietnamese visitor read English for 4–6 s on a throttled phone and watched the layout shift as it
+ * swapped. The proxy now picks the variant from the `lang` cookie / Accept-Language and the root layout
+ * passes it here, so the first paint is already in the right language and hydration agrees with it.
+ * The nine machine-translated languages still arrive on the English variant and swap client-side.
+ */
+export function LanguageProvider({
+  children,
+  initialLang = 'en',
+  initialViDict,
+}: {
+  children: React.ReactNode
+  initialLang?: Language
+  initialViDict?: Record<string, string>
+}) {
+  if (initialViDict) seedViDict(initialViDict)
+  const [lang, setLangState] = useState<Language>(initialLang)
+  // The variant THIS page was rendered in. Server text, data and every router-cache entry are in it,
+  // whatever the client state says later, so every "does this need a reload" question is asked against
+  // it — not against `lang`, which can already have been swapped client-side.
+  const serverVariant = variantOfLanguage(initialLang)
   const [dicts, setDicts] = useState<Partial<Record<Language, Record<string, string>>>>(STATIC)
 
   useEffect(() => {
     // A saved preference always wins; otherwise fall back to the device language
     // (navigator.languages), then English.
+    // ⚠️ A STORED CHOICE, THEN THE DEVICE — and state changes only when that differs from what the
+    // server already rendered, so a correctly-served page never swaps. A DETECTED cookie is deliberately
+    // not read back here: it only records the LAST detection, and letting it win would pin a visitor to
+    // their old browser language after they change it. A CHOSEN one is (see chosenCookieLanguage). The server's first
+    // render can be one page stale in that case; this corrects it and rewrites the cookie.
+    /**
+     * ⛔ A MOUNT THAT NEEDS THE OTHER VARIANT RELOADS ONCE — A CLIENT SWAP WOULD LEAVE A MIXED PAGE.
+     * Server-rendered text (a category lede, listing data) cannot follow a state change, so switching
+     * here left Vietnamese server text beside English client labels. It happens when the cookie the
+     * server read is gone but the stored choice is not — Safari expires JS-written cookies after 7 days —
+     * or when the device language changed since the cookie was written. The cookie is rewritten first,
+     * so the reload renders the right variant; a per-session marker stops a loop where cookies are
+     * blocked, and that visitor keeps the old client-side swap.
+     */
+    const reconcile = (next: Language) => {
+      const cookieHeld = writeLangCookie(next)
+      const marker = `lang-reload:${next}`
+      if (variantOfLanguage(next) === serverVariant) {
+        // Agreement: forget any earlier attempt, so a LATER mismatch in this tab can reload again
+        // rather than inheriting a spent guard and leaving a mixed page (a reviewer's catch).
+        try { sessionStorage.removeItem(marker) } catch { /* no storage */ }
+        if (next !== initialLang) setLangState(next)
+        return
+      }
+      let already = false
+      // Storage may be unavailable; the cookie read-back above is the guard that cannot be missing.
+      try { already = sessionStorage.getItem(marker) === '1'; sessionStorage.setItem(marker, '1') } catch { already = false }
+      if (cookieHeld && !already) { window.location.reload(); return }
+      setLangState(next)
+    }
     const stored = safeGetItem('lang') as Language | null
     if (stored && LANGUAGES.some((l) => l.code === stored)) {
-      setLangState(stored)
-      writeLangCookie(stored)
+      reconcile(stored)
       return
     }
-    const detected = detectDeviceLanguage()
-    writeLangCookie(detected)
-    if (detected !== 'en') setLangState(detected)
-    // NATIVE apps: iOS WKWebView's navigator.language can report the app's locale, not the DEVICE
-    // language — so confirm via @capacitor/device (the real OS locale) and apply it. The dynamic
-    // import keeps the plugin out of the WEB bundle (isNativePlatform gates it). A saved preference
-    // already returned above, so this only refines the auto-detected default. NOT persisted
-    // (setLangState + cookie, no localStorage), so it keeps following the device on each launch —
-    // exactly like the web navigator path.
+    const chosen = chosenCookieLanguage()
+    if (chosen) {
+      reconcile(chosen)
+      return
+    }
+    /**
+     * ⛔ NATIVE: ONE SOURCE OF TRUTH, OR THE APP RELOADS TWICE ON EVERY LAUNCH. WKWebView's
+     * navigator.language can be the APP's locale while @capacitor/device reports the OS's; reconciling
+     * with the first and then the second flipped the cookie between them and reloaded for each
+     * (a reviewer's catch). The native shell waits for the device answer and uses only that, falling
+     * back to the navigator if the plugin is missing. Until it resolves, the server-rendered language
+     * (from last launch's cookie) is what shows.
+     */
     if (isNativePlatform()) {
       void (async () => {
+        let dev: Language | null = null
         try {
           const { Device } = await import('@capacitor/device')
-          const { value } = await Device.getLanguageTag()
-          // The user may have picked a language explicitly while this resolved —
-          // an explicit preference always wins over the device locale.
-          if (safeGetItem('lang')) return
-          const dev = matchLanguage(value)
-          if (dev) { writeLangCookie(dev); setLangState(dev) }
-        } catch { /* plugin missing / not synced — the navigator fallback already applied */ }
+          dev = matchLanguage((await Device.getLanguageTag()).value)
+        } catch { /* plugin missing / not synced — fall back below */ }
+        // The user may have picked a language explicitly while this resolved.
+        if (safeGetItem('lang') || chosenCookieLanguage()) return
+        reconcile(dev ?? detectDeviceLanguage())
       })()
+      return
     }
+    reconcile(detectDeviceLanguage())
   }, [])
 
   // Persist the chosen language to the signed-in user's Profile so SERVER-sent messages
@@ -256,10 +342,27 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = lang
   }, [lang])
 
+  /**
+   * ⛔ A SWITCH ACROSS SERVER VARIANTS RELOADS THE PAGE, AND A CLIENT-SIDE SWAP IS NOT ENOUGH.
+   * Server-rendered text and data are in the old variant, and Next's router cache keeps serving the
+   * old variant for every route already visited — measured on Next 16.3.1: after the cookie changed,
+   * soft navigation back to a visited page still rendered the previous language; only a reload
+   * fetched the new one. Switching between two languages on the SAME variant (English and a
+   * machine-translated one) stays instant, as before.
+   */
   const setLang = (newLang: Language) => {
-    setLangState(newLang)
     safeSetItem('lang', newLang)
-    writeLangCookie(newLang)
+    const cookieHeld = writeLangCookie(newLang)
+    writeChoiceCookie()
+    // State first, so the choice shows immediately; the reload then replaces server-rendered text
+    // and the router cache with the new variant.
+    setLangState(newLang)
+    // ⛔ ONLY RELOAD IF THE CHOICE WILL SURVIVE IT (a reviewer's catch). With cookies blocked the
+    // reload would come back in the OLD language and the mount effect would find nothing to restore,
+    // silently discarding the choice — worse than the client-side swap this otherwise replaces.
+    if (typeof window !== 'undefined' && cookieHeld && variantOfLanguage(newLang) !== serverVariant) {
+      window.location.reload()
+    }
   }
 
   const t = (key: string): string => dicts[lang]?.[key] ?? EN[key] ?? key
@@ -280,7 +383,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const ck = `${lang} ${en}`
     const hit = trCache.get(ck)
     if (hit != null) return hit
-    if (!trInflight.has(ck)) {
+    // Machine translation is a browser fetch; during SSR there is nothing to fetch from.
+    if (typeof window !== 'undefined' && !trInflight.has(ck)) {
       trInflight.add(ck)
       // flush() calls emitTrChange() on resolve, which repaints subscribers.
       translateText(en, lang).finally(() => trInflight.delete(ck))

@@ -7,7 +7,7 @@
  */
 /**
  * ⚠️ EMPTY, AND THIS ONE SEVERS THE LAST UNALIASED PATH FROM A SHARED FILE INTO A SERVICES TREE.
- * The real module re-exports `VIETNAM_EVISA_PATHS` from `@/app/vietnam-evisa/links` purely so the
+ * The real module re-exports `VIETNAM_EVISA_PATHS` from `@/app/[lang]/vietnam-evisa/links` purely so the
  * shared sitemap route can stop importing that module directly — a plain `.ts` full of e-visa
  * labels and blurbs that `pageExtensions` does NOT exclude. Empty here means a marketplace build
  * never resolves it, so none of those words reach eno.vn's bundle. The sitemap loop is also gated

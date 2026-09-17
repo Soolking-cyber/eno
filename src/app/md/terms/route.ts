@@ -6,7 +6,7 @@ import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
  * The markdown representation of `/terms`, reached by the Accept-header rewrite in next.config.ts.
  *
  * ⛔ SUMMARY-AND-LINK, FOR THE SAME REASON AS THE /privacy SIBLING — read that file's header. The
- * specific hazard here: `src/app/terms/page.tsx` inserts two whole sections on the services build
+ * specific hazard here: `src/app/[lang]/terms/page.tsx` inserts two whole sections on the services build
  * (`provider`, `documents`, from the aliased TERMS_SERVICES_COPY module), so any section list typed
  * into this file would be *silently incomplete* on eno.forum and would need services vocabulary to
  * be complete — vocabulary that must not exist in eno.vn's artifact at all. Enumerating nothing is

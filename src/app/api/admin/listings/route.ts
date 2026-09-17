@@ -1,5 +1,5 @@
 import { NextResponse, after } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
 import { bumpBrandCount } from '@/lib/brand'
@@ -109,7 +109,7 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
     default: return NextResponse.json({ error: 'bad_action' }, { status: 400 })
   }
 
-  revalidatePath('/')
+  revalidatePublicPath('/')
   // Sync AI search: each id upserts if it's still public, else drops out (handles
   // hide/unverify/delete → remove, activate/verify → add, feature → refresh).
   after(() => { for (const id of ids) reindexListing(id) })

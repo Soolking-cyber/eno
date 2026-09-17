@@ -45,7 +45,7 @@ import {
 
 const STEPS: readonly VisaDmStep[] = [1, 2, 3, 4, 5]
 const SOURCE_FILE = 'src/components/marketplace/visa-cards.tsx'
-const DASHBOARD_FORM_FILE = 'src/app/dashboard/visa/apply-client.tsx'
+const DASHBOARD_FORM_FILE = 'src/app/[lang]/dashboard/visa/apply-client.tsx'
 const UPLOAD_ROUTE_FILE = 'src/app/api/visa/applications/[id]/documents/route.svc.ts'
 const source = readFileSync(SOURCE_FILE, 'utf8')
 

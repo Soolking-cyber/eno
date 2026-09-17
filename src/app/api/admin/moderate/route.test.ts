@@ -474,7 +474,7 @@ describe('bulk-confirm — the batch that docks trust', () => {
       { where: { id: 'l1' }, data: { verified: false } },
       { where: { id: 'l2' }, data: { verified: false } },
     ])
-    expect(h.revalidated).toEqual(['/listings/l1', '/listings/l2'])
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en/listings/l2', '/vi/listings/l2'])
   })
 
   /**
@@ -525,7 +525,7 @@ describe('approve / reject / unpublish — the listing actions', () => {
     expect(upd.where).toEqual({ listingId: 'l1', status: 'open' })
     expect(upd.data.status).toBe('dismissed')
     expect(upd.data.resolvedBy).toBe('mod@eno.vn')
-    expect(h.revalidated).toEqual(['/listings/l1'])
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
   })
 
   it('reject on an unknown listing → 404, and deletes NOTHING', async () => {
@@ -541,7 +541,7 @@ describe('approve / reject / unpublish — the listing actions', () => {
     const r = await post({ action: 'reject', id: 'l1' })
     expect(r.text).toBe('{"ok":true}')
     expect(args('listing.delete')).toEqual({ where: { id: 'l1' } })
-    expect(h.revalidated).toEqual(['/listings/l1'])
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
   })
 
   it('unpublish → 200 {"ok":true}, with NO existence check (it is a blind update, by design)', async () => {
@@ -551,7 +551,7 @@ describe('approve / reject / unpublish — the listing actions', () => {
     expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false } })
     // A pulled listing that keeps serving its cached page is still for sale to every visitor
     // holding the ISR copy — the revalidate is the second half of the takedown, not a nicety.
-    expect(h.revalidated).toEqual(['/listings/l1'])
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
   })
 
   it('unpublish on a missing listing surfaces the Prisma rejection as internal_error 500', async () => {
@@ -628,7 +628,7 @@ describe('confirm-report — the single most consequential action', () => {
     h.locale = 'vi'
     await post({ action: 'confirm-report', id: 'r1' })
     expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false } })
-    expect(h.revalidated).toEqual(['/listings/l1'])
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
     const notif = args('notification.create')!.data
     // `toEqual` on the whole row: the appeal notice is the reported party's ONLY route to a
     // dispute, so a dropped `body` (the sentence that says an appeal exists) or a dropped `url`

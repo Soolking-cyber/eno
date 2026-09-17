@@ -73,7 +73,7 @@ describe('404 markdown negotiation — rewrite wiring', () => {
    * ⛔ THE LOAD-BEARING ASSERTION. `fallback` is the last route group Next evaluates — after the
    * filesystem AND after dynamic routes — so a `/:path*` source there cannot shadow a real page.
    * The same source in either earlier group would 404 every real page for markdown-accepting
-   * clients (`beforeFiles`) or shadow every dynamic segment including `src/app/[handle]`
+   * clients (`beforeFiles`) or shadow every dynamic segment including `src/app/[lang]/[handle]`
    * (`afterFiles`). Nothing in the type system stops someone moving the entry, so this does.
    */
   it('never puts a wildcard source in beforeFiles or afterFiles', () => {
@@ -92,9 +92,11 @@ describe('404 markdown negotiation — rewrite wiring', () => {
     const pairs = rewrites.beforeFiles.map((r) => [r.source, r.destination])
     expect(pairs).toEqual(
       expect.arrayContaining([
-        ['/', '/md/home'],
-        ['/privacy', '/md/privacy'],
-        ['/terms', '/md/terms'],
+        // `/:lang(en|vi)` because the proxy has already rewritten the page path into the hidden
+        // language segment by the time beforeFiles runs (measured on Next 16.3.1).
+        ['/:lang(en|vi)', '/md/home'],
+        ['/:lang(en|vi)/privacy', '/md/privacy'],
+        ['/:lang(en|vi)/terms', '/md/terms'],
       ]),
     )
   })

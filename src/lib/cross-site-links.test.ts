@@ -42,7 +42,7 @@ describe('cross-site links', () => {
     const path = new URL(href).pathname
     // `/` is the home page, which lives in the (home) route group. Everything else is a top-level
     // directory holding a plain page.tsx.
-    const dir = path === '/' ? 'src/app/(home)' : `src/app${path.replace(/\/$/, '')}`
+    const dir = path === '/' ? 'src/app/[lang]/(home)' : `src/app/[lang]${path.replace(/\/$/, '')}`
     expect(existsSync(`${dir}/page.tsx`), `${dir}/page.tsx does not exist — ${href} would 404`).toBe(true)
     expect(
       existsSync(`${dir}/page.svc.tsx`),

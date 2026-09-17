@@ -1,6 +1,6 @@
 import 'server-only'
 import { after } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from './db'
 import { sendPushToProfile } from './push'
 import { pickLocale } from './admin-macros'
@@ -157,7 +157,7 @@ function parsePulled(json: string | null | undefined): string[] {
 async function restoreListings(ids: string[], client: Pick<typeof db, 'listing'> = db): Promise<void> {
   if (!ids.length) return
   await client.listing.updateMany({ where: { id: { in: ids }, status: 'active', verified: false }, data: { verified: true } })
-  for (const id of ids) { try { revalidatePath(`/listings/${id}`) } catch { /* no request scope */ } }
+  for (const id of ids) { try { revalidatePublicPath(`/listings/${id}`) } catch { /* no request scope */ } }
 }
 
 // Refresh the seller's PUBLIC surfaces after a state transition: the storefront +
@@ -176,8 +176,8 @@ async function revalidateSellerSurfaces(profileId: string): Promise<void> {
       select: { id: true },
       take: 500,
     })
-    for (const s of owned) { try { revalidatePath(`/sellers/${s.id}`) } catch { return /* no request scope */ } }
-    for (const l of live) { try { revalidatePath(`/listings/${l.id}`) } catch { return } }
+    for (const s of owned) { try { revalidatePublicPath(`/sellers/${s.id}`) } catch { return /* no request scope */ } }
+    for (const l of live) { try { revalidatePublicPath(`/listings/${l.id}`) } catch { return } }
   } catch (e) {
     console.error('[enforcement] revalidate surfaces failed', profileId, e)
   }
@@ -318,7 +318,7 @@ export async function applyEnforcement(
       await tx.profile.update({ where: { id: profileId }, data: { enforcementState: next.state, enforcementUntil: until } })
       return touched
     })
-    for (const id of revalidateIds) { try { revalidatePath(`/listings/${id}`) } catch { /* no request scope */ } }
+    for (const id of revalidateIds) { try { revalidatePublicPath(`/listings/${id}`) } catch { /* no request scope */ } }
 
     // Ban-evasion anchors (Phase 3): entering suspension records the account's
     // phone+email; leaving it clears them (covers admin set-state downgrades, which

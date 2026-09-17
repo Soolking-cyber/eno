@@ -42,7 +42,7 @@ import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
  */
 
 /**
- * ⚠️ THE FALLBACK IS A LAST RESORT, NOT A DEFAULT — same reasoning as src/app/layout.tsx.
+ * ⚠️ THE FALLBACK IS A LAST RESORT, NOT A DEFAULT — same reasoning as src/app/[lang]/layout.tsx.
  * next.config.ts refuses to build when the edition is declared and NEXT_PUBLIC_APP_URL is absent or
  * on the wrong host, so in any real deployment this is present and correct. It matters here because
  * the Article JSON-LD names the PUBLISHER: getting it wrong would have eno.forum telling Google that
@@ -85,7 +85,7 @@ export type ArticleContent = {
    * Additional JSON-LD nodes, emitted verbatim beside the Article and FAQPage blocks.
    *
    * The e-visa pages use this for a `Service` node whose `provider` is the licensed partner and
-   * whose `broker` is this site — see src/app/vietnam-evisa/service-jsonld.ts.
+   * whose `broker` is this site — see src/app/[lang]/vietnam-evisa/service-jsonld.ts.
    */
   jsonLd?: Record<string, unknown>[]
   /**
@@ -191,7 +191,7 @@ export function SeoArticle({ content }: { content: ArticleContent }) {
 
   /**
    * ⚠️ THE PUBLISHER IS THIS DEPLOYMENT, DERIVED FROM ITS OWN ORIGIN. It is the same defect the
-   * Organization block in src/app/layout.tsx was fixed for: a hardcoded publisher would have
+   * Organization block in src/app/[lang]/layout.tsx was fixed for: a hardcoded publisher would have
    * eno.forum telling Google that eno.vn — the licensed company that may not touch this subject
    * matter — is the entity behind these pages.
    *

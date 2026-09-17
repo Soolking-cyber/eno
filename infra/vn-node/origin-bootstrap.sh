@@ -231,7 +231,11 @@ server {
 
   # HTML micro-cache. Cloudflare absorbed this until now; on-box we finally control the key.
   proxy_cache eno;
-  proxy_cache_key "\$scheme\$host\$request_uri";
+  # ⛔ THE LANGUAGE IS PART OF THE KEY. One public URL renders Vietnamese or English depending on the
+  # `lang` cookie / Accept-Language (src/proxy.ts), so a key without them would serve the first
+  # visitor's language to everyone from this cache. This micro-cache is currently not enabled on the
+  # box; the key is correct here so turning it on cannot introduce that bug.
+  proxy_cache_key "\$scheme\$host\$request_uri\$cookie_lang\$http_accept_language";
   proxy_cache_lock on;
   proxy_cache_use_stale updating error timeout http_500 http_502 http_503;
   proxy_cache_background_update on;
