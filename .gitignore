@@ -147,3 +147,7 @@ data/brand-snapshot-*.jsonl
 
 # Store screenshots captured from a running build — regenerate rather than version binaries.
 /play-store-assets/
+
+# Affiliate link cache for scripts/import-supersports.ts (5,978 minted AccessTrade links).
+# Regenerable from the API; never a source of truth, and not worth a 1MB diff per run.
+data/supersports-links.json

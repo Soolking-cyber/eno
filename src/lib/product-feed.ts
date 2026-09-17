@@ -8,7 +8,7 @@ import { IS_SERVICES } from '@/lib/edition'
 // to the sellable retail categories, and to listingType 'sell'.
 export const FEED_CATEGORIES = [
   'electronics', 'fashion-beauty', 'vehicles', 'furniture-appliances',
-  'baby-kids', 'books-stationery', 'hobbies-sports', 'pets', 'food-drink', 'moving-sale',
+  'baby-kids', 'books-stationery', 'sports', 'hobbies-sports', 'pets', 'food-drink', 'moving-sale',
 ]
 
 /**
@@ -65,6 +65,7 @@ export const GOOGLE_PRODUCT_CATEGORY: Record<string, string> = {
   'furniture-appliances': '536', // Home & Garden
   'baby-kids': '537',            // Baby & Toddler
   'books-stationery': '784',     // Media > Books (the aisle is overwhelmingly books; the platform refines stationery)
+  'sports': '499713',            // Sporting Goods > Athletics (apparel, footwear and gear for one sport each)
   'hobbies-sports': '988',       // Sporting Goods
   pets: '1',                     // Animals & Pet Supplies
   'food-drink': '422',           // Food, Beverages & Tobacco

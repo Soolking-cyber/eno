@@ -264,6 +264,58 @@ const VISA_SPEED_OPTIONS = VISA_SPEED_CODES.map((code) => ({
   labelVi: VISA_SPEED_SPECS[code].labelVi,
 }))
 
+/**
+ * Apparel sizes — SHARED by `fashion-beauty` and `sports` (and kids' clothing), because a shopper
+ * who filters "M" in one aisle and "M" in the next must be filtering the same thing. Two copies of
+ * this list is exactly how that stops being true.
+ */
+const APPAREL_SIZE_OPTIONS = [
+  { value: 'xs-s', label: 'XS–S', labelVi: 'XS–S' },
+  { value: 'm', label: 'M', labelVi: 'M' },
+  { value: 'l', label: 'L', labelVi: 'L' },
+  { value: 'xl-up', label: 'XL+', labelVi: 'XL+' },
+  { value: 'free-size', label: 'Free size', labelVi: 'Free size' },
+]
+
+/**
+ * Shoe sizes, EU — shared by `fashion-beauty` › shoes, `sports` › sports-shoes and `baby-kids` ›
+ * kids-shoes.
+ *
+ * ⚠️ `free-size` IS FOOTWEAR THAT HAS NO SIZE: insoles, heel wedges, shoe care, laces, stretchers.
+ * Owner, 2026-09-07, from the shoes filter: *"there are footwear products that fit all sizes add 1
+ * extra sizing unit to select for products that fit all sized"* — sent with
+ * `/?category=fashion-beauty&subcategory=shoes` open over two trimmable insole listings, both of
+ * which had had to pick an EU number that was simply untrue.
+ *
+ * ⚠️ `free-size`, NOT `one-size`, AND LAST RATHER THAN FIRST — both copied from the apparel `size`
+ * facet above, which already answers exactly this question with exactly this value. Two sibling
+ * facets answering "no particular size" with different values would be the kind of drift nobody
+ * notices until a query has to know about both. "Free size" is also the term Vietnamese retail uses.
+ *
+ * ⚠️ IT IS AN EQUALITY BUCKET, NOT A WILDCARD, and that is worth knowing before someone calls it a
+ * bug. Facet values are matched exactly (feed-query.ts), so a free-size insole does NOT appear under
+ * `EU 40` — same as a free-size dress not appearing under `M`. Consistent with every other facet in
+ * the app; making it match every numeric size would be a filtering change, not a taxonomy one.
+ *
+ * ⚠️ EU ONLY, AND IMPORTED CATALOGUES ARE CONVERTED INTO IT. SuperSports publishes US and UK sizes;
+ * src/lib/supersports-taxonomy.ts converts them with a gender-aware chart and declines to guess when
+ * the system is not a shoe system at all. A second set of US chips would split the same inventory
+ * across two filters.
+ */
+const SHOE_SIZE_OPTIONS = [
+  { value: 'eu-35', label: 'EU 35', labelVi: '35' },
+  { value: 'eu-36', label: 'EU 36', labelVi: '36' },
+  { value: 'eu-37', label: 'EU 37', labelVi: '37' },
+  { value: 'eu-38', label: 'EU 38', labelVi: '38' },
+  { value: 'eu-39', label: 'EU 39', labelVi: '39' },
+  { value: 'eu-40', label: 'EU 40', labelVi: '40' },
+  { value: 'eu-41', label: 'EU 41', labelVi: '41' },
+  { value: 'eu-42', label: 'EU 42', labelVi: '42' },
+  { value: 'eu-43', label: 'EU 43', labelVi: '43' },
+  { value: 'eu-44-plus', label: 'EU 44+', labelVi: '44+' },
+  { value: 'free-size', label: 'Free size', labelVi: 'Free size' },
+]
+
 // Shared colour palette — used by several product categories.
 const COLOR_OPTIONS = [
   { value: 'black', label: 'Black', labelVi: 'Đen' },
@@ -663,51 +715,88 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'unisex', label: 'Unisex', labelVi: 'Unisex' },
       ] },
       { key: 'size', label: 'Size', labelVi: 'Kích cỡ', kind: 'toggle',
-        subcats: ['womens', 'mens'], options: [
-        { value: 'xs-s', label: 'XS–S', labelVi: 'XS–S' },
-        { value: 'm', label: 'M', labelVi: 'M' },
-        { value: 'l', label: 'L', labelVi: 'L' },
-        { value: 'xl-up', label: 'XL+', labelVi: 'XL+' },
-        { value: 'free-size', label: 'Free size', labelVi: 'Free size' },
-      ] },
-      { key: 'shoeSize', label: 'Shoe size', labelVi: 'Cỡ giày', subcats: ['shoes'], options: [
-        { value: 'eu-35', label: 'EU 35', labelVi: '35' },
-        { value: 'eu-36', label: 'EU 36', labelVi: '36' },
-        { value: 'eu-37', label: 'EU 37', labelVi: '37' },
-        { value: 'eu-38', label: 'EU 38', labelVi: '38' },
-        { value: 'eu-39', label: 'EU 39', labelVi: '39' },
-        { value: 'eu-40', label: 'EU 40', labelVi: '40' },
-        { value: 'eu-41', label: 'EU 41', labelVi: '41' },
-        { value: 'eu-42', label: 'EU 42', labelVi: '42' },
-        { value: 'eu-43', label: 'EU 43', labelVi: '43' },
-        { value: 'eu-44-plus', label: 'EU 44+', labelVi: '44+' },
-        /**
-         * Footwear that has no size: insoles, heel wedges, shoe care, laces, stretchers.
-         *
-         * Owner, 2026-09-07, from the shoes filter: *"there are footwear products that fit all
-         * sizes add 1 extra sizing unit to select for products that fit all sized"* — sent with
-         * `/?category=fashion-beauty&subcategory=shoes` open over two trimmable insole listings,
-         * both of which had had to pick an EU number that was simply untrue.
-         *
-         * ⚠️ `free-size`, NOT `one-size`, AND LAST RATHER THAN FIRST — both copied from this
-         * category's own `size` facet (key `size`, the womens/mens one), which already answers
-         * exactly this question with exactly this value. Two sibling facets in one category
-         * answering "no particular size" with different values would be the kind of drift nobody
-         * notices until a query has to know about both. "Free size" is also the term Vietnamese
-         * retail actually uses.
-         *
-         * ⚠️ IT IS AN EQUALITY BUCKET, NOT A WILDCARD, and that is worth knowing before someone
-         * calls it a bug. Facet values are matched with `contains '"shoeSize":"free-size"'`
-         * (feed-query.ts), so a free-size insole does NOT appear under `EU 40` — same as a
-         * free-size dress not appearing under `M`. Consistent with the sibling facet and with
-         * every other facet in the app; making it match every numeric size would be a filtering
-         * change, not a taxonomy one.
-         */
-        { value: 'free-size', label: 'Free size', labelVi: 'Free size' },
-      ] },
+        subcats: ['womens', 'mens'], options: APPAREL_SIZE_OPTIONS },
+      { key: 'shoeSize', label: 'Shoe size', labelVi: 'Cỡ giày', subcats: ['shoes'], options: SHOE_SIZE_OPTIONS },
       { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: COLOR_OPTIONS },
     ],
   },
+
+  // 7 ── SPORTS ─────────────────────────────────────────────────────────────────
+  /**
+   * ⛔ ITS OWN AISLE, NOT A SHELF INSIDE "HOBBIES" (owner, 2026-09-17, choosing between a Sports
+   * category and folding a 5,978-product sports catalogue into `hobbies-sports`/`fashion-beauty`).
+   * The SuperSports import alone is ~5,600 adult products across running, swimming, gym, football,
+   * tennis and golf — an aisle that size inside "Sở thích" (Hobbies), next to board games and art
+   * supplies, is not a place anyone looks. `hobbies-sports` keeps its `fitness` shelf for the
+   * second-hand dumbbell a resident is selling; this aisle is where a sports CATALOGUE lives.
+   *
+   * ⚠️ IT SHARES `size` / `shoeSize` / `color` VALUES WITH FASHION, deliberately and through the
+   * same constants — a shopper who filters "M" in one aisle and "M" in the other must be filtering
+   * the same thing, and two copies of the list is exactly how that stops being true.
+   *
+   * ⚠️ KIDS' SPORTS GOODS ARE NOT HERE — they go to `baby-kids` (owner's choice), which is why
+   * `gender` has no `kids` value. See SUPERSPORTS_PLACEMENT in src/lib/supersports-taxonomy.ts.
+   */
+  {
+    slug: 'sports',
+    name: 'Sports',
+    nameVi: 'Thể thao',
+    icon: 'Volleyball',
+    color: 'teal',
+    description: 'Sportswear, running and training shoes, swimming, gym and yoga gear, rackets, balls and sports accessories.',
+    types: ['sell', 'wanted', 'wholesale'],
+    subcategories: [
+      { slug: 'sportswear', name: 'Sportswear', nameVi: 'Quần áo thể thao', icon: 'Shirt', keywords: ['jersey', 'sportswear', 'training top', 'shorts', 'leggings', 'sports bra', 'áo thể thao', 'quần thể thao', 'áo đấu', 'áo bra', 'quần bó'] },
+      { slug: 'sports-shoes', name: 'Sports shoes', nameVi: 'Giày thể thao', icon: 'Footprints', keywords: ['running shoes', 'trainers', 'sneakers', 'football boots', 'cleats', 'giày chạy bộ', 'giày thể thao', 'giày đá bóng', 'giày tennis'] },
+      { slug: 'swimming', name: 'Swimming', nameVi: 'Bơi lội', icon: 'Waves', keywords: ['swim', 'swimsuit', 'goggles', 'swim cap', 'đồ bơi', 'kính bơi', 'mũ bơi', 'quần bơi'] },
+      { slug: 'gym-yoga', name: 'Gym & yoga', nameVi: 'Gym & Yoga', icon: 'Dumbbell', keywords: ['gym', 'yoga mat', 'dumbbell', 'treadmill', 'massage gun', 'tạ', 'thảm yoga', 'máy chạy bộ', 'dụng cụ tập'] },
+      { slug: 'racket-ball', name: 'Racket & ball', nameVi: 'Vợt & bóng', icon: 'Volleyball', keywords: ['racket', 'racquet', 'paddle', 'football', 'basketball', 'pickleball', 'vợt', 'bóng đá', 'bóng rổ', 'cầu lông'] },
+      { slug: 'outdoor-cycling', name: 'Outdoor & cycling', nameVi: 'Ngoài trời & xe đạp', icon: 'Bike', keywords: ['cycling', 'skateboard', 'scooter', 'hiking', 'camping', 'xe đạp', 'ván trượt', 'leo núi'] },
+      { slug: 'sports-accessories', name: 'Accessories', nameVi: 'Phụ kiện', icon: 'Boxes', keywords: ['socks', 'cap', 'gym bag', 'water bottle', 'sports glasses', 'vớ', 'tất', 'mũ', 'nón', 'túi thể thao', 'bình nước'] },
+      { slug: 'sports-nutrition', name: 'Nutrition', nameVi: 'Dinh dưỡng', icon: 'CookingPot', keywords: ['energy gel', 'energy bar', 'protein', 'electrolyte', 'gel năng lượng', 'thanh năng lượng'] },
+    ],
+    facets: [
+      COND,
+      /**
+       * ⚠️ NO `kids` VALUE, AND THAT IS NOT AN OVERSIGHT. Kids' sports goods are filed under
+       * `baby-kids`, so a `kids` chip here would always count zero.
+       * ⚠️ `optional` THROUGHOUT THIS AISLE. Standing owner policy is maximum posting leniency, and
+       * every facet here describes a manufactured product: a resident selling one used racket must
+       * not be blocked by a "which sport" chip, and the importer fills what the merchant states
+       * rather than guessing (1,114 of the 5,978 products name no gender at all).
+       */
+      { key: 'gender', label: 'For', labelVi: 'Dành cho', kind: 'toggle', optional: true, options: [
+        { value: 'women', label: 'Women', labelVi: 'Nữ' },
+        { value: 'men', label: 'Men', labelVi: 'Nam' },
+        { value: 'unisex', label: 'Unisex', labelVi: 'Unisex' },
+      ] },
+      // The sport itself — the one axis this aisle has that fashion does not. A product can belong
+      // to several (a training shoe tagged both Running and Training), which is why it is stored in
+      // `Listing.facetTokens` rather than `attributes`. See src/lib/facet-tokens.ts.
+      { key: 'sport', label: 'Sport', labelVi: 'Môn thể thao', optional: true, options: [
+        { value: 'running', label: 'Running', labelVi: 'Chạy bộ' },
+        { value: 'training', label: 'Gym & training', labelVi: 'Gym & luyện tập' },
+        { value: 'swimming', label: 'Swimming', labelVi: 'Bơi lội' },
+        { value: 'football', label: 'Football', labelVi: 'Bóng đá' },
+        { value: 'tennis', label: 'Tennis', labelVi: 'Tennis' },
+        { value: 'pickleball', label: 'Pickleball', labelVi: 'Pickleball' },
+        { value: 'basketball', label: 'Basketball', labelVi: 'Bóng rổ' },
+        { value: 'golf', label: 'Golf', labelVi: 'Golf' },
+        { value: 'yoga', label: 'Yoga', labelVi: 'Yoga' },
+        { value: 'hiking', label: 'Hiking', labelVi: 'Leo núi' },
+        { value: 'cycling', label: 'Cycling', labelVi: 'Xe đạp' },
+      ] },
+      { key: 'size', label: 'Size', labelVi: 'Kích cỡ', kind: 'toggle', optional: true,
+        // ⚠️ `gym-yoga` IS IN THE LIST because gloves, straps and yoga wear carry letter sizes (a
+        // reviewer's catch: the importer writes size tokens for that group, so a shelf without the
+        // chip hides inventory it already knows how to filter).
+        subcats: ['sportswear', 'swimming', 'sports-accessories', 'gym-yoga'], options: APPAREL_SIZE_OPTIONS },
+      { key: 'shoeSize', label: 'Shoe size', labelVi: 'Cỡ giày', optional: true,
+        subcats: ['sports-shoes'], options: SHOE_SIZE_OPTIONS },
+      { key: 'color', label: 'Color', labelVi: 'Màu sắc', optional: true, options: COLOR_OPTIONS },
+    ],
+  },
+
 
   // 7 ── BABY & KIDS ────────────────────────────────────────────────────────────
   {
@@ -723,6 +812,14 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'baby-gear', name: 'Gear', nameVi: 'Đồ dùng', icon: 'Milk', keywords: ['crib', 'cot', 'high chair', 'baby', 'cũi', 'nôi', 'ghế ăn'] },
       { slug: 'toys', name: 'Toys', nameVi: 'Đồ chơi', icon: 'ToyBrick', keywords: ['toy', 'lego', 'game', 'đồ chơi'] },
       { slug: 'kids-clothing', name: 'Clothes', nameVi: 'Quần áo', icon: 'Shirt', keywords: ['kids clothes', 'children', 'quần áo trẻ em', 'đồ trẻ em'] },
+      /**
+       * Kids' FOOTWEAR, added 2026-09-17 with the Sports aisle. A child's running shoe, sandal or
+       * football boot was previously either "Clothes" (wrong, and it made the clothes shelf
+       * unbrowsable) or the adult shoes shelf (wrong aisle entirely). It is a separate shelf rather
+       * than a facet because it is what a parent browses BY, and because it is the one kids shelf
+       * that needs a size chip of its own.
+       */
+      { slug: 'kids-shoes', name: 'Shoes', nameVi: 'Giày dép', icon: 'Footprints', keywords: ['kids shoes', 'children shoes', 'sandals', 'giày trẻ em', 'dép trẻ em', 'giày bé'] },
       { slug: 'maternity', name: 'Maternity', nameVi: 'Đồ bầu', icon: 'Heart', keywords: ['maternity', 'pregnancy', 'đồ bầu', 'bà bầu'] },
     ],
     facets: [
@@ -737,11 +834,19 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'over-6-years', label: '6+ yrs', labelVi: 'Trên 6 tuổi' },
       ] },
       { key: 'kidsGender', label: 'For', labelVi: 'Dành cho', kind: 'toggle',
-        subcats: ['kids-clothing'], options: [
+        subcats: ['kids-clothing', 'kids-shoes'], options: [
         { value: 'boy', label: 'Boy', labelVi: 'Bé trai' },
         { value: 'girl', label: 'Girl', labelVi: 'Bé gái' },
         { value: 'unisex', label: 'Unisex', labelVi: 'Unisex' },
       ] },
+      /**
+       * ⛔ `kids-shoes` DELIBERATELY HAS NO SIZE CHIP, AND THAT IS A MEASUREMENT, NOT AN OVERSIGHT.
+       * The shared SHOE_SIZE_OPTIONS run EU 35–44+; a child's shoe is EU 20–34, so every chip would
+       * count zero for ever — a filter that can only disappoint. SuperSports states kids' footwear
+       * as "US C6"…"US C13" and "5-6 YRS", which is a different scale again. When there is enough
+       * kids' footwear to justify it, this wants its own EU 20–34 facet and its own conversion
+       * table; until then the size run is carried as the display-only `sizes` attribute.
+       */
     ],
   },
 
@@ -1071,7 +1176,7 @@ export const CATEGORY_BY_SLUG: Record<string, CategoryDef> = Object.fromEntries(
 // Categories where a brand is meaningful (product categories). Client-safe; the
 // server-only brand resolver (src/lib/brand.ts) re-exports this same set.
 export const BRAND_CATEGORY_SLUGS = [
-  'electronics', 'fashion-beauty', 'vehicles', 'rentals', 'furniture-appliances', 'baby-kids', 'hobbies-sports',
+  'electronics', 'fashion-beauty', 'sports', 'vehicles', 'rentals', 'furniture-appliances', 'baby-kids', 'hobbies-sports',
 ] as const
 export function categoryHasBrand(slug: string | null | undefined): boolean {
   return !!slug && (BRAND_CATEGORY_SLUGS as readonly string[]).includes(slug)
@@ -1158,8 +1263,15 @@ export function listingMoneyFor(input: {
   }
 }
 
-/** Display-only book fields (Gemini product pass). Never facets — a name has no option list — and never machine-translated on the PDP. */
-export const FREE_TEXT_ATTRIBUTES = ['author', 'publisher'] as const
+/**
+ * Display-only fields. Never facets — they have no option list — and never machine-translated on
+ * the PDP: `author`/`publisher` are NAMES (translating a person is the bug this list exists for),
+ * and `sizes` is the merchant's own size run verbatim ("S–XXL", "US 7–12", "5-6 YRS"), which is a
+ * notation, not prose. The `size` / `shoeSize` CHIPS are the filterable version of the same fact;
+ * this is the line that tells a shopper what is actually on the shelf, including the size systems
+ * the chips decline to model.
+ */
+export const FREE_TEXT_ATTRIBUTES = ['author', 'publisher', 'sizes'] as const
 
 /**
  * Subcategories that became a CATEGORY: `from` category + subcategory → `to` category, no subcategory.

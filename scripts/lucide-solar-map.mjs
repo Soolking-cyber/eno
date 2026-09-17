@@ -257,6 +257,11 @@ export const LUCIDE_TO_SOLAR = {
   Wallet: 'wallet',
   WashingMachine: 'washing-machine',
   Watch: 'watch-round',
+  // ⚠️ SOLAR HAS NO WAVES, RIPPLE OR SEA GLYPH — `soundwave` is audio and `waterdrop` is a single
+  // drop, which reads as weather. The only call site is the Sports aisle's Swimming shelf
+  // (2026-09-17), and Solar draws an actual SWIMMER, which is a better answer to "what is on this
+  // shelf" than any wave would have been. The key keeps the lucide name every other row uses.
+  Waves: 'swimming',
   // Added 2026-08-25 for the electronics subcategories the CellphoneS import needed
   // (networking, printers, keyboards & mice). Solar v2 names, same pack as everything else.
   Wifi: 'home-wi-fi',

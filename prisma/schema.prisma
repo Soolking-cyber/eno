@@ -783,6 +783,14 @@ model Listing {
   verifiedBy              String?
   verificationNotes       String?
   searchText              String             @default("") // folded EN+VI blob for accent-insensitive search
+  /// MULTI-VALUED facets, `|key:value|key:value|` — the sizes one product is sold in, the sports it
+  /// belongs to. `attributes` answers one value per facet and cannot hold eight shoe sizes.
+  /// ⛔ NO PUBLIC WRITE PATH REACHES THIS COLUMN, AND THAT IS THE POINT: browse matches it with a
+  /// `contains`, so a seller-typed value containing `|size:m|` would otherwise filter as a size.
+  /// `sanitizeAttributes()` does not know this field exists; only importers write it, via Prisma.
+  /// Format + helpers in src/lib/facet-tokens.ts. Additive raw column (nullable, no FK) applied by
+  /// scripts/facet-tokens-col.mjs — same class as marketPosition/video.
+  facetTokens             String?
   // Availability (separate from `verified` moderation): 'active' is live,
   // 'sold'/'hidden' are pulled from the public feed but kept in the seller's
   // dashboard. Public feed requires verified=true AND status='active'.

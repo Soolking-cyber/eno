@@ -36,6 +36,7 @@ export const NAV_CATEGORIES: readonly NavCategory[] = [
   { slug: 'furniture-appliances', name: 'Home', nameVi: 'Nhà cửa' },
   { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' },
   { slug: 'fashion-beauty', name: 'Fashion', nameVi: 'Thời trang' },
+  { slug: 'sports', name: 'Sports', nameVi: 'Thể thao' },
   { slug: 'baby-kids', name: 'Kids', nameVi: 'Mẹ & Bé' },
   { slug: 'books-stationery', name: 'Books', nameVi: 'Sách' },
   { slug: 'hobbies-sports', name: 'Hobbies', nameVi: 'Sở thích' },

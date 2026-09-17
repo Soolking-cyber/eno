@@ -121,6 +121,10 @@ const MAP = {
   // Owner, 2026-09-14 ("categories book icon use this"): delivered separately as Icon_books.png — add it to the pack
   // under this name before running. Until then books-stationery carried a flat placeholder (9b59f4b5).
   '20_Books.png': 'books-stationery',
+  // 2026-09-17, the new Sports aisle. Until the pack has a Sports render, `sports` carries a FLAT
+  // placeholder (the Solar Bold runner in brand blue, rasterised at the pack's 184px) — the same
+  // stopgap books-stationery shipped with. Add the file under this name and re-run to replace it.
+  '21_Sports.png': 'sports',
 }
 
 /**

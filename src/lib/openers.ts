@@ -475,6 +475,10 @@ const CATEGORY_PLANS: Record<string, Plan> = {
   'fashion-beauty': { commitment: 'collect', question: 'ask.size-condition' },
   'baby-kids': { commitment: 'collect', question: 'ask.age-condition' },
   'books-stationery': { commitment: 'collect', question: 'ask.condition-age' },
+  // ⚠️ SIZE, NOT AGE (a reviewer's catch). Sports is fashion-shaped: the first thing a buyer asks
+  // about a running shoe or a jersey is whether their size is left, and every product here is new
+  // stock, so "how old is it" answers nothing. Same opener as fashion-beauty, deliberately.
+  'sports': { commitment: 'collect', question: 'ask.size-condition' },
   'hobbies-sports': { commitment: 'collect', question: 'ask.condition-age' },
   pets: { commitment: 'view', question: 'ask.age-vaccination' },
   jobs: { commitment: 'start', question: 'ask.hours-salary' },

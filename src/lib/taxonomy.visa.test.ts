@@ -201,9 +201,18 @@ describe('isRequiredFacet — the publish gate', () => {
         if (f.kind === 'range') expect(f.optional, `${cat.slug}/${f.key}`).toBeUndefined()
       }
     }
+    //
+    // ⛔ WHY THE WHOLE SPORTS AISLE IS OPTIONAL (2026-09-17). Every chip there describes a
+    // manufactured product — which sport, which size run, which colour — and the aisle exists to
+    // make a 5,978-product catalogue browsable. Required, they would stop a resident publishing one
+    // used racket until they picked a sport, a size and a colour, which is the same "publish gate
+    // nobody asked for" the electronics specs are optional to avoid. The importer fills what the
+    // merchant states and leaves the rest empty (1,114 of the 5,978 products name no gender at all),
+    // so a required chip would also be a claim the source never made.
     expect(optional.sort()).toEqual([
       ...specFacets().map((f) => `electronics/${f.key}`),
       'services/visaEntryType', 'services/visaSpeed',
+      'sports/color', 'sports/gender', 'sports/shoeSize', 'sports/size', 'sports/sport',
     ].sort())
   })
 
@@ -220,10 +229,15 @@ describe('isRequiredFacet — the publish gate', () => {
         // ⚠️ Electronics spec chips are optional by design (see the test above), so they leave
         // the gate in every electronics subcategory the same way the visa chips leave it in
         // their one slot. Everything else is still literally the pre-change rule.
-        const specKeys = new Set(specFacets().map((f) => f.key))
+        // ⚠️ READ FROM THE DECLARATION, not from a second hand-kept list of category names. The
+        // test above is the deliberate-act guard (a new `optional` facet fails it until someone
+        // writes it down with a reason); this sweep only has to agree with whatever that guard
+        // approved, and a per-category `cat.slug === …` branch here would need editing for every
+        // aisle that ever gains an optional chip.
+        const optionalKeys = new Set(cat.facets.filter((f) => f.optional).map((f) => f.key))
         const expected = isVisaProductSlot(cat.slug, sub)
           ? oldRule.filter((k) => !k.startsWith('visa'))
-          : cat.slug === 'electronics' ? oldRule.filter((k) => !specKeys.has(k)) : oldRule
+          : oldRule.filter((k) => !optionalKeys.has(k))
         expect(facets.filter(isRequiredFacet).map((f) => f.key), `${cat.slug}/${sub}`).toEqual(expected)
       }
     }

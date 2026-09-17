@@ -64,6 +64,7 @@ export const CATEGORY_ART_SLUGS = [
   'furniture-appliances',
   'electronics',
   'fashion-beauty',
+  'sports',
   'baby-kids',
   'books-stationery',
   'hobbies-sports',

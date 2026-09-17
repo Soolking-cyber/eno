@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { Prisma } from '@/generated/prisma/client'
 import { isRangeColumn } from '@/lib/taxonomy'
+import { facetTokenFor } from '@/lib/facet-tokens'
 import { fold } from '@/lib/fold'
 import { localizeListingTitles } from '@/lib/translate'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
@@ -270,7 +271,27 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
     const attrName = k.replace('attr_', '').replace(/[^a-z0-9_]/gi, '')
     const attrVal = searchParams.get(k)
     if (attrName && attrVal && attrVal !== 'all') {
-      andFilters.push({ attributes: { contains: `"${attrName}":"${attrVal}"` } })
+      /**
+       * ⚠️ TWO PLACES A FACET VALUE CAN LIVE, AND A FILTER MUST ACCEPT EITHER. Everything a human
+       * posts answers each facet ONCE and lives in `attributes` ({"size":"m"}). An imported product
+       * sold in eight sizes cannot say that, so multi-valued facets live in `facetTokens`
+       * (`|size:m|size:l|`, src/lib/facet-tokens.ts) — a column no public write path reaches, which
+       * is what makes matching it with a `contains` safe.
+       * ⚠️ `facetTokenFor` builds the needle, bars included, so a filter for `size=m` cannot match a
+       * row whose size is `m-l`. Single-valued rows are matched by the first branch exactly as
+       * before — this adds a way to match, it changes nothing about the existing one.
+       */
+      /**
+       * ⚠️ ONLY A TAXONOMY-SHAPED VALUE BUILDS A TOKEN NEEDLE. Facet values are slugs (`eu-44-plus`,
+       * `xs-s`); without this check `?attr_size=m|sport:running` assembles `|size:m|sport:running|`,
+       * a cross-facet needle no chip can express. It reads nothing it should not — the column is
+       * public data either way — but "impossible by construction" has to mean it (a reviewer's catch).
+       */
+      const tokenable = /^[a-z0-9][a-z0-9-]*$/i.test(attrVal)
+      andFilters.push({ OR: [
+        { attributes: { contains: `"${attrName}":"${attrVal}"` } },
+        ...(tokenable ? [{ facetTokens: { contains: facetTokenFor(attrName, attrVal) } }] : []),
+      ] })
     }
   }
 

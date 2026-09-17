@@ -97,6 +97,11 @@ const CATEGORIES = [
   { slug: 'books-stationery', icon: 'book-2', lucide: 'BookOpen',
     why: 'A closed book (2026-09-13, the new Books aisle). `book-2` over `notebook`, which reads as ' +
          'stationery alone, and over `book-bookmark`, whose ribbon disappears at 44px.' },
+  { slug: 'sports', icon: 'running', lucide: 'Volleyball',
+    why: 'A runner (2026-09-17, the new Sports aisle). `running` over `dumbbell`, which is the ' +
+         'HOBBIES tile and would make the two aisles identical at 44px, and over `basketball`/' +
+         '`tennis`/`football`, each of which names ONE sport in an aisle spanning running, ' +
+         'swimming, gym, football and golf.' },
   { slug: 'hobbies-sports', icon: 'dumbbell', lucide: 'Dumbbell', why: 'Same idea as lucide Dumbbell.' },
   { slug: 'pets', icon: 'paw', lucide: 'PawPrint', why: 'Same idea as lucide PawPrint.' },
   { slug: 'jobs', icon: 'case', lucide: 'Briefcase',
