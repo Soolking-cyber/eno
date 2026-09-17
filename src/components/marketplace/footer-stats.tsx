@@ -98,7 +98,9 @@ export function FooterStats() {
            correct and what a person actually hears. */
         <ul className="flex flex-wrap items-baseline justify-center gap-x-5 gap-y-1">
           {items.map((i) => (
-            <li key={i.key} className="flex items-baseline gap-1.5">
+            // ⚠️ `whitespace-nowrap` + `shrink-0`: a counter is ONE unit. Squeezed by its row it used to
+            // break between its number and its label ("30 / sellers"); now the list wraps between counters.
+            <li key={i.key} className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap">
               <span className="flex items-baseline gap-1.5">
                 {i.live && (
                   /* ⚠️ NOT `animate-pulse`: it fades the whole subtree to 50% opacity, which drops

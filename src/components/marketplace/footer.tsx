@@ -7,7 +7,8 @@ import { useLanguage } from '@/context/language-context'
 // silently becoming a hard exit out of the native shell.
 import { goToForum } from '@/lib/forum-nav'
 import { handleExternalClick } from '@/lib/native-browser'
-import { APP_STORE_URL, COMPANY, PLAY_STORE_URL } from '@/lib/site-legal'
+import { COMPANY } from '@/lib/site-legal'
+import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
 import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
 import { FooterStats } from '@/components/marketplace/footer-stats'
 import { SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
@@ -429,18 +430,19 @@ export function Footer() {
           <p>{tr('Responsible for content', 'Chịu trách nhiệm nội dung')}: {COMPANY.contentManager}</p>
           <p>{tr('Email', 'Email')}: <a href={`mailto:${COMPANY.email}`} className="transition-colors hover:text-accent-foreground">{COMPANY.email}</a> · {tr('Phone', 'Điện thoại')}: {COMPANY.phone}</p>
           <p className="text-ink-4">{tr('E-commerce platform registration with the Ministry of Industry and Trade: in progress.', 'Đăng ký sàn giao dịch TMĐT với Bộ Công Thương: đang thực hiện.')}</p>
-          {/* ⚠️ MOCKED SLOT — RESERVED, NOT LINKED (owner, 2026-08-02: "place suggested as mock for
-              now then we fill up"). Both Chợ Tốt and Shopee lead their footer with store badges, so
-              the slot earns its place; but a badge that 404s costs more trust than a missing badge,
-              and on a marketplace whose entire pitch is trust that is a bad trade. So while
-              APP_STORE_URL / PLAY_STORE_URL are empty (src/lib/site-legal.ts) these render as plain
-              labelled chips with no href — visible in review, harmless in production. Filling those
-              two strings turns them into real links; nothing else changes. */}
+          {/* ⛔ THE STORE LINKS COME FROM src/lib/app-store-links.ts, THE ONE MODULE THE HEADER'S "Get the
+              app" CONTROL ALREADY READS. This slot used to read its own pair of empty constants in
+              site-legal.ts, so while the header linked the live Play listing (versionCode 3, 2026-09-15)
+              the footer still said "Google Play · coming soon" on every page (owner, 2026-09-17: "add
+              google app link") — two sources for one fact, drifting exactly as that module's header
+              says it exists to prevent. Those constants are deleted, not left beside this.
+              ⚠️ A store with no URL still renders as a labelled chip with no href: a badge that 404s
+              costs more trust than "coming soon", which is still the truth for iOS. */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="text-ink-4">{tr('Get the app', 'Tải ứng dụng')}:</span>
             {[
-              { name: 'App Store', href: APP_STORE_URL },
-              { name: 'Google Play', href: PLAY_STORE_URL },
+              { name: 'App Store', href: IOS_APP_URL },
+              { name: 'Google Play', href: ANDROID_APP_URL },
             ].map((store) =>
               store.href ? (
                 <a
@@ -466,8 +468,17 @@ export function Footer() {
         {/* ⚠️ THE RULE IS BACK ON THIS ROW. It briefly lived on a separate counters row above; with
             the counters folded in here, that row is gone and this block needs its own separator
             again — otherwise the legal block runs straight into the copyright with no boundary. */}
-        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-6 text-xs text-body sm:flex-row">
-          <p className="flex items-center gap-1.5">
+        {/* ⚠️ TWO ROWS, BECAUSE THREE GROUPS DID NOT FIT IN ONE (owner, 2026-09-17: "stretch it make it
+            fit properly or double rows for terms privacy etc links"). Copyright, counters and six
+            legal links shared one `sm:flex-row`, so at every width between a phone and a wide desktop
+            each group was squeezed until its own text broke mid-phrase: "All rights / reserved.",
+            "Made in Saigon / ❤️", "30 / sellers". Row one is identity + counters; the links get a
+            row of their own, where they can wrap as a whole row instead of word by word. */}
+        <div className="mt-8 flex flex-col gap-4 border-t border-border/60 pt-6 text-xs text-body">
+        <div className="flex flex-col items-center gap-3 lg:flex-row lg:flex-wrap lg:justify-between">
+          {/* `whitespace-nowrap` on each clause, `flex-wrap` on the line: a clause may move to the next
+              line as a unit, but never breaks inside itself. */}
+          <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
             {/* ⚠️ SITE_NAME, NOT A LITERAL — a copyright line is a claim about WHO OPERATES THIS
                 SITE, so eno.forum asserting "© eno.vn" was the licensed marketplace claiming
                 ownership of a service it is not licensed to run. It survived the 2026-08-02 wordmark
@@ -475,9 +486,9 @@ export function Footer() {
                 eno.vn", "Browse the eno.vn marketplace") — those are wanted; this was not. Grepping
                 the live forum for "eno.vn" returns ~28 hits and almost all of them are correct,
                 which is exactly why this one needed reading rather than counting. */}
-            <span>© {new Date().getFullYear()} {SITE_NAME} — {tr('All rights reserved.', 'Mọi quyền được bảo lưu.')}</span>
+            <span className="whitespace-nowrap">© {new Date().getFullYear()} {SITE_NAME} — {tr('All rights reserved.', 'Mọi quyền được bảo lưu.')}</span>
             <span aria-hidden="true">·</span>
-            <span>{tr('Made in Saigon', 'Làm tại Sài Gòn')} <span aria-hidden="true">❤️</span></span>
+            <span className="whitespace-nowrap">{tr('Made in Saigon', 'Làm tại Sài Gòn')} <span aria-hidden="true">❤️</span></span>
           </p>
           {/* Live counters — visits, here now, members, sellers. Between the copyright clause and
               the legal links, so `justify-between` seats it in the middle of the row on desktop and
@@ -485,8 +496,9 @@ export function Footer() {
               scoped per site (one database, two sites) while members and sellers are the community
               as a whole. */}
           <FooterStats />
+        </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 lg:justify-end">
             <a href="/terms" className="transition-colors hover:text-accent-foreground">{tr('Terms', 'Điều khoản')}</a>
             <a href="/privacy" className="transition-colors hover:text-accent-foreground">{tr('Privacy', 'Quyền riêng tư')}</a>
             <a href="/regulations" className="transition-colors hover:text-accent-foreground">{tr('Regulations', 'Quy chế')}</a>

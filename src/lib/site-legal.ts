@@ -75,17 +75,8 @@ export type LegalOperator = {
 /** The one value every unissued registration field carries, so a grep finds all of them at once. */
 const PENDING = 'đang cập nhật'
 
-/**
- * Store listing URLs for the native shells. EMPTY UNTIL THE APPS ARE PUBLISHED, and the footer
- * renders a plainly-labelled "coming soon" chip rather than a link while they are.
- *
- * ⚠️ A PLACEHOLDER MUST NOT BE CLICKABLE. Both Chợ Tốt and Shopee lead their footer with store
- * badges, so the slot is worth reserving — but a badge that 404s costs more trust than a missing
- * badge, and on a marketplace whose whole pitch is trust that trade is a bad one. Filling these two
- * strings is the entire change when the listings go live; nothing else needs touching.
- */
-export const APP_STORE_URL = ''
-export const PLAY_STORE_URL = ''
+// App store links moved to src/lib/app-store-links.ts (2026-09-17) — ONE source, read by the header and the
+// footer alike. The empty constants that lived here kept the footer on "coming soon" after Play went live.
 
 /**
  * ✅ THE COMPANY EXISTS. Transcribed from the two certificates the owner supplied on 2026-08-18:
