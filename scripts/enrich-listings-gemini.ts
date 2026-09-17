@@ -4,6 +4,7 @@
  *   npx tsx scripts/enrich-listings-gemini.ts --in scope.jsonl --out <dir>
  *   npx tsx scripts/enrich-listings-gemini.ts --in scope.jsonl --out <dir> --batch 20 --workers 3
  *   npx tsx scripts/enrich-listings-gemini.ts --in scope.jsonl --out <dir> --engine opus   # agy known to be out of quota
+ *   npx tsx scripts/enrich-listings-gemini.ts --in scope.jsonl --out <dir> --engine opus --no-agy   # Opus ONLY, never hand back to agy
  *
  * Owner, 2026-09-13: "give the box agy gemini flash 3.8 flash let it sort all product descriptions properly
  * and revisit taxonomy across the app". The owner chose to run the model HERE (their agy subscription stays
@@ -43,6 +44,19 @@ const PART_ROWS = 2000
 const ENGINE = arg('engine') ?? 'agy'
 if (!IN || !OUT) { console.error('--in <scope.jsonl> --out <dir> required'); process.exit(1) }
 if (ENGINE !== 'agy' && ENGINE !== 'opus') { console.error('--engine must be agy or opus'); process.exit(1) }
+/**
+ * ⛔ `--no-agy` MAKES `--engine opus` A PIN, AND WITHOUT IT THE FLAG IS ONLY A STARTING PREFERENCE.
+ * Owner, 2026-09-17: "force opus agy doesnt have much usage left". `--engine opus` on its own parks agy
+ * for AGY_RECHECK_MS and hands the batches straight back the moment a probe answers — measured in this
+ * run's own log at 13:58, "agy answers again — batches go back to agy", 9 minutes after a start that
+ * was explicitly Opus-only. That is the documented design and it is right when the two engines are
+ * interchangeable; it is wrong when the owner is rationing one of them.
+ * ⚠️ IT REMOVES THE SAFETY NET ON PURPOSE. With no agy to fall back to, an Opus outage sends every
+ * worker into the shared wait and the run self-stops after MAX_SILENCE_MS instead of quietly finishing
+ * on the engine the owner excluded. Stopping loudly is the behaviour being asked for here.
+ */
+const NO_AGY = process.argv.includes('--no-agy')
+if (NO_AGY && ENGINE !== 'opus') { console.error('--no-agy requires --engine opus'); process.exit(1) }
 
 const EMPTY_CWD = mkdtempSync(join(tmpdir(), 'eno-enrich-'))
 process.on('exit', () => { try { rmSync(EMPTY_CWD, { recursive: true, force: true }) } catch { /* best effort */ } })
@@ -166,6 +180,26 @@ async function opusStillIsolated(): Promise<boolean> {
   return ok
 }
 async function pickEngine(): Promise<Engine> {
+  /**
+   * Pinned: Opus takes every batch.
+   *
+   * ⛔ THE ISOLATION RESULT IS OBEYED, NOT MERELY AWAITED — all three reviewers caught this
+   * independently and they were right. The first version read `await opusStillIsolated(); return
+   * 'opus'`, which DISCARDS the boolean: a `claude` that reports tools returns `false` here rather
+   * than throwing, so a pinned run would have gone on dispatching listing batches to an
+   * un-isolated model. The unpinned branch below has always conditioned on that value; the pin has
+   * to as well, or it converts a safety check into a no-op.
+   * ⚠️ AND THE ONLY CORRECT ANSWER TO A FAILED CHECK HERE IS TO WAIT. Unpinned, a failed check
+   * sends the batch to agy; pinned, there is nowhere to send it, and quietly proceeding is the one
+   * outcome the pin exists to prevent. `waitForService()` already carries the backoff, re-probes
+   * Opus through `opusReady()` (which is `answers` AND `opusIsolated`), skips agy while NO_AGY is
+   * set, and stops the whole run via `stopIfSilent()` after MAX_SILENCE_MS — so this loop is
+   * bounded by the same six-hour rule as every other outage and cannot spin.
+   */
+  if (NO_AGY) {
+    while (!(await opusStillIsolated())) await waitForService()
+    return 'opus'
+  }
   if (!agyDownUntil || !opusOk) return 'agy'
   if (Date.now() < agyDownUntil) return (await opusStillIsolated()) ? 'opus' : 'agy'
   if (await answers('agy')) {
@@ -203,9 +237,9 @@ function waitForService(): Promise<void> {
   outage ??= (async () => {
     for (let delay = 60_000; ; delay = Math.min(delay * 2, 15 * 60_000)) {
       stopIfSilent()
-      console.warn(`  ${clock()} ${opusOk ? 'neither agy nor Opus is' : 'agy is not'} answering — asking again in ${delay / 60_000} min`)
+      console.warn(`  ${clock()} ${NO_AGY ? 'Opus is not' : opusOk ? 'neither agy nor Opus is' : 'agy is not'} answering — asking again in ${delay / 60_000} min`)
       await sleep(delay)
-      if (await answers('agy')) { agyDownUntil = 0; console.warn(`  ${clock()} agy answers again`); return }
+      if (!NO_AGY && await answers('agy')) { agyDownUntil = 0; console.warn(`  ${clock()} agy answers again`); return }
       // A failed check REVOKES the fallback until a later check passes — a stale approval must not survive it (astra).
       opusOk = await opusReady()
       if (opusOk) { agyDown(); return }
