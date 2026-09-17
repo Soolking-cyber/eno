@@ -113,8 +113,11 @@ async function main() {
    * ⛔ ONE STOREFRONT PER SHOP, AND A SHOP WITH AN OWNER IS REFUSED — the same rule
    * import-accesstrade.ts learned from VinWonders' seeder. A Seller carrying an `ownerId` belongs
    * to a real account; hanging a scraped catalogue off it hands someone a shop they never posted.
-   * ⚠️ officialPartner STAYS FALSE. These 13 shops have not been contacted yet, so the negotiated-
-   * partner badge would be a claim the business has not made.
+   * ⛔ officialPartner IS TRUE SINCE 2026-09-17, REVERSING WHAT THIS COMMENT USED TO SAY ("STAYS
+   * FALSE. These 13 shops have not been contacted yet, so the negotiated-partner badge would be a
+   * claim the business has not made"). Owner: "also give all fetching stores a partner badge".
+   * `verified` still stays FALSE — that one is an identity check on the business, which nobody has
+   * performed, and it is a different claim from "eno carries this shop's catalogue".
    */
   const sellerFor = new Map<string, { id: string; trustScore: number }>()
   /**
@@ -135,7 +138,7 @@ async function main() {
     if (!APPLY) continue
     const made = await db.seller.create({
       data: { name: store.name, bio: `Products are bought and paid for on the ${store.name} website (${domain}).`,
-              location: store.city, officialPartner: false, verified: false },
+              location: store.city, officialPartner: true, verified: false },
       select: { id: true, trustScore: true },
     })
     sellerFor.set(domain, made)
@@ -331,7 +334,8 @@ async function main() {
          * EVERY public query unconditionally, so `false` does not mean "pending review", it means
          * the row is invisible to the entire site and to search. On a Seller it means "this
          * business's identity has been checked", which these thirteen shops have NOT been — hence
-         * `verified: false` there, and `officialPartner: false`, deliberately and in the same run.
+         * `verified: false` there — deliberately, and unchanged by the 2026-09-17 badge decision,
+         * which grants `officialPartner` and leaves the identity check exactly where it was.
          * import-accesstrade.ts makes exactly the same pairing for the 9,726 CellphoneS rows.
          */
         verified: true, status: truthy(r.inStock ?? true) ? 'active' : 'sold',

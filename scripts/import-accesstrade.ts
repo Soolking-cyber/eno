@@ -132,12 +132,18 @@ async function main() {
     console.log(`storefront "${merchantName}" does not exist — ${APPLY ? 'creating' : 'would create'}`)
     if (APPLY) {
       seller = await db.seller.create({
-        // ⚠️ officialPartner STAYS FALSE. That badge is for negotiated partners like VinWonders;
-        // stamping it on an imported datafeed devalues the real one.
+        // ⛔ officialPartner IS TRUE SINCE 2026-09-17, REVERSING WHAT THIS COMMENT USED TO SAY.
+        // It read "STAYS FALSE — that badge is for negotiated partners like VinWonders; stamping it
+        // on an imported datafeed devalues the real one". Owner: "also give all fetching stores a
+        // partner badge" — a shop whose catalogue eno carries is a partner of the site, and the
+        // badge says so. scripts/set-import-partners.mjs grants it to the storefronts created
+        // before this change. ⚠️ It is not only decoration: an official partner shares no phone
+        // number. That is a no-op here (a catalogue storefront has none) and the reason the bulk
+        // script refuses any seller that does.
         // ⚠️ Written from the campaign, not hardcoded: this script takes --campaign, so baking
         // CellphoneS's bio and city in would mislabel the next merchant imported through it.
         data: { name: merchantName, bio: `Products are bought and paid for on the ${merchantName} website.`,
-                location: MERCHANT_CITY, officialPartner: false, verified: false },
+                location: MERCHANT_CITY, officialPartner: true, verified: false },
         // ⚠️ `trustScore` is selected because rankScore is computed from it at create — see the
         // note at the field. A new storefront takes the schema default, which is what a brand-new
         // human seller gets too.

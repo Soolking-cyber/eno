@@ -1,4 +1,5 @@
 import type { Listing, Category, Seller, Prisma } from '@/generated/prisma/client'
+import { listedAt } from './stale'
 import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
@@ -118,7 +119,7 @@ export function serializeListing(
     verifiedAt: l.verifiedAt ? l.verifiedAt.toISOString() : null,
     verifiedBy: l.verifiedBy,
     verificationNotes: l.verificationNotes,
-    postedAt: l.postedAt.toISOString(),
+    postedAt: listedAt(l).toISOString(),
     views: l.views,
     savedCount: l.savedCount,
     contactCount: l.contactCount,
@@ -147,6 +148,8 @@ export const LISTING_CARD_SELECT = {
   previousPrice: true, priceDropAt: true, urgentUntil: true,
   location: true, district: true, city: true, lat: true, lng: true, images: true, video: true,
   brandSlug: true, model: true, condition: true, marketPosition: true, verified: true, postedAt: true, savedCount: true, contactCount: true,
+  // For `listedAt` only — see src/lib/stale.ts. A card's "Posted" line is when it appeared on eno.
+  createdAt: true,
   // ⚠️ PROJECTED TO A BOOLEAN by serializeListingCard — the affiliate href is a tracker
   // carrying our publisher id, and the card grid needs only the fact, not the link.
   affiliateUrl: true,
@@ -160,7 +163,7 @@ type ListingCardRow = {
   currency: string; negotiable: boolean; location: string; district: string | null; city: string
   previousPrice: number | null; priceDropAt: Date | null; urgentUntil: Date | null
   lat: number | null; lng: number | null; images: string; video: string | null; brandSlug: string | null
-  model: string | null; condition: string | null; marketPosition: string | null; verified: boolean; postedAt: Date; savedCount: number; contactCount: number
+  model: string | null; condition: string | null; marketPosition: string | null; verified: boolean; postedAt: Date; createdAt: Date; savedCount: number; contactCount: number
   affiliateUrl: string | null
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
   seller: { trustScore: number; officialPartner: boolean; owner?: { accountType: string | null } | null }
@@ -208,7 +211,8 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     // reaches the card (never "above market" — that would just be hostile to sellers).
     goodPrice: l.marketPosition === 'low',
     verified: l.verified,
-    postedAt: l.postedAt.toISOString(),
+    // ⚠️ THE DISPLAY DATE, NOT THE RANKING AGE — see listedAt. Identical for every posted listing.
+    postedAt: listedAt(l).toISOString(),
     savedCount: l.savedCount,
     contactCount: l.contactCount,
     category: {

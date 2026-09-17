@@ -58,6 +58,13 @@ const NO_LINKS = process.argv.includes('--no-links')
 /** Mint (and cache) the affiliate links without writing listings. A plain dry run does NOT mint. */
 const MINT = process.argv.includes('--mint')
 /**
+ * Repair `postedAt` + `rankScore` on rows this importer already created, from the merchant's own
+ * publish dates — see postedAtFor. Needed exactly once, for rows written before that rule existed
+ * (they all carry the import instant, which puts the whole catalogue above everything else in the
+ * feed). Idempotent, and it touches nothing else.
+ */
+const RESCORE = process.argv.includes('--rescore')
+/**
  * ⚠️ THE OWNER'S SWITCH ON A TRADE THIS SCRIPT CANNOT MAKE FOR THEM. `--direct-links` stores the
  * merchant's own product URL instead of the affiliate link: the shopper lands on the product they
  * clicked, and the click earns NOTHING. The default is the affiliate link (the owner's choice,
@@ -92,6 +99,34 @@ type Product = {
   id: number; title: string; handle: string; body_html: string; vendor: string
   product_type: string; tags: string[]; variants: Variant[]; images: Img[]
   options: { name: string; values: string[] }[]
+  /** When the MERCHANT listed it. Present on all 5,978 products (measured). */
+  published_at: string | null
+}
+
+/**
+ * ⛔ THE MERCHANT'S PUBLISH DATE IS THE LISTING'S AGE, AND WITHOUT THIS ONE LINE THE IMPORT OWNS THE
+ * FRONT PAGE. `postedAt` is the feed's recency key: it feeds `rankScore`, which browse is ordered
+ * by, and the nightly `recomputeRankScoreAllActive()` re-derives that score from it for ever.
+ * Defaulted to `now()`, all 5,955 products would land at age 0 and score 0.5786 apiece, against
+ * 0.4462 for a thirty-day-old listing and 0.4286 for anything older — i.e. the entire existing
+ * catalogue, including every human seller's, would sit beneath a single merchant's import for
+ * weeks, and again after every re-import. Measured with browseRankScore, not assumed.
+ *
+ * The merchant's own `published_at` is both the honest answer and the fix: it spans 0 to 2,180 days
+ * with a MEDIAN OF 85 (measured over the live catalogue — 450 products under a week old, 805 over a
+ * year), so the catalogue interleaves with what is already here instead of burying it.
+ *
+ * ⚠️ CLAMPED AT BOTH ENDS, and the comment used to promise a floor the code did not implement (a
+ * reviewer's catch). A future date — merchant clock skew, a scheduled publish — would mint a listing
+ * that outranks everything for ever; an epoch-zero or 1990 placeholder would bury a product that is
+ * on sale today. The floor is ten years, which is well past the oldest real date in the catalogue
+ * (2,180 days, measured) and only ever catches garbage. An unparseable date falls back to now.
+ */
+const TEN_YEARS_MS = 10 * 365 * 24 * 60 * 60 * 1000
+function postedAtFor(p: Product, now = Date.now()): Date {
+  const t = p.published_at ? Date.parse(p.published_at) : NaN
+  if (!Number.isFinite(t)) return new Date(now)
+  return new Date(Math.min(Math.max(t, now - TEN_YEARS_MS), now))
 }
 
 /** Vietnamese-specific letters — Latin text carrying none of these is not Vietnamese prose. */
@@ -306,6 +341,10 @@ async function main() {
   // learned this; both other importers carry the same guard).
   let seller = await db.seller.findFirst({ where: { name: SELLER_NAME }, select: { id: true, ownerId: true, trustScore: true } })
   if (seller?.ownerId) { console.error(`"${SELLER_NAME}" is owned by a real account — refusing`); process.exit(1) }
+  // ⚠️ A REPAIR MUST NOT CREATE THE THING IT REPAIRS (a reviewer's catch): `--rescore --apply` on a
+  // database with no storefront would have created one here, then reported every product "not
+  // imported". --rescore touches existing rows' dates and nothing else.
+  if (!seller && RESCORE) { console.error(`no "${SELLER_NAME}" storefront — nothing to rescore`); process.exit(1) }
   if (!seller) {
     console.log(`storefront "${SELLER_NAME}" — ${APPLY ? 'creating' : 'would create'}`)
     if (APPLY) {
@@ -315,7 +354,11 @@ async function main() {
           // ⚠️ THE LINK LANDS ON THE SHOP, NOT THE PRODUCT (see mintLinks), so the storefront says
           // so in the one place every buyer sees before they click.
           bio: 'Sports brands from the SuperSports Vietnam store. Products are bought and paid for on supersports.com.vn.',
-          location: MERCHANT_CITY, officialPartner: false, verified: false,
+          // ⛔ officialPartner TRUE since 2026-09-17 (owner: "also give all fetching stores a
+          // partner badge"). `verified` stays FALSE: that is an identity check on the business,
+          // which is a different claim from "eno carries this shop's catalogue". The badge also
+          // suppresses a phone reveal — a no-op for a catalogue storefront, which has no phone.
+          location: MERCHANT_CITY, officialPartner: true, verified: false,
         },
         select: { id: true, ownerId: true, trustScore: true },
       })
@@ -345,6 +388,57 @@ async function main() {
   const heldBefore: { id: string; externalId: string | null }[] = APPLY && RETIRE && seller
     ? await db.listing.findMany({ where: { sellerId: seller.id, status: 'active' }, select: { id: true, externalId: true } })
     : []
+
+  if (RESCORE) {
+    if (!seller) { console.error('no SuperSports storefront — nothing to rescore'); process.exit(1) }
+    /**
+     * ⚠️ ONE READ, NOT ONE PER PRODUCT (a reviewer's catch). The first cut issued a `findFirst` for
+     * each of 5,978 products over an SSH tunnel — thousands of round trips for a repair that is one
+     * indexed scan of a single seller's rows.
+     */
+    const byExternalId = new Map(
+      (await db.listing.findMany({
+        where: { sellerId: seller.id },
+        select: { id: true, externalId: true, postedAt: true, featured: true },
+      })).map((r) => [r.externalId ?? '', r]),
+    )
+    let fixed = 0, unchanged = 0, missing = 0
+    for (const p of products) {
+      const postedAt = postedAtFor(p)
+      /**
+       * ⛔ SELECTED BY WHAT THE ROW SAYS, NOT BY WHEN IT WAS WRITTEN (a reviewer's catch, and it was
+       * two bugs in one line). The first cut matched `postedAt > now - 24h`, which repairs only rows
+       * imported TODAY — run it tomorrow and it silently fixes nothing, which is exactly when a
+       * repair script is reached for. It also had no way to tell an import stamp from a human bump.
+       * The honest test is per row: a row still carrying an import stamp has a `postedAt` LATER than
+       * the merchant's publish date, by more than a day. A row already rescored matches within the
+       * day and is skipped, so this is idempotent; a row someone bumped forward is repaired back to
+       * the merchant's date, which for this storefront is correct — it has no human seller to bump
+       * it (the importer refuses a storefront with an ownerId).
+       */
+      const row = byExternalId.get(String(p.id))
+      if (!row) { missing++; continue }
+      /**
+       * ⚠️ THE TEST IS "IS THE STORED DATE LATER THAN THE MERCHANT'S", TO THE MINUTE (a reviewer's
+       * catch on the 24-hour version, which skipped every product published within a day of being
+       * imported — the 450 newest ones — and left them stamped with the import instant).
+       * ⚠️ AND IT NEVER MOVES A ROW FORWARD: a non-positive drift means the row is already at or
+       * before the merchant's date (rescored once, or `published_at` was unreadable and the helper
+       * fell back to now), and bumping it would be the one direction that lifts a listing up the
+       * feed rather than putting it where it belongs.
+       */
+      if (row.postedAt.getTime() - postedAt.getTime() <= 60_000) { unchanged++; continue }
+      // The row's OWN featured flag, not a hardcoded false — the score has to match the listing.
+      const rankScore = browseRankScore({ sellerTrustScore: seller.trustScore ?? 100, postedAt, featured: row.featured })
+      // ⚠️ THE DRY RUN COUNTS THE SAME ROWS IT WOULD WRITE. It used to hardcode `{ count: 0 }` and
+      // then report "0 would be rescored" for every product — a preview of nothing.
+      fixed++
+      if (APPLY) await db.listing.update({ where: { id: row.id }, data: { postedAt, rankScore } })
+    }
+    console.log(`${APPLY ? 'rescored' : 'would rescore'} ${fixed} row(s); ${unchanged} already correct; ${missing} not imported`)
+    await db.$disconnect()
+    return
+  }
 
   let seen = 0, created = 0, updated = 0, skipped = 0, imaged = 0, noShelf = 0, noLink = 0
   const dropped: Record<string, number> = {}
@@ -518,9 +612,14 @@ async function main() {
       ]),
       affiliateUrl,
       verified: true, status: 'active',
+      // The merchant's own publish date — see postedAtFor. Create-only, like rankScore: a re-import
+      // must not bump a product back to the top of the feed.
+      postedAt: postedAtFor(viP),
       // ⛔ create-only: rankScore defaults to 0, which is dead last in a feed ordered by it — the
       // first partner import's 152 rows sat invisible for a day because of exactly this.
-      rankScore: browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: new Date(), featured: false }),
+      // ⚠️ THE SAME DATE THE ROW STORES, or the score and the column disagree until the nightly
+      // sweep silently re-derives one from the other.
+      rankScore: browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: postedAtFor(viP), featured: false }),
     }
     /**
      * ⚠️ ONE EXCEPTION TO "THE ENGLISH SLOTS ARE CREATE-ONLY", AND IT REPAIRS RATHER THAN OVERWRITES
@@ -537,7 +636,7 @@ async function main() {
       ...(stuckVietnamese(existing?.description, description) ? { description } : {}),
     }
 
-    const { status, verified, title: _t, description: _d, descriptionVi: _dv, rankScore: _r, ...rest } = fields
+    const { status, verified, title: _t, description: _d, descriptionVi: _dv, rankScore: _r, postedAt: _p, ...rest } = fields
     const refreshable = {
       ...(keepPlacement ? (({ categoryId: _c, subcategorySlug: _s, ...noPlacement }) => noPlacement)(rest) : rest),
       ...englishArrived,

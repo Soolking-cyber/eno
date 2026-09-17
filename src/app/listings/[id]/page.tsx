@@ -741,6 +741,7 @@ export default async function ListingPage({ params }: Props) {
                   ? <AffiliateBooking
                       url={affiliateUrl}
                       partnerName={listing.seller.name}
+                      listingId={listing.id}
                       discountCode={listing.affiliateDiscountCode}
                       discountPercent={listing.affiliateDiscountPercent}
                       booking={isBooking}

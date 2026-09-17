@@ -2,7 +2,9 @@ import { ArrowUpRight } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Tr } from '@/context/language-context'
 import { affiliateQrSvg, safeAffiliateUrl } from '@/lib/affiliate-qr'
+import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { AffiliateCodeCopy } from './affiliate-code-copy'
+import { AffiliateProductStep } from './affiliate-product-step'
 
 /**
  * THE BUY BOX FOR A LISTING WHOSE CHECKOUT HAPPENS ON A PARTNER'S SITE.
@@ -23,12 +25,15 @@ import { AffiliateCodeCopy } from './affiliate-code-copy'
 export function AffiliateBooking({
   url,
   partnerName,
+  listingId,
   discountCode,
   discountPercent,
   booking,
 }: {
   url: string
   partnerName: string
+  /** Scopes the "already opened" memory to this listing — see AffiliateProductStep. */
+  listingId: string
   discountCode?: string | null
   discountPercent?: number | null
   /** True for a ticket/reservation, false for a boxed product — see isBookingCategory. */
@@ -41,6 +46,8 @@ export function AffiliateBooking({
   if (!safeUrl) return null
 
   const qr = affiliateQrSvg(safeUrl, { title: `QR code to book on ${partnerName}` })
+  // The product this link was minted for, when the campaign is one measured not to deep-link.
+  const productStep = embeddedProductUrl(safeUrl)
 
   return (
     <section aria-labelledby="affiliate-booking-heading" className="flex flex-col gap-4">
@@ -91,6 +98,12 @@ export function AffiliateBooking({
           <ArrowUpRight className="size-4" aria-hidden />
         </a>
       </Button>
+
+      {/* ⚠️ ONLY WHERE THE AFFILIATE LINK CANNOT REACH THE PRODUCT, and only after the button above
+          has been used. `embeddedProductUrl` returns null for every campaign that deep-links
+          properly, so this is absent from CellphoneS listings and from every ordinary partner —
+          there it would point at the page the shopper is already on. */}
+      {productStep ? <AffiliateProductStep key={listingId} productUrl={productStep} listingId={listingId} /> : null}
 
       {discountCode ? (
         <div className="flex flex-col gap-2 rounded-xl bg-muted/50 p-4">

@@ -20,3 +20,20 @@ export function isStale(confirmedAt: string | Date | null | undefined, postedAt:
   const ref = confirmedAt ?? postedAt
   return now - new Date(ref).getTime() > STALE_MS
 }
+
+/**
+ * WHEN A LISTING APPEARED ON ENO — which is what the UI means by "Posted", and what an offer's
+ * validity is anchored to. It is `postedAt` for every listing a person posts (a "still available"
+ * bump moves `postedAt` forward, past `createdAt`), so for them this changes nothing.
+ *
+ * ⛔ IT EXISTS BECAUSE `postedAt` NOW CARRIES A MERCHANT'S PUBLISH DATE FOR IMPORTED CATALOGUES
+ * (scripts/import-supersports.ts, 2026-09-17), BACKDATED BY UP TO ~6 YEARS. That is the right value
+ * for RANKING — it stops one import from burying the whole feed — and the wrong value for two
+ * readers a reviewer found: the "Posted X ago" line, which printed "a year ago" on new stock added
+ * today, and the PDP's `priceValidUntil` (postedAt + 90 days), which told Google the price had
+ * EXPIRED on more than half the catalogue. `createdAt` is the row's real arrival, and the later of
+ * the two is the honest answer to both questions.
+ */
+export function listedAt(l: { postedAt: Date; createdAt?: Date | null }): Date {
+  return l.createdAt && l.createdAt.getTime() > l.postedAt.getTime() ? l.createdAt : l.postedAt
+}

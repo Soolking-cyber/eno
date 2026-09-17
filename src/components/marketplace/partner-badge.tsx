@@ -45,13 +45,24 @@ import { cn } from '@/lib/utils'
  */
 export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?: 'sm' | 'md'; className?: string; asLink?: boolean }) {
   const { tr } = useLanguage()
+  /**
+   * ⛔ THE TOOLTIP NO LONGER CLAIMS A CHECK, BECAUSE SINCE 2026-09-17 THE BADGE IS NOT ONLY FOR
+   * VETTED PARTNERS. It read "chosen and checked by eno" / "do eno chọn và thẩm định" — accurate
+   * while the flag meant a negotiated agreement, and FALSE the moment the owner granted it to every
+   * shop whose catalogue eno carries ("also give all fetching stores a partner badge"). None of
+   * those shops has been vetted: their storefronts keep `verified: false` precisely because nobody
+   * has checked the business, and a tooltip asserting otherwise is a trust claim on a licensed
+   * marketplace. "eno carries this shop's catalogue" is true of every badge holder, negotiated or
+   * imported, and still reads as a partner.
+   * ⚠️ A shop eno HAS checked is a different claim with its own signal — `Seller.verified`.
+   */
   // The full phrase is the accessible name and the tooltip; the plate itself shows only "P".
   const full = tr('Official partner', 'Đối tác chính thức')
   return (
     /* ⚠️ NO "tap to find out" IN THE TOOLTIP. A tooltip does not open on touch, so the one
        instruction aimed at touch users is the one they can never read; on desktop it says out
        loud what a cursor already shows. The hint names the thing instead. */
-    <Tooltip content={tr('Official partner — chosen and checked by eno', 'Đối tác chính thức — do eno chọn và thẩm định')} side="top">
+    <Tooltip content={tr("Official partner — eno carries this shop's catalogue", 'Đối tác chính thức — eno đăng danh mục sản phẩm của cửa hàng này')} side="top">
       <LinkOrSpan
         asLink={asLink}
         /* ⚠️ role="img" ON THE SPAN BRANCH, BECAUSE ARIA FORBIDS NAMING A GENERIC ROLE. A bare
