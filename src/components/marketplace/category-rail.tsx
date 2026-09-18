@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useLanguage, Tr, useTr } from '@/context/language-context'
 import { detectContentLang } from '@/lib/detect-lang'
 import { CategoryIcon } from './category-icons'
@@ -9,7 +9,6 @@ import { SUBCATEGORIES } from '@/lib/subcategories'
 import { CountChip, optionCount, railDimension } from './count-chip'
 import { MoreOverflow } from './more-overflow'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
@@ -286,7 +285,67 @@ export function CategoryRail({
 
   // `.press` (icon-language §8): the browse rail's tiles press with the same spring as the
   // home grid's — one tile, one feel, wherever the grid appears.
-  const tileCls = 'press group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
+  /**
+   * ⛔ A TWO-ROW SWIPEABLE GRID, NOT A ONE-ROW STRIP (owner, 2026-09-18, from the 58 study: "2 rows
+   * of catogories rest reveal upon swipe", and on mobile "bigger … big top 4 categories rest reveal
+   * in 3 rows"). 58's home opens on a paged icon grid and that is what this now is.
+   *
+   * ONE grid expresses both shapes, with no duplicated DOM and no JS breakpoint:
+   *   mobile  — 6 unit rows; the first four tiles span 2 cols × 3 rows (→ 2×2 extra-large, one
+   *             screenful), every other tile spans 1 col × 2 rows (→ 3 rows of 4 per swipe).
+   *   sm+     — 2 rows, every tile one cell, so 8 COLUMNS × 2 ROWS = 16 tiles per screen; the rest
+   *             are a swipe away. (Measured at 1280: 16 of the 18 tiles fully visible, 1.38 pages.
+   *             An earlier version of this line said "8 per screen", which is the column count — a
+   *             reviewer read it as the tile count, and the tile count is what a reader wants.)
+   * `grid-flow-col` fills column by column, which is what makes the overflow horizontal.
+   */
+  // `h-full justify-center` so a tile FILLS the cell it spans instead of sitting at the top of it —
+  // measured in the browser: without it an extra-large tile drew 93px of content inside a 134px cell
+  // and the grid read as four icons adrift in whitespace.
+  const tileCls = 'press group flex h-full w-full snap-start flex-col items-center justify-center gap-1.5 py-1 text-center cursor-pointer select-none'
+  const XL_TILE = 'col-span-2 row-span-3 md:col-span-1 md:row-span-1'
+  const SM_TILE = 'row-span-2 md:row-span-1'
+  /** Every tile is one cell when the rail is short — see `shortRail` below. */
+  const FLAT_TILE = 'row-span-1'
+  // The first four tiles in render order are the big ones on mobile: All, then whatever follows it
+  // (eno.forum's two desk shortcuts, otherwise the top categories by demand).
+  const shortcutCount = shortcuts?.length ?? 0
+  const leadTiles = 1 + shortcutCount + categories.length
+  const totalTiles = leadTiles + (intents?.length ?? 0)
+  /**
+   * ⛔ A SHORT RAIL DROPS THE SIX-ROW SHAPE ENTIRELY, AND THAT IS THE FIX FOR A HOLE THREE REVIEWERS
+   * KEPT FINDING IN DIFFERENT ARITHMETIC. `grid-rows-6` with `row-span-2`/`row-span-3` tiles only
+   * looks right when there are enough tiles to fill the columns; with a handful, the last column gets
+   * ONE tile and four empty row tracks beside it. The tracks do NOT collapse — `grid-rows-6` is
+   * `repeat(6, minmax(0,1fr))` and the full column has already stretched them (measured: 295px tall
+   * either way) — so it reads as a void on the FIRST screen, not as the end of a list.
+   *
+   * ⚠️ REACHABLE, NOT THEORETICAL: the home page's `getData()` catch returns `categories: []`, so any
+   * DB failure renders "All" plus the three intent tiles. Below 9 tiles the whole rail fits one
+   * screen anyway, so it is laid out as a plain 2-row grid where every tile is one cell: 4 tiles fill
+   * two columns, 6 fill three, and the worst case is ONE empty cell at the end instead of a
+   * four-row gap. Above that the mobile 2-big-rows + 3-small-rows shape the owner asked for applies.
+   *
+   * ⚠️ THE LONG RAIL STILL ENDS ON A PART-FILLED COLUMN FOR TWO COUNTS IN EVERY THREE, and that is
+   * accepted rather than unnoticed: smalls pack 3 to a column, so the tail is short unless their
+   * count divides by 3 (today: 21 tiles → 4 XL + 17 smalls → the last column holds 2). It sits at the
+   * far END of the scroll, where a part-filled column reads as the list ending — unlike the short
+   * rail, where the same gap was on the first screen. A test pins the property that only the FINAL
+   * column can ever be short (category-rail.grid.test.tsx).
+   */
+  const shortRail = totalTiles <= 8
+  /**
+   * ⚠️ XL TILES COME IN EVEN NUMBERS, BECAUSE TWO OF THEM FILL ONE TWO-COLUMN BLOCK. An XL tile is
+   * `col-span-2 row-span-3`, so a pair stacks rows 1-3 and 4-6 across the SAME two columns (an
+   * earlier note here said "one column holds two", which a reviewer rightly called wrong even though
+   * the even-count conclusion holds). An odd count leaves the bottom half of that block empty and a
+   * `row-span-2` tile cannot fill it — it needs two consecutive free rows and one is left.
+   */
+  const bigCount = shortRail ? 0 : 4
+  const bigAt = (i: number) => i < bigCount
+  const spanAt = (i: number) => (shortRail ? FLAT_TILE : bigAt(i) ? XL_TILE : SM_TILE)
+  const glyphBoxCls = (i: number) => cn('flex items-center justify-center', bigAt(i) ? 'h-16 md:h-11' : 'h-11')
+  const glyphSizeAt = (i: number) => (bigAt(i) ? 'h-16 w-16 md:h-11 md:w-11' : '')
   /**
    * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
    * one navigates away, so it is never "on" while this rail is showing.
@@ -327,6 +386,67 @@ export function CategoryRail({
   const subChip = (active: boolean) =>
     cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
+  // ⛔ THE SUBCATEGORY PANEL IS COMPUTED ONCE FOR THE ACTIVE CATEGORY AND RENDERED BELOW THE GRID.
+  // It used to be spliced INTO the rail, to the right of the active tile — impossible now that the
+  // tiles are a two-row swipeable grid (owner, 2026-09-18, 58's icon-grid layout): a panel inside
+  // the grid would become a grid cell and break the rows. Same chips, same order, same overflow.
+  // Order subcategories by how many listings they hold (most first); ties keep
+  // taxonomy order. Empty counts (pre-load) leave the canonical order.
+  // (`subRank` is the reconciled source above — the same numbers whichever key the payload
+  // carried, so switching to it changed no order, only where the figure is read from.)
+  /**
+   * ⚠️ RANK ONCE, THEN REPLAY. The first render for a category sorts on whatever counts exist
+   * at that instant and records the result; every later render of the SAME category replays
+   * that recorded order, so a payload arriving mid-view cannot reshuffle the chips under a
+   * finger. Changing category clears it (above), because a new category is a new question.
+   */
+  /**
+   * ⚠️ REPLAY THE FROZEN ORDER. A slug the memo never saw — only reachable if `SUBCATEGORIES`
+   * changed under the same category — keeps its taxonomy position instead of collapsing into
+   * one undifferentiated bucket at the end, which a reviewer pointed out a flat fallback does.
+   */
+  /**
+   * ⛔ AND ONLY FOR A CATEGORY THIS EDITION ACTUALLY SHOWS. These chips used to live INSIDE
+   * `categories.map`, where that was implicit — the panel could not render for a category the rail
+   * had filtered out. Hoisting them below the grid lost the guard: `?category=<slug>` in the URL
+   * would open the chips for a category belonging to the OTHER edition. Three reviewers, separately.
+   */
+  const subs = categories.some((c) => c.slug === activeCategory)
+    ? [...(SUBCATEGORIES[activeCategory] ?? [])]
+        .map((sub, i) => ({ sub, at: frozenOrder.indexOf(sub.slug), i }))
+        .sort((a, b) => (a.at < 0 ? frozenOrder.length + a.i : a.at) - (b.at < 0 ? frozenOrder.length + b.i : b.at))
+        .map((e) => e.sub)
+    : []
+  // 3×3 grid (9 cells): "All" + up to 8 subcats. All+8 fills it exactly, so only
+  // collapse into a "More" cell when there are MORE than 8 — at ≤8 show them all.
+  // (auto-adjusts as the listing counts above re-rank them.)
+  const subsNeedMore = subs.length > 8
+  // ⚠️ THE ACTIVE SUBCATEGORY IS PROMOTED INTO THE VISIBLE SET — IT IS NOT LEFT WHEREVER ITS
+  // LISTING COUNT PUT IT. A positional slice(0, 7) knows nothing about the selection, so
+  // picking the 9th-ranked subcategory filtered the results and then folded the chosen chip
+  // away inside +N — leaving NOTHING in the grid lit. Not the chip you picked (hidden), and
+  // not "All" either, since that one lights on `activeSubcategory === 'all'` and something
+  // else is now selected. So the results were filtered while the strip showed no selection at
+  // all, and the only way to clear a filter you cannot see is to guess it is in the overflow
+  // menu and reopen it.
+  // (It only bites categories with ≥9 subcategories — below that `subsNeedMore` is false and
+  // nothing is hidden in the first place.) brand-rail.tsx already does this for models; this
+  // is the same fix one rail over, written the same way on purpose so they stay comparable.
+  //
+  // The cost when it fires, stated exactly because it is visible: All + 8 chips + More = 10
+  // cells, and the grid is 3 rows column-filled, so the columns become [All, s0, s1] [s2, s3,
+  // s4] [s5, s6, promoted] [More] — a FOURTH column holding the More control on its own. The
+  // grid is therefore one column wider for as long as a low-ranked subcategory is selected,
+  // which pushes the categories to its right further along the rail. That is accepted: the
+  // strip already scrolls sideways, the shift lands after the tap that caused it, and it is
+  // the same trade brand-rail already makes. A filter the user cannot see is the worse one.
+  // Note `activeSubcategory === 'all'` promotes nothing (no sub carries that slug), so the
+  // common case — nothing selected — is byte-for-byte the old layout.
+  // The +N badge stays honest through all of this because MoreOverflow is handed
+  // `overflowSubs.length`, the real array, never a `subs.length - 7` arithmetic guess.
+  const visibleSubs = subsNeedMore ? subs.filter((s, i) => i < 7 || s.slug === activeSubcategory) : subs
+  const overflowSubs = subsNeedMore ? subs.filter((s, i) => i >= 7 && s.slug !== activeSubcategory) : []
+
   return (
     // `relative` anchors the arrows, which sit OUTSIDE the scroller's edges (-left-8).
     <div className="relative">
@@ -347,11 +467,27 @@ export function CategoryRail({
          arrow-key roving focus this rail does not implement. */
       role="group"
       aria-label={tr('Categories', 'Danh mục')}
-      className="flex items-center gap-4 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1"
+      /* ⚠️ THE COLUMN WIDTH SUBTRACTS THE GAPS, AND THE FIRST VERSION DID NOT. `25%` × 4 columns is
+         already the whole viewport, so three 8px gaps pushed the second pair of big tiles off the
+         right edge and the snap points stopped landing on a screenful (measured: tiles at x=12 and
+         x=213, width 193, in a 369px scroller). Four columns need `25% − 3/4 × gap`; eight need
+         `12.5% − 7/8 × gap`. Two reviewers caught the arithmetic independently.
+         ⚠️ THE SWITCH IS AT `md`, NOT `sm`, AND THAT IS A MEASUREMENT. Swept at 320 / 360 / 390 /
+         430 / 480 / 600 / 639 / 640 / 768 / 1024 / 1280 / 1600 px after a reviewer pointed out only
+         two widths had been checked: at `sm` (640px) the 8-column row makes a tile 64px wide and ONE
+         LABEL CLIPS; at `md` (768px) the same tile is 80px and nothing clips at any width in the
+         sweep. 640-767px therefore keeps the 4-column phone grid, which is 304px-wide tiles at 639px
+         — generous, not broken. No width overflows the document.
+         ⚠️ THE SNAP IS PER COLUMN, NOT PER PAGE, and that is deliberate — a third reviewer read the
+         comment above as promising page snapping. Measured on a 390px phone: the scroller settles at
+         187 / 374 / 468 / 561 and 561 IS the maximum scroll, so every tile is reachable and none is
+         ever half-cut. Page-level snap points (0 / 374 / 748) would strand the last 187px of content
+         behind an unreachable snap position, because `scrollWidth - clientWidth` is 561. */
+      className={cn('grid grid-flow-col auto-cols-[calc(25%-0.375rem)] gap-x-2 gap-y-1 overflow-x-auto overscroll-x-contain scrollbar-none snap-x snap-mandatory py-1 md:grid-rows-2 md:auto-cols-[calc(12.5%-0.65625rem)] md:gap-x-3 md:gap-y-2', shortRail ? 'grid-rows-2' : 'grid-rows-6')}
     >
       {/* All */}
-      <Button variant="bare" size="none" data-cat="all" aria-pressed={activeCategory === 'all'} onClick={() => onCategory('all')} className={cn('whitespace-normal', tileCls)}>
-        <span className="flex h-11 items-center justify-center">
+      <Button variant="bare" size="none" data-cat="all" aria-pressed={activeCategory === 'all'} onClick={() => onCategory('all')} className={cn('whitespace-normal', tileCls, spanAt(0))}>
+        <span className={glyphBoxCls(0)}>
           {/* 'all' is a filter reset, not a category — it has no taxonomy row and no registry
               key (keys mirror DB Category.icon rows and are immutable). It has Solar artwork
               under that slug all the same, so it resolves like every other tile; the 'Layers'
@@ -361,7 +497,7 @@ export function CategoryRail({
               SAME boolean that already paints its label accent — `activeCategory === 'all'` here,
               `isActive` / `subActive` / the intent's `active` below. No new state was introduced:
               if the tile reads as chosen, its glyph fills; otherwise it is pure ink line. */}
-          <CategoryTileGlyph slug="all" icon="Layers" className={iconCls(activeCategory === 'all')} selected={activeCategory === 'all'} />
+          <CategoryTileGlyph slug="all" icon="Layers" className={cn(iconCls(activeCategory === 'all'), glyphSizeAt(0))} selected={activeCategory === 'all'} />
         </span>
         {/* ⛔ NO COUNT UNDER THE TILE NAME (owner, 2026-08-12: "remove counters under categories
             and brands"). It used to be a second line here and on every category tile below —
@@ -382,9 +518,9 @@ export function CategoryRail({
           tile here: <Button asChild><Link> CONCATENATES the child's className without
           tailwind-merge, so the base `inline-flex` would beat `flex flex-col` and the base
           `[&_svg:not([class*='size-'])]:size-4` would shrink the 44px glyph. */}
-      {shortcuts?.map((sc) => (
-        <Button key={sc.key} variant="bare" size="none" data-shortcut={sc.key} onClick={() => onShortcut?.(sc)} className={cn('whitespace-normal', tileCls)}>
-          <span className="flex h-11 items-center justify-center">
+      {shortcuts?.map((sc, si) => (
+        <Button key={sc.key} variant="bare" size="none" data-shortcut={sc.key} onClick={() => onShortcut?.(sc)} className={cn('whitespace-normal', tileCls, spanAt(1 + si))}>
+          <span className={glyphBoxCls(1 + si)}>
             {/* ⚠️ `sc.art` COMES FROM THE ALIASED SERVICES MODULE, so on a marketplace build it is
                 not merely falsy — the string never enters the artifact at all, and the file it
                 names is pruned from that image by the Dockerfile. The lucide fallback is what a
@@ -399,9 +535,9 @@ export function CategoryRail({
               /* eslint-disable-next-line @next/next/no-img-element -- same reasoning as CategoryArt */
               <img src={sc.art} alt="" aria-hidden width={184} height={184} draggable={false}
                 fetchPriority="low" decoding="async"
-                className={cn('shrink-0 select-none object-contain transition-[filter] duration-200', !shortcutActive(sc) && 'grayscale', iconCls(shortcutActive(sc)))} />
+                className={cn('shrink-0 select-none object-contain transition-[filter] duration-200', !shortcutActive(sc) && 'grayscale', iconCls(shortcutActive(sc)), glyphSizeAt(1 + si))} />
             ) : (
-              <CategoryIcon name={sc.icon} className={iconCls(shortcutActive(sc))} />
+              <CategoryIcon name={sc.icon} className={cn(iconCls(shortcutActive(sc)), glyphSizeAt(1 + si))} />
             )}
           </span>
           <span className="flex w-full flex-col items-center gap-0.5">
@@ -410,122 +546,16 @@ export function CategoryRail({
         </Button>
       ))}
 
-      {categories.map((cat) => {
+      {categories.map((cat, ci) => {
         const isActive = activeCategory === cat.slug
-        // Order subcategories by how many listings they hold (most first); ties keep
-        // taxonomy order. Empty counts (pre-load) leave the canonical order.
-        // (`subRank` is the reconciled source above — the same numbers whichever key the payload
-        // carried, so switching to it changed no order, only where the figure is read from.)
-        /**
-         * ⚠️ RANK ONCE, THEN REPLAY. The first render for a category sorts on whatever counts exist
-         * at that instant and records the result; every later render of the SAME category replays
-         * that recorded order, so a payload arriving mid-view cannot reshuffle the chips under a
-         * finger. Changing category clears it (above), because a new category is a new question.
-         */
-        /**
-         * ⚠️ REPLAY THE FROZEN ORDER. A slug the memo never saw — only reachable if `SUBCATEGORIES`
-         * changed under the same category — keeps its taxonomy position instead of collapsing into
-         * one undifferentiated bucket at the end, which a reviewer pointed out a flat fallback does.
-         */
-        const subs = isActive
-          ? [...(SUBCATEGORIES[cat.slug] ?? [])]
-              .map((sub, i) => ({ sub, at: frozenOrder.indexOf(sub.slug), i }))
-              .sort((a, b) => (a.at < 0 ? frozenOrder.length + a.i : a.at) - (b.at < 0 ? frozenOrder.length + b.i : b.at))
-              .map((e) => e.sub)
-          : []
-        // 3×3 grid (9 cells): "All" + up to 8 subcats. All+8 fills it exactly, so only
-        // collapse into a "More" cell when there are MORE than 8 — at ≤8 show them all.
-        // (auto-adjusts as the listing counts above re-rank them.)
-        const subsNeedMore = subs.length > 8
-        // ⚠️ THE ACTIVE SUBCATEGORY IS PROMOTED INTO THE VISIBLE SET — IT IS NOT LEFT WHEREVER ITS
-        // LISTING COUNT PUT IT. A positional slice(0, 7) knows nothing about the selection, so
-        // picking the 9th-ranked subcategory filtered the results and then folded the chosen chip
-        // away inside +N — leaving NOTHING in the grid lit. Not the chip you picked (hidden), and
-        // not "All" either, since that one lights on `activeSubcategory === 'all'` and something
-        // else is now selected. So the results were filtered while the strip showed no selection at
-        // all, and the only way to clear a filter you cannot see is to guess it is in the overflow
-        // menu and reopen it.
-        // (It only bites categories with ≥9 subcategories — below that `subsNeedMore` is false and
-        // nothing is hidden in the first place.) brand-rail.tsx already does this for models; this
-        // is the same fix one rail over, written the same way on purpose so they stay comparable.
-        //
-        // The cost when it fires, stated exactly because it is visible: All + 8 chips + More = 10
-        // cells, and the grid is 3 rows column-filled, so the columns become [All, s0, s1] [s2, s3,
-        // s4] [s5, s6, promoted] [More] — a FOURTH column holding the More control on its own. The
-        // grid is therefore one column wider for as long as a low-ranked subcategory is selected,
-        // which pushes the categories to its right further along the rail. That is accepted: the
-        // strip already scrolls sideways, the shift lands after the tap that caused it, and it is
-        // the same trade brand-rail already makes. A filter the user cannot see is the worse one.
-        // Note `activeSubcategory === 'all'` promotes nothing (no sub carries that slug), so the
-        // common case — nothing selected — is byte-for-byte the old layout.
-        // The +N badge stays honest through all of this because MoreOverflow is handed
-        // `overflowSubs.length`, the real array, never a `subs.length - 7` arithmetic guess.
-        const visibleSubs = subsNeedMore ? subs.filter((s, i) => i < 7 || s.slug === activeSubcategory) : subs
-        const overflowSubs = subsNeedMore ? subs.filter((s, i) => i >= 7 && s.slug !== activeSubcategory) : []
+        const at = 1 + shortcutCount + ci
         return (
-          <Fragment key={cat.id}>
-            <Button variant="bare" size="none" data-cat={cat.slug} aria-pressed={isActive} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls)}>
-              <span className="flex h-11 items-center justify-center">
-                <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={iconCls(isActive)} selected={isActive} />
+          <Button key={cat.id} variant="bare" size="none" data-cat={cat.slug} aria-pressed={isActive} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls, spanAt(at))}>
+              <span className={glyphBoxCls(at)}>
+                <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={cn(iconCls(isActive), glyphSizeAt(at))} selected={isActive} />
               </span>
               <span className={nameCls(isActive)}><TileLabel text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
-            </Button>
-
-            {/* Subcategories roll out to the right of the active category */}
-            {subs.length > 0 && (
-              <div className="flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                <Separator orientation="vertical" className="h-12 shrink-0" />
-                {/* 3×3 grid (column-fill): All first, the 7 most-used in between, More last — plus
-                    the active subcategory when its count ranked it below those 7 (see the promotion
-                    above). That is the one case that fills all 9 cells and pushes More alone into a
-                    4th column. */}
-                <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
-                  {/* "All" = this rail released, every other filter still applied — so it is
-                      legitimately larger than the chips beside it sum to (rows carrying no
-                      subcategorySlug come back when the rail is cleared). Never a sum. */}
-                  <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
-                    {tr('All', 'Tất cả')}
-                    <CountChip pending={countsPending} count={subDim?.all} className="ml-1" />
-                  </Button>
-                  {visibleSubs.map((sub) => {
-                    const subActive = activeSubcategory === sub.slug
-                    const count = subCount(sub.slug)
-                    return (
-                      <Button key={sub.slug} variant="bare" size="none" data-subcat={sub.slug} aria-pressed={subActive} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
-                        {/* At 14px the baked display stroke goes wispy — re-tier the ink
-                            line to the UI weight (icon-language §2). */}
-                        <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
-                        <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
-                        <CountChip pending={countsPending} count={count} className="ml-1" />
-                      </Button>
-                    )
-                  })}
-                  {overflowSubs.length > 0 && (
-                    <MoreOverflow count={overflowSubs.length}>
-                      {overflowSubs.map((sub) => {
-                        const subActive = activeSubcategory === sub.slug
-                        const count = subCount(sub.slug)
-                        return (
-                          <Button
-                            key={sub.slug}
-                            variant="bare"
-                            size="none"
-                            data-subcat={sub.slug}
-                            aria-pressed={subActive}
-                            onClick={() => onSubcategory(subActive ? 'all' : sub.slug)}
-                            className={cn('flex w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left font-semibold transition-colors active:scale-100', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
-                          >
-                            <span className="flex min-w-0 items-center gap-2"><CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="h-4 w-4 shrink-0 text-ink-4" /><span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span></span>
-                            <CountChip pending={countsPending} count={count} className="shrink-0" />
-                          </Button>
-                        )
-                      })}
-                    </MoreOverflow>
-                  )}
-                </div>
-              </div>
-            )}
-          </Fragment>
+          </Button>
         )
       })}
 
@@ -534,13 +564,20 @@ export function CategoryRail({
           a distinct "intent" group; each toggles the listingType filter. */}
       {intents && intents.length > 0 && (
         <>
-          <Separator orientation="vertical" className="h-11 shrink-0" />
-          {intents.map((s) => {
+          {/* ⚠️ NO VERTICAL HAIRLINE HERE ANY MORE: in the grid it would claim a whole column. The
+              intent tiles simply follow the categories, as 58's grid runs its entries together. */}
+          {/* ⚠️ `leadTiles + i`, NOT `leadTiles`. Every intent tile used to ask about the same index;
+              it gives the right answer today only because all three sit past `bigCount`, so it was a
+              latent trap rather than a bug — all three reviewers flagged it in the same round. */}
+          {intents.map((s, i) => {
             const active = activeType === s.type
             return (
-              <Button key={s.type} variant="bare" size="none" data-intent={s.type} onClick={() => onIntent?.(s.type)} className={cn('whitespace-normal', tileCls)}>
-                <span className="flex h-11 items-center justify-center">
-                  <CategoryTileGlyph slug={s.type} icon={s.icon} className={iconCls(active)} selected={active} />
+              <Button key={s.type} variant="bare" size="none" data-intent={s.type} onClick={() => onIntent?.(s.type)} className={cn('whitespace-normal', tileCls, spanAt(leadTiles + i))}>
+                {/* Sized BY INDEX like every other tile, not by a hardcoded `h-11`: same answer
+                    today (intents always sit past `bigCount`), but a reviewer was right that a
+                    hardcoded box is the half of the pair that would not follow if that changed. */}
+                <span className={glyphBoxCls(leadTiles + i)}>
+                  <CategoryTileGlyph slug={s.type} icon={s.icon} className={cn(iconCls(active), glyphSizeAt(leadTiles + i))} selected={active} />
                 </span>
                 <span className={nameCls(active)}><TileLabel text={lang === 'vi' ? s.nameVi : s.name} /></span>
               </Button>
@@ -550,6 +587,74 @@ export function CategoryRail({
       )}
     </div>
       <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} tight />
+
+      {/**
+       * The active category's subcategories, under the grid (see the note where they are computed).
+       *
+       * ⚠️ NO ARROWS ON THIS SCROLLER, AND THAT IS MEASURED RATHER THAN OVERLOOKED. A reviewer's point
+       * is real in principle — the chips used to be a child of the grid, so the grid's arrows moved
+       * them, and below the grid they are their own overflow box. A second `useScrollArrows` was
+       * written and then REMOVED: swept across all eight categories at 480 / 640 / 768 / 1024 /
+       * 1280 px, not one overflows (the 3-row chip grid is at most ~650px wide), and the only width
+       * that does overflow is a 390px phone — where `ScrollArrows` is hidden on purpose and the strip
+       * is swiped. Arrows there would have been dead code at every width that renders them. If the
+       * taxonomy grows a category past ~9 subcategories, re-measure and add them back.
+       */}
+      {subs.length > 0 && (
+        /* `key` REMOUNTS THE SCROLLER PER CATEGORY. Inside the category's own Fragment it remounted
+           for free; shared below the grid it kept the previous category's scrollLeft, so switching
+           could open a panel already scrolled past "All" (a reviewer's catch). */
+        <div key={activeCategory} className="mt-2 flex items-center gap-2 overflow-x-auto overscroll-x-contain scrollbar-none animate-in fade-in slide-in-from-top-1 duration-200">
+          {/* 3×3 grid (column-fill): All first, the 7 most-used in between, More last — plus
+              the active subcategory when its count ranked it below those 7 (see the promotion
+              above). That is the one case that fills all 9 cells and pushes More alone into a
+              4th column. */}
+          <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
+            {/* "All" = this rail released, every other filter still applied — so it is
+                legitimately larger than the chips beside it sum to (rows carrying no
+                subcategorySlug come back when the rail is cleared). Never a sum. */}
+            <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
+              {tr('All', 'Tất cả')}
+              <CountChip pending={countsPending} count={subDim?.all} className="ml-1" />
+            </Button>
+            {visibleSubs.map((sub) => {
+              const subActive = activeSubcategory === sub.slug
+              const count = subCount(sub.slug)
+              return (
+                <Button key={sub.slug} variant="bare" size="none" data-subcat={sub.slug} aria-pressed={subActive} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
+                  {/* At 14px the baked display stroke goes wispy — re-tier the ink
+                      line to the UI weight (icon-language §2). */}
+                  <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
+                  <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
+                  <CountChip pending={countsPending} count={count} className="ml-1" />
+                </Button>
+              )
+            })}
+            {overflowSubs.length > 0 && (
+              <MoreOverflow count={overflowSubs.length}>
+                {overflowSubs.map((sub) => {
+                  const subActive = activeSubcategory === sub.slug
+                  const count = subCount(sub.slug)
+                  return (
+                    <Button
+                      key={sub.slug}
+                      variant="bare"
+                      size="none"
+                      data-subcat={sub.slug}
+                      aria-pressed={subActive}
+                      onClick={() => onSubcategory(subActive ? 'all' : sub.slug)}
+                      className={cn('flex w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left font-semibold transition-colors active:scale-100', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
+                    >
+                      <span className="flex min-w-0 items-center gap-2"><CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="h-4 w-4 shrink-0 text-ink-4" /><span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span></span>
+                      <CountChip pending={countsPending} count={count} className="shrink-0" />
+                    </Button>
+                  )
+                })}
+              </MoreOverflow>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

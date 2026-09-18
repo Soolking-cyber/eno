@@ -1,7 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Home, MapPin, Bike, Armchair, Tag, Building2, Briefcase, ShoppingBag, KeyRound, Search } from '@/components/ui/icons'
+import { MapPin, Tag, Building2, Search, Compass, Heart, Star, Coins, Megaphone, ShieldCheck } from '@/components/ui/icons'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Mascot } from '@/components/marketplace/mascot'
@@ -47,16 +47,26 @@ export const metadata: Metadata = { title: `Page not found | ${SITE_NAME}` }
 // Faint, on-brand marketplace icons scattered as a lightweight background motif —
 // inline SVG (lucide), so ZERO extra network weight (no raster images). Positions
 // are deterministic so it renders identically every time.
+/**
+ * ⛔ EVERY GLYPH HERE MUST BE IN THE **CORE** SPRITE, AND THE COST OF GETTING IT WRONG IS PAID ON
+ * EVERY PAGE — NOT ON THIS ONE. Next ships a route's not-found UI inside the RSC payload of every
+ * page under the layout, so these `<use href>`s exist in the home, search and saved documents too.
+ * Six of the previous ten (Home, Bike, Armchair, Briefcase, ShoppingBag, KeyRound) live in the
+ * DEFERRED sprite, which made `glyphs-rest.svg` — 188 KB, the single largest download on the home
+ * page — a dependency of every visit, for decoration at 7% opacity that only a 404 ever shows.
+ * Measured 2026-09-18. The motif below is the same idea drawn with glyphs the core file already
+ * carries (scripts/critical-icons.mjs), so it costs nothing anywhere.
+ */
 const MOTIF: { Icon: typeof MapPin; top: string; left: string; size: number; rotate: number }[] = [
   { Icon: MapPin, top: '11%', left: '8%', size: 58, rotate: -12 },
-  { Icon: Home, top: '20%', left: '83%', size: 74, rotate: 10 },
-  { Icon: Bike, top: '63%', left: '5%', size: 66, rotate: 8 },
-  { Icon: Armchair, top: '72%', left: '86%', size: 60, rotate: -8 },
+  { Icon: Compass, top: '20%', left: '83%', size: 74, rotate: 10 },
+  { Icon: Heart, top: '63%', left: '5%', size: 66, rotate: 8 },
+  { Icon: Coins, top: '72%', left: '86%', size: 60, rotate: -8 },
   { Icon: Tag, top: '40%', left: '91%', size: 44, rotate: 14 },
   { Icon: Building2, top: '7%', left: '47%', size: 50, rotate: -6 },
-  { Icon: Briefcase, top: '83%', left: '45%', size: 46, rotate: 6 },
-  { Icon: ShoppingBag, top: '47%', left: '4%', size: 52, rotate: -10 },
-  { Icon: KeyRound, top: '29%', left: '25%', size: 40, rotate: 16 },
+  { Icon: Megaphone, top: '83%', left: '45%', size: 46, rotate: 6 },
+  { Icon: ShieldCheck, top: '47%', left: '4%', size: 52, rotate: -10 },
+  { Icon: Star, top: '29%', left: '25%', size: 40, rotate: 16 },
   { Icon: Search, top: '58%', left: '71%', size: 46, rotate: -14 },
 ]
 

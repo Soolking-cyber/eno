@@ -73,6 +73,14 @@ export const CRITICAL_GLYPHS = [
    * are painted on arrival, so they belong here by the same rule as everything above.
    */
   'Pause', 'SupportDialog', 'ArrowDown', 'ArrowUp', 'Info',
+  /**
+   * ⛔ RE-DERIVED 2026-09-18: `Download` is the header's "Get the app" control, so it paints on
+   * ARRIVAL on every route of both editions — and it was the last glyph keeping `glyphs-rest.svg`
+   * (188 KB) on the home, search and saved documents. The other six stragglers were the 404 page's
+   * decorative motif, which Next ships inside every page's payload; those were changed to core
+   * glyphs instead of promoted (src/app/[lang]/not-found.tsx).
+   */
+  'Download',
 ]
 
 /** Measured so a later reader can tell whether the split still earns its complexity. */
@@ -94,4 +102,21 @@ export const CRITICAL_MEASUREMENT = {
    * remove only with evidence that it is unreachable on first paint.
    */
   note: 'additive re-derivation; entries are never dropped on a single sweep',
+  /**
+   * ⚠️ A SECOND, SEPARATE SWEEP — the fields above are the 2026-09-06 derivation and are NOT
+   * restated here; these are what the 2026-09-18 pass measured after promoting `Download` and moving
+   * the 404 motif onto core glyphs. A reviewer was right that promoting a glyph without recording
+   * anything leaves the next reader unable to tell whether the split still pays.
+   * ⚠️ BYTES ON DISK, NOT OVER THE WIRE, and the two get confused: `glyphs-rest.svg` is 680 KB raw
+   * and ~188 KB transferred (gzip), which is the figure every other comment about it quotes.
+   */
+  reDerived2026_09_18: {
+    route: '/',
+    coreSymbols: 94,
+    restSymbols: 494,
+    coreBytesRaw: 112_847,
+    restBytesRaw: 696_713,
+    /** The point of the pass: the home document no longer references the deferred sprite at all. */
+    homeUseRefs: { core: 246, rest: 0 },
+  },
 }
