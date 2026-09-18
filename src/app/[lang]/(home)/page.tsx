@@ -11,6 +11,7 @@ import { trendingRailListings } from '@/lib/core/trending-rail'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
+import { PullToRefresh } from '@/components/marketplace/pull-to-refresh'
 import { Footer } from '@/components/marketplace/footer'
 
 // ISR: near-static homepage data, refreshed at most once a minute (better LCP/TTFB).
@@ -94,6 +95,9 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-screen flex-col home-wash">
+      {/* Pull down at the top of the feed and the mascot comes to fetch — the component's own header
+          has the why, the gesture rules and why it is touch-only. */}
+      <PullToRefresh />
       {/* NO hero-wordmark preload any more: the hero heading is sr-only on both editions as of
           2026-08-02 (owner), so there is no hero image left to preload and <LogoWordmark> is gone.
           The wordmark that remains is the HEADER's, which sits at the very top of the initial
