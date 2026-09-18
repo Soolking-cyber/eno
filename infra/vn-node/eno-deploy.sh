@@ -79,7 +79,42 @@ probe(){
   # ⛔ THE SAME URL IN TWO LANGUAGES, WITH NO CACHE-BUSTER. Pages render in the visitor's language
   # at one public URL (src/proxy.ts), so a shared cache keyed on the URL alone would hand the first
   # visitor's language to everyone. `check` above appends ?d=… and can never see that; this cannot miss it.
-  langcheck(){ local url="$1" al="$2" want="$3" got
+  # ⛔ A REDIRECT IS A PASS, AND FOLLOWING IT WOULD BE WORSE THAN FAILING. www.eno.vn 308s to the
+  # apex (measured), so a plain read finds no `<html lang>` and would roll back a healthy deploy —
+  # but `curl -L` is not the fix: it would read the APEX's response for the `www` probe, and the two
+  # hostnames would stop being separate evidence. That is exactly the apex-vs-www divergence the
+  # loop below exists to catch (CLAUDE.md, 2026-08-02). So: a 3xx is recorded and skipped — the host
+  # it redirects to is probed on its own line — and only a 200 is language-checked.
+  # ⛔ THE ONLY REDIRECT EITHER PROBE MAY EXCUSE: same page, same site, `www.` added or removed.
+  # An allow-LIST of the four hostnames would pass eno.vn → eno.forum (across the licensing boundary)
+  # and /privacy → / (a different page). Stripping only `www.` is also wrong: the two editions
+  # canonicalise in OPPOSITE directions — eno.vn is www→apex, and the services edition's
+  # NEXT_PUBLIC_APP_URL is https://www.eno.forum, i.e. apex→www — so a one-way rule would fail a
+  # healthy forum deploy (a reviewer's catch; today neither forum host redirects at all).
+  # ⚠️ IT STILL CANNOT SILENCE THE PROBE: if the apex ever 308s `/` → `/vi/`, the paths differ and
+  # this returns false, so the deploy fails — which is the regression the probe exists for.
+  canonical_pair(){ local a b
+                    case "$2" in https://*) ;; *) return 1 ;; esac   # never excuse a downgrade or a blank
+                    a=${1#https://}; a=${a#www.}
+                    b=${2#https://}; b=${b#www.}
+                    [ "$a" = "$b" ]; }
+  langcheck(){ local url="$1" al="$2" want="$3" got code
+               code=$(curl -s -o /dev/null --max-time 25 -H "Accept-Language: $al" -w '%{http_code} %{redirect_url}' "$url")
+               case "$code" in
+                 30*)
+                   # ⛔ WHERE IT GOES IS THE WHOLE QUESTION. An unconditional pass on any 3xx would let
+                   # the regression this probe exists to catch switch the probe off: if the apex ever
+                   # 308s `/` → `/vi/`, every line would print "redirect" and certify the deploy while
+                   # serving Vietnamese to everyone. Only a redirect to one of OUR hostnames, at the
+                   # same path, is a canonical redirect; anything else fails.
+                   local target=${code#* }
+                   if canonical_pair "$url" "$target"; then
+                     printf '  %-38s %s → %s (language checked at that host)\n' "$url" "${code%% *}" "$target"
+                   else
+                     printf '  %-38s %s → %s ⛔ not the canonical host for this page\n' "$url" "${code%% *}" "${target:-none}"; fail=1
+                   fi
+                   return 0 ;;
+               esac
                got=$(curl -s --max-time 25 -H "Accept-Language: $al" "$url" | grep -o '<html[^>]*lang="[a-z]*"' | head -1 | grep -o 'lang="[a-z]*"' | cut -d'"' -f2)
                if [ "$got" = "$want" ]; then printf '  %-38s lang=%s (%s)\n' "$url" "$got" "$al"
                else printf '  %-38s lang=%s for %s (want %s) ⛔ edge or proxy serving the wrong language\n' "$url" "${got:-none}" "$al" "$want"; fail=1; fi; }
@@ -92,6 +127,25 @@ probe(){
   done
   langcheck https://eno.vn/privacy vi-VN vi
   langcheck https://eno.vn/privacy en-US en
+  # ⚠️ AND THE COOKIE PATH, WHICH THE HEADER PROBES ABOVE NEVER EXERCISE: a returning visitor carries
+  # `lang`, the proxy prefers it over Accept-Language, and the box's micro-cache keys on it. An English
+  # browser holding a Vietnamese cookie must get Vietnamese.
+  cookiecheck(){ local got code target
+                 # Same rule as langcheck: a canonical www↔apex redirect is fine, anything else is not —
+                 # a cookie-dependent redirect somewhere else is precisely what this probe must catch.
+                 code=$(curl -s -o /dev/null --max-time 25 -H 'Accept-Language: en-US' -H 'Cookie: lang=vi' -w '%{http_code} %{redirect_url}' "$1")
+                 case "$code" in
+                   30*) target=${code#* }
+                        if canonical_pair "$1" "$target"; then printf '  %-38s %s → %s (cookie checked at that host)\n' "$1" "${code%% *}" "$target"
+                        else printf '  %-38s %s → %s ⛔ cookie-dependent redirect\n' "$1" "${code%% *}" "${target:-none}"; fail=1; fi
+                        return 0 ;;
+                 esac
+                 got=$(curl -s --max-time 25 -H 'Accept-Language: en-US' -H 'Cookie: lang=vi' "$1" | grep -o '<html[^>]*lang="[a-z]*"' | head -1 | grep -o 'lang="[a-z]*"' | cut -d'"' -f2)
+                 if [ "$got" = vi ]; then printf '  %-38s lang=vi (cookie beats header)\n' "$1"
+                 else printf '  %-38s lang=%s with lang=vi cookie (want vi) ⛔\n' "$1" "${got:-none}"; fail=1; fi; }
+  cookiecheck https://eno.vn/
+  cookiecheck https://eno.forum/
+  cookiecheck https://www.eno.forum/
   return $fail
 }
 
