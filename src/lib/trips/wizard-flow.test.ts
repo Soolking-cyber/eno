@@ -37,9 +37,13 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('../admin', () => ({ getCurrentProfile: async () => h.state.profile }))
+/* ⚠️ `TRIP_DESK_OWNER_EMAILS` IS PART OF THIS MODULE'S SURFACE even though nothing here reads it:
+   `src/lib/edition-scope.ts` consumes it AT MODULE SCOPE, so any import chain reaching edition-scope
+   fails on a mock that omits it. Mock the module's exports, not just the ones this test calls. */
 vi.mock('./dm-thread', () => ({
   getTripDesk: async () => h.state.desk,
   getTripAssistanceListingId: async () => h.state.anchorListingId,
+  TRIP_DESK_OWNER_EMAILS: [] as readonly string[],
 }))
 vi.mock('../messages', async (orig) => ({
   ...(await orig<typeof import('../messages')>()),
