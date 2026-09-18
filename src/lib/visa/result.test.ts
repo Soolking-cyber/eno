@@ -200,7 +200,15 @@ vi.mock('@/lib/messages', () => ({
     return { id: 'message-1', mine: true, body: '', createdAt: '', kind: opts?.kind ?? 'text', offerAmount: null, offerStatus: null, meta: null }
   },
 }))
-vi.mock('@/lib/visa-shop', () => ({ getVisaShopSeller: async () => h.state.shop }))
+/* ⚠️ `VISA_SHOP_OWNER_EMAILS` IS PART OF THIS MODULE'S SURFACE even though nothing in this suite
+   reads it: `src/lib/edition-scope.ts` consumes it AT MODULE SCOPE, so any import chain that reaches
+   edition-scope explodes on a mock that omits it. The chain arrived via unread.ts on 2026-09-18 and
+   the mock had been incomplete all along. Mock the module's exports, not just the ones today's test
+   happens to call. */
+vi.mock('@/lib/visa-shop', () => ({
+  getVisaShopSeller: async () => h.state.shop,
+  VISA_SHOP_OWNER_EMAILS: [] as readonly string[],
+}))
 vi.mock('@/lib/mail', () => ({
   sendMail: async (msg: Record<string, unknown>) => { h.state.mails.push(msg); return h.state.mailOk },
 }))

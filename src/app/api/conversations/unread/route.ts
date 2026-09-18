@@ -1,8 +1,6 @@
-import { getAdmin } from '@/lib/admin'
-import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
-import { editionSellerScope } from '@/lib/edition-scope'
+import { isCurrentUserAdminByClaims } from '@/lib/admin'
+import { conversationUnread } from '@/lib/unread'
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
 
 export const runtime = 'nodejs'
@@ -27,38 +25,24 @@ export async function GET() {
   const meId = await getCurrentProfileId()
   if (!meId) return NextResponse.json({ unread: 0 })
 
-  // ⚠️ BOTH aggregates, or the badge counts threads the inbox refuses to show — a permanent phantom
-  // that somebody eventually "fixes" by un-hiding the thread.
-  // Per-edition now — see the note in src/lib/edition-scope.ts on editionHiddenSellerIds.
-  // One rule for both the hide-list and the allow-list — see editionSellerScope.
-  const notDesk = await editionSellerScope()
-  const [asBuyer, asSeller, asSupport] = await Promise.all([
-    db.conversation.aggregate({ where: { buyerProfileId: meId, ...notDesk }, _sum: { buyerUnread: true } }),
-    db.conversation.aggregate({ where: { sellerProfileId: meId, ...notDesk }, _sum: { sellerUnread: true } }),
-    /**
-     * ⛔ THE THIRD AGGREGATE MIRRORS THE THIRD `OR` IN THE LIST. The comment above says it exactly:
-     * both aggregates, or the badge counts threads the inbox refuses to show. The inverse is just
-     * as bad and is what shipped — the inbox now shows support threads while the badge ignored
-     * them, so a customer's message sat unread with nothing anywhere saying so.
-     */
-    (async () => (await getAdmin())
-      /**
-       * ⛔ NO EDITION SCOPE ON THIS ONE, AND IT MUST MATCH THE LIST EXACTLY. Two drafts got this
-       * wrong in opposite directions and two reviewers caught the pair disagreeing:
-       *   · `{ sellerId: SUPPORT_SELLER_ID, ...notDesk }` — a SPREAD, and edition-scope.ts already
-       *     documents that trap in as many words ("Object spread overwrites on key collision, so
-       *     the obvious usage silently loses"). `notDesk` IS `{ sellerId: … }` whenever an edition
-       *     hides anyone, which eno.forum does, so the support filter was discarded outright and
-       *     the badge summed sellerUnread across EVERY seller.
-       *   · `AND: [{ sellerId }, notDesk]` — no longer wrong, but no longer the same question the
-       *     LIST asks: that exempts the desk from the scope entirely. A badge that counts a
-       *     different set from the inbox is the phantom this file's own header warns about.
-       * `SUPPORT_SELLER_ID` is build-scoped, so naming it IS the edition scope; nothing further to
-       * intersect with, and the list branch says exactly this.
-       */
-      ? db.conversation.aggregate({ where: { sellerId: SUPPORT_SELLER_ID }, _sum: { sellerUnread: true } })
-      : { _sum: { sellerUnread: 0 } })(),
-  ])
-  const unread = (asBuyer._sum.buyerUnread ?? 0) + (asSeller._sum.sellerUnread ?? 0) + (asSupport._sum.sellerUnread ?? 0)
+  /**
+   * ⛔ THE SUM ITSELF LIVES IN `src/lib/unread.ts` NOW — it is not duplicated here, and the reason is
+   * the bug this endpoint was hardened against on 2026-09-18. The edition scope and the
+   * deleted-thread filter were added HERE and nowhere else, while `/api/notifications` kept its own
+   * inline copy of the same aggregates — and that copy is the one that actually feeds the badge. The
+   * endpoint that was fixed was not the endpoint that was broken. Three surfaces asking one question
+   * must call one function; read that file before changing what "unread" means.
+   *
+   * ⛔ THE SAME ORACLE AS `/api/notifications`, AND THAT IS THE POINT. This route asked `getAdmin()`
+   * (an auth-server round trip, revocation-aware) while the poll asked
+   * `isCurrentUserAdminByClaims()` (the verified JWT) — so a just-promoted or just-demoted operator
+   * got one badge counting desk threads and the other not, until the token rolled. A reviewer named
+   * it as the exact disagreement this module exists to prevent, reintroduced one layer up: it is no
+   * use sharing the QUERY if the two callers disagree about the question.
+   * ⚠️ REVOCATION IS THE RIGHT WORRY IN THE WRONG PLACE. `getAdmin()` stays the gate everywhere
+   * access is actually granted — reading a desk thread, answering it, the admin pages. This decides
+   * whether a NUMBER includes some rows, and a stale-by-one-token-lifetime count opens no door.
+   */
+  const unread = await conversationUnread(meId, { includeSupportDesk: await isCurrentUserAdminByClaims() })
   return NextResponse.json({ unread })
 }

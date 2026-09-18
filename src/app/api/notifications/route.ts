@@ -1,44 +1,19 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
+import { isCurrentUserAdminByClaims } from '@/lib/admin'
+import { conversationUnread } from '@/lib/unread'
 import { IS_MARKETPLACE } from '@/lib/edition'
+import { notificationScope } from '@/lib/notification-scope'
 
 /**
- * ⛔ SERVICES-TIER NOTIFICATIONS MUST NOT REACH THE MARKETPLACE FEED — AND THIS IS A DATA
- * PATH, WHICH IS WHY THE EXISTING GUARD MISSED IT. `sendVisaResultCard` deliberately keeps
- * its copy in the notification ROW rather than in notification-bell.tsx, precisely so no visa
- * string ships inside the eno.vn BUNDLE. That reasoning is correct and it is only half the
- * boundary: the row is still returned by this route, which is `route.ts` (not `.svc.ts`) and
- * therefore compiled into BOTH editions, selecting `title` and `body` verbatim.
- *
- * Concretely: an applicant who receives "eno e-Visa" on eno.forum and then signs into eno.vn
- * saw it in the marketplace bell, deep-linking into the visa conversation. eno.vn is a
- * licensed sàn TMĐT that may not surface eno's own e-Visa service at all — that is a
- * licensing failure, not a cosmetic one. Both external reviewers found it independently.
- *
- * ⚠️ NOT THE SAME AS THE PARTNER'S VISA CHAT, which eno.vn IS admitted to via
- * MARKETPLACE_HOSTS_SERVICES. The line is eno's OWN services tier (`.forum.svc.`), and
- * `visa_result` is on the wrong side of it.
- *
- * ⚠️ A DENY-LIST, AND IT NEEDS MAINTAINING. Any future services-tier notification type must
- * be added here in the same commit that starts writing it. A type-level allow-list would be
- * safer but would silently swallow every ordinary marketplace type the day someone adds one.
+ * ⚠️ THE PREDICATE MOVED TO `src/lib/notification-scope.ts` AND IS RE-EXPORTED HERE. It had to: the
+ * native app-icon badge counts the same rows from `src/lib/unread.ts`, this route imports
+ * `conversationUnread` from that module, and a predicate living here would make that a cycle. The
+ * re-export keeps `./scope.test.ts` pinning the real thing rather than a copy, and keeps every
+ * existing importer working. The licensing reasoning behind the deny-list lives with the code.
  */
-export const SERVICES_ONLY_NOTIFICATION_TYPES = ['visa_result'] as const
-
-/**
- * ⛔ ONE PREDICATE, USED BY BOTH QUERIES. The list and the unread COUNT must filter
- * identically or the badge shows a number the feed cannot show and the user cannot clear —
- * and a badge that cannot be cleared teaches people to ignore the badge. Building the clause
- * inline twice is exactly how those two drift apart on the next edit, so it is built once and
- * exported, which is also what lets a test pin the REAL predicate rather than a copy of it.
- */
-export function notificationScope(userId: string, isMarketplace: boolean) {
-  return {
-    recipientId: userId,
-    ...(isMarketplace ? { type: { notIn: [...SERVICES_ONLY_NOTIFICATION_TYPES] } } : {}),
-  }
-}
+export { SERVICES_ONLY_NOTIFICATION_TYPES, notificationScope } from '@/lib/notification-scope'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -59,7 +34,7 @@ export const dynamic = 'force-dynamic'
 // unhandled throw and Next served its own 500. route() now logs it and answers
 // `{"error":"internal_error"}` 500. Same status, structured body, never the exception text.
 export const GET = route({ auth: 'userId' }, async ({ userId }) => {
-  const [items, unread, asBuyer, asSeller] = await Promise.all([
+  const [items, unread, convoUnread] = await Promise.all([
     db.notification.findMany({
       where: notificationScope(userId, IS_MARKETPLACE),
       orderBy: { createdAt: 'desc' },
@@ -74,14 +49,23 @@ export const GET = route({ auth: 'userId' }, async ({ userId }) => {
     // could never clear it, because the rows it counts are the ones the feed now hides.
     // A badge that cannot be cleared is how people learn to ignore the badge.
     db.notification.count({ where: { ...notificationScope(userId, IS_MARKETPLACE), read: false } }),
-    db.conversation.aggregate({ where: { buyerProfileId: userId }, _sum: { buyerUnread: true } }),
-    db.conversation.aggregate({ where: { sellerProfileId: userId }, _sum: { sellerUnread: true } }),
+    /**
+     * ⛔ THE BADGE NUMBER COMES FROM `conversationUnread()` NOW, AND THIS IS THE FIX FOR THE OWNER'S
+     * PHANTOM (2026-09-18: "has 1 message but when clicked no new messages"). What stood here was an
+     * inline pair of aggregates over EVERY conversation row — no edition scope, no deleted-thread
+     * filter — while the inbox applies both. On eno.vn that counted a trip-desk thread the edition
+     * split requires the list to hide, so the badge said 1 and the inbox was empty, permanently.
+     * ⚠️ THE COMMENT ABOVE ABOUT THE NOTIFICATION COUNT NEEDING THE LIST'S FILTER SAID THIS ALREADY,
+     * one line up, about the other half of the same response. The rule was written and then not
+     * applied to the neighbour.
+     */
+    conversationUnread(userId, { includeSupportDesk: await isCurrentUserAdminByClaims() }),
   ])
 
   return {
     notifications: items.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() })),
     unread,
-    convoUnread: (asBuyer._sum.buyerUnread ?? 0) + (asSeller._sum.sellerUnread ?? 0),
+    convoUnread,
   }
 })
 

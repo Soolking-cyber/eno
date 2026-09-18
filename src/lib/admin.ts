@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { after } from 'next/server'
 import { headers } from 'next/headers'
@@ -144,13 +145,58 @@ async function bearerToken(): Promise<string | undefined> {
   }
 }
 
-export async function getCurrentProfileId(): Promise<string | null> {
+/**
+ * The caller's verified JWT claims, resolved ONCE PER REQUEST.
+ *
+ * ⚠️ `cache()` IS NOT AN OPTIMISATION HERE, IT IS WHAT MAKES A SECOND READER FREE. Two callers now
+ * want claims on the same request — `getCurrentProfileId()` for the id and
+ * `isCurrentUserAdminByClaims()` for the email — and /api/notifications runs both, on a route polled
+ * every 45s by every signed-in tab. React's per-request cache collapses them to one verification.
+ * ⛔ AND IT IS THE INSURANCE FOR A KEY-TYPE CHANGE. `getClaims()` verifies locally only while the
+ * project signs ASYMMETRICALLY; the SDK's own fallback is "if symmetric algorithm or WebCrypto is
+ * unavailable, fall back to getUser()" — a call to the auth server. Measured 2026-09-18, this
+ * project's JWKS serves an ES256 key, so verification is local today and the claim in
+ * `isCurrentUserAdminByClaims()` holds. If anyone ever moves it back to an HS256 shared secret, this
+ * dedupe is the difference between one round trip on that poll and two. A reviewer raised the
+ * mechanism; the key type is what settles the cost, so both are written down.
+ * ⚠️ IT MEMOISES `null` TOO, FOR THE WHOLE REQUEST. A request that MUTATES its own session — OTP
+ * verify, a refresh, sign-out — and then asks again gets the answer from before the mutation, where
+ * each call used to re-verify. Every such route resolves identity once today, so nothing regresses;
+ * if one ever needs the post-mutation identity, read the new session directly rather than widening
+ * this. A reviewer flagged the semantics change, which is why it is stated rather than implied.
+ */
+const currentClaims = cache(async (): Promise<Record<string, unknown> | null> => {
   try {
     const supabase = await createSupabaseServer()
     const { data, error } = await supabase.auth.getClaims(await bearerToken())
-    const sub = data?.claims?.sub
-    return error || !sub ? null : (sub as string)
+    return error ? null : ((data?.claims as Record<string, unknown> | undefined) ?? null)
   } catch {
     return null
   }
+})
+
+export async function getCurrentProfileId(): Promise<string | null> {
+  const sub = (await currentClaims())?.sub
+  return typeof sub === 'string' ? sub : null
+}
+
+/**
+ * Is the caller an admin, judged from the LOCALLY VERIFIED JWT — no auth-server round trip.
+ *
+ * ⛔ THIS IS NOT AN ACCESS GATE AND MUST NEVER BECOME ONE. `getAdmin()` above is, and the difference
+ * is revocation: it calls `getUser()`, which asks the auth server whether the session is still good,
+ * so a demoted or signed-out admin loses access at once. This reads the `email` claim out of a token
+ * this server verified against cached JWKS — signed by the same authority, but valid until it
+ * expires. **Use it only where the answer changes a NUMBER, never where it opens a door.**
+ *
+ * ⚠️ IT EXISTS BECAUSE OF ONE CALLER'S COST, WHICH IS WORTH KNOWING BEFORE ADDING A SECOND.
+ * `/api/notifications` is polled every 45s by every signed-in tab and deliberately runs in
+ * `auth: 'userId'` mode precisely so it verifies the JWT locally and touches no network (the
+ * handler wrapper spells this out). It needs admin-ness only to decide whether the support desk's
+ * unread belongs in the badge total — a count. Reaching for `getAdmin()` there would put an
+ * auth-server round trip on the app's most frequent request to answer a question about a number.
+ */
+export async function isCurrentUserAdminByClaims(): Promise<boolean> {
+  const email = (await currentClaims())?.email
+  return typeof email === 'string' && isAdminEmail(email)
 }
