@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
 import { applyTrustEvent, penalizeSeller, recomputeTrust, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
@@ -185,7 +185,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         if (report.listingId) {
           try {
             await db.listing.update({ where: { id: report.listingId }, data: { verified: false } })
-            revalidatePath(`/listings/${report.listingId}`)
+            revalidatePublicPath(`/listings/${report.listingId}`)
           } catch (e) {
             logError(e, { op: 'moderate.unverifyListing', reportId: rid, listingId: report.listingId })
             // Do NOT throw: the trust dock above already landed for THIS report, and aborting the
@@ -224,7 +224,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
           data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date() },
         }),
       ])
-      revalidatePath(`/listings/${id}`)
+      revalidatePublicPath(`/listings/${id}`)
       return NextResponse.json({ ok: true })
     }
 
@@ -233,13 +233,13 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       const listing = await db.listing.findUnique({ where: { id }, select: { id: true } })
       if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       await db.listing.delete({ where: { id } })
-      revalidatePath(`/listings/${id}`)
+      revalidatePublicPath(`/listings/${id}`)
       return NextResponse.json({ ok: true })
     }
 
     case 'unpublish': {
       await db.listing.update({ where: { id }, data: { verified: false } })
-      revalidatePath(`/listings/${id}`)
+      revalidatePublicPath(`/listings/${id}`)
       return NextResponse.json({ ok: true })
     }
 
@@ -280,7 +280,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       if (report.listingId) {
         try {
           await db.listing.update({ where: { id: report.listingId }, data: { verified: false } })
-          revalidatePath(`/listings/${report.listingId}`)
+          revalidatePublicPath(`/listings/${report.listingId}`)
         } catch (e) {
           logError(e, { op: 'moderate.unverifyListing', reportId: id, listingId: report.listingId })
           takedownFailed = true

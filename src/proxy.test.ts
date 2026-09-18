@@ -65,3 +65,94 @@ describe('isLoopbackSelfOrigin', () => {
     expect(isLoopbackSelfOrigin(req('127.0.0.1:3101'), 'http://localhost:3101')).toBe(true)
   })
 })
+
+/**
+ * ⛔ THE LANGUAGE REWRITE DECIDES WHICH HTML EVERY VISITOR GETS. Pages live under the hidden `[lang]`
+ * segment, so a request that is not rewritten reaches no page at all, and a request rewritten into
+ * the wrong variant is a Vietnamese reader served English (or the reverse) from first paint.
+ */
+describe('language rewrite into the hidden [lang] segment', () => {
+  const run = async (path: string, init: { method?: string; headers?: Record<string, string> } = {}) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const res = proxy(new NextRequest(`https://eno.vn${path}`, { method: init.method ?? 'GET', headers: { host: 'eno.vn', ...(init.headers ?? {}) } }))
+    const target = res.headers.get('x-middleware-rewrite')
+    return { status: res.status, rewrite: target ? new URL(target).pathname : null, contentLanguage: res.headers.get('content-language') }
+  }
+
+  it('renders Vietnamese for a Vietnamese browser and English otherwise', async () => {
+    expect((await run('/', { headers: { 'accept-language': 'vi-VN,vi;q=0.9' } })).rewrite).toBe('/vi')
+    expect((await run('/c/rentals', { headers: { 'accept-language': 'vi' } })).rewrite).toBe('/vi/c/rentals')
+    expect((await run('/c/rentals', { headers: { 'accept-language': 'en-US' } })).rewrite).toBe('/en/c/rentals')
+    expect((await run('/c/rentals')).rewrite).toBe('/en/c/rentals')
+    expect((await run('/', { headers: { 'accept-language': 'vi' } })).contentLanguage).toBe('vi')
+  })
+
+  it('lets the lang cookie override the browser', async () => {
+    expect((await run('/about', { headers: { 'accept-language': 'vi', cookie: 'lang=en' } })).rewrite).toBe('/en/about')
+    expect((await run('/about', { headers: { 'accept-language': 'en', cookie: 'lang=vi' } })).rewrite).toBe('/vi/about')
+  })
+
+  it('keeps the query string', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const res = proxy(new NextRequest('https://eno.vn/?category=rentals&sort=newest', { headers: { host: 'eno.vn', 'accept-language': 'vi' } }))
+    const u = new URL(res.headers.get('x-middleware-rewrite')!)
+    expect(u.pathname).toBe('/vi')
+    expect(u.search).toBe('?category=rentals&sort=newest')
+  })
+
+  it('⛔ a public /en/… or /vi/… is not a second URL for the page', async () => {
+    expect((await run('/vi/c/rentals', { headers: { 'accept-language': 'vi' } })).rewrite).toBe('/vi/~/not-found')
+    expect((await run('/en', { headers: { 'accept-language': 'en' } })).rewrite).toBe('/en/~/not-found')
+    // …but a path that merely starts with those letters is an ordinary page
+    expect((await run('/vietnam-evisa', { headers: { 'accept-language': 'en' } })).rewrite).toBe('/en/vietnam-evisa')
+  })
+
+  it('rewrites a Server Action POST too — it posts to the page URL', async () => {
+    const r = await run('/listings/abc', { method: 'POST', headers: { origin: 'https://eno.vn', 'accept-language': 'vi' } })
+    expect(r.rewrite).toBe('/vi/listings/abc')
+  })
+
+  it('still refuses a cross-origin write before routing', async () => {
+    const r = await run('/listings/abc', { method: 'POST', headers: { origin: 'https://evil.example', 'accept-language': 'vi' } })
+    expect(r.status).toBe(403)
+  })
+
+  it('⛔ tells Cloudflare never to store a language-dependent page', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const res = proxy(new NextRequest('https://eno.vn/', { headers: { host: 'eno.vn', 'accept-language': 'vi' } }))
+    expect(res.headers.get('cloudflare-cdn-cache-control')).toBe('no-store')
+  })
+
+  it('the matcher skips only the real root handlers, not handles that merely start like them', async () => {
+    const { config } = await import('./proxy')
+    const re = new RegExp(`^${config.matcher[1]}$`)
+    for (const p of ['/', '/c/rentals', '/listing-images-shop', '/apple', '/mdx', '/auth/callback']) expect(re.test(p), p).toBe(true)
+    for (const p of ['/listing-images', '/listing-images/x', '/md/home', '/app', '/_next/static/a.js', '/icon.svg', '/agents.md']) expect(re.test(p), p).toBe(false)
+  })
+
+  it('⛔ every route handler left at the src/app root is excluded — a rewrite would 404 it', async () => {
+    const { config } = await import('./proxy')
+    const { readdirSync, statSync } = await import('node:fs')
+    const re = new RegExp(`^${config.matcher[1]}$`)
+    for (const name of readdirSync('src/app')) {
+      if (name === '[lang]' || !statSync(`src/app/${name}`).isDirectory()) continue
+      expect(re.test(`/${name}`), `/${name}`).toBe(false)
+    }
+  })
+
+  it('never rewrites /api', async () => {
+    const r = await run('/api/listings', { headers: { 'accept-language': 'vi' } })
+    expect(r.rewrite).toBe(null)
+  })
+
+  it('composes with the storefront subdomain and its internal-path guard', async () => {
+    expect((await run('/', { headers: { host: 'apple.eno.vn', 'accept-language': 'vi' } })).rewrite).toBe('/vi/s/apple')
+    expect((await run('/s/apple', { headers: { 'accept-language': 'en' } })).rewrite).toBe('/en/~/not-found')
+  })
+})

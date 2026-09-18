@@ -110,7 +110,7 @@ describe('⚠️ DEFAULT_TRIP_DAYS — one number, both planners', () => {
   it('⚠️ there is exactly ONE planner — the dashboard builder must not come back', () => {
     // It was already dead code behind a redirect when it was deleted: nothing imported it, and a
     // custom-budget UI got built into it by mistake, shipping a feature nobody could reach.
-    expect(existsSync(join(__dirname, '..', '..', 'app/dashboard/trips/plan/itinerary-builder.tsx'))).toBe(false)
+    expect(existsSync(join(__dirname, '..', '..', 'app/[lang]/dashboard/trips/plan/itinerary-builder.tsx'))).toBe(false)
   })
 
   it('leaves no hard-coded day default behind in either planner', () => {

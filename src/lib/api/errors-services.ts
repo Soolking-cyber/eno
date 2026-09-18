@@ -23,7 +23,7 @@
  * ⚠️ THREE REVIEW FAMILIES INDEPENDENTLY FILED THE SAME FINDING ON THIS FILE, AND IT IS WRONG.
  * The claim: `human_help_pending` is in this list, `SERVICES_ALL` stubs to `[]` on a marketplace
  * build, therefore `apiErrorCode()` returns null on eno.vn and the shared-thread degrade branch in
- * `src/app/messages/[id]/page.tsx` never fires — so an eno.vn user whose concierge escalated on the
+ * `src/app/[lang]/messages/[id]/page.tsx` never fires — so an eno.vn user whose concierge escalated on the
  * forum sees an unknown-error state instead of "a person has been asked for".
  *
  * It does not hold: that page never narrows through `apiErrorCode()`. It imports neither

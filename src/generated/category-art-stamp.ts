@@ -3,4 +3,4 @@
 // public/icons/services, public/icons/nav and public/icons/ui — so a redrawn pack busts the
 // cache for all of them, on both editions. One stamp on purpose: four would be four things to
 // keep in step, and the whole set is redrawn together anyway.
-export const CATEGORY_ART_STAMP = '33e47fbb'
+export const CATEGORY_ART_STAMP = '5a2a3d43'

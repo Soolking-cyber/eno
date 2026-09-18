@@ -409,7 +409,14 @@ export function MobileNav() {
           // ⚠️ THE RADIUS ALREADY MATCHES THE GLYPH and needs no change: this icon is Solar's
           // `add-circle` — a plus inside a CIRCLE — and the coin is `rounded-full`. Concentric by
           // construction, which is the whole reason the fill reads as deliberate.
-          <span className="flex size-10 items-center justify-center rounded-full bg-brand-50 text-brand">
+          /* ⛔ BLUE MARK ON THE ORANGE PLATE, and the pair was swapped twice before it landed (owner,
+             2026-09-18: "pos icon orange plate button itself blue", then "inverse — button icon
+             itself blue, the backplate color is orange"). So the disc carries the commerce tint and
+             the plus carries the brand — which also keeps the ink the strongest thing in the coin:
+             measured, brand blue on --cta-50 is 4.80:1, where the reverse pairing put the lighter
+             orange on a tint. Every other tab in this bar is flat blue, so this one still reads as
+             the action. */
+          <span className="flex size-10 items-center justify-center rounded-full bg-cta-50 text-brand">
             <Plus className="h-[42px] w-[42px] shrink-0" strokeWidth={STROKE} />
           </span>
         }

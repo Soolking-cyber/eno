@@ -105,6 +105,19 @@ const buttonVariants = cva(
         // primary actions instead of re-coding bg-primary/hover:bg-brand-dark.
         cta:
           "bg-primary text-white font-bold hover:bg-brand-dark",
+        /**
+         * ⛔ `commerce` IS NOT `cta`, AND THE DIFFERENCE IS 128 BUTTONS. `variant="cta"` is the app's
+         * primary action — 128 call sites, including every admin panel — so painting IT orange is the
+         * "everything actionable in orange" the owner looked at once and pulled back from. The
+         * commerce orange belongs to the few controls that are ABOUT a transaction: the Post button
+         * and the price (globals.css has the ⛔ note on the token). Reach for this only there; three
+         * reviewers caught the first version repainting the whole app through the shared variant.
+         * ⚠️ ITS FILL DOES NOT BRIGHTEN IN DARK MODE, unlike most colours here — the label is white,
+         * and white on the brightened orange is 2.61:1. The token keeps the light value in both
+         * themes for exactly that reason; `--cta-ink` is the one that lightens, for TEXT.
+         */
+        commerce:
+          "bg-cta text-white font-bold hover:bg-cta-dark",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20",
         outline:

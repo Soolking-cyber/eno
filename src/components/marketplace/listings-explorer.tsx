@@ -25,7 +25,6 @@ import { ForYouRail } from './for-you-rail'
 import { RecentlyViewedRail } from './recently-viewed-rail'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
-import { PromoBanner } from './promo-banner'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
 import { DISTRICTS } from './listings-explorer.constants'
 import { type Nearby, type Geo } from './area-filter'
@@ -517,8 +516,8 @@ export function ListingsExplorer({
   }, [showExplorer, activeCategory, activeDistrict, activeSubcategory, activeProvince, activeWard, nearby, customFilters])
 
   // Is the undirected-browse chrome (the discovery shelves and the "Browse everything" unlock —
-  // the "big category tiles" this used to list went with the tile grid, and the promo banner left
-  // for `showBanner` below) on screen? Everything isLandingMode asks, plus: the map and video are
+  // the "big category tiles" this used to list went with the tile grid; the promo banner is gone
+  // from this page entirely since 2026-09-18) on screen? Everything isLandingMode asks, plus: the map and video are
   // results surfaces in their own right — the map is a 60dvh/full-column takeover and the
   // video feed is a fixed-inset one — so merchandising rails around them would be decorating a
   // view the visitor explicitly asked for.
@@ -532,47 +531,25 @@ export function ListingsExplorer({
   const showDiscovery = isLandingMode && viewMode !== 'map' && viewMode !== 'video'
 
   /**
-   * ⚠️ THE BANNER IS HOME-PAGE FURNITURE, NOT DISCOVERY CHROME — AND THIS IS THE ONE PREDICATE
-   * THAT DELIBERATELY DOES **NOT** READ isLandingMode (owner, 2026-08-12: "when i click on
-   * categories on home page it opens like this — make open there on spot in home page, we dont
-   * need any page change ... all search will be available from home page").
+   * ⛔ THE PREDICATE THESE FOUR PARAGRAPHS DOCUMENTED IS GONE, AND THIS IS WHAT IS WORTH KEEPING.
+   * `showBanner` decided where `<PromoBanner>` could appear; the banner itself was removed from this
+   * page on 2026-09-18 at the owner's instruction ("remove banners on desktop … Remove on both"),
+   * and the render-site note where it used to mount carries that quote and what replaced it.
    *
-   * It used to be gated on showDiscovery, and that is what the owner was looking at. Measured at
-   * 1440×900, tapping Electronics:
-   *   before   banner top=135 h=292 · category rail top=459 · document 3822px
-   *   after    banner UNMOUNTED     · category rail top=135 · document 2639px
-   * i.e. the rail jumped 324px — the banner's 292px plus its 32px `pb-8` — and every control
-   * below it came with. Nothing navigated (`window.__marker` survives the tap; it is a
-   * pushState), so there was no page change to see: the page RECOMPOSED around the tap, which
-   * from the far side of the screen is indistinguishable from one. Keeping this mounted pins the
-   * ladder at a fixed y in every browse state, and removes the jump in BOTH directions — the old
-   * gate lurched back down again when you deselected the category.
-   *
-   * ⚠️ IT STILL STANDS DOWN FOR THE TAKEOVERS, and that is the whole remaining condition. The map
-   * is a 60dvh/full-column surface and the video feed is fixed-inset; neither has a page column
-   * left to hold a banner, so this is not a placement judgement like the one above — there is
-   * nowhere to put it.
-   *
-   * ⚠️ IT DELIBERATELY SURVIVES A TYPED QUERY TOO, WHICH IS THE ARGUABLE HALF. An ad above
-   * results the visitor explicitly asked for is the placement both external reviewers objected to
-   * back when this tree had two branches, and on a phone it is ~191px of advertising above the
-   * first result. It is kept because the alternative re-creates the exact defect the owner
-   * reported, one action to the left: the frame would still tear itself down, just on typing
-   * instead of on tapping. One stable frame, results changing inside it. If this is ever revisited
-   * the axis to argue is the banner's HEIGHT on directed views, not its presence.
+   * Two constraints outlived it, because they are about the SLOT rather than the predicate, and the
+   * next person to put advertising on this page needs both:
+   * · ⛔ NEVER ON A SHOP'S OWN STOREFRONT. Owner, 2026-08-30: *"dont show eno.vn banners in
+   *   individual storefront"*. `<PromoBanner>` is eno's OWN slot — VinWonders, VietKite, GMBR — and a
+   *   shop handing out `apple.eno.vn` would be handing out a page carrying a competitor's ad above
+   *   its own stock. The shop's own banner is a DIFFERENT component, `<StorefrontBanner>`, one slot
+   *   per storefront, and it belongs to the shop.
+   * · ⚠️ A SLOT THAT MOUNTS AND UNMOUNTS WITH A FILTER IS THE BUG THE OWNER REPORTED, not a
+   *   placement choice. Measured at 1440×900 when it was gated on `showDiscovery`: tapping
+   *   Electronics moved the category rail from top=459 to top=135 and the document from 3822px to
+   *   2639px — a 324px lurch (the banner's 292px plus its `pb-8`) with every control below it, which
+   *   reads as a page change although nothing navigated. Whatever goes here next holds a fixed y in
+   *   every browse state, or it re-creates that jump.
    */
-  /**
-   * ⛔ NEVER ON A SHOP'S OWN STOREFRONT. Owner, 2026-08-30: *"dont show eno.vn banners in
-   * individual storefront"*. `<PromoBanner>` is eno's OWN advertising slot — VinWonders, VietKite,
-   * GMBR — and a shop that hands out `apple.eno.vn` as its shopfront is handing out a page that
-   * would otherwise carry a competitor's ad above its own stock. That is the opposite of the
-   * proposition, and on a partner's storefront it could put a rival partner's creative on their
-   * own domain.
-   * ⚠️ THE SHOP'S OWN BANNER IS A DIFFERENT COMPONENT and lives on the page above this one — see
-   * `<StorefrontBanner>` in `/s/[handle]`. One banner slot per storefront, and it belongs to the
-   * shop; this one belongs to eno.
-   */
-  const showBanner = !sellerId && viewMode !== 'map' && viewMode !== 'video'
 
   // ⚠️ THE SORT STRIP IS THE ONE CONTROL THE PREDICATES ABOVE DO NOT SEE, AND ALL THREE
   // REVIEWERS FOUND IT. Measured: the showExplorer sync effect covers category, query, district,
@@ -2363,11 +2340,12 @@ export function ListingsExplorer({
   // Now: the ladder (category row → facets → toolbar → sort) and the results are ALWAYS mounted;
   // `showDiscovery` only decides whether the undirected-browse chrome (the discovery shelves and
   // the "Browse everything" unlock) is also on screen. Typing filters the grid in place.
-  // ⚠️ THE PROMO BANNER LEFT THAT LIST ON 2026-08-12 and is now on `showBanner`, which asks a
-  // different question — see the predicate. Its unmount was the last thing above the fold that
-  // still recomposed the page ON A FILTER, i.e. the last survivor of the two-branch layout.
+  // ⚠️ THE PROMO BANNER LEFT THAT LIST ON 2026-08-12 (for a `showBanner` predicate) and left the
+  // PAGE on 2026-09-18 — nothing above the fold recomposes on a filter now. The note below is kept
+  // because the reasoning about what may and may not unmount above the fold still applies to the
+  // next thing that wants to live there.
   // ⚠️ NOT "on any tap" — an earlier draft of this line said that and codex was right to call it
-  // false. Switching to the map or video view still removes the banner's whole height. That is a
+  // false. Switching to the map or video view still removed the banner's whole height. That is a
   // takeover the visitor explicitly asked for, replacing the grid rather than re-laying it out, so
   // it is a view change and reads as one; a category chip is not.
   return (
@@ -2378,10 +2356,9 @@ export function ListingsExplorer({
     // to, because the sticky sort strip lived only in the other branch. The strip is on every
     // view now, so `overflow-hidden` here would silently un-stick it and nothing would fail.
     //
-    // ⚠️ `pt-5 sm:pt-6` IS MEASURED, NOT CHOSEN — read it together with <PromoBanner/> below.
-    // These paddings are the ONLY thing setting the gap above the promo banner, and they are
-    // tuned so it MATCHES the gap below it (owner, 2026-08-05: "match the distance above banner
-    // to next line"). Both were derived by measuring the built page, not by arithmetic on the
+    // ⚠️ `pt-5 sm:pt-6` IS MEASURED, NOT CHOSEN. It used to set the gap above the promo banner and
+    // now sets the gap above the CATEGORY GRID, which is the first thing on the page (2026-09-18).
+    // It was tuned by measuring the built page, not by arithmetic on the
     // class names:
     //   desktop (1280px): 8.5px (header→<main>) + 16px (<main> pt-4) + 24px (pt-6) = 48.5px
     //                     against 48.0px measured from banner bottom to the hairline
@@ -2539,46 +2516,13 @@ export function ListingsExplorer({
               categories scroller"). */}
         </div>
 
-        {/* ⚠️ ADVERTISING — PRESENT IN EVERY BROWSE STATE, AND `showBanner` IS NOT A SYNONYM FOR
-            `showDiscovery`. Read the predicate's own comment before changing this line: it is
-            gated on the VIEW (map/video takeovers have no page column) and deliberately not on
-            whether the visitor has directed the feed, because gating it on that is what made a
-            category tap lift the whole ladder 324px and read as a page change.
-            ⛔ THE NOTE THAT SAT HERE — "a visitor who searched or faceted is being shown results
-            they asked for, and an ad above those is the one placement the old two-branch layout
-            was careful never to make" — IS OVERRULED (owner, 2026-08-12), not forgotten. It is
-            still the strongest argument against this line and codex restated it on review; it
-            lost to the fact that honouring it re-creates the reported defect one action to the
-            left. The counter-argument now lives with the predicate so it survives this comment.
-            ⚠️ ITS POSITION IS STILL FIXED, THOUGH, AND THAT HALF WAS NEARLY LOST WITH IT (opus, on
-            review). The old note ended "do not put either between the ladder and the grid"; the
-            "either" was the banner and the deleted <WhyEno /> strip, so half the sentence died with
-            <WhyEno /> and half did not. The surviving half: the banner goes ABOVE the category
-            ladder or nowhere. Between the ladder and the results is the one placement that puts an
-            ad inside the path from "I picked a category" to "here is what you get".
-            ⚠️ THE BANNER'S HEIGHT DECIDES THIS PAGE'S LCP. It is the element the browser picks
-            (measured at 390×844 / 4× CPU / 1.6 Mbps: /banners/promo-1.svg at 1816 ms) and it is
-            the single biggest thing standing between the fold and the first row of merchandise —
-            and NOTHING PRELOADS IT (see the lcp note at the grid; promo-banner.tsx tried and
-            reverted, because the tag leaked across soft navigations). Now that it is on screen in
-            every browse state, its height is a cost every visitor pays, not only a cold one. */}
-        {showBanner && (
-          // ⛔ <WhyEno /> IS GONE (owner, 2026-08-12) — the five-item "Free to post / Trust scores
-          // you can check / Your number stays private / Prices in Đ and $ / Real dispute
-          // resolution" strip that sat between the banner and the ladder. It was value-prop copy
-          // on a surface whose measured problem is that the first screen contains no merchandise
-          // (y=983 at 1440×900), and it cost a full row to say what the trust badge, the price
-          // and the dispute centre already say in context.
-          // ⚠️ The padding below is NOT decoration: this block used to be a space-y column whose
-          // step set the gap down to the ladder. With one child left the step never fires, so the
-          // gap has to be stated here or the banner sits flush against the category rail.
-          // `pb-4` on mobile: see the first-screen note on the section above. Unchanged at sm+,
-          // where the fold is not the constraint. (A `{…}` comment here would be expression
-          // position again — this sits directly inside `showBanner && (`.)
-          <div className="pb-4 sm:pb-12 lg:pb-8">
-            <PromoBanner />
-          </div>
-        )}
+        {/* ⛔ NO PROMO BANNER ON THE HOME FEED (owner, 2026-09-18, applying 58's playbook:
+            "remove banners on desktop … categories" and, asked about mobile, "Remove on both").
+            The categories are now the first thing under the header on every screen, as they are on
+            58: their home page opens straight into the icon grid and carries its campaign slots
+            inside it. <PromoBanner> and its slides are still in the tree (src/lib/promo-slides.ts)
+            for a future slot; nothing renders them today, which also takes the banner artwork off
+            the first-screen byte budget. */}
 
         {/* ── THE LADDER + THE RESULTS ─────────────────────────────────────────────────────
             Always mounted, in this order: category row → brand row → facets → toolbar → sort →
@@ -3033,28 +2977,36 @@ export function ListingsExplorer({
                             it"), having tried `preload()` and reverted it because the tag LEAKED
                             across soft navigations. So the banner wins LCP UNPRELOADED, which
                             makes not spending the budget against it more important, not less.
-                            ⚠️ IT READS `showBanner`, NOT `showDiscovery`, AND THAT IS THE WHOLE
-                            POINT OF THE RENAME. The condition was written as `!showDiscovery` back
-                            when the two were the same thing; the moment the banner stopped
-                            unmounting on a filter (2026-08-12) that spelling would have preloaded
-                            a card WHILE THE BANNER WAS ON SCREEN — the one arrangement this line
-                            exists to prevent. The invariant was already stated in words directly
-                            above; now the code says it too.
-                            ⚠️ ON THIS ROUTE THE TRUE BRANCH IS CURRENTLY UNREACHABLE IN THE SERVED
-                            HTML, and pretending otherwise is how the comment above went stale once
-                            already (external reviewer). `/` prerenders ONE variant — the undirected
-                            one, because showExplorer starts false and searchParams are not read —
-                            so even /?q=… ships banner-present markup and the hint can only ever
-                            be added after hydration, by which point the LCP is long since recorded.
-                            The condition is kept because it states the INVARIANT ("never preload a
-                            card while the banner is on screen"), which is what protects this tree
-                            the day it is server-rendered in a directed state — /c/[slug] is the
-                            obvious candidate. It costs nothing today; it is not buying anything
-                            today either.
+                            ⛔ IT IS NOW UNCONDITIONAL, BECAUSE THE BANNER IS GONE (2026-09-18).
+                            This read `!showBanner` for as long as a promo banner could sit above the
+                            grid: preloading a card while a 232px-tall banner owned the first screen
+                            spends the preload budget on something that is not the largest paint. The
+                            banner was removed from this page, so the first card IS the first image
+                            the visitor sees and the hint belongs on it. If ANY full-width media ever
+                            returns above this grid, restore a condition here — that is the invariant,
+                            not the specific predicate.
+                            ⛔ MAP AND VIDEO MODE CANNOT REACH THIS LINE, AND THE COMPILER SAYS SO —
+                            two reviewers asked for `viewMode !== 'map' && viewMode !== 'video'` here
+                            and adding it is a TYPE ERROR: "types '\"grid\"' and '\"map\"' have no
+                            overlap". This branch renders only in grid mode, so the takeover surfaces
+                            never ship this card, let alone its preload. Left unguarded deliberately;
+                            a guard here would read as though the modes were a live risk.
+                            ✅ MEASURED 2026-09-18 ON THE AUDIENCE'S PROFILE (4x CPU, ~1.1 Mbps,
+                            150 ms), and this is the claim a reviewer asked to see tested: the LCP
+                            element IS this card's image — 2,288 ms on a 393px phone and 2,200 ms on
+                            a 1,280px desktop, both resolving to the same listing webp — and the
+                            `lcp` prop's output in the served HTML is a `<link rel="preload"
+                            as="image" imageSrcSet=…>` for exactly that URL. So the hint is spent on
+                            the element it names, on both viewports, even though the 280px category
+                            grid now sits above the grid on a phone.
+                            ⚠️ AN UNTHROTTLED RUN WITH JS COVERAGE ON SAID THE LOGO WAS THE LCP at
+                            1,044 ms, and that reading is the harness, not the site: with no network
+                            throttling the SVG logo paints before any photo arrives. Measure this on
+                            the throttled profile or the answer inverts.
                             ⚠️ `priority` STAYS UNCONDITIONAL. It is a different lever: without
                             `lcp` it resolves to `loading="eager"` (listing-card.tsx ~435), so the
                             first card still skips lazy-loading — it just stops claiming the preload. */}
-                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0 && !showBanner} onLocate={locateListing} />
+                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} onLocate={locateListing} />
                       </div>
                     </Fragment>
                   ))}

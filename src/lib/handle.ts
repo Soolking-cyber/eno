@@ -6,7 +6,7 @@ import { logError } from '@/lib/log'
 // ── Public @handles (Telegram-style) ─────────────────────────────────────────────
 // "Alex Doe" → @alex_doe, "Apple Store" → @apple_store. ONE namespace for users and
 // storefronts (model Handle: the name is the PK, so uniqueness is a DB guarantee).
-// Shareable as eno.vn/<@handle> — resolved by src/app/[handle]/page.tsx.
+// Shareable as eno.vn/<@handle> — resolved by src/app/[lang]/[handle]/page.tsx.
 // Pure rules (regex, reserved list, slugify) live in ./handle-format (client-safe).
 
 export { HANDLE_RE, validateHandle, slugifyHandle, isReservedHandle } from './handle-format'

@@ -104,7 +104,12 @@ describe('StickyActionBar keeps the action reachable', () => {
 
   it('renders the primary as the one brand CTA', () => {
     render(<StickyActionBar primary={{ label: 'Chat' }} secondary={{ label: 'Make offer' }} />)
-    // ui/button's `cta` variant is the only one that pairs the brand fill with font-bold.
+    /**
+     * ui/button's `cta` variant is the only one that pairs the brand fill with font-bold.
+     * ⚠️ `bg-primary`, THE BLUE — and this test is why that is still true. A pass at the 58 palette
+     * pointed `cta` at the commerce orange, which would have repainted all 128 of its call sites;
+     * the orange lives in the separate `commerce` variant instead.
+     */
     const primary = screen.getByRole('button', { name: 'Chat' })
     expect(primary.className).toContain('bg-primary')
     expect(primary.className).toContain('font-bold')

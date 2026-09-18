@@ -1,4 +1,4 @@
-import { revalidatePath } from 'next/cache'
+import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
@@ -90,10 +90,10 @@ async function flushRecent(sellerId: string, alsoIds: string[] = []) {
    * couple of hundred rows and those get a precise flush.
    */
   if (ids.length > REVALIDATE_CAP) {
-    revalidatePath('/listings/[id]', 'page')
+    revalidatePublicPath('/listings/[id]', 'page')
     return { revalidated: 'whole-route', wanted: ids.length }
   }
-  for (const id of ids) revalidatePath(`/listings/${id}`)
+  for (const id of ids) revalidatePublicPath(`/listings/${id}`)
   return { revalidated: ids.length }
 }
 

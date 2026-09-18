@@ -32,8 +32,8 @@ function walk(dir) {
  * few bytes, wrongly calling it services-only means an untranslated label on eno.forum.
  */
 const SERVICES_SOURCES = [
-  'src/app/vietnam-evisa/', 'src/app/itinerary/', 'src/app/services-for-expats-vietnam/',
-  'src/app/dashboard/visa/', 'src/app/dashboard/trips/', 'src/app/admin/visas/', 'src/app/admin/trips/',
+  'src/app/[lang]/vietnam-evisa/', 'src/app/[lang]/itinerary/', 'src/app/[lang]/services-for-expats-vietnam/',
+  'src/app/[lang]/dashboard/visa/', 'src/app/[lang]/dashboard/trips/', 'src/app/[lang]/admin/visas/', 'src/app/[lang]/admin/trips/',
   'src/app/api/visa/', 'src/app/api/trips/', 'src/app/api/itineraries/', 'src/app/api/admin/trips/',
   'src/lib/visa/', 'src/lib/trips/', 'src/lib/itinerary-',
   'src/components/marketplace/visa-cards', 'src/components/marketplace/trip-cards',
@@ -53,7 +53,7 @@ const SERVICES_SOURCES = [
    * ⚠️ THE CLIENT COMPONENTS ARE PLAIN `.tsx` because only a ROUTE can carry `.svc.` — so their
    * paths look shared and nothing but these lines says otherwise.
    */
-  'src/app/checkout/', 'src/app/dashboard/payout/', 'src/app/dashboard/wallet/', 'src/app/dashboard/payments/', 'src/app/dashboard/services/', 'src/app/api/wallet', 'src/app/api/seller/payout',
+  'src/app/[lang]/checkout/', 'src/app/[lang]/dashboard/payout/', 'src/app/[lang]/dashboard/wallet/', 'src/app/[lang]/dashboard/payments/', 'src/app/[lang]/dashboard/services/', 'src/app/api/wallet', 'src/app/api/seller/payout',
   /**
    * ⚠️ THE CROSS-SITE PROMO IS SERVICES-ONLY EVEN THOUGH ITS PATH LOOKS SHARED, and this line is
    * the only thing that says so. Every other entry above is recognisably a visa/trip surface;

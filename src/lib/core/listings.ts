@@ -1,6 +1,6 @@
 import 'server-only'
 import { after } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { reindexListing, removeFromIndex } from '@/lib/listing-index'
 import { recordEngagement } from '@/lib/trust'
@@ -197,7 +197,7 @@ export async function setStatusCore(
     // that has since moved. No badge until the cron re-derives one is the correct fail-safe.
     data: { status, ...(status === 'active' ? { availabilityConfirmedAt: new Date(), marketPosition: null } : {}), ...saleData },
   })
-  revalidatePath(`/listings/${listingId}`) // sold/hidden must drop from the cached page (it 404s non-active)
+  revalidatePublicPath(`/listings/${listingId}`) // sold/hidden must drop from the cached page (it 404s non-active)
   after(() => reindexListing(listingId)) // active → (re)index for AI search; sold/hidden → remove
   if (status === 'active') after(() => recomputeRankScoreForListing(listingId)) // re-decay on re-activation
   after(() => dispatchListingEvent('listing.status_changed', listingId, undefined, { status })) // notify the shop's partner webhooks
@@ -244,7 +244,7 @@ export async function confirmCore(listingId: string, profileId: string): Promise
     throw e
   }
   if (wasInactive) {
-    revalidatePath(`/listings/${listingId}`)
+    revalidatePublicPath(`/listings/${listingId}`)
     after(() => reindexListing(listingId))
     after(() => dispatchListingEvent('listing.status_changed', listingId, undefined, { status: 'active' }))
   }
@@ -667,7 +667,7 @@ export async function updateListingCore(
     brandChange!.from ? bumpBrandCount(brandChange!.from, -1) : Promise.resolve(),
     brandChange!.to ? bumpBrandCount(brandChange!.to, 1) : Promise.resolve(),
   ]))
-  revalidatePath(`/listings/${listingId}`) // purge the cached (ISR) detail page so the edit shows
+  revalidatePublicPath(`/listings/${listingId}`) // purge the cached (ISR) detail page so the edit shows
   after(() => reindexListing(listingId)) // refresh the AI-search document with the edited fields
   after(() => dispatchListingEvent('listing.updated', listingId)) // notify the shop's partner webhooks
 
@@ -977,7 +977,7 @@ export async function deleteListingCore(listingId: string): Promise<{ ok: true }
   }
   if (gone?.brandSlug) after(() => bumpBrandCount(gone.brandSlug!, -1))
   if (gone?.video) after(() => removeVideoIfOrphaned(gone.video!)) // don't strand the clip — unless another listing still references it
-  revalidatePath(`/listings/${listingId}`)
+  revalidatePublicPath(`/listings/${listingId}`)
   after(() => removeFromIndex(listingId)) // drop the deleted listing from AI search
   if (gone?.sellerId) after(() => dispatchListingEvent('listing.deleted', listingId, gone.sellerId!)) // the listing is gone — pass sellerId explicitly
   return { ok: true }

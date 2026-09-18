@@ -90,7 +90,7 @@ export async function GET() {
        * door). A catalogue is a promise to a
        * machine that will fetch these without a human in the loop, so a plausible-but-404 entry
        * costs more here than an omission does — the same rule stated at the head of
-       * src/app/developers/reference.ts, where each of these paths is also listed.
+       * src/app/[lang]/developers/reference.ts, where each of these paths is also listed.
        */
       entries: [
         {

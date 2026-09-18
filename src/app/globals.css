@@ -162,6 +162,12 @@
   --color-brand-light: var(--brand-light);
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
+  /* The commerce orange — `bg-cta`, `text-cta-ink`, `bg-cta-50`. See the ⛔ note where it is
+     defined for why it is scoped to price/Post rather than being the brand. */
+  --color-cta: var(--cta);
+  --color-cta-dark: var(--cta-dark);
+  --color-cta-ink: var(--cta-ink);
+  --color-cta-50: var(--cta-50);
   /* Deep-navy pair for fixed dark marketing panels (e.g. /signin hero gradient).
      Defined once in :root and NOT overridden in .dark — the panel is dark by
      design in both themes. */
@@ -210,9 +216,14 @@
      PALETTE (minimal, proven — 60/30/10)
      60% canvas    : #ffffff
      30% neutrals  : TRUE-NEUTRAL ramp (luma-style, de-blued 2026-07-13) — ink #171717 · body #525252 · muted #737373 · faint #a3a3a3 · line #e5e5e5 · tint #f5f5f5
-     10% accent    : ONE brand blue #0a66c2 (hover #004182 · tint #e8f1fb · deep #034078) — all actions, links, active, verified
-     semantic only : amber #f59e0b (caution) · red #ef4444 (destructive)
-     Category colours all resolve to the single blue; product photos provide the colour.
+     10% accent    : ONE brand blue #0a66c2 (hover #004182 · tint #e8f1fb · deep #034078) — actions,
+                     links, active, verified
+     commerce      : 58-STYLE ORANGE #d64000 (ink #c73c00 · tint #fff4ee), and ONLY where money is
+                     the subject — the price, the Post button, the commerce badges. Owner,
+                     2026-09-18, after seeing the whole app in orange: "revert only prices orange and
+                     free post and some important parts orange rest previous blue".
+     semantic only : green #166534 · amber #92400e (caution) · red #ef4444 (destructive) · gold #f59e0b (rating)
+     Category colours all resolve to the single blue; product photos provide the rest.
      ============================================================ */
   /* ⛔ `--radius` (was 0.4375rem) IS GONE ON PURPOSE — 2026-08-09. It was the single seed
      every corner tier was derived from, and deriving a role scale by ±2px arithmetic is
@@ -227,6 +238,51 @@
   --brand-light: #8fbfe8;
   --brand-50: #e8f1fb;
   --brand-100: #cfe3f5;
+
+  /**
+   * ⛔ THE COMMERCE ORANGE — 58同城's HUE, AND IT IS NOT THE BRAND. The whole app wore this for one
+   * preview and the owner pulled it back to the blue the same afternoon: "revert only prices orange
+   * and free post and some important parts orange rest previous blue" (2026-09-18). So it is scoped
+   * to where money is the subject — the price, the Post button, the commerce badges — and the blue
+   * keeps every other action, link and verified mark. Two colours, two jobs.
+   * ⚠️ FULLY SATURATED, AND THAT IS THE SECOND REVISION. The first pass used #d44014 and the owner
+   * called it right: "make orange brighter fresher it looks dirty now pure clearer more youthful".
+   * Muddiness in an orange is unsaturation plus a red-brick hue — #d44014 is S 83% at hue 14. These
+   * are S 100% at hue 16-18, which reads as a clean vermilion rather than a brick, at the SAME
+   * legibility. That is the whole trick: purity came from chroma, not from lightness, so nothing was
+   * traded for it.
+   * ⛔ LIGHTNESS IS WHAT CANNOT MOVE. White text is the point of an orange button, and white needs
+   * 4.5:1: at S 100% that caps the fill at L 42% (#d64000, 4.57:1). A genuinely bright orange —
+   * #ff6b2c, #f97316 — is 2.8-3.2:1 with white and fails even the 3:1 large-text allowance, so it
+   * could only carry DARK ink, which is not what a Post button looks like. Re-measure before
+   * brightening either value again.
+   * ⚠️ `--cta` FILLS, `--cta-ink` READS, and the ink is deeper because it is measured on the WORST
+   * ground a price lands on, not on white: white 5.15:1, canvas #fafafa 4.94:1, --tint #f5f5f5
+   * 4.73:1, --accent #e8f1fb 4.52:1 (the buy-box offer price sits on the accent tint, which went
+   * back to blue with the rest of the theme), --cta-50 4.77:1.
+   */
+  --cta: #d64000;        /* fills: the Post button — white ink 4.57:1, S 100% */
+  --cta-dark: #a83200;   /* hover/pressed — white ink 6.73:1 */
+  --cta-ink: #c73c00;    /* text: prices and commerce badges — S 100%, passes on every ground above */
+  --cta-50: #fff4ee;     /* tint surface for those badges */
+
+  /**
+   * The home page's wash — see `.home-wash`. ⛔ BLUE, NOT THE WARM TINT IT WAS BUILT AS (owner,
+   * 2026-09-18: "make background gradient our blue"). The first version came from the all-orange
+   * pass; with the brand back to blue the warm wash was the odd one out on the page.
+   * ⚠️ THE STOPS ARE SET BY CONTRAST, NOT BY EYE. Muted (#737373) is the weakest ink this app puts
+   * on a page background and needs 4.5:1 — it is 4.16:1 on the strongest stop, 4.49:1 on the mid and
+   * 4.57:1 on the soft one. So the strong end is confined to the first 140px, which is the search and
+   * rail band where the only text is ink-weight or sits inside a white field, and everything from
+   * 280px down clears AA. The feed's own text rides on white cards either way.
+   * ⚠️ THESE WERE LOST ONCE, in the revert from the all-orange pass, and the page went back to flat
+   * white without anything failing: an undefined `var()` makes the whole `background-image` invalid,
+   * so the gradient simply stops existing. Measured after restoring, and again after this change:
+   * `background-image` resolves to three stops rather than `none`.
+   */
+  --home-wash-strong: #e8f1fb;
+  --home-wash-mid: #f5f9fe;
+  --home-wash-soft: #f8fbfe;
   /* Muted deep navy-blue ramp end — fixed dark marketing panels (both themes) */
   --brand-deep: #1b4b76;
   --brand-deeper: #0c2b48;
@@ -281,19 +337,22 @@
      background, false on the tinted-callout idiom this app actually uses: on
      bg-destructive/10 it lands at 3.98:1 and fails AA. #b91c1c gives 5.26:1 there and
      6.4:1 on plain, and lifts every white-on-destructive surface with it. */
-  /* THE PRICE. Owner, 2026-09-06: a "subtle pleasant red that matches our blue".
-     ⚠️ BUILT AT THE BRAND BLUE'S OWN PERCEPTUAL LIGHTNESS so price and link carry equal weight on
-     a card: OKLCH L 0.517 against --brand's 0.516, chroma one notch UNDER the blue (0.151 vs
-     0.163) so a price never outshouts an affordance. Hue sits on the carmine side (~6), not the
-     rust side, because --brand is a violet-leaning cool blue — a warm brick red beside it reads as
-     a clash and as the Shopee/Lazada sale klaxon the owner did not ask for.
-     ⛔ IT IS NOT --destructive AND MUST NOT DRIFT INTO IT. Measured contrast on this canvas: price
-     5.80:1, error 6.20:1, brand 5.45:1 — all comfortably over 4.5:1 at the 13-17px/700 a price
-     renders at, which does NOT qualify for the large-text 3:1 allowance. ⚠️ AND ON THE TINTS A
-     PRICE ACTUALLY SITS ON, because measuring only the canvas is what made the DARK value wrong
-     (see its comment): --accent #e8f1fb 5.31:1, --tint #f5f5f5 5.55:1. Separation from the error
-     red is OKLab dE 0.076; light reads wine-rose against the error's brick. */
-  --price: #ab395b;
+  /**
+   * THE PRICE, AND IT IS THE BRAND ORANGE SINCE 2026-09-18 (owner: "main is orange prices
+   * searchbars post button"). It was #ab395b — a carmine built at the old brand BLUE's perceptual
+   * lightness, on the carmine side of red precisely because a warm rust beside a cool blue read as
+   * a clash. That reasoning retires with the blue: beside 58's orange the warm value IS the match,
+   * and 58 prints its own prices in this family.
+   * ⚠️ THE INK WEIGHT, NOT THE FILL. A price renders at 13-17px/700, which does NOT qualify for the
+   * large-text 3:1 allowance, so it takes --cta-ink rather than --cta. Measured on every ground
+   * a price actually lands on: white 5.18:1, --accent #fff4ee 4.79:1, --tint #f5f5f5 4.75:1.
+   * ⛔ ON --cta-50 IT IS 4.77:1, which passes; on a STRONGER orange tint it would not. Nothing renders
+   * a price on one today — if a surface ever wants to, it takes a darker ink rather than moving this
+   * token, and measures first.
+   * ⛔ STILL NOT --destructive, and the distinction matters more now that both are warm: error red
+   * is #b91c1c and carries white ink on fills; this one is text-only.
+   */
+  --price: #c73c00;
   --destructive: #b91c1c;
   /* Text/icon colour ON a solid destructive surface. It must FLIP with the theme: the
      dark --destructive is a light red (#f0616b), and white on it is only 3.17:1 — so a
@@ -580,7 +639,23 @@
   --brand-dark: #74b3f2;   /* hover goes LIGHTER in dark */
   --brand-light: #2f5377;
   --brand-50: #17314d;     /* dark blue tint (was #e8f1fb) */
-  --brand-100: #2b5983; /* one step lighter than the old #214161 — the location-active wash was near-invisible on charcoal (blind-critic catch, dashboard round): the ONE brand move must read in both themes */
+  --brand-100: #2b5983;    /* the location-active wash must read on charcoal too */
+
+  /* The commerce orange lifted for a dark canvas — measured on #1b1b1b and the #2a2a2a popover. */
+  /* ⛔ THE FILL DOES NOT BRIGHTEN IN DARK, and that is the opposite of every other colour here. A
+     `commerce` button's label is WHITE: on the brightened #ff7a1a that is 2.61:1. The fill therefore
+     keeps its light-theme value in both themes (white 4.57:1) and the hover DARKENS rather than
+     lifts (6.22:1). Only `--cta-ink` — which is text, on the canvas — lightens for dark. */
+  --cta: #d64000;
+  --cta-dark: #b03600;
+  --cta-ink: #ff8c42;      /* on dark the readable weight is LIGHTER, not deeper — 6.66:1 on --cta-50 */
+  --cta-50: #3a1d12;       /* dark orange tint — cta ink on it 6.63:1 */
+
+  /* The wash on a dark canvas: a cool lift, not a colour — the blue equivalent of the light one.
+     Ink 14.6:1 and muted 8.4:1 on the strongest stop; the dark theme has room the light one does not. */
+  --home-wash-strong: #15202c;
+  --home-wash-mid: #1a1e22;
+  --home-wash-soft: #1c1d1f;
 
   --background: #1b1b1b;   /* soft neutral canvas (lighter than near-black) */
   --foreground: #f0f0f0;
@@ -599,18 +674,11 @@
   --muted-foreground: #b8b8b8; /* ~7:1 on card — readable secondary text */
   --accent: #17314d;       /* blue tint surface */
   --accent-foreground: #74b3f2;
-  /* Dark price. ⛔ TUNE THIS AGAINST --accent, NOT THE CANVAS — THAT IS WHAT MADE THE FIRST VALUE
-     WRONG. It was #d86a85, picked for 5.18:1 on the #1b1b1b canvas, and shipped as a REGRESSION on
-     the one surface a price is most often read against: dark --accent is #17314d, where #d86a85 is
-     3.99:1 while the --accent-foreground it replaced was 5.98:1. The buy-box offer price
-     (contact-composer, `bg-accent p-3`) and the thread slider's `text-xs font-bold` both sit on
-     that tint, and contact-composer already carries a comment about axe catching a WCAG failure on
-     exactly this surface. #e58ba1 measures 5.39:1 on accent, 7.00:1 on canvas, 6.15:1 on --muted.
-     ⚠️ THE DARK THEME IS THE TIGHTER ONE — raising lightness for contrast walks toward the error
-     salmon #f0616b, so this escapes on two axes at once (lower chroma, hue pulled to ~6) rather
-     than by lightness alone. Keep the error's icon or label affordance; do not let hue carry that
-     distinction by itself. */
-  --price: #e58ba1;
+  /* Dark price. ⛔ TUNE THIS AGAINST --accent, NOT THE CANVAS — that is what made the first dark
+     value wrong in the blue era, and the rule outlives the hue. Measured for the orange: 7.45:1 on
+     the #1b1b1b canvas, 6.66:1 on the --cta-50 tint, 6.21:1 on the #2a2a2a popover. ⚠️ The dark
+     --accent went back to blue with the rest of the theme, and a price never renders on it. */
+  --price: #ff8c42;
   --destructive: #f0616b;
   /* Near-black ON the light dark-mode red: white would be 3.17:1 (fails). 5.5:1. */
   --destructive-foreground: #1b1b1b;
@@ -795,6 +863,97 @@
 
 .blob-bg {
   background-color: var(--background);
+}
+
+/**
+ * THE HOME PAGE'S WARM WASH (owner, 2026-09-18: "main homepage background need soft gradient
+ * background similar tiktok shop app"). A warm tint under the header and the category rail that has
+ * faded into the ordinary canvas by the time the feed starts — the shop-app shape, where the colour
+ * belongs to the chrome at the top and the products below sit on plain ground.
+ *
+ * ⛔ ITS OWN CLASS, NOT `.blob-bg`. That utility is shared by the 404, the error page, /saved and
+ * every storefront; the instruction is about the home page, and a wash on a shop's storefront would
+ * put eno's brand colour under someone else's shopfront.
+ * ⚠️ THE STOPS ARE SET BY CONTRAST, NOT BY EYE, and these are the BLUE stops' numbers (the warm ones
+ * this shipped with for one preview are gone). Muted text (#737373, the weakest ink this app puts on
+ * a page background) needs 4.5:1: it is 4.16:1 on the strong stop, 4.49:1 on the mid and 4.57:1 on
+ * the soft one — so the strong end is confined to the header band, where the only text is ink-weight
+ * or sits inside a white field, and everything below 340px clears AA. The feed rides on white cards.
+ * ⚠️ `background-attachment` stays default: a fixed wash would slide under the content on scroll and
+ * re-tint the whole page rather than staying with the top of it.
+ */
+.home-wash {
+  background-color: var(--background);
+  /* ⚠️ THE STRONG STOP HOLDS TO 64px, WHICH IS THE HEADER'S HEIGHT. The header sits INSIDE this
+     element, so the gradient's 0px is behind it; without the hold, the first pixel the visitor
+     actually sees — just under the header — would already be a third of the way to the mid stop and
+     the header band would read as a seam. */
+  /* ⛔ THESE STOPS ARE THE WASH ITSELF AND THEY DO NOT MOVE TO SOLVE A PROBLEM WITH SOMETHING SITTING
+     ON THEM. They were once pushed to 450px so the strong blue would swallow the filter strip, and
+     the owner rejected it in the clearest possible terms (2026-09-18): "here you did the opposite of
+     what i asked the inside of the box where are price type etc should take outsides blue hue not
+     give outside the box more saturated blue." An element that reads as a band blends by taking the
+     page's colour; saturating the page to match the element is the same mistake upside down, and it
+     repaints everything to fix one box. Change what sits on the wash, not the wash. */
+  /* ⚠️ THE SOFT STOP HOLDS THROUGH THE FILTER STRIP (owner, 2026-09-18: "add background blue here
+     too", pointing at the type/price/sort row). The wash used to reach the plain canvas by 620px,
+     which is just above that strip on a phone — so the chrome above the feed was tinted and the
+     chrome below it was not, which reads as an unfinished gradient rather than a band. It now holds
+     the soft tint to 900px and lands on the canvas at 1200px, where the listing cards start. */
+  background-image: linear-gradient(
+    180deg,
+    var(--home-wash-strong) 0,
+    var(--home-wash-strong) 64px,
+    var(--home-wash-mid) 200px,
+    var(--home-wash-soft) 340px,
+    var(--home-wash-soft) 900px,
+    var(--background) 1200px
+  );
+  background-repeat: no-repeat;
+}
+
+/**
+ * ⛔ AND THE HEADER TAKES THE WASH'S TOP COLOUR RATHER THAN GOING TRANSPARENT (owner, 2026-09-18:
+ * "extend blue gradient here"). Transparent was the obvious move and it is wrong: the header is
+ * STICKY inside this element, so once the page scrolls, what sits behind it is the wash's plain tail
+ * and then the feed itself — a transparent header would put listing photos under the search field.
+ * A solid band of the wash's own first stop keeps the header legible at any scroll position and
+ * still reads as one continuous wash at rest, which is what the 58 app does with its orange band.
+ */
+.home-wash #app-header {
+  background-color: var(--home-wash-strong);
+}
+
+/**
+ * ⛔ THE FILTER STRIP TAKES THE WASH'S COLOUR AT ITS OWN DEPTH — it disappears INTO the page rather
+ * than sitting on it (owner, 2026-09-18: "add background blue here too", then, on a first attempt
+ * that made the bar its own strong band: "the inside of the box where are price type etc should take
+ * outsides blue hue not give outside the box more saturated blue").
+ *
+ * ⚠️ `--home-wash-soft` IS THAT COLOUR, MEASURED RATHER THAN CHOSEN. The strip's box sits at
+ * 290–339px inside the wash at 1440w and 355–446px at 390w (the phone's rail is taller). The
+ * gradient reaches `--home-wash-soft` at 340px and holds it to 900px, so the phone's strip is
+ * squarely in the soft band and the desktop's straddles the last of the mid→soft ramp.
+ * ⚠️ AT 290px THAT RAMP IS 64% RUN, NOT 93% — this note claimed the latter and a reviewer did the
+ * arithmetic: (290−200)/(340−200). The conclusion survives the correction only because mid and soft
+ * are three channel-steps apart (#f5f9fe vs #f8fbfe), so 64% of that gap is under one step and the
+ * seam is not resolvable. ⛔ THAT IS WHY THE STOPS' CLOSENESS IS LOAD-BEARING: widen the mid→soft gap
+ * and a constant fill at the desktop strip's depth starts to band again.
+ * One value is therefore right at both widths today; if the rail's row count or those two tokens
+ * change, re-measure rather than assuming it still is.
+ * ⛔ TWO THINGS THIS IS NOT, both tried and both wrong:
+ *   · `--home-wash-strong`, the header's colour — chrome logic, and it produces exactly the band the
+ *     owner rejected, because the page around the strip is nowhere near that saturated.
+ *   · Moving the GRADIENT's stops down so the strong blue covers the strip — that repaints the whole
+ *     top of the page to fix one element, which is the same error inverted.
+ * ⚠️ SCOPED TO `.home-wash` DELIBERATELY: /listings, /search and the category pages share this
+ * component and keep the neutral bar. Only the washed page tints it.
+ * ⚠️ Opaque rather than /95, so a pinned bar never shows listing photos through itself. The component
+ * keeps its `backdrop-blur`, a no-op behind an opaque fill and what still frosts the bar on every
+ * OTHER surface — so it must not be removed from the component to serve this one.
+ */
+.home-wash #explorer-toolbar {
+  background-color: var(--home-wash-soft);
 }
 
 /* Dashboard canvas — plain unified canvas (owner 2026-07-18 removed the brand-blue radial bloom
@@ -2859,11 +3018,33 @@ html.dark .leaflet-tile-pane {
      judged at — the owner sets ONE strength, not two, and leaving the line high while the glow fell
      would quietly turn this back into the static border the bar's design rules out.
      ⚠️ So "make the beam more/less visible" means moving BOTH numbers together, not just one. */
+  /* ⛔ THE COMMERCE ORANGE, NOT THE ACCENT BLUE (owner, 2026-09-18: "glow inside should be orange to
+     indicate importance of search bar"). Search is the one thing this page wants a visitor to do, and
+     the orange is the app's "this is the action" colour — the same one the Post button and the price
+     carry. It is a GLOW, not ink: nothing reads against it, so the contrast rules that pin --cta-ink
+     do not apply here. */
+  /* ⚠️ `--cta-ink`, NOT `--cta`: the FILL token deliberately keeps its dark light-theme value in both
+     themes so white labels stay legible on it (see its note), which would leave this glow as dark
+     orange on a dark bar — invisible, as a reviewer pointed out. The ink token is the one that
+     lightens for dark, which is exactly what a glow needs. */
   box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--color-accent-foreground) 12%, transparent),
-    inset 0 0 14px 3px color-mix(in oklab, var(--color-accent-foreground) 15%, transparent);
+    inset 0 0 0 1px color-mix(in oklab, var(--color-cta-ink) 12%, transparent),
+    inset 0 0 14px 3px color-mix(in oklab, var(--color-cta-ink) 15%, transparent);
   pointer-events: none;
   animation: search-beam-pulse 3.2s ease-in-out infinite;
+}
+
+/**
+ * ⛔ AND THE GLOW HAS TO BE SQUIRCLED ITSELF — `corner-shape` DOES NOT INHERIT (owner: "match
+ * squircle corner to its inner search bar"). `border-radius: inherit` above copies the RADIUS, so
+ * the ring has the bar's 1rem corner; but the superellipse comes from `corner-shape: squircle` in
+ * the block below, which applies to elements matching those class selectors — a `::after` matches
+ * none of them. The result is a circular-arc glow tracing a squircled bar: the two corners visibly
+ * disagree, which is exactly what the owner spotted. Same @supports guard as the block below, so
+ * browsers without it keep arcs on both.
+ */
+@supports (corner-shape: squircle) {
+  .search-beam::after { corner-shape: squircle; }
 }
 
 @keyframes search-beam-pulse {

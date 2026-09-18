@@ -111,7 +111,7 @@ test.describe('Guest · e-Visa', () => {
      */
     /**
      * ⚠️ THE STATUS IS THE WHOLE SIGNAL, AND THAT IS SAFE BECAUSE `itinerary` IS NOW A RESERVED
-     * HANDLE. It was not: `src/app/[handle]` is a root dynamic segment, so on the MARKETPLACE —
+     * HANDLE. It was not: `src/app/[lang]/[handle]` is a root dynamic segment, so on the MARKETPLACE —
      * which ships no static /itinerary — a seller taking that word made eno.vn answer 200 and this
      * pin would have reported a licensing breach over a username. A first attempt guarded it here
      * by grepping the response body for planner copy; four reviewers pointed out the squatter's own

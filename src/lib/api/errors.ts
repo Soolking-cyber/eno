@@ -11,9 +11,9 @@ import type { OwnerCheckErrorCode } from '@/lib/listing-owner'
  * `NextResponse.json({ error: '…' })` returns across the 167 first-party route handlers on
  * 2026-08-06. Nothing is renamed, nothing is dropped, and no response changes by a single byte.
  * That is deliberate and it is the whole migration strategy: clients branch on these strings today
- *   src/app/messages/[id]/page.tsx      data?.error === 'human_help_pending'
- *   src/app/disputes/[id]/page.tsx      uj?.error === 'already_submitted'
- *   src/app/onboard/onboard-client.tsx  data?.error === 'phone_taken'
+ *   src/app/[lang]/messages/[id]/page.tsx      data?.error === 'human_help_pending'
+ *   src/app/[lang]/disputes/[id]/page.tsx      uj?.error === 'already_submitted'
+ *   src/app/[lang]/onboard/onboard-client.tsx  data?.error === 'phone_taken'
  *   src/components/marketplace/bulk-upload-panel.tsx  d.error === 'business_only'
  * so a rename is invisible to the compiler and breaks the UI silently. Adopting the existing
  * strings first means the type can go in with zero risk, and the tidying becomes a separate,
@@ -332,7 +332,7 @@ export type NicheApiErrorCode =
 
   /**
    * ⚠️ FIFTEEN MORE, AND ONE OF THEM IS CITED IN THIS FILE'S OWN HEADER. The header lists
-   * `src/app/messages/[id]/page.tsx  data?.error === 'human_help_pending'` as its example of a
+   * `src/app/[lang]/messages/[id]/page.tsx  data?.error === 'human_help_pending'` as its example of a
    * client branching on a code string — and `human_help_pending` was not a member of the union,
    * while that page branches on it at two places (`:64` and `:978`). The original harvest read
    * ROUTES; these are emitted by `src/lib/visa/{dm-flow,concierge}.ts` and
@@ -682,7 +682,7 @@ void _everyCodeIsListed
  * ⚠️ `VisaTransitionErrorCode` IS DELIBERATELY ABSENT FROM THIS LIST, AND FINDING OUT WHY WAS THE
  * useful part. It looks like a peer of the two below — a named helper union whose codes reach a
  * caller — but `transitionVisaCase` has exactly one consumer,
- * `src/app/admin/visas/[id]/actions.ts`, which is a SERVER ACTION, not a route. Its return value is
+ * `src/app/[lang]/admin/visas/[id]/actions.ts`, which is a SERVER ACTION, not a route. Its return value is
  * an RPC result, not an HTTP response body, so its codes were never on the API wire and forcing
  * them into `ApiErrorCode` would have made this vocabulary describe something it does not describe.
  * Naming that union was still worth it on its own merits: it immediately exposed the wrapper

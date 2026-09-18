@@ -22,14 +22,14 @@ import { CATEGORY_ART_STAMP } from '@/generated/category-art-stamp'
 // cross-site-links.ts itself is untouched — it still feeds the /about affiliation promo, which is
 // the DISCLOSURE half and may not be removed.
 import { MARKETPLACE_HOME } from '@/lib/cross-site-links'
-import { VIETNAM_EVISA_PATHS } from '@/app/vietnam-evisa/links'
+import { VIETNAM_EVISA_PATHS } from '@/app/[lang]/vietnam-evisa/links'
 
 /**
  * The services-only URLs the sitemap may submit to Google.
  *
  * ⚠️ THIS RE-EXPORT IS THE POINT OF THE FILE, NOT A CONVENIENCE. src/app/sitemap.xml/route.ts is a
  * SHARED route — a marketplace build compiles it — and it used to `import { VIETNAM_EVISA_PATHS }
- * from '@/app/vietnam-evisa/links'` directly. That module is a plain `.ts`, so unlike its
+ * from '@/app/[lang]/vietnam-evisa/links'` directly. That module is a plain `.ts`, so unlike its
  * `page.svc.tsx` neighbours it is NOT excluded by `pageExtensions`, and it was not aliased: every
  * label and blurb in it ("Urgent Vietnam visa in 1 hour", "evisa.gov.vn", "Vietnam e-visa
  * rejected") therefore compiled into eno.vn's server bundle. The sitemap's `IS_SERVICES` gate
@@ -37,7 +37,7 @@ import { VIETNAM_EVISA_PATHS } from '@/app/vietnam-evisa/links'
  *
  * Routing the import through this already-aliased module fixes it with no new alias: on a
  * marketplace build `@/lib/edition-services-copy` resolves to the stub, so the sitemap never
- * reaches `@/app/vietnam-evisa/links` at all and the vocabulary is absent from the artifact.
+ * reaches `@/app/[lang]/vietnam-evisa/links` at all and the vocabulary is absent from the artifact.
  * src/lib/expat-guides.ts documents the same constraint and solves it the other way — by keeping
  * its own values vocabulary-free — which is why it may still be imported directly.
  *
@@ -144,7 +144,7 @@ export const SERVICES_FOOTER_GROUPS: ServicesFooterGroup[] = [
  * ⚠️ THE LABELS ARE NOT HARVESTED FROM HERE. scripts/gen-ui-strings.mjs only sees `tr('…')` /
  * `<Tr text="…">`, and these are object properties, so moving them off dashboard-nav.tsx's `tr()`
  * builder is also what reclassifies them: "My e-Visa" is still harvested from
- * src/app/dashboard/visa/cases-client.tsx, which is a services surface, so it lands in
+ * src/app/[lang]/dashboard/visa/cases-client.tsx, which is a services surface, so it lands in
  * ui-strings.services.ts (aliased away) instead of the core catalogue eno.vn ships to every browser.
  * Renaming a label here without changing the services page it also appears on would silently drop it
  * from the pre-warm batch on eno.forum — check both.
@@ -189,7 +189,7 @@ export const SERVICES_DESK_TILES: ServicesTile[] = [
 
 /**
  * HOW THE SERVICES DEPLOYMENT DESCRIBES ITSELF TO A MACHINE — the sitewide <meta name="description">
- * and the `description` on the Organization JSON-LD in src/app/layout.tsx.
+ * and the `description` on the Organization JSON-LD in src/app/[lang]/layout.tsx.
  *
  * ⚠️ IT LIVES HERE BECAUSE layout.tsx COMPILES ON BOTH EDITIONS. The previous version was a string
  * literal inside an `IS_SERVICES ? … : …` ternary in layout.tsx, which is the exact pattern the
@@ -230,7 +230,7 @@ export const SERVICES_SITE_KEYWORDS: string[] = [
 ]
 
 export type ServicesSafetyTip = {
-  /** Key into the icon map in src/app/safety/page.tsx — an icon NAME, never a component. */
+  /** Key into the icon map in src/app/[lang]/safety/page.tsx — an icon NAME, never a component. */
   icon: string
   title: string
   body: string
@@ -241,7 +241,7 @@ export type ServicesSafetyCopy = {
    * The section's anchor id, shared by the rail link and the <section>.
    *
    * ⚠️ IT LIVES HERE RATHER THAN IN THE PAGE FOR THE SAME REASON THE COPY DOES. An `id="visa-…"`
-   * written in src/app/safety/page.tsx is a string literal in a file a MARKETPLACE build compiles,
+   * written in src/app/[lang]/safety/page.tsx is a string literal in a file a MARKETPLACE build compiles,
    * so the word survives in eno.vn's artifact even though the gate means it is never rendered —
    * and "not in the artifact" is the standard this split is held to, because it is the one a grep
    * can check. Behind the alias it is simply absent.

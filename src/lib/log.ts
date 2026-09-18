@@ -116,7 +116,7 @@ function normaliseError(err: unknown): { message: string; stack?: string; name?:
       name: err.name,
       /**
        * ⚠️ THE DIGEST IS THE WHOLE POINT OF THE REFERENCE CODE ON THE ERROR SCREEN.
-       * Next attaches `digest` to the error it hands `onRequestError`, and `src/app/error.tsx`
+       * Next attaches `digest` to the error it hands `onRequestError`, and `src/app/[lang]/error.tsx`
        * shows that same string to the user as "Reference". Carrying it here is what makes the two
        * ends meet: a support message quoting the code resolves to one log entry. An earlier version
        * of this function destructured only message/stack/name, so the digest was dropped and the
@@ -182,7 +182,7 @@ export function logError(err: unknown, ctx?: LogContext): void {
   emit('ERROR', message, ctx, {
     ...(stack ? { stack_trace: stack } : {}),
     ...(name ? { errorName: name } : {}),
-    // The code shown to the user on src/app/error.tsx. Searchable in Cloud Logging as `digest`.
+    // The code shown to the user on src/app/[lang]/error.tsx. Searchable in Cloud Logging as `digest`.
     ...(digest ? { digest } : {}),
     // Harmless when a stack is present, REQUIRED when it is not — so it is unconditional.
     '@type': REPORTED_ERROR,

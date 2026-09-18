@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { storefrontBaseHost, storefrontHandleFromHost } from '@/lib/storefront-host'
+import { LANG_COOKIE, langVariantFor, type LangVariant } from '@/lib/lang-variant'
 
 // Edge-ingress guard. When EDGE_SECRET is set, every /api/* request (except crons,
 // which are invoked off-Cloudflare with their own CRON_SECRET bearer) must carry the
@@ -168,6 +169,57 @@ function crossOriginWrite(req: NextRequest): boolean {
   return !allowed.has(origin)
 }
 
+/**
+ * ⛔ EVERY PAGE REQUEST IS REWRITTEN INTO THE HIDDEN `[lang]` SEGMENT — Vietnamese-first HTML.
+ * Owner, 2026-09-17: "it should read browser language first then render html". All pages live under
+ * `src/app/[lang]/`; the visitor keeps the public URL (`/c/rentals`) while Next renders and ISR-caches
+ * `/vi/c/rentals` or `/en/c/rentals`. The variant rule is src/lib/lang-variant.ts.
+ * Measured on Next 16.3.1 before building this: usePathname() stays public, Server Actions and route
+ * handlers work through the rewrite, and cache keys and `_N_T_` tags carry the variant — so on-demand
+ * revalidation must name BOTH variants (src/lib/revalidate-lang.ts).
+ * ⚠️ ALL METHODS, NOT ONLY GET: a Server Action posts to the page's own URL, and an unrewritten POST
+ * would reach no route at all.
+ */
+// ⚠️ TWO SEGMENTS, SO THE CATCH-ALL ANSWERS IT. A single segment lands on `[handle]`, whose 404 the
+// not-found contract records as the bare shell; `[lang]/[...rest]` renders the full page instead.
+const NOT_FOUND_PATH = '/~/not-found'
+
+/**
+ * ⛔ A PUBLIC `/en/…` or `/vi/…` IS NOT A SECOND URL FOR THE SAME PAGE. Without this, `/vi/c/rentals`
+ * would render — a duplicate of `/c/rentals` for crawlers, and a way to force a variant past the
+ * cookie. It 404s in the visitor's own language instead.
+ */
+const INTERNAL_PREFIX = /^\/(en|vi)(\/|$)/
+
+function isApi(pathname: string): boolean {
+  return pathname === '/api' || pathname.startsWith('/api/')
+}
+
+function rewriteToLang(req: NextRequest, lang: LangVariant, pathname: string): NextResponse {
+  const url = req.nextUrl.clone()
+  const target = INTERNAL_PREFIX.test(pathname) ? NOT_FOUND_PATH : pathname
+  url.pathname = `/${lang}${target === '/' ? '' : target}`
+  const res = NextResponse.rewrite(url)
+  res.headers.set('Content-Language', lang)
+  // ⛔ ONE PUBLIC URL, TWO LANGUAGES — SO CLOUDFLARE MUST NEVER STORE IT. The Free plan cannot put the
+  // language in its cache key, and the zones' HTML rule on `/`, `/privacy` and `/terms` respects origin
+  // headers, so without this the first visitor's language would be served to everyone for hours.
+  // A header only Cloudflare reads, so browsers and Next's own ISR cache are untouched. The deploy
+  // probe (infra/vn-node/eno-deploy.sh, langcheck) is the end-to-end proof.
+  res.headers.set('Cloudflare-CDN-Cache-Control', 'no-store')
+  /**
+   * ⚠️ AND `Vary: Accept-Language, Cookie` IS DELIBERATELY NOT SET HERE — IT DOES NOT SURVIVE.
+   * Measured on the production build: Next replaces the response's `Vary` with its own
+   * `rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding`,
+   * so a middleware `append` reaches no client. Setting it through next.config's `headers()` instead
+   * would overwrite that RSC list, and re-stating Next's internals by hand breaks silently the day it
+   * adds one. The two caches that actually exist are covered: Cloudflare by the header above, and the
+   * box's nginx micro-cache by a key that includes the language (infra/vn-node/origin-bootstrap.sh).
+   * A TLS-terminating corporate proxy could still mix languages at one URL; that is the accepted gap.
+   */
+  return withCors(res, req.headers.get('origin'))
+}
+
 export function proxy(req: NextRequest) {
   const origin = req.headers.get('origin')
 
@@ -195,10 +247,9 @@ export function proxy(req: NextRequest) {
   const handle = storefrontHandleFromHost(req.headers.get('host'), canonicalHost())
   // ⚠️ READS ONLY. A rewrite changes which route handles a request, so applying it to a POST would
   // hand a storefront's Server Action to a page that never expects one.
-  if (handle && req.nextUrl.pathname === '/' && (req.method === 'GET' || req.method === 'HEAD')) {
-    const url = req.nextUrl.clone()
-    url.pathname = `/s/${handle}`
-    return NextResponse.rewrite(url)
+  const lang = isApi(req.nextUrl.pathname) ? null : langVariantFor(req.cookies.get(LANG_COOKIE)?.value, req.headers.get('accept-language'))
+  if (handle && lang && req.nextUrl.pathname === '/' && (req.method === 'GET' || req.method === 'HEAD')) {
+    return rewriteToLang(req, lang, `/s/${handle}`)
   }
 
   /**
@@ -210,13 +261,9 @@ export function proxy(req: NextRequest) {
    * ⚠️ REWRITTEN TO A PATH THAT CANNOT EXIST rather than 404'd here, so Next renders the app's own
    * not-found page and a probe cannot tell an internal route from any other miss.
    */
-  if (req.nextUrl.pathname.startsWith('/s/')) {
+  if (lang && req.nextUrl.pathname.startsWith('/s/')) {
     const asked = req.nextUrl.pathname.slice(3).split('/')[0]
-    if (!handle || handle !== asked) {
-      const url = req.nextUrl.clone()
-      url.pathname = '/_not-found'
-      return NextResponse.rewrite(url)
-    }
+    if (!handle || handle !== asked) return rewriteToLang(req, lang, NOT_FOUND_PATH)
   }
   // Preflights carry no app auth by design — answer them before the edge pin.
   if (req.method === 'OPTIONS' && origin && APP_ORIGINS.has(origin)) {
@@ -234,7 +281,7 @@ export function proxy(req: NextRequest) {
    * ⚠️ THIS GUARD IS WHY THE MATCHER STAYS EXPLICIT rather than becoming a catch-all with
    * exclusions: every path added there has to be checked against this block.
    */
-  if (!req.nextUrl.pathname.startsWith('/api/')) return withCors(NextResponse.next(), origin)
+  if (lang) return rewriteToLang(req, lang, req.nextUrl.pathname)
   const secret = process.env.EDGE_SECRET
   if (!secret) return withCors(NextResponse.next(), origin)
   // SERVER-TO-SERVER routes that legitimately hit the origin OFF Cloudflare and carry
@@ -271,15 +318,20 @@ export function proxy(req: NextRequest) {
 }
 
 /**
- * ⚠️ TWO ENTRIES, AND THE SECOND ONE IS NEW — the matcher was `/api/:path*` alone until storefront
- * subdomains needed a host-based rewrite, which can only happen before routing.
- *
- * ⛔ THE ROOT PATH ONLY, NOT A CATCH-ALL. `'/'` is the entire page surface this needs: a storefront
- * rewrites its home page and serves the ordinary app everywhere else. The obvious alternative —
- * matching everything and excluding `_next`, static files and the image optimiser with a negative
- * lookahead — would put this function on the hot path of every asset request on the busiest page
- * in the app, to do nothing. Adding a second storefront-scoped path later means adding it here
- * explicitly, which is a change someone has to think about rather than one that happens by
- * default.
+ * ⛔ A CATCH-ALL NOW, AND THE EARLIER "ROOT PATH ONLY" RULE WAS REVERSED DELIBERATELY (2026-09-17).
+ * This matcher was `['/api/:path*', '/', '/s/:path*']` so the storefront rewrite stayed off the hot
+ * path. Server-rendering the visitor's language needs EVERY page request rewritten into `[lang]`, so
+ * the cost that comment avoided is now the feature: one cookie read and one header parse per page
+ * request. Assets stay off it — `_next/`, and any path with a dot, never reach this function.
+ * ⚠️ THE EDGE PIN BELOW IS STILL `/api/*` ONLY: page requests return from `rewriteToLang` before it.
  */
-export const config = { matcher: ['/api/:path*', '/', '/s/:path*'] }
+export const config = {
+  matcher: [
+    '/api/:path*',
+    // Every page path. Excluded: Next internals, the root-level route handlers that live OUTSIDE
+    // `[lang]` (md/, app, listing-images), and anything with a dot — static files, metadata routes,
+    // `.well-known`, `*.md`, feeds. A storefront handle cannot contain a dot (HANDLE_RE), so no page
+    // path is lost to that rule.
+    '/((?!_next/|api(?:/|$)|md(?:/|$)|app$|listing-images(?:/|$)|.*\\.).*)',
+  ],
+}

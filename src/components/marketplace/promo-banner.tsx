@@ -507,7 +507,7 @@ export function PromoBanner() {
  * is a real reduction in slack though (300 left ~118px, 232 leaves ~50px), so re-measure when slide
  * copy changes rather than assuming the fit still holds.
  *
- * ⚠️ THIS LADDER IS MIRRORED IN src/app/(home)/loading.tsx (the instant skeleton reserves the same
+ * ⚠️ THIS LADDER IS MIRRORED IN src/app/[lang]/(home)/loading.tsx (the instant skeleton reserves the same
  * min-h so the block does not resize when real content replaces it). THE TWO MUST MOVE TOGETHER —
  * a skeleton reserving 300 for a 232 banner is a 68px collapse, i.e. exactly the CLS bug this
  * component's min-h exists to prevent. That file is owned by another stream in this wave; if it

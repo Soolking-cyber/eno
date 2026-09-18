@@ -19,7 +19,7 @@ import { HANDLE_RE } from './handle-format'
  * would silently 404 for markdown clients ONLY, so no browser test would catch it.
  *
  * ⛔ EDITION-AWARE, AND THAT IS A LICENSING REQUIREMENT, NOT A NICETY. A directory is a route only
- * if it holds a `page`/`route` file whose extension THIS build compiles. `src/app/itinerary`
+ * if it holds a `page`/`route` file whose extension THIS build compiles. `src/app/[lang]/itinerary`
  * contains just `page.forum.svc.tsx`, so it is a real route on eno.forum and NOT A ROUTE AT ALL on
  * eno.vn. Listing directory names blindly would have written `itinerary` into the marketplace
  * artifact's config — the edition-leak class that passes tsc, lint and every test.
@@ -78,6 +78,11 @@ export function appRootSegments(pageExtensions: string[], appDir?: string): stri
         if (url) out.add(url)
         continue
       }
+      // ⛔ `[lang]` IS TRANSPARENT, LIKE A ROUTE GROUP. Every page lives under the hidden language
+      // segment the proxy rewrites into (src/proxy.ts), so its children ARE the public root segments.
+      // Skipping it with the other dynamic segments below would leave only metadata files in this
+      // list, and the markdown-404 rewrite would claim every real page for agents.
+      if (name === '[lang]' && depth === 0) { walk(join(base, name), depth + 1); continue }
       if (name.startsWith('[')) continue
       // `_private` folders are NOT routes and their children are not URL segments — do not walk in.
       if (name.startsWith('_')) continue
@@ -87,7 +92,7 @@ export function appRootSegments(pageExtensions: string[], appDir?: string): stri
       // not a URL. Its subtree may still hold one, so look down before rejecting it.
       // ⛔ NO "…BUT IT HAS SUBDIRECTORIES" FALLBACK. An earlier draft added a directory when it
       // held any child directory, on the theory that a parent path should never be claimed. A
-      // reviewer refuted it and measurement agreed: `src/app/vietnam-evisa` holds
+      // reviewer refuted it and measurement agreed: `src/app/[lang]/vietnam-evisa` holds
       // `page.forum.svc.tsx` PLUS child route directories, so the fallback put `vietnam-evisa`
       // into the MARKETPLACE list even though eno.vn genuinely 404s it (measured 2026-08-24) —
       // the exact edition leak this function exists to prevent. The fallback is also unnecessary:

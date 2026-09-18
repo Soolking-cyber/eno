@@ -26,7 +26,7 @@
  * one quietly.
  *
  * ⚠️ AND `/c/<slug>` CATEGORY PAGES ARE DELIBERATELY ABSENT even though the routes exist. An empty
- * category self-noindexes (`src/app/c/[category]/page.tsx` sets robots from its live count, and 8 of
+ * category self-noindexes (`src/app/[lang]/c/[category]/page.tsx` sets robots from its live count, and 8 of
  * 15 categories currently hold zero listings), so a link there can point at a page that has removed
  * itself from the index — real, but worthless to link to. The four keyword landing pages below are
  * always indexable, are the pages built to rank, and each already funnels to its own category. Link

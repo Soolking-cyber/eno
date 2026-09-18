@@ -1,6 +1,6 @@
 // Turning the raw publish_funnel counters into the numbers the admin page shows.
 // PURE — no React, no database — so the arithmetic that a human will act on is unit-tested
-// rather than eyeballed. src/app/admin/funnel/page.tsx is the renderer.
+// rather than eyeballed. src/app/[lang]/admin/funnel/page.tsx is the renderer.
 
 /** One grouped row as the page's SQL returns it. */
 export type PublishFunnelRow = { outcome: string; total: number }

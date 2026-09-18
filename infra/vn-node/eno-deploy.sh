@@ -76,6 +76,76 @@ probe(){
   check https://eno.vn/visa         404
   check https://eno.vn/itinerary    404
   check https://eno.forum/itinerary 200
+  # ⛔ THE SAME URL IN TWO LANGUAGES, WITH NO CACHE-BUSTER. Pages render in the visitor's language
+  # at one public URL (src/proxy.ts), so a shared cache keyed on the URL alone would hand the first
+  # visitor's language to everyone. `check` above appends ?d=… and can never see that; this cannot miss it.
+  # ⛔ A REDIRECT IS A PASS, AND FOLLOWING IT WOULD BE WORSE THAN FAILING. www.eno.vn 308s to the
+  # apex (measured), so a plain read finds no `<html lang>` and would roll back a healthy deploy —
+  # but `curl -L` is not the fix: it would read the APEX's response for the `www` probe, and the two
+  # hostnames would stop being separate evidence. That is exactly the apex-vs-www divergence the
+  # loop below exists to catch (CLAUDE.md, 2026-08-02). So: a 3xx is recorded and skipped — the host
+  # it redirects to is probed on its own line — and only a 200 is language-checked.
+  # ⛔ THE ONLY REDIRECT EITHER PROBE MAY EXCUSE: same page, same site, `www.` added or removed.
+  # An allow-LIST of the four hostnames would pass eno.vn → eno.forum (across the licensing boundary)
+  # and /privacy → / (a different page). Stripping only `www.` is also wrong: the two editions
+  # canonicalise in OPPOSITE directions — eno.vn is www→apex, and the services edition's
+  # NEXT_PUBLIC_APP_URL is https://www.eno.forum, i.e. apex→www — so a one-way rule would fail a
+  # healthy forum deploy (a reviewer's catch; today neither forum host redirects at all).
+  # ⚠️ IT STILL CANNOT SILENCE THE PROBE: if the apex ever 308s `/` → `/vi/`, the paths differ and
+  # this returns false, so the deploy fails — which is the regression the probe exists for.
+  canonical_pair(){ local a b
+                    case "$2" in https://*) ;; *) return 1 ;; esac   # never excuse a downgrade or a blank
+                    a=${1#https://}; a=${a#www.}
+                    b=${2#https://}; b=${b#www.}
+                    [ "$a" = "$b" ]; }
+  langcheck(){ local url="$1" al="$2" want="$3" got code
+               code=$(curl -s -o /dev/null --max-time 25 -H "Accept-Language: $al" -w '%{http_code} %{redirect_url}' "$url")
+               case "$code" in
+                 30*)
+                   # ⛔ WHERE IT GOES IS THE WHOLE QUESTION. An unconditional pass on any 3xx would let
+                   # the regression this probe exists to catch switch the probe off: if the apex ever
+                   # 308s `/` → `/vi/`, every line would print "redirect" and certify the deploy while
+                   # serving Vietnamese to everyone. Only a redirect to one of OUR hostnames, at the
+                   # same path, is a canonical redirect; anything else fails.
+                   local target=${code#* }
+                   if canonical_pair "$url" "$target"; then
+                     printf '  %-38s %s → %s (language checked at that host)\n' "$url" "${code%% *}" "$target"
+                   else
+                     printf '  %-38s %s → %s ⛔ not the canonical host for this page\n' "$url" "${code%% *}" "${target:-none}"; fail=1
+                   fi
+                   return 0 ;;
+               esac
+               got=$(curl -s --max-time 25 -H "Accept-Language: $al" "$url" | grep -o '<html[^>]*lang="[a-z]*"' | head -1 | grep -o 'lang="[a-z]*"' | cut -d'"' -f2)
+               if [ "$got" = "$want" ]; then printf '  %-38s lang=%s (%s)\n' "$url" "$got" "$al"
+               else printf '  %-38s lang=%s for %s (want %s) ⛔ edge or proxy serving the wrong language\n' "$url" "${got:-none}" "$al" "$want"; fail=1; fi; }
+  # ⚠️ EVERY HOSTNAME, NOT ONE PER ZONE. The documented past failure was apex-vs-www divergence: a
+  # cache rule left on `www.eno.vn` or on the `eno.forum` apex would pass a one-host probe and break
+  # real traffic (CLAUDE.md, 2026-08-02).
+  for h in https://eno.vn https://www.eno.vn https://eno.forum https://www.eno.forum; do
+    langcheck "$h/" vi-VN vi
+    langcheck "$h/" en-US en
+  done
+  langcheck https://eno.vn/privacy vi-VN vi
+  langcheck https://eno.vn/privacy en-US en
+  # ⚠️ AND THE COOKIE PATH, WHICH THE HEADER PROBES ABOVE NEVER EXERCISE: a returning visitor carries
+  # `lang`, the proxy prefers it over Accept-Language, and the box's micro-cache keys on it. An English
+  # browser holding a Vietnamese cookie must get Vietnamese.
+  cookiecheck(){ local got code target
+                 # Same rule as langcheck: a canonical www↔apex redirect is fine, anything else is not —
+                 # a cookie-dependent redirect somewhere else is precisely what this probe must catch.
+                 code=$(curl -s -o /dev/null --max-time 25 -H 'Accept-Language: en-US' -H 'Cookie: lang=vi' -w '%{http_code} %{redirect_url}' "$1")
+                 case "$code" in
+                   30*) target=${code#* }
+                        if canonical_pair "$1" "$target"; then printf '  %-38s %s → %s (cookie checked at that host)\n' "$1" "${code%% *}" "$target"
+                        else printf '  %-38s %s → %s ⛔ cookie-dependent redirect\n' "$1" "${code%% *}" "${target:-none}"; fail=1; fi
+                        return 0 ;;
+                 esac
+                 got=$(curl -s --max-time 25 -H 'Accept-Language: en-US' -H 'Cookie: lang=vi' "$1" | grep -o '<html[^>]*lang="[a-z]*"' | head -1 | grep -o 'lang="[a-z]*"' | cut -d'"' -f2)
+                 if [ "$got" = vi ]; then printf '  %-38s lang=vi (cookie beats header)\n' "$1"
+                 else printf '  %-38s lang=%s with lang=vi cookie (want vi) ⛔\n' "$1" "${got:-none}"; fail=1; fi; }
+  cookiecheck https://eno.vn/
+  cookiecheck https://eno.forum/
+  cookiecheck https://www.eno.forum/
   return $fail
 }
 
@@ -472,7 +542,10 @@ ok "manifest read: $(printf '%s\n' "$ROUTES" | wc -l | tr -d ' ') routes"
 # exactly the kind of refactor that would be made without a thought for this check.
 # ⚠️ The allowances still hold, and they are what stop this being `grep -i visa`: `/api/visa/*`,
 # `/dashboard/visa` and `/admin/visas` do not start with a group, so they still do not match.
-LEAK=$(printf '%s\n' "$ROUTES" | grep -Ei '"(/\([^)]*\))*/(visa|itinerary)(/|")')
+# ⛔ `(/\[lang\])?` — EVERY PAGE KEY STARTS WITH THE HIDDEN LANGUAGE SEGMENT SINCE 2026-09-17
+# (`/[lang]/visa/page`). Without it this anchor matched NOTHING and printed "no visa/itinerary routes"
+# over any bundle — the exact vacuous pass the route-group note above describes, one level up.
+LEAK=$(printf '%s\n' "$ROUTES" | grep -Ei '"(/\[lang\])?(/\([^)]*\))*/(visa|itinerary)(/|")')
 PAYPAL=$(printf '%s' "$MANIFEST" | grep -Ei 'paypal')
 # ⛔ AND THE SAME EVIDENCE FOR VISA/ITINERARY, BECAUSE A URL CANNOT ALWAYS SHOW IT. A route group
 # named for the thing it holds — `app/(visa)/apply/page.tsx` — produces the URL `/apply` and the key
@@ -494,7 +567,7 @@ PAYPAL=$(printf '%s' "$MANIFEST" | grep -Ei 'paypal')
 # `app/api/visa-checkout-session` and `app/dashboard/visa-apply` — a whole family of plausible names
 # auto-vouched-for by an allow-list whose comment promised it fails closed. A reviewer caught it.
 VISA_FILES=$(printf '%s' "$MANIFEST" | grep -oE '"app/[^"]*"' | grep -Ei '(visa|itinerary)' \
-  | grep -viE '"app/(\([^)]*\)/)*(admin/visas|api/cron|api/trips|api/visa|dashboard/visa)(/|")')
+  | grep -viE '"app/(\[lang\]/)?(\([^)]*\)/)*(admin/visas|api/cron|api/trips|api/visa|dashboard/visa)(/|")')
 [ -n "$VISA_FILES" ] && LEAK=$(printf '%s\n%s' "$LEAK" "$VISA_FILES" | grep -v '^$')
 # ⚠️ `grep -v '^$'` — appending to an empty $LEAK leaves a leading newline, which `sed 's/^/      /'`
 # below then prints as a stray indented blank line above the real evidence.
@@ -548,7 +621,9 @@ if ! complete_manifest "$FMAN"; then
   bad "(a READ failure unless the exit code says otherwise — NOT evidence about the edition)"
   untag_bad; exit 1
 fi
-if ! printf '%s' "$FMAN" | grep -q '"/itinerary/page"'; then
+# ⚠️ `(/\[lang\])?` for the same reason as LEAK above: the key is `/[lang]/itinerary/page` now, and
+# the old literal would have refused every healthy forum build.
+if ! printf '%s' "$FMAN" | grep -qE '"(/\[lang\])?/itinerary/page"'; then
   bad "eno-forum:local was read cleanly ($(printf '%s' "$FMAN" | grep -oE '\"/[^\"]*\"' | sort -u | wc -l | tr -d ' ') routes) but has NO /itinerary/page."
   bad "It is not the services edition — built with the wrong env file."
   untag_bad; exit 1

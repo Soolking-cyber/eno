@@ -19,7 +19,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
  * trade src/lib/sync-pairs.test.ts makes for the visa file pairs.
  *
  * ⚠️ EACH EDITION CASE RE-IMPORTS WITH `vi.resetModules()`, for the reason spelled out in
- * src/app/developers/reference.test.ts: `@/lib/edition` reads NEXT_PUBLIC_ENO_EDITION and
+ * src/app/[lang]/developers/reference.test.ts: `@/lib/edition` reads NEXT_PUBLIC_ENO_EDITION and
  * `@/lib/api/oauth` folds NEXT_PUBLIC_APP_URL into OAUTH_ISSUER at IMPORT time, so a constant bound
  * by an earlier import cannot be re-pointed by mutating the variable afterwards.
  */

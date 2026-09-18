@@ -35,7 +35,7 @@ import { readVisaFile, removeVisaFiles } from '@/lib/visa/storage'
 //     violation into the same 409 — after DELETING the object it had already uploaded, so a
 //     lost race leaves nothing behind in the bucket.
 // The admin UI renders the control as SPENT once a result exists, so this refusal is a
-// backstop rather than the normal experience (src/app/admin/visas/[id]/case-actions.tsx).
+// backstop rather than the normal experience (src/app/[lang]/admin/visas/[id]/case-actions.tsx).
 //
 // ⚠️ DELIBERATELY DIFFERENT FROM THE FORUM'S ROUTE, which replaces an existing result
 // (apps/forum/src/app/api/visa/admin/applications/[id]/result/route.ts deletes the old row

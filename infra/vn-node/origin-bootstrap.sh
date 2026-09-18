@@ -190,6 +190,34 @@ proxy_cache_path ${CACHE_DIR} levels=1:2 keys_zone=eno:64m max_size=${CACHE_SIZE
 # keepalive and fatal for an upgrade handshake; both are needed, so it has to be conditional.
 map \$http_upgrade \$connection_upgrade { default upgrade; '' ''; }
 
+# ⛔ THE LANGUAGE BELONGS IN THIS CACHE KEY, AND ONLY THE COOKIE CAN PUT IT THERE HONESTLY.
+# One public URL renders Vietnamese or English (src/proxy.ts → src/lib/lang-variant.ts), so a key
+# without the language would serve the first visitor's language to everyone. Two ways NOT to do it,
+# both caught in review:
+#   · the raw \$http_accept_language in the key — an unbounded client-controlled string, so a client
+#     sending a unique value per request creates unlimited entries and evicts the real ones;
+#   · an nginx re-implementation of the header rule — it cannot parse q-values, so
+#     `en-US,en;q=0.9,vi;q=0.1` keys as `vi` while the app renders `en`. A key that disagrees with
+#     what was rendered is cache POISONING, not a cache miss.
+# So the cookie — an exact string the app itself wrote — is the only input, and a request without one
+# is not cached at all (the cookie is written on the first visit, so this costs one uncached request).
+map \$cookie_lang \$eno_lang {
+  default "";                                              # unknown/absent → see proxy_no_cache below
+  "~^(en|vi|zh-Hans|ko|ja|ru|km|ms|th|fr|hi)$" \$cookie_lang;
+}
+map \$eno_lang \$eno_lang_unknown { "" 1; default 0; }
+# ⛔ NEVER CACHE AN AUTH RESPONSE. `/auth/*` carries magic-link and OAuth callbacks whose responses are
+# single-use and set session cookies; they reach nginx with no session cookie yet (that is the point of
+# them), so the auth-cookie bypass below cannot see them. A reviewer's catch.
+map \$uri \$eno_no_cache_path { default 0; "~^/auth(/|$)" 1; }
+# ⛔ THE SIGNED-IN BYPASS BELOW NAMED A COOKIE THAT DOES NOT EXIST. Supabase writes
+# `sb-<project-ref>-auth-token` (chunked `.0`/`.1`), never `sb_access_token`, so
+# `\$cookie_sb_access_token` has always been empty and that bypass has never once fired. Latent only
+# because this micro-cache is not enabled on the box — switch it on and a signed-in visitor's
+# /messages or /dashboard HTML would be stored and handed to the next visitor with the same language
+# cookie. A reviewer found it while reviewing the language key beside it.
+map \$http_cookie \$eno_session { default 0; "~*(^|;)[[:space:]]*sb-[^=]*-auth-token" 1; }
+
 upstream eno_marketplace { server 127.0.0.1:${MARKETPLACE_PORT}; keepalive 64; }
 upstream eno_services    { server 127.0.0.1:${SERVICES_PORT};    keepalive 64; }
 
@@ -231,12 +259,16 @@ server {
 
   # HTML micro-cache. Cloudflare absorbed this until now; on-box we finally control the key.
   proxy_cache eno;
-  proxy_cache_key "\$scheme\$host\$request_uri";
+  # ⛔ THE LANGUAGE IS PART OF THE KEY. One public URL renders Vietnamese or English depending on the
+  # `lang` cookie / Accept-Language (src/proxy.ts), so a key without them would serve the first
+  # visitor's language to everyone from this cache. This micro-cache is currently not enabled on the
+  # box; the key is correct here so turning it on cannot introduce that bug.
+  proxy_cache_key "\$scheme\$host\$request_uri\$eno_lang";
   proxy_cache_lock on;
   proxy_cache_use_stale updating error timeout http_500 http_502 http_503;
   proxy_cache_background_update on;
-  proxy_cache_bypass \$http_authorization \$cookie_sb_access_token;
-  proxy_no_cache   \$http_authorization \$cookie_sb_access_token;
+  proxy_cache_bypass \$eno_lang_unknown \$eno_no_cache_path \$eno_session \$http_authorization \$cookie_sb_access_token;
+  proxy_no_cache   \$eno_lang_unknown \$eno_no_cache_path \$eno_session \$http_authorization \$cookie_sb_access_token;
   add_header X-Cache-Status \$upstream_cache_status always;
 
   location / { proxy_pass http://${upstream}; }

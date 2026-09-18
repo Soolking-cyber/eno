@@ -228,7 +228,27 @@ jobs:
         run: |
           cp -R .next/static .next/standalone/.next/
           cp -R public .next/standalone/
-          PORT=3100 HOSTNAME=127.0.0.1 node .next/standalone/server.js > /tmp/server.log 2>&1 &
+          # ⛔ HOSTNAME=0.0.0.0, NOT 127.0.0.1 — THIS STEP HUNG FOR SIX MINUTES ON 2026-09-18.
+          # WHAT WAS MEASURED, same artifact, same `curl http://127.0.0.1:3100/`, one variable:
+          #   HOSTNAME=127.0.0.1 → `/` and `/about` never answer (curl times out; the server log says
+          #                        "Ready in 0ms" and nothing else), while `/api/fx` 200s in 0.38s,
+          #                        `/robots.txt` in 0.01s and `/app` in 0.005s.
+          #   HOSTNAME=0.0.0.0   → `/` 200s in 1.9s. Everything else identical.
+          # The paths that answer are exactly the ones src/proxy.ts's matcher EXCLUDES, and the ones
+          # that hang are exactly the ones it handles — which is why this only started failing when
+          # pages moved under `src/app/[lang]/` and the matcher widened to every page. Requesting
+          # `http://localhost:3100/` against the loopback bind hangs too, so it is the BIND, not the
+          # Host header.
+          # ⚠️ WHAT WAS NOT ESTABLISHED, said plainly because a reviewer was right to press on it: the
+          # mechanism inside Next 16.3.1 that makes a middleware-handled request hang when the server
+          # is bound to 127.0.0.1 rather than 0.0.0.0. The fix is the configuration this repo already
+          # uses everywhere else, not a diagnosis of that internal.
+          # ⚠️ Production and local preview were never affected — the Dockerfile sets
+          # `ENV HOSTNAME=0.0.0.0` and scripts/preview.mjs passes the same; this line was the only
+          # place in the repo pinning the loopback. On a GitHub-hosted ephemeral runner the wider
+          # bind exposes the port to that runner's network only, and the loopback alternative does
+          # not serve pages at all.
+          PORT=3100 HOSTNAME=0.0.0.0 node .next/standalone/server.js > /tmp/server.log 2>&1 &
           for i in $(seq 1 60); do
             if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3100/ || true)" = "200" ]; then
               echo "serving after ${i}s"; exit 0

@@ -15,7 +15,7 @@ import { logError } from '@/lib/log'
  * this is the net under the ones nobody expected. Deliberate handling still calls `logError`
  * directly with an `op`, which is what makes those greppable.
  *
- * ⚠️ CLIENT ERRORS DO NOT REACH THIS FILE, AND THAT GAP IS REAL. `src/app/error.tsx` and
+ * ⚠️ CLIENT ERRORS DO NOT REACH THIS FILE, AND THAT GAP IS REAL. `src/app/[lang]/error.tsx` and
  * `global-error.tsx` are CLIENT components, so their `console.error` lands in the user's browser
  * devtools and nowhere else. This hook covers the server only. Closing the client half needs an
  * endpoint to POST to, which is an unauthenticated write surface and therefore its own decision

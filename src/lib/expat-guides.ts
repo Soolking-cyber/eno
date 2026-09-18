@@ -1,7 +1,7 @@
 /**
  * THE LONG-FORM ARRIVAL GUIDES — one registry, so a new one cannot be built and then forgotten.
  *
- * Same idiom, and the same reason, as src/app/vietnam-evisa/links.ts: the sitemap's static page list
+ * Same idiom, and the same reason, as src/app/[lang]/vietnam-evisa/links.ts: the sitemap's static page list
  * is hard-coded, which is exactly how a page ships, deploys, and is never submitted to Google. The
  * sitemap imports `EXPAT_GUIDE_PATHS` from here, so adding an entry adds the URL to the sitemap and
  * to every sibling guide's "Keep reading" block at once. It does not create the route — but a listed

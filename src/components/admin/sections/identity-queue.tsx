@@ -1,6 +1,6 @@
 import { listKycQueue } from '@/lib/kyc/review'
 import { Card } from '@/components/ui/card'
-import { IdentityReviewPanel } from '@/app/admin/identity/review-panel'
+import { IdentityReviewPanel } from '@/app/[lang]/admin/identity/review-panel'
 
 /**
  * THE IDENTITY REVIEW QUEUE — STAGE 1 OF TWO. A person verifies themselves here; their business is

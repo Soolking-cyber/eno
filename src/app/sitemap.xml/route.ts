@@ -1,7 +1,7 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { IS_SERVICES } from '@/lib/edition'
 import { db } from '@/lib/db'
-// ⚠️ VIA THE ALIASED MODULE, NOT `@/app/vietnam-evisa/links` DIRECTLY. This route compiles on BOTH
+// ⚠️ VIA THE ALIASED MODULE, NOT `@/app/[lang]/vietnam-evisa/links` DIRECTLY. This route compiles on BOTH
 // editions, and that module is a plain `.ts` — `pageExtensions` excludes its `page.svc.tsx`
 // neighbours but not it — so importing it here put every e-visa label and blurb in eno.vn's server
 // bundle. The IS_SERVICES gate below stopped the URLs being emitted; it could not remove the

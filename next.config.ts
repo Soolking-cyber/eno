@@ -31,7 +31,7 @@ if (EDITION_ENV !== undefined && EDITION_ENV !== "marketplace" && EDITION_ENV !=
  * ⚠️ THE HOST MUST MATCH THE EDITION, AND A MISSING VALUE IS THE DANGEROUS CASE.
  *
  * Every consumer of NEXT_PUBLIC_APP_URL falls back to the literal "https://eno.vn" —
- * src/app/layout.tsx (metadataBase), src/app/sitemap.xml/route.ts, src/lib/visa/payments.ts (the
+ * src/app/[lang]/layout.tsx (metadataBase), src/app/sitemap.xml/route.ts, src/lib/visa/payments.ts (the
  * PayPal return origin). So forgetting the variable on the eno.forum deployment does NOT error. It
  * silently brands eno.forum as eno.vn: the e-visa pages canonicalise to the licensed company,
  * eno.vn's name goes on the sitemap that submits them to Google, and eno.vn appears on the PayPal
@@ -455,7 +455,7 @@ const nextConfig: NextConfig = {
      * exist), but "the string is not in the artifact" is a statement you can verify with grep, and
      * "the code declines to run" is a promise about control flow.
      *
-     * Aliasing the MODULES rather than refactoring src/app/messages/[id]/page.tsx is deliberate:
+     * Aliasing the MODULES rather than refactoring src/app/[lang]/messages/[id]/page.tsx is deliberate:
      * that file is 1,857 lines, is the most-used surface in the app, and carries the
      * ChatSendButton onMouseDown+preventDefault invariant. This touches none of it.
      *
@@ -557,7 +557,7 @@ const nextConfig: NextConfig = {
              * no visa-provider, no cross-site-promo. Un-stubbing it ships the trip UI and nothing else.
              *
              * ⚠️ `visa-start` IS THE ONE THAT WAS MISSING FOR A MONTH, AND IT SAT ON THE BUSIEST PAGE
-             * ON THE SITE. src/app/listings/[id]/page.tsx — the product detail page — imports it at
+             * ON THE SITE. src/app/[lang]/listings/[id]/page.tsx — the product detail page — imports it at
              * module top level, and both editions compile that page. A clean marketplace build was
              * measured shipping EIGHT distinct e-Visa sentences in a 61KB chunk every eno.vn listing
              * page downloads. The call site's `isVisaProduct` gate was correct and useless: a gate
@@ -586,7 +586,7 @@ const nextConfig: NextConfig = {
                   "@/lib/api/errors-services": "./src/lib/api/errors-services.stub.ts",
                 }),
             // ⚠️ THE ONE THAT WAS MISSING, AND IT SAT ON THE BUSIEST PAGE ON THE SITE.
-            // src/app/listings/[id]/page.tsx — the product detail page — imports VisaStart at module
+            // src/app/[lang]/listings/[id]/page.tsx — the product detail page — imports VisaStart at module
             // top level, and both editions compile that page. A clean marketplace build was
             // measured shipping EIGHT distinct e-Visa sentences in a 61KB chunk that every eno.vn
             // listing page downloads. The call site's `isVisaProduct` gate was correct and useless:
@@ -804,10 +804,17 @@ const nextConfig: NextConfig = {
        * eno.forum cc81e3ff…), or it must respect origin cache-control. Verify by curling through
        * Cloudflare with and without the header, not against the origin.
        */
+      /**
+       * ⛔ EVERY PAGE-PATH SOURCE BELOW CARRIES `/:lang(en|vi)`, AND WITHOUT IT THE RULE NEVER FIRES.
+       * src/proxy.ts rewrites each page request into the hidden `[lang]` segment BEFORE these run
+       * (measured on Next 16.3.1: `source: "/"` stopped matching once the proxy rewrote `/` → `/vi`,
+       * while `/:lang(en|vi)` matched). Dotted paths (`.well-known`, `*.md`, feeds) are excluded from
+       * the proxy, so their sources stay unprefixed.
+       */
       beforeFiles: [
-        { source: "/", has: acceptsMarkdown(), destination: "/md/home" },
-        { source: "/privacy", has: acceptsMarkdown(), destination: "/md/privacy" },
-        { source: "/terms", has: acceptsMarkdown(), destination: "/md/terms" },
+        { source: "/:lang(en|vi)", has: acceptsMarkdown(), destination: "/md/home" },
+        { source: "/:lang(en|vi)/privacy", has: acceptsMarkdown(), destination: "/md/privacy" },
+        { source: "/:lang(en|vi)/terms", has: acceptsMarkdown(), destination: "/md/terms" },
       ],
       afterFiles: [
         {
@@ -819,7 +826,7 @@ const nextConfig: NextConfig = {
          * THE MARKDOWN 404, FOR SINGLE-SEGMENT PATHS THAT CANNOT BE A STOREFRONT.
          *
          * ⛔ IT CANNOT LIVE IN `fallback` LIKE THE OTHER MARKDOWN 404. `fallback` runs only when
-         * routing found NOTHING, and `src/app/[handle]` matches every single-segment path — so
+         * routing found NOTHING, and `src/app/[lang]/[handle]` matches every single-segment path — so
          * `/some-path-that-does-not-exist` (the audit's own verification command) reaches the
          * storefront route, 404s there, and never reaches `fallback`. That is why the existing
          * `fallback` entry answers `/nope/xyz/abc` in markdown but leaves one-segment paths on a
@@ -837,7 +844,7 @@ const nextConfig: NextConfig = {
          * which no browser sends. HTML 404s are untouched.
          */
         {
-          source: markdown404Source(appRootSegments(PAGE_EXTENSIONS)),
+          source: `/:lang(en|vi)${markdown404Source(appRootSegments(PAGE_EXTENSIONS))}`,
           has: acceptsMarkdown(),
           destination: "/md/not-found",
         },
@@ -862,10 +869,10 @@ const nextConfig: NextConfig = {
          * ⛔ `docs` IS RESERVED IN src/lib/handle-format.ts AND MUST STAY THAT WAY. `/docs` is a
          * root-level single segment, so it is also the shape of a storefront handle
          * (`^[a-z][a-z0-9_]{2,29}$` matches it). afterFiles runs BEFORE dynamic routes, so this
-         * entry outranks `src/app/[handle]` — if a seller could register `docs`, their storefront
+         * entry outranks `src/app/[lang]/[handle]` — if a seller could register `docs`, their storefront
          * would be permanently unreachable. Same hazard the `eno_vietnam` note records, same fix.
          */
-        { source: "/docs", destination: "/developers" },
+        { source: "/:lang(en|vi)/docs", destination: "/:lang/developers" },
         /**
          * ── RFC 8414 / RFC 9728 OAuth discovery ────────────────────────────────────────────────
          * The two documents live under `src/app/api/well-known/*` for the same reason the AASA one
@@ -955,8 +962,8 @@ const nextConfig: NextConfig = {
        *
        * ⚠️ IT DOES NOT COVER EVERY 404, AND THAT IS INHERENT. A path that MATCHES a route and then
        * calls `notFound()` never reaches this group. Measured on production 2026-08-23:
-       * `/nope/xyz/abc` reaches it; `/nope-xyz` (matches `src/app/[handle]`) and `/help/nope-topic`
-       * (matches `src/app/help/[id]`) do not.
+       * `/nope/xyz/abc` reaches it; `/nope-xyz` (matches `src/app/[lang]/[handle]`) and `/help/nope-topic`
+       * (matches `src/app/[lang]/help/[id]`) do not.
        *
        * ⚠️ `acceptsMarkdown()` IS WHAT KEEPS THIS OFF BROWSERS. Without the `has` clause every
        * unmatched path on the site would answer `text/markdown`. Reuse it — do not write a second

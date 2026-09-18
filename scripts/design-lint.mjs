@@ -37,7 +37,7 @@ const SRC = join(ROOT, 'src')
 // Files allowed to contain raw hex — third-party brand marks, meta/OG colors,
 // and canvas/map drawing code where tokens don't reach.
 const HEX_ALLOW = new Set([
-  'src/app/layout.tsx', // theme-color meta + JSON-LD brand color
+  'src/app/[lang]/layout.tsx', // theme-color meta + JSON-LD brand color
   'src/components/marketplace/sign-in-form.tsx', // Google logo SVG fills
   'src/app/global-error.tsx', // renders its own <html> WITHOUT globals.css — tokens unavailable
   'src/components/marketplace/listings-map.tsx', // Leaflet CSS-in-JS pin/circle colors (map surface is theme-independent)
@@ -82,11 +82,11 @@ const RAW_CONTROL_ALLOW = [
   { file: 'src/components/marketplace/business-profile-editor.tsx', match: 'type="file"', reason: 'hidden logo input inside the <label> picker' },
   { file: 'src/components/marketplace/profile-editor.tsx', match: 'type="file"', reason: 'hidden avatar input inside the clickable <label>' },
   { file: 'src/components/marketplace/post-wizard-sections.tsx', match: 'type="file"', reason: 'hidden photo + video inputs inside the dashed <label> tiles (MediaSection, moved verbatim from post-wizard.tsx); the video one needs currentTarget.value = "" to allow a re-pick' },
-  { file: 'src/app/disputes/[id]/page.tsx', match: 'type="file"', reason: 'hidden evidence input inside the Evidence <label>' },
-  { file: 'src/app/appeal/[id]/page.tsx', match: 'type="file"', reason: 'hidden proof input inside the Add <label>' },
-  { file: 'src/app/reports/[id]/page.tsx', match: 'type="file"', reason: 'hidden screenshot input inside the Add <label>' },
+  { file: 'src/app/[lang]/disputes/[id]/page.tsx', match: 'type="file"', reason: 'hidden evidence input inside the Evidence <label>' },
+  { file: 'src/app/[lang]/appeal/[id]/page.tsx', match: 'type="file"', reason: 'hidden proof input inside the Add <label>' },
+  { file: 'src/app/[lang]/reports/[id]/page.tsx', match: 'type="file"', reason: 'hidden screenshot input inside the Add <label>' },
   { file: 'src/components/admin/admin-brands-client.tsx', match: 'type="file"', reason: 'hidden .svg input inside the Upload <label>; needs the raw node for its value="" reset' },
-  { file: 'src/app/dashboard/visa/apply/apply-client.tsx', match: 'type="file"', reason: 'hidden visa passport/portrait input inside the dashed dropzone <label> (forum-ported UploadCard); needs the raw node for its value="" re-pick reset' },
+  { file: 'src/app/[lang]/dashboard/visa/apply/apply-client.tsx', match: 'type="file"', reason: 'hidden visa passport/portrait input inside the dashed dropzone <label> (forum-ported UploadCard); needs the raw node for its value="" re-pick reset' },
   { file: 'src/components/marketplace/business-verification-panel.tsx', match: 'type="file"', reason: 'two hidden identity/bank document inputs, fired by their Upload buttons via refs; need the raw node for the value="" re-pick reset' },
 
   // B. Nested interactive content. A <button> may not contain another button/input — the
@@ -454,7 +454,7 @@ function checkMoney(rel, codeLines, rawLines) {
  * `fontWeight="600"` — SVG <text> takes it as an attribute).
  *
  * If a middle weight is genuinely wanted again, add the woff2 back in scripts/gen-fonts.sh AND
- * src/app/layout.tsx AND drop its retarget — then this rule can go. Do not silence it alone; that
+ * src/app/[lang]/layout.tsx AND drop its retarget — then this rule can go. Do not silence it alone; that
  * only restores the mismatch it exists to catch.
  */
 const SHIPPED_FONT_WEIGHTS = new Set(['400', '700'])

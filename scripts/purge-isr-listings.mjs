@@ -15,7 +15,7 @@
 // only where apps.compose.yml sets ENO_ISR_PG=1; check `docker exec eno-vn-app printenv ENO_ISR_PG`
 // before trusting it.
 //
-// Run after ANY visual/structural change to src/app/listings/[id] or the components
+// Run after ANY visual/structural change to src/app/[lang]/listings/[id] or the components
 // it bakes (listing-gallery, pdp-shop-link, seller cards…). Each page re-renders on
 // its next visit.
 //
@@ -26,7 +26,13 @@ const url = process.env.DIRECT_URL || process.env.DATABASE_URL
 if (!url) { console.error('Set DIRECT_URL'); process.exit(1) }
 const c = new pg.Client({ connectionString: url })
 await c.connect()
+// ⛔ PREFIXED WITH `[lang]` SINCE 2026-09-17: pages render under the hidden language segment
+// (src/proxy.ts), so a cached PDP carries `_N_T_/[lang]/listings/[id]/page` — the unprefixed tags
+// below it are kept only so a purge still clears entries written by the previous build.
 const tags = [
+  'eno:isrtag:_N_T_/[lang]/listings/[id]/page',
+  'eno:isrtag:_N_T_/[lang]/listings/[id]/layout',
+  'eno:isrtag:_N_T_/[lang]/listings/layout',
   'eno:isrtag:_N_T_/listings/[id]/page',
   'eno:isrtag:_N_T_/listings/[id]/layout',
   'eno:isrtag:_N_T_/listings/layout',

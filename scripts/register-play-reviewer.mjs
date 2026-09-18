@@ -33,7 +33,7 @@
  * UNREACHABLE". THAT WAS FALSE, and the evidence was already in this repo — set-official-partner.mjs
  * says in its own header that 14 of 15 imported storefronts have no Handle and "are reached at
  * /sellers/<id>". codex refuted it (2026-09-09). Measured rather than assumed, the real exposure is:
- *   · REACHABLE — src/app/sellers/[id]/page.tsx renders this storefront at /sellers/<sellerId>,
+ *   · REACHABLE — src/app/[lang]/sellers/[id]/page.tsx renders this storefront at /sellers/<sellerId>,
  *     handle or no handle, and it will show the gold official-partner seal.
  *   · NOT DISCOVERABLE — src/app/sitemap.xml/route.ts:239 skips any seller absent from `sellerMax`,
  *     which is built only from live listings. This account has none, so it is never submitted.
@@ -51,7 +51,7 @@
  * SHRED IT afterwards; the success path prints the command.
  *
  * ⚠️ WHAT "NOT DISCOVERABLE" DOES AND DOES NOT MEAN, measured 2026-09-09 rather than asserted. The
- * storefront is excluded from sitemap.xml, AND there is no seller index route (`src/app/sellers`
+ * storefront is excluded from sitemap.xml, AND there is no seller index route (`src/app/[lang]/sellers`
  * holds only `[id]`), AND `/partners` is a static page with no database query, AND `officialPartner`
  * is not a browse or search facet. So the badge can surface only on this seller's own listings —
  * and this account exists to be signed into, not to sell. A reviewer seat questioned the earlier

@@ -31,16 +31,16 @@ import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
  *   · `afterFiles` with a `/:path*` source is no better: it runs BEFORE dynamic routes, so it would
  *     shadow `[handle]`, `/listings/[slug]`, `/c/[slug]` and every other dynamic segment. REJECTED.
  *   · A `beforeFiles` source with a negative lookahead over the real routes cannot work even in
- *     principle: `src/app/[handle]` resolves against a DATABASE table, so the set of valid
+ *     principle: `src/app/[lang]/[handle]` resolves against a DATABASE table, so the set of valid
  *     single-segment paths is not knowable at build time. REJECTED.
  *
  * ⚠️ AND THE SAME ORDERING IS THIS MECHANISM'S ONE REAL LIMIT, SO DO NOT OVERSELL IT. `fallback`
  * fires only when NO route matched. A 404 produced by a route that DID match and then called
  * `notFound()` never reaches it. Measured against production 2026-08-23:
  *     /nope/xyz/abc      no route matches            -> reaches fallback ✅
- *     /nope-xyz          matches src/app/[handle]    -> never reaches fallback ❌
- *     /help/nope-topic   matches src/app/help/[id]   -> never reaches fallback ❌
- * Those three are covered by the HTML recovery block in src/app/not-found.tsx instead — except that
+ *     /nope-xyz          matches src/app/[lang]/[handle]    -> never reaches fallback ❌
+ *     /help/nope-topic   matches src/app/[lang]/help/[id]   -> never reaches fallback ❌
+ * Those three are covered by the HTML recovery block in src/app/[lang]/not-found.tsx instead — except that
  * on that path the HTML is empty too; see the measurement recorded at the head of that file. Fixing
  * it means changing where `[handle]` throws, which is outside this change.
  *
@@ -63,7 +63,7 @@ export const dynamic = 'force-dynamic'
  * convenience. This file compiles into both builds. eno.vn is a licensed sàn TMĐT and may not show,
  * link to or describe visa, itinerary or PayPal surfaces — so the one response whose whole job is
  * to say "that path is absent" must not be the place that reveals which paths exist elsewhere. The
- * set is deliberately identical to the HTML 404's recovery block in src/app/not-found.tsx, whose
+ * set is deliberately identical to the HTML 404's recovery block in src/app/[lang]/not-found.tsx, whose
  * header carries the full argument for why each entry is edition-safe.
  *
  * ⚠️ AND THE DISCOVERY PROBLEM IS SOLVED BY THE THREE MACHINE DOCUMENTS, NOT BY LISTING PAGES HERE.

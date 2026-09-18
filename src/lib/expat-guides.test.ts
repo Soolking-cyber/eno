@@ -30,7 +30,7 @@ describe('expat guides registry', () => {
   })
 
   it.each(EXPAT_GUIDES.map((g) => [g.slug]))('%s is a FORUM-ONLY route (page.forum.svc.tsx)', (slug) => {
-    const dir = `src/app/${slug}`
+    const dir = `src/app/[lang]/${slug}`
     expect(
       existsSync(`${dir}/page.forum.svc.tsx`),
       `${dir}/page.forum.svc.tsx does not exist — the guide is in the registry and in the sitemap, but there is no route`,

@@ -1,7 +1,7 @@
 /**
  * THE PARTS OF /terms THAT ONLY THE SERVICES EDITION MAY CARRY — services edition only.
  *
- * `src/app/terms/page.tsx` is ONE file rendered by BOTH deployments. The provider-of-record
+ * `src/app/[lang]/terms/page.tsx` is ONE file rendered by BOTH deployments. The provider-of-record
  * paragraphs below belong on eno.forum and may not exist in anything eno.vn serves, so they live
  * behind a module boundary that `next.config.ts` aliases to `terms-services-copy.stub.ts` on a
  * marketplace build. The page still gates the render on `IS_SERVICES` — the gate controls

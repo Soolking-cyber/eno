@@ -20,7 +20,7 @@ import { VISA_RESULT_MAX_BYTES, findVisaResultDocument, visaResultFilename } fro
 // is a bearer token for an identity document, and it would then sit in browser history, in
 // a referrer header, and in whatever the applicant pastes it into.
 // ⚠️ Stated precisely, because the same file is reachable another way: the ADMIN case page
-// (src/app/admin/visas/[id]/page.tsx) signs a 6h URL for EVERY document on a case, result
+// (src/app/[lang]/admin/visas/[id]/page.tsx) signs a 6h URL for EVERY document on a case, result
 // included, exactly as it already does for the passport and portrait images. That is the
 // desk's own admin-gated SSR surface and predates this route — but it means "nobody ever
 // gets a signed URL to a result" would be a false claim, and the applicant-facing promise

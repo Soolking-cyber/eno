@@ -414,19 +414,31 @@ export const TAXONOMY: CategoryDef[] = [
     description: 'Rent — never buy. Motorbikes, cars, bicycles, e-bikes, plus apartments, houses, rooms, hotels & serviced stays. By the day, week or month. Built for tourists & expats.',
     types: ['rent', 'wanted'],
     subcategories: [
-      // Transport rentals
+      /**
+       * ⛔ ORDERED 58.COM-STYLE SINCE 2026-09-18 — owner: "make rentals follow 58.com hierarchy".
+       * 58 opens its rent desk on WHERE YOU LIVE and works outward: whole places first, then the
+       * shared and short-stay shapes, then commercial space, with vehicle hire last (58 keeps that
+       * in another desk entirely; this marketplace deliberately keeps every rental in one place —
+       * see the category note above — so it becomes the tail rather than a separate category).
+       * ⚠️ NOT ONE SLUG CHANGED, and that is the point: `Listing.subcategorySlug` rows in production
+       * point at these strings, so a rename is a data migration. This is an ORDER change, and the
+       * chip plate renders taxonomy order now (category-rail.tsx), so this list IS the hierarchy the
+       * visitor sees. Keep new entries in their group.
+       */
+      // Homes — a whole place first, then the shared shapes (58: 整租 before 合租).
+      { slug: 'apartment-rental', name: 'Apartment', nameVi: 'Căn hộ', icon: 'Building2', keywords: ['apartment rental', 'rent apartment', 'condo for rent', 'apartment for rent', 'thuê căn hộ', 'thuê chung cư'] },
+      { slug: 'house-rental', name: 'House', nameVi: 'Nhà', icon: 'House', keywords: ['house rental', 'rent house', 'villa for rent', 'townhouse for rent', 'thuê nhà', 'thuê nhà nguyên căn', 'thuê biệt thự'] },
+      { slug: 'room-rental', name: 'Room', nameVi: 'Phòng trọ', icon: 'BedSingle', keywords: ['room rental', 'rent room', 'roommate', 'shared room', 'thuê phòng', 'phòng trọ', 'ở ghép'] },
+      // Short stays — the tourist/just-arrived end of the same axis (58: 短租).
+      { slug: 'hotel-short-stay', name: 'Hotel', nameVi: 'Khách sạn', icon: 'Hotel', keywords: ['hotel', 'hostel', 'guesthouse', 'short stay', 'short-term stay', 'nightly', 'airbnb', 'khách sạn', 'nhà nghỉ', 'lưu trú ngắn hạn'] },
+      { slug: 'homestay-serviced', name: 'Homestay', nameVi: 'Homestay', icon: 'ConciergeBell', keywords: ['homestay', 'serviced apartment', 'service apartment', 'furnished stay', 'căn hộ dịch vụ'] },
+      // Commercial space (58: 商铺 / 写字楼).
+      { slug: 'office-rental', name: 'Office', nameVi: 'Mặt bằng', icon: 'Store', keywords: ['office rental', 'commercial space', 'retail space', 'shopfront', 'mặt bằng', 'văn phòng cho thuê', 'thuê mặt bằng'] },
+      // Vehicle hire — last, and the one group 58 would put in a different desk.
       { slug: 'motorbike-rental', name: 'Motorbike', nameVi: 'Xe máy', icon: 'Gauge', keywords: ['motorbike rental', 'scooter rental', 'rent a bike', 'bike rental', 'rent motorbike', 'vision', 'airblade', 'air blade', 'wave', 'monthly bike', 'thuê xe máy', 'thuê xe ga', 'thuê xe số'] },
       { slug: 'car-rental', name: 'Car', nameVi: 'Ô tô', icon: 'CarFront', keywords: ['car rental', 'rent a car', 'self drive', 'self-drive', 'with driver', 'car hire', 'thuê ô tô', 'thuê xe hơi', 'thuê xe tự lái', 'thuê xe có tài'] },
       { slug: 'bicycle-rental', name: 'Bicycle', nameVi: 'Xe đạp', icon: 'Bike', keywords: ['bicycle rental', 'bike hire', 'rent bicycle', 'thuê xe đạp'] },
       { slug: 'ebike-rental', name: 'E-bike', nameVi: 'Xe điện', icon: 'Zap', keywords: ['e-bike rental', 'ebike rental', 'electric scooter rental', 'thuê xe điện'] },
-      // Home rentals (long-term residential — moved out of Property, which is buy/sell-only)
-      { slug: 'apartment-rental', name: 'Apartment', nameVi: 'Căn hộ', icon: 'Building2', keywords: ['apartment rental', 'rent apartment', 'condo for rent', 'apartment for rent', 'thuê căn hộ', 'thuê chung cư'] },
-      { slug: 'house-rental', name: 'House', nameVi: 'Nhà', icon: 'House', keywords: ['house rental', 'rent house', 'villa for rent', 'townhouse for rent', 'thuê nhà', 'thuê nhà nguyên căn', 'thuê biệt thự'] },
-      { slug: 'room-rental', name: 'Room', nameVi: 'Phòng trọ', icon: 'BedSingle', keywords: ['room rental', 'rent room', 'roommate', 'shared room', 'thuê phòng', 'phòng trọ', 'ở ghép'] },
-      // Short-term / serviced stays (tourists + arriving expats)
-      { slug: 'hotel-short-stay', name: 'Hotel', nameVi: 'Khách sạn', icon: 'Hotel', keywords: ['hotel', 'hostel', 'guesthouse', 'short stay', 'short-term stay', 'nightly', 'airbnb', 'khách sạn', 'nhà nghỉ', 'lưu trú ngắn hạn'] },
-      { slug: 'homestay-serviced', name: 'Homestay', nameVi: 'Homestay', icon: 'ConciergeBell', keywords: ['homestay', 'serviced apartment', 'service apartment', 'furnished stay', 'căn hộ dịch vụ'] },
-      { slug: 'office-rental', name: 'Office', nameVi: 'Mặt bằng', icon: 'Store', keywords: ['office rental', 'commercial space', 'retail space', 'shopfront', 'mặt bằng', 'văn phòng cho thuê', 'thuê mặt bằng'] },
     ],
     facets: [
       { key: 'rentalPeriod', label: 'Rental period', labelVi: 'Kỳ thuê', kind: 'toggle', options: [

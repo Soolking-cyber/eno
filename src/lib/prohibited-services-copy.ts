@@ -2,7 +2,7 @@
  * THE SERVICES-EDITION ADDENDUM TO /prohibited — the visa & immigration listing rules, in ONE module
  * so it can be aliased away on a marketplace build.
  *
- * ⚠️ /prohibited IS A SHARED PAGE. A single file — src/app/prohibited/page.tsx — renders on eno.vn
+ * ⚠️ /prohibited IS A SHARED PAGE. A single file — src/app/[lang]/prohibited/page.tsx — renders on eno.vn
  * AND on eno.forum, so a marketplace build genuinely compiles it and everything it imports. The
  * `IS_SERVICES` gate at the call site stops this block RENDERING; only next.config.ts's resolveAlias
  * to ./prohibited-services-copy.stub.ts stops the vocabulary being in the artifact eno.vn ships.

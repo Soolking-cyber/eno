@@ -35,6 +35,10 @@ afterEach(cleanup)
  */
 afterEach(() => {
   try { localStorage.clear() } catch { /* storage unavailable — which is the case this defends */ }
+  // ⚠️ AND THE COOKIES: an explicit setLang() also persists as `lang` + `lang-choice` (the server reads
+  // them to pick the HTML language), and jsdom keeps cookies across tests in a file just as it keeps storage.
+  document.cookie = 'lang=; path=/; max-age=0'
+  document.cookie = 'lang-choice=; path=/; max-age=0'
 })
 
 /**

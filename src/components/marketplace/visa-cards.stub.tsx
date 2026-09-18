@@ -11,7 +11,7 @@
  * so the shared chat page still resolves its imports.
  *
  * ⚠️ STUBBED AT THE MODULE BOUNDARY RATHER THAN BY REFACTORING THE CHAT PAGE. The plan proposed
- * extracting the card dispatch out of src/app/messages/[id]/page.tsx; that file is 1,857 lines and
+ * extracting the card dispatch out of src/app/[lang]/messages/[id]/page.tsx; that file is 1,857 lines and
  * carries the ChatSendButton onMouseDown+preventDefault invariant, and it is the most-used surface
  * in the app. Aliasing the module touches none of it. The 21 imported symbols are few enough that a
  * stub is honest work rather than a rot risk — and visa-cards.stub.test.ts fails the build if the

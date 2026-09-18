@@ -556,7 +556,7 @@ export const VISA_ISSUE_FIELD: Record<string, { field: string; control: ControlK
 // the validator — a defaulted field is SHOWN, not made blocking (the owner's launch-lenience
 // policy). dm-steps.test.ts fences the partition; visa-cards.test.ts fences the coverage.
 //
-// ⚠️ Mirrors src/app/dashboard/visa/apply-client.tsx → PersonalStep + TripStep, in the
+// ⚠️ Mirrors src/app/[lang]/dashboard/visa/apply-client.tsx → PersonalStep + TripStep, in the
 // dashboard's order, with the dashboard's controls (checkpoint pickers, yes/no reveals, date
 // bounds). When a payload field is added, add it here — the coverage test fails otherwise.
 
@@ -1054,7 +1054,7 @@ export function visaErrorCopy(code: string | undefined, tr: Tr): string {
  * THE TWO UPLOAD TOASTS THE CHAT THREAD SHOWS WHILE A DOCUMENT IS BEING READ.
  *
  * ⚠️ THEY LIVE HERE RATHER THAN AT THE CALL SITE FOR ARTIFACT REASONS, NOT TIDINESS. These were
- * inline `tr()` literals in src/app/messages/[id]/page.tsx — a file BOTH editions compile, because
+ * inline `tr()` literals in src/app/[lang]/messages/[id]/page.tsx — a file BOTH editions compile, because
  * the chat page is the marketplace's most-used surface. Measured on a clean marketplace build
  * 2026-08-01: "Đang đọc hộ chiếu…" and "Đã đọc hộ chiếu…" were in eno.vn's client chunk with the
  * upload path unreachable (the visa routes do not exist and the desk's threads 404). Nothing
@@ -1135,7 +1135,7 @@ const SERVER_INTAKE_BYTES = 25 * 1024 * 1024
 /**
  * A phone photo, shrunk to something the upload route will take.
  *
- * ⚠️ MIRRORS prepareImageForUpload in src/app/dashboard/visa/apply-client.tsx, which is
+ * ⚠️ MIRRORS prepareImageForUpload in src/app/[lang]/dashboard/visa/apply-client.tsx, which is
  * module-private there. The two must stay in step (same ceilings, same JPEG ladder) — the
  * right fix is to lift ONE copy into src/lib/visa/, which is a change outside this task's
  * file set. Purely local: nothing here uploads, and the image never leaves the browser until

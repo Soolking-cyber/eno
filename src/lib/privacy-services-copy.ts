@@ -3,7 +3,7 @@ import { VISA_PROVIDER, PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 /**
  * SERVICES-EDITION-ONLY PRIVACY COPY — the paragraphs of /privacy that describe visa-applicant data.
  *
- * ⚠️ WHY THIS IS A MODULE AND NOT A BRANCH INSIDE THE PAGE. src/app/privacy/page.tsx is ONE file
+ * ⚠️ WHY THIS IS A MODULE AND NOT A BRANCH INSIDE THE PAGE. src/app/[lang]/privacy/page.tsx is ONE file
  * rendered by BOTH editions (a privacy policy cannot 404 on the licensed marketplace), so a
  * marketplace build compiles it. `IS_SERVICES ? a : b` inside that page stops the RENDER but leaves
  * every literal in the artifact — measured in src/lib/edition.ts. Moving the literals behind a

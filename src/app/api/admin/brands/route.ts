@@ -1,4 +1,4 @@
-import { revalidatePath } from 'next/cache'
+import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { normalizeBrand } from '@/lib/brand-normalize'
 import { brandIconPath } from '@/lib/brand-icons'
@@ -98,7 +98,7 @@ export const PATCH = route({ auth: 'admin' }, async ({ req }) => {
   }
 
   await db.brand.update({ where: { id: body.id }, data })
-  revalidatePath('/brands')
+  revalidatePublicPath('/brands')
   return { ok: true }
 })
 
@@ -130,6 +130,6 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
   await db.brand.update({ where: { id: target.id }, data: { aliases: JSON.stringify(merged), listingCount: liveCount, curatedAt: new Date() } })
   await db.brand.delete({ where: { id: body.sourceId } })
 
-  revalidatePath('/brands')
+  revalidatePublicPath('/brands')
   return { ok: true }
 })

@@ -3,6 +3,9 @@
 // vi language (before any machine translation) by language-context.
 // Regenerate with the translate-vi-overrides workflow.
 export const VI_OVERRIDES: Record<string, string> = {
+  "View all photos": "Xem tất cả ảnh",
+  "Browse by brand": "Duyệt theo thương hiệu",
+  "Jump straight to listings from the brands people search for most.": "Đi thẳng tới tin đăng của những thương hiệu được tìm kiếm nhiều nhất.",
   "Open a case in the Dispute Center": "Mở khiếu nại tại Trung tâm giải quyết tranh chấp",
   "Returns": "Đổi trả",
   "Returns and exchanges": "Trả hàng và đổi hàng",

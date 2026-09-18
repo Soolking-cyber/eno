@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
      *
      * All five targets were confirmed to be real routes in this build, not aspirational ones:
      * src/app/openapi.json/route.ts, the two `/.well-known/*` rewrites in next.config.ts
-     * (afterFiles → src/app/api/well-known/*), src/app/developers, src/app/llms.txt.
+     * (afterFiles → src/app/api/well-known/*), src/app/[lang]/developers, src/app/llms.txt.
      */
     documentation: {
       openapi: `${OAUTH_ISSUER}/openapi.json`,
