@@ -3,7 +3,10 @@ import { db } from '@/lib/db'
 import { LISTING_FEED_SELECT, serializeFeedListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
 import { plainSnippet } from '@/lib/strip-md'
-import { feedCategories, feedListingTypes, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
+import {
+  feedCategories, feedListingTypes, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders,
+  feedStock, gpcFor, feedIdentifiers, feedApparel, isApparel,
+} from '@/lib/product-feed'
 
 // Helper to escape XML special characters
 function escapeXml(unsafe: string): string {
@@ -115,10 +118,21 @@ export async function GET(req: Request) {
 
       // Real brand for this item (canonical catalogue name), if known.
       const bName = l.brandSlug ? brandName.get(l.brandSlug) ?? null : null
-      // Lead the title with the brand for stronger matching (avoid duplication).
-      const title = bName && !baseTitle.toLowerCase().includes(bName.toLowerCase())
-        ? `${bName} ${baseTitle}`
-        : baseTitle
+      /**
+       * Lead the title with brand, then model — the two tokens a shopping query is most often
+       * built from, in the order Google reads them.
+       *
+       * ⚠️ BOTH ARE APPENDED ONLY WHEN ABSENT. A merchant title is usually already
+       * "Mipow IRONBULL BJ18A-RD …", and prefixing a brand it already carries costs the 70-odd
+       * characters that actually render before the truncation — measured 2026-09-18, 24.8% of
+       * titles already exceed that, so there is nothing spare to spend on a duplicate.
+       */
+      const has = (s: string | null | undefined) => !!s && baseTitle.toLowerCase().includes(s.toLowerCase())
+      const title = [bName && !has(bName) ? bName : null, l.model && !has(l.model) ? l.model : null, baseTitle]
+        .filter(Boolean).join(' ')
+
+      const ident = feedIdentifiers(l)
+      const apparel = isApparel(l.category.slug, l.subcategorySlug) ? feedApparel(l) : null
 
       // Condition → new | used | refurbished (match the Meta feed)
       const cond = listing.condition?.toLowerCase() || ''
@@ -127,7 +141,9 @@ export async function GET(req: Request) {
 
       const currencyCode = listing.currency === '₫' ? 'VND' : 'USD'
       const formattedPrice = `${listing.price} ${currencyCode}`
-      const gpc = GOOGLE_PRODUCT_CATEGORY[l.category.slug]
+      const gpc = gpcFor(l.category.slug, l.subcategorySlug)
+      const tag = (name: string, value: string | undefined) =>
+        value ? `      <g:${name}>${escapeXml(value)}</g:${name}>\n` : ''
 
       xml += `    <item>
       <g:id>${escapeXml(listing.id)}</g:id>
@@ -137,9 +153,9 @@ export async function GET(req: Request) {
       <g:image_link>${escapeXml(imageUrl)}</g:image_link>
 ${extraImages.map((img) => `      <g:additional_image_link>${escapeXml(img)}</g:additional_image_link>`).join('\n')}${extraImages.length ? '\n' : ''}      <g:condition>${condition}</g:condition>
       <g:price>${formattedPrice}</g:price>
-      <g:availability>in_stock</g:availability>
+      <g:availability>${feedStock(l)}</g:availability>
       <g:product_type>${escapeXml(listing.category.name)}</g:product_type>
-${gpc ? `      <g:google_product_category>${gpc}</g:google_product_category>\n` : ''}${bName ? `      <g:brand>${escapeXml(bName)}</g:brand>\n` : `      <g:identifier_exists>no</g:identifier_exists>\n`}    </item>
+${tag('google_product_category', gpc)}${tag('brand', bName ?? undefined)}${tag('gtin', ident.gtin)}${tag('mpn', ident.mpn)}${ident.identifierExists ? '      <g:identifier_exists>no</g:identifier_exists>\n' : ''}${apparel ? tag('color', apparel.color) + tag('size', apparel.size) + tag('gender', apparel.gender) + tag('age_group', apparel.ageGroup) : ''}    </item>
 `
     }
 

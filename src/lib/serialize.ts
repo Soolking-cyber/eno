@@ -272,9 +272,20 @@ export function serializeCategoryBasic(c: { id: string; name: string; nameVi: st
  * same commit as a PII removal. Tracked, not silently "handled".
  */
 
+/**
+ * ⚠️ EVERY COLUMN HERE IS READ BY A FEED ROW — that is the bar, and it is the reason `seller` was
+ * removed (it dragged phone and email through a file that reads neither). The 2026-09-18 additions
+ * each answer a Merchant Center attribute the feeds could not previously emit:
+ *   · `status`              → `availability`, which was a hardcoded `in_stock` literal
+ *   · `subcategorySlug`    → a leaf `google_product_category` instead of one id per top category
+ *   · `model`              → `mpn`, and a model-bearing title front
+ *   · `attributes`         → `color` / `gender` / `age_group`, required on apparel
+ *   · `facetTokens`        → `size`, which `attributes` cannot express (it is multi-valued)
+ */
 export const LISTING_FEED_SELECT = {
   id: true, title: true, titleVi: true, description: true, descriptionVi: true, price: true, currency: true,
-  condition: true, images: true, brandSlug: true,
+  condition: true, images: true, brandSlug: true, model: true,
+  status: true, subcategorySlug: true, attributes: true, facetTokens: true,
   category: { select: { slug: true, name: true } },
 } as const
 

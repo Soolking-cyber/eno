@@ -3,7 +3,7 @@ import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
 import {
-  applyPriceChanges, campaignIdFor, diffPrices, fetchFeedPrices, merchantNameFor,
+  applyPriceChanges, applyStockReconcile, campaignIdFor, diffPrices, fetchFeedPrices, merchantNameFor,
   type ExistingListing,
 } from '@/lib/affiliate-price-refresh'
 
@@ -23,6 +23,37 @@ const CAMPAIGNS = (process.env.ACCESSTRADE_CAMPAIGNS || 'cellphones_cps').split(
 // calling later in the day must all still find the rows that moved.
 const REVALIDATE_LOOKBACK_MS = 48 * 60 * 60 * 1000
 const REVALIDATE_CAP = 3000
+
+/**
+ * ⛔ A FAILED WALK MUST NOT RETIRE A CATALOGUE, AND "FAILED" IS NOT ONLY "THREW". These two floors
+ * are lifted verbatim in spirit from /api/cron/partner-stock, which learned them the expensive way:
+ * "not in the feed" and "the feed did not load" are the same shape in a short result, and treating
+ * them alike marks a working merchant's entire inventory sold the first night their API has a bad
+ * minute. `fetchFeedPrices` throws on a non-200, but it also BREAKS on the first empty page — a
+ * paginated endpoint that stops early clears no error bar at all, and that is the case these catch.
+ *
+ * ⚠️ 17,435 Tiki rows retired by mistake is not a tidy mistake to undo: each one flips to `sold`,
+ * leaves the Google and Meta catalogues, and takes its accumulated matching with it.
+ */
+const MIN_ROWS_TO_RECONCILE = 20
+const MIN_FEED_FRACTION = 0.5
+
+/**
+ * ⛔ AND A CEILING ON WHAT ONE NIGHT MAY RETIRE, BECAUSE THE FLOORS ABOVE CANNOT BE MADE EXACT.
+ * Two reviewers converged on the same residual after three rounds: `complete` compares a RAW row
+ * count against a total read on page 1, so duplicated rows — or a catalogue that shrinks during a
+ * 49-page walk that takes minutes — can reach the total before the tail is read. The floors then
+ * pass on the 51% that WAS read and the unread tail looks delisted. Their number: ~8,700 Tiki rows
+ * in one night.
+ *
+ * Making the completeness test exact is what produced the deadlock this file already fixed once
+ * (`seenIds.size >= total` is false forever on one duplicate SKU). So the answer is not a better
+ * oracle, it is a blast radius: a merchant really dropping a tenth of their catalogue overnight is
+ * an event a human should look at, and a bug that wants to retire half of it is stopped at the same
+ * line. Prices still refresh; restores still run; only the absence-inference is held back.
+ */
+const MAX_RETIRE_FRACTION = 0.1
+const MAX_RETIRE_FLOOR = 25
 
 /**
  * ⛔ THE WRITE IS NOT THE SHIP. `/listings/[id]` is `export const revalidate = 2592000` — THIRTY
@@ -89,17 +120,92 @@ export const GET = route({ auth: 'cron' }, async () => {
     // ⛔ Not approved = the links earn nothing and may not resolve. Report, never guess an id.
     if (!campaignId) { results.push({ campaign, error: 'not_an_approved_campaign' }); continue }
 
-    const { prices, seen, dropped } = await fetchFeedPrices(campaign, key, campaignId)
+    const { prices, seenIds, seen, complete, dropped } = await fetchFeedPrices(campaign, key, campaignId)
+    /**
+     * ⚠️ NO `status` PREDICATE, DELIBERATELY. The rows this job must look at include the ones it
+     * retired on an earlier night: a SKU the merchant re-lists has to be found here before it can
+     * be restored, and filtering to `active` would make every retire permanent.
+     */
     const existing = (await db.listing.findMany({
       where: { sellerId: seller.id, externalId: { not: null } },
-      select: { id: true, externalId: true, price: true, affiliateUrl: true },
-    })) as ExistingListing[]
+      select: { id: true, externalId: true, price: true, affiliateUrl: true, status: true },
+    })) as (ExistingListing & { status: string })[]
 
-    const { changes, unchanged, missingFromFeed } = diffPrices(existing, prices)
+    const { changes, unchanged, missingFromFeed, missingIds, presentIds } = diffPrices(existing, prices, seenIds)
     const written = await applyPriceChanges(db, Prisma, changes)
+
+    /**
+     * ⛔ THREE CONDITIONS, AND THE FIRST DRAFT HAD ONLY THE WEAKEST TWO. A reviewer refuted it with
+     * a case that still stands as the test: 1,000 listings, 600 rows returned, then an unexpected
+     * empty page — both row floors pass and the other 400 live listings retire. Worse, `seen`
+     * counts RAW ROWS, so 500 products belonging to some other part of the merchant's catalogue
+     * clear the floor while matching none of ours, and the pass would retire all 1,000.
+     *
+     * So: (1) the walk must have REACHED THE TOTAL the API reported (`complete` — the fix for the
+     * early break), (2) it must have matched at least half of what we hold (`presentIds`, not
+     * `seen` — the fix for unrelated rows clearing a raw-row floor), and (3) the absolute floor
+     * stays, because a fraction of a handful is meaningless.
+     */
+    const byId = new Map(existing.map((l) => [l.id, l]))
+    /**
+     * ⛔ BOTH SIDES OF THE FRACTION MUST COUNT THE SAME POPULATION. `presentIds` carries every
+     * matched row INCLUDING previously-retired ones — that is how a restore is detected — so
+     * comparing it against the ACTIVE held count compares two different sets. A reviewer supplied
+     * the arithmetic: 100 active rows, 900 old retired ones, a walk that re-lists the 900 and
+     * matches 5 of the active → `matched` 905 clears `activeHeld*0.5` = 50, and the pass retires
+     * the other 95 live listings. Restricting the numerator to active rows is what makes the
+     * sentence "we still see at least half of our live stock" true of the code.
+     *
+     * ⛔ AND THE DENOMINATOR IS ACTIVE ROWS, NOT EVERYTHING WE HOLD, OR THE JOB BRICKS ITSELF.
+     * `existing` has no `status` filter by design, so it only grows as stock churns. Measured
+     * against all held rows the fraction ratchets downward forever, and the first night cumulative
+     * retirements pass 50% the pass stops running and never runs again — reporting a tidy
+     * `incomplete_walk` while the catalogue goes stale. Against active rows it is stable: retire
+     * one and both sides shrink together.
+     */
+    const activeHeld = existing.filter((l) => l.status === 'active').length
+    const matchedActive = presentIds.filter((id) => byId.get(id)?.status === 'active').length
+
+    /**
+     * ⛔ RETIRING AND RESTORING DO NOT DESERVE THE SAME GATE, AND ONE BOOLEAN FOR BOTH IS A BUG IN
+     * ITS OWN RIGHT. Retiring acts on ABSENCE, which is an inference that a partial walk makes
+     * wrong — it needs every floor. Restoring acts on PRESENCE: the merchant's feed positively
+     * listed this SKU, and no amount of missing pages makes that observation false. Fusing them
+     * meant a merchant with 19 held rows could re-list all 19 in a perfect feed and stay sold
+     * forever (the 20-row floor), and a >50% catalogue rotation deadlocked BOTH directions with no
+     * way back — `activeHeld` could never recover, because recovery is exactly what was blocked.
+     */
+    const retireCandidates = missingIds.filter((id) => byId.get(id)?.status === 'active')
+    const retireCap = Math.max(MAX_RETIRE_FLOOR, Math.floor(activeHeld * MAX_RETIRE_FRACTION))
+    // ⚠️ REFUSED WHOLESALE, NOT TRUNCATED TO THE CAP. Retiring "the first 870 of 8,700" would be
+    // the same wrong inference, applied to an arbitrary tenth of it, and it would look like a
+    // healthy night in the logs.
+    const cappedOut = retireCandidates.length > retireCap
+    const mayRetire = complete && !cappedOut
+      && matchedActive >= MIN_ROWS_TO_RECONCILE && matchedActive >= activeHeld * MIN_FEED_FRACTION
+    const stock = await applyStockReconcile(db, Prisma, {
+      retire: mayRetire ? retireCandidates : [],
+      /**
+       * ⚠️ NO COMPLETENESS GATE, WHICH IS THE POINT OF SPLITTING THEM. An earlier draft wrote
+       * `complete ? … : []` here and all three reviewers caught it contradicting the paragraph
+       * above: a partial walk cannot falsify a SKU it positively returned. Gating this was also
+       * the half that made a rotation deadlock unrecoverable.
+       */
+      restore: presentIds.filter((id) => byId.get(id)?.status === 'sold'),
+    })
+    // ⚠️ A BLOCKED RETIRE IS REPORTED, NOT SWALLOWED. A campaign that stops retiring because its
+    // merchant rotated most of its catalogue is a thing a human should see, not a silent no-op.
+    if (!mayRetire) console.warn('affiliate-prices: %s retire BLOCKED — complete=%s matchedActive=%d activeHeld=%d candidates=%d cap=%d', campaign, complete, matchedActive, activeHeld, retireCandidates.length, retireCap)
+
     results.push({
       campaign, feedRows: seen, feedDropped: dropped, listings: existing.length,
-      changed: written, unchanged, missingFromFeed,
+      changed: written, unchanged, missingFromFeed, stock, mayRetire, cappedOut,
+      matchedActive, activeHeld, retireCandidates: retireCandidates.length, retireCap,
+      /**
+       * ⚠️ RETIRED AND RESTORED ROWS MUST FLUSH TOO. `flushRecent` already sweeps anything whose
+       * `updatedAt` moved in the last 48h and the reconcile stamps it, so they are covered — but
+       * only because the reconcile runs BEFORE this line. Keep that order.
+       */
       ...(await flushRecent(seller.id, changes.map((c) => c.id))),
     })
   }

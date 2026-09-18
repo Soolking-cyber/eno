@@ -1,6 +1,7 @@
 import 'server-only'
 import crypto from 'crypto'
 import { IS_SERVICES } from '@/lib/edition'
+import { facetValues } from '@/lib/facet-tokens'
 
 // Shared config for the product feeds (Google Merchant Center + Meta/Facebook catalog).
 // Both platforms accept PHYSICAL PRODUCTS only — rentals, jobs, services, events,
@@ -55,6 +56,35 @@ export function feedListingTypes(): string[] {
   return IS_SERVICES ? ['sell', 'service'] : ['sell']
 }
 
+/**
+ * ⛔ AVAILABILITY WAS A STRING LITERAL IN BOTH FEEDS, AND THAT IS THE WHOLE DEFECT. Google and
+ * Meta both crawl the landing page and compare it against the feed; a row that says `in_stock`
+ * about a product the merchant delisted is a price/availability mismatch, and enough of them
+ * disapprove items and then put the account's standing at risk. Measured 2026-09-18: 82,084 of
+ * 82,130 live sale rows are imported merchant stock, and the nightly job that refreshes their
+ * PRICE (`/api/cron/affiliate-prices`) wrote nothing about stock at all — it counted rows that had
+ * vanished from the datafeed as `missingFromFeed` and discarded the number. So `in_stock` was not
+ * merely hardcoded, it was unsourced.
+ *
+ * ⚠️ TWO VOCABULARIES, ONE DECISION. Google wants `in_stock` / `out_of_stock`; Meta wants
+ * `in stock` / `out of stock`, with spaces. Each route spells its own (exactly as they already do
+ * for `condition`) — what must not diverge is the JUDGEMENT, which is why it lives here.
+ *
+ * ⛔ A SOLD ROW IS STILL DROPPED, AND THAT WAS REVIEWED AND REVERSED. Both platforms prefer an
+ * out-of-stock item to keep arriving marked `out_of_stock` rather than to vanish, so the feeds were
+ * widened to carry rows sold in the last 30 days — and a reviewer pointed at the landing page they
+ * would carry: `/listings/[id]` returns `robots: { index: false }` for a sold listing
+ * (page.tsx:109). Submitting a noindex URL to Merchant Center trades a matching-history gap for a
+ * landing-page disapproval, which is the worse end of the trade. The feeds stay `status: 'active'`
+ * and this function is the seam that makes the value derived rather than typed — the truthfulness
+ * now comes from the retire pass in /api/cron/affiliate-prices, which is where it belongs.
+ */
+export type FeedStock = 'in_stock' | 'out_of_stock'
+
+export function feedStock(row: { status: string }): FeedStock {
+  return row.status === 'active' ? 'in_stock' : 'out_of_stock'
+}
+
 // Our top-level categories → Google product taxonomy IDs (broad + safe; the platform
 // refines from title/description). Meta's catalog also accepts the Google taxonomy id
 // in google_product_category. Omitted categories let the platform auto-categorize.
@@ -70,6 +100,372 @@ export const GOOGLE_PRODUCT_CATEGORY: Record<string, string> = {
   pets: '1',                     // Animals & Pet Supplies
   'food-drink': '422',           // Food, Beverages & Tobacco
   'moving-sale': '536',          // Home & Garden (whole-home liquidations)
+}
+
+/**
+ * Leaf Google taxonomy ids, keyed by OUR subcategory slug.
+ *
+ * ⛔ THE TOP-LEVEL MAP ABOVE IS NOT A CATEGORY, IT IS AN AISLE. Measured 2026-09-18: all 67,353
+ * electronics rows were declaring `222` — "Electronics" — which is the id a phone, a screen
+ * protector and a printer cartridge share. Google matches a query against the taxonomy node, so one
+ * id across an aisle is close to no signal at all, and it is why the protector competes with the
+ * phone. Every id below is a LEAF, and a leaf is the entire point.
+ *
+ * ⚠️ IT ONLY REACHES THE ROWS THAT CARRY A SUBCATEGORY, which is not all of them: electronics is
+ * 29.4% tagged (19,833 of 67,353) and fashion-beauty 32.4%, while sports, baby-kids and
+ * books-stationery are ~100%. An untagged row still falls back to its category's aisle id, so this
+ * strictly improves and never blanks a field — but "we mapped the taxonomy" is not "the catalogue
+ * is categorised", and the gap is a classification job, not a feed one.
+ *
+ * ⚠️ SLUGS ARE UNIQUE ACROSS CATEGORIES EXCEPT `storage`, which is a wardrobe in
+ * furniture-appliances and an SSD in electronics. It is keyed `<category>:<subcategory>` for that
+ * reason; `gpcFor` tries the qualified key first and falls back to the bare one.
+ */
+export const GPC_BY_SUBCATEGORY: Record<string, string> = {
+  // electronics
+  'phones-tablets': '267',        // Electronics > Communications > Telephony > Mobile Phones
+  /**
+   * ⚠️ THE PARENT, NOT `328` (Laptops). The slug is laptops AND desktops, and a reviewer's point
+   * holds: a narrower id that is sometimes WRONG is worse than the aisle it replaced. `278` covers
+   * both and is still far below `222`. `phones-tablets` keeps the phone leaf deliberately — this is
+   * CellphoneS and Điện Thoại Vui inventory, overwhelmingly handsets — and a mis-filed tablet costs
+   * rank, not the item.
+   */
+  'laptops-pcs': '278',           // Electronics > Computers
+  'tv-monitors': '404',           // Electronics > Video > Televisions
+  audio: '223',                   // Electronics > Audio
+  cameras: '2096',                // Cameras & Optics > Cameras > Digital Cameras
+  gaming: '1294',                 // Electronics > Video Game Consoles
+  'phone-cases': '2353',          // Electronics > … > Mobile Phone Cases
+  'screen-protectors': '5525',    // Electronics > … > Mobile Phone Screen Protectors
+  'keyboards-mice': '5539',       // Electronics > Computers > Computer Accessories > Input Devices
+  'bags-sleeves': '338',          // Electronics > Computers > Computer Accessories > Laptop Bags & Cases
+  'cables-chargers': '5509',      // Electronics > Electronics Accessories > Power > Chargers
+  'power-banks': '7160',          // Electronics > Electronics Accessories > Power > Battery Packs
+  smartwatch: '6552',             // Electronics > Electronics Accessories > Wearable Technology > Smart Watches
+  'electronics:storage': '499954', // Electronics > Computers > Computer Accessories > Storage Devices
+  networking: '342',              // Electronics > Networking
+  printers: '5473',               // Electronics > Print, Copy, Scan & Fax > Printers
+  accessories: '4526',            // Electronics > Electronics Accessories (the aisle's own "other")
+  // fashion-beauty
+  womens: '1604',                 // Apparel & Accessories > Clothing > Women's
+  mens: '1604',                   // Apparel & Accessories > Clothing (Google split by size/gender attrs, not node)
+  shoes: '187',                   // Apparel & Accessories > Shoes
+  bags: '6551',                   // Apparel & Accessories > Handbags, Wallets & Cases > Handbags
+  'watches-jewelry': '201',       // Apparel & Accessories > Jewelry > Watches
+  beauty: '469',                  // Health & Beauty > Personal Care > Cosmetics
+  // sports
+  sportswear: '5322',             // Apparel & Accessories > Clothing > Activewear
+  'sports-shoes': '1834',         // Apparel & Accessories > Shoes > Athletic Shoes
+  swimming: '5697',               // Sporting Goods > Athletics > Swimming
+  'gym-yoga': '990',              // Sporting Goods > Exercise & Fitness
+  'racket-ball': '1001',          // Sporting Goods > Athletics > Racquet Sports
+  'outdoor-cycling': '3908',      // Sporting Goods > Outdoor Recreation > Cycling
+  'sports-accessories': '988',    // Sporting Goods
+  'sports-nutrition': '2984',     // Health & Beauty > Health Care > Fitness & Nutrition
+  // furniture-appliances
+  'sofa-seating': '441',          // Furniture > Sofas
+  'tables-desks': '443',          // Furniture > Tables
+  'beds-mattresses': '505764',    // Furniture > Beds & Accessories
+  'furniture-appliances:storage': '6356', // Furniture > Cabinets & Storage
+  'lighting-decor': '594',        // Home & Garden > Decor
+  'white-goods': '604',           // Home & Garden > Household Appliances
+  kitchenware: '638',             // Home & Garden > Kitchen & Dining > Cookware & Bakeware
+  'plants-garden': '985',         // Home & Garden > Plants
+  'household-supplies': '630',    // Home & Garden > Household Supplies
+  // baby-kids
+  'strollers-seats': '5859',      // Baby & Toddler > Baby Transport > Baby Strollers
+  'baby-gear': '537',             // Baby & Toddler
+  toys: '1239',                   // Toys & Games > Toys
+  'kids-clothing': '5424',        // Apparel & Accessories > Clothing > Baby & Toddler Clothing
+  'kids-shoes': '187',            // Apparel & Accessories > Shoes
+  maternity: '5441',              // Apparel & Accessories > Clothing > Outfit Sets (maternity has no leaf; gender+age carry it)
+  // books-stationery
+  literature: '784',              // Media > Books
+  'self-help-business': '784',
+  'childrens-books': '784',
+  'textbooks-exam': '784',
+  'languages-dictionaries': '784',
+  'comics-manga': '784',
+  'books-other': '784',
+  'stationery-office': '922',     // Office Supplies
+  // vehicles
+  motorbike: '3335',              // Vehicles & Parts > Vehicles > Motor Vehicles > Motorcycles & Scooters
+  bicycle: '1025',                // Sporting Goods > Outdoor Recreation > Cycling > Bicycles
+  car: '916',                     // Vehicles & Parts > Vehicles > Motor Vehicles > Cars, Trucks & Vans
+  'ebike-scooter': '3335',
+  'parts-gear': '899',            // Vehicles & Parts > Vehicle Parts & Accessories
+  // hobbies-sports
+  fitness: '990',                 // Sporting Goods > Exercise & Fitness
+  instruments: '783',             // Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments
+  'board-games': '1247',          // Toys & Games > Games
+  'camping-outdoor': '5655',      // Sporting Goods > Outdoor Recreation > Camping & Hiking
+  'art-crafts': '505370',         // Arts & Entertainment > Hobbies & Creative Arts > Arts & Crafts
+  // pets
+  dogs: '3',                      // Animals & Pet Supplies > Pet Supplies > Dog Supplies
+  cats: '2',                      // Animals & Pet Supplies > Pet Supplies > Cat Supplies
+  supplies: '6',                  // Animals & Pet Supplies > Pet Supplies
+  // food-drink
+  'home-baking': '423',           // Food, Beverages & Tobacco > Food Items > Bakery
+  groceries: '422',
+  'coffee-tea': '2073',           // Food, Beverages & Tobacco > Beverages > Coffee
+}
+
+/**
+ * The most specific Google taxonomy id we can justify for a row: leaf first, aisle as fallback.
+ *
+ * ⛔ `Object.hasOwn`, NOT A BARE INDEX, AND THIS REPO HAS ALREADY PAID FOR THE LESSON ONCE. The
+ * note on `MERCHANT_NAMES` in affiliate-price-refresh.ts records the same bug: a plain object index
+ * reads through `Object.prototype`, so a slug of `constructor` or `toString` returns a FUNCTION and
+ * `??` does not catch it (an inherited method is neither null nor undefined). `subcategorySlug` is
+ * seller-reachable, so this would have put `function Object() { [native code] }` inside a
+ * `<g:google_product_category>` element — a corrupt row in an unattended feed.
+ */
+function own(map: Record<string, string>, key: string): string | undefined {
+  return Object.hasOwn(map, key) ? map[key] : undefined
+}
+
+export function gpcFor(categorySlug: string, subcategorySlug?: string | null): string | undefined {
+  if (subcategorySlug) {
+    const leaf = own(GPC_BY_SUBCATEGORY, `${categorySlug}:${subcategorySlug}`) ?? own(GPC_BY_SUBCATEGORY, subcategorySlug)
+    if (leaf) return leaf
+  }
+  return own(GOOGLE_PRODUCT_CATEGORY, categorySlug)
+}
+
+/**
+ * `Listing.attributes` is a JSON object stored as text; a malformed one is a missing one.
+ *
+ * ⚠️ IT ARRIVES BOTH WAYS. The feeds read the raw column (a string); `/listings/[id]` has already
+ * parsed it by the time it builds its JSON-LD. Accepting both is what lets the page and the feed
+ * derive identifiers from ONE function — and them agreeing matters, because Google cross-checks the
+ * landing page against the feed row.
+ */
+type AttrSource = string | Record<string, unknown> | null | undefined
+
+function attrs(raw: AttrSource): Record<string, string> {
+  if (!raw) return {}
+  try {
+    const parsed: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const out: Record<string, string> = {}
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      // ⚠️ NUMBERS COUNT. A barcode stored as JSON `8935001820017` (no quotes) was dropped here, and
+      // the row then declared that no identifier existed — a false statement produced by a parser
+      // detail. Booleans and objects stay out; those are not attribute values.
+      if (typeof v === 'string' && v) out[k] = v
+      else if (typeof v === 'number' && Number.isFinite(v)) out[k] = String(v)
+    }
+    return out
+  } catch { return {} }
+}
+
+/**
+ * `gtin` / `mpn` / `identifier_exists` for one row.
+ *
+ * ⛔ `identifier_exists` WAS KEYED OFF THE BRAND, WHICH IS THE WRONG QUESTION. The Google route
+ * emitted `identifier_exists=no` only when it had no brand to print, as the ELSE of a brand branch.
+ * Google's rule is about IDENTIFIERS: the flag declares that a product has no GTIN and no MPN, and
+ * a branded product without either needs it just as much as an unbranded one. So 43.9% of the
+ * catalogue printed a brand, no identifier, and no declaration that it had none — which is the
+ * shape Google reads as "GTIN missing" rather than "GTIN does not exist".
+ *
+ * ⚠️ `mpn` COMES FROM `model`, AND THAT IS A JUDGEMENT. A manufacturer part number and a model code
+ * are not the same field in principle; in retail practice the model code is what merchants submit
+ * and what Google matches on, and `Listing.model` is exactly that ("BJ18A-RD", "M4 Pro"). It is
+ * populated on 16.3% of rows, so this is a real but partial win.
+ *
+ * ⚠️ NO GTIN EXISTS ANYWHERE IN THE PIPELINE TODAY — the AccessTrade datafeed row carries `sku`,
+ * `product_id`, `name`, `price`, `discount`, `aff_link` and nothing else, and `sku` is a merchant's
+ * own id, NOT a barcode. Submitting it as a GTIN would be a fabricated identifier, which is worse
+ * than none: Google validates the check digit and mismatches poison the product match. So this
+ * reads a real barcode only where an importer actually stored one.
+ */
+export function feedIdentifiers(row: {
+  model?: string | null
+  attributes?: AttrSource
+  brandSlug?: string | null
+  condition?: string | null
+}) {
+  const a = attrs(row.attributes)
+  // `String(...)` rather than a bare `.trim()`: this is also called from /listings/[id] with a
+  // row assembled elsewhere, and a non-string here would throw inside a page render.
+  const gtin = String(a.gtin || a.barcode || a.ean || a.upc || '').replace(/\s/g, '')
+  // ⚠️ EXPLICIT FIRST. `model || a.mpn` published "M4 Pro" over a real part number an importer had
+  // actually stored — the model name is the FALLBACK, not the preference.
+  const mpn = String(a.mpn || row.model || '').trim()
+  const validGtin = isGtin(gtin) ? gtin : undefined
+  /**
+   * ⛔ `identifier_exists=no` IS A STATEMENT ABOUT THE PRODUCT, NOT ABOUT OUR DATABASE, and the
+   * first draft of this function got that backwards. It declared `no` whenever we happened to hold
+   * no GTIN and no MPN — which on this catalogue is 85% of rows, including new iPhones that
+   * certainly do have a GTIN. Telling Google "this product has no manufacturer identifier" about a
+   * boxed retail phone is a false statement in a feed, and a false statement is worse than the
+   * warning it was meant to silence.
+   *
+   * ⚠️ AND IT IS DECLARED ONLY ON AN UNBRANDED ROW, WHICH IS NARROWER THAN THE SPEC MAY ALLOW —
+   * deliberately, because two independent reviewers asserted that Google refuses
+   * `identifier_exists=no` alongside a `brand`, and that claim cannot be settled from here. The
+   * asymmetry decides it: the attribute is advisory, so losing it on branded second-hand rows costs
+   * nothing measurable, while being wrong about it disapproves every one of them. A branded row
+   * with no identifier simply omits the attribute and takes the "missing GTIN" warning — honest,
+   * and it costs rank rather than the item.
+   */
+  /**
+   * ⚠️ AN MPN IS ONLY MEANINGFUL BESIDE A BRAND — "BJ18A-RD" identifies a part of SOMETHING, and
+   * Google matches the pair, not the number. An unbranded row therefore publishes no MPN at all and
+   * says so with `identifier_exists`, which is the coherent pair of statements; the previous shape
+   * could emit a bare MPN AND the declaration that no identifiers exist, in the same item.
+   */
+  const usableMpn = row.brandSlug ? mpn : ''
+  return {
+    gtin: validGtin,
+    mpn: usableMpn || undefined,
+    identifierExists: !validGtin && !usableMpn && !row.brandSlug,
+  }
+}
+
+/**
+ * A GTIN is 8, 12, 13 or 14 digits AND its last digit is a mod-10 check over the rest.
+ *
+ * ⚠️ THE LENGTH TEST ALONE IS NOT ENOUGH, which a reviewer called and was right about: a merchant
+ * id that happens to be 13 digits passes it, and Google then rejects the ITEM for an invalid
+ * identifier rather than ignoring the attribute. Checking the digit costs four lines and turns
+ * "probably a barcode" into "is a barcode".
+ */
+export function isGtin(value: string): boolean {
+  if (!/^\d{8}$|^\d{12,14}$/.test(value)) return false
+  const digits = [...value].map(Number)
+  const check = digits.pop()!
+  // Weights alternate 3/1 from the RIGHTMOST body digit, whatever the overall length.
+  const sum = digits.reverse().reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 3 : 1), 0)
+  return (10 - (sum % 10)) % 10 === check
+}
+
+/** Google's `gender` vocabulary is male/female/unisex; ours is men/women/unisex. */
+const GENDER: Record<string, string> = { men: 'male', women: 'female', unisex: 'unisex' }
+
+/**
+ * The apparel block — `color`, `size`, `gender`, `age_group`.
+ *
+ * ⛔ THESE ARE REQUIRED, NOT NICE-TO-HAVE, and only inside apparel. Google disapproves an apparel
+ * item that omits them in the feed's target country, which makes this the one attribute gap in this
+ * catalogue that costs items outright rather than costing rank. Measured 2026-09-18 the apparel
+ * surface is ~4,400 rows and it is NOT mostly fashion-beauty: sportswear (2,449) and sports-shoes
+ * (1,637) carry it, plus kids-clothing (184), kids-shoes (94) and the small womens/mens/shoes tail.
+ *
+ * ⚠️ SIZE IS MULTI-VALUED AND A FEED FIELD IS NOT. A sportswear row holds `XS, S, M, L, XL` in
+ * `facetTokens`, and "XS, S, M, L, XL" is not a size — it is five products. Google's own answer is
+ * `item_group_id` plus one item per size, which is a real change to the feed's shape (~4,400 rows
+ * become ~20,000, each needing a landing page that lands on that size) and is NOT done here. Until
+ * it is, `size` is emitted only when the row has exactly ONE, which is honest and passes; the
+ * multi-size rows carry colour, gender and age group and no size at all.
+ */
+export function feedApparel(row: {
+  category: { slug: string }
+  subcategorySlug?: string | null
+  attributes?: AttrSource
+  facetTokens?: string | null
+}) {
+  const a = attrs(row.attributes)
+  const sizes = facetValues(row.facetTokens, 'size')
+  const shoeSizes = facetValues(row.facetTokens, 'shoeSize')
+  /**
+   * ⛔ THE MULTI-SIZE ROW MUST FALL THROUGH TO NOTHING, NOT TO `attributes`. The first draft ended
+   * this chain with `: a.size || a.shoeSize || null`, so a row carrying five sizes in `facetTokens`
+   * AND a stray single `attributes.size` published that one — the exact behaviour the comment above
+   * promises it does not do. A reviewer caught the contradiction between the code and its own note.
+   */
+  /**
+   * ⚠️ MIXED FACETS ARE ALSO AMBIGUOUS. `|size:xs|size:m|shoeSize:eu-41|` used to fall to the shoe
+   * size because the garment sizes were plural — picking one of two contradictory axes at random.
+   * Exactly one size, on exactly one axis, or nothing.
+   */
+  const tokened = sizes.length + shoeSizes.length
+  const one = tokened === 1 ? (sizes[0] ?? shoeSizes[0])
+    : tokened > 1 ? null
+    : a.size || a.shoeSize || null
+  /**
+   * ⚠️ `baby-kids` IS NOT AN AGE GROUP. Google's vocabulary is newborn / infant / toddler / kids /
+   * adult, and the category spans all of them — a pram is `newborn`, a school uniform is `kids`.
+   * The first draft declared the whole category `kids`, which is a specific claim about a product
+   * we have no data for. Only the two subcategories that genuinely mean school-age clothing say so.
+   */
+  const kids = (row.subcategorySlug || '').startsWith('kids-')
+  /**
+   * ⚠️ THE SUBCATEGORY NAMES THE GENDER WHEN THE ATTRIBUTE DOES NOT. `womens` and `mens` are not
+   * hints, they are the shelf the row sits on — and `gender` is one of the attributes whose absence
+   * costs apparel items. `attributes` still wins where a seller set it.
+   */
+  // `maternity` is in APPAREL_SUBCATS and carries no gender attribute of its own.
+  const SUBCAT_GENDER: Record<string, string> = { womens: 'female', mens: 'male', maternity: 'female' }
+  return {
+    /**
+     * ⛔ `other` IS A FILTER CHIP, NOT A COLOUR. The taxonomy's COLOR_OPTIONS ends in
+     * `{ value: 'other', label: 'Other' }` so a seller can file a tie-dye shirt somewhere, and the
+     * first run of this code published `<g:color>other</g:color>` on real rows — measured in the
+     * generated feed before it shipped. Google indexes that string as the product's colour and a
+     * shopper filtering by colour never sees the item. An absent colour is a gap; "other" is wrong.
+     */
+    /**
+     * ⚠️ LOWERCASED BEFORE EVERY LOOKUP. The facet slugs are `[a-z0-9-]` by construction, but
+     * `attributes` also holds values a human seller typed through `sanitizeAttributes`, and a
+     * case-sensitive miss here silently drops a REQUIRED apparel attribute rather than failing
+     * loudly — the quietest way to lose the items this block exists to save.
+     */
+    color: a.color && a.color.toLowerCase() !== 'other'
+      ? own(COLOR_LABEL, a.color.toLowerCase()) ?? a.color
+      : undefined,
+    size: one ? own(SIZE_LABEL, one.toLowerCase()) : undefined,
+    gender: own(GENDER, (a.gender || '').toLowerCase()) ?? own(SUBCAT_GENDER, row.subcategorySlug || ''),
+    /**
+     * ⚠️ `adult` IS THE DEFAULT, NOT AN OMISSION. Google treats `age_group` as an apparel attribute
+     * it expects, and this function is only ever called on apparel rows (`isApparel`) — so "not
+     * kids" here means adult, and saying so is better than leaving a required-ish field blank.
+     */
+    ageGroup: kids ? 'kids' : 'adult',
+  }
+}
+
+/** Our colour chips are filter slugs; two of them are not words a shopper would search. */
+const COLOR_LABEL: Record<string, string> = {
+  black: 'Black', white: 'White', grey: 'Grey', red: 'Red', blue: 'Blue', green: 'Green',
+  neutral: 'Beige', // the chip is labelled "Beige / Gold"; "neutral" is not a colour
+}
+
+/**
+ * ⛔ HALF OUR SIZE SLUGS ARE BUCKETS, AND A BUCKET IS NOT A SIZE. Measured in the generated feed:
+ * the most common values were `free-size` (230), `xs-s` (227), `xl-up` (92) and `eu-44-plus` (89).
+ * `xs-s` means "XS or S" — a browse filter grouping two sizes so a shelf is not 12 chips long — and
+ * publishing it as `<g:size>xs-s</g:size>` tells Google the garment is a size that does not exist.
+ * Only the slugs that name exactly one real size are mapped; everything else emits nothing, which
+ * is the same honest gap a multi-size row already takes.
+ */
+const SIZE_LABEL: Record<string, string> = {
+  xs: 'XS', s: 'S', m: 'M', l: 'L', xl: 'XL', xxl: 'XXL', 'free-size': 'One size',
+  'eu-35': '35', 'eu-36': '36', 'eu-37': '37', 'eu-38': '38', 'eu-39': '39', 'eu-40': '40',
+  'eu-41': '41', 'eu-42': '42', 'eu-43': '43', 'eu-44': '44',
+}
+
+/**
+ * Whether a row is apparel at all — the attributes above are required HERE and meaningless
+ * elsewhere, and Google flags an `age_group` on a laptop as surely as it flags a missing size on
+ * a t-shirt.
+ *
+ * ⛔ IT IS A LIST OF CLOTHING AND FOOTWEAR SUBCATEGORIES, NOT AN AISLE. The first draft returned
+ * true for ALL of `fashion-beauty`, which is 301 cosmetics rows plus handbags and watches, and for
+ * `gym-yoga`, which is mostly mats and dumbbells. A gender and an age group on a lipstick is the
+ * mirror image of the defect this set exists to fix — so the blanket is gone and the membership is
+ * explicit. The cost is the untagged `fashion-beauty` tail (67.6% of it carries no subcategory at
+ * all), and that is a classification gap, not one a feed should paper over by guessing.
+ */
+export const APPAREL_SUBCATS = new Set([
+  'womens', 'mens', 'shoes', 'sportswear', 'sports-shoes', 'swimming',
+  'kids-clothing', 'kids-shoes', 'maternity',
+])
+
+export function isApparel(_categorySlug: string, subcategorySlug?: string | null): boolean {
+  return APPAREL_SUBCATS.has(subcategorySlug || '')
 }
 
 // A listing seeded with mock images (picsum / loremflickr) is TEST data. Excluded from

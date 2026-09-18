@@ -1,6 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import { FREE_TEXT_ATTRIBUTES } from '@/lib/taxonomy'
 import { plainSnippet } from '@/lib/strip-md'
+import { feedIdentifiers } from '@/lib/product-feed'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { scopedListingWhere } from '@/lib/edition-scope'
@@ -355,6 +356,12 @@ export default async function ListingPage({ params }: Props) {
   // listing must not advertise a VND shipping rate.
   const offerCurrency = listing.currency === '₫' ? 'VND' : 'USD'
 
+  // One derivation, shared with the Google/Meta feed rows — see the note on the fields below.
+  const productIds = feedIdentifiers({
+    model: listing.model, attributes: listing.attributes,
+    brandSlug: listing.brandSlug, condition: listing.condition,
+  })
+
   const productLd = {
     '@context': 'https://schema.org/',
     '@type': 'Product',
@@ -365,6 +372,20 @@ export default async function ListingPage({ params }: Props) {
     // Real product brand (drives Google free product listings + matching). Only
     // emitted when the listing carries a canonical brand.
     ...(brand ? { 'brand': { '@type': 'Brand', 'name': brand.name } } : {}),
+    /**
+     * ⛔ THE SAME IDENTIFIERS THE MERCHANT FEED SUBMITS, DERIVED BY THE SAME FUNCTION. Google reads
+     * the feed row and then crawls this page to check it; when the two disagree about a GTIN or an
+     * MPN, it is the disagreement itself that disapproves the item. Two independent expressions of
+     * "what identifies this product" is how that disagreement gets written, so there is one.
+     *
+     * ⚠️ NO `aggregateRating`, DELIBERATELY. The only ratings this page has are the SELLER's
+     * (`topSellerReviews`, `listing.seller.rating`), and Google's structured-data policy is explicit
+     * that seller ratings are not product ratings — publishing one as the other is exactly the
+     * misrepresentation the rich-result guidelines name. A product rating needs product reviews,
+     * which this marketplace does not collect.
+     */
+    ...(productIds.gtin ? { 'gtin': productIds.gtin } : {}),
+    ...(productIds.mpn ? { 'mpn': productIds.mpn } : {}),
     'category': listing.category.name,
     'offers': {
       '@type': 'Offer',
