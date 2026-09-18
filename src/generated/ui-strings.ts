@@ -561,6 +561,7 @@ export const UI_STRINGS: string[] = [
   "ENO on Instagram",
   "ENO on Reddit",
   "ENO on Threads",
+  "ENO on TikTok",
   "ENO on X",
   "ENO on YouTube",
   "ENO on the Facebook group",

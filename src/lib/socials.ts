@@ -28,7 +28,7 @@
  * which is true of eno.vn, of eno.forum and of the profiles themselves.
  */
 export type Social = {
-  key: 'facebook' | 'facebook-group' | 'instagram' | 'threads' | 'reddit' | 'x' | 'youtube'
+  key: 'facebook' | 'facebook-group' | 'instagram' | 'threads' | 'reddit' | 'x' | 'youtube' | 'tiktok'
   /** Accessible name, as "ENO on <channel>" is built in the footer. */
   label: string
   labelVi: string
@@ -55,6 +55,8 @@ export const SOCIALS: Social[] = [
   { key: 'reddit', label: 'Reddit', labelVi: 'Reddit', href: 'https://www.reddit.com/user/eno_vn/', me: true },
   { key: 'x', label: 'X', labelVi: 'X', href: 'https://x.com/enovietnam', me: true },
   { key: 'youtube', label: 'YouTube', labelVi: 'YouTube', href: 'https://www.youtube.com/@enovietnam', me: true },
+  // Owner, 2026-09-18: "no tiktok attached https://www.tiktok.com/@eno.vn".
+  { key: 'tiktok', label: 'TikTok', labelVi: 'TikTok', href: 'https://www.tiktok.com/@eno.vn', me: true },
 ]
 
 /**

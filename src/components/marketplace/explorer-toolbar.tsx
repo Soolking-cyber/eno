@@ -204,6 +204,18 @@ export function SortStrip({
     )
   return (
     <Tabs
+      /**
+       * ⚠️ THE ID IS A STYLING HOOK, NOT A LABEL — the home page's wash reaches this bar through it.
+       * Owner, 2026-09-18, pointing at the filter strip: "add background blue here too". This bar is
+       * chrome that pins directly under the header, and the header already takes the wash's strongest
+       * stop (`.home-wash #app-header` in globals.css), so a white bar landing under a blue one broke
+       * the band in half. The rule is scoped to `.home-wash`, so /listings and every other explorer
+       * keeps the neutral bar; only the home page tints it.
+       * ⛔ IT CANNOT BE A CLASS HERE. `bg-background/95` below is a single class, and any tint added
+       * beside it would be a same-weight rule decided by stylesheet order rather than by intent — the
+       * trap CLAUDE.md records for `render`-prop children. An id selector outranks it outright.
+       */
+      id="explorer-toolbar"
       value={activeTab}
       onValueChange={(value) => {
         const next = value as SortTab

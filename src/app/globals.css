@@ -888,13 +888,26 @@
      element, so the gradient's 0px is behind it; without the hold, the first pixel the visitor
      actually sees — just under the header — would already be a third of the way to the mid stop and
      the header band would read as a seam. */
+  /* ⛔ THESE STOPS ARE THE WASH ITSELF AND THEY DO NOT MOVE TO SOLVE A PROBLEM WITH SOMETHING SITTING
+     ON THEM. They were once pushed to 450px so the strong blue would swallow the filter strip, and
+     the owner rejected it in the clearest possible terms (2026-09-18): "here you did the opposite of
+     what i asked the inside of the box where are price type etc should take outsides blue hue not
+     give outside the box more saturated blue." An element that reads as a band blends by taking the
+     page's colour; saturating the page to match the element is the same mistake upside down, and it
+     repaints everything to fix one box. Change what sits on the wash, not the wash. */
+  /* ⚠️ THE SOFT STOP HOLDS THROUGH THE FILTER STRIP (owner, 2026-09-18: "add background blue here
+     too", pointing at the type/price/sort row). The wash used to reach the plain canvas by 620px,
+     which is just above that strip on a phone — so the chrome above the feed was tinted and the
+     chrome below it was not, which reads as an unfinished gradient rather than a band. It now holds
+     the soft tint to 900px and lands on the canvas at 1200px, where the listing cards start. */
   background-image: linear-gradient(
     180deg,
     var(--home-wash-strong) 0,
     var(--home-wash-strong) 64px,
     var(--home-wash-mid) 200px,
     var(--home-wash-soft) 340px,
-    var(--background) 620px
+    var(--home-wash-soft) 900px,
+    var(--background) 1200px
   );
   background-repeat: no-repeat;
 }
@@ -909,6 +922,38 @@
  */
 .home-wash #app-header {
   background-color: var(--home-wash-strong);
+}
+
+/**
+ * ⛔ THE FILTER STRIP TAKES THE WASH'S COLOUR AT ITS OWN DEPTH — it disappears INTO the page rather
+ * than sitting on it (owner, 2026-09-18: "add background blue here too", then, on a first attempt
+ * that made the bar its own strong band: "the inside of the box where are price type etc should take
+ * outsides blue hue not give outside the box more saturated blue").
+ *
+ * ⚠️ `--home-wash-soft` IS THAT COLOUR, MEASURED RATHER THAN CHOSEN. The strip's box sits at
+ * 290–339px inside the wash at 1440w and 355–446px at 390w (the phone's rail is taller). The
+ * gradient reaches `--home-wash-soft` at 340px and holds it to 900px, so the phone's strip is
+ * squarely in the soft band and the desktop's straddles the last of the mid→soft ramp.
+ * ⚠️ AT 290px THAT RAMP IS 64% RUN, NOT 93% — this note claimed the latter and a reviewer did the
+ * arithmetic: (290−200)/(340−200). The conclusion survives the correction only because mid and soft
+ * are three channel-steps apart (#f5f9fe vs #f8fbfe), so 64% of that gap is under one step and the
+ * seam is not resolvable. ⛔ THAT IS WHY THE STOPS' CLOSENESS IS LOAD-BEARING: widen the mid→soft gap
+ * and a constant fill at the desktop strip's depth starts to band again.
+ * One value is therefore right at both widths today; if the rail's row count or those two tokens
+ * change, re-measure rather than assuming it still is.
+ * ⛔ TWO THINGS THIS IS NOT, both tried and both wrong:
+ *   · `--home-wash-strong`, the header's colour — chrome logic, and it produces exactly the band the
+ *     owner rejected, because the page around the strip is nowhere near that saturated.
+ *   · Moving the GRADIENT's stops down so the strong blue covers the strip — that repaints the whole
+ *     top of the page to fix one element, which is the same error inverted.
+ * ⚠️ SCOPED TO `.home-wash` DELIBERATELY: /listings, /search and the category pages share this
+ * component and keep the neutral bar. Only the washed page tints it.
+ * ⚠️ Opaque rather than /95, so a pinned bar never shows listing photos through itself. The component
+ * keeps its `backdrop-blur`, a no-op behind an opaque fill and what still frosts the bar on every
+ * OTHER surface — so it must not be removed from the component to serve this one.
+ */
+.home-wash #explorer-toolbar {
+  background-color: var(--home-wash-soft);
 }
 
 /* Dashboard canvas — plain unified canvas (owner 2026-07-18 removed the brand-blue radial bloom
