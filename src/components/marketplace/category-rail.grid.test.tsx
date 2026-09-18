@@ -68,15 +68,58 @@ function renderRail(categories: Cats, activeCategory = 'all', activeSubcategory 
 }
 
 describe('<CategoryRail> grid shape', () => {
-  it('is 3 rows on a phone and 2 from md, one cell per tile', () => {
-    const { gridCls, tiles } = renderRail(cats(10))
-    // Exact tokens: `toContain` on a class string would accept `md:grid-rows-3` for the phone rule.
+  /**
+   * ⛔ SIX UNIT ROWS, AND THE SPANS ARE THE TWO MOBILE SHAPES (owner: "on mobile 2 rows when swiped
+   * transitions into 3"). The first six tiles span THREE units — two to a column, so the opening
+   * screen is 3 × 2 — and everything after them spans TWO, three to a column. Desktop is one unit
+   * row per tile in a two-row grid. Exact tokens, because `toContain` on a class string would take
+   * `md:grid-rows-2` for the phone rule.
+   */
+  it('is six unit rows on a phone and two from md', () => {
+    const { gridCls } = renderRail(cats(10))
     const tokens = gridCls.split(/\s+/)
-    expect(tokens).toContain('grid-rows-3')
+    expect(tokens).toContain('grid-rows-6')
     expect(tokens).toContain('md:grid-rows-2')
-    expect(tokens).not.toContain('grid-rows-6')
-    // ⛔ NO SPANS. A tile that spans rows or columns is the layout this replaced.
-    for (const t of tiles) expect(t.className).not.toMatch(/\b(row-span|col-span)-/)
+    expect(tokens).toContain('auto-cols-max')
+  })
+
+  it('gives the first screen two rows and the swiped pages three', () => {
+    const { tiles } = renderRail(cats(10))
+    const spans = tiles.map((t) => (t.className.includes('row-span-3') ? 3 : t.className.includes('row-span-2') ? 2 : 0))
+    expect(spans.slice(0, 6)).toEqual([3, 3, 3, 3, 3, 3])
+    expect(spans.slice(6)).toEqual(Array(spans.length - 6).fill(2))
+    // every tile is one COLUMN wide — only the subcategory box is wider, and by its content
+    for (const t of tiles) expect(t.className).not.toMatch(/\bcol-span-/)
+  })
+
+  /**
+   * ⛔ NO MID-RAIL HOLE, AT ANY SELECTION. The phone grid is six unit rows per column and the
+   * subcategory box takes a whole one, so the selected tile has to fill whatever is left of ITS
+   * column or the grid strands the remainder — measured at 137px under the tapped tile before the
+   * flow cursor replaced index arithmetic, then 48px where the two-row region met the three-row one.
+   * This walks the rendered spans column by column: every column must come to exactly six units,
+   * except the last, which is simply where the list ends.
+   */
+  it('fills every column but the last, whichever category is open', () => {
+    for (const active of ['all', 'vehicles', 'electronics', 'services', 'property', 'jobs']) {
+      const { tiles, container } = renderRail(cats(10), active)
+      const boxAfter = new Set<number>()
+      const spans = tiles.map((t, i) => {
+        if (t.getAttribute('data-cat') === active && container.querySelector('[data-subcat]')) boxAfter.add(i)
+        const m = t.className.match(/(?:^|\s)row-span-(\d)/)
+        return m ? Number(m[1]) : 0
+      })
+      const columns: number[] = []
+      let used = 0
+      spans.forEach((span, i) => {
+        expect(span, `${active}: tile ${i} has a span`).toBeGreaterThan(0)
+        used += span
+        if (used >= 6 || boxAfter.has(i)) { columns.push(used); used = 0 }
+      })
+      if (used > 0) columns.push(used) // the tail
+      const full = used > 0 ? columns.slice(0, -1) : columns
+      for (const [i, units] of full.entries()) expect(units, `${active}: column ${i}`).toBe(6)
+    }
   })
 
   it('renders no "All" tile, at any rail length', () => {
@@ -90,6 +133,16 @@ describe('<CategoryRail> grid shape', () => {
 })
 
 describe('<CategoryRail> subcategory plate', () => {
+  /** The box lives INSIDE the rail, beside its category, and spans the rail's whole height. */
+  it('renders the box as a full-height item next to the active tile', () => {
+    const { container } = renderRail(cats(10), 'rentals')
+    const box = container.querySelector('[data-subcat]')!.closest('div.row-span-6')
+    expect(box).not.toBeNull()
+    expect(box!.className).toContain('md:row-span-2')
+    // it is the tile's next sibling, so it opens where the visitor tapped
+    expect(box!.previousElementSibling?.getAttribute('data-cat')).toBe('rentals')
+  })
+
   it('shows EVERY subcategory of the active category — no More dropdown', () => {
     const slug = 'rentals'
     const { chips, container } = renderRail(cats(10), slug)

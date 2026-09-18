@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect } from 'react'
 import { useLanguage, Tr, useTr } from '@/context/language-context'
 import { detectContentLang } from '@/lib/detect-lang'
 import { CategoryIcon } from './category-icons'
@@ -148,26 +148,15 @@ export function CategoryRail({
   // vertically and the scrollbar is hidden, which left pointer users with no way to page it.
   // The hook's ref IS the rail element, so it also serves the scroll-active-into-view effect
   // below — one node, one ref.
-  const { scrollerRef: railRef, canLeft, canRight, page, arrowTop } = useScrollArrows<HTMLDivElement>()
-  /** How many chips the plate will hold — read here because the hook's key needs it (see below) and
-   *  `subs` itself is assembled further down, after the counts it renders with. */
-  const subCount1 = categories.some((c) => c.slug === activeCategory) ? (SUBCATEGORIES[activeCategory] ?? []).length : 0
   /**
-   * The chip plate's own arrows. ⚠️ `watch` IS REQUIRED: the scroller's box does not change when the
-   * chips do — only its `scrollWidth` — so a ResizeObserver alone computes "no overflow" once and
-   * never corrects (the hook's own note says so). Opening a category with more chips than the last
-   * one is exactly that case, now that nothing is folded into a dropdown.
-   * ⚠️ THE COUNTS ARE IN THE KEY TOO. Each chip carries a `<CountChip>`, so the plate gets WIDER the
-   * moment the facet payload lands — without the box resizing. Watching the category alone left the
-   * arrows deciding on the pre-count width (a reviewer's catch); `countsPending` flips exactly when
-   * that width changes.
-   * ⛔ AND THE CHIP COUNT, BECAUSE THE PLATE CAN MOUNT LATE. The scroller does not exist while
-   * `categories` is empty (the home page's `getData()` catch, or a slow first payload), so the
-   * effect that attaches the scroll listener finds a null ref and never runs again on its own — the
-   * arrows would be dead for the whole visit (three reviewers, two rounds).
+   * ⚠️ `watch` ON THE RAIL ITSELF NOW, because its `scrollWidth` depends on the subcategory box:
+   * opening a category adds a column over a thousand pixels wide and closing it takes that away,
+   * without the scroller's own box ever resizing — so the arrows would answer for the previous
+   * state (a reviewer's catch, and the same failure mode the hook's note describes for async rails).
    */
-  const { scrollerRef: subsRef, canLeft: subsLeft, canRight: subsRight, page: subsPage, arrowTop: subsArrowTop } =
-    useScrollArrows<HTMLDivElement>({ watch: `${activeCategory}:${countsPending}:${lang}:${subCount1}` })
+  const { scrollerRef: railRef, canLeft, canRight, page, arrowTop } = useScrollArrows<HTMLDivElement>({
+    watch: `${activeCategory}:${activeSubcategory}:${countsPending}:${lang}`,
+  })
 
   // When a category is chosen, slide the rail so that category sits at the left edge
   // — the user immediately sees their pick with its subcategories rolled out beside it.
@@ -186,11 +175,32 @@ export function CategoryRail({
     // Scroll ONLY this rail (see brand-rail): el.scrollIntoView would also scroll the
     // document horizontally and clip the whole results view. Move scrollLeft instead.
     const left = container.scrollLeft + (el.getBoundingClientRect().left - container.getBoundingClientRect().left)
+    /**
+     * ⛔ AND IF A SUBCATEGORY IS ALSO CHOSEN, THE RAIL SCROLLS TO THE CHIP INSTEAD. The box is one
+     * grid item beside the tile and can be over a thousand pixels wide (17 chips on Electronics,
+     * measured), so `?category=electronics&subcategory=printers` would otherwise filter the results
+     * with the chip that did it far off the right edge — the defect two reviewers raised when the
+     * box's own scroller was removed. The tile still goes to the left edge when nothing is chosen.
+     */
+    const chip = activeSubcategory !== 'all'
+      ? ([...container.querySelectorAll('[data-subcat]')] as HTMLElement[]).find((n) => n.dataset.subcat === activeSubcategory)
+      : null
+    if (chip) {
+      const chipLeft = chip.getBoundingClientRect().left - container.getBoundingClientRect().left
+      const chipRight = chipLeft + chip.offsetWidth
+      if (chipLeft < 0 || chipRight > container.clientWidth) {
+        container.scrollTo({ left: container.scrollLeft + chipLeft - 12, behavior: scrollBehavior() })
+      }
+      // ⛔ AND NOTHING ELSE WHEN A CHIP IS CHOSEN. The first version fell through to the tile scroll
+      // whenever the chip was already visible, which meant TAPPING A CHIP dragged the rail back to
+      // the category tile — the visitor's own swipe undone by their next tap (a reviewer's catch).
+      return
+    }
     container.scrollTo({ left, behavior: scrollBehavior() })
-    // ⚠️ `categories.length` FOR THE SAME REASON AS THE PLATE EFFECT BELOW: with a deep link into a
-    // category, the tiles can mount AFTER this first runs (empty first payload), and without it the
-    // rail never slides the chosen tile to the left edge (a reviewer's catch, applied to both).
-  }, [activeCategory, categories.length])
+    // ⚠️ `categories.length` because with a deep link the tiles can mount AFTER this first runs (an
+    // empty first payload), and `countsPending`/`lang` because both change the chips' widths, which
+    // moves the chip this is trying to reveal (reviewers, across two rounds).
+  }, [activeCategory, activeSubcategory, categories.length, countsPending, lang])
 
 
   // The category dimension: counted with `category` (and its whole cascade) released, so
@@ -297,22 +307,27 @@ export function CategoryRail({
   // `h-full justify-center` so a tile FILLS its cell instead of sitting at the top of it — measured
   // when the cells were larger: without it a tile drew 93px of content inside a 134px cell and the
   // grid read as icons adrift in whitespace. Still true at 3×3, where a cell is ~85px tall.
-  const tileCls = 'press group flex h-full w-full snap-start flex-col items-center justify-center gap-1.5 py-1 text-center cursor-pointer select-none'
   /**
-   * ⛔ EVERY TILE IS ONE CELL SINCE 2026-09-18 — owner, looking at the 2×2 extra-large phone grid:
-   * "mobile initial one … grid 3x3 not 2x2". So the shape is 3 rows × 3 columns on a phone (NINE
-   * tiles on the first screen, the rest a swipe right) and 2 rows × 8 columns from `md` up. That
-   * deletes the whole `col-span-2 row-span-3` / `row-span-2` span system this file carried, and with
-   * it three defects its own review rounds had to chase: XL tiles had to come in even numbers, a
-   * short rail stranded one tile beside four stretched-empty row tracks, and the tile count per
-   * screen depended on which index a tile happened to land at. A uniform cell has none of those
-   * cases — the only imperfection left is a part-filled LAST column, which is where the list ends.
+   * ⛔ THE TILE CARRIES ITS OWN WIDTH, BECAUSE THE GRID'S COLUMNS ARE `auto-cols-max` NOW. The rail
+   * used to fix every column at a fraction of the viewport, which made every grid item that width —
+   * including the subcategory box, which has to be as wide as its chips (owner, 2026-09-18:
+   * "subcategories will pop next to like brand subbrand but will take all 2 rows to the right").
+   * With `max-content` columns, each column is as wide as what is in it: a tile column is this
+   * width, the box's column is the box. The phone number is the same arithmetic as before — three
+   * tiles and two 8px gaps inside a viewport less its 12px gutters — and the desktop one is the
+   * 1280px container's eighth, so both screens still show what they showed.
    */
+  const TILE_W = 'w-[calc((100vw-40px)/3)] md:w-[141px]'
+  const tileCls = `press group flex h-full ${TILE_W} snap-start flex-col items-center justify-center gap-1.5 py-1 text-center cursor-pointer select-none`
   /**
-   * The BOX the glyph is centred in — 56px tall on a phone, 44px from `md`. ⚠️ The GLYPH itself is
-   * `iconCls`' 44px at every width; the taller box is breathing room in a ~85px phone tile, not a
-   * bigger icon (a reviewer read the old wording as a size claim).
+   * ⛔ TWO ROWS FIRST, THREE AFTER THE SWIPE (owner, 2026-09-18: "on mobile 2 rows when swiped
+   * transitions into 3"). One grid expresses both: six unit rows, where the first six tiles span
+   * THREE units (two to a column → the opening screen is 3 × 2) and every tile after them spans TWO
+   * (three to a column → 3 × 3 once the visitor swipes). The rail's height is the same in both
+   * states, which is what lets the subcategory box span all of it without the row heights moving.
+   * Desktop is unaffected: one unit row each, two rows, as asked.
    */
+  const shortcutCount = shortcuts?.length ?? 0
   const GLYPH_BOX = 'flex h-14 items-center justify-center md:h-11'
   /**
    * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
@@ -365,46 +380,46 @@ export function CategoryRail({
    */
   const subs = categories.some((c) => c.slug === activeCategory) ? SUBCATEGORIES[activeCategory] ?? [] : []
 
-  const prevSub = useRef(activeSubcategory)
+
   /**
-   * ⚠️ AND THE SELECTED CHIP HAS TO BE ON SCREEN, which stopped being free when the "+N" dropdown
-   * went: the plate used to PROMOTE the active subcategory into its visible nine, so it could not be
-   * out of sight. Now every chip is in one scrolling row, and a deep link like
-   * `?category=electronics&subcategory=printers` opens the plate at scrollLeft 0 with the chosen
-   * chip past the right edge — filtered results, and no visible sign of which chip did it (a
-   * reviewer's catch). Same mechanism as the rail above: move `scrollLeft`, never `scrollIntoView`,
-   * which would also scroll the document sideways.
+   * ⛔ THE SPANS COME FROM A FLOW CURSOR, NOT FROM A TILE'S INDEX, AND THAT IS WHAT KEEPS EVERY
+   * COLUMN FULL. Three things all want to decide a tile's height — the opening screen is two rows
+   * and the swiped pages are three (owner, 2026-09-18: "on mobile 2 rows when swiped transitions
+   * into 3"), the selected tile has to CLOSE its column so the full-height subcategory box can start
+   * beside it, and the box itself takes a whole column. Index arithmetic got two of the three right
+   * and left a 48px gap where the two-row region met the three-row one, because the selected tile had
+   * already shifted the parity (measured, mid-rail, on a phone).
+   *
+   * So the packing is simulated in render order, exactly as `grid-flow-col` will do it: six unit rows
+   * per column, a tile takes 3 units while the cursor is still in the first `FIRST_COLS` columns and
+   * 2 after that, and the SELECTED tile takes whatever is left of its column — `6 - used`, which is
+   * the whole column when it starts one. The box then always begins on a fresh column.
+   * ⚠️ DESKTOP IS THE SAME SIMULATION WITH A COLUMN OF TWO, run alongside, because a tile that starts
+   * a column on a phone need not start one on desktop.
+   * ⚠️ LITERAL CLASS NAMES, NOT `row-span-${n}` — Tailwind scans source text, so a computed class is
+   * never generated and the rule silently does not exist.
    */
-  useEffect(() => {
-    const container = subsRef.current
-    const cleared = prevSub.current !== 'all' && activeSubcategory === 'all'
-    prevSub.current = activeSubcategory
-    if (activeSubcategory === 'all') {
-      // ⚠️ CLEARING SCROLLS BACK TO THE START — "All" is the FIRST chip, so releasing the filter from
-      // a plate scrolled to its right-hand end lights a chip nobody can see (a reviewer's catch).
-      // ⛔ ONLY ON THE CHANGE ITSELF, hence `prevSub`: this effect also runs when the counts land or
-      // the language flips, and an unconditional reset would yank a plate the visitor had just
-      // scrolled back to zero under their finger (the same reviewer, the round after).
-      if (cleared && container && container.scrollLeft > 0) container.scrollTo({ left: 0, behavior: scrollBehavior() })
-      return
+  const FIRST_COLS = 3
+  const SPAN = ['', 'row-span-1', 'row-span-2', 'row-span-3', 'row-span-4', 'row-span-5', 'row-span-6'] as const
+  const spanClasses = (() => {
+    const total = shortcutCount + categories.length + (intents?.length ?? 0)
+    const activeAt = subs.length > 0 ? shortcutCount + categories.findIndex((c) => c.slug === activeCategory) : -1
+    const out: string[] = []
+    let col = 0, used = 0 // phone cursor: 6 unit rows per column
+    let dCol = 0, dUsed = 0 // desktop cursor: 2 rows per column
+    for (let i = 0; i < total; i++) {
+      let span = col < FIRST_COLS ? 3 : 2
+      if (used + span > 6) { col++; used = 0; span = col < FIRST_COLS ? 3 : 2 }
+      const closesColumn = i === activeAt
+      if (closesColumn) span = 6 - used
+      const dSpan = closesColumn && dUsed === 0 ? 2 : 1
+      out[i] = cn(SPAN[span], dSpan === 2 ? 'md:row-span-2' : 'md:row-span-1')
+      used += span; if (used >= 6) { col++; used = 0 }
+      dUsed += dSpan; if (dUsed >= 2) { dCol++; dUsed = 0 }
+      if (closesColumn) { col++; used = 0; dCol++; dUsed = 0 } // the box takes a whole column of each
     }
-    const el = ([...(container?.querySelectorAll('[data-subcat]') ?? [])] as HTMLElement[])
-      .find((n) => n.dataset.subcat === activeSubcategory) ?? null
-    if (!container || !el) return
-    const elLeft = el.getBoundingClientRect().left - container.getBoundingClientRect().left
-    const elRight = elLeft + el.offsetWidth
-    // Only move when it is actually outside the box — an already-visible chip must not jump.
-    if (elLeft >= 0 && elRight <= container.clientWidth) return
-    container.scrollTo({ left: container.scrollLeft + elLeft - 12, behavior: scrollBehavior() })
-    // ⚠️ `countsPending` IS A DEPENDENCY, NOT NOISE: every chip grows a `<CountChip>` when the facet
-    // payload lands, so the row re-flows and a chip that was just brought into view can be pushed
-    // back out of it (a reviewer's catch). Re-checking on that flip costs one measurement.
-    // ⚠️ `lang` TOO: the chip labels are Vietnamese or English, the widths differ, and a switch
-    // re-flows the row under the same selection (a reviewer's catch).
-    // ⚠️ `subs.length` IS A DEPENDENCY BECAUSE THE PLATE CAN ARRIVE LATE: with `categories: []` on
-    // first paint there is no plate at all, and when the categories land the chips mount without any
-    // of the other dependencies changing (a reviewer's catch).
-  }, [activeCategory, activeSubcategory, countsPending, lang, subs.length])
+    return out
+  })()
 
   return (
     // `relative` anchors the arrows, which sit OUTSIDE the scroller's edges (-left-8).
@@ -426,17 +441,13 @@ export function CategoryRail({
          arrow-key roving focus this rail does not implement. */
       role="group"
       aria-label={tr('Categories', 'Danh mục')}
-      /* ⚠️ THE COLUMN WIDTH SUBTRACTS ITS SHARE OF THE GAPS, AND THE FIRST VERSION DID NOT. Three
-         columns at a bare `33.333%` are already the whole viewport, so the two 8px gaps push the
-         third column off screen; `calc(33.333% - 0.3333rem)` is `33.333% − 2/3 × gap`, and the
-         desktop row's `calc(12.5% - 0.65625rem)` is `12.5% − 7/8 × gap`. Two reviewers caught the
-         arithmetic when this was a four-column grid; the rule survives the shape change.
-         ⚠️ THE SNAP IS PER COLUMN, NOT PER PAGE, and that is deliberate. Re-measured on a 390px
-         phone after the 3×3 change: the scroller settles at 125 / 374 / 499, and 499 IS the maximum
-         scroll (the last tile's right edge lands exactly on the rail's), so every tile is reachable
-         and none is ever half-cut. Page-level snap points would strand the tail behind a position
-         the scroller cannot reach. */
-      className="grid grid-flow-col grid-rows-3 auto-cols-[calc(33.333%-0.3333rem)] gap-x-2 gap-y-1 overflow-x-auto overscroll-x-contain scrollbar-none snap-x snap-mandatory py-1 md:grid-rows-2 md:auto-cols-[calc(12.5%-0.65625rem)] md:gap-x-3 md:gap-y-2"
+      /* ⚠️ `auto-cols-max`, AND THE TILES CARRY THEIR OWN WIDTH — see TILE_W. A fixed fractional
+         column would force the subcategory box to a tile's width, and the box has to be as wide as
+         the chips it holds so the visitor swipes THROUGH them rather than into a second scroller.
+         ⚠️ SIX UNIT ROWS ON A PHONE, TWO FROM `md`. The unit rows are what let the opening screen be
+         2 rows (tiles spanning 3 units) and the rest 3 rows (spanning 2) in ONE scroller, with a
+         constant rail height — see `tileSpan`. */
+      className="grid grid-flow-col grid-rows-6 auto-cols-max gap-x-2 gap-y-1 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1 md:grid-rows-2 md:gap-x-3 md:gap-y-2"
     >
       {/* ⛔ NO "ALL" TILE (owner, 2026-09-18: "remove All category from both desktop and mobile").
           Clearing a category is still one tap — a category tile is a TOGGLE, `onCategory(isActive ?
@@ -447,8 +458,8 @@ export function CategoryRail({
           tile here: <Button asChild><Link> CONCATENATES the child's className without
           tailwind-merge, so the base `inline-flex` would beat `flex flex-col` and the base
           `[&_svg:not([class*='size-'])]:size-4` would shrink the 44px glyph. */}
-      {shortcuts?.map((sc) => (
-        <Button key={sc.key} variant="bare" size="none" data-shortcut={sc.key} onClick={() => onShortcut?.(sc)} className={cn('whitespace-normal', tileCls)}>
+      {shortcuts?.map((sc, si) => (
+        <Button key={sc.key} variant="bare" size="none" data-shortcut={sc.key} onClick={() => onShortcut?.(sc)} className={cn('whitespace-normal', tileCls, spanClasses[si])}>
           <span className={GLYPH_BOX}>
             {/* ⚠️ `sc.art` COMES FROM THE ALIASED SERVICES MODULE, so on a marketplace build it is
                 not merely falsy — the string never enters the artifact at all, and the file it
@@ -475,15 +486,57 @@ export function CategoryRail({
         </Button>
       ))}
 
-      {categories.map((cat) => {
+      {categories.map((cat, ci) => {
         const isActive = activeCategory === cat.slug
+        const at = shortcutCount + ci
         return (
-          <Button key={cat.id} variant="bare" size="none" data-cat={cat.slug} aria-pressed={isActive} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls)}>
+          <Fragment key={cat.id}>
+            <Button variant="bare" size="none" data-cat={cat.slug} aria-pressed={isActive} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls, spanClasses[at])}>
               <span className={GLYPH_BOX}>
                 <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={cn(iconCls(isActive))} selected={isActive} />
               </span>
               <span className={nameCls(isActive)}><TileLabel text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
-          </Button>
+            </Button>
+            {/**
+              * ⛔ THE SUBCATEGORIES SIT NEXT TO THEIR CATEGORY, FULL HEIGHT, INSIDE THE SAME SCROLLER
+              * (owner, 2026-09-18: "subcategories will pop next to like brand subbrand but will take
+              * all 2 rows to the right … and when swiped to 3 rail version … the subcat box will take
+              * all 3 rows, both no dropdowns"). `row-span-6` is the WHOLE mobile grid and
+              * `md:row-span-2` the whole desktop one, so the box fills the rail's height in every
+              * state — including the 3-row state, because the rail is six unit rows either way.
+              * ⚠️ BEING A CHILD OF `categories.map` IS ALSO THE EDITION GATE: a box can only exist
+              * beside a tile this edition renders, so `?category=<other edition's slug>` cannot open
+              * one. That guard had to be written by hand while this lived below the grid.
+              */}
+            {isActive && subs.length > 0 && (
+              <div className="row-span-6 flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200 md:row-span-2">
+                <span className="h-12 w-px shrink-0 bg-border" aria-hidden="true" />
+                {/* Column-filled chips: three rows on a phone, two on desktop — the same rows the
+                    tiles beside them use, so the box reads as part of the rail rather than a panel
+                    dropped on top of it. `auto-cols-max` keeps each chip its own width and lets the
+                    box grow to the right, which is what the visitor swipes through. */}
+                <div className="grid grid-flow-col grid-rows-3 auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 md:grid-rows-2">
+                  <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
+                    {tr('All', 'Tất cả')}
+                    <CountChip pending={countsPending} count={subDim?.all} className="ml-1" />
+                  </Button>
+                  {/* ⛔ NO "MORE" DROPDOWN. Every subcategory is a chip; the rail scrolls. */}
+                  {subs.map((sub) => {
+                    const subActive = activeSubcategory === sub.slug
+                    return (
+                      <Button key={sub.slug} variant="bare" size="none" data-subcat={sub.slug} aria-pressed={subActive} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
+                        {/* At 14px the baked display stroke goes wispy — re-tier the ink line to the
+                            UI weight (icon-language §2). */}
+                        <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
+                        <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
+                        <CountChip pending={countsPending} count={subCount(sub.slug)} className="ml-1" />
+                      </Button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </Fragment>
         )
       })}
 
@@ -494,10 +547,10 @@ export function CategoryRail({
         <>
           {/* ⚠️ NO VERTICAL HAIRLINE HERE ANY MORE: in the grid it would claim a whole column. The
               intent tiles simply follow the categories, as 58's grid runs its entries together. */}
-          {intents.map((s) => {
+          {intents.map((s, i) => {
             const active = activeType === s.type
             return (
-              <Button key={s.type} variant="bare" size="none" data-intent={s.type} onClick={() => onIntent?.(s.type)} className={cn('whitespace-normal', tileCls)}>
+              <Button key={s.type} variant="bare" size="none" data-intent={s.type} onClick={() => onIntent?.(s.type)} className={cn('whitespace-normal', tileCls, spanClasses[shortcutCount + categories.length + i])}>
                 {/* Sized BY INDEX like every other tile, not by a hardcoded `h-11`: same answer
                     today (intents always sit past `bigCount`), but a reviewer was right that a
                     hardcoded box is the half of the pair that would not follow if that changed. */}
@@ -513,50 +566,6 @@ export function CategoryRail({
     </div>
       <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} tight />
 
-      {/* The active category's subcategories — a full plate, and it scrolls like the grid above it
-          (owner, 2026-09-18: "make the subcategory plate fully no dropdown similar to category one
-          if overflow swipe to the right"). The arrows are the same `ScrollArrows` the grid uses, so
-          a pointer user has the same affordance in both rows; on touch it is a swipe. */}
-      {subs.length > 0 && (
-        <div className="relative">
-          {/* `key` REMOUNTS THE SCROLLER PER CATEGORY: shared below the grid it otherwise keeps the
-              previous category's scrollLeft, and opens already scrolled past the first chips. */}
-          <div ref={subsRef} key={activeCategory} className="mt-2 flex items-center gap-2 overflow-x-auto overscroll-x-contain scrollbar-none animate-in fade-in slide-in-from-top-1 duration-200">
-          {/* A 3-row plate, column-filled: "All" first, then every subcategory in taxonomy order.
-              It used to cut at seven chips plus a "+N" dropdown; it holds all of them now and the
-              row scrolls instead. */}
-          <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
-            {/* "All" = this rail released, every other filter still applied — so it is
-                legitimately larger than the chips beside it sum to (rows carrying no
-                subcategorySlug come back when the rail is cleared). Never a sum. */}
-            <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
-              {tr('All', 'Tất cả')}
-              <CountChip pending={countsPending} count={subDim?.all} className="ml-1" />
-            </Button>
-            {/* ⛔ NO "MORE" DROPDOWN SINCE 2026-09-18 (owner: "make the subcategory plate fully no
-                dropdown similar to category one if overflow swipe to the right"). Every
-                subcategory is a chip in the plate; when they outgrow the width the plate scrolls
-                sideways exactly like the category grid above it, with the same arrows on a pointer
-                device. That deletes the promote-the-active-chip machinery this file carried: with
-                nothing hidden, a selected chip can no longer be folded away inside a +N badge. */}
-            {subs.map((sub) => {
-              const subActive = activeSubcategory === sub.slug
-              const count = subCount(sub.slug)
-              return (
-                <Button key={sub.slug} variant="bare" size="none" data-subcat={sub.slug} aria-pressed={subActive} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
-                  {/* At 14px the baked display stroke goes wispy — re-tier the ink
-                      line to the UI weight (icon-language §2). */}
-                  <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
-                  <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
-                  <CountChip pending={countsPending} count={count} className="ml-1" />
-                </Button>
-              )
-            })}
-          </div>
-          </div>
-          <ScrollArrows canLeft={subsLeft} canRight={subsRight} page={subsPage} arrowTop={subsArrowTop} tight />
-        </div>
-      )}
     </div>
   )
 }
