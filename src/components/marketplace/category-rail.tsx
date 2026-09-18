@@ -338,7 +338,23 @@ export function CategoryRail({
    * ⚠️ MEASURED, NOT GUESSED: 64 + the 6px gap + a two-line 28px label + 8px of padding is 106px
    * inside a 130px tile. A bigger mark would start clipping the second label line.
    */
-  const glyphBox = (big: boolean) => (big ? 'flex h-16 items-center justify-center md:h-11' : 'flex h-11 items-center justify-center')
+  /**
+   * ⚠️ THE PRESSED TILE GETS A TINTED DISC, because colour stopped being the selection cue when the
+   * artwork stopped being greyscaled (category-art.tsx has the ⛔ note). The disc is the same
+   * `bg-brand-50` the app uses for every chosen-chrome surface, sized to the glyph box, so a pressed
+   * tile reads at a glance in a rail where every mark is now in colour.
+   */
+  const glyphBox = (big: boolean, on = false) =>
+    cn(
+      /* ⚠️ `p-1` SO THE DISC IS BIGGER THAN THE ART IT SITS BEHIND. The first version sized the box
+         to exactly the glyph, which painted the tint underneath 64px of opaque artwork — an
+         invisible selection cue, as a reviewer pointed out. The padding gives it a 4px rim, which is
+         all a tint needs, and the tile still fits: 72 + 6 gap + a two-line 28px label + 8 padding is
+         114px inside a 130px tile. */
+      'flex items-center justify-center rounded-2xl p-1 transition-colors duration-200',
+      big ? 'h-[72px] w-[72px] md:h-12 md:w-12' : 'h-12 w-12',
+      on && 'bg-brand-50',
+    )
   const glyphSize = (big: boolean) => (big ? 'h-16 w-16 md:h-11 md:w-11' : '')
   /**
    * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
@@ -485,7 +501,7 @@ export function CategoryRail({
           `[&_svg:not([class*='size-'])]:size-4` would shrink the 44px glyph. */}
       {shortcuts?.map((sc, si) => (
         <Button key={sc.key} variant="bare" size="none" data-shortcut={sc.key} onClick={() => onShortcut?.(sc)} className={cn('whitespace-normal', tileCls, spanClasses[si])}>
-          <span className={glyphBox(bigTile[si])}>
+          <span className={glyphBox(bigTile[si], shortcutActive(sc))}>
             {/* ⚠️ `sc.art` COMES FROM THE ALIASED SERVICES MODULE, so on a marketplace build it is
                 not merely falsy — the string never enters the artifact at all, and the file it
                 names is pruned from that image by the Dockerfile. The lucide fallback is what a
@@ -517,7 +533,7 @@ export function CategoryRail({
         return (
           <Fragment key={cat.id}>
             <Button variant="bare" size="none" data-cat={cat.slug} aria-pressed={isActive} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls, spanClasses[at])}>
-              <span className={glyphBox(bigTile[at])}>
+              <span className={glyphBox(bigTile[at], isActive)}>
                 <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={cn(iconCls(isActive), glyphSize(bigTile[at]))} selected={isActive} />
               </span>
               <span className={nameCls(isActive)}><TileLabel text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
@@ -599,7 +615,7 @@ export function CategoryRail({
               <Button key={s.type} variant="bare" size="none" data-intent={s.type} onClick={() => onIntent?.(s.type)} className={cn('whitespace-normal', tileCls, spanClasses[shortcutCount + categories.length + i])}>
                 {/* Sized by ITS OWN index like every other tile, never a hardcoded box — an intent
                     tile on the first screen is as big as a category tile there. */}
-                <span className={glyphBox(bigTile[shortcutCount + categories.length + i])}>
+                <span className={glyphBox(bigTile[shortcutCount + categories.length + i], active)}>
                   <CategoryTileGlyph slug={s.type} icon={s.icon} className={cn(iconCls(active), glyphSize(bigTile[shortcutCount + categories.length + i]))} selected={active} />
                 </span>
                 <span className={nameCls(active)}><TileLabel text={lang === 'vi' ? s.nameVi : s.name} /></span>

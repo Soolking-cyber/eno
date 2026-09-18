@@ -1,6 +1,7 @@
 import { categoryTileArtPath } from '@/lib/category-art'
 import { CATEGORY_ART } from '@/generated/icon-paths'
 import { cn } from '@/lib/utils'
+import type { CSSProperties } from 'react'
 import { CategoryIcon } from './category-icons'
 import { ArtImage } from '@/components/marketplace/art-image'
 
@@ -28,9 +29,67 @@ import { ArtImage } from '@/components/marketplace/art-image'
  * for slugs present in that registry, so an entry added there WITHOUT re-running the generator
  * renders a broken image. The generator asserts the two match; keep it that way.
  */
+/**
+ * ⛔ ONE PACK, TWENTY HUES — HOW THE RAIL GOT ITS COLOUR (owner, 2026-09-18, pointing at the 58 app:
+ * "how can we have same appeal colorful bright fun to look and use"). 58's home is a wall of
+ * differently-coloured marks; ours are twenty renders of the SAME blue, so simply letting the colour
+ * through (the `grayscale` removal above) produced a blue wall instead of a colourful one — measured
+ * on the rebuilt rail before this map existed.
+ *
+ * The art is a single saturated hue plus white highlights, which is exactly the case `hue-rotate`
+ * handles cleanly: greys and whites have no hue to turn, so the highlights and shadows survive and
+ * only the body of the object moves.
+ * ⚠️ `hue-rotate` IS AN RGB MATRIX, NOT A TRUE HSL TURN, so the targets below are where the filter
+ * LANDS the artwork, near enough to read as that colour — not a promise of an exact hue. Verified by
+ * eye on the rebuilt rail (and the screenshots in the commit): blue phone, green gear, amber chair,
+ * red shirt, gold tickets.
+ * ⚠️ EVERY ROTATION IS SOLVED FROM A MEASURED BASE, NOT EYEBALLED. The first pass guessed a single
+ * 215° base and produced three pink tiles in one screenful; the real pack sits at 210° or 220°
+ * depending on the render (sampled from each webp: dominant hue of the non-grey, non-shadow pixels).
+ * So each line below is `target − base`, with both numbers written out — change the target, not the
+ * rotation, and re-measure the base if the artwork is ever regenerated.
+ *
+ * ⛔ 58's FAMILIES ONLY — RED, ORANGE, AMBER, GREEN, TEAL, BLUE. No pink, no purple (owner,
+ * 2026-09-18: "get the 58 colors no pink purple"); the first pass reached for violet and magenta to
+ * spread the wheel evenly and produced a palette that is not theirs. Six families over twenty tiles
+ * means colours repeat, so the list is walked in RAIL ORDER and no two neighbours share one — that,
+ * not variety for its own sake, is what makes the grid read as sorted rather than speckled.
+ * ⚠️ NOT A DESIGN TOKEN. These are image filters, not UI colour — nothing reads against them, so
+ * they carry no contrast obligation and do not belong in the palette in globals.css.
+ */
+const TILE_HUE: Record<string, number> = {
+  electronics: 0,                 // blue 210° (base 210°)
+  'furniture-appliances': 185,    // orange 35° (base 210°)
+  services: 280,                  // green 140° (base 220°)
+  'fashion-beauty': 150,          // red 10° (base 220°)
+  vehicles: 340,                  // blue 200° (base 220°)
+  'tickets-travel': 195,          // amber 45° (base 210°)
+  'food-drink': 165,              // tomato 15° (base 210°)
+  'hobbies-sports': 290,          // green 150° (base 220°)
+  'baby-kids': 195,               // amber 45° (base 210°)
+  'books-stationery': 325,        // teal 175° (base 210°)
+  sports: 270,                    // grass 120° (base 210°)
+  pets: 180,                      // orange 30° (base 210°)
+  'community-events': 345,        // blue 205° (base 220°)
+  jobs: 155,                      // red 15° (base 220°)
+  'moving-sale': 195,             // amber 45° (base 210°)
+  property: 165,                  // orange 25° (base 220°)
+  rentals: 295,                   // green 145° (base 210°)
+  free: 325,                      // teal 175° (base 210°)
+  wanted: 160,                    // red 10° (base 210°)
+  wholesale: 350,                 // blue 210° (base 220°)
+  all: 0,                         // blue 210° (base 210°)
+}
+
 export function CategoryArt({
   slug,
-  selected = false,
+  /**
+   * ⚠️ KEPT IN THE API, DELIBERATELY UNUSED HERE. The artwork no longer changes with selection —
+   * it is always in colour (see the ⛔ note below) — but every call site passes this and the sibling
+   * `CategoryTileGlyph` still needs it for the lucide fallback, whose glyph DOES flip fill. Dropping
+   * it from this signature alone would make the two halves of one component take different props.
+   */
+  selected: _selected = false,
   className,
 }: {
   slug: string
@@ -57,19 +116,36 @@ export function CategoryArt({
          fold, and lazy would blank the tiles the visitor is looking at. */
       fetchPriority="low"
       decoding="async"
-      /* ⚠️ `grayscale` IS THE UNPRESSED STATE, not a de-emphasis effect layered on top of one —
-         pressed is simply the artwork as drawn. The transition is on `filter` so the colour
-         arrives with the press rather than snapping, and it is the only property animated here:
-         the tile's own `group-hover:scale-110` still comes from `className`. */
+      /* ⛔ THE ARTWORK IS ALWAYS IN COLOUR SINCE 2026-09-18, and this is the single change that
+         makes the home page look like the app the owner keeps pointing at: 58's grid is a wall of
+         saturated marks, ours drew the same full-colour renders through `grayscale()` and only
+         let the pressed one bloom. Measured on the rail: nineteen colour tiles where there was one.
+         ⚠️ SELECTION THEREFORE NEEDS ANOTHER CARRIER, because colour was it. The label already goes
+         accent-coloured and semibold on press, and the rail adds a tinted disc behind the pressed
+         glyph — see `selected` in category-rail.tsx. Do not put the filter back without giving
+         those two something to replace it with.
+         ⚠️ `transition-[filter]` STAYS: dark mode still dims the art a touch (below), and the
+         press feel comes from the tile's own `group-hover:scale-110`. */
       /* ⚠️ `h-11 w-11` IS A DEFAULT, NOT A FIXED SIZE — `className` comes last so a call site's
          own size wins through tailwind-merge. The old inline `<svg>` had no intrinsic size and
          filled whatever box it was given; an `<img>` with width/height 184 would paint at 184px
          for any caller that passed none, so the default matches what the rail actually asks for. */
       className={cn(
         'h-11 w-11 shrink-0 select-none object-contain transition-[filter] duration-200',
-        !selected && 'grayscale',
+        /**
+         * ⛔ ONE `filter` DECLARATION, TWO JOBS — and they cannot be two rules. The hue below and the
+         * dark-mode dim are both `filter`, so whichever lost the cascade would simply not exist: an
+         * inline `filter: hue-rotate(…)` silently deletes a `dark:brightness-…` class. The hue
+         * therefore arrives as a VARIABLE and each breakpoint composes the whole filter itself.
+         * ⚠️ A TOUCH OF DIM ON DARK, NOT GREY: these renders are lit for a white ground and glare a
+         * little on #1b1b1b at full intensity.
+         */
+        '[filter:hue-rotate(var(--tile-hue,0deg))]',
+        'dark:[filter:hue-rotate(var(--tile-hue,0deg))_brightness(0.92)]',
         className,
       )}
+      /* Continuous value, so a style rather than twenty generated arbitrary classes. */
+      style={{ '--tile-hue': `${TILE_HUE[slug] ?? 0}deg` } as CSSProperties}
     />
   )
 }

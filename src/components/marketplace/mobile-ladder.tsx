@@ -71,6 +71,9 @@ const PATH_SEP = '\u203a'
  *     the hairline moved to a pseudo-element), permanent except when the keyboard is up. This
  *     component NEVER docks at the bottom, so it does not touch that bar, its `--nav-h` (4.5rem)
  *     contract or the `.kb-*` keyboard rules. The rows themselves are in normal flow.
+ *   · the install hint (install-hint.tsx) — `fixed z-[70]`, a full-width card above the tab bar,
+ *     raised over the back-to-top cluster on 2026-09-18 because that 44px button was landing on it.
+ *     Anything new that floats goes UNDER it.
  *   · back-to-top — `fixed z-[60]`, a 44px control at `right-4`, anchored to the BOTTOM
  *     (`bottom-[calc(5rem+safe-area)]`). A top-docked line never meets it vertically, so the
  *     default horizontal reserve is 0. `stickyInsetEnd` exists for the integrator who moves this

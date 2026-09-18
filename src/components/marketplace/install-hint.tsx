@@ -82,9 +82,21 @@ export function InstallHint() {
       aria-label={tr('Get the eno app', 'Tải ứng dụng eno')}
       // 4.5rem tracks <BottomNavSpacer/> — the tab bar's real height. At the stale 4rem this
       // sat half a rem too low and clipped behind the nav.
-      className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 lg:bottom-4 lg:px-4"
+      /**
+       * ⛔ `z-[70]` — ABOVE EVERY FLOATING CONTROL ON A PHONE (owner, 2026-09-18: "make the get eno
+       * app popup above all other icons in mobile"). The mobile ladder documented in
+       * mobile-ladder.tsx is: header and tab bar at z-40, this hint and the toast at z-50, and the
+       * back-to-top / support cluster at z-[60] — which is why a 44px round button was landing ON
+       * this card. z-70 puts the card over that cluster while staying under modals, which own the
+       * top of the ladder. If a new floating control appears, it goes BELOW this, not beside it.
+       * ⛔ AND THE WRAPPER TAKES NO POINTER EVENTS. It is `inset-x-0` — full width — so at z-70 it
+       * would swallow taps across the whole row at that height, including the back-to-top button
+       * that lives in the same band at `right-4`. Two reviewers caught it: raising a layer is a
+       * paint change, but a full-bleed wrapper also moves the hit test. The CARD re-enables them.
+       */
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[70] lg:bottom-4 lg:px-4"
     >
-      <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-t-2xl bg-card p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 lg:rounded-2xl">
+      <div className="pointer-events-auto mx-auto flex w-full max-w-md items-center gap-3 rounded-t-2xl bg-card p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 lg:rounded-2xl">
         <Image src="/icon-192.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold leading-tight text-foreground">
