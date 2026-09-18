@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { feedExcluded } from './product-feed'
+import {
+  feedExcluded, isGtin, feedStock, gpcFor, feedIdentifiers,
+  feedApparel, isApparel,
+} from './product-feed'
 
 /**
  * ⚠️ EVERY "SHOULD BE EXCLUDED" TITLE BELOW IS REAL. They are taken verbatim from the 118 products
@@ -293,5 +296,188 @@ describe('feedExcluded', () => {
     'Cà phê rang xay Arabica Cầu Đất sấy lạnh 500g',
   ])('keeps %s', (title) => {
     expect(feedExcluded(title)).toBeNull()
+  })
+})
+
+/**
+ * The attribute work of 2026-09-18. Each case below is a defect that was live in the feed, not a
+ * hypothetical — the measured numbers are in the comments on the functions themselves.
+ */
+describe('feedStock', () => {
+  it('reads availability off the row instead of asserting in_stock', () => {
+    expect(feedStock({ status: 'active' })).toBe('in_stock')
+    expect(feedStock({ status: 'sold' })).toBe('out_of_stock')
+  })
+})
+
+describe('gpcFor', () => {
+  it('prefers the leaf over the aisle', () => {
+    // The whole point: 67,353 electronics rows shared '222' before this.
+    expect(gpcFor('electronics', 'phones-tablets')).toBe('267')
+    // ⚠️ The parent, because the slug covers desktops too — a narrower id that is sometimes wrong
+    // is worse than the aisle it replaced.
+    expect(gpcFor('electronics', 'laptops-pcs')).toBe('278')
+    expect(gpcFor('electronics', 'screen-protectors')).toBe('5525')
+  })
+
+  it('disambiguates a slug that means two things in two aisles', () => {
+    expect(gpcFor('electronics', 'storage')).toBe('499954')          // SSDs
+    expect(gpcFor('furniture-appliances', 'storage')).toBe('6356')   // wardrobes
+  })
+
+  it('falls back to the aisle rather than emitting nothing', () => {
+    expect(gpcFor('electronics', null)).toBe('222')
+    expect(gpcFor('electronics', 'a-slug-we-never-mapped')).toBe('222')
+    expect(gpcFor('not-a-category', null)).toBeUndefined()
+  })
+})
+
+describe('feedIdentifiers', () => {
+  it('declares identifier_exists=no only where the claim is credible', () => {
+    // Unbranded: nobody assigned this thing an identifier — the honest case.
+    expect(feedIdentifiers({ model: null, attributes: null }).identifierExists).toBe(true)
+    /**
+     * ⛔ BRANDED: A BOXED iPHONE HAS A GTIN, WE JUST DO NOT HOLD IT. Declaring `no` here is a
+     * false statement about the product rather than a gap in our data — and two reviewers assert
+     * Google refuses the attribute beside a brand outright. Omit, and take the warning.
+     */
+    expect(feedIdentifiers({ brandSlug: 'apple', condition: 'used' }).identifierExists).toBe(false)
+    expect(feedIdentifiers({ brandSlug: 'apple', condition: 'new' }).identifierExists).toBe(false)
+  })
+
+  it('takes the mpn from the model, but only beside a brand', () => {
+    const id = feedIdentifiers({ model: 'BJ18A-RD', brandSlug: 'mipow' })
+    expect(id.mpn).toBe('BJ18A-RD')
+    expect(id.identifierExists).toBe(false)
+    // ⛔ A part number identifies a part of SOMETHING. Unbranded, it is not an identifier at all —
+    // and a bare MPN beside `identifier_exists=no` was two contradictory statements in one item.
+    const bare = feedIdentifiers({ model: 'BJ18A-RD', brandSlug: null })
+    expect(bare.mpn).toBeUndefined()
+    expect(bare.identifierExists).toBe(true)
+  })
+
+  it('prefers an explicitly stored mpn over the model name', () => {
+    expect(feedIdentifiers({ model: 'M4 Pro', attributes: '{"mpn":"MRX33SA/A"}', brandSlug: 'apple' }).mpn).toBe('MRX33SA/A')
+  })
+
+  it('reads a barcode stored as a JSON number', () => {
+    expect(feedIdentifiers({ attributes: '{"barcode":8935001820017}' }).gtin).toBe('8935001820017')
+  })
+
+  it('refuses a merchant sku wearing a barcode field name', () => {
+    expect(feedIdentifiers({ attributes: '{"barcode":"CPS-99120"}' }).gtin).toBeUndefined()
+    expect(feedIdentifiers({ attributes: '{"barcode":"8935001820017"}' }).gtin).toBe('8935001820017')
+  })
+
+  it('checks the GTIN check digit, not just the length', () => {
+    // ⛔ A 13-digit merchant id passes a length test and then gets the ITEM rejected.
+    expect(isGtin('8935001820017')).toBe(true)   // a real Vietnamese EAN-13 prefix (893)
+    expect(isGtin('8935001820018')).toBe(false)  // same digits, wrong check digit
+    expect(isGtin('4006381333931')).toBe(true)   // the EAN-13 in Google's own examples
+    expect(isGtin('12345678')).toBe(false)
+    expect(isGtin('96385074')).toBe(true)        // a valid EAN-8
+  })
+
+  it('survives a malformed attributes column', () => {
+    expect(feedIdentifiers({ attributes: 'not json' }).identifierExists).toBe(true)
+    expect(feedIdentifiers({ attributes: '[1,2]' }).identifierExists).toBe(true)
+  })
+
+  it('reads an already-parsed object, so the page and the feed cannot disagree', () => {
+    expect(feedIdentifiers({ attributes: { barcode: '8935001820017' } }).gtin).toBe('8935001820017')
+  })
+})
+
+describe('feedApparel', () => {
+  const row = { category: { slug: 'sports' }, subcategorySlug: 'sportswear' }
+
+  it('emits colour and gender in Google vocabulary', () => {
+    // ⚠️ Labels, not our filter slugs: `neutral` is a chip, "Beige" is a colour a shopper searches.
+    const a = feedApparel({ ...row, attributes: '{"color":"black","gender":"men"}' })
+    expect(a).toMatchObject({ color: 'Black', gender: 'male' })
+    expect(feedApparel({ ...row, attributes: '{"color":"neutral"}' }).color).toBe('Beige')
+  })
+
+  it('emits a size only when the row has exactly one', () => {
+    // "XS, S, M, L, XL" is five products, not a size — see the note on feedApparel.
+    expect(feedApparel({ ...row, facetTokens: '|size:m|' }).size).toBe('M')
+    expect(feedApparel({ ...row, facetTokens: '|size:xs|size:s|size:m|' }).size).toBeUndefined()
+    // ⛔ A multi-size row must fall through to NOTHING, never to a stray attributes.size.
+    expect(feedApparel({ ...row, facetTokens: '|size:xs|size:m|', attributes: '{"size":"l"}' }).size).toBeUndefined()
+    // ⛔ `xs-s` and `eu-44-plus` are browse BUCKETS — not sizes any garment is made in.
+    expect(feedApparel({ ...row, facetTokens: '|size:xs-s|' }).size).toBeUndefined()
+    expect(feedApparel({ ...row, facetTokens: '|shoeSize:eu-44-plus|' }).size).toBeUndefined()
+    expect(feedApparel({ ...row, facetTokens: '|shoeSize:eu-41|' }).size).toBe('41')
+    // ⚠️ Mixed axes are ambiguous too — one size, on one axis, or nothing.
+    expect(feedApparel({ ...row, facetTokens: '|size:xs|size:m|shoeSize:eu-41|' }).size).toBeUndefined()
+  })
+
+  it('marks kids apparel and leaves adult apparel unmarked', () => {
+    expect(feedApparel({ category: { slug: 'baby-kids' }, subcategorySlug: 'kids-shoes' }).ageGroup).toBe('kids')
+    // This function only ever runs on apparel, so "not kids" means adult and should say so.
+    expect(feedApparel(row).ageGroup).toBe('adult')
+  })
+
+  it('cannot be talked into a prototype method by a seller-supplied value', () => {
+    expect(feedApparel({ ...row, attributes: '{"gender":"constructor"}' }).gender).toBeUndefined()
+  })
+
+  it('takes the gender from the shelf when the attribute is empty', () => {
+    expect(feedApparel({ category: { slug: 'fashion-beauty' }, subcategorySlug: 'womens' }).gender).toBe('female')
+    expect(feedApparel({ category: { slug: 'fashion-beauty' }, subcategorySlug: 'mens' }).gender).toBe('male')
+    // An explicit attribute still wins over the shelf.
+    expect(feedApparel({ category: { slug: 'fashion-beauty' }, subcategorySlug: 'womens', attributes: '{"gender":"unisex"}' }).gender).toBe('unisex')
+  })
+
+  it('matches regardless of case, so a typed attribute does not silently drop', () => {
+    expect(feedApparel({ ...row, attributes: '{"gender":"Men","color":"Black"}' }))
+      .toMatchObject({ gender: 'male', color: 'Black' })
+    expect(feedApparel({ ...row, attributes: '{"color":"Other"}' }).color).toBeUndefined()
+  })
+})
+
+describe('isApparel', () => {
+  it('covers the aisles that actually carry clothing', () => {
+    // Measured: the apparel surface is ~4,400 rows and is mostly sports, not fashion-beauty.
+    expect(isApparel('sports', 'sportswear')).toBe(true)
+    expect(isApparel('sports', 'sports-shoes')).toBe(true)
+    expect(isApparel('baby-kids', 'kids-clothing')).toBe(true)
+  })
+
+  it('leaves non-apparel alone — an age_group on a lipstick is its own error', () => {
+    expect(isApparel('electronics', 'laptops-pcs')).toBe(false)
+    expect(isApparel('sports', 'racket-ball')).toBe(false)
+    // ⛔ The aisle is not the garment: fashion-beauty is 301 cosmetics rows plus bags and watches,
+    // and gym-yoga is mostly mats and dumbbells.
+    expect(isApparel('fashion-beauty', 'beauty')).toBe(false)
+    expect(isApparel('fashion-beauty', null)).toBe(false)
+    expect(isApparel('sports', 'gym-yoga')).toBe(false)
+  })
+})
+
+describe('feedApparel colour hygiene', () => {
+  it('drops the taxonomy "other" chip rather than publishing it as a colour', () => {
+    const row = { category: { slug: 'sports' }, subcategorySlug: 'sportswear' }
+    expect(feedApparel({ ...row, attributes: '{"color":"other"}' }).color).toBeUndefined()
+    expect(feedApparel({ ...row, attributes: '{"color":"blue"}' }).color).toBe('Blue')
+  })
+})
+
+describe('gpcFor prototype safety', () => {
+  /**
+   * ⛔ THE SAME BUG THE `MERCHANT_NAMES` MAP IN affiliate-price-refresh.ts ALREADY RECORDS. A bare
+   * object index reads through Object.prototype, and `??` does not catch an inherited method — so a
+   * seller-reachable slug of `constructor` put a FUNCTION inside an XML element.
+   */
+  it('does not return a prototype method for a slug that names one', () => {
+    expect(gpcFor('electronics', 'constructor')).toBe('222')
+    expect(gpcFor('constructor', null)).toBeUndefined()
+    expect(gpcFor('toString', 'hasOwnProperty')).toBeUndefined()
+  })
+})
+
+describe('feedApparel gender on maternity', () => {
+  it('names a gender for every apparel subcategory that carries no attribute', () => {
+    expect(feedApparel({ category: { slug: 'baby-kids' }, subcategorySlug: 'maternity' }).gender).toBe('female')
   })
 })

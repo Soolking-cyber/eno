@@ -109,22 +109,92 @@ export type PriceChange = { id: string; externalId: string; from: number; to: nu
  * approximates a sale date from it, and a table where every row changed last night is a table
  * nobody can debug from.
  */
-export function diffPrices(existing: ExistingListing[], feed: Map<string, { price: number; affiliateUrl: string | null }>) {
+export function diffPrices(
+  existing: ExistingListing[],
+  feed: Map<string, { price: number; affiliateUrl: string | null }>,
+  /**
+   * Every `externalId` the walk SAW, including rows whose price was unusable and dropped.
+   *
+   * ⛔ WITHOUT IT, "THE MERCHANT DELISTED THIS" AND "THIS ROW'S PRICE DID NOT PARSE" ARE THE SAME
+   * SHAPE — both are simply absent from `feed` — and the retire pass below would mark a product
+   * sold because the merchant published it at `price: 0` for one night. Callers that cannot supply
+   * the set get the old behaviour: nothing is ever considered delisted.
+   */
+  seenIds?: ReadonlySet<string>,
+) {
   const changes: PriceChange[] = []
+  const missingIds: string[] = []
+  const presentIds: string[] = []
   let unchanged = 0
   let missingFromFeed = 0
   for (const l of existing) {
     if (!l.externalId) continue
     const row = feed.get(l.externalId)
-    // ⚠️ ABSENT ≠ DELISTED. One failed page of a 49-page walk would look like thousands of
-    // vanished products, so absence never hides a listing here — it is counted and reported.
-    if (!row) { missingFromFeed++; continue }
+    /**
+     * ⚠️ ABSENT ≠ DELISTED, AND THAT IS STILL TRUE — it is the caller, not this function, that
+     * decides whether a walk was complete enough to act on. The list is handed back rather than
+     * acted on here so the completeness floors stay next to the numbers that justify them.
+     */
+    if (!row) {
+      missingFromFeed++
+      if (seenIds && !seenIds.has(l.externalId)) missingIds.push(l.id)
+      continue
+    }
+    presentIds.push(l.id)
     const priceMoved = row.price !== l.price
     const linkMoved = row.affiliateUrl != null && row.affiliateUrl !== l.affiliateUrl
     if (!priceMoved && !linkMoved) { unchanged++; continue }
     changes.push({ id: l.id, externalId: l.externalId, from: l.price, to: row.price, affiliateUrl: linkMoved ? row.affiliateUrl : null })
   }
-  return { changes, unchanged, missingFromFeed }
+  return { changes, unchanged, missingFromFeed, missingIds, presentIds }
+}
+
+/**
+ * Move imported rows between `active` and `sold` to match what the merchant's datafeed still
+ * carries. The mirror of what `/api/cron/partner-stock` does for the scraped shops.
+ *
+ * ⛔ IT WRITES `status` AND NOTHING ELSE. Not `soldChannel`, not `salePrice`, not `saleConfirmedAt`
+ * — and NOT `soldAt`, which an earlier draft did write. A reviewer put it plainly: `soldAt`
+ * describes a sale exactly as much as the columns beside it, and this repo's sold badges, sold
+ * counts and PUBLIC seller trust read it. Writing it would have booked up to 17,435 Tiki
+ * delistings as sales on a storefront's record. Its only justification was a feed window that was
+ * reviewed and reversed in this same change, so it buys nothing and costs trust data.
+ *
+ * ⚠️ A ROW RETIRED HERE THEREFORE HAS `status='sold'` WITH A NULL `soldAt` AND A NULL
+ * `soldChannel` — which is precisely the signature the restore below matches on.
+ *
+ * ⚠️ `updatedAt` MOVES HERE, unlike in `applyPriceChanges`' no-op skip, and it should: a row
+ * changing availability is a real edit that the ISR flush must see.
+ */
+export async function applyStockReconcile(
+  dbc: { $executeRaw: (q: Sql) => Promise<number> },
+  sql: { sql: typeof Prisma.sql; join: typeof Prisma.join },
+  ids: { retire: string[]; restore: string[] },
+) {
+  let retired = 0
+  let restored = 0
+  for (let i = 0; i < ids.retire.length; i += 500) {
+    const chunk = ids.retire.slice(i, i + 500)
+    retired += await dbc.$executeRaw(sql.sql`
+      UPDATE "Listing" SET status = 'sold', "updatedAt" = now()
+       WHERE id IN (${sql.join(chunk.map((id) => sql.sql`${id}`))}) AND status = 'active'
+    `)
+  }
+  for (let i = 0; i < ids.restore.length; i += 500) {
+    const chunk = ids.restore.slice(i, i + 500)
+    /**
+     * ⛔ `"soldChannel" IS NULL` IS THE GUARD THAT KEEPS THIS OFF REAL SALES. A storefront row is
+     * retired by the clause above, which never sets `soldChannel`; a row sold THROUGH eno carries
+     * `'eno'` or `'external'`. Without this predicate a datafeed that re-listed a SKU would
+     * resurrect a listing a buyer had already bought.
+     */
+    restored += await dbc.$executeRaw(sql.sql`
+      UPDATE "Listing" SET status = 'active', "updatedAt" = now()
+       WHERE id IN (${sql.join(chunk.map((id) => sql.sql`${id}`))})
+         AND status = 'sold' AND "soldChannel" IS NULL AND "soldAt" IS NULL
+    `)
+  }
+  return { retired, restored }
 }
 
 const API = 'https://api.accesstrade.vn/v1'
@@ -148,6 +218,9 @@ export async function campaignIdFor(campaign: string, key: string): Promise<stri
 export async function fetchFeedPrices(campaign: string, key: string, campaignId: string, onProgress?: (seen: number, total: number) => void) {
   const PAGE = 200
   const out = new Map<string, { price: number; affiliateUrl: string | null }>()
+  // Every id the walk saw, INCLUDING the ones dropped for an unusable price — see the `seenIds`
+  // note on diffPrices for why the two must not be conflated.
+  const seenIds = new Set<string>()
   let total = Infinity
   let seen = 0
   let dropped = 0
@@ -159,6 +232,19 @@ export async function fetchFeedPrices(campaign: string, key: string, campaignId:
    * forever while the cron curl walks away at 900s and stacks another one tomorrow.
    */
   const MAX_PAGES = 500
+  /**
+   * ⛔ WHY THE LOOP ENDED IS THE WHOLE SIGNAL, AND NEITHER `seen` NOR `seenIds.size` CARRIES IT.
+   * Comparing `seen >= total` alone treats an early empty page as a finished walk (600 of 1,000
+   * rows, and the other 400 look delisted). Comparing `seenIds.size >= total` — the first attempt
+   * at that fix — DEADLOCKS instead: `seenIds` holds DISTINCT ids while `total` counts rows, so one
+   * duplicated SKU or one row with no id makes the set smaller than the total every night, forever,
+   * and the reconcile never runs again. Both reviewers landed on that within one round.
+   *
+   * So the loop records whether it reached the total on its own terms. Duplicates padding `seen`
+   * remain a coverage gap in theory; the caller's "still matching half our ACTIVE rows" floor is
+   * what bounds that, and a bounded gap beats a permanent deadlock.
+   */
+  let endedEarly = false
   for (let page = 1; seen < total && page <= MAX_PAGES; page++) {
     const url = `${API}/datafeeds?campaign=${encodeURIComponent(campaign)}&limit=${PAGE}&page=${page}`
     const res = await fetch(url, { headers: { Authorization: `Token ${key}` }, signal: AbortSignal.timeout(45_000) })
@@ -166,17 +252,31 @@ export async function fetchFeedPrices(campaign: string, key: string, campaignId:
     const json = (await res.json()) as { data?: FeedRow[]; total?: number }
     if (page === 1 && typeof json.total === 'number') total = json.total
     const rows = json.data || []
-    if (!rows.length) break
+    // An empty page BEFORE the total is reached is a feed that stopped early, not a feed that ended.
+    if (!rows.length) { endedEarly = seen < total; break }
     for (const p of rows) {
       seen++
       const externalId = String(p.sku || p.product_id || '').slice(0, 190)
       const price = feedPrice(p)
+      if (externalId) seenIds.add(externalId)
       if (!externalId || price == null) { dropped++; continue }
       out.set(externalId, { price, affiliateUrl: repairAffLink(p.aff_link, campaignId) })
     }
     onProgress?.(seen, total)
   }
-  return { prices: out, seen, total: Number.isFinite(total) ? total : seen, dropped }
+  /**
+   * ⛔ "DID NOT THROW" IS NOT "WALKED THE WHOLE FEED", AND CONFLATING THEM CAN RETIRE A CATALOGUE.
+   * This loop has THREE exits and only one of them means completion: `seen >= total` (done), an
+   * empty page (`break` — a paginated endpoint that stopped early looks exactly like the end), and
+   * MAX_PAGES. A reviewer put the number on it: 600 rows returned then an unexpected empty page
+   * leaves 400 live listings absent from the map, and a caller that trusts a non-throwing walk
+   * retires all 400.
+   *
+   * `complete` is true only when page 1 REPORTED a total and the walk reached it. A feed that omits
+   * `total` is not a feed we may reconcile against — prices still refresh, nothing is retired.
+   */
+  const complete = Number.isFinite(total) && seen >= total && !endedEarly
+  return { prices: out, seenIds, seen, complete, total: Number.isFinite(total) ? total : seen, dropped }
 }
 
 /**

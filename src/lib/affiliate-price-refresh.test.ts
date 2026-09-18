@@ -62,6 +62,48 @@ describe('diffPrices', () => {
     const r = diffPrices(rows({ id: 'a', externalId: 'SKU1', price: 100, affiliateUrl: 'L' }), feed([['SKU1', 120, 'L']]))
     expect(r.changes[0].affiliateUrl).toBeNull()
   })
+
+  /**
+   * The 2026-09-18 retire pass. `missingFromFeed` was computed and thrown away, so the feeds
+   * declared `in_stock` about products the merchant had delisted — see feedStock.
+   */
+  it('nominates a delisted row only when it was genuinely absent from the walk', () => {
+    const r = diffPrices(
+      rows({ id: 'a', externalId: 'GONE', price: 100, affiliateUrl: 'L' }),
+      feed([]),
+      new Set<string>(),
+    )
+    expect(r.missingIds).toEqual(['a'])
+  })
+
+  /**
+   * ⛔ THE CASE THAT MAKES `seenIds` NECESSARY. A row the merchant published at `price: 0` is
+   * dropped by `feedPrice` and is therefore absent from `feed` — identical in shape to a delisting.
+   * Retiring it would mark a live product sold over one bad night of merchant data.
+   */
+  it('does NOT nominate a row the walk saw but could not price', () => {
+    const r = diffPrices(
+      rows({ id: 'a', externalId: 'SKU1', price: 100, affiliateUrl: 'L' }),
+      feed([]),
+      new Set(['SKU1']),
+    )
+    expect(r.missingFromFeed).toBe(1)
+    expect(r.missingIds).toEqual([])
+  })
+
+  it('nominates nothing at all when the caller cannot say what the walk saw', () => {
+    const r = diffPrices(rows({ id: 'a', externalId: 'GONE', price: 100, affiliateUrl: 'L' }), feed([]))
+    expect(r.missingIds).toEqual([])
+  })
+
+  it('reports the rows still in the feed, which is how a retired SKU comes back', () => {
+    const r = diffPrices(
+      rows({ id: 'a', externalId: 'SKU1', price: 100, affiliateUrl: 'L' }),
+      feed([['SKU1', 100, 'L']]),
+      new Set(['SKU1']),
+    )
+    expect(r.presentIds).toEqual(['a'])
+  })
 })
 
 describe('merchantNameFor', () => {

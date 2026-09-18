@@ -3,7 +3,10 @@ import { db } from '@/lib/db'
 import { LISTING_FEED_SELECT, serializeFeedListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
 import { plainSnippet } from '@/lib/strip-md'
-import { feedCategories, feedListingTypes, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
+import {
+  feedCategories, feedListingTypes, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders,
+  feedStock, gpcFor,
+} from '@/lib/product-feed'
 
 // Meta/Facebook commerce catalog feed (Commerce Manager CSV format). Powers the
 // Facebook/Instagram Shop + Advantage+ catalog (DPA) ads — each item links back to
@@ -151,13 +154,15 @@ export async function GET(req: Request) {
 
       const currencyCode = listing.currency === '₫' ? 'VND' : 'USD'
       const formattedPrice = `${listing.price} ${currencyCode}` // Meta: "5000000 VND"
-      const gpc = GOOGLE_PRODUCT_CATEGORY[l.category.slug] || ''
+      const gpc = gpcFor(l.category.slug, l.subcategorySlug) || ''
 
       const row = [
         escapeCsv(listing.id),
         escapeCsv(title.slice(0, 150)),
         escapeCsv(plainSnippet(listing.descriptionVi || listing.description).slice(0, 400)),
-        'in stock',
+        // ⚠️ META SPELLS IT WITH SPACES; Google uses underscores. One judgement (feedStock), two
+        // spellings — the same split the `condition` mapping above already lives with.
+        feedStock(l) === 'in_stock' ? 'in stock' : 'out of stock',
         condition,
         escapeCsv(formattedPrice),
         escapeCsv(itemUrl),
