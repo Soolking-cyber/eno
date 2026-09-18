@@ -192,6 +192,11 @@ export async function GET() {
       // into the phone listings. Both editions: it is marketplace commerce copy, like the coffee
       // page below and unlike anything licensed.
       'iphone-18-vietnam',
+      // Per-model siblings of the page above — same reasoning, one page per variant so each ranks
+      // for its own query rather than three of them competing inside one document.
+      'iphone-18-pro-vietnam',
+      'iphone-18-pro-max-vietnam',
+      'iphone-duo-vietnam',
       'jobs-vietnam-expats',
       'motorbikes-for-sale-vietnam',
       'moving-sales-vietnam',

@@ -91,6 +91,39 @@
 const WATCH_NUM = String.raw`\d(?!\d)(?!\s?mm)`
 
 export const MODEL_RES: RegExp[] = [
+  /**
+   * ⛔ NOT EVERY iPhone HAS A NUMBER, AND THE PATTERN BELOW REQUIRES ONE. Measured 2026-09-19
+   * against a partner-shop probe: `modelFor('iPhone Duo 256GB …')` returned NULL, and so did
+   * `iPhone Air` — two products Apple actually sells and this catalogue actually carries (24 live
+   * `iPhone Air` rows). The numeric pattern needs a digit straight after "iPhone", so a named model
+   * falls through it silently and imports with `model = null`.
+   *
+   * ⚠️ AND A NULL MODEL IS NOT A COSMETIC GAP — it is what the per-model landing pages query on.
+   * `/iphone-duo-vietnam` selects `model: { in: ['iPhone Duo'] }`, so every Duo imported from a
+   * partner shop would have been invisible on the page built to sell it, with nothing anywhere
+   * reporting a problem.
+   *
+   * ⚠️ FIRST IN THE LIST, because the numeric pattern cannot match these anyway and a named model
+   * must never be shadowed by a looser rule added later.
+   *
+   * ⛔ IT SWALLOWS AN OPTIONAL NUMBER BEFORE `Duo|Fold`, AND ALL THREE REVIEW SEATS CAUGHT WHY. The
+   * foldable's own page copy says Vietnamese retailers write it three ways — "iPhone Duo",
+   * "iPhone Fold" and "iPhone 18 Fold" — and the first cut only matched the first two. "iPhone 18
+   * Fold" fell through to the NUMERIC rule and came out as plain `iPhone 18`, so a 65-million-đồng
+   * foldable would have landed in the iPhone 18 price table AND been invisible on the Duo page. The
+   * page predicted the string and the pattern did not accept it.
+   *
+   * ⚠️ AND THE TRAILING `\b` IS LOAD-BEARING: without it `iPhone AirPods` captures "iPhone Air".
+   * `Air` followed by `P` is not a word boundary, so the guard costs nothing and closes it.
+   */
+  /**
+   * ⚠️ THE OPTIONAL GENERATION DIGIT IS FENCED OFF FROM THE STORAGE TIER, and the first cut was
+   * not: `(?:\s?\d{1,2})?` happily ate the "25" of "256GB" and answered `iPhone Duo 25`. The
+   * lookaheads say "a generation number is one or two digits that are NOT the start of a longer
+   * number and NOT a capacity" — so "iPhone Air 256GB" is `iPhone Air`, while a future
+   * "iPhone Air 2 256GB" still resolves to `iPhone Air 2`.
+   */
+  /\b(iPhone\s?(?:\d{1,2}\s?)?(?:Duo|Fold)|iPhone\s?Air(?:\s?\d{1,2}(?!\d)(?!\s?[GT]B))?)\b/i,
   /\b(iPhone\s?\d{1,2}(?:\s?Pro\s?Max|\s?Pro|\s?Plus|\s?Mini|e)?)/i,
   /\b(Galaxy\s(?:Z\s)?(?:Fold|Flip|Note|Tab|Watch|Buds)?\s?[A-Z]?\d{1,3}(?!\d)(?!\s?mm)(?:\s?Ultra|\s?Plus|\s?FE)?)/i,
   /\b(MacBook\s(?:Air|Pro)(?:\s?M\d)?)/i,
@@ -103,6 +136,13 @@ export const MODEL_RES: RegExp[] = [
 
 /** Spellings the feed uses inconsistently, mapped to one display form. */
 export const MODEL_CASE: [RegExp, string][] = [
+  /**
+   * ⛔ THREE SPELLINGS, ONE PHONE. Apple sells the foldable as "iPhone Duo"; Vietnamese retailers
+   * also write "iPhone Fold" and "iPhone 18 Fold". A model column holding all three splits one
+   * product across three pages that each query a literal, so they collapse here — the same job this
+   * list already does for casing. ⚠️ FIRST, so the generic `^iphone` rule below cannot claim them.
+   */
+  [/^iphone\s?(?:\d{1,2}\s?)?(?:duo|fold)$/i, 'iPhone Duo'],
   [/^macbook/i, 'MacBook'], [/^iphone/i, 'iPhone'], [/^ipad/i, 'iPad'],
   [/^airpods/i, 'AirPods'], [/^apple watch/i, 'Apple Watch'], [/^galaxy/i, 'Galaxy'],
   [/^redmi/i, 'Redmi'], [/^xiaomi/i, 'Xiaomi'],

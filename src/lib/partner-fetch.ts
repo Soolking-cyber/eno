@@ -129,7 +129,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
  * sitemap always carries a few dead slugs, and refusing to reconcile over one permanent 404 would
  * disable the pass for ever, while losing 30% of the pages says nothing about the other 70%.
  */
-type ReadLog = { attempted: number; failed: number; fatal: boolean }
+export type ReadLog = { attempted: number; failed: number; fatal: boolean }
 /** A fresh tally per `fetchStore` call — see the note above on why this is not module state. */
 const newReadLog = (): ReadLog => ({ attempted: 0, failed: 0, fatal: false })
 
@@ -528,7 +528,12 @@ async function fetchSitemapJsonLd(cfg: StoreConfig, LIMIT: number, log: ReadLog)
 }
 
 /** The half both URL-discovery strategies share: fetch each product page and read its JSON-LD. */
-async function readProductPages(cfg: StoreConfig, urls: Set<string>, LIMIT: number, log: ReadLog): Promise<PartnerProduct[]> {
+/**
+ * ⚠️ EXPORTED FOR `scripts/partner-probe.ts`, which discovers a handful of URLs by matching a shop's
+ * own index and then needs exactly this reader for them. Exporting changes no runtime behaviour;
+ * what it avoids is a second, drifting copy of the JSON-LD/price/gallery parsing in a script.
+ */
+export async function readProductPages(cfg: StoreConfig, urls: Set<string>, LIMIT: number, log: ReadLog): Promise<PartnerProduct[]> {
   const list = [...urls].slice(0, LIMIT || undefined)
   console.log(`  ${cfg.domain}: ${urls.size} product URLs matched${LIMIT ? `, taking ${list.length}` : ''}`)
 

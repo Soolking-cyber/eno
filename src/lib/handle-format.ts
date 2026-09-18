@@ -77,7 +77,11 @@ const RESERVED = new Set([
   // handle-format.test.ts caught it — the test reads the route tree, which is exactly why it exists.
   // A member holding @app would have shadowed the one URL the download QR encodes.
   'app', 'furnishing-a-home-in-vietnam', 'selling-up-before-you-leave-vietnam',
-  'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'iphone-18-vietnam', 'itinerary',
+  'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'iphone-18-vietnam',
+  // ⚠️ THE PER-MODEL LANDING PAGES, ADDED 2026-09-19. A member holding @iphone-18-pro-vietnam
+  // would shadow the route entirely — /[handle] renders the storefront in place, so the SEO page
+  // simply stops existing with no error anywhere.
+  'iphone-18-pro-vietnam', 'iphone-18-pro-max-vietnam', 'iphone-duo-vietnam', 'itinerary',
   'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam',
   'moving-to-vietnam', 'partners', 'services-for-expats-vietnam', 'unsubscribe',
   'vietnam-evisa', 'wholesale-green-coffee-vietnam',

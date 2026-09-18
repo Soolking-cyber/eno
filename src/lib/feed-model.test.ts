@@ -80,6 +80,35 @@ describe('modelFor — a millimetre size is not a model number', () => {
 describe('modelFor — the models it must keep finding', () => {
   it.each([
     ['iPhone 16 Pro Max 256GB', 'iPhone 16 Pro Max'],
+    /**
+     * ⛔ THE NAMED MODELS, WHICH RETURNED NULL UNTIL 2026-09-19. The numeric pattern requires a
+     * digit straight after "iPhone", so Apple's two non-numbered phones fell through it — and a
+     * null model is what makes an imported row invisible to its own landing page.
+     */
+    ['iPhone Duo 256GB | Chính Hãng Apple Việt Nam', 'iPhone Duo'],
+    ['iPhone Duo', 'iPhone Duo'],
+    ['iPhone Air 256GB', 'iPhone Air'],
+    // ⚠️ A capacity is not a generation — "256GB" must not read as an "iPhone Air 25".
+    ['iPhone Duo 1TB', 'iPhone Duo'],
+    ['iPhone Air 2 256GB', 'iPhone Air 2'],
+    /**
+     * ⛔ THE THREE SPELLINGS OF ONE FOLDABLE, all of which must land on the model the page queries.
+     * "iPhone 18 Fold" is the one that mattered: it fell through to the numeric rule and came out
+     * as plain `iPhone 18`, putting a 65-million-đồng foldable in the iPhone 18 price table.
+     */
+    ['iPhone Duo 512GB', 'iPhone Duo'],
+    ['iPhone Fold 512GB', 'iPhone Duo'],
+    ['iPhone 18 Fold 1TB | Chính Hãng Apple Việt Nam', 'iPhone Duo'],
+    /**
+     * ⚠️ THE COLLISION THE TRAILING BOUNDARY CLOSES, and the right answer is not "iPhone Air" —
+     * it is the AirPods rule further down the list. Without `\b` the named rule captured
+     * "iPhone Air" out of "iPhone AirPods" and shadowed the correct model entirely.
+     */
+    ['iPhone AirPods Pro 3', 'AirPods Pro 3'],
+    // ⚠️ The numbered models must still win their own pattern — a named rule that swallowed
+    // "iPhone 18 Pro" would be a far worse trade than the gap it closed.
+    ['iPhone 18 Pro Max 512GB', 'iPhone 18 Pro Max'],
+    ['iPhone 18 Pro 1TB | Chính Hãng Apple Việt Nam - Đã Kích Hoạt', 'iPhone 18 Pro'],
     ['Điện thoại iphone 15 pro', 'iPhone 15 Pro'],
     ['Samsung Galaxy S24 Ultra 512GB', 'Galaxy S24 Ultra'],
     ['Galaxy Z Fold8 Ultra', 'Galaxy Z Fold8 Ultra'],
