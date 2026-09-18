@@ -93,7 +93,7 @@ export default async function Home() {
   const { categories, listings, total, businesses, trending } = await getData()
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-screen flex-col home-wash">
       {/* NO hero-wordmark preload any more: the hero heading is sr-only on both editions as of
           2026-08-02 (owner), so there is no hero image left to preload and <LogoWordmark> is gone.
           The wordmark that remains is the HEADER's, which sits at the very top of the initial

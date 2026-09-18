@@ -6,7 +6,9 @@ below — a violation fails the build. When a rule here conflicts with older cod
 this document wins.
 
 Identity in one line: **flat single-canvas marketplace — one brand blue
-(#0a66c2), true-neutral grays, #fafafa canvas, generous radii, spring motion.**
+(#0a66c2), a 58同城-style commerce orange (#d64000 fill / #c73c00 ink) used ONLY
+for price, the Post button and the commerce badges, true-neutral grays, #fafafa
+canvas with a warm wash on the home page, generous radii, spring motion.**
 
 ---
 
@@ -66,7 +68,7 @@ pill once 2R passes the shorter side. Measured on `/`: 12px pills 4 elements, 14
 ## 3. Color
 
 Tokens only — never raw hex in `className` or `style`. The palette is 60/30/10:
-white/`#fafafa` canvas, true-neutral grays, ONE brand blue.
+white/`#fafafa` canvas, true-neutral grays, ONE brand blue (plus the commerce orange on price/Post).
 
 - Brand: `brand`, `brand-dark` (hover), `brand-light`, `brand-50`, `brand-100`,
   `brand-deep(er)` (fixed dark marketing panels)

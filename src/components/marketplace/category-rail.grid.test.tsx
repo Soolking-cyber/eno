@@ -102,10 +102,8 @@ describe('<CategoryRail> grid shape', () => {
    */
   it('fills every column but the last, whichever category is open', () => {
     for (const active of ['all', 'vehicles', 'electronics', 'services', 'property', 'jobs']) {
-      const { tiles, container } = renderRail(cats(10), active)
-      const boxAfter = new Set<number>()
-      const spans = tiles.map((t, i) => {
-        if (t.getAttribute('data-cat') === active && container.querySelector('[data-subcat]')) boxAfter.add(i)
+      const { tiles } = renderRail(cats(10), active)
+      const spans = tiles.map((t) => {
         const m = t.className.match(/(?:^|\s)row-span-(\d)/)
         return m ? Number(m[1]) : 0
       })
@@ -114,12 +112,24 @@ describe('<CategoryRail> grid shape', () => {
       spans.forEach((span, i) => {
         expect(span, `${active}: tile ${i} has a span`).toBeGreaterThan(0)
         used += span
-        if (used >= 6 || boxAfter.has(i)) { columns.push(used); used = 0 }
+        if (used >= 6) { columns.push(used); used = 0 }
       })
       if (used > 0) columns.push(used) // the tail
       const full = used > 0 ? columns.slice(0, -1) : columns
       for (const [i, units] of full.entries()) expect(units, `${active}: column ${i}`).toBe(6)
     }
+  })
+
+  /**
+   * ⛔ THE SPANS ARE IDENTICAL WITH AND WITHOUT A SELECTION. This is the guard for "categories when
+   * pressed they shift down and center, dont": the previous version stretched the pressed tile to
+   * close its column, which re-centred it and re-flowed everything after. Measured in the browser
+   * too — pressing any of five categories moved no tile at or before it — but the cause is here.
+   */
+  it('changes no tile span when a category is pressed', () => {
+    const spansOf = (active: string) => renderRail(cats(10), active).tiles.map((t) => t.className.match(/(?:^|\s)row-span-\d/)?.[0].trim())
+    const idle = spansOf('all')
+    for (const active of ['electronics', 'services', 'vehicles', 'jobs']) expect(spansOf(active), active).toEqual(idle)
   })
 
   it('renders no "All" tile, at any rail length', () => {
@@ -133,14 +143,23 @@ describe('<CategoryRail> grid shape', () => {
 })
 
 describe('<CategoryRail> subcategory plate', () => {
-  /** The box lives INSIDE the rail, beside its category, and spans the rail's whole height. */
-  it('renders the box as a full-height item next to the active tile', () => {
+  /**
+   * The box lives INSIDE the rail, spans its whole height, and is placed EXPLICITLY — in the column
+   * after the pressed tile's, so no tile changes span or row when a category is pressed (owner:
+   * "category doesnt shift and categories below it stays at the same place").
+   */
+  it('renders the box as a full-height item placed in its own column', () => {
     const { container } = renderRail(cats(10), 'rentals')
-    const box = container.querySelector('[data-subcat]')!.closest('div.row-span-6')
+    // ⚠️ BY ITS STYLE HOOK, NOT `[class*=grid-row]` — the chip plate inside it matches that too.
+    const box = container.querySelector('[data-subcat]')!.closest('div[style*="--sub-col-m"]') as HTMLElement
     expect(box).not.toBeNull()
-    expect(box!.className).toContain('md:row-span-2')
-    // it is the tile's next sibling, so it opens where the visitor tapped
-    expect(box!.previousElementSibling?.getAttribute('data-cat')).toBe('rentals')
+    expect(box.className).toContain('[grid-row:1/-1]')
+    expect(box.className).toContain('[grid-column:var(--sub-col-m)]')
+    expect(box.className).toContain('md:[grid-column:var(--sub-col-d)]')
+    // both breakpoints get a column index, and it is past the pressed tile's own column
+    expect(Number(box.style.getPropertyValue('--sub-col-m'))).toBeGreaterThan(1)
+    expect(Number(box.style.getPropertyValue('--sub-col-d'))).toBeGreaterThan(1)
+    expect(box.previousElementSibling?.getAttribute('data-cat')).toBe('rentals')
   })
 
   it('shows EVERY subcategory of the active category — no More dropdown', () => {

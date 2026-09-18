@@ -404,7 +404,16 @@ export function CookieConsent() {
                   width={1000}
                   height={837}
                   sizes="250px"
-                  className="h-[clamp(6.5rem,24vh,12.5rem)] w-auto max-w-full object-contain"
+                  /**
+                   * ⚠️ THE EDGES ARE MASKED, NOT CROPPED (owner, 2026-09-18: "the image on cookie
+                   * popup make its edges softer more pleasant"). The photo is a cut-out on a flat
+                   * ground, so on the dark theme it met the dialog as a hard rectangle. A radial
+                   * mask fades the last ~15% of the frame to nothing, which reads as the picture
+                   * sitting IN the card instead of on top of it, in either theme — a vignette in
+                   * alpha rather than a painted gradient, so it never fights the surface colour.
+                   * `-webkit-mask-image` alongside it because Safari still needs the prefix.
+                   */
+                  className="h-[clamp(6.5rem,24vh,12.5rem)] w-auto max-w-full object-contain [mask-image:radial-gradient(115%_95%_at_50%_44%,#000_62%,rgba(0,0,0,0.45)_84%,transparent_100%)] [-webkit-mask-image:radial-gradient(115%_95%_at_50%_44%,#000_62%,rgba(0,0,0,0.45)_84%,transparent_100%)]"
                 />
               </div>
               {/* ⛔ THE TITLE IS "Cookie consent" AND IT IS INVISIBLE; THE TAGLINE IS ORDINARY TEXT

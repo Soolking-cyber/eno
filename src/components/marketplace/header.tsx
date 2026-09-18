@@ -756,7 +756,11 @@ export function Header() {
                 prop, which CONCATENATES classNames — only the Button's own className is
                 twMerged. On the child these were decided by stylesheet order instead of
                 intent (base gap-2 beat the child's gap-1.5). */}
-            <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
+            {/* ⛔ `commerce`, NOT `cta` — THIS BUTTON IS THE ORANGE ONE (owner, 2026-09-18: "prices
+                orange and free post … orange"). `cta` is the shared primary-action variant behind 128
+                controls and stays brand blue; the commerce orange is scoped to this Post button, the
+                bottom nav's Post coin and the price. See the variant's own ⛔ note in ui/button. */}
+            <Button asChild variant="commerce" size="none" className="gap-1.5 font-semibold">
               <Link
                 href={user ? '/dashboard?tab=post' : '/post'}
                 prefetch={false}

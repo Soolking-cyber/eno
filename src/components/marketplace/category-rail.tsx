@@ -1,9 +1,10 @@
 'use client'
 
-import { Fragment, useEffect } from 'react'
+import { Fragment, useEffect, type CSSProperties } from 'react'
 import { useLanguage, Tr, useTr } from '@/context/language-context'
 import { detectContentLang } from '@/lib/detect-lang'
 import { CategoryIcon } from './category-icons'
+import { ChevronRight } from '@/components/ui/icons'
 import { CategoryTileGlyph } from './category-art'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { CountChip, optionCount, railDimension } from './count-chip'
@@ -328,7 +329,17 @@ export function CategoryRail({
    * Desktop is unaffected: one unit row each, two rows, as asked.
    */
   const shortcutCount = shortcuts?.length ?? 0
-  const GLYPH_BOX = 'flex h-14 items-center justify-center md:h-11'
+  /**
+   * ⛔ THE GLYPH IS SIZED BY THE TILE IT SITS IN (owner, 2026-09-18: "on mobile category image make
+   * it fit this box larger"). The opening screen's tiles are 130px tall and the swiped pages' are
+   * 85px — one glyph size cannot serve both, and 44px in a 130px tile is the "adrift in whitespace"
+   * look this file already warns about. Big tiles take a 64px mark, small ones keep 44px, and
+   * desktop keeps 44px at every position because its tiles are 73px.
+   * ⚠️ MEASURED, NOT GUESSED: 64 + the 6px gap + a two-line 28px label + 8px of padding is 106px
+   * inside a 130px tile. A bigger mark would start clipping the second label line.
+   */
+  const glyphBox = (big: boolean) => (big ? 'flex h-16 items-center justify-center md:h-11' : 'flex h-11 items-center justify-center')
+  const glyphSize = (big: boolean) => (big ? 'h-16 w-16 md:h-11 md:w-11' : '')
   /**
    * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
    * one navigates away, so it is never "on" while this rail is showing.
@@ -382,44 +393,58 @@ export function CategoryRail({
 
 
   /**
-   * ⛔ THE SPANS COME FROM A FLOW CURSOR, NOT FROM A TILE'S INDEX, AND THAT IS WHAT KEEPS EVERY
-   * COLUMN FULL. Three things all want to decide a tile's height — the opening screen is two rows
-   * and the swiped pages are three (owner, 2026-09-18: "on mobile 2 rows when swiped transitions
-   * into 3"), the selected tile has to CLOSE its column so the full-height subcategory box can start
-   * beside it, and the box itself takes a whole column. Index arithmetic got two of the three right
-   * and left a 48px gap where the two-row region met the three-row one, because the selected tile had
-   * already shifted the parity (measured, mid-rail, on a phone).
+   * ⛔ THE SPANS COME FROM A FLOW CURSOR, AND NO TILE EVER CHANGES ITS OWN. The opening screen is two
+   * rows and the swiped pages are three (owner: "on mobile 2 rows when swiped transitions into 3"),
+   * so a tile takes 3 unit rows while the cursor is still in the first `FIRST_COLS` columns and 2
+   * after that — decided by where the tile LANDS, simulated in render order exactly as
+   * `grid-flow-col` will place it, because the two-row/three-row boundary must fall on a column edge.
    *
-   * So the packing is simulated in render order, exactly as `grid-flow-col` will do it: six unit rows
-   * per column, a tile takes 3 units while the cursor is still in the first `FIRST_COLS` columns and
-   * 2 after that, and the SELECTED tile takes whatever is left of its column — `6 - used`, which is
-   * the whole column when it starts one. The box then always begins on a fresh column.
-   * ⚠️ DESKTOP IS THE SAME SIMULATION WITH A COLUMN OF TWO, run alongside, because a tile that starts
-   * a column on a phone need not start one on desktop.
+   * ⛔ AND THE SELECTED TILE IS NOT SPECIAL, WHICH IS THE WHOLE POINT OF THE SECOND VERSION. It used
+   * to stretch to fill its column so the full-height subcategory box could start beside it, and the
+   * owner saw exactly what that does: "categories when pressed they shift down and center, dont …
+   * category doesnt shift and categories below it stays at the same place". A tile that changes span
+   * re-centres its own contents and re-flows everything after it. Nothing changes span now; the box
+   * is placed EXPLICITLY instead (see `subCol`), so pressing a category moves no tile at all.
    * ⚠️ LITERAL CLASS NAMES, NOT `row-span-${n}` — Tailwind scans source text, so a computed class is
    * never generated and the rule silently does not exist.
    */
   const FIRST_COLS = 3
   const SPAN = ['', 'row-span-1', 'row-span-2', 'row-span-3', 'row-span-4', 'row-span-5', 'row-span-6'] as const
-  const spanClasses = (() => {
+  const layout = (() => {
     const total = shortcutCount + categories.length + (intents?.length ?? 0)
-    const activeAt = subs.length > 0 ? shortcutCount + categories.findIndex((c) => c.slug === activeCategory) : -1
-    const out: string[] = []
-    let col = 0, used = 0 // phone cursor: 6 unit rows per column
+    /* ⚠️ `>= 0` GUARD: `findIndex` returns -1 for a category this edition does not list, and
+       `shortcutCount + (-1)` would point at the last SHORTCUT tile — which would then close its
+       column for a box that is not beside it. Dead today (DESK_SHORTCUTS is empty on both editions)
+       and a reviewer was right that it is one config change from being live. */
+    const catAt = categories.findIndex((c) => c.slug === activeCategory)
+    const activeAt = subs.length > 0 && catAt >= 0 ? shortcutCount + catAt : -1
+    const spans: string[] = []
+    const big: boolean[] = []
+    let col = 0, used = 0   // phone cursor: 6 unit rows per column
     let dCol = 0, dUsed = 0 // desktop cursor: 2 rows per column
+    let subCol = { m: 0, d: 0 }
     for (let i = 0; i < total; i++) {
       let span = col < FIRST_COLS ? 3 : 2
       if (used + span > 6) { col++; used = 0; span = col < FIRST_COLS ? 3 : 2 }
-      const closesColumn = i === activeAt
-      if (closesColumn) span = 6 - used
-      const dSpan = closesColumn && dUsed === 0 ? 2 : 1
-      out[i] = cn(SPAN[span], dSpan === 2 ? 'md:row-span-2' : 'md:row-span-1')
+      spans[i] = SPAN[span] + ' md:row-span-1'
+      big[i] = span >= 3
+      if (i === activeAt) {
+        /**
+         * ⛔ THE BOX GOES AFTER THE WHOLE COLUMN, NOT AFTER THE TILE. "when category pressed
+         * subcategory pops the right of it … categories below it stays at the same place" — the
+         * tiles UNDER the pressed one share its column, so the box has to clear the column rather
+         * than split it. 1-based, and `+2` because these cursors are 0-based and the box takes the
+         * column AFTER the one the tile is in.
+         */
+        subCol = { m: col + 2, d: dCol + 2 }
+      }
       used += span; if (used >= 6) { col++; used = 0 }
-      dUsed += dSpan; if (dUsed >= 2) { dCol++; dUsed = 0 }
-      if (closesColumn) { col++; used = 0; dCol++; dUsed = 0 } // the box takes a whole column of each
+      dUsed += 1; if (dUsed >= 2) { dCol++; dUsed = 0 }
     }
-    return out
+    return { spans, big, subCol }
   })()
+  const spanClasses = layout.spans
+  const bigTile = layout.big
 
   return (
     // `relative` anchors the arrows, which sit OUTSIDE the scroller's edges (-left-8).
@@ -460,7 +485,7 @@ export function CategoryRail({
           `[&_svg:not([class*='size-'])]:size-4` would shrink the 44px glyph. */}
       {shortcuts?.map((sc, si) => (
         <Button key={sc.key} variant="bare" size="none" data-shortcut={sc.key} onClick={() => onShortcut?.(sc)} className={cn('whitespace-normal', tileCls, spanClasses[si])}>
-          <span className={GLYPH_BOX}>
+          <span className={glyphBox(bigTile[si])}>
             {/* ⚠️ `sc.art` COMES FROM THE ALIASED SERVICES MODULE, so on a marketplace build it is
                 not merely falsy — the string never enters the artifact at all, and the file it
                 names is pruned from that image by the Dockerfile. The lucide fallback is what a
@@ -492,8 +517,8 @@ export function CategoryRail({
         return (
           <Fragment key={cat.id}>
             <Button variant="bare" size="none" data-cat={cat.slug} aria-pressed={isActive} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls, spanClasses[at])}>
-              <span className={GLYPH_BOX}>
-                <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={cn(iconCls(isActive))} selected={isActive} />
+              <span className={glyphBox(bigTile[at])}>
+                <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={cn(iconCls(isActive), glyphSize(bigTile[at]))} selected={isActive} />
               </span>
               <span className={nameCls(isActive)}><TileLabel text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
             </Button>
@@ -509,13 +534,34 @@ export function CategoryRail({
               * one. That guard had to be written by hand while this lived below the grid.
               */}
             {isActive && subs.length > 0 && (
-              <div className="row-span-6 flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200 md:row-span-2">
+              <div
+                /**
+                 * ⛔ EXPLICITLY PLACED, NOT FLOWED. `grid-row: 1 / -1` makes it the rail's full height
+                 * in either breakpoint's row count, and an explicit `grid-column` puts it in the
+                 * column AFTER the pressed tile's — auto-placement then flows every other tile
+                 * around it, so no tile changes size or row and only the ones past the box move
+                 * aside. The column index differs per breakpoint (a phone column holds 2-3 tiles, a
+                 * desktop one holds 2), which is why it arrives as two custom properties rather than
+                 * a class.
+                 */
+                style={{ '--sub-col-m': layout.subCol.m, '--sub-col-d': layout.subCol.d } as CSSProperties}
+                className="[grid-row:1/-1] [grid-column:var(--sub-col-m)] md:[grid-column:var(--sub-col-d)] flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200"
+              >
                 <span className="h-12 w-px shrink-0 bg-border" aria-hidden="true" />
-                {/* Column-filled chips: three rows on a phone, two on desktop — the same rows the
-                    tiles beside them use, so the box reads as part of the rail rather than a panel
-                    dropped on top of it. `auto-cols-max` keeps each chip its own width and lets the
-                    box grow to the right, which is what the visitor swipes through. */}
-                <div className="grid grid-flow-col grid-rows-3 auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 md:grid-rows-2">
+                {/* Column-filled chips: EIGHT rows on a phone, FIVE on desktop (owner, 2026-09-18:
+                    "desktop make it 4 rows not 2 subcats" … "also mobile 8 rows" … "also make it 5
+                    rows for desktop"). A chip is 28px
+                    where a tile is 73-130, so these stack far denser than the tiles beside them and
+                    the box holds a category's whole taxonomy in a few columns instead of nine —
+                    Electronics' seventeen fit five columns on desktop and three on a phone.
+                    ⚠️ THE ROW COUNT IS BOUNDED BY THE BOX, WHICH IS THE RAIL'S HEIGHT, and the fifth
+                    desktop row is what spent the slack: 5 × 28px plus 12px of padding is 152px inside
+                    a 154px box, so the desktop rows drop their 2px gap (`md:gap-y-0`) to fit. A phone
+                    keeps its gap: 8 × 28 + 7 × 2 + 12 = 250 inside 263. A SIXTH row does not fit —
+                    re-measure before adding one; the plate does not scroll vertically.
+                    `auto-cols-max` keeps each chip its own width and lets the box grow to the
+                    right, which is what the visitor swipes through. */}
+                <div className="grid grid-flow-col grid-rows-8 auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 md:grid-rows-5 md:gap-y-0">
                   <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
                     {tr('All', 'Tất cả')}
                     <CountChip pending={countsPending} count={subDim?.all} className="ml-1" />
@@ -551,11 +597,10 @@ export function CategoryRail({
             const active = activeType === s.type
             return (
               <Button key={s.type} variant="bare" size="none" data-intent={s.type} onClick={() => onIntent?.(s.type)} className={cn('whitespace-normal', tileCls, spanClasses[shortcutCount + categories.length + i])}>
-                {/* Sized BY INDEX like every other tile, not by a hardcoded `h-11`: same answer
-                    today (intents always sit past `bigCount`), but a reviewer was right that a
-                    hardcoded box is the half of the pair that would not follow if that changed. */}
-                <span className={GLYPH_BOX}>
-                  <CategoryTileGlyph slug={s.type} icon={s.icon} className={cn(iconCls(active))} selected={active} />
+                {/* Sized by ITS OWN index like every other tile, never a hardcoded box — an intent
+                    tile on the first screen is as big as a category tile there. */}
+                <span className={glyphBox(bigTile[shortcutCount + categories.length + i])}>
+                  <CategoryTileGlyph slug={s.type} icon={s.icon} className={cn(iconCls(active), glyphSize(bigTile[shortcutCount + categories.length + i]))} selected={active} />
                 </span>
                 <span className={nameCls(active)}><TileLabel text={lang === 'vi' ? s.nameVi : s.name} /></span>
               </Button>
@@ -565,6 +610,24 @@ export function CategoryRail({
       )}
     </div>
       <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} tight />
+      {/**
+        * The touch affordance: on a phone the ScrollArrows above never render (`pc:` = ≥1024px AND a
+        * fine pointer), so nothing said the rail continues — the owner asked for "a pleasant arrow
+        * here on the right side to indicate users can swipe to get more categories". It shows only
+        * while there IS more to the right, which is the same `canRight` the arrows use, so it
+        * disappears at the end of the rail instead of lying.
+        * ⚠️ `pointer-events-none`: it is a hint over a scroller, and swiping THROUGH it must work.
+        */}
+      {canRight && (
+        <span
+          aria-hidden="true"
+          className="material pointer-events-none absolute right-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm pc:hidden"
+        >
+          {/* ⛔ STATIC — the owner removed the drift the moment they saw it ("remove animation from
+              right arrow"). It is a signpost, not a control; the motion made it read as a button. */}
+          <ChevronRight className="h-5 w-5" strokeWidth={STROKE_UI} />
+        </span>
+      )}
 
     </div>
   )
