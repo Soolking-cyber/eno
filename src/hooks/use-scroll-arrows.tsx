@@ -84,6 +84,16 @@ export function useScrollArrows<T extends HTMLElement = HTMLDivElement>(
     el.addEventListener('scroll', sync, { passive: true })
     const ro = new ResizeObserver(sync) // viewport / width changes
     ro.observe(el)
+    // ⚠️ AND THE CONTENT, NOT ONLY THE BOX — measured 2026-09-18 on the category rail's subcategory
+    // plate: switching category by TAP remounts the scroller, the effect re-runs and reads a
+    // scrollWidth the new chips have not reached yet, so `canRight` stayed false while the row
+    // overflowed by 57px and the arrow never appeared. The box's own size never changes when its
+    // children grow, so observing `el` alone cannot catch it. A ResizeObserver on the content fires
+    // AFTER layout, which is exactly why the MutationObserver below was rejected.
+    // ⚠️ EVERY ELEMENT CHILD, NOT JUST THE FIRST: a rail whose items are replaced one-for-one would
+    // leave a single captured node detached and the observer watching nothing (a reviewer's catch).
+    // The count is a rail's worth of items, which is what ResizeObserver is built for.
+    for (const child of Array.from(el.children)) ro.observe(child)
     return () => { el.removeEventListener('scroll', sync); ro.disconnect() }
     // `watch` in deps re-runs sync (and re-attaches the listeners) once async items exist.
     // ⚠️ A MutationObserver here was TRIED and REJECTED (Gemini proposed it, 2026-07-23):

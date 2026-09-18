@@ -4,20 +4,22 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 
 import { LanguageProvider } from '@/context/language-context'
+import { SUBCATEGORIES } from '@/lib/subcategories'
 import { CategoryRail } from './category-rail'
 
 /**
- * THE GRID'S SPAN RULES — the part of the 58-style rail that a screenshot of the real home page
- * cannot check, because the real rail always has enough tiles.
+ * THE RAIL'S SHAPE — the three things a screenshot of the real home page cannot check, because the
+ * real rail always has plenty of tiles and its own edition's categories.
  *
- * Owner, 2026-09-18: "2 rows big top 4 categories rest reveal in 3 rows upon swipe". The mobile
- * grid is 6 rows deep and column-filled: an XL tile is `col-span-2 row-span-3`, so A PAIR OF THEM
- * FILLS ONE TWO-COLUMN BLOCK — rows 1-3 and rows 4-6 across the same two columns — and a small tile
- * is `row-span-2`, three to a column. ⛔ An ODD number of XL tiles therefore leaves the bottom half of
- * that block empty and nothing can fill it — a `row-span-2` tile needs two consecutive free rows and
- * one is left — which is a visible hole in the middle of the grid. (A reviewer caught this file
- * restating the geometry the component comment had just corrected.)
- * A reviewer found it; this file is the guard, since the case needs a rail of 1 or 3 lead tiles.
+ * Owner, 2026-09-18: "mobile initial one … grid 3x3 not 2x2", "make the subcategory plate fully no
+ * dropdown … if overflow swipe to the right", "remove All category from both desktop and mobile".
+ * So: every tile is ONE CELL in a 3-row grid on a phone and a 2-row grid from `md`; there is no
+ * "All" tile; and the plate holds every subcategory of the active category, in taxonomy order.
+ *
+ * ⚠️ THIS FILE REPLACED A GUARD ON THE SPAN SYSTEM IT SUPERSEDES. The previous layout gave the first
+ * four tiles `col-span-2 row-span-3`, which needed rules about even counts and short rails; a uniform
+ * cell has none of those cases. What survives from that round is the habit of pinning the SHAPE, and
+ * one case it caught: the rail is reachable with `categories: []` (the home page's `getData()` catch).
  */
 afterEach(cleanup)
 
@@ -30,107 +32,96 @@ const TestResizeObserver = class {
 HTMLElement.prototype.scrollTo = () => {}
 
 type Cats = React.ComponentProps<typeof CategoryRail>['categories']
-/** The three live intent tiles (INTENT_SHORTCUTS' shape). ⚠️ `shortcuts` is NOT exercised: it is fed
- *  from DESK_SHORTCUTS, which is `[]` on both editions since 2026-09-13, so a test of it would pin
- *  dead code. If desk tiles ever return, add a case here — `spanAt(1 + si)` covers them by index. */
+const POOL = ['vehicles', 'electronics', 'services', 'property', 'jobs', 'rentals', 'fashion-beauty', 'sports', 'pets', 'baby-kids']
+const cats = (n: number) =>
+  POOL.slice(0, n).map((slug) => ({ id: slug, slug, name: slug, nameVi: slug, icon: 'Car' })) as unknown as Cats
+/** The three live intent tiles (INTENT_SHORTCUTS' shape). `shortcuts` is fed from DESK_SHORTCUTS,
+ *  which is `[]` on both editions since 2026-09-13, so exercising it would pin dead code. */
 const INTENTS = [
   { type: 'free', name: 'Free', nameVi: 'Miễn phí', icon: 'Gift' },
   { type: 'wanted', name: 'Wanted', nameVi: 'Cần mua', icon: 'PackageSearch' },
   { type: 'wholesale', name: 'Wholesale', nameVi: 'Bán sỉ', icon: 'Boxes' },
 ]
-const CAT = (slug: string, name: string, icon: string) => ({ id: slug, slug, name, nameVi: name, icon })
-const POOL = ['vehicles', 'electronics', 'services', 'property', 'jobs', 'rentals', 'fashion', 'sports', 'pets', 'kids']
-/** `n` categories, optionally padded to `extra` more so the rail outgrows one screen. */
-const cats = (n: number, extra = 0) =>
-  POOL.slice(0, n + extra).map((slug) => CAT(slug, slug, 'Car')) as unknown as Cats
 
-function render_(categories: Cats, intents?: typeof INTENTS) {
-  return render(
+function renderRail(categories: Cats, activeCategory = 'all', activeSubcategory = 'all', subcategoryCounts: Record<string, number> = {}) {
+  const { container } = render(
     <LanguageProvider>
-      <CategoryRail categories={categories} intents={intents} activeCategory="all" activeSubcategory="all" subcategoryCounts={{}} onCategory={() => {}} onSubcategory={() => {}} onIntent={() => {}} />
+      <CategoryRail
+        categories={categories}
+        intents={INTENTS}
+        activeCategory={activeCategory}
+        activeSubcategory={activeSubcategory}
+        subcategoryCounts={subcategoryCounts}
+        onCategory={() => {}}
+        onSubcategory={() => {}}
+        onIntent={() => {}}
+      />
     </LanguageProvider>,
   )
-}
-
-function spans(categories: Cats) {
-  const { container } = render_(categories)
-  // The tiles in grid order: "All" first, then one per category.
-  return [...container.querySelectorAll('[data-cat]')].map((el) => (el.className.includes('col-span-2') ? 'XL' : 'sm'))
-}
-
-/** Every tile in grid order — INCLUDING the intent tiles, which the first version of this file left
- *  out, and a reviewer noted that is exactly where the degraded rail's hole was hiding. */
-function rowSpans(categories: Cats) {
-  const { container } = render_(categories, INTENTS)
   const grid = container.querySelector('[role="group"][aria-label]')!
   return {
-    // ⚠️ `md:grid-rows-2` is ALWAYS in the class list, so test for the six-row class, not the two.
-    rows: grid.className.includes(' grid-rows-6') || grid.className.startsWith('grid-rows-6') ? 6 : 2,
-    tiles: [...grid.querySelectorAll('[data-cat],[data-intent]')].map((el) =>
-      el.className.includes('col-span-2') ? 'XL' : el.className.includes('row-span-2') ? 'sm-2row' : 'flat',
-    ),
+    container,
+    gridCls: grid.className,
+    tiles: [...grid.querySelectorAll('[data-cat],[data-intent],[data-shortcut]')],
+    chips: [...container.querySelectorAll('[data-subcat]')].map((el) => el.getAttribute('data-subcat')),
   }
 }
 
-describe('<CategoryRail> mobile grid spans', () => {
-  it('gives the first four tiles the extra-large span once the rail is long', () => {
-    expect(spans(cats(10))).toEqual(['XL', 'XL', 'XL', 'XL', ...Array(7).fill('sm')])
+describe('<CategoryRail> grid shape', () => {
+  it('is 3 rows on a phone and 2 from md, one cell per tile', () => {
+    const { gridCls, tiles } = renderRail(cats(10))
+    // Exact tokens: `toContain` on a class string would accept `md:grid-rows-3` for the phone rule.
+    const tokens = gridCls.split(/\s+/)
+    expect(tokens).toContain('grid-rows-3')
+    expect(tokens).toContain('md:grid-rows-2')
+    expect(tokens).not.toContain('grid-rows-6')
+    // ⛔ NO SPANS. A tile that spans rows or columns is the layout this replaced.
+    for (const t of tiles) expect(t.className).not.toMatch(/\b(row-span|col-span)-/)
   })
 
-  it('gives a short rail no extra-large tiles at all', () => {
-    // Without intents these are 3 and 1 tiles: both short, so both lay out flat.
-    expect(spans(cats(2))).toEqual(['sm', 'sm', 'sm'])
-    expect(spans(cats(0))).toEqual(['sm'])
+  it('renders no "All" tile, at any rail length', () => {
+    for (const n of [0, 1, 4, 10]) {
+      const { tiles } = renderRail(cats(n))
+      expect(tiles.map((t) => t.getAttribute('data-cat'))).not.toContain('all')
+      // every category the edition passed IS a tile, plus the three intents
+      expect(tiles.length).toBe(n + INTENTS.length)
+    }
+  })
+})
+
+describe('<CategoryRail> subcategory plate', () => {
+  it('shows EVERY subcategory of the active category — no More dropdown', () => {
+    const slug = 'rentals'
+    const { chips, container } = renderRail(cats(10), slug)
+    expect(chips).toEqual(SUBCATEGORIES[slug].map((s) => s.slug))
+    expect(chips.length).toBeGreaterThan(8) // the count that used to trigger the cut
+    expect(container.textContent).not.toMatch(/\+\d/) // the +N badge is gone with it
+  })
+
+  /** Taxonomy order IS the hierarchy the visitor sees (owner: "make rentals follow 58.com
+   *  hierarchy"), so the plate must not re-sort — by counts or anything else. */
+  it('keeps taxonomy order, and rentals leads with homes before vehicle hire', () => {
+    const { chips } = renderRail(cats(10), 'rentals')
+    expect(chips.indexOf('apartment-rental')).toBeLessThan(chips.indexOf('motorbike-rental'))
+    expect(chips.indexOf('house-rental')).toBeLessThan(chips.indexOf('hotel-short-stay'))
+    expect(chips.indexOf('office-rental')).toBeLessThan(chips.indexOf('car-rental'))
   })
 
   /**
-   * ⛔ THE DEGRADED RAIL, which is reachable: the home page's `getData()` catch returns
-   * `categories: []`. Four `row-span-2` tiles in six rows strand one alone in column 2 under four
-   * row tracks that cannot collapse; at `row-span-3` the same four fill two columns exactly.
+   * ⛔ THE ORDER MUST NOT FOLLOW THE COUNTS, and with empty counts every case above would pass even
+   * if it did (a reviewer's catch). These counts are the shape that used to re-sort the plate: the
+   * LAST chip in taxonomy order carries by far the most listings, so the deleted count-sort would
+   * have hoisted it to the front.
    */
-  it('lays a short rail out flat, so no tile is stranded beside empty row tracks', () => {
-    // categories: [] — the home page's getData() catch. All + 3 intents = 4 tiles = 2 full columns.
-    expect(rowSpans(cats(0))).toEqual({ rows: 2, tiles: ['flat', 'flat', 'flat', 'flat'] })
-    // 3 lead + 3 intents: the case that still had a hole when only XL parity was guarded.
-    expect(rowSpans(cats(2))).toEqual({ rows: 2, tiles: Array(6).fill('flat') })
+  it('ignores listing counts when ordering — taxonomy order wins', () => {
+    const taxonomy = SUBCATEGORIES['rentals'].map((s) => s.slug)
+    const loud = { [taxonomy.at(-1)!]: 9999, [taxonomy[0]]: 1 }
+    expect(renderRail(cats(10), 'rentals', 'all', loud).chips).toEqual(taxonomy)
   })
 
-  /**
-   * ⛔ THE PROPERTY, NOT A SAMPLE: a reviewer showed the span assertions above pass whether or not a
-   * column is left short, and that non-XL tiles are `row-span-2` in six rows — 3 to a column — so the
-   * LAST column is short whenever the small count is not a multiple of 3, i.e. for two counts in
-   * every three. That is accepted (a scroller ending on a part-filled column is where the list ends,
-   * several swipes right) but it must stay confined to the last column, which is what this asserts.
-   */
-  it('leaves at most the FINAL column part-filled, at every plausible rail length', () => {
-    // ⚠️ AN EXPECTED TABLE, NOT AN INVARIANT DERIVED FROM THE OUTPUT — two reviewers caught the first
-    // version computing `partialColumns` from the same modulo it then asserted, which passes whatever
-    // the component does. These rows are what the rail renders TODAY for `n` categories + 3 intents:
-    //   n → [row tracks, tiles, XL tiles, empty cells in the last column]
-    const EXPECTED: Record<number, [number, number, number, number]> = {
-      0: [2, 4, 0, 0], 1: [2, 5, 0, 1], 2: [2, 6, 0, 0], 3: [2, 7, 0, 1], 4: [2, 8, 0, 0],
-      5: [6, 9, 4, 1], 6: [6, 10, 4, 0], 7: [6, 11, 4, 2], 8: [6, 12, 4, 1], 9: [6, 13, 4, 0],
-      10: [6, 14, 4, 2],
-    }
-    for (let n = 0; n <= 10; n++) {
-      const { rows, tiles } = rowSpans(cats(n))
-      const xl = tiles.filter((t) => t === 'XL').length
-      const perColumn = rows === 2 ? 2 : 3
-      const empty = (perColumn - ((tiles.length - xl) % perColumn)) % perColumn
-      expect([rows, tiles.length, xl, empty], `rail of ${n} categories`).toEqual(EXPECTED[n])
-      // XL tiles fill whole two-column blocks, so an odd count would strand half a block.
-      expect(xl % 2).toBe(0)
-      // ⛔ AND THE SHORT RAIL — the first-screen case — is never more than ONE cell short.
-      if (rows === 2) expect(empty).toBeLessThanOrEqual(1)
-    }
-  })
-
-  it('keeps the six-row shape once the rail outgrows one screen', () => {
-    // 5 lead + 3 intents = 8 tiles is still short; 9 is where the owner's 2-big-rows shape starts.
-    expect(rowSpans(cats(4))).toEqual({ rows: 2, tiles: Array(8).fill('flat') })
-    const long = rowSpans(cats(4, 6))
-    expect(long.rows).toBe(6)
-    expect(long.tiles.slice(0, 4)).toEqual(['XL', 'XL', 'XL', 'XL'])
-    expect(long.tiles.slice(4)).toEqual(Array(long.tiles.length - 4).fill('sm-2row'))
+  it('opens no plate for a category this edition does not list', () => {
+    // `?category=<slug>` is user input: a services-only slug must not open the other edition's chips.
+    expect(renderRail(cats(2), 'rentals').chips).toEqual([])
+    expect(renderRail(cats(10), 'not-a-category').chips).toEqual([])
   })
 })
