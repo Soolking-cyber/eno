@@ -156,6 +156,156 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
     label: 'eSIM Viettel, VinaPhone, MobiFone: lắp thế nào',
     blurb: 'Nhà mạng nào hỗ trợ eSIM, máy nào dùng được, và thủ tục đăng ký cần gì.',
   },
+  // 9 ── claiming the vat refund on a phone ─────────────────────────────────────────────
+  {
+    slug: 'vat-refund-phone-vietnam',
+    lang: 'en',
+    pair: 'hoan-thue-vat-mua-dien-thoai',
+    label: 'Claiming the VAT refund on a phone',
+    blurb: 'How the 10% airport refund works, which invoice you need, and the threshold that decides whether it is worth the queue.',
+  },
+  {
+    slug: 'hoan-thue-vat-mua-dien-thoai',
+    lang: 'vi',
+    pair: 'vat-refund-phone-vietnam',
+    label: 'Hoàn thuế VAT khi mua điện thoại',
+    blurb: 'Thủ tục hoàn thuế VAT tại sân bay, cần hóa đơn loại nào, và mức tiền từ bao nhiêu thì đáng làm.',
+  },
+  // 10 ── which ipad to buy in vietnam ─────────────────────────────────────────────
+  {
+    slug: 'ipad-buying-guide-vietnam',
+    lang: 'en',
+    pair: 'mua-ipad-loai-nao-tot',
+    label: 'Which iPad to buy in Vietnam',
+    blurb: 'Air, Pro, mini or the base model — what each is actually for, and which storage tier is a trap.',
+  },
+  {
+    slug: 'mua-ipad-loai-nao-tot',
+    lang: 'vi',
+    pair: 'ipad-buying-guide-vietnam',
+    label: 'Mua iPad loại nào tốt',
+    blurb: 'Air, Pro, mini hay bản thường — mỗi dòng hợp với ai, và mức dung lượng nào không nên mua.',
+  },
+  // 11 ── cheap 5g phones in vietnam ─────────────────────────────────────────────
+  {
+    slug: 'budget-5g-phones-vietnam',
+    lang: 'en',
+    pair: 'dien-thoai-5g-gia-re',
+    label: 'Cheap 5G phones in Vietnam',
+    blurb: 'What 5G actually costs to get into here, where coverage is real, and the specs worth paying for at the bottom of the range.',
+  },
+  {
+    slug: 'dien-thoai-5g-gia-re',
+    lang: 'vi',
+    pair: 'budget-5g-phones-vietnam',
+    label: 'Điện thoại 5G giá rẻ',
+    blurb: 'Giá rẻ nhất để lên 5G, vùng phủ sóng thực tế, và thông số nào đáng tiền ở phân khúc phổ thông.',
+  },
+  // 12 ── phone warranty and repair in vietnam ─────────────────────────────────────────────
+  {
+    slug: 'phone-warranty-repair-vietnam',
+    lang: 'en',
+    pair: 'bao-hanh-sua-chua-dien-thoai',
+    label: 'Phone warranty and repair in Vietnam',
+    blurb: 'Who honours what, what an independent repair costs, and the repairs that void everything else.',
+  },
+  {
+    slug: 'bao-hanh-sua-chua-dien-thoai',
+    lang: 'vi',
+    pair: 'phone-warranty-repair-vietnam',
+    label: 'Bảo hành và sửa chữa điện thoại',
+    blurb: 'Ai bảo hành cái gì, sửa ngoài hết bao nhiêu, và những sửa chữa làm mất bảo hành.',
+  },
+  // 13 ── selling your phone in vietnam ─────────────────────────────────────────────
+  {
+    slug: 'selling-your-phone-vietnam',
+    lang: 'en',
+    pair: 'ban-dien-thoai-cu-duoc-gia',
+    label: 'Selling your phone in Vietnam',
+    blurb: 'Trade-in against private sale, what raises the price, and the timing that costs the most.',
+  },
+  {
+    slug: 'ban-dien-thoai-cu-duoc-gia',
+    lang: 'vi',
+    pair: 'selling-your-phone-vietnam',
+    label: 'Bán điện thoại cũ được giá',
+    blurb: 'Thu cũ đổi mới hay bán trực tiếp, điều gì làm tăng giá, và thời điểm bán quyết định bao nhiêu.',
+  },
+  // 14 ── the best-value phones in vietnam ─────────────────────────────────────────────
+  {
+    slug: 'best-value-phones-vietnam',
+    lang: 'en',
+    pair: 'dien-thoai-tam-trung-dang-mua',
+    label: 'The best-value phones in Vietnam',
+    blurb: 'Where the mid-range genuinely beats a flagship, and the three specs that age worst.',
+  },
+  {
+    slug: 'dien-thoai-tam-trung-dang-mua',
+    lang: 'vi',
+    pair: 'best-value-phones-vietnam',
+    label: 'Điện thoại tầm trung đáng mua',
+    blurb: 'Khi nào máy tầm trung hơn hẳn flagship, và ba thông số xuống cấp nhanh nhất.',
+  },
+  // 15 ── which samsung galaxy to buy in vietnam ─────────────────────────────────────────────
+  {
+    slug: 'samsung-galaxy-buying-guide-vietnam',
+    lang: 'en',
+    pair: 'mua-samsung-galaxy-dong-nao',
+    label: 'Which Samsung Galaxy to buy in Vietnam',
+    blurb: 'S, A, M and Z explained, and why Samsung pricing moves further here than Apple\u2019s.',
+  },
+  {
+    slug: 'mua-samsung-galaxy-dong-nao',
+    lang: 'vi',
+    pair: 'samsung-galaxy-buying-guide-vietnam',
+    label: 'Mua Samsung Galaxy dòng nào',
+    blurb: 'Phân biệt dòng S, A, M và Z, và vì sao giá Samsung giảm sâu hơn Apple tại Việt Nam.',
+  },
+  // 16 ── iphone battery replacement in vietnam ─────────────────────────────────────────────
+  {
+    slug: 'iphone-battery-replacement-vietnam',
+    lang: 'en',
+    pair: 'thay-pin-iphone-o-dau',
+    label: 'iPhone battery replacement in Vietnam',
+    blurb: 'When to replace, official against independent, and how a third-party cell shows up in Settings.',
+  },
+  {
+    slug: 'thay-pin-iphone-o-dau',
+    lang: 'vi',
+    pair: 'iphone-battery-replacement-vietnam',
+    label: 'Thay pin iPhone ở đâu',
+    blurb: 'Khi nào nên thay, thay chính hãng hay ngoài, và dấu hiệu nhận ra pin lô trong Cài đặt.',
+  },
+  // 17 ── the best phones under 10 million đồng ─────────────────────────────────────────────
+  {
+    slug: 'phones-under-10-million-vietnam',
+    lang: 'en',
+    pair: 'dien-thoai-duoi-10-trieu',
+    label: 'The best phones under 10 million đồng',
+    blurb: 'What that budget buys new, what it buys second-hand, and which of the two is the better phone.',
+  },
+  {
+    slug: 'dien-thoai-duoi-10-trieu',
+    lang: 'vi',
+    pair: 'phones-under-10-million-vietnam',
+    label: 'Điện thoại dưới 10 triệu',
+    blurb: 'Ngân sách đó mua được máy mới nào, máy cũ nào, và bên nào đáng hơn.',
+  },
+  // 18 ── phone accessories worth buying in vietnam ─────────────────────────────────────────────
+  {
+    slug: 'phone-accessories-vietnam',
+    lang: 'en',
+    pair: 'phu-kien-dien-thoai-nen-mua',
+    label: 'Phone accessories worth buying in Vietnam',
+    blurb: 'Cases, glass, chargers and cables — what the climate here actually demands and what is a markup.',
+  },
+  {
+    slug: 'phu-kien-dien-thoai-nen-mua',
+    lang: 'vi',
+    pair: 'phone-accessories-vietnam',
+    label: 'Phụ kiện điện thoại nên mua',
+    blurb: 'Ốp, cường lực, sạc và cáp — khí hậu ở đây đòi hỏi gì, và thứ gì chỉ là tiền oan.',
+  },
 ] as const
 
 /** Every phone-guide path, for the sitemap. */
