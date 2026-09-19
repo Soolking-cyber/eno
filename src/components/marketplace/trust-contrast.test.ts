@@ -108,10 +108,33 @@ function themeBlock(theme: 'light' | 'dark'): string {
   return css.slice(start, css.indexOf('\n}', start + 1))
 }
 
-function token(block: string, name: string): string {
-  const m = block.match(new RegExp(`--${name}:\\s*([^;]+);`))
+/**
+ * ⚠️ IT FOLLOWS `var()` INDIRECTION, because a token is allowed to be defined in terms of another
+ * one and this suite reads the STYLESHEET rather than a browser. `--background` and `--card` became
+ * `var(--wash-tail)` on 2026-09-19 when the app's canvas became the wash's floor, and this guard
+ * failed with "expected 'var(--wash-tail)' to match a literal hex" — which is the test doing its job
+ * (it cannot compare contrast against a name) rather than a colour regression.
+ * ⛔ IT RESOLVES WITHIN THE SAME THEME BLOCK, which is what keeps the check honest: the dark block
+ * redefines the same names, so following a reference out of its block would measure light values
+ * against dark ink. A chain that leaves the block, or loops, throws rather than guessing.
+ */
+function token(block: string, name: string, seen: string[] = []): string {
+  const find = (b: string) => b.match(new RegExp(`--${name}:\\s*([^;]+);`))
+  /**
+   * ⚠️ THE THEME BLOCK FIRST, `:root` AS THE FALLBACK — which is the cascade, not a convenience.
+   * `.dark` redefines only the tokens whose VALUES differ; a token defined once in `:root` as a
+   * reference (`--wash-tail: var(--home-wash-soft)`) is inherited by the dark theme and resolves
+   * through the dark value of whatever it points at. Looking only in the theme block reports that
+   * token as missing; looking only in `:root` would measure light values against dark ink.
+   */
+  const m = find(block) ?? find(themeBlock('light'))
   expect(m, `--${name}`).not.toBeNull()
-  return m![1].trim()
+  const raw = m![1].trim().replace(/\s*\/\*[\s\S]*?\*\/\s*$/, '').trim()
+  const ref = raw.match(/^var\(\s*--([\w-]+)\s*\)$/)
+  if (!ref) return raw
+  expect(seen, `--${name} resolves without a cycle`).not.toContain(ref[1])
+  // Keep resolving against the ORIGINAL theme block, so the next hop still prefers its own theme.
+  return token(block, ref[1], [...seen, name])
 }
 
 const hex = (v: string): string => {

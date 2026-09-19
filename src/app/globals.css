@@ -344,9 +344,22 @@
      ⚠️ Changing the label cap changes this number — keep the arithmetic above true. */
   --account-w-open: 240px;
 
-  /* Surfaces — soft neutral canvas so white surfaces (cards, header, popovers)
-     gain subtle Airbnb-style depth without reintroducing borders/boxes. */
-  --background: #fafafa;
+  /**
+   * ⛔ THE CANVAS IS THE WASH'S FLOOR — NOT A NEUTRAL (owner, 2026-09-19: "dashboard pages and navbar
+   * dont have the blue background"). Painting `html`, `body` and a handful of named elements was
+   * whack-a-mole: every screen with its own full-bleed `bg-background` wrapper — /signin, the
+   * dashboard shells, the header on any page but home — kept covering the floor with #fafafa, and
+   * each one had to be found by hand. There are 59 `bg-background` call sites; this is the one edit
+   * that reaches all of them, and any written tomorrow.
+   * ⚠️ `--card` MOVES WITH IT, deliberately, per the note below: the two are kept IDENTICAL so the
+   * canvas stays flat (owner 2026-07-24, "background color as uniform as possible almost no boxes").
+   * Tinting one and not the other would make ~112 card surfaces pop as panels — the exact look that
+   * rule exists to prevent.
+   * ⚠️ CONTRAST IS UNCHANGED IN PRACTICE: muted (#737373), the weakest ink this app puts on a page,
+   * measures 4.57:1 here against 4.61:1 on the old #fafafa — both clear AA, and the wash's own stops
+   * were already chosen against that same threshold.
+   */
+  --background: var(--wash-tail);
   --foreground: #171717;
   /* ⚠️ THE FLAT CANVAS (owner 2026-07-24: "background color as uniform as possible almost no
      boxes"). `--card` is deliberately IDENTICAL to `--background`, which flattens all ~112
@@ -357,7 +370,7 @@
      genuinely needs to sit apart uses `--tint` (a real well) or a `--border` hairline. Things
      that FLOAT — dialog, popover, menu, toast, sticky bar, lightbox — keep their own elevated
      surface, because there the boundary is the information. See docs/flat-surface-plan.md. */
-  --card: #fafafa;
+  --card: var(--wash-tail);   /* identical to --background, by the rule above */
   --card-foreground: #171717;
   /* Floating panels MATCH the canvas (user decision 2026-07-13 — pure-white
      dropdowns read lighter than the #fafafa app). Dark keeps its lighter
@@ -699,11 +712,12 @@
   --home-wash-mid: #1a1e22;
   --home-wash-soft: #1c1d1f;
 
-  --background: #1b1b1b;   /* soft neutral canvas (lighter than near-black) */
+  /* Same rule as light: the canvas IS the wash's floor, and --card tracks it. */
+  --background: var(--wash-tail);
   --foreground: #f0f0f0;
   /* Flat canvas in dark too — same reasoning as light. Floating surfaces (--popover) keep the
      lift; an in-flow panel does not. */
-  --card: #1b1b1b;
+  --card: var(--wash-tail);
   --card-foreground: #f0f0f0;
   --popover: #2a2a2a;
   --popover-foreground: #f0f0f0;
@@ -1042,7 +1056,16 @@
  * A solid band of the wash's own first stop keeps the header legible at any scroll position and
  * still reads as one continuous wash at rest, which is what the 58 app does with its orange band.
  */
-.home-wash #app-header {
+/**
+ * ⛔ ON EVERY PAGE NOW, NOT JUST THE WASHED ONE (owner, 2026-09-19: "dashboard pages and navbar dont
+ * have the blue background"). The `.home-wash` scope made sense while only the home page carried the
+ * wash; `html` and `body` carry it everywhere since, so the header sits over the gradient's STRONG
+ * band — its first 64px — on every route. Scoping it to home meant the navbar matched the page it
+ * sat on there and contradicted it everywhere else.
+ * ⚠️ 64px IS BOTH NUMBERS ON PURPOSE: it is the header's height AND the depth the strong stop holds
+ * to in `--wash-image`. They were chosen to agree; change one and the header becomes a seam again.
+ */
+#app-header {
   background-color: var(--home-wash-strong);
 }
 
