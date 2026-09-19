@@ -274,18 +274,21 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
          * bleed through" rule in the note above still holds. `.wash-surface` is defined in globals.css
          * beside `.home-wash` and both read ONE `--wash-image`, so the sheet cannot drift from the
          * page it is continuing.
-         * ⚠️ PHONE ONLY, AND THE DESKTOP KILL IS LOAD-BEARING. `background-image` paints ON TOP of
-         * `background-color`, so the desktop rules below — `lg:bg-muted/10` when collapsed,
-         * `lg:bg-background` when expanded — would be COVERED by the gradient rather than replacing
-         * it. They are two deliberate desktop looks (a whisper tint on the 72px rail; an opaque panel
-         * that floats over content without needing a shadow), so the image is removed outright at lg.
-         * ⛔ `lg:[background-image:none]` WAS TRIED AND IT LOSES. Tailwind emits it as a single-class
-         * selector, `.wash-surface` is one too, and this file's classes come after the utilities — so
-         * the tie went to source order and the gradient still painted at 1440px (measured on the
-         * built preview, not reasoned about). `.wash-surface-lg-none` is defined immediately after
-         * `.wash-surface` in globals.css so the order is one both rules control.
+         * ⛔ AT EVERY WIDTH, INCLUDING THE DESKTOP RAIL — the phone-only version lasted one round.
+         * Owner, on a signed-in desktop screenshot: "do you see sides are white center blue background
+         * make sure blue all page even dashboar background". The rail was the white side.
+         * ⚠️ SO THE DESKTOP BACKGROUND-COLOURS BELOW ARE NOW DECORATION UNDER AN OPAQUE GRADIENT.
+         * `lg:bg-muted/10` (collapsed) and `lg:bg-background` (expanded) still compute; the image
+         * simply paints over them. They are left in place deliberately rather than deleted: they are
+         * what the rail falls back to if the wash is ever removed, and `lg:bg-background` documents
+         * the expanded panel's need to cover page content outright — a need the gradient now meets,
+         * since every stop in it is opaque.
+         * ⚠️ THE RAIL LOSES ITS EDGE CUE, AND THAT IS THE ASK. A reviewer's earlier catch was that the
+         * 10% tint is the only thing separating this borderless, shadowless rail from the page. Now
+         * that the page is washed too, matching it IS the instruction — "blue all page" — so the rail
+         * is meant to read as continuous rather than as a panel.
          */
-        'wash-surface wash-surface-lg-none',
+        'wash-surface',
         // DESKTOP: a LEFT rail. BORDERLESS + SHADOWLESS — no divider, no edge shadow (owner
         // 2026-07-17). Collapsed = 72px of icons over a whisper tint (lg:bg-muted/10); toggled open it
         // expands to 280px and FLOATS over the content on an OPAQUE bg-background (so the content

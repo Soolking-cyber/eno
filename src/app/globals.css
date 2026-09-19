@@ -301,14 +301,29 @@
    * colours and the reviewers' failure mode becomes real. Redefine `--wash-image` alongside any such
    * scope, or move the declaration down with it.
    */
+  /**
+   * ⛔ IT NO LONGER LANDS ON `--background`, IT LANDS ON THE SOFT STOP AND STAYS THERE (owner,
+   * 2026-09-19, on a signed-in desktop screenshot: "do you see sides are white center blue background
+   * make sure blue all page even dashboar background"). A gradient that fades to the neutral canvas
+   * can only ever tint the TOP of one element; every surface beside it — the account rail, the
+   * dashboard, the page below 1200px — stayed white, and side by side that reads as a broken band
+   * rather than a wash. Ending on `--home-wash-soft` makes the tint the app's FLOOR, so there is no
+   * depth and no surface at which blue runs out.
+   * ⚠️ `--wash-tail` IS WHAT EVERY NON-GRADIENT SURFACE PAINTS so it meets the gradient exactly where
+   * they touch. Change the two together or the seam comes back.
+   * ⚠️ AND IT IS THE SOFT STOP RATHER THAN SOMETHING BLUER BECAUSE OF CONTRAST: muted (#737373) is
+   * the weakest ink this app puts on a page and needs 4.5:1 — it clears on soft (4.57:1) and FAILS on
+   * mid (4.49:1). The floor is the one stop every page is guaranteed to use, so it cannot be the
+   * marginal one.
+   */
+  --wash-tail: var(--home-wash-soft);
   --wash-image: linear-gradient(
     180deg,
     var(--home-wash-strong) 0,
     var(--home-wash-strong) 64px,
     var(--home-wash-mid) 200px,
     var(--home-wash-soft) 340px,
-    var(--home-wash-soft) 900px,
-    var(--background) 1200px
+    var(--wash-tail) 900px
   );
   /* Muted deep navy-blue ramp end — fixed dark marketing panels (both themes) */
   --brand-deep: #1b4b76;
@@ -794,7 +809,15 @@
      feel, and on the web everywhere — which is why the exposed-strip problem is a native-iOS-only
      concern at all. */
   html {
-    background-color: var(--card);
+    /* ⛔ THE CANVAS TAKES THE WASH'S FLOOR TOO — it was `--card` (#fafafa) and that is the white strip
+       the owner photographed down the right-hand side (2026-09-19). It is only three values off the
+       floor, which is exactly why it reads as white BESIDE the tint rather than as a shade of it: a
+       scrollbar gutter, the area under a short page and the overscroll strip all paint here, and none
+       of them belong to any element a page can class.
+       ⚠️ The note above still applies to everything else about this declaration; only the colour
+       moved, and `html.native-ios` further down still repaints the canvas for the one context where
+       the top edge is reachable. The pair is intact. */
+    background-color: var(--wash-tail);
     overscroll-behavior-y: none;
     /* Kill the grey tap-flash on Android (we have :active/:focus-visible styling). */
     -webkit-tap-highlight-color: transparent;
@@ -802,8 +825,22 @@
        (jumping the scroll on short pages like /saved) and fights the auto-hide nav.
        Horizontal rail snap (contained scrollers) is kept; vertical feeds scroll freely. */
   }
+  /**
+   * ⛔ THE APP'S FLOOR IS THE WASH'S TAIL, NOT THE NEUTRAL CANVAS (owner, 2026-09-19: "make sure blue
+   * all page even dashboar background"). `bg-background` here was the reason the tint kept running
+   * out: the home page painted a gradient on ONE div, and everything outside it — the account rail,
+   * /dashboard, the gutters beside a centred column, the page past the gradient's last stop — fell
+   * back to #fafafa and read as white panels beside a blue one.
+   * ⚠️ SETTING IT ON `body` REACHES SURFACES NO PAGE COMPONENT OWNS, which is the point: the strip
+   * beside a `max-w-7xl` column belongs to no element a page can class.
+   * ⚠️ `html` ABOVE TAKES THE SAME FLOOR, for the surfaces below and outside this element: the
+   * scrollbar gutter, the area under a short page, the overscroll strip. The two are set separately
+   * because they answer different questions — this one is the page, that one is the canvas — but
+   * they must hold the SAME value or the seam reappears at the edge.
+   */
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply text-foreground antialiased;
+    background-color: var(--wash-tail);
     /* Stated explicitly rather than left to Tailwind's preflight, so the site's typeface is
        visible in this file instead of buried in `--default-font-family`. The fallback lives
        INSIDE the var() on purpose: `var(--x), ui-sans-serif` does NOT survive a missing --x —
@@ -982,20 +1019,6 @@
  * adds when it wants the wash on phones only, which is the account sheet's case: on desktop that
  * element is a 72px rail over page content, with two deliberate opaque looks of its own.
  */
-/**
- * ⚠️ `64rem`, NOT `1024px` — IT MUST BE THE SAME BREAKPOINT TAILWIND'S `lg:` USES, and those are the
- * same number only at a 16px root font. Read out of the built CSS: Tailwind emits
- * `@media (min-width:64rem)`, and the first version of this rule said `1024px`. A visitor who has
- * raised their browser's default font size to 20px puts `lg:` at 1280px, so between 1024 and 1280
- * this rule would have killed the gradient while `lg:bg-muted/10` had not yet arrived — leaving the
- * rail with neither the wash nor its tint. Two reviewers flagged the unit; the built stylesheet
- * settled it. Re-read that value rather than assuming if the breakpoints are ever customised.
- */
-@media (min-width: 64rem) {
-  .wash-surface-lg-none {
-    background-image: none;
-  }
-}
 
 /**
  * ⛔ AND THE HEADER TAKES THE WASH'S TOP COLOUR RATHER THAN GOING TRANSPARENT (owner, 2026-09-18:
@@ -1043,8 +1066,16 @@
 
 /* Dashboard canvas — plain unified canvas (owner 2026-07-18 removed the brand-blue radial bloom
    that used to breathe up low-centre; now content floats on flat light, no glow). */
+/**
+ * ⛔ THE DASHBOARD SITS ON THE WASH TOO (owner, 2026-09-19: "even dashboar background"). It was flat
+ * `--background` — a white page reached from a blue one, through a rail that is itself washed.
+ * ⚠️ THE FULL GRADIENT, NOT JUST THE TAIL, so the top of the dashboard carries the same band as the
+ * top of the home page and the header above it has something to continue into.
+ */
 .dashboard-canvas {
-  background-color: var(--background);
+  background-color: var(--wash-tail);
+  background-image: var(--wash-image);
+  background-repeat: no-repeat;
 }
 
 /* ============================================================
