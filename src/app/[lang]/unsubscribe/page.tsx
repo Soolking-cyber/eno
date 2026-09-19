@@ -12,7 +12,7 @@ import { Mail, Check, ArrowLeft } from '@/components/ui/icons'
 // unsubscribes anyone. Also offers a one-tap re-subscribe.
 export default function UnsubscribePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+    <Suspense fallback={<div className="min-h-screen" />}>
       <UnsubscribeInner />
     </Suspense>
   )
@@ -41,7 +41,7 @@ function UnsubscribeInner() {
   return (
     // Flat canon: one canvas, no floating card — the composition centers itself and the
     // tint circle anchors the state; separation below comes from a hairline, not a box.
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+    <div className="flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-md text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-tint">
           {state === 'unsubscribed' ? <Check className="h-6 w-6 text-accent-foreground" /> : <Mail className="h-6 w-6 text-accent-foreground" />}

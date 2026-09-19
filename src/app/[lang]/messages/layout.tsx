@@ -35,7 +35,19 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
   return (
     <div
       style={kbHeight ? { height: kbHeight } : undefined}
-      className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden bg-background lg:h-[calc(100dvh-var(--banner-h,0px))]"
+      /**
+       * ⛔ NO `bg-background` HERE — IT PAINTED A FLAT PANEL OVER THE WASH (owner, 2026-09-19: "also
+       * fix dashboard pages background mismatch"). This shell is full-bleed and the height of the
+       * viewport, so an opaque fill covers `body`'s gradient for the whole middle of the screen while
+       * the strip beside it still shows it. Down at the tail the two agree; up where the wash is
+       * strongest they do not, and the messages column read as a lighter slab with a hard edge.
+       * ⚠️ THIS IS THE GENERAL RULE FOR FULL-BLEED SHELLS NOW THAT THE CANVAS IS THE WASH: let the
+       * page's own gradient through instead of repainting the floor. `--background` is the wash's
+       * TAIL, so `bg-background` is only ever correct where the gradient has already reached it.
+       * Something that must be opaque over content (a drawer, a sheet) should say so with the wash
+       * itself — `.wash-surface` — not with the flat token.
+       */
+      className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden lg:h-[calc(100dvh-var(--banner-h,0px))]"
     >
       <Header />
       <KbDebug />

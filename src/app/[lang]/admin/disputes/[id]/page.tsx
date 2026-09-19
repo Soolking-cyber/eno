@@ -91,7 +91,7 @@ export default async function AdminDisputeRoomPage({ params }: { params: Promise
   }
 
   return (
-    <div className="flex flex-1 flex-col bg-background">
+    <div className="flex flex-1 flex-col">
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         {/* One back-link idiom across /admin (piece rule: no '←' text glyphs):
             muted ink + nav-tier ChevronLeft, exactly as the conversation viewer. */}
