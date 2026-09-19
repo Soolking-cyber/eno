@@ -217,6 +217,35 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // this list only decides whether the words have to go through tr().
     "src/app/\\[lang\\]/furnishing-a-home-in-vietnam/page.tsx",
     "src/app/\\[lang\\]/selling-up-before-you-leave-vietnam/page.tsx",
+    // THE PHONE-BUYING CLUSTER (src/lib/phone-guides.ts) — sixteen articles, eight topics, each
+    // topic written twice: once in English for English queries, once in Vietnamese for Vietnamese
+    // ones.
+    // ⛔ THE VIETNAMESE HALVES ARE EXEMPT FOR THE OPPOSITE REASON TO EVERYTHING ABOVE, and the
+    // distinction is worth keeping straight. The other entries are exempt because they are
+    // ENGLISH-only prose that no Vietnamese reader is served. These are exempt because they are
+    // VIETNAMESE-only prose that no English reader is served — a `tr(en, vi)` pair would be a
+    // category error either way: the English article and the Vietnamese article are different
+    // documents answering different queries, not two renderings of one string. Running "mua iPhone
+    // ở đâu uy tín" through the translation layer would produce an English page nobody searched for
+    // and destroy the reason the pair exists.
+    // ⚠️ WRITTEN OUT, NOT GLOBBED, per the note above — a rename must fail loudly rather than
+    // silently un-exempt a file.
+    "src/app/\\[lang\\]/best-place-to-buy-iphone-vietnam/page.tsx",
+    "src/app/\\[lang\\]/mua-iphone-o-dau-uy-tin/page.tsx",
+    "src/app/\\[lang\\]/chinh-hang-vs-xach-tay-vietnam/page.tsx",
+    "src/app/\\[lang\\]/iphone-chinh-hang-va-xach-tay/page.tsx",
+    "src/app/\\[lang\\]/buying-a-used-iphone-vietnam/page.tsx",
+    "src/app/\\[lang\\]/kinh-nghiem-mua-iphone-cu/page.tsx",
+    "src/app/\\[lang\\]/phone-instalments-vietnam/page.tsx",
+    "src/app/\\[lang\\]/mua-dien-thoai-tra-gop/page.tsx",
+    "src/app/\\[lang\\]/iphone-18-vs-iphone-17-vietnam/page.tsx",
+    "src/app/\\[lang\\]/co-nen-len-doi-iphone-18/page.tsx",
+    "src/app/\\[lang\\]/iphone-vs-samsung-vietnam/page.tsx",
+    "src/app/\\[lang\\]/nen-mua-iphone-hay-samsung/page.tsx",
+    "src/app/\\[lang\\]/foldable-phones-vietnam/page.tsx",
+    "src/app/\\[lang\\]/dien-thoai-gap-nen-mua-loai-nao/page.tsx",
+    "src/app/\\[lang\\]/esim-vietnam-guide/page.tsx",
+    "src/app/\\[lang\\]/esim-viettel-vinaphone-mobifone/page.tsx",
     "src/app/\\[lang\\]/admin/**",
     "src/components/admin/**",
   ],

@@ -78,6 +78,25 @@ export type ArticleContent = {
    * that names the service owns the disclosure that goes with it.
    */
   disclosure?: string
+  /**
+   * The language this article is WRITTEN in — it drives `inLanguage` on the Article node and the
+   * `hreflang` pair below.
+   *
+   * ⛔ IT IS NOT THE VISITOR'S LANGUAGE. `src/app/[lang]/` renders UI strings per visitor, but an
+   * article's prose is fixed text in one language: a Vietnamese guide stays Vietnamese for an
+   * English reader. Declaring `inLanguage: 'en'` on a Vietnamese article — which every article did
+   * until 2026-09-19, because the value was hardcoded — tells Google the page is in a language it
+   * demonstrably is not, and that is the kind of contradiction that costs the rich result.
+   */
+  lang?: 'en' | 'vi'
+  /**
+   * The same article written in the other language, as a path. Emitted as reciprocal `hreflang`
+   * alternates so Google serves the Vietnamese page to Vietnamese searchers instead of picking one
+   * and treating the other as a duplicate.
+   *
+   * ⚠️ RECIPROCAL OR NOTHING: Google ignores a one-way alternate. If A names B, B must name A.
+   */
+  alternate?: { lang: 'en' | 'vi'; href: string }
   sections: ArticleSection[]
   related?: { href: string; label: string; blurb: string }[]
   faqs: { q: string; a: string }[]
@@ -203,13 +222,14 @@ export function SeoArticle({ content }: { content: ArticleContent }) {
     '@type': 'Article',
     headline: content.h1,
     description: content.intro,
-    inLanguage: 'en',
+    inLanguage: content.lang ?? 'en',
     datePublished: content.published,
     dateModified: content.updated ?? content.published,
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
     author: { '@type': 'Organization', name: SITE_NAME, url: SITE_ORIGIN },
     publisher: { '@type': 'Organization', name: SITE_NAME, url: SITE_ORIGIN, logo: `${SITE_ORIGIN}/logo.svg` },
     isAccessibleForFree: true,
+    ...(content.alternate ? { workTranslation: { '@type': 'Article', inLanguage: content.alternate.lang, url: `${SITE_ORIGIN}${content.alternate.href}` } } : {}),
   }
 
   const faqLd = {

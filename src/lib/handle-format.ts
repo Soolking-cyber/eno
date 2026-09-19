@@ -1,3 +1,12 @@
+/**
+ * ⛔ RELATIVE, NOT THE `@/` ALIAS — and the difference is a dev server that will not boot. This
+ * module is pulled in by `next.config.ts` (through `root-segments.ts`), which Next transpiles with
+ * its own loader BEFORE the tsconfig path aliases exist, so `@/lib/phone-guides` throws
+ * MODULE_NOT_FOUND at config-compile time. ⚠️ tsc and eslint both pass on the alias, so nothing
+ * catches this except actually starting the app. Note the neighbouring `./fold` import, which is
+ * relative for exactly the same reason.
+ */
+import { PHONE_GUIDE_PATHS } from './phone-guides'
 import { fold } from './fold'
 
 // Pure @handle rules — client-safe (no db / server-only), shared by the server lib
@@ -77,7 +86,18 @@ const RESERVED = new Set([
   // handle-format.test.ts caught it — the test reads the route tree, which is exactly why it exists.
   // A member holding @app would have shadowed the one URL the download QR encodes.
   'app', 'furnishing-a-home-in-vietnam', 'selling-up-before-you-leave-vietnam',
-  'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'iphone-18-vietnam', 'itinerary',
+  'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'iphone-18-vietnam',
+  // ⚠️ THE PER-MODEL LANDING PAGES, ADDED 2026-09-19. A member holding @iphone-18-pro-vietnam
+  // would shadow the route entirely — /[handle] renders the storefront in place, so the SEO page
+  // simply stops existing with no error anywhere.
+  'iphone-18-pro-vietnam', 'iphone-18-pro-max-vietnam', 'iphone-duo-vietnam', 'itinerary',
+  /**
+   * ⚠️ THE PHONE-GUIDE CLUSTER, READ FROM ITS OWN REGISTRY rather than retyped. Sixteen slugs is
+   * sixteen chances to mistype one, and a mistyped reservation fails SILENTLY — the route keeps
+   * working until the day a member claims the handle, and then `/[handle]` renders their storefront
+   * in place of the article with no error anywhere.
+   */
+  ...PHONE_GUIDE_PATHS,
   'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam',
   'moving-to-vietnam', 'partners', 'services-for-expats-vietnam', 'unsubscribe',
   'vietnam-evisa', 'wholesale-green-coffee-vietnam',

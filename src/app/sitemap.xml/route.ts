@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 // import is severed there. See the note on SERVICES_SITEMAP_PATHS in that module.
 import { SERVICES_SITEMAP_PATHS } from '@/lib/edition-services-copy'
 import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS } from '@/lib/expat-guides'
+import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { slugify } from '@/lib/slug'
 import { NextResponse } from 'next/server'
@@ -192,6 +193,11 @@ export async function GET() {
       // into the phone listings. Both editions: it is marketplace commerce copy, like the coffee
       // page below and unlike anything licensed.
       'iphone-18-vietnam',
+      // Per-model siblings of the page above — same reasoning, one page per variant so each ranks
+      // for its own query rather than three of them competing inside one document.
+      'iphone-18-pro-vietnam',
+      'iphone-18-pro-max-vietnam',
+      'iphone-duo-vietnam',
       'jobs-vietnam-expats',
       'motorbikes-for-sale-vietnam',
       'moving-sales-vietnam',
@@ -252,6 +258,18 @@ export async function GET() {
     // are static editorial with no data behind them.
     for (const path of MARKETPLACE_GUIDE_PATHS) {
       xml += `  <url><loc>${hostUrl}${path}</loc></url>\n`
+    }
+
+    /**
+     * The bilingual phone-buying cluster. Both languages are submitted from BOTH hosts, like every
+     * other `page.tsx` guide — each self-canonicalises to its own origin, and the two languages of a
+     * topic declare each other with reciprocal hreflang on the pages themselves.
+     *
+     * ⚠️ ONE LIST, because sixteen routes across the sitemap AND the reserved-handle set is
+     * thirty-two chances to forget one. Adding an entry to PHONE_GUIDES adds it to both.
+     */
+    for (const path of PHONE_GUIDE_PATHS) {
+      xml += `  <url><loc>${hostUrl}/${path}</loc></url>\n`
     }
 
     // Indexing decoupled from PRELAUNCH (owner, 2026-07-18): the full data-driven
