@@ -116,8 +116,46 @@ const buttonVariants = cva(
          * and white on the brightened orange is 2.61:1. The token keeps the light value in both
          * themes for exactly that reason; `--cta-ink` is the one that lightens, for TEXT.
          */
+        /**
+         * ⛔ IT HOVERS TO BLUE, NOT TO A DARKER ORANGE (owner, 2026-09-19, on the Post button: "blue
+         * on hover"). The resting fill stays the commerce orange that marks a transaction control;
+         * the hover hands it back to the brand.
+         * ⚠️ `hover:bg-primary`, AND NOT `hover:bg-brand-dark` WHICH IS WHAT `cta` ABOVE USES. That
+         * token INVERTS between themes on purpose — #034078 on light, #74b3f2 on dark ("hover goes
+         * LIGHTER in dark") — and this button's label is white, which measures 2.22:1 on the dark
+         * value. `--primary` is #0a66c2 in BOTH themes by explicit intent (globals.css: "primary
+         * button keeps brand blue + white text"), so white holds at 5.69:1 on either ground.
+         * ⚠️ That makes the `cta` variant's own dark hover worth a look some day; it is 128 call
+         * sites and not this change's business, but do not copy its hover into a new variant.
+         * ⚠️ THE BLAST RADIUS OF THIS VARIANT IS ONE BUTTON — the header's Post. Reviewers read a
+         * variant-level edit as repainting every transaction control and named checkout and Buy as
+         * casualties, so it was measured rather than asserted.
+         * ⛔ AND `grep -rn 'variant="commerce"'` IS NOT THE CHECK, which a reviewer was right to say:
+         * it sees only the literal JSX attribute and would miss `variant={x ? 'commerce' : …}`, a
+         * `buttonVariants({ variant: 'commerce' })` on a render child, a constant, and — the one that
+         * would be silent and total — `defaultVariants: { variant: 'commerce' }`, which repaints every
+         * bare `<Button>` while adding no hits at all. The real check is the STRING anywhere in src
+         * plus `defaultVariants` below: every other occurrence is prose, and the default is `"default"`.
+         * Run both before changing this variant; if the count has grown, scope the hover at the call
+         * site instead of here.
+         * ⚠️ STICKY `:hover` ON TOUCH IS REAL AND IS NOT FULLY EXCLUDED — stated carefully, because
+         * an earlier version of this note claimed it was and all three reviewers corrected it.
+         * Mobile browsers keep `:hover` on the last-tapped element, and Tailwind emits
+         * `.hover\:bg-primary:hover` OUTSIDE any `@media (hover:hover)` (read from the built CSS).
+         * PHONES ARE OUT: this button sits in `mobile:hidden pc:contents`, and `pc` is
+         * `(min-width: 64rem) and (pointer: fine)`, so a phone never renders it — it gets the
+         * bottom-nav Post coin. A TOUCHSCREEN LAPTOP IS NOT: `pointer: fine` describes the PRIMARY
+         * pointer, so a 2-in-1 with a trackpad matches `pc` AND takes taps, and a tap there strands
+         * the blue until something else is tapped.
+         * ⛔ ACCEPTED, NOT OVERLOOKED, AND THE COST IS WHY. It is cosmetic — the label stays white at
+         * 5.69:1 — and the old `hover:bg-cta-dark` stranded in exactly the same way, just less
+         * visibly. The fix would be `@media (any-pointer: coarse)` (NOT `hover-pointer:`, which a
+         * 2-in-1 also matches), and it would take the blue hover away from every 2-in-1 user driving
+         * with a trackpad to spare them a stale colour after a tap. If the stranded blue is ever
+         * reported as a real annoyance, that is the lever.
+         */
         commerce:
-          "bg-cta text-white font-bold hover:bg-cta-dark",
+          "bg-cta text-white font-bold hover:bg-primary",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20",
         outline:

@@ -267,6 +267,25 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
         // while the CONTENT starts below it (the iOS-native look). 0 on web, so desktop is untouched.
         // 4.5rem tracks <BottomNavSpacer/> — the tab bar's real height (was a stale 4rem).
         'fixed top-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 z-50 flex w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] motion-reduce:transition-none lg:bottom-0',
+        /**
+         * ⛔ THE HOME PAGE'S WASH, CARRIED ONTO THE SHEET (owner, 2026-09-19: "add the background blue
+         * here too sontinuation of homepage"). `bg-background` above stays as the opaque floor — the
+         * gradient paints over it, and between opaque stops, so the "anything less lets the page
+         * bleed through" rule in the note above still holds. `.wash-surface` is defined in globals.css
+         * beside `.home-wash` and both read ONE `--wash-image`, so the sheet cannot drift from the
+         * page it is continuing.
+         * ⚠️ PHONE ONLY, AND THE DESKTOP KILL IS LOAD-BEARING. `background-image` paints ON TOP of
+         * `background-color`, so the desktop rules below — `lg:bg-muted/10` when collapsed,
+         * `lg:bg-background` when expanded — would be COVERED by the gradient rather than replacing
+         * it. They are two deliberate desktop looks (a whisper tint on the 72px rail; an opaque panel
+         * that floats over content without needing a shadow), so the image is removed outright at lg.
+         * ⛔ `lg:[background-image:none]` WAS TRIED AND IT LOSES. Tailwind emits it as a single-class
+         * selector, `.wash-surface` is one too, and this file's classes come after the utilities — so
+         * the tie went to source order and the gradient still painted at 1440px (measured on the
+         * built preview, not reasoned about). `.wash-surface-lg-none` is defined immediately after
+         * `.wash-surface` in globals.css so the order is one both rules control.
+         */
+        'wash-surface wash-surface-lg-none',
         // DESKTOP: a LEFT rail. BORDERLESS + SHADOWLESS — no divider, no edge shadow (owner
         // 2026-07-17). Collapsed = 72px of icons over a whisper tint (lg:bg-muted/10); toggled open it
         // expands to 280px and FLOATS over the content on an OPAQUE bg-background (so the content

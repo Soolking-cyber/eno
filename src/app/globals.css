@@ -283,6 +283,33 @@
   --home-wash-strong: #e8f1fb;
   --home-wash-mid: #f5f9fe;
   --home-wash-soft: #f8fbfe;
+  /**
+   * ⛔ THE WASH, WRITTEN ONCE. `.home-wash` and `.wash-surface` both paint this; the stops and the
+   * reasoning behind them live with `.home-wash` at the bottom of this file. It is a VARIABLE rather
+   * than a repeated declaration because the account panel needed the identical gradient and a
+   * hand-copied second copy is a drift waiting to happen.
+   * ⚠️ IT IS CORRECT IN DARK MODE, AND THE REASON IS NARROWER THAN THE ONE THIS NOTE FIRST GAVE.
+   * The claim was "a `var()` is substituted where it is USED, not where it is declared", and all
+   * three reviewers called it out: a custom property's `var()`s are substituted at computed-value
+   * time on the element that DECLARES it, and the result is what descendants inherit. The reason it
+   * works here is that both declarations land on the SAME element — this block and the dark token
+   * block are both `:root`/`html` — so substitution happens after the dark tokens have been applied
+   * to that element. Measured on the built preview: `.wash-surface` in dark resolves to
+   * `rgb(21,32,44) … rgb(27,27,27)`, the dark values.
+   * ⛔ THE CONSEQUENCE, WHICH IS THE PART WORTH KEEPING: if a theme is ever scoped to something
+   * BELOW the root — a `.dark` wrapper mid-page, a per-panel theme — this variable keeps the root's
+   * colours and the reviewers' failure mode becomes real. Redefine `--wash-image` alongside any such
+   * scope, or move the declaration down with it.
+   */
+  --wash-image: linear-gradient(
+    180deg,
+    var(--home-wash-strong) 0,
+    var(--home-wash-strong) 64px,
+    var(--home-wash-mid) 200px,
+    var(--home-wash-soft) 340px,
+    var(--home-wash-soft) 900px,
+    var(--background) 1200px
+  );
   /* Muted deep navy-blue ramp end — fixed dark marketing panels (both themes) */
   --brand-deep: #1b4b76;
   --brand-deeper: #0c2b48;
@@ -900,16 +927,74 @@
      which is just above that strip on a phone — so the chrome above the feed was tinted and the
      chrome below it was not, which reads as an unfinished gradient rather than a band. It now holds
      the soft tint to 900px and lands on the canvas at 1200px, where the listing cards start. */
-  background-image: linear-gradient(
-    180deg,
-    var(--home-wash-strong) 0,
-    var(--home-wash-strong) 64px,
-    var(--home-wash-mid) 200px,
-    var(--home-wash-soft) 340px,
-    var(--home-wash-soft) 900px,
-    var(--background) 1200px
-  );
+  background-image: var(--wash-image);
   background-repeat: no-repeat;
+}
+
+/**
+ * ⛔ THE SAME WASH, ON A SURFACE THAT IS NOT THE PAGE (owner, 2026-09-19, pointing at the account
+ * panel: "add the background blue here too sontinuation of homepage"). The panel is a full-screen
+ * sheet on a phone, so landing on flat `--background` beside a washed home page made it read as a
+ * different app rather than the same one with a drawer open.
+ *
+ * ⚠️ IT SHARES `--wash-image` RATHER THAN RESTATING THE STOPS, and that is the whole reason the
+ * variable exists. Two hand-copied gradients are two things to keep in step, and this session has
+ * already watched a copied colour drift from its source; the toolbar rule three blocks up takes its
+ * value from the same tokens for the same reason. Change the stops once, above, and every washed
+ * surface moves together.
+ * ⚠️ THE PANEL IS `position: fixed`, so the gradient's 0px is the TOP OF THE VIEWPORT rather than the
+ * top of a scrolling page. That is what makes it read as continuous: the strong stop lines up with
+ * the header's band whatever the page behind has scrolled to, instead of sliding out of step with it.
+ * ⛔ AND IT MUST STAY OPAQUE. The mobile panel covers the page outright — the component's own note
+ * says "anything less lets the page bleed through" — so this is a gradient between opaque colours,
+ * never an alpha. Do not reach for a tint here.
+ */
+/**
+ * ⛔ IT PAINTS THE IMAGE ONLY — THE CALLER OWNS `background-color`, AND THAT IS A MEASURED FIX RATHER
+ * THAN a preference. The first version also set `background-color: var(--background)`, and all three
+ * reviewers caught what that does: it is a single-class selector emitted after the utilities, so it
+ * beats `lg:bg-muted/10` on source order exactly as the image did — measured on the built preview at
+ * 1440px, the collapsed account rail came back `rgb(250,250,250)` instead of its 10% muted tint. That
+ * rail is deliberately borderless and shadowless, so the tint is its ONLY edge against the page: the
+ * "fix" would have made it disappear. Killing the image at lg did not rescue it, because the colour
+ * was a second, separate override.
+ * ⚠️ SO A CALLER MUST BRING ITS OWN OPAQUE COLOUR. The gradient's last stop is `--background` and
+ * there is nothing beneath it here; the account panel carries `bg-background` for that, which is also
+ * what keeps the phone sheet from letting the page bleed through.
+ */
+.wash-surface {
+  background-image: var(--wash-image);
+  background-repeat: no-repeat;
+}
+
+/**
+ * ⛔ THE DESKTOP KILL LIVES HERE, NOT AT THE CALL SITE, AND A MEASUREMENT IS WHY. The first version
+ * paired the class with Tailwind's `lg:[background-image:none]` and it LOST: both are single-class
+ * selectors, so specificity ties and STYLESHEET ORDER decides — and this file's rules are emitted
+ * after the utilities. Measured on the built preview at 1440px, the gradient was still painting over
+ * the rail's `lg:bg-muted/10`. CLAUDE.md states this trap in as many words ("stylesheet order
+ * decides, which is not weight order"); it applies to a hand-written class versus a utility exactly
+ * as it does to a `render`-prop child.
+ * ⚠️ SO THE PAIR IS ADJACENT AND ORDERED ON PURPOSE. This rule follows `.wash-surface` in the same
+ * file, which is the only ordering either depends on. Keep them together; splitting them puts the
+ * behaviour back at the mercy of build order.
+ * ⚠️ `.wash-surface` ITSELF STAYS GENERAL — it paints at every width. This opt-out is what a caller
+ * adds when it wants the wash on phones only, which is the account sheet's case: on desktop that
+ * element is a 72px rail over page content, with two deliberate opaque looks of its own.
+ */
+/**
+ * ⚠️ `64rem`, NOT `1024px` — IT MUST BE THE SAME BREAKPOINT TAILWIND'S `lg:` USES, and those are the
+ * same number only at a 16px root font. Read out of the built CSS: Tailwind emits
+ * `@media (min-width:64rem)`, and the first version of this rule said `1024px`. A visitor who has
+ * raised their browser's default font size to 20px puts `lg:` at 1280px, so between 1024 and 1280
+ * this rule would have killed the gradient while `lg:bg-muted/10` had not yet arrived — leaving the
+ * rail with neither the wash nor its tint. Two reviewers flagged the unit; the built stylesheet
+ * settled it. Re-read that value rather than assuming if the breakpoints are ever customised.
+ */
+@media (min-width: 64rem) {
+  .wash-surface-lg-none {
+    background-image: none;
+  }
 }
 
 /**
