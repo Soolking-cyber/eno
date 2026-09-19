@@ -818,6 +818,17 @@
        moved, and `html.native-ios` further down still repaints the canvas for the one context where
        the top edge is reachable. The pair is intact. */
     background-color: var(--wash-tail);
+    /* ⛔ THE CANVAS CARRIES THE GRADIENT, NOT JUST THE TAIL — the flat floor was only half the fix
+       (owner, 2026-09-19, cropping the right edge: "now same on the right side on desktop"). The
+       scrollbar gutter is painted by THIS element while the page beside it paints `--wash-image`, so
+       down at the tail they matched and up at the top — where the wash is at its strongest — they
+       did not, leaving a pale vertical seam the full height of the window.
+       ⚠️ BOTH THIS AND `body` BELOW MUST CARRY IT. A background on `html` stops `body`'s from
+       propagating to the canvas, but `body`'s own box still paints over `html` within its bounds —
+       so giving the gradient to only one of them either flattens the page or strands the gutter.
+       Same image, same stops, both boxes starting at the top of the document: no seam. */
+    background-image: var(--wash-image);
+    background-repeat: no-repeat;
     overscroll-behavior-y: none;
     /* Kill the grey tap-flash on Android (we have :active/:focus-visible styling). */
     -webkit-tap-highlight-color: transparent;
@@ -841,6 +852,9 @@
   body {
     @apply text-foreground antialiased;
     background-color: var(--wash-tail);
+    /* The page's half of the pair above — see the note on `html`. */
+    background-image: var(--wash-image);
+    background-repeat: no-repeat;
     /* Stated explicitly rather than left to Tailwind's preflight, so the site's typeface is
        visible in this file instead of buried in `--default-font-family`. The fallback lives
        INSIDE the var() on purpose: `var(--x), ui-sans-serif` does NOT survive a missing --x —
@@ -1835,6 +1849,13 @@ html.native-ios {
    worse regression than a rare bottom seam. Verify on a device first, then swap. */
 html.native-ios {
   background-color: var(--background);
+  /* ⛔ AND THE WASH IMAGE MUST BE KILLED HERE, OR THIS WHOLE RULE STOPS WORKING. The base `html` rule
+     gained `background-image: var(--wash-image)` on 2026-09-19 so the scrollbar gutter would stop
+     showing a pale seam — but a background-image paints OVER a background-color, so without this line
+     the colour below is set and never seen, and every native pull-to-refresh would drag the
+     gradient's TOP STOP into the strip above the header instead of the header's own colour. A
+     reviewer caught it; the rule above says these two are a pair and this is what keeps them one. */
+  background-image: none;
 }
 
 /* Android safe areas under Capacitor's edge-to-edge handling. Corrected 2026-07-21 against
