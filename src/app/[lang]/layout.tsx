@@ -523,9 +523,14 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body
-        className="antialiased bg-background text-foreground"
-      >
+      {/* ⛔ NO `bg-background` HERE — THE FLOOR IS SET IN globals.css AND A UTILITY ON THIS ELEMENT
+          SILENTLY BEAT IT. `body { background-color: var(--wash-tail) }` lives in `@layer base`, and
+          a utility class always outranks the base layer, so with `bg-background` still on the tag the
+          page floor stayed #fafafa and every surface the wash does not cover kept reading white —
+          which is the bug the floor was added to fix (owner: "make sure blue all page"). Measured on
+          the built preview: body computed rgb(250,250,250) with the class, the tail without it.
+          ⚠️ `antialiased` and `text-foreground` stay as classes; only the background moved. */}
+      <body className="antialiased text-foreground">
         {/* The provider pyramid + persistent chrome live in ./providers.tsx (audit §E) —
             this file keeps only document concerns (fonts, metadata, viewport, head). */}
         {/* ⚠️ The Vietnamese dictionary rides the vi variant only (~24 KB, before compression): the

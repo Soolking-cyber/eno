@@ -11,7 +11,6 @@ import { trendingRailListings } from '@/lib/core/trending-rail'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
-import { PullToRefresh } from '@/components/marketplace/pull-to-refresh'
 import { Footer } from '@/components/marketplace/footer'
 
 // ISR: near-static homepage data, refreshed at most once a minute (better LCP/TTFB).
@@ -95,9 +94,15 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-screen flex-col home-wash">
-      {/* Pull down at the top of the feed and the mascot comes to fetch — the component's own header
-          has the why, the gesture rules and why it is touch-only. */}
-      <PullToRefresh />
+      {/* ⛔ PULL-TO-REFRESH WAS REMOVED HERE ON 2026-09-19 — owner: "pull down to refresh is too
+          sensitive remove it for now". It fired on ordinary downward flicks near the top of the feed,
+          which on a browse surface costs a scroll every time it misreads one.
+          ⚠️ "FOR NOW". The whole thing is one commit in history (`src/lib/pull-to-refresh.ts`, its
+          test and `pull-to-refresh.tsx`) and comes back by reverting this. What to change before it
+          does: PULL_THRESHOLD was 64px of PULL — 128px of finger after the half-resistance — and the
+          gesture became live on the first downward pixel at scrollY 0. A slop distance before the
+          gesture engages at all, and a higher threshold, are the two dials; the arithmetic module
+          existed precisely so they could be tuned and tested without a touchscreen. */}
       {/* NO hero-wordmark preload any more: the hero heading is sr-only on both editions as of
           2026-08-02 (owner), so there is no hero image left to preload and <LogoWordmark> is gone.
           The wordmark that remains is the HEADER's, which sits at the very top of the initial

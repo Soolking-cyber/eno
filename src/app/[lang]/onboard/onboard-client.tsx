@@ -129,14 +129,14 @@ export function OnboardClient() {
   // downgraded to an individual. Fail CLOSED — show the loader until identity is actually known.
   if (loading || !identityLoaded || !user || accountType) {
     return (
-      <main id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background">
+      <main id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" />
       </main>
     )
   }
 
   return (
-    <main id="main" tabIndex={-1} className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
+    <main id="main" tabIndex={-1} className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-4 flex justify-center">
           {/* Brand ink, not the default line-strong gray: at hero size the neutral mascot read

@@ -80,7 +80,7 @@ export default async function OnboardPage({
   return (
     <Suspense
       fallback={
-        <main id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background">
+        <main id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" />
         </main>
       }

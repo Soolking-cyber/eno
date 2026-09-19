@@ -267,6 +267,28 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
         // while the CONTENT starts below it (the iOS-native look). 0 on web, so desktop is untouched.
         // 4.5rem tracks <BottomNavSpacer/> — the tab bar's real height (was a stale 4rem).
         'fixed top-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 z-50 flex w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] motion-reduce:transition-none lg:bottom-0',
+        /**
+         * ⛔ THE HOME PAGE'S WASH, CARRIED ONTO THE SHEET (owner, 2026-09-19: "add the background blue
+         * here too sontinuation of homepage"). `bg-background` above stays as the opaque floor — the
+         * gradient paints over it, and between opaque stops, so the "anything less lets the page
+         * bleed through" rule in the note above still holds. `.wash-surface` is defined in globals.css
+         * beside `.home-wash` and both read ONE `--wash-image`, so the sheet cannot drift from the
+         * page it is continuing.
+         * ⛔ AT EVERY WIDTH, INCLUDING THE DESKTOP RAIL — the phone-only version lasted one round.
+         * Owner, on a signed-in desktop screenshot: "do you see sides are white center blue background
+         * make sure blue all page even dashboar background". The rail was the white side.
+         * ⚠️ SO THE DESKTOP BACKGROUND-COLOURS BELOW ARE NOW DECORATION UNDER AN OPAQUE GRADIENT.
+         * `lg:bg-muted/10` (collapsed) and `lg:bg-background` (expanded) still compute; the image
+         * simply paints over them. They are left in place deliberately rather than deleted: they are
+         * what the rail falls back to if the wash is ever removed, and `lg:bg-background` documents
+         * the expanded panel's need to cover page content outright — a need the gradient now meets,
+         * since every stop in it is opaque.
+         * ⚠️ THE RAIL LOSES ITS EDGE CUE, AND THAT IS THE ASK. A reviewer's earlier catch was that the
+         * 10% tint is the only thing separating this borderless, shadowless rail from the page. Now
+         * that the page is washed too, matching it IS the instruction — "blue all page" — so the rail
+         * is meant to read as continuous rather than as a panel.
+         */
+        'wash-surface',
         // DESKTOP: a LEFT rail. BORDERLESS + SHADOWLESS — no divider, no edge shadow (owner
         // 2026-07-17). Collapsed = 72px of icons over a whisper tint (lg:bg-muted/10); toggled open it
         // expands to 280px and FLOATS over the content on an OPAQUE bg-background (so the content

@@ -36,7 +36,7 @@ export function AdminSectionShell({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-1 flex-col bg-background">
+    <div className="flex flex-1 flex-col">
       <main
         id="main"
         tabIndex={-1}

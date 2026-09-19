@@ -57,7 +57,7 @@ export default async function AdminConversationPage({ params }: Props) {
   const sellerName = convo?.seller?.name || 'Seller'
 
   return (
-    <div className="flex flex-1 flex-col bg-background">
+    <div className="flex flex-1 flex-col">
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         {/* Back-affordance chevron = the nav-chrome tier (§2: section-header back
             is STROKE_NAV), same hand as the dashboard section header's back. */}

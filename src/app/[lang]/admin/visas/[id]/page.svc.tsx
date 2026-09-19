@@ -57,7 +57,7 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
   if (result.state === 'not-found') notFound()
   if (result.state === 'unavailable') {
     return (
-      <div className="flex flex-1 flex-col bg-background">
+      <div className="flex flex-1 flex-col">
         <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
           <Card className="px-5 py-6">
             <p className="text-sm text-muted-foreground">The visa tables are not reachable from this environment yet, so this case cannot be shown.</p>
@@ -106,7 +106,7 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
   const warningsOf = (d: VisaDocumentRow): string[] => codesOf(d, 'warnings')
 
   return (
-    <div className="flex flex-1 flex-col bg-background">
+    <div className="flex flex-1 flex-col">
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         <Link href="/admin/services?tab=visas" className="inline-flex items-center gap-1.5 text-sm font-bold text-accent-foreground">
           <ArrowLeft className="h-4 w-4" />Visa queue

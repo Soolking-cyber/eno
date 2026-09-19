@@ -283,6 +283,55 @@
   --home-wash-strong: #e8f1fb;
   --home-wash-mid: #f5f9fe;
   --home-wash-soft: #f8fbfe;
+  /**
+   * ⛔ THE WASH, WRITTEN ONCE. `.home-wash` and `.wash-surface` both paint this; the stops and the
+   * reasoning behind them live with `.home-wash` at the bottom of this file. It is a VARIABLE rather
+   * than a repeated declaration because the account panel needed the identical gradient and a
+   * hand-copied second copy is a drift waiting to happen.
+   * ⚠️ IT IS CORRECT IN DARK MODE, AND THE REASON IS NARROWER THAN THE ONE THIS NOTE FIRST GAVE.
+   * The claim was "a `var()` is substituted where it is USED, not where it is declared", and all
+   * three reviewers called it out: a custom property's `var()`s are substituted at computed-value
+   * time on the element that DECLARES it, and the result is what descendants inherit. The reason it
+   * works here is that both declarations land on the SAME element — this block and the dark token
+   * block are both `:root`/`html` — so substitution happens after the dark tokens have been applied
+   * to that element. Measured on the built preview: `.wash-surface` in dark resolves to
+   * `rgb(21,32,44) … rgb(27,27,27)`, the dark values.
+   * ⛔ THE CONSEQUENCE, WHICH IS THE PART WORTH KEEPING: if a theme is ever scoped to something
+   * BELOW the root — a `.dark` wrapper mid-page, a per-panel theme — this variable keeps the root's
+   * colours and the reviewers' failure mode becomes real. Redefine `--wash-image` alongside any such
+   * scope, or move the declaration down with it.
+   */
+  /**
+   * ⛔ IT NO LONGER LANDS ON `--background`, IT LANDS ON THE SOFT STOP AND STAYS THERE (owner,
+   * 2026-09-19, on a signed-in desktop screenshot: "do you see sides are white center blue background
+   * make sure blue all page even dashboar background"). A gradient that fades to the neutral canvas
+   * can only ever tint the TOP of one element; every surface beside it — the account rail, the
+   * dashboard, the page below 1200px — stayed white, and side by side that reads as a broken band
+   * rather than a wash. Ending on `--home-wash-soft` makes the tint the app's FLOOR, so there is no
+   * depth and no surface at which blue runs out.
+   * ⚠️ `--wash-tail` IS WHAT EVERY NON-GRADIENT SURFACE PAINTS so it meets the gradient exactly where
+   * they touch. Change the two together or the seam comes back.
+   * ⚠️ AND IT IS THE SOFT STOP RATHER THAN SOMETHING BLUER BECAUSE OF CONTRAST: muted (#737373) is
+   * the weakest ink this app puts on a page and needs 4.5:1 — it clears on soft (4.57:1) and FAILS on
+   * mid (4.49:1). The floor is the one stop every page is guaranteed to use, so it cannot be the
+   * marginal one.
+   */
+  --wash-tail: var(--home-wash-soft);
+  /**
+   * ⛔ IT IS FLAT NOW — THE FADE IS GONE ON PURPOSE (owner, 2026-09-19: "remove the blue fade
+   * overall", after: "top navbar area and dashboard area mismatch the shade of blue ... bad
+   * experience"). The gradient could not be tuned into agreement, and that is structural rather than
+   * a bad value: the header is ONE fixed shade and the page FADED beneath it, so the two matched only
+   * at scroll 0 and showed a moving seam at every other position. Chrome that does not scroll cannot
+   * track a background that does.
+   * ⚠️ SO THE WHOLE APP IS ONE COLOUR — `--wash-tail` — and mismatch becomes impossible rather than
+   * merely fixed: header, page, account rail, dashboard and canvas all resolve to the same value at
+   * every scroll position, on every route, in both themes.
+   * ⚠️ KEPT AS A VARIABLE rather than deleted so `.wash-surface` and the shells that reference it do
+   * not each need editing, and so a future band is one edit here. If a fade ever comes back, it has
+   * to solve the header problem first.
+   */
+  --wash-image: none;
   /* Muted deep navy-blue ramp end — fixed dark marketing panels (both themes) */
   --brand-deep: #1b4b76;
   --brand-deeper: #0c2b48;
@@ -302,9 +351,22 @@
      ⚠️ Changing the label cap changes this number — keep the arithmetic above true. */
   --account-w-open: 240px;
 
-  /* Surfaces — soft neutral canvas so white surfaces (cards, header, popovers)
-     gain subtle Airbnb-style depth without reintroducing borders/boxes. */
-  --background: #fafafa;
+  /**
+   * ⛔ THE CANVAS IS THE WASH'S FLOOR — NOT A NEUTRAL (owner, 2026-09-19: "dashboard pages and navbar
+   * dont have the blue background"). Painting `html`, `body` and a handful of named elements was
+   * whack-a-mole: every screen with its own full-bleed `bg-background` wrapper — /signin, the
+   * dashboard shells, the header on any page but home — kept covering the floor with #fafafa, and
+   * each one had to be found by hand. There are 59 `bg-background` call sites; this is the one edit
+   * that reaches all of them, and any written tomorrow.
+   * ⚠️ `--card` MOVES WITH IT, deliberately, per the note below: the two are kept IDENTICAL so the
+   * canvas stays flat (owner 2026-07-24, "background color as uniform as possible almost no boxes").
+   * Tinting one and not the other would make ~112 card surfaces pop as panels — the exact look that
+   * rule exists to prevent.
+   * ⚠️ CONTRAST IS UNCHANGED IN PRACTICE: muted (#737373), the weakest ink this app puts on a page,
+   * measures 4.57:1 here against 4.61:1 on the old #fafafa — both clear AA, and the wash's own stops
+   * were already chosen against that same threshold.
+   */
+  --background: var(--wash-tail);
   --foreground: #171717;
   /* ⚠️ THE FLAT CANVAS (owner 2026-07-24: "background color as uniform as possible almost no
      boxes"). `--card` is deliberately IDENTICAL to `--background`, which flattens all ~112
@@ -315,7 +377,7 @@
      genuinely needs to sit apart uses `--tint` (a real well) or a `--border` hairline. Things
      that FLOAT — dialog, popover, menu, toast, sticky bar, lightbox — keep their own elevated
      surface, because there the boundary is the information. See docs/flat-surface-plan.md. */
-  --card: #fafafa;
+  --card: var(--wash-tail);   /* identical to --background, by the rule above */
   --card-foreground: #171717;
   /* Floating panels MATCH the canvas (user decision 2026-07-13 — pure-white
      dropdowns read lighter than the #fafafa app). Dark keeps its lighter
@@ -657,11 +719,12 @@
   --home-wash-mid: #1a1e22;
   --home-wash-soft: #1c1d1f;
 
-  --background: #1b1b1b;   /* soft neutral canvas (lighter than near-black) */
+  /* Same rule as light: the canvas IS the wash's floor, and --card tracks it. */
+  --background: var(--wash-tail);
   --foreground: #f0f0f0;
   /* Flat canvas in dark too — same reasoning as light. Floating surfaces (--popover) keep the
      lift; an in-flow panel does not. */
-  --card: #1b1b1b;
+  --card: var(--wash-tail);
   --card-foreground: #f0f0f0;
   --popover: #2a2a2a;
   --popover-foreground: #f0f0f0;
@@ -767,7 +830,26 @@
      feel, and on the web everywhere — which is why the exposed-strip problem is a native-iOS-only
      concern at all. */
   html {
-    background-color: var(--card);
+    /* ⛔ THE CANVAS TAKES THE WASH'S FLOOR TOO — it was `--card` (#fafafa) and that is the white strip
+       the owner photographed down the right-hand side (2026-09-19). It is only three values off the
+       floor, which is exactly why it reads as white BESIDE the tint rather than as a shade of it: a
+       scrollbar gutter, the area under a short page and the overscroll strip all paint here, and none
+       of them belong to any element a page can class.
+       ⚠️ The note above still applies to everything else about this declaration; only the colour
+       moved, and `html.native-ios` further down still repaints the canvas for the one context where
+       the top edge is reachable. The pair is intact. */
+    background-color: var(--wash-tail);
+    /* ⛔ THE CANVAS CARRIES THE GRADIENT, NOT JUST THE TAIL — the flat floor was only half the fix
+       (owner, 2026-09-19, cropping the right edge: "now same on the right side on desktop"). The
+       scrollbar gutter is painted by THIS element while the page beside it paints `--wash-image`, so
+       down at the tail they matched and up at the top — where the wash is at its strongest — they
+       did not, leaving a pale vertical seam the full height of the window.
+       ⚠️ BOTH THIS AND `body` BELOW MUST CARRY IT. A background on `html` stops `body`'s from
+       propagating to the canvas, but `body`'s own box still paints over `html` within its bounds —
+       so giving the gradient to only one of them either flattens the page or strands the gutter.
+       Same image, same stops, both boxes starting at the top of the document: no seam. */
+    background-image: var(--wash-image);
+    background-repeat: no-repeat;
     overscroll-behavior-y: none;
     /* Kill the grey tap-flash on Android (we have :active/:focus-visible styling). */
     -webkit-tap-highlight-color: transparent;
@@ -775,8 +857,25 @@
        (jumping the scroll on short pages like /saved) and fights the auto-hide nav.
        Horizontal rail snap (contained scrollers) is kept; vertical feeds scroll freely. */
   }
+  /**
+   * ⛔ THE APP'S FLOOR IS THE WASH'S TAIL, NOT THE NEUTRAL CANVAS (owner, 2026-09-19: "make sure blue
+   * all page even dashboar background"). `bg-background` here was the reason the tint kept running
+   * out: the home page painted a gradient on ONE div, and everything outside it — the account rail,
+   * /dashboard, the gutters beside a centred column, the page past the gradient's last stop — fell
+   * back to #fafafa and read as white panels beside a blue one.
+   * ⚠️ SETTING IT ON `body` REACHES SURFACES NO PAGE COMPONENT OWNS, which is the point: the strip
+   * beside a `max-w-7xl` column belongs to no element a page can class.
+   * ⚠️ `html` ABOVE TAKES THE SAME FLOOR, for the surfaces below and outside this element: the
+   * scrollbar gutter, the area under a short page, the overscroll strip. The two are set separately
+   * because they answer different questions — this one is the page, that one is the canvas — but
+   * they must hold the SAME value or the seam reappears at the edge.
+   */
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply text-foreground antialiased;
+    background-color: var(--wash-tail);
+    /* The page's half of the pair above — see the note on `html`. */
+    background-image: var(--wash-image);
+    background-repeat: no-repeat;
     /* Stated explicitly rather than left to Tailwind's preflight, so the site's typeface is
        visible in this file instead of buried in `--default-font-family`. The fallback lives
        INSIDE the var() on purpose: `var(--x), ui-sans-serif` does NOT survive a missing --x —
@@ -882,35 +981,81 @@
  * ⚠️ `background-attachment` stays default: a fixed wash would slide under the content on scroll and
  * re-tint the whole page rather than staying with the top of it.
  */
+/**
+ * ⛔ IT PAINTS NOTHING NOW, AND IT IS KEPT ONLY AS A HOOK. The home page's wash was this class; since
+ * the canvas itself became the app's colour and the fade was removed (owner, 2026-09-19: "remove the
+ * blue fade overall"), repeating the fill here would be a second copy of the page floor for no gain
+ * — and a second copy is precisely how the mismatches in this file's history began.
+ * ⚠️ THE CLASS STAYS BECAUSE A DESCENDANT RULE STILL NEEDS IT: `.home-wash #explorer-toolbar` below
+ * scopes the filter strip's tint to the home page. Delete the class and that rule stops matching.
+ * The three long notes that stood here — the 64px hold, "the stops do not move to solve a problem
+ * with something sitting on them", and the soft stop holding through the filter strip — described a
+ * gradient that no longer exists; they are in git with the commit that removed it.
+ */
 .home-wash {
-  background-color: var(--background);
-  /* ⚠️ THE STRONG STOP HOLDS TO 64px, WHICH IS THE HEADER'S HEIGHT. The header sits INSIDE this
-     element, so the gradient's 0px is behind it; without the hold, the first pixel the visitor
-     actually sees — just under the header — would already be a third of the way to the mid stop and
-     the header band would read as a seam. */
-  /* ⛔ THESE STOPS ARE THE WASH ITSELF AND THEY DO NOT MOVE TO SOLVE A PROBLEM WITH SOMETHING SITTING
-     ON THEM. They were once pushed to 450px so the strong blue would swallow the filter strip, and
-     the owner rejected it in the clearest possible terms (2026-09-18): "here you did the opposite of
-     what i asked the inside of the box where are price type etc should take outsides blue hue not
-     give outside the box more saturated blue." An element that reads as a band blends by taking the
-     page's colour; saturating the page to match the element is the same mistake upside down, and it
-     repaints everything to fix one box. Change what sits on the wash, not the wash. */
-  /* ⚠️ THE SOFT STOP HOLDS THROUGH THE FILTER STRIP (owner, 2026-09-18: "add background blue here
-     too", pointing at the type/price/sort row). The wash used to reach the plain canvas by 620px,
-     which is just above that strip on a phone — so the chrome above the feed was tinted and the
-     chrome below it was not, which reads as an unfinished gradient rather than a band. It now holds
-     the soft tint to 900px and lands on the canvas at 1200px, where the listing cards start. */
-  background-image: linear-gradient(
-    180deg,
-    var(--home-wash-strong) 0,
-    var(--home-wash-strong) 64px,
-    var(--home-wash-mid) 200px,
-    var(--home-wash-soft) 340px,
-    var(--home-wash-soft) 900px,
-    var(--background) 1200px
-  );
+  background-color: transparent;
+}
+
+/**
+ * ⛔ THE SAME WASH, ON A SURFACE THAT IS NOT THE PAGE (owner, 2026-09-19, pointing at the account
+ * panel: "add the background blue here too sontinuation of homepage"). The panel is a full-screen
+ * sheet on a phone, so landing on flat `--background` beside a washed home page made it read as a
+ * different app rather than the same one with a drawer open.
+ *
+ * ⚠️ IT SHARES `--wash-image` RATHER THAN RESTATING THE STOPS, and that is the whole reason the
+ * variable exists. Two hand-copied gradients are two things to keep in step, and this session has
+ * already watched a copied colour drift from its source; the toolbar rule three blocks up takes its
+ * value from the same tokens for the same reason. Change the stops once, above, and every washed
+ * surface moves together.
+ * ⚠️ THE PANEL IS `position: fixed`, so the gradient's 0px is the TOP OF THE VIEWPORT rather than the
+ * top of a scrolling page. That is what makes it read as continuous: the strong stop lines up with
+ * the header's band whatever the page behind has scrolled to, instead of sliding out of step with it.
+ * ⛔ AND IT MUST STAY OPAQUE. The mobile panel covers the page outright — the component's own note
+ * says "anything less lets the page bleed through" — so this is a gradient between opaque colours,
+ * never an alpha. Do not reach for a tint here.
+ */
+/**
+ * ⛔ IT PAINTS THE IMAGE ONLY — THE CALLER OWNS `background-color`, AND THAT IS A MEASURED FIX RATHER
+ * THAN a preference. The first version also set `background-color: var(--background)`, and all three
+ * reviewers caught what that does: it is a single-class selector emitted after the utilities, so it
+ * beats `lg:bg-muted/10` on source order exactly as the image did — measured on the built preview at
+ * 1440px, the collapsed account rail came back `rgb(250,250,250)` instead of its 10% muted tint. That
+ * rail is deliberately borderless and shadowless, so the tint is its ONLY edge against the page: the
+ * "fix" would have made it disappear. Killing the image at lg did not rescue it, because the colour
+ * was a second, separate override.
+ * ⚠️ SO A CALLER MUST BRING ITS OWN OPAQUE COLOUR. The gradient's last stop is `--background` and
+ * there is nothing beneath it here; the account panel carries `bg-background` for that, which is also
+ * what keeps the phone sheet from letting the page bleed through.
+ */
+.wash-surface {
+  /**
+   * ⛔ IT PAINTS A COLOUR AGAIN NOW THAT `--wash-image` IS `none`. When this class carried a gradient
+   * the colour was deliberately left to the caller (a `background-color` here beat `lg:bg-muted/10`
+   * on source order and erased the desktop rail's tint). With the wash flat there is no image to
+   * paint, so image-only would make this class a no-op — and its one caller, the mobile account
+   * sheet, MUST be opaque or the page shows through it.
+   * ⚠️ Same value as the page, which is the point: the sheet cannot disagree with what it covers.
+   */
+  background-color: var(--wash-tail);
+  background-image: var(--wash-image);
   background-repeat: no-repeat;
 }
+
+/**
+ * ⛔ THE DESKTOP KILL LIVES HERE, NOT AT THE CALL SITE, AND A MEASUREMENT IS WHY. The first version
+ * paired the class with Tailwind's `lg:[background-image:none]` and it LOST: both are single-class
+ * selectors, so specificity ties and STYLESHEET ORDER decides — and this file's rules are emitted
+ * after the utilities. Measured on the built preview at 1440px, the gradient was still painting over
+ * the rail's `lg:bg-muted/10`. CLAUDE.md states this trap in as many words ("stylesheet order
+ * decides, which is not weight order"); it applies to a hand-written class versus a utility exactly
+ * as it does to a `render`-prop child.
+ * ⚠️ SO THE PAIR IS ADJACENT AND ORDERED ON PURPOSE. This rule follows `.wash-surface` in the same
+ * file, which is the only ordering either depends on. Keep them together; splitting them puts the
+ * behaviour back at the mercy of build order.
+ * ⚠️ `.wash-surface` ITSELF STAYS GENERAL — it paints at every width. This opt-out is what a caller
+ * adds when it wants the wash on phones only, which is the account sheet's case: on desktop that
+ * element is a 72px rail over page content, with two deliberate opaque looks of its own.
+ */
 
 /**
  * ⛔ AND THE HEADER TAKES THE WASH'S TOP COLOUR RATHER THAN GOING TRANSPARENT (owner, 2026-09-18:
@@ -920,8 +1065,19 @@
  * A solid band of the wash's own first stop keeps the header legible at any scroll position and
  * still reads as one continuous wash at rest, which is what the 58 app does with its orange band.
  */
-.home-wash #app-header {
-  background-color: var(--home-wash-strong);
+/**
+ * ⛔ ON EVERY PAGE NOW, NOT JUST THE WASHED ONE (owner, 2026-09-19: "dashboard pages and navbar dont
+ * have the blue background"). The `.home-wash` scope made sense while only the home page carried the
+ * wash; `html` and `body` carry it everywhere since, so the header sits over the gradient's STRONG
+ * band — its first 64px — on every route. Scoping it to home meant the navbar matched the page it
+ * sat on there and contradicted it everywhere else.
+ * ⚠️ 64px IS BOTH NUMBERS ON PURPOSE: it is the header's height AND the depth the strong stop holds
+ * to in `--wash-image`. They were chosen to agree; change one and the header becomes a seam again.
+ */
+#app-header {
+  /* ⚠️ THE SAME COLOUR AS THE PAGE, not a stronger stop — see `--wash-image`. A distinct header shade
+     is exactly what produced the seam the owner reported once the page scrolled beneath it. */
+  background-color: var(--wash-tail);
 }
 
 /**
@@ -953,13 +1109,24 @@
  * OTHER surface — so it must not be removed from the component to serve this one.
  */
 .home-wash #explorer-toolbar {
-  background-color: var(--home-wash-soft);
+  /* ⚠️ STILL NEEDED THOUGH IT IS NOW THE PAGE'S OWN COLOUR: the component's `bg-background/95` is
+     TRANSLUCENT, and a pinned bar must be opaque so listing photos do not scroll through it. Same
+     value as everything else — see `--wash-image` on why there is only one. */
+  background-color: var(--wash-tail);
 }
 
 /* Dashboard canvas — plain unified canvas (owner 2026-07-18 removed the brand-blue radial bloom
    that used to breathe up low-centre; now content floats on flat light, no glow). */
+/**
+ * ⛔ THE DASHBOARD SITS ON THE WASH TOO (owner, 2026-09-19: "even dashboar background"). It was flat
+ * `--background` — a white page reached from a blue one, through a rail that is itself washed.
+ * ⚠️ THE FULL GRADIENT, NOT JUST THE TAIL, so the top of the dashboard carries the same band as the
+ * top of the home page and the header above it has something to continue into.
+ */
 .dashboard-canvas {
-  background-color: var(--background);
+  background-color: var(--wash-tail);
+  background-image: var(--wash-image);
+  background-repeat: no-repeat;
 }
 
 /* ============================================================
@@ -1719,6 +1886,13 @@ html.native-ios {
    worse regression than a rare bottom seam. Verify on a device first, then swap. */
 html.native-ios {
   background-color: var(--background);
+  /* ⛔ AND THE WASH IMAGE MUST BE KILLED HERE, OR THIS WHOLE RULE STOPS WORKING. The base `html` rule
+     gained `background-image: var(--wash-image)` on 2026-09-19 so the scrollbar gutter would stop
+     showing a pale seam — but a background-image paints OVER a background-color, so without this line
+     the colour below is set and never seen, and every native pull-to-refresh would drag the
+     gradient's TOP STOP into the strip above the header instead of the header's own colour. A
+     reviewer caught it; the rule above says these two are a pair and this is what keeps them one. */
+  background-image: none;
 }
 
 /* Android safe areas under Capacitor's edge-to-edge handling. Corrected 2026-07-21 against
