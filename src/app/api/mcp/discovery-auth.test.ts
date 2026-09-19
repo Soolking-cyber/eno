@@ -40,7 +40,24 @@ const post = (body: unknown) =>
     body: JSON.stringify(body),
   }) as never
 
-describe('MCP discovery is open', () => {
+/**
+ * ⚠️ 20s, NOT THE 5s DEFAULT, AND THE REASON IS COLD IMPORTS UNDER LOAD — not a slow assertion.
+ * `beforeEach(vi.resetModules)` means every `await import('./route')` below pays the FULL module
+ * graph again, and that graph reaches `root-segments.ts`, which `readdirSync`-walks every route
+ * directory in the app. Measured 2026-09-19: this file runs in 2.4s on its own (80ms of import),
+ * and times out at 5s inside the 306-file suite, where vitest reports ~122s of import time
+ * competing across workers. Adding twenty route directories in one commit was enough to tip it.
+ *
+ * ⛔ IT SITS ON THE `describe`, NOT ONE `it`. A reviewer caught that the first fix contradicted its
+ * own diagnosis: if `resetModules` makes EVERY test in this block pay the full import, then pinning
+ * the budget on a single test just moves which one fails next. The whole block shares the cost, so
+ * the whole block gets the allowance.
+ *
+ * ⛔ THE BUDGET WAS THE BUG, NOT THE CODE. Nothing here got slower per se — the timeout was set
+ * close enough to the cold-import cost that ordinary growth in the app crosses it, which makes this
+ * test fail for reasons unrelated to what it asserts. The assertions are unchanged.
+ */
+describe('MCP discovery is open', { timeout: 20_000 }, () => {
   beforeEach(() => vi.resetModules())
 
   it('initialize completes without a credential — the handshake the auditor could not finish', async () => {
