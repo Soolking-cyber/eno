@@ -20,7 +20,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // ⚠️ Provider keys are read at MODULE LOAD, so the env has to be set before the dynamic
 // import below — a top-level `import` would bind them as undefined and every test would
 // pass vacuously (no key ⇒ passthrough ⇒ "no upstream call" is trivially true).
-process.env.GOOGLE_TRANSLATE_API_KEY = 'test-key-not-a-real-credential'
+/* ⚠️ AZURE, because it is the only paid provider since 2026-09-19 (owner: "we use azure only from
+   now on"). This line set GOOGLE_TRANSLATE_API_KEY, and when that path was deleted every assertion
+   about "did it call upstream" inverted: no key ⇒ passthrough ⇒ 14 failures that looked like a
+   detector regression and were really an unconfigured provider. The region is set too — azureTranslate
+   only sends the region header when it is present, and a regional key 401s without it. */
+process.env.AZURE_TRANSLATOR_KEY = 'test-key-not-a-real-credential'
+process.env.AZURE_TRANSLATOR_REGION = 'southeastasia'
 
 type Row = { hash: string; target: string; value: string }
 
@@ -58,11 +64,14 @@ vi.mock('./db', () => ({
 const PREFIX = '[mt]'
 const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => {
   state.fetches.push(String(url))
-  const q: string[] = JSON.parse(String(init?.body ?? '{}')).q ?? []
+  /* Azure's wire shape: request is `[{Text}]`, response a PARALLEL array of
+     `{translations:[{text}]}` — see azureTranslate in ./translate. */
+  const items: { Text: string }[] = JSON.parse(String(init?.body ?? '[]'))
   return {
     ok: true,
     status: 200,
-    json: async () => ({ data: { translations: q.map((s) => ({ translatedText: `${PREFIX}${s}` })) } }),
+    headers: { get: () => null },
+    json: async () => items.map((it) => ({ translations: [{ text: `${PREFIX}${it.Text}` }] })),
     text: async () => '',
   }
 })
@@ -136,7 +145,9 @@ describe('translateBatch · same-language is free', () => {
     expect(out[1]).toBe(`${PREFIX}${EN}`) // translated
     // Exactly one provider call, carrying only the string that needed work.
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    const sent = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')).q
+    /* Azure sends `[{Text}]`, not Google's `{q:[…]}` — the provider changed, the question did not:
+       the batch must carry ONLY the string that needed work. */
+    const sent = (JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '[]')) as { Text: string }[]).map((i) => i.Text)
     expect(sent).toEqual([EN])
   })
 })

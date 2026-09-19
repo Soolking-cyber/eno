@@ -51,7 +51,10 @@ export const GET = route({ auth: 'admin' }, async ({ req }) => {
     coverage[lang] = { have, total: UI_STRINGS.length, pct: Math.round((have / UI_STRINGS.length) * 1000) / 10 }
   }
 
-  const providerConfigured = !!(process.env.AZURE_TRANSLATOR_KEY || process.env.GOOGLE_TRANSLATE_API_KEY)
+  /* ⚠️ AZURE ONLY since 2026-09-19 — the Google Translation key was removed from the runtime
+     (owner: "we use azure only from now on"), so asking about it here would report a provider that
+     no longer exists and mask a genuinely unconfigured deployment. */
+  const providerConfigured = !!process.env.AZURE_TRANSLATOR_KEY
   const base = { strings: UI_STRINGS.length, providerConfigured, coverage }
 
   if (new URL(req.url).searchParams.get('probe') !== '1') return base

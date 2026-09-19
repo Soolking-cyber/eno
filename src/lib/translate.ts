@@ -23,17 +23,19 @@ const AZURE_KEY = process.env.AZURE_TRANSLATOR_KEY
 const AZURE_REGION = process.env.AZURE_TRANSLATOR_REGION
 const AZURE_ENDPOINT = process.env.AZURE_TRANSLATOR_ENDPOINT || 'https://api.cognitive.microsofttranslator.com'
 
-// Google Cloud Translation (v2) — PRIMARY provider; Azure stays as a fallback.
-const GOOGLE_KEY = process.env.GOOGLE_TRANSLATE_API_KEY
-const GOOGLE_ENDPOINT = 'https://translation.googleapis.com/language/translate/v2'
+/**
+ * ⛔ AZURE IS THE ONLY PAID PROVIDER (owner, 2026-09-19: "we use azure only from now on"). Google
+ * Cloud Translation was the PRIMARY and is gone — key, endpoint, language-code map and
+ * `googleTranslate()` — after a billing screenshot put it at 90% of the Google spend.
+ * ⚠️ THE BILL HAD A CAUSE WORTH RECORDING, because "switch providers" turned out to be mostly a
+ * credential repair: Azure was already wired as the fallback and its key was answering 401, so every
+ * paid call fell through to Google. Deleting this path is what stops that returning silently.
+ * ⚠️ NOT A LOSS OF COVERAGE. `translateChunk` keeps the self-hosted box model reachable behind the
+ * paid provider — its ⛔ note ("PAID-FIRST IS AN ORDERING, NOT A BYPASS") is the guarantee that an
+ * Azure outage degrades to slow-and-free rather than to nothing at all.
+ */
 
-// Google v2 codes match ours except Simplified Chinese (Google uses zh-CN).
-const GOOGLE_CODE: Record<Lang, string> = {
-  en: 'en', vi: 'vi', 'zh-Hans': 'zh-CN', ko: 'ko', ja: 'ja',
-  ru: 'ru', km: 'km', ms: 'ms', th: 'th', fr: 'fr', hi: 'hi',
-}
-
-// Keep chunks safe for BOTH providers (Google ≤128 items/request; Azure ≤1000).
+// Chunk sizing stays conservative (Azure allows ≤1000 items per request).
 const MAX_ITEMS = 100
 const MAX_CHARS = 28000
 
@@ -235,30 +237,6 @@ function decodeEntities(s: string): string {
     .replace(/&amp;/g, '&')
 }
 
-/** Translate one chunk into a single target via Google Cloud Translation v2, with
- *  retry/backoff on 429/5xx. Returns translated strings in order, or null on a
- *  hard failure (caller falls back to Azure, then source text). */
-async function googleTranslate(chunk: string[], target: Lang): Promise<string[] | null> {
-  const body = JSON.stringify({ q: chunk, target: GOOGLE_CODE[target], format: 'text' })
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      const res = await fetch(`${GOOGLE_ENDPOINT}?key=${GOOGLE_KEY}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
-      })
-      if (res.status === 429 || res.status >= 500) { await sleep(Math.min(400 * (attempt + 1), 5000)); continue }
-      if (!res.ok) { console.error('[translate] google error', res.status, await res.text().catch(() => '')); return null }
-      const json = await res.json()
-      const items = json?.data?.translations
-      if (!Array.isArray(items)) return null
-      return chunk.map((src, i) => decodeEntities(items[i]?.translatedText ?? src))
-    } catch (err) {
-      if (attempt === 3) { console.error('[translate] google request failed', err); return null }
-      await sleep(400 * (attempt + 1))
-    }
-  }
-  return null
-}
-
 /**
  * Provider dispatch: the SELF-HOSTED model first, paid providers only for what it refuses.
  *
@@ -355,8 +333,7 @@ async function payFor(
   if (texts.length === 0) return []
   const usable = (r: string[] | null): r is string[] => Array.isArray(r) && r.length === texts.length
   let paid: string[] | null = null
-  if (GOOGLE_KEY) { const g = await googleTranslate(texts, target); if (usable(g)) paid = g }
-  if (!paid && AZURE_KEY) { const a = await azureTranslate(texts, target); if (usable(a)) paid = a }
+  if (AZURE_KEY) { const a = await azureTranslate(texts, target); if (usable(a)) paid = a }
   if (paid && billed) {
     billed.chars += texts.reduce((n, t) => n + t.length, 0)
     billed.strings += texts.length
@@ -409,7 +386,7 @@ async function translateChunk(
         // ⚠️ An UNDETECTED source is only left for the paid provider when there IS one. With no
         // paid key the string has nowhere else to go, and marking it failed would re-run the
         // same losing inference on every render forever (codex). Serve it, cache nothing.
-        if (detected || (!GOOGLE_KEY && !AZURE_KEY)) { passthrough[item.i] = true }
+        if (detected || !AZURE_KEY) { passthrough[item.i] = true }
         continue
       }
       const group = bySource.get(source)
@@ -522,7 +499,7 @@ export async function translateBatch(
     // serve the free cache hits, pass misses through as source, call NO provider.
     if (opts?.cachedOnly) {
       for (const t of misses) out.set(t, t)
-    } else if (!GOOGLE_KEY && !AZURE_KEY && !localMtConfigured()) {
+    } else if (!AZURE_KEY && !localMtConfigured()) {
       // ⚠️ localMtConfigured() BELONGS IN THIS GUARD. Without it a box running ONLY the
       // self-hosted model — the whole point of MT_LOCAL_URL — takes this branch and passes
       // every string through untranslated, silently, because the check only ever asked
@@ -654,7 +631,7 @@ const EAGER_WARM_LANGS: Lang[] = (['vi', 'zh-Hans', 'ko', 'ja', 'ru'] as Lang[])
  */
 export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_WARM_LANGS): Promise<void> {
   const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
-  if (clean.length === 0 || (!GOOGLE_KEY && !AZURE_KEY && !localMtConfigured())) return
+  if (clean.length === 0 || (!AZURE_KEY && !localMtConfigured())) return
   // ⚠️ A GLOBAL, FAIL-CLOSED CEILING ON THE ONLY UNCAPPED PAID CALL IN THE PUBLISH PATH.
   // This runs from `after()` on EVERY listing create and bulk-import row, and it calls Google/Azure
   // translate once per language — six of them. Until now nothing bounded it: chargeCharBudget()
