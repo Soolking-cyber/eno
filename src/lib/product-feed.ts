@@ -134,7 +134,7 @@ export const GPC_BY_SUBCATEGORY: Record<string, string> = {
   'laptops-pcs': '278',           // Electronics > Computers
   'tv-monitors': '404',           // Electronics > Video > Televisions
   audio: '223',                   // Electronics > Audio
-  cameras: '2096',                // Cameras & Optics > Cameras > Digital Cameras
+  cameras: '142',                 // Cameras & Optics > Cameras
   /**
    * ⛔ THE TWO SHELVES ADDED IN THE SORTING PASS NEED A LEAF HERE OR THEY SHIP WITH NO
    * `google_product_category` AT ALL. opus flagged the gap as INSUFFICIENT-to-judge and it was
@@ -157,16 +157,29 @@ export const GPC_BY_SUBCATEGORY: Record<string, string> = {
   'security-cameras': '362',      // Cameras & Optics > Cameras > Surveillance Cameras
   gaming: '1294',                 // Electronics > Video Game Consoles
   'phone-cases': '2353',          // Electronics > … > Mobile Phone Cases
-  'screen-protectors': '5525',    // Electronics > … > Mobile Phone Screen Protectors
-  'keyboards-mice': '5539',       // Electronics > Computers > Computer Accessories > Input Devices
-  'bags-sleeves': '338',          // Electronics > Computers > Computer Accessories > Laptop Bags & Cases
-  'cables-chargers': '5509',      // Electronics > Electronics Accessories > Power > Chargers
-  'power-banks': '7160',          // Electronics > Electronics Accessories > Power > Battery Packs
-  smartwatch: '6552',             // Electronics > Electronics Accessories > Wearable Technology > Smart Watches
-  'electronics:storage': '499954', // Electronics > Computers > Computer Accessories > Storage Devices
+  'screen-protectors': '5468',    // Electronics > … > Electronics Films & Shields > Screen Protectors
+  'keyboards-mice': '1928',       // Electronics > … > Computer Components > Input Devices
+  'bags-sleeves': '279',          // Electronics > Electronics Accessories > Computer Accessories
+  'cables-chargers': '505295',    // Electronics > … > Power > Power Adapters & Chargers
+  'power-banks': '276',           // Electronics > … > Power > Batteries
+  /**
+   * ⛔ NOT `201` (Jewelry > Watches), AND THE REASON IS THE APPAREL REGIME, NOT THE WORD "watch".
+   * Google requires `color`, `size`, `age_group` and `gender` under Apparel & Accessories — and
+   * `smartwatch` is NOT in APPAREL_SUBCATS below, so this feed emits none of them. An apparel node
+   * with no apparel attributes is an item-level disapproval, silently, which is the exact class
+   * this whole pass was fixing. `swimming`, `sports-shoes`, `kids-clothing` and `maternity` DO sit
+   * in that set, so their apparel nodes are safe; this one is not. opus raised the risk for all of
+   * them and measuring APPAREL_SUBCATS is what separated the four safe cases from this one.
+   * ⚠️ THE 2021-09-21 TAXONOMY HAS NO WEARABLE TECHNOLOGY NODE AT ALL — grep it: zero matches for
+   * `wearable` or `smart watch`. Both seats asserted `6552` was "Wearable Technology > Smart
+   * Watches"; it is Handbag & Wallet Accessories. There is no better home than the electronics
+   * accessories aisle until Google publishes one.
+   */
+  smartwatch: '2082',             // Electronics > Electronics Accessories
+  'electronics:storage': '2414',  // Electronics > … > Computer Components > Storage Devices
   networking: '342',              // Electronics > Networking
-  printers: '5473',               // Electronics > Print, Copy, Scan & Fax > Printers
-  accessories: '4526',            // Electronics > Electronics Accessories (the aisle's own "other")
+  printers: '500106',             // Electronics > Print, Copy, Scan & Fax > Printers, Copiers & Fax Machines
+  accessories: '2082',            // Electronics > Electronics Accessories
   // fashion-beauty
   womens: '1604',                 // Apparel & Accessories > Clothing > Women's
   mens: '1604',                   // Apparel & Accessories > Clothing (Google split by size/gender attrs, not node)
@@ -176,30 +189,41 @@ export const GPC_BY_SUBCATEGORY: Record<string, string> = {
   beauty: '469',                  // Health & Beauty > Personal Care > Cosmetics
   // sports
   sportswear: '5322',             // Apparel & Accessories > Clothing > Activewear
-  'sports-shoes': '1834',         // Apparel & Accessories > Shoes > Athletic Shoes
-  swimming: '5697',               // Sporting Goods > Athletics > Swimming
+  // ⚠️ SAME AS `shoes` AND `kids-shoes` — the 2021-09-21 taxonomy has NO Athletic Shoes leaf, and
+  // the `1834` that used to sit here is not one of its ids at all. This site draws a distinction
+  // Google does not carry; sharing the node beats inventing one.
+  'sports-shoes': '187',          // Apparel & Accessories > Shoes
+  swimming: '211',                // Apparel & Accessories > Clothing > Swimwear
   'gym-yoga': '990',              // Sporting Goods > Exercise & Fitness
-  'racket-ball': '1001',          // Sporting Goods > Athletics > Racquet Sports
-  'outdoor-cycling': '3908',      // Sporting Goods > Outdoor Recreation > Cycling
+  'racket-ball': '499713',        // Sporting Goods > Athletics
+  /**
+   * ⚠️ SAME ID AS `bicycle` ON PURPOSE, AND THE COMMENTS NOW AGREE. Two shelves here — a sports one
+   * and a vehicles one — both map to Google's single Cycling node. opus flagged the pair while they
+   * carried two DIFFERENT paths for one id, which meant one comment was wrong by construction.
+   * Google draws no finer split, so the duplication is the honest answer rather than a defect.
+   */
+  'outdoor-cycling': '1025',      // Sporting Goods > Outdoor Recreation > Cycling
   'sports-accessories': '988',    // Sporting Goods
-  'sports-nutrition': '2984',     // Health & Beauty > Health Care > Fitness & Nutrition
+  'sports-nutrition': '2890',     // Health & Beauty > Health Care > Fitness & Nutrition
   // furniture-appliances
-  'sofa-seating': '441',          // Furniture > Sofas
-  'tables-desks': '443',          // Furniture > Tables
+  'sofa-seating': '460',          // Furniture > Sofas
+  'tables-desks': '6392',         // Furniture > Tables
   'beds-mattresses': '505764',    // Furniture > Beds & Accessories
   'furniture-appliances:storage': '6356', // Furniture > Cabinets & Storage
-  'lighting-decor': '594',        // Home & Garden > Decor
+  'lighting-decor': '696',        // Home & Garden > Decor
   'white-goods': '604',           // Home & Garden > Household Appliances
   kitchenware: '638',             // Home & Garden > Kitchen & Dining > Cookware & Bakeware
   'plants-garden': '985',         // Home & Garden > Plants
   'household-supplies': '630',    // Home & Garden > Household Supplies
   // baby-kids
-  'strollers-seats': '5859',      // Baby & Toddler > Baby Transport > Baby Strollers
+  'strollers-seats': '2764',      // Baby & Toddler > Baby Transport
   'baby-gear': '537',             // Baby & Toddler
   toys: '1239',                   // Toys & Games > Toys
-  'kids-clothing': '5424',        // Apparel & Accessories > Clothing > Baby & Toddler Clothing
+  'kids-clothing': '182',         // Apparel & Accessories > Clothing > Baby & Toddler Clothing
   'kids-shoes': '187',            // Apparel & Accessories > Shoes
-  maternity: '5441',              // Apparel & Accessories > Clothing > Outfit Sets (maternity has no leaf; gender+age carry it)
+  // ⚠️ SAME AS `womens`/`mens`, for the same reason — no Maternity node exists in this version.
+  // The `5441` replaced here was Wedding & Bridal Party Dresses: a real id, and a real shop.
+  maternity: '1604',              // Apparel & Accessories > Clothing
   // books-stationery
   literature: '784',              // Media > Books
   'self-help-business': '784',
@@ -210,25 +234,25 @@ export const GPC_BY_SUBCATEGORY: Record<string, string> = {
   'books-other': '784',
   'stationery-office': '922',     // Office Supplies
   // vehicles
-  motorbike: '3335',              // Vehicles & Parts > Vehicles > Motor Vehicles > Motorcycles & Scooters
+  motorbike: '919',               // Vehicles & Parts > Vehicles > Motor Vehicles > Motorcycles & Scooters
   bicycle: '1025',                // Sporting Goods > Outdoor Recreation > Cycling > Bicycles
   car: '916',                     // Vehicles & Parts > Vehicles > Motor Vehicles > Cars, Trucks & Vans
-  'ebike-scooter': '3335',
+  'ebike-scooter': '919',         // Vehicles & Parts > … > Motorcycles & Scooters
   'parts-gear': '899',            // Vehicles & Parts > Vehicle Parts & Accessories
   // hobbies-sports
   fitness: '990',                 // Sporting Goods > Exercise & Fitness
-  instruments: '783',             // Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments
-  'board-games': '1247',          // Toys & Games > Games
-  'camping-outdoor': '5655',      // Sporting Goods > Outdoor Recreation > Camping & Hiking
-  'art-crafts': '505370',         // Arts & Entertainment > Hobbies & Creative Arts > Arts & Crafts
+  instruments: '54',              // Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments
+  'board-games': '3793',          // Toys & Games > Games
+  'camping-outdoor': '1013',      // Sporting Goods > Outdoor Recreation > Camping & Hiking
+  'art-crafts': '16',             // Arts & Entertainment > Hobbies & Creative Arts > Arts & Crafts
   // pets
-  dogs: '3',                      // Animals & Pet Supplies > Pet Supplies > Dog Supplies
-  cats: '2',                      // Animals & Pet Supplies > Pet Supplies > Cat Supplies
-  supplies: '6',                  // Animals & Pet Supplies > Pet Supplies
+  dogs: '5',                      // Animals & Pet Supplies > Pet Supplies > Dog Supplies
+  cats: '4',                      // Animals & Pet Supplies > Pet Supplies > Cat Supplies
+  supplies: '2',                  // Animals & Pet Supplies > Pet Supplies
   // food-drink
-  'home-baking': '423',           // Food, Beverages & Tobacco > Food Items > Bakery
+  'home-baking': '1876',          // Food, Beverages & Tobacco > Food Items > Bakery
   groceries: '422',
-  'coffee-tea': '2073',           // Food, Beverages & Tobacco > Beverages > Coffee
+  'coffee-tea': '413',            // Food, Beverages & Tobacco > Beverages
 }
 
 /**

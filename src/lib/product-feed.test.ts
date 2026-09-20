@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import {
   feedExcluded, isGtin, feedStock, gpcFor, feedIdentifiers,
-  feedApparel, isApparel,
+  feedApparel, isApparel, GPC_BY_SUBCATEGORY, GOOGLE_PRODUCT_CATEGORY,
 } from './product-feed'
 
 /**
@@ -310,6 +312,48 @@ describe('feedStock', () => {
   })
 })
 
+/**
+ * ⛔ THE ONLY TEST HERE THAT CAN CATCH A WRONG ID. Every other assertion in this file compares the
+ * map to a literal written from the same source as the map, which proves the two agree and nothing
+ * else — opus made exactly that point, and measuring it found 32 of 72 ids wrong, SIX of which were
+ * not Google ids at all. An invalid `google_product_category` suppresses the item in Merchant
+ * Center; a valid-but-wrong one enters the wrong auction. Both are silent.
+ *
+ * ⚠️ THIS CHECKS EXISTENCE, NOT CORRECTNESS. It cannot tell that `smartwatch` belongs in the
+ * electronics-accessories aisle rather than under Handbag Accessories — both are real ids. It catches typos, invented ids and ids
+ * RETIRED by a taxonomy update, which is the class that rotted here undetected. Correctness still
+ * costs a human reading the path in the comment against the fixture.
+ */
+describe('every google_product_category id exists in Google\'s taxonomy', () => {
+  const VALID = new Set(
+    readFileSync(join(__dirname, '__fixtures__/google-product-category-ids.txt'), 'utf8')
+      .split('\n')
+      // ⚠️ `.trim()` IS NOT COSMETIC — opus caught it. On a CRLF checkout every entry would be
+      // "1\r", `VALID.has(id)` would fail for all 72 ids at once, and the guard would read as the
+      // map being catastrophically wrong rather than the fixture being read wrong.
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'))
+      // ⚠️ THE FIXTURE IS GOOGLE'S FILE VERBATIM — `278 - Electronics > Computers`. Parse the id
+      // off the front rather than storing a stripped copy, so the documented `curl` regenerates
+      // this file exactly and the path stays readable beside the id it justifies.
+      .map((l) => l.split(' - ')[0]),
+  )
+
+  it('has a fixture that actually loaded', () => {
+    // ⚠️ Guard the guard: an empty Set would make every assertion below fail loudly, but a fixture
+    // that silently lost its contents while the test still passed would be worse.
+    expect(VALID.size).toBeGreaterThan(5000)
+  })
+
+  it.each(Object.entries(GPC_BY_SUBCATEGORY))('%s → %s is a real id', (_slug, id) => {
+    expect(VALID.has(id)).toBe(true)
+  })
+
+  it.each(Object.entries(GOOGLE_PRODUCT_CATEGORY))('category %s → %s is a real id', (_slug, id) => {
+    expect(VALID.has(id)).toBe(true)
+  })
+})
+
 describe('gpcFor', () => {
   it('prefers the leaf over the aisle', () => {
     // The whole point: 67,353 electronics rows shared '222' before this.
@@ -325,11 +369,14 @@ describe('gpcFor', () => {
     // ⚠️ The parent, because the slug covers desktops too — a narrower id that is sometimes wrong
     // is worse than the aisle it replaced.
     expect(gpcFor('electronics', 'laptops-pcs')).toBe('278')
-    expect(gpcFor('electronics', 'screen-protectors')).toBe('5525')
+    // ⛔ WAS '5525' — Motor Vehicle Cassette Adapters. The assertion was written from the map, so
+    // it tracked the map's error for as long as the map held it. Now Screen Protectors (5468).
+    expect(gpcFor('electronics', 'screen-protectors')).toBe('5468')
   })
 
   it('disambiguates a slug that means two things in two aisles', () => {
-    expect(gpcFor('electronics', 'storage')).toBe('499954')          // SSDs
+    // ⛔ WAS '499954' — Bird Cage Bird Baths. Now Storage Devices (2414).
+    expect(gpcFor('electronics', 'storage')).toBe('2414')            // SSDs
     expect(gpcFor('furniture-appliances', 'storage')).toBe('6356')   // wardrobes
   })
 
