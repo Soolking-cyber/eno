@@ -314,6 +314,14 @@ describe('gpcFor', () => {
   it('prefers the leaf over the aisle', () => {
     // The whole point: 67,353 electronics rows shared '222' before this.
     expect(gpcFor('electronics', 'phones-tablets')).toBe('267')
+    // ⛔ THE TWO SHELVES ADDED BY THE SORTING PASS. Without these the rows land in Merchant Center
+    // with no google_product_category, which suppresses them — the defect this whole map prevents.
+    // ⚠️ These two assert VERIFIED ids — checked against Google's taxonomy-with-ids file on
+    // 2026-09-20, not recalled. The first values written here (`1502`, `359`) were both wrong:
+    // one does not exist, the other is Home & Garden. A test like this cannot catch that by
+    // itself; the verification is the curl in product-feed.ts's comment.
+    expect(gpcFor('electronics', 'pc-components')).toBe('285')
+    expect(gpcFor('electronics', 'security-cameras')).toBe('362')
     // ⚠️ The parent, because the slug covers desktops too — a narrower id that is sometimes wrong
     // is worse than the aisle it replaced.
     expect(gpcFor('electronics', 'laptops-pcs')).toBe('278')

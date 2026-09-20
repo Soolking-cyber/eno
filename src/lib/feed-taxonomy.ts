@@ -165,7 +165,11 @@ const SUBCATS: Record<string, [RegExp, string][]> = {
     // A desktop chassis is a "case" and is often sold WITH a tempered-glass side panel — both of
     // the rules below would claim it, and neither answer is true. Measured: "Case máy tính Corsair
     // 6500X Tempered Glass Mid-Tower".
-    [/case máy tính|vỏ máy tính|mid[- ]?tower|full[- ]?tower/i, 'accessories'],
+    // ⛔ WAS `accessories`, AND THAT PREDATES THIS SHELF. A PC chassis is a component; it went to
+    // the catch-all only because `pc-components` did not exist when this line was written, and the
+    // rule 300 lines below that now names the same words could never be reached past it. Found
+    // while measuring an opus claim whose diagnosis pointed elsewhere — the defect was real.
+    [/case máy tính|vỏ máy tính|vỏ case|mid[- ]?tower|full[- ]?tower/i, 'pc-components'],
     // A bundle of protection for a phone is a bundle of ACCESSORIES — 4 live rows ("Combo Bảo Vệ
     // iPhone 18 Series", ₫1,050,000) sat in `phones-tablets` at a tenth of any phone's price.
     // ⚠️ …UNLESS IT NAMES A STORAGE TIER, which a protection bundle never does and a bundled HANDSET
@@ -182,12 +186,304 @@ const SUBCATS: Record<string, [RegExp, string][]> = {
      */
     [/ốp lưng|bao da|(?:iphone|ipad|galaxy|samsung|xiaomi|oppo|vivo|realme|pixel|điện thoại|smartphone|tablet|máy tính bảng)[^|]{0,60}(?<![\w-])(?<!charging )(?<!(?:alumin(?:i)?um|titanium|steel|nhôm|carbon fiber) )case\b|(?<![\w-])(?<!charging )(?<!(?:alumin(?:i)?um|titanium|steel|nhôm|carbon fiber) )case\b[^|]{0,30}(?:for|cho)\s+(?:iphone|ipad|galaxy|samsung|xiaomi|oppo|vivo|realme|pixel|điện thoại|máy tính bảng)/i, 'phone-cases'],
     // ── what the thing IS ───────────────────────────────────────────────────────────────
-    [w('apple watch', 'galaxy watch', 'smartwatch', 'đồng hồ thông minh'), 'smartwatch'],
+    /**
+     * ⛔ POWER BANKS FIRST, ABOVE THE SPARE-PARTS GUARD. "Pin sạc dự phòng Xiaomi 20000mAh" is a
+     * power bank, but the guard below opens with a bare `pin` token and a brand, so it claimed it
+     * as a replacement battery — first match wins, and the power-bank rule further down never ran.
+     * Caught by this file's own test the moment the guard was split.
+     */
+    [/(?<!\p{L})(pin dự phòng|sạc dự phòng|power ?bank)(?!\p{L})/iu, 'power-banks'],
+    /**
+     * ⛔ A STYLUS IS NOT THE TABLET IT DRAWS ON, AND THIS RULE WAS DEAD WHERE IT FIRST SAT. Placed
+     * in the fallback block it never ran: "Apple Pencil Pro cho iPad Pro M4" matches `ipad` in the
+     * phones-tablets rule far above and was pinned as a TABLET. Only a stylus naming no device at
+     * all would ever have reached it — nearly none. First match wins, so a rule's position is its
+     * reachability.
+     */
+    /**
+     * ⛔ ANCHORED TO THE LEADING NOUN — unanchored it took the DEVICE. "iPad Pro M4 tặng kèm Apple
+     * Pencil" is a tablet sold with a free pen, and this rule sits above `phones-tablets`, so it was
+     * pinned as the pen. The gift-clause stripper cannot save it: cutting "tặng kèm Apple Pencil"
+     * leaves under half the title, which trips its own take-most-of-the-title revert guard.
+     */
+    [/^\s*(?:bút\s+)?(?:apple pencil|bút cảm ứng|stylus|pencil pro(?!\p{L}))/iu, 'accessories'],
+    /**
+     * ⛔ SPARE PARTS FOR A PHONE ARE NOT A PHONE, AND THIS GUARD MUST STAY ABOVE THE HANDSET RULES.
+     * The brand+series rules below match a bare "Samsung Galaxy S23" with no category noun, which
+     * is what makes them useful — and it is also what makes "Pin Samsung Galaxy S23 chính hãng" (a
+     * replacement battery) and "Bút S Pen Galaxy S24 Ultra" (a stylus) match them too. Nothing
+     * above catches either: the `sạc`/`pin dự phòng` rules are FALLBACKS and sit below. An analyst
+     * verified both against the live table. Without this line the backfill would pin spare parts as
+     * handsets, and `refreshPlacement` would make that permanent.
+     */
+    // ⛔ `pin` IS SPLIT OUT AND ANCHORED, because it is the one token here that is also ordinary
+    // marketing copy: "Điện thoại pin trâu Samsung Galaxy A16" is a PHONE sold on battery life, and
+    // the unanchored form filed it as a replacement battery. A real battery listing leads with it
+    // ("Pin Samsung Galaxy S23 chính hãng"); `thay pin` is covered by `thay` in the rule below.
+    [/^(?:pin|pin zin)(?!\p{L})(?!\s*(?:trâu|khủng|bền|lớn|xịn|ngon|to|siêu))[^|]{0,40}(galaxy|redmi|reno|iphone|ipad|xiaomi|oppo|vivo|realme|pixel|xperia|sony)/iu, 'accessories'],
+    [/(?<!\p{L})(s ?pen|bút cảm ứng|khay sim|mặt kính|(?:màn hình|bộ|thay|kính) cảm ứng|vỏ(?!\s*(?:case|máy tính|thùng))|nắp lưng|main|thay(?!\s*(?:thế|cho)))(?!\p{L})[^|]{0,40}(galaxy|redmi|reno|iphone|ipad|xiaomi|oppo|vivo|realme|pixel|xperia|sony)/iu, 'accessories'],
+    /**
+     * ⚠️ A REPLACEMENT PHONE SCREEN AND A DESKTOP MONITOR SHARE THE WORD `màn hình`, so this branch
+     * is separate and excludes `inch`. Opus caught the merged version eating "Màn hình Xiaomi Redmi
+     * 23.8 inch" — a monitor — and filing it as a phone spare part, above tv-monitors, permanently.
+     * A monitor is sold by its diagonal; a replacement panel is sold by the handset it fits.
+     *
+     * ⚠️ AND IT REQUIRES A PHONE MODEL, NOT A BARE BRAND. `inch` alone was not enough: "Màn hình
+     * máy tính Xiaomi A24i" carries no inches and is still a monitor. The panel branch therefore
+     * demands a handset series token (galaxy a16, iphone 13, redmi note 12) and excludes the
+     * computer words outright.
+     */
+    /**
+     * ⛔ `màn hình` MUST BE THE LEADING NOUN, NOT A WORD ANYWHERE IN THE TITLE. The lookahead form
+     * this replaces — `(?=.*màn hình)` — matched the phrase wherever it fell, so every handset that
+     * MENTIONS its screen was filed as a spare part: "Samsung Galaxy S23 Ultra màn hình đẹp",
+     * "iPhone 13 Pro màn hình 120Hz", "Galaxy Z Fold4 2 màn hình". agy measured all three. Those are
+     * phones, they are an ordinary way to write a VN listing, and `refreshPlacement` would have
+     * pinned them to `accessories` for good.
+     * ⚠️ THE GRAMMAR IS THE DISCRIMINATOR: a replacement panel is SOLD AS a screen, so the title
+     * opens with it ("Màn hình iPhone 13 Pro zin"); a handset merely describes one, mid-title. The
+     * `inch|máy tính|monitor` exclusion stays for desktop monitors, which also lead with the word.
+     */
+    /**
+     * ⚠️ `inch` IS NO LONGER EXCLUDED OUTRIGHT — a replacement panel quotes its diagonal too
+     * ("Màn hình iPhone 13 Pro Max 6.1 inch zin"), and excluding the word filed that spare part as
+     * a phone, the exact inverse of the bug the rule exists for. What actually separates the two is
+     * WHERE the number sits: a monitor's number IS the diagonal, so it is followed by `inch` or
+     * carries a decimal ("Màn hình Xiaomi Redmi 23.8 inch"); a handset's number is a model name and
+     * is followed by Pro/Ultra/storage. The two lookaheads test that directly.
+     *
+     * ⛔ `(?![\d.])` MUST SIT ON THE DIGITS THEMSELVES, NOT ONLY AFTER THE GROUP. A trailing
+     * `(?!\.\d)` looks equivalent and is not: for "Redmi 23.8 inch" the engine matches `\d+` as
+     * "23", fails the guard, then BACKTRACKS to "2" — where the next character is "3", the guard
+     * passes, and the monitor is filed as a phone panel. Rejecting a following DIGIT as well as a
+     * decimal leaves no shorter match to retreat to. Same engine behaviour as the unanchored
+     * lookahead that let "Tivi Xiaomi 43" through two rounds ago; it is worth recognising on sight.
+     */
+    [/^(?!.*(?:máy tính|monitor))\s*(?:bộ\s+|thay\s+|ép\s+)?màn hình(?!\p{L}).*(?:galaxy (?:z ?)?(?:fold|flip|note|s|a|m|f)\s?\d+(?![\d.])|iphone\s?(?:\d+(?![\d.])|x[rs]?(?!\p{L})|se(?!\p{L}))|ipad|redmi (?:note )?\d+(?![\d.])|reno\s?\d+(?![\d.])|oppo (?:a|f|k)\d+(?![\d.])|xiaomi 1[1-7](?![\d.])|pixel\s?\d+(?![\d.])|vivo [vy]\d+(?![\d.]))(?!\s*inch)/iu, 'accessories'],
+    /**
+     * ⛔ THESE ROUTE TO THE *SPECIFIC* SHELF, NOT TO `accessories`, AND THE FIRST DRAFT GOT THAT
+     * WRONG IN A WAY ITS OWN COMMENT HID. It sent every one of these to `accessories` and claimed
+     * "the fallbacks still refine them afterwards" — impossible: this table is FIRST MATCH, so the
+     * `cables-chargers` and `power-banks` rules below could never see them again. The effect would
+     * have been to empty the charger shelf of every phone charger in the catalogue and the power
+     * bank shelf of every "pin dự phòng", permanently, because `refreshPlacement` pins whatever
+     * lands. Opus caught it; the lesson is that a guard in an ordered table is a DESTINATION, never
+     * a detour.
+     * ⚠️ ORDER WITHIN THE BLOCK MATTERS TOO: `pin dự phòng` must precede the bare `pin` part rule,
+     * or a power bank is filed as a replacement battery.
+     */
+    [/(?<!\p{L})(sạc|cáp|củ sạc|adapter|dây sạc)(?!\p{L})[^|]{0,60}(galaxy|redmi|reno|iphone|ipad|xiaomi|oppo|vivo|realme|pixel|xperia|sony)/iu, 'cables-chargers'],
+    [/(?<!\p{L})(ốp|bao da|wallet case|smart view)(?!\p{L})[^|]{0,60}(galaxy|redmi|reno|iphone|ipad|xiaomi|oppo|vivo|realme|pixel|xperia|sony)/iu, 'phone-cases'],
+    [/(?<!\p{L})(miếng dán|dán|ppf)(?!\p{L})[^|]{0,60}(galaxy|redmi|reno|iphone|ipad|xiaomi|oppo|vivo|realme|pixel|xperia|sony)/iu, 'screen-protectors'],
+    /**
+     * ⚠️ `vòng đeo` IS IN THIS GUARD BUT A SMART BAND IS NOT AN ACCESSORY. "Vòng đeo tay thông minh
+     * Xiaomi Smart Band 9" matched `vòng đeo` + `xiaomi` and was pulled onto the accessory shelf,
+     * away from `smartwatch` where it belongs — a defect this guard introduced, caught by the
+     * analysts' own must-not list. The negative lookahead keeps straps ("Dây đeo Apple Watch") here
+     * while letting the device itself fall through to the smartwatch rule below.
+     */
+    // ⚠️ `dây` IS THE CABLE NOUN, NEVER THE ADJECTIVE. Bare, it matched "Tai nghe có dây cho
+    // iPhone 15" and "Tai nghe không dây Samsung Galaxy Buds3" — wired/wireless is how every
+    // earphone in this catalogue is described — and pulled them off the audio shelf. Same mistake
+    // as the CCTV guard's `có dây`, one block below, which this table already fixed once.
+    [/(?<!\p{L})(dây (?:sạc|cáp|nguồn)|vòng đeo|túi|giá đỡ)(?!\p{L})(?![^|]{0,30}(?:thông minh|smart band|fitness tracker))[^|]{0,60}(galaxy|redmi|reno|iphone|ipad|xiaomi|oppo|vivo|realme|pixel|xperia|sony)/iu, 'accessories'],
+    // ⚠️ A STAND FOR A THING IS NOT THE THING — "Giá đỡ máy đọc sách bằng gỗ" reached the e-reader
+    // rule below. Same shape as the camera-accessory guard above.
+    [/(?<!\p{L})(giá đỡ|chân đế|kệ|đế)(?!\p{L})[^|]{0,40}(máy đọc sách|kindle|máy tính bảng|laptop|điện thoại)/iu, 'accessories'],
+    /**
+     * ⚠️ A SMART BAND IS NOT A WATCH STRAP, and `vòng đeo tay thông minh` is how every Vietnamese
+     * listing writes it — Xiaomi Smart Band, Garmin, Huawei Band. The word-boundary helper keeps
+     * `vòng đeo` from also claiming "Dây đeo Apple Watch", which is a strap and belongs elsewhere.
+     */
+    /**
+     * ⛔ A STRAP IS AN ACCESSORY FOR EVERY BRAND, and before this line it was an accessory only for
+     * the brands that happened to be in the guard above: "Dây đeo Galaxy Watch 6" → accessories,
+     * "Dây đeo Apple Watch Series 9" → smartwatch, because that guard's brand list carries `galaxy`
+     * and not `apple`. opus caught the split. Routing by which list a brand landed in is not a rule.
+     * ⚠️ IT MUST STAY ABOVE THE SMARTWATCH RULE AND BELOW THE BAND EXCEPTION: `vòng đeo tay thông
+     * minh` is a DEVICE, not a strap, so the lookahead keeps smart bands on the watch shelf.
+     */
+    // ⚠️ NO smart-band LOOKAHEAD HERE — it was copied from the guard above and it inverted the rule:
+    // "Dây đeo silicone cho Xiaomi Smart Band 9" is a STRAP, and the lookahead pushed it onto the
+    // device shelf. Nothing called `dây đeo` is ever a device, so the exemption has nothing to guard.
+    // ⛔ ANCHORED — unanchored it took the WATCH. "Apple Watch Series 9 45mm dây đeo silicone" and
+    // "Đồng hồ thông minh Huawei Watch GT5 dây đeo da" describe a watch's strap; they are watches.
+    // This is the same leading-noun defect already fixed for `màn hình`, `pin` and `cảm ứng`, left
+    // standing one line above the shelf it guards. opus found it; nine rounds of tests asserted
+    // only titles that ARE straps, never a watch that mentions one.
+    [/^\s*(?:bộ\s+)?dây đeo(?!\p{L})/iu, 'accessories'],
+    [w('apple watch', 'galaxy watch', 'smartwatch', 'đồng hồ thông minh', 'vòng đeo tay thông minh', 'smart band', 'fitness tracker'), 'smartwatch'],
+    /**
+     * ⛔ CCTV BEFORE PHOTOGRAPHY. `máy quay` in the cameras rule below would claim a surveillance
+     * recorder, and the two belong on different shelves — see the taxonomy note on why.
+     * ⚠️ `camera ip` CARRIES A NON-LETTER BOUNDARY DELIBERATELY: bare /camera ip/i matches
+     * "Miếng dán camera iPhone 18 Pro" (camera + iP). Today the screen-protectors rule happens to
+     * claim that title first, but a guard that depends on another rule's ordering is not a guard.
+     */
+    /**
+     * ⛔ AN ACCESSORY *FOR* A CAMERA IS NOT A CAMERA, AND A DASHCAM IS NOT CCTV. Both leaked on the
+     * first draft: the brand terms below are strong (`imou`, `ezviz`), so "CAMERA HÀNH TRÌNH IMOU
+     * T400" — a dash cam — and "Thẻ nhớ MicroSD 128GB chuyên dụng cho camera Ezviz" — a memory card
+     * — both landed on the CCTV shelf. This guard runs first and hands them to the shelves that
+     * already exist for them.
+     */
+    // ⚠️ Thermal paste, thermal pads and cleaning kits are consumables FOR components, not
+    // components — "Keo tản nhiệt CPU Thermal Grizzly" reached pc-components through the bare `cpu`
+    // token, because the earlier lookbehind only covered the word sitting immediately before it.
+    [/keo tản nhiệt|thermal (?:paste|grizzly|pad)|miếng tản nhiệt/i, 'accessories'],
+    [/camera hành trình|dash ?cam/i, 'accessories'],
+    /**
+     * ⛔ SPLIT IN TWO, AND A BARE `dây` IS GONE. The single rule it replaces sent BOTH halves to
+     * `accessories`, which repeated the exact "guard as detour" error the block above condemns —
+     * this table is first-match, so `storage` below could never see a surveillance hard drive again.
+     * opus measured it: "Ổ cứng WD Purple 2TB chuyên dụng camera giám sát" is a hard drive, the
+     * `storage` shelf already lists `ổ cứng` as a keyword, and `refreshPlacement` would have pinned
+     * it to accessories permanently.
+     * ⛔ AND `dây` ALONE ATE WIRED CCTV KITS — "Bộ camera có dây 4 kênh Imou" is a camera system,
+     * not a cable, and `có dây` (wired) is the dominant form factor in VN listings, so the guard was
+     * claiming the very rows `security-cameras` was added for. It must be the cable NOUN
+     * (`dây nguồn`, `dây cáp`), never the adjective.
+     */
+    [/(?<!\p{L})(thẻ nhớ|microsd|ổ cứng|ssd|nvme|hdd)(?!\p{L})[^|]{0,40}(camera|imou|ezviz|hikvision|dahua)/iu, 'storage'],
+    [/(?<!\p{L})(adapter|nguồn|giá đỡ|chân đế|dây nguồn|dây cáp|cáp)(?!\p{L})[^|]{0,40}(camera|imou|ezviz|hikvision|dahua)/iu, 'accessories'],
+    /**
+     * ⛔ SPLIT: THE CCTV NOUNS ARE UNCONDITIONAL, THE BARE BRANDS ARE NOT. Hikvision and Dahua also
+     * sell SSDs and monitors in Vietnam, and this rule sits above both `storage` and `tv-monitors`,
+     * so "SSD Hikvision E100 512GB" and "Màn hình Dahua 24 inch" were pinned as surveillance
+     * cameras. opus measured both. A brand name is evidence, not a product type.
+     */
+    [/camera (giám sát|quan sát|an ninh|wifi|trong nhà|ngoài trời)|camera ip(?!\p{L})|đầu ghi|\bnvr\b|\bdvr\b|ipc-[a-z]/iu, 'security-cameras'],
+    [/^(?!.*(?:màn hình|monitor|\bssd\b|nvme|ổ cứng|thẻ nhớ|micro ?sd|\bhdd\b)).*(?:imou|ezviz|hikvision|dahua|kbvision|tiandy|\bvigi\b)/iu, 'security-cameras'],
     [/máy ảnh|máy quay|ống kính|\blens\b|gopro|\bdji\b|flycam|canon|nikon|fujifilm|\bngàm\b/i, 'cameras'],
+    /**
+     * ⛔ AUDIO THAT NAMES A HANDSET MUST BE CLAIMED BEFORE THE HANDSET RULE. "Tai nghe có dây cho
+     * iPhone 15" survived the accessory guard once `dây` was narrowed to the cable noun, and then
+     * the bare `iphone` below filed it as a phone — the `audio` shelf sits further down and never
+     * ran. Leading noun again: what the title opens with is what is being sold.
+     */
+    [/^(?:tai nghe|headphone|earbud|airpod|\bloa\b|sound ?bar)(?!\p{L})/iu, 'audio'],
     [/iphone|ipad|galaxy tab|điện thoại|máy tính bảng|smartphone|tablet/i, 'phones-tablets'],
-    [/macbook|laptop|thinkpad|thinkbook|latitude|elitebook|probook|inspiron|\bxps\b|precision|zbook|ideapad|vivobook|máy tính xách tay|máy tính để bàn|\bpc\b|desktop|\bnuc\b|optiplex/i, 'laptops-pcs'],
+    /**
+     * ⛔ HANDSETS WHOSE TITLE NAMES NO PRODUCT AT ALL — "Samsung Galaxy S23 Ultra 5G 12GB 256GB Cũ
+     * đẹp", "Xiaomi Redmi Note 13", "OPPO Reno15 F". 451 rows in a 1,338-row sample of the unsorted
+     * catalogue, by far the largest single group, and no rule above sees them because they contain
+     * neither `điện thoại` nor a brand the phones rule lists.
+     *
+     * ⛔ IT MUST STAY BELOW `phone-cases` AND `screen-protectors`, WHICH ARE AT THE TOP OF THIS
+     * TABLE. An analyst tested it explicitly: "Ốp lưng Samsung Galaxy S23 Ultra" and "Cường lực
+     * Xiaomi Redmi Note 13" DO match these patterns and are harmless only because `ốp lưng` and
+     * `cường lực` are claimed earlier. Move this up and you recreate the exact bug this repo
+     * already repaired once, when 95 of 127 "iPhone 18" listings turned out to be cases and glass.
+     *
+     * ⚠️ SERIES + DIGIT, NEVER A BARE BRAND. `samsung` alone is a fridge, a TV and a washing
+     * machine; `galaxy s\d` is a phone. The digit is what makes the rule a product rule.
+     */
+    /**
+     * ⛔ THE `tivi|tv|inch` EXCLUSION IS NOT COSMETIC. `xiaomi \d{2}` was written for the phone line
+     * (Xiaomi 14, 15, 17) and it also matches "Smart Tivi Xiaomi 43 inch" and "Tivi Xiaomi 55 inch",
+     * where the number is a SCREEN SIZE — and this rule sits above `tv-monitors`, so every Xiaomi
+     * television in the catalogue would have been pinned as a handset. agy caught it. A screen size
+     * in inches is the tell, and no phone title carries it.
+     *
+     * ⛔ AND THE LOOKAHEAD IS ANCHORED WITH `^`, WHICH IS THE WHOLE FIX. Unanchored, a regex engine
+     * simply retries at the next position: for "Tivi Xiaomi 43" it fails at index 0, steps past
+     * "Tivi ", then passes the lookahead on "Xiaomi 43" and matches anyway. Both review seats found
+     * this independently, and the first round of tests missed it because every title they used put
+     * `inch` AFTER the number — the one word order that happened to work.
+     */
+    /**
+     * ⛔ `xiaomi \d{2}` WAS TOO WIDE AND IT IS NOW `xiaomi 1[1-7]`. The two-digit form was written
+     * for the phone line and matched any two digits at all, so "Đèn bàn Xiaomi 24W", "Bàn phím cơ
+     * Xiaomi 68 phím" and "Quạt Xiaomi 45 độ" all landed on the phone shelf — opus measured them.
+     * Xiaomi's numbered flagship line is 11–17; a wattage, a key count and an angle are not.
+     * ⚠️ RANGE ALONE IS NOT ENOUGH, because Xiaomi reuses the same numbers on appliances
+     * ("Máy hút bụi Xiaomi 12 Pro"). The appliance nouns are therefore excluded outright, and they
+     * are safe to exclude because no handset title contains any of them.
+     * ⚠️ `màn hình` LEFT THIS LIST. It was excluding real handsets that describe their screen (see
+     * the panel rule above, now anchored to the leading noun); a MONITOR also leads with the word,
+     * so `^(?!\s*màn hình)` keeps monitors out without taking the phones with them.
+     */
+    /**
+     * ⛔ THE APPLIANCE EXCLUSION IS SCOPED TO THE XIAOMI BRANCH, WHICH IS THE ONLY BRANCH THAT
+     * NEEDED IT. Title-wide, it dropped real handsets out of the table ENTIRELY — "Galaxy A16 +
+     * quạt tản nhiệt" carries no `tặng`/`kèm`, so the gift stripper never fires, and the bare
+     * `quạt` disqualified a phone from every rule below. Unsorted is worse than either shelf, as
+     * this file says elsewhere. opus raised it twice; it was only true for the second reading.
+     */
+    [/^(?!\s*màn hình)(?!.*(?:tivi|\btv\b|monitor)).*(?:galaxy (?:z ?)?(?:fold|flip|note|s|a|m|f)\s?\d|redmi (?:note )?\d|redmi [a-z]\d|oppo (?:reno|find\s?[xn]?|a|k|f)\s?\d|reno\s?\d{2}|\bpixel\s?\d|xperia|vivo [vy]\d{2})/iu, 'phones-tablets'],
+    /**
+     * ⛔ THE APPLIANCE WORDS ONLY DISQUALIFY WHEN THEY *LEAD*. Title-wide they dropped a real
+     * handset out of the table — "Xiaomi 14 Ultra + quạt tản nhiệt" carries no `tặng`/`kèm`, so the
+     * gift stripper never fires, and `quạt` sent it to `null`. Round 8 fixed this on the Galaxy
+     * branch and left it live here, untested; opus found the survivor. A Xiaomi APPLIANCE names
+     * itself first ("Máy hút bụi Xiaomi 12 Pro"); a phone with an appliance in a bundle does not.
+     * ⚠️ `\d{2}`, NOT `1[1-7]` — the range was a dated whitelist that would have sent Xiaomi 18 to
+     * no rule at all. The `(?![\p{L}\d])` guard is what keeps "Xiaomi 24W" out, not the range.
+     */
+    [/^(?!\s*màn hình)(?!\s*(?:máy hút bụi|đèn bàn|đèn ngủ|bàn phím|quạt|nồi chiên|máy lọc không khí|bàn chải điện|máy sấy|chuột|loa))(?!.*(?:tivi|\btv\b|monitor)).*xiaomi \d{2}(?:\s?(?:pro|ultra|lite|t|c))?(?![\p{L}\d])(?!\s*inch)/iu, 'phones-tablets'],
+    /**
+     * ⚠️ E-READERS ARE NOT TABLETS BUT THEY LIVE ON THE SAME SHELF, because there is no reading
+     * shelf and a Kindle answers a tablet shopper's question more nearly than anything else here.
+     */
+    [/kindle|\bkobo\b|\bboox\b|máy đọc sách|e-?reader/i, 'phones-tablets'],
+    /**
+     * ⛔ A MAINBOARD IS NOT A COMPUTER, and `laptops-pcs` below would take it via `\bpc\b`. The
+     * component rules therefore sit above it. `case` here is the PC-chassis sense only — the
+     * phone-case rule at the top of the table has already claimed the other one.
+     */
+    /**
+     * ⚠️ NO BARE `vga`, AND NO BARE `tản nhiệt`. Both were in the first draft and both leaked
+     * immediately against the analysts' must-not lists: "Cáp chuyển đổi HDMI sang VGA", "Dây cáp
+     * VGA 1.5m" and "Màn hình Dell E2216HV 22 inch VGA" are a cable, a cable and a MONITOR — VGA is
+     * a port, not only a card — while "Keo tản nhiệt CPU Thermal Grizzly" is thermal paste. The
+     * card senses (`card màn hình`, `vga rời`) and the cooler sense (`tản nhiệt cpu` without `keo`)
+     * are what belong on this shelf.
+     */
+    /**
+     * ⛔ A WHOLE MACHINE THAT LISTS ITS SPECS IS STILL A WHOLE MACHINE — this rule must stay ABOVE
+     * `pc-components`. Vietnamese listings sell computers by their parts ("Laptop Dell Inspiron 15
+     * CPU Intel Core i7 RAM DDR4 16GB", "Máy tính để bàn Dell Optiplex RAM DDR4 16GB", "PC Gaming
+     * card màn hình RTX 4070"), so every one of them hit the component rule's bare `cpu`, `ram ddr\d`
+     * and `card màn hình` tokens first and was filed as a part. agy measured all three; with
+     * `refreshPlacement` pinning the result, thousands of machines would have been unrecoverable.
+     *
+     * ⛔ ANCHORED AT THE START, AND THAT IS THE WHOLE DISCRIMINATOR — do not relax it to `.*`.
+     * A component listing names the machine too, at the END, as compatibility: "RAM DDR4 16GB cho
+     * laptop" is a memory stick. Leading noun = what is being sold; trailing noun = what it fits.
+     * An unanchored version would take the RAM stick as well and empty the component shelf.
+     */
+    // ⚠️ THE MODEL FAMILIES BELONG HERE TOO, and leaving them out left the bug half-fixed: a VN
+    // listing just as often leads with the model ("ThinkPad T14 CPU i7 RAM DDR4 16GB", "Dell
+    // Inspiron 15 CPU i5") as with the generic noun, and both panel seats caught the gap on the
+    // second round. Same anchor, same reason — leading noun is the product, trailing noun is the fit.
+    [/^\s*(?:bán\s+|bộ\s+|combo\s+|trọn bộ\s+){0,2}(?:(?:dell|hp|lenovo|asus|acer|msi|gigabyte|apple|lg|microsoft|huawei|vaio|sony)\s+)?(?:laptop|macbook|notebook|máy tính xách tay|máy tính để bàn|máy bộ|pc gaming|all[- ]in[- ]one|thinkpad|thinkbook|ideapad|vivobook|latitude|elitebook|probook|inspiron|optiplex|precision|zbook|imac|mac mini|mac studio|xps|gram(?!\p{L})|surface(?!\p{L})|matebook|thinkcentre|pc(?!\p{L})(?!\s*(?:case|cooler|fan|psu)))(?!\p{L})/iu, 'laptops-pcs'],
+    /**
+     * ⛔ THE COMPONENT RULE IS SPLIT AROUND THE BROAD MACHINE RULE, AND THAT IS WHAT FINALLY ENDS
+     * THIS DEFECT CLASS. Rounds 1–4 each patched it by adding names to a whitelist — `thinkpad`,
+     * then `xps`, then `gram|surface|matebook` — and each round the panel found another maker the
+     * list did not carry. A whitelist cannot be finished; there is always one more laptop brand.
+     *
+     * The ORDER is the real fix, because it needs no vocabulary at all:
+     *   1. component NOUNS (`mainboard`, `thùng máy`) — unambiguous, nothing else is called this;
+     *   2. component SPEC TOKENS but only when they LEAD — "CPU Intel i5", "RAM DDR4 16GB";
+     *   3. the broad machine rule — any machine name, anywhere in the title;
+     *   4. the spec tokens unanchored, as a last resort for a title with no machine word at all.
+     * A whole machine from an unknown maker now reaches (3) on the word `laptop`/`máy tính`/`pc`
+     * that its title almost certainly contains, instead of being claimed at (1) by a spec it merely
+     * lists. ⚠️ Keep (2) above (3) or "RAM DDR4 16GB cho laptop" becomes a laptop.
+     */
+    [/mainboard|motherboard|bo mạch chủ|thùng máy|vỏ case|case máy tính|vỏ máy tính|(?<!\p{L})(?:pc case|case pc)(?!\p{L})|mid[- ]?tower|full[- ]?tower|bộ vi xử lý|nguồn (?:máy tính|\d+\s?w)|(?<!\p{L})psu(?!\p{L})|thanh ram|(?<!keo )tản nhiệt cpu/iu, 'pc-components'],
+    [/^(?:(?<!\p{L})cpu(?!\p{L})|card (?:rtx|gtx|\brx\b|màn hình|đồ ho?ạ)|(?<!\p{L})vga (?:card|rời)|ram(?!\p{L}))/iu, 'pc-components'],
+    [/macbook|laptop|thinkpad|thinkbook|latitude|elitebook|probook|inspiron|\bxps\b|precision|zbook|ideapad|vivobook|máy tính xách tay|máy tính để bàn|(?<!cho )(?<!for )(?<!dùng cho )\bpc\b|desktop|\bnuc\b|optiplex|lg gram|surface (?:pro|laptop|go|book)|matebook|thinkcentre/i, 'laptops-pcs'],
+    [/(?<!\p{L})cpu(?!\p{L})|card (?:màn hình|đồ ho?ạ)|(?<!\p{L})vga (?:card|rời)|ram ddr\d/iu, 'pc-components'],
     [/màn hình|monitor|smart tivi|\btivi\b|\btv\b|television/i, 'tv-monitors'],
-    [/tai nghe|headphone|earbud|airpod|\bloa\b|speaker|soundbar/i, 'audio'],
+    /**
+     * ⚠️ `sound bar` AS TWO WORDS, AND THE BRAND WORDMARKS. Measured on the live unsorted rows:
+     * "JBL Sound Bar 1000 Cũ" and "HARMAN KARDON ONYX STUDIO 3" both escaped — the first because
+     * the rule only spelled `soundbar`, the second because it names no product noun at all, only a
+     * brand and a model. Audio is the one aisle where the brand IS the product signal.
+     */
+    [/tai nghe|headphone|earbud|airpod|\bloa\b|speaker|sound ?bar|harman kardon|\bjbl\b|\bbose\b|marshall|sennheiser|\bsonos\b|loa thanh/i, 'audio'],
     // ⚠️ `switch mạng` is a network switch — it must be tested BEFORE the console rule claims
     // the bare word "switch" for a Nintendo.
     [/switch mạng|router|modem|access point|bộ phát wifi/i, 'networking'],
@@ -204,6 +500,9 @@ const SUBCATS: Record<string, [RegExp, string][]> = {
     // ⚠️ THE `phone-cases` / `screen-protectors` RULES USED TO SIT HERE and are now at the top of
     // this table — see the note there. They are not duplicated back into the fallback section: two
     // copies of the same pattern in one ordered list is a rule set that can disagree with itself.
+    // ⚠️ Mains strips and smart sockets sit with chargers: they are the same shelf's question
+    // ("how do I power this?") and there is no electrical shelf to put them on.
+    [/ổ cắm|power ?socket|power ?strip|universal outlets|ổ điện/i, 'cables-chargers'],
     [/sạc|cáp |adapter|charger|\bcable\b|củ sạc/i, 'cables-chargers'],
     [/\bssd\b|\bhdd\b|ổ cứng|thẻ nhớ|\busb\b|memory card/i, 'storage'],
     [/phụ kiện|dock|hub |giá đỡ|balo|túi chống sốc/i, 'accessories'],
@@ -265,6 +564,39 @@ export function refreshPlacement(
  * dán màn hình…" survives correctly — "mua N tặng N" is a buy-one-get-one offer whose product
  * comes AFTER the word, so that idiom is excluded and the title is matched whole.
  */
+/**
+ * ⛔ THE DECORATIVE PREFIX IS WHY `^`-ANCHORED RULES KEPT HALF-WORKING. Several rules in this table
+ * use "does the title LEAD with this noun?" as their discriminator — it is what separates a
+ * replacement panel from a phone that mentions its screen, a whole machine from a spare part, a
+ * stylus from the tablet it ships with. Every one of them was defeated by an ordinary VN listing
+ * prefix: "🔥 Laptop Dell Inspiron 15 CPU i7", "[Chính hãng] Laptop …", "Siêu rẻ - Laptop …" all
+ * fell through to the component shelf. opus measured all three; agy found the same class elsewhere.
+ *
+ * ⚠️ FIXING IT PER-RULE WOULD BE FIVE COPIES OF THIS LIST AND A SIXTH RULE THAT FORGOT. Stripping
+ * once, here, is what makes `^` mean "the product noun" rather than "byte zero".
+ *
+ * ⚠️ A WORD PREFIX MUST CARRY A SEPARATOR (`Siêu rẻ -`), or the stripper would eat the product:
+ * "Mới" alone begins "Mới ra mắt iPhone 18" but also "Mới 100%". Emoji and bracketed tags need no
+ * separator because neither can be part of a product name.
+ */
+export function withoutLeadNoise(name: string): string {
+  let out = name
+  for (let i = 0; i < 4; i++) {
+    const next = out
+      .replace(/^[\s\p{Extended_Pictographic}\p{So}\p{Cf}★☆✅❗•·|]+/u, '')
+      // ⛔ WHITELISTED CONTENT ONLY — stripping ANY leading bracket was a defect I introduced in
+      // round 3 and agy caught in round 5. "[Ốp lưng] iPhone 15 Pro Max" and "[Kính cường lực]
+      // Galaxy S24" put the CATEGORY NOUN in the bracket, so blanket stripping left a bare handset
+      // name and pinned a case and a screen protector as phones. A tag is noise only if it says one
+      // of these things; anything else in brackets is part of the product.
+      .replace(/^[[(]\s*(?:chính hãng|sale|hot|mới|new|freeship|giảm giá|giá rẻ|siêu rẻ|giá sốc|xả kho|thanh lý|deal|hàng có sẵn|bảo hành[^\])]{0,20}|trả góp[^\])]{0,20}|-?\s?\d{1,3}\s?%[^\])]{0,12})\s*[\])]\s*/iu, '')
+      .replace(/^(?:siêu rẻ|giá rẻ|giá sốc|sale|hot|freeship|giảm giá|xả kho|thanh lý|chính hãng|new|mới về|bán chạy|deal)\s*[-–—:|,]\s*/iu, '')
+    if (next === out) break
+    out = next
+  }
+  return out.trim() || name.trim()
+}
+
 export function withoutGiftClause(name: string): string {
   const cut = name
     // ⚠️ A TRAILING "- Kèm …" IS THE BUNDLE TOO. "Lenovo Idea Tab Wifi 8GB 128GB ZAFR0366VN - Kèm bút- ốp
@@ -288,7 +620,7 @@ export function withoutGiftClause(name: string): string {
 }
 
 export function subcategoryFor(categorySlug: string, name: string): string | null {
-  const clean = withoutGiftClause(name)
+  const clean = withoutGiftClause(withoutLeadNoise(name))
   for (const [re, slug] of SUBCATS[categorySlug] ?? []) if (re.test(clean)) return slug
   return null
 }

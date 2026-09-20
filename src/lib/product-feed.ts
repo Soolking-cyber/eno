@@ -135,6 +135,26 @@ export const GPC_BY_SUBCATEGORY: Record<string, string> = {
   'tv-monitors': '404',           // Electronics > Video > Televisions
   audio: '223',                   // Electronics > Audio
   cameras: '2096',                // Cameras & Optics > Cameras > Digital Cameras
+  /**
+   * ⛔ THE TWO SHELVES ADDED IN THE SORTING PASS NEED A LEAF HERE OR THEY SHIP WITH NO
+   * `google_product_category` AT ALL. opus flagged the gap as INSUFFICIENT-to-judge and it was
+   * real: `subcategoryFor` can now return these two slugs, and every row landing on them would
+   * have reached Merchant Center uncategorised — which is the exact ranking problem this map
+   * exists to fix. A missing category is not a cosmetic omission; it suppresses the item.
+   * ⛔ BOTH IDS WERE VERIFIED AGAINST GOOGLE'S PUBLISHED TAXONOMY, NOT RECALLED — and the first
+   * two I wrote were both wrong. `1502` DOES NOT EXIST, and `359` is "Home & Garden > Business &
+   * Home Security", not surveillance cameras. opus called the unit test circular (it asserted the
+   * map against itself, which cannot catch a wrong id) and that was the right call: an invalid
+   * `google_product_category` suppresses the item exactly as a missing one does.
+   *   curl -s https://www.google.com/basepages/producttype/taxonomy-with-ids.en-US.txt
+   * Checked 2026-09-20. Re-check with that file before changing either value.
+   *
+   * ⚠️ `285` SITS UNDER *Electronics Accessories*, NOT *Computers* — Google files components as
+   * accessories, so the tempting `278` (Electronics > Computers) would put a mainboard in the
+   * same aisle as the laptops this shelf was split off to escape.
+   */
+  'pc-components': '285',         // Electronics > Electronics Accessories > Computer Components
+  'security-cameras': '362',      // Cameras & Optics > Cameras > Surveillance Cameras
   gaming: '1294',                 // Electronics > Video Game Consoles
   'phone-cases': '2353',          // Electronics > … > Mobile Phone Cases
   'screen-protectors': '5525',    // Electronics > … > Mobile Phone Screen Protectors

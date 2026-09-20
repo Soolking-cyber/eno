@@ -679,6 +679,42 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'storage', name: 'Storage', nameVi: 'Lưu trữ', icon: 'Archive', keywords: ['ssd', 'hdd', 'thẻ nhớ', 'usb', 'ổ cứng', 'memory card', 'flash drive'] },
       { slug: 'networking', name: 'Networking', nameVi: 'Mạng & Wifi', icon: 'Wifi', keywords: ['router', 'wifi', 'modem', 'phát sóng', 'access point', 'mesh'] },
       { slug: 'printers', name: 'Printers', nameVi: 'Máy in', icon: 'Printer', keywords: ['máy in', 'printer', 'mực in', 'toner', 'máy scan'] },
+      /**
+       * ⛔ TWO SHELVES ADDED 2026-09-19 FROM MEASURED VOLUME, NOT FROM TIDINESS. A new shelf is a new
+       * page, a new filter and a permanent commitment, so the bar was real product volume with
+       * nowhere honest to go. Ten analysts read 1,338 listings the classifier could not place and
+       * proposed five new shelves; only these two cleared the bar, and the other three were routed
+       * to existing shelves instead (personal care → beauty, car electronics → accessories, and
+       * software subscriptions left unsorted because they are not shippable goods at all).
+       *
+       * ⚠️ `security-cameras` IS DELIBERATELY NOT `cameras`. That shelf is defined by photography
+       * terms — máy ảnh, ống kính, gopro, dji, canon, nikon — and a shopper filtering Cameras wants
+       * a mirrorless body. An Ezviz NVR and a 4-channel recorder on that shelf make the facet
+       * useless in both directions, and CCTV is a self-contained buying journey here: camera, đầu
+       * ghi, ổ cứng, lắp đặt. ~88 rows in the sample, roughly 680 across the catalogue.
+       *
+       * ⚠️ `pc-components` IS NOT `laptops-pcs` for the same reason: a mainboard is not a computer,
+       * and mixing them means neither shelf answers its own question. ~124 rows in the sample,
+       * roughly 960 catalogue-wide.
+       */
+      /**
+       * ⚠️ `Cog` AND `Camera`, NOT `Cpu` AND `Cctv` — and the guard test is why. Icons come from the
+       * project's own SPRITE (src/components/ui/icons), not straight from lucide, so naming a glyph
+       * the sprite does not carry renders the fallback silently. `category-icons.resolve.test.ts`
+       * caught it immediately. Adding a genuinely new glyph means changing the sprite, which is a
+       * separate change from adding a shelf; these two are the closest carried glyphs.
+       */
+      /**
+       * ⛔ NO BARE `cpu` / `ram` / `vga`, AND NO BARE CCTV BRAND. These keywords are matched by
+       * `hay.includes(k)` further down this file — a raw SUBSTRING test with no word boundary and
+       * none of the ordering guards `feed-taxonomy.ts` spent nine review rounds building. `ram`
+       * alone matches inside "program" and inside every laptop that quotes "RAM 16GB"; `hikvision`
+       * alone claims that brand's SSDs and monitors. opus caught the contradiction: the same tokens
+       * the rule table proved leak cannot be safe here, where there is no table at all.
+       * ⚠️ Keep every entry MULTI-WORD or unambiguous. This list is a fallback, not a classifier.
+       */
+      { slug: 'pc-components', name: 'PC components', nameVi: 'Linh kiện máy tính', icon: 'Cog', keywords: ['mainboard', 'bo mạch chủ', 'card màn hình', 'thanh ram', 'bộ vi xử lý', 'nguồn máy tính', 'vỏ case', 'tản nhiệt cpu'] },
+      { slug: 'security-cameras', name: 'Security cameras', nameVi: 'Camera giám sát', icon: 'Camera', keywords: ['camera giám sát', 'camera quan sát', 'camera an ninh', 'camera ip', 'đầu ghi hình', 'đầu ghi camera'] },
     ],
     facets: [
       COND,

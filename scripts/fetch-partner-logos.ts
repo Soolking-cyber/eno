@@ -58,11 +58,22 @@ const EXTRA_DOMAINS: Record<string, string> = {
   'BỀN COMPUTER': 'ben.com.vn',
   'Điện Thoại Vui': 'dienthoaivui.com.vn',
   Tiki: 'tiki.vn',
+  /**
+   * ⚠️ `.com.vn`, NOT `.vn` — and the wrong one does not fail loudly, it just times out. The
+   * partner with the SECOND-LARGEST catalogue here (5,955 listings) was reported as
+   * "no domain on record" because it was imported by scripts/import-supersports.ts rather than
+   * through PARTNER_STORES, so nothing in the logo path had ever heard of it.
+   */
+  SuperSports: 'supersports.com.vn',
 }
 
 function domainFor(name: string): string | null {
-  const store = PARTNER_STORES.find((s) => s.name === name)
-  return store?.domain ?? EXTRA_DOMAINS[name] ?? null
+  const store = PARTNER_STORES.find((s) => s.name.toLowerCase() === name.toLowerCase())
+  // ⚠️ CASE-INSENSITIVE — the key is a human-typed seller name. `SuperSports` was added here to fix
+  // a partner reported as "no domain on record"; an exact lookup would have left `Supersports` or
+  // `SUPERSPORTS` reporting exactly that, with the entry sitting right there. opus flagged it.
+  const extra = Object.entries(EXTRA_DOMAINS).find(([k]) => k.toLowerCase() === name.toLowerCase())
+  return store?.domain ?? extra?.[1] ?? null
 }
 
 const abs = (href: string, base: string): string | null => {
@@ -77,7 +88,34 @@ const abs = (href: string, base: string): string | null => {
  * Industry and Trade registration seal every Vietnamese shop displays, and `logo-tra-gop` is an
  * instalment-payment badge. Shipping either would put someone else's mark on a partner storefront.
  */
-const REJECT_NAME = /(banner|thumb?nail|share[_-]?fb|social|cover|promotion|vpbank|tra-?gop|installment|[-_/]bct[-_.]|bo-?cong-?thuong|dathongbao|placeholder|sprite)/i
+/**
+ * ⛔ THE PAYMENT MARKS ARE HERE ON LICENSING GROUNDS, NOT TIDINESS. Checkout footers carry
+ * `visa-logo.png`, `mastercard.svg`, `napas.png`, `momo-logo.png` — all of which match the `/logo/i`
+ * filter and score 30, so when a shop's header mark 404s a payment badge could be promoted to that
+ * partner's logo on eno.vn. agy caught it. eno.vn is registering as a licensed sàn TMĐT and does not
+ * offer card checkout (CLAUDE.md, 2026-07-31); printing a Visa/Mastercard mark advertises a rail the
+ * company is not licensed for, and it is someone else's trademark besides.
+ *
+ * ⚠️ `visa|jcb|amex` CARRY NO TRAILING BOUNDARY AND THAT IS ON PURPOSE — agy asked for one, and
+ * adding it is what let `visacard.png` through in the first place. The two failure modes are not
+ * symmetric: over-rejecting costs a partner one candidate (the next one, or the initial-letter
+ * fallback, is used and the run reports it), while under-rejecting puts a card scheme's mark on a
+ * licensed marketplace that does not offer card checkout. `atm` keeps its boundary because it is
+ * three letters that begin ordinary words.
+ */
+/**
+ * ⛔ TWO FILTERS, BECAUSE THEY EXEMPT DIFFERENTLY. A share card, a placeholder or the Bộ Công
+ * Thương seal is NEVER a partner's own mark, whatever the file is called — `tiki-share-fb.jpg`
+ * and `logo-bct-supersports.png` are still not logos. Those live in REJECT_ALWAYS and have no
+ * exemption at all. A payment or courier BRAND is different: it is somebody else's mark on most
+ * shops' footers, and its own mark on `momo.vn`.
+ * ⚠️ AN EARLIER VERSION EXEMPTED BOTH, KEYED ON THE URL CONTAINING THE DOMAIN — which is every
+ * self-hosted asset, so it disabled the whole filter; narrowing it to the filename only shrank the
+ * hole (`tiki-visa.png` still walked through). Both seats found each version. The exemption below
+ * turns on whether the PARTNER is that brand, not on what the file is called.
+ */
+const REJECT_ALWAYS = /(banner|thumb?nail|share[_-]?fb|social|cover|promotion|vpbank|tra-?gop|installment|[-_/]bct[-_.]|bo-?cong-?thuong|dathongbao|placeholder|sprite|loyalty|the-?one|the1|dmca|^data:|(?:^|[-_/])(?:blank|spacer|lazy|dummy|transparent|1x1|px|loading|noimage|no-image|default|empty)(?:[-_.]|$))/i
+const REJECT_BRAND = /((?<![a-z])(?:visa|jcb|amex)|(?<![a-z])atm(?![a-z])|mastercard|american-?express|union-?pay|napas|momo|zalo-?pay|vn-?pay|viettel-?pay|payoo|shopee-?pay|pay-?pal|apple-?pay|google-?pay|samsung-?pay|kredivo|payment|thanh-?toan|ghn(?![a-z])|giao-?hang-?nhanh|giao-?hang-?tiet-?kiem|ghtk(?![a-z])|viettel-?post|vn-?post|ahamove|grab-?express|ninja-?van|best-?express|j-?t-?express)/i
 /**
  * A mark is roughly square or a wordmark; a share card is a letterbox. Raised from 4 after the
  * filename filter proved to be what actually catches banners (the 1920x830 one measured 2.3:1 and
@@ -108,23 +146,110 @@ async function candidates(domain: string): Promise<string[]> {
   const scored: Array<{ u: string; score: number }> = []
   const push = (u: string | null, base_score: number) => {
     if (!u || scored.some((x) => x.u === u)) return
-    if (REJECT_NAME.test(u)) return // a share card or somebody else's compliance badge
-    if (/\/(menus?|brands?|partners?|payments?)\//i.test(u)) return // a tile for someone else's brand
     /**
-     * ⛔ THE PATH, NOT THE WHOLE URL. `u` is absolute, so every self-hosted asset URL already
-     * contains the domain token — the bonus fired on all of them and ranked NOTHING, which is
-     * precisely the discrimination it was added to provide (opus, reviewing this file). It is
-     * the FILENAME that separates "their logo" from "a logo they display": on 24hstore's own
-     * domain, /logo-web-24hstore.png must outrank /logo-qcy.png.
+     * ⛔ NEVER REJECT THE PARTNER'S OWN MARK. `REJECT_NAME` carries payment and courier brands
+     * (`momo`, `napas`, `ghn`, `viettel-post`) precisely because they appear in other shops'
+     * footers — but any of them could BE a partner here, and then the filter takes not one
+     * candidate but every candidate, and the storefront silently falls back to an initial letter.
+     * opus caught the asymmetry: the comment justified over-rejecting on OTHER shops' pages and
+     * did not cover the shop itself. The domain's own token is the exemption.
+     */
+    if (REJECT_ALWAYS.test(u)) return // never a partner's own mark, whatever it is named
+    /**
+     * ⚠️ THE EXEMPTION COMPARES THE *MATCHED* BRAND TO THE PARTNER, NOT "matches any". Written as
+     * `!REJECT_BRAND.test(token)` it was all-or-nothing: for `momo.vn` it disabled the brand filter
+     * ENTIRELY, so momo's own footer `visa-logo.png` and `mastercard.svg` became eligible at 30 —
+     * on exactly the shops most likely to display them. opus caught it. MoMo may show MoMo's mark
+     * and nobody else's.
+     */
+    // ⛔ MATCH THE BRAND IN THE *PATH*, NOT THE URL — for the third time in this file, `u` is
+    // absolute, so `https://momo.vn/img/visa-logo.png` matched `momo` (the HOST) first, called it
+    // the partner's own mark and let Visa through. The host is never evidence about the asset.
+    /**
+     * ⛔ THE PATH, NOT THE WHOLE URL — this file's oldest lesson and it has now caught three
+     * separate bugs. `u` is absolute, so every self-hosted asset URL already contains the domain
+     * token: the own-name BONUS below fired on all of them and ranked nothing (opus, reviewing an
+     * earlier revision), and the brand check fired on the HOST, reading `momo.vn/img/visa-logo.png`
+     * as MoMo's own mark. One `path`, computed once, used by both.
      */
     const path = (() => { try { return new URL(u).pathname } catch { return u } })()
+    /**
+     * ⚠️ EVERY BRAND IN THE PATH, NOT THE FIRST ONE. `exec` returns the earliest match, and a
+     * payment partner files its card marks under its own name — `/static/momo/payment/visa.png`
+     * matched `momo`, was read as "the partner's own mark" and let Visa through, where the +100
+     * own-name bonus would then have ranked it ABOVE the real logo. agy caught it. One foreign
+     * brand anywhere in the path is enough to reject.
+     */
+    const brands = [...path.matchAll(new RegExp(REJECT_BRAND.source, 'gi'))]
+      .map((b) => b[1].toLowerCase().replace(/[^a-z0-9]/g, ''))
+    if (brands.some((b) => b !== token)) return
+    if (/\/(menus?|brands?|partners?|payments?)\//i.test(u)) return // a tile for someone else's brand
     const own = token && path.replace(/[^a-z0-9]/gi, '').toLowerCase().includes(token) ? 100 : 0
     scored.push({ u, score: base_score + own })
   }
 
   for (const m of html.matchAll(/<link[^>]+rel=["'][^"']*apple-touch-icon[^"']*["'][^>]*href=["']([^"']+)["']/gi)) push(abs(m[1], base), 50)
-  for (const m of html.matchAll(/<img[^>]+(?:src|data-src)=["']([^"']+)["'][^>]*>/gi)) {
-    if (/logo/i.test(m[0])) push(abs(m[1], base), 30)
+  /**
+   * ⚠️ ONE PASS PER <img>, TAKING `src` AND `srcset` TOGETHER. They used to be two sequential
+   * matchAll loops, which quietly broke the tie-breaking this relies on: EVERY src in the document
+   * was pushed before ANY srcset, so a footer payment badge with a working src outranked the
+   * header mark whose src 404s. agy caught it. Reading both attributes off the same tag keeps
+   * document order meaningful, which is what makes "the header mark wins" true rather than hopeful.
+   */
+  for (const m of html.matchAll(/<img[^>]+>/gi)) {
+    if (!/logo/i.test(m[0])) continue
+    /**
+     * ⛔ EVERY src-LIKE ATTRIBUTE, NOT THE FIRST ONE. `/(?:src|data-src)=…/.exec()` returns the
+     * EARLIEST match in the tag, and the lazy-load idiom writes them in exactly the wrong order:
+     * `<img src="blank.gif" data-src="logo.png">` handed back the 1×1 placeholder and the real mark
+     * was never even scored. The pattern this replaced used a greedy `[^>]+` prefix, which
+     * backtracked to the LAST such attribute and happened to get it right; the rewrite silently
+     * inverted that. opus caught it. Pushing all of them removes the precedence question entirely —
+     * `push()` already dedupes and `REJECT_NAME` drops the placeholder.
+     */
+    /**
+     * ⛔ THE PREFERENCE IS PER TAG, NOT A GLOBAL SCORE. Two earlier attempts got this wrong in
+     * opposite directions and the panel caught both: pushing `src` and `data-src` at the SAME score
+     * left the tie to document order, where `src` is written first, so the placeholder still won;
+     * scoring `data-src` HIGHER then inverted document order globally, and since lazy-loading is
+     * exactly what below-the-fold images use, a lazy footer badge outranked the eager header mark.
+     * ⚠️ RESOLVING INSIDE THE TAG KEEPS BOTH PROPERTIES: the lazy attribute wins its own tag, and
+     * tags still rank by where they appear — which is what makes "the header mark wins" true.
+     */
+    const lazy = /(?:data-src|data-original|data-lazy-src|data-echo)=["']([^"']+)["']/i.exec(m[0])
+    const eager = /(?<![-\w])src=["']([^"']+)["']/i.exec(m[0])
+    /**
+     * ⛔ GUARD THE EMPTY MATCH. `<img class="logo" srcset="…">` carries neither attribute, and
+     * `new URL('', base)` resolves to `base` — so the partner's HTML homepage was pushed as an image
+     * candidate at 30, ahead of rel=icon (20) and the favicon (10). Both seats found it independently;
+     * the `srcset` branch below already had the `if (u)` this one was missing.
+     */
+    /**
+     * ⚠️ `srcset` RANKS WITH THE LAZY ATTRIBUTE, ABOVE A BARE `src`. agy's case:
+     * `<img src="placeholder.png" srcset="logo.png 1x, logo@2x.png 2x">` has no lazy attribute, so
+     * `src` was taken as `best` and pushed at 30 before the srcset candidates — which are also 30,
+     * so document order handed it to the placeholder. Responsive markup uses `src` as the fallback
+     * for old browsers exactly the way lazy markup does, so it loses to `srcset` for the same reason.
+     * ⛔ AND `eager[1]` CAN BE THE EMPTY STRING. `<img src="" data-src="logo.png">` is ordinary lazy
+     * markup; `abs('', base)` is the homepage, so the demoted-fallback push re-introduced at 12 the
+     * exact bug the `best` guard had just closed at 30. Both seats caught it. Guard every push.
+     */
+    // ⚠️ NO COMMA IN THE CHARACTER CLASS — a CDN transform path carries them (Cloudinary
+    // `/w_300,h_300/logo.png`) and excluding the comma severed the URL into a 404 fragment, which
+    // was then pushed as `best` at 30 AND demoted the valid `src`. agy caught it. The srcset
+    // grammar separates the URL from its descriptor with WHITESPACE, so whitespace is the terminator.
+    const srcsetFirst = /srcset=["']\s*([^"'\s]+)/i.exec(m[0])?.[1]
+    const best = lazy?.[1] || srcsetFirst || eager?.[1]
+    if (best) push(abs(best, base), 30)
+    if ((lazy?.[1] || srcsetFirst) && eager?.[1]) push(abs(eager[1], base), 8) // below the favicon
+    const ss = /srcset=["']([^"']+)["']/i.exec(m[0])
+    // ⚠️ SPLIT ON `,` + WHITESPACE. A bare comma also sits INSIDE CDN transform paths
+    // (Cloudinary `/w_300,h_300/`), so `split(',')` cut real URLs in half and pushed 404s. The
+    // srcset grammar puts whitespace after the separating comma; a transform path does not.
+    if (ss) for (const part of ss[1].split(/,\s+/)) {
+      const u = part.trim().split(/\s+/)[0]
+      if (u) push(abs(u, base), 30)
+    }
   }
   for (const m of html.matchAll(/<link[^>]+rel=["'][^"']*icon[^"']*["'][^>]*href=["']([^"']+)["']/gi)) push(abs(m[1], base), 20)
   push(`${base}/favicon.png`, 10)
