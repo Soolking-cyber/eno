@@ -189,7 +189,20 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
         alt={alt}
         fill
         sizes={sizes}
-        quality={70}
+        /**
+           * ⛔ 60, NOT 70 — THE LAST TIER SPLIT IN THE APP, AND IT COST A SECOND ENCODE.
+           * Every other <Image> asks for 60; this one asked for 70, so a photo that appears BOTH
+           * here and somewhere sized the same (the video poster in this very file uses 60 at the
+           * same `sizes`) was optimized TWICE — identical source, identical width, two cold sharp
+           * encodes, two cache entries. Measured on the origin's 8h log 2026-09-20: 1,149 of 7,501
+           * (master, width) pairs were encoded at BOTH qualities — 15% of all the work.
+           * The tier cost bytes too: at w=1080, q70 = 36,302 B vs q60 = 28,471 B, so the LCP image
+           * on every PDP was 28% heavier.
+           * ⚠️ 70 STAYS IN `images.qualities` though nothing emits it now: Cloudflare holds cached
+           * HTML and Meta's crawler holds URLs still carrying `q=70`, and Next 16 REJECTS an
+           * unlisted quality rather than clamping. Dropping it from the allowlist would 400 them.
+           */
+          quality={60}
         unoptimized={mock || undefined}
         priority={priority}
         loading={eager && !priority ? 'eager' : undefined}
@@ -819,7 +832,13 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                   ? { transform: `translate(${dragX}px, ${dragY}px)`, opacity: 1 - Math.min(0.6, Math.abs(dragY) / 500) }
                   : undefined}
             >
-              <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} unoptimized={isMockImageUrl(images[idx]) || undefined} className="object-contain" onError={() => setLightboxFailed((prev) => new Set(prev).add(images[idx]))} />
+              <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={60} /* ⛔ MATCHES THE HERO'S TIER ON PURPOSE. 70 here looks like the right
+                      call — the user has deliberately zoomed to inspect condition — but a different q is a guaranteed
+                      cache MISS and a fresh sharp encode at the exact moment they are waiting. ⚠️ It only shares the
+                      hero's actual variant where the two resolve to the SAME width rung: the hero is
+                      `(max-width:1024px) 100vw, 60vw` against 92vw here, so they coincide on phones and diverge on
+                      desktop (a reviewer's correction — the first version of this note claimed they always match).
+                      Matching the tier costs nothing either way and removes one of the two encodes wherever they do. */ unoptimized={isMockImageUrl(images[idx]) || undefined} className="object-contain" onError={() => setLightboxFailed((prev) => new Set(prev).add(images[idx]))} />
               {/* Max-quality detail layer: on an explicit zoom (double-tap/-click) load the
                   ≤1600px stored master via `unoptimized` (the raw stored WebP, higher-res than
                   the ≤1080 fit variant that CSS-scale(2.5) would just upscale into blur). It

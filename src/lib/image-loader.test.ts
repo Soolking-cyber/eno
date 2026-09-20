@@ -68,14 +68,17 @@ describe('image loader', () => {
   })
 
   /**
-   * ⛔ QUALITY DEFAULTS TO 70, NOT NEXT'S 75. `images.qualities` is `[60, 70]` and Next 16
-   * REJECTS an out-of-list quality rather than clamping, so a 75 default would 400 every image
-   * that does not pass `quality` explicitly — i.e. most of them.
+   * ⛔ QUALITY DEFAULTS TO 60 — THE APP'S ONE TIER — NOT NEXT'S 75 AND NOT 70.
+   * `images.qualities` is `[60, 70]` and Next 16 REJECTS an out-of-list quality rather than
+   * clamping, so a 75 default would 400 every image without an explicit `quality`. Next's own
+   * loader snaps 75 to the nearest allowed value, which is 70 — the EXPENSIVE tier, by accident.
+   * 60 is what every deliberate call site asks for; defaulting to it keeps the app single-tier,
+   * which is what stops the same (master, width) being encoded twice.
    */
-  it('emits the optimizer URL, defaulting quality to an ALLOWED value', async () => {
+  it('emits the optimizer URL, defaulting to the single quality tier', async () => {
     const { default: loader } = await load({ pub: PUBLIC, internal: INTERNAL })
     const url = loader({ src: PUBLIC + OBJ, width: 640 })
-    expect(url).toContain('q=70')
+    expect(url).toContain('q=60')
     expect(url).toContain('w=640')
     expect(url.startsWith('/_next/image?url=')).toBe(true)
     expect(url).toContain(encodeURIComponent(INTERNAL + OBJ))
@@ -84,5 +87,33 @@ describe('image loader', () => {
   it('honours an explicit quality', async () => {
     const { default: loader } = await load({ pub: PUBLIC, internal: INTERNAL })
     expect(loader({ src: PUBLIC + OBJ, width: 420, quality: 60 })).toContain('q=60')
+  })
+
+  /**
+   * ⛔ ONE TIER, APP-WIDE — this is the guard, not the default above.
+   * Two tiers mean the SAME master at the SAME width is encoded twice: measured 2026-09-20 on the
+   * origin's 8h log, 1,149 of 7,501 (master, width) pairs were being optimized at both 60 and 70,
+   * 15% of all the work, for a difference AVIF does not show. A single `quality={70}` reintroduced
+   * anywhere brings that straight back, silently — nothing errors, images just get slower.
+   * ⚠️ 70 must REMAIN in `images.qualities` (Cloudflare and Meta hold cached `q=70` URLs and Next
+   * rejects an unlisted quality), so the allowlist cannot be the thing that enforces this.
+   */
+  it('no component emits the second quality tier', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { globSync } = await import('node:fs')
+    const files: string[] = (globSync as unknown as (p: string) => string[])('src/**/*.tsx')
+      .filter((f: string) => !f.includes('.test.'))
+    /**
+     * ⛔ THE GLOB IS ASSERTED BEFORE IT IS USED, AND THAT LINE IS THE GUARD'S OWN GUARD.
+     * `globSync` resolves against `process.cwd()`. Run vitest from a different root — a workspace
+     * invocation, `--dir`, a future `test.root` — and `files` is `[]`, `offenders` is `[]`, and
+     * this passes forever while enforcing NOTHING, with a comment above it claiming otherwise.
+     * A reviewer caught exactly that. Verified by negative control: injecting `quality={70}` into
+     * listing-card.tsx makes this fail and names the file.
+     * (`fs.globSync` needs Node 22+; package.json requires >=24 and the image is node:24.)
+     */
+    expect(files.length, 'glob matched nothing — this test would pass vacuously').toBeGreaterThan(50)
+    const offenders = files.filter((f) => /quality=\{70\}/.test(readFileSync(f, 'utf8')))
+    expect(offenders, 'these would re-split the tier and double their encodes').toEqual([])
   })
 })

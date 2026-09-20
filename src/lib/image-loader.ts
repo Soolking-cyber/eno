@@ -59,11 +59,16 @@ export function internalize(src: string): string {
 
 /**
  * Identical output to Next's default loader, except for the origin swap above.
- * ⚠️ `q` DEFAULTS TO 70, NOT 75. `images.qualities` is `[60, 70]`, and Next 16 REJECTS a quality
- * outside that list rather than clamping it — the default 75 would 400 every image that does not
- * pass an explicit `quality`.
+ *
+ * ⚠️ `q` DEFAULTS TO 60, AND NOT SPECIFYING ONE IS NOT THE SAME AS NEXT'S DEFAULT. Next's built-in
+ * loader runs `findClosestQuality(quality, config)`, which snaps its undefined-quality default of
+ * 75 to the nearest configured value — with `qualities: [60, 70]` that is **70**. So an `<Image>`
+ * with no `quality` used to land on the expensive tier by accident. 60 is what every deliberate
+ * call site in the app asks for; matching it keeps the whole app on ONE tier, which is the point.
+ * ⛔ A quality outside `images.qualities` is REJECTED by Next 16, not clamped — so this default
+ * must stay a member of that list.
  */
 export default function enoImageLoader({ src, width, quality }: LoaderArgs): string {
   const url = internalize(src)
-  return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=${quality ?? 70}`
+  return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=${quality ?? 60}`
 }
