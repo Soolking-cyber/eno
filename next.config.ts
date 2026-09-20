@@ -745,6 +745,29 @@ const nextConfig: NextConfig = {
      * silently 404s EVERY optimized image on both editions. Verified by building and fetching.
      */
     loaderFile: "./src/lib/image-loader.ts",
+    /**
+     * ⛔ WITHOUT THIS, EVERY OPTIMIZED IMAGE 400s — and it did, in production, on 2026-09-20.
+     * Next 16 flipped `dangerouslyAllowLocalIP` to default FALSE, so the optimizer refuses any
+     * upstream whose hostname resolves to a private address:
+     *
+     *     upstream image http://supabase-envoy:8000/... hostname resolved to private IP
+     *     ["172.18.0.5"] ... use images.dangerouslyAllowLocalIP = true to continue.
+     *
+     * `supabase-envoy` is a container on the Docker bridge, so it is private BY DESIGN — that is
+     * the entire point of routing source fetches internally. There is no variant of this change
+     * that avoids the flag: any address that keeps the fetch on-box is private, and the only
+     * alternatives (the host's public IP, or re-publishing the storage port) would expose the
+     * storage API to the internet, which is strictly worse.
+     *
+     * ⚠️ IT IS ONLY ON WHEN THE INTERNAL ROUTE IS. Unset the env var — dev, CI, the native shell —
+     * and this is false, i.e. Next's own default.
+     * ⛔ WHAT BOUNDS THE SSRF RISK IS `remotePatterns`, NOT THIS FLAG. `url=` is attacker
+     * controllable, so the allowlist below admits exactly ONE private destination:
+     * `supabase-envoy:8000/storage/v1/object/public/listings/**` — bytes that are already public
+     * over sb.eno.vn. Widening that pathname, or adding a private host without a pathname, is what
+     * would turn this into a real SSRF. Do not do it.
+     */
+    dangerouslyAllowLocalIP: IMAGE_INTERNAL_ORIGIN !== null,
     remotePatterns: [
       {
         protocol: "https",
