@@ -831,3 +831,45 @@ describe('feed-taxonomy — panel findings round 10, 2026-09-20', () => {
     expect(el('Dây đeo silicone cho Xiaomi Smart Band 9')).toBe('accessories')
   })
 })
+
+/**
+ * ⛔ FOUND BY THE LIVE BACKFILL DRY RUN, NOT BY REVIEW — which is the argument for running the dry
+ * run before the apply. The panel predicted this class twice ("RAM Mount") and I could not produce
+ * a real instance; the catalogue had one, and it was about to be pinned permanently.
+ */
+describe('feed-taxonomy — found in the production dry run, 2026-09-20', () => {
+  const el = (t: string) => subcategoryFor('electronics', t)
+
+  it('does not read the BRAND "RAM" as memory', () => {
+    // A leather watch strap whose maker is called RAM. `^ram` alone filed it as a memory module.
+    expect(el('RAM Leather Premium Vegetable-Tanned Cowhide Watch Strap with Dong Son Drum')).not.toBe('pc-components')
+    expect(el('RAM Mount X-Grip giá đỡ điện thoại xe máy')).not.toBe('pc-components')
+    // ⚠️ A WHITESPACE-ONLY LOOKAHEAD IS BYPASSED BY THE PUNCTUATION MARKETPLACE TITLES ACTUALLY
+    // USE — agy's cases. And VN listings are written unaccented as often as not.
+    expect(el('RAM-Mount X-Grip')).not.toBe('pc-components')
+    expect(el('RAM - Leather Watch Band')).not.toBe('pc-components')
+    expect(el('RAM/Mount holder')).not.toBe('pc-components')
+    expect(el('RAM day deo da')).not.toBe('pc-components')
+  })
+
+  /**
+   * ⛔ THE FIRST FIX WAS A WHITELIST OF FOLLOWERS AND BOTH SEATS REFUTED IT CORRECTLY — every
+   * title below regressed to no-match, and `RAM cho laptop` went further and became a COMPUTER.
+   * A whitelist under-matches silently; memory is written a hundred ways and cannot be enumerated
+   * (rounds 1-4 taught that about laptop brands), while the non-memory senses of a leading `RAM`
+   * are a short closed set. So the rule is broad WITH EXCLUSIONS, which is the opposite trade.
+   */
+  it('still reads every real way memory is written', () => {
+    expect(el('RAM Apacer 8GB DDR4')).toBe('pc-components')
+    expect(el('RAM Lexar 16GB')).toBe('pc-components')
+    expect(el('RAM Patriot Viper')).toBe('pc-components')
+    expect(el('RAM ECC Server 32GB')).toBe('pc-components')
+    expect(el('RAM bus 3200 8GB')).toBe('pc-components')
+    expect(el('RAM 8G')).toBe('pc-components')          // VN shorthand, no B
+    expect(el('RAM cho laptop')).toBe('pc-components')  // ⚠️ became `laptops-pcs` under the whitelist
+    expect(el('RAM PC ADATA XPG D50 RGB 16GB (1x16GB) 3200MHz DDR4')).toBe('pc-components')
+    expect(el('RAM DDR4 16GB 3200MHz cho laptop')).toBe('pc-components')
+    expect(el('RAM Corsair Vengeance 16GB 3200MHz')).toBe('pc-components')
+    expect(el('Laptop Dell Inspiron 15 CPU i7 RAM DDR4 16GB')).toBe('laptops-pcs')
+  })
+})

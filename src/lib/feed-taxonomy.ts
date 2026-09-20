@@ -473,7 +473,21 @@ const SUBCATS: Record<string, [RegExp, string][]> = {
      * lists. ⚠️ Keep (2) above (3) or "RAM DDR4 16GB cho laptop" becomes a laptop.
      */
     [/mainboard|motherboard|bo mạch chủ|thùng máy|vỏ case|case máy tính|vỏ máy tính|(?<!\p{L})(?:pc case|case pc)(?!\p{L})|mid[- ]?tower|full[- ]?tower|bộ vi xử lý|nguồn (?:máy tính|\d+\s?w)|(?<!\p{L})psu(?!\p{L})|thanh ram|(?<!keo )tản nhiệt cpu/iu, 'pc-components'],
-    [/^(?:(?<!\p{L})cpu(?!\p{L})|card (?:rtx|gtx|\brx\b|màn hình|đồ ho?ạ)|(?<!\p{L})vga (?:card|rời)|ram(?!\p{L}))/iu, 'pc-components'],
+    /**
+     * ⛔ `^ram` ALONE IS A BRAND TRAP. Found in the live backfill dry run, not in review: "RAM
+     * Leather Premium Vegetable-Tanned Cowhide Watch Strap" is a leather WATCH STRAP whose maker is
+     * called RAM, and the anchored rule filed it as a memory module — permanently, via
+     * `refreshPlacement`. The panel predicted this class twice ("RAM Mount"); the measurement found
+     * the real instance, which is the argument for running the dry run before the apply.
+     * ⛔ AND THE FIRST FIX WAS A WHITELIST OF FOLLOWERS, WHICH BOTH SEATS REFUTED CORRECTLY: a
+     * whitelist under-matches SILENTLY. `RAM Apacer 8GB`, `RAM Lexar 16GB`, `RAM Patriot Viper`,
+     * `RAM bus 3200 8GB`, `RAM 8G` (VN shorthand, no B) and `RAM cho laptop` all stopped reaching
+     * this shelf — and `RAM cho laptop` then fell to the broad machine rule and became a COMPUTER.
+     * ⚠️ SO IT IS AN EXCLUSION LIST, NOT A WHITELIST. Memory is written a hundred ways and they
+     * cannot be enumerated (rounds 1-4 taught that about laptop brands); the non-memory senses of a
+     * leading `RAM` are a short, closed set — the brand's straps, mounts and bags.
+     */
+    [/^(?:(?<!\p{L})cpu(?!\p{L})|card (?:rtx|gtx|\brx\b|màn hình|đồ ho?ạ)|(?<!\p{L})vga (?:card|rời)|ram(?!\p{L})(?![\s\-–—/|,.]*(?:leather|mount|strap|watch|band|d[âa]y|v[íi]|t[úu]i|balo|bag)))/iu, 'pc-components'],
     [/macbook|laptop|thinkpad|thinkbook|latitude|elitebook|probook|inspiron|\bxps\b|precision|zbook|ideapad|vivobook|máy tính xách tay|máy tính để bàn|(?<!cho )(?<!for )(?<!dùng cho )\bpc\b|desktop|\bnuc\b|optiplex|lg gram|surface (?:pro|laptop|go|book)|matebook|thinkcentre/i, 'laptops-pcs'],
     [/(?<!\p{L})cpu(?!\p{L})|card (?:màn hình|đồ ho?ạ)|(?<!\p{L})vga (?:card|rời)|ram ddr\d/iu, 'pc-components'],
     [/màn hình|monitor|smart tivi|\btivi\b|\btv\b|television/i, 'tv-monitors'],
