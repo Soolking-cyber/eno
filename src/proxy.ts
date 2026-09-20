@@ -201,11 +201,20 @@ function rewriteToLang(req: NextRequest, lang: LangVariant, pathname: string): N
   url.pathname = `/${lang}${target === '/' ? '' : target}`
   const res = NextResponse.rewrite(url)
   res.headers.set('Content-Language', lang)
-  // ⛔ ONE PUBLIC URL, TWO LANGUAGES — SO CLOUDFLARE MUST NEVER STORE IT. The Free plan cannot put the
-  // language in its cache key, and the zones' HTML rule on `/`, `/privacy` and `/terms` respects origin
-  // headers, so without this the first visitor's language would be served to everyone for hours.
-  // A header only Cloudflare reads, so browsers and Next's own ISR cache are untouched. The deploy
-  // probe (infra/vn-node/eno-deploy.sh, langcheck) is the end-to-end proof.
+  // ⛔ ONE PUBLIC URL, TWO LANGUAGES — SO NO SHARED CACHE MAY STORE IT WITHOUT A LANGUAGE KEY.
+  // The Free plan cannot put the language in its own cache key, so without this header the first
+  // visitor's language would be served to everyone for hours. It is read only by Cloudflare, so
+  // browsers and Next's own ISR cache are untouched. The deploy probe
+  // (infra/vn-node/eno-deploy.sh, langcheck) is the end-to-end proof.
+  //
+  // ⚠️ THIS IS STILL THE DEFAULT, AND IT IS STILL LOAD-BEARING — but since 2026-09-20 a Cloudflare
+  // Worker (`eno-html-edge-cache`, on `/`, `/terms*`, `/privacy*` in both zones) DOES cache HTML at
+  // the edge, and it does so by DELETING this header after supplying the missing key itself. The
+  // Worker keys on the INPUTS this file's `langVariantFor()` reads — the `lang` cookie, else the raw
+  // Accept-Language — rather than re-implementing the rule, so it cannot drift away from
+  // src/lib/lang-variant.ts. Measured effect: homepage TTFB 0.49s → 0.16s.
+  // ⛔ SO DO NOT REMOVE THIS HEADER "because the Worker handles it". The Worker covers three paths;
+  // every other page still relies on this line, and that layering is the safety property.
   res.headers.set('Cloudflare-CDN-Cache-Control', 'no-store')
   /**
    * ⚠️ AND `Vary: Accept-Language, Cookie` IS DELIBERATELY NOT SET HERE — IT DOES NOT SURVIVE.
@@ -213,8 +222,12 @@ function rewriteToLang(req: NextRequest, lang: LangVariant, pathname: string): N
    * `rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding`,
    * so a middleware `append` reaches no client. Setting it through next.config's `headers()` instead
    * would overwrite that RSC list, and re-stating Next's internals by hand breaks silently the day it
-   * adds one. The two caches that actually exist are covered: Cloudflare by the header above, and the
-   * box's nginx micro-cache by a key that includes the language (infra/vn-node/origin-bootstrap.sh).
+   * adds one. Cloudflare ignores every `Vary` but `Accept-Encoding` in any case, which is the second,
+   * independent reason HTML never cached there before the Worker existed.
+   * ⛔ AN EARLIER VERSION OF THIS NOTE CLAIMED THE BOX'S NGINX ALSO PROTECTED US WITH A LANGUAGE-KEYED
+   * MICRO-CACHE. It does not: there is no `proxy_cache_path` in the live nginx config (checked
+   * 2026-09-20 on the new box), so nginx holds no HTML at all. Harmless — no cache, nothing to mix —
+   * but do not rely on a second layer that is not there.
    * A TLS-terminating corporate proxy could still mix languages at one URL; that is the accepted gap.
    */
   return withCors(res, req.headers.get('origin'))

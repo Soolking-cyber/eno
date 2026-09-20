@@ -11,18 +11,53 @@ function monogram(name: string): string {
 export function BrandLogo({
   name,
   iconPath,
+  iconUrl,
   size = 40,
   flat = false,
   className = '',
 }: {
   name: string
   iconPath?: string | null
+  /**
+   * Cacheable URL for a curated full-`<svg>` logo (src/lib/brand-logo-url.ts). When present it is
+   * used as the mask source INSTEAD of inlining the SVG as a data URI.
+   *
+   * ⛔ WHY: percent-encoding an SVG into `url("data:…")` inflates it ~2.7×, and the bytes are
+   * re-sent on every render and shared with nothing. Measured on `/brands` 2026-09-20: 176 inline
+   * data URIs, 648 kB, 28% of a 2.27 MB page. A URL is fetched once and cached for a year.
+   * ⚠️ Rendering is otherwise IDENTICAL — same `bg-current` + mask, so the mark is still a monotone
+   * silhouette that follows the theme into dark mode. Callers without the URL keep the old path,
+   * which is why this is optional rather than required.
+   */
+  iconUrl?: string | null
   size?: number
   // flat = monolith style: square monogram with a hairline border, no fill (for
   // the on-canvas brand rail). Default keeps the tinted circle (cards/chips).
   flat?: boolean
   className?: string
 }) {
+  if (iconUrl) {
+    const uri = `url("${iconUrl}")`
+    return (
+      <span
+        role="img"
+        aria-label={name}
+        className={`inline-block shrink-0 bg-current text-body ${className}`}
+        style={{
+          width: size,
+          height: size,
+          WebkitMaskImage: uri,
+          maskImage: uri,
+          WebkitMaskRepeat: 'no-repeat',
+          maskRepeat: 'no-repeat',
+          WebkitMaskPosition: 'center',
+          maskPosition: 'center',
+          WebkitMaskSize: 'contain',
+          maskSize: 'contain',
+        }}
+      />
+    )
+  }
   if (iconPath) {
     // Drop any leading XML prolog / comments so files that start with
     // "<?xml …?>" are still recognized as SVG (not mistaken for path data).

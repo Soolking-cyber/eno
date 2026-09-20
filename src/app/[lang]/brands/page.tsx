@@ -11,6 +11,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { EmptyState } from '@/components/ui/empty-state'
 import { db } from '@/lib/db'
 import { brandIconPath } from '@/lib/brand-icons'
+import { brandLogoUrl } from '@/lib/brand-logo-url'
 
 export const metadata: Metadata = {
   title: `Brands | ${SITE_NAME}`,
@@ -43,7 +44,16 @@ export default async function BrandsPage() {
     if ((error as { code?: string })?.code === 'P2021') return []
     throw error
   })
-  const items = brands.map((b) => ({ ...b, iconPath: brandIconPath(b) }))
+  /* ⛔ `iconUrl` KEEPS 648 kB OF INLINE SVG OUT OF THIS PAGE. A curated logo is a full `<svg>` that
+     BrandLogo would otherwise percent-encode into a `data:` URI per instance — measured 2026-09-20:
+     176 of them, 28% of a 2.27 MB page. Served from /api/brand-logo instead, it is fetched once and
+     cached for a year. Brands on simple-icons path data are unaffected and still inline (they are
+     one short `d` attribute, not a document).
+     ⚠️ `iconPath` IS WITHHELD WHENEVER `iconUrl` IS SET, and that is not tidiness. Props are
+     serialised into the RSC flight payload whether the component reads them or not, so passing
+     both would keep shipping the full ~241 kB of SVG source that this change exists to remove —
+     it would just no longer be percent-encoded. A reviewer caught that. */
+  const items = brands.map((b) => ({ ...b, iconPath: brandIconPath(b), iconUrl: brandLogoUrl(b) }))
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
@@ -102,7 +112,7 @@ export default async function BrandsPage() {
                 href={`/?brand=${encodeURIComponent(b.slug)}`}
                 className="flex flex-col items-center gap-3 rounded-2xl border border-border px-4 py-6 text-center transition-colors hover:border-line-strong hover:bg-muted"
               >
-                <BrandLogo name={b.name} iconPath={b.iconPath} size={44} />
+                <BrandLogo name={b.name} iconPath={b.iconUrl ? null : b.iconPath} iconUrl={b.iconUrl} size={44} />
                 <span className="line-clamp-1 text-sm font-semibold text-foreground">{b.name}</span>
                 <span className="text-xs text-muted-foreground">
                   {b.listingCount > 0 ? (
