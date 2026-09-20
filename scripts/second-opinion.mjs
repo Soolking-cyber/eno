@@ -39,15 +39,20 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // ⚠️ `astra` WAS MISSING FROM THIS LIST while it sat on the panel (2026-09-06..14), so `--status` never counted
 // its verdicts — receipts validated on codex + opus alone. It counts now.
 /**
- * ⛔ agy IS OUT — OWNER, 2026-09-16: "agy usege depleted so remove it". It had already stopped returning
- * a verdict on every round that day (a 400s print timeout with the turn still in progress, which the
- * panel counts as NO ANSWER, not as a pass). The seat definition is kept below, commented, so restoring
- * it is one line when the quota is back.
- * ⚠️ THAT LEAVES TWO SEATS AND ONE INDEPENDENT LAB: astra (openai) and opus (anthropic) — and opus is the
- * same model that writes most diffs here, so it is a self-review. The 2-lab rule below therefore means
- * astra alone decides whether anything can be committed.
+ * ⛔ agy WAS REMOVED FROM THIS LIST ON 2026-09-16 ("agy usege depleted so remove it") AND ITS SEAT
+ * CAME BACK WITHOUT IT — restored 2026-09-20. The `REVIEWERS` array below has been running agy again,
+ * but because its name was missing here, `--status` silently discarded every verdict it returned:
+ * `known` is built from THIS list, so an agy review counted as zero. With astra out of quota that
+ * left exactly one countable seat and the gate could never reach its 2-lab quorum — it jams, and it
+ * jams quietly, reporting "receipt records only 1 distinct full-diff verdict(s)" as though the
+ * reviewers had not answered.
+ * ⛔ THIS LIST AND `REVIEWERS` MUST BE CHANGED TOGETHER. Retiring a seat means removing it from BOTH;
+ * restoring one means adding it to BOTH. The same drift already cost a week for `astra`
+ * (2026-09-06..14) — see the note above. It is the second time.
+ * ⚠️ Keeping a RETIRED name here would be wrong for the opposite reason, so the list is exactly the
+ * seats `REVIEWERS` dispatches today: astra (openai), agy (google), opus (anthropic).
  */
-const REVIEWER_NAMES = ['astra', 'opus']
+const REVIEWER_NAMES = ['astra', 'agy', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
