@@ -656,6 +656,118 @@ const FEED_EXCLUDE_RULES: [RegExp, string][] = [
   // `Áo khoác nam màu đỏ lót lông cừu` was withheld as underwear — `sách`/`sạch`, `vàng`/`vang`
   // and `bìa`/`bia` a fourth time. `quần lót` and `áo ngực` carry the real rows.
   [anyOf('quan lot', 'ao nguc', 'noi y', 'lingerie', 'sip nam', 'quan boxer', 'bra'), 'underwear'],
+  /**
+   * ⛔ THE ENGLISH HALF, AND WITHOUT IT THIS WHOLE LIST HAD STOPPED WORKING ON MOST OF THE FEED.
+   * Every rule above was written against a VIETNAMESE catalogue. The importers now produce ENGLISH
+   * titles, so `bia larue` never sees "Larue Beer", `nhiet ke` never sees "Thermometer", and
+   * `quan lot` never sees "Panties". Measured 2026-09-20 against the live feed: 361 policy-relevant
+   * rows were reaching Merchant Center that the Vietnamese terms could not read, including canned
+   * beer, insulin syringes, forehead thermometers and Zippo lighter fluid.
+   *
+   * ⚠️ AND EVERY ENGLISH WORD COLLIDES EXACTLY LIKE THE VIETNAMESE ONES DID. The traps below are
+   * all real rows from that measurement, not hypotheticals. The discipline is the same: never a
+   * bare word where the catalogue proves a second meaning.
+   *
+   * ⛔ EVERY LOOKAHEAD RULE HERE IS ANCHORED WITH `^`, AND THAT IS NOT DECORATION. Unanchored, the
+   * engine simply retries at the next position: for "Glass Beer Mugs 390ml" it fails the
+   * `(?!.*glass)` guard at index 0, steps PAST the word "glass", and then every guard passes and
+   * the mugs are withheld as beer. Measured — it took three of the first test's keepers exactly
+   * that way. The same failure shape cost two rounds in feed-taxonomy.ts this week ("Tivi Xiaomi
+   * 43"), so treat an unanchored `(?!.*…)` as a bug on sight.
+   * ⚠️ AND PLURALS ARE SEPARATE WORDS TO `\b`: `\bmug\b` does NOT match "mugs", which is how the
+   * guard above was bypassed even before the anchoring. List both.
+   */
+
+  /**
+   * ⛔ ALCOHOL IS SOLD BY VOLUME AND ABV; GLASSWARE, BOOKS AND FURNITURE ARE NOT. This is the same
+   * trick the `vang` + 750ml rule below uses, because bare English words fail just as hard:
+   * `beer` takes "Glass Beer Mugs 390ml" and "Understanding and Appreciating Beer" (a book),
+   * `wine` takes "Wine Cabinet 1.8m", "Backpack - Wine Red" (a COLOUR) and "Wine Folly" (a book),
+   * `brandy` takes "Ocean Classic Brandy Glasses", `liquor` takes "Liquor Dispenser" and
+   * "Gold-Inlaid Liquor Cups", and `lager` takes "Columbia Lost Lager Beanie" (a hat).
+   * So: the drink word, PLUS a container volume or an ABV, MINUS the vessel/print/furniture words.
+   * Verified against every English alcohol-shaped row in the catalogue — it takes the real ones
+   * ("Hanoi Beer Case of 24 Cans 330ml", "Dalatbeco White Wine 12% 750ml", "HALICO Nep Moi Sticky
+   * Rice Liquor 30% ABV 500ml", six Korean soju cases) and leaves every book, glass and colour.
+   *
+   * ⛔ THE FIRST VERSION ALSO TOOK A VINEGAR, A DINING TABLE AND A COOKING SEASONING, all found by
+   * running it against the live catalogue rather than by argument: "BRAGG Organic Apple CIDER
+   * VINEGAR 946ml", "Red SAKE Dining Table and Chairs Set, 99% New" and "Mai Que Lo COOKING WINE
+   * Seasoning 330ml". The condiment, furniture and apparel words below are those three plus the
+   * classes they belong to.
+   * ⛔ AND `\d+\s?v` (VOLTAGE) IS GONE FROM THE QUANTITY CLAUSE. Both seats flagged it and they
+   * were right: `wine` is a COLOUR in this catalogue, so "Wine Red LED Strip 12V" and a 220V hair
+   * dryer would have been withheld as drink. Nothing needed it — every real row carries `ml`, a
+   * percentage or a can count as well ("Apple Liquor 30v 500ml" has both).
+   * ⚠️ `\d+\s?l` STAYS because "Passion Sweet Wine 2L Box" needs it, but VN clothing sizes are
+   * written `3L`/`2L` too — hence the apparel words in the guard. If a dress is ever withheld as
+   * wine, that is where to look.
+   * ⛔ AND THE GUARD IS DELIBERATELY SHORT, BECAUSE IT IS TITLE-WIDE. opus's point: one guard word
+   * ANYWHERE cancels the whole rule, so a generic commerce word is a bypass — "Beer 330ml + Free
+   * Cooler Bag" would have shipped on `cooler`, "Wine 750ml with Bottle Opener" on `opener`. Every
+   * word left here names a thing that IS the product (a glass, a cabinet, a book, a vinegar, a
+   * dress); `bag`, `box`, `size`, `cooler`, `opener`, `shelf`, `holder`, `rack`, `fridge`, `led`,
+   * `cable` and `battery` were all removed for that reason. A wine rack or a wine fridge is not in
+   * this catalogue today — add a word back only when a real row needs it.
+   */
+  [/^(?=.*\b(?:beer|lager|wine|liquor|brandy|whisky|whiskey|vodka|rum|sake|cider|spirits)\b)(?=.*(?:\d+\s?ml\b|\d+\s?l\b|\babv\b|\d+\s?%|case of \d+ can|carton of \d+ can|\d+ cans))(?!.*\b(?:glass|glasses|glassware|mug|mugs|cup|cups|tumbler|tumblers|decanter|cabinet|cabinets|dispenser|beanie|charm|backpack|book|books|sach|truyen|stories|vinegar|seasoning|cooking wine|marinade|table|chair|chairs|sofa|desk|furniture|dress|shirt|scarf|jacket|sweater|skirt|cotton|silk|linen|polyester)\b)/, 'alcohol'],
+
+  /**
+   * ⛔ LIGHTER FUEL AND BUTANE ARE HAZARDOUS GOODS AND HAD NO RULE AT ALL, in either language.
+   * All eight rows found are Zippo fuel cans and butane torch inserts — no false positives to
+   * guard against, which is why this one is a plain word list.
+   * ⚠️ `butane` also takes a camping gas canister, which is the same hazard class and should also
+   * not be advertised, so the over-reach is the safe direction here.
+   */
+  [anyOf('lighter fluid', 'lighter fluids', 'butane', 'lighter gas', 'naphtha'), 'flammable'],
+
+  /**
+   * ⛔ ENGLISH MEDICAL DEVICES. The traps, all measured: `first aid` is FOUR BOOKS ("3-Minute First
+   * Aid", "Children Learn First Aid with Doctor Bear"), `gauze` is BABY MUSLIN WASHCLOTHS, `needle`
+   * is a VOLLEYBALL INFLATION NEEDLE and a basketball pump, and `thermometer` is also a DESK CLOCK
+   * ("Integrated Desk Clock with Digital Thermometer and Indoor Hygrometer"). So `first aid`,
+   * `gauze` and bare `needle` are absent by decision, and `thermometer` carries a guard for the
+   * weather-station senses.
+   * ⚠️ `syringe` is safe in the plural-or-insulin form only, which is how the real row reads:
+   * "BD ULTRA-FINE II SHORT NEEDLE Diabetic Insulin Syringes".
+   */
+  [/^(?=.*\bthermometer\b)(?!.*\b(?:hygrometer|clock|weather|aquarium|kitchen|meat|bbq|grill|room|fridge|refrigerator|pool)\b)/, 'medical'],
+  [anyOf('insulin syringe', 'insulin syringes', 'syringes', 'hypodermic', 'hearing aid',
+         'pulse oximeter', 'blood glucose', 'glucose test strip', 'lancet', 'lancets',
+         'sphygmomanometer', 'oxygen concentrator', 'stethoscope'), 'medical'],
+  /**
+   * ⛔ ENGLISH VETERINARY MEDICINE. `nexgard` was the only brand the Vietnamese list carried, so
+   * "Bio Rantel Dewormer for Dogs and Cats" and "Frontline Plus for Cats - Flea and Tick Treatment"
+   * both shipped.
+   * ⚠️ `frontline` MUST CARRY `plus`: bare, it takes a MANGA — "Mission: Yozakura Family Vol. 8
+   * Yozakura Frontline". The same brand-versus-word fold as `bia`/`bìa`, in English.
+   */
+  [anyOf('dewormer', 'frontline plus', 'flea and tick', 'spot on pipette', 'tick treatment',
+         'anthelmintic'), 'vet_medicine'],
+
+  /**
+   * ⛔ ENGLISH UNDERWEAR, AND `thong` IS ABSENT ON PURPOSE. It is a BICYCLE BRAND here — "Thong
+   * Nhat Mini Bicycle", "Thong Nhat Neo 20-03 Girls' Bicycle", nine rows of them — plus "Thong
+   * Sandals" (footwear) and "Suoi Thong" (an author). Exactly the `do lot`/`do lot` fold the
+   * Vietnamese rule above warns about, in English.
+   * ⚠️ `briefs` MUST NOT MATCH "Briefs-Lined Shorts" — Nike running shorts with a built-in liner,
+   * and `feedNorm` turns the hyphen into a space, so the guard is `(?! lined)`.
+   * ⚠️ AND `underwear` TAKES A STORAGE BIN — "Fabric Storage Bins for Clothes, Underwear, Shoes" —
+   * so the organiser words are excluded.
+   */
+  [/^(?=.*\b(?:panties|underwear|briefs|boxer brief|boxer briefs|bralette)\b)(?!.*\bbriefs lined\b)(?!.*\b(?:storage|bin|bins|organizer|organiser|hanger|hangers|basket|baskets|drawer|drawers|box for|wardrobe)\b)/, 'underwear'],
+
+  /**
+   * ⛔ ENGLISH SUPPLEMENTS, AND THE COSMETIC/BOOK/PET COLLISIONS ARE THE WHOLE DIFFICULTY.
+   * Bare `vitamin` is a SERUM ("Melano CC Vitamin C Whitening Essence", "Acnes Lab C10 Vitamin C")
+   * and even a SHOWER HEAD ("High-Pressure Shower Head with Vitamin C Filter"); bare `collagen` is
+   * a CREAM and a "Collagen Stimulating Light Machine"; bare `weight loss` is six BOOKS
+   * ("Intermittent Fasting", "Safe Weight Loss with the Keto Diet"); and `nutritional supplement`
+   * alone is GOLDFISH FOOD ("Nutritional Supplement Feed for Goldfish, Guppy, Tetra").
+   * So only the ingestible forms, and never for an animal.
+   */
+  [/^(?=.*\b(?:fish oil|dietary supplement|protein supplement|meal replacement shake|calcium supplement|whey protein|probiotic capsule|omega 3)\b)(?!.*\b(?:feed|goldfish|guppy|aquarium|for fish|for dogs|for cats|pet)\b)/, 'supplement'],
+
   // Ingestibles making a health claim — the claim is refused, not the food.
   [anyOf('thuc pham chuc nang', 'vien uong', 'detox', 'thai doc', 'giam can', 'bot rau ma',
          'bot diep ca'), 'supplement'],

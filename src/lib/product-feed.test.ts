@@ -536,3 +536,102 @@ describe('feedApparel gender on maternity', () => {
     expect(feedApparel({ category: { slug: 'baby-kids' }, subcategorySlug: 'maternity' }).gender).toBe('female')
   })
 })
+
+
+/**
+ * ⛔ THE ENGLISH HALF OF THE EXCLUSION LIST, AND EVERY TITLE BELOW IS A REAL ROW FROM THE LIVE
+ * FEED on 2026-09-20 — 361 policy-relevant products were reaching Merchant Center because every
+ * rule in this file had been written against a VIETNAMESE catalogue and the importers now produce
+ * ENGLISH titles. `bia larue` cannot read "Larue Beer"; `nhiet ke` cannot read "Thermometer".
+ *
+ * ⚠️ THE KEEPERS MATTER AS MUCH AS THE BLOCKS, and they are why this is not a word list. "Glass
+ * Beer Mugs 390ml", "Wine Cabinet", "Backpack - Wine Red", "Thong Nhat Bicycle", "Briefs-Lined
+ * Shorts", "Vitamin C Serum" and six books about weight loss all have to survive. An over-block
+ * withholds a sellable product silently, which is the failure this file's header exists to prevent.
+ */
+const EN_MUST_EXCLUDE: [string,string][] = [
+  ['Hanoi Draft Beer - Case of 24 Cans 500ml','alcohol'],
+  ['Case of 24 Cans Larue Beer 330mlcan','alcohol'],
+  ['Hanoi Beer Green Label - Carton of 24 Cans x 330ml','alcohol'],
+  ['Truc Bach Beer - Carton of 24 Cans 330ml','alcohol'],
+  ['Dalatbeco Classic White Wine 12% - 750ml','alcohol'],
+  ['Passion Sweet Wine 750ml 11%','alcohol'],
+  ['Passion Sweet Wine 2L Box 11','alcohol'],
+  ['HALICO Nep Moi Sticky Rice Liquor 30% ABV 500ml Bottle (Without Box)','alcohol'],
+  ['HALICO Táo Mèo Apple Liquor 30v 500ml bottle without box','alcohol'],
+  ['3-Piece Combo: 100% Genuine Zippo Lighter Fluid, Flints & Wicks','flammable'],
+  ['Zippo Yellow Flame Butane Lighter Insert 65806','flammable'],
+  ['Set of 4 Zippo Lighter Fluid 125ml Cans','flammable'],
+  ['Box of 100 BD ULTRA - FINE II SHORT NEEDLE 0.5ml U-100 Diabetic Insulin Syringes','medical'],
+  ['Rionet HB-D8L Digital Hearing Aid','medical'],
+  ['Omron Electronic Thermometer - MC-720 Forehead Measurement','medical'],
+  ['Microlife 1s 3-in-1 Infrared Forehead Thermometer with 5 Free Blemish Needles','medical'],
+  ["Men's Under Armour Performance Tech 6Inch Underwear",'underwear'],
+  ["3-Pack Women's Natural Fiber Cotton Panties - FBS-01 - Black - M",'underwear'],
+  ["10-Pack Women's Plus Size Modal Panties 2XL-5XL",'underwear'],
+  ["Men's Ultra-Thin Seamless Boxer Briefs with Comfortable Bulge Pouch",'underwear'],
+  ["Combo 4 Men's Bamboo Fiber Briefs with 1cm Waistband",'underwear'],
+  ['Bio Island DHA for Kids Fish Oil Capsules for Brain and Eye Health','supplement'],
+  ['Genuine Labrada Lean Body Meal Replacement Shake, 35G Protein Supplement','supplement'],
+  ['Spirit CK-S601PF Premium Dual-Head Stethoscope - BLACK','medical'],
+  ['GENUINE Korean JINRO Peach Flavored Soju 360ml - Case of 20 Bottles','alcohol'],
+  ['Wild Turkey Aged 12 Years 50.5% Whiskey 1x0.7L','alcohol'],
+  ['HALICO Hanoi Liquor 35% ABV 2l PE Canister without Box','alcohol'],
+  ['Bio Rantel Dewormer for Dogs and Cats - Box of 10 Tablets','vet_medicine'],
+  ['1 Box of Frontline Plus for Cats (3 Spot-On Pipettes) - Flea and Tick Treatment','vet_medicine'],
+]
+const EN_MUST_KEEP: string[] = [
+  'Set of 6 Bormioli Rocco Baviera 0.3 Glass Beer Mugs 133430MI9021990 390ml',
+  'Set of 6 Ocean Classic Brandy Glasses 1501X09 255ml',
+  'Set of 6 Premium Heat-Resistant Glass Tumblers for Water or Liquor Star Pattern - 240ml',
+  'Used Wine Cabinet 1.8m x 40cm x 2m for Neatly Displaying Bottles and Glasses',
+  'Modern Wine Display Cabinet 117cm x 255cm x 40cm - Factory Price, 99% New',
+  'ANELLO Medium Zipper Backpack AT-B0193A - Wine Red',
+  'Crocs Strawberry Wine Floral Jibbitz™ Charm - Red',
+  'Columbia Lost Lager™ II Beanie - Black',
+  'Book: Understanding and Appreciating Beer',
+  'Book: Wine Stories',
+  'Wine Folly: The Master Guide Magnum Edition',
+  'Gas Pump Shaped Liquor Dispenser with Modern Pour Spout',
+  'Book: 3-Minute First Aid - Regular Edition',
+  'Book: Children Learn First Aid with Doctor Bear',
+  'Pack of 10 Unmei Japanese Standard Baby Muslin Washcloths, 4-Layer Soft Gauze for Newborns',
+  'PaKaSa Integrated Desk Clock with Digital Thermometer and Indoor Hygrometer',
+  'VB7400 Japanese Leather Match Volleyball with Free Ball Net & Inflation Needle',
+  'Thong Nhat Mini New Bicycle 24, 26 Inch - Suitable for People 1m35 and Taller',
+  'Thong Nhat Neo 20-03 Girls\' Bicycle for Ages 5 - 10 - Pink',
+  "Men's Nike Dri-Fit Miler 7 Inch Briefs-Lined Shorts - Gray",
+  'BIGGBEN Women\'s Premium Genuine Cowhide Leather Thong Sandals SDN72 - 38',
+  'Set of 2 Multipurpose Fabric Storage Bins in 2 Sizes for Clothes, Underwear, Shoes',
+  'Letting Go of Sorrows - Author Suoi Thong',
+  'Book: Intermittent Fasting - The Most Popular Safe and Scientific Weight Loss Method',
+  'Safe Weight Loss with the Keto Diet',
+  'Acnes Lab C10 Vitamin C 10% Brightening & Dark Spot Fading Serum 15ml',
+  'Melano CC Vitamin C Whitening Essence Anti-Dark Spot Serum 20ml',
+  'Halio Red Light Therapy Device 3-in-1 Collagen Stimulating Light Machine',
+  'Eurolife EL-146SH Shower Head and Hose Set with Vitamin C Filter - Silver White',
+  'GREENABC Nutritional Supplement Feed for Goldfish, Guppy, Tetra, Molly - 42% Protein',
+  // ⚠️ `frontline` bare would take this manga — the brand-versus-word fold again.
+  'Mission: Yozakura Family Vol. 8 Yozakura Frontline',
+  'Carton of 48 Packs Dutch Lady Sweetened UHT Fresh Milk 48 x 110ml',   // shelf-stable, not fresh
+  'Hoco Z28 Car Cigarette Lighter Socket Splitter with 2 Sockets and 2 USB Ports',
+  'Selleys RP7 Rust Penetrant and Lubricant Spray 350g - 350g',
+  // ⛔ ALL THREE FOUND BY RUNNING THE RULE AGAINST THE LIVE CATALOGUE, not by review.
+  'BRAGG Organic Apple Cider Vinegar, Imported from USA, 946ml Bottle',
+  'Selling a Red Sake Dining Table and Chairs Set, 99% New.',
+  'Hoa Ky Mai Que Lo Cooking Wine Seasoning 330ml',
+  // ⚠️ The shapes both seats predicted: `wine` is a colour, VN sizes are 2L/3L, voltage is 12V.
+  'Wine Red Dress 3L - 100% Cotton',
+  'Wine Red LED Strip 12V 5m',
+  'Wine Red Scarf 100% Silk',
+  'iPhone 15 Pro Max 256GB', 'MacBook Air M2 13 inch', 'Samsung Galaxy S23 Ultra 256GB',
+]
+
+describe('feed exclusions — the English catalogue, 2026-09-20', () => {
+  it.each(EN_MUST_EXCLUDE)('excludes %s', (title, reason) => {
+    expect(feedExcluded(title)).toBe(reason)
+  })
+  it.each(EN_MUST_KEEP)('keeps %s', (title) => {
+    expect(feedExcluded(title)).toBeNull()
+  })
+})
