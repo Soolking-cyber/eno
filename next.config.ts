@@ -199,6 +199,22 @@ const SUPABASE_WS = SUPABASE_ORIGIN.replace(/^https:/, 'wss:')
 const SUPABASE_HOST = SUPABASE_ORIGIN.replace(/^https?:\/\//, '')
 
 /**
+ * Parsed form of NEXT_PUBLIC_IMAGE_INTERNAL_ORIGIN (e.g. `http://supabase-envoy:8000`), or null.
+ * ⚠️ A malformed value must not take the build down — it degrades to "no internal route", which
+ * is the pre-2026-09-20 behaviour (slow, but working), not a broken one.
+ */
+const IMAGE_INTERNAL_ORIGIN = (() => {
+  const raw = process.env.NEXT_PUBLIC_IMAGE_INTERNAL_ORIGIN
+  if (!raw) return null
+  try {
+    return new URL(raw)
+  } catch {
+    console.warn(`next.config: ignoring malformed NEXT_PUBLIC_IMAGE_INTERNAL_ORIGIN=${raw}`)
+    return null
+  }
+})()
+
+/**
  * ── ACCEPT: text/markdown — CONTENT NEGOTIATION FOR AGENTS (acceptmarkdown.com) ─────────────────
  *
  * WHAT IT BUYS: an agent asking for `/` gets ~4KB of markdown instead of a React shell it has to
@@ -710,12 +726,53 @@ const nextConfig: NextConfig = {
     // (they need 543). 1080 stays for the PDP hero. 750/1920 remain dropped.
     deviceSizes: [360, 420, 640, 1080],
     imageSizes: [64, 128, 256],
+    /**
+     * ⛔ THE OPTIMIZER WAS FETCHING ITS SOURCES FROM HONG KONG — from the same machine.
+     * `sb.eno.vn` resolves to Cloudflare inside the container, so every COLD /_next/image
+     * left the box and came back to collect a file on its own disk. Measured 2026-09-20 from
+     * inside eno-vn-app: public 1345 ms vs internal 17 ms for byte-identical objects.
+     * src/lib/image-loader.ts rewrites ONLY the `url=` parameter; see the note there.
+     * ⚠️ A loaderFile REPLACES the built-in loader, so it must reproduce it exactly — including
+     * defaulting quality to 70, because `qualities` below does not contain Next's default 75.
+     *
+     * ⛔ NEVER ALSO SET `images.loader: "custom"`. A reviewer claimed `loaderFile` already implies
+     * it and therefore 404s the whole optimizer; checked against the installed Next 16.3.1 and it
+     * does NOT — `server/config.js` only VALIDATES that `loader` is "default" or "custom" and
+     * never assigns it, so `loader` stays "default" and `/_next/image` keeps serving. But the trap
+     * behind the claim is real: `server/next-server.js` does
+     * `if (imagesConfig.loader !== "default" || imagesConfig.unoptimized) return render404()`.
+     * So writing `loader: "custom"` here — which looks like it belongs next to `loaderFile` —
+     * silently 404s EVERY optimized image on both editions. Verified by building and fetching.
+     */
+    loaderFile: "./src/lib/image-loader.ts",
     remotePatterns: [
       {
         protocol: "https",
         hostname: SUPABASE_HOST,
         pathname: "/storage/v1/object/public/listings/**",
       },
+      /**
+       * The internal gateway the loader rewrites to — DERIVED FROM THE SAME ENV VAR the loader
+       * reads, never hardcoded beside it.
+       * ⛔ TWO SOURCES OF TRUTH HERE 400s EVERY LISTING IMAGE SITE-WIDE, and a reviewer caught
+       * exactly that: the loader emits whatever the env var says, the optimizer validates against
+       * this list, and any drift between them (a different container name, port 8001, https)
+       * fails the `remotePatterns` check — not a slow image, a 400 on every `<Image>`.
+       * ⚠️ `url=` is attacker-controllable, so the entry stays scoped to the same path prefix as
+       * the public one. It grants no reach beyond `/storage/v1/object/public/listings/**`, which
+       * is public by definition — this changes the ROUTE to those bytes, not which bytes exist.
+       * Unset in dev/CI: the loader no-ops and this entry is simply omitted.
+       */
+      ...(IMAGE_INTERNAL_ORIGIN
+        ? [
+            {
+              protocol: IMAGE_INTERNAL_ORIGIN.protocol.replace(":", "") as "http" | "https",
+              hostname: IMAGE_INTERNAL_ORIGIN.hostname,
+              port: IMAGE_INTERNAL_ORIGIN.port,
+              pathname: "/storage/v1/object/public/listings/**",
+            } as const,
+          ]
+        : []),
     ],
   },
   typescript: {
