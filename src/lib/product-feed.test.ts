@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import {
   feedExcluded, isGtin, feedStock, gpcFor, feedIdentifiers,
-  feedApparel, isApparel,
+  feedApparel, isApparel, GPC_BY_SUBCATEGORY, GOOGLE_PRODUCT_CATEGORY,
 } from './product-feed'
 
 /**
@@ -310,18 +312,71 @@ describe('feedStock', () => {
   })
 })
 
+/**
+ * ⛔ THE ONLY TEST HERE THAT CAN CATCH A WRONG ID. Every other assertion in this file compares the
+ * map to a literal written from the same source as the map, which proves the two agree and nothing
+ * else — opus made exactly that point, and measuring it found 32 of 72 ids wrong, SIX of which were
+ * not Google ids at all. An invalid `google_product_category` suppresses the item in Merchant
+ * Center; a valid-but-wrong one enters the wrong auction. Both are silent.
+ *
+ * ⚠️ THIS CHECKS EXISTENCE, NOT CORRECTNESS. It cannot tell that `smartwatch` belongs in the
+ * electronics-accessories aisle rather than under Handbag Accessories — both are real ids. It catches typos, invented ids and ids
+ * RETIRED by a taxonomy update, which is the class that rotted here undetected. Correctness still
+ * costs a human reading the path in the comment against the fixture.
+ */
+describe('every google_product_category id exists in Google\'s taxonomy', () => {
+  const VALID = new Set(
+    readFileSync(join(__dirname, '__fixtures__/google-product-category-ids.txt'), 'utf8')
+      .split('\n')
+      // ⚠️ `.trim()` IS NOT COSMETIC — opus caught it. On a CRLF checkout every entry would be
+      // "1\r", `VALID.has(id)` would fail for all 72 ids at once, and the guard would read as the
+      // map being catastrophically wrong rather than the fixture being read wrong.
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'))
+      // ⚠️ THE FIXTURE IS GOOGLE'S FILE VERBATIM — `278 - Electronics > Computers`. Parse the id
+      // off the front rather than storing a stripped copy, so the documented `curl` regenerates
+      // this file exactly and the path stays readable beside the id it justifies.
+      .map((l) => l.split(' - ')[0]),
+  )
+
+  it('has a fixture that actually loaded', () => {
+    // ⚠️ Guard the guard: an empty Set would make every assertion below fail loudly, but a fixture
+    // that silently lost its contents while the test still passed would be worse.
+    expect(VALID.size).toBeGreaterThan(5000)
+  })
+
+  it.each(Object.entries(GPC_BY_SUBCATEGORY))('%s → %s is a real id', (_slug, id) => {
+    expect(VALID.has(id)).toBe(true)
+  })
+
+  it.each(Object.entries(GOOGLE_PRODUCT_CATEGORY))('category %s → %s is a real id', (_slug, id) => {
+    expect(VALID.has(id)).toBe(true)
+  })
+})
+
 describe('gpcFor', () => {
   it('prefers the leaf over the aisle', () => {
     // The whole point: 67,353 electronics rows shared '222' before this.
     expect(gpcFor('electronics', 'phones-tablets')).toBe('267')
+    // ⛔ THE TWO SHELVES ADDED BY THE SORTING PASS. Without these the rows land in Merchant Center
+    // with no google_product_category, which suppresses them — the defect this whole map prevents.
+    // ⚠️ These two assert VERIFIED ids — checked against Google's taxonomy-with-ids file on
+    // 2026-09-20, not recalled. The first values written here (`1502`, `359`) were both wrong:
+    // one does not exist, the other is Home & Garden. A test like this cannot catch that by
+    // itself; the verification is the curl in product-feed.ts's comment.
+    expect(gpcFor('electronics', 'pc-components')).toBe('285')
+    expect(gpcFor('electronics', 'security-cameras')).toBe('362')
     // ⚠️ The parent, because the slug covers desktops too — a narrower id that is sometimes wrong
     // is worse than the aisle it replaced.
     expect(gpcFor('electronics', 'laptops-pcs')).toBe('278')
-    expect(gpcFor('electronics', 'screen-protectors')).toBe('5525')
+    // ⛔ WAS '5525' — Motor Vehicle Cassette Adapters. The assertion was written from the map, so
+    // it tracked the map's error for as long as the map held it. Now Screen Protectors (5468).
+    expect(gpcFor('electronics', 'screen-protectors')).toBe('5468')
   })
 
   it('disambiguates a slug that means two things in two aisles', () => {
-    expect(gpcFor('electronics', 'storage')).toBe('499954')          // SSDs
+    // ⛔ WAS '499954' — Bird Cage Bird Baths. Now Storage Devices (2414).
+    expect(gpcFor('electronics', 'storage')).toBe('2414')            // SSDs
     expect(gpcFor('furniture-appliances', 'storage')).toBe('6356')   // wardrobes
   })
 
@@ -479,5 +534,104 @@ describe('gpcFor prototype safety', () => {
 describe('feedApparel gender on maternity', () => {
   it('names a gender for every apparel subcategory that carries no attribute', () => {
     expect(feedApparel({ category: { slug: 'baby-kids' }, subcategorySlug: 'maternity' }).gender).toBe('female')
+  })
+})
+
+
+/**
+ * ⛔ THE ENGLISH HALF OF THE EXCLUSION LIST, AND EVERY TITLE BELOW IS A REAL ROW FROM THE LIVE
+ * FEED on 2026-09-20 — 361 policy-relevant products were reaching Merchant Center because every
+ * rule in this file had been written against a VIETNAMESE catalogue and the importers now produce
+ * ENGLISH titles. `bia larue` cannot read "Larue Beer"; `nhiet ke` cannot read "Thermometer".
+ *
+ * ⚠️ THE KEEPERS MATTER AS MUCH AS THE BLOCKS, and they are why this is not a word list. "Glass
+ * Beer Mugs 390ml", "Wine Cabinet", "Backpack - Wine Red", "Thong Nhat Bicycle", "Briefs-Lined
+ * Shorts", "Vitamin C Serum" and six books about weight loss all have to survive. An over-block
+ * withholds a sellable product silently, which is the failure this file's header exists to prevent.
+ */
+const EN_MUST_EXCLUDE: [string,string][] = [
+  ['Hanoi Draft Beer - Case of 24 Cans 500ml','alcohol'],
+  ['Case of 24 Cans Larue Beer 330mlcan','alcohol'],
+  ['Hanoi Beer Green Label - Carton of 24 Cans x 330ml','alcohol'],
+  ['Truc Bach Beer - Carton of 24 Cans 330ml','alcohol'],
+  ['Dalatbeco Classic White Wine 12% - 750ml','alcohol'],
+  ['Passion Sweet Wine 750ml 11%','alcohol'],
+  ['Passion Sweet Wine 2L Box 11','alcohol'],
+  ['HALICO Nep Moi Sticky Rice Liquor 30% ABV 500ml Bottle (Without Box)','alcohol'],
+  ['HALICO Táo Mèo Apple Liquor 30v 500ml bottle without box','alcohol'],
+  ['3-Piece Combo: 100% Genuine Zippo Lighter Fluid, Flints & Wicks','flammable'],
+  ['Zippo Yellow Flame Butane Lighter Insert 65806','flammable'],
+  ['Set of 4 Zippo Lighter Fluid 125ml Cans','flammable'],
+  ['Box of 100 BD ULTRA - FINE II SHORT NEEDLE 0.5ml U-100 Diabetic Insulin Syringes','medical'],
+  ['Rionet HB-D8L Digital Hearing Aid','medical'],
+  ['Omron Electronic Thermometer - MC-720 Forehead Measurement','medical'],
+  ['Microlife 1s 3-in-1 Infrared Forehead Thermometer with 5 Free Blemish Needles','medical'],
+  ["Men's Under Armour Performance Tech 6Inch Underwear",'underwear'],
+  ["3-Pack Women's Natural Fiber Cotton Panties - FBS-01 - Black - M",'underwear'],
+  ["10-Pack Women's Plus Size Modal Panties 2XL-5XL",'underwear'],
+  ["Men's Ultra-Thin Seamless Boxer Briefs with Comfortable Bulge Pouch",'underwear'],
+  ["Combo 4 Men's Bamboo Fiber Briefs with 1cm Waistband",'underwear'],
+  ['Bio Island DHA for Kids Fish Oil Capsules for Brain and Eye Health','supplement'],
+  ['Genuine Labrada Lean Body Meal Replacement Shake, 35G Protein Supplement','supplement'],
+  ['Spirit CK-S601PF Premium Dual-Head Stethoscope - BLACK','medical'],
+  ['GENUINE Korean JINRO Peach Flavored Soju 360ml - Case of 20 Bottles','alcohol'],
+  ['Wild Turkey Aged 12 Years 50.5% Whiskey 1x0.7L','alcohol'],
+  ['HALICO Hanoi Liquor 35% ABV 2l PE Canister without Box','alcohol'],
+  ['Bio Rantel Dewormer for Dogs and Cats - Box of 10 Tablets','vet_medicine'],
+  ['1 Box of Frontline Plus for Cats (3 Spot-On Pipettes) - Flea and Tick Treatment','vet_medicine'],
+]
+const EN_MUST_KEEP: string[] = [
+  'Set of 6 Bormioli Rocco Baviera 0.3 Glass Beer Mugs 133430MI9021990 390ml',
+  'Set of 6 Ocean Classic Brandy Glasses 1501X09 255ml',
+  'Set of 6 Premium Heat-Resistant Glass Tumblers for Water or Liquor Star Pattern - 240ml',
+  'Used Wine Cabinet 1.8m x 40cm x 2m for Neatly Displaying Bottles and Glasses',
+  'Modern Wine Display Cabinet 117cm x 255cm x 40cm - Factory Price, 99% New',
+  'ANELLO Medium Zipper Backpack AT-B0193A - Wine Red',
+  'Crocs Strawberry Wine Floral Jibbitz™ Charm - Red',
+  'Columbia Lost Lager™ II Beanie - Black',
+  'Book: Understanding and Appreciating Beer',
+  'Book: Wine Stories',
+  'Wine Folly: The Master Guide Magnum Edition',
+  'Gas Pump Shaped Liquor Dispenser with Modern Pour Spout',
+  'Book: 3-Minute First Aid - Regular Edition',
+  'Book: Children Learn First Aid with Doctor Bear',
+  'Pack of 10 Unmei Japanese Standard Baby Muslin Washcloths, 4-Layer Soft Gauze for Newborns',
+  'PaKaSa Integrated Desk Clock with Digital Thermometer and Indoor Hygrometer',
+  'VB7400 Japanese Leather Match Volleyball with Free Ball Net & Inflation Needle',
+  'Thong Nhat Mini New Bicycle 24, 26 Inch - Suitable for People 1m35 and Taller',
+  'Thong Nhat Neo 20-03 Girls\' Bicycle for Ages 5 - 10 - Pink',
+  "Men's Nike Dri-Fit Miler 7 Inch Briefs-Lined Shorts - Gray",
+  'BIGGBEN Women\'s Premium Genuine Cowhide Leather Thong Sandals SDN72 - 38',
+  'Set of 2 Multipurpose Fabric Storage Bins in 2 Sizes for Clothes, Underwear, Shoes',
+  'Letting Go of Sorrows - Author Suoi Thong',
+  'Book: Intermittent Fasting - The Most Popular Safe and Scientific Weight Loss Method',
+  'Safe Weight Loss with the Keto Diet',
+  'Acnes Lab C10 Vitamin C 10% Brightening & Dark Spot Fading Serum 15ml',
+  'Melano CC Vitamin C Whitening Essence Anti-Dark Spot Serum 20ml',
+  'Halio Red Light Therapy Device 3-in-1 Collagen Stimulating Light Machine',
+  'Eurolife EL-146SH Shower Head and Hose Set with Vitamin C Filter - Silver White',
+  'GREENABC Nutritional Supplement Feed for Goldfish, Guppy, Tetra, Molly - 42% Protein',
+  // ⚠️ `frontline` bare would take this manga — the brand-versus-word fold again.
+  'Mission: Yozakura Family Vol. 8 Yozakura Frontline',
+  'Carton of 48 Packs Dutch Lady Sweetened UHT Fresh Milk 48 x 110ml',   // shelf-stable, not fresh
+  'Hoco Z28 Car Cigarette Lighter Socket Splitter with 2 Sockets and 2 USB Ports',
+  'Selleys RP7 Rust Penetrant and Lubricant Spray 350g - 350g',
+  // ⛔ ALL THREE FOUND BY RUNNING THE RULE AGAINST THE LIVE CATALOGUE, not by review.
+  'BRAGG Organic Apple Cider Vinegar, Imported from USA, 946ml Bottle',
+  'Selling a Red Sake Dining Table and Chairs Set, 99% New.',
+  'Hoa Ky Mai Que Lo Cooking Wine Seasoning 330ml',
+  // ⚠️ The shapes both seats predicted: `wine` is a colour, VN sizes are 2L/3L, voltage is 12V.
+  'Wine Red Dress 3L - 100% Cotton',
+  'Wine Red LED Strip 12V 5m',
+  'Wine Red Scarf 100% Silk',
+  'iPhone 15 Pro Max 256GB', 'MacBook Air M2 13 inch', 'Samsung Galaxy S23 Ultra 256GB',
+]
+
+describe('feed exclusions — the English catalogue, 2026-09-20', () => {
+  it.each(EN_MUST_EXCLUDE)('excludes %s', (title, reason) => {
+    expect(feedExcluded(title)).toBe(reason)
+  })
+  it.each(EN_MUST_KEEP)('keeps %s', (title) => {
+    expect(feedExcluded(title)).toBeNull()
   })
 })

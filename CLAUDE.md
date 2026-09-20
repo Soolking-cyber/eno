@@ -16,7 +16,7 @@ Vietnamese expat marketplace. `PRELAUNCH=true` until the owner flips it.
 | A bug that already survived one plausible fix | `deep-debugger` | Opus · xhigh |
 | **Second opinion — run BOTH** (plan AND finished diff; ALSO every security/bug audit — owner 2026-07-23) | `codex` (astra) + `antigravity` | **codex gpt-6-astra (high) + Gemini 3.8 Flash (High)** — two non-Anthropic families. Owner 2026-09-14: agy was dropped for quota that morning and restored that afternoon (*"add agy back to 2nd opinion set"*); the gpt-5.6-sol seat stays retired. |
 | Second opinion — Anthropic-lineage | `fable-reviewer` | ⛔ **OUT OF BUDGET since 2026-09-09** — do not dispatch. Use Opus · xhigh in its place until the owner says otherwise. |
-| Commit-gate panel | `scripts/second-opinion.mjs` | **codex gpt-6-astra · high + agy Gemini 3.8 Flash (High) + Opus 5 · high** (owner 2026-09-14: *"codex use astra in high and opus 5 in high"*, then *"add agy back to 2nd opinion set"*; the gpt-5.6-sol seat is gone). Three seats, three labs, quorum two labs. ⚠️ Opus is the SAME MODEL that writes most of these diffs, so its verdict is a self-review: weight dissent from astra or agy, and go and measure. Past 180KB agy stops counting and the certifying panel is astra + opus — one independent lab, so say so out loud. |
+| Commit-gate panel | `scripts/second-opinion.mjs` | ⏳ **agy Gemini 3.8 Flash (High) + Opus 5 · high UNTIL 2026-09-23** — owner 2026-09-20: *"remove codex use agy and opus"*, then *"remove codex until it comes back again in 3 days"*. astra is out of OpenAI quota (`codex exec` errors in ~7s, which the panel counts as NO ANSWER). Restore it on 2026-09-23 by putting `'astra'` back in `REVIEWER_NAMES` **and** uncommenting its seat in `REVIEWERS` — both, or it runs and its verdict is never counted. ⛔ TWO SEATS, TWO LABS, and Opus is the SAME MODEL that writes most of these diffs, so **agy is the only independent vote**: a REFUTED from agy is the whole panel objecting — go and measure it. ⚠️ Past 180KB agy is truncated and stops counting, which now leaves opus alone and the lab quorum UNREACHABLE; the gate refuses the commit and the answer is to split the change, not to force it. |
 | Shipping to prod (the whole ritual) | `/ship` | Opus · medium |
 | Seller/admin e2e suite | `/authed-e2e` | Opus · low |
 | Design, architecture, anything genuinely novel | main thread | session model |
@@ -25,6 +25,8 @@ Three habits that follow:
 
 - **Delegate search to `scout`.** Not to save money — to keep bulk grep output out of the main context. You get the conclusion, not the file dump.
 - **Escalate, don't grind.** A fix that didn't hold goes to `deep-debugger` (Opus, xhigh), not to a second guess at the same altitude.
+- ⏳ **SINCE 2026-09-20 THE GATE IS agy + Opus 5 ONLY (astra out of quota until 2026-09-23).** The line below is the
+  2026-09-14 arrangement and returns on the 23rd; until then read every "astra" in this file as "not available".
 - ⛔ **SINCE 2026-09-14 THE REVIEWERS ARE codex gpt-6-astra (high) + agy Gemini 3.8 Flash (High) + Opus 5 (high) FOR THE
   GATE, and astra + agy for plan/diff second opinions. Where this bullet says codex, read astra — the sol seat is retired.**
 - **Four families, not one** (history below: from 2026-09-09 to 2026-09-14 the gate was down to TWO MODELS AND ONE

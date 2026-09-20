@@ -134,19 +134,52 @@ export const GPC_BY_SUBCATEGORY: Record<string, string> = {
   'laptops-pcs': '278',           // Electronics > Computers
   'tv-monitors': '404',           // Electronics > Video > Televisions
   audio: '223',                   // Electronics > Audio
-  cameras: '2096',                // Cameras & Optics > Cameras > Digital Cameras
+  cameras: '142',                 // Cameras & Optics > Cameras
+  /**
+   * ⛔ THE TWO SHELVES ADDED IN THE SORTING PASS NEED A LEAF HERE OR THEY SHIP WITH NO
+   * `google_product_category` AT ALL. opus flagged the gap as INSUFFICIENT-to-judge and it was
+   * real: `subcategoryFor` can now return these two slugs, and every row landing on them would
+   * have reached Merchant Center uncategorised — which is the exact ranking problem this map
+   * exists to fix. A missing category is not a cosmetic omission; it suppresses the item.
+   * ⛔ BOTH IDS WERE VERIFIED AGAINST GOOGLE'S PUBLISHED TAXONOMY, NOT RECALLED — and the first
+   * two I wrote were both wrong. `1502` DOES NOT EXIST, and `359` is "Home & Garden > Business &
+   * Home Security", not surveillance cameras. opus called the unit test circular (it asserted the
+   * map against itself, which cannot catch a wrong id) and that was the right call: an invalid
+   * `google_product_category` suppresses the item exactly as a missing one does.
+   *   curl -s https://www.google.com/basepages/producttype/taxonomy-with-ids.en-US.txt
+   * Checked 2026-09-20. Re-check with that file before changing either value.
+   *
+   * ⚠️ `285` SITS UNDER *Electronics Accessories*, NOT *Computers* — Google files components as
+   * accessories, so the tempting `278` (Electronics > Computers) would put a mainboard in the
+   * same aisle as the laptops this shelf was split off to escape.
+   */
+  'pc-components': '285',         // Electronics > Electronics Accessories > Computer Components
+  'security-cameras': '362',      // Cameras & Optics > Cameras > Surveillance Cameras
   gaming: '1294',                 // Electronics > Video Game Consoles
   'phone-cases': '2353',          // Electronics > … > Mobile Phone Cases
-  'screen-protectors': '5525',    // Electronics > … > Mobile Phone Screen Protectors
-  'keyboards-mice': '5539',       // Electronics > Computers > Computer Accessories > Input Devices
-  'bags-sleeves': '338',          // Electronics > Computers > Computer Accessories > Laptop Bags & Cases
-  'cables-chargers': '5509',      // Electronics > Electronics Accessories > Power > Chargers
-  'power-banks': '7160',          // Electronics > Electronics Accessories > Power > Battery Packs
-  smartwatch: '6552',             // Electronics > Electronics Accessories > Wearable Technology > Smart Watches
-  'electronics:storage': '499954', // Electronics > Computers > Computer Accessories > Storage Devices
+  'screen-protectors': '5468',    // Electronics > … > Electronics Films & Shields > Screen Protectors
+  'keyboards-mice': '1928',       // Electronics > … > Computer Components > Input Devices
+  'bags-sleeves': '279',          // Electronics > Electronics Accessories > Computer Accessories
+  'cables-chargers': '505295',    // Electronics > … > Power > Power Adapters & Chargers
+  'power-banks': '276',           // Electronics > … > Power > Batteries
+  /**
+   * ⛔ NOT `201` (Jewelry > Watches), AND THE REASON IS THE APPAREL REGIME, NOT THE WORD "watch".
+   * Google requires `color`, `size`, `age_group` and `gender` under Apparel & Accessories — and
+   * `smartwatch` is NOT in APPAREL_SUBCATS below, so this feed emits none of them. An apparel node
+   * with no apparel attributes is an item-level disapproval, silently, which is the exact class
+   * this whole pass was fixing. `swimming`, `sports-shoes`, `kids-clothing` and `maternity` DO sit
+   * in that set, so their apparel nodes are safe; this one is not. opus raised the risk for all of
+   * them and measuring APPAREL_SUBCATS is what separated the four safe cases from this one.
+   * ⚠️ THE 2021-09-21 TAXONOMY HAS NO WEARABLE TECHNOLOGY NODE AT ALL — grep it: zero matches for
+   * `wearable` or `smart watch`. Both seats asserted `6552` was "Wearable Technology > Smart
+   * Watches"; it is Handbag & Wallet Accessories. There is no better home than the electronics
+   * accessories aisle until Google publishes one.
+   */
+  smartwatch: '2082',             // Electronics > Electronics Accessories
+  'electronics:storage': '2414',  // Electronics > … > Computer Components > Storage Devices
   networking: '342',              // Electronics > Networking
-  printers: '5473',               // Electronics > Print, Copy, Scan & Fax > Printers
-  accessories: '4526',            // Electronics > Electronics Accessories (the aisle's own "other")
+  printers: '500106',             // Electronics > Print, Copy, Scan & Fax > Printers, Copiers & Fax Machines
+  accessories: '2082',            // Electronics > Electronics Accessories
   // fashion-beauty
   womens: '1604',                 // Apparel & Accessories > Clothing > Women's
   mens: '1604',                   // Apparel & Accessories > Clothing (Google split by size/gender attrs, not node)
@@ -156,30 +189,41 @@ export const GPC_BY_SUBCATEGORY: Record<string, string> = {
   beauty: '469',                  // Health & Beauty > Personal Care > Cosmetics
   // sports
   sportswear: '5322',             // Apparel & Accessories > Clothing > Activewear
-  'sports-shoes': '1834',         // Apparel & Accessories > Shoes > Athletic Shoes
-  swimming: '5697',               // Sporting Goods > Athletics > Swimming
+  // ⚠️ SAME AS `shoes` AND `kids-shoes` — the 2021-09-21 taxonomy has NO Athletic Shoes leaf, and
+  // the `1834` that used to sit here is not one of its ids at all. This site draws a distinction
+  // Google does not carry; sharing the node beats inventing one.
+  'sports-shoes': '187',          // Apparel & Accessories > Shoes
+  swimming: '211',                // Apparel & Accessories > Clothing > Swimwear
   'gym-yoga': '990',              // Sporting Goods > Exercise & Fitness
-  'racket-ball': '1001',          // Sporting Goods > Athletics > Racquet Sports
-  'outdoor-cycling': '3908',      // Sporting Goods > Outdoor Recreation > Cycling
+  'racket-ball': '499713',        // Sporting Goods > Athletics
+  /**
+   * ⚠️ SAME ID AS `bicycle` ON PURPOSE, AND THE COMMENTS NOW AGREE. Two shelves here — a sports one
+   * and a vehicles one — both map to Google's single Cycling node. opus flagged the pair while they
+   * carried two DIFFERENT paths for one id, which meant one comment was wrong by construction.
+   * Google draws no finer split, so the duplication is the honest answer rather than a defect.
+   */
+  'outdoor-cycling': '1025',      // Sporting Goods > Outdoor Recreation > Cycling
   'sports-accessories': '988',    // Sporting Goods
-  'sports-nutrition': '2984',     // Health & Beauty > Health Care > Fitness & Nutrition
+  'sports-nutrition': '2890',     // Health & Beauty > Health Care > Fitness & Nutrition
   // furniture-appliances
-  'sofa-seating': '441',          // Furniture > Sofas
-  'tables-desks': '443',          // Furniture > Tables
+  'sofa-seating': '460',          // Furniture > Sofas
+  'tables-desks': '6392',         // Furniture > Tables
   'beds-mattresses': '505764',    // Furniture > Beds & Accessories
   'furniture-appliances:storage': '6356', // Furniture > Cabinets & Storage
-  'lighting-decor': '594',        // Home & Garden > Decor
+  'lighting-decor': '696',        // Home & Garden > Decor
   'white-goods': '604',           // Home & Garden > Household Appliances
   kitchenware: '638',             // Home & Garden > Kitchen & Dining > Cookware & Bakeware
   'plants-garden': '985',         // Home & Garden > Plants
   'household-supplies': '630',    // Home & Garden > Household Supplies
   // baby-kids
-  'strollers-seats': '5859',      // Baby & Toddler > Baby Transport > Baby Strollers
+  'strollers-seats': '2764',      // Baby & Toddler > Baby Transport
   'baby-gear': '537',             // Baby & Toddler
   toys: '1239',                   // Toys & Games > Toys
-  'kids-clothing': '5424',        // Apparel & Accessories > Clothing > Baby & Toddler Clothing
+  'kids-clothing': '182',         // Apparel & Accessories > Clothing > Baby & Toddler Clothing
   'kids-shoes': '187',            // Apparel & Accessories > Shoes
-  maternity: '5441',              // Apparel & Accessories > Clothing > Outfit Sets (maternity has no leaf; gender+age carry it)
+  // ⚠️ SAME AS `womens`/`mens`, for the same reason — no Maternity node exists in this version.
+  // The `5441` replaced here was Wedding & Bridal Party Dresses: a real id, and a real shop.
+  maternity: '1604',              // Apparel & Accessories > Clothing
   // books-stationery
   literature: '784',              // Media > Books
   'self-help-business': '784',
@@ -190,25 +234,25 @@ export const GPC_BY_SUBCATEGORY: Record<string, string> = {
   'books-other': '784',
   'stationery-office': '922',     // Office Supplies
   // vehicles
-  motorbike: '3335',              // Vehicles & Parts > Vehicles > Motor Vehicles > Motorcycles & Scooters
+  motorbike: '919',               // Vehicles & Parts > Vehicles > Motor Vehicles > Motorcycles & Scooters
   bicycle: '1025',                // Sporting Goods > Outdoor Recreation > Cycling > Bicycles
   car: '916',                     // Vehicles & Parts > Vehicles > Motor Vehicles > Cars, Trucks & Vans
-  'ebike-scooter': '3335',
+  'ebike-scooter': '919',         // Vehicles & Parts > … > Motorcycles & Scooters
   'parts-gear': '899',            // Vehicles & Parts > Vehicle Parts & Accessories
   // hobbies-sports
   fitness: '990',                 // Sporting Goods > Exercise & Fitness
-  instruments: '783',             // Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments
-  'board-games': '1247',          // Toys & Games > Games
-  'camping-outdoor': '5655',      // Sporting Goods > Outdoor Recreation > Camping & Hiking
-  'art-crafts': '505370',         // Arts & Entertainment > Hobbies & Creative Arts > Arts & Crafts
+  instruments: '54',              // Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments
+  'board-games': '3793',          // Toys & Games > Games
+  'camping-outdoor': '1013',      // Sporting Goods > Outdoor Recreation > Camping & Hiking
+  'art-crafts': '16',             // Arts & Entertainment > Hobbies & Creative Arts > Arts & Crafts
   // pets
-  dogs: '3',                      // Animals & Pet Supplies > Pet Supplies > Dog Supplies
-  cats: '2',                      // Animals & Pet Supplies > Pet Supplies > Cat Supplies
-  supplies: '6',                  // Animals & Pet Supplies > Pet Supplies
+  dogs: '5',                      // Animals & Pet Supplies > Pet Supplies > Dog Supplies
+  cats: '4',                      // Animals & Pet Supplies > Pet Supplies > Cat Supplies
+  supplies: '2',                  // Animals & Pet Supplies > Pet Supplies
   // food-drink
-  'home-baking': '423',           // Food, Beverages & Tobacco > Food Items > Bakery
+  'home-baking': '1876',          // Food, Beverages & Tobacco > Food Items > Bakery
   groceries: '422',
-  'coffee-tea': '2073',           // Food, Beverages & Tobacco > Beverages > Coffee
+  'coffee-tea': '413',            // Food, Beverages & Tobacco > Beverages
 }
 
 /**
@@ -612,6 +656,118 @@ const FEED_EXCLUDE_RULES: [RegExp, string][] = [
   // `Áo khoác nam màu đỏ lót lông cừu` was withheld as underwear — `sách`/`sạch`, `vàng`/`vang`
   // and `bìa`/`bia` a fourth time. `quần lót` and `áo ngực` carry the real rows.
   [anyOf('quan lot', 'ao nguc', 'noi y', 'lingerie', 'sip nam', 'quan boxer', 'bra'), 'underwear'],
+  /**
+   * ⛔ THE ENGLISH HALF, AND WITHOUT IT THIS WHOLE LIST HAD STOPPED WORKING ON MOST OF THE FEED.
+   * Every rule above was written against a VIETNAMESE catalogue. The importers now produce ENGLISH
+   * titles, so `bia larue` never sees "Larue Beer", `nhiet ke` never sees "Thermometer", and
+   * `quan lot` never sees "Panties". Measured 2026-09-20 against the live feed: 361 policy-relevant
+   * rows were reaching Merchant Center that the Vietnamese terms could not read, including canned
+   * beer, insulin syringes, forehead thermometers and Zippo lighter fluid.
+   *
+   * ⚠️ AND EVERY ENGLISH WORD COLLIDES EXACTLY LIKE THE VIETNAMESE ONES DID. The traps below are
+   * all real rows from that measurement, not hypotheticals. The discipline is the same: never a
+   * bare word where the catalogue proves a second meaning.
+   *
+   * ⛔ EVERY LOOKAHEAD RULE HERE IS ANCHORED WITH `^`, AND THAT IS NOT DECORATION. Unanchored, the
+   * engine simply retries at the next position: for "Glass Beer Mugs 390ml" it fails the
+   * `(?!.*glass)` guard at index 0, steps PAST the word "glass", and then every guard passes and
+   * the mugs are withheld as beer. Measured — it took three of the first test's keepers exactly
+   * that way. The same failure shape cost two rounds in feed-taxonomy.ts this week ("Tivi Xiaomi
+   * 43"), so treat an unanchored `(?!.*…)` as a bug on sight.
+   * ⚠️ AND PLURALS ARE SEPARATE WORDS TO `\b`: `\bmug\b` does NOT match "mugs", which is how the
+   * guard above was bypassed even before the anchoring. List both.
+   */
+
+  /**
+   * ⛔ ALCOHOL IS SOLD BY VOLUME AND ABV; GLASSWARE, BOOKS AND FURNITURE ARE NOT. This is the same
+   * trick the `vang` + 750ml rule below uses, because bare English words fail just as hard:
+   * `beer` takes "Glass Beer Mugs 390ml" and "Understanding and Appreciating Beer" (a book),
+   * `wine` takes "Wine Cabinet 1.8m", "Backpack - Wine Red" (a COLOUR) and "Wine Folly" (a book),
+   * `brandy` takes "Ocean Classic Brandy Glasses", `liquor` takes "Liquor Dispenser" and
+   * "Gold-Inlaid Liquor Cups", and `lager` takes "Columbia Lost Lager Beanie" (a hat).
+   * So: the drink word, PLUS a container volume or an ABV, MINUS the vessel/print/furniture words.
+   * Verified against every English alcohol-shaped row in the catalogue — it takes the real ones
+   * ("Hanoi Beer Case of 24 Cans 330ml", "Dalatbeco White Wine 12% 750ml", "HALICO Nep Moi Sticky
+   * Rice Liquor 30% ABV 500ml", six Korean soju cases) and leaves every book, glass and colour.
+   *
+   * ⛔ THE FIRST VERSION ALSO TOOK A VINEGAR, A DINING TABLE AND A COOKING SEASONING, all found by
+   * running it against the live catalogue rather than by argument: "BRAGG Organic Apple CIDER
+   * VINEGAR 946ml", "Red SAKE Dining Table and Chairs Set, 99% New" and "Mai Que Lo COOKING WINE
+   * Seasoning 330ml". The condiment, furniture and apparel words below are those three plus the
+   * classes they belong to.
+   * ⛔ AND `\d+\s?v` (VOLTAGE) IS GONE FROM THE QUANTITY CLAUSE. Both seats flagged it and they
+   * were right: `wine` is a COLOUR in this catalogue, so "Wine Red LED Strip 12V" and a 220V hair
+   * dryer would have been withheld as drink. Nothing needed it — every real row carries `ml`, a
+   * percentage or a can count as well ("Apple Liquor 30v 500ml" has both).
+   * ⚠️ `\d+\s?l` STAYS because "Passion Sweet Wine 2L Box" needs it, but VN clothing sizes are
+   * written `3L`/`2L` too — hence the apparel words in the guard. If a dress is ever withheld as
+   * wine, that is where to look.
+   * ⛔ AND THE GUARD IS DELIBERATELY SHORT, BECAUSE IT IS TITLE-WIDE. opus's point: one guard word
+   * ANYWHERE cancels the whole rule, so a generic commerce word is a bypass — "Beer 330ml + Free
+   * Cooler Bag" would have shipped on `cooler`, "Wine 750ml with Bottle Opener" on `opener`. Every
+   * word left here names a thing that IS the product (a glass, a cabinet, a book, a vinegar, a
+   * dress); `bag`, `box`, `size`, `cooler`, `opener`, `shelf`, `holder`, `rack`, `fridge`, `led`,
+   * `cable` and `battery` were all removed for that reason. A wine rack or a wine fridge is not in
+   * this catalogue today — add a word back only when a real row needs it.
+   */
+  [/^(?=.*\b(?:beer|lager|wine|liquor|brandy|whisky|whiskey|vodka|rum|sake|cider|spirits)\b)(?=.*(?:\d+\s?ml\b|\d+\s?l\b|\babv\b|\d+\s?%|case of \d+ can|carton of \d+ can|\d+ cans))(?!.*\b(?:glass|glasses|glassware|mug|mugs|cup|cups|tumbler|tumblers|decanter|cabinet|cabinets|dispenser|beanie|charm|backpack|book|books|sach|truyen|stories|vinegar|seasoning|cooking wine|marinade|table|chair|chairs|sofa|desk|furniture|dress|shirt|scarf|jacket|sweater|skirt|cotton|silk|linen|polyester)\b)/, 'alcohol'],
+
+  /**
+   * ⛔ LIGHTER FUEL AND BUTANE ARE HAZARDOUS GOODS AND HAD NO RULE AT ALL, in either language.
+   * All eight rows found are Zippo fuel cans and butane torch inserts — no false positives to
+   * guard against, which is why this one is a plain word list.
+   * ⚠️ `butane` also takes a camping gas canister, which is the same hazard class and should also
+   * not be advertised, so the over-reach is the safe direction here.
+   */
+  [anyOf('lighter fluid', 'lighter fluids', 'butane', 'lighter gas', 'naphtha'), 'flammable'],
+
+  /**
+   * ⛔ ENGLISH MEDICAL DEVICES. The traps, all measured: `first aid` is FOUR BOOKS ("3-Minute First
+   * Aid", "Children Learn First Aid with Doctor Bear"), `gauze` is BABY MUSLIN WASHCLOTHS, `needle`
+   * is a VOLLEYBALL INFLATION NEEDLE and a basketball pump, and `thermometer` is also a DESK CLOCK
+   * ("Integrated Desk Clock with Digital Thermometer and Indoor Hygrometer"). So `first aid`,
+   * `gauze` and bare `needle` are absent by decision, and `thermometer` carries a guard for the
+   * weather-station senses.
+   * ⚠️ `syringe` is safe in the plural-or-insulin form only, which is how the real row reads:
+   * "BD ULTRA-FINE II SHORT NEEDLE Diabetic Insulin Syringes".
+   */
+  [/^(?=.*\bthermometer\b)(?!.*\b(?:hygrometer|clock|weather|aquarium|kitchen|meat|bbq|grill|room|fridge|refrigerator|pool)\b)/, 'medical'],
+  [anyOf('insulin syringe', 'insulin syringes', 'syringes', 'hypodermic', 'hearing aid',
+         'pulse oximeter', 'blood glucose', 'glucose test strip', 'lancet', 'lancets',
+         'sphygmomanometer', 'oxygen concentrator', 'stethoscope'), 'medical'],
+  /**
+   * ⛔ ENGLISH VETERINARY MEDICINE. `nexgard` was the only brand the Vietnamese list carried, so
+   * "Bio Rantel Dewormer for Dogs and Cats" and "Frontline Plus for Cats - Flea and Tick Treatment"
+   * both shipped.
+   * ⚠️ `frontline` MUST CARRY `plus`: bare, it takes a MANGA — "Mission: Yozakura Family Vol. 8
+   * Yozakura Frontline". The same brand-versus-word fold as `bia`/`bìa`, in English.
+   */
+  [anyOf('dewormer', 'frontline plus', 'flea and tick', 'spot on pipette', 'tick treatment',
+         'anthelmintic'), 'vet_medicine'],
+
+  /**
+   * ⛔ ENGLISH UNDERWEAR, AND `thong` IS ABSENT ON PURPOSE. It is a BICYCLE BRAND here — "Thong
+   * Nhat Mini Bicycle", "Thong Nhat Neo 20-03 Girls' Bicycle", nine rows of them — plus "Thong
+   * Sandals" (footwear) and "Suoi Thong" (an author). Exactly the `do lot`/`do lot` fold the
+   * Vietnamese rule above warns about, in English.
+   * ⚠️ `briefs` MUST NOT MATCH "Briefs-Lined Shorts" — Nike running shorts with a built-in liner,
+   * and `feedNorm` turns the hyphen into a space, so the guard is `(?! lined)`.
+   * ⚠️ AND `underwear` TAKES A STORAGE BIN — "Fabric Storage Bins for Clothes, Underwear, Shoes" —
+   * so the organiser words are excluded.
+   */
+  [/^(?=.*\b(?:panties|underwear|briefs|boxer brief|boxer briefs|bralette)\b)(?!.*\bbriefs lined\b)(?!.*\b(?:storage|bin|bins|organizer|organiser|hanger|hangers|basket|baskets|drawer|drawers|box for|wardrobe)\b)/, 'underwear'],
+
+  /**
+   * ⛔ ENGLISH SUPPLEMENTS, AND THE COSMETIC/BOOK/PET COLLISIONS ARE THE WHOLE DIFFICULTY.
+   * Bare `vitamin` is a SERUM ("Melano CC Vitamin C Whitening Essence", "Acnes Lab C10 Vitamin C")
+   * and even a SHOWER HEAD ("High-Pressure Shower Head with Vitamin C Filter"); bare `collagen` is
+   * a CREAM and a "Collagen Stimulating Light Machine"; bare `weight loss` is six BOOKS
+   * ("Intermittent Fasting", "Safe Weight Loss with the Keto Diet"); and `nutritional supplement`
+   * alone is GOLDFISH FOOD ("Nutritional Supplement Feed for Goldfish, Guppy, Tetra").
+   * So only the ingestible forms, and never for an animal.
+   */
+  [/^(?=.*\b(?:fish oil|dietary supplement|protein supplement|meal replacement shake|calcium supplement|whey protein|probiotic capsule|omega 3)\b)(?!.*\b(?:feed|goldfish|guppy|aquarium|for fish|for dogs|for cats|pet)\b)/, 'supplement'],
+
   // Ingestibles making a health claim — the claim is refused, not the food.
   [anyOf('thuc pham chuc nang', 'vien uong', 'detox', 'thai doc', 'giam can', 'bot rau ma',
          'bot diep ca'), 'supplement'],
