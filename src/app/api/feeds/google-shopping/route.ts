@@ -52,9 +52,40 @@ export async function GET(req: Request) {
       //
       // No try/catch around this: a DeskResolutionError must 500 rather than emit an unfiltered
       // feed, because a bad feed is a licensing breach that nobody notices.
+      /**
+       * ⛔ NO AFFILIATE ROWS IN THE GOOGLE FEED (owner, 2026-09-20, on the Merchant Center banner
+       * "Fix Affiliates issue that prevents your products from showing on Google").
+       *
+       * Merchant Center requires the purchase to COMPLETE on the claimed domain. An affiliate row's
+       * landing page is an eno.vn PDP whose buy button hands the visitor to CellphoneS / Tiki / Thế
+       * Giới Di Động through `go.isclix.com`, so Google classifies it as affiliate content and
+       * withholds the whole account's free listings. Measured 2026-09-18: 82,084 of 82,130 live sale
+       * listings carry an `affiliateUrl`, so this filter is not a trim — it is nearly the entire
+       * feed, and what remains is the genuinely peer-to-peer catalogue.
+       *
+       * ⚠️ NOT A FEED BUG, AND FEED TUNING NEVER FIXED IT. The attribute pass on 2026-09-18 made the
+       * rows themselves correct (53 categories, clean identifiers) and did not move this, because the
+       * objection is to the landing page, not the row. Google had already reached the same verdict
+       * organically — 756 of 45,117 submitted URLs indexed, 1.7% — which is why affiliate rows left
+       * sitemap.xml on 2026-09-17. Submitting them anyway risks an account-level strike, which is far
+       * harder to undo than a pause.
+       * ⛔ THE META FEED DELIBERATELY KEEPS THEM (`/api/feeds/facebook-catalog`): Meta's catalogue
+       * policy admits redirect destinations, that catalogue is live and clean, and it is the one
+       * actually earning traffic. Do not "make the two feeds consistent" — they answer to different
+       * rules, and this asymmetry is the point.
+       *
+       * ⚠️ `affiliateUrl: null` MATCHES SQL NULL ONLY — an EMPTY STRING would sail through and ship
+       * the exact rows this filter exists to withhold. A reviewer raised that on 2026-09-20 and it
+       * was measured rather than argued: across the live+verified set there are **79 NULL, 0 empty,
+       * 0 whitespace-only and 79,575 real affiliate URLs**, so the clause selects precisely the
+       * non-affiliate catalogue today. Recorded because the next reader will wonder the same thing.
+       * ⛔ IF THE IMPORTER EVER STARTS WRITING `''`, THIS FILTER SILENTLY RE-BROADENS and the feed
+       * earns the account strike again — so that is the thing to check here, not the clause itself.
+       */
       where: await scopedListingWhere({
         verified: true,
         status: 'active',
+        affiliateUrl: null,
         listingType: { in: feedListingTypes() },
         category: { slug: { in: feedCategories() } },
       }),
