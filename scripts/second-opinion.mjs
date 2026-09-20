@@ -39,15 +39,28 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // ⚠️ `astra` WAS MISSING FROM THIS LIST while it sat on the panel (2026-09-06..14), so `--status` never counted
 // its verdicts — receipts validated on codex + opus alone. It counts now.
 /**
- * ⛔ agy IS OUT — OWNER, 2026-09-16: "agy usege depleted so remove it". It had already stopped returning
- * a verdict on every round that day (a 400s print timeout with the turn still in progress, which the
- * panel counts as NO ANSWER, not as a pass). The seat definition is kept below, commented, so restoring
- * it is one line when the quota is back.
- * ⚠️ THAT LEAVES TWO SEATS AND ONE INDEPENDENT LAB: astra (openai) and opus (anthropic) — and opus is the
- * same model that writes most diffs here, so it is a self-review. The 2-lab rule below therefore means
- * astra alone decides whether anything can be committed.
+ * ⛔ PANEL SINCE 2026-09-20 = agy + opus. Owner: "remove codex use agy and opus", then
+ * "remove codex until it comes back again in 3 days". astra's OpenAI quota is exhausted and
+ * `codex exec` returns "You've hit your usage limit … try again at Sep 23rd, 2026 1:46 PM"
+ * on every run — an ERROR string, which the panel counts as NO ANSWER, not as a pass.
+ * ⏳ RESTORE astra ON 2026-09-23: put 'astra' back in this array AND uncomment its seat in
+ * REVIEWERS below. Both, or the seat runs and its verdict is never counted (see the next note).
+ *
+ * ⛔ agy WAS OUT 2026-09-16..20 — owner: "agy usege depleted so remove it" — and is BACK on the
+ * owner's word above. Its quota recovered; it answers again.
+ *
+ * ⚠️ THIS ARRAY AND `REVIEWERS` DRIFTED APART AND THE GATE SILENTLY JAMMED. From 2026-09-16 to
+ * 2026-09-20 `REVIEWERS` dispatched agy while this list named only astra + opus, so agy's verdict
+ * was collected, printed, and then discarded by `--status`. With astra out of quota that left ONE
+ * countable verdict and NOTHING could be committed, while the console showed two reviews arriving.
+ * ⛔ THE TWO LISTS MUST BE EDITED TOGETHER. A name here with no seat below can never answer; a seat
+ * below with no name here answers into a void.
+ *
+ * ⚠️ TWO SEATS, TWO LABS — and opus is the same model that writes most diffs here, so its verdict
+ * is a self-review. The 2-lab quorum therefore means agy alone is the independent vote: weight a
+ * REFUTED from agy heavily, and go and measure rather than out-voting it.
  */
-const REVIEWER_NAMES = ['astra', 'opus']
+const REVIEWER_NAMES = ['agy', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -182,7 +195,10 @@ if (process.env.SECOND_OPINION_SKIP_SECRET_SCAN !== '1') {
   const hits = SECRET_PATTERNS.filter(([re]) => re.test(diff)).map(([, label]) => label)
   if (hits.length) {
     console.error(`⛔ REFUSING TO SEND THIS DIFF TO EXTERNAL REVIEWERS — it looks like it contains: ${hits.join(', ')}.`)
-    console.error('   codex, agy and opus are third-party services; a credential sent to them cannot be recalled.')
+    // ⚠️ THIS IS THE THIRD PLACE THE SEAT LIST IS WRITTEN — after REVIEWER_NAMES and REVIEWERS —
+    // and opus flagged it reviewing this very change: the diff's own lesson is that duplicated seat
+    // lists drift, and it fixed two of the three. Update this string whenever a seat moves.
+    console.error('   agy and opus are third-party services; a credential sent to them cannot be recalled.')
     console.error('   Remove the value from the staged content (git reset the file, move it to Secret Manager via')
     console.error('   scripts/secret-set.sh), then re-run. If this is a FALSE POSITIVE — a fixture, a public key, a')
     console.error('   sample in documentation — re-run with SECOND_OPINION_SKIP_SECRET_SCAN=1 and say so out loud.')
@@ -288,7 +304,11 @@ const REVIEWERS = [
    * ⚠️ AND IT DOUBLES THE OpenAI SPEND per review, which is the cost the owner accepted for a
    * second generation's eyes.
    */
-  { name: 'astra', lab: 'openai', cmd: 'codex', args: ['exec', '-m', 'gpt-6-astra', '-c', 'model_reasoning_effort=high', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'], stdin: true },
+  // ⏳ OUT UNTIL 2026-09-23 — owner, 2026-09-20: "remove codex until it comes back again in 3 days".
+  // Quota exhausted; every run returns "You've hit your usage limit … try again at Sep 23rd, 2026
+  // 1:46 PM" after ~7s. Left dispatched it burns a seat and returns no verdict.
+  // ⛔ TO RESTORE: uncomment this line AND add 'astra' back to REVIEWER_NAMES. Both.
+  // { name: 'astra', lab: 'openai', cmd: 'codex', args: ['exec', '-m', 'gpt-6-astra', '-c', 'model_reasoning_effort=high', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'], stdin: true },
   {
     name: 'agy',
     lab: 'google',
@@ -538,21 +558,24 @@ const counted = answered.filter((r) => !r.truncated)
 const labsAnswered = new Set(answered.map((r) => r.lab)).size
 const labsCounted = new Set(counted.map((r) => r.lab)).size
 console.log(`\n${answered.length}/${REVIEWERS.length} seats answered across ${labsAnswered} lab(s) — ${counted.length} seat(s) / ${labsCounted} lab(s) saw the full diff.`)
-// ⛔ opus IS THE SAME MODEL THAT WRITES MOST OF THESE DIFFS. A CONFIRMED from opus beside a REFUTED from astra or
-// agy is an independent reviewer objecting — weight it that way.
+// ⛔ opus IS THE SAME MODEL THAT WRITES MOST OF THESE DIFFS. A CONFIRMED from opus beside a REFUTED from agy is
+// an independent reviewer objecting — weight it that way.
 // ⚠️ PRINTED ON EVERY RUN, not only written here (astra): the agy-truncation banner used to say this out loud on
 // big diffs, and on this panel it is true of every diff, so a "2/2 across 2 labs" must never read as two
 // independent families.
-// ⚠️ PAST agy's 180KB CUTOFF agy does not count, and the certifying panel is astra + opus: one independent lab plus
-// the author's own model. On a diff that big, read the licensing-relevant hunks yourself or split the change.
+// ⛔ PAST agy's 180KB CUTOFF, ON THIS TWO-SEAT PANEL, agy does not count AND THE QUORUM BECOMES UNREACHABLE —
+// opus alone is one lab, so `labsCounted < 2` refuses the commit. That is correct, not a bug: there is no
+// independent reviewer left. The fix is to SPLIT THE CHANGE until agy sees all of it, not to force it through.
+// While astra was on the panel (until 2026-09-20) a big diff still certified on astra + opus; it cannot now.
 if (agyTruncated) {
-  console.log('\n⛔ THIS DIFF IS OVER 180KB, SO agy DOES NOT COUNT — the panel that certified it is')
-  console.log('   astra + opus, and opus is the SAME MODEL that wrote the change. Read the licensing-relevant')
-  console.log('   hunks yourself before trusting it, or split the change until agy can see all of it.')
+  console.log('\n⛔ THIS DIFF IS OVER 180KB, SO agy DOES NOT COUNT — and agy is the ONLY independent seat on the')
+  console.log('   current two-seat panel, so the lab quorum CANNOT be met and this commit will be refused.')
+  console.log('   Split the change until agy can see all of it. Forcing it through certifies on opus alone,')
+  console.log('   which is the same model that wrote it.')
 }
 if (counted.some((r) => r.name === 'opus')) {
-  console.log('⚠️  opus is the SAME MODEL that wrote most diffs here — its verdict is a self-review. astra and agy are the')
-  console.log('   independent seats: if either REFUTED, that dissent is the one to measure.')
+  console.log('⚠️  opus is the SAME MODEL that wrote most diffs here — its verdict is a self-review. agy is the ONLY')
+  console.log('   independent seat until astra returns (2026-09-23): if agy REFUTED, that dissent is the whole panel.')
 }
 
 // ⚠️ THE RECEIPT IS WRITTEN ONLY AFTER THE QUORUM HOLDS — AND THIS ORDER IS THE GATE.
