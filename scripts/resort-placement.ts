@@ -144,11 +144,13 @@ async function restore(file: string) {
   writeFileSync(pre, now.map((r) => JSON.stringify(r)).join('\n') + '\n')
   console.log(`pre-restore snapshot: ${pre}`)
 
-  for (let i = 0; i < restorable.length; i += 200) {
-    const batch = restorable.slice(i, i + 200)
-    await db.$transaction(batch.map((r) =>
+  for (let i = 0; i < restorable.length; i += 25) {
+    const batch = restorable.slice(i, i + 25)
+    // ⚠️ Same reason as the forward path: a 200-row interactive transaction exceeds Prisma's 5s
+    // ceiling. Per-row updates are atomic and the pre-restore snapshot is the undo.
+    await Promise.all(batch.map((r) =>
       db.listing.update({ where: { id: r.id }, data: { categoryId: r.categoryId, subcategorySlug: r.subcategorySlug, attributes: r.attributes } })))
-    process.stdout.write(`\r  restored ${Math.min(i + 200, restorable.length)}/${restorable.length}`)
+    process.stdout.write(`\r  restored ${Math.min(i + 25, restorable.length)}/${restorable.length}`)
   }
   console.log('\ndone.')
   await db.$disconnect()
@@ -256,10 +258,32 @@ async function main() {
   }).join('\n') + '\n')
   console.log(`\nsnapshot: ${snap}  (${moves.length} rows)`)
 
+  /**
+   * ⛔ NOT `$transaction`. Measured against production: 200 updates in one interactive transaction
+   * blew Prisma's 5s ceiling at 5140ms and the whole run aborted with zero rows written — and over
+   * an SSH tunnel every round trip is slower still, so the ceiling is easy to hit and the batch
+   * size that triggers it is not predictable.
+   * ⚠️ AND THE TRANSACTION WAS NEVER THE SAFETY MECHANISM. The SNAPSHOT is: it is written before
+   * the first write and `--restore` replays it. Each update is atomic by itself, a partial run
+   * leaves rows correctly placed rather than half-placed, and re-running simply moves the rest.
+   * classify-by-breadcrumb.ts has written its batches this way for months.
+   *
+   * ⛔ BATCH 25, NOT 200, BECAUSE `Promise.all` IS CONCURRENT WHERE `$transaction` WAS SEQUENTIAL.
+   * Both seats made this point and it is the right one: Prisma's pool defaults to about
+   * `num_cpus * 2 + 1`, so 200 simultaneous updates queue against a 10s `pool_timeout` — and the
+   * slow tunnel that caused the original 5140ms is exactly what makes that queue drain slowly.
+   * Swapping a transaction timeout for a P2024 would have been no trade at all. 25 stays under the
+   * pool on any machine this runs from.
+   * ⚠️ MEASURED BEFORE AND AFTER: the 444-row production backfill completed 444/444 with no pool
+   * error even at 200, so this is hardening against a larger run, not a fix for an observed
+   * failure. agy also asserted that array transactions do not use the 5s interactive ceiling —
+   * the error text says otherwise verbatim: "The timeout for this transaction was 5000 ms,
+   * however 5140 ms passed since the start of the transaction."
+   */
   let done = 0
-  for (let i = 0; i < moves.length; i += 200) {
-    const batch = moves.slice(i, i + 200)
-    await db.$transaction(batch.map((m) => db.listing.update({
+  for (let i = 0; i < moves.length; i += 25) {
+    const batch = moves.slice(i, i + 25)
+    await Promise.all(batch.map((m) => db.listing.update({
       where: { id: m.id },
       data: {
         categoryId: m.categoryId,
