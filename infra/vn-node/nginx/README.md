@@ -21,13 +21,13 @@ The box has no global IPv6 address, so the v6 listeners are unreachable.
 ⚠️ **RE-TEST THIS AFTER ANY FIREWALL, DOCKER OR REBOOT CHANGE, FROM OFF-BOX:**
 
 ```bash
-curl -sk -o /dev/null -w '%{http_code}\n' --max-time 12 --resolve eno.vn:443:162.4.176.208 https://eno.vn/
+curl -sk -o /dev/null -w '%{http_code}\n' --max-time 12 --resolve eno.vn:443:162.4.176.233 https://eno.vn/
 #   000 = closed. 200 = the origin is exposed again.
 curl -s -o /dev/null -w '%{http_code}\n' https://eno.vn/    # 200 = Cloudflare path still fine
 ```
 
 
-Live on `162.4.176.208`. Cloudflare terminates TLS for the visitor and speaks to
+Live on `162.4.176.233` (was `162.4.176.208` until the 2026-09-20 migration). Cloudflare terminates TLS for the visitor and speaks to
 this box; nothing reaches it directly.
 
 ## Files
@@ -49,7 +49,7 @@ rebuild the box.
 
 ```bash
 KEY="…/CS-Linux-…​.pem"
-H=root@162.4.176.208
+H=root@162.4.176.233
 SSH="ssh -i $KEY -p 24700 $H"
 SCP="scp -i $KEY -P 24700"
 
@@ -143,7 +143,7 @@ zones.**
 Cloudflare's default origin-pull CA is **shared by every Cloudflare customer**.
 `ssl_verify_client on` against it proves a request came *from Cloudflare* — not
 from *our* zone. An attacker who points their own Cloudflare zone at
-`162.4.176.208` with `Host: eno.vn` presents a certificate that same CA signed,
+`162.4.176.233` with `Host: eno.vn` presents a certificate that same CA signed,
 and still gets through. An earlier version of this section claimed otherwise.
 
 | | closed by default-CA AOP? |

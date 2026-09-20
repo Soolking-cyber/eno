@@ -12,7 +12,8 @@ State when this was written (2026-08-22, ~12h after the DNS cutover):
 | zone AOP | off | off |
 | per-hostname AOP | no certs, disabled | no certs, disabled |
 
-Every proxied record in both zones points at `162.4.176.208` and nothing else:
+Every proxied record in both zones points at `162.4.176.233` and nothing else
+(`162.4.176.208` until the 2026-09-20 migration):
 `eno.vn`, `www.eno.vn`, `sb.eno.vn`, `eno.forum`, `www.eno.forum`. The only unproxied
 A/CNAME records are the two `_acme-challenge` CNAMEs to Google Certificate Manager
 (the GCLB rollback path) and eno.forum's mail CNAMEs to privateemail.com.
@@ -136,7 +137,7 @@ edge IPs rather than only for `SUCCESS` from your own.
 
 The `ENO-WEB` iptables chain already limits 80/443 to Cloudflare's published ranges. That
 is narrower than the internet and much wider than us: **anyone can point their own
-Cloudflare zone at `162.4.176.208`**, and their requests arrive from those same ranges.
+Cloudflare zone at `162.4.176.233`**, and their requests arrive from those same ranges.
 Today the only thing stopping them is the `server_name` match — an unknown Host gets 444 —
 and a Host header is trivially set from a Worker.
 

@@ -19,7 +19,7 @@
 #   a great deal, and the difference costs nothing to choose correctly.
 set -uo pipefail
 KEY="${ENO_SSH_KEY:-$HOME/Desktop/eno.vn server/CS-Linux-20260821173657299.pem}"
-HOST="${ENO_HOST:-root@162.4.176.208}"; PORT="${ENO_SSH_PORT:-24700}"
+HOST="${ENO_HOST:-root@162.4.176.233}"; PORT="${ENO_SSH_PORT:-24700}"
 ZONES=(55e558b62f68a44f8177d7d98cb5369e cc81e3ff1d792c0aa5384e8feab21efa)  # eno.vn, eno.forum
 
 TOKEN="$(cat)"; TOKEN="${TOKEN//[$'\t\r\n ']}"

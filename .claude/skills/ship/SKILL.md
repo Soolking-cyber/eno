@@ -139,7 +139,7 @@ Then `git push`. CI (`gh run list --limit 5`) must go green.
 ## 5. ⛔ DEPLOY — the step that actually ships
 
 ```bash
-ssh -i "$ENO_SSH_KEY" -p 24700 root@162.4.176.208 \
+ssh -i "$ENO_SSH_KEY" -p 24700 root@162.4.176.233 \
   "bash /opt/eno/app/infra/vn-node/eno-deploy.sh --expect=$(git rev-parse HEAD)"
 ```
 

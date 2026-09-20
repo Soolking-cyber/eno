@@ -6,7 +6,7 @@
 # already built and tested; this is the last mile.
 set -euo pipefail
 KEY="${ENO_SSH_KEY:-$HOME/Desktop/eno.vn server/CS-Linux-20260821173657299.pem}"
-HOST="${ENO_HOST:-root@162.4.176.208}"
+HOST="${ENO_HOST:-root@162.4.176.233}"
 PORT="${ENO_SSH_PORT:-24700}"
 SEC="${GOOGLE_CLIENT_SECRET:-}"
 

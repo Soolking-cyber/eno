@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# eno · the two application containers on 162.4.176.208
+# eno · the two application containers on 162.4.176.233
 #
 # ⛔ THIS FILE EXISTS BECAUSE THE DEFINITION USED TO LIVE NOWHERE. Both containers
 # were started by hand with `docker run --env-file …` and their only record was the

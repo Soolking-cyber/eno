@@ -10,7 +10,7 @@
 # BEFORE the A records move, not after.
 set -euo pipefail
 KEY="${ENO_SSH_KEY:-$HOME/Desktop/eno.vn server/CS-Linux-20260821173657299.pem}"
-HOST="${ENO_HOST:-root@162.4.176.208}"; PORT="${ENO_SSH_PORT:-24700}"
+HOST="${ENO_HOST:-root@162.4.176.233}"; PORT="${ENO_SSH_PORT:-24700}"
 # Bucket `eno` at https://eno.hcm.ss.bfcplatform.vn, verified 2026-08-22: an
 # unauthenticated GET returns AccessDenied naming BucketName=eno (a bucket that does
 # NOT exist returns NoSuchBucket instead — checked, so this is existence and not a
@@ -71,14 +71,46 @@ grep -q 'EnvironmentFile=/etc/default/eno-backup' /etc/systemd/system/eno-backup
 systemctl daemon-reload
 
 echo "5. run a REAL backup and confirm the dump lands off-box"
-before=$(rclone ls "eno-offsite:$BUCKET" 2>/dev/null | wc -l)
-systemctl start eno-backup.service
-sleep 5
-systemctl show eno-backup.service -p Result --value | sed 's/^/   backup result: /'
-after=$(rclone ls "eno-offsite:$BUCKET" 2>/dev/null | wc -l)
-echo "   objects off-box: $before -> $after"
-[ "$after" -gt "$before" ] && echo "   ✅ a dump is genuinely off this disk" \
-  || { echo "   ⛔ nothing landed — the off-box branch did not run"; exit 1; }
-rclone ls "eno-offsite:$BUCKET" | tail -3 | sed 's/^/     /'
+# ⛔ THREE SEPARATE THINGS MUST BE TRUE, AND EACH HAS ALREADY BEEN GOT WRONG ONCE.
+# The first version compared the bucket's OBJECT COUNT before and after. That is a
+# false NEGATIVE: eno-backup.sh uploads the new dump AND prunes to "newest 2" in the
+# same run, so the count never moves and a working pipeline reported "nothing landed"
+# (measured 2026-09-20, while the journal said "off-box copy ok").
+# The second version asserted the newest LOCAL dump was present off-box. Two reviewers
+# independently caught that this is a false POSITIVE, which is strictly worse: if the
+# unit fails and writes no dump at all, `ls -t` falls back to a PREVIOUS run's dump,
+# that dump is already in the bucket, and the guard prints ✅ over a broken pipeline.
+# So: the unit must succeed, the dump must be from THIS run, and it must be in the bucket.
+START=$(date +%s)
+# ⚠️ `--wait` IS NOT REDUNDANT EVEN THOUGH THE UNIT IS `Type=oneshot` TODAY (verified on the box
+# 2026-09-20: `systemctl start` blocked for 30s and `Result` read `success` immediately after).
+# Two reviewers flagged that the diff cannot prove that, and they are right: the invariant lives in
+# eno-backup.service, not here. Without it, changing that unit to `Type=simple` would make this
+# block read the PREVIOUS run's Result and report a healthy pipeline as broken.
+systemctl start --wait eno-backup.service
+RESULT=$(systemctl show eno-backup.service -p Result --value)
+echo "   backup result: $RESULT"
+[ "$RESULT" = "success" ] || { echo "   ⛔ eno-backup.service did not succeed ($RESULT)"; exit 1; }
+
+NEWEST=$(ls -t /opt/eno/backups/*.dump 2>/dev/null | head -1)
+[ -n "$NEWEST" ] || { echo "   ⛔ no local dump was produced at all"; exit 1; }
+# ⛔ THIS LINE IS THE FALSE-POSITIVE GUARD. Without it a stale dump satisfies everything below.
+[ "$(stat -c %Y "$NEWEST")" -ge "$START" ] \
+  || { echo "   ⛔ newest dump ($(basename "$NEWEST")) predates this run — the unit wrote nothing"; exit 1; }
+
+NAME=$(basename "$NEWEST")
+# ⚠️ `lsf`, NOT `ls` — AND THE BASENAME IS STRIPPED, WHICH THE FIRST VERSION OF THIS GOT WRONG.
+# `rclone ls` prints "<size> <path>", so matching it needs a leading space. `lsf` drops the size
+# but still prints the path RELATIVE TO THE REMOTE, so an object under a prefix reads
+# "db/eno-….dump" and a bare `grep -qFx "$NAME"` would miss it — reintroducing the false negative
+# in a new shape (a reviewer caught exactly this). Uploads land at the bucket root today
+# (eno-backup.sh: `rclone copy "$OUT/eno-$STAMP.dump" "$ENO_BACKUP_REMOTE"`), so stripping any
+# prefix costs nothing now and keeps this correct if that ever changes.
+if rclone lsf --files-only -R "eno-offsite:$BUCKET" 2>/dev/null | sed 's#.*/##' | grep -qFx -- "$NAME"; then
+  echo "   ✅ $NAME is genuinely off this disk"
+else
+  echo "   ⛔ $NAME never reached the bucket — the off-box branch did not run"; exit 1
+fi
+rclone lsf --files-only -R "eno-offsite:$BUCKET" | tail -3 | sed 's/^/     /'
 REMOTE
 } | ssh -i "$KEY" -p "$PORT" -o BatchMode=yes "$HOST" "BUCKET='$BUCKET' bash -s"

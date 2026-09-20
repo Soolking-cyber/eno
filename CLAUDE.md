@@ -197,7 +197,8 @@ changes"*). Both triggers are deleted and `cloudbuild.yaml` / `cloudbuild.servic
 gone — see `docs/history/cloudbuild-removal.md`, which keeps their definitions verbatim.
 
 ⛔ **A PUSH TO MAIN IS NO LONGER A DEPLOY.** Pushing runs CI and nothing else. Code reaches
-users only when `infra/vn-node/eno-deploy.sh` is run ON THE BOX (162.4.176.208). That script
+users only when `infra/vn-node/eno-deploy.sh` is run ON THE BOX (162.4.176.233 since the
+2026-09-20 migration; 162.4.176.208 is the retired box and everything on it is stale). That script
 is the entire path: pull → build both editions → verify the marketplace bundle carries no
 visa/itinerary routes → swap → health-check through Cloudflare → auto-rollback on failure.
 
