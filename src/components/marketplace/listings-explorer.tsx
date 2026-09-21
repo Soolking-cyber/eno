@@ -1237,6 +1237,16 @@ export function ListingsExplorer({
         subcategory: activeSubcategory,
         brand: activeBrand,
         model: activeModel,
+        /**
+         * ⛔ `line` IS PART OF THE KEY BECAUSE IT IS PART OF THE REQUEST. Without it, changing only
+         * the cascade's line or generation produced the SAME cache key: the fetch went out and came
+         * back correct (measured: `?line=iPhone 20` returns 1), and react-query served the previous
+         * payload anyway — so the feed sat at 978 iPhones under a selected "iPhone 20 1" chip. It
+         * reads as "the filter does nothing", and it is worst exactly where the new result is
+         * SMALLEST, because a large overlap hides the staleness.
+         * Same class as `lang` below, which this file already documents.
+         */
+        line: activeLine,
         district: activeDistrict,
         province: activeProvince?.code ?? null,
         ward: activeWard?.code ?? null,
@@ -1622,6 +1632,7 @@ export function ListingsExplorer({
           subcategory: activeSubcategory,
           brand: activeBrand,
           model: activeModel,
+          line: activeLine, // see the note on the main feed key — both keys carry it or neither
           district: activeDistrict,
           province: activeProvince?.code ?? null,
           ward: activeWard?.code ?? null,
