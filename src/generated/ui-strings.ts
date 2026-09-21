@@ -981,6 +981,7 @@ export const UI_STRINGS: string[] = [
   "Motorbike",
   "Motorbikes for sale in Vietnam",
   "Moving",
+  "Moving Sale",
   "Moving sales in Vietnam",
   "Mua và bán đồ của bạn — nhanh và đơn giản.",
   "Multiple entry",

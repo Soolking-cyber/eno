@@ -32,7 +32,7 @@ export const NAV_CATEGORIES: readonly NavCategory[] = [
   { slug: 'vehicles', name: 'Vehicles', nameVi: 'Xe cộ' },
   { slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê' },
   { slug: 'property', name: 'Property', nameVi: 'Nhà đất' },
-  { slug: 'moving-sale', name: 'Moving', nameVi: 'Thanh lý' },
+  { slug: 'moving-sale', name: 'Moving Sale', nameVi: 'Thanh lý' },
   { slug: 'furniture-appliances', name: 'Home', nameVi: 'Nhà cửa' },
   { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' },
   { slug: 'fashion-beauty', name: 'Fashion', nameVi: 'Thời trang' },

@@ -917,6 +917,7 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Motorbike": "Xe máy",
   "Motorbikes for sale in Vietnam": "Mua bán xe máy tại Việt Nam",
   "Moving": "Dọn nhà",
+  "Moving Sale": "Thanh lý",
   "Moving sales in Vietnam": "Thanh lý dọn nhà tại Việt Nam",
   "Mute": "Tắt thông báo",
   "Mute alerts": "Tắt chuông báo",

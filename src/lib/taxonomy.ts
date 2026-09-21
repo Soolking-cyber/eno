@@ -571,7 +571,13 @@ export const TAXONOMY: CategoryDef[] = [
   // 3 ── MOVING SALE (flagship) ─────────────────────────────────────────────────
   {
     slug: 'moving-sale',
-    name: 'Moving',
+    // ⚠️ "Moving Sale", not "Moving" — owner, 2026-09-21, pointing at the rail chip. It is the only
+    // two-word English label in the taxonomy (every other is terse on purpose: "Home" for
+    // furniture-appliances, "Kids", "Travel") and the chip is `line-clamp-2`, so it wraps by design.
+    // ⛔ IT ALSO DISAMBIGUATES A REAL COLLISION: the `moving-delivery` SUBCATEGORY under Services is
+    // also called "Moving" (a removals service), which is what made the label impossible to grep for.
+    // The two are different things and both names are now correct; do not "fix" one to match the other.
+    name: 'Moving Sale',
     nameVi: 'Thanh lý',
     icon: 'PackageOpen',
     color: 'brand',
