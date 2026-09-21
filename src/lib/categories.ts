@@ -12,6 +12,24 @@ const W_SAVE = 2
 const W_CONTACT = 5
 
 /**
+ * ⛔ THE FIRST FOUR TILES ARE AN EDITORIAL DECISION, NOT A MEASUREMENT. Owner, 2026-09-21:
+ * "reorganize categories according to importance the top 4 rest old order. 1 rentals 2 jobs
+ * 3 services 4 electronics", then "swap electronics to moving sales" — so the four are
+ * rentals, jobs, services, moving-sale.
+ *
+ * The pin sits IN FRONT OF the demand ranking, it does not replace it: everything from the fifth
+ * tile down is still ordered by live demand exactly as before.
+ *
+ * ⚠️ DEMAND COULD NEVER HAVE PROMOTED THESE ON ITS OWN, WHICH IS THE POINT. The score is
+ * views+saves+contacts summed over ACTIVE LISTINGS, so it follows SUPPLY: measured on production
+ * 2026-09-21 the rail ran electronics, sports, furniture-appliances, … and put `rentals` LAST of
+ * seventeen. `rentals`, `jobs` and `services` are low-supply, high-intent — few listings, but the
+ * visitor who wants one wants it badly — and a category with 20 listings cannot out-score one with
+ * 80,000 however wanted it is. That bias is what this corrects.
+ */
+const PINNED_SLUGS = ['rentals', 'jobs', 'services', 'moving-sale'] as const
+
+/**
  * All categories ordered by live DEMAND (most-wanted first) for the search rails +
  * home grid. One aggregate query over active listings; safe to call from ISR pages
  * (cached by their revalidate window). Falls back to empty on a DB error.
@@ -61,8 +79,20 @@ export async function getCategoriesByDemand(): Promise<SerializedCategory[]> {
         verifiedCount: c._count.listings,
         demand: score.get(c.id) ?? 0,
       }))
-      // Most-wanted first; ties broken by supply (active count) then name.
-      .sort((a, b) => b.demand - a.demand || b.verifiedCount - a.verifiedCount || a.name.localeCompare(b.name))
+      /**
+       * The four pinned slugs first, in the order they are listed; everything else most-wanted
+       * first, ties broken by supply (active count) then name — unchanged from before the pin.
+       * ⚠️ A slug in PINNED_SLUGS that no longer exists in the database simply never matches, so a
+       * renamed or retired category degrades to "not pinned" rather than leaving a hole in the rail.
+       */
+      .sort((a, b) => {
+        const pa = (PINNED_SLUGS as readonly string[]).indexOf(a.slug)
+        const pb = (PINNED_SLUGS as readonly string[]).indexOf(b.slug)
+        if (pa !== -1 && pb !== -1) return pa - pb
+        if (pa !== -1) return -1
+        if (pb !== -1) return 1
+        return b.demand - a.demand || b.verifiedCount - a.verifiedCount || a.name.localeCompare(b.name)
+      })
       .map(({ demand: _demand, ...c }) => c)
   } catch (e) {
     // A desk-resolution failure must not become a silently empty category rail — see the same
