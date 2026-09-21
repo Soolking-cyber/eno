@@ -796,6 +796,44 @@ const nextConfig: NextConfig = {
             } as const,
           ]
         : []),
+      /**
+       * Rever.vn photo CDN — the images on the imported REFERENCE rentals
+       * (`Listing.externalId LIKE 'rever:%'`, seller "Rever.vn"). Those rows carry Rever's own
+       * photo urls rather than anything in our storage, so without this entry every one of them
+       * 400s at `/_next/image` while loading fine when opened directly. That is exactly how it
+       * presented: 1,100 listings live, every card image blank.
+       *
+       * ⚠️ THIS MAKES US FETCH AND CACHE DERIVATIVES OF SOMEONE ELSE'S PHOTOGRAPHS, which the
+       * import notes originally described as "hotlinked, never copied". It is the better trade in
+       * both directions and that is why it is here: Rever serves us ONCE per variant instead of
+       * once per visitor, and users get ~20KB AVIF instead of a 321KB JPEG (their originals are
+       * 667x500 and ~10x the weight those dimensions warrant; the CDN ignores ?w=/?width= resize
+       * params, so there is no smaller variant to link). The cached copy is an ordinary CDN
+       * derivative, and the listing still links out to the source and carries the Rever name.
+       * ⛔ IF REVER EVER ADDS A REFERER CHECK the optimizer fetch fails server-side and every one
+       * of these goes blank at once — the source badge and outbound link must not depend on an
+       * image rendering.
+       *
+       * ⚠️ NO *NARROWER* SCOPE IS POSSIBLE, AND THIS IS A REAL WIDENING vs the two entries above.
+       * The pathname below is `/v3/get/**`, which is as tight as Rever's url shape allows —
+       * their objects are `/v3/get/<opaque-token>` with no stable prefix beyond that, so this
+       * admits any object on this ONE public third-party host. It grants no private address and
+       * no internal reach. ⛔ The pathname must STAY: a third-party entry with no pathname at all
+       * turns the optimizer into an open image proxy for the whole domain.
+       * (An earlier revision of this comment said "no pathname scope is possible" while the code
+       * set one — a reviewer caught it, and someone "fixing" the contradiction could have deleted
+       * the pathname and created exactly that open proxy.)
+       */
+      /**
+       * ⚠️ FOUR PREFIXES, NOT ONE, AND THE FIRST VERSION SHIPPED ONLY `/v3/get/**`. Measured over
+       * the 17,601 image urls in the source data: /v3/get 13,748 · /photo/v3 3,516 · /v2/get 227 ·
+       * /photo/v2 110. With only the first, 755 listings have no usable image at all and would
+       * have stayed blank after the very deploy meant to fix them — a fix that looks complete
+       * because the majority works. Count the prefixes before narrowing this list.
+       */
+      ...(["/v3/get/**", "/photo/v3/**", "/v2/get/**", "/photo/v2/**"] as const).map(
+        (pathname) => ({ protocol: "https", hostname: "photo.rever.vn", pathname } as const),
+      ),
     ],
   },
   typescript: {

@@ -63,4 +63,60 @@ describe('image config couplings', () => {
     // next-server.js render404s the whole optimizer whenever loader !== "default".
     expect(cfg).not.toMatch(/^\s*loader:\s*["']custom["']/m)
   })
+
+  /**
+   * ⛔ THE 1,100 IMPORTED REVER RENTALS CARRY REVER'S OWN IMAGE URLS, so the optimizer 400s every
+   * one of them unless this host is allowlisted. Presented 2026-09-21 as "1,100 listings live,
+   * every card blank" — the images loaded fine when opened directly, which is what makes it look
+   * like a component bug rather than a config one. Same class as the private-IP failure above:
+   * `remotePatterns` is the gate, and a host that is not on it is a 400, not a slow image.
+   * Delete this entry and the rentals category silently loses all its photography.
+   */
+  it('allowlists the Rever photo CDN the imported rentals point at', () => {
+    expect(cfg, 'imported rever: listings 400 at /_next/image without this host')
+      .toMatch(/hostname:\s*["']photo\.rever\.vn["']/)
+  })
+
+  /**
+   * ⚠️ THE THIRD-PARTY ENTRY MUST STAY PATH-SCOPED AND https. `url=` is attacker-controllable, and
+   * a third-party host with no pathname at all turns the optimizer into an open image proxy for
+   * that whole domain. The entries are generated from one array, so assert the array and the
+   * generator rather than a literal — an earlier version of this test pinned the exact text and
+   * broke the moment the list grew, which teaches people to delete the test instead of read it.
+   */
+  /**
+   * ⛔ ASSERT THE EXACT PREFIX SET, NOT "a pathname is present somewhere". The first version
+   * matched `/pathname\s*[},]/`, which a reviewer showed passes unchanged if you add `"/**"` to
+   * the array — the open image proxy this test exists to prevent, waved through by the test that
+   * claims to prevent it. An allowlist guard has to enumerate, because any loosening it tolerates
+   * is the whole vulnerability.
+   */
+  const REVER_PREFIXES = ['/v3/get/**', '/photo/v3/**', '/v2/get/**', '/photo/v2/**']
+
+  it('keeps the Rever entries to an exact, enumerated prefix set on https', () => {
+    const m = cfg.match(/\[((?:\s*"\/[^"]*"\s*,?)+)\]\s*as const\)\s*\.map/)
+    expect(m, 'the generated Rever prefix array moved — re-point this test at it').not.toBeNull()
+    const listed = [...m![1].matchAll(/"([^"]+)"/g)].map((x) => x[1])
+    expect([...listed].sort(), 'exact set only — a bare "/**" here is an open image proxy').toEqual([...REVER_PREFIXES].sort())
+    for (const p of listed) expect(p, 'every prefix must be path-scoped').toMatch(/^\/[a-z0-9/]+\/\*\*$/)
+    const i = cfg.indexOf('hostname: "photo.rever.vn"')
+    expect(cfg.slice(i - 400, i + 200)).toMatch(/protocol:\s*["']https["']/)
+  })
+
+  /**
+   * ⛔ THE PREFIX LIST IS ONE FACT WRITTEN IN TWO FILES and they silently disagree. The optimizer
+   * allowlist here decides which urls RENDER; `IMAGE_PREFIXES` in scripts/import-rever-rentals.ts
+   * decides which urls get STORED. The first version had only `/v3/get/**` in both — measured
+   * against the source data that is 13,748 of 17,601 urls, leaving 755 listings with no usable
+   * image, which presents as "the deploy fixed most of them" rather than as a bug.
+   * Narrow one side without the other and you either drop images you could show, or store images
+   * that 400 on every card.
+   */
+  it('the optimizer allowlist and the importer agree on Rever path prefixes', () => {
+    const script = readFileSync('scripts/import-rever-rentals.ts', 'utf8')
+    const fromCfg = [...cfg.matchAll(/["'](\/(?:photo\/)?v[23]\/(?:get\/)?)\*\*["']/g)].map((m) => m[1])
+    const fromScript = [...script.matchAll(/["']https:\/\/photo\.rever\.vn(\/(?:photo\/)?v[23]\/(?:get\/)?)["']/g)].map((m) => m[1])
+    expect(fromCfg.length, 'no Rever prefixes found in next.config.ts — the regex or the config moved').toBeGreaterThan(0)
+    expect([...fromScript].sort(), 'importer stores prefixes the optimizer will refuse (or vice versa)').toEqual([...fromCfg].sort())
+  })
 })
