@@ -94,6 +94,23 @@ function buildLines(brandSlug: string, rows: ModelRow[]): Line[] | null {
     if (!byLine.has(e.parts.line)) byLine.set(e.parts.line, [])
     byLine.get(e.parts.line)!.push(e)
   }
+  /**
+   * ⛔ THE SAME SKU TEST THE GENERATOR USES, BECAUSE THE GENERIC PARSE RUNS HERE TOO. The curated
+   * table had LG right — UltraGear, Puricare, xboom — and production still showed
+   * "FV | F | DVHP | IFC": those models match no curated line, so `splitModel` falls back to its
+   * generic parse and invents a line from the part number's alphabetic head ("FV1414H3BA" -> FV).
+   * Guarding only the generator was guarding the wrong half. Caught on the LIVE page, not in the
+   * table, which is why checking the deployed thing is worth the round trip.
+   *
+   * A line survives when it is CURATED, or multi-token, or reads as a word (a lowercase letter),
+   * or is followed by a space in one of its own models — "XPS 13" passes, "FV1414H3BA" does not.
+   */
+  const curated = new Set(known.map((k) => k.toLowerCase()))
+  for (const [line, es] of [...byLine.entries()]) {
+    if (curated.has(line.toLowerCase()) || line.includes(' ') || /[a-z]/.test(line)) continue
+    if (es.some((e) => e.parts.raw.toLowerCase().startsWith(`${line.toLowerCase()} `))) continue
+    byLine.delete(line)
+  }
   if (byLine.size < 2) return null
 
   return [...byLine.entries()]
