@@ -8,6 +8,7 @@ import { BrandLogo } from './brand-logo'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CountChip, optionCount, railDimension } from './count-chip'
 import { MoreOverflow } from './more-overflow'
+import { ModelCascade, hasCascade } from './model-cascade'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 // Type only — erased at compile time, so the client bundle never reaches for the module's
 // Prisma/`server-only` chain. Imported rather than restated so the rail's prop and the payload
@@ -45,6 +46,8 @@ export function BrandRail({
   subcategory = 'all',
   activeBrand,
   activeModel,
+  activeLine = '',
+  onPickLine,
   facets,
   sellerId,
   onPickBrand,
@@ -54,6 +57,10 @@ export function BrandRail({
   subcategory?: string
   activeBrand: string
   activeModel: string
+  /** Current `?line=` prefix, for the cascade. Absent = the caller has not adopted it. */
+  activeLine?: string
+  /** `(line, model)` from the cascade — at most one set. Absent = keep the flat model grid. */
+  onPickLine?: (line: string, model: string) => void
   /**
    * Live chip counts from the feed response's `facets` key (src/lib/facet-counts.ts).
    *
@@ -422,7 +429,22 @@ export function BrandRail({
                 </div>
               </div>
             )}
-            {isActive && models.length > 0 && (
+            {/*
+              ⚠️ THE CASCADE REPLACES THE GRID ONLY WHEN BOTH ARE TRUE: the caller passed
+              `onPickLine` (so `?line=` is actually plumbed) AND this brand has a real hierarchy.
+              Either missing and the flat grid below renders exactly as it always did — which is
+              what keeps every other caller of this rail working untouched.
+            */}
+            {isActive && models.length > 0 && onPickLine && hasCascade(b.slug, models) && (
+              <ModelCascade
+                brandSlug={b.slug}
+                rows={models}
+                activeLine={activeLine}
+                activeModel={activeModel}
+                onPick={onPickLine}
+              />
+            )}
+            {isActive && models.length > 0 && !(onPickLine && hasCascade(b.slug, models)) && (
               <div className="flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
                 <span className="h-12 w-px shrink-0 bg-border" />
                 {/* 3×3 grid (column-fill): All first, 7 most-used in between, More last. */}

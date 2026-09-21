@@ -9,6 +9,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { isRangeColumn } from '@/lib/taxonomy'
 import { facetTokenFor } from '@/lib/facet-tokens'
 import { fold } from '@/lib/fold'
+import { aliasesFor } from '@/generated/model-lineage'
 import { localizeListingTitles } from '@/lib/translate'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 // The cap lives in a client-safe module because the browser has to chunk to the same number.
@@ -240,8 +241,66 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
   // Model filter — exact display string (chips carry the catalogue's own value).
   const model = searchParams.get('model')?.trim()
   if (model && model !== 'all') {
-    andFilters.push({ model })
+    /**
+     * ⛔ ONE PRODUCT MEANS ALL ITS SPELLINGS. Measured: the cascade's "Apple Watch Series 8" cell
+     * counts 26 — because the count folds aliases — while `?model=Apple Watch Series 8` returned
+     * 24. The two "Apple Watch S8" rows are the same watch and were silently missing from a click
+     * on the number that promised them.
+     *
+     * ⚠️ THIS IS NOT THE PREFIX WIDENING THE REVIEWERS REFUSED. `?model=` still names exactly ONE
+     * product; it just no longer depends on which of its spellings the importer happened to use.
+     * A prefix would have swept in "iPhone 17 Pro Max" under "iPhone 17 Pro", which is a different
+     * phone — that is the distinction, and it is why the leaf does not use `?line=`.
+     */
+    const spellings = [model]
+    if (brand && brand !== 'all') {
+      for (const [raw, canon] of Object.entries(aliasesFor(brand))) {
+        if (canon === model) spellings.push(raw)
+      }
+    }
+    andFilters.push(spellings.length > 1 ? { model: { in: spellings } } : { model })
   }
+  /**
+   * `line` — a model PREFIX, for the brand cascade's line and generation cells: `?line=iPhone`
+   * covers every iPhone, `?line=iPhone+17` every 17 including Pro and Pro Max.
+   *
+   * ⛔ A PREFIX, NOT A LIST, AND THAT WAS A CORRECTION. The first version passed every matching
+   * model string in a `models=a,b,c` param — but Apple's "iPhone" line covers ~200 catalogue
+   * strings, which is a URL nobody can share and a query nobody can read. Reviewers flagged both
+   * the length and a 60-entry cap that silently truncated the selection. A prefix says the same
+   * thing in twelve characters.
+   *
+   * ⛔ AND `?model=` IS UNTOUCHED. It still means ONE exact string, as every shared link, indexed
+   * URL and model facet count already assumes. The cascade's leaf writes `model`; only its line
+   * and generation levels write `line`.
+   */
+  // ⚠️ Capped: the param is user-editable and lands in a LIKE pattern. Prisma parameterises and
+  // escapes it, but an unbounded string is still free work for the database from a query string.
+  const line = searchParams.get('line')?.trim().slice(0, 120)
+  if (line && line !== 'all') {
+    /**
+     * ⚠️ THE BOUNDARY MATTERS: a bare `startsWith` makes `iPhone 17` swallow `iPhone 17e`, which
+     * is a different phone the catalogue really stocks (15 of them). So it is the exact string OR
+     * the string followed by a space — never an open-ended prefix.
+     */
+    const or: Prisma.ListingWhereInput[] = [
+      { model: line },
+      { model: { startsWith: `${line} ` } },
+    ]
+    /**
+     * ⚠️ ALIASES HAVE TO BE ADDED BACK BY HAND. "Apple Watch S8" is the same watch as "Apple Watch
+     * Series 8", but it does not START with "Apple Watch Series", so a prefix match alone would
+     * drop it — and the count beside the cell, which folds aliases, would then overstate what the
+     * click returns. `brand` is in scope here, which is what makes the lookup possible.
+     */
+    if (brand && brand !== 'all') {
+      for (const [raw, canon] of Object.entries(aliasesFor(brand))) {
+        if (canon === line || canon.startsWith(`${line} `)) or.push({ model: raw })
+      }
+    }
+    andFilters.push({ OR: or })
+  }
+
   /**
    * "Good price" — only listings priced below their market band (Listing.marketPosition = 'low', set by
    * the nightly price-stats cron against brand + model + shelf + condition). Owner, 2026-09-15: "tap good

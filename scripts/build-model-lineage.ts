@@ -358,6 +358,12 @@ export function linesFor(brandSlug: string | null | undefined): string[] {
   return MODEL_LINEAGE[brandSlug].lines
 }
 
+/** The brand's raw -> canonical alias map, or {} — used to widen a \`?line=\` prefix match. */
+export function aliasesFor(brandSlug: string | null | undefined): Record<string, string> {
+  if (!brandSlug || !Object.hasOwn(MODEL_LINEAGE, brandSlug)) return {}
+  return MODEL_LINEAGE[brandSlug].aliases
+}
+
 /** The canonical spelling of a model string, or the string itself when nothing is folded onto it. */
 export function canonicalModel(brandSlug: string | null | undefined, model: string): string {
   if (!brandSlug || !Object.hasOwn(MODEL_LINEAGE, brandSlug)) return model

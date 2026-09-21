@@ -290,6 +290,24 @@ export function ListingsExplorer({
   const [activeSubcategory, setActiveSubcategory] = useState('all')
   const [activeBrand, setActiveBrand] = useState('all') // canonical brand slug, or 'all'
   const [activeModel, setActiveModel] = useState('all') // model display string, or 'all'
+  /**
+   * `?line=` — a model PREFIX from the brand cascade ("iPhone", "iPhone 17"), covering a whole
+   * line or generation. ⚠️ DELIBERATELY SEPARATE FROM `activeModel`, which stays an EXACT string:
+   * `?model=` is in shared links, the sitemap and indexed URLs, and teaching it to mean a prefix
+   * would change what every one of those already returns. Empty string = not set.
+   */
+  const [activeLine, setActiveLine] = useState('')
+  /**
+   * ⚠️ `useCallback` IS LOAD-BEARING HERE. `ModelCascade` lists this in a `useEffect` dependency
+   * array (its stale-selection guard), so a fresh identity each render would re-run that effect
+   * every render. The cascade also guards on the value, but two guards is the right number for an
+   * effect that clears the user's filter.
+   * The two are mutually exclusive by construction: a LEAF writes `model`, a BRANCH writes `line`.
+   */
+  const handlePickLine = useCallback((line: string, model: string) => {
+    setActiveLine(line)
+    setActiveModel(model || 'all')
+  }, [])
   // See DEFAULT_VIEW for why this is 'grid' and not 'compact'. The compact row is one tap away
   // on the view toggles, and ?view=compact still deep-links straight to it.
   const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_VIEW)
@@ -573,7 +591,7 @@ export function ListingsExplorer({
     setActiveCategory('all')
     setActiveDistrict('all')
     setActiveSubcategory('all')
-    setActiveBrand('all')
+    setActiveBrand('all'); setActiveLine('')
     setActiveModel('all')
     // ⚠️ Reset EVERY axis applyParams() reads, not just the common ones. The
     // showExplorer sync effect re-opens the explorer whenever ANY facet is
@@ -649,6 +667,8 @@ export function ListingsExplorer({
       activeSubcategory !== 'all' ||
       activeBrand !== 'all' ||
       activeModel !== 'all' ||
+      // ⚠️ `activeLine` IS AN AXIS AND BELONGS IN BOTH LISTS — see the contract note below.
+      activeLine !== '' ||
       listingType !== 'all' ||
       conditionFilter !== 'all' ||
       goodPriceOnly ||
@@ -657,7 +677,7 @@ export function ListingsExplorer({
     ) {
       setShowExplorer(true)
     }
-  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange])
   // ⚠️ THE AXIS LIST ABOVE IS THE CONTRACT THE UN-LATCH BELOW MIRRORS. Add an axis here and add
   // it there, or the pair disagrees about what "applied" means and the disagreement is a trap
   // rather than a bug: an axis this effect ignores but the un-latch honours can never be
@@ -715,6 +735,7 @@ export function ListingsExplorer({
       activeSubcategory !== 'all' ||
       activeBrand !== 'all' ||
       activeModel !== 'all' ||
+      activeLine !== '' ||
       listingType !== 'all' ||
       conditionFilter !== 'all' ||
       goodPriceOnly ||
@@ -728,7 +749,7 @@ export function ListingsExplorer({
     setFeedUnlocked(false)
   }, [
     showExplorer, viewMode, activeCategory, query, debouncedQuery, activeDistrict, activeSubcategory, activeBrand,
-    activeModel, listingType, conditionFilter, goodPriceOnly, priceRange, activeProvince, activeWard,
+    activeModel, activeLine, listingType, conditionFilter, goodPriceOnly, priceRange, activeProvince, activeWard,
     nearby, customFilters,
   ])
 
@@ -796,7 +817,7 @@ export function ListingsExplorer({
     setShowExplorer(true)
     setShowSuggestions(false)
     setLooseMatch(false) // a typed search is strict (AND); only visual search is loose
-    setActiveBrand('all')
+    setActiveBrand('all'); setActiveLine('')
     setActiveModel('all')
     setActiveSubcategory('all')
     if (trimmed.length >= 2) saveSearchToHistory(trimmed)
@@ -820,7 +841,7 @@ export function ListingsExplorer({
     if (r.category) {
       setActiveCategory(r.category)
       setActiveSubcategory('all')
-      setActiveBrand('all')
+      setActiveBrand('all'); setActiveLine('')
       setActiveModel('all')
       setCustomFilters({})
       setPriceRange('all')
@@ -930,7 +951,7 @@ export function ListingsExplorer({
     setLooseMatch(false)
     setActiveCategory(slug)
     setActiveSubcategory('all')
-    setActiveBrand('all')
+    setActiveBrand('all'); setActiveLine('')
     setActiveModel('all')
     setCustomFilters({})
     setPriceRange('all') // price brackets are category-specific
@@ -947,6 +968,7 @@ export function ListingsExplorer({
     setActiveSubcategory(params.get('subcategory') || 'all')
     setActiveBrand(params.get('brand') || 'all')
     setActiveModel(params.get('model') || 'all')
+    setActiveLine(params.get('line') || '')
     setListingType(params.get('type') || 'all')
     setConditionFilter(params.get('condition') || 'all')
     // Only the literal 'good' — the same allowlist the server applies.
@@ -1057,6 +1079,8 @@ export function ListingsExplorer({
 
     if (activeModel !== 'all' && activeBrand !== 'all') params.set('model', activeModel)
     else params.delete('model')
+    if (activeLine && activeBrand !== 'all') params.set('line', activeLine)
+    else params.delete('line')
 
     if (listingType !== 'all') params.set('type', listingType)
     else params.delete('type')
@@ -1098,7 +1122,7 @@ export function ListingsExplorer({
       ? [prettyBrand(activeBrand), activeModel !== 'all' ? activeModel : null].filter(Boolean).join(' ')
       : ''
     window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() || brandLabel } }))
-  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange, sort, looseMatch])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange, sort, looseMatch])
 
   // Debounce search query input to avoid making API requests on every keystroke
   useEffect(() => {
@@ -1116,7 +1140,7 @@ export function ListingsExplorer({
   // fetch, no flip. Skips the back-nav restore (which intentionally rehydrates a deeper page).
   const filterSig = JSON.stringify([
     activeCategory, debouncedQuery, activeDistrict, conditionFilter, goodPriceOnly, listingType, verifiedOnly,
-    sort, activeSubcategory, activeBrand, activeModel, customFilters, priceRange, nearby,
+    sort, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, priceRange, nearby,
     activeProvince?.code ?? null, activeWard?.code ?? null,
   ])
   const prevFilterSigRef = useRef(filterSig)
@@ -1162,6 +1186,7 @@ export function ListingsExplorer({
     if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
     if (activeBrand !== 'all') {
       params.set('brand', activeBrand)
+      if (activeLine) params.set('line', activeLine)
       if (activeModel !== 'all') {
         params.set('model', activeModel)
         if (activeCategory !== 'all') params.set('category', activeCategory)
@@ -1202,7 +1227,7 @@ export function ListingsExplorer({
     return params.toString()
     // ⚠️ `scopedParams` IS A DEPENDENCY, not decoration: it carries the shop. Omitting it would
     // memoise the marketplace's params on a storefront's first render and never widen them again.
-  }, [scopedParams, activeBrand, activeModel, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters, lang])
+  }, [scopedParams, activeBrand, activeModel, activeLine, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters, lang])
 
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isPlaceholderData: queryShowingStaleSet, isError: queryError, refetch: refetchListings } = useQuery({
     queryKey: [
@@ -1323,6 +1348,7 @@ export function ListingsExplorer({
     p.set('histogram', '1')
     if (activeBrand !== 'all') {
       p.set('brand', activeBrand)
+      if (activeLine) p.set('line', activeLine)
       if (activeModel !== 'all') {
         p.set('model', activeModel)
         if (activeCategory !== 'all') p.set('category', activeCategory)
@@ -1341,13 +1367,13 @@ export function ListingsExplorer({
     if (debouncedQuery.trim()) p.set('q', debouncedQuery.trim())
     applyFilterParams(p, customFilters, activeCategory, activeSubcategory)
     return p.toString()
-  }, [activeCategory, activeSubcategory, activeBrand, activeModel, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, debouncedQuery, customFilters])
+  }, [activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, debouncedQuery, customFilters])
 
   // Identity of the current feed (every filter that defines "this result set"), used
   // to key the back-nav snapshot so it only restores onto the exact same feed.
   const feedSig = useMemo(
     () => JSON.stringify([
-      activeCategory, activeSubcategory, activeBrand, activeModel, activeDistrict,
+      activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict,
       activeProvince?.code ?? null, activeWard?.code ?? null, nearby ? 1 : 0,
       conditionFilter, goodPriceOnly, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters,
     ]),
@@ -1946,14 +1972,14 @@ export function ListingsExplorer({
       const cat = categories.find((c) => c.slug === activeCategory)
       crumbs.push({
         label: cat ? (lang === 'vi' ? cat.nameVi : cat.name) : activeCategory,
-        onSelect: () => { setActiveSubcategory('all'); setActiveBrand('all'); setActiveModel('all') },
+        onSelect: () => { setActiveSubcategory('all'); setActiveBrand('all'); setActiveLine(''); setActiveModel('all') },
       })
     }
     if (activeSubcategory !== 'all') {
       const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
       crumbs.push({
         label: sub ? (lang === 'vi' ? sub.nameVi : sub.name) : activeSubcategory,
-        onSelect: () => { setActiveBrand('all'); setActiveModel('all') },
+        onSelect: () => { setActiveBrand('all'); setActiveLine(''); setActiveModel('all') },
       })
     }
     if (activeBrand !== 'all') {
@@ -1982,7 +2008,7 @@ export function ListingsExplorer({
       chips.push({ label: sub ? (lang === 'vi' ? sub.nameVi : sub.name) : activeSubcategory, onClear: () => setActiveSubcategory('all') })
     }
     if (activeBrand !== 'all') {
-      chips.push({ label: activeModel !== 'all' ? `${prettyBrand(activeBrand)} · ${activeModel}` : prettyBrand(activeBrand), onClear: () => { setActiveBrand('all'); setActiveModel('all') } })
+      chips.push({ label: activeModel !== 'all' ? `${prettyBrand(activeBrand)} · ${activeModel}` : prettyBrand(activeBrand), onClear: () => { setActiveBrand('all'); setActiveLine(''); setActiveModel('all') } })
     } else if (activeModel !== 'all') {
       chips.push({ label: activeModel, onClear: () => setActiveModel('all') })
     }
@@ -2031,8 +2057,11 @@ export function ListingsExplorer({
     () => getActiveChips()
       .filter((c) => !ladderChipLabels.has(c.label))
       .map((c) => ({ id: c.label, label: c.label, onRemove: c.onClear })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [debouncedQuery, activeSubcategory, activeBrand, activeModel, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, priceRange, customFilters, verifiedOnly, nearby, lang],
+    // ⚠️ `activeLine` BELONGS HERE: the chip row is what tells a user a filter is applied, and a
+    // cascade line selection is a filter. The eslint-disable that used to sit on this line is gone
+    // because it was reported UNUSED once the array was complete — a stale suppression is worse
+    // than none, since it hides the next omission too.
+    [debouncedQuery, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, priceRange, customFilters, verifiedOnly, nearby, lang],
   )
 
 
@@ -2049,7 +2078,7 @@ export function ListingsExplorer({
     // the end of this function) instead of on a second, emptier page.
     setActiveCategory('all')
     setActiveSubcategory('all')
-    setActiveBrand('all')
+    setActiveBrand('all'); setActiveLine('')
     setActiveModel('all')
     setActiveDistrict('all')
     setActiveProvince(null)
@@ -2617,10 +2646,15 @@ export function ListingsExplorer({
               subcategory={activeSubcategory}
               activeBrand={activeBrand}
               activeModel={activeModel}
+              activeLine={activeLine}
               facets={facetCounts}
               sellerId={sellerId}
-              onPickBrand={setActiveBrand}
+              // ⚠️ A NEW BRAND DROPS THE OLD BRAND'S LINE. Without this the previous `?line=`
+              // stayed applied under a brand that has no such line — the cascade's own stale
+              // guard would clear it a render later, but the feed would flash the empty result.
+              onPickBrand={(b) => { setActiveBrand(b); setActiveLine('') }}
               onPickModel={setActiveModel}
+              onPickLine={handlePickLine}
             />
           )}
 

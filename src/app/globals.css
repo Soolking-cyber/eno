@@ -162,6 +162,7 @@
   --color-brand-light: var(--brand-light);
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
+  --color-brand-150: var(--brand-150);
   /* The commerce orange — `bg-cta`, `text-cta-ink`, `bg-cta-50`. See the ⛔ note where it is
      defined for why it is scoped to price/Post rather than being the brand. */
   --color-cta: var(--cta);
@@ -238,6 +239,13 @@
   --brand-light: #8fbfe8;
   --brand-50: #e8f1fb;
   --brand-100: #cfe3f5;
+  /* Third step of the brand ramp, for the model cascade's deepest column (model-cascade.tsx).
+     ⚠️ DEPTH IS DISTANCE FROM THE CANVAS, NOT "DARKER". In light mode that means darker; in dark
+     mode the same step must go LIGHTER, or the deepest column recedes into the page exactly when
+     it should read as the most specific choice. Both plan reviewers flagged the naive reading.
+     ⛔ NOT `brand-light`: at #2f5377 it is DARKER than dark-mode `brand-100` (#2b5983), so using
+     it as a third step inverts the ramp in one theme only. */
+  --brand-150: #b5d3ef;
 
   /**
    * ⛔ THE COMMERCE ORANGE — 58同城's HUE, AND IT IS NOT THE BRAND. The whole app wore this for one
@@ -702,6 +710,12 @@
   --brand-light: #2f5377;
   --brand-50: #17314d;     /* dark blue tint (was #e8f1fb) */
   --brand-100: #2b5983;    /* the location-active wash must read on charcoal too */
+  /* Deeper cascade column: LIGHTER here, the mirror of light mode.
+     ⚠️ MEASURED, NOT PICKED BY EYE. The first value (#3d7ab0) looked right and failed WCAG AA:
+     `--body` (#cccccc) on it is 2.84:1, and even `--foreground` (#f0f0f0) only reached 3.89:1.
+     #34699c gives 5.05:1 against `--foreground` while staying lighter than `--brand-100`
+     (L 0.132 vs 0.093), so the ramp still deepens. Light mode's #b5d3ef is 5.03:1 on `--body`. */
+  --brand-150: #34699c;
 
   /* The commerce orange lifted for a dark canvas — measured on #1b1b1b and the #2a2a2a popover. */
   /* ⛔ THE FILL DOES NOT BRIGHTEN IN DARK, and that is the opposite of every other colour here. A

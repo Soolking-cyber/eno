@@ -931,13 +931,19 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
 
 /**
  * Curated lines for a brand, or [] — never undefined, so callers cannot forget the empty case.
- * ⚠️ `Object.hasOwn` GUARDS BOTH LOOKUPS. These are plain object literals, so a brand or model
+ * ⚠️ `Object.hasOwn` GUARDS EVERY LOOKUP. These are plain object literals, so a brand or model
  * string of "constructor" or "__proto__" would otherwise return a Function off the prototype and
  * blow up at the call site rather than missing cleanly.
  */
 export function linesFor(brandSlug: string | null | undefined): string[] {
   if (!brandSlug || !Object.hasOwn(MODEL_LINEAGE, brandSlug)) return []
   return MODEL_LINEAGE[brandSlug].lines
+}
+
+/** The brand's raw -> canonical alias map, or {} — used to widen a `?line=` prefix match. */
+export function aliasesFor(brandSlug: string | null | undefined): Record<string, string> {
+  if (!brandSlug || !Object.hasOwn(MODEL_LINEAGE, brandSlug)) return {}
+  return MODEL_LINEAGE[brandSlug].aliases
 }
 
 /** The canonical spelling of a model string, or the string itself when nothing is folded onto it. */
