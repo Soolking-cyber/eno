@@ -17,6 +17,7 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     "lines": [
       "Galaxy Chromebook Go",
       "Galaxy Watch Ultra",
+      "Galaxy Watch A",
       "Odyssey OLED G",
       "Galaxy Z Flip",
       "Galaxy Z Fold",
@@ -29,12 +30,31 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
       "Galaxy Fit",
       "Odyssey G",
       "Galaxy A",
+      "Galaxy M",
       "Galaxy S",
       "Odyssey"
     ],
     "aliases": {
       "zflip 4": "Zflip 4"
     }
+  },
+  "sunhouse": {
+    "lines": [
+      "Mama SHD",
+      "Apex",
+      "Mama"
+    ],
+    "aliases": {}
+  },
+  "lg": {
+    "lines": [
+      "UltraGear OLED",
+      "UltraFine",
+      "UltraGear",
+      "Puricare",
+      "xboom"
+    ],
+    "aliases": {}
   },
   "apple": {
     "lines": [
@@ -175,12 +195,36 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
       "RF-S 18-45mm F/4.5-6.3 IS STM": "RF-S 18-45mm f/4.5-6.3 IS STM"
     }
   },
-  "lg": {
+  "xiaomi": {
     "lines": [
-      "UltraGear OLED",
-      "UltraFine",
-      "UltraGear",
-      "xboom"
+      "Smart Projector L",
+      "Fascia Gun mini",
+      "Openwear Stereo",
+      "Air Purifier",
+      "Redmi Watch",
+      "Redmi Buds",
+      "Redmi Note",
+      "Truclean W",
+      "Xiaomi Pad",
+      "Redmi Pad",
+      "Mi Smart",
+      "Vacuum H",
+      "Mi Band",
+      "Redmi A",
+      "Watch S",
+      "POCO F",
+      "Vacuum",
+      "Xiaomi",
+      "Redmi",
+      "Smart",
+      "Buds",
+      "Poco"
+    ],
+    "aliases": {}
+  },
+  "philips": {
+    "lines": [
+      "Sonicare"
     ],
     "aliases": {}
   },
@@ -209,6 +253,23 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
       "ZBook Firefly 14 G8": "Zbook FireFly 14 G8"
     }
   },
+  "panasonic": {
+    "lines": [
+      "Toughbook",
+      "Lumix G",
+      "Lumix"
+    ],
+    "aliases": {}
+  },
+  "tomtoc": {
+    "lines": [
+      "Slash Flip",
+      "Essence A",
+      "Navigator",
+      "Terra"
+    ],
+    "aliases": {}
+  },
   "msi": {
     "lines": [
       "MAG CORELIQUID A",
@@ -228,35 +289,6 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
       "Thin",
       "MAG",
       "PRO"
-    ],
-    "aliases": {}
-  },
-  "xiaomi": {
-    "lines": [
-      "Smart Projector L",
-      "Openwear Stereo",
-      "Redmi Watch",
-      "Redmi Buds",
-      "Redmi Note",
-      "Xiaomi Pad",
-      "Redmi Pad",
-      "Mi Band",
-      "Redmi A",
-      "Watch S",
-      "POCO F",
-      "Xiaomi",
-      "Redmi",
-      "Buds",
-      "Poco"
-    ],
-    "aliases": {}
-  },
-  "tomtoc": {
-    "lines": [
-      "Slash Flip",
-      "Essence A",
-      "Navigator",
-      "Terra"
     ],
     "aliases": {}
   },
@@ -314,7 +346,6 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
       "Quantum",
       "Xtreme",
       "Sense",
-      "STAGE",
       "Flip",
       "Live",
       "Tour",
@@ -368,6 +399,14 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
+  "dreame": {
+    "lines": [
+      "Bot L",
+      "Aqua",
+      "Hair"
+    ],
+    "aliases": {}
+  },
   "garmin": {
     "lines": [
       "Forerunner",
@@ -383,8 +422,7 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
   },
   "e-dra": {
     "lines": [
-      "Thunderbird",
-      "EMA"
+      "Thunderbird"
     ],
     "aliases": {}
   },
@@ -409,6 +447,24 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
       "MatePad 11.5 S": "Matepad 11.5''S"
     }
   },
+  "stargo": {
+    "lines": [
+      "Ultralink C",
+      "Brillant Z",
+      "Lucid Z",
+      "Powergo",
+      "Intens",
+      "Star X",
+      "Gem"
+    ],
+    "aliases": {}
+  },
+  "hitachi": {
+    "lines": [
+      "LTL"
+    ],
+    "aliases": {}
+  },
   "oppo": {
     "lines": [
       "Enco Buds",
@@ -421,29 +477,13 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
-  "dfrobot": {
-    "lines": [
-      "URM"
-    ],
-    "aliases": {}
-  },
   "innostyle": {
     "lines": [
-      "Omniprotect Carry",
-      "ICC"
+      "Omniprotect Carry"
     ],
     "aliases": {
       "OmniProtect Carry": "Omniprotect Carry"
     }
-  },
-  "stargo": {
-    "lines": [
-      "Ultralink C",
-      "Powergo",
-      "Star X",
-      "Gem"
-    ],
-    "aliases": {}
   },
   "xigmatek": {
     "lines": [
@@ -464,12 +504,6 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
-  "cuktech": {
-    "lines": [
-      "CMC"
-    ],
-    "aliases": {}
-  },
   "kingston": {
     "lines": [
       "DataTraveler Exodia"
@@ -484,9 +518,10 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
       "SP 70-200mm F/2.8 DI VC USD G2": "SP 70-200mm F/2.8 Di VC USD G2"
     }
   },
-  "fnirsi": {
+  "hoa-phat": {
     "lines": [
-      "FNB"
+      "HPC",
+      "HWP"
     ],
     "aliases": {}
   },
@@ -510,25 +545,11 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
-  "philips": {
-    "lines": [
-      "TAH",
-      "TAT"
-    ],
-    "aliases": {}
-  },
   "waveshare": {
     "lines": [
       "Solar Power Manager",
       "UPS Module",
       "USB TO"
-    ],
-    "aliases": {}
-  },
-  "momax": {
-    "lines": [
-      "Q.Power Air",
-      "Q.Mag"
     ],
     "aliases": {}
   },
@@ -540,6 +561,31 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
+  "roborock": {
+    "lines": [
+      "Qrevo Edge",
+      "Saros S",
+      "Qrevo"
+    ],
+    "aliases": {}
+  },
+  "dyson": {
+    "lines": [
+      "Pure Cool Tower TP",
+      "Digital Slim",
+      "Supersonic",
+      "Purifier",
+      "Airwrap"
+    ],
+    "aliases": {}
+  },
+  "momax": {
+    "lines": [
+      "Q.Power Air",
+      "Q.Mag"
+    ],
+    "aliases": {}
+  },
   "marshall": {
     "lines": [
       "Stockwell",
@@ -548,14 +594,6 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
       "Bromley",
       "Heston",
       "Acton"
-    ],
-    "aliases": {}
-  },
-  "panasonic": {
-    "lines": [
-      "Toughbook",
-      "Lumix G",
-      "Lumix"
     ],
     "aliases": {}
   },
@@ -581,9 +619,45 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
+  "jansport": {
+    "lines": [
+      "Superbreak Plus",
+      "Move Sling",
+      "Half Pint",
+      "Weekender",
+      "Everyday"
+    ],
+    "aliases": {}
+  },
+  "tefal": {
+    "lines": [
+      "Ixeo",
+      "Rice"
+    ],
+    "aliases": {}
+  },
+  "ecovacs": {
+    "lines": [
+      "Deebot T",
+      "Deebot X",
+      "Deebot"
+    ],
+    "aliases": {}
+  },
   "gigabyte": {
     "lines": [
       "Gaming A"
+    ],
+    "aliases": {}
+  },
+  "sakos": {
+    "lines": [
+      "Sapphire A",
+      "Champion",
+      "Sapphire",
+      "Arango",
+      "Vivian",
+      "Elite"
     ],
     "aliases": {}
   },
@@ -610,6 +684,23 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     "aliases": {
       "MINI 2S": "Mini 2S"
     }
+  },
+  "jisulife": {
+    "lines": [
+      "Life",
+      "Fan",
+      "Pro"
+    ],
+    "aliases": {}
+  },
+  "topo-designs": {
+    "lines": [
+      "Rover Pack",
+      "Mountain",
+      "Global",
+      "Mini"
+    ],
+    "aliases": {}
   },
   "honor": {
     "lines": [
@@ -663,17 +754,10 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
-  "wadfow": {
+  "enchen": {
     "lines": [
-      "WEL",
-      "WSD"
-    ],
-    "aliases": {}
-  },
-  "asair": {
-    "lines": [
-      "APM",
-      "DHT"
+      "BlackStone",
+      "Mini"
     ],
     "aliases": {}
   },
@@ -706,6 +790,14 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
+  "halio": {
+    "lines": [
+      "Sonic Smartclean"
+    ],
+    "aliases": {
+      "Sonic SmartClean": "Sonic Smartclean"
+    }
+  },
   "hyperx": {
     "lines": [
       "Cloud Earbuds",
@@ -723,6 +815,14 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
   "beats": {
     "lines": [
       "Solo"
+    ],
+    "aliases": {}
+  },
+  "breo": {
+    "lines": [
+      "Lucky",
+      "SCALP",
+      "Back"
     ],
     "aliases": {}
   },
@@ -754,16 +854,22 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
-  "tokina": {
+  "therabody": {
     "lines": [
-      "AT-X"
+      "TheraFace",
+      "Theragun"
     ],
     "aliases": {}
   },
-  "topo-designs": {
+  "tineco": {
     "lines": [
-      "Rover Pack",
-      "Global"
+      "Floor One S"
+    ],
+    "aliases": {}
+  },
+  "tokina": {
+    "lines": [
+      "AT-X"
     ],
     "aliases": {}
   },
@@ -777,9 +883,10 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
       "PACE 3": "Pace 3"
     }
   },
-  "fujie": {
+  "levoit": {
     "lines": [
-      "DHC"
+      "Vital",
+      "Core"
     ],
     "aliases": {}
   },
@@ -837,9 +944,9 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
-  "movespeed": {
+  "mijia": {
     "lines": [
-      "MSP"
+      "Smart Audio Glasses"
     ],
     "aliases": {}
   },
@@ -866,12 +973,6 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
   "gochek": {
     "lines": [
       "Ultra S"
-    ],
-    "aliases": {}
-  },
-  "sakos": {
-    "lines": [
-      "Arango"
     ],
     "aliases": {}
   },
@@ -921,9 +1022,9 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
     ],
     "aliases": {}
   },
-  "total": {
+  "thule": {
     "lines": [
-      "TET"
+      "Subterra"
     ],
     "aliases": {}
   }
@@ -931,7 +1032,7 @@ export const MODEL_LINEAGE: Record<string, BrandLineage> = {
 
 /**
  * Curated lines for a brand, or [] — never undefined, so callers cannot forget the empty case.
- * ⚠️ `Object.hasOwn` GUARDS EVERY LOOKUP. These are plain object literals, so a brand or model
+ * ⚠️ `Object.hasOwn` GUARDS BOTH LOOKUPS. These are plain object literals, so a brand or model
  * string of "constructor" or "__proto__" would otherwise return a Function off the prototype and
  * blow up at the call site rather than missing cleanly.
  */

@@ -1,9 +1,9 @@
 /**
- * BUILD MODEL LINEAGE — derive each electronics brand's product LINES from the model strings the
+ * BUILD MODEL LINEAGE — derive each brand's product LINES from the model strings the
  * catalogue actually carries, and emit `src/generated/model-lineage.ts`.
  *
  *   npx tsx scripts/build-model-lineage.ts --brands apple,samsung   # try a few
- *   npx tsx scripts/build-model-lineage.ts                          # all electronics brands
+ *   npx tsx scripts/build-model-lineage.ts                          # every brand, every category
  *   npx tsx scripts/build-model-lineage.ts --dry                    # print, write nothing
  *
  * ⛔ THE OUTPUT IS AN IMPROVEMENT, NEVER A GATE. `splitModel` is total without it: a model string
@@ -158,7 +158,41 @@ function candidateLines(models: string[], brand = ''): string[] {
     .filter(([p]) => {
       const d = display.get(p) ?? p
       if (/[^\p{L}\p{N}\s.+-]/u.test(d)) return false        // "Gravity:" — punctuation is not a line
+      /**
+       * ⛔ A LINE IS A WORD, NOT A PART-NUMBER PREFIX. Opening the catalogue beyond electronics
+       * exposed this immediately: LG came out as "FV | F | DVHP | IFC" and Philips as
+       * "HR | HD | DST | STH | NA" — the alphabetic heads of washing-machine and blender SKUs
+       * ("FV1414H3BA", "HR3760/01"), offered to a shopper as product lines. Prefix frequency
+       * cannot tell a family name from the letters a part number happens to start with; the shape
+       * of the string can. A real line either reads as a word (it has a lowercase letter —
+       * "Puricare", "Sonicare", "Galaxy") or is more than one token ("Galaxy Z Fold").
+       * ⚠️ Worse than useless: these push the flat grid out, so the brand looked BETTER before.
+       */
       const words = d.split(/\s+/)
+      /**
+       * ⛔ A PART-NUMBER PREFIX RUNS STRAIGHT INTO ITS DIGITS; A PRODUCT LINE IS FOLLOWED BY A
+       * SPACE. "FV1414H3BA" and "HR3760/01" gave LG the lines "FV | F | DVHP | IFC" and Philips
+       * "HR | HD | DST | STH" — the alphabetic heads of washing-machine and blender SKUs offered
+       * to a shopper as product families.
+       * ⚠️ THE FIRST GUARD HERE TESTED CASE AND LENGTH ("one token, <=5 chars, no lowercase") AND
+       * IT DELETED REAL FLAGSHIPS: Dell lost XPS, Asus lost ROG and TUF. Both reviewers caught it.
+       * The shape that actually separates them is the separator — "XPS 13 9315" has a space where
+       * "FV1414H3BA" has a digit — so the test is whether this candidate is ever followed by one.
+       */
+      if (words.length === 1) {
+        /**
+         * A single-token line is real if EITHER test passes, and it took both to get here:
+         *   · a SPACE follows it somewhere — "XPS 13 9315", "ROG Strix" — so it is a family name
+         *     with a model after it. This alone lost Oppo's "Reno", because the catalogue writes
+         *     "Reno15" with no space.
+         *   · or it READS as a word (it has a lowercase letter) — "Reno", "Puricare", "xboom".
+         *     This alone lost Dell's "XPS" and Asus's "ROG", which are legitimately all-caps.
+         * ⛔ Together they still exclude the part-number heads the guard exists for: "FV1414H3BA",
+         * "HR3760/01" and "DVHP…" have neither a following space nor a lowercase letter.
+         */
+        const spaced = models.some((m) => new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s`, 'i').test(m))
+        if (!spaced && !/[a-z]/.test(d)) return false
+      }
       // ⚠️ THE LAST WORD DECIDES. A word-count guard let "iPad New Gen" through at three words;
       // a line ending in "Gen"/"New"/"For" is a truncated title, not a product line.
       if (JUNK.test(words[words.length - 1]) || (words.length <= 2 && words.some((w) => JUNK.test(w)))) return false
@@ -296,11 +330,22 @@ async function main() {
   if (!KEY) throw new Error('TYPESAFE_API_KEY missing — it lives in .env.local')
   db = (await import('../src/lib/db')).db
 
+  /**
+   * ⚠️ EVERY CATEGORY, NOT JUST ELECTRONICS — the restriction was scaffolding from the first pass
+   * and it left real hierarchies out. Measured before removing it: furniture-appliances alone
+   * carries 1,554 distinct models across 76 brands, fashion-beauty 273 across 35. The one category
+   * this still cannot reach is sports (5,591 branded listings, ZERO models): its lineups live in
+   * TITLES, which is a different job.
+   *
+   * ⛔ AND THE COMMENT SITS OUT HERE, NOT INSIDE THE TEMPLATE LITERAL. A backtick in a note — even
+   * around a table or column name — closes the string early, and the failure reads as a syntax
+   * error pages away from the cause. Second time in this file.
+   */
   const rows = await db.$queryRaw<{ brandSlug: string; model: string }[]>`
     SELECT DISTINCT l."brandSlug", l.model
-    FROM "Listing" l JOIN "Category" c ON c.id = l."categoryId"
+    FROM "Listing" l
     WHERE l.verified AND l.status = 'active' AND l."listingType" = 'sell'
-      AND c.slug = 'electronics' AND l.model IS NOT NULL AND l."brandSlug" IS NOT NULL
+      AND l.model IS NOT NULL AND l."brandSlug" IS NOT NULL
       AND l."brandSlug" <> ''`
 
   const byBrand = new Map<string, string[]>()
