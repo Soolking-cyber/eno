@@ -302,7 +302,19 @@ export function SortStrip({
           of the wrapping row above, anything after it would wrap onto a third line. Inside this row the
           list takes the rest (`min-w-0 flex-1` — it is the scroller) and the toggle keeps its own width
           at the end, always visible without scrolling the strip. */}
-      <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+      {/*
+        * ⛔ THE SCROLLER IS THIS ROW, NOT THE TabsList — owner, 2026-09-21: "so all is on one swipe
+        * reel". "Good price" is a FILTER, not a fifth sort, so it must stay a Toggle OUTSIDE the
+        * `role="tablist"` (a tablist may only contain tabs; an aria-pressed button in one is an
+        * a11y violation, and the note on `goodPrice` above says exactly that). Making the shared
+        * parent the scroller puts both on one rail without moving the button into the tablist.
+        * ⚠️ THE touch-action RULES MOVE WITH THE OVERFLOW. Everything the TabsList comment below
+        * says about `overflow-y-hidden`, and about NEVER declaring `touch-action`, now applies HERE
+        * — this is the element that owns the horizontal overflow, and it sits inside the STICKY
+        * bar, parked under the reader's thumb. A `touch-pan-x` here would re-break "cant scroll app
+        * on mobile" exactly as it did on the list.
+        */}
+      <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto -mb-px scrollbar-none flex-nowrap snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain">
       <TabsList
         // variant=line: the default variant paints a bg-muted pill behind the strip.
         variant="line"
@@ -314,7 +326,10 @@ export function SortStrip({
           // tailwind-merge removes h-8 rather than racing it on specificity.
           // w-full/justify-start on mobile (own line); from sm it shrinks and sits at the
           // row's right edge beside the filters — the wireframe's arrangement.
-          'flex w-full min-w-0 flex-1 justify-start p-0 group-data-horizontal/tabs:h-auto sm:w-auto sm:shrink-0 sm:flex-none sm:justify-end',
+          // ⚠️ `w-auto flex-none shrink-0` at EVERY width now, not only from sm. Inside a
+          // horizontal scroller a `w-full flex-1` child collapses to the container's width and the
+          // tabs compress instead of overflowing — leaving nothing to swipe.
+          'flex w-auto min-w-0 flex-none shrink-0 justify-start p-0 group-data-horizontal/tabs:h-auto sm:justify-end',
           // HORIZONTAL RAIL, NOT A DRAGGABLE OBJECT. Three things are load-bearing here:
           //
           //   ⛔ THE FIX FOR "cant scroll app on mobile" (owner, 2026-08-26) IS THE DELETED
@@ -363,7 +378,10 @@ export function SortStrip({
           //                 rather than resting mid-label.
           //
           // overscroll-x-contain stops a sideways flick chaining out to the page/back-gesture.
-          '-mb-px scrollbar-none flex-nowrap items-center gap-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain',
+          // ⚠️ THE OVERFLOW/SNAP/-mb-px SET MOVED UP TO THE ROW (see its comment). Two nested
+          // scrollers would trap the gesture in whichever one the thumb landed on, so the tabs
+          // would pan while "Good price" stayed put — the opposite of one reel.
+          'flex-nowrap items-center gap-1',
         )}
       >
         <TabsTrigger value="newest" type="button" className={sortTab(sort === 'newest')}>
@@ -415,7 +433,8 @@ export function SortStrip({
           // ⚠️ THE HEIGHT IS THE TABS', NOT THE FACET PILLS'. facet-bar's own pills are min-h-12 (48px)
           // because they sit on their own row; measured here, 48 beside 42px tabs grew this row to 48
           // and left the toggle overhanging the tab strip's baseline (agy). It matches its neighbours.
-          'flex h-[42px] w-auto shrink-0 items-center justify-between rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96]',
+          // `snap-start` so it is a stop on the same reel as the tabs, not a straggler after them.
+          'flex h-[42px] w-auto shrink-0 snap-start items-center justify-between rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96]',
           'text-body hover:bg-muted',
           // GREEN ONLY WHEN PRESSED, and it is the whole affordance now that the border is gone.
           // `--success` is green-800 in light and green-400 in dark, so the ink flips with it: the page

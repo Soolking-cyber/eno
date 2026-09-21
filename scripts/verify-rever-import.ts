@@ -81,6 +81,15 @@ async function main() {
    */
   const failures = noAffiliate + negotiable + notRent + (allHeld ? held : 0) + sellerVerified + owned
 
+  /**
+   * Building coverage. NOT a failure when short: 16 of 1,100 listing pages carry fewer than four
+   * breadcrumbs, i.e. Rever does not tie them to a project, and those legitimately stay NULL —
+   * they simply keep their own pin instead of joining a building group.
+   */
+  const grouped = await db.listing.count({ where: { ...where, buildingKey: { not: null } } })
+  const buildings = await db.listing.groupBy({ by: ['buildingKey'], where: { ...where, buildingKey: { not: null } } })
+  console.log(`  buildingKey set       ${grouped}/${total}   across ${buildings.length} buildings`)
+
   const dupes = await db.listing.groupBy({
     by: ['externalId'], where, _count: { externalId: true },
     having: { externalId: { _count: { gt: 1 } } },

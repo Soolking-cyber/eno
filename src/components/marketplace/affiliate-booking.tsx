@@ -29,6 +29,7 @@ export function AffiliateBooking({
   discountCode,
   discountPercent,
   booking,
+  rental = false,
 }: {
   url: string
   partnerName: string
@@ -38,6 +39,16 @@ export function AffiliateBooking({
   discountPercent?: number | null
   /** True for a ticket/reservation, false for a boxed product — see isBookingCategory. */
   booking: boolean
+  /**
+   * True for a rental listing (`listingType === 'rent'`), which is a THIRD action, not a flavour of
+   * the other two. Owner, 2026-09-21: "action button not buy but rent on rever.vn". A month's
+   * tenancy is not a purchase and not a ticket, and "Buy on Rever.vn" on an apartment reads as
+   * though we are selling the flat.
+   * ⚠️ SEPARATE FROM `booking` ON PURPOSE. `booking` still means ticket/reservation and drives the
+   * "Lowest adult ticket" line and the QR copy; collapsing the two would put ticket wording on a
+   * tenancy. They are different facts about the listing.
+   */
+  rental?: boolean
 }) {
   // ⛔ https ONLY — see safeAffiliateUrl. A stored `javascript:` value would otherwise be a
   // stored-XSS sink, and this link leads to a payment page so `http:` is refused as well.
@@ -52,7 +63,7 @@ export function AffiliateBooking({
   return (
     <section aria-labelledby="affiliate-booking-heading" className="flex flex-col gap-4">
       <h2 id="affiliate-booking-heading" className="sr-only">
-        {booking ? <Tr text="Book this experience" /> : <Tr text="Buy from this shop" />}
+        {rental ? <Tr text="Rent from this partner" /> : booking ? <Tr text="Book this experience" /> : <Tr text="Buy from this shop" />}
       </h2>
 
       {/*
@@ -94,7 +105,7 @@ export function AffiliateBooking({
           target="_blank"
           rel="sponsored nofollow noopener noreferrer"
         >
-          {booking ? <Tr text="Book on" /> : <Tr text="Buy on" />} {partnerName}
+          {rental ? <Tr text="Rent on" /> : booking ? <Tr text="Book on" /> : <Tr text="Buy on" />} {partnerName}
           <ArrowUpRight className="size-4" aria-hidden />
         </a>
       </Button>

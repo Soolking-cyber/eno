@@ -91,6 +91,14 @@ const LIMIT = num('--limit', 0)
  *  told to re-run could not be re-run by anyone, anywhere, once that tmp dir cleared. */
 const SRC = str('--src')
 const STATUS = str('--status')
+/**
+ * Optional. JSONL from the building crawl: one `{url, slug, name}` per listing, where `slug` is
+ * Rever's PROJECT slug taken from the listing page's own BreadcrumbList JSON-LD. Populates
+ * `Listing.buildingKey`, which is what the map groups on.
+ * ⚠️ OMITTING IT LEAVES buildingKey UNTOUCHED rather than clearing it — a re-import without the
+ * file must not silently un-group 1,084 rows and collapse the map back to overlapping pins.
+ */
+const BUILDINGS = str('--buildings')
 
 const vnd = (n: number) => new Intl.NumberFormat('vi-VN').format(n) + ' đ'
 /**
@@ -147,6 +155,14 @@ async function main() {
     if (line.trim()) { const s = JSON.parse(line); status.set(s.url, s) }
   }
   const src: Row[] = JSON.parse(readFileSync(SRC, 'utf8'))
+  const buildingOf = new Map<string, string>()
+  if (BUILDINGS) {
+    for (const line of readFileSync(BUILDINGS, 'utf8').split('\n')) {
+      if (!line.trim()) continue
+      const r = JSON.parse(line)
+      if (r.code === 200 && r.slug) buildingOf.set(r.url, r.slug)
+    }
+  }
   /**
    * ⚠️ mtime IS A PROXY FOR CRAWL AGE AND IT CAN BE DEFEATED. `cp`, `git checkout`, a download or
    * a `touch` all reset it, so a month-old crawl moved into a new directory reads as fresh and
@@ -215,6 +231,7 @@ async function main() {
   console.log(`status file       ${status.size}  (${(coverage * 100).toFixed(1)}% coverage, ${statusAgeDays.toFixed(1)}d old)`)
   console.log(`dropped           ${JSON.stringify(drop)}`)
   console.log(`year-min          ${YEAR_MIN}`)
+  console.log(`buildings file    ${BUILDINGS ? `${buildingOf.size} listings mapped` : '(none — buildingKey left untouched)'}`)
   console.log(`TO IMPORT         ${batch.length}${LIMIT ? ` (--limit ${LIMIT} of ${keep.length})` : ''}`)
   console.log(`category          ${category.name} (${category.id})`)
   console.log(`seller            ${seller ? `${seller.name} (${seller.id})` : `(will be created as ${SELLER_ID})`}`)
@@ -308,6 +325,9 @@ async function main() {
       attributes: beds === null ? null : JSON.stringify({ bedrooms: String(beds) }),
       images: JSON.stringify(images),
       affiliateUrl: r.url,
+      /** ⚠️ Spread conditionally: with no --buildings file this key is ABSENT from the update
+       *  payload, so Prisma leaves the column alone. Writing `null` would un-group every row. */
+      ...(buildingOf.has(r.url) ? { buildingKey: buildingOf.get(r.url)! } : {}),
       searchText: buildSearchText([c.title, c.titleVi, r.full_address, r.district, r.property_type]),
     }
     const res = await db.listing.upsert({

@@ -777,6 +777,15 @@ model Listing {
   // Partner's own id for this listing (Partner API sync/upsert). Unique PER seller so two
   // shops can each use "sku-1". NULL for listings not created via the sync endpoint.
   externalId              String?
+  /// The BUILDING (project) this unit belongs to, e.g. `masteri-thao-dien`. Set by the Rever
+  /// import from the listing page's own BreadcrumbList JSON-LD; NULL on everything else, which
+  /// reads as "not part of a known building" and keeps every ordinary listing on its own pin.
+  /// ⛔ NOT KEYED ON (lat,lng), DELIBERATELY. Rever geocodes the PROJECT, so 1,100 units share 31
+  /// coordinates — but a shared point is NOT a shared building: other projects sit on the same
+  /// geocode, and any user listing dropped there would silently join the group. Both plan
+  /// reviewers rejected coordinate-keying independently.
+  /// Added additively by scripts/building-key-ddl.mjs — never via `prisma db push`.
+  buildingKey             String?
   verified                Boolean            @default(false)
   verificationMethod      String?
   verifiedAt              DateTime?
@@ -909,6 +918,9 @@ model Listing {
   @@index([verified, status, categoryId, areaM2])
   @@index([verified, status, categoryId, salaryM])
   @@index([verified, status, categoryId, mileageKm])
+  /// Building grouping for the map: count units per project against the live feed filters.
+  /// Status is in the key because every such query is scoped to `status: 'active'`.
+  @@index([buildingKey, status])
   @@index([categoryId])
   @@index([featured])
   @@index([city])

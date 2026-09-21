@@ -3,6 +3,8 @@
 // vi language (before any machine translation) by language-context.
 // Regenerate with: node scripts/gen-vi-overrides.mjs
 export const VI_OVERRIDES: Record<string, string> = {
+  "Rent from this partner": "Thuê từ đối tác này",
+  "Rent on": "Thuê trên",
   "(fixed when editing)": "(không đổi khi sửa)",
   "(no title)": "(chưa có tiêu đề)",
   "/ month": "/ tháng",

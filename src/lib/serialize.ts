@@ -147,6 +147,14 @@ export const LISTING_CARD_SELECT = {
   id: true, title: true, titleVi: true, price: true, priceUnit: true, currency: true, negotiable: true,
   previousPrice: true, priceDropAt: true, urgentUntil: true,
   location: true, district: true, city: true, lat: true, lng: true, images: true, video: true,
+  /**
+   * ⚠️ ON THE WIRE SO THE MAP CAN TELL A GROUPED UNIT FROM AN ORDINARY LISTING. Partner rentals
+   * carry a project slug; the map draws ONE pin per building for those and leaves every other
+   * listing on its own pin, with its popup height-sync and touch two-step untouched. Without this
+   * the map would infer grouping from (lat,lng) — the coordinate-keying both plan reviewers
+   * rejected. ~20 bytes gzipped per card, null on everything a human posted.
+   */
+  buildingKey: true,
   brandSlug: true, model: true, condition: true, marketPosition: true, verified: true, postedAt: true, savedCount: true, contactCount: true,
   // For `listedAt` only — see src/lib/stale.ts. A card's "Posted" line is when it appeared on eno.
   createdAt: true,
@@ -163,6 +171,8 @@ type ListingCardRow = {
   currency: string; negotiable: boolean; location: string; district: string | null; city: string
   previousPrice: number | null; priceDropAt: Date | null; urgentUntil: Date | null
   lat: number | null; lng: number | null; images: string; video: string | null; brandSlug: string | null
+  /** Partner project slug, or null — see LISTING_CARD_SELECT. */
+  buildingKey?: string | null
   model: string | null; condition: string | null; marketPosition: string | null; verified: boolean; postedAt: Date; createdAt: Date; savedCount: number; contactCount: number
   affiliateUrl: string | null
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
@@ -202,6 +212,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     city: l.city,
     lat: l.lat,
     lng: l.lng,
+    buildingKey: l.buildingKey ?? null,
     images: safeParse<string[]>(l.images, []).map(fixMockImage),
     video: l.video,
     brandSlug: l.brandSlug,

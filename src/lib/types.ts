@@ -18,6 +18,11 @@ export type SerializedCategory = {
 // format for every list surface. SerializedListing (detail/dashboard) is a structural
 // superset, so a full listing is always assignable where a card is expected.
 export type SerializedListingCard = {
+  /**
+   * ⚠️ The partner project this unit belongs to, or null. Lets the map draw ONE pin per building
+   * for grouped rentals while every other listing keeps its own pin — see LISTING_CARD_SELECT.
+   */
+  buildingKey?: string | null
   id: string
   /**
    * The owning STOREFRONT's id — already public (storefront URLs, /api/sellers/[id]).
@@ -257,4 +262,22 @@ export const CATEGORY_COLOR_CLASSES: Record<CategoryColor, { bg: string; text: s
   violet: BRAND_BLUE,
   cyan: BRAND_BLUE,
   teal: BRAND_BLUE,
+}
+
+/**
+ * One BUILDING pin on the map: a partner project, with counts computed across the whole filtered
+ * result set rather than the loaded page. Served by /api/listings/buildings.
+ * ⚠️ `count` is authoritative and `hero`/`name`/`lat`/`lng` are NOT — those come from the generated
+ * `rever-buildings` module, because they describe the building rather than any of its units.
+ */
+export type BuildingPin = {
+  key: string
+  name: string
+  hero: string | null
+  lat: number
+  lng: number
+  district: string | null
+  count: number
+  minPrice: number | null
+  maxPrice: number | null
 }

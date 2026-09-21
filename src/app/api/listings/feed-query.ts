@@ -190,6 +190,18 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
     andFilters.push(districtFilter)
   }
 
+  /**
+   * BUILDING (project) narrowing — the map's "show me this tower's units" filter.
+   *
+   * ⛔ IT MUST LIVE HERE, IN THE SHARED BUILDER, so the left-hand list and the pin count come from
+   * one `where`. /api/listings/buildings calls this same function; the day the two derive their
+   * filters separately, a pin says 40 and opens a list of 12. Both plan reviewers raised it.
+   * ⚠️ An unknown key yields an EMPTY result, never an unscoped one — same rule the district scope
+   * above follows. Silence is recoverable; quietly showing every listing in the city is not.
+   */
+  const building = searchParams.get('building')?.trim() || undefined
+  if (building) andFilters.push({ buildingKey: building })
+
   // New area model (province → ward). Province matches the listing city (the only
   // level the current listings carry); ward is best-effort against district/location
   // (won't hit pre-2025 listings until they're re-tagged with wards).

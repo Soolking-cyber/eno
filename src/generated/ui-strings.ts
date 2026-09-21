@@ -1301,6 +1301,8 @@ export const UI_STRINGS: string[] = [
   "Remove this message for both of you? It stays available to eno.vn support if this conversation is ever reported.",
   "Remove video",
   "Remove:",
+  "Rent from this partner",
+  "Rent on",
   "Rental period",
   "Rentals",
   "Repair",

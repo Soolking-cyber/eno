@@ -10,7 +10,7 @@ import { PartnerBadge } from './partner-badge'
 import { ImageMark } from './image-mark'
 import { MapTravel, MapsDirectionsButton } from './map-travel'
 import type { LatLng } from '@/lib/travel'
-import type { SerializedListingCard } from '@/lib/types'
+import type { SerializedListingCard, BuildingPin } from '@/lib/types'
 import { formatMoneyFull, compactPrice, moneyLocale, type MoneyLocale } from '@/lib/vnd'
 import { useCurrency, vndPerUsd } from '@/context/currency-context'
 import { Price } from './price'
@@ -87,6 +87,18 @@ type Props = {
   // Province/ward signature — when it changes, the map re-fits to the (now area-
   // filtered) listings even if the top result happens to be unchanged.
   areaKey?: string
+  /**
+   * BUILDING PINS — one per partner project, counted server-side across the whole filtered set.
+   * ⛔ THESE REPLACE ONLY THE PINS OF LISTINGS THAT HAVE A `buildingKey`. Every other listing keeps
+   * its own pin and its existing behaviour (popup height-sync, the touch two-step, hover-to-open).
+   * A reviewer specifically warned against turning every pin into an aggregate: the ordinary pin
+   * path is load-bearing and has nothing to do with this feature.
+   * ⚠️ While a building is selected the map goes back to individual pins for that tower's units, so
+   * the user can actually see and pick between them.
+   */
+  buildings?: BuildingPin[]
+  selectedBuilding?: string | null
+  onSelectBuilding?: (key: string | null) => void
 }
 
 // SELF-HOSTED (public/vendor/leaflet, byte-verified against the npm 1.9.4 tarball) — was
@@ -128,6 +140,21 @@ function loadLeaflet(cb: () => void, onError?: () => void) {
   s.onload = () => cb()
   s.onerror = () => { s.remove(); onError?.() }
   document.head.appendChild(s)
+}
+
+/**
+ * A BUILDING pin: the project's name and how many units it holds, drawn as one marker in place of
+ * the 157 overlapping ones it stands for.
+ * ⛔ SAME ESCAPING RULE AS pinHtml, AND HERE IT IS NOT THEORETICAL. `pinHtml` only ever receives
+ * formatter output (digits and a currency symbol); this receives a building NAME that came from a
+ * third party's web page, so the escape is the actual boundary, not a precaution.
+ */
+function buildingPinHtml(name: string, count: number, active: boolean): string {
+  const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const bg = active ? '#0a66c2' : '#111827'
+  const color = '#ffffff'
+  const scale = active ? 1.06 : 1
+  return `<div style="transform:translate(-50%,-50%) scale(${scale});display:inline-flex;align-items:center;gap:6px;background:${bg};color:${color};border:1px solid rgba(255,255,255,.28);border-radius:9999px;padding:5px 10px;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);transition:transform .12s ease, background .12s ease;"><span>${esc(name)}</span><span style="background:rgba(255,255,255,.22);border-radius:9999px;padding:2px 6px;font-size:11px;">${count}</span></div>`
 }
 
 function pinHtml(label: string, active: boolean): string {
@@ -262,7 +289,7 @@ function MapCredit({ className }: { className?: string }) {
   )
 }
 
-export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove }: Props) {
+export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove, buildings, selectedBuilding, onSelectBuilding }: Props) {
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
   const { currency: pickedCurrency, rates: fxRates } = useCurrency()
@@ -279,6 +306,14 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markersRef = useRef<Map<string, any>>(new Map())
+  /**
+   * ⚠️ THE SELECT CALLBACK LIVES IN A REF, like `listings` below and for the same reason. Marker
+   * click handlers are captured when the marker is built; putting the prop in this effect's deps
+   * instead would rebuild every marker whenever the parent re-rendered with a fresh inline arrow —
+   * which is what made clicking a building appear to do nothing and the map snap back.
+   */
+  const onSelectBuildingRef = useRef(onSelectBuilding)
+  onSelectBuildingRef.current = onSelectBuilding
   const radiusCircleRef = useRef<any>(null) // the "search near you" radius overlay
   const fitKeyRef = useRef<string>('') // last filter signature we auto-fit bounds for
   const [ready, setReady] = useState(false)
@@ -550,7 +585,67 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     // outlive a resize or an input-mode change.
 
     const bounds: [number, number][] = []
-    listings.forEach((l) => {
+
+    /**
+     * ⛔ BUILDING PINS STAND IN FOR GROUPED UNITS, AND ONLY FOR THOSE. Rever geocodes the project,
+     * so 157 units land on one point and render as one unreachable pile — the whole reason this
+     * exists. Drawing one pin per project fixes that, but every OTHER listing must keep its own
+     * pin and its existing behaviour, which a reviewer flagged explicitly: the ordinary pin path
+     * carries the popup height-sync and the touch two-step and has nothing to do with buildings.
+     * ⚠️ WHILE A TOWER IS SELECTED WE GO BACK TO INDIVIDUAL PINS for its units — otherwise drilling
+     * in would show one pin and no way to tell its units apart.
+     */
+    /**
+     * ⛔ GROUPING STAYS ON WHILE A TOWER IS SELECTED, AND TURNING IT OFF WAS THE BUG. The first
+     * version drew individual pins on drill-in — but every unit in a project shares ONE geocode, so
+     * those 157 pins land on the same pixel and the map snaps back to the unreadable pile this
+     * feature exists to remove. There is nothing to see per unit on a map; the units are read in
+     * the list beside it. So the pins stay per-building and the selected one is highlighted.
+     */
+    const groupingOn = (buildings?.length ?? 0) > 0
+    if (groupingOn) {
+      buildings!.forEach((b) => {
+        bounds.push([b.lat, b.lng])
+        const active = selectedBuilding === b.key
+        const icon = L.divIcon({
+          html: buildingPinHtml(b.name, b.count, active),
+          className: 'eno-pin eno-pin-building',
+          iconSize: [0, 0],
+        })
+        const marker = L.marker([b.lat, b.lng], { icon, riseOnHover: true, alt: `${b.name} — ${b.count} units` }).addTo(map)
+        if (active) marker.setZIndexOffset(1000)
+        /**
+         * A building pin has no card of its own: it narrows the feed beside it, which is where the
+         * units are readable. One tap on every input — there is nothing to two-step.
+         * ⚠️ Tapping the SELECTED tower again clears it, so the pin is its own way back out and the
+         * user is never stranded inside one building with only the list header to escape by.
+         * ⚠️ Called through a ref: an inline callback prop changes identity every render, and this
+         * effect's deps would then rebuild every marker constantly — which reads as "clicking does
+         * nothing". Same reason `listings` is mirrored into a ref above.
+         */
+        marker.on('click', () => onSelectBuildingRef.current?.(active ? null : b.key))
+        markersRef.current.set(`building:${b.key}`, marker)
+      })
+    }
+
+    // ⚠️ `groupingOn` HIDES ONLY THE UNITS A BUILDING PIN ALREADY REPRESENTS. A listing with no
+    // buildingKey is not part of any group and must still get its own pin, or it vanishes from the
+    // map entirely while remaining in the list beside it.
+    /**
+     * ⛔ ONLY HIDE A UNIT THAT A DRAWN PIN ACTUALLY REPRESENTS. This used to drop every listing with
+     * ANY `buildingKey` as soon as one building pin existed — but the route drops keys missing from
+     * the generated module, and the generator skips slugs with no coordinates. A unit in one of
+     * those buildings then got no building pin AND no pin of its own: present in the list, absent
+     * from the map, with nothing to indicate it. Checking against the keys actually drawn keeps the
+     * two in step by construction. Found in review.
+     */
+    const drawnKeys = new Set((buildings ?? []).map((b) => b.key))
+    const pinnedIndividually = groupingOn
+      ? listings.filter((l) => !l.buildingKey || !drawnKeys.has(l.buildingKey))
+      : listings
+    // ⚠️ With grouping on, a drilled-in tower contributes NO individual pins — its units are all at
+    // the building's own coordinate and are read in the list, not on the map.
+    pinnedIndividually.forEach((l) => {
       const { lat, lng } = getListingCoordinates(l)
       bounds.push([lat, lng])
       const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale, displayCurrency, displayRate), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
@@ -594,7 +689,17 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     // item changes) — NOT on infinite-scroll append (which keeps the same first item).
     const nearKey = nearby ? `${nearby.lat.toFixed(3)},${nearby.lng.toFixed(3)},${nearby.radiusKm}` : ''
     const fitKey = `${activeDistrict}|${areaKey ?? ''}|${nearKey}|${listings[0]?.id ?? ''}`
-    if (fitKeyRef.current !== fitKey) {
+    /**
+     * ⛔ DO NOT AUTO-FIT WHILE A BUILDING IS SELECTED. `fitKey` includes `listings[0].id`, so
+     * drilling into a tower changes it and would fit to `bounds` — which holds EVERY building pin,
+     * zooming the map out at the exact moment the reader asked to look at one tower. The dedicated
+     * flyTo effect owns the viewport here. Both are effects and this one is declared first, so it
+     * previously only "worked" by ordering; relying on that is how a refactor reintroduces it.
+     * ⚠️ The key is still RECORDED, so clearing the selection does not then re-fit on stale state.
+     */
+    if (fitKeyRef.current !== fitKey && selectedBuilding) {
+      fitKeyRef.current = fitKey
+    } else if (fitKeyRef.current !== fitKey) {
       fitKeyRef.current = fitKey
       if (nearby && radiusCircleRef.current) {
         // Fly to the selected radius — show exactly the area the buyer chose.
@@ -608,7 +713,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     // position → the '_leaflet_pos' crash. The ref check skips a map that's been torn down.
     const sizeT = setTimeout(() => { if (mapInstanceRef.current === map) map.invalidateSize() }, 80)
     return () => clearTimeout(sizeT)
-  }, [listings, ready, activeDistrict, areaKey, nearby, locale])
+  }, [listings, ready, activeDistrict, areaKey, nearby, locale, buildings, selectedBuilding])
 
   // Update marker styling on selection / hover (no full rebuild).
   useEffect(() => {
@@ -635,6 +740,35 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     const { lat, lng } = getListingCoordinates(l)
     mapInstanceRef.current.flyTo([lat, lng], 15, { duration: 0.6 })
   }, [focusId, ready])
+
+  /**
+   * Centre on the tower the user just drilled into.
+   * ⛔ WITHOUT THIS, SELECTING DID NOTHING VISIBLE. The pins are rebuilt with the selected one
+   * highlighted, but the viewport does not move — and if the reader picked a pin near the edge, or
+   * the list scrolled the map out of view, the only feedback was a list quietly changing behind
+   * them. Flying makes the selection legible as a selection.
+   * ⚠️ Deliberately NOT re-fitting bounds to the single building: the other towers stay on screen
+   * so the reader can move between them, which is the whole point of keeping them drawn.
+   */
+  const flownToRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!ready || !selectedBuilding || !mapInstanceRef.current) {
+      if (!selectedBuilding) flownToRef.current = null
+      return
+    }
+    /**
+     * ⛔ FLY ONCE PER SELECTION, NOT ONCE PER REFETCH. This used to depend on `buildings`, and
+     * react-query hands back a new array on every refetch — on window refocus past the 60s
+     * staleTime, and on any filter change. A reader who drilled in and then panned across the city
+     * got yanked back to zoom 15 on the tower, repeatedly, for as long as it stayed selected.
+     * The guard is the SELECTION, so panning is never overridden until the user picks another one.
+     */
+    if (flownToRef.current === selectedBuilding) return
+    const b = buildings?.find((x) => x.key === selectedBuilding)
+    if (!b) return
+    flownToRef.current = selectedBuilding
+    mapInstanceRef.current.flyTo([b.lat, b.lng], 15, { duration: 0.6 })
+  }, [selectedBuilding, ready, buildings])
 
   return (
     // `isolate` keeps Leaflet's internal z-index (panes/controls up to ~1000)

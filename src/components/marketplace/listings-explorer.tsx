@@ -1,12 +1,13 @@
 'use client'
 
 import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react'
+import Image from 'next/image'
 // Only the glyphs this file actually renders — the vestigial hero-search set
 // (Search/MapPin/Phone/Sliders/Map/TrendingUp) died with the hero bar and was
 // still being imported (icon-gauntlet cleanup, 2026-08-06).
 import { Inbox, AlertTriangle, X, Clock, Bookmark } from '@/components/ui/icons'
 import { toast } from 'sonner'
-import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
+import type { SerializedListingCard, SerializedCategory, BuildingPin } from '@/lib/types'
 // ⚠️ TYPE-ONLY, AND IT MUST STAY THAT WAY. src/lib/facet-counts.ts is `server-only` and pulls the
 // Prisma chain; a value import here would drag it into the client bundle (or fail the build).
 // `import type` is erased at compile, so this costs nothing at runtime.
@@ -430,6 +431,15 @@ export function ListingsExplorer({
   // that visitor got before this line existed. The count never disagrees with the cards beside it.
   const [totalCount, setTotalCount] = useState(initialTotal ?? 0)
   const [page, setPage] = useState(1)
+  /**
+   * The BUILDING (project) the map has drilled into, or null for the normal feed.
+   * ⚠️ IT IS PART OF `filterSig` BELOW, WHICH IS WHAT MAKES DRILL-IN SAFE. Selecting a tower must
+   * reset the page during render and REPLACE the loaded rows — otherwise an in-flight page of the
+   * unfiltered feed lands after the switch and appends other buildings' units under this tower's
+   * header. A reviewer flagged exactly that; the existing signature mechanism already handles it,
+   * so this joins it rather than growing a second reset path.
+   */
+  const [selectedBuilding, setSelectedBuilding] = useState<string | null>(null)
   // Hard pagination stop: if a genuinely DEEPER page (offset past the deepest we've grown
   // at) comes back with zero new rows, we're done — even if totalCount still reads higher.
   // Guards against a server order/total mismatch (a query whose pages can resolve via
@@ -1141,7 +1151,7 @@ export function ListingsExplorer({
   const filterSig = JSON.stringify([
     activeCategory, debouncedQuery, activeDistrict, conditionFilter, goodPriceOnly, listingType, verifiedOnly,
     sort, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, priceRange, nearby,
-    activeProvince?.code ?? null, activeWard?.code ?? null,
+    activeProvince?.code ?? null, activeWard?.code ?? null, selectedBuilding,
   ])
   const prevFilterSigRef = useRef(filterSig)
   if (prevFilterSigRef.current !== filterSig) {
@@ -1259,6 +1269,7 @@ export function ListingsExplorer({
         sort,
         verified: verifiedOnly ? 'true' : 'all',
         price: priceRange,
+        building: selectedBuilding,
         page,
         customFilters,
         // ⛔ `lang` IS PART OF THE KEY BECAUSE IT IS NOW PART OF THE RESPONSE. The feed used to
@@ -1287,6 +1298,16 @@ export function ListingsExplorer({
       // has always done this; the two feed fetches — the ones every visitor pays on every page —
       // did not.
       params.set('lang', lang)
+        /**
+         * Drill-in to one BUILDING. Applied server-side by `buildFeedFilters`, the same builder
+         * /api/listings/buildings uses for its counts — so the pin that says 157 and the list it
+         * opens cannot disagree.
+         * ⛔ THIS MUST BE ON THE LIVE QUERY, NOT ONLY THE PREFETCH. It was added to the prefetch's
+         * queryFn by mistake: the key changed on select so the feed REFETCHED, but without this
+         * line the request went out unfiltered — the pin highlighted and the list never moved,
+         * which is exactly what "clicking a building does nothing" looked like.
+         */
+        if (selectedBuilding) params.set('building', selectedBuilding)
 
       const res = await fetch(`/api/listings?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch listings')
@@ -1337,6 +1358,72 @@ export function ListingsExplorer({
     if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(arm, { timeout: 10_000 }); return () => cancelIdleCallback(id) }
     const t = setTimeout(arm, 4000); return () => clearTimeout(t)
   }, [])
+  /**
+   * BUILDING PINS for the map view. One row per project, counted across the WHOLE filtered set —
+   * not over the 24 rows currently loaded, which would print "24 units" on a 157-unit tower and
+   * climb as the user scrolled. `/api/listings/buildings` shares `buildFeedFilters` with the feed,
+   * so the pin count and the list it opens are answers to the same question.
+   * ⚠️ Same `baseParamsString` as the feed, MINUS the drill-in: while one tower is selected the
+   * other pins must stay on the map at their real sizes, or drilling in would erase the map.
+   * ⚠️ Map view only — this is a second query per filter change and every other view ignores it.
+   */
+  const { data: buildingsData } = useQuery({
+    queryKey: ['listing-buildings', baseParamsString],
+    enabled: viewMode === 'map',
+    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await fetch(`/api/listings/buildings?${baseParamsString}`)
+      if (!res.ok) return { buildings: [] as BuildingPin[] }
+      return (await res.json()) as { buildings: BuildingPin[] }
+    },
+  })
+  /**
+   * ⛔ MEMOIZED, AND NOT AS A MICRO-OPTIMISATION. `?? []` allocates a fresh array on every render,
+   * and this value is in the map's marker-effect deps — so an unmemoized version tore down and
+   * rebuilt every marker on every render, which looked exactly like "clicking a building does
+   * nothing and the map snaps back". `mapListings` above carries the same warning for the same
+   * reason; a reviewer had already paid for that lesson once.
+   */
+  const buildingPins = useMemo(() => buildingsData?.buildings ?? [], [buildingsData])
+  const activeBuilding = useMemo(
+    () => (selectedBuilding ? buildingPins.find((b) => b.key === selectedBuilding) ?? null : null),
+    [selectedBuilding, buildingPins],
+  )
+  /**
+   * ⛔ A BUILDING FILTER THE USER CANNOT SEE MUST NOT SURVIVE. `selectedBuilding` narrows EVERY feed
+   * fetch, but the header that names it and the "All buildings" button that clears it render only
+   * in map view — and the pin that would clear it is on the map too. So two states trap the reader
+   * with no way out and nothing on screen explaining the empty feed. Both were found in review:
+   *
+   *   1. Drill into a tower, switch to grid → the whole feed is one building, unlabelled. Changing
+   *      category then returns nothing, because that tower has no phones.
+   *   2. Drill in, then apply a price/district filter that excludes the tower → it drops out of
+   *      /api/listings/buildings, so there is no header and no pin, and the list comes back empty.
+   *
+   * Clearing it the moment it stops being representable is the fix: the selection only exists while
+   * something on screen can undo it.
+   * ⚠️ Guarded on `buildingsData` being loaded — clearing on `undefined` would cancel the selection
+   * during the first fetch, before the pins have arrived.
+   */
+  useEffect(() => {
+    if (viewMode !== 'map' && selectedBuilding) setSelectedBuilding(null)
+  }, [viewMode, selectedBuilding])
+  useEffect(() => {
+    if (!buildingsData || !selectedBuilding) return
+    if (!buildingsData.buildings.some((b) => b.key === selectedBuilding)) setSelectedBuilding(null)
+  }, [buildingsData, selectedBuilding])
+
+  /** Stable identity for the map's click handler — see the ref note in listings-map.tsx. */
+  const handleSelectBuilding = useCallback((key: string | null) => {
+    setSelectedBuilding(key)
+    /**
+     * ⚠️ SCROLL THE LIST BACK TO THE TOP. `filterSig` resets the page and replaces the rows, but
+     * the column keeps its scrollTop — so drilling in from halfway down the feed lands you at
+     * unit 14 of 157 with no indication why.
+     */
+    mapListRef.current?.scrollTo({ top: 0 })
+  }, [])
+
   const { data: videoAvail } = useQuery({
     // ⚠️ THE SHOP IS IN THE KEY, NOT ONLY IN THE URL. Without it two storefronts share one cached
     // answer and a shop with no clips inherits its neighbour's Video tab.
@@ -1644,6 +1731,7 @@ export function ListingsExplorer({
           sort,
           verified: verifiedOnly ? 'true' : 'all',
           price: priceRange,
+          building: selectedBuilding,
           page: nextPage,
           customFilters,
           // Same reason as the main query above: the response is language-specific now, so the
@@ -1697,6 +1785,12 @@ export function ListingsExplorer({
         // See the note at the first feed fetch: without `lang` the response carries titles in
         // nine languages the viewer does not read (21% of it).
         params.set('lang', lang)
+        /**
+         * Drill-in to one BUILDING. The server applies this inside `buildFeedFilters`, the same
+         * builder `/api/listings/buildings` uses for its counts — so the pin that says 157 and the
+         * list it opens cannot disagree. Absent when nothing is selected, which is the normal feed.
+         */
+        if (selectedBuilding) params.set('building', selectedBuilding)
 
         const res = await fetch(`/api/listings?${params.toString()}`)
         if (!res.ok) throw new Error('Failed to fetch listings')
@@ -3063,6 +3157,43 @@ export function ListingsExplorer({
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                   {/* Left: narrow single-column result list (its own scroll container on desktop) */}
                   <div ref={mapListRef} className="min-w-0 lg:col-span-4 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 grid grid-cols-1 gap-4 scroll-thin order-2 lg:order-1">
+                    {/*
+                      * THE DRILLED-IN BUILDING: what you are looking at, how big it is, and the way
+                      * out. Sticky because this column scrolls independently — otherwise the header
+                      * leaves the viewport on the second card and a reader 40 units deep has no
+                      * reminder they are inside one tower rather than the whole city.
+                      * ⚠️ The count is the SERVER's, across the whole filtered set — not
+                      * `mapSortedListings.length`, which is only the pages loaded so far and would
+                      * climb from 24 toward 157 as the reader scrolled.
+                      */}
+                    {activeBuilding && (
+                      <div className="material sticky top-0 z-10 -mx-1 mb-1 flex items-center gap-3 rounded-xl border border-border/70 bg-card/70 p-2 backdrop-blur">
+                        {activeBuilding.hero && (
+                          <Image
+                            src={activeBuilding.hero}
+                            alt={activeBuilding.name}
+                            width={96}
+                            height={64}
+                            className="size-16 shrink-0 rounded-lg object-cover"
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-foreground">{activeBuilding.name}</p>
+                          <p className="text-xs text-body">
+                            {activeBuilding.count} {tr('units available', 'căn cho thuê')}
+                            {activeBuilding.district ? ` · ${activeBuilding.district}` : ''}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => { setSelectedBuilding(null); mapListRef.current?.scrollTo({ top: 0 }) }}
+                        >
+                          {tr('All buildings', 'Tất cả')}
+                        </Button>
+                      </div>
+                    )}
                     {mapSortedListings.map((l) => (
                       <div
                         key={l.id}
@@ -3103,6 +3234,9 @@ export function ListingsExplorer({
                     className="min-w-0 lg:col-span-8 h-[60dvh] lg:h-[calc(100dvh-8rem)] scroll-mt-[calc(4rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
                     <ListingsMap
                       listings={mapListings}
+                      buildings={buildingPins}
+                      selectedBuilding={selectedBuilding}
+                      onSelectBuilding={handleSelectBuilding}
                       activeDistrict={activeDistrict}
                       onOpenListing={handleOpen}
                       selectedId={hoveredId ?? focusId}

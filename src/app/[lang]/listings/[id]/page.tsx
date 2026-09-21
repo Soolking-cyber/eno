@@ -766,6 +766,8 @@ export default async function ListingPage({ params }: Props) {
                       discountCode={listing.affiliateDiscountCode}
                       discountPercent={listing.affiliateDiscountPercent}
                       booking={isBooking}
+                      /* A tenancy is neither a purchase nor a ticket — see the prop's comment. */
+                      rental={listing.listingType === 'rent'}
                     />
                   : isVisaProduct
                   ? <>
