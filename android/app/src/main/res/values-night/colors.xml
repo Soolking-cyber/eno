@@ -11,9 +11,13 @@
          stops mattering after the first paint. Matches globals.css :565/:569 on the dark theme. -->
     <color name="card">#1b1b1b</color>
     <color name="refreshSpinner">#3b8ee6</color>
-    <!-- ⛔ THE WEB'S PAGE FLOOR, NOT A NEUTRAL GREY. globals.css sets `--background: var(--wash-tail)`
-         = `--home-wash-soft` = #1c1d1f, so the launch screen and the first painted frame are the same
-         colour and there is no flash between them (owner, 2026-09-22: "similar to web"). Track this
-         if the wash changes; `@color/card` here was #fafafa/#1b1b1b and visibly differed. -->
+    <!-- ⛔ THE WEB'S PAGE FLOOR, NOT A NEUTRAL GREY. globals.css resolves the page background token
+         through wash-tail to home-wash-soft = #1c1d1f, so the launch screen and the first painted
+         frame are the same colour and there is no flash between them (owner, 2026-09-22: "similar
+         to web"). Track this if the wash changes; `@color/card` here was #fafafa/#1b1b1b and
+         visibly differed.
+         ⚠️ NO DOUBLE HYPHEN ANYWHERE IN THIS COMMENT. XML forbids it, and naming the CSS custom
+         properties the normal way broke `mergeReleaseResources` for the WHOLE app — a failure the
+         web build never sees, because nothing outside a native build reads this file. -->
     <color name="splash_bg">#1c1d1f</color>
 </resources>
