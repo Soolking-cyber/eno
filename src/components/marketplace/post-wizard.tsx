@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Check, Sparkles, Loader2, ShieldCheck } from "@/components/ui/icons"
 import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
 import type { SerializedCategory } from '@/lib/types'
 import { hasRealCoords } from '@/lib/geo'
 import { CategoryIcon } from './category-icons'
@@ -155,7 +156,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         // Couldn't confirm the brand → ask for a clearer logo photo rather than
         // filling a wrong guess. Non-blocking; the rest is already filled.
         if (d.brandUncertain) {
-          toast(t('Chưa chắc thương hiệu — thêm ảnh rõ logo/nhãn để nhận diện chính xác.', 'Not sure of the brand — add a clear photo of the logo/label so we can identify it.'))
+          subtleToast(t('Chưa chắc thương hiệu — thêm ảnh rõ logo/nhãn để nhận diện chính xác.', 'Not sure of the brand — add a clear photo of the logo/label so we can identify it.'))
         }
       } else {
         toast.error(t('Không nhận diện được — chọn danh mục thủ công', "Couldn't read the photo — pick a category"))

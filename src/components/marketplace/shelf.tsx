@@ -57,8 +57,21 @@ export const SECTION_SEE_ALL =
 /** Card width — pixel-matches the feed grid (2 cols mobile / 3 sm / 4 lg), so a rail card
  *  equals exactly one feed column and the rail reads as one family with the grid below.
  *  Was a copy-pasted literal in every rail. */
+/**
+ * ⛔ NO `snap-start` HERE, AND THIS CONSTANT IS WHY IT MATTERED EVERYWHERE (owner, 2026-09-21:
+ * "make springy action much less now its too much friction and frustrating to swipe").
+ * Every product rail in the app takes its card width from this string, so a snap target on it put
+ * one on EVERY card of EVERY rail. The scroller is `snap-x`, i.e. proximity — but proximity only
+ * describes how hard it pulls, not how often: with a stop every half-viewport, a flick across a
+ * 16-card rail is arrested at the first card the finger lifts near, so browsing took a dozen
+ * swipes. The rail keeps `snap-x`, so a card that happens to come to rest near an edge still
+ * ⚠️ With no `scroll-snap-align` on any child the container has NO snap points, so `snap-x`
+ * is inert and the rail scrolls freely. That is the intent — but it does mean nothing "tidies
+ * up" at rest, which an earlier version of this comment wrongly claimed.
+ * ⚠️ The VIDEO feed keeps `snap-mandatory` on purpose — a full-screen pager must land on one video.
+ */
 export const RAIL_CARD_W =
-  'w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]'
+  'w-[calc((100%-0.5rem)/2)] shrink-0 sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]'
 
 /** Horizontal snap scroller, gaps matched to the feed grid (gap-2 / sm:gap-4).
  *  `overscroll-x-contain` keeps a sideways overscroll INSIDE the rail: without it, flicking

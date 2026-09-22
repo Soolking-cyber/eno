@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, Clock, Download, FileCheck2, Loader2, LockKeyhole, MessagesSquare, Pencil, ShieldCheck, Stamp, Trash2 } from '@/components/ui/icons'
 import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
 import { useAuth } from '@/context/auth-context'
 import { useDashboard } from '@/hooks/use-dashboard'
 import { useLanguage } from '@/context/language-context'
@@ -550,7 +551,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
       // ⚠️ STABLE id — the dedup Set below only guards the CONFIRM path, so a remount that re-enters
       // with `?pay=cancelled` still in the URL (the same laggy-strip window) would re-toast. An id
       // makes the repeat REPLACE rather than stack, so at worst one cancelled toast is ever visible.
-      toast.message(tr('Payment cancelled — your application is unchanged.', 'Đã hủy thanh toán — hồ sơ của bạn không thay đổi.'), { id: 'visa-pay-cancelled' })
+      subtleToast(tr('Payment cancelled — your application is unchanged.', 'Đã hủy thanh toán — hồ sơ của bạn không thay đổi.'), { id: 'visa-pay-cancelled' })
       return
     }
     if ((paid !== 'stripe' && paid !== 'paypal') || !aid || !ref) return

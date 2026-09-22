@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { CalendarDays, Download, Loader2, Pencil, Trash2, TriangleAlert } from '@/components/ui/icons'
 import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -145,7 +146,7 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
         return
       }
       setConfirmingDelete(false)
-      toast.message(tr('Trip deleted.', 'Đã xóa chuyến đi.'))
+      subtleToast(tr('Trip deleted.', 'Đã xóa chuyến đi.'))
       onDeleted?.(trip.id)
     } catch {
       toast.error(tr('That trip could not be deleted. Please try again.', 'Không xóa được chuyến đi. Vui lòng thử lại.'))
@@ -177,7 +178,7 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
       anchor.click()
       anchor.remove()
       window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
-      toast.message(tr('Your Word file is ready.', 'Tệp Word đã sẵn sàng.'))
+      subtleToast(tr('Your Word file is ready.', 'Tệp Word đã sẵn sàng.'))
     } catch (error) {
       console.error('[trip-card/docx]', error)
       toast.error(tr('The Word file could not be created. Please try again.', 'Không thể tạo tệp Word. Vui lòng thử lại.'))

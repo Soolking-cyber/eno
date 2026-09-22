@@ -232,7 +232,8 @@ function DayTab({ active, onClick, children }: { active: boolean; onClick: () =>
       size="none"
       onClick={onClick}
       className={cn(
-        'shrink-0 snap-start rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors',
+        // No per-chip snap — same reasoning as RAIL_CARD_W in shelf.tsx.
+        'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors',
         active ? 'bg-primary text-white' : 'bg-tint text-body hover:bg-line-strong',
       )}
     >

@@ -319,7 +319,16 @@ export function CategoryRail({
    * 1280px container's eighth, so both screens still show what they showed.
    */
   const TILE_W = 'w-[calc((100vw-40px)/3)] md:w-[141px]'
-  const tileCls = `press group flex h-full ${TILE_W} snap-start flex-col items-center justify-center gap-1.5 py-1 text-center cursor-pointer select-none`
+  /**
+   * ⛔ NO `snap-start` ON THE TILE, AND THE ABSENCE IS THE FEATURE (owner, 2026-09-21: "make
+   * springy action much less now its too much friction and frustrating to swipe").
+   * The rail is `snap-x`, which is PROXIMITY — but a snap target on EVERY tile means a flick is
+   * never free: momentum is arrested at whichever tile the finger lifts near, so a long rail takes
+   * a dozen swipes instead of one. A rail is a strip you skim, not a pager. The scroller keeps
+   * ⚠️ With no aligned child the container has NO snap points, so `snap-x` is inert and the rail
+   * scrolls freely. Nothing re-aligns at rest — an earlier comment here claimed otherwise.
+   */
+  const tileCls = `press group flex h-full ${TILE_W} flex-col items-center justify-center gap-1.5 py-1 text-center cursor-pointer select-none`
   /**
    * ⛔ TWO ROWS FIRST, THREE AFTER THE SWIPE (owner, 2026-09-18: "on mobile 2 rows when swiped
    * transitions into 3"). One grid expresses both: six unit rows, where the first six tiles span

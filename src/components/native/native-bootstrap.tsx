@@ -4,6 +4,7 @@ import { useEffect, useRef, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from '@/context/theme-context'
 import { useLanguage } from '@/context/language-context'
+import { confirmExitToast, EXIT_CONFIRM_MS } from '@/lib/subtle-toast'
 import { setNativeKeyboard } from '@/hooks/use-virtual-keyboard'
 import { hapticLongPress, hapticTap } from '@/lib/haptics'
 import { canonicalAppPath } from '@/lib/deep-link'
@@ -479,10 +480,33 @@ export function NativeBootstrap() {
       // a wrapped app does), then navigate back if we can, else background the app. minimizeApp
       // (moveTaskToBack) keeps the process warm — exitApp() would kill it and force a cold
       // reload of the remote WebView on the next launch.
+      /**
+       * ⛔ LEAVING THE APP TAKES TWO GESTURES, NOT ONE (owner, 2026-09-21: "swipe right exits the
+       * app ask confirmation if the swipe if they want to exit"). On Android the back GESTURE and
+       * the hardware key are the same event, and an edge-swipe is easy to trigger by accident while
+       * swiping a rail — so at the root, where no history is left, one stray swipe used to
+       * background the app mid-task with no warning.
+       * ⚠️ ONLY AT THE ROOT. While `canGoBack` is true this stays instant ordinary navigation; a
+       * confirmation on every back press would be far worse than the problem it solves.
+       * ⚠️ A SUCCESSFUL NAVIGATION DISARMS IT, so walking back to the root and pausing does not
+       * leave a primed exit waiting to catch an unrelated swipe minutes later.
+       */
+      let armedUntil = 0
       adopt(await App.addListener('backButton', ({ canGoBack }) => {
         const navigate = () => {
-          if (canGoBack) window.history.back()
-          else App.minimizeApp()
+          if (canGoBack) {
+            armedUntil = 0
+            window.history.back()
+            return
+          }
+          if (Date.now() < armedUntil) {
+            // minimizeApp (moveTaskToBack) keeps the process warm — exitApp() would kill it and
+            // force a cold reload of the remote WebView on the next launch.
+            App.minimizeApp()
+            return
+          }
+          armedUntil = Date.now() + EXIT_CONFIRM_MS
+          confirmExitToast()
         }
         if (backConsumedByOverlay(navigate)) return
         navigate()

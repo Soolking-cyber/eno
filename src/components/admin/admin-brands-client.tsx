@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
 import { Loader2, Search, Check, Sparkles, Upload } from '@/components/ui/icons'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { cn } from '@/lib/utils'
@@ -148,7 +149,7 @@ function BrandRow({ brand, brands, open, onOpenChange, onSaved }: { brand: Brand
       if (!res.ok) throw new Error()
       if (d.name) setName(d.name)
       if (d.iconSlug) { setIconSlug(d.iconSlug); setAiPath(d.iconPath || null); toast.success('AI found a logo — review + Save') }
-      else { setAiPath(null); toast(d.note ? `No logo match — ${d.note}` : 'No logo match — keep monogram or paste a path') }
+      else { setAiPath(null); subtleToast(d.note ? `No logo match — ${d.note}` : 'No logo match — keep monogram or paste a path') }
       setAiNote(d.note || null)
     } catch { toast.error('AI lookup failed') } finally { setAiBusy(false) }
   }

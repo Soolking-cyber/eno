@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { correctIdentityAction } from './actions'
@@ -89,7 +90,7 @@ export function CorrectIdentity({ v }: {
       // provenance the payments gate honours was protected from being overwritten with a weaker
       // one — either way nothing was written and no audit row exists, so saying "Corrected." left
       // the admin unable to tell a save from nothing happening (the Opus seat, 2026-09-09).
-      else if (r.ok) toast.message('Nothing to change — the record already reads that way.')
+      else if (r.ok) subtleToast('Nothing to change — the record already reads that way.')
       else toast.error(MSG[r.code] ?? r.code)
     } catch {
       /**

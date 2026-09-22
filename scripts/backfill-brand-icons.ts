@@ -46,6 +46,17 @@ const AMBIGUOUS: Record<string, string> = {
   meta: 'simple-icons "Meta" is the social company; this brand row is unattributed',
 }
 
+/**
+ * ⚠️ NAMES simple-icons SPELLS DIFFERENTLY. Matching is on the normalized brand name, so a mark
+ * whose icon TITLE carries a suffix never matches: "Kingston" vs "Kingston Technology". Found by
+ * listing the top 40 misses beside their nearest icon. Kept as an explicit table rather than a
+ * fuzzy/prefix match — the same scan showed prefix matching pairs brands with the single-letter
+ * icons (`d`, `e`, `r`, `x`) and "Fujihome" with F#, which is worse than no icon.
+ */
+const ALIAS: Record<string, string> = {
+  kingston: 'kingstontechnology',
+}
+
 /** Same shape as Brand.normalized: lowercased, de-accented, alphanumeric only. */
 const norm = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -71,7 +82,7 @@ async function main() {
   const refused: { name: string; why: string; n: number }[] = []
   for (const b of gap) {
     const key = b.normalized || norm(b.name)
-    const m = byNorm.get(key) ?? byNorm.get(norm(b.name))
+    const m = byNorm.get(ALIAS[key] ?? key) ?? byNorm.get(key) ?? byNorm.get(norm(b.name))
     if (!m) continue
     const why = AMBIGUOUS[key]
     if (why) { refused.push({ name: b.name, why, n: b.listingCount }); continue }

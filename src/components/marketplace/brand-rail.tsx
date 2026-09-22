@@ -26,7 +26,9 @@ type BrandItem = { slug: string; name: string; count: number; iconPath: string |
  * rendered. `tsc` does not flag that (the reference is inside a callback, so it cannot prove the
  * order), which is precisely why moving it beats reordering the guards around it.
  */
-const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
+/** No per-tile snap target — see the note in category-rail.tsx: a stop every 76px is what made
+ *  these rails feel like they fight the swipe. */
+const tileCls = 'group flex w-[4.75rem] shrink-0 flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
 
 // Line 2 of the search header. Large, flat square brand tiles (logo in a square
 // field + name + live count under, on the canvas — no fill) in one horizontally scrollable

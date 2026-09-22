@@ -314,7 +314,7 @@ export function SortStrip({
         * bar, parked under the reader's thumb. A `touch-pan-x` here would re-break "cant scroll app
         * on mobile" exactly as it did on the list.
         */}
-      <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto -mb-px scrollbar-none flex-nowrap snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain">
+      <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto -mb-px scrollbar-none flex-nowrap snap-x snap-proximity overflow-x-auto overflow-y-hidden overscroll-x-contain">
       <TabsList
         // variant=line: the default variant paints a bg-muted pill behind the strip.
         variant="line"
