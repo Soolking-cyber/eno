@@ -1311,7 +1311,21 @@ export function ListingsExplorer({
 
       const res = await fetch(`/api/listings?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch listings')
-      return res.json()
+      /**
+       * ⛔ STAMP WHAT THIS PAYLOAD WAS FETCHED FOR. `placeholderData` below hands the PREVIOUS
+       * query's rows to the next render, and nothing else on screen records which filters those
+       * rows belong to — so the stale-category guard downstream would have to infer it. Inferring
+       * it from the first row's own category is wrong (a mixed "all" set can start with a row of
+       * the category you just picked), and recording it in a ref written during render is a
+       * purity violation a reviewer rightly flagged. The payload carrying its own provenance is
+       * both exact and pure: it survives `placeholderData` because it IS the data.
+       * ⚠️ NOT A RACE, THOUGH IT READS LIKE ONE. A reviewer argued that reading `activeCategory`
+       * after the `await` stamps the NEW category onto an OLD in-flight response. It does not:
+       * this `queryFn` is a fresh closure per render and captures that render's value, so a
+       * request started under Services keeps stamping `services` however many times the reader
+       * taps afterwards. Changing this to read from a ref WOULD introduce the bug described.
+       */
+      return { ...(await res.json()), fetchedFor: { category: activeCategory, subcategory: activeSubcategory } }
     },
     placeholderData: (previousData) => previousData,
     // Seed the DEFAULT view (page 1, no filters) with the server-rendered data so
@@ -1384,6 +1398,68 @@ export function ListingsExplorer({
    * nothing and the map snaps back". `mapListings` above carries the same warning for the same
    * reason; a reviewer had already paid for that lesson once.
    */
+  /**
+   * ⛔ STALE ROWS FROM ANOTHER CATEGORY MUST NOT BE ACTIVATABLE. `placeholderData` deliberately
+   * holds the previous results on screen during a refetch, and the dim below says so — but its
+   * note justifies leaving them live because the old rows are "still valid and still tappable".
+   * True of a SORT change (same set, new order); FALSE of a CATEGORY change: tap Services and the
+   * Rentals cards stay on screen AND clickable, so the next tap opens an apartment. An automated
+   * suite hit exactly that ("Selecting Services led to a Rentals apartment listing", 2026-09-22).
+   *
+   * ⛔ ASK WHAT THE DATA WAS FETCHED FOR, NEVER WHAT THE FIRST ROW CONTAINS. The first version
+   * compared `shownListings[0].category.slug` to `activeCategory` and both reviewers refuted it
+   * for the same reason: coming from `all` to Services, if the old mixed set merely HAPPENS to
+   * begin with a Services listing the guard reads false and every Rentals card below it stays
+   * tappable — the exact bug, surviving the fix. The second version recorded it in a ref written
+   * during render, which a reviewer refuted too, and fairly: a render React discards can still
+   * have advanced the ref. The payload now carries `fetchedFor` (see the queryFn), so this is a
+   * pure comparison of two values that are both on screen.
+   * ⚠️ SUBCATEGORY IS PART OF THE KEY TOO. Rentals › Studios showing Rentals › all rows is milder
+   * than a cross-category leak but is the same class, so the pair moves together.
+   *
+   * ⚠️ `activeCategory === 'all'` IS DELIBERATELY EXEMPT, and a reviewer called that a defect
+   * twice. It is not: under "all" every row on screen is a legitimate member of the result set, so
+   * a tap goes somewhere the reader asked to see. Blocking there would freeze a correct grid.
+   * ⛔ NO PROVENANCE COUNTS AS STALE — FAIL CLOSED. `fetchedFor` is stamped in `queryFn`, and the
+   * default view does NOT come from `queryFn`: it is seeded with the server-rendered rows (see
+   * `initialData` below). So the very first category tap after a cold load hands `placeholderData`
+   * a seed with no stamp. An earlier version required `!!fetchedFor`, which turned the guard OFF
+   * for exactly that path — the most likely way to reproduce the reported bug, disabled by the
+   * fix for it. BOTH reviewers found this independently, which is the whole reason the panel
+   * exists. Any other producer that fills this key without `queryFn` (a restored or adopted cache
+   * entry) has the same shape and is covered by the same rule.
+   * ⚠️ AND FAILING CLOSED DOES NOT OVER-FIRE, because the seed is gated to the UNFILTERED "all"
+   * view (`initialData` below requires category, subcategory, brand, district, price, sort and
+   * query to all be at their defaults). A reviewer argued the opposite — that a server-rendered
+   * CATEGORY view would lack a stamp and lock the grid on a district or price change. There is no
+   * such view to seed: once `activeCategory !== 'all'` the rows came through `queryFn` and carry
+   * `fetchedFor`, so an in-category filter change compares stamp to stamp and stays live. The
+   * unstamped branch is reachable only on the first tap away from the seeded "all" feed, which is
+   * exactly the case it exists for.
+   *
+   * ⚠️ SCOPE, STATED HONESTLY: the feed grid, keyed on category and subcategory. Change DISTRICT
+   * or price and the old rows stay live though they no longer match; map pins and video mode read
+   * different queries and are not guarded at all. Those are pre-existing, none of them is what the
+   * owner hit, and widening this to every filter would freeze the grid on every refetch — that
+   * trade-off deserves its own change.
+   */
+  const fetchedFor = (listingsData as { fetchedFor?: { category: string; subcategory: string } } | undefined)?.fetchedFor
+  const staleFromOtherCategory =
+    queryShowingStaleSet &&
+    /**
+     * ⛔ A FAILED FETCH MUST RELEASE THE LOCK, OR THE GRID DIES. `isPlaceholderData` stays TRUE
+     * when a query errors while placeholder rows are on screen, so without this a reader on a
+     * flaky connection taps Services, the request fails, and the Rentals grid sits dimmed and
+     * inert with nothing to press and no way back except another chip that happens to succeed,
+     * or a reload. A reviewer caught this and it is the same family as the known
+     * "a failed /api/listings is invisible" problem — the lock must fail OPEN even though the
+     * staleness test fails CLOSED. Wrong-category rows that are tappable beat a dead screen.
+     */
+    !queryError &&
+    activeCategory !== 'all' &&
+    shownListings.length > 0 &&
+    (!fetchedFor || fetchedFor.category !== activeCategory || fetchedFor.subcategory !== activeSubcategory)
+
   const buildingPins = useMemo(() => buildingsData?.buildings ?? [], [buildingsData])
   const activeBuilding = useMemo(
     () => (selectedBuilding ? buildingPins.find((b) => b.key === selectedBuilding) ?? null : null),
@@ -3065,7 +3141,34 @@ export function ListingsExplorer({
                 it ends the comment there and the remainder becomes JSX text with stray braces.
                 That is what broke it a second time, one line below this. */}
           {viewMode !== 'video' && shownListings.length > 0 && (
-            <div className={cn('transition-opacity duration-200', queryShowingStaleSet && page === 1 && 'opacity-70')}>
+            /* ⚠️ `inert` AND `pointer-events-none` TOGETHER — not one or the other. The class alone
+               only blocks the mouse: a keyboard reader can still Tab onto a stale card and press
+               Enter, and a screen reader can still activate it, which is the wrong listing opening
+               by the path least likely to be tested. `inert` closes all three (focus, hit-testing,
+               the a11y tree) but is Chromium 102+, and this ships inside an Android WebView whose
+               version follows the device — so the class stays as the floor for old WebViews, where
+               dropping it would be a straight regression. `aria-busy` tells AT why it went quiet.
+               ⚠️ DIM WHENEVER IT IS INERT. The dim is otherwise gated on `page === 1` while the
+               lock is not, and a reviewer caught the gap: at page > 1 the reader would get
+               full-opacity cards that silently ignore taps, which reads as a frozen app.
+               ⚠️ A PLAIN BLOCK COMMENT, NOT THE BRACED JSX KIND — this sits in EXPRESSION position,
+               right after `&& (`, where the braced form is a syntax error. The sibling comment
+               above says exactly this and I still wrote it wrong here; it cost a typecheck round. */
+            <div
+              /* ⚠️ `|| undefined`, NEVER a bare `false`. React 19 does serialise `inert={false}` as
+                 "no attribute", but `inert` is a BOOLEAN attribute — present at all means inert,
+                 `inert="false"` included — so any renderer that stringifies it would freeze the
+                 grid for every reader in the normal case. `undefined` is unambiguous everywhere
+                 and costs nothing. A reviewer raised this against pre-19 React; we are on 19, but
+                 the failure it describes is bad enough to be worth insuring against. */
+              inert={staleFromOtherCategory || undefined}
+              aria-busy={staleFromOtherCategory || undefined}
+              className={cn(
+                'transition-opacity duration-200',
+                ((queryShowingStaleSet && page === 1) || staleFromOtherCategory) && 'opacity-70',
+                staleFromOtherCategory && 'pointer-events-none',
+              )}
+            >
               {/* ⚠️ NO `key` AND NO ENTRANCE. The key was
                   `viewMode|activeCategory|activeSubcategory|activeDistrict|sort|verifiedOnly|conditionFilter`,
                   which forced a full unmount/remount of every card on each filter change: every
