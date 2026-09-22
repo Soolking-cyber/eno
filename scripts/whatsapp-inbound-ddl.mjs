@@ -29,6 +29,14 @@ create index if not exists whatsapp_inbound_conversation_idx on whatsapp_inbound
 create index if not exists whatsapp_inbound_profile_idx on whatsapp_inbound ("profileId");
 -- Re-runnable on a table created before deliveredAt existed.
 alter table whatsapp_inbound add column if not exists "deliveredAt" timestamp(3);
+-- ⛔ waId IS THE USER'S PHONE NUMBER. This script originally created the table without row-level
+-- security, and because anon/authenticated hold a blanket SELECT on public, PostgREST served every
+-- row (phone ↔ profileId ↔ conversation) to anyone with the browser's anon key — found and closed
+-- 2026-09-23. scripts/rls-guard.sql now installs an event trigger that enables RLS on every new
+-- public table, but a restore onto a fresh database runs THIS file, possibly before that one, so the
+-- table protects itself. The app is unaffected: it reads and writes as postgres, which has BYPASSRLS.
+alter table whatsapp_inbound enable row level security;
+alter table whatsapp_inbound force row level security;
 `
 
 const client = new pg.Client({ connectionString: url })
