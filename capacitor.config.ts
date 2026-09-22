@@ -157,7 +157,32 @@ const config: CapacitorConfig = {
       // splash, boot straight into a content skeleton"): the disk skeleton paints
       // in ~100ms, so the splash doesn't hold AT ALL — 0 releases it immediately.
       launchShowDuration: LOCAL_SHELL ? 0 : 3000,
-      backgroundColor: '#ffffff',
+      /**
+       * ⛔ THE WEB'S PAGE FLOOR, NOT WHITE (owner, 2026-09-22: "initial loading screen should be
+       * similar to web"). globals.css resolves `--background` to `--home-wash-soft` = #f8fbfe, so
+       * white here produced a visible step between the launch screen and the first painted frame.
+       * ⚠️ ONE VALUE AND NO DARK VARIANT, AND ON ANDROID THAT IS FINE — BUT ONLY BECAUSE THE
+       * DRAWABLE COVERS IT. A reviewer called this a dark-mode white flash three times, so here is
+       * what the plugin actually does (@capacitor/splash-screen 8, android/.../SplashScreen.java):
+       *   · :359-361  `getResources().getDrawable(id, context.getTheme())` — THEME-AWARE, so dark
+       *                mode paints `res/drawable-night/splash.png`, not this colour;
+       *   · :321      scale type defaults to `FIT_XY`, which stretches that drawable over the whole
+       *                view, so the colour below it is never on screen;
+       *   · :325      `backgroundColor` is set as the ImageView's BACKGROUND — it shows only if the
+       *                drawable fails to load or stops covering the view.
+       * So this value is the fallback floor, and both `drawable/splash.png` and
+       * `drawable-night/splash.png` are flat fills of the matching wash. If someone ever sets
+       * `androidScaleType` to something that letterboxes, this colour becomes visible and WOULD
+       * need a dark variant — that is the thing to re-check, not the value itself.
+       * ⚠️ iOS IS COVERED THE SAME WAY, and was challenged separately. SplashScreen.swift:91-93
+       * instantiates the LaunchScreen storyboard and :43-44 sets this colour on
+       * `viewController.view` — but in LaunchScreen.storyboard that view IS the image
+       * (`<imageView key="view" contentMode="scaleAspectFill" image="Splash">`), so an opaque
+       * full-bleed image sits on it; scaleAspectFill crops rather than letterboxes, so it never
+       * gapes. Splash.imageset carries `-dark` variants tagged with the `dark` appearance in
+       * Contents.json, so dark mode gets #1c1d1f there too.
+       */
+      backgroundColor: '#f8fbfe',
       showSpinner: false,
     },
     Keyboard: {

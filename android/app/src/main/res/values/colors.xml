@@ -47,4 +47,9 @@
     <color name="cardDark">#1b1b1b</color>
     <color name="refreshSpinnerLight">#0a66c2</color><!-- brand -->
     <color name="refreshSpinnerDark">#3b8ee6</color><!-- brand, brightened for dark surfaces -->
+    <!-- ⛔ THE WEB'S PAGE FLOOR, NOT A NEUTRAL GREY. globals.css sets `--background: var(--wash-tail)`
+         = `--home-wash-soft` = #f8fbfe, so the launch screen and the first painted frame are the same
+         colour and there is no flash between them (owner, 2026-09-22: "similar to web"). Track this
+         if the wash changes; `@color/card` here was #fafafa/#1b1b1b and visibly differed. -->
+    <color name="splash_bg">#f8fbfe</color>
 </resources>

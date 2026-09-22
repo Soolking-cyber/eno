@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ⛔ DELIBERATELY EMPTY — the launch screen carries NO wordmark (owner, 2026-09-22: "initial
+  loading screen should be similar to web remove the e logo there").
+  Android 12+ ALWAYS draws `windowSplashScreenAnimatedIcon`; there is no attribute for "no icon".
+  Pointing it at a fully transparent drawable is the supported way to get a plain colour field,
+  which is what the web shows while it paints. Removing the attribute instead falls back to the
+  launcher icon — i.e. the "e" comes straight back.
+  ⚠️ Keep the 108dp adaptive-icon canvas: the system scales this like any splash icon, and a 0dp
+  drawable makes some OEM skins substitute the launcher icon.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z" android:fillColor="#00000000" />
+</vector>
