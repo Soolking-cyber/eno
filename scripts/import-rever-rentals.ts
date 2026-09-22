@@ -323,7 +323,6 @@ async function main() {
       lng: inRange(r.longitude, 102, 110) ? r.longitude : null,
       areaM2: Number.isFinite(r.area_m2) && r.area_m2 > 0 ? r.area_m2 : null,
       attributes: beds === null ? null : JSON.stringify({ bedrooms: String(beds) }),
-      images: JSON.stringify(images),
       affiliateUrl: r.url,
       /** ⚠️ Spread conditionally: with no --buildings file this key is ABSENT from the update
        *  payload, so Prisma leaves the column alone. Writing `null` would un-group every row. */
@@ -339,7 +338,19 @@ async function main() {
        * site. The first run wrote 1,100 rows with `false` and /c/rentals showed "0 listings".
        * The buyer-facing trust signal is `Seller.verified`, a different column, which stays FALSE.
        */
-      create: { ...mutable, externalId, status: 'active', verified: true },
+      /**
+       * ⛔ `images` IS CREATE-ONLY, AND THIS IS LOAD-BEARING. It used to sit in `mutable`, i.e. in the
+       * UPDATE payload, so re-running this importer would have overwritten every re-hosted photo url
+       * with a `photo.rever.vn` hotlink again — silently undoing `attach-rever-photos.ts` and taking
+       * the eno.vn watermark with it, because the overlay only renders under `listings/affiliate/m/`.
+       * A reviewer caught it here; the identical bug was caught on the Batdongsan importer days
+       * earlier, which is why it is worth stating twice: a re-import refreshes PRICES and AVAILABILITY,
+       * it does not own the pictures.
+       * ⚠️ THE COST, STATED: a re-import can no longer REPAIR images either. A row whose photos are
+       * still hotlinked or broken stays that way until `attach-rever-photos.ts` runs — that script
+       * owns this column now, and it is the one to reach for, not a re-import.
+       */
+      create: { ...mutable, externalId, status: 'active', verified: true, images: JSON.stringify(images) },
       update: mutable,
       select: { id: true, createdAt: true, updatedAt: true },
     })
