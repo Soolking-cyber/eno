@@ -69,10 +69,28 @@ android {
          * not offered for promotion. Production therefore needs its own build, and every later
          * upload needs the next number again — a rejected or discarded bundle burns its code too.
          */
-        // 3 (2026-09-14): the launcher icon at its real size, the name "Eno Marketplace", and the EnoHaptics plugin — all
-        // native, so a new bundle. 2 is the one on production.
-        versionCode 3
-        versionName "1.0.1"
+        // 3 (2026-09-14): the launcher icon at its real size, the name "Eno Marketplace", and the
+        // EnoHaptics plugin — all native, so a new bundle. THIS ONE WENT TO PRODUCTION as 1.0.1.
+        /**
+         * ⛔ BUMP THIS THE MOMENT A BUNDLE IS UPLOADED, NOT WHEN THE NEXT ONE IS BUILT. The file sat
+         * at `3` after 3 was uploaded and published, so it read as "the next number to use" while
+         * actually naming a consumed one. On 2026-09-22 that cost a full build-sign-upload cycle:
+         * Play refused the bundle with "Version code 3 has already been used" only at the very last
+         * step, after the AAB was built and signed. The comment above it said "2 is the one on
+         * production", which was true when written and had been wrong for eight days.
+         * ⚠️ THE CONSOLE CANNOT BE TRUSTED TO SHOW YOU THE ANSWER EITHER: "Add from library" listed
+         * only codes 1 and 2, because a code already attached to a release is not offered for
+         * promotion. A code missing from that list is not a free code. The production track's
+         * "Latest release" is the reliable tell.
+         */
+        // 4 (2026-09-22): launch screen with no wordmark, on the web's page floor, both themes.
+        versionCode 4
+        /** ⚠️ 1.0.2, because 1.0.1 IS ALREADY THE LIVE PRODUCTION RELEASE. Play allows two bundles
+         *  to share a versionName, and the result is two different builds both called "1.0.1" in
+         *  the release list, in crash reports and in the app's own about screen — indistinguishable
+         *  exactly when someone is trying to tell them apart. The name is what humans read; the
+         *  code is what Play enforces. Move both. */
+        versionName "1.0.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
