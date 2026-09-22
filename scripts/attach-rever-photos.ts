@@ -59,7 +59,7 @@
  * reads a status file; nothing here replaces that.
  */
 import 'dotenv/config'
-import { readFileSync, existsSync, writeSync, openSync, fsyncSync, closeSync } from 'node:fs'
+import { readFileSync, existsSync, statSync, writeSync, openSync, fsyncSync, closeSync } from 'node:fs'
 import { join } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import { PrismaClient } from '../src/generated/prisma/client'
@@ -136,7 +136,7 @@ async function main() {
 
   const stat = {
     candidates: rows.length, rewritten: 0, uploaded: 0,
-    skippedNoRecord: 0, skippedUnmapped: 0, skippedUploadFailed: 0, skippedRaced: 0, skippedMixed: 0, errored: 0,
+    skippedNoRecord: 0, skippedUnmapped: 0, skippedUploadFailed: 0, skippedRaced: 0, skippedMixed: 0, errored: 0, refetched: 0,
   }
   console.log(`  rever rows still hotlinking   ${rows.length}`)
   console.log(`  mode                          ${APPLY ? 'APPLY — UPLOADS + WRITES TO PRODUCTION' : 'DRY RUN'}`)
@@ -161,29 +161,43 @@ async function main() {
     const recImgs: string[] = rec.images ?? []
     const locals: string[] = rec.local_images ?? []
 
-    /** Resolve EVERY url first. If any one cannot be mapped, this row is not touched at all. */
-    const files: string[] = []
+    /**
+     * Resolve EVERY photo first. If any one cannot be resolved, this row is not touched at all.
+     * ⚠️ A ZERO-BYTE LOCAL FILE IS NOT A MISSING ONE, AND `existsSync` CANNOT TELL THEM APART. The
+     * first full run left exactly 4 listings behind for this reason: each had ONE truncated
+     * download in the scrape (0 bytes), sharp refused it with "Input Buffer is empty", and
+     * all-or-nothing then correctly declined to write a 4-photo gallery. Falling back to the url we
+     * already hold heals it from the same source the scrape came from — 4 requests, not 5,500.
+     */
+    const sources: { abs?: string; url?: string }[] = []
     for (const u of dbImgs) {
       const j = recImgs.indexOf(u)
       const rel = j >= 0 ? locals[j] : undefined
       const abs = rel ? join(ROOT, rel) : null
-      if (!abs || !existsSync(abs)) break
-      files.push(abs)
+      if (abs && existsSync(abs) && statSync(abs).size > 0) sources.push({ abs })
+      else sources.push({ url: u })
     }
-    if (files.length !== dbImgs.length) { stat.skippedUnmapped++; continue }
-    if (!APPLY) { stat.rewritten++; stat.uploaded += files.length; continue }
+    if (sources.length !== dbImgs.length) { stat.skippedUnmapped++; continue }
+    if (!APPLY) { stat.rewritten++; stat.uploaded += sources.length; continue }
 
     /** Upload all before writing anything. A partial upload leaks orphans (logged) but never a
      *  short row. */
     const slug = String(t.externalId).replace(/[^a-z0-9]/gi, '-')
     const urls: string[] = []
-    for (const abs of files) {
-      const url = await host.fromBuffer(readFileSync(abs), slug)
+    for (const src of sources) {
+      let buf: Buffer | null = null
+      if (src.abs) buf = readFileSync(src.abs)
+      else if (src.url) {
+        const res = await fetch(src.url)
+        if (res.ok) { buf = Buffer.from(await res.arrayBuffer()); stat.refetched++ }
+      }
+      if (!buf || !buf.length) break
+      const url = await host.fromBuffer(buf, slug)
       if (!url) break
       recordDurably(UPLOADED, url)
       urls.push(url)
     }
-    if (urls.length !== files.length) { stat.skippedUploadFailed++; continue }
+    if (urls.length !== sources.length) { stat.skippedUploadFailed++; continue }
 
     /** ⚠️ BOTH values, and BEFORE the write. `old` is what rollback restores; `next` is what makes
      *  that rollback CONDITIONAL — a reviewer pointed out that journalling only the old value means
