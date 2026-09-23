@@ -74,10 +74,10 @@ export const SERVICES_PROMO_SLIDES: PromoSlide[] = [
        * desktop would roughly triple the weight of the one image on the site that must not get
        * heavier.
        */
-      mobile: '/banners/evisa-mobile.webp',
-      desktop: '/banners/evisa-desktop.webp',
+      mobile: '/banners/evisa-mobile.webp?v=fb5c5f27',
+      desktop: '/banners/evisa-desktop.webp?v=523d9548',
       // avif first, webp as the fallback: 33,906 -> 15,630 B desktop and 27,892 -> 13,362 B mobile.
-      avif: { mobile: '/banners/evisa-mobile.avif', desktop: '/banners/evisa-desktop.avif' },
+      avif: { mobile: '/banners/evisa-mobile.avif?v=609a9af7', desktop: '/banners/evisa-desktop.avif?v=3671dcb9' },
       /**
        * ⛔ `null`, NOT A MISSING KEY. The field is required-but-nullable (see promo-slides.ts): the
        * compiler forces every art slide to state whose message it carries, and `null` is the

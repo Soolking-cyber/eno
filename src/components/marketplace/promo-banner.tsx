@@ -513,9 +513,34 @@ export function PromoBanner() {
  * component's min-h exists to prevent. That file is owned by another stream in this wave; if it
  * still reads lg:min-h-[300px], this cap has shipped a regression and that is the fix.
  */
-function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSlide; first?: boolean; /** False while an off-screen slide's raster is still held back — see the call site. Defaults true so any other caller renders art as before. */ artReady?: boolean }) {
+export function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSlide; first?: boolean; /** False while an off-screen slide's raster is still held back — see the call site. Defaults true so any other caller renders art as before. */ artReady?: boolean }) {
   const { tr } = useLanguage()
   const Icon = slide.icon
+  const [artFailure, setArtFailure] = useState<'avif' | 'webp' | null>(null)
+  const artImage = useRef<HTMLImageElement>(null)
+  const hasAvif = Boolean(slide.art?.avif)
+  const failArt = useCallback((img: HTMLImageElement) => {
+    // Format selection is not network-error fallback: a browser that chose AVIF never retries as
+    // WebP on its own. So each failure advances one rung — drop both AVIF sources, then give up to
+    // text — and the ladder is driven by WHICH rung we are already on, not only by the URL.
+    setArtFailure(previous => {
+      if (previous === 'webp') return previous          // already at the bottom
+      if (previous === 'avif') return 'webp'            // AVIF is gone, so this is the WebP failing
+      // ⚠️ `currentSrc`, NEVER `img.src` AS THE TELL (reviewers). `src` is hardcoded to the WebP
+      // because the AVIF candidates live in <source> siblings, so falling back to it reports
+      // "WebP failed" for an AVIF failure and demotes straight to text, skipping a format that
+      // would very likely have worked. When the engine leaves `currentSrc` empty on error, assume
+      // the AVIF candidate instead: the cost is one wasted retry, and the rung logic above makes
+      // the sequence terminate at text either way.
+      const failedAvif = /\.avif(?:\?|$)/i.test(img.currentSrc)
+      return failedAvif || (!img.currentSrc && hasAvif) ? 'avif' : 'webp'
+    })
+  }, [hasAvif])
+  useEffect(() => {
+    // A broken eager SSR image can finish before React hydrates and attaches onError.
+    const img = artImage.current
+    if (img?.complete && img.naturalWidth === 0) failArt(img)
+  }, [artFailure, artReady, failArt])
 
   /**
    * ⚠️ PARTNER ARTWORK PATH — a real <img>, not a CSS background, and that is a performance fix as
@@ -616,7 +641,7 @@ function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSli
             fills the box, it never defines it. So the panel is exactly as tall with the art missing
             as with it present, which is the same reason this component already measured CLS 0 while
             the bytes were in flight. Rendering nothing here for a moment is a no-op on layout. */}
-        {artReady && <picture>
+        {artReady && artFailure !== 'webp' && <picture key={artFailure ?? 'preferred'}>
           {/* ⚠️ THE SWITCH IS AT lg (1024), NOT sm. The two cuts are 4.27:1 (desktop) and 1.95:1
               (mobile). Serving the wide cut from 640px put a 4.27:1 image into a ~2.8:1 box, which
               `object-cover` then had to crop by a third — taking the lockup off the left and the
@@ -647,7 +672,7 @@ function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSli
               fallback below — so a desktop-cut-less pair would serve a desktop browser the 732px
               mobile art. `slide.art.avif &&` guards both together; never split it back into two
               independent checks. A slide with no AVIF at all skips both and serves the WebP. */}
-          {slide.art.avif && (
+          {slide.art.avif && artFailure !== 'avif' && (
             <>
               <source media="(min-width: 1024px)" type="image/avif" srcSet={slide.art.avif.desktop} width={1280} height={300} />
               <source type="image/avif" srcSet={slide.art.avif.mobile} width={732} height={376} />
@@ -659,6 +684,8 @@ function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSli
               exactly the point. (No eslint-disable needed — no-img-element does not fire inside
               a <picture>; the directive that sat here was reported unused.) */}
           <img
+            ref={artImage}
+            onError={event => failArt(event.currentTarget)}
             src={slide.art.mobile}
             alt={tr(slide.art.alt, slide.art.altVi)}
             // ⚠️ 732x376 — the mobile cut is a 2x asset. The RATIO is what reserves the box and it
@@ -689,6 +716,11 @@ function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSli
             decoding={first ? 'sync' : 'async'}
           />
         </picture>}
+        {artReady && artFailure === 'webp' && (
+          <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center bg-tint p-6 text-center text-body font-semibold">
+            {tr(slide.art.alt, slide.art.altVi)}
+          </span>
+        )}
         {/* ⛔ NO VISIBLE "Advertisement" CHIP — REMOVED BY THE OWNER, 2026-08-11, AND NOT AN OVERSIGHT.
             A pill reading "Quảng cáo · <partner>" was rendered over this artwork and taken out on the
             owner's instruction. Whether a paid placement is labelled on its face is a commercial and
