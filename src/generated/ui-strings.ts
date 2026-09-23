@@ -35,7 +35,7 @@ export const UI_STRINGS: string[] = [
   "9+ seats",
   "<500k",
   ">10M",
-  "A confirmed scam is different: waiting does nothing. Its full penalty stays frozen until the seller completes 5 new clean deals — only then does it slowly start to fade, and it never drops below 40% of its weight. Time alone never launders fraud; reform requires behavior.",
+  "A confirmed scam is different: waiting does nothing, and neither does marking items as sold. The seller's listings stay hidden until our team releases them — no sooner than 14 days after the report was confirmed, and only for a seller who has verified their identity and sent us a written plan. Even after a release the full penalty stays on the score. Time alone never launders fraud.",
   "A handful of companies on eno carry a gold Partner badge. It is not advertising and it cannot be bought — eno goes looking for the best company in a category, checks who they actually are, and puts its own name next to theirs.",
   "A named contact at the company that eno can reach directly, so a problem has somewhere to go.",
   "A named person has to stand behind a business storefront. This takes a few minutes and only has to be done once.",

@@ -37,7 +37,7 @@ const T = {
   CONDUCT_MAX: 90,
   SEVERITY_WEIGHT: { minor: 5, moderate: 18, severe: 45 },
   DECAY_HALF_LIFE_DAYS: { minor: 45, moderate: 180, severe: 365 },
-  SCAM_CLEAN_TX: 5, SCAM_FLOOR: 0.4,
+  SCAM_FLOOR: 0.4, SCAM_RELEASE_MIN_DAYS: 14,
   MANUAL_HALF_LIFE_DAYS: 365,
   CRED_FULL: 1.0, CRED_DEFAULT: 0.6, CRED_LOW: 0.25,
   CRED_FULL_TRUST: 85, CRED_FULL_AGE_DAYS: 180, CRED_DEFAULT_AGE_DAYS: 30,
@@ -93,13 +93,27 @@ function credibilityWeight(a) {
   return Math.max(T.CRED_FLOOR, base * Math.pow(T.CRED_STRIKE_FACTOR, Math.max(0, a.falseReportStrikes)))
 }
 
-// decayFactor(): minor 2^(−age/45) · moderate 2^(−age/180) · severe FROZEN until
-// 5 clean tx after the event, then 2^(−sinceFifth/365) with a permanent 0.4 floor.
+// decayFactor(): minor 2^(−age/45) · moderate 2^(−age/180) · severe FROZEN until the dues are
+// paid (buyer-confirmed graduation — not built, so always frozen), then 2^(−since/365), 0.4 floor.
 function decayFactor(severity, ageDays, scam) {
   const age = Math.max(0, ageDays)
   if (severity !== 'severe') return Math.pow(2, -age / T.DECAY_HALF_LIFE_DAYS[severity])
-  if ((scam?.cleanTxAfter ?? 0) < T.SCAM_CLEAN_TX || scam?.daysSinceFifthCleanTx == null) return 1
-  return Math.max(T.SCAM_FLOOR, Math.pow(2, -Math.max(0, scam.daysSinceFifthCleanTx) / T.DECAY_HALF_LIFE_DAYS.severe))
+  if (scam?.daysSinceDuesPaid == null) return 1
+  return Math.max(T.SCAM_FLOOR, Math.pow(2, -Math.max(0, scam.daysSinceDuesPaid) / T.DECAY_HALF_LIFE_DAYS.severe))
+}
+
+// scamReleaseMarkers() + scamStage(): a scam HOLD ends only on an admin release marker
+// (manual_adjust, reason 'scam_release:<reportId | event:<id>>') written after the confirmation.
+// Self-marked sales / accepted offers are NOT an input (removed 2026-09-23).
+const SCAM_RELEASE_PREFIX = 'scam_release:'
+function scamReleaseMarkers(evts) {
+  const out = new Map()
+  for (const e of evts) {
+    if (e.type !== 'manual_adjust' || !e.reason?.startsWith(SCAM_RELEASE_PREFIX)) continue
+    const key = e.reason.slice(SCAM_RELEASE_PREFIX.length)
+    if (key) out.set(key, Math.max(out.get(key) ?? 0, e.createdAt.getTime()))
+  }
+  return out
 }
 
 // severityFromDelta(): legacy v1 deltas (−3/−10/−25) → class, when Report is gone.
@@ -162,7 +176,7 @@ const sellerIds = [...owned.map((r) => r.seller_id), ...guests.map((r) => r.sell
 // Ledger: conduct + manual adjustments + one-time verification gates (same filter as
 // computeTrustV2 in src/lib/trust.ts).
 const events = ownerIds.length ? (await client.query(`
-  SELECT "subjectProfileId" AS pid, type, delta, reason, "reportId" AS report_id, "createdAt"
+  SELECT id, "subjectProfileId" AS pid, type, delta, reason, "reportId" AS report_id, "createdAt"
   FROM "TrustEvent"
   WHERE "subjectProfileId" = ANY($1::uuid[]) AND type IN ('report_confirmed','manual_adjust')`, [ownerIds])).rows : []
 const eventsByPid = new Map()
@@ -243,7 +257,8 @@ function sellerComponents(sellerId, responseRate) {
   return { Q, T: trackRecordScore(tx365), tx365, txTimes, wilson, distinctBuyerReviews: new Set(deduped.map((r) => r.authorId)).size }
 }
 
-function conductFor(pid, txTimes) {
+function conductFor(pid) {
+  const released = scamReleaseMarkers(eventsByPid.get(pid) ?? [])
   const evts = (eventsByPid.get(pid) ?? []).filter((e) => e.type === 'report_confirmed')
   let hasScamHold = false
   const win90 = { count: 0, distinctReporters: 0, scams: 0 }, win180 = { count: 0, distinctReporters: 0, scams: 0 }
@@ -256,13 +271,11 @@ function conductFor(pid, txTimes) {
     const cred = report?.reporter_id ? (credByPid.get(report.reporter_id) ?? T.CRED_DEFAULT) : T.CRED_DEFAULT
     const eventMs = e.createdAt.getTime()
     const ageDays = (now - eventMs) / DAY_MS
-    let scam = null
     if (severity === 'severe') {
-      const after = txTimes.filter((t) => t > eventMs)
-      if (after.length >= T.SCAM_CLEAN_TX) scam = { cleanTxAfter: after.length, daysSinceFifthCleanTx: (now - after[T.SCAM_CLEAN_TX - 1]) / DAY_MS }
-      else { scam = { cleanTxAfter: after.length, daysSinceFifthCleanTx: null }; hasScamHold = true }
+      const releasedAt = released.get(e.report_id ?? `event:${e.id}`)
+      if (releasedAt === undefined || releasedAt < eventMs) hasScamHold = true
     }
-    C += T.SEVERITY_WEIGHT[severity] * cred * decayFactor(severity, ageDays, scam)
+    C += T.SEVERITY_WEIGHT[severity] * cred * decayFactor(severity, ageDays, { daysSinceDuesPaid: null })
     const key = report?.reporter_id ?? `anon:${e.report_id ?? eventMs}`
     if (ageDays <= 90) { win90.count++; rep90.add(key); if (severity === 'severe') win90.scams++ }
     if (ageDays <= 180) { win180.count++; rep180.add(key); if (severity === 'severe') win180.scams++ }
@@ -280,7 +293,7 @@ for (const o of owned) {
   const kycVerified = evts.some((e) => e.reason === 'kyc')
   const V = verificationScore({ phoneVerified, kycVerified, accountAgeDays })
   const s = sellerComponents(o.seller_id, o.responseRate)
-  const { C, win90, win180, hasScamHold } = conductFor(o.owner_id, s.txTimes)
+  const { C, win90, win180, hasScamHold } = conductFor(o.owner_id)
   // Manual adjustments (H=365 decay), one-time verification reasons excluded.
   const M = evts
     .filter((e) => e.type === 'manual_adjust' && !(e.reason && ONE_TIME_REASONS.has(e.reason)))

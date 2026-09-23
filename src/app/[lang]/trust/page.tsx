@@ -77,7 +77,7 @@ export default function TrustPage() {
             <Band score={130} name="Exceptional" range="110–159" note="At least 10 completed deals in the last year, reviews from 5 different buyers, a proven fast-reply record, and 6 clean months." />
             <Band score={95} name="Trusted" range="85–109" note="A verified account with at least 3 completed deals and either 60 days on eno or reviews from 3 different buyers — plus a clean last 90 days." />
             <Band score={70} name="Building" range="60–84" note="Where every account starts, and where accounts with fewer than 3 completed deals stay. Not a penalty — just an unproven track record." />
-            <Band score={45} name="Restricted" range="below 60" note="A serious or repeated confirmed problem — including any confirmed scam that hasn't been worked off. New listings may be held for review." />
+            <Band score={45} name="Restricted" range="below 60" note="A serious or repeated confirmed problem — including any confirmed scam. New listings may be held for review." />
           </div>
       </ContentSection>
 
@@ -108,7 +108,11 @@ export default function TrustPage() {
               ['Confirmed minor issue (spam/duplicate)', -5, 'Fades in ~3 months'],
             ]} />
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground"><Tr text="A confirmed scam is different: waiting does nothing. Its full penalty stays frozen until the seller completes 5 new clean deals — only then does it slowly start to fade, and it never drops below 40% of its weight. Time alone never launders fraud; reform requires behavior." /></p>
+          {/* ⚠️ MIRRORS scamStage / TRUST.SCAM_RELEASE_MIN_DAYS (trust-math.ts), guarded by
+              src/lib/scam-hold-copy.test.ts. The old sentence promised the penalty would start fading
+              after five new sales — sales the seller marked sold themselves. That exit was removed on
+              2026-09-23; only a person ends a scam hold now, and a release does not thaw the penalty. */}
+          <p className="text-xs leading-relaxed text-muted-foreground"><Tr text="A confirmed scam is different: waiting does nothing, and neither does marking items as sold. The seller's listings stay hidden until our team releases them — no sooner than 14 days after the report was confirmed, and only for a seller who has verified their identity and sent us a written plan. Even after a release the full penalty stays on the score. Time alone never launders fraud." /></p>
       </ContentSection>
 
       <ContentSection id="fair" title="Fair by design">

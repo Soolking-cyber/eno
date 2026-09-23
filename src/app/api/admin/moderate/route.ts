@@ -3,7 +3,7 @@ import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
 import { applyTrustEvent, penalizeSeller, recomputeTrust, recordChargeReversals, settleReportCharges, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
-import { syncEnforcement } from '@/lib/enforcement'
+import { forgetPulledListings, syncEnforcement } from '@/lib/enforcement'
 import { partitionByIdentityGate, settleHolds } from '@/lib/compliance/seller-publish-gate'
 import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
 import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS, addDisputeMessage, notifyDispute, respondentProfileId } from '@/lib/dispute'
@@ -335,6 +335,19 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         } catch (e) {
           logError(e, { op: 'moderate.unverifyListing', reportId: id, listingId: report.listingId })
           takedownFailed = true
+        }
+        // ⛔ …AND OUT OF EVERY HOLD'S RESTORE LIST (review of the scam-hold release, 2026-09-24). The
+        // sync above ran FIRST, so a hold it applied (a confirmed scam) has just pulled this very
+        // listing and recorded it — and a listing an earlier hold pulled is recorded already. Both are
+        // the same `verified=false`, so the eventual release, overturn or lift restored the reported
+        // listing with the rest. After the sync, and whether or not the takedown write landed: the
+        // hold's own pull already hid it, and it must never be the hold that republishes it — the
+        // admin re-approves it in Moderation. Best-effort: the dock has landed, and the release and
+        // overturn forget their charges' listings again before they restore (src/lib/scam-hold.ts).
+        try {
+          await forgetPulledListings([report.listingId])
+        } catch (e) {
+          logError(e, { op: 'moderate.forgetPulledListing', reportId: id, listingId: report.listingId })
         }
       }
       // Tell the reported party (if they have an account) + give them an appeal path,

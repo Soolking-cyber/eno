@@ -145,6 +145,13 @@ vi.mock('@/lib/enforcement', () => ({
     const opts = a[2] as { onHeld?: (n: number) => void } | undefined
     if (h.syncHeld) opts?.onHeld?.(h.syncHeld)
   },
+  // The reported listing leaves every hold's restore list — its own rules are proved against the
+  // real enforcement code in src/lib/scam-hold.test.ts; here only WHEN and with WHAT it is called.
+  forgetPulledListings: async (...a: unknown[]) => {
+    h.fx.push({ m: 'forgetPulledListings', args: a })
+    if (h.throwOn === 'forgetPulledListings') throw new Error('forget exploded')
+    return 1
+  },
 }))
 vi.mock('@/lib/dispute', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -727,6 +734,37 @@ describe('confirm-report — the single most consequential action', () => {
     expect(r.text).toBe('{"error":"takedown_failed","listingId":"l1"}')
     expect(effects('applyTrustEvent')).toHaveLength(1) // the dock DID land — that is the point
     expect(effects('notifyDispute')).toHaveLength(1)   // and both sides were still told
+  })
+
+  /**
+   * ⛔ The sync runs BEFORE the takedown, so a scam hold it applies has just pulled — and recorded —
+   * the reported listing with the rest; a later release/overturn/lift restored it. The listing leaves
+   * every hold's restore list AFTER the sync, whether or not the takedown write landed.
+   */
+  it('forgets the reported listing from every hold\'s restore list — after the sync', async () => {
+    h.report = { ...R, listingId: 'l1' }
+    await post({ action: 'confirm-report', id: 'r1', severity: 'severe' })
+    expect(effects('forgetPulledListings').map((e) => e.args)).toEqual([[['l1']]])
+    const order = h.fx.map((f) => f.m)
+    expect(order.indexOf('forgetPulledListings')).toBeGreaterThan(order.indexOf('syncEnforcement'))
+  })
+
+  it('…even when the takedown write failed (the hold already hid it; it must not be the hold that restores it)', async () => {
+    h.report = { ...R, listingId: 'l1' }
+    h.listingUpdateThrows = true
+    await post({ action: 'confirm-report', id: 'r1' })
+    expect(effects('forgetPulledListings')).toHaveLength(1)
+  })
+
+  it('a report with no listing forgets nothing; a failed forget is best-effort and the confirm still answers', async () => {
+    h.report = { ...R }
+    await post({ action: 'confirm-report', id: 'r1' })
+    expect(effects('forgetPulledListings')).toHaveLength(0)
+    h.fx = []; h.calls = []
+    h.report = { ...R, listingId: 'l1' }
+    h.throwOn = 'forgetPulledListings'
+    const r = await post({ action: 'confirm-report', id: 'r1' })
+    expect(r.text).toBe('{"ok":true}')
   })
 
   it('a storefront-only target is docked via penalizeSeller and gets no appeal notice', async () => {
