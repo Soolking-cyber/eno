@@ -70,6 +70,9 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 vi.mock('@/lib/enforcement', () => ({ bulkPostingBudget: async () => ({ blocked: null, maxNewActive: null }) }))
+// No released scam charge for anyone here — that regime has its own suite (released-charge-cap.test.ts),
+// and these tests count the reads the identity gate makes.
+vi.mock('@/lib/released-charge-gate', () => ({ releasedChargeGate: async () => null, releasedChargeStanding: async () => null, releasedChargeGateFor: async () => { throw new Error('unreachable') } }))
 vi.mock('@/lib/listing-index', () => ({ reindexListing: async () => {}, removeFromIndex: async () => {} }))
 vi.mock('@/lib/trust', () => ({ recordEngagement: async () => {} }))
 vi.mock('@/lib/stale', () => ({ canBump: () => false }))

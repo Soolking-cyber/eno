@@ -8,18 +8,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 type Row = Record<string, any>
-const h = vi.hoisted(() => ({ status: { ok: true, status: 'active' } as Row }))
+const h = vi.hoisted(() => ({ status: { ok: true, status: 'active' } as Row, createError: null as Error | null }))
 
 vi.mock('@/lib/api/auth', () => ({ listingOwnedBy: async () => true }))
 vi.mock('@/lib/core/listings', () => ({
   setStatusCore: async () => h.status,
-  createListingCore: async () => ({}),
+  createListingCore: async () => { if (h.createError) throw h.createError; return { id: 'new', verified: true } },
   updateListingCore: async () => ({ ok: true }),
   deleteListingCore: async () => ({ ok: true, deleted: true }),
   DELETE_HOLD_MESSAGE: {},
 }))
 // The rest of the tool module's import graph — not exercised here.
-vi.mock('@/lib/db', () => ({ db: {} }))
+vi.mock('@/lib/db', () => ({
+  db: {
+    // create_listing's reads (the released-charge cap case below).
+    category: { findUnique: async () => ({ id: 'c1', slug: 'phones', name: 'Phones', nameVi: 'Điện thoại' }) },
+    seller: { findUnique: async () => ({ id: 's1', ownerId: 'p1', trustTier: 'restricted', trustScore: 20, phone: null }) },
+  },
+}))
 vi.mock('@/lib/serialize', () => ({ serializeListing: () => ({}) }))
 vi.mock('@/lib/ssrf', () => ({ assertSafeUrl: async () => {} }))
 vi.mock('@/lib/core/bulk', () => ({ bulkImportCore: async () => ({}), rehostListingImage: async () => null, BULK_MAX_ROWS: 200 }))
@@ -35,7 +41,7 @@ const tool = TOOLS.find((t) => t.name === 'set_listing_status')!
 const AUTH = { keyId: 'k1', sellerId: 's1', profileId: 'p1', scopes: new Set(['listings:write']) }
 const run = () => tool.handler(AUTH as never, { id: 'L1', status: 'active' } as never)
 
-beforeEach(() => { h.status = { ok: true, status: 'active' } })
+beforeEach(() => { h.status = { ok: true, status: 'active' }; h.createError = null })
 
 describe('set_listing_status', () => {
   for (const code of ['account_held', 'account_suspended']) {
@@ -47,6 +53,11 @@ describe('set_listing_status', () => {
     })
   }
 
+  it('released_charge_listing_cap: a ToolError carrying the code and a sentence naming the limit', async () => {
+    h.status = { ok: false, code: 403, error: 'released_charge_listing_cap' }
+    await expect(run()).rejects.toMatchObject({ code: 'released_charge_listing_cap', message: expect.stringContaining('at most 10 active listings') })
+  })
+
   it('other refusals keep the code as the message (unchanged)', async () => {
     h.status = { ok: false, code: 400, error: 'invalid_status' }
     await expect(run()).rejects.toMatchObject({ code: 'invalid_status', message: 'invalid_status' })
@@ -57,3 +68,27 @@ describe('set_listing_status', () => {
   })
 })
 
+describe('create_listing — the released-charge cap is a coded tool error, not internal_error', () => {
+  const create = TOOLS.find((t) => t.name === 'create_listing')!
+  const go = () => create.handler(AUTH as never, { title: 'A phone', price: 100000, categorySlug: 'phones' } as never)
+
+  it('released_charge_listing_cap → ToolError with the code and the sentence', async () => {
+    const { PublishBlockedError } = await import('@/lib/publish-guard')
+    h.createError = new PublishBlockedError('released_charge_listing_cap')
+    const e = await go().catch((x: unknown) => x)
+    expect(e).toBeInstanceOf(ToolError)
+    expect(e).toMatchObject({ code: 'released_charge_listing_cap', message: expect.stringContaining('at most 10 active listings') })
+  })
+
+  it('any other publish refusal is re-thrown as before (the MCP route maps it)', async () => {
+    const { PublishBlockedError } = await import('@/lib/publish-guard')
+    h.createError = new PublishBlockedError('photos_min')
+    const e = await go().catch((x: unknown) => x)
+    expect(e).not.toBeInstanceOf(ToolError)
+    expect(e).toMatchObject({ code: 'photos_min' })
+  })
+
+  it('success is unchanged', async () => {
+    expect(await go()).toEqual({ listing: { id: 'new', verified: true } })
+  })
+})

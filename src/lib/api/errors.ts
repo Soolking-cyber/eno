@@ -391,6 +391,14 @@ export type NicheApiErrorCode =
    */
   | 'account_held'
   | 'account_suspended'
+  /**
+   * The released-scam-charge listing cap (src/lib/released-charge-gate.ts, owner 2026-09-24): a seller
+   * whose scam hold an admin released may post again, but may hold at most
+   * ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS active listings while a released charge stands.
+   * Reaches the wire through PublishBlockCode (create), `ListingStatusErrorCode` (relist), confirmCore
+   * (a confirm that revives) and the bulk/sync row results.
+   */
+  | 'released_charge_listing_cap'
   | 'send_failed'
   | 'send_in_flight'
   | 'sign_failed'
@@ -652,6 +660,7 @@ const ALL = [
   'choose_reports',
   'account_held',
   'account_suspended',
+  'released_charge_listing_cap',
   'send_failed',
   'send_in_flight',
   'shop_unavailable',

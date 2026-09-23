@@ -164,6 +164,14 @@ export const ENFORCEMENT = {
     MAX_ACTIVE_LISTINGS: 30,
     MAX_NEW_CONVERSATIONS_PER_DAY: 15,
   },
+  // After an admin RELEASES a scam hold (owner, 2026-09-24): posting comes back — the restricted
+  // trust tier the frozen charge keeps the account in no longer refuses it — but while any released
+  // charge still stands the storefront may hold at most this many ACTIVE listings. Enforced on every
+  // path that makes a listing active (src/lib/released-charge-gate.ts); a held charge still blocks
+  // posting outright, exactly as before.
+  SCAM_RELEASED: {
+    MAX_ACTIVE_LISTINGS: 10,
+  },
 } as const
 
 // ── Phase 3: velocity review flags (silent — a flag is a question for an admin,

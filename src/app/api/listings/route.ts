@@ -14,6 +14,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { postingGate } from '@/lib/enforcement'
 import { rateLimit } from '@/lib/ratelimit'
 import { createListingCore } from '@/lib/core/listings'
+import { RELEASED_CHARGE_MAX_ACTIVE } from '@/lib/released-charge-copy'
 import { migrateLegacyCategoryParams } from '@/lib/taxonomy'
 import { idsFastPath, buildFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
 import { computeFacetCounts, subcategoryDimension, type FacetCounts } from '@/lib/facet-counts'
@@ -461,6 +462,11 @@ async function createListing(req: NextRequest) {
       // ⚖️ The identity (legal) blocks answer 403 with the structured refusal — verify link, legal
       // citation, draft-kept flag — and keep `error: <code>` so every existing client still branches.
       if (isIdentityBlockCode(e.code)) return NextResponse.json(publishBlockedJson(e.code), { status: PUBLISH_BLOCKED_STATUS })
+      // The released-scam-charge cap (released-charge-gate.ts) is an ACCOUNT limit like the trust
+      // gate — not fixable in the form — so it answers 403 as well, with the limit.
+      if (e.code === 'released_charge_listing_cap') {
+        return NextResponse.json({ error: e.code, limit: RELEASED_CHARGE_MAX_ACTIVE }, { status: 403 })
+      }
       return NextResponse.json(
         { error: e.code, detail: e.detail },
         { status: e.code === 'account_restricted' ? 403 : e.code === 'duplicate_listing' ? 409 : 400 },

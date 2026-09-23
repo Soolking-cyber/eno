@@ -3,6 +3,7 @@ import { setStatusCore } from '@/lib/core/listings'
 import { resolveApiKey, listingOwnedBy } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
+import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,6 +28,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!res.ok && (res.error === 'account_held' || res.error === 'account_suspended')) {
     return apiError(403, res.error, 'This account is held or suspended, so its listings cannot be put back on sale right now.', r.rate)
   }
+  // A relist refused by the released-scam-charge cap (setStatusCore): an account limit, the 403 a
+  // blocked create answers — not the 422 below either.
+  if (!res.ok && res.error === 'released_charge_listing_cap') return apiError(403, res.error, RELEASED_CHARGE_CAP_MESSAGE, r.rate)
   if (!res.ok) return apiError(422, res.error, 'status must be one of: active, sold, hidden.', r.rate)
   return apiOk({ ok: true, status: res.status }, r.rate)
 }

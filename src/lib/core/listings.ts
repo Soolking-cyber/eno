@@ -39,6 +39,7 @@ import { priceChangeEffects } from '@/lib/price-drop'
 import { activateUrgentGate, urgentQuotaFree, URGENT } from '@/lib/urgent'
 import { logError } from '@/lib/log'
 import { blocksPosting, normalizeEnforcementState } from '@/lib/enforcement-machine'
+import { releasedChargeGate } from '@/lib/released-charge-gate'
 import type { DeleteHoldReason } from '@/lib/delete-hold-copy'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
@@ -168,10 +169,12 @@ export type SoldMeta = { channel?: string | null; buyerProfileId?: string | null
  * The identity codes are reachable only while IDENTITY_GATE_ENFORCED is on (see identityGateForRevive).
  * `account_held` / `account_suspended` are the enforcement refusal (enforcementBlockForRevive) — the
  * same two codes, and the same 403, that postingGate answers a held or suspended poster with.
+ * `released_charge_listing_cap` is the released-scam-charge cap (src/lib/released-charge-gate.ts): a
+ * relist that would take the storefront past its active-listing limit while a released charge stands.
  * ⚠️ Spelled out as literals, not as `EnforcementBlockCode`: src/lib/api/errors.test.ts harvests this
  * union's string LITERALS to decide what is on the wire, and a named alias would be invisible to it.
  */
-export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | 'account_held' | 'account_suspended' | IdentityBlockCode
+export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | 'account_held' | 'account_suspended' | 'released_charge_listing_cap' | IdentityBlockCode
 
 /** The enforcement refusal a revive or a confirm gets while the storefront owner is held or suspended. */
 export type EnforcementBlockCode = 'account_held' | 'account_suspended'
@@ -240,7 +243,7 @@ export async function setStatusCore(
     // the owner id, which the identity gate would otherwise read a second time).
     const row = await db.listing.findUnique({
       where: { id: listingId },
-      select: { status: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } } },
+      select: { status: true, sellerId: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } } },
     })
     if (row && row.status !== 'active') {
       // ⛔ The hold leak (enforcementBlockForRevive) — checked FIRST: a held seller is refused whatever
@@ -251,6 +254,9 @@ export async function setStatusCore(
       // not held.
       const blocked = await identityGateForRevive(listingId, { currentStatus: row.status, ownerId: row.seller.ownerId, decision: opts?.publishDecision })
       if (blocked) return { ok: false, code: 403, error: blocked }
+      // The released-scam-charge cap (released-charge-gate.ts): a relist makes one more listing active.
+      const cap = await releasedChargeGate(row.seller.ownerId, row.sellerId)
+      if (cap && cap.remaining <= 0) return { ok: false, code: 403, error: 'released_charge_listing_cap' }
     }
   }
   // ⚠️ A RE-MARK OF A LISTING ALREADY SOLD IS NOT A NEW SALE (review of #26, 2026-09-23). Trust
@@ -324,12 +330,12 @@ export async function setStatusCore(
  * the day's activity earns a (daily-capped) trust reward. Intentionally does NOT
  * revalidate the cached page (recency surfaces live via the client feed).
  */
-export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode | EnforcementBlockCode }> {
+export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode | EnforcementBlockCode | 'released_charge_listing_cap' }> {
   const now = new Date()
   const current = await db.listing.findUnique({
     where: { id: listingId },
     select: {
-      postedAt: true, status: true, sellerTrustScore: true, featured: true, views: true, contactCount: true,
+      postedAt: true, status: true, sellerTrustScore: true, featured: true, views: true, contactCount: true, sellerId: true,
       // The storefront owner — for the enforcement refusal below and the identity gate (one read).
       seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } },
     },
@@ -359,6 +365,10 @@ export async function confirmCore(listingId: string, profileId: string): Promise
   if (wasInactive) {
     const blocked = await identityGateForRevive(listingId, { currentStatus: current.status, ownerId: current.seller.ownerId })
     if (blocked) return { ok: false, code: 403, error: blocked }
+    // The released-scam-charge cap, as on setStatusCore's relist: a revive makes one more listing
+    // active. A confirm on a listing that is ALREADY active adds nothing and is never capped.
+    const cap = await releasedChargeGate(current.seller.ownerId, current.sellerId)
+    if (cap && cap.remaining <= 0) return { ok: false, code: 403, error: 'released_charge_listing_cap' }
   }
   const bump = canBump(current.postedAt, now.getTime())
   try {
@@ -931,7 +941,11 @@ export async function createListingCore(input: {
   // helper is a no-op (no reads) while the gate is off, and assertPublishable gets no status, i.e.
   // its identity step stays the documented "not this caller's job".
   await assertSellerMayPublish({ ownerId: seller.ownerId, guestCreate })
-  assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description], categorySlug, lat, lng, district })
+  // The released-scam-charge regime (released-charge-gate.ts): a seller whose only standing scam
+  // charges an admin RELEASED may post despite the restricted tier the frozen charge keeps them in,
+  // up to the active-listing cap. Null for everyone else (one cheap read) — the gate is unchanged.
+  const releasedCharge = await releasedChargeGate(seller.ownerId, seller.id)
+  assertPublishable({ trustTier: seller.trustTier, releasedCharge, images, texts: [title, description], categorySlug, lat, lng, district })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category
   // (else its primary type); subcategory falls back to keyword-suggest.

@@ -807,6 +807,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           // client can import it; enforcement.ts, which cannot, is not what is imported here.
           : msg === 'probation_listing_cap'
           ? `${t('Tài khoản mới có thể giữ tối đa', 'New accounts can keep up to')} ${ENFORCEMENT.PROBATION.MAX_ACTIVE_LISTINGS} ${t('tin đang đăng — hãy đánh dấu đã bán một tin, hoặc chờ tài khoản đủ 30 ngày.', 'active listings — mark something sold or wait until your account is 30 days old.')}`
+          // After a scam-hold RELEASE (released-charge-gate.ts): posting is back, capped while the
+          // confirmed report stands. Same rule as above — the number from the constant.
+          : msg === 'released_charge_listing_cap'
+          ? `${t('Tạm dừng đã được gỡ, nhưng báo cáo đã xác nhận vẫn còn trong hồ sơ của bạn, nên bạn chỉ được giữ tối đa', 'Your hold was released, but the confirmed report stays on your record, so you can keep up to')} ${ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS} ${t('tin đang đăng. Hãy đánh dấu đã bán hoặc ẩn một tin để đăng tin mới.', 'active listings. Mark one sold or hide one to post a new listing.')}`
           : msg === 'phone_taken'
           ? t('Số điện thoại này đã được một tài khoản khác sử dụng. Mỗi số chỉ dùng cho một tài khoản.', 'This phone number is already used by another account. Each number belongs to one account.')
           : t('Không gửi được, vui lòng thử lại.', 'Could not submit — please try again.'),

@@ -108,11 +108,12 @@ export default function TrustPage() {
               ['Confirmed minor issue (spam/duplicate)', -5, 'Fades in ~3 months'],
             ]} />
           </div>
-          {/* ⚠️ MIRRORS scamStage / TRUST.SCAM_RELEASE_MIN_DAYS (trust-math.ts), guarded by
+          {/* ⚠️ MIRRORS scamStage / TRUST.SCAM_RELEASE_MIN_DAYS (trust-math.ts) and the released-charge
+              cap ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS (released-charge-gate.ts), guarded by
               src/lib/scam-hold-copy.test.ts. The old sentence promised the penalty would start fading
               after five new sales — sales the seller marked sold themselves. That exit was removed on
               2026-09-23; only a person ends a scam hold now, and a release does not thaw the penalty. */}
-          <p className="text-xs leading-relaxed text-muted-foreground"><Tr text="A confirmed scam is different: waiting does nothing, and neither does marking items as sold. The seller's listings stay hidden until our team releases them — no sooner than 14 days after the report was confirmed, and only for a seller who has verified their identity and sent us a written plan. Even after a release the full penalty stays on the score. Time alone never launders fraud." /></p>
+          <p className="text-xs leading-relaxed text-muted-foreground"><Tr text="A confirmed scam is different: waiting does nothing, and neither does marking items as sold. The seller's listings stay hidden until our team releases them — no sooner than 14 days after the report was confirmed, and only for a seller who has verified their identity and sent us a written plan. Time alone never launders fraud." />{' '}<Tr text="A release does not clear the record: the full penalty stays on the score, and while the confirmed report stands the seller can post again but keep at most 10 active listings." /></p>
       </ContentSection>
 
       <ContentSection id="fair" title="Fair by design">

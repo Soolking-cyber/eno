@@ -83,6 +83,8 @@ type Notice = { title: { en: string; vi: string }; body: { en: string; vi: strin
 
 // The release wait, from the constant the release rule enforces — never retyped into copy.
 const RELEASE_DAYS = TRUST.SCAM_RELEASE_MIN_DAYS
+// …and the posting cap a released charge carries (released-charge-gate.ts), likewise.
+const RELEASED_MAX_ACTIVE = ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS
 const NOTICE: Record<string, Notice> = {
   warned: {
     title: { en: 'A note about your account', vi: 'Lưu ý về tài khoản của bạn' },
@@ -136,16 +138,17 @@ const NOTICE: Record<string, Notice> = {
   // Sent with the transition a RELEASE causes (scam-hold.ts). The charge keeps its weight, so the
   // account may land in `throttled` (caution line, low tier) rather than good standing — the generic
   // `throttled` copy ("under review") would be false, and "everything is restored" would be too.
-  // ⚠️ NO PROMISE ABOUT POSTING (review, 2026-09-24). A released seller usually stays in the
-  // restricted tier, which refuses new listings, and whether a release should give posting back is
-  // an OWNER decision not yet made — so the copy says posting "may stay blocked" and names no path
-  // or timeline (it used to say "while your trust score rebuilds", which implied one). It also says
-  // the listing the confirmed report was about does NOT come back (forgetPulledListings).
+  // POSTING COMES BACK, CAPPED (owner decision, 2026-09-24): the restricted tier no longer refuses a
+  // seller whose only standing scam charges are released, but while one stands the storefront may
+  // hold at most RELEASED_MAX_ACTIVE active listings (released-charge-gate.ts) — the copy says both,
+  // and why, and that the restored listings count toward the limit (a seller who had 30 live listings
+  // gets them back and cannot add one until below it). It names no timeline for the charge itself (nothing thaws it today), and says the
+  // listing the confirmed report was about does NOT come back (forgetPulledListings).
   scam_released: {
     title: { en: 'Your listings are visible again', vi: 'Tin đăng của bạn đã hiển thị trở lại' },
     body: {
-      en: 'Our team reviewed your plan and released the hold: the listings it paused are visible again, apart from any listing a confirmed report was about. The confirmed report stays on your record at full weight, so buyers may see a caution note and posting new listings may stay blocked. Message our support team if you have questions.',
-      vi: 'Đội ngũ của chúng tôi đã xem xét kế hoạch của bạn và gỡ tạm dừng: các tin đăng bị tạm dừng đã hiển thị trở lại, trừ tin đăng mà báo cáo đã xác nhận nhắc đến. Báo cáo đã xác nhận vẫn được giữ nguyên trong hồ sơ của bạn, vì vậy người mua có thể thấy lưu ý thận trọng và việc đăng tin mới có thể vẫn bị chặn. Nếu có câu hỏi, hãy nhắn cho đội hỗ trợ của chúng tôi.',
+      en: `Our team reviewed your plan and released the hold: the listings it paused are visible again, apart from any listing a confirmed report was about. You can post again, with a limit: the confirmed report stays on your record at full weight, so buyers may see a caution note, and while it stands you can keep at most ${RELEASED_MAX_ACTIVE} active listings, counting the ones now visible again. Message our support team if you have questions.`,
+      vi: `Đội ngũ của chúng tôi đã xem xét kế hoạch của bạn và gỡ tạm dừng: các tin đăng bị tạm dừng đã hiển thị trở lại, trừ tin đăng mà báo cáo đã xác nhận nhắc đến. Bạn có thể đăng tin trở lại, nhưng có giới hạn: báo cáo đã xác nhận vẫn được giữ nguyên trong hồ sơ của bạn, vì vậy người mua có thể thấy lưu ý thận trọng, và trong thời gian đó bạn chỉ được giữ tối đa ${RELEASED_MAX_ACTIVE} tin đang đăng, kể cả các tin vừa hiển thị trở lại. Nếu có câu hỏi, hãy nhắn cho đội hỗ trợ của chúng tôi.`,
     },
   },
   // Ban-evasion review (Phase 3): held pending a HUMAN look — the copy must not

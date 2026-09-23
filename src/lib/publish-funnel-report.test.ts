@@ -78,6 +78,8 @@ describe('an unrecognised code still reaches the operator', () => {
       'banned_words', 'photo_required', 'photos_min', 'duplicate_listing', 'account_restricted',
       'location_required',
       'phone_taken', 'account_suspended', 'account_held', 'probation_listing_cap', 'exception',
+      // createListingCore's released-scam-charge cap (released-charge-gate.ts, 2026-09-24).
+      'released_charge_listing_cap',
     ]) expect(PUBLISH_OUTCOME_COPY[code]).toBeTruthy()
   })
 

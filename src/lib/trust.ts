@@ -142,6 +142,13 @@ export type TrustBreakdown = {
      * the charges holding the account rather than re-deriving them a second way.
      */
     scamCharges: ScamCharge[]
+    /**
+     * The composite score with every RELEASED scam charge's weight taken out of C (equal to `score`
+     * when none is released). The released-charge posting waiver asks it (released-charge-gate.ts):
+     * the restricted tier is waived only when it is the released charges that keep the account under
+     * the floor — a seller restricted by other confirmed conduct too stays restricted.
+     */
+    scoreWithoutReleasedScams: number
     conversations90: number
     activeListings: number
     freshActiveListings: number
@@ -400,6 +407,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   const win180: ReportWindow = { count: 0, distinctReporters: 0, scams: 0 }
   const reporters90 = new Set<string>()
   const reporters180 = new Set<string>()
+  const releasedItem: boolean[] = [] // per conduct item: a RELEASED severe charge (scoreWithoutReleasedScams)
   const conductItems: ConductItem[] = standingConduct.map((e) => {
     const report = e.reportId ? reportById.get(e.reportId) : undefined
     const severity = ((report?.severity as ReportSeverity | undefined) ?? severityFromDelta(e.delta))
@@ -413,12 +421,15 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     // reversal never reaches here), and the charge stays at full weight either way — the dues-paid
     // anchor (buyer-confirmed graduation) is not built, so daysSinceDuesPaid is always null.
     // ⛔ txTimes is NOT consulted: sales the seller marks themselves were the old exit.
+    let released = false
     if (severity === 'severe') {
       const key = scamChargeKey(e)
       const stage = scamStage(eventMs, releasedAt.get(key))
       scamCharges.push({ key, reportId: e.reportId, confirmedAtMs: eventMs, stage })
       if (stage === 'held') hasScamHold = true // unreleased → hard Restricted hold
+      else released = true
     }
+    releasedItem.push(released)
     // Dual-threshold demotion windows (distinct reporters; unknown reporter = its
     // own identity via the report/event id so pile-ons without accounts still count).
     const reporterKey = report?.reporterProfileId ?? `anon:${e.reportId ?? eventMs}`
@@ -448,6 +459,10 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   )
 
   const score = composeScore({ V, Q, T, C, M })
+  // The same composite with the RELEASED scam charges out of C — for the posting waiver (see the type).
+  const scoreWithoutReleasedScams = releasedItem.some(Boolean)
+    ? composeScore({ V, Q, T, C: conductPenalty(conductItems.filter((_, i) => !releasedItem[i])), M })
+    : score
   const inputs: TrustBreakdown['inputs'] = {
     score,
     transactions365: tx365,
@@ -461,6 +476,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     kycVerified,
     verifiedReviewCount: deduped.length,
     scamCharges,
+    scoreWithoutReleasedScams,
     conversations90,
     activeListings,
     freshActiveListings,

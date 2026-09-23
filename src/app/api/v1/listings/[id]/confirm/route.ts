@@ -3,6 +3,7 @@ import { confirmCore } from '@/lib/core/listings'
 import { resolveApiKey, listingOwnedBy } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
+import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,6 +24,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!res.ok && (res.error === 'account_held' || res.error === 'account_suspended')) {
     return apiError(403, res.error, 'This account is held or suspended, so its listings cannot be confirmed or put back on sale right now.', r.rate)
   }
+  // A confirm that would revive a sold/hidden listing past the released-scam-charge cap (confirmCore).
+  if (!res.ok && res.error === 'released_charge_listing_cap') return apiError(403, res.error, RELEASED_CHARGE_CAP_MESSAGE, r.rate)
   if (!res.ok) return apiError(404, 'not_found', 'Listing not found.', r.rate)
   return apiOk({ ok: true, bumped: res.bumped }, r.rate)
 }

@@ -6,6 +6,7 @@ import { createListingCore } from '@/lib/core/listings'
 import { postingGate } from '@/lib/enforcement'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
+import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
 import { withIdempotency } from '@/lib/api/idempotency'
@@ -90,12 +91,13 @@ export async function POST(req: NextRequest) {
         // a listing whose only problem was an unverified owner.
         if (isIdentityBlockCode(e.code)) return { status: PUBLISH_BLOCKED_STATUS, body: publishBlockedV1(e.code) }
         const message = e.code === 'account_restricted' ? 'Shop is restricted (low trust) — cannot publish until its score recovers.'
+          : e.code === 'released_charge_listing_cap' ? RELEASED_CHARGE_CAP_MESSAGE
           : e.code === 'photo_required' ? 'At least one image is required.'
           : e.code === 'photos_min' ? 'At least 3 images from different angles are required (the same photo repeated counts as one).'
           : e.code === 'banned_words' ? 'The title or description contains a disallowed word.'
           : e.code === 'duplicate_listing' ? 'Duplicate of a live listing on this shop (see detail for its id) — update or bump the existing listing instead of re-posting it.'
           : 'Remove phone numbers, contact info or addresses from the title/description.'
-        return { status: e.code === 'account_restricted' ? 403 : e.code === 'duplicate_listing' ? 409 : 422, body: { error: { code: e.code, message, ...(e.detail ? { detail: e.detail } : {}) } } }
+        return { status: e.code === 'account_restricted' || e.code === 'released_charge_listing_cap' ? 403 : e.code === 'duplicate_listing' ? 409 : 422, body: { error: { code: e.code, message, ...(e.detail ? { detail: e.detail } : {}) } } }
       }
       throw e
     }

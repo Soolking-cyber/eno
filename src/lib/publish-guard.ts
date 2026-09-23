@@ -39,7 +39,7 @@ export function minPhotosFor(categorySlug: string | null | undefined): number {
 // ⚠️ `identity_unverified` / `identity_expired` are LEGAL blocks, not quality blocks, and they are
 // listed first because they are checked first (see assertPublishable). Verification is required to
 // publish under NĐ 248/2026 — see docs/compliance-2026.md §1 and src/lib/compliance/account-state.ts.
-export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required'
+export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required'
 
 // ⚠️ `identity_sign_in_required` IS THE GUEST'S CODE, AND IT IS DISTINCT FROM `identity_unverified` ON
 // PURPOSE. Both mean "verify before you sell", but a guest has no account to verify: sending them to
@@ -205,7 +205,9 @@ export function containsContactInfo(text: string | null | undefined): boolean {
 /**
  * Throw a PublishBlockedError on the FIRST problem, in priority order:
  *  0. Identity not verified → LEGAL block (NĐ 248/2026); everything else is moot until it clears
- *  1. Restricted account (low trust) → can't post until score recovers (not fixable now)
+ *  1. Restricted account (low trust) → can't post until score recovers (not fixable now) — unless
+ *     every standing scam charge was RELEASED by an admin, and then 1b. at most
+ *     ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS active listings while a released charge stands
  *  2. No photo, 3. banned words, 4. phone/contact/address in text → fixable while posting.
  * `trustTier` optional so a pre-seller-resolution caller can run the content checks early.
  *
@@ -223,9 +225,26 @@ export function containsContactInfo(text: string | null | undefined): boolean {
  * would be worse. The authoritative check happens on the server path that does have the profile —
  * so `undefined` here means "not this caller's job", never "unverified".
  */
-export function assertPublishable(input: { trustTier?: string; verificationStatus?: string; images: unknown[]; texts: (string | null | undefined)[]; categorySlug?: string | null; lat?: number | null; lng?: number | null; district?: string | null }) {
+export function assertPublishable(input: {
+  trustTier?: string
+  verificationStatus?: string
+  /**
+   * The released-scam-charge regime (src/lib/released-charge-gate.ts), resolved by the server caller;
+   * absent/null = not in it. `waivesRestricted` lifts step 1 for a seller whose only standing scam
+   * charges an admin RELEASED; `remaining` ≤ 0 refuses with `released_charge_listing_cap` — both
+   * account-level refusals, so they come before the content screens, like step 1.
+   */
+  releasedCharge?: { waivesRestricted: boolean; remaining: number } | null
+  images: unknown[]
+  texts: (string | null | undefined)[]
+  categorySlug?: string | null
+  lat?: number | null
+  lng?: number | null
+  district?: string | null
+}) {
   assertIdentityVerified(input.verificationStatus)
-  if (input.trustTier === 'restricted') throw new PublishBlockedError('account_restricted')
+  if (input.trustTier === 'restricted' && !input.releasedCharge?.waivesRestricted) throw new PublishBlockedError('account_restricted')
+  if (input.releasedCharge && input.releasedCharge.remaining <= 0) throw new PublishBlockedError('released_charge_listing_cap')
   assertEnoughAngles(input.images, input.categorySlug)
   assertCleanTexts(input.texts)
   assertHasLocation({ district: input.district, lat: input.lat, lng: input.lng })
