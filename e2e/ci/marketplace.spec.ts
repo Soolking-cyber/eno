@@ -101,7 +101,10 @@ test.describe('marketplace, against known fixtures', () => {
   // the header has hydrated (explorerFallbackUrl) or not (the form's native GET + hidden category).
   test('the header search on a category landing page searches — inside that category', async ({ page }) => {
     await page.goto('/c/vehicles')
-    const box = page.getByRole('searchbox', { name: 'Search' }).first()
+    // The header's search landmark → its combobox named "Search" (the input owns the suggestion list,
+    // so it is a combobox: getByRole('searchbox') found nothing on this test's first CI run). Visible
+    // only, and the accessible name stays asserted.
+    const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
     await box.fill('bicycle')
     await box.press('Enter')
     await expect(page).toHaveURL(/\/\?(?=.*\bcategory=vehicles\b)(?=.*\bq=bicycle\b)/)
@@ -166,7 +169,11 @@ test.describe('marketplace, against known fixtures', () => {
 
   test('a district page counts the district, not the window it fetched', async ({ page }) => {
     await page.goto('/c/electronics/thao-dien-fixture')
-    await expect(page.getByText('50 electronics listings in Thao Dien Fixture', { exact: false })).toBeVisible()
+    // ⚠️ VISIBLE ONLY. While the streamed page swaps in, React keeps a HIDDEN copy of this paragraph in
+    // the DOM, so a bare text locator sometimes resolves two elements and fails strict mode — the
+    // intermittent failure this test has had for weeks (CI log: "resolved to 2 elements … hidden").
+    // A regex, not a substring: "150 electronics listings…" must NOT pass for 50.
+    await expect(page.getByText(/(^|[^0-9])50 electronics listings in Thao Dien Fixture/).filter({ visible: true }).first()).toBeVisible()
   })
 
   test('a district sort reaches the cheapest listing in the district', async ({ page }) => {
