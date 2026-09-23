@@ -94,7 +94,12 @@ export function UserActionsClient({ profileId, email, phone, verificationStatus,
               onClick={async () => {
                 const days = Number(stateDays)
                 const r = await post('/api/admin/enforcement', { action: 'set-state', profileId, state: nextState, reason: stateReason, ...(Number.isFinite(days) && days > 0 ? { days } : {}) }, 'state')
-                if (r) { toast.success(`Now ${nextState.replace('_', ' ')}`); setStateOpen(false); router.refresh() }
+                if (r) {
+                  toast.success(`Now ${nextState.replace('_', ' ')}`)
+                  // Seller identity gate: a downgrade restore parked for an unverified owner.
+                  if (Number(r.held) > 0) toast.warning(`${Number(r.held)} listing(s) held until the seller verifies their identity.`)
+                  setStateOpen(false); router.refresh()
+                }
               }}
             >
               {busy === 'state' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}

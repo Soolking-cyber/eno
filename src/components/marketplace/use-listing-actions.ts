@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
+import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 
 // Shared optimistic lifecycle actions for a seller's own listing — used by the
 // dashboard row cards AND the desktop data-table so both surfaces behave
@@ -20,6 +22,7 @@ export function useListingActions(
   onState?: (state: 'sold' | 'active' | 'gone' | null) => void,
 ) {
   const { tr } = useLanguage()
+  const router = useRouter()
   const [gone, setGoneRaw] = useState(false)
   const [optStatus, setOptStatusRaw] = useState<string | null>(null)
   const setGone = (g: boolean) => { setGoneRaw(g); onState?.(g ? 'gone' : null) }
@@ -34,7 +37,21 @@ export function useListingActions(
   ) => {
     optimistic()
     fetch(url, { method, ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) })
-      .then((res) => { if (!res.ok) throw new Error('failed'); onChanged() })
+      .then(async (res) => {
+        if (res.ok) { onChanged(); return }
+        // ⚠️ AN IDENTITY REFUSAL MUST BE SAID, NOT JUST UNDONE. Every non-2xx rolls back silently, so
+        // a relist the seller identity gate refused looked like a tap that did nothing — the listing
+        // flicked to Active and back with no reason given. That refusal now names the next step and
+        // offers it. Other failures keep their existing silent rollback, deliberately: with the gate
+        // off this hook must behave exactly as it did before the gate existed.
+        const d = await res.json().catch(() => ({})) as { error?: unknown }
+        rollback(); onChanged()
+        const identityMsg = identityBlockMessage(d.error, tr)
+        if (identityMsg) {
+          const next = identityBlockAction(d.error)
+          toast.error(identityMsg, next === 'verify' ? { action: { label: tr('Verify', 'Xác minh'), onClick: () => router.push(IDENTITY_VERIFY_PATH) } } : undefined)
+        }
+      })
       .catch(() => { rollback(); onChanged() })
   }
 

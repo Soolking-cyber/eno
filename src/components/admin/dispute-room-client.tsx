@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Check, Clock, Loader2, Sparkles, ShieldCheck } from "@/components/ui/icons"
 import { STROKE_MARK } from '@/lib/icon-tokens'
 import type { TargetInfo } from '@/lib/admin-reports'
@@ -110,7 +111,10 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
   const act = async (action: string, extra: Record<string, unknown> = {}) => {
     setBusy(action); setErr('')
     try {
-      await post({ action, id: data.id, ...extra })
+      const d = await post({ action, id: data.id, ...extra })
+      // Seller identity gate (only while enforced): a decision that eased the seller's enforcement
+      // restores the listings a hold pulled, and for a seller who cannot publish yet those are PARKED.
+      if (Number(d?.held) > 0) toast.warning(`${d.held} restored listing(s) held until the seller verifies their identity — they publish automatically once verified.`)
       router.refresh()
     } catch (e) {
       setErr(`Action failed: ${(e as Error).message}`)

@@ -120,6 +120,12 @@ export function AdminListingsClient() {
       const d = await res.json()
       if (!res.ok) throw new Error()
       toast.success(`${action} · ${d.affected} listing(s)`)
+      // Seller identity gate (only while enforced): approved/activated, but parked until the owner
+      // verifies — said separately so the operator never reads "10 published" when 2 are not live.
+      if (d.held > 0) toast.warning(`${d.held} held until the seller verifies their identity — they publish automatically once verified.`)
+      // Rows the gate had parked BEFORE this action: not counted as done nor as newly held, so they
+      // get their own line rather than vanishing from the tally.
+      if (d.alreadyHeld > 0) toast.info(`${d.alreadyHeld} were already held for the seller's identity check — still waiting for them to verify.`)
       load()
     } catch { toast.error('Action failed') } finally { setBusy(false) }
   }

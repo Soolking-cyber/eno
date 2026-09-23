@@ -5,6 +5,7 @@ import Papa from 'papaparse'
 import { Upload, Download, FileText, Loader2, Check, CheckCircle2, AlertTriangle } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
+import { identityBlockMessage } from '@/lib/identity-block-copy'
 import { containsPhoneNumber } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -295,7 +296,12 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
         })
         const d = await res.json().catch(() => ({}))
         if (!res.ok) {
-          setError(d.error === 'business_only'
+          // ⚖️ The seller identity gate refused the WHOLE batch (only while it is enforced): nothing in
+          // this chunk was created, and no later chunk would be either — say why, not "try again".
+          const identityMsg = identityBlockMessage(d.error, tr)
+          setError(identityMsg
+            ? (created > 0 ? `${tr(`Stopped after ${created} listings — the rest were not imported.`, `Đã dừng sau ${created} tin — phần còn lại chưa được nhập.`)} ${identityMsg}` : identityMsg)
+            : d.error === 'business_only'
             ? tr('Bulk upload is for business accounts.', 'Tải hàng loạt chỉ dành cho tài khoản doanh nghiệp.')
             : created > 0
               // ⚠️ SAY WHAT SURVIVED. Chunking means a late failure is partial, and "try again" on

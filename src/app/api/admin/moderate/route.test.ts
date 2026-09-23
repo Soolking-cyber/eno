@@ -53,6 +53,10 @@ const h = vi.hoisted(() => ({
   /** Side effects that leave `db` entirely — the trust/enforcement/dispute writes. */
   fx: [] as Array<{ m: string; args: unknown[] }>,
   revalidated: [] as string[],
+  /** The seller identity gate's verdict for `approve`: true ⇒ the owner is refused ⇒ HOLD. */
+  identityHeld: false,
+  /** Rows a downgrade restore inside syncEnforcement parked behind the identity gate (via onHeld). */
+  syncHeld: 0,
 }))
 
 // ── the database ────────────────────────────────────────────────────────────────
@@ -126,7 +130,13 @@ vi.mock('@/lib/trust', async (orig) => ({
   penalizeSeller: async (...a: unknown[]) => { h.fx.push({ m: 'penalizeSeller', args: a }) },
   recomputeTrust: async (...a: unknown[]) => { h.fx.push({ m: 'recomputeTrust', args: a }); return { score: 71, breakdown: { bd: true } } },
 }))
-vi.mock('@/lib/enforcement', () => ({ syncEnforcement: async (...a: unknown[]) => { h.fx.push({ m: 'syncEnforcement', args: a }) } }))
+vi.mock('@/lib/enforcement', () => ({
+  syncEnforcement: async (...a: unknown[]) => {
+    h.fx.push({ m: 'syncEnforcement', args: a })
+    const opts = a[2] as { onHeld?: (n: number) => void } | undefined
+    if (h.syncHeld) opts?.onHeld?.(h.syncHeld)
+  },
+}))
 vi.mock('@/lib/dispute', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   notifyDispute: async (...a: unknown[]) => { h.fx.push({ m: 'notifyDispute', args: a }) },
@@ -141,6 +151,16 @@ vi.mock('@/lib/supabase-admin', () => ({
   LISTING_VIDEOS_BUCKET: 'videos',
 }))
 vi.mock('@/lib/push', () => ({ sendPushToProfile: async () => 0 }))
+// The seller identity gate — its own rules are tested in src/lib/compliance; here only the route's
+// response to its verdict is. Default = the gate-off answer (every id allowed, no read).
+vi.mock('@/lib/compliance/seller-publish-gate', () => ({
+  partitionByIdentityGate: async (ids: string[]) => {
+    h.calls.push({ m: 'partitionByIdentityGate', args: ids })
+    return h.identityHeld ? { allowed: [], held: ids } : { allowed: ids, held: [] }
+  },
+  // The post-write re-check: the owner is still refused, so nothing is released.
+  settleHolds: async () => 0,
+}))
 vi.mock('@/lib/mail', () => ({ sendMail: async () => true, mailEnabled: () => false }))
 vi.mock('@/lib/log', () => ({ logError: () => {}, logWarn: () => {}, logInfo: () => {} }))
 vi.mock('next/cache', () => ({ revalidatePath: (p: string) => { h.revalidated.push(p) } }))
@@ -184,6 +204,8 @@ beforeEach(() => {
   h.calls = []
   h.fx = []
   h.revalidated = []
+  h.identityHeld = false
+  h.syncHeld = 0
 })
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -414,8 +436,8 @@ describe('bulk-confirm — the batch that docks trust', () => {
     // The ladder must know WHICH report triggered it — that id is what the enforcement record
     // links back to in the console. Dropping it left every bulk enforcement unattributed.
     expect(effects('syncEnforcement').map((e) => e.args)).toEqual([
-      ['p1', { bd: true }, { persistedScore: 70, triggerReportId: 'r1' }],
-      ['p1', { bd: true }, { persistedScore: 70, triggerReportId: 'r2' }],
+      ['p1', { bd: true }, { persistedScore: 70, triggerReportId: 'r1', onHeld: expect.any(Function) }],
+      ['p1', { bd: true }, { persistedScore: 70, triggerReportId: 'r2', onHeld: expect.any(Function) }],
     ])
     // Both sides, per report: the reported party gets the appeal notice deep-linked to their case…
     expect(called('notification.create').map((c) => (c.args as Row).data)).toEqual([
@@ -464,6 +486,9 @@ describe('bulk-confirm — the batch that docks trust', () => {
    * PUBLISH every reported listing instead of pulling it, and deleting the `revalidatePath` would
    * leave a pulled listing serving from ISR — both invisible.
    */
+  // ⚠️ `identityHold: false` rides every takedown (2026-09-23): a listing the seller identity gate had
+  // parked must not be republished by releaseIdentityHolds() once its seller verifies — a takedown
+  // has to clear the hold, or verifying would undo the moderator. With the gate off it is a no-op.
   it('a SUCCESSFUL takedown unverifies each reported listing and revalidates its page', async () => {
     h.batchReports = [rep({ id: 'r1', listingId: 'l1' }), rep({ id: 'r2', listingId: 'l2' })]
     h.listingUpdateThrows = false
@@ -471,8 +496,8 @@ describe('bulk-confirm — the batch that docks trust', () => {
     expect(r.status).toBe(200)
     expect(r.text).toBe('{"ok":true,"confirmed":2,"skipped":0}') // no stillPublic — nothing failed
     expect(called('listing.update').map((c) => c.args)).toEqual([
-      { where: { id: 'l1' }, data: { verified: false } },
-      { where: { id: 'l2' }, data: { verified: false } },
+      { where: { id: 'l1' }, data: { verified: false, identityHold: false } },
+      { where: { id: 'l2' }, data: { verified: false, identityHold: false } },
     ])
     expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en/listings/l2', '/vi/listings/l2'])
   })
@@ -520,12 +545,42 @@ describe('approve / reject / unpublish — the listing actions', () => {
     expect(r.status).toBe(200)
     expect(r.text).toBe('{"ok":true}')
     expect(args('$transaction')).toEqual({ n: 2 })
-    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: true } })
+    // `identityHold: false` rides the publish (a live row never carries a hold); the body is unchanged.
+    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: true, identityHold: false } })
     const upd = args('report.updateMany')!
     expect(upd.where).toEqual({ listingId: 'l1', status: 'open' })
     expect(upd.data.status).toBe('dismissed')
     expect(upd.data.resolvedBy).toBe('mod@eno.vn')
     expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
+  })
+
+  // ⚖️ SELLER IDENTITY GATE (only while IDENTITY_GATE_ENFORCED is on). An approval is a content
+  // verdict: the reports are still dismissed, but a listing whose owner cannot publish yet is PARKED
+  // (identityHold) rather than published, and the console is told how many.
+  it('approve for an owner the identity gate refuses → HELD: verified stays false, identityHold set, `held:1`', async () => {
+    h.listing = { id: 'l1', verified: false }
+    h.identityHeld = true
+    const r = await post({ action: 'approve', id: 'l1' })
+    expect(r.status).toBe(200)
+    expect(r.text).toBe('{"ok":true,"held":1}')
+    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false, identityHold: true } })
+    expect(args('report.updateMany')!.data.status).toBe('dismissed')
+  })
+
+  it('approve of a listing that is ALREADY verified is never turned into a takedown by the gate', async () => {
+    h.listing = { id: 'l1', verified: true }
+    h.identityHeld = true
+    const r = await post({ action: 'approve', id: 'l1' })
+    expect(r.text).toBe('{"ok":true}')
+    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: true, identityHold: false } })
+  })
+
+  it('⛔ approve of a row parked earlier, for an owner the gate now ALLOWS, publishes it WITHOUT the hold', async () => {
+    h.listing = { id: 'l1', verified: false }
+    h.identityHeld = false
+    const r = await post({ action: 'approve', id: 'l1' })
+    expect(r.text).toBe('{"ok":true}')
+    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: true, identityHold: false } })
   })
 
   it('reject on an unknown listing → 404, and deletes NOTHING', async () => {
@@ -548,7 +603,7 @@ describe('approve / reject / unpublish — the listing actions', () => {
     const r = await post({ action: 'unpublish', id: 'l1' })
     expect(r.text).toBe('{"ok":true}')
     expect(called('listing.findUnique')).toHaveLength(0)
-    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false } })
+    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false, identityHold: false } })
     // A pulled listing that keeps serving its cached page is still for sale to every visitor
     // holding the ISR copy — the revalidate is the second half of the takedown, not a nicety.
     expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
@@ -586,7 +641,7 @@ describe('confirm-report — the single most consequential action', () => {
       status: 'confirmed', severity: 'severe', resolvedBy: 'mod@eno.vn', resolvedAt: expect.any(Date), decisionNote: null,
     })
     expect(effects('applyTrustEvent')[0].args).toEqual(['p1', 'report_confirmed', -SEVERITY_PENALTY.severe, { reason: 'report:r1', reportId: 'r1' }])
-    expect(effects('syncEnforcement')[0].args).toEqual(['p1', { bd: true }, { persistedScore: 70, triggerReportId: 'r1' }])
+    expect(effects('syncEnforcement')[0].args).toEqual(['p1', { bd: true }, { persistedScore: 70, triggerReportId: 'r1', onHeld: expect.any(Function) }])
     expect(effects('notifyDispute').map((e) => e.args)).toEqual([['rep1', 'r1', 'decided_upheld_reporter']])
   })
 
@@ -627,7 +682,7 @@ describe('confirm-report — the single most consequential action', () => {
     h.report = { ...R, listingId: 'l1' }
     h.locale = 'vi'
     await post({ action: 'confirm-report', id: 'r1' })
-    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false } })
+    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false, identityHold: false } })
     expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
     const notif = args('notification.create')!.data
     // `toEqual` on the whole row: the appeal notice is the reported party's ONLY route to a
@@ -920,7 +975,14 @@ describe('remediated', () => {
     // No `{ uncapped: true }` here — unlike the abusive-report purge, a remediation is a normal
     // capped recompute. The absent second argument IS the distinction.
     expect(effects('recomputeTrust').map((e) => e.args)).toEqual([['p1']])
-    expect(effects('syncEnforcement')[0].args).toEqual(['p1', { bd: true }, { persistedScore: 71 }])
+    expect(effects('syncEnforcement')[0].args).toEqual(['p1', { bd: true }, { persistedScore: 71, onHeld: expect.any(Function) }])
+  })
+
+  it('⚖️ a downgrade restore the identity gate parked → `held` in the body (absent when zero)', async () => {
+    h.report = { ...R }
+    h.syncHeld = 3
+    const r = await post({ action: 'remediated', id: 'r1' })
+    expect(r.text).toBe('{"ok":true,"remediated":true,"held":3}')
   })
 
   it('a second click → 200 {"ok":true,"remediated":false} with NO recompute', async () => {

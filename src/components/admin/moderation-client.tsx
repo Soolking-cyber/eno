@@ -557,13 +557,29 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
     resolved: resolved.length,
   }
 
+  // Seller identity gate (only while enforced): a resolution that eased a seller's enforcement
+  // restores the listings the hold pulled, and for a seller who cannot publish yet those are PARKED.
+  // The server adds `held` only when that happened.
+  const warnSyncHeld = (held: number) => {
+    if (held > 0) toast.warning(`${held} restored listing(s) held until the seller verifies their identity — they publish automatically once verified.`)
+  }
   const act = async (action: string, id: string, severity?: string) => {
     setBusyId(id)
-    try { await post({ action, id, ...(severity ? { severity } : {}) }); refresh() } catch { toast.error('Action failed — the case is unchanged.') } finally { setBusyId(null) }
+    try {
+      const d = await post({ action, id, ...(severity ? { severity } : {}) })
+      warnSyncHeld(Number(d?.held) || 0)
+      refresh()
+    } catch { toast.error('Action failed — the case is unchanged.') } finally { setBusyId(null) }
   }
   const listingAct = async (action: string, listingId: string) => {
     setBusyId(listingId)
-    try { await post({ action, id: listingId }); refresh() } catch { toast.error('Listing action failed — nothing changed.') } finally { setBusyId(null) }
+    try {
+      const d = await post({ action, id: listingId })
+      // Seller identity gate (only while enforced): an approval for an owner who cannot publish yet
+      // is PARKED, not published — the reports are still dismissed, and it goes live on verification.
+      if (Number(d?.held) > 0) toast.warning('Approved, but held until the seller verifies their identity — it publishes automatically once verified.')
+      refresh()
+    } catch { toast.error('Listing action failed — nothing changed.') } finally { setBusyId(null) }
   }
   const dismissTarget = async (id: string) => {
     setBusyId(id)
@@ -579,10 +595,13 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
     const cap = action === 'bulk-confirm' ? 100 : 200
     try {
       let done = 0
+      let held = 0
       for (let i = 0; i < ids.length; i += cap) {
         const res = await post({ action, ids: ids.slice(i, i + cap), ...(action === 'bulk-confirm' ? { severity: bulkSev } : {}) })
         done += Number(res[action === 'bulk-confirm' ? 'confirmed' : 'dismissed']) || 0
+        held += Number(res.held) || 0
       }
+      warnSyncHeld(held)
       const already = ids.length - done
       const label = action === 'bulk-confirm' ? tr('confirmed', 'đã xác nhận') : tr('dismissed', 'đã bỏ qua')
       toast.success(already > 0 ? `${done} ${label} · ${already} ${tr('already resolved', 'đã xử lý trước đó')}` : `${done} ${label}`)

@@ -27,6 +27,8 @@ import { containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, minPhotosFor, publicSafeName } from '@/lib/publish-guard'
 import type { ClientPublishOutcome } from '@/lib/publish-funnel-codes'
 import { trackPostListing } from '@/lib/analytics'
+import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
+import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
 import { subcategoriesFor, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES } from '@/lib/taxonomy'
 import { RangeSpecInput } from './range-spec-input'
@@ -198,6 +200,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     return t('Không thể dùng AI lúc này', 'AI is unavailable right now')
   }
   const [error, setError] = useState('')
+  // The one next step an identity refusal offers (verify / sign in) — rendered as a button beside
+  // the error. Null for every other refusal, which the seller fixes in the form itself.
+  const [errorAction, setErrorAction] = useState<'verify' | 'sign_in' | null>(null)
   const [categorySlug, setCategorySlug] = useState(edit?.categorySlug ?? '')
   const [subcategorySlug, setSubcategorySlug] = useState(edit?.subcategorySlug ?? '')
   const [listingType, setListingType] = useState(edit?.listingType ?? 'sell')
@@ -598,6 +603,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
   const submit = async () => {
     if (submittingRef.current || submitting) return
+    // ⚠️ CLEARED HERE, BEFORE THE CLIENT CHECKS — not only once the request starts. Every early
+    // return below calls setError without touching errorAction, so a retry after an identity refusal
+    // that then failed a client check (banned words, contact info) showed the new error beside a
+    // stale "Verify your identity" button.
+    setErrorAction(null)
     // Missing required fields → don't silently no-op: flag them all in red and jump
     // to the first so the user sees exactly what's left.
     if (missing.length > 0) {
@@ -726,6 +736,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       onPosted?.() // embedded in dashboard → refresh listings + switch tab
     } catch (e) {
       const msg = e instanceof Error ? e.message : ''
+      // ⚖️ THE SELLER IDENTITY GATE (NĐ 248/2026) — only while it is enforced. A legal block, not a
+      // content one: nothing in the form fixes it, so the message names the next step and a button
+      // beside it takes them there.
+      // ⚠️ THE VERIFY BUTTON OPENS A NEW TAB, AND THE COPY PROMISES NO SAVED DRAFT. The localStorage
+      // draft holds text only (photos are never persisted) and expires after DRAFT_TTL_MS, while a
+      // pending review takes up to a working day — so navigating this tab away would lose the photos
+      // and, often, the text. Keeping this tab open is the only thing that actually keeps the work.
+      const identityMsg = identityBlockMessage(msg, tr)
+      setErrorAction(identityBlockAction(msg))
+      if (identityMsg) { setError(identityMsg); hapticError(); console.error(e); return }
       setError(
         // ⚠️ THE THREE SPECIFIC CAUSES COME FIRST, because "try again" is actively wrong for all
         // of them: a rejected format or an oversized file will fail identically forever, and a
@@ -1169,6 +1189,21 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           />
 
           {error && <p role="alert" className="text-sm font-semibold text-destructive">{error}</p>}
+          {error && errorAction === 'verify' && (
+            <Button asChild variant="cta" size="sm">
+              {/* Web: a NEW TAB, so this form and its photos stay open (see the catch in submit()).
+                  Native: a soft nav — a target=_blank anchor inside the Capacitor WebView is not a
+                  tab, and the Exit link below explains why a raw anchor there is a full reload. */}
+              {isNativeShell()
+                ? <Link href={IDENTITY_VERIFY_PATH}>{t('Xác minh danh tính', 'Verify your identity')}</Link>
+                : <a href={IDENTITY_VERIFY_PATH} target="_blank" rel="noopener">{t('Xác minh danh tính (mở thẻ mới)', 'Verify your identity (opens a new tab)')}</a>}
+            </Button>
+          )}
+          {error && errorAction === 'sign_in' && (
+            <Button variant="cta" size="sm" onClick={() => openSignIn()}>
+              {t('Đăng nhập để xác minh', 'Sign in to verify')}
+            </Button>
+          )}
         </div>
 
         {/* ── PREVIEW + PUBLISH (desktop) ── */}

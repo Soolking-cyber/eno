@@ -129,6 +129,13 @@ export function EnforcementClient() {
     try {
       const res = await fetch('/api/admin/enforcement', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok) toast.error('Action failed — nothing changed. Try again.')
+      else {
+        // Seller identity gate (only while enforced): a lift restores pulled listings, but those of an
+        // owner who cannot publish yet are parked until they verify — say so, or the lift reads as
+        // "everything is back" while some of it is not.
+        const d = (await res.json().catch(() => ({}))) as { held?: number }
+        if (d.held) toast.warning(`${d.held} listing(s) held until the seller verifies their identity.`)
+      }
       load() // reload shows truth either way
     } catch { toast.error('Action failed — network error. Try again.') } finally { setBusyId(null) }
   }
