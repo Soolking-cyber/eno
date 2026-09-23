@@ -1,4 +1,5 @@
 'use client'
+import { moderationHotkey } from './moderation-hotkeys'
 
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
@@ -615,17 +616,14 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
   const onKeyRef = useRef<(e: KeyboardEvent) => void>(() => {})
   onKeyRef.current = (e: KeyboardEvent) => {
     if (showResolved) return
-    const el = e.target as HTMLElement
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return
-    // The primitives render popup triggers/items as buttons and divs — keep hotkeys
-    // suppressed while a menu/select is focused, same as the old native <select> guard.
-    if (el && typeof el.closest === 'function' && el.closest('[role="menu"], [role="menuitem"], [role="listbox"], [role="option"], [role="combobox"]')) return
+    const key = moderationHotkey(e)
+    if (!key) return
     const cur = filtered[sel]
-    if (e.key === 'j') { e.preventDefault(); setSel((s) => Math.min(s + 1, filtered.length - 1)) }
-    else if (e.key === 'k') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)) }
-    else if (cur && e.key === 'c') { e.preventDefault(); act('confirm-report', cur.id, sevOf(cur)) }
-    else if (cur && e.key === 'd') { e.preventDefault(); act('dismiss-report', cur.id) }
-    else if (cur && e.key === 'a') { e.preventDefault(); act('abusive-report', cur.id) }
+    if (key === 'j') { e.preventDefault(); setSel((s) => Math.min(s + 1, filtered.length - 1)) }
+    else if (key === 'k') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)) }
+    else if (cur && key === 'c') { e.preventDefault(); act('confirm-report', cur.id, sevOf(cur)) }
+    else if (cur && key === 'd') { e.preventDefault(); act('dismiss-report', cur.id) }
+    else if (cur && key === 'a') { e.preventDefault(); act('abusive-report', cur.id) }
   }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => onKeyRef.current(e)
