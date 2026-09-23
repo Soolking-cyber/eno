@@ -17,6 +17,9 @@ vi.mock('next/server', () => ({
   },
 }))
 
+import { readdirSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
+import { getImplicitTags } from 'next/dist/server/lib/implicit-tags'
 import { REVALIDATE_CAP, refreshListingSurfaces } from './listing-surfaces'
 
 const flush = () => new Promise((r) => setTimeout(r, 0))
@@ -44,8 +47,34 @@ describe('refreshListingSurfaces — what the world sees follows the database', 
     const ids = Array.from({ length: REVALIDATE_CAP + 1 }, (_, i) => `l${i}`)
     refreshListingSurfaces(ids)
     await flush()
-    expect(h.purged).toEqual(['/listings/[id]|page'])
+    // 'layout': the PDP sits in the (pdp) route group, so a 'page' pattern would match no cached page.
+    expect(h.purged).toEqual(['/listings/[id]|layout'])
     expect(h.reindexed).toHaveLength(ids.length)
+  })
+
+  /**
+   * ⛔ THE ASSERTION ABOVE ONLY PROVES WHICH STRING WAS PASSED — a purge whose tag no cached page
+   * carries returns normally and changes nothing. This runs NEXT'S OWN tag derivation on the product
+   * page's real file path, read off disk, so moving the page (into a route group, as happened
+   * 2026-09-23) cannot quietly turn the whole-route purge into a no-op.
+   */
+  it('the whole-route purge names a tag the product page actually carries', async () => {
+    refreshListingSurfaces(Array.from({ length: REVALIDATE_CAP + 1 }, (_, i) => `l${i}`))
+    await flush()
+    const [path, type] = h.purged[0].split('|')
+    // revalidatePublicPath prefixes the hidden [lang] segment; Next's revalidatePath appends `/<type>`.
+    const purgeTag = `_N_T_/[lang]${path}/${type}`
+
+    const root = join(process.cwd(), 'src/app')
+    const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(join(dir, e.name)) : e.name === 'page.tsx' ? [join(dir, e.name)] : [])
+    const pages = walk(join(root, '[lang]/listings/[id]'))
+    expect(pages.filter((f) => !f.split(sep).includes('edit')), 'the product page itself').not.toHaveLength(0)
+    for (const file of pages) {
+      const routeKey = '/' + relative(root, file).split(sep).join('/').replace(/\.tsx$/, '')
+      const { tags } = await getImplicitTags(routeKey, '/en/listings/l0', null)
+      expect(tags, routeKey).toContain(purgeTag)
+    }
   })
 
   it('outside a request scope (cron, script) the reindex still runs', async () => {

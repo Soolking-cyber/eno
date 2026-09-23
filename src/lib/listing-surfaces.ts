@@ -32,12 +32,14 @@ export function refreshListingSurfaces(ids: string[], op = 'listingSurfaces', op
   // ⚠️ A failed purge is LOGGED ONCE, not swallowed: outside a request scope every call throws, and a
   // takedown whose purge silently did nothing is exactly the bug this helper exists to end.
   let logged = false
-  const purge = (path: string, type?: 'page') => {
+  const purge = (path: string, type?: 'layout') => {
     try { if (type) revalidatePublicPath(path, type); else revalidatePublicPath(path) } catch (e) {
       if (!logged) { logged = true; logError(e, { op: `${op}.purge`, path }) }
     }
   }
-  if (ids.length > REVALIDATE_CAP) purge('/listings/[id]', 'page')
+  // 'layout', not 'page': the PDP sits in a route group, so its page tag is `…/[id]/(pdp)/page` and a
+  // 'page' pattern purge matches nothing (listings/[id]/(pdp)/layout.tsx).
+  if (ids.length > REVALIDATE_CAP) purge('/listings/[id]', 'layout')
   else for (const id of ids) purge(`/listings/${id}`)
   // The home page's ISR HTML (6h) carries listings in its first-paint rails — an auto-held listing
   // must not stay there either.

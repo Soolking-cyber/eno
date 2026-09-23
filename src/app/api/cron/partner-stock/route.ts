@@ -168,7 +168,7 @@ export const GET = route({ auth: 'cron' }, async () => {
      * right in the database and wrong on the page for a month unless it is flushed. Past the cap,
      * flush the ROUTE rather than truncating: a silent top-N reads as "everything was flushed".
      */
-    if (touched.length > REVALIDATE_CAP) revalidatePublicPath('/listings/[id]', 'page')
+    if (touched.length > REVALIDATE_CAP) revalidatePublicPath('/listings/[id]', 'layout')
     else for (const id of touched) revalidatePublicPath(`/listings/${id}`)
     if (touched.length) { revalidatePublicPath('/'); revalidatePublicPath('/search') }
 

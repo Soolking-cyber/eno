@@ -29,7 +29,11 @@ await c.connect()
 // ⛔ PREFIXED WITH `[lang]` SINCE 2026-09-17: pages render under the hidden language segment
 // (src/proxy.ts), so a cached PDP carries `_N_T_/[lang]/listings/[id]/page` — the unprefixed tags
 // below it are kept only so a purge still clears entries written by the previous build.
+// ⚠️ AND IN THE `(pdp)` ROUTE GROUP SINCE 2026-09-23 (listings/[id]/(pdp)/layout.tsx): Next puts the
+// group in the tag, so the page tag is now `…/[id]/(pdp)/page`. `…/[id]/layout` is the one that
+// matches every build — it is on every page under the segment, groups or not.
 const tags = [
+  'eno:isrtag:_N_T_/[lang]/listings/[id]/(pdp)/page',
   'eno:isrtag:_N_T_/[lang]/listings/[id]/page',
   'eno:isrtag:_N_T_/[lang]/listings/[id]/layout',
   'eno:isrtag:_N_T_/[lang]/listings/layout',

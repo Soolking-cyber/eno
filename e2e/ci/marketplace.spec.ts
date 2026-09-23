@@ -83,6 +83,28 @@ test.describe('marketplace, against known fixtures', () => {
     }
   })
 
+  /**
+   * ⛔ THE 404 GUARD IS THE PRODUCT PAGE'S, NOT THE OWNER'S. It lived at `listings/[id]/layout.tsx`,
+   * where a layout wraps every child segment — so `edit/` inherited the public viewability rule and
+   * a seller got a 404 editing a hidden, pending or held listing. It now sits in the `(pdp)` route
+   * group. This suite has no signed-in seller, so it asserts the half it can see: the public page
+   * still 404s, and the edit URL answers with the owner flow (sign in first), not the public 404.
+   */
+  test('a hidden listing is a 404 to the public, but its edit screen still reaches the owner flow', async ({ page }) => {
+    const res = await page.goto('/listings/ci-l-hidden')
+    expect(res?.status(), 'a hidden listing must answer a real 404').toBe(404)
+    const edit = await page.goto('/listings/ci-l-hidden/edit')
+    expect(edit?.status(), 'the edit URL must not inherit the public page\'s 404').not.toBe(404)
+    await expect(page).toHaveURL(/\/signin\?next=%2Flistings%2Fci-l-hidden%2Fedit|\/signin\?next=\/listings\/ci-l-hidden\/edit/)
+    // …and the fixture itself must never surface publicly. `?q=Fixture` matches its title too, so a
+    // leak through search is a visible card; a public fixture rendering first proves the list loaded.
+    for (const path of ['/', '/?q=Fixture']) {
+      await page.goto(path)
+      await expect(page.getByText('Fixture laptop').filter({ visible: true }).first()).toBeVisible()
+      await expect(page.getByText('Fixture hidden listing'), `${path} must not show a hidden listing`).toHaveCount(0)
+    }
+  })
+
   test('a category page shows its own fixtures and no others', async ({ page }) => {
     await page.goto('/c/vehicles')
     await expect(page.getByText('Fixture city scooter').first()).toBeVisible()

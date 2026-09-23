@@ -38,6 +38,19 @@ import { isListingViewable } from './get-listing'
  * ⚠️ `sold` IS VIEWABLE, deliberately — it renders its own "this item has been sold" page, not a
  * 404. `page.tsx` remains the authority on what happens after this; the layout only decides whether
  * there is a page at all.
+ *
+ * ⛔ IT LIVES IN THE `(pdp)` ROUTE GROUP SO THAT IT GUARDS THE PRODUCT PAGE AND NOTHING ELSE. It sat
+ * at `listings/[id]/layout.tsx` until 2026-09-23, where a layout wraps every child segment — so the
+ * owner's `edit/` page inherited the PUBLIC viewability rule and a seller got a 404 trying to edit
+ * exactly the listings that most need editing: hidden, awaiting review, or held for identity. The
+ * group changes no URL. `edit/` stays outside it and does its own owner check. (Audit finding #16.)
+ *
+ * ⚠️ THE GROUP IS PART OF EVERY CACHE TAG THIS PAGE CARRIES. Next derives a page's implicit tags from
+ * its file path, groups included (the home page carries `_N_T_/[lang]/(home)/page`), so a pattern
+ * purge of `'/listings/[id]', 'page'` no longer matches anything. Purge the whole route with
+ * `revalidatePublicPath('/listings/[id]', 'layout')` — `_N_T_/[lang]/listings/[id]/layout` is on
+ * every page under the segment whatever groups sit below it. Concrete paths (`/listings/<id>`) are
+ * unaffected.
  */
 export default async function ListingLayout({
   children,

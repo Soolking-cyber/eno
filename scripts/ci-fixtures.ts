@@ -189,6 +189,20 @@ async function main() {
   }
   await db.listing.upsert({ where: { id: 'ci-l-desk' }, update: deskData, create: { id: 'ci-l-desk', ...deskData } })
 
+  // A listing its seller HID. The public page must 404, and its edit URL must still belong to the
+  // owner — the PDP's viewability guard once wrapped `edit/` too, so a seller got a 404 editing it.
+  const hiddenData = {
+    ...deskData,
+    title: 'Fixture hidden listing',
+    description: 'Hidden by its seller — the public page must 404.',
+    priceUnit: 'VND',
+    categoryId: categories.get('electronics')!,
+    sellerId: SELLER_ID,
+    status: 'hidden',
+    searchText: 'fixture hidden listing hanoi',
+  }
+  await db.listing.upsert({ where: { id: 'ci-l-hidden' }, update: hiddenData, create: { id: 'ci-l-hidden', ...hiddenData } })
+
   // ── The oversized catalogue ────────────────────────────────────────────────────────────────
   await profile(BULK_PROFILE, BULK_EMAIL, 'CI Bulk Seller')
   await seller(BULK_SELLER_ID, BULK_PROFILE, 'CI Bulk Warehouse')
