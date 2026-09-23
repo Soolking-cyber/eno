@@ -37,14 +37,15 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // opinion set". The sol seat stays retired.
 // ⚠️ THREE SEATS, THREE LABS; THE QUORUM IS TWO LABS, so one silent seat no longer blocks every commit.
 // ⚠️ `astra` WAS MISSING FROM THIS LIST while it sat on the panel (2026-09-06..14), so `--status` never counted
-// its verdicts — receipts validated on codex + opus alone. It counts now.
+// its verdicts — receipts validated on codex + opus alone. MOOT since 2026-09-23: the seat is removed entirely
+// (see the block below), so nothing named astra is dispatched or counted anywhere.
 /**
- * ⛔ PANEL SINCE 2026-09-20 = agy + opus. Owner: "remove codex use agy and opus", then
- * "remove codex until it comes back again in 3 days". astra's OpenAI quota is exhausted and
- * `codex exec` returns "You've hit your usage limit … try again at Sep 23rd, 2026 1:46 PM"
- * on every run — an ERROR string, which the panel counts as NO ANSWER, not as a pass.
- * ⏳ RESTORE astra ON 2026-09-23: put 'astra' back in this array AND uncomment its seat in
- * REVIEWERS below. Both, or the seat runs and its verdict is never counted (see the next note).
+ * ⛔ PANEL SINCE 2026-09-23 = agy + opus, AND THE OpenAI SEAT IS GONE FOR GOOD. Owner, 2026-09-23:
+ * "remove astra from the 2nd opinion". That supersedes the 2026-09-20 pause ("remove codex until it
+ * comes back again in 3 days") — this is a removal, not a timer, so there is no restore date and
+ * nothing to re-enable when quota returns. Do not re-add a `codex`/`astra` seat without the owner
+ * asking for one. While it was still dispatched its quota was exhausted, so every run returned an
+ * ERROR string in ~7s — which the panel counts as NO ANSWER, never as a pass.
  *
  * ⛔ agy WAS OUT 2026-09-16..20 — owner: "agy usege depleted so remove it" — and is BACK on the
  * owner's word above. Its quota recovered; it answers again.
@@ -280,9 +281,11 @@ process.on('SIGTERM', () => process.exit(143))
 // that only saw the first 180KB would still have its verdict certify bytes it never read. On a
 // codebase where the failure mode is a visa/PayPal surface leaking onto the licensed marketplace,
 // "reviewed" must mean the reviewer saw the licensing-relevant hunk — which, in a big diff, is as
-// likely to be at the end as the start. astra and opus BOTH take the prompt on stdin and so both
-// get the whole thing, which is what keeps the quorum reachable; agy's truncated verdict is
-// recorded but deliberately not counted.
+// likely to be at the end as the start. opus takes the prompt on stdin and so gets the whole thing;
+// agy's truncated verdict is recorded but deliberately not counted.
+// ⛔ WITH THE OpenAI SEAT REMOVED (2026-09-23) THAT LEAVES OPUS ALONE PAST 180KB, and opus is the
+// same model that writes most of these diffs — so on a diff that big the lab quorum is UNREACHABLE
+// and the gate refuses the commit. That is the designed outcome: split the change, do not force it.
 const AGY_LIMIT = 180_000
 // ⚠️ BYTES, NOT CHARACTERS (astra, agy, opus, 2026-09-14): ARG_MAX is a byte limit, and `prompt.length` counts UTF-16
 // units — a diff full of Vietnamese copy and ⚠️ marks is 2–4 bytes a character, so a "180KB" string could be 400KB on
@@ -293,34 +296,23 @@ const agyTruncated = promptBytes.length > AGY_LIMIT
 
 const REVIEWERS = [
   /**
-   * ⛔ SINCE 2026-09-14 THE ONLY OpenAI SEAT (the gpt-5.6-sol `codex` seat was removed — see REVIEWER_NAMES). The
-   * paragraphs below describe it as a SECOND seat and are history.
+   * ⛔ TWO SEATS, TWO LABS — AND ONLY ONE OF THEM IS INDEPENDENT. The OpenAI seat was removed on
+   * 2026-09-23 ("remove astra from the 2nd opinion"), so what remains is agy (Google) and opus
+   * (Anthropic). opus is the same model that writes most diffs in this repo, which makes it a
+   * self-review: **agy is the whole independent panel.** A REFUTED from agy is not one voice among
+   * several, it is the objection — go and measure it rather than out-voting it with opus.
    *
-   * A SECOND OpenAI SEAT ON A DIFFERENT GENERATION — owner, 2026-09-06: "add codex gpt 6 astra too".
+   * ⚠️ THE QUORUM IS PER LAB, NOT PER SEAT — see the enforcement near the end of this file
+   * ("THE QUORUM IS LABS, NOT SEATS"), which refuses on `labsCounted`. What counts ENTRIES is the
+   * printed `N/M seats answered` line, and conflating the two is easy: an earlier draft of this
+   * very comment claimed the quorum counted entries, which opus refuted. With two seats in two labs
+   * the numbers coincide; they diverged when one lab held two seats, which is how the removed
+   * OpenAI generation turned a "4/4" into four seats across three labs.
    *
-   * ⚠️ THE MODEL ID IS `gpt-6-astra`, VERIFIED AGAINST THE CLI RATHER THAN GUESSED. `gpt-6`,
-   * `gpt-6a` and `astra` are all accepted by `codex exec` and all print "Model metadata for `X` not
-   * found. Defaulting to fallback metadata; this can degrade performance" — the run still happens,
-   * on a mis-specified model, and the only sign is a warning nobody reads in a 300-second review.
-   * Probe a new id with a one-word prompt before pinning it here.
-   *
-   * ⛔ IT IS A SEAT, NOT A FAMILY — AND THE QUORUM LINE DOES NOT KNOW THAT. Read this before
-   * trusting a number below. `answered.length` and `counted.length` count ENTRIES in this array;
-   * nothing here carries a lab, so the line that prints "N families answered" is misnamed and
-   * always has been. Adding astra therefore inflates it: a 4/4 is FOUR SEATS across THREE labs
-   * (OpenAI ×2, Google, Anthropic), and a 2-2 split can be two OpenAI seats against Google plus
-   * the author's own cousin — which is one lab disagreeing with two, not an even split.
-   * ⚠️ THIS IS WORSE PAST agy's 180KB CUTOFF, where agy stops counting and the certifying panel is
-   * codex + astra + fable: two seats from one lab plus a cousin of the author. On a diff that big,
-   * weigh the labs yourself.
-   * ⚠️ AND IT DOUBLES THE OpenAI SPEND per review, which is the cost the owner accepted for a
-   * second generation's eyes.
+   * ⚠️ PAST agy's 180KB CUTOFF agy stops counting and opus certifies ALONE — the author's own
+   * model. The lab quorum is then unreachable and the gate refuses the commit. That is correct:
+   * split the change rather than forcing it through on a self-review.
    */
-  // ⏳ OUT UNTIL 2026-09-23 — owner, 2026-09-20: "remove codex until it comes back again in 3 days".
-  // Quota exhausted; every run returns "You've hit your usage limit … try again at Sep 23rd, 2026
-  // 1:46 PM" after ~7s. Left dispatched it burns a seat and returns no verdict.
-  // ⛔ TO RESTORE: uncomment this line AND add 'astra' back to REVIEWER_NAMES. Both.
-  // { name: 'astra', lab: 'openai', cmd: 'codex', args: ['exec', '-m', 'gpt-6-astra', '-c', 'model_reasoning_effort=high', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'], stdin: true },
   {
     name: 'agy',
     lab: 'google',
@@ -587,7 +579,7 @@ if (agyTruncated) {
 }
 if (counted.some((r) => r.name === 'opus')) {
   console.log('⚠️  opus is the SAME MODEL that wrote most diffs here — its verdict is a self-review. agy is the ONLY')
-  console.log('   independent seat until astra returns (2026-09-23): if agy REFUTED, that dissent is the whole panel.')
+  console.log('   independent seat on this panel: if agy REFUTED, that dissent is the whole panel.')
 }
 
 // ⚠️ THE RECEIPT IS WRITTEN ONLY AFTER THE QUORUM HOLDS — AND THIS ORDER IS THE GATE.

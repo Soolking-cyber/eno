@@ -1,6 +1,6 @@
 ---
 name: second-opinion
-description: How to actually invoke the external reviewers (codex, antigravity/agy) — exact CLI flags, the anti-exploration prompt preamble, and the failure modes that produce a silent non-review. Load when dispatching a second opinion at plan or diff time.
+description: How to actually invoke the external reviewer (antigravity/agy) — exact CLI flags, the anti-exploration prompt preamble, and the failure modes that produce a silent non-review. Load when dispatching a second opinion at plan or diff time.
 ---
 
 # Invoking the external reviewers
@@ -9,7 +9,16 @@ The POLICY — second opinion mandatory at BOTH plan and finished diff, ask them
 than review, and a reviewer that did not answer is NOT a passed review — lives in the root
 `CLAUDE.md` and stays there. This file is only the mechanics.
 
-**How to invoke the two external reviewers (both read-only, non-interactive):**
+⛔ **THE OpenAI SEAT IS REMOVED — owner, 2026-09-23: _"remove astra from the 2nd opinion"_.**
+Every `codex`/`astra` instruction below is HISTORY, kept because the anti-exploration lessons in it
+apply to any CLI reviewer. Do not dispatch codex; there is no restore date.
+
+⚠️ **THAT LEAVES ONE EXTERNAL FAMILY.** agy is now the only non-Anthropic reviewer, so an agy that
+errors, times out or returns no VERDICT means the work has had NO independent review — not a
+partial one. Say "single-sourced" out loud in that case rather than letting an Opus seat stand in
+for it: Opus writes most of these diffs and shares their blind spots.
+
+**How to invoke the external reviewer (read-only, non-interactive):**
 - **codex** — pipe the prompt via STDIN, never as an argument (the arg form hangs waiting on stdin).
   ⚠️ **CODEX WASTES ITS RUN EXPLORING UNLESS YOU FORBID IT.** Seen repeatedly (2026-07-21..23):
   given a read-only sandbox it greps node_modules and web-searches for the whole run and never
@@ -38,7 +47,15 @@ than review, and a reviewer that did not answer is NOT a passed review — lives
   **Owner-set invocation (2026-07-21) — use exactly this:**
   `echo "<review prompt>" | codex exec -m gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only`
   (or heredoc into stdin). Verify the banner echoes `model: gpt-5.6-sol` / `reasoning effort: high`.
-- **antigravity** — `agy -p "<prompt>" --model "Gemini 3.8 Flash (High)"`. ⚠️ If it returns
+- **antigravity** — `agy -p "<prompt>" --model gemini-3.8-flash-high --dangerously-skip-permissions --print-timeout 300s`.
+  ⚠️ **EITHER FORM WORKS — AND A `invalid model selection` ERROR IS NOT THE MODEL NAME.** On
+  2026-09-23 a dispatch died with *"model Gemini 3.8 Flash (High) is not recognized as a known
+  model"*; the error also printed `--effort ""`. Both the display name (which
+  `scripts/second-opinion.mjs` passes, successfully, on every gate run) and the slug
+  `gemini-3.8-flash-high` were then re-tested and BOTH answered. So the failure was transient:
+  **retry rather than rewriting the model name.** `agy models` prints slug + display name if you
+  need to confirm one. With the OpenAI seat removed, an agy that does not answer means NO
+  independent review happened — never treat it as a pass. ⚠️ If it returns
   *"a tool required the command permission that headless mode cannot prompt for"*, it produced NOTHING —
   that is not a review. Re-run with `--dangerously-skip-permissions` (it is read-only anyway) or add an
   allow-rule. Seen 2026-07-22. Feed the file CONTENT inline in the
