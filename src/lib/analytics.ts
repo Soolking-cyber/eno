@@ -43,22 +43,35 @@ declare global {
 }
 
 import { getAttribution } from './attribution'
-import { hasAdConsent } from './consent'
+import { hasAdConsent, hasAnalyticsConsent } from './consent'
 
 export type Currency = 'VND' | 'USD'
+
+/** GA4 measurement id. NEXT_PUBLIC_GA_ID overrides the public default. */
+export const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-CKTZK62B0X'
 
 // Convert eno.vn's display symbol ('₫' / '$') to an ISO currency code for analytics.
 export function currencyCode(symbol: string): Currency {
   return symbol === '₫' ? 'VND' : 'USD'
 }
 
+/**
+ * ⛔ EVERY EVENT RE-CHECKS CONSENT, NOT ONLY THE SCRIPT LOADER. v1 checked only that `window.gtag`
+ * existed — so after a withdrawal in the same tab the already-loaded gtag kept receiving events until
+ * the page was reloaded, while /privacy promised the trackers stop "immediately".
+ */
 function ga(event: string, params: Record<string, unknown>): void {
-  if (typeof window === 'undefined' || typeof window.gtag !== 'function') return
+  if (typeof window === 'undefined' || typeof window.gtag !== 'function' || !hasAnalyticsConsent()) return
   try { window.gtag('event', event, params) } catch { /* analytics must never break UX */ }
 }
 
+/**
+ * ⛔ ADVERTISING CONSENT, CHECKED HERE — the one gate this repo controls in front of a Pixel it does not
+ * load. `window.fbq` can only come from a tag in eno.forum's GTM container (paused as of 2026-09-23);
+ * if that tag is ever unpaused, every call below would otherwise fire for visitors who said no.
+ */
 function fb(event: string, params?: Record<string, unknown>, eventId?: string): void {
-  if (typeof window === 'undefined' || typeof window.fbq !== 'function') return
+  if (typeof window === 'undefined' || typeof window.fbq !== 'function' || !hasAdConsent()) return
   // 4th fbq arg is the options bag — passing the same event_id the CAPI uses lets Meta
   // DEDUPE the Pixel event against the server-side one.
   try { window.fbq('track', event, params, eventId ? { eventID: eventId } : undefined) } catch { /* analytics must never break UX */ }
@@ -109,8 +122,9 @@ export function trackViewListing(p: { id: string; title: string; price: number; 
     value: p.price,
     currency: p.currency,
   }, eventId)
-  // CAPI ViewContent survives ad-blockers that drop the Pixel — fired ONLY with ad
-  // consent (mirrors the Pixel's own gating; respects the consent tiers).
+  // CAPI ViewContent survives ad-blockers that drop the Pixel — fired ONLY with the
+  // advertising purpose (consent v2 `d`; never inside the native apps). The server
+  // re-checks the same cookie before anything reaches Meta.
   if (hasAdConsent()) viewContentBeacon(p.id, eventId)
 }
 

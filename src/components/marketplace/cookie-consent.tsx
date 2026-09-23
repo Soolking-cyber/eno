@@ -1,15 +1,24 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
-import { getConsent, setConsent, syncConsentCookie } from '@/lib/consent'
+import {
+  consentAnswered,
+  isNativeContext,
+  readConsent,
+  setConsent,
+  syncConsentStorage,
+  type ConsentAction,
+  type ConsentFlags,
+} from '@/lib/consent'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 
 /**
  * ⚠️ THE ONE ROUTE THIS CARD MUST NOT COVER. `/signin` centres the sign-in card in exactly the
@@ -18,26 +27,39 @@ import { Button } from '@/components/ui/button'
  */
 const SIGNIN_PATH = '/signin'
 
-function Toggle({ title, desc, value, onChange, locked = false }: { title: string; desc: string; value: boolean; onChange?: (v: boolean) => void; locked?: boolean }) {
+const ALL_OFF: ConsentFlags = { p: false, a: false, d: false }
+
+/**
+ * One purpose: its name, what it does, and its OWN switch.
+ *
+ * ⛔ A REAL SWITCH (Base UI via ui/switch — role="switch", aria-checked, Space/Enter), NOT THE
+ * aria-pressed BUTTON THAT WAS HERE. This is a consent decision: its state has to be announced as
+ * on/off, and the house rule is a Base UI primitive before anything hand-rolled.
+ * ⚠️ Named by the visible title and described by the line under it, so a screen reader hears
+ * "Analytics, switch, off — Google Analytics measures …" rather than a bare "switch".
+ * ⛔ THE DESCRIPTION IS `text-xs text-muted-foreground`, NEVER THE CARD'S SMALLEST TYPE. It is the only
+ * place the first layer names each vendor and says a hashed email or phone goes to Meta — the
+ * disclosure a Decree 356 Art 6(3) reading of "clear consent mechanics" hangs on. It was `text-2xs
+ * text-ink-4`, the least legible text on the card, against the rule written above the consent half.
+ */
+function PurposeRow({ title, desc, checked, onChange, locked = false }: { title: string; desc: string; checked: boolean; onChange: (v: boolean) => void; locked?: boolean }) {
+  const id = useId()
   return (
-    <Button
-      variant="bare"
-      size="none"
-      type="button"
-      disabled={locked}
-      // The on/off state has to be ANNOUNCED — it is a consent decision, not decoration.
-      aria-pressed={value}
-      onClick={() => onChange?.(!value)}
-      className={cn('flex w-full items-start gap-2.5 whitespace-normal rounded-lg p-1.5 text-left transition-colors font-normal disabled:opacity-70', locked ? 'opacity-70' : 'hover:bg-muted cursor-pointer')}
-    >
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-foreground">{title}</span>
-        <span className="mt-0.5 block text-2xs leading-snug text-ink-4">{desc}</span>
-      </span>
-      <span className={cn('mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors', value ? 'bg-primary' : 'bg-line-strong')}>
-        <span className={cn('h-4 w-4 rounded-full bg-white shadow-sm transition-transform', value && 'translate-x-4')} />
-      </span>
-    </Button>
+    <div className="flex items-start gap-3 py-1.5">
+      <div className="min-w-0 flex-1">
+        <p id={`${id}-t`} className="text-sm font-semibold leading-tight text-foreground">{title}</p>
+        <p id={`${id}-d`} className="mt-0.5 text-xs leading-snug text-muted-foreground">{desc}</p>
+      </div>
+      <Switch
+        size="sm"
+        checked={checked}
+        onChange={locked ? undefined : onChange}
+        disabled={locked}
+        aria-labelledby={`${id}-t`}
+        aria-describedby={`${id}-d`}
+        className="mt-0.5"
+      />
+    </div>
   )
 }
 
@@ -52,20 +74,20 @@ function Toggle({ title, desc, value, onChange, locked = false }: { title: strin
  */
 const SHOW_AFTER_MS = 4_000
 
-/** Sleek, compact consent banner — a horizontal card with the shield mascot filling
- *  the height on the left and tight copy + slim actions on the right. "Allow" turns on
- *  personalized recommendations + ad signals; "Settings" fine-tunes each or declines. */
+/** The consent card (consent v2): three purposes, each with its own switch and all OFF until the
+ *  visitor turns them on, plus "Allow all" and "Decline all" of equal weight and "Save my choices".
+ *  The same card is the first-visit prompt and the footer/settings/privacy re-open. */
 export function CookieConsent() {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   // Where initial focus goes when the dialog opens — see initialFocus on the Popup below.
   const popupRef = useRef<HTMLDivElement>(null)
   /**
    * The pending first-visit timer, so `close()` can CANCEL it.
    *
    * ⚠️ THE GUARD INSIDE THE CALLBACK IS NOT ENOUGH ON ITS OWN, and review had to point that out
-   * twice before this was right. Re-reading `getConsent()` covers "the user DECIDED during the
+   * twice before this was right. Re-reading the stored answer covers "the user DECIDED during the
    * delay". It does not cover "the user LOOKED AND LEFT" — opening the footer's Cookie settings at
-   * t=2s, reading it, and closing with Esc without choosing. Consent is still null, so the timer
+   * t=2s, reading it, and closing with Esc without choosing. The answer is still missing, so the timer
    * fired and the card reappeared unbidden seconds after they dismissed it. Cancelling on close
    * covers both, and is the behaviour a person would describe as "I closed it".
    */
@@ -73,7 +95,8 @@ export function CookieConsent() {
   const [show, setShow] = useState(false)
   /**
    * Did the CARD open because the user asked for it (footer "Cookie settings"), or did it appear on
-   * its own after the delay? Only the first may move focus — see `initialFocus` on the Popup.
+   * its own after the delay? Only the first may move focus — see `initialFocus` on the Popup. It also
+   * picks the header (photo vs "Your choices") and is recorded as the surface of the choice.
    */
   const pathname = usePathname()
   const [openedByUser, setOpenedByUser] = useState(false)
@@ -81,26 +104,18 @@ export function CookieConsent() {
   const [everShown, setEverShown] = useState(false)
   /** The auto-open fired while the visitor was on /signin; show it once they are elsewhere. */
   const [deferred, setDeferred] = useState(false)
-  const [view, setView] = useState<'ask' | 'settings'>('ask')
-  const [perso, setPerso] = useState(true)
-  // ⛔ AD PERSONALIZATION STARTS OFF. It started ON, so a first visitor who opened "Cookie settings"
-  // from the card and pressed Save without touching anything was recorded as consenting to Meta/Google
-  // retargeting (hasAdConsent() === true) — consent they never gave. (Audit finding #8.)
-  const [ads, setAds] = useState(false)
-  /** Seed the settings view from the stored choice — ONE rule for both ways into it. */
-  const seedFromConsent = () => {
-    const c = getConsent()
-    setPerso(c !== 'essential')
-    setAds(c === 'all')
-  }
   /**
-   * The levels are NESTED (all ⊃ personalized ⊃ essential), so the toggles are coupled here rather
-   * than in storage: ad personalization on implies personalization on, and personalization off
-   * implies ads off. Uncoupled, turning Personalized OFF with ads on was saved as 'all' — the
-   * visitor's explicit "no" recorded as a yes.
+   * ⛔ EVERY SWITCH STARTS OFF, AND NOTHING COUPLES THEM. v1 started "Personalized" ON for a visitor
+   * who had not answered (and, until d2dcc590, "Ad personalization" too), so a first-visit Save
+   * recorded a consent nobody gave; and it linked the toggles (ads on ⇒ personalized on). Consent is
+   * per purpose (PDPL 91/2025 Art 9(4)(a)), so each switch writes exactly its own flag.
    */
-  const onPerso = (v: boolean) => { setPerso(v); if (!v) setAds(false) }
-  const onAds = (v: boolean) => { setAds(v); if (v) setPerso(true) }
+  const [flags, setFlags] = useState<ConsentFlags>(ALL_OFF)
+  /** Pre-fill from the stored answer — ONE rule for both ways into the card. No answer ⇒ all off. */
+  const seedFromConsent = () => {
+    const c = readConsent()
+    setFlags(c ? { p: c.p, a: c.a, d: c.d } : ALL_OFF)
+  }
 
   /**
    * ⚠️ THE FIRST-VISIT PROMPT IS DELAYED; THE FOOTER RE-OPEN BELOW IS NOT.
@@ -117,8 +132,10 @@ export function CookieConsent() {
    * Cleared on unmount so a fast navigate-away cannot fire setState on a dead component.
    */
   useEffect(() => {
-    syncConsentCookie()
-    if (getConsent() !== null) return
+    syncConsentStorage()
+    // ⚠️ A v1 'all' / 'personalized' reads as NOT ANSWERED here, so those visitors are asked once more
+    // (consent v2 — see src/lib/consent-value.ts). A v1 'essential' is an answer and is never re-asked.
+    if (consentAnswered()) return
     /**
      * ⛔ DEFERRED, NOT SUPPRESSED, ON THE SIGN-IN ROUTE — AND THE FIRST VERSION OF THIS GUARD GOT
      * THAT WRONG. This card is `fixed inset-0 … items-center justify-center` — dead centre of the
@@ -148,9 +165,9 @@ export function CookieConsent() {
        * in ANOTHER TAB during the delay. The immediate version could not hit either case, because
        * it read and showed in the same tick.
        */
-      if (getConsent() !== null) return
+      if (consentAnswered()) return
       if (window.location.pathname === SIGNIN_PATH) setDeferred(true)
-      else setShow(true)
+      else { setFlags(ALL_OFF); setShow(true) }
     }, SHOW_AFTER_MS)
     autoTimer.current = t
     return () => clearTimeout(t)
@@ -169,7 +186,7 @@ export function CookieConsent() {
      * renders nothing either way; a reviewer was right that it is exactly the stale state the
      * comment above claims cannot happen.
      */
-    if (getConsent() !== null) { setDeferred(false); return }
+    if (consentAnswered()) { setDeferred(false); return }
     /**
      * ⛔ AND A CARD THAT IS ALREADY OPEN STEPS ASIDE WHEN THE VISITOR ARRIVES AT /signin. The timer
      * check cannot cover this: the card may have opened legitimately on `/` and the visitor then
@@ -185,10 +202,11 @@ export function CookieConsent() {
       // ⚠️ BACK TO THE `ask` VIEW WITH IT. Stepping aside is not a close, so a visitor who had
       // opened the settings pane would otherwise meet the card again on the next page already in
       // `settings` with half-set toggles, which is not how an auto-open ever presents itself.
-      if (show && !openedByUser) { setShow(false); setView('ask'); setDeferred(true) }
+      if (show && !openedByUser) { setShow(false); setDeferred(true) }
       return
     }
     if (!deferred) return
+    setFlags(ALL_OFF)
     setShow(true)
     setDeferred(false)
   }, [deferred, pathname, show, openedByUser])
@@ -200,8 +218,16 @@ export function CookieConsent() {
   // as easy to change as to give (compliance verification 2026-07-06).
   useEffect(() => {
     const reopen = () => {
+      /**
+       * ⛔ A DELIBERATE OPEN CANCELS THE PENDING AUTO-OPEN AND ANY DEFERRAL. Both of those paths reset
+       * the switches to all-off when they fire (right for an automatic first ask), so a visitor who
+       * opened Cookie settings within the first 4 s — or on /signin after the timer had parked — would
+       * have their half-set switches wiped under their fingers when the timer or the next navigation
+       * fired. Reviewer (agy) caught it on the finished diff.
+       */
+      if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null }
+      setDeferred(false)
       seedFromConsent()
-      setView('settings')
       setOpenedByUser(true)
       setShow(true)
     }
@@ -226,19 +252,18 @@ export function CookieConsent() {
   if (!everShown && !show) return null
 
   /**
-   * Closing means closed. Three things reset, and each was a bug found in review:
+   * Closing means closed. Two things reset, and each was a bug found in review:
    *   · CANCEL the pending first-visit timer — otherwise dismissing the footer-opened card at t=2s
    *     without choosing let the timer re-open it at t=4s.
-   *   · `view` back to 'ask' — otherwise that same re-open landed on the SETTINGS toggles rather
-   *     than the question, pre-filled from a `getConsent()` that had returned null.
    *   · `openedByUser` back to false, so a later automatic appearance cannot inherit "the user
    *     asked for this" from an earlier footer click and steal focus.
+   * (There is no separate settings view any more to reset: the switches ARE the first layer, and both
+   * ways in seed them — all off for an unanswered visitor, the stored answer on a re-open.)
    */
   const close = () => {
     if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null }
     setShow(false)
     setOpenedByUser(false)
-    setView('ask')
     /**
      * ⛔ CLOSING THIS NO LONGER STARTS ANYTHING. It used to dispatch `eno:start-tour`, because the
      * owner asked for onboarding to begin here (2026-08-28: "once they close popup the onboarding
@@ -249,18 +274,28 @@ export function CookieConsent() {
      * branches for that reason, not just on "Allow".
      */
   }
-  const allow = () => { setConsent('all'); close() }
-  const save = () => { setConsent(ads ? 'all' : perso ? 'personalized' : 'essential'); close() }
-  const decline = () => { setConsent('essential'); close() }
 
-  // Native copy branch is PRESENTATION-ONLY: same trigger, choices, storage and events —
-  // the WebView shares the site's tracking signals, so PDPL consent semantics are identical;
-  // only the browser-cookie framing is swapped for app wording. Safe to read inline because
-  // the dialog never renders before mount (show starts false).
-  const isNative = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+  /**
+   * ⛔ INSIDE THE NATIVE APPS ANALYTICS AND ADVERTISING ARE NOT OFFERED AT ALL. The app is a web view
+   * of this site, and Apple's App Tracking Transparency covers web views: sending a hashed email to
+   * Meta from inside the app is "tracking", which needs the ATT prompt the apps do not show — and a
+   * consent banner is not a substitute for it. So the two rows render locked OFF, "Allow all" there
+   * means personalization only, and src/lib/consent.ts + the server force both off whatever is stored.
+   * Safe to read inline because the dialog never renders before mount (show starts false).
+   */
+  const isNative = isNativeContext()
 
-  const primary = 'rounded-lg px-4 py-1.5 text-sm transition-colors active:scale-[0.96] cursor-pointer'
-  const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-body active:scale-[0.96] cursor-pointer'
+  /** Store the answer (and its record), then close. The surface is read BEFORE close() resets it. */
+  const choose = (next: ConsentFlags, action: ConsentAction) => {
+    const f = isNative ? { ...next, a: false, d: false } : next
+    setConsent(f, { surface: openedByUser ? 'settings' : 'banner', action, locale: lang })
+    close()
+  }
+  const allowAll = () => choose({ p: true, a: true, d: true }, 'allow_all')
+  const declineAll = () => choose(ALL_OFF, 'decline_all')
+  const save = () => choose(flags, 'save')
+  const setFlag = (k: keyof ConsentFlags) => (v: boolean) => setFlags((f) => ({ ...f, [k]: v }))
+  const pairButton = 'press flex min-h-11 w-full items-center justify-center whitespace-normal rounded-xl px-3 py-2.5 text-center text-sm font-bold leading-tight cursor-pointer'
 
   return (
     /* ⚠️ CENTERED AGAIN (owner, 2026-08-06) — BUT NEVER WITH A BACKDROP. READ THIS BEFORE EDITING.
@@ -303,9 +338,12 @@ export function CookieConsent() {
             Allow sat on screen but the Cookie settings / Decline row began 12px below the fold and
             took a scroll to reach, which is the one failure this card must not have. Collapsing the
             top gutter alone gives the card 232px and the whole pinned half fits with room over.
+            ⚠️ The threshold moved from 480px to 560px with consent v2: three switches made the
+            consent half taller, and the same 560px line is where that half stops being sticky and
+            the photo hides — one breakpoint for the three, so they cannot disagree.
             ⚠️ This is a GUTTER, not content: nothing is hidden by viewport here, which is the trap
             recorded further down. */}
-        <div className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center px-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pt-[4.5rem] [@media(max-height:480px)]:pt-4 lg:px-4 lg:py-4">
+        <div className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center px-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pt-[4.5rem] [@media(max-height:560px)]:pt-4 lg:px-4 lg:py-4">
           <DialogPrimitive.Popup
             ref={popupRef}
             /**
@@ -333,7 +371,7 @@ export function CookieConsent() {
              * `interactionType === 'touch' ? popup : true`, which put initial focus on the inline
              * "Privacy policy" link mid-sentence and painted a focus ring split across the line
              * wrap (visible on the very first screen of the native app). Deliberately NOT the
-             * "Allow" button — pre-focusing the accept action would make Enter consent for the
+             * "Allow all" button — pre-focusing the accept action would make Enter consent for the
              * user, and PDPL requires consent be an affirmative act.
              */
             initialFocus={openedByUser ? popupRef : false}
@@ -342,12 +380,11 @@ export function CookieConsent() {
                Zooms in now that it is centred; a slide-from-bottom on a centred card reads as the
                card having missed its mark. */
             /* ⚠️ `max-h-full overflow-y-auto` IS INSURANCE, NOT A FIX FOR A LIVE BUG. Measured on
-               844x390 and 740x360 landscape, 360x640 and 320x480: nothing clips and all three
-               buttons stay on screen today. But the card has no height cap otherwise, and the copy
-               is translated — a longer Vietnamese string, a third language, or one more toggle in
-               the settings view would push the actions off a landscape phone with no way to reach
-               them. A consent card whose "Decline" cannot be reached is the worst possible failure
-               mode here, so it scrolls rather than overflowing. Raised in review. */
+               844x390 and 740x360 landscape, 360x640 and 320x480 (v1 card). The card has no height
+               cap otherwise, and the copy is translated — a longer Vietnamese string, a third
+               language, or the three consent-v2 switches push the actions off a landscape phone. A
+               consent card whose "Decline all" cannot be reached is the worst possible failure mode
+               here, so it scrolls rather than overflowing. Raised in review. */
             className="pointer-events-auto relative flex max-h-full w-full max-w-md flex-col overflow-y-auto rounded-2xl bg-popover p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-200 sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95"
           >
             {/* ⛔ THE CARD IS TWO STACKED SECTIONS, NOT TWO COLUMNS — owner, 2026-08-28. The mascot
@@ -355,11 +392,19 @@ export function CookieConsent() {
             column: on a tall card it floated in the middle of its own empty gutter, and the rule
             beneath the introduction could only ever span the RIGHT column, which read as a divider
             inside one section rather than a division of the card.
-            Now the introduction runs the full width above the rule, and the mascot sits beside the
-            cookie question below it, where it belongs — it is the cookie mascot, and that is the
-            cookie half. */}
+            Now the introduction runs the full width above the rule and the consent half below it.
+            (Consent v2: the first-visit card and the re-open are ONE card — the switches are the
+            first layer — so the only thing that differs between them is the header.) */}
         <div>
-          {view === 'ask' ? (
+          {openedByUser ? (
+            /* The re-open (footer / dashboard settings / privacy page): a deliberate visit to change a
+               choice, so it opens on its title rather than the introduction photo. The cookie mascot
+               stays beside it — owner, 2026-09-17, kept it on this view when it left the first one. */
+            <div className="flex items-center gap-3">
+              <Mascot name="cookie" className="hidden h-12 w-12 shrink-0 text-foreground sm:block" />
+              <DialogPrimitive.Title className="text-base font-bold leading-tight text-foreground">{tr('Your choices', 'Lựa chọn của bạn')}</DialogPrimitive.Title>
+            </div>
+          ) : (
             <>
               {/**
                 * ⛔ THE INTRODUCTION IS A PHOTOGRAPH NOW — owner, 2026-09-17: remove the headline,
@@ -404,7 +449,10 @@ export function CookieConsent() {
                 * flattens. The photograph and the tagline below name no service, so today this
                 * file is edition-neutral and must stay that way.
                 */}
-              {/* ⚠️ HEIGHT-CLAMPED, NOT WIDTH-CLAMPED — that is what "fit nicely across all
+              {/* ⚠️ HIDDEN BELOW 560px OF VIEWPORT HEIGHT (consent v2): the card now carries three
+                  switches, and on a landscape phone every pixel goes to the controls — see the note
+                  on the consent half below.
+                  ⚠️ HEIGHT-CLAMPED, NOT WIDTH-CLAMPED — that is what "fit nicely across all
                   platforms" actually requires here. The cut-out is ~1.2:1, so sizing it by width
                   would make it ~375px tall inside a 448px card, taller than the whole consent half,
                   and it would push Allow off a landscape phone. `clamp(6.5rem,24vh,12.5rem)` ties
@@ -414,7 +462,7 @@ export function CookieConsent() {
                   ⚠️ `alt=""` ON PURPOSE. The two lines below ARE the words in the picture and they
                   are the dialog's accessible name; a descriptive alt would announce that sentence
                   twice. */}
-              <div className="flex justify-center">
+              <div className="flex justify-center [@media(max-height:560px)]:hidden">
                 <Image
                   src="/consent-team.webp"
                   alt=""
@@ -456,131 +504,112 @@ export function CookieConsent() {
                   {tr('buy, sell, rent, connect.', 'mua, bán, thuê, kết nối.')}
                 </span>
               </p>
+            </>
+          )}
               {/**
-                * ⛔ THE CONSENT ASK IS ITS OWN SECTION, AT FULL SIZE, AND THE FIRST DRAFT BROKE THAT.
-                * Adding the introduction pushed this line to `text-2xs` under a marketing headline —
-                * so the smallest type on the card was the only place explaining what "Allow" does.
-                * GDPR Art. 7(2) requires a consent request be "clearly distinguishable from other
-                * matters" and intelligible; a reviewer was right that the diff argued consent law to
-                * justify when the TOUR starts while quietly weakening the NOTICE. The rule above
-                * separates the introduction from the request, and the size goes back to `text-sm`.
+                * ⛔ THE CONSENT ASK IS ITS OWN SECTION, AT FULL SIZE. GDPR Art. 7(2) requires a consent
+                * request be "clearly distinguishable from other matters" and intelligible, so the text
+                * that explains the switches is `text-sm`, never the smallest type on the card.
                 * ⚠️ If the card ever needs to be shorter, cut the introduction — never this.
+                *
+                * ⚠️ `-mx-3 px-3` (and the sm: pair) BLEEDS THE RULE TO THE CARD EDGES, so it reads as the
+                * seam between two sections rather than an underline.
+                * ⚠️ `sticky bottom-0` keeps this whole half pinned while the introduction scrolls behind
+                * it — EXCEPT below 560px of viewport height, where it turns `static`. With three switches
+                * the half is taller than a landscape phone's card, and a sticky element taller than its
+                * scroll box cannot be scrolled into view: its top (the explanation) would sit above the
+                * card with no way to reach it. Static, the whole card scrolls and every word and button
+                * is reachable. `bg-popover` matches the card so the pinned half is opaque in both themes.
                 */}
-              {/* ⚠️ `-mx-3 px-3` (and the sm: pair) BLEEDS THE RULE TO THE CARD EDGES. Inside the
-                  padding it stops short of both sides and reads as an underline under the proof
-                  list; edge to edge it reads as what it is, the seam between two sections.
-                  ⚠️ Still `sticky bottom-0` — this whole half stays pinned, so the introduction
-                  scrolls behind it and the controls never leave the screen. `bg-popover` matches
-                  the card's own token so the pinned half is opaque in both themes. */}
-              <div className="sticky bottom-0 z-10 -mx-3 mt-2.5 border-t border-line bg-popover px-3 pt-2.5 sm:-mx-4 sm:px-4">
-              {/* ⛔ THE COOKIE MASCOT IS GONE FROM THIS VIEW — owner, 2026-09-17, pointing straight at
-                  the node: "remove this". It shared the pinned half with the consent question and it
-                  cost that half ~92px of permanent height, which is why it used to hide itself under
-                  `max-height:560px`. The card now opens on a photograph of the team, so a second
-                  illustration two inches below it was competing with the thing it introduces.
-                  ⚠️ THE SETTINGS VIEW KEEPS ITS COPY, and that is not an oversight: that view has no
-                  photo, so the mascot is the only thing standing between three toggles and a wall of
-                  plain rows. Removing it there is a separate decision nobody has made. */}
+              <div className={cn('z-10 -mx-3 bg-popover px-3 sm:-mx-4 sm:px-4', openedByUser ? 'mt-1.5' : 'sticky bottom-0 mt-2.5 border-t border-line pt-2.5 [@media(max-height:560px)]:static')}>
+              {/**
+                * ⛔ WHAT THE FIRST SCREEN MUST SAY, AND WHAT IT MUST NOT (consent v2, owner decision
+                * "Consent v2, full"). It names every purpose and vendor before anything is switched on,
+                * says that on-site behaviour is sensitive personal data under Vietnamese law (Decree
+                * 356/2025 Art 4(1) lists it; Art 6(4) requires saying so), and that declining costs
+                * nothing — sign-in included. The old line promised "Allow cookies … and keep you signed
+                * in", which was false: sign-in never depended on consent, so the promise only made
+                * "Decline" sound like it would sign you out.
+                * ⚠️ LEGAL WORDING IS PENDING COUNSEL. Clear and accurate, not a claim of compliance —
+                * change it with the lawyer's text, and bump CONSENT_COPY_VERSION (consent-value.ts) so
+                * every record says which words the answer was given to.
+                * ⛔ NO EDITION BRANCH INSIDE tr() (see the note on the introduction above): this copy is
+                * edition-neutral and must stay that way.
+                */}
               <p className="text-sm leading-snug text-muted-foreground">
                 {isNative
                   ? tr(
-                      'Allow us to put the most relevant products first and to measure what works, so the app keeps getting better for you. ',
-                      'Cho phép chúng tôi đưa sản phẩm phù hợp nhất lên đầu và đo lường hiệu quả, để ứng dụng ngày càng hợp với bạn hơn. ',
+                      'Your activity in the app is sensitive personal data under Vietnamese law, so personalization stays off until you switch it on. Analytics and advertising are always off in the app. Decline and everything still works, including sign-in. ',
+                      'Theo pháp luật Việt Nam, dữ liệu về hoạt động của bạn trong ứng dụng là dữ liệu cá nhân nhạy cảm, nên cá nhân hoá luôn tắt cho đến khi bạn bật. Phân tích và quảng cáo luôn tắt trong ứng dụng. Nếu từ chối, mọi tính năng vẫn hoạt động, kể cả đăng nhập. ',
                     )
                   : tr(
-                      'Allow cookies and we’ll put the most relevant products first — and keep you signed in. ',
-                      'Cho phép cookie để chúng tôi đưa sản phẩm phù hợp nhất lên đầu — và giữ bạn đăng nhập. ',
+                      'Your activity on this site is sensitive personal data under Vietnamese law, so each use below stays off until you switch it on. Decline and everything still works, including sign-in. ',
+                      'Theo pháp luật Việt Nam, dữ liệu về hoạt động của bạn trên trang này là dữ liệu cá nhân nhạy cảm, nên mỗi mục dưới đây đều tắt cho đến khi bạn bật. Nếu từ chối, mọi tính năng vẫn hoạt động, kể cả đăng nhập. ',
                     )}
                 <Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
               </p>
+              <div className="mt-1.5">
+                <PurposeRow
+                  title={tr('Personalization', 'Cá nhân hoá')}
+                  desc={tr('Ranks listings for you from what you search and view here. Never shared with advertisers.', 'Xếp hạng tin đăng cho bạn theo những gì bạn tìm và xem tại đây. Không bao giờ chia sẻ cho bên quảng cáo.')}
+                  checked={flags.p}
+                  onChange={setFlag('p')}
+                />
+                <PurposeRow
+                  title={tr('Analytics', 'Phân tích')}
+                  desc={isNative
+                    ? tr('Always off in the app.', 'Luôn tắt trong ứng dụng.')
+                    : tr('Google Analytics measures visits and pages, and which link brought you here.', 'Google Analytics đo lượt truy cập, trang đã xem và liên kết đã đưa bạn đến đây.')}
+                  checked={isNative ? false : flags.a}
+                  onChange={setFlag('a')}
+                  locked={isNative}
+                />
+                <PurposeRow
+                  title={tr('Advertising', 'Quảng cáo')}
+                  desc={isNative
+                    ? tr('Always off in the app.', 'Luôn tắt trong ứng dụng.')
+                    /* ⚠️ "AND GOOGLE" ONLY WITH ANALYTICS: Google's ad signals travel inside Google
+                       Analytics, which is never loaded without the Analytics switch, so Advertising
+                       alone reaches Meta and nobody else. And the Vietnamese says "băm" (hashed),
+                       never "mã hoá" — hashing is not encryption, and the sentence must not promise
+                       it is. */
+                    : tr('Shares actions like views, contacts and sign-ups with Meta (and with Google, if Analytics is on too) to measure our ads — your email or phone is scrambled (hashed) first.', 'Chia sẻ các hành động như lượt xem, liên hệ và đăng ký với Meta (và với Google, nếu Phân tích cũng bật) để đo hiệu quả quảng cáo — email hoặc số điện thoại được xáo trộn (băm) trước.')}
+                  checked={isNative ? false : flags.d}
+                  onChange={setFlag('d')}
+                  locked={isNative}
+                />
+              </div>
               {/**
-                * ⛔ ONE DOMINANT CTA, THE OTHER TWO AS TEXT BENEATH IT — owner's call, 2026-08-28,
-                * made after the trade was put to them twice. Allow is a full-width filled button
-                * at the LOWEST point of the card, which on a phone is the centre of the natural
-                * thumb arc; Cookie settings and Decline sit under it as text, split left and right
-                * so a right thumb travelling to Allow cannot brush Decline on the way.
-                *
-                * ⚠️ WHAT THIS TRADES, RECORDED SO THE DECISION STAYS VISIBLE RATHER THAN BECOMING
-                * FOLKLORE. The risk here is NOT the position: Decline is still one tap, on the
-                * first layer, in legible ink — and that is what CNIL's €150M/€60M decisions against
-                * Google and Meta actually turned on, where refusing took MORE clicks than
-                * accepting. The risk is the PROMINENCE gap between a filled button and a text
-                * link, which EDPB Guidelines 03/2022 on deceptive design patterns name directly,
-                * and eno is mid-licensing as a sàn TMĐT.
-                * ⛔ SO THIS IS THE CEILING, NOT A STARTING POINT. Do NOT move Decline behind a
-                * second screen, add a tap to refuse, or fade it until it stops reading as a
-                * control. Those are the changes that turn an arguable layout into a fineable one.
-                * The equal-weight version is one swap — Decline back to a `variant="ghost"` button
-                * of the same width and height as Allow — and the design canvas keeps it drawn.
-                *
-                * ⚠️ `.press` ON ALL THREE, NOT A HAND-WRITTEN TRANSITION. The old `transition-colors`
-                * animated colour and nothing else, so the `active:scale` snapped in and snapped back
-                * — press feedback that was there in the markup and absent on screen. The obvious fix
-                * (`transition-[transform,…]`) is ALSO wrong and design-lint caught it: Tailwind v4
-                * compiles `scale-*` to the standalone `scale` property, not `transform`, so that
-                * list subscribes to something nothing writes. `.press` is the house utility and it
-                * already encodes the right behaviour — 40ms in on `:active`, a 220ms spring back
-                * out, on `scale` — plus `touch-action: manipulation`, which drops the legacy 300ms
-                * tap delay. Feedback on the press, and no latency in front of it.
-                * ⚠️ `rounded-xl` (12px), NOT the mockup's 14px: `--radius-xl` is the button tier in
-                * docs/design-language.md and design-lint enforces the scale. ⚠️ `min-h-11` on the
-                * text actions is a real 44px target — they are the interactive element themselves,
-                * so this does NOT use the `tap-44` utility, whose pseudo-overlay covers a
-                * positioned ancestor when it lands on an unpositioned element.
+                * ⛔ "ALLOW ALL" AND "DECLINE ALL" CARRY EQUAL WEIGHT — same variant, same size, side by
+                * side (consent v2; this REPLACES the owner's 2026-08-28 one-dominant-CTA layout). Decree
+                * 356/2025 Art 6(3) forbids consent mechanics that blur consent and refusal, and a filled
+                * "Allow" over a text-link "Decline" is the prominence gap EDPB Guidelines 03/2022 name
+                * directly. Refusing must be exactly as easy and as visible as accepting.
+                * ⚠️ "Save my choices" saves EXACTLY the switches above — all off is a refusal — and sits
+                * ABOVE the pair so neither of the two all-or-nothing buttons is the one a thumb lands on
+                * first by accident. Do NOT make it (or either of the pair) visually dominant, move a
+                * button behind a second screen, or add a tap to refuse.
+                * ⚠️ `.press` on all three (the house press utility — 40ms in, spring back, no 300ms tap
+                * delay) and `min-h-11` (a real 44px target). `rounded-xl` is the canon button tier.
+                * `whitespace-normal` because "Cho phép tất cả" in half a 320px card must wrap, not clip.
                 */}
               <Button
-                variant="cta"
+                variant="outline"
                 size="none"
-                onClick={allow}
-                className="press mt-3 flex w-full items-center justify-center rounded-xl px-4 py-3 text-base font-extrabold cursor-pointer"
+                onClick={save}
+                className="press mt-2 flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold cursor-pointer"
               >
-                {tr('Allow cookies', 'Cho phép cookie')}
+                {tr('Save my choices', 'Lưu lựa chọn')}
               </Button>
-              {/* ⚠️ `mt-3`, NOT `mt-1`. Four pixels under a full-width primary put a 44px Decline
-                  target directly in the path of an overshooting thumb — and a mis-tap here writes
-                  a consent decision the reader did not make, in either direction. The earlier
-                  reasoning only considered horizontal travel; the collision is vertical. */}
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <Button
-                  variant="ghost"
-                  size="none"
-                  onClick={() => { seedFromConsent(); setView('settings') }}
-                  className="press min-h-11 rounded-lg px-1 text-sm font-semibold text-body hover:text-foreground cursor-pointer"
-                >
-                  {tr('Cookie settings', 'Tùy chỉnh cookie')}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Button variant="cta" size="none" onClick={declineAll} className={pairButton}>
+                  {tr('Decline all', 'Từ chối tất cả')}
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="none"
-                  onClick={decline}
-                  className="press min-h-11 rounded-lg px-1 text-sm font-semibold text-foreground cursor-pointer"
-                >
-                  {tr('Decline', 'Từ chối')}
+                <Button variant="cta" size="none" onClick={allowAll} className={pairButton}>
+                  {tr('Allow all', 'Cho phép tất cả')}
                 </Button>
               </div>
               </div>
-            </>
-          ) : (
-            <>
-              {/* ⚠️ The settings view keeps the mascot beside it — the ask view moved its copy into
-                  the consent half, and without this the mascot would vanish entirely on this view. */}
-              <div className="flex items-center gap-3">
-              <Mascot name="cookie" className="hidden h-20 w-20 shrink-0 self-center text-foreground sm:block" />
-              <div className="min-w-0 flex-1">
-              <DialogPrimitive.Title className="text-base font-bold leading-tight text-foreground">{tr('Your choices', 'Lựa chọn của bạn')}</DialogPrimitive.Title>
-              <div className="mt-1.5 -ml-1.5 space-y-0">
-                <Toggle locked value title={tr('Essential', 'Cần thiết')} desc={tr('Sign-in & speed. Always on.', 'Đăng nhập & tốc độ. Luôn bật.')} />
-                <Toggle value={perso} onChange={onPerso} title={tr('Personalized', 'Cá nhân hoá')} desc={tr('Rank the most relevant items first from your activity.', 'Xếp hạng mục phù hợp nhất theo hoạt động của bạn.')} />
-                <Toggle value={ads} onChange={onAds} title={tr('Ad personalization', 'Quảng cáo cá nhân hoá')} desc={tr('Ad-network signals (Meta/Google) for retargeting.', 'Tín hiệu mạng quảng cáo (Meta/Google) để tiếp thị lại.')} />
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2.5">
-                <Button variant="cta" size="none" onClick={save} className={primary}>{tr('Save', 'Lưu')}</Button>
-                <Button variant="ghost" size="none" onClick={decline} className={ghost}>{tr('Decline all', 'Từ chối tất cả')}</Button>
-              </div>
-              </div>
-              </div>
-            </>
-          )}
         </div>
       </DialogPrimitive.Popup>
     </div>

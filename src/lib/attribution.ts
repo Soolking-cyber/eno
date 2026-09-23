@@ -6,8 +6,14 @@
 // calls; a few synchronous cookie ops captured in a mount effect, so it never blocks
 // first paint. First-touch is sticky (180d) so the channel that ORIGINALLY brought a
 // visitor gets the credit even if they sign up days later from a direct visit.
+//
+// ⛔ IT IS MARKETING ATTRIBUTION, SO IT RIDES ON THE ANALYTICS PURPOSE (consent v2 `a`), NOT ON
+// PERSONALIZATION. v1 wrote it for any tier above 'essential', whose toggle said only "rank the most
+// relevant items first" — nothing about which campaign brought you. The server-side copy onto the
+// Profile at signup is gated on the same purpose (account-type/route.ts), and the consent cleanup
+// deletes the cookie on every load where `a` is not granted (src/lib/consent-runtime.ts).
 
-import { getConsent } from './consent'
+import { consentAnswered, hasAnalyticsConsent } from './consent'
 
 export const ATTR_COOKIE = 'eno_attr'
 const MAX_AGE_DAYS = 180
@@ -89,18 +95,21 @@ function unpack(raw: string): Attribution | null {
   } catch { return null }
 }
 
-const ATTR_SESSION_KEY = 'eno_attr_pending'
+export const ATTR_SESSION_KEY = 'eno_attr_pending'
 
 /** Client: capture FIRST-touch (only if none stored yet). Idempotent + cheap.
- *  CONSENT-AWARE (2026-07-06 compliance verification): first-touch data only
- *  exists at the moment of landing, so it's staged in sessionStorage (ephemeral,
- *  dies with the tab) — but the 180-day cookie is written ONLY once the visitor
- *  makes a consent choice above 'essential'. Declining leaves nothing persistent.
- *  Called again on the eno:consent event to promote the staged value. */
+ *  CONSENT-AWARE: first-touch data only exists at the moment of landing, so it's
+ *  staged in sessionStorage (ephemeral, dies with the tab) — but the 180-day cookie is
+ *  written ONLY once the visitor switches Analytics on. Declining leaves nothing
+ *  persistent, and drops the staged copy too. Called again on the eno:consent event to
+ *  promote (or drop) the staged value. */
 export function captureFirstTouch(): void {
   if (typeof window === 'undefined') return
   try {
     if (readRawCookie(ATTR_COOKIE, document.cookie)) return // already have first-touch
+    const allowed = hasAnalyticsConsent()
+    // Answered WITHOUT Analytics: nothing may be promoted later, so nothing is staged either.
+    if (!allowed && consentAnswered()) { sessionStorage.removeItem(ATTR_SESSION_KEY); return }
     let packed = sessionStorage.getItem(ATTR_SESSION_KEY)
     if (!packed) {
       const attr = deriveFromLocation()
@@ -108,22 +117,23 @@ export function captureFirstTouch(): void {
       packed = pack(attr)
       sessionStorage.setItem(ATTR_SESSION_KEY, packed)
     }
-    const consent = getConsent()
-    if (consent === null || consent === 'essential') return // stay ephemeral
+    if (!allowed) return // not answered yet — stay ephemeral (dies with the tab)
     const maxAge = MAX_AGE_DAYS * 24 * 60 * 60
     document.cookie = `${ATTR_COOKIE}=${encodeURIComponent(packed)}; path=/; max-age=${maxAge}; SameSite=Lax`
     sessionStorage.removeItem(ATTR_SESSION_KEY)
   } catch { /* cookies blocked / never break the page for analytics */ }
 }
 
-/** Client: read the stored first-touch (to enrich GA conversion events). */
+/** Client: read the stored first-touch (to enrich GA conversion events). Needs `a`. */
 export function getAttribution(): Attribution | null {
-  if (typeof window === 'undefined') return null
+  if (typeof window === 'undefined' || !hasAnalyticsConsent()) return null
   const raw = readRawCookie(ATTR_COOKIE, document.cookie)
   return raw ? unpack(raw) : null
 }
 
-/** Server: parse the first-touch cookie from a request's Cookie header. */
+/** Server: parse the first-touch cookie from a request's Cookie header.
+ *  ⚠️ This does NOT check consent — the caller must (account-type/route.ts gates it on
+ *  `serverConsent(headers).a`). A cookie that outlived a withdrawal is still sent. */
 export function parseAttributionCookie(cookieHeader: string | null | undefined): Attribution | null {
   if (!cookieHeader) return null
   const raw = readRawCookie(ATTR_COOKIE, cookieHeader)

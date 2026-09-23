@@ -1,180 +1,222 @@
-// Cookie / storage consent — three tiers (fine-tunable in the consent dialog):
-//   'essential'    = functional storage only (caching the user's OWN data — inbox,
-//                    prefs, recently-viewed — for instant repeat loads).
-//   'personalized' = essential + on-site personalization (the "For You" rail may use
-//                    the user's stored on-site activity). NO ad-network pixels.
-//   'all'          = personalized + ad-network signals (Meta/Google retargeting).
-// Before any choice, functional caching stays in-memory only (cleared on reload).
-export const CONSENT_KEY = 'eno-cookie-consent'
-export type ConsentLevel = 'all' | 'personalized' | 'essential'
+// Cookie / storage consent — v2: three independent purposes, all OFF until the visitor switches
+// them on (src/lib/consent-value.ts has the format and the reading rule, shared with the server):
+//   p — personalization: the "For You" and "Recently viewed" rows, ranked on our own servers from
+//       the visitor's on-site searches and views. The view/category history is not even SAVED
+//       without it (src/lib/reco-signals.ts).
+//   a — analytics: Google Analytics 4 and the first-touch attribution cookie `eno_attr`.
+//   d — advertising: Meta Conversions API (browser beacon + server) and Google ad signals.
+// Nothing non-essential runs before an answer, and "no answer" is never read as a yes (PDPL
+// 91/2025 Art 9(4)(d): silence is not consent; Decree 356/2025 Art 6(3): no default consent).
+//
+// ⚠️ INSIDE THE NATIVE APPS `a` AND `d` ARE ALWAYS OFF, whatever is stored (Apple's App Tracking
+// Transparency applies to web views and the apps show no ATT prompt). The override is applied at
+// READ time here and on the server (consent-value.ts `serverConsent`), so a stored value can never
+// switch them on inside the app.
+import {
+  CONSENT_MAX_AGE_S,
+  CONSENT_V2_KEY,
+  CONSENT_COPY_VERSION,
+  CONSENT_VERSION,
+  LEGACY_LOCAL_KEY,
+  LEGACY_SHARED_KEY,
+  NATIVE_UA_RE,
+  isConsentExpired,
+  parseConsentV2,
+  resolveConsent,
+  serializeConsent,
+  type ConsentAnswer,
+  type ConsentFlags,
+  type ConsentPurpose,
+  type StoredConsent,
+} from './consent-value'
+
+export type { ConsentAnswer, ConsentFlags, ConsentPurpose } from './consent-value'
 
 /**
- * ⛔ THE COOKIE IS THE CROSS-HOST TRUTH; localStorage IS ONLY A FAST PATH. Owner, 2026-08-30:
+ * ⛔ THE COOKIE IS THE CROSS-HOST TRUTH; localStorage IS ONLY A FALLBACK. Owner, 2026-08-30:
  * *"cookies souldnt be asked if there is cookie approved through eno.vn and viceversa"*. A shop's
- * storefront is `<handle>.eno.vn` — a different ORIGIN — so its localStorage is a different store
- * and a visitor who had already consented on eno.vn was asked again on every shop, and again on
- * the way back. Reading the cookie when localStorage is empty is what makes one answer count
- * everywhere, in both directions.
+ * storefront is `<handle>.eno.vn` — a different ORIGIN, with its own localStorage — so the v2 cookie is
+ * scoped to the registrable domain and every host of an edition reads the same answer, including a
+ * WITHDRAWAL made on another host. (eno.vn and eno.forum are different sites: an answer on one is not
+ * an answer on the other, and cannot be.)
  *
- * ⚠️ SHARING THIS COOKIE IS SAFE IN A WAY SHARING THE SESSION IS NOT, and the distinction is worth
- * stating because the two decisions look alike. A consent level is a PREFERENCE — the worst a
- * hostile subdomain could do with it is claim you already consented, which the dialog itself lets
- * anyone do in one click. The session cookie is a CREDENTIAL and is deliberately not httpOnly
- * (ed222c6d), so widening THAT would hand every shop's page a visitor's token. See storefront.ts.
+ * ⚠️ SHARING THIS COOKIE IS SAFE IN A WAY SHARING THE SESSION IS NOT. A consent answer is a PREFERENCE —
+ * the worst a hostile subdomain could do with it is claim you consented, which the dialog lets anyone
+ * do in one click. The session cookie is a CREDENTIAL (see storefront.ts).
  */
-/**
- * ⛔ THE SHARED COOKIE HAS ITS OWN NAME, AND THAT IS THE FIX FOR A PROBLEM THREE ROUNDS OF REVIEW
- * COULD NOT CLOSE ANY OTHER WAY. Reusing `CONSENT_KEY` for the domain-scoped cookie meant two
- * cookies with the SAME NAME — the legacy host-only one and the new shared one. Cookies are keyed
- * by (name, domain, path), `document.cookie` returns both, and the order is not specified. Deleting
- * the old one was tried and does not work either: a delete only reaches the host doing the writing,
- * so a storefront can clear its own host-only copy but never the one sitting on eno.vn — leaving a
- * stale pre-migration value able to outrank a newer choice, including a WITHDRAWAL, which is the
- * direction that actually matters. A distinct name makes the two distinguishable, so the shared one
- * is read unambiguously and the legacy one stays a harmless fallback until it expires.
- *
- * ⚠️ MIGRATION IS LAZY, AND ONE VISIT IS NOT ENOUGH FOR EVERYONE. The shared cookie can only be
- * written by a host that can already SEE the old answer, so a visitor who consented on eno.vn
- * before this shipped and whose next stop is a storefront IS asked once more there. Their next
- * visit to either host writes the shared cookie and it never happens again. That one prompt is the
- * price of not having a server-side migration, and it is the safe direction to fail.
- */
-const SHARED_KEY = 'eno-consent'
-
 function cookieValue(name: string): string | null {
   if (typeof document === 'undefined') return null
   const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
-  return m ? decodeURIComponent(m[1]) : null
+  if (!m) return null
+  try { return decodeURIComponent(m[1]) } catch { return m[1] }
 }
 
-/** The cross-host answer, or null when this browser has not been migrated yet. */
-function readCookie(): string | null {
-  return cookieValue(SHARED_KEY)
+function localGet(key: string): string | null {
+  try { return localStorage.getItem(key) } catch { return null } // private mode / blocked storage
 }
+
+function localSet(key: string, value: string): void {
+  try { localStorage.setItem(key, value) } catch { /* private mode — the cookie alone is enough */ }
+}
+
+const nowS = () => Math.floor(Date.now() / 1000)
 
 /**
- * ⛔ THE COOKIE WINS, AND THE FIRST VERSION HAD IT THE OTHER WAY ROUND — A CONSENT-WITHDRAWAL BUG.
- * Preferring localStorage looks like a harmless fast path and is not: localStorage is PER-ORIGIN,
- * so once `gmbr.eno.vn` had cached `all`, a visitor who later downgraded to `essential` on eno.vn
- * updated the shared cookie and that storefront went on reading its own stale `all` forever. Three
- * reviewers landed on it independently, and it is the direction that matters — an ignored GRANT is
- * an unnecessary dialog, an ignored WITHDRAWAL is processing personal data after someone said stop.
- * ⚠️ localStorage IS NOW ONLY A FALLBACK, for the two cases the cookie cannot cover: a browser that
- * rejects the domain attribute, and a user who consented before this shipped and has a host-only
- * entry with no cookie yet.
+ * True inside the Capacitor shell or the SwiftUI app's web tabs. Mirrors the two detections the repo
+ * already uses (src/lib/native-auth.ts `isNativeApp`, src/context/auth-context.tsx's UA test).
  */
-function read(): string | null {
-  if (typeof window === 'undefined') return null
-  const shared = readCookie()
-  if (shared) return shared
+export function isNativeContext(): boolean {
+  if (typeof window === 'undefined') return false
   try {
-    const local = localStorage.getItem(CONSENT_KEY)
-    if (local) return local
-  } catch { /* private mode — try the legacy cookie */ }
-  // ⚠️ LAST RESORT: the pre-migration per-host cookie. It covers a returning consenter whose
-  // localStorage was cleared but whose cookies survived — without it they would be asked again on
-  // the very host where they had already answered.
-  return cookieValue(CONSENT_KEY)
+    const c = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
+    if (c?.isNativePlatform?.()) return true
+  } catch { /* a broken bridge is not a native signal */ }
+  return typeof navigator !== 'undefined' && NATIVE_UA_RE.test(navigator.userAgent || '')
 }
 
+/** The stored answer on this device, or null when the visitor has not answered (or it expired). */
+export function readConsent(): ConsentAnswer | null {
+  if (typeof window === 'undefined') return null
+  return resolveConsent(
+    {
+      v2Cookie: cookieValue(CONSENT_V2_KEY),
+      v2Local: localGet(CONSENT_V2_KEY),
+      // v1's own read order: shared cookie, localStorage, host-only cookie.
+      legacy: [cookieValue(LEGACY_SHARED_KEY), localGet(LEGACY_LOCAL_KEY), cookieValue(LEGACY_LOCAL_KEY)],
+    },
+    nowS(),
+  )
+}
+
+/** Has the visitor answered (including a legacy refusal)? Drives whether the card auto-opens. */
+export function consentAnswered(): boolean {
+  return readConsent() !== null
+}
+
+/** May this purpose run on this device right now? Native forces analytics and advertising off. */
+export function hasPurpose(purpose: ConsentPurpose): boolean {
+  const c = readConsent()
+  if (!c || !c[purpose]) return false
+  if (purpose !== 'p' && isNativeContext()) return false
+  return true
+}
+
+export const personalizationAllowed = (): boolean => hasPurpose('p')
+export const hasAnalyticsConsent = (): boolean => hasPurpose('a')
+export const hasAdConsent = (): boolean => hasPurpose('d')
+
 /**
- * The registrable domain to scope the consent cookie to, or null when there is none to scope to.
+ * The registrable domain to scope the v2 cookie to, or null to leave it host-only.
  *
- * ⚠️ NULL ON localhost AND ON AN IP, because `domain=` must be a real registrable domain: a browser
- * silently DROPS a cookie whose domain attribute it does not accept, so setting it there would not
- * be a no-op — it would stop consent persisting at all in local development.
- * ⚠️ THE PORT IS STRIPPED because a domain attribute may not carry one.
+ * ⚠️ NULL ON localhost, AN IP, OR ANY HOST OUTSIDE THE CONFIGURED DOMAIN. A browser silently DROPS a
+ * cookie whose domain attribute does not cover the current host — so a production build previewed on
+ * localhost (NEXT_PUBLIC_APP_URL=https://eno.vn) would otherwise persist nothing at all.
+ * ⚠️ ONE COOKIE, NEVER TWO WITH THE SAME NAME: v1 wrote a host-only and a domain cookie under one name
+ * and could not tell them apart (`document.cookie` order is unspecified). Per host this is always
+ * either domain-scoped or host-only, never both.
  */
 function consentCookieDomain(): string | null {
   const raw = process.env.NEXT_PUBLIC_APP_URL
-  if (!raw) return null
+  if (!raw || typeof location === 'undefined') return null
   try {
-    const host = new URL(raw).hostname.replace(/^www\./, '')
-    if (!host.includes('.') || /^[\d.]+$/.test(host)) return null // localhost, bare host, IPv4
-    return host
+    const domain = new URL(raw).hostname.replace(/^www\./, '')
+    if (!domain.includes('.') || /^[\d.]+$/.test(domain)) return null // localhost, bare host, IPv4
+    const host = location.hostname
+    return host === domain || host.endsWith(`.${domain}`) ? domain : null
   } catch { return null }
 }
 
-
-// On-site personalization (the "For You" rail using the user's OWN stored activity —
-// their eno.vn searches/views, first-party, ranked on our own server) is ON by default:
-// it's functional and never leaves us. Only an EXPLICIT "Essential only / Decline" opts
-// out. (Legacy 'accepted' and an undecided null both keep it on — so a returning user
-// with local searches gets "For You" without re-consenting.) This is independent of the
-// ad-network tier — works even if Meta/Google aren't available.
-export function personalizationAllowed(): boolean {
-  return read() !== 'essential'
-}
-
-// Ad-network signals (Meta/Google retargeting pixels) — only 'all'.
-export function hasAdConsent(): boolean {
-  return read() === 'all'
-}
-
-export function getConsent(): ConsentLevel | null {
-  const v = read()
-  if (v === 'all') return 'all'
-  if (v === 'personalized') return 'personalized'
-  if (v === 'essential' || v === 'accepted') return 'essential'
-  return null
-}
-
-// Mirror the choice into a cookie so the SERVER can see it: server-side Meta CAPI
-// events are personal-data processing under the PDP Law 91/2025 and require the
-// same opt-in as the browser pixel (compliance audit 2026-07-06). localStorage is
-// invisible to API routes; this cookie is the bridge. Fail-closed on the server:
-// no cookie → no ad events.
-function writeConsentCookie(level: string): void {
+function writeCookie(name: string, value: string, maxAge: number, domain: string | null): void {
   try {
-    // ⚠️ `domain=` IS WHAT CARRIES THE ANSWER TO THE STOREFRONTS. A leading dot is not needed —
-    // RFC 6265 treats `domain=eno.vn` as covering its subdomains — and omitting the attribute
-    // entirely (the local-development case) leaves the cookie host-only, exactly as before.
-    const domain = consentCookieDomain()
-    /**
-     * ⚠️ BOTH COOKIES ARE WRITTEN, UNDER DIFFERENT NAMES. See SHARED_KEY for why the shared one
-     * cannot reuse this name. The per-host mirror stays because the SERVER reads it.
-     */
-    // The legacy per-host mirror keeps being written so a rollback of this change still finds a
-    // value, and so server code reading CONSENT_KEY (Meta CAPI, PDP Law 91/2025) is unaffected.
-    document.cookie = `${CONSENT_KEY}=${level}; path=/; max-age=31536000; SameSite=Lax`
-    // The shared one, under its own name, is what every host of this edition reads.
-    if (domain) {
-      document.cookie = `${SHARED_KEY}=${level}; path=/; max-age=31536000; SameSite=Lax; domain=${domain}`
-    }
+    document.cookie = `${name}=${value}; path=/; max-age=${maxAge}; SameSite=Lax${domain ? `; domain=${domain}` : ''}`
   } catch { /* noop */ }
 }
 
-// One-time migration for users who consented before the cookie mirror existed.
-export function syncConsentCookie(): void {
-  const v = read()
-  /**
-   * ⛔ IT REWRITES UNCONDITIONALLY NOW, AND THE OLD `!document.cookie.includes(...)` GUARD WAS
-   * EXACTLY WHAT BLOCKED THE MIGRATION. That guard existed to avoid redundant writes when the
-   * mirror already existed — but every pre-existing consenter HAS a mirror, the host-only one, so
-   * the guard saw it and never wrote the domain-scoped replacement. The result would have been
-   * that the one population this feature was written for — people who already accepted on eno.vn —
-   * kept being asked again on every storefront. Rewriting is cheap and idempotent: the write path
-   * refreshes the per-host mirror and sets the shared cookie under its own name.
-   */
-  if (v && typeof document !== 'undefined') writeConsentCookie(v)
-  /**
-   * ⚠️ AND THE LOCAL COPY IS OVERWRITTEN, NOT FILLED-IN-IF-EMPTY. Writing it only when absent is
-   * what made the stale value above permanent. The cookie is the truth, so the mirror follows it
-   * unconditionally — including downward, when someone has withdrawn consent on another host.
-   */
-  try {
-    const fromCookie = readCookie()
-    if (typeof window !== 'undefined' && fromCookie && localStorage.getItem(CONSENT_KEY) !== fromCookie) {
-      localStorage.setItem(CONSENT_KEY, fromCookie)
-    }
-  } catch { /* private mode — the cookie alone is enough */ }
+/**
+ * Persist a v2 answer everywhere it is read from, WITHOUT extending its life (max-age is what is left
+ * of the 12 months since `ts`), and stamp the legacy slots with the literal refusal — see the header of
+ * consent-value.ts for why every v2 write does that, grants included.
+ */
+function persist(stored: StoredConsent): void {
+  const value = serializeConsent(stored)
+  const maxAge = Math.max(0, stored.ts + CONSENT_MAX_AGE_S - nowS())
+  const domain = consentCookieDomain()
+  writeCookie(CONSENT_V2_KEY, value, maxAge, domain)
+  localSet(CONSENT_V2_KEY, value)
+  writeCookie(LEGACY_LOCAL_KEY, 'essential', maxAge, null)
+  if (domain) writeCookie(LEGACY_SHARED_KEY, 'essential', maxAge, domain)
+  localSet(LEGACY_LOCAL_KEY, 'essential')
 }
 
-// Persist the choice + broadcast it so live components (analytics tags, the For You
-// rail) react without a reload. Defaults to 'all' so a legacy no-arg call still grants
-// everything.
-export function setConsent(level: ConsentLevel = 'all'): void {
-  try { localStorage.setItem(CONSENT_KEY, level) } catch { /* private mode — nothing to do */ }
-  writeConsentCookie(level)
-  try { window.dispatchEvent(new CustomEvent('eno:consent', { detail: level })) } catch { /* noop */ }
+/**
+ * On every load: make the stores agree. The cookie wins; a valid localStorage copy restores a cookie
+ * that was cleared or never accepted. An expired answer is left alone — it reads as "not answered",
+ * and the card asks again.
+ */
+export function syncConsentStorage(): void {
+  if (typeof window === 'undefined') return
+  const src = parseConsentV2(cookieValue(CONSENT_V2_KEY)) ?? parseConsentV2(localGet(CONSENT_V2_KEY))
+  if (!src || isConsentExpired(src, nowS())) return
+  persist(src)
+}
+
+function newConsentId(): string {
+  try { return crypto.randomUUID() } catch { /* very old browser */ }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+}
+
+/** The id this device's earlier answers were recorded under — kept across changes, even after expiry. */
+function existingConsentId(): string | null {
+  return (parseConsentV2(cookieValue(CONSENT_V2_KEY)) ?? parseConsentV2(localGet(CONSENT_V2_KEY)))?.cid ?? null
+}
+
+/** Where the choice was made — recorded with it. */
+export type ConsentSurface = 'banner' | 'settings'
+/** Which control set it — recorded with it ("Allow all" and a hand-set "Save" are different acts). */
+export type ConsentAction = 'allow_all' | 'decline_all' | 'save'
+
+/**
+ * Record the choice on the server (POST /api/consent → the append-only compliance_audit log) — the
+ * evidence Decree 356/2025 Art 6(2) makes the controller hold. Fire-and-forget: a lost record never
+ * blocks the choice itself, and sendBeacon survives the page being closed right after the click.
+ */
+function recordConsent(stored: StoredConsent, meta: { surface: ConsentSurface; action: ConsentAction; locale: string }): void {
+  try {
+    const payload = JSON.stringify({
+      cid: stored.cid,
+      p: stored.p,
+      a: stored.a,
+      d: stored.d,
+      v: CONSENT_VERSION,
+      copy: CONSENT_COPY_VERSION,
+      surface: meta.surface,
+      action: meta.action,
+      locale: meta.locale,
+      ts: stored.ts,
+    })
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      navigator.sendBeacon('/api/consent', new Blob([payload], { type: 'application/json' }))
+      return
+    }
+    // ⚠️ SILENCE IS DELIBERATE: a client-side analytics/consent beacon has no server log to reach, and
+    // a failed record must never surface as an error on a consent click (same reasoning as the
+    // view beacon in src/lib/analytics.ts).
+    // eslint-disable-next-line no-restricted-syntax
+    fetch('/api/consent', { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(() => {})
+  } catch { /* the choice is already stored; the record is best-effort */ }
+}
+
+/**
+ * THE one write path. Persists the answer, tells live components (`eno:consent`), and records it.
+ * Returns what was stored.
+ */
+export function setConsent(
+  flags: ConsentFlags,
+  meta: { surface: ConsentSurface; action: ConsentAction; locale: string },
+): StoredConsent {
+  const stored: StoredConsent = { p: !!flags.p, a: !!flags.a, d: !!flags.d, ts: nowS(), cid: existingConsentId() ?? newConsentId() }
+  persist(stored)
+  try { window.dispatchEvent(new CustomEvent('eno:consent', { detail: { p: stored.p, a: stored.a, d: stored.d } })) } catch { /* noop */ }
+  recordConsent(stored, meta)
+  return stored
 }

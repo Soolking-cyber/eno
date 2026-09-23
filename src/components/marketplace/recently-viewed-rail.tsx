@@ -17,7 +17,8 @@ const MIN_HISTORY_ITEMS = 2
 
 /** "Recently viewed" — the buyer's own trail of opened listings (device-local),
  *  so they can jump back to the exact item without re-searching. Consent-gated
- *  (same bar as the For-You rail); hidden below MIN_HISTORY_ITEMS = 2. Deliberately
+ *  (the Personalization purpose, same bar as the For-You rail — without it the
+ *  history is not even saved); hidden below MIN_HISTORY_ITEMS = 2. Deliberately
  *  NOT the promotional rails' MIN_RAIL_ITEMS=3 floor: this rail is personal recall,
  *  not manufactured density — a buyer on a PDP with exactly two viewed items still
  *  needs the way back to them (guard-review catch, 2026-08-06; briefly raised to 3

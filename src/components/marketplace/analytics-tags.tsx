@@ -3,24 +3,38 @@
 
 import Script from 'next/script'
 import { useEffect, useState } from 'react'
-import { hasAdConsent } from '@/lib/consent'
+import { hasAnalyticsConsent, syncConsentStorage } from '@/lib/consent'
+import { applyConsentMode, enforceConsentCleanup } from '@/lib/consent-runtime'
+import { CONSENT_V2_KEY } from '@/lib/consent-value'
+import { GA_ID } from '@/lib/analytics'
 import { IS_SERVICES } from '@/lib/edition'
 
 // Google Analytics (GA4) only. The Meta Pixel was removed (heaviest 3rd-party,
 // ~233 KiB; only useful for paid Meta-ad retargeting — re-add if you run Meta ads).
 //
-// CONSENT: GA is a third-party tracker, and the PDP Law 91/2025 classifies
-// cyberspace behavioral data as SENSITIVE personal data needing explicit opt-in
-// (compliance audit 2026-07-06) — so BOTH tags load only with the 'all' consent
-// tier, reactively the instant the user grants it. No consent → zero third-party JS.
+// CONSENT (v2): GA loads ONLY with the Analytics purpose (`a`), reactively the instant it is
+// granted — never inside the native apps. It boots with Google Consent Mode set to all-denied and
+// is immediately updated from the visitor's answer: analytics_storage follows `a`, the three ad
+// signals follow Advertising (`d`). That is the BASIC implementation on purpose: the "advanced" one
+// loads the tag before consent and sends cookieless pings, which is still processing IP and device
+// data without consent. No `a` → zero Google Analytics JS.
+// ⚠️ This component is also where consent is ENFORCED on every page: it syncs the stored answer and
+// runs the cleanup (src/lib/consent-runtime.ts) on mount, on every `eno:consent`, and when a choice
+// made in ANOTHER TAB reaches this one (see the effect below).
 //
 // GA is additionally NOT injected until the user FIRST INTERACTS (pointer/key/
 // touch/scroll), with an idle fallback — so ~155 KiB of vendor JS never competes
 // with hydration/LCP/TBT, and Lighthouse (which never interacts) sees a clean
 // critical path. gtag self-queues so a PageView is never dropped. Helpers in
 // lib/analytics.ts guard window.gtag.
-//   NEXT_PUBLIC_GA_ID e.g. G-XXXXXXXXXX (env overrides the public default below)
-const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-CKTZK62B0X'
+//   NEXT_PUBLIC_GA_ID e.g. G-XXXXXXXXXX (env overrides the public default in lib/analytics.ts)
+
+/**
+ * The all-denied Consent Mode default, then the visitor's current answer (`window.__enoCm`, set by
+ * applyConsentMode) if it is already known. Inlined into BOTH bootstraps so whichever runs first
+ * starts denied; later changes arrive as `consent update` pushes (consent-runtime.ts).
+ */
+const CONSENT_DEFAULT = `{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:500}`
 
 /**
  * GOOGLE TAG MANAGER — eno.forum's container, and the reason the Meta Pixel comes back as a TAG
@@ -49,13 +63,42 @@ const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID
 
 export function AnalyticsTags() {
   const [ready, setReady] = useState(false)
-  // Ad-network consent — reactive: flips on the instant the user clicks "Allow".
-  const [adConsent, setAdConsent] = useState(false)
+  // Analytics consent — reactive: flips the instant the visitor grants or withdraws it.
+  const [analytics, setAnalytics] = useState(false)
   useEffect(() => {
-    setAdConsent(hasAdConsent())
-    const on = () => setAdConsent(hasAdConsent())
-    window.addEventListener('eno:consent', on)
-    return () => window.removeEventListener('eno:consent', on)
+    // ⛔ ON EVERY LOAD, not only on a change — see the header of src/lib/consent-runtime.ts.
+    syncConsentStorage()
+    const refresh = () => {
+      enforceConsentCleanup()
+      applyConsentMode()
+      setAnalytics(hasAnalyticsConsent())
+    }
+    refresh()
+    /**
+     * ⛔ A WITHDRAWAL IN ANOTHER TAB MUST REACH THIS ONE TOO. `eno:consent` is a same-tab event, so a
+     * visitor who declined in tab B left tab A's already-loaded gtag.js running: its enhanced-measurement
+     * hits (history-change page views, scrolls) never pass through ga() in src/lib/analytics.ts, GA's
+     * kill switch was never set here, and it rewrote the `_ga` cookie tab B had just deleted — while
+     * /privacy says turning a use off "takes effect immediately on this device".
+     *   · `storage` fires in every OTHER tab of this origin the moment setConsent() writes its
+     *     localStorage copy (key null = storage cleared) — the immediate path.
+     *   · focus / visibilitychange re-read the cookie when this tab is looked at again — the path for a
+     *     browser with localStorage blocked, and for a choice made on another host of the edition
+     *     (a storefront shares the cookie but not this origin's localStorage).
+     * refresh() is idempotent and cheap, so a spurious call costs nothing.
+     */
+    const onStorage = (e: StorageEvent) => { if (e.key === null || e.key === CONSENT_V2_KEY) refresh() }
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
+    window.addEventListener('eno:consent', refresh)
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('eno:consent', refresh)
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   useEffect(() => {
@@ -107,21 +150,27 @@ export function AnalyticsTags() {
         * page says something different there. Code and policy drifting apart is worse than either
         * choice on its own.
         *
-        * ⚠️ WHAT DID NOT CHANGE: GA and the server-side Meta CAPI still require the 'all' tier on
-        * BOTH editions, and eno.vn has no container at all (no GTM_ID in its env). Only this
-        * container is unconditional, so the tags inside it are governed in the GTM console — Google
-        * Consent Mode is the right lever there if consent is ever wanted back.
+        * ⚠️ WHAT DID NOT CHANGE: GA needs the Analytics purpose and the server-side Meta CAPI the
+        * Advertising purpose on BOTH editions, and eno.vn has no container at all (no GTM_ID in its
+        * env). Only this container is unconditional, so the tags inside it are governed in the GTM
+        * console.
+        *
+        * ⚠️ CONSENT v2 GIVES THE CONTAINER A CONSENT STATE: the snippet now pushes the all-denied
+        * Consent Mode default BEFORE gtm.js, then the visitor's answer as an update. Google tags in the
+        * container honour that on their own; a CUSTOM HTML tag (the paused Meta Pixel is one) does NOT
+        * — before it is ever unpaused it must be set to require ad_storage in the GTM console, and
+        * `fb()` in src/lib/analytics.ts refuses to fire without the Advertising purpose either way.
         */}
       {IS_SERVICES && GTM_ID && (
         <Script id="gtm-init" strategy="afterInteractive">
-          {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_ID}');`}
+          {`(function(w,d,s,l,i){w[l]=w[l]||[];function g(){w[l].push(arguments)}g('consent','default',${CONSENT_DEFAULT});if(w.__enoCm)g('consent','update',w.__enoCm);w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_ID}');`}
         </Script>
       )}
-      {ready && adConsent && GA_ID && (
+      {ready && analytics && GA_ID && (
         <>
           <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="lazyOnload" />
           <Script id="ga-init" strategy="lazyOnload">
-            {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA_ID}');`}
+            {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('consent','default',${CONSENT_DEFAULT});if(window.__enoCm)gtag('consent','update',window.__enoCm);gtag('js',new Date());gtag('config','${GA_ID}');`}
           </Script>
         </>
       )}

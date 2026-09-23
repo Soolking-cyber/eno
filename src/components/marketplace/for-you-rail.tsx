@@ -14,8 +14,8 @@ import { ListingCardSkeleton } from './listing-card-skeleton'
 const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district', 'province', 'ward', 'condition', 'priceMin', 'priceMax']
 
 /** "For You" — a horizontal rail at the very top of the home feed. Personalized from
- *  the user's own on-site signals when they've allowed it (consent 'all'); otherwise
- *  Trending. Only shows on the default home view — hides as soon as a filter/search is
+ *  the user's own on-site signals when they switched Personalization on (consent v2 `p`);
+ *  otherwise Trending (plus the search terms they arrived with). Only shows on the default home view — hides as soon as a filter/search is
  *  active (it would be redundant over filtered results). */
 export function ForYouRail({ initial }: { initial?: SerializedListingCard[] }) {
   const { tr } = useLanguage()
@@ -36,8 +36,9 @@ export function ForYouRail({ initial }: { initial?: SerializedListingCard[] }) {
     // stored-history consent, since it's the explicit intent they arrived with.
     const inbound = getInboundQuery()
     if (inbound) terms.push(inbound)
-    // Stored on-site history (searches + viewed categories/brands) — first-party, on by
-    // default (only an explicit "Essential only / Decline" opts out).
+    // Stored on-site history (searches + viewed categories/brands) — only with the
+    // Personalization purpose. ⛔ NOT "on until declined" any more: that sent a visitor's
+    // history to /api/recommendations before they had answered anything (consent v2).
     if (personalizationAllowed()) {
       const s = getRecoSignals()
       terms.push(...s.terms)
