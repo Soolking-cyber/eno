@@ -47,6 +47,19 @@ final class MyListingsModel {
     var listings: [MyListing] = []
     var stats: DashboardResponse.Stats?
     var loaded = false
+    /// Set when a delete came back HIDDEN instead (the account is on hold, or a report about the
+    /// listing or the shop is open — deleting would erase other people's reports and chats). Shown as
+    /// an alert; without it the "deleted" row just reappeared as hidden with no reason (review,
+    /// 2026-09-24). The words are the server's (`message`, the web dashboard's own sentences).
+    var holdNotice: String?
+
+    /// DELETE /api/listings/{id} when the server hid instead of deleting: `hidden: true` and a
+    /// bilingual `message`. Every field optional — an ordinary delete answers `{ ok: true }`.
+    private struct DeleteOutcome: Decodable {
+        struct Message: Decodable { let en: String; let vi: String }
+        let hidden: Bool?
+        let message: Message?
+    }
 
     func load() async {
         if let r: DashboardResponse = try? await APIClient.shared.get("api/dashboard"), let d = r.dashboard {
@@ -76,7 +89,14 @@ final class MyListingsModel {
 
     func delete(_ id: String) async {
         listings.removeAll { $0.id == id }
-        _ = try? await APIClient.shared.send("DELETE", "api/listings/\(id)")
+        // requestData, not send: a 200 is not always a delete — read the body for `hidden`.
+        if let res = try? await APIClient.shared.requestData("DELETE", "api/listings/\(id)"),
+           (200..<300).contains(res.1),
+           let outcome = try? JSONDecoder().decode(DeleteOutcome.self, from: res.0),
+           outcome.hidden == true {
+            holdNotice = outcome.message.map { L10n.isVi ? $0.vi : $0.en }
+                ?? L10n.tr("Hidden, not deleted: this listing is under review.", "Đã ẩn, chưa xóa: tin này đang được xem xét.")
+        }
         await load()
     }
 }
@@ -164,6 +184,15 @@ struct MyListingsView: View {
                 if let t = deleteTarget { Task { await model.delete(t.id) } }
                 deleteTarget = nil
             }
+        }
+        // A delete the server turned into a hide — say why (model.holdNotice).
+        .alert(
+            L10n.tr("Hidden, not deleted", "Đã ẩn, chưa xóa"),
+            isPresented: Binding(get: { model.holdNotice != nil }, set: { if !$0 { model.holdNotice = nil } })
+        ) {
+            Button(L10n.tr("OK", "OK"), role: .cancel) {}
+        } message: {
+            Text(model.holdNotice ?? "")
         }
     }
 

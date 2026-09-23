@@ -21,6 +21,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // A relist the identity gate refused (gate on only) — NOT a bad status value, so it must not fall
   // into the 422 below, whose message would tell the partner their `status` was malformed.
   if (!res.ok && isIdentityBlockCode(res.error)) return apiOk(publishBlockedV1(res.error), r.rate, PUBLISH_BLOCKED_STATUS)
+  // A relist refused because the shop's account is held or suspended (the hold leak — setStatusCore):
+  // the same 403 and codes as a blocked create, and NOT the 422 below, whose message would tell the
+  // partner their `status` was malformed.
+  if (!res.ok && (res.error === 'account_held' || res.error === 'account_suspended')) {
+    return apiError(403, res.error, 'This account is held or suspended, so its listings cannot be put back on sale right now.', r.rate)
+  }
   if (!res.ok) return apiError(422, res.error, 'status must be one of: active, sold, hidden.', r.rate)
   return apiOk({ ok: true, status: res.status }, r.rate)
 }

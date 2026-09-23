@@ -38,6 +38,8 @@ import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { priceChangeEffects } from '@/lib/price-drop'
 import { activateUrgentGate, urgentQuotaFree, URGENT } from '@/lib/urgent'
 import { logError } from '@/lib/log'
+import { blocksPosting, normalizeEnforcementState } from '@/lib/enforcement-machine'
+import type { DeleteHoldReason } from '@/lib/delete-hold-copy'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
 // These hold the business logic for mutating a listing, decoupled from HOW the caller
@@ -164,8 +166,34 @@ export type SoldMeta = { channel?: string | null; buyerProfileId?: string | null
 /**
  * Every code `setStatusCore` can put on the wire. Named for the same reason as the union below.
  * The identity codes are reachable only while IDENTITY_GATE_ENFORCED is on (see identityGateForRevive).
+ * `account_held` / `account_suspended` are the enforcement refusal (enforcementBlockForRevive) — the
+ * same two codes, and the same 403, that postingGate answers a held or suspended poster with.
+ * ⚠️ Spelled out as literals, not as `EnforcementBlockCode`: src/lib/api/errors.test.ts harvests this
+ * union's string LITERALS to decide what is on the wire, and a named alias would be invisible to it.
  */
-export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | IdentityBlockCode
+export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | 'account_held' | 'account_suspended' | IdentityBlockCode
+
+/** The enforcement refusal a revive or a confirm gets while the storefront owner is held or suspended. */
+export type EnforcementBlockCode = 'account_held' | 'account_suspended'
+
+/**
+ * ⛔ THE HOLD LEAK (2026-09-24, owner-approved). A hold PULLS the seller's live listings (verified=false,
+ * recorded so a lift restores exactly those) — but only rows that were ACTIVE at that moment. Their
+ * sold and hidden rows keep verified=true, so relisting one (sold/hidden → active), or confirming it
+ * "still available" (which re-activates), put it straight back on the public feed while the account
+ * was held: a scam-held seller walked their stock back out one listing at a time. Every seller path
+ * — the dashboard, the partner API, MCP, the catalogue sync — reaches the status through
+ * setStatusCore or confirmCore, so this check lives here and nowhere else.
+ *
+ * `state` is the STOREFRONT OWNER's Profile.enforcementState (the person the listing is published
+ * under, as with the identity gate) — not the caller's. An ownerless storefront (a platform import)
+ * has no enforcement state and is never refused. Null = the move may go ahead.
+ */
+function enforcementBlockForRevive(state: unknown): EnforcementBlockCode | null {
+  const s = normalizeEnforcementState(state)
+  if (!blocksPosting(s)) return null
+  return s === 'suspended' ? 'account_suspended' : 'account_held'
+}
 
 /**
  * The seller identity gate for a SELLER-INITIATED revive — a listing moving from sold/hidden back to
@@ -204,11 +232,26 @@ export async function setStatusCore(
   opts?: { publishDecision?: SellerPublishDecision },
 ): Promise<{ ok: true; status: string } | { ok: false; code: number; error: ListingStatusErrorCode }> {
   if (!LISTING_STATUSES.has(status)) return { ok: false, code: 400, error: 'invalid_status' }
-  // Seller identity gate (NĐ 248/2026): relisting is a seller act, so a refused owner is REFUSED,
-  // not held. Only 'active' can publish; sold/hidden are never gated.
+  // Only 'active' can publish; sold/hidden are never gated — taking a listing DOWN is always allowed,
+  // held or not. Both refusals below apply only to a TRANSITION into active (sold/hidden → active): a
+  // row already active stays where it is (a held seller's active rows are the ones the hold pulled).
   if (status === 'active') {
-    const blocked = await identityGateForRevive(listingId, { decision: opts?.publishDecision })
-    if (blocked) return { ok: false, code: 403, error: blocked }
+    // ONE read serves both gates: the row's status and its storefront owner's enforcement state (and
+    // the owner id, which the identity gate would otherwise read a second time).
+    const row = await db.listing.findUnique({
+      where: { id: listingId },
+      select: { status: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } } },
+    })
+    if (row && row.status !== 'active') {
+      // ⛔ The hold leak (enforcementBlockForRevive) — checked FIRST: a held seller is refused whatever
+      // the identity gate would say, and the refusal names the hold rather than a verification step.
+      const held = enforcementBlockForRevive(row.seller.owner?.enforcementState)
+      if (held) return { ok: false, code: 403, error: held }
+      // Seller identity gate (NĐ 248/2026): relisting is a seller act, so a refused owner is REFUSED,
+      // not held.
+      const blocked = await identityGateForRevive(listingId, { currentStatus: row.status, ownerId: row.seller.ownerId, decision: opts?.publishDecision })
+      if (blocked) return { ok: false, code: 403, error: blocked }
+    }
   }
   // ⚠️ A RE-MARK OF A LISTING ALREADY SOLD IS NOT A NEW SALE (review of #26, 2026-09-23). Trust
   // times each sale by soldAt (falling back to updatedAt) to count "clean transactions AFTER a
@@ -281,12 +324,26 @@ export async function setStatusCore(
  * the day's activity earns a (daily-capped) trust reward. Intentionally does NOT
  * revalidate the cached page (recency surfaces live via the client feed).
  */
-export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode }> {
+export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode | EnforcementBlockCode }> {
   const now = new Date()
-  const current = await db.listing.findUnique({ where: { id: listingId }, select: { postedAt: true, status: true, sellerTrustScore: true, featured: true, views: true, contactCount: true } })
+  const current = await db.listing.findUnique({
+    where: { id: listingId },
+    select: {
+      postedAt: true, status: true, sellerTrustScore: true, featured: true, views: true, contactCount: true,
+      // The storefront owner — for the enforcement refusal below and the identity gate (one read).
+      seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } },
+    },
+  })
   // Typed 404 instead of letting the update's P2025 surface as a 500 — the row can
   // vanish between the route's ownership check and this call (delete race).
   if (!current) return { ok: false, code: 404, error: 'not_found' }
+  // ⛔ THE HOLD LEAK (enforcementBlockForRevive) — EVERY confirm while the owner is held or suspended,
+  // not only a revive. A revive would republish a sold/hidden row the hold never pulled; an ordinary
+  // confirm on a pulled row would bump its postedAt (so it came back at the top of the feed the day
+  // the hold ended) and earn the daily engagement reward on a sanctioned account. Neither is "keeping
+  // the listing fresh" — the listing is not for sale while the hold stands.
+  const held = enforcementBlockForRevive(current.seller.owner?.enforcementState)
+  if (held) return { ok: false, code: 403, error: held }
   // Confirm normally runs on an already-active listing. If it ever runs on a sold/hidden
   // one it's a REACTIVATION — which must clear any sale attribution and re-expose the
   // listing (reindex + revalidate + webhook), exactly like setStatusCore's active branch.
@@ -300,7 +357,7 @@ export async function confirmCore(listingId: string, profileId: string): Promise
   // the caller's profile is only the owner on the session route; on /api/v1 it is whichever profile
   // the key belongs to, and the gate is about the person the listing is published under.
   if (wasInactive) {
-    const blocked = await identityGateForRevive(listingId, { currentStatus: current.status })
+    const blocked = await identityGateForRevive(listingId, { currentStatus: current.status, ownerId: current.seller.ownerId })
     if (blocked) return { ok: false, code: 403, error: blocked }
   }
   const bump = canBump(current.postedAt, now.getTime())
@@ -1056,23 +1113,115 @@ export async function createListingCore(input: {
   return { id: listing.id, verified: true }
 }
 
-/** Delete an OWNED listing (cascades reports/conversations); decrements its brand
- *  count, purges the cached page, and drops it from AI search. */
-export async function deleteListingCore(listingId: string): Promise<{ ok: true } | { ok: false; code: 404; error: 'not_found' }> {
-  const gone = await db.listing.findUnique({ where: { id: listingId }, select: { brandSlug: true, sellerId: true, video: true } })
+/** Why a seller's DELETE was turned into a hide (deleteListingCore). */
+export type { DeleteHoldReason } from '@/lib/delete-hold-copy'
+
+export type DeleteListingResult =
+  | { ok: true; deleted: true }
+  | { ok: true; deleted: false; hidden: true; reason: DeleteHoldReason }
+  | { ok: false; code: 404; error: 'not_found' }
+
+/** Plain-English answer for the API/MCP callers (the web dashboard words it itself, bilingual). */
+export const DELETE_HOLD_MESSAGE: Record<DeleteHoldReason, string> = {
+  account_suspended: 'The listing was hidden, not deleted: this account is under review, and deleting would also erase buyers\' reports and chats about it. It can be deleted once the review is over.',
+  account_held: 'The listing was hidden, not deleted: this account is under review, and deleting would also erase buyers\' reports and chats about it. It can be deleted once the review is over.',
+  open_report: 'The listing was hidden, not deleted: a report about it or this shop is still open, and deleting would also erase that report and buyers\' chats. It can be deleted once the report is resolved.',
+}
+
+// The seller-facing, bilingual words for the same outcome live in @/lib/delete-hold-copy (DELETE_HOLD_COPY):
+// a plain module, so the web route, the dashboard hook's drift test and the native clients' contract
+// can all read them without importing this server-only core.
+
+/**
+ * Should this seller-initiated delete become a hide? A listing delete CASCADES its reports (and their
+ * dispute threads) and every buyer's conversation about it — so a held or suspended seller, or one
+ * with an OPEN report against them or the listing, deleting a listing destroys OTHER people's
+ * evidence: the very reports an investigation (and the 14-day window before a scam-hold release)
+ * exists to collect. Same predicate account erasure applies (core/account-erasure.ts, "INVESTIGATION
+ * HOLD"), at listing scope. Null = delete as asked.
+ */
+async function deleteHoldReason(listingId: string, sellerId: string, ownerId: string | null): Promise<DeleteHoldReason | null> {
+  const [owner, openReports] = await Promise.all([
+    ownerId ? db.profile.findUnique({ where: { id: ownerId }, select: { enforcementState: true } }) : Promise.resolve(null),
+    db.report.count({
+      where: {
+        status: 'open',
+        OR: [{ listingId }, { targetSellerId: sellerId }, ...(ownerId ? [{ targetProfileId: ownerId }] : [])],
+      },
+    }),
+  ])
+  const state = normalizeEnforcementState(owner?.enforcementState)
+  if (blocksPosting(state)) return state === 'suspended' ? 'account_suspended' : 'account_held'
+  if (openReports > 0) return 'open_report'
+  return null
+}
+
+/** The zero-row delete inside the transaction — thrown to ROLL BACK the report detach before it. */
+class DeleteRaced extends Error {}
+
+/**
+ * Delete an OWNED listing — or, when it is under investigation (deleteHoldReason), HIDE it instead and
+ * say so. The one core behind every seller-initiated delete: the dashboard (DELETE /api/listings/[id]),
+ * the partner API (DELETE /api/v1/listings/[id]) and the MCP `delete_listing` tool. Bulk import and the
+ * partner sync never hard-delete (the sync RETIRES by hiding). Admin deletes (moderation reject, the
+ * admin listings console) do not come through here and are unchanged.
+ *
+ * A real delete: RESOLVED reports on the listing are detached first (listingId → null, the
+ * account-erasure pattern) so the decided record — a confirmed charge's report included — survives for
+ * the retention window instead of cascading away; then the listing goes, conditionally on still having
+ * no open report, so a report filed between the check and the delete turns it into a hide rather than
+ * erasing it. Conversations still cascade, as before. Then: brand count, cached page, AI search.
+ */
+export async function deleteListingCore(listingId: string): Promise<DeleteListingResult> {
+  const gone = await db.listing.findUnique({
+    where: { id: listingId },
+    select: { brandSlug: true, sellerId: true, video: true, status: true, seller: { select: { ownerId: true } } },
+  })
+  // Vanished between the caller's ownership check and here (concurrent delete) — a typed not-found;
+  // callers that ignore it treat it as an idempotent no-op.
+  if (!gone) return { ok: false, code: 404, error: 'not_found' }
+
+  const hold = await deleteHoldReason(listingId, gone.sellerId, gone.seller.ownerId)
+  if (hold) return hideInsteadOfDelete(listingId, gone.status, hold)
+
   try {
-    await db.listing.delete({ where: { id: listingId } })
+    await db.$transaction(async (tx) => {
+      await tx.report.updateMany({ where: { listingId, status: { not: 'open' } }, data: { listingId: null } })
+      const { count } = await tx.listing.deleteMany({ where: { id: listingId, reports: { none: { status: 'open' } } } })
+      // ⚠️ THROW, DO NOT RETURN (agy, plan review): a zero-row delete must also undo the detach above,
+      // or a report race would leave the listing standing with its resolved reports cut loose.
+      if (count === 0) throw new DeleteRaced()
+    })
   } catch (e) {
-    // Row vanished between the ownership check / findUnique above and the delete
-    // (concurrent delete) — a typed not-found, not an untyped 500. Callers that
-    // ignore the result treat it as an idempotent no-op.
-    if ((e as { code?: string })?.code === 'P2025') return { ok: false, code: 404, error: 'not_found' }
-    throw e
+    if (!(e instanceof DeleteRaced)) throw e
+    // Zero rows: the listing vanished (concurrent delete) or an OPEN report landed after the check.
+    const still = await db.listing.findUnique({ where: { id: listingId }, select: { status: true } })
+    if (!still) return { ok: false, code: 404, error: 'not_found' }
+    return hideInsteadOfDelete(listingId, still.status, 'open_report')
   }
-  if (gone?.brandSlug) after(() => bumpBrandCount(gone.brandSlug!, -1))
-  if (gone?.video) after(() => removeVideoIfOrphaned(gone.video!)) // don't strand the clip — unless another listing still references it
+  if (gone.brandSlug) after(() => bumpBrandCount(gone.brandSlug!, -1))
+  if (gone.video) after(() => removeVideoIfOrphaned(gone.video!)) // don't strand the clip — unless another listing still references it
   revalidatePublicPath(`/listings/${listingId}`)
   after(() => removeFromIndex(listingId)) // drop the deleted listing from AI search
-  if (gone?.sellerId) after(() => dispatchListingEvent('listing.deleted', listingId, gone.sellerId!)) // the listing is gone — pass sellerId explicitly
-  return { ok: true }
+  after(() => dispatchListingEvent('listing.deleted', listingId, gone.sellerId)) // the listing is gone — pass sellerId explicitly
+  return { ok: true, deleted: true }
+}
+
+/**
+ * The hide a refused delete becomes: out of the public feed, search and its page — everything the
+ * seller asked the delete for — with every report and chat intact. Through setStatusCore so the
+ * side effects (purge, de-index, webhook) are the ordinary hide's. An already-hidden row is not
+ * rewritten. A pulled listing (held seller: active + verified=false) leaves the hold's restore list
+ * in effect: restoreListings only republishes rows still 'active'.
+ */
+async function hideInsteadOfDelete(listingId: string, currentStatus: string, reason: DeleteHoldReason): Promise<DeleteListingResult> {
+  if (currentStatus !== 'hidden') {
+    try {
+      await setStatusCore(listingId, 'hidden')
+    } catch (e) {
+      if ((e as { code?: string })?.code === 'P2025') return { ok: false, code: 404, error: 'not_found' }
+      throw e
+    }
+  }
+  return { ok: true, deleted: false, hidden: true, reason }
 }

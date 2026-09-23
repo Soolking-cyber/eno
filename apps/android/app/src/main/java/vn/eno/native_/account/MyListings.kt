@@ -50,6 +50,14 @@ data class MyListing(
     val displayTitle: String get() = if (L10n.isVi) (titleVi ?: title) else title
 }
 
+/// DELETE /api/listings/{id} when the server HID the listing instead of deleting it (the account is on
+/// hold, or a report about the listing or the shop is open): `hidden` + a bilingual `message`. An
+/// ordinary delete answers `{ ok: true }`, which decodes to the defaults.
+@Serializable
+data class DeleteOutcome(val hidden: Boolean = false, val message: Msg? = null) {
+    @Serializable data class Msg(val en: String, val vi: String)
+}
+
 @Serializable
 data class DashboardResponse(val dashboard: Dash? = null) {
     @Serializable data class Dash(val listings: List<MyListing> = emptyList(), val stats: Stats = Stats())
@@ -70,6 +78,9 @@ fun MyListingsScreen(onBack: () -> Unit) {
     var editTarget by remember { mutableStateOf<MyListing?>(null) }
     var deleteTarget by remember { mutableStateOf<MyListing?>(null) }
     var discountTarget by remember { mutableStateOf<MyListing?>(null) }
+    // A delete the server turned into a hide — the reason, in the seller's language (review,
+    // 2026-09-24: the "deleted" row used to reappear as hidden with no explanation).
+    var holdNotice by remember { mutableStateOf<String?>(null) }
 
     fun act(id: String, block: suspend () -> Unit) = scope.launch {
         block()
@@ -97,11 +108,31 @@ fun MyListingsScreen(onBack: () -> Unit) {
             text = { Text(L10n.tr("This can't be undone.", "Không thể hoàn tác.")) },
             confirmButton = {
                 TextButton(onClick = {
-                    act(t.id) { Api.send("DELETE", "api/listings/${t.id}") }
+                    act(t.id) {
+                        // A 200 is not always a delete: read the body for `hidden`. runCatching, as the
+                        // edit sheet does — an offline IOException must not escape the coroutine.
+                        val (code, raw) = runCatching { Api.sendForBody("DELETE", "api/listings/${t.id}") }.getOrNull() ?: (0 to null)
+                        if (code in 200..299 && raw != null) {
+                            val out = runCatching { Api.json.decodeFromString<DeleteOutcome>(raw) }.getOrNull()
+                            if (out?.hidden == true) {
+                                holdNotice = out.message?.let { if (L10n.isVi) it.vi else it.en }
+                                    ?: L10n.tr("Hidden, not deleted: this listing is under review.", "Đã ẩn, chưa xóa: tin này đang được xem xét.")
+                            }
+                        }
+                    }
                     deleteTarget = null
                 }) { Text(L10n.tr("Delete", "Xóa"), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(L10n.tr("Cancel", "Hủy")) } },
+        )
+    }
+
+    holdNotice?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { holdNotice = null },
+            title = { Text(L10n.tr("Hidden, not deleted", "Đã ẩn, chưa xóa")) },
+            text = { Text(msg) },
+            confirmButton = { TextButton(onClick = { holdNotice = null }) { Text("OK") } },
         )
     }
 

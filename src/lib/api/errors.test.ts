@@ -79,7 +79,7 @@ function codesOnTheWire(): Set<string> {
  */
 const RE_EMITTED_UNIONS = [
   { fn: 'updateListingCore', type: 'ListingUpdateErrorCode', file: 'src/lib/core/listings.ts', floor: 5 },
-  { fn: 'setStatusCore', type: 'ListingStatusErrorCode', file: 'src/lib/core/listings.ts', floor: 2 },
+  { fn: 'setStatusCore', type: 'ListingStatusErrorCode', file: 'src/lib/core/listings.ts', floor: 4 },
   { fn: 'updateSellerCore', type: 'SellerUpdateErrorCode', file: 'src/lib/core/seller.ts', floor: 7 },
   // The scam-hold release and overturn: POST /api/admin/enforcement answers each refusal as
   // `{ ...fields, error: r.error }`. Before this row, seven of their nine codes were on the wire with
