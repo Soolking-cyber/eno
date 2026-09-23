@@ -57,7 +57,22 @@ const num = (name: string, fallback: number, min: number, max = Number.MAX_SAFE_
 const LIMIT = num('limit', 0, 0)
 const MAX_IMAGES = num('max', 5, 1, 10)
 const REQUEST_GAP_MS = num('gap', 1000, 1000)
-const POOL = num('pool', 4, 1, 8)
+/** ⚠️ CEILING RAISED 8 → 10 (owner, 2026-09-15: "10 workers update"). This parallelises the HOSTING
+ *  only — the Tiki reads stay one-per-`--gap`, so at the box's required `--gap 2000` the throttle,
+ *  not the pool, is what sets throughput; 10 buys burst headroom for listings with full galleries
+ *  rather than a proportional speed-up. It does raise concurrent CPU/network on a box where
+ *  supabase-db was measured at 108% on 2026-09-15, so it is a ceiling, not a default: the default
+ *  stays 4 and the value has to be asked for. */
+const POOL = num('pool', 4, 1, 10)
+/** ⛔ AND THE GAP IS WHAT MAKES THE TOP OF THAT RANGE SAFE, SO ENFORCE IT RATHER THAN DESCRIBE IT
+ *  (reviewer). The paragraph above justifies 10 by "at the box's required `--gap 2000` the throttle
+ *  sets throughput" — but nothing stopped `--pool 10` with the DEFAULT 1000ms gap, which is exactly
+ *  the combination that was never measured and the one an operator reaches for after reading "10
+ *  workers". A comment cannot hold that invariant; this can. */
+if (POOL > 8 && REQUEST_GAP_MS < 2000) {
+  console.error(`--pool ${POOL} needs --gap 2000 or more (got ${REQUEST_GAP_MS}): above 8 the upstream throttle is what keeps the box's load bounded.`)
+  process.exit(1)
+}
 
 const BUCKET = 'listings'
 const storageUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '')
