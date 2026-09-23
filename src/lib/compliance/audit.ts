@@ -18,7 +18,12 @@ import type { LegalBasisKey } from './legal-basis'
 // UPDATE/DELETE are additionally blocked by RULEs — see scripts/compliance-ddl.mjs.
 
 export type AuditActorType = 'user' | 'admin' | 'authority' | 'system'
-export type AuditSubjectType = 'profile' | 'listing' | 'seller'
+/**
+ * `consent` — a cookie-consent record (POST /api/consent). Its subjectId is the random consent id kept
+ * in the visitor's consent cookie, NOT a person: most consent is given by guests, and the record must
+ * prove what was agreed without identifying anyone beyond what the visitor's own device holds.
+ */
+export type AuditSubjectType = 'profile' | 'listing' | 'seller' | 'consent'
 
 export type AuditInput = {
   actorType: AuditActorType
@@ -78,8 +83,13 @@ type Tx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction'
  *
  * ⚠️ THE ADVISORY LOCK IS NOT OPTIONAL. Two concurrent appends that both read the same `prevHash`
  * produce a FORK — two rows claiming the same predecessor — which is indistinguishable from
- * tampering to anyone auditing later. A transaction-scoped lock serialises appends; at this write
- * volume (a handful per day) the contention cost is irrelevant next to an unverifiable log.
+ * tampering to anyone auditing later. A transaction-scoped lock serialises appends.
+ * ⚠️ THE VOLUME IS NO LONGER "A HANDFUL PER DAY". Consent records (POST /api/consent, consent v2) made
+ * this a per-VISITOR write path, and every append — a visitor's beacon, a KYC decision, an account
+ * erasure — queues on this ONE lock while holding a pool connection. A high-volume caller must bound
+ * its own wait (the consent route sets a transaction-local `lock_timeout` and gives up, logged, rather
+ * than queueing in front of a KYC or erasure write). Watch `consent.record` errors and pool waits after
+ * a deploy that re-asks everyone; the lasting fix is a dedicated consent table, which is a schema change.
  */
 export async function appendAudit(tx: Tx, input: AuditInput) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('compliance_audit'))`
