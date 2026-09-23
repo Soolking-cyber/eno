@@ -67,7 +67,15 @@ export function PreferencesInline({ className, compact = false }: { className?: 
           // dark enough to clear the 3:1 floor for a non-text UI part on its own — ink-3
           // (#737373) is 4.35:1 against the track and 4.74:1 against the knob. In dark it is
           // #b8b8b8 and merely decorative, because the fill already carries the boundary.
-          'h-7 w-7 top-1 left-1 data-checked:left-7 shadow-sm ring-1 ring-ink-3 duration-200 ease-out',
+          //
+          // ⛔ `translate-x-6`, NOT `data-checked:left-7` — AND THE TWO CANNOT BE MIXED. ui/switch
+          // moved its thumb travel from `left` to `transform` (a layout property animating on the
+          // most-pressed control in the app). tailwind-merge treats `left-*` and `translate-x-*` as
+          // DIFFERENT groups, so a `left` override here would not replace the base's transform: both
+          // would apply, and this knob would travel 28px + 20px on a 60px track — right off the end.
+          // Same arithmetic as before: the thumb rests at `left-1` (4px) and must sit at 28px when
+          // checked, so the travel is 24px = `translate-x-6`.
+          'h-7 w-7 top-1 left-1 data-checked:translate-x-6 shadow-sm ring-1 ring-ink-3 duration-200 ease-out',
           // SURFACE INK, both faces (lead ruling R2, 2026-08-07; icon-language §0/§6). The
           // R1 thumb wore text-warning amber for the sun and brand blue for the moon — a
           // second hue inside shell chrome (neither a rating star nor an allowlisted

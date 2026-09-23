@@ -2539,6 +2539,23 @@ html.dark .leaflet-tile-pane {
    */
   backdrop-filter: none !important;
 }
+/**
+ * ⛔ THE FLIP LOADER ANSWERS THIS TOO, AND IT ALMOST DID NOT. `.eno-flip` declares `backdrop-filter`
+ * in raw CSS rather than through a `backdrop-blur` utility, so it slipped past BOTH guards: it does
+ * not carry the `material` marker, and design-lint only requires that marker where it sees the
+ * utility. A reader who turns transparency down would have met the one surface in the app that
+ * ignored them — and it is a LOADING indicator, i.e. exactly the thing they need to read.
+ *
+ * ⚠️ Opaque brand, not `--background`: the tile IS the brand mark at rest, so full opacity of its
+ * own tint is what it already means minus the transparency — the same rule the surfaces below
+ * follow. The punched-out "e" still reads, because the hole is a mask, not a colour.
+ */
+.reduce-transparency .eno-flip {
+  backdrop-filter: none !important;
+  /* `background-color`, matching every sibling rule below: the shorthand would also reset
+     background-image/-size/-position, which is a wider blast radius than this rule needs. */
+  background-color: var(--brand) !important;
+}
 .reduce-transparency .material.bg-background\/95 { background-color: var(--background) !important; }
 .reduce-transparency .material.bg-popover\/95 { background-color: var(--popover) !important; }
 .reduce-transparency .material.bg-card\/70 { background-color: var(--card) !important; }
@@ -2558,6 +2575,14 @@ html.dark .leaflet-tile-pane {
   .material {
     /* Unprefixed only — see the note above; writing the -webkit- twin deletes this line. */
     backdrop-filter: none !important;
+  }
+  /* Same reasoning as `.material`: a blurred tile has no boundary once the blur is gone. The loader
+     becomes a solid brand shape with a defined edge in the current ink. */
+  .eno-flip {
+    backdrop-filter: none !important;
+    background-color: var(--brand) !important;
+    /* The base rule already declares `border: 1px solid …`, so recolouring alone yields the edge. */
+    border-color: currentColor !important;
   }
   /**
    * ⚠️ THE EDGE IS FOR THE RESTING STATE ONLY — `:not(:focus-visible)` OR THIS ERASES THE FOCUS

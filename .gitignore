@@ -156,3 +156,12 @@ data/supersports-links.json
 .fb-state.json
 data/fb-posts.jsonl
 data/demand-queue.json
+
+# ⛔ SCRATCH DIRECTORIES TAILWIND WOULD OTHERWISE SCAN INTO THE PRODUCTION STYLESHEET.
+# Tailwind v4 detects sources automatically and honours .gitignore — so an UNIGNORED stray file is
+# a source file. `.design/` holds 10 hand-written HTML mockups, and one of them
+# (first-run-popup.html) put an `after:animate-[cds-shimmer_2s_linear_infinite]` utility into the
+# shipped CSS: a second shimmer system, at 2s, that exists nowhere in src/ and that no page renders.
+# Ignoring them removes the dead rules and keeps the working tree readable.
+.design/
+.impeccable/

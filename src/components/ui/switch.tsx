@@ -19,13 +19,21 @@ import { hapticTap } from '@/lib/haptics'
 // is needed here.) Bonus: `.data-checked\:bg-primary[data-checked]` is class+attribute specificity, so it
 // beats the plain `bg-input` base regardless of stylesheet order.
 const SIZES = {
+  /**
+   * ⛔ THE THUMB TRAVELS BY `transform`, NOT BY `left`. Animating `left` is a LAYOUT property: every
+   * frame of a toggle — the most-pressed control in any settings screen — went through layout and
+   * paint instead of staying on the compositor. The travel is identical and the arithmetic is
+   * exact, so nothing moved: the track is 36px with a 16px thumb resting at `left-0.5` (2px), so
+   * checked sits at 36 − 16 − 2 = 18px, i.e. 16px of travel = `translate-x-4`. The md track is 44px
+   * with a 20px thumb: 44 − 20 − 2 = 22px, i.e. 20px = `translate-x-5`.
+   */
   sm: {
     track: 'h-5 w-9',
-    thumb: 'h-4 w-4 left-0.5 data-checked:left-[18px]',
+    thumb: 'h-4 w-4 left-0.5 data-checked:translate-x-4',
   },
   md: {
     track: 'h-6 w-11',
-    thumb: 'h-5 w-5 left-0.5 data-checked:left-[22px]',
+    thumb: 'h-5 w-5 left-0.5 data-checked:translate-x-5',
   },
 } as const
 
@@ -84,7 +92,9 @@ export function Switch({
     >
       <BaseSwitch.Thumb
         className={cn(
-          'absolute top-0.5 flex items-center justify-center rounded-full bg-white shadow transition-[left]',
+          // ⚠️ A spring, not a linear ramp: a toggle is a physical object and the house `--ease-spring`
+          // token is the app's critically-damped curve (Apple's damping 1.0 / response ~0.3).
+          'absolute top-0.5 flex items-center justify-center rounded-full bg-white shadow transition-transform duration-200 ease-[var(--ease-spring)]',
           s.thumb,
           thumbClassName,
         )}
