@@ -75,6 +75,7 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   'src/lib/affiliate-price-refresh.ts': { count: 1, why: 'restore of OWNERLESS affiliate storefronts only — no person to verify' },
   'scripts/import-rever-rentals.ts': { count: 2, why: 'reference-listing importer onto a platform-owned (ownerless) seller' },
   'scripts/import-batdongsan-rentals.ts': { count: 2, why: 'reference-listing importer onto a platform-owned (ownerless) seller' },
+  'scripts/import-nhatot-com.ts': { count: 4, why: 'reference-listing importer onto an ownerless platform seller — create-only status/verified (2) + the dry-run sample literal + the printed retire UNDO SQL; refuses an owned or badged seller' },
   'scripts/hide-imageless-imports.ts': { count: 2, why: 'operator repair script over the platform import sellers' },
   'scripts/seed-visa-shop.mjs': { count: 4, why: 'services-edition desk seed (platform seller)' },
   'scripts/seed-trip-desk.mjs': { count: 2, why: 'services-edition trip desk seed (platform seller)' },
