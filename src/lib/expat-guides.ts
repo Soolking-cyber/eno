@@ -144,6 +144,20 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
     blurb:
       'What fair wear and tear means in practice, the handover photos that settle arguments, and how to escalate.',
   },
+  {
+    slug: 'ban-do-cu-o-dau-duoc-gia',
+    lang: 'vi',
+    label: 'Bán đồ cũ ở đâu được giá',
+    blurb:
+      'Khoảng giá thị trường theo từng loại món, và khi nào bán xô cho cửa hàng thu mua mới thực sự hợp lý.',
+  },
+  {
+    slug: 'dang-tin-ban-hang-mien-phi',
+    lang: 'vi',
+    label: 'Đăng tin bán hàng miễn phí',
+    blurb:
+      'Đăng tin không mất phí, cần gì để tin được duyệt, và vì sao các quy định đó khiến miễn phí không thành rác.',
+  },
 ] as const
 
 /**

@@ -232,6 +232,8 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "src/app/\\[lang\\]/do-cu-cua-nguoi-nuoc-ngoai/page.tsx",
     "src/app/\\[lang\\]/renting-an-apartment-vietnam-foreigner/page.tsx",
     "src/app/\\[lang\\]/rental-deposit-vietnam/page.tsx",
+    "src/app/\\[lang\\]/dang-tin-ban-hang-mien-phi/page.tsx",
+    "src/app/\\[lang\\]/ban-do-cu-o-dau-duoc-gia/page.tsx",
     // THE PHONE-BUYING CLUSTER (src/lib/phone-guides.ts) — sixteen articles, eight topics, each
     // topic written twice: once in English for English queries, once in Vietnamese for Vietnamese
     // ones.
