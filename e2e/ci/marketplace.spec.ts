@@ -95,6 +95,19 @@ test.describe('marketplace, against known fixtures', () => {
     await expect(page.getByText('Fixture bicycle').first()).toBeVisible()
   })
 
+  // ⛔ AUDIT #3, REPRODUCED LIVE ON /c/rentals: the header sent search, map, brand and area picks
+  // to the explorer as window events on every /c/* page, but those pages never mount it — Enter did
+  // nothing and no request left the page. This asserts the destination, which is the same whether
+  // the header has hydrated (explorerFallbackUrl) or not (the form's native GET + hidden category).
+  test('the header search on a category landing page searches — inside that category', async ({ page }) => {
+    await page.goto('/c/vehicles')
+    const box = page.getByRole('searchbox', { name: 'Search' }).first()
+    await box.fill('bicycle')
+    await box.press('Enter')
+    await expect(page).toHaveURL(/\/\?(?=.*\bcategory=vehicles\b)(?=.*\bq=bicycle\b)/)
+    await expect(page.getByText('Fixture bicycle').first()).toBeVisible()
+  })
+
   // ⚠️ THE OWNER REPORTED THIS TWICE ("the text overlaps"), AND A UNIT TEST CANNOT SEE IT: the
   // price is an inline run, so its own scrollWidth/clientWidth are 0 — only its rect against the
   // CARD's rect shows the spill. Measured on prod before the fix: 8 of 8 service cards overflowed

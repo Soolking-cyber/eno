@@ -1,4 +1,5 @@
 'use client'
+import { categoryFromPath, explorerMounted, explorerFallbackUrl } from '@/lib/explorer-presence'
 
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -115,9 +116,11 @@ export function Header() {
     }
   }, [])
 
-  // Explorer pages (home + category) mount the ListingsExplorer, which listens for
-  // our search/district custom events. Elsewhere we navigate to the home explorer.
-  const isExplorerPage = pathname === '/' || (pathname?.startsWith('/c/') ?? false)
+  // ⛔ ASK, DON'T GUESS FROM THE PATH. The ListingsExplorer listens for our search/area/map events;
+  // where it is not mounted we navigate to the home explorer instead (keeping a /c/<category> page's
+  // category — see explorer-presence.ts). Deciding by pathname sent every /c/* page's search into
+  // the void: those pages never mounted the explorer. Evaluated at ACTION time, not render time.
+  const onExplorer = () => explorerMounted()
   // Active-page indicator for the desktop header icons (mirrors the mobile bottom nav).
 
   // Chợ Tốt-style: the in-header search + area selector appear once the big hero
@@ -208,7 +211,7 @@ export function Header() {
     if (it.type === 'brand') {
       // Open the brand's facets — the explorer resolves its dominant category.
       const url = `/?brand=${encodeURIComponent(it.slug)}`
-      if (isExplorerPage) window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url } }))
+      if (onExplorer()) window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url } }))
       else router.push(url)
       return
     }
@@ -262,10 +265,10 @@ export function Header() {
 
   const submitSearch = (raw: string) => {
     const q = raw.trim()
-    if (isExplorerPage) {
+    if (onExplorer()) {
       window.dispatchEvent(new CustomEvent('eno:search', { detail: { query: q } }))
     } else {
-      router.push(q ? `/?q=${encodeURIComponent(q)}` : '/')
+      router.push(explorerFallbackUrl(pathname, { q }))
     }
   }
 
@@ -275,17 +278,16 @@ export function Header() {
   const submitVisual = (r: { query: string; category?: string | null; brand?: string | null }) => {
     const q = (r.query || '').trim()
     if (!q) return
-    if (isExplorerPage) {
+    if (onExplorer()) {
       window.dispatchEvent(new CustomEvent('eno:visual-search', { detail: r }))
     } else {
-      const p = new URLSearchParams({ q, match: 'any' })
-      if (r.category) p.set('category', r.category)
-      router.push(`/?${p.toString()}`)
+      // The photo's detected category wins; otherwise the landing page's own.
+      router.push(explorerFallbackUrl(pathname, { q, match: 'any', ...(r.category ? { category: r.category } : {}) }))
     }
   }
 
   const applyArea = ({ province: p, ward: w, nearby: nb }: { province: Geo | null; ward: Geo | null; nearby: Nearby | null }) => {
-    if (isExplorerPage) {
+    if (onExplorer()) {
       window.dispatchEvent(new CustomEvent('eno:set-area', { detail: { province: p, ward: w, nearby: nb } }))
     } else {
       // One-shot handoff (audit P2): the explorer only hears LIVE eno:set-area events,
@@ -293,7 +295,7 @@ export function Header() {
       // dropped the chosen area. Same consume-once sessionStorage idiom as
       // eno:video-return; the explorer applies it on mount.
       try { sessionStorage.setItem('eno:pending-area', JSON.stringify({ province: p, ward: w, nearby: nb })) } catch { /* storage blocked */ }
-      router.push('/') // off the explorer: jump to the home feed
+      router.push(explorerFallbackUrl(pathname)) // off the explorer: jump to the home feed (same category)
     }
   }
 
@@ -464,6 +466,10 @@ export function Header() {
                had appeared. An element that was already on screen has nothing to animate in. */
             className="relative min-w-0 flex-1"
           >
+            {/* ⚠️ Before hydration Enter is a native GET to "/": on a /c/<category> landing page this
+                keeps the category, so the unhydrated search lands where submitSearch() sends the
+                hydrated one (explorerFallbackUrl). A hidden field does not block implicit submission. */}
+            {categoryFromPath(pathname) ? <Input type="hidden" name="category" value={categoryFromPath(pathname) ?? ''} readOnly /> : null}
             {/* Positioning context for the whole search component. The form is `flex-1`, so the bar
                 now stretches END TO END — from the eno wordmark to the action icons (owner 2026-07-17:
                 dropped the old max-w-xl cap that centred it at 576px). `relative` makes THIS the offset
@@ -615,8 +621,8 @@ export function Header() {
                     size="none"
                     onClick={() => {
                       setShowSuggestions(false)
-                      if (isExplorerPage) window.dispatchEvent(new CustomEvent('eno:view-map'))
-                      else router.push('/?view=map')
+                      if (onExplorer()) window.dispatchEvent(new CustomEvent('eno:view-map'))
+                      else router.push(explorerFallbackUrl(pathname, { view: 'map' }))
                     }}
                     aria-label={tr('Map', 'Bản đồ')}
                     title={tr('Map', 'Bản đồ')}
