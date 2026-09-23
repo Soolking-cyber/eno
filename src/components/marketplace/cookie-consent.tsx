@@ -25,6 +25,8 @@ function Toggle({ title, desc, value, onChange, locked = false }: { title: strin
       size="none"
       type="button"
       disabled={locked}
+      // The on/off state has to be ANNOUNCED — it is a consent decision, not decoration.
+      aria-pressed={value}
       onClick={() => onChange?.(!value)}
       className={cn('flex w-full items-start gap-2.5 whitespace-normal rounded-lg p-1.5 text-left transition-colors font-normal disabled:opacity-70', locked ? 'opacity-70' : 'hover:bg-muted cursor-pointer')}
     >
@@ -81,7 +83,24 @@ export function CookieConsent() {
   const [deferred, setDeferred] = useState(false)
   const [view, setView] = useState<'ask' | 'settings'>('ask')
   const [perso, setPerso] = useState(true)
-  const [ads, setAds] = useState(true)
+  // ⛔ AD PERSONALIZATION STARTS OFF. It started ON, so a first visitor who opened "Cookie settings"
+  // from the card and pressed Save without touching anything was recorded as consenting to Meta/Google
+  // retargeting (hasAdConsent() === true) — consent they never gave. (Audit finding #8.)
+  const [ads, setAds] = useState(false)
+  /** Seed the settings view from the stored choice — ONE rule for both ways into it. */
+  const seedFromConsent = () => {
+    const c = getConsent()
+    setPerso(c !== 'essential')
+    setAds(c === 'all')
+  }
+  /**
+   * The levels are NESTED (all ⊃ personalized ⊃ essential), so the toggles are coupled here rather
+   * than in storage: ad personalization on implies personalization on, and personalization off
+   * implies ads off. Uncoupled, turning Personalized OFF with ads on was saved as 'all' — the
+   * visitor's explicit "no" recorded as a yes.
+   */
+  const onPerso = (v: boolean) => { setPerso(v); if (!v) setAds(false) }
+  const onAds = (v: boolean) => { setAds(v); if (v) setPerso(true) }
 
   /**
    * ⚠️ THE FIRST-VISIT PROMPT IS DELAYED; THE FOOTER RE-OPEN BELOW IS NOT.
@@ -181,9 +200,7 @@ export function CookieConsent() {
   // as easy to change as to give (compliance verification 2026-07-06).
   useEffect(() => {
     const reopen = () => {
-      const c = getConsent()
-      setPerso(c !== 'essential')
-      setAds(c === 'all')
+      seedFromConsent()
       setView('settings')
       setOpenedByUser(true)
       setShow(true)
@@ -527,7 +544,7 @@ export function CookieConsent() {
                 <Button
                   variant="ghost"
                   size="none"
-                  onClick={() => setView('settings')}
+                  onClick={() => { seedFromConsent(); setView('settings') }}
                   className="press min-h-11 rounded-lg px-1 text-sm font-semibold text-body hover:text-foreground cursor-pointer"
                 >
                   {tr('Cookie settings', 'Tùy chỉnh cookie')}
@@ -553,8 +570,8 @@ export function CookieConsent() {
               <DialogPrimitive.Title className="text-base font-bold leading-tight text-foreground">{tr('Your choices', 'Lựa chọn của bạn')}</DialogPrimitive.Title>
               <div className="mt-1.5 -ml-1.5 space-y-0">
                 <Toggle locked value title={tr('Essential', 'Cần thiết')} desc={tr('Sign-in & speed. Always on.', 'Đăng nhập & tốc độ. Luôn bật.')} />
-                <Toggle value={perso} onChange={setPerso} title={tr('Personalized', 'Cá nhân hoá')} desc={tr('Rank the most relevant items first from your activity.', 'Xếp hạng mục phù hợp nhất theo hoạt động của bạn.')} />
-                <Toggle value={ads} onChange={setAds} title={tr('Ad personalization', 'Quảng cáo cá nhân hoá')} desc={tr('Ad-network signals (Meta/Google) for retargeting.', 'Tín hiệu mạng quảng cáo (Meta/Google) để tiếp thị lại.')} />
+                <Toggle value={perso} onChange={onPerso} title={tr('Personalized', 'Cá nhân hoá')} desc={tr('Rank the most relevant items first from your activity.', 'Xếp hạng mục phù hợp nhất theo hoạt động của bạn.')} />
+                <Toggle value={ads} onChange={onAds} title={tr('Ad personalization', 'Quảng cáo cá nhân hoá')} desc={tr('Ad-network signals (Meta/Google) for retargeting.', 'Tín hiệu mạng quảng cáo (Meta/Google) để tiếp thị lại.')} />
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 <Button variant="cta" size="none" onClick={save} className={primary}>{tr('Save', 'Lưu')}</Button>
