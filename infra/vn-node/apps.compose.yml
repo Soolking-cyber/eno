@@ -23,6 +23,7 @@ services:
     container_name: eno-vn-app
     env_file: [/opt/eno/secrets/eno-vn.env]
     environment:
+      LISTING_IMAGES_INTERNAL: 'true'
       # ⛔ TURNS ON THE SHARED POSTGRES ISR LAYER (cache-handler.cjs, DUAL MODE). Without it the
       # handler ran L1-only on this box for three weeks: a purge made in one edition's process never
       # reached the other's, and scripts/purge-isr-listings.mjs silently did nothing. Runtime-only
@@ -61,6 +62,7 @@ services:
     container_name: eno-forum-app
     env_file: [/opt/eno/secrets/eno-forum.env]
     environment:
+      LISTING_IMAGES_INTERNAL: 'true'
       # Same switch as eno-vn above. BOTH processes must read tombstones, or a purge made through
       # one edition leaves the other serving the purged page.
       ENO_ISR_PG: '1'

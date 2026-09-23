@@ -60,3 +60,28 @@ describe('isListingImageUrl — canonical spellings only (review S01)', () => {
     expect(VIDEO_EXTENSIONS).toContain('mp4')
   })
 })
+
+describe('listingImageSource', () => {
+  const { listingImageSource } = mod
+  it('rewrites a canonical listings key to the local optimizer route, round-tripping it intact', () => {
+    for (const key of ['1725000000000-ab12cd-hdeadbeef.webp', 'affiliate/m/a_b-c.1.webp', 'legacy/avatar.JPG']) {
+      const parsed = new URL(listingImageSource(`${P}${key}`), 'http://x')
+      expect(parsed.pathname).toBe('/listing-images')
+      expect([...parsed.searchParams]).toHaveLength(1)
+      expect(parsed.searchParams.get('key')).toBe(key)
+    }
+  })
+  /** ⛔ THE GUARANTEE THAT MAKES THE QUERY SAFE lives in the PARSER, not in the encoding. Both
+   *  reviewers claimed a key with `&`/`+`/`#` would break the route; KEY_SEGMENT cannot express
+   *  one, so such a URL is not a listing image and passes through untouched. If this test ever
+   *  fails, the encoding on the line above stopped being optional. */
+  it('does not claim a url whose key holds URL-special characters', () => {
+    for (const key of ['items/bed&bath.webp', 'items/a+b.webp', 'items/a b.webp', 'items/hash#1.webp']) {
+      expect(listingObjectKey(`${P}${key}`)).toBeNull()
+      expect(listingImageSource(`${P}${key}`)).toBe(`${P}${key}`)
+    }
+  })
+  it('leaves a foreign host alone', () => {
+    expect(listingImageSource('https://photo.rever.vn/v3/get/x.jpg')).toBe('https://photo.rever.vn/v3/get/x.jpg')
+  })
+})

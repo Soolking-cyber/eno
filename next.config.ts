@@ -712,6 +712,10 @@ const nextConfig: NextConfig = {
       : {}),
   },
   images: {
+    localPatterns: [
+      { pathname: '**', search: '' }, // Preserve Next 16.3's query-free local-image default.
+      { pathname: '/listing-images' }, // Only this route validates its own one-key query.
+    ],
     formats: ["image/avif", "image/webp"],
     // Listing photos rarely change → cache optimized variants 30 days; one quality
     // tier + trimmed widths = fewer optimizer variants and smaller payloads.

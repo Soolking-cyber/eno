@@ -86,5 +86,22 @@ export function isMockImageUrl(url: unknown): url is string {
  *  imageSizes and `q` one of `qualities` — off-list values 400. */
 export function optimizedImageUrl(src: string, w: 360 | 640 | 1080 = 640): string {
   if (!isListingImageUrl(src)) return src // foreign/mock hosts aren't in remotePatterns
-  return `/_next/image?url=${encodeURIComponent(src)}&w=${w}&q=60`
+  return `/_next/image?url=${encodeURIComponent(listingImageSource(src))}&w=${w}&q=60`
+}
+
+/** Only rendering changes: stored/public URLs remain canonical. Next optimizes this local
+ * read-only route, whose server fetch can stay on the storage network instead of hairpinning
+ * through Cloudflare. Do not put a private hostname in browser URLs or remotePatterns. */
+export function listingImageSource(src: string): string {
+  const object = listingObjectKey(src)
+  // ⚠️ encodeURIComponent IS HARDENING, NOT A BUG FIX — stated precisely because both reviewers
+  // called the bare interpolation a live defect and it is not. They argued a key holding `&` would
+  // split this into two params (tripping the route's `entries.length === 1` check), `+` would
+  // decode back as a space, `#` would truncate. True of an arbitrary string; impossible for this
+  // one. `listingObjectKey` validates against KEY_SEGMENT = [A-Za-z0-9][A-Za-z0-9._-]* per segment,
+  // so a key carrying any of those characters is not a listing key at all and returns `src`
+  // untouched one line below. The encoding is kept because it costs nothing and stays correct if
+  // KEY_SEGMENT ever widens — the guarantee lives in the parser, and this must not quietly become
+  // the thing depended on.
+  return object?.bucket === 'listings' ? `/listing-images?key=${encodeURIComponent(object.key)}` : src
 }
