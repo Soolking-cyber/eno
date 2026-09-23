@@ -393,6 +393,37 @@ export async function hasVerifiedIdentity(profileId: string): Promise<boolean> {
 }
 
 /**
+ * The OTHER accounts that share one of this profile's identity subjects AND are held or suspended —
+ * [] when none. Asked by a scam-hold RELEASE (src/lib/scam-hold.ts), which must not hand a seller
+ * their listings back while the same person sits sanctioned under another account.
+ *
+ * ⚠️ EVERY ROW OF THIS PROFILE'S HISTORY, NOT ONLY THE VERIFIED ONE, and every row of the other
+ * side too. The submit path already refuses a SECOND VERIFIED identity (kyc/service.ts,
+ * duplicate_identity), so matching verified-to-verified alone would find nothing by construction;
+ * the link worth catching is the person whose other account was rejected, revoked or left pending
+ * and then got held. A document number seen twice is evidence of one person whatever the review
+ * decided.
+ * ⚠️ subjectHash STILL NEVER LEAVES THIS MODULE (see the header): the caller gets profile ids, which
+ * the admin console already shows, and the hashes stay here.
+ */
+export async function sanctionedProfilesSharingIdentity(profileId: string): Promise<string[]> {
+  const mine = await db.identityVerification.findMany({ where: { profileId }, select: { subjectHash: true } })
+  const hashes = [...new Set(mine.map((r) => r.subjectHash).filter(Boolean))]
+  if (hashes.length === 0) return []
+  const linked = await db.identityVerification.findMany({
+    where: {
+      subjectHash: { in: hashes },
+      // `<>` also drops the erased (profileId NULL) rows — an erased account holds nothing.
+      profileId: { not: profileId },
+      profile: { is: { enforcementState: { in: ['held', 'suspended'] } } },
+    },
+    select: { profileId: true },
+    take: 20,
+  })
+  return [...new Set(linked.map((r) => r.profileId).filter((x): x is string => !!x && x !== profileId))]
+}
+
+/**
  * ⚠️ THE PARTY AS THE PAYMENTS RULES SEE IT. `railAllowed` reasons about a TRADE, so asking about a
  * single person means passing them as both sides — the honest way to ask "could this party ever be
  * on this rail", and it costs nothing.

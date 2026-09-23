@@ -81,6 +81,11 @@ const RE_EMITTED_UNIONS = [
   { fn: 'updateListingCore', type: 'ListingUpdateErrorCode', file: 'src/lib/core/listings.ts', floor: 5 },
   { fn: 'setStatusCore', type: 'ListingStatusErrorCode', file: 'src/lib/core/listings.ts', floor: 2 },
   { fn: 'updateSellerCore', type: 'SellerUpdateErrorCode', file: 'src/lib/core/seller.ts', floor: 7 },
+  // The scam-hold release and overturn: POST /api/admin/enforcement answers each refusal as
+  // `{ ...fields, error: r.error }`. Before this row, seven of their nine codes were on the wire with
+  // no entry in errors.ts at all (review, 2026-09-24) — the scan could not see a spread.
+  { fn: 'releaseScamHold', type: 'ScamHoldRefusalCode', file: 'src/lib/scam-hold.ts', floor: 9 },
+  { fn: 'overturnScamHold', type: 'ScamHoldRefusalCode', file: 'src/lib/scam-hold.ts', floor: 9 },
   // ⚠️ THESE THREE ARE A LAYER DEEPER, AND THAT LAYER IS WHY FIFTEEN CODES WERE MISSING. They are
   // not route helpers — they are LIBRARY flows that emit through an internal `fail(code)`, one step
   // below anything the route-file scan can see. `human_help_pending` is the tell: errors.ts's own

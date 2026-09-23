@@ -21,7 +21,11 @@ import {
   responseScore,
   reviewScore,
   saleTimeMs,
+  scamChargeKey,
+  scamReleaseMarkers,
+  scamStage,
   severityFromDelta,
+  SCAM_RELEASE_PREFIX,
   standingConductEvents,
   tierFor,
   trackRecordScore,
@@ -30,6 +34,7 @@ import {
   type ConductItem,
   type ReportSeverity,
   type ReportWindow,
+  type ScamCharge,
   type TierInputs,
   type TrustTier,
 } from './trust-math'
@@ -48,9 +53,9 @@ import {
  *  • T Track record (0–25): 12·log10(1+tx) over the trailing 365d — log-diminishing
  *    so reputation can't be bulk-bought.
  *  • C Conduct (0–90): admin-CONFIRMED reports, severity × reporter-credibility ×
- *    per-class decay — and a confirmed scam's decay stays FROZEN until 5 verified
- *    clean transactions AFTER the event, then floors at 40% forever (Friedman–Resnick:
- *    time alone never launders fraud).
+ *    per-class decay — and a confirmed scam's decay stays FROZEN (Friedman–Resnick: time
+ *    alone never launders fraud). The scam HOLD it causes ends only by a human: a reversal
+ *    (won appeal / overturn) or an admin release marker (scamStage, trust-math.ts).
  *
  * The TrustEvent LEDGER stays the audit trail (report resolutions, manual adjusts,
  * one-time verification lifts all still write events) — but the score is no longer
@@ -131,6 +136,12 @@ export type TrustBreakdown = {
     phoneVerified: boolean
     kycVerified: boolean
     verifiedReviewCount: number
+    /**
+     * Every STANDING severe charge and whether a human has released it — the same derivation that
+     * sets hasScamHold, exposed so the admin release/overturn (src/lib/scam-hold.ts) act on exactly
+     * the charges holding the account rather than re-deriving them a second way.
+     */
+    scamCharges: ScamCharge[]
     conversations90: number
     activeListings: number
     freshActiveListings: number
@@ -191,7 +202,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   // report_dismissed rides along for the charge-REVERSAL markers only (standingConductEvents).
   const events = await db.trustEvent.findMany({
     where: { subjectProfileId: profileId, type: { in: ['report_confirmed', 'manual_adjust', 'report_dismissed'] } },
-    select: { type: true, delta: true, reason: true, reportId: true, createdAt: true },
+    select: { id: true, type: true, delta: true, reason: true, reportId: true, createdAt: true },
   })
 
   // V — permanent verification gates. Phone: the mirrored verified number OR the
@@ -236,6 +247,8 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     report: (id) => reportById.get(id),
     reversedAtMs: (id) => reversedAt.get(id),
   })
+  // Admin RELEASE markers (scam_release:<chargeKey>) — the only non-reversal way a scam hold ends.
+  const releasedAt = scamReleaseMarkers(events)
 
   // Remediation (Amazon): a remediated report's conduct weight is halved — read off
   // the typed Report rows fetched above (the column went live with add-enforcement.mjs).
@@ -259,12 +272,10 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   const txByListing = new Map<string, number>() // listingId → earliest transaction ms
 
   if (seller) {
-    // Scam freeze needs clean-transaction timestamps AFTER the oldest severe event,
-    // which can predate the 365d T window — fetch from whichever bound is older.
-    const severeTimes = standingConduct
-      .filter((e) => (reportById.get(e.reportId ?? '')?.severity ?? severityFromDelta(e.delta)) === 'severe')
-      .map((e) => e.createdAt.getTime())
-    const txSince = new Date(Math.min(now - TRUST.TRACK_WINDOW_DAYS * DAY_MS, ...severeTimes))
+    // Transactions feed T (the trailing year) and velocity only. They used to reach back past the
+    // window to the oldest severe event, because "5 clean transactions after the scam" ended the
+    // hold; a self-marked sale no longer ends anything (scamStage), so the window is just T's.
+    const txSince = new Date(now - TRUST.TRACK_WINDOW_DAYS * DAY_MS)
     const freshCutoff = new Date(now - TRUST.FRESH_DAYS * DAY_MS)
 
     const [reviews, convo90, active, fresh, sold, acceptedOffers] = await Promise.all([
@@ -384,6 +395,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
 
   // C · conduct — severity × reporter credibility × per-class decay (+ frozen-scam rule).
   let hasScamHold = false
+  const scamCharges: ScamCharge[] = []
   const win90: ReportWindow = { count: 0, distinctReporters: 0, scams: 0 }
   const win180: ReportWindow = { count: 0, distinctReporters: 0, scams: 0 }
   const reporters90 = new Set<string>()
@@ -397,15 +409,15 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     if (e.reportId && remediated.has(e.reportId)) cred *= TRUST.REMEDIATION_FACTOR
     const eventMs = e.createdAt.getTime()
     const ageDays = (now - eventMs) / DAY_MS
-    // Frozen-scam rule: count verified clean transactions AFTER the event; decay
-    // starts only at the 5th (Friedman–Resnick dues-paying).
-    let cleanTxAfter = 0
-    let daysSinceFifthCleanTx: number | null = null
+    // Frozen-scam rule: the hold ends only when a HUMAN ends it (scamStage — a release marker; a
+    // reversal never reaches here), and the charge stays at full weight either way — the dues-paid
+    // anchor (buyer-confirmed graduation) is not built, so daysSinceDuesPaid is always null.
+    // ⛔ txTimes is NOT consulted: sales the seller marks themselves were the old exit.
     if (severity === 'severe') {
-      const after = txTimes.filter((t) => t > eventMs)
-      cleanTxAfter = after.length
-      if (after.length >= TRUST.SCAM_CLEAN_TX) daysSinceFifthCleanTx = (now - after[TRUST.SCAM_CLEAN_TX - 1]) / DAY_MS
-      else hasScamHold = true // dues unpaid → hard Restricted hold
+      const key = scamChargeKey(e)
+      const stage = scamStage(eventMs, releasedAt.get(key))
+      scamCharges.push({ key, reportId: e.reportId, confirmedAtMs: eventMs, stage })
+      if (stage === 'held') hasScamHold = true // unreleased → hard Restricted hold
     }
     // Dual-threshold demotion windows (distinct reporters; unknown reporter = its
     // own identity via the report/event id so pile-ons without accounts still count).
@@ -420,7 +432,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
       reporters180.add(reporterKey)
       if (severity === 'severe') win180.scams++
     }
-    return { severity, credibility: cred, ageDays, cleanTxAfter, daysSinceFifthCleanTx }
+    return { severity, credibility: cred, ageDays, daysSinceDuesPaid: null }
   })
   win90.distinctReporters = reporters90.size
   win180.distinctReporters = reporters180.size
@@ -448,6 +460,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     phoneVerified,
     kycVerified,
     verifiedReviewCount: deduped.length,
+    scamCharges,
     conversations90,
     activeListings,
     freshActiveListings,
@@ -581,17 +594,20 @@ export async function initialSellerTrust(ownerId: string | null): Promise<{ trus
 export async function recordChargeReversals(
   reports: ReadonlyArray<{ id: string; targetProfileId: string | null; targetSellerId: string | null }>,
   why: 'appeal_won' | 'overturned',
+  // A caller whose status change must land WITH its markers passes its transaction (the scam-hold
+  // overturn): a reversed Report without a marker is exactly the state that resurrects the charge.
+  client: Pick<typeof db, 'seller' | 'trustEvent'> = db,
 ): Promise<string[]> {
   if (!reports.length) return []
   // A storefront-only target's charge lands on the storefront's OWNER (penalizeSeller).
   const sellerIds = [...new Set(reports.map((r) => r.targetSellerId).filter((x): x is string => !!x))]
   const owners = sellerIds.length
-    ? (await db.seller.findMany({ where: { id: { in: sellerIds } }, select: { ownerId: true } })).map((s) => s.ownerId)
+    ? (await client.seller.findMany({ where: { id: { in: sellerIds } }, select: { ownerId: true } })).map((s) => s.ownerId)
     : []
   const candidates = [...new Set([...reports.map((r) => r.targetProfileId), ...owners].filter((x): x is string => !!x))]
   if (!candidates.length) return []
   // The ledger check rides the (subjectProfileId, createdAt) index — TrustEvent has no reportId index.
-  const ledger = await db.trustEvent.findMany({
+  const ledger = await client.trustEvent.findMany({
     where: { subjectProfileId: { in: candidates }, type: { in: ['report_confirmed', 'report_dismissed'] }, reportId: { in: reports.map((r) => r.id) } },
     select: { subjectProfileId: true, reportId: true, type: true, reason: true, createdAt: true },
   })
@@ -618,7 +634,7 @@ export async function recordChargeReversals(
     if (e.reportId && t && t.charge > t.marker) pairs.set(k, { subjectProfileId: e.subjectProfileId, reportId: e.reportId })
   }
   if (pairs.size) {
-    await db.trustEvent.createMany({
+    await client.trustEvent.createMany({
       data: [...pairs.values()].map((p) => ({ ...p, type: 'report_dismissed', delta: 0, reason: `${CHARGE_REVERSAL_PREFIX}${why}` })),
     })
   }
@@ -690,6 +706,9 @@ export async function settleReportCharges(
 export function describeTrustEvent(type: string, reason?: string | null): string {
   const r = reason ?? ''
   if (r.startsWith('false_report')) return 'Penalty: a report you filed was found to be false (reviewed by our team)'
+  // A release is a person's decision (scam-hold.ts refuses without an admin and a written plan), and
+  // it changes no points — the charge stays on the record at full weight. Say both.
+  if (r.startsWith(SCAM_RELEASE_PREFIX)) return 'Hold released by our team after a review (the confirmed report stays on your record)'
   switch (r) {
     case 'new_account': return 'Automatic: new account opened'
     case 'phone_verified': return 'Automatic: phone number verified'

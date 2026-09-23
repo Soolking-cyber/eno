@@ -54,6 +54,16 @@ describe('describeTrustEvent — the export must not claim a human acted', () =>
     expect(s).not.toContain('suspected')
   })
 
+  it('describes a scam-hold RELEASE as a person\'s decision that changed no points — and leaks no id', () => {
+    const s = describeTrustEvent('manual_adjust', 'scam_release:clx999release')
+    expect(s).not.toContain('clx999release')
+    expect(s).not.toContain('scam_release')
+    expect(s.toLowerCase()).toContain('released')
+    expect(s.toLowerCase()).toContain('stays on your record')
+    // A legacy event-keyed release is described the same way.
+    expect(describeTrustEvent('manual_adjust', 'scam_release:event:ev42')).toBe(s)
+  })
+
   it('always returns a non-empty human sentence', () => {
     for (const [type, reason] of [['manual_adjust', 'nonneg_offer_spam'], ['engagement', null],
                                   ['unknown_type', null], ['manual_adjust', '']] as const) {

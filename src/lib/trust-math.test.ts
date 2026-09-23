@@ -16,6 +16,11 @@ import {
   reportsDemote,
   reviewScore,
   saleTimeMs,
+  SCAM_RELEASE_PREFIX,
+  scamChargeKey,
+  scamReleaseEligibleAtMs,
+  scamReleaseMarkers,
+  scamStage,
   severityFromDelta,
   standingConductEvents,
   tierFor,
@@ -89,17 +94,22 @@ describe('decayFactor (per-class half-lives + frozen-scam rule)', () => {
     expect(decayFactor('moderate', 180)).toBeCloseTo(0.5, 10)
   })
 
-  it('scam stays FROZEN at 100% regardless of age until 5 clean transactions', () => {
-    expect(decayFactor('severe', 1000, { cleanTxAfter: 0, daysSinceFifthCleanTx: null })).toBe(1)
-    expect(decayFactor('severe', 1000, { cleanTxAfter: 4, daysSinceFifthCleanTx: null })).toBe(1)
+  it('scam stays FROZEN at 100% regardless of age while the dues are unpaid', () => {
+    expect(decayFactor('severe', 1000, { daysSinceDuesPaid: null })).toBe(1)
+    expect(decayFactor('severe', 1000)).toBe(1)
   })
 
-  it('after the 5th clean transaction it decays from THAT moment (H=365)…', () => {
-    expect(decayFactor('severe', 2000, { cleanTxAfter: 5, daysSinceFifthCleanTx: 365 })).toBeCloseTo(0.5, 10)
+  it('once the dues are paid (future graduation) it decays from THAT moment (H=365)…', () => {
+    expect(decayFactor('severe', 2000, { daysSinceDuesPaid: 365 })).toBeCloseTo(0.5, 10)
   })
 
   it('…but never below the permanent 40% floor — time alone never launders fraud', () => {
-    expect(decayFactor('severe', 9999, { cleanTxAfter: 50, daysSinceFifthCleanTx: 3650 })).toBe(TRUST.SCAM_FLOOR)
+    expect(decayFactor('severe', 9999, { daysSinceDuesPaid: 3650 })).toBe(TRUST.SCAM_FLOOR)
+  })
+
+  it('conductPenalty keeps a scam at full weight with no dues-paid anchor, however old', () => {
+    expect(conductPenalty([{ severity: 'severe', credibility: 1, ageDays: 5000 }])).toBe(45)
+    expect(conductPenalty([{ severity: 'severe', credibility: 1, ageDays: 5000, daysSinceDuesPaid: null }])).toBe(45)
   })
 })
 
@@ -298,5 +308,48 @@ describe('GUEST_SELLER_TRUST (audit 2026-09-23 #13)', () => {
     expect(GUEST_SELLER_TRUST.trustScore).toBe(TRUST.BASE)
     expect(GUEST_SELLER_TRUST.trustScore).not.toBe(100)
     expect(GUEST_SELLER_TRUST.trustTier).toBe('standard')
+  })
+})
+
+describe('scam hold exits (2026-09-23 — "stopgap now, automate later")', () => {
+  const at = (ms: number) => new Date(ms)
+
+  it('scamChargeKey: the reportId, else an event-scoped key so no charge is un-releasable', () => {
+    expect(scamChargeKey({ id: 'ev1', reportId: 'r1' })).toBe('r1')
+    expect(scamChargeKey({ id: 'ev1', reportId: null })).toBe('event:ev1')
+  })
+
+  it('scamReleaseMarkers reads ONLY manual_adjust rows carrying the release prefix (latest per key)', () => {
+    const m = scamReleaseMarkers([
+      { type: 'manual_adjust', reason: `${SCAM_RELEASE_PREFIX}r1`, createdAt: at(10) },
+      { type: 'manual_adjust', reason: `${SCAM_RELEASE_PREFIX}r1`, createdAt: at(30) },
+      { type: 'manual_adjust', reason: `${SCAM_RELEASE_PREFIX}event:ev9`, createdAt: at(5) },
+      // Look-alikes that must NOT release anything:
+      { type: 'report_dismissed', reason: `${SCAM_RELEASE_PREFIX}r2`, createdAt: at(10) },
+      { type: 'manual_adjust', reason: 'false_report:r3', createdAt: at(10) },
+      { type: 'manual_adjust', reason: SCAM_RELEASE_PREFIX, createdAt: at(10) },
+      { type: 'manual_adjust', reason: null, createdAt: at(10) },
+    ])
+    expect([...m.entries()].sort()).toEqual([['event:ev9', 5], ['r1', 30]])
+  })
+
+  it('scamStage: held until a release marker lands AT or AFTER the confirmation', () => {
+    expect(scamStage(100, undefined)).toBe('held')
+    expect(scamStage(100, 99)).toBe('held') // a marker older than the charge releases nothing
+    expect(scamStage(100, 100)).toBe('released')
+    expect(scamStage(100, 500)).toBe('released')
+  })
+
+  it('scamStage takes no sales input at all — marking items sold cannot reach it', () => {
+    // The signature IS the guarantee: two arguments, neither of them a transaction count.
+    expect(scamStage.length).toBe(2)
+  })
+
+  it('release eligibility: every held charge must be ≥ SCAM_RELEASE_MIN_DAYS old — the NEWEST decides', () => {
+    expect(TRUST.SCAM_RELEASE_MIN_DAYS).toBe(14)
+    const old = { confirmedAtMs: 0 }
+    const recent = { confirmedAtMs: 10 * DAY_MS }
+    expect(scamReleaseEligibleAtMs([old])).toBe(14 * DAY_MS)
+    expect(scamReleaseEligibleAtMs([old, recent])).toBe(24 * DAY_MS)
   })
 })

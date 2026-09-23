@@ -25,7 +25,10 @@ export const ENFORCEMENT_SEVERITY: Record<EnforcementState, number> = {
 // Reason slugs stored on EnforcementAction.reason — the CLIENT maps these to i18n
 // copy (server stores slugs, not prose, so copy can improve without data migrations).
 export const ENFORCEMENT_REASON = {
-  SCAM_HOLD: 'scam_hold', // a confirmed scam with dues unpaid (frozen decay)
+  // A confirmed scam no human has released. NOT human-only on purpose: the system lifts it when the
+  // derived hold clears — but the derivation (trust.ts, scamStage) only ever clears on a HUMAN's
+  // ledger marker (a reversal, or an admin release), so "a person decides" lives in the ledger.
+  SCAM_HOLD: 'scam_hold',
   CONDUCT_RESTRICTED: 'conduct_restricted', // score <60 driven by confirmed reports
   CONDUCT_WARNING: 'conduct_warning', // dual-threshold demote signal inside 90d
   INSURANCE_GRACE: 'insurance_grace', // good-standing insurance 72h contact-before-action
@@ -225,7 +228,7 @@ export function normalizeEnforcementState(v: unknown): EnforcementState {
 
 export type EnforcementInputs = {
   score: number // the PERSISTED trust score (post daily-cap)
-  hasScamHold: boolean // a confirmed scam still frozen (dues unpaid) — TrustBreakdown.inputs
+  hasScamHold: boolean // a confirmed scam no human has released yet — TrustBreakdown.inputs
   conductPenalty: number // the C component — >0 means confirmed reports still bite
   reports90: ReportWindow // confirmed reports in the last 90d (TrustBreakdown.inputs)
   transactions365: number
