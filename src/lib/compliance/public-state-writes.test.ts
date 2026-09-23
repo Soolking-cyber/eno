@@ -78,6 +78,7 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   'scripts/import-nhatot-com.ts': { count: 4, why: 'reference-listing importer onto an ownerless platform seller — create-only status/verified (2) + the dry-run sample literal + the printed retire UNDO SQL; refuses an owned or badged seller' },
   'scripts/import-muaban-net.ts': { count: 3, why: 'reference-listing importer onto an ownerless platform seller — the upsert’s create-only status/verified (2) + the dry-run sample literal; refuses an owned or badged seller' },
   'scripts/muaban-net-map.ts': { count: 1, why: 'reference-listing importer onto an ownerless platform seller — retireRollbackSql, the printed undo of a retire pass, scoped to that seller’s rows still hidden' },
+  'scripts/import-honeycomb-com-vn.ts': { count: 3, why: 'reference-listing importer onto an ownerless platform seller — create-only status/verified (2) + the dry-run sample literal; refuses an owned or badged seller' },
   'scripts/hide-imageless-imports.ts': { count: 2, why: 'operator repair script over the platform import sellers' },
   'scripts/seed-visa-shop.mjs': { count: 4, why: 'services-edition desk seed (platform seller)' },
   'scripts/seed-trip-desk.mjs': { count: 2, why: 'services-edition trip desk seed (platform seller)' },
