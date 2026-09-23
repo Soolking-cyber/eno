@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
 import { CATEGORY_BY_SLUG, LISTING_TYPES, categoryHasBrand, rangeFacetsFor, typesFor } from '@/lib/taxonomy'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
+import { matchesProvinceRow } from '@/lib/province-match'
 
 /**
  * LIVE CHIP COUNTS — "how many results do I get if I tap this?", for every rail in the feed.
@@ -228,9 +229,12 @@ export function districtSlugsFor(row: { district?: string | null; location?: str
   return out
 }
 
-/** Mirrors the province predicate: `contains` over `city` OR `location`, case-sensitive. */
+/**
+ * Mirrors the province predicate (src/lib/province-match.ts): `contains` over `city` OR `location`,
+ * case-sensitive, plus the province's other spellings over `city` only.
+ */
 export function matchesProvince(row: { city?: string | null; location?: string | null }, province: string): boolean {
-  return (row.city ?? '').includes(province) || (row.location ?? '').includes(province)
+  return matchesProvinceRow(row, province)
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────────

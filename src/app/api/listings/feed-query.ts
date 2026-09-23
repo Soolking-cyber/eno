@@ -17,6 +17,7 @@ import { IDS_FAST_PATH_MAX } from '@/lib/listing-ids'
 import { districtScopeForSlug } from '@/lib/district-slug'
 import { parseRadiusParams, radiusWhere } from '@/lib/geo-radius'
 import { conditionWhere } from '@/lib/listing-condition'
+import { provinceWhere, wardWhere } from '@/lib/province-match'
 
 // Subcategory facet counts are expensive (one multi-LIKE COUNT per subcategory)
 // and change slowly. Memoize per filter-signature with a short TTL so the fan-out
@@ -276,13 +277,16 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
   // New area model (province → ward). Province matches the listing city (the only
   // level the current listings carry); ward is best-effort against district/location
   // (won't hit pre-2025 listings until they're re-tagged with wards).
+  // ⛔ THE AREA FILTER SENDS 'Ho Chi Minh' AND THE WIZARD STORES 'Hồ Chí Minh' — see
+  // src/lib/province-match.ts: the sent string alone hid every wizard-posted HCMC listing.
   const province = searchParams.get('province')?.trim()
   if (province) {
-    andFilters.push({ OR: [{ city: { contains: province } }, { location: { contains: province } }] })
+    andFilters.push(provinceWhere(province))
   }
   const ward = searchParams.get('ward')?.trim()
   if (ward) {
-    andFilters.push({ OR: [{ district: { contains: ward } }, { location: { contains: ward } }] })
+    // Same split as the province: the filter sends the ward's English name (province-match.ts).
+    andFilters.push(wardWhere(ward, province))
   }
   // Default AND narrows ("honda red" needs both). Visual search (and any "loose"
   // caller) passes match=any → match ANY token, so a descriptive phrase like
