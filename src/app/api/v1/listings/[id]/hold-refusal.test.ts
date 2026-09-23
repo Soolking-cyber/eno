@@ -47,6 +47,13 @@ describe('POST /api/v1/listings/{id}/status', () => {
     })
   }
 
+  it('released_charge_listing_cap → 403 with the code and a sentence naming the limit, never the 422', async () => {
+    h.status = { ok: false, code: 403, error: 'released_charge_listing_cap' }
+    const r = await json(await statusPOST(req({ status: 'active' }) as never, params))
+    expect(r.status).toBe(403)
+    expect(r.body.error).toMatchObject({ code: 'released_charge_listing_cap', message: expect.stringContaining('at most 10 active listings') })
+  })
+
   it('a bad status value still answers the 422', async () => {
     h.status = { ok: false, code: 400, error: 'invalid_status' }
     const r = await json(await statusPOST(req({ status: 'nope' }) as never, params))
@@ -64,6 +71,13 @@ describe('POST /api/v1/listings/{id}/confirm', () => {
       expect(r.body.error).toMatchObject({ code, message: expect.stringMatching(/held or suspended/) })
     })
   }
+
+  it('released_charge_listing_cap (a revive past the cap) → 403 with the code, never the 404', async () => {
+    h.confirm = { ok: false, code: 403, error: 'released_charge_listing_cap' }
+    const r = await json(await confirmPOST(req() as never, params))
+    expect(r.status).toBe(403)
+    expect(r.body.error).toMatchObject({ code: 'released_charge_listing_cap', message: expect.stringContaining('at most 10 active listings') })
+  })
 
   it('a vanished row is still the 404', async () => {
     h.confirm = { ok: false, code: 404, error: 'not_found' }

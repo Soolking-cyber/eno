@@ -807,7 +807,7 @@ export const SPEC = {
           row: { type: 'integer', description: '1-based index into the array you sent.' },
           id: { type: ['string', 'null'], description: 'The created listing id, or null if the row failed.' },
           external_id: { type: ['string', 'null'], description: 'Echoed back when the row carried one.' },
-          error: { type: ['string', 'null'], description: 'Human-readable reason the row failed, or null. ⚠️ Free prose, not a stable code — the one exception is `probation_listing_cap`, emitted verbatim when a new account hits its active-listing cap.' },
+          error: { type: ['string', 'null'], description: 'Human-readable reason the row failed, or null. ⚠️ Free prose, not a stable code — the exceptions are `probation_listing_cap`, emitted verbatim when a new account hits its active-listing cap, and `released_charge_listing_cap`, emitted verbatim when a shop whose scam hold was released reaches the active-listing limit it keeps while the confirmed report stands.' },
         },
       },
       SyncRowResult: {
@@ -1014,11 +1014,11 @@ export const SPEC = {
           ...authFailures(),
           '400': fail('The body was not valid JSON.', ['bad_request']),
           '403': fail(
-            'Posting is blocked for this account, the shop\'s trust score is too low to publish, or the seller identity gate refused the shop\'s owner (the `identity_*` codes — only while the gate is enforced; those bodies also carry `code`, `accountState`, `actionable`, `verifyUrl`, a bilingual `message` and the `legalBasis` beside `error`). ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS AND THEY CARRY DIFFERENT HEADERS: `insufficient_scope` is refused by the credential guard BEFORE the rate limiter and carries only `X-Request-Id`, while the account/trust codes are produced after authentication and carry the full rate-limit set below. Read the headers as "present on the post-authentication codes", not as a guarantee for the status.',
+            'Posting is blocked for this account, the shop\'s trust score is too low to publish, the shop\'s scam hold was released but it already holds the active-listing limit it keeps while the confirmed report stands (`released_charge_listing_cap`), or the seller identity gate refused the shop\'s owner (the `identity_*` codes — only while the gate is enforced; those bodies also carry `code`, `accountState`, `actionable`, `verifyUrl`, a bilingual `message` and the `legalBasis` beside `error`). ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS AND THEY CARRY DIFFERENT HEADERS: `insufficient_scope` is refused by the credential guard BEFORE the rate limiter and carries only `X-Request-Id`, while the account/trust codes are produced after authentication and carry the full rate-limit set below. Read the headers as "present on the post-authentication codes", not as a guarantee for the status.',
             // ⚠️ NOT `identity_sign_in_required`: that is the signed-out WEB poster's code, and a key is
             // never a guest. createListingCore takes guest-ness from its caller, and this route passes
             // false — an ownerless shop behind a key is a platform import, let through as on /bulk.
-            ['insufficient_scope', 'account_held', 'account_suspended', 'probation_listing_cap', 'account_restricted', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            ['insufficient_scope', 'account_held', 'account_suspended', 'probation_listing_cap', 'account_restricted', 'released_charge_listing_cap', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': fail('The credential resolved to a shop row that no longer exists.', ['not_found']),
           '409': fail(
@@ -1118,12 +1118,12 @@ export const SPEC = {
           // ⚠️ AFTER `...authFailures()`, SO THIS KEY REPLACES ITS 403 — `insufficient_scope` has to be
           // listed here again, or the spec stops documenting a refusal the endpoint still sends.
           '403': fail(
-            'The credential lacks `listings:write`, or re-activating a sold or hidden listing was refused: `account_held` / `account_suspended` while the shop\'s account is held or suspended (always enforced), or the seller identity gate (only while it is enforced). A listing that is already active is never refused, and marking one sold or hidden never is. The identity bodies carry the structured refusal — `verifyUrl`, bilingual `message`, `legalBasis` — beside `error`. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account and identity codes happen after authentication and carry the rate-limit set below.',
-            ['insufficient_scope', 'account_held', 'account_suspended', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            'The credential lacks `listings:write`, or re-activating a sold or hidden listing was refused: `account_held` / `account_suspended` while the shop\'s account is held or suspended (always enforced), `released_charge_listing_cap` when the shop\'s scam hold was released but it already holds the active-listing limit it keeps while the confirmed report stands, or the seller identity gate (only while it is enforced). A listing that is already active is never refused, and marking one sold or hidden never is. The identity bodies carry the structured refusal — `verifyUrl`, bilingual `message`, `legalBasis` — beside `error`. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account and identity codes happen after authentication and carry the rate-limit set below.',
+            ['insufficient_scope', 'account_held', 'account_suspended', 'released_charge_listing_cap', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': NOT_FOUND_LISTING,
           '422': fail(
-            '`status` was absent or not one of the three allowed values. ⚠️ `invalid_status` is the ONLY code this status can carry: `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the account-hold (`account_held`, `account_suspended`) and seller identity gate (`identity_*`) refusals are the exceptions and answer 403 above.',
+            '`status` was absent or not one of the three allowed values. ⚠️ `invalid_status` is the ONLY code this status can carry: `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the account-hold (`account_held`, `account_suspended`), released-charge cap (`released_charge_listing_cap`) and seller identity gate (`identity_*`) refusals are the exceptions and answer 403 above.',
             ['invalid_status'],
           ),
         },
@@ -1148,8 +1148,8 @@ export const SPEC = {
           ...authFailures(),
           // ⚠️ Replaces authFailures()'s 403 (same object literal, later key) — insufficient_scope restated.
           '403': fail(
-            'The credential lacks `listings:write`; or the shop\'s account is held or suspended (`account_held` / `account_suspended` — every confirm is refused while it lasts, including one on a listing that is already active); or the confirm would have re-activated a sold or hidden listing and the seller identity gate refused it (only while it is enforced). ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account and identity codes happen after authentication and carry the rate-limit set below.',
-            ['insufficient_scope', 'account_held', 'account_suspended', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            'The credential lacks `listings:write`; or the shop\'s account is held or suspended (`account_held` / `account_suspended` — every confirm is refused while it lasts, including one on a listing that is already active); or the confirm would have re-activated a sold or hidden listing and was refused: by the released-charge cap (`released_charge_listing_cap` — the shop\'s scam hold was released but it already holds the active-listing limit it keeps while the confirmed report stands), or by the seller identity gate (only while it is enforced). ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account and identity codes happen after authentication and carry the rate-limit set below.',
+            ['insufficient_scope', 'account_held', 'account_suspended', 'released_charge_listing_cap', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': NOT_FOUND_LISTING,
         },

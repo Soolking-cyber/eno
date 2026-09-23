@@ -3,6 +3,7 @@ import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { bulkImportCore, rehostListingImage, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
 import { bulkPostingBudget } from '@/lib/enforcement'
+import { releasedChargeGateFor, releasedChargeStanding } from '@/lib/released-charge-gate'
 import { updateListingCore, setStatusCore } from '@/lib/core/listings'
 import { removeFromIndex } from '@/lib/listing-index'
 import { dispatchListingEventsBatch } from '@/lib/webhooks'
@@ -109,14 +110,26 @@ export async function syncListingsCore(
     if (createdIds.length) after(() => dispatchListingEventsBatch('listing.created', createdIds, seller.id))
   }
 
+  // The released-scam-charge cap on REVIVES (released-charge-gate.ts). The regime is resolved once;
+  // the storefront's active count is taken FRESH before each revive, so rows this same call took down
+  // (or created) are counted as they are — a budget computed up front refused revives that slots freed
+  // earlier in the payload had made room for (review, 2026-09-24). Same pre-check shape as the identity
+  // refusal below, for the same reason; setStatusCore re-checks each revive, so a race cannot pass it.
+  const releasedStanding = toUpdate.length ? await releasedChargeStanding(seller.ownerId) : null
+
   // UPDATE — sparse, by id. Re-host any provided images, then reuse updateListingCore
   // (searchText rebuild + reindex + its own 'listing.updated' webhook). Status via setStatusCore.
   for (const { row, ext } of toUpdate) {
     const id = idByExt.get(ext)!
+    const revives = row.status === 'active' && statusByExt.get(ext) !== 'active'
     // ⚠️ A REFUSED REVIVE FAILS THE ROW BEFORE ANY WRITE. Checking only at setStatusCore would apply
     // the row's edits and then refuse its status, leaving a half-applied row reported as failed.
-    if (!publishDecision.ok && row.status === 'active' && statusByExt.get(ext) !== 'active') {
+    if (!publishDecision.ok && revives) {
       results.push({ external_id: ext, id, action: 'failed', error: publishDecision.code })
+      continue
+    }
+    if (revives && releasedStanding && (await releasedChargeGateFor(releasedStanding, seller.id)).remaining <= 0) {
+      results.push({ external_id: ext, id, action: 'failed', error: 'released_charge_listing_cap' })
       continue
     }
     try {

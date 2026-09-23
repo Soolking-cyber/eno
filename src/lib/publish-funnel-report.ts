@@ -73,6 +73,7 @@ export const PUBLISH_OUTCOME_COPY: Record<string, string> = {
   account_suspended: 'Account suspended',
   account_held: 'Account on hold',
   probation_listing_cap: 'New account hit its active-listing cap',
+  released_charge_listing_cap: 'Released scam hold: hit the active-listing cap while the charge stands',
   exception: 'Server threw before it could answer',
   'Failed to create listing': 'Unhandled server error',
 

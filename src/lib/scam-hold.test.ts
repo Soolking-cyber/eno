@@ -46,6 +46,7 @@ function match(row: Row, where: Row = {}): boolean {
     const cell = row[k]
     if (v && typeof v === 'object' && !(v instanceof Date)) {
       if ('in' in v) return (v.in as unknown[]).includes(cell)
+      if ('startsWith' in v) return typeof cell === 'string' && cell.startsWith(v.startsWith as string)
       if ('notIn' in v) return !(v.notIn as unknown[]).includes(cell)
       if ('not' in v) return v.not === null ? cell != null : cell !== v.not
       if ('gte' in v) return cell != null && cell >= v.gte
@@ -134,6 +135,8 @@ const { releaseScamHold, overturnScamHold, profileHasScamHold } = await import('
 const { recomputeTrust } = await import('./trust')
 const { liftAction, syncEnforcement } = await import('./enforcement')
 const { TRUST } = await import('./trust-math')
+const { ENFORCEMENT } = await import('./enforcement-machine')
+const { releasedChargeStanding, releasedChargeGate } = await import('./released-charge-gate')
 
 const ADMIN = 'mod@eno.vn'
 const PLAN = 'I shipped without tracking; I now use GHN with tracking numbers and refunded the buyer in full.'
@@ -553,15 +556,20 @@ describe('an overturn on a stale row never reports an overturn that did not happ
   })
 })
 
-describe('the release notice is honest about what a release does NOT give back (owner decision pending)', () => {
-  it('en: names the listing that stays down, and promises no posting, path or timeline', async () => {
+describe('the release notice says what a release gives back — posting, capped — and what it does not', () => {
+  const LIMIT = ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS
+
+  it('en: names the listing that stays down, and says posting returns with the limit and why', async () => {
     await confirmScamOnListing('r1', 20, 'L1')
     h.notices = []
     await releaseScamHold({ actionId: scamAction().id, admin: ADMIN, plan: PLAN })
     await Promise.all(h.pending)
     const body = h.notices.map((n) => n.body).join(' ')
     expect(body).toMatch(/apart from any listing a confirmed report was about/)
-    expect(body).toMatch(/posting new listings may stay blocked/)
+    expect(body).toMatch(/You can post again, with a limit/)
+    expect(body).toContain(`while it stands you can keep at most ${LIMIT} active listings, counting the ones now visible again`)
+    expect(body).toMatch(/confirmed report stays on your record at full weight/)
+    expect(body).not.toMatch(/may stay blocked/)
     expect(body).not.toMatch(/rebuild|recover|restored|improves/i)
   })
 
@@ -573,8 +581,72 @@ describe('the release notice is honest about what a release does NOT give back (
     await Promise.all(h.pending)
     const body = h.notices.map((n) => n.body).join(' ')
     expect(body).toMatch(/trừ tin đăng mà báo cáo đã xác nhận nhắc đến/)
-    expect(body).toMatch(/việc đăng tin mới có thể vẫn bị chặn/)
+    expect(body).toMatch(/Bạn có thể đăng tin trở lại/)
+    expect(body).toContain(`chỉ được giữ tối đa ${LIMIT} tin đang đăng, kể cả các tin vừa hiển thị trở lại`)
+    expect(body).not.toMatch(/vẫn bị chặn/)
     expect(body).not.toMatch(/phục hồi/)
+  })
+})
+
+/**
+ * POSTING AFTER A RELEASE (owner, 2026-09-24) — the regime the publish paths ask about, derived by the
+ * REAL computeTrustV2 over the rows the real release wrote. The cores' use of it is proved in
+ * src/lib/core/released-charge-cap.test.ts.
+ */
+describe('releasedChargeStanding / releasedChargeGate — the regime, from the ledger', () => {
+  const LIMIT = ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS
+
+  it('no release marker ever written → null, even while a charge is HELD (the hold decides that seller)', async () => {
+    confirmScam('r1', 20)
+    await dailySync()
+    expect(await releasedChargeStanding('p1')).toBeNull()
+    expect(await releasedChargeGate('p1', 's1')).toBeNull()
+  })
+
+  it('⛔ after a release the account is STILL restricted-tier — which is why the waiver exists — and the regime waives it, capped', async () => {
+    await confirmScamOnListing('r1', 20, 'L1')
+    await releaseScamHold({ actionId: scamAction().id, admin: ADMIN, plan: PLAN })
+    await Promise.all(h.pending)
+    expect(h.profile.trustTier).toBe('restricted') // the frozen charge keeps the score under 60
+    expect(await releasedChargeStanding('p1')).toEqual({ waivesRestricted: true, limit: LIMIT })
+    // Both listings are status 'active' (L1, the reported one, stays down as verified=false but is
+    // still an active row) — the cap counts the status, as the probation cap does.
+    expect(await releasedChargeGate('p1', 's1')).toEqual({ waivesRestricted: true, limit: LIMIT, active: 2, remaining: LIMIT - 2 })
+  })
+
+  it('⛔ a released seller ALSO kept under the floor by OTHER confirmed conduct is not waived — the waiver is for the released charges only', async () => {
+    await confirmScamOnListing('r1', 20, 'L1')
+    await releaseScamHold({ actionId: scamAction().id, admin: ADMIN, plan: PLAN })
+    await Promise.all(h.pending)
+    expect(await releasedChargeStanding('p1')).toEqual({ waivesRestricted: true, limit: LIMIT })
+    // Other confirmed, non-scam violations — enough to keep the account under 60 without the scam.
+    for (let i = 0; i < 8; i++) {
+      h.reports.push({ id: `m${i}`, severity: 'moderate', reporterProfileId: `b${i}`, status: 'confirmed', resolvedBy: ADMIN, remediatedAt: null, targetProfileId: 'p1', targetSellerId: null, appealedAt: null, listingId: null, createdAt: new Date(Date.now() - 6 * DAY) })
+      h.events.push({ id: nextId('ev'), subjectProfileId: 'p1', type: 'report_confirmed', delta: -18, reason: `report:m${i}`, reportId: `m${i}`, createdAt: new Date(Date.now() - 5 * DAY) })
+    }
+    const { computeTrustV2 } = await import('./trust')
+    expect((await computeTrustV2('p1'))!.inputs.scoreWithoutReleasedScams).toBeLessThan(60)
+    expect(await releasedChargeStanding('p1')).toEqual({ waivesRestricted: false, limit: LIMIT })
+  })
+
+  it('a NEW held charge beside the released one → the restricted refusal is not waived (the cap still stands)', async () => {
+    await confirmScamOnListing('r1', 20, 'L1')
+    await releaseScamHold({ actionId: scamAction().id, admin: ADMIN, plan: PLAN })
+    confirmScam('r2', 1, null, 'buyer2')
+    await dailySync()
+    expect(await releasedChargeStanding('p1')).toEqual({ waivesRestricted: false, limit: LIMIT })
+  })
+
+  it('the released charge later OVERTURNED → the regime is over (null)', async () => {
+    confirmScam('r1', 20)
+    await dailySync()
+    await releaseScamHold({ actionId: scamAction().id, admin: ADMIN, plan: PLAN })
+    // A released account sits on a `throttled` (conduct) action — any active ladder row carries the overturn.
+    const row = h.actions.find((a) => a.status === 'active' && a.profileId === 'p1')!
+    expect(row).toBeTruthy()
+    expect(await releasedChargeStanding('p1')).not.toBeNull()
+    expect(await overturnScamHold({ actionId: row.id, admin: ADMIN, reportIds: ['r1'] })).toMatchObject({ ok: true, charges: 1 })
+    expect(await releasedChargeStanding('p1')).toBeNull()
   })
 })
 

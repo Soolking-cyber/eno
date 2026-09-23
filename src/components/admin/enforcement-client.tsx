@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { shortDate } from '@/lib/dates'
 import { TRUST } from '@/lib/trust-math'
+import { ENFORCEMENT } from '@/lib/enforcement-machine'
 
 // Mirrors SCAM_RELEASE_PLAN_MIN (src/lib/scam-hold.ts — server-only, so not importable here). The
 // server is the authority and answers `plan_required` with its own minimum; this only keeps the
@@ -456,7 +457,7 @@ export function EnforcementClient() {
           <AlertDialogHeader>
             <AlertDialogTitle>Release scam hold</AlertDialogTitle>
             <AlertDialogDescription>
-              The listings the hold pulled come back — except the listing a confirmed report was about, which stays down (approve it in Moderation if it should return). The confirmed report stays on their record at full weight, so they may stay throttled with a caution note, and the restricted trust tier may still refuse NEW listings: a release does not give posting back on its own. Allowed only {TRUST.SCAM_RELEASE_MIN_DAYS}+ days after the report was confirmed, with no report against the seller still open, and only for a seller with a verified identity not shared with another held or suspended account.
+              The listings the hold pulled come back — except the listing a confirmed report was about, which stays down (approve it in Moderation if it should return). The confirmed report stays on their record at full weight, so they may stay throttled with a caution note. Posting comes back, capped: while the charge stands they can hold at most {ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS} active listings (the restored ones count), so new posts and relists are refused at the limit. Allowed only {TRUST.SCAM_RELEASE_MIN_DAYS}+ days after the report was confirmed, with no report against the seller still open, and only for a seller with a verified identity not shared with another held or suspended account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {releaseFor?.appealText && <p className="rounded-lg bg-tint/40 p-2 text-xs text-foreground">Seller wrote: “{releaseFor.appealText}”</p>}

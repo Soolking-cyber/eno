@@ -7,6 +7,7 @@ import { countDistinctAngles } from '@/lib/image-hash-url'
 import { buildSearchText, fold } from '@/lib/fold'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { bulkPostingBudget } from '@/lib/enforcement'
+import { releasedChargeGate } from '@/lib/released-charge-gate'
 import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl, isListingVideoUrl } from '@/lib/listing-image'
 import { safeFetch } from '@/lib/ssrf'
@@ -96,6 +97,12 @@ export async function bulkImportCore(
       blocked: code,
     }
   }
+  // The released-scam-charge regime (released-charge-gate.ts), resolved ONCE per import like the
+  // budget above: a seller whose only standing scam charges an admin released is not refused by the
+  // restricted tier below, and every standing released charge caps the rows that may be created at
+  // the storefront's remaining active-listing allowance. Null (no release marker) for everyone else.
+  const released = await releasedChargeGate(seller.ownerId, seller.id)
+  const releasedBudget = released ? released.remaining : Infinity
   let createdCount = 0
 
   // Resolve all referenced categories once.
@@ -133,7 +140,7 @@ export async function bulkImportCore(
       if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsContactInfo(title) || containsContactInfo(description)) { results.push({ row: rowNo, error: 'Remove phone / contact info / address from the title and description' }); continue }
       { const bw = findBannedWord(`${title} ${description}`); if (bw) { results.push({ row: rowNo, error: `Contains a banned word ("${bw}")` }); continue } }
       // Restricted (low-trust) account → can't publish until its score recovers.
-      if (seller.trustTier === 'restricted') { results.push({ row: rowNo, error: 'Account restricted — wait for your trust score to recover before posting' }); continue }
+      if (seller.trustTier === 'restricted' && !released?.waivesRestricted) { results.push({ row: rowNo, error: 'Account restricted — wait for your trust score to recover before posting' }); continue }
 
       // Duplicate protection. Partner-managed rows (external_id) keep their own identity
       // semantics (the sync flow updates by external_id), so only ad-hoc rows are checked:
@@ -183,6 +190,10 @@ export async function bulkImportCore(
       // the same stable code the single-create gate uses.
       if (createdCount >= createBudget) {
         results.push({ row: rowNo, error: 'probation_listing_cap' }); continue
+      }
+      // Released-scam-charge cap: same shape, its own stable code (released-charge-gate.ts).
+      if (createdCount >= releasedBudget) {
+        results.push({ row: rowNo, error: 'released_charge_listing_cap' }); continue
       }
       const listing = await db.listing.create({
         data: {

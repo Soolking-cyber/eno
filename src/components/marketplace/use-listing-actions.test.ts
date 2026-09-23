@@ -93,6 +93,13 @@ describe('useListingActions.setStatus — a relist refused by the account HOLD i
     expect(toastFn.error).toHaveBeenCalledWith(expect.stringMatching(/^Your account is suspended, so listings can’t be put back on sale/))
   })
 
+  it('released_charge_listing_cap → rolled back, with the limit and why', async () => {
+    answer({ error: 'released_charge_listing_cap' }, false)
+    const { hook } = await relist()
+    expect(hook.result.current.status).toBe('sold')
+    expect(toastFn.error).toHaveBeenCalledWith('Your hold was released, but the confirmed report stays on your record, so you can keep up to 10 active listings. Mark one sold or hide one before putting this back on sale.')
+  })
+
   it('any other failure keeps its silent rollback', async () => {
     answer({ error: 'invalid_status' }, false)
     const { hook } = await relist()

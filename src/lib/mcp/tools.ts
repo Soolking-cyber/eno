@@ -16,6 +16,8 @@ import { getListingAnalytics } from '@/lib/listing-analytics'
 import { dispatchListingEventsBatch, generateWebhookSecret } from '@/lib/webhooks'
 import { after } from 'next/server'
 import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
+import { PublishBlockedError } from '@/lib/publish-guard'
+import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 
 // ── Partner MCP tools ─────────────────────────────────────────────────────────────
 // Each tool is a thin, shop-scoped wrapper over the SAME cores the /api/v1 routes use.
@@ -136,8 +138,15 @@ export const TOOLS: McpTool[] = [
       const body = { description: args.description, images, district: args.district, condition: args.condition, negotiable: args.negotiable, listingType: args.listingType, brand: args.brand, model: args.model }
       // Never a guest (an API key authenticated this call) — an ownerless shop is a platform import,
       // as on /api/v1 and in bulk_import / sync_listings.
-      const created = await createListingCore({ seller, guestCreate: false, category, title, price, body, headers: new Headers() })
-      return { listing: created }
+      try {
+        const created = await createListingCore({ seller, guestCreate: false, category, title, price, body, headers: new Headers() })
+        return { listing: created }
+      } catch (e) {
+        // The released-scam-charge cap is an ACCOUNT limit with its own code — surfaced as a tool error
+        // the agent can explain. (The other content refusals keep the MCP route's existing mapping.)
+        if (e instanceof PublishBlockedError && e.code === 'released_charge_listing_cap') throw new ToolError(e.code, RELEASED_CHARGE_CAP_MESSAGE)
+        throw e
+      }
     },
   },
   {
@@ -170,7 +179,8 @@ export const TOOLS: McpTool[] = [
         // like postingGate's refusal in create_listing, rather than the bare code.
         const message = isIdentityBlockCode(res.error) ? publishBlockedBody(res.error).message.en
           : res.error === 'account_held' || res.error === 'account_suspended' ? 'This account is held or suspended, so its listings cannot be put back on sale right now.'
-            : res.error
+            : res.error === 'released_charge_listing_cap' ? RELEASED_CHARGE_CAP_MESSAGE
+              : res.error
         throw new ToolError(res.error, message)
       }
       return { ok: true, status: res.status }

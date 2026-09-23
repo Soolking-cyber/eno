@@ -146,6 +146,7 @@ const ALLOW = new Map([
   ["src/lib/trust.ts", "Seller is `where: { ownerId: profileId }` and all listing reads key on that seller.id; the public caller passes the session profile (api/dashboard/\u2026"],
   ["src/lib/scam-hold.ts", "Its one seller read is `where: { ownerId: profileId }` \u2014 the held account's OWN storefront id, used only to COUNT open reports against it before an admin release (POST /api/admin/enforcement, admin-only); nothing is listed, serialized or published."],
   ["src/lib/urgent.ts", "`db.listing.count({ where: { sellerId, ... } })` returns a boolean quota gate for the seller's own post/edit."],
+  ["src/lib/released-charge-gate.ts", "`db.listing.count({ where: { sellerId, status: 'active' } })` counts the posting seller's OWN storefront for the released-scam-charge cap on their own create/relist; returns a number, nothing is listed, serialized or published."],
   ["src/lib/webhooks.ts", "Selects only listing.sellerId to pick which shop's registered endpoints to notify; every caller is an after() hook on that shop's own mutation."],
 ])
 
