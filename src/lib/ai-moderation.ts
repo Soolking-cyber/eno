@@ -7,6 +7,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { db } from '@/lib/db'
 import { safeFetch } from '@/lib/ssrf'
+import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 
 // ── AI illegal-content moderation (Tier 2, async post-publish) ─────────────────────────
 // The inline word-scan (publish-guard) blocks CLEAR prohibited text at publish time. This
@@ -179,6 +180,9 @@ export async function moderateListingById(listingId: string): Promise<void> {
       }))
     }
     await db.$transaction(writes)
+    // Drop the cached page NOW: the edit path re-rendered it with this content moments before the
+    // hold landed, and the PDP's ISR window is 30 days. Also removes it from AI search.
+    refreshListingSurfaces([l.id], 'aiModeration', { home: true })
     console.warn(`[ai-moderation] auto-held ${l.id} (${result.category}, ${result.confidence.toFixed(2)})`)
   } catch (e) {
     console.error('[ai-moderation] moderateListingById failed', e)

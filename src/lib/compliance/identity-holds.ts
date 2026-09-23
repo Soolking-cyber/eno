@@ -1,9 +1,6 @@
 import 'server-only'
-import { after } from 'next/server'
 import { db } from '@/lib/db'
-import { revalidatePublicPath } from '@/lib/revalidate-lang'
-import { reindexListing } from '@/lib/listing-index'
-import { logError } from '@/lib/log'
+import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 
 // ── Releasing what the seller identity gate parked ──────────────────────────────────────────────
 //
@@ -34,12 +31,7 @@ export async function releaseIdentityHolds(ownerId: string): Promise<number> {
   return r.count
 }
 
-/** Best-effort cache + search refresh; works with or without a request scope (routes, cron, KYC). */
+/** Best-effort cache + search refresh — the shared helper every public-state change uses. */
 export function refreshPublicSurfaces(ids: string[]): void {
-  // `continue`, not `break`: stopping at the first throw left every later listing serving stale
-  // cached HTML — a parked one still visible, a released one still hidden. Outside a request scope
-  // every call throws; that costs a cheap throw per id, nothing more.
-  for (const id of ids) { try { revalidatePublicPath(`/listings/${id}`) } catch { continue } }
-  const reindex = async () => { for (const id of ids) await reindexListing(id).catch((e) => logError(e, { op: 'identityHolds.reindex', listingId: id })) }
-  try { after(reindex) } catch { void reindex() }
+  refreshListingSurfaces(ids, 'identityHolds')
 }

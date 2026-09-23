@@ -1,12 +1,12 @@
-import { NextResponse, after } from 'next/server'
+import { NextResponse } from 'next/server'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
 import { bumpBrandCount } from '@/lib/brand'
-import { reindexListing } from '@/lib/listing-index'
 import { fold } from '@/lib/fold'
 import { LISTING_CARD_SELECT, serializeListingCard } from '@/lib/serialize'
 import { partitionByIdentityGate, settleHolds } from '@/lib/compliance/seller-publish-gate'
+import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 
 export const dynamic = 'force-dynamic'
 
@@ -186,9 +186,11 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
   }
 
   revalidatePublicPath('/')
-  // Sync AI search: each id upserts if it's still public, else drops out (handles
-  // hide/unverify/delete → remove, activate/verify → add, feature → refresh).
-  after(() => { for (const id of ids) reindexListing(id) })
+  // ⛔ EACH LISTING'S OWN PAGE TOO. This purged only "/", so a bulk hide/delete/unverify of scam or
+  // illegal stock kept every PDP serving for up to the 30-day ISR window — and a bulk verify/activate
+  // kept serving the cached 404/sold page. The helper also re-syncs AI search (upsert if still
+  // public, else drop), which is what the after(reindex) here used to do on its own.
+  refreshListingSurfaces(ids, 'admin.listings')
   // `held` / `alreadyHeld` only when non-zero, so with the gate off the body is byte-for-byte what it
   // always was.
   return NextResponse.json({ ok: true, affected, ...(held ? { held } : {}), ...(alreadyHeld ? { alreadyHeld } : {}) })

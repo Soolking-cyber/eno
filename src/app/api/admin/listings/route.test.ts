@@ -26,6 +26,8 @@ const h = vi.hoisted(() => ({
   /** Ids whose owner the post-write re-check (settleHolds) finds verified NOW; it releases those it is given. */
   releasable: [] as string[],
   settleCalls: [] as string[][],
+  /** Every path the route purged. */
+  purged: [] as string[],
 }))
 
 vi.mock('@/lib/admin', () => ({
@@ -39,6 +41,7 @@ vi.mock('@/lib/db', () => ({
       updateMany: async (a: Row) => { h.calls.push({ m: 'updateMany', args: a }); return { count: h.counts.shift() ?? 0 } },
       updateManyAndReturn: async (a: Row) => { h.calls.push({ m: 'updateManyAndReturn', args: a }); return h.returns.shift() ?? [] },
       findMany: async (a: Row) => { h.calls.push({ m: 'findMany', args: a }); return h.before },
+      deleteMany: async (a: Row) => { h.calls.push({ m: 'deleteMany', args: a }); return { count: 0 } },
     },
   },
 }))
@@ -47,7 +50,7 @@ vi.mock('@/lib/compliance/seller-publish-gate', () => ({
   // Like the real one: counts only among the ids it is GIVEN (it re-reads those rows).
   settleHolds: async (ids: string[]) => { h.settleCalls.push(ids); return ids.filter((i) => h.releasable.includes(i)).length },
 }))
-vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
+vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: (path: string) => { h.purged.push(path) } }))
 vi.mock('@/lib/listing-index', () => ({ reindexListing: async () => {} }))
 vi.mock('@/lib/brand', () => ({ bumpBrandCount: async () => {} }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ ok: true }) }))
@@ -65,6 +68,7 @@ const updates = () => h.calls.filter((c) => c.m === 'updateMany').map((c) => c.a
 const writes = () => h.calls.filter((c) => c.m.startsWith('updateMany')).map((c) => [c.m, c.args])
 
 beforeEach(() => {
+  h.purged = []
   h.held = []
   h.calls = []
   h.counts = []
@@ -213,3 +217,15 @@ describe('unverify — a takedown', () => {
     expect(updates()).toEqual([{ where: { id: { in: ['a'] } }, data: { verified: false, identityHold: false } }])
   })
 })
+
+describe('takedowns purge each listing\'s own page (audit #2)', () => {
+  it('⛔ a bulk hide / unverify / delete purges /listings/<id> for every id, not only "/"', async () => {
+    for (const action of ['hide', 'unverify', 'delete']) {
+      h.purged = []; h.calls = []; h.counts = []; h.returns = []
+      const r = await post({ action, ids: ['a', 'b'] })
+      expect(r.status, `${action}: ${r.text}`).toBe(200)
+      expect(h.purged).toEqual(expect.arrayContaining(['/', '/listings/a', '/listings/b']))
+    }
+  })
+})
+

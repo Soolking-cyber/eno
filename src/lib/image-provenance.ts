@@ -2,6 +2,7 @@ import 'server-only'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { hashFromUrl, hexToBits } from '@/lib/image-hash'
+import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 
 // ── Cross-app image provenance (stolen-photo / duplicate-across-sellers detection) ────────
 // Complements the seller-scoped duplicate guard: this looks across the WHOLE platform. A new
@@ -105,6 +106,8 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
         }))
       }
       await db.$transaction(writes)
+      // Same as ai-moderation: the held page must not keep serving from the 30-day ISR cache.
+      refreshListingSurfaces([l.id], 'imageProvenance', { home: true })
       console.warn(`[image-provenance] auto-held ${l.id} (reused ${best}/${hexes.length} from ${originalId})`)
     }
   } catch (e) {
