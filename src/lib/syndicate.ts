@@ -1,6 +1,9 @@
 import 'server-only'
 import { formatMoneyFull } from './vnd'
 import { db } from './db'
+import { isSellerHiddenHere, isServicesDeskListing } from './edition-scope'
+import { rateLimit } from './ratelimit'
+import { EDITION } from './edition'
 
 /**
  * Auto cross-post a newly-published listing to the platform's own social channels.
@@ -102,7 +105,9 @@ async function claimForDaily(listingId: string, channel: string): Promise<void> 
   }
 }
 
-export async function syndicateListing(l: SyndicationInput): Promise<void> {
+// ⛔ NOT EXPORTED: every caller goes through syndicateListingIfPublic, so a future path (a republish,
+// an approve-after-hold) cannot reopen audit finding #22 by calling the ungated poster directly.
+async function syndicateListing(l: SyndicationInput): Promise<void> {
   const text = caption(l)
   const channels: [string, () => Promise<void>][] = [
     ['telegram', () => postTelegram(l, text)],
@@ -121,3 +126,43 @@ export async function syndicateListing(l: SyndicationInput): Promise<void> {
     }),
   )
 }
+
+/**
+ * Posts per day across both channels. A partner-API loop or a bulk seller can create hundreds of
+ * listings; broadcasting each from eno's Page would be spam (and a quick way to get the Page limited).
+ */
+export const SYNDICATION_DAILY_CAP = 40
+
+/**
+ * Syndicate a listing ONLY if it is public, here, now — the check the publish-time path never made.
+ *
+ * ⛔ IT POSTED EVERY CREATED LISTING, UNSCOPED (audit finding #22). The daily poster reads through
+ * scopedListingWhere; this path did not, so a seller eno.vn deliberately hides (not allow-listed, or
+ * the services desk) still had each listing broadcast from eno's own Page and Telegram, linking to a
+ * PDP the edition will not serve. The Page and channel belong to the licensed eno.vn brand, so the
+ * desk exclusion applies whichever edition created the listing.
+ * ⚠️ RE-READ AFTER MODERATION. Called once the AI-moderation and image-provenance checks have settled
+ * (createListingCore), so a listing they held seconds after creation is not broadcast.
+ * Fails CLOSED: any doubt (row gone, desk check errors) means no post.
+ */
+export async function syndicateListingIfPublic(l: SyndicationInput): Promise<void> {
+  try {
+    const row = await db.listing.findUnique({ where: { id: l.id }, select: { verified: true, status: true, sellerId: true } })
+    if (!row || !row.verified || row.status !== 'active') return
+    if (await isSellerHiddenHere(row.sellerId)) return
+    if (await isServicesDeskListing({ sellerId: row.sellerId })) return
+    // Keyed by DESTINATION: the cap protects a Page/channel from spam, so two builds posting to the
+    // SAME Page share one allowance, and builds with their own channels get their own. (Both editions
+    // share one database and limiter; keying by edition would double a shared Page's quota, and one
+    // global key would let one site starve the other's separate Page.)
+    const day = new Date().toISOString().slice(0, 10)
+    const dest = process.env.FB_PAGE_ID || process.env.TELEGRAM_CHAT_ID || EDITION
+    const quota = await rateLimit('syndicate', `${dest}:${day}`, SYNDICATION_DAILY_CAP, '1 d', { strict: true })
+    if (!quota.success) return
+  } catch (e) {
+    console.error('[syndicate:gate] not posting', l.id, e)
+    return
+  }
+  await syndicateListing(l)
+}
+

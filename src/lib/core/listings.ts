@@ -25,7 +25,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
 import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor } from '@/lib/taxonomy'
-import { syndicateListing } from '@/lib/syndicate'
+import { syndicateListingIfPublic } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
@@ -975,10 +975,24 @@ export async function createListingCore(input: {
   // Tier-2 illegal-content moderation: an AI vision+text pass runs AFTER the response
   // flushes (the listing is already live — instant-publish stays instant). Trust-gated to
   // the risky population inside; a high-confidence prohibited hit auto-hides + flags + notifies.
-  after(() => moderateListingById(listing.id))
   // Cross-app image provenance: index this listing's photo hashes + check them against the
   // whole platform; reusing another seller's photos (stolen-listing scam) auto-hides + flags.
-  after(() => indexAndCheckProvenance(listing.id))
+  // ⚠️ ONE after(), and social syndication waits for BOTH checks: posting ran concurrently with them,
+  // so a listing they held seconds after creation could already be on eno's Facebook Page. Each
+  // check catches its own errors, so allSettled is belt and braces.
+  after(async () => {
+    await Promise.allSettled([moderateListingById(listing.id), indexAndCheckProvenance(listing.id)])
+    await syndicateListingIfPublic({
+      id: listing.id,
+      title: listing.title,
+      price: listing.price,
+      currency: listing.currency,
+      location: listing.location,
+      district: listing.district,
+      image: images[0] || null,
+      categoryName: category.name,
+    })
+  })
 
   // Pre-translate every user-authored text field into the TOP visitor languages (the
   // eager set in lib/translate.ts) so the listing renders from cache where it matters
@@ -993,20 +1007,9 @@ export async function createListingCore(input: {
   const warmFields = [listing.title, listing.description, listing.location, ...attrValues].filter(Boolean)
   after(() => warmTranslations(warmFields))
 
-  // Auto cross-post to social channels + Meta CAPI Lead + AI-search index. Every created
-  // listing is now live (the publish gate REJECTS instead of holding), so this always runs.
+  // Meta CAPI Lead + AI-search index (social syndication runs above, once moderation has settled).
   // Best-effort, after the response.
   {
-    after(() => syndicateListing({
-      id: listing.id,
-      title: listing.title,
-      price: listing.price,
-      currency: listing.currency,
-      location: listing.location,
-      district: listing.district,
-      image: images[0] || null,
-      categoryName: category.name,
-    }))
     after(() =>
       sendMetaCapiEvent('Lead', {
         eventSourceUrl: headers.get('referer') || undefined,

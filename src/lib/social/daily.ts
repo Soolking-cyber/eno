@@ -82,7 +82,11 @@ async function pickFor(channel: string): Promise<PostInput | null> {
    * beside `sellerId` is the documented way to lose the exclusion silently.
    */
   const rows = await db.listing.findMany({
-    where: await scopedListingWhere({ status: 'active', createdAt: { gt: since }, id: { notIn: already } }),
+    // ⛔ `verified: true` — THE PUBLIC PREDICATE IS verified AND active, and this had only half of it.
+    // Several takedowns (moderation, the identity gate's hold) set verified:false and leave status
+    // 'active', and the newest unposted listing is picked first — so a freshly confirmed takedown was
+    // the MOST likely thing to be broadcast from eno's Page. (Audit finding #12.)
+    where: await scopedListingWhere({ status: 'active', verified: true, createdAt: { gt: since }, id: { notIn: already } }),
     orderBy: { createdAt: 'desc' },
     /**
      * ⛔ `findMany` + take, NOT `findFirst` — REVIEWER-CAUGHT DEADLOCK, AND IT WOULD HAVE BEEN
