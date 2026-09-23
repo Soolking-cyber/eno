@@ -20,24 +20,28 @@ Cloud Build was removed on **2026-08-22** (owner: *"remove cloud build entirely 
 
 So: **step 5 is mandatory.** A ship that stops after `git push` has shipped nothing.
 
-## 0. Pick up the Codex handoff
+## 0. ⛔ SUPERSEDED — there is no Codex handoff
 
-Before running gates, and again immediately before staging, run:
+This step told you to pick up pending `apps/forum/**` files as a Codex handoff. Both halves of that
+are gone: `apps/forum` has been **dormant source** since the 2026-07-31 reversal (nothing builds or
+deploys it — eno.forum is the repo root built as the services edition), and the Codex handoff
+boundary was retired on 2026-09-05. Codex is not a contributor here.
 
-```bash
-git status --short -- apps/forum
-git diff -- apps/forum
-```
-
-Any pending `apps/forum/**` files are a Codex handoff. Read the current conversation for the exact files and validation Codex reported. If those forum gates are green, include the handoff files in the commit. If readiness is unclear, rerun the relevant checks from `apps/forum` or stop and report the exact pending files. **Never push a commit while silently leaving validated Codex changes under `apps/forum/**` unstaged.**
+⚠️ **The real pre-commit gate is step 4's second opinion**, which is enforced by a PreToolUse hook
+rather than by remembering to read this file. Do not go looking for forum files to stage.
 
 ## 1. Gates (fast, local)
 
 ```bash
 npx tsc --noEmit
-node scripts/design-lint.mjs
-node scripts/edition-lint.mjs
+npm run lint          # the UMBRELLA gate — runs design-lint, edition-lint and docs-lint
+npx vitest run        # 6,100+ unit tests; a rebase can break these while tsc stays green
 ```
+
+⚠️ **`npm run lint` REPLACES running the two lint scripts by hand** — it runs them plus docs-lint,
+so calling `design-lint.mjs` and `edition-lint.mjs` directly (what this step said until 2026-09-23)
+silently skipped docs-lint. And the unit suite was **missing from this list entirely**, which
+matters most after a rebase: a textual merge can leave `tsc` clean and the suite red.
 
 `tsc` must be silent; design-lint must print `design-lint: clean`. If design-lint fails, fix the violation — do NOT add a `design-lint-allow` comment unless the line is genuinely third-party (a brand hex, a Leaflet CSS-in-JS color).
 
@@ -132,16 +136,52 @@ Commit message: a plain sentence saying what changed and why, in the repo's voic
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ```
 
+⛔ **THE COMMIT IS GATED ON AN EXTERNAL REVIEW, AND A HOOK ENFORCES IT.** Before `git commit`,
+run — as its own shell call, because the PreToolUse hook inspects the command *before* it runs, so
+chaining `node scripts/second-opinion.mjs && git commit` fails on the un-reviewed hash:
+
+```bash
+node scripts/second-opinion.mjs     # dispatches the panel against the STAGED diff, writes a receipt
+```
+
+The panel is **agy + opus** (the OpenAI seat was removed 2026-09-23). Two labs must answer; a seat
+that errors or times out is NOT a pass. A REFUTED verdict does **not** block the commit — read the
+findings and verify each by measuring, because roughly a third of them do not survive checking on
+this repo. Re-run the script after any change, or the receipt no longer matches the diff hash.
+
 Then `git push`. CI (`gh run list --limit 5`) must go green.
+
+⚠️ **CHECK WHETHER YOU ARE BEHIND `origin/main` FIRST.** On 2026-09-23 two local commits sat on a
+base 11 commits stale, and `origin/main` held an unauthenticated-RCE patch and a PII-leak fix that
+were absent from the local tree — deploying that HEAD would have shipped a build missing both.
+`git fetch && git log --oneline HEAD..origin/main` before pushing; **rebase, never force-push.**
+
+⛔ **AND A REBASE INVALIDATES EVERYTHING ABOVE IT.** It rewrites your commits onto a new base, so the
+tree you tested is not the tree you are about to ship and the receipt no longer matches the staged
+hash. After any rebase, re-run **step 1** (tsc, lint, vitest) and re-run `second-opinion.mjs`. On
+2026-09-23 the rebase pulled in 11 commits including a Next/sharp version bump — textual merge,
+semantic risk.
 
 ⚠️ **`gh run list --commit <sha>` is unreliable** — it returned no rows for a run that was live the whole time (2026-08-22). Use the unfiltered list and match the SHA yourself.
 
 ## 5. ⛔ DEPLOY — the step that actually ships
 
 ```bash
-ssh -i "$ENO_SSH_KEY" -p 24700 root@162.4.176.233 \
+ssh -i "${ENO_SSH_KEY:-$HOME/.ssh/CS-Linux-20260920135129228.pem}" -p 24700 root@162.4.176.233 \
   "bash /opt/eno/app/infra/vn-node/eno-deploy.sh --expect=$(git rev-parse HEAD)"
 ```
+
+⛔ **`$ENO_SSH_KEY` IS UNSET IN A NORMAL SHELL, SO THE BARE FORM FAILS.** This step read
+`-i "$ENO_SSH_KEY"` until 2026-09-23 — which expands to `ssh -i ""` and dies before reaching the box.
+The `${VAR:-default}` form keeps the indirection (export `ENO_SSH_KEY` and it wins) while still
+working with nothing exported. It is the same idiom the repo's own infra scripts already use
+(`install-cf-token.sh:21`, `apply-google-signin.sh:8`, `setup-offsite-backup.sh:12`).
+
+⚠️ **THOSE THREE SCRIPTS STILL DEFAULT TO THE RETIRED BOX'S KEY** — `$HOME/Desktop/eno.vn
+server/CS-Linux-20260821173657299.pem`. The box moved to **162.4.176.233 on 2026-09-20** with
+`~/.ssh/CS-Linux-20260920135129228.pem`; 162.4.176.208 is retired and everything on it is stale, so
+a command that silently reaches the old one looks like a successful no-op. Fix them when you next
+touch one.
 
 ✅ **No token in this command any more.** The box holds a purge-only Cloudflare token at
 `/opt/eno/secrets/cf-token` (root, 0600) and the script reads it itself, so every deploy purges
@@ -156,13 +196,6 @@ pushed in between, you deploy their untested work under your green CI.
 
 ⚠️ `--skip-purge` remains, for the rare deliberate case. It is now the exception rather than
 every single deploy, which is the point: the step most likely to be skipped is no longer a step.
-
-⛔ **BOTH ARGUMENTS MATTER.** Without `CF_TOKEN` the script refuses to start rather than
-finishing with an unpurged cache — a deploy nobody can see for six hours is the failure this
-whole change exists to prevent, and it used to exit 0. Without `--expect` the box builds
-whatever `origin/main` holds *at the moment it runs*, which is not necessarily the commit that
-just passed review; if someone else pushed in between, you deploy their untested work under
-your green CI.
 
 The script pulls to `origin/main`, pins `:prev` images for rollback, builds both editions sequentially, **verifies the marketplace bundle contains no visa/itinerary routes by reading the route manifest inside the built image**, swaps via `apps.compose.yml`, and health-checks through Cloudflare. Any failure rolls back automatically.
 
