@@ -155,6 +155,8 @@ export const LISTING_CARD_SELECT = {
    * rejected. ~20 bytes gzipped per card, null on everything a human posted.
    */
   buildingKey: true,
+  /** The pin's type glyph — see SerializedListingCard.subcategorySlug. ~15 bytes gzipped per card. */
+  subcategorySlug: true,
   brandSlug: true, model: true, condition: true, marketPosition: true, verified: true, postedAt: true, savedCount: true, contactCount: true,
   // For `listedAt` only — see src/lib/stale.ts. A card's "Posted" line is when it appeared on eno.
   createdAt: true,
@@ -173,6 +175,8 @@ type ListingCardRow = {
   lat: number | null; lng: number | null; images: string; video: string | null; brandSlug: string | null
   /** Partner project slug, or null — see LISTING_CARD_SELECT. */
   buildingKey?: string | null
+  /** Taxonomy leaf, or null — drives the map pin's glyph. */
+  subcategorySlug?: string | null
   model: string | null; condition: string | null; marketPosition: string | null; verified: boolean; postedAt: Date; createdAt: Date; savedCount: number; contactCount: number
   affiliateUrl: string | null
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
@@ -213,6 +217,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     lat: l.lat,
     lng: l.lng,
     buildingKey: l.buildingKey ?? null,
+    subcategorySlug: l.subcategorySlug ?? null,
     images: safeParse<string[]>(l.images, []).map(fixMockImage),
     video: l.video,
     brandSlug: l.brandSlug,

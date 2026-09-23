@@ -18,6 +18,7 @@ import { useLanguage, useTr } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
+import { MAP_GLYPH_LABEL, MAP_GLYPH_PATH, mapGlyphFor, type MapGlyph } from '@/lib/listing-map-glyph'
 import type { Nearby } from './area-filter'
 import { OSM_CREDIT, CARTO_CREDIT } from '@/lib/map-credit'
 import { cn } from '@/lib/utils'
@@ -143,30 +144,67 @@ function loadLeaflet(cb: () => void, onError?: () => void) {
 }
 
 /**
- * A BUILDING pin: the project's name and how many units it holds, drawn as one marker in place of
- * the 157 overlapping ones it stands for.
+ * ⛔ THE ZOOM AT WHICH A BUILDING PIN EARNS ITS NAME. Below this the pin is a fixed-width
+ * glyph+count chip; at or above it the project name is appended.
+ *
+ * This number IS the fix for the overlap. 30 buildings share ~31 coordinates, and at city zoom each
+ * was drawing a variable-width `name + count` pill — "The Metropole Thủ Thiêm 67" next to "Masteri
+ * Thảo Điền 106" — which cannot tile, so they piled into an unreadable stack. A glyph and a count
+ * are fixed width, so they can.
+ *
+ * ⚠️ AND THE NAME COMES BACK RATHER THAN GOING AWAY, which is the correction both reviewers pushed
+ * for and they were right: in Vietnamese property search the project name (Vinhomes, Masteri) IS the
+ * spatial anchor people scan for, so a permanently anonymous chip would force blind clicking. 14 is
+ * where a reader has committed to a neighbourhood and the pins are sparse enough to carry text.
+ */
+const LABEL_ZOOM = 14
+
+/** The stroked pictogram inside a pin. `currentColor` so one colour flips the whole mark. */
+function glyphMark(glyph: MapGlyph, px: number): string {
+  return `<svg viewBox="0 0 24 24" width="${px}" height="${px}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;flex:none;"><path d="${MAP_GLYPH_PATH[glyph]}"/></svg>`
+}
+
+const escapeHtml = (v: string) =>
+  v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+/**
+ * A BUILDING pin: one marker standing in for the units grouped at a project's coordinate — Rever
+ * geocodes the PROJECT, so 157 units land on one point and would otherwise render as one unreachable
+ * pile. The glyph says what kind of place it is, the count says how many are available, and the name
+ * appears once the map is zoomed in far enough for it to fit.
+ *
  * ⛔ SAME ESCAPING RULE AS pinHtml, AND HERE IT IS NOT THEORETICAL. `pinHtml` only ever receives
  * formatter output (digits and a currency symbol); this receives a building NAME that came from a
  * third party's web page, so the escape is the actual boundary, not a precaution.
  */
-function buildingPinHtml(name: string, count: number, active: boolean): string {
-  const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+function buildingPinHtml(name: string, count: number, active: boolean, glyph: MapGlyph, withName: boolean): string {
   const bg = active ? '#0a66c2' : '#111827'
-  const color = '#ffffff'
   const scale = active ? 1.06 : 1
-  return `<div style="transform:translate(-50%,-50%) scale(${scale});display:inline-flex;align-items:center;gap:6px;background:${bg};color:${color};border:1px solid rgba(255,255,255,.28);border-radius:9999px;padding:5px 10px;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);transition:transform .12s ease, background .12s ease;"><span>${esc(name)}</span><span style="background:rgba(255,255,255,.22);border-radius:9999px;padding:2px 6px;font-size:11px;">${count}</span></div>`
+  const label = withName
+    ? `<span style="max-width:13ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</span>`
+    : ''
+  return `<div style="transform:translate(-50%,-50%) scale(${scale});display:inline-flex;align-items:center;gap:4px;background:${bg};color:#fff;border:1px solid rgba(255,255,255,.28);border-radius:9999px;padding:3px 7px;font-size:11px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);transition:transform .12s ease, background .12s ease;">${glyphMark(glyph, 13)}${label}<span style="background:rgba(255,255,255,.22);border-radius:9999px;padding:1px 5px;font-size:10px;">${count}</span></div>`
 }
 
-function pinHtml(label: string, active: boolean): string {
+/**
+ * A single listing's pin: the type glyph and its compact price.
+ *
+ * ⚠️ THE PRICE STAYS AT EVERY ZOOM, and that is deliberate rather than an oversight of "make the
+ * pins small". A price is already short and near-fixed width ("6.8M", "$258"), so it is not what
+ * piled up — the variable-width building NAMES were. Dropping it would also throw away the currency
+ * correctness `pinLabel` exists to guarantee, and leave a map of identical marks with nothing to
+ * choose between. Smaller type and tighter padding is what "small" buys here.
+ */
+function pinHtml(label: string, active: boolean, glyph: MapGlyph): string {
   // INVARIANT: label is interpolated into raw HTML — escape it (audit P2). Today every
   // caller feeds formatter output (digits + currency), but the safety must not depend
   // on that staying true.
-  const esc = label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const esc = escapeHtml(label)
   const bg = active ? '#0a66c2' : '#ffffff'
   const color = active ? '#ffffff' : '#1a202c'
   const border = active ? '#0a66c2' : '#d8dee6'
   const scale = active ? 1.08 : 1
-  return `<div style="transform:translate(-50%,-50%) scale(${scale});display:inline-block;background:${bg};color:${color};border:1px solid ${border};border-radius:9999px;padding:4px 9px;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,.22);transition:transform .12s ease, background .12s ease;">${esc}</div>`
+  return `<div style="transform:translate(-50%,-50%) scale(${scale});display:inline-flex;align-items:center;gap:3px;background:${bg};color:${color};border:1px solid ${border};border-radius:9999px;padding:3px 7px;font-size:11px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,.22);transition:transform .12s ease, background .12s ease;">${glyphMark(glyph, 12)}<span>${esc}</span></div>`
 }
 
 /**
@@ -305,7 +343,18 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   const locale = moneyLocale(uiLang)
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
+  /** True once the map is zoomed in far enough for building pins to carry their names. */
+  const [labelled, setLabelled] = useState(false)
   const markersRef = useRef<Map<string, any>>(new Map())
+  /**
+   * ⛔ THE HTML EACH MARKER IS CURRENTLY SHOWING, so the restyle effect can skip the ones that did
+   * not change. `setIcon` REPLACES the marker's DOM element, taking hover state, the `riseOnHover`
+   * z-index and the element the touch two-step is mid-tap on with it. That effect now also runs on
+   * `buildings` and `selectedBuilding`, so without this a building refetch — or selecting any
+   * tower — would tear down and rebuild every unrelated pin on the map, which a reviewer flagged as
+   * exactly the destruction the setIcon approach was chosen to avoid.
+   */
+  const markerHtmlRef = useRef<Map<string, string>>(new Map())
   /**
    * ⚠️ THE SELECT CALLBACK LIVES IN A REF, like `listings` below and for the same reason. Marker
    * click handlers are captured when the marker is built; putting the prop in this effect's deps
@@ -520,6 +569,14 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     // half of the map), so a top-left control would sit under it. Bottom corner stays clear.
     map.zoomControl.setPosition('bottomright')
     map.on('moveend', () => { const c = map.getCenter(); onMoveRef.current?.({ lat: c.lat, lng: c.lng }) })
+    /**
+     * ⚠️ ZOOM IS STATE SO THE PINS CAN RE-LABEL, and it is deliberately COARSE — only whether we
+     * are at or above LABEL_ZOOM, never the number itself. Storing the raw zoom would re-run the
+     * restyle effect on every one of the ~18 zoom levels; storing the boolean means it runs twice,
+     * at the crossing, which is the only place the label actually changes.
+     */
+    map.on('zoomend', () => setLabelled(map.getZoom() >= LABEL_ZOOM))
+    setLabelled(map.getZoom() >= LABEL_ZOOM)
     queueMicrotask(() => { const c = map.getCenter(); onMoveRef.current?.({ lat: c.lat, lng: c.lng }) })
     // Tile weight: retina (@2x) tiles are ~4× the bytes and TIME OUT on slow mobile networks
     // (the cartocdn ERR_TIMED_OUT spam). Drop to 1× when the connection is slow or Save-Data
@@ -554,6 +611,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       map.remove()
       mapInstanceRef.current = null
       markersRef.current.clear()
+      // The html cache is keyed by marker id and those ids are reused across redraws, so it must
+      // be dropped with the markers — otherwise a rebuilt pin matches a stale entry and skips its
+      // first paint, leaving the previous listing's price on a marker that is now someone else's.
+      markerHtmlRef.current.clear()
       radiusCircleRef.current = null // removed with the map; drop the stale ref
     }
   }, [ready])
@@ -566,6 +627,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
 
     markersRef.current.forEach((m) => map.removeLayer(m))
     markersRef.current.clear()
+    markerHtmlRef.current.clear()
     // Keep the open card UNLESS its listing is gone (e.g. filtered out). A redraw
     // alone must NOT close it — otherwise it flickers shut right after opening.
     setCard((c) => {
@@ -607,12 +669,26 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       buildings!.forEach((b) => {
         bounds.push([b.lat, b.lng])
         const active = selectedBuilding === b.key
+        /**
+         * ⚠️ `'other'`, NOT `'apartment'` (reviewer). `glyph` is optional on the wire, so a payload
+         * without it is a real possibility — an in-flight response from the previous revision during
+         * a deploy swap, or the edge-cached /api/listings/buildings JSON, which can outlive a deploy
+         * by hours unless purged. Defaulting to the commonest kind would draw a residential tower on
+         * an office-only project and look authoritative doing it; the neutral mark is what the
+         * server itself returns when it cannot classify.
+         */
+        const bGlyph = b.glyph ?? 'other'
         const icon = L.divIcon({
-          html: buildingPinHtml(b.name, b.count, active),
+          html: buildingPinHtml(b.name, b.count, active, bGlyph, map.getZoom() >= LABEL_ZOOM),
           className: 'eno-pin eno-pin-building',
           iconSize: [0, 0],
         })
-        const marker = L.marker([b.lat, b.lng], { icon, riseOnHover: true, alt: `${b.name} — ${b.count} units` }).addTo(map)
+        /**
+         * ⚠️ `title` AS WELL AS `alt`. Below LABEL_ZOOM the chip carries no name, so a desktop
+         * reader needs the identity BEFORE committing to a click — a reviewer's point, and the
+         * native tooltip is the cheapest thing that cannot overlap or need its own layer.
+         */
+        const marker = L.marker([b.lat, b.lng], { icon, riseOnHover: true, title: `${b.name} — ${b.count} ${tr('available', 'căn còn trống')}` }).addTo(map)
         if (active) marker.setZIndexOffset(1000)
         /**
          * A building pin has no card of its own: it narrows the feed beside it, which is where the
@@ -648,10 +724,22 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     pinnedIndividually.forEach((l) => {
       const { lat, lng } = getListingCoordinates(l)
       bounds.push([lat, lng])
-      const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale, displayCurrency, displayRate), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
+      const lGlyph = mapGlyphFor(l.subcategorySlug)
+      const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale, displayCurrency, displayRate), selectedId === l.id, lGlyph), className: 'eno-pin', iconSize: [0, 0] })
       // `alt` gives the pin an accessible name (the visible label is just a price
       // string); keyboard users close the popup card via Escape on the wrapper.
-      const marker = L.marker([lat, lng], { icon, riseOnHover: true, alt: l.title }).addTo(map)
+      /**
+       * ⛔ `title`, NOT `alt` — AND THAT IS A LEAFLET FACT, NOT A PREFERENCE (reviewer). Leaflet
+       * writes `alt` only when the icon element is an `<img>`; every pin here is an `L.divIcon`,
+       * i.e. a `<div>`, so an `alt` option is silently dropped and never reaches the DOM. Since the
+       * glyph `<svg>` is `aria-hidden` and the visible text is a bare price, an `alt` that never
+       * lands would have left the pin's entire accessible name as "6.8M". `title` IS written (it is
+       * also what gives the desktop hover tooltip), so it carries both jobs.
+       * ⚠️ AND IT IS TRANSLATED. `.en` was hardcoded here at first, which on a Vietnamese-first
+       * marketplace announced "Apartment — …" to a vi reader; MAP_GLYPH_LABEL carries both.
+       */
+      const glyphName = tr(MAP_GLYPH_LABEL[lGlyph].en, MAP_GLYPH_LABEL[lGlyph].vi)
+      const marker = L.marker([lat, lng], { icon, riseOnHover: true, title: `${glyphName} — ${l.title}` }).addTo(map)
       // A rebuild mid-selection must keep the selected pin on top — the styling
       // effect only runs on [selectedId, ready], not on a redraw.
       if (selectedId === l.id) marker.setZIndexOffset(1000)
@@ -719,10 +807,45 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   useEffect(() => {
     if (!ready) return
     const L = (window as any).L
+    /**
+     * ⛔ THE LIVE ZOOM, NOT THE `labelled` STATE — a reviewer caught the race. The marker-BUILD
+     * effect asks the map directly (`map.getZoom() >= LABEL_ZOOM`), so on a deep link that opens at
+     * zoom 15 it correctly draws names; but `labelled` starts `false` and only becomes true after
+     * the init effect's `setLabelled` commits. In that gap this effect ran with `false` and stripped
+     * every name straight back off. Reading the map here means the two paths cannot disagree by
+     * construction; `labelled` stays in the deps purely as the signal that a crossing happened.
+     */
+    const showNames = (mapInstanceRef.current?.getZoom() ?? 0) >= LABEL_ZOOM
     markersRef.current.forEach((marker, id) => {
+      /**
+       * ⛔ BUILDING MARKERS RE-LABEL THROUGH setIcon TOO, NEVER THROUGH A REBUILD. Crossing
+       * LABEL_ZOOM changes what every building pin renders, and the obvious implementation — add
+       * the zoom to the marker-BUILD effect's deps — would tear down and recreate every marker on
+       * the crossing. That destroys the marker the reader is interacting with: the open card, the
+       * touch two-step's `peeked` state and the captured click handlers all go with it, so a pin
+       * tapped just before a pinch-zoom would silently stop responding. setIcon swaps only the
+       * element. (This branch used to `return` on building keys, because `listings.find` cannot
+       * match `building:<key>` — which is why they never restyled at all.)
+       */
+      if (id.startsWith('building:')) {
+        const b = buildings?.find((x) => `building:${x.key}` === id)
+        if (!b) return
+        const active = selectedBuilding === b.key
+        const html = buildingPinHtml(b.name, b.count, active, b.glyph ?? 'other', showNames)
+        if (markerHtmlRef.current.get(id) !== html) {
+          marker.setIcon(L.divIcon({ html, className: 'eno-pin eno-pin-building', iconSize: [0, 0] }))
+          markerHtmlRef.current.set(id, html)
+        }
+        marker.setZIndexOffset(active ? 1000 : 0)
+        return
+      }
       const l = listings.find((x) => x.id === id)
       if (!l) return
-      marker.setIcon(L.divIcon({ html: pinHtml(pinLabel(l, locale, displayCurrency, displayRate), selectedId === id), className: 'eno-pin', iconSize: [0, 0] }))
+      const html = pinHtml(pinLabel(l, locale, displayCurrency, displayRate), selectedId === id, mapGlyphFor(l.subcategorySlug))
+      if (markerHtmlRef.current.get(id) !== html) {
+        marker.setIcon(L.divIcon({ html, className: 'eno-pin', iconSize: [0, 0] }))
+        markerHtmlRef.current.set(id, html)
+      }
       if (selectedId === id) marker.setZIndexOffset(1000)
       else marker.setZIndexOffset(0)
     })
@@ -730,7 +853,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     // /api/fx a moment after first paint, and adding them to the build deps would tear down and
     // recreate every marker — and re-fit the bounds — the instant they land. This effect only
     // calls setIcon on markers that already exist, which is exactly what a re-label needs.
-  }, [selectedId, ready, listings, locale, displayCurrency, displayRate])
+  }, [selectedId, ready, listings, locale, displayCurrency, displayRate, labelled, buildings, selectedBuilding])
 
   // Fly to a specific listing when requested ("locate on map").
   useEffect(() => {

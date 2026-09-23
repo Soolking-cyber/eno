@@ -1,3 +1,4 @@
+import type { MapGlyph } from './listing-map-glyph'
 // Client-safe shared types for the marketplace frontend.
 // Mirrors the shapes returned by the API routes (see src/lib/serialize.ts).
 
@@ -23,6 +24,13 @@ export type SerializedListingCard = {
    * for grouped rentals while every other listing keeps its own pin — see LISTING_CARD_SELECT.
    */
   buildingKey?: string | null
+  /**
+   * ⚠️ ON THE WIRE SO A MAP PIN CAN DRAW ITS TYPE. `src/lib/listing-map-glyph.ts` turns this into
+   * the apartment/house/office/room/land/vehicle mark a pin carries; without it every pin is an
+   * identical dot and the map cannot answer "what kind of place is this" before a click. A short
+   * slug, null on anything the taxonomy does not classify.
+   */
+  subcategorySlug?: string | null
   id: string
   /**
    * The owning STOREFRONT's id — already public (storefront URLs, /api/sellers/[id]).
@@ -280,4 +288,11 @@ export type BuildingPin = {
   count: number
   minPrice: number | null
   maxPrice: number | null
+  /**
+   * The dominant kind among this project's units, so the pin draws a tower / house / office mark
+   * rather than an anonymous dot. Derived server-side in /api/listings/buildings from the same
+   * grouped query as the count — never inferred on the client, where only the current page of
+   * listings is in hand and a drilled-out map holds none of this building's units at all.
+   */
+  glyph?: MapGlyph
 }

@@ -2039,6 +2039,7 @@ export const UI_STRINGS: string[] = [
   "already resolved",
   "and",
   "at checkout with this code",
+  "available",
   "available.",
   "average",
   "buy, sell, rent, connect.",
