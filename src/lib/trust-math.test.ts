@@ -9,9 +9,15 @@ import {
   decayFactor,
   dedupeReviewPairs,
   freshnessScore,
+  GUEST_SELLER_TRUST,
+  REPORT_NOT_CONFIRMED_STATUSES,
+  REPORT_WITHDRAWN_BY_REPORTER,
+  reportClearsCharge,
   reportsDemote,
   reviewScore,
+  saleTimeMs,
   severityFromDelta,
+  standingConductEvents,
   tierFor,
   trackRecordScore,
   verificationScore,
@@ -226,5 +232,71 @@ describe('severityFromDelta (legacy v1 ledger mapping)', () => {
     expect(severityFromDelta(-18)).toBe('moderate')
     expect(severityFromDelta(-25)).toBe('severe')
     expect(severityFromDelta(-45)).toBe('severe')
+  })
+})
+
+describe('standingConductEvents (audit 2026-09-23 #15 — appeals)', () => {
+  const ev = (reportId: string | null, ms: number) => ({ reportId, createdAt: new Date(ms) })
+  const statusOf = (m: Record<string, string>) => ({ report: (id: string) => (m[id] ? { status: m[id] } : undefined) })
+
+  it('drops events whose report was resolved NOT a violation', () => {
+    for (const st of ['overturned', 'dismissed', 'abusive']) {
+      expect(standingConductEvents([ev('r1', 1)], statusOf({ r1: st }))).toEqual([])
+    }
+  })
+
+  it('keeps a confirmed report — and one whose appeal is merely OPEN', () => {
+    expect(standingConductEvents([ev('r1', 1)], statusOf({ r1: 'confirmed' }))).toHaveLength(1)
+    expect(standingConductEvents([ev('r1', 1)], statusOf({ r1: 'open' }))).toHaveLength(1)
+    expect(REPORT_NOT_CONFIRMED_STATUSES.has('open')).toBe(false)
+    expect(REPORT_NOT_CONFIRMED_STATUSES.has('confirmed')).toBe(false)
+  })
+
+  it('dedupes by reportId keeping the EARLIEST (a lost appeal re-confirms → one charge)', () => {
+    const kept = standingConductEvents([ev('r1', 500), ev('r1', 100), ev('r2', 300)], statusOf({ r1: 'confirmed', r2: 'confirmed' }))
+    expect(kept.map((e) => [e.reportId, e.createdAt.getTime()])).toEqual([['r1', 100], ['r2', 300]])
+  })
+
+  it('legacy events (no reportId / unreachable report) keep counting and are never merged', () => {
+    const kept = standingConductEvents([ev(null, 1), ev(null, 2), ev('gone', 3), ev('gone', 4)], statusOf({}))
+    // null ids are never deduped; an unreachable id is still one report, so it counts once.
+    expect(kept.map((e) => e.createdAt.getTime())).toEqual([1, 2, 3])
+  })
+
+  // Review of #15: a won appeal lived only in Report.status, and the Report row cascades away with
+  // its listing — the charge then came back. The ledger marker survives the row.
+  it('a reversal marker cancels the charge even when the Report row is GONE', () => {
+    const lookup = { report: () => undefined, reversedAtMs: (id: string) => (id === 'r1' ? 50 : undefined) }
+    expect(standingConductEvents([ev('r1', 10)], lookup)).toEqual([])
+    expect(standingConductEvents([ev('r2', 10)], lookup)).toHaveLength(1) // other reports untouched
+  })
+
+  it('a marker only cancels confirmations written BEFORE it (a later re-confirm charges again)', () => {
+    const lookup = { report: () => ({ status: 'confirmed' }), reversedAtMs: () => 50 }
+    const kept = standingConductEvents([ev('r1', 10), ev('r1', 90)], lookup)
+    expect(kept.map((e) => e.createdAt.getTime())).toEqual([90])
+  })
+
+  it('a REPORTER withdrawal is not a ruling: an appealed, confirmed report they closed keeps its charge', () => {
+    const lookup = { report: () => ({ status: 'dismissed', resolvedBy: REPORT_WITHDRAWN_BY_REPORTER }) }
+    expect(standingConductEvents([ev('r1', 1)], lookup)).toHaveLength(1)
+    expect(reportClearsCharge({ status: 'dismissed', resolvedBy: REPORT_WITHDRAWN_BY_REPORTER })).toBe(false)
+    expect(reportClearsCharge({ status: 'dismissed', resolvedBy: 'mod@eno.vn' })).toBe(true)
+    expect(reportClearsCharge(undefined)).toBe(false)
+  })
+})
+
+describe('saleTimeMs (audit 2026-09-23 #26)', () => {
+  it('prefers soldAt; updatedAt only when soldAt is null', () => {
+    expect(saleTimeMs({ soldAt: new Date(10), updatedAt: new Date(99) })).toBe(10)
+    expect(saleTimeMs({ soldAt: null, updatedAt: new Date(99) })).toBe(99)
+  })
+})
+
+describe('GUEST_SELLER_TRUST (audit 2026-09-23 #13)', () => {
+  it('is the v2 base, never the v1 column default of 100, and never a badged tier', () => {
+    expect(GUEST_SELLER_TRUST.trustScore).toBe(TRUST.BASE)
+    expect(GUEST_SELLER_TRUST.trustScore).not.toBe(100)
+    expect(GUEST_SELLER_TRUST.trustTier).toBe('standard')
   })
 })

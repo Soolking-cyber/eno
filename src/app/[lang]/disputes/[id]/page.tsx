@@ -43,6 +43,7 @@ type CaseData = {
   canPost: boolean
   submitted: boolean
   withdrawn: boolean
+  underAppeal?: boolean // absent from an older server → treated as false
   createdAt: string
   evidenceUntil: string | null
   resolvedAt: string | null
@@ -452,8 +453,10 @@ export default function DisputeRoomPage() {
               </p>
             ) : null}
             {/* Withdraw — reporter-only, available for the whole time the case is open
-                (independent of the one-shot composer, which closes once they've spoken). */}
-            {data.role === 'reporter' && data.status === 'open' && (
+                (independent of the one-shot composer, which closes once they've spoken).
+                Never on a case the respondent re-opened by APPEAL: only an admin decides
+                that, and the withdraw route refuses it. */}
+            {data.role === 'reporter' && data.status === 'open' && !data.underAppeal && (
               <div className="mt-3 text-center">
                 {confirmWithdraw ? (
                   <span className="inline-flex items-center gap-2 text-xs font-semibold text-body">

@@ -4,6 +4,7 @@ import {
   ENFORCEMENT_REASON,
   ENFORCEMENT_SEVERITY,
   FLAG_REASONS,
+  HUMAN_ONLY_REASONS,
   REPORTER_LADDER,
   VELOCITY,
   applyInsurance,
@@ -13,6 +14,11 @@ import {
   deriveState,
   holdForGrace,
   isFlagReason,
+  isHumanOnlyReason,
+  isHumanProtected,
+  planSystemMove,
+  strongestFloor,
+  type HumanFloor,
   isInsured,
   isProbation,
   normalizeEnforcementState,
@@ -106,6 +112,44 @@ describe('canSystemTransition (admin-vs-system precedence)', () => {
   it('system NEVER downgrades an active admin action (admin lifts manually)', () => {
     expect(canSystemTransition({ state: 'suspended', decidedBy: 'admin@eno.vn' }, 'good_standing')).toBe(false)
     expect(canSystemTransition({ state: 'held', decidedBy: 'admin@eno.vn' }, 'throttled')).toBe(false)
+  })
+
+  // #20 (audit 2026-09-23): the ban-evasion hold is SYSTEM-created, so decidedBy alone let
+  // the daily re-derive lift it within a day. The reason carries "a human decides".
+  it('a system-created ban-evasion hold is NEVER downgraded by the system', () => {
+    const hold = { state: 'held' as const, decidedBy: 'system', reason: ENFORCEMENT_REASON.BAN_EVASION_REVIEW }
+    expect(canSystemTransition(hold, 'good_standing')).toBe(false)
+    expect(canSystemTransition(hold, 'warned')).toBe(false)
+    expect(canSystemTransition(hold, 'throttled')).toBe(false)
+  })
+
+  it('…but the system may still ESCALATE over a human-only hold', () => {
+    const hold = { state: 'held' as const, decidedBy: 'system', reason: ENFORCEMENT_REASON.BAN_EVASION_REVIEW }
+    expect(canSystemTransition(hold, 'suspended')).toBe(true)
+    expect(canSystemTransition(hold, 'held')).toBe(false) // same state — still the idempotent no-op
+  })
+
+  it('ADMIN_MANUAL is human-only even if a caller ever wrote it as system', () => {
+    expect(canSystemTransition({ state: 'throttled', decidedBy: 'system', reason: ENFORCEMENT_REASON.ADMIN_MANUAL }, 'good_standing')).toBe(false)
+  })
+
+  it('system-derived reasons still auto-lift (the fix is scoped to human-only reasons)', () => {
+    expect(canSystemTransition({ state: 'held', decidedBy: 'system', reason: ENFORCEMENT_REASON.SCAM_HOLD }, 'good_standing')).toBe(true)
+    expect(canSystemTransition({ state: 'throttled', decidedBy: 'system', reason: ENFORCEMENT_REASON.CONDUCT_RESTRICTED }, 'good_standing')).toBe(true)
+    expect(canSystemTransition({ state: 'warned', decidedBy: 'system', reason: ENFORCEMENT_REASON.INSURANCE_GRACE }, 'good_standing')).toBe(true)
+    expect(canSystemTransition({ state: 'warned', decidedBy: 'system', reason: null }, 'good_standing')).toBe(true)
+  })
+
+  it('human-only set: ban-evasion review + admin manual; never a flag; every entry a defined slug', () => {
+    expect(isHumanOnlyReason(ENFORCEMENT_REASON.BAN_EVASION_REVIEW)).toBe(true)
+    expect(isHumanOnlyReason(ENFORCEMENT_REASON.ADMIN_MANUAL)).toBe(true)
+    expect(isHumanOnlyReason(ENFORCEMENT_REASON.SCAM_HOLD)).toBe(false)
+    expect(isHumanOnlyReason(null)).toBe(false)
+    const all = Object.values(ENFORCEMENT_REASON) as string[]
+    for (const r of HUMAN_ONLY_REASONS) {
+      expect(all).toContain(r)
+      expect(isFlagReason(r)).toBe(false)
+    }
   })
 })
 
@@ -297,5 +341,66 @@ describe('purge + remediation math effects (conduct side)', () => {
     const purged = conductPenalty([]) // computeTrustV2 filters overturned reports out
     expect(withReport).toBeGreaterThan(0)
     expect(purged).toBe(0)
+  })
+})
+
+// Review of #20 (2026-09-23): canSystemTransition sees only the CURRENT action, and a system
+// escalation replaces it — so a human action below held was erasable in two system steps.
+describe('planSystemMove — the human floor', () => {
+  const good = { state: 'good_standing' as const, reason: 'good_standing', expiresAt: null }
+  const adminThrottle: HumanFloor = { state: 'throttled', reason: ENFORCEMENT_REASON.ADMIN_MANUAL, decidedBy: 'mod@eno.vn', adminNote: 'n', expiresAtMs: null }
+  const scamHold = { state: 'held' as const, decidedBy: 'system', reason: ENFORCEMENT_REASON.SCAM_HOLD }
+
+  it('admin throttle → system hold → clean derive comes back to the ADMIN throttle, not good_standing', () => {
+    const m = planSystemMove(scamHold, good, adminThrottle)
+    expect(m).not.toBeNull()
+    expect(m!.decision.state).toBe('throttled')
+    // Re-instated as the human action itself — so it is human-protected again tomorrow.
+    expect(m!.decision.reason).toBe(ENFORCEMENT_REASON.ADMIN_MANUAL)
+    expect(m!.decidedBy).toBe('mod@eno.vn')
+    expect(m!.adminNote).toBe('n')
+    expect(m!.reinstatesFloor).toBe(true)
+    // …and once there, nothing moves it (the old rule would have dropped a system copy to good).
+    expect(planSystemMove({ state: 'throttled', decidedBy: 'mod@eno.vn', reason: ENFORCEMENT_REASON.ADMIN_MANUAL }, good, null)).toBeNull()
+  })
+
+  it('without a floor the same move is the ordinary system downgrade (the old behaviour)', () => {
+    const m = planSystemMove(scamHold, good, null)
+    expect(m).toEqual({ decision: good, decidedBy: 'system', adminNote: null, reinstatesFloor: false })
+  })
+
+  it('a derive that stays ABOVE the floor is applied as the system\'s own', () => {
+    const warnedFloor: HumanFloor = { ...adminThrottle, state: 'warned' }
+    const derived = { state: 'throttled' as const, reason: ENFORCEMENT_REASON.CONDUCT_RESTRICTED, expiresAt: null }
+    expect(planSystemMove(scamHold, derived, warnedFloor)).toMatchObject({ decidedBy: 'system', reinstatesFloor: false, decision: derived })
+  })
+
+  it('standing ON the floor under a system action, a lower derive changes nothing', () => {
+    expect(planSystemMove({ state: 'throttled', decidedBy: 'system', reason: ENFORCEMENT_REASON.CONDUCT_RESTRICTED }, good, adminThrottle)).toBeNull()
+  })
+
+  it('a human-only current action still blocks the floor move (a ban-evasion hold never lifts on its own)', () => {
+    const banHold = { state: 'held' as const, decidedBy: 'system', reason: ENFORCEMENT_REASON.BAN_EVASION_REVIEW }
+    expect(planSystemMove(banHold, good, { ...adminThrottle, state: 'warned' })).toBeNull()
+    expect(planSystemMove(banHold, good, null)).toBeNull()
+  })
+
+  it('escalations are untouched by a floor', () => {
+    const derived = { state: 'held' as const, reason: ENFORCEMENT_REASON.SCAM_HOLD, expiresAt: null }
+    expect(planSystemMove({ state: 'throttled', decidedBy: 'mod@eno.vn', reason: ENFORCEMENT_REASON.ADMIN_MANUAL }, derived, null)).toMatchObject({ decidedBy: 'system', decision: derived })
+  })
+
+  it('strongestFloor: most severe wins; an expired timed floor no longer binds', () => {
+    const now = 1_000_000
+    const warned: HumanFloor = { ...adminThrottle, state: 'warned' }
+    expect(strongestFloor([warned, adminThrottle], now)).toBe(adminThrottle)
+    expect(strongestFloor([warned, { ...adminThrottle, expiresAtMs: now - 1 }], now)).toBe(warned)
+    expect(strongestFloor([], now)).toBeNull()
+  })
+
+  it('isHumanProtected: an admin author OR a human-only reason', () => {
+    expect(isHumanProtected({ decidedBy: 'mod@eno.vn', reason: ENFORCEMENT_REASON.SCAM_HOLD })).toBe(true)
+    expect(isHumanProtected({ decidedBy: 'system', reason: ENFORCEMENT_REASON.BAN_EVASION_REVIEW })).toBe(true)
+    expect(isHumanProtected({ decidedBy: 'system', reason: ENFORCEMENT_REASON.CONDUCT_WARNING })).toBe(false)
   })
 })

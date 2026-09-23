@@ -210,24 +210,53 @@ export async function setStatusCore(
     const blocked = await identityGateForRevive(listingId, { decision: opts?.publishDecision })
     if (blocked) return { ok: false, code: 403, error: blocked }
   }
+  // ⚠️ A RE-MARK OF A LISTING ALREADY SOLD IS NOT A NEW SALE (review of #26, 2026-09-23). Trust
+  // times each sale by soldAt (falling back to updatedAt) to count "clean transactions AFTER a
+  // scam", and POST /sold re-stamped soldAt on every call — so a seller under a scam hold could
+  // re-mark five OLD sales and walk out of it in one minute. On sold→sold the sale time is kept:
+  // the existing soldAt, else the updatedAt trust was already reading (legacy/unattributed rows),
+  // and a generic re-send that changes nothing is not written at all (the write alone restamps
+  // updatedAt). Relisting (→ active) clears soldAt, so a genuine resale still stamps a new time.
+  const prior = status === 'sold' || status === 'hidden'
+    ? await db.listing.findUnique({ where: { id: listingId }, select: { status: true, soldAt: true, updatedAt: true } })
+    : null
+  const wasSold = prior?.status === 'sold' ? prior : null
+  if (status === 'sold' && wasSold && soldMeta === undefined) {
+    // Nothing to write — but a re-send is also how a caller repairs a sold row whose earlier purge
+    // or search sync failed, so those still run.
+    revalidatePublicPath(`/listings/${listingId}`)
+    after(() => reindexListing(listingId))
+    return { ok: true, status }
+  }
   // Sale attribution: stamp it when a listing is marked sold; CLEAR it on reactivate
   // so a resold-then-relisted item never carries a stale buyer/channel.
   const saleData =
     status === 'sold'
       ? soldMeta === undefined
         // Generic sold (partner sync, /status, MCP, the daily-review quick tick-off):
-        // the caller isn't attributing, so DON'T touch existing sold* / soldAt — a
+        // the caller isn't attributing, so DON'T touch the sold* attribution — a
         // re-sync must never erase attribution captured via the native Mark-sold sheet.
-        ? {}
+        // ⚠️ BUT A TRANSITION INTO SOLD STILL STAMPS THE SALE TIME (a re-send on a sold row
+        // returned above). Left null, trust timed the sale by updatedAt, which any later write
+        // to the row moves — the #26 bypass through another door. An earlier sale's soldAt
+        // (sold → hidden → sold) is kept: it is the same sale.
+        ? { soldAt: prior?.soldAt ?? new Date() }
         : {
-            soldAt: new Date(),
+            // sold → hidden → sold is the SAME sale: hiding keeps soldAt, so re-marking it must not
+            // mint a fresh "sale after the event" either (only relisting → active clears it).
+            soldAt: wasSold ? (wasSold.soldAt ?? wasSold.updatedAt) : (prior?.soldAt ?? new Date()),
             soldChannel: soldMeta.channel === 'external' ? 'external' : soldMeta.buyerProfileId ? 'eno' : null,
             soldToProfileId: soldMeta.channel === 'external' ? null : (soldMeta.buyerProfileId ?? null),
             soldPlatform: soldMeta.channel === 'external' ? (soldMeta.platform ?? null) : null,
           }
       : status === 'active'
         ? { soldAt: null, soldChannel: null, soldToProfileId: null, soldPlatform: null }
-        : {}
+        // Hiding a sold row with no soldAt (every sale before generic sold stamped one) FREEZES its
+        // sale time first: the write restamps updatedAt, the only time trust had for it, and the
+        // listing re-marked sold later would otherwise count as a brand-new sale.
+        : status === 'hidden' && wasSold && !wasSold.soldAt
+          ? { soldAt: wasSold.updatedAt }
+          : {}
   await db.listing.update({
     where: { id: listingId },
     // ⚠️ marketPosition is cleared on REACTIVATION for the same reason the edit path clears it on a

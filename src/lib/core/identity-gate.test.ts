@@ -24,6 +24,7 @@ const h = vi.hoisted(() => ({
   updates: [] as Row[],
   creates: 0,
   reads: [] as string[],
+  purged: [] as string[],
 }))
 
 vi.mock('@/lib/compliance/account-state', async (orig) => ({
@@ -53,7 +54,7 @@ vi.mock('@/lib/compliance/seller-publish-gate', async () => {
 })
 vi.mock('next/server', () => ({ after: () => {} }))
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
-vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
+vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: (p: string) => { h.purged.push(p) } }))
 vi.mock('@/lib/db', () => ({
   db: {
     listing: {
@@ -95,6 +96,7 @@ const SELLER = { id: 's1', ownerId: 'owner-1', trustTier: 'standard', trustScore
 const REFUSED = { ok: false as const, code: 'identity_unverified' }
 
 beforeEach(() => {
+  h.purged = []
   h.enforced = false
   h.decision = { ok: true }
   h.decisionCalls = []
@@ -178,6 +180,78 @@ describe('bulkImportCore — the WHOLE batch is refused before any row runs', ()
   })
 })
 
+// Not an identity-gate property — it lives here for this file's fake of setStatusCore's world.
+describe('setStatusCore — a re-mark of a SOLD listing keeps the first sale time (audit #26 review)', () => {
+  const firstSale = new Date('2026-01-10T00:00:00Z')
+
+  it('attributing re-mark (POST /sold on a sold row): soldAt is NOT moved to now', async () => {
+    h.current = { status: 'sold', soldAt: firstSale, updatedAt: new Date('2026-02-01T00:00:00Z') }
+    expect(await setStatusCore('l1', 'sold', { channel: 'external', buyerProfileId: null, platform: 'fb' })).toEqual({ ok: true, status: 'sold' })
+    expect(h.updates).toHaveLength(1)
+    expect(h.updates[0].data.soldAt).toEqual(firstSale)
+    expect(h.updates[0].data.soldPlatform).toBe('fb') // the attribution itself still updates
+  })
+
+  it('legacy sold row with no soldAt: the re-mark freezes the updatedAt trust already read', async () => {
+    const legacy = new Date('2026-01-20T00:00:00Z')
+    h.current = { status: 'sold', soldAt: null, updatedAt: legacy }
+    await setStatusCore('l1', 'sold', { channel: null, buyerProfileId: null, platform: null })
+    expect(h.updates[0].data.soldAt).toEqual(legacy)
+  })
+
+  it('generic re-send of sold on a sold row writes NOTHING (the write alone restamps updatedAt)', async () => {
+    h.current = { status: 'sold', soldAt: null, updatedAt: firstSale }
+    expect(await setStatusCore('l1', 'sold')).toEqual({ ok: true, status: 'sold' })
+    expect(h.updates).toEqual([])
+    // …but the purge still runs: a re-send is how a caller repairs a failed earlier purge.
+    expect(h.purged).toEqual(['/listings/l1'])
+  })
+
+  it('a genuine transition INTO sold still stamps now', async () => {
+    h.current = { status: 'active', soldAt: null, updatedAt: firstSale }
+    const before = Date.now()
+    await setStatusCore('l1', 'sold', { channel: null, buyerProfileId: null, platform: null })
+    expect((h.updates[0].data.soldAt as Date).getTime()).toBeGreaterThanOrEqual(before)
+  })
+
+  // /status, sync, MCP and v1 mark sold WITHOUT attribution. Left null, trust timed the sale by
+  // updatedAt, which any later write to the row moves — the same bypass by another door.
+  it('a GENERIC transition into sold stamps the sale time, and touches no attribution', async () => {
+    h.current = { status: 'active', soldAt: null, updatedAt: firstSale }
+    const before = Date.now()
+    await setStatusCore('l1', 'sold')
+    expect((h.updates[0].data.soldAt as Date).getTime()).toBeGreaterThanOrEqual(before)
+    expect(h.updates[0].data).not.toHaveProperty('soldChannel')
+    expect(h.updates[0].data).not.toHaveProperty('soldToProfileId')
+  })
+
+  it('sold → hidden → sold keeps the ORIGINAL sale time — it is the same sale', async () => {
+    h.current = { status: 'hidden', soldAt: firstSale, updatedAt: new Date('2026-03-01T00:00:00Z') }
+    await setStatusCore('l1', 'sold')
+    expect(h.updates[0].data.soldAt).toEqual(firstSale)
+  })
+
+  it('hiding a LEGACY sold row (no soldAt) freezes the sale time before updatedAt moves', async () => {
+    const legacy = new Date('2026-01-20T00:00:00Z')
+    h.current = { status: 'sold', soldAt: null, updatedAt: legacy }
+    await setStatusCore('l1', 'hidden')
+    expect(h.updates[0].data).toMatchObject({ status: 'hidden', soldAt: legacy })
+  })
+
+  it('hiding an ordinary row writes no sale time', async () => {
+    h.current = { status: 'active', soldAt: null, updatedAt: firstSale }
+    await setStatusCore('l1', 'hidden')
+    expect(h.updates[0].data).not.toHaveProperty('soldAt')
+  })
+
+  it('…and so does an ATTRIBUTED re-mark (POST /sold) after hiding it', async () => {
+    h.current = { status: 'hidden', soldAt: firstSale, updatedAt: new Date('2026-03-01T00:00:00Z') }
+    await setStatusCore('l1', 'sold', { channel: 'external', buyerProfileId: null, platform: 'fb' })
+    expect(h.updates[0].data.soldAt).toEqual(firstSale)
+    expect(h.updates[0].data.soldPlatform).toBe('fb')
+  })
+})
+
 describe('setStatusCore — relisting is refused, never held', () => {
   it('gate on + refused owner + hidden → active: 403 with the code and NO write', async () => {
     h.enforced = true
@@ -200,7 +274,10 @@ describe('setStatusCore — relisting is refused, never held', () => {
     h.decision = REFUSED
     expect(await setStatusCore('l1', 'sold')).toEqual({ ok: true, status: 'sold' })
     expect(await setStatusCore('l1', 'hidden')).toEqual({ ok: true, status: 'hidden' })
-    expect(h.reads).toEqual([])
+    // No gate decision at all. The reads are the sale-time checks (a re-mark keeps the first sale
+    // time; hiding a legacy sold row freezes it — audit #26 review), not the identity gate.
+    expect(h.decisionCalls).toEqual([])
+    expect(h.reads).toEqual(['listing.findUnique', 'listing.findUnique'])
   })
 
   it('⛔ gate off: relisting writes exactly what it always wrote, with no extra read', async () => {

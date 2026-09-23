@@ -50,6 +50,102 @@ export function isFlagReason(reason: string): reason is FlagReason {
   return (FLAG_REASONS as readonly string[]).includes(reason)
 }
 
+/**
+ * HUMAN-ONLY reasons: ladder actions whose design says a PERSON decides when they end.
+ * The system may still ESCALATE over one (a scam hold on top of a ban-evasion review
+ * must bite), but it must never DOWNGRADE one — even when the action itself was
+ * system-created (decidedBy 'system').
+ *
+ * ⚠️ WHY decidedBy ALONE WAS NOT ENOUGH (audit 2026-09-23, #20). checkBanEvasion parks a
+ * phone-matched account 'held' with decidedBy 'system' — it is the system that noticed,
+ * but a human that must rule (VN families share numbers). syncEnforcement's daily
+ * re-derive saw a system action, derived good_standing from a clean trust breakdown and
+ * auto-lifted it within a day, telling the account "everything is restored"; and because
+ * checkBanEvasion suppresses a second review once ANY review row exists, that account was
+ * then exempt from ban-evasion checks for good. The reason, not the author, carries
+ * "a human decides".
+ *
+ * ADMIN_MANUAL is listed defensively: the admin console always writes it with the
+ * admin's decidedBy (already protected), but a hand-set state must never become
+ * system-liftable through a future caller that forgets that.
+ */
+export const HUMAN_ONLY_REASONS = [ENFORCEMENT_REASON.BAN_EVASION_REVIEW, ENFORCEMENT_REASON.ADMIN_MANUAL] as const
+
+export function isHumanOnlyReason(reason: string | null | undefined): boolean {
+  return reason != null && (HUMAN_ONLY_REASONS as readonly string[]).includes(reason)
+}
+
+/**
+ * A ladder action the SYSTEM may not end: an admin's (decidedBy ≠ 'system') or one carrying a
+ * human-only reason. The same test canSystemTransition applies to a downgrade, stated once so
+ * the supersede bookkeeping in applyEnforcement cannot drift from it.
+ */
+export function isHumanProtected(a: { decidedBy: string; reason: string | null | undefined }): boolean {
+  return a.decidedBy !== 'system' || isHumanOnlyReason(a.reason)
+}
+
+/**
+ * A human-protected action a SYSTEM ESCALATION set aside (EnforcementAction.status 'superseded').
+ * It is the floor the system may later come back down to, and never below.
+ */
+export type HumanFloor = {
+  state: EnforcementState
+  reason: string
+  decidedBy: string
+  adminNote: string | null
+  expiresAtMs: number | null
+}
+
+/** The most severe floor still in force (an expired timed floor no longer binds). */
+export function strongestFloor(floors: ReadonlyArray<HumanFloor>, now: number = Date.now()): HumanFloor | null {
+  let best: HumanFloor | null = null
+  for (const f of floors) {
+    if (f.expiresAtMs != null && f.expiresAtMs <= now) continue
+    if (!best || ENFORCEMENT_SEVERITY[f.state] > ENFORCEMENT_SEVERITY[best.state]) best = f
+  }
+  return best
+}
+
+export type SystemMove = {
+  decision: EnforcementDecision
+  decidedBy: string
+  adminNote: string | null
+  /** The move puts a superseded human action back in force (applyEnforcement retires the floor row). */
+  reinstatesFloor: boolean
+}
+
+/**
+ * What the daily/report-driven sync may actually do, given the derived target and any human
+ * floor. null = nothing.
+ *
+ * ⚠️ WHY A FLOOR (review of #20, 2026-09-23). canSystemTransition only sees the CURRENT action,
+ * and a system escalation replaces it. So an admin's 'throttled' (or any human-only action
+ * below held) could be erased in two system steps with no person involved: a scam report
+ * escalates to a system 'held' — allowed, escalations always are — and when that hold clears,
+ * the active action is the system's own, so the account dropped straight to good_standing and
+ * was told "everything is restored". The escalation now parks the human action as a floor, and
+ * a later downgrade stops at it, re-instating the human action itself (its reason, author and
+ * note), so it is human-protected again rather than a system copy that could lift next day.
+ */
+export function planSystemMove(
+  current: { state: EnforcementState; decidedBy: string; reason?: string | null },
+  effective: EnforcementDecision,
+  floor: HumanFloor | null,
+): SystemMove | null {
+  if (floor && ENFORCEMENT_SEVERITY[effective.state] <= ENFORCEMENT_SEVERITY[floor.state]) {
+    if (current.state === floor.state) return null // already standing on the floor
+    if (!canSystemTransition(current, floor.state)) return null
+    return {
+      decision: { state: floor.state, reason: floor.reason, expiresAt: floor.expiresAtMs },
+      decidedBy: floor.decidedBy,
+      adminNote: floor.adminNote,
+      reinstatesFloor: true,
+    }
+  }
+  if (!canSystemTransition(current, effective.state)) return null
+  return { decision: effective, decidedBy: 'system', adminNote: null, reinstatesFloor: false }
+}
+
 export const ENFORCEMENT = {
   WARN_EXPIRES_DAYS: 30, // a conduct warning lapses after a clean month
   INSURANCE_GRACE_HOURS: 72, // Amazon AHA: notice-before-action for long-good sellers
@@ -162,14 +258,19 @@ export function deriveState(i: EnforcementInputs, now: number = Date.now()): Enf
  *  - downgrade → only when the current action is the system's own (decidedBy
  *    'system'); ADMIN actions only lift manually (an admin's suspend can't be
  *    silently un-done because a score decayed back up).
+ *  - downgrade from a HUMAN-ONLY reason (HUMAN_ONLY_REASONS) → never, whoever created
+ *    it: a ban-evasion review is system-created but human-ended.
+ *
+ * `reason` is the ACTIVE ladder action's reason (flags excluded); null/absent when
+ * there is no active action, which keeps the old decidedBy-only behaviour.
  */
 export function canSystemTransition(
-  current: { state: EnforcementState; decidedBy: string },
+  current: { state: EnforcementState; decidedBy: string; reason?: string | null },
   derived: EnforcementState,
 ): boolean {
   if (derived === current.state) return false
   if (ENFORCEMENT_SEVERITY[derived] > ENFORCEMENT_SEVERITY[current.state]) return true
-  return current.decidedBy === 'system'
+  return !isHumanProtected({ decidedBy: current.decidedBy, reason: current.reason })
 }
 
 /** Insured = an unbroken ≥85 streak of at least 180 days (Profile.goodStandingSince). */

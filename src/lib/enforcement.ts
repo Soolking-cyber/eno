@@ -15,13 +15,15 @@ import {
   applyInsurance,
   blocksMessaging,
   blocksPosting,
-  canSystemTransition,
   deriveState,
   holdForGrace,
+  isHumanProtected,
   isInsured,
   isProbation,
   isFlagReason,
   normalizeEnforcementState,
+  planSystemMove,
+  strongestFloor,
   type EnforcementDecision,
   type EnforcementState,
   type FlagReason,
@@ -60,6 +62,19 @@ export {
 
 // Prisma `reason` filter that keeps flag rows out of ladder queries.
 const NOT_FLAGS = { notIn: [...FLAG_REASONS] as string[] }
+
+// EnforcementAction.status for a HUMAN-PROTECTED action a system escalation set aside: not in
+// force (never 'active', so no ladder/appeal/dashboard query sees it), not ended either — it is
+// the floor syncEnforcement comes back down to (planSystemMove). Retired to 'lifted' by the next
+// human ruling or when re-instated. A plain string column, so no DDL.
+const SUPERSEDED = 'superseded'
+
+/** The Profile moved between the decision and the write (see applyEnforcement). */
+class EnforcementConflict extends Error {
+  constructor(profileId: string) {
+    super(`enforcement state changed concurrently for profile ${profileId}`)
+  }
+}
 
 // ── Seller-facing notices (calm, specific, ONE action — never punitive-corporate).
 // EN + VI; the recipient gets THEIR language (Profile.locale). Deep link: /dashboard.
@@ -121,6 +136,15 @@ const NOTICE: Record<string, Notice> = {
     body: {
       en: 'We looked at your appeal carefully and the decision stands. It lifts automatically as your record improves.',
       vi: 'Chúng tôi đã xem xét kỹ khiếu nại của bạn và quyết định được giữ nguyên. Hạn chế sẽ tự gỡ khi hồ sơ của bạn cải thiện.',
+    },
+  },
+  // Upheld on a HUMAN-PROTECTED action (an admin's, or a ban-evasion review): the system can never
+  // lift it (planSystemMove), so "lifts automatically" would be a promise the platform cannot keep.
+  appeal_upheld_manual: {
+    title: { en: 'Your appeal was reviewed', vi: 'Khiếu nại của bạn đã được xem xét' },
+    body: {
+      en: 'We looked at your appeal carefully and the decision stands for now. Our team will review your account again — you do not need to do anything.',
+      vi: 'Chúng tôi đã xem xét kỹ khiếu nại của bạn và quyết định tạm thời được giữ nguyên. Đội ngũ của chúng tôi sẽ xem xét lại tài khoản của bạn — bạn không cần làm gì thêm.',
     },
   },
 }
@@ -216,7 +240,8 @@ export async function getEnforcement(profileId: string): Promise<{ state: Enforc
 
 /**
  * Execute an enforcement decision. IDEMPOTENT: no-op when the state is unchanged.
- * Supersedes any previous active action (status 'lifted') — silent review FLAGS are
+ * Supersedes any previous active action (status 'lifted'; a HUMAN-PROTECTED one a system
+ * escalation sets aside goes to 'superseded' instead — the floor) — silent review FLAGS are
  * NOT actions and survive the transition — executes the effects (held/suspended pull
  * the seller's live listings, recording exactly which — carried forward on escalation,
  * restored on downgrade; suspension records/clears the ban-evasion identity anchors),
@@ -226,8 +251,23 @@ export async function getEnforcement(profileId: string): Promise<{ state: Enforc
 export async function applyEnforcement(
   profileId: string,
   next: EnforcementDecision,
-  ctx: { decidedBy: string; triggerReportId?: string | null; adminNote?: string | null; onHeld?: (held: number) => void },
+  ctx: {
+    decidedBy: string
+    triggerReportId?: string | null
+    adminNote?: string | null
+    onHeld?: (held: number) => void
+    /**
+     * The snapshot a SYSTEM caller decided on (syncEnforcement). If the state or the active action
+     * moved since, the decision is stale and nothing is applied — see the race note below.
+     */
+    expect?: { state: EnforcementState; activeId: string | null }
+    /** This move re-instates a superseded human action (planSystemMove) — retire the floor row. */
+    reinstatesFloor?: boolean
+  },
 ): Promise<boolean> {
+  // A stale-snapshot refusal is the normal answer for a system caller (the next sync re-derives
+  // from the fresh state); an admin caller gets the throw, i.e. a non-2xx and a retry.
+  const systemCaller = ctx.decidedBy === 'system' || !!ctx.expect
   try {
     const p = await db.profile.findUnique({ where: { id: profileId }, select: { enforcementState: true } })
     if (!p) return false
@@ -237,13 +277,28 @@ export async function applyEnforcement(
     const now = new Date()
     const prevActive = await db.enforcementAction.findMany({
       where: { profileId, status: 'active', reason: NOT_FLAGS }, // flags outlive ladder transitions
-      select: { id: true, state: true, pulledListingIds: true },
+      select: { id: true, state: true, pulledListingIds: true, decidedBy: true, reason: true },
+      orderBy: { createdAt: 'desc' },
     })
+    // ⚠️ CHECK-THEN-ACT (review of #20, 2026-09-23). syncEnforcement decides from its OWN earlier
+    // read; a ban-evasion hold written between that read and this call used to be superseded as if
+    // it were the state the sync had judged — a clean re-derive lifted a human-only hold, and the
+    // prior-review check then exempted the account for good. The decision is only valid for the
+    // snapshot it was made on.
+    if (ctx.expect && (current !== ctx.expect.state || (prevActive[0]?.id ?? null) !== ctx.expect.activeId)) return false
+    const nextSev = ENFORCEMENT_SEVERITY[next.state]
+    // A SYSTEM ESCALATION sets a human-protected action aside rather than ending it: it becomes the
+    // floor a later system downgrade stops at (planSystemMove). Anything else ends what it replaces.
+    const escalatingBySystem = ctx.decidedBy === 'system' && !ctx.reinstatesFloor && nextSev > ENFORCEMENT_SEVERITY[current]
+    const supersedeIds = escalatingBySystem ? prevActive.filter((a) => isHumanProtected(a)).map((a) => a.id) : []
+    const liftIds = prevActive.map((a) => a.id).filter((id) => !supersedeIds.includes(id))
+    // A human ruling (any admin decision) or a re-instated floor settles every parked floor: the
+    // person has now decided the account's state, so no older hand-set state may resurface.
+    const retireFloors = ctx.decidedBy !== 'system' || !!ctx.reinstatesFloor
     // ONE transaction for the whole mutation (audit P2): a throw between the listing
     // pull and the action create used to strand pulled listings with NO recorded
     // action (so no lift could ever restore them) and an unchanged profile state.
     // Path revalidation happens AFTER commit — never inside the txn.
-    const nextSev = ENFORCEMENT_SEVERITY[next.state]
     // ⚖️ SELLER IDENTITY GATE, resolved BEFORE the transaction (it reads Profile and
     // identity_verifications; neither belongs inside a write lock). Only a downgrade below `held`
     // restores anything, and a restore for an owner the gate refuses PARKS the rows (identityHold)
@@ -257,10 +312,33 @@ export async function applyEnforcement(
       // identityHold: false` guard skips rows sold, hidden or re-approved since the pull, and rows
       // already parked, none of which this restore parked.
       const parked: string[] = []
-      if (prevActive.length) {
+      // Serialise transitions on the Profile row (this transaction writes it below, so the lock is
+      // the one that matters) and re-verify what everything above was decided on. Without it two
+      // transitions interleaving — a login's ban-evasion hold and a cron downgrade — each superseded
+      // the actions they had read, and the loser's view of "current" was simply wrong.
+      const locked = await tx.$queryRaw<{ enforcementState: string | null }[]>`
+        SELECT "enforcementState" FROM "Profile" WHERE "id" = ${profileId}::uuid FOR UPDATE
+      `
+      const activeNow = await tx.enforcementAction.findMany({ where: { profileId, status: 'active', reason: NOT_FLAGS }, select: { id: true } })
+      const sameActive = activeNow.length === prevActive.length && activeNow.every((a) => prevActive.some((b) => b.id === a.id))
+      if (normalizeEnforcementState(locked[0]?.enforcementState) !== current || !sameActive) throw new EnforcementConflict(profileId)
+
+      if (liftIds.length) {
         await tx.enforcementAction.updateMany({
-          where: { id: { in: prevActive.map((a) => a.id) } },
+          where: { id: { in: liftIds } },
           data: { status: 'lifted', liftedAt: now },
+        })
+      }
+      if (supersedeIds.length) {
+        await tx.enforcementAction.updateMany({
+          where: { id: { in: supersedeIds } },
+          data: { status: SUPERSEDED, liftedAt: now },
+        })
+      }
+      if (retireFloors) {
+        await tx.enforcementAction.updateMany({
+          where: { profileId, status: SUPERSEDED },
+          data: { status: 'lifted' },
         })
       }
 
@@ -399,6 +477,10 @@ export async function applyEnforcement(
     // action landed and stops watching. The two system callers below already sit inside their own
     // try/catch, so their best-effort behaviour is unchanged; only the admin path, which has no
     // catch, now surfaces a non-2xx and tells the operator to retry.
+    if (e instanceof EnforcementConflict && systemCaller) {
+      console.warn('[enforcement] transition skipped — state moved under a system decision', profileId, next.state)
+      return false
+    }
     console.error('[enforcement] apply failed', profileId, next.state, e)
     throw e
   }
@@ -432,8 +514,22 @@ export async function syncEnforcement(
     const active = await db.enforcementAction.findFirst({
       where: { profileId, status: 'active', reason: NOT_FLAGS },
       orderBy: { createdAt: 'desc' },
-      select: { decidedBy: true, reason: true, expiresAt: true },
+      select: { id: true, decidedBy: true, reason: true, expiresAt: true },
     })
+    // Human actions a system escalation set aside — the floor a downgrade stops at.
+    const floors = await db.enforcementAction.findMany({
+      where: { profileId, status: SUPERSEDED, reason: NOT_FLAGS },
+      select: { state: true, reason: true, decidedBy: true, adminNote: true, expiresAt: true },
+    })
+    const floor = strongestFloor(
+      floors.map((f) => ({
+        state: normalizeEnforcementState(f.state),
+        reason: f.reason,
+        decidedBy: f.decidedBy,
+        adminNote: f.adminNote,
+        expiresAtMs: f.expiresAt?.getTime() ?? null,
+      })),
+    )
     const derived = deriveState({
       score: opts?.persistedScore ?? breakdown.score,
       hasScamHold: breakdown.inputs.hasScamHold,
@@ -456,8 +552,20 @@ export async function syncEnforcement(
       graceUsedRecently,
     })
 
-    if (!canSystemTransition({ state: current, decidedBy: active?.decidedBy ?? 'system' }, effective.state)) return
-    await applyEnforcement(profileId, effective, { decidedBy: 'system', triggerReportId: opts?.triggerReportId ?? null, onHeld: opts?.onHeld })
+    // The active action's REASON rides along: a system-created ban-evasion hold is still
+    // human-ended (HUMAN_ONLY_REASONS), so a clean re-derive must not lift it. The floor stops
+    // a downgrade at any human action an earlier system escalation set aside.
+    const move = planSystemMove({ state: current, decidedBy: active?.decidedBy ?? 'system', reason: active?.reason ?? null }, effective, floor)
+    if (!move) return
+    await applyEnforcement(profileId, move.decision, {
+      decidedBy: move.decidedBy,
+      adminNote: move.adminNote,
+      reinstatesFloor: move.reinstatesFloor,
+      // Decided on THIS snapshot — applyEnforcement refuses if it moved in the meantime.
+      expect: { state: current, activeId: active?.id ?? null },
+      triggerReportId: opts?.triggerReportId ?? null,
+      onHeld: opts?.onHeld,
+    })
   } catch (e) {
     // Fail-quiet contract: the sync rides trust recomputes / report resolutions —
     // an enforcement hiccup must never fail the moderation flow or the cron.
@@ -489,6 +597,9 @@ export async function liftAction(actionId: string, opts: { to: 'lifted' | 'overt
         ...(action.appealedAt && !action.appealOutcome ? { appealOutcome: 'overturned', appealResolvedAt: new Date() } : {}),
       },
     })
+    // A lift/overturn is a human ruling that the account is fine — no older hand-set state a
+    // system escalation set aside may come back after it (see SUPERSEDED).
+    await db.enforcementAction.updateMany({ where: { profileId: action.profileId, status: SUPERSEDED }, data: { status: 'lifted' } })
     const restored = await restoreListings(parsePulled(action.pulledListingIds))
     // The caller (the admin console) reports rows the identity gate parked instead of restoring.
     if (restored.held) opts.onHeld?.(restored.held)
@@ -517,6 +628,14 @@ export async function liftAction(actionId: string, opts: { to: 'lifted' | 'overt
  */
 export async function expireEnforcement(): Promise<number> {
   try {
+    // A timed floor that lapsed while set aside just ends — it never held the Profile state, so
+    // nothing else moves (strongestFloor already ignores it; this only tidies the row).
+    await db.enforcementAction.updateMany({ where: { status: SUPERSEDED, expiresAt: { lte: new Date() } }, data: { status: 'expired' } })
+    // ⚠️ EXPIRY DROPS STRAIGHT TO good_standing AND DOES NOT CONSULT THE HUMAN FLOOR — safe only
+    // because no timed action can sit ABOVE a floor: every system `throttled`/`held` decision is
+    // untimed (enforcement-machine deriveState/holdForGrace), and the only timed system state,
+    // `warned`, can supersede nothing but a good_standing floor. Adding a timed system escalation
+    // means routing this through planSystemMove first.
     const due = await db.enforcementAction.findMany({
       where: { status: 'active', expiresAt: { lte: new Date() } },
       select: { id: true, profileId: true, state: true, pulledListingIds: true },
@@ -548,11 +667,13 @@ export async function upholdAppeal(actionId: string): Promise<boolean> {
   try {
     const action = await db.enforcementAction.findUnique({
       where: { id: actionId },
-      select: { id: true, profileId: true, appealedAt: true, appealOutcome: true },
+      select: { id: true, profileId: true, appealedAt: true, appealOutcome: true, decidedBy: true, reason: true },
     })
     if (!action || !action.appealedAt || action.appealOutcome) return false
     await db.enforcementAction.update({ where: { id: actionId }, data: { appealOutcome: 'upheld', appealResolvedAt: new Date() } })
-    notifyEnforcement(action.profileId, 'appeal_upheld')
+    // Only a SYSTEM-endable action "lifts automatically as your record improves"; an admin's or a
+    // ban-evasion review never does (planSystemMove), so it gets the honest copy.
+    notifyEnforcement(action.profileId, isHumanProtected(action) ? 'appeal_upheld_manual' : 'appeal_upheld')
     return true
   } catch (e) {
     console.error('[enforcement] uphold failed', actionId, e)
@@ -647,6 +768,10 @@ export async function dismissFlag(actionId: string): Promise<boolean> {
  * review. NEVER auto-suspends: VN families share numbers, so a match can be a
  * relative on the household SIM — a human decides, and lifting the hold both
  * restores the account and (via the prior-action check below) clears it for good.
+ * "A human decides" is ENFORCED, not just documented: BAN_EVASION_REVIEW is a
+ * HUMAN_ONLY_REASON, so syncEnforcement's daily re-derive can escalate over the hold but
+ * never lift it — before that, a clean trust breakdown auto-lifted it within a day and
+ * the prior-review check below then exempted the account for good.
  * An email match alone is a weaker signal (mailboxes are shared/recycled) → silent
  * review flag only; the state stays exactly where it was.
  */

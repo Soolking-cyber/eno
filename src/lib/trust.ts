@@ -1,10 +1,12 @@
 import 'server-only'
+import { Prisma } from '@/generated/prisma/client'
 import { db } from './db'
 import { recomputeRankScoreForSeller } from './ranking'
 import { RESPONSE_METRIC_IS_REAL } from './seller-metrics'
 import { ENFORCEMENT_REASON, VELOCITY, velocitySpike } from './enforcement-machine'
 import { expireEnforcement, flagForReview, syncEnforcement } from './enforcement'
 import {
+  CHARGE_REVERSAL_PREFIX,
   DAY_MS,
   TRUST,
   applyDailyCap,
@@ -13,10 +15,14 @@ import {
   credibilityWeight,
   dedupeReviewPairs,
   freshnessScore,
+  GUEST_SELLER_TRUST,
   manualAdjustSum,
+  reportClearsCharge,
   responseScore,
   reviewScore,
+  saleTimeMs,
   severityFromDelta,
+  standingConductEvents,
   tierFor,
   trackRecordScore,
   verificationScore,
@@ -182,8 +188,9 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   const accountAgeDays = (now - profile.createdAt.getTime()) / DAY_MS
 
   // Ledger reads: conduct events + manual adjustments + one-time verification gates.
+  // report_dismissed rides along for the charge-REVERSAL markers only (standingConductEvents).
   const events = await db.trustEvent.findMany({
-    where: { subjectProfileId: profileId, type: { in: ['report_confirmed', 'manual_adjust'] } },
+    where: { subjectProfileId: profileId, type: { in: ['report_confirmed', 'manual_adjust', 'report_dismissed'] } },
     select: { type: true, delta: true, reason: true, reportId: true, createdAt: true },
   })
 
@@ -200,7 +207,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   const reports = reportIds.length
     ? await db.report.findMany({
         where: { id: { in: reportIds } },
-        select: { id: true, severity: true, reporterProfileId: true, status: true, remediatedAt: true },
+        select: { id: true, severity: true, reporterProfileId: true, status: true, resolvedBy: true, remediatedAt: true },
       })
     : []
   const reportById = new Map(reports.map((r) => [r.id, r]))
@@ -209,7 +216,26 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   // struck no longer counts anywhere — conduct, the demote windows, and the scam
   // freeze all read only still-standing confirmations. Legacy events without a
   // reachable Report keep counting (fail-safe toward caution).
-  const standingConduct = conductEvents.filter((e) => !(e.reportId && reportById.get(e.reportId)?.status === 'overturned'))
+  //
+  // ⚠️ NOT ONLY 'overturned' (audit 2026-09-23, #15). An appeal re-opens the SAME
+  // confirmed report; a WON appeal resolves it 'dismissed'/'abusive', and only filtering
+  // 'overturned' kept the full penalty (and the enforcement it drove) on a report the
+  // platform had just ruled was no violation. A LOST appeal re-confirms it and writes a
+  // second report_confirmed event, which double-charged — so events are also deduped by
+  // reportId (earliest kept). While the appeal is merely OPEN the penalty still stands.
+  // A reversal is ALSO recorded in the ledger (a report_dismissed marker, written by
+  // recordChargeReversals), because the Report row can be cascade-deleted with its listing and
+  // its status would then be unreadable. The rules live in standingConductEvents (trust-math.ts,
+  // unit-tested).
+  const reversedAt = new Map<string, number>()
+  for (const e of events) {
+    if (e.type !== 'report_dismissed' || !e.reportId || !e.reason?.startsWith(CHARGE_REVERSAL_PREFIX)) continue
+    reversedAt.set(e.reportId, Math.max(reversedAt.get(e.reportId) ?? 0, e.createdAt.getTime()))
+  }
+  const standingConduct = standingConductEvents(conductEvents, {
+    report: (id) => reportById.get(id),
+    reversedAtMs: (id) => reversedAt.get(id),
+  })
 
   // Remediation (Amazon): a remediated report's conduct weight is halved — read off
   // the typed Report rows fetched above (the column went live with add-enforcement.mjs).
@@ -227,8 +253,9 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   let freshActiveListings = 0
   // Transaction = a sold listing OR a conversation with an accepted offer, unioned by
   // listing so a sold listing whose thread also had an accepted offer counts once.
-  // Timing approximations (no dedicated soldAt column): sold → Listing.updatedAt
-  // (the status flip touches it); accepted offer → the offer Message's createdAt.
+  // Timing: sold → Listing.soldAt, falling back to updatedAt only for sold rows with no
+  // soldAt (saleTimeMs — see why in trust-math.ts); accepted offer → the offer Message's
+  // createdAt.
   const txByListing = new Map<string, number>() // listingId → earliest transaction ms
 
   if (seller) {
@@ -265,8 +292,15 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
         // ⛔ NOT AFFILIATE/PARTNER LISTINGS: an imported shop's `sold` means "out of stock at the merchant"
         // (import-partners / the price refresh flip it both ways), never a sale made through eno — counting
         // them handed partner storefronts thousands of phantom transactions (audit, 2026-09-13).
-        where: { sellerId: seller.id, status: 'sold', affiliateUrl: null, updatedAt: { gte: txSince } },
-        select: { id: true, updatedAt: true },
+        // Windowed on the SAME timestamp saleTimeMs reads: soldAt when set, updatedAt only
+        // for the rows that have none.
+        where: {
+          sellerId: seller.id,
+          status: 'sold',
+          affiliateUrl: null,
+          OR: [{ soldAt: { gte: txSince } }, { soldAt: null, updatedAt: { gte: txSince } }],
+        },
+        select: { id: true, soldAt: true, updatedAt: true },
         take: 5000,
       }),
       db.message.findMany({
@@ -280,7 +314,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     activeListings = active
     freshActiveListings = fresh
     for (const l of sold) {
-      const t = l.updatedAt.getTime()
+      const t = saleTimeMs(l)
       const prev = txByListing.get(l.id)
       if (prev === undefined || t < prev) txByListing.set(l.id, t)
     }
@@ -467,22 +501,169 @@ export async function recomputeTrust(
     await db.profile.updateMany({ where: { id: profileId, goodStandingSince: { not: null } }, data: { goodStandingSince: null } })
   }
 
-  // No change → no writes (keeps the daily recompute-all pass cheap).
-  if (score === breakdown.cached.score && tier === breakdown.cached.tier) return { score, tier, breakdown }
+  // Profile unchanged → no Profile write (keeps the daily recompute-all pass cheap).
+  if (score !== breakdown.cached.score || tier !== breakdown.cached.tier) {
+    await db.profile.update({ where: { id: profileId }, data: { trustScore: score, trustTier: tier } })
+  }
 
-  await db.profile.update({ where: { id: profileId }, data: { trustScore: score, trustTier: tier } })
-  // Mirror onto the owned storefront (if any) so cards/badges render join-free.
-  await db.seller.updateMany({ where: { ownerId: profileId }, data: { trustScore: score, trustTier: tier } })
-  // Cascade the score onto the seller's listings (denormalized ranking key) so the
-  // feed's ORDER BY reads it locally — no Seller join. updateMany can't filter by a
-  // relation, so resolve the owned storefront id(s) first (a profile owns ≤1).
-  const owned = await db.seller.findMany({ where: { ownerId: profileId }, select: { id: true } })
+  // ⚠️ THE STOREFRONT MIRROR RUNS EVEN WHEN THE PROFILE DID NOT CHANGE (audit 2026-09-23, #13).
+  // It used to sit behind the no-change early return, so it only ever fired on a PROFILE
+  // score change — and Seller.trustScore carries a v1 @default(100). A storefront created
+  // after its owner's score had settled (or any guest storefront later claimed) kept the
+  // default forever: a brand-new shop wore a "100 Trusted" shield. Every write below is
+  // GUARDED (only rows that differ), so an in-sync seller costs reads and no writes.
+  const owned = await db.seller.findMany({ where: { ownerId: profileId }, select: { id: true, trustScore: true, trustTier: true } })
   if (owned.length) {
-    await db.listing.updateMany({ where: { sellerId: { in: owned.map((s) => s.id) } }, data: { sellerTrustScore: score } })
-    // Re-blend the feed rankScore with the new trust (one SQL UPDATE/seller; recency kept).
-    for (const s of owned) await recomputeRankScoreForSeller(s.id)
+    const drifted = owned.filter((s) => s.trustScore !== score || s.trustTier !== tier).map((s) => s.id)
+    if (drifted.length) {
+      await db.seller.updateMany({
+        where: { id: { in: drifted }, OR: [{ trustScore: { not: score } }, { trustTier: { not: tier } }] },
+        data: { trustScore: score, trustTier: tier },
+      })
+    }
+    // Cascade the score onto the listings' denormalized ranking key (the feed ORDER BY
+    // reads it locally — no Seller join). Guarded and updatedAt-preserving; see
+    // cascadeSellerTrustScore. Always run: listings created while the storefront sat at a
+    // stale score carry that stale copy, and the guard makes the in-sync case a no-op.
+    const ids = owned.map((s) => s.id)
+    const touched = await cascadeSellerTrustScore(ids, score)
+    // Re-blend the feed rankScore only when a ranking key actually moved (one SQL
+    // UPDATE/seller; recency kept). rankScore reads sellerTrustScore alone, so a tier-only
+    // change needs no re-rank.
+    if (touched > 0) for (const id of ids) await recomputeRankScoreForSeller(id)
   }
   return { score, tier, breakdown }
+}
+
+/**
+ * Write Listing.sellerTrustScore for these storefronts WITHOUT touching Listing.updatedAt.
+ * Returns how many listings actually changed.
+ *
+ * ⛔ NEVER db.listing.updateMany HERE (audit 2026-09-23, #26). updatedAt is @updatedAt, so a
+ * Prisma updateMany restamps it on EVERY matched row — sold ones included — and trust timed
+ * sold listings by updatedAt. Every score change (e.g. the drop a confirmed scam report
+ * causes) therefore made all of the seller's past sales look like they happened AFTER the
+ * scam, which satisfied the "5 clean transactions after the event" rule within a day and
+ * released the hard scam hold. Raw SQL is not seen by the @updatedAt middleware, and a
+ * ranking-key mirror is not an edit to the listing anyway. IS DISTINCT FROM keeps an
+ * in-sync seller write-free.
+ */
+export async function cascadeSellerTrustScore(sellerIds: string[], score: number): Promise<number> {
+  if (!sellerIds.length) return 0
+  return db.$executeRaw(
+    Prisma.sql`UPDATE "Listing" SET "sellerTrustScore" = ${score} WHERE "sellerId" IN (${Prisma.join(sellerIds)}) AND "sellerTrustScore" IS DISTINCT FROM ${score}`,
+  )
+}
+
+/**
+ * The trust a NEW storefront starts with — its owner's CURRENT score/tier, or the guest
+ * base (GUEST_SELLER_TRUST) when it has no owner or the owner row is gone. Every
+ * db.seller.create spreads this in, because Seller.trustScore still defaults to the v1
+ * 100 and changing a column default is production DDL. recomputeTrust's guarded mirror is
+ * the backstop that re-syncs an owned storefront on the owner's next recompute.
+ */
+export async function initialSellerTrust(ownerId: string | null): Promise<{ trustScore: number; trustTier: string }> {
+  if (!ownerId) return { ...GUEST_SELLER_TRUST }
+  const p = await db.profile.findUnique({ where: { id: ownerId }, select: { trustScore: true, trustTier: true } })
+  return p ? { trustScore: p.trustScore, trustTier: p.trustTier } : { ...GUEST_SELLER_TRUST }
+}
+
+/**
+ * Write the ledger's own record that these reports' report_confirmed charges were REVERSED, and
+ * return the profiles they had charged. `reports` must already be resolved not-a-violation.
+ *
+ * Why the ledger and not just Report.status: the Report row cascades away with its listing (a
+ * seller deleting the listing, an admin reject), and TrustEvent.reportId has no FK — so once the
+ * row was gone computeTrustV2 could no longer see the ruling and the charge (a scam hold
+ * included) came back. The marker is type 'report_dismissed', delta 0 — the PDPL export already
+ * describes that type truthfully ("A report against you was dismissed").
+ */
+export async function recordChargeReversals(
+  reports: ReadonlyArray<{ id: string; targetProfileId: string | null; targetSellerId: string | null }>,
+  why: 'appeal_won' | 'overturned',
+): Promise<string[]> {
+  if (!reports.length) return []
+  // A storefront-only target's charge lands on the storefront's OWNER (penalizeSeller).
+  const sellerIds = [...new Set(reports.map((r) => r.targetSellerId).filter((x): x is string => !!x))]
+  const owners = sellerIds.length
+    ? (await db.seller.findMany({ where: { id: { in: sellerIds } }, select: { ownerId: true } })).map((s) => s.ownerId)
+    : []
+  const candidates = [...new Set([...reports.map((r) => r.targetProfileId), ...owners].filter((x): x is string => !!x))]
+  if (!candidates.length) return []
+  // The ledger check rides the (subjectProfileId, createdAt) index — TrustEvent has no reportId index.
+  const ledger = await db.trustEvent.findMany({
+    where: { subjectProfileId: { in: candidates }, type: { in: ['report_confirmed', 'report_dismissed'] }, reportId: { in: reports.map((r) => r.id) } },
+    select: { subjectProfileId: true, reportId: true, type: true, reason: true, createdAt: true },
+  })
+  const charged = ledger.filter((e) => e.type === 'report_confirmed')
+  // ⚠️ ONE MARKER PER CHARGE, NOT PER CALL. The same won appeal can be settled twice (approve, then
+  // dismiss-report on the same case), and every marker is a line in the user's PDPL export. A pair
+  // is reversed again only when a charge LANDED AFTER its latest marker — a re-confirmation after
+  // a reversal is a new charge, and it must still be reversible.
+  const latest = new Map<string, { charge: number; marker: number }>()
+  for (const e of ledger) {
+    if (!e.reportId) continue
+    const isMarker = e.type === 'report_dismissed'
+    if (isMarker && !e.reason?.startsWith(CHARGE_REVERSAL_PREFIX)) continue
+    const k = `${e.subjectProfileId}:${e.reportId}`
+    const t = latest.get(k) ?? { charge: -Infinity, marker: -Infinity }
+    if (isMarker) t.marker = Math.max(t.marker, e.createdAt.getTime())
+    else t.charge = Math.max(t.charge, e.createdAt.getTime())
+    latest.set(k, t)
+  }
+  const pairs = new Map<string, { subjectProfileId: string; reportId: string }>()
+  for (const e of charged) {
+    const k = `${e.subjectProfileId}:${e.reportId}`
+    const t = latest.get(k)
+    if (e.reportId && t && t.charge > t.marker) pairs.set(k, { subjectProfileId: e.subjectProfileId, reportId: e.reportId })
+  }
+  if (pairs.size) {
+    await db.trustEvent.createMany({
+      data: [...pairs.values()].map((p) => ({ ...p, type: 'report_dismissed', delta: 0, reason: `${CHARGE_REVERSAL_PREFIX}${why}` })),
+    })
+  }
+  return [...new Set(charged.map((e) => e.subjectProfileId))]
+}
+
+/**
+ * A report left 'open' (an appeal) was just resolved as NOT a violation (dismissed /
+ * abusive) — record the reversal in the ledger and re-derive trust AND enforcement for whoever
+ * that report had charged.
+ *
+ * computeTrustV2 already stops counting a report_confirmed event once its report is in a
+ * not-confirmed status (standingConductEvents), but nothing re-reads the ledger until the
+ * next event or the daily pass — and the enforcement the charge caused (a scam hold pulls
+ * every listing) would sit for up to a day on a seller the platform had just cleared.
+ * Uncapped, like the abusive-reporter purge: getting back what a wrong ruling took is not
+ * "earning" (no +6/day wait). Returns how many profiles were re-derived.
+ *
+ * Cheap on ordinary dismissals: only APPEALED reports can carry a charge (a report is
+ * confirmed → open only through the appeal route). A reporter's withdrawal is never a won
+ * appeal (reportClearsCharge) — the withdraw route refuses appealed cases, and this refuses to
+ * treat one as a ruling even if it ever lands.
+ *
+ * ⚠️ The listing confirm-report took down is NOT republished here, deliberately: verified=false is
+ * one boolean written by six different takedowns (core/listings.ts, "NO AUTO-REPUBLISH"), so
+ * nothing can tell this report's takedown from a later AI/duplicate hold on the same row. The
+ * admin's 'approve' on the listing is the human republish, and it settles the appeal too.
+ */
+export async function settleReportCharges(
+  reportIds: string[],
+  opts?: { onHeld?: (held: number) => void },
+): Promise<number> {
+  if (!reportIds.length) return 0
+  const appealed = await db.report.findMany({
+    where: { id: { in: reportIds }, appealedAt: { not: null } },
+    select: { id: true, targetProfileId: true, targetSellerId: true, status: true, resolvedBy: true },
+  })
+  const won = appealed.filter((r) => reportClearsCharge(r))
+  if (!won.length) return 0
+  const subjects = await recordChargeReversals(won, 'appeal_won')
+  for (const pid of subjects) {
+    const res = await recomputeTrust(pid, { uncapped: true })
+    if (res) await syncEnforcement(pid, res.breakdown, { persistedScore: res.score, onHeld: opts?.onHeld })
+  }
+  return subjects.length
 }
 
 /**
@@ -582,7 +763,8 @@ export async function penalizeSeller(sellerId: string, delta: number, meta?: { r
   const score = Math.min(TRUST.MAX, Math.max(0, seller.trustScore + delta))
   await db.seller.update({ where: { id: sellerId }, data: { trustScore: score, trustTier: score < 60 ? 'restricted' : 'standard' } })
   // Keep the listings' denormalized ranking key in sync (guest seller — no Profile path).
-  await db.listing.updateMany({ where: { sellerId }, data: { sellerTrustScore: score } })
+  // Via cascadeSellerTrustScore, never listing.updateMany: that restamps updatedAt (#26).
+  await cascadeSellerTrustScore([sellerId], score)
   await recomputeRankScoreForSeller(sellerId) // re-blend the feed rankScore with the new trust
 }
 

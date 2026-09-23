@@ -27,8 +27,15 @@ export const POST = route({ auth: 'userId' }, async ({ userId: meId, params }) =
   if (!loaded) throw new ApiError('not_found', 404)
   if (loaded.role !== 'reporter') throw new ApiError('forbidden', 403)
 
+  // ⚠️ `appealedAt: null` — A CASE UNDER APPEAL IS NOT THE REPORTER'S TO WITHDRAW (audit
+  // 2026-09-23, #15). An appeal re-opens an ADMIN-CONFIRMED report so the RESPONDENT can
+  // contest it; letting the reporter close it ended the respondent's appeal un-reviewed.
+  // And now that a dismissed report stops charging trust, a withdrawal here would instead
+  // wipe a confirmed penalty (a scam hold included) with no admin ever looking — exactly
+  // the lever a scammer would pressure a victim to pull. Only an admin decides an appeal;
+  // the reporter gets the same 409 as for any other case that is no longer theirs to close.
   const upd = await db.report.updateMany({
-    where: { id, status: 'open', reporterProfileId: meId },
+    where: { id, status: 'open', reporterProfileId: meId, appealedAt: null },
     data: { status: 'dismissed', resolvedBy: 'withdrawn-by-reporter', resolvedAt: new Date() },
   })
   if (upd.count === 0) throw new ApiError('already_resolved', 409)

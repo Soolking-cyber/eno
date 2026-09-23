@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
-import { applyTrustEvent, penalizeSeller, recomputeTrust, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
+import { applyTrustEvent, penalizeSeller, recomputeTrust, recordChargeReversals, settleReportCharges, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
 import { syncEnforcement } from '@/lib/enforcement'
 import { partitionByIdentityGate, settleHolds } from '@/lib/compliance/seller-publish-gate'
 import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
@@ -27,7 +27,8 @@ async function notifyActioned(targetProfileId: string, reportId: string) {
 // Tell each reporter their case closed with no violation — but ONLY for rows the
 // caller actually transitioned this instant (matched by the unique resolve stamp),
 // so a bulk/target dismiss can't double-notify on a concurrent resolve or replay.
-async function notifyDismissedReporters(match: { resolvedBy: string; resolvedAt: Date } & Record<string, unknown>) {
+// Returns the transitioned ids — the caller settles any appeal charge they carried.
+async function notifyDismissedReporters(match: { resolvedBy: string; resolvedAt: Date } & Record<string, unknown>): Promise<string[]> {
   const rows = await db.report.findMany({
     where: { ...match, status: 'dismissed' },
     select: { id: true, reporterProfileId: true },
@@ -35,6 +36,19 @@ async function notifyDismissedReporters(match: { resolvedBy: string; resolvedAt:
   for (const r of rows) {
     if (r.reporterProfileId) await notifyDispute(r.reporterProfileId, r.id, 'decided_dismissed_reporter')
   }
+  return rows.map((r) => r.id)
+}
+
+// A report re-opened by APPEAL and now resolved NOT a violation (dismissed / abusive) is a
+// WON appeal: settleReportCharges re-derives trust + enforcement for whoever it charged
+// (#15, audit 2026-09-23). BEST-EFFORT, like the abusive-reporter purge: the report row has
+// already flipped, so a throw here would 500 a decision that landed, and a retry would hit the
+// idempotency guard and never re-run it. Nothing is lost by logging instead — computeTrustV2
+// already ignores the charge on a dismissed/abusive report, so the owner's next recompute (the
+// daily pass at the latest) lifts it and syncEnforcement follows.
+async function settleAppeal(reportIds: string[], onHeld?: (n: number) => void): Promise<void> {
+  if (!reportIds.length) return
+  await settleReportCharges(reportIds, { onHeld }).catch((e) => logError(e, { op: 'moderate.settleAppealCharge' }))
 }
 
 // Single admin endpoint for the moderation queue. Every action re-checks the
@@ -151,8 +165,10 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // resolve stamp), not a pre-read snapshot — so a concurrent resolve / double
       // click can't double-fire or send a "no violation" note on a case another admin
       // just confirmed.
-      await notifyDismissedReporters({ ...where, resolvedBy: admin, resolvedAt: stamp })
-      return NextResponse.json({ ok: true, dismissed: upd.count })
+      const dismissedIds = await notifyDismissedReporters({ ...where, resolvedBy: admin, resolvedAt: stamp })
+      // An open report under APPEAL swept up here is a won appeal — lift its charge (#15).
+      await settleAppeal(dismissedIds, onHeld)
+      return NextResponse.json(withHeld({ ok: true, dismissed: upd.count }))
     }
 
     case 'bulk-dismiss': {
@@ -160,8 +176,9 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       if (!ids.length) return NextResponse.json({ error: 'No ids' }, { status: 400 })
       const stamp = new Date()
       const upd = await db.report.updateMany({ where: { id: { in: ids }, status: 'open' }, data: { status: 'dismissed', resolvedBy: admin, resolvedAt: stamp } })
-      await notifyDismissedReporters({ id: { in: ids }, resolvedBy: admin, resolvedAt: stamp })
-      return NextResponse.json({ ok: true, dismissed: upd.count })
+      const dismissedIds = await notifyDismissedReporters({ id: { in: ids }, resolvedBy: admin, resolvedAt: stamp })
+      await settleAppeal(dismissedIds, onHeld) // won appeals in the batch (#15)
+      return NextResponse.json(withHeld({ ok: true, dismissed: upd.count }))
     }
 
     case 'bulk-confirm': {
@@ -236,6 +253,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // gate governs entering public state, and approving must never become a takedown.
       const { held: gated } = await partitionByIdentityGate([id])
       let held = gated.length && !listing.verified ? 1 : 0
+      const dismissStamp = new Date()
       await db.$transaction([
         // The publish clears identityHold: a row parked earlier for an owner the gate now allows must
         // not go live still carrying a hold (a live row with identityHold=true is one a later release
@@ -243,9 +261,17 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         db.listing.update({ where: { id }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false } }),
         db.report.updateMany({
           where: { listingId: id, status: 'open' },
-          data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date() },
+          data: { status: 'dismissed', resolvedBy: admin, resolvedAt: dismissStamp },
         }),
       ])
+      // Approving the listing clears an APPEALED report on it too — that is a won appeal, so
+      // its charge (and the enforcement it drove) lifts now (#15). Only the rows THIS call
+      // dismissed (matched by the resolve stamp); settleReportCharges ignores un-appealed ones.
+      const approvedDismissed = await db.report.findMany({
+        where: { listingId: id, status: 'dismissed', resolvedBy: admin, resolvedAt: dismissStamp, appealedAt: { not: null } },
+        select: { id: true },
+      }).catch((e) => { logError(e, { op: 'moderate.approveAppealLookup' }); return [] }) // best-effort, see settleAppeal
+      if (approvedDismissed.length) await settleAppeal(approvedDismissed.map((r) => r.id), onHeld)
       // A verification that landed between the decision and the park: released now, and not held.
       if (held && (await settleHolds([id]))) held = 0
       revalidatePublicPath(`/listings/${id}`)
@@ -339,12 +365,17 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date(), decisionNote },
       })
       if (upd.count === 0) return NextResponse.json({ ok: true })
+      // A dismissed APPEAL is a won appeal: the report_confirmed charge stops counting
+      // (computeTrustV2 ignores events on dismissed reports) and trust + enforcement are
+      // re-derived NOW — before this, the penalty and any hold it caused simply stayed (#15).
+      // No-op for an ordinary (never-confirmed) report.
+      await settleAppeal([id], onHeld)
       // Outcome to both sides: reporter learns the finding; the respondent (who got
       // due-process notice at filing) learns the case closed with no action.
       if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, id, 'decided_dismissed_reporter')
       const dismissedRespondent = await respondentProfileId(report)
       if (dismissedRespondent) await notifyDispute(dismissedRespondent, id, 'decided_closed_respondent')
-      return NextResponse.json({ ok: true })
+      return NextResponse.json(withHeld({ ok: true }))
     }
 
     case 'abusive-report': {
@@ -360,6 +391,9 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         data: { status: 'abusive', resolvedBy: admin, resolvedAt: new Date(), decisionNote },
       })
       if (upd.count === 0) return NextResponse.json({ ok: true })
+      // An appealed report ruled abusive is a won appeal for the respondent — lift the
+      // charge it carried (#15). No-op for an ordinary (never-confirmed) report.
+      await settleAppeal([id], onHeld)
       // Outcome to both sides (best-effort, before the purge below).
       if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, id, 'decided_abusive_reporter')
       const clearedRespondent = await respondentProfileId(report)
@@ -381,8 +415,16 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         // overturned reports, so the stolen points restore exactly. Uncapped: getting
         // back what a false report took isn't "earning" (no +6/day wait). Best-effort.
         try {
+          // ⚠️ AN APPEALED REPORT IS STILL THIS REPORTER'S CONFIRMED CHARGE. The appeal route re-opens a
+          // decided case (status 'open' + appealedAt), and the charge keeps counting while the appeal
+          // is pending — so 'confirmed' alone left an abusive reporter's contested reports docking the
+          // very respondents who had appealed them.
           const purged = await db.report.findMany({
-            where: { reporterProfileId: report.reporterProfileId, status: 'confirmed', id: { not: id } },
+            where: {
+              reporterProfileId: report.reporterProfileId,
+              id: { not: id },
+              OR: [{ status: 'confirmed' }, { status: 'open', appealedAt: { not: null } }],
+            },
             select: { id: true, targetProfileId: true, targetSellerId: true, severity: true },
             take: 200,
           })
@@ -391,6 +433,9 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
               where: { id: { in: purged.map((r) => r.id) } },
               data: { status: 'overturned', resolvedBy: admin, resolvedAt: new Date() },
             })
+            // The reversal goes in the LEDGER too: a Report row cascades away with its listing, and
+            // with it the 'overturned' status computeTrustV2 reads — the charge would then return.
+            await recordChargeReversals(purged, 'overturned')
             const affected = [...new Set(purged.map((r) => r.targetProfileId).filter((x): x is string => !!x))]
             for (const pid of affected) {
               const res = await recomputeTrust(pid, { uncapped: true })

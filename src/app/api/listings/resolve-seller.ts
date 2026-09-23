@@ -7,7 +7,12 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
+import { initialSellerTrust } from '@/lib/trust'
 
+// ⚠️ EVERY db.seller.create HERE SPREADS initialSellerTrust (audit 2026-09-23, #13).
+// Seller.trustScore still defaults to the v1 100 (a column-default change is prod DDL), so a
+// create that omits it hands a brand-new or guest storefront a "100 Trusted" shield.
+//
 // Resolve the storefront this listing belongs to. CRITICAL: a SIGNED-IN poster's
 // listing must attach to THEIR Profile-owned Seller (ownerId) — otherwise it
 // won't show in their dashboard and buyer messages (conversation.sellerProfileId
@@ -66,7 +71,7 @@ export async function resolveSellerForPost(meId: string | null, contactPhone: st
           ? await db.seller.findUniqueOrThrow({ where: { id: byPhone.id } })
           : (await db.seller.findUnique({ where: { ownerId: meId } }))
             ?? await db.seller.create({
-              data: { name: contactName || 'eno.vn seller', phone: null, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
+              data: { name: contactName || 'eno.vn seller', phone: null, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100, ...(await initialSellerTrust(meId)) },
             })
       } else if (byPhone && !byPhone.ownerId) {
         // An unowned storefront exists on this number and the caller has NOT verified it.
@@ -81,7 +86,7 @@ export async function resolveSellerForPost(meId: string | null, contactPhone: st
         return NextResponse.json({ error: 'verify_phone_to_claim' }, { status: 409 })
       } else {
         seller = await db.seller.create({
-          data: { name: contactName || 'eno.vn seller', phone: contactPhone, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
+          data: { name: contactName || 'eno.vn seller', phone: contactPhone, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100, ...(await initialSellerTrust(meId)) },
         })
       }
     }
@@ -95,7 +100,8 @@ export async function resolveSellerForPost(meId: string | null, contactPhone: st
     seller = existing
       ? existing
       : await db.seller.create({
-          data: { name: contactName || 'eno.vn seller', phone: contactPhone, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
+          // Guest storefront: the v2 BASE, never the column's v1 @default(100) (#13).
+          data: { name: contactName || 'eno.vn seller', phone: contactPhone, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100, ...(await initialSellerTrust(null)) },
         })
   }
   return seller

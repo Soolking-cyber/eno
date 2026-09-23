@@ -9,6 +9,7 @@ import { parseAttributionCookie } from '@/lib/attribution'
 import { consolidateSellerHandle, revertToPersonalHandle } from '@/lib/handle'
 import { ApiError, route } from '@/lib/api/handler'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
+import { initialSellerTrust } from '@/lib/trust'
 
 export const runtime = 'nodejs'
 
@@ -157,7 +158,7 @@ export const POST = route(
           // ⚠️ On a LOST race, re-read before creating — Seller.ownerId is @unique, so if our own
           // concurrent request already made one, a blind create throws P2002 and 500s onboarding.
           if (!claimed && !(await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } }))) {
-            await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100 } })
+            await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100, ...(await initialSellerTrust(profile.id)) } })
           }
         } else if (byPhone && !byPhone.ownerId) {
           // Unowned storefront on this number and the caller has not verified it.
@@ -174,11 +175,12 @@ export const POST = route(
           // route() passes a returned Response straight through, unchanged.
           return NextResponse.json({ error: 'verify_phone_to_claim' }, { status: 409 })
         } else {
-          await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...(phone ? { phone } : {}), ...legalData, responseRate: 100 } })
+          // The owner's CURRENT trust, never Seller.trustScore's v1 @default(100) (#13).
+          await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...(phone ? { phone } : {}), ...legalData, responseRate: 100, ...(await initialSellerTrust(profile.id)) } })
         }
       } catch {
         // Phone already claimed by another seller → create without it (rare).
-        await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100 } })
+        await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100, ...(await initialSellerTrust(profile.id)) } })
       }
     }
     // ONE public handle from the business name ("Apple Store" → apple_store) so the

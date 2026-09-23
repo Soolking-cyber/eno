@@ -377,3 +377,116 @@ export function severityFromDelta(delta: number): ReportSeverity {
   if (mag >= 10) return 'moderate'
   return 'minor'
 }
+
+// ── Conduct-ledger hygiene (audit 2026-09-23, #15) ───────────────────────────────────
+
+/**
+ * Report statuses that mean "decided, and NOT a violation". A report_confirmed ledger event
+ * whose Report now sits in one of these no longer counts anywhere (conduct, the demote
+ * windows, the scam freeze).
+ *
+ * ⚠️ 'open' IS DELIBERATELY ABSENT. An appeal re-opens a CONFIRMED report, and the penalty
+ * must keep biting while the appeal is merely pending — counting only 'confirmed' reports
+ * would hand every sanctioned seller a free lift for as long as their appeal sat in the
+ * queue. The penalty drops when the appeal is WON (dismissed/abusive/overturned), not filed.
+ */
+export const REPORT_NOT_CONFIRMED_STATUSES: ReadonlySet<string> = new Set(['overturned', 'dismissed', 'abusive'])
+
+/** Report.resolvedBy for a reporter's own withdrawal (api/disputes/[id]/withdraw). */
+export const REPORT_WITHDRAWN_BY_REPORTER = 'withdrawn-by-reporter'
+
+/** What the conduct ledger needs to know about a Report. */
+export type ReportStanding = { status: string; resolvedBy?: string | null }
+
+/**
+ * Does this Report's resolution cancel a confirmation it once carried?
+ *
+ * ⚠️ A REPORTER'S WITHDRAWAL NEVER DOES (review of #15, 2026-09-23). Until the withdraw route
+ * refused appealed cases, a reporter could close an ADMIN-CONFIRMED report the respondent had
+ * appealed; it is stored as status 'dismissed' — the same status an admin's "no violation" uses.
+ * Counting 'dismissed' as cleared would retroactively wipe those confirmed penalties (scam holds
+ * included) on the next daily pass with no admin ever ruling, so resolvedBy tells them apart. A
+ * withdrawal of a never-confirmed report carries no charge, so nothing else is affected.
+ */
+export function reportClearsCharge(r: ReportStanding | undefined): boolean {
+  if (!r || !REPORT_NOT_CONFIRMED_STATUSES.has(r.status)) return false
+  return r.resolvedBy !== REPORT_WITHDRAWN_BY_REPORTER
+}
+
+/**
+ * TrustEvent written when a report_confirmed charge is REVERSED (a won appeal, the abusive-reporter
+ * purge): type 'report_dismissed', delta 0, this reason prefix, the reportId. Reason-prefixed so no
+ * other row of that type can ever be mistaken for a reversal.
+ */
+export const CHARGE_REVERSAL_PREFIX = 'reversed:'
+
+/**
+ * The report_confirmed events that still stand: drop events whose Report was resolved as
+ * not-a-violation — or that a reversal marker in the LEDGER cancels — then keep ONE event per
+ * reportId, the EARLIEST, so decay and the scam freeze date from the original confirmation.
+ *
+ * Why the dedupe: an appeal re-opens the SAME report, and losing it re-confirms it, which
+ * writes a second report_confirmed event for the same reportId. Summing both charged the
+ * seller twice for one violation. Keeping the first also covers the duplicate rows already
+ * in the ledger — no backfill needed.
+ *
+ * Why the ledger marker as well as the Report status: the Report row is DELETABLE — it cascades
+ * with its listing (the seller's own delete, an admin reject), while TrustEvent.reportId has no
+ * FK. Status alone meant a seller who won an appeal and later deleted the listing had the full
+ * charge (a scam hold included) come back on the next recompute. A marker only cancels
+ * confirmations written BEFORE it, so a report re-confirmed after a reversal charges again.
+ *
+ * Events with no reportId, or whose Report is unreachable and unreversed (legacy/deleted), keep
+ * counting and are never deduped against each other — fail-safe toward caution, as before.
+ */
+export function standingConductEvents<E extends { reportId: string | null; createdAt: Date }>(
+  events: ReadonlyArray<E>,
+  lookup: {
+    report: (reportId: string) => ReportStanding | undefined
+    /** Latest reversal marker for the report (epoch ms), if any. */
+    reversedAtMs?: (reportId: string) => number | undefined
+  },
+): E[] {
+  const sorted = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+  const seen = new Set<string>()
+  const kept: E[] = []
+  for (const e of sorted) {
+    if (e.reportId) {
+      if (reportClearsCharge(lookup.report(e.reportId))) continue
+      const reversed = lookup.reversedAtMs?.(e.reportId)
+      if (reversed !== undefined && reversed >= e.createdAt.getTime()) continue
+      if (seen.has(e.reportId)) continue
+      seen.add(e.reportId)
+    }
+    kept.push(e)
+  }
+  return kept
+}
+
+// ── Sale timing (audit 2026-09-23, #26) ──────────────────────────────────────────────
+
+/**
+ * WHEN a sold listing sold, for the transaction count and the scam freeze's "clean
+ * transactions AFTER the event".
+ *
+ * soldAt first: it is stamped when status→'sold' (setStatusCore's attributing path) and
+ * cleared on reactivation. updatedAt is only a FALLBACK for sold rows that never got a
+ * soldAt (the non-attributing sold paths), because updatedAt is @updatedAt — ANY write
+ * restamps it. The trust cascade used to restamp every listing of a seller the moment a
+ * scam report lowered their score, so every earlier sale read as "after the event" and a
+ * seller with ≥5 old sales walked out of the scam hold within a day. The cascade no longer
+ * touches updatedAt, but soldAt is the column that means "when it sold".
+ */
+export function saleTimeMs(l: { soldAt: Date | null; updatedAt: Date }): number {
+  return (l.soldAt ?? l.updatedAt).getTime()
+}
+
+// ── Storefront trust seed (audit 2026-09-23, #13) ────────────────────────────────────
+
+/**
+ * What a storefront with NO owning account starts at. Seller.trustScore still carries a
+ * v1 @default(100), and changing a column default is production DDL, so every create sets
+ * this explicitly instead. Tier: 'standard' — BASE is exactly the Restricted floor (<60),
+ * and a guest storefront can never hold a badged tier (penalizeSeller's rule).
+ */
+export const GUEST_SELLER_TRUST = { trustScore: TRUST.BASE, trustTier: 'standard' as TrustTier } as const

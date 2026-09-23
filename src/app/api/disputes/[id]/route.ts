@@ -48,6 +48,9 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId, params }) =>
     canPost: partyCanPost(report) && !submitted,
     submitted,
     withdrawn: report.resolvedBy === 'withdrawn-by-reporter',
+    // Re-opened by the respondent's appeal: the reporter can no longer withdraw it (the
+    // withdraw route refuses) — the page hides the button rather than offer a dead one.
+    underAppeal: report.status === 'open' && !!report.appealedAt,
     createdAt: report.createdAt.toISOString(),
     evidenceUntil: report.evidenceUntil?.toISOString() ?? null,
     resolvedAt: report.resolvedAt?.toISOString() ?? null,

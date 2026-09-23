@@ -73,7 +73,7 @@ vi.mock('@/lib/db', () => {
           rec('report.findMany', a)
           const st = a?.where?.status
           if (st === 'dismissed') return h.dismissedRows
-          if (st === 'confirmed') return h.purgedReports
+          if (a?.where?.reporterProfileId) return h.purgedReports
           return h.batchReports
         },
         update: async (a: Row) => { rec('report.update', a); return {} },
@@ -129,6 +129,15 @@ vi.mock('@/lib/trust', async (orig) => ({
   applyTrustEvent: async (...a: unknown[]) => { h.fx.push({ m: 'applyTrustEvent', args: a }); return { score: 70, breakdown: { bd: true } } },
   penalizeSeller: async (...a: unknown[]) => { h.fx.push({ m: 'penalizeSeller', args: a }) },
   recomputeTrust: async (...a: unknown[]) => { h.fx.push({ m: 'recomputeTrust', args: a }); return { score: 71, breakdown: { bd: true } } },
+  // #15: a won appeal re-derives trust + enforcement. Its own rules are tested in
+  // src/lib/trust.recompute.test.ts; here only WHICH report ids each branch hands it.
+  settleReportCharges: async (...a: unknown[]) => {
+    h.fx.push({ m: 'settleReportCharges', args: a })
+    if (h.throwOn === 'settleReportCharges') throw new Error('settle exploded')
+    return 0
+  },
+  // The purge's ledger reversal markers — rules tested in trust.recompute.test.ts.
+  recordChargeReversals: async (...a: unknown[]) => { h.fx.push({ m: 'recordChargeReversals', args: a }); return [] },
 }))
 vi.mock('@/lib/enforcement', () => ({
   syncEnforcement: async (...a: unknown[]) => {
@@ -407,6 +416,12 @@ describe('bulk-dismiss', () => {
   it('caps the batch at 200 ids', async () => {
     await post({ action: 'bulk-dismiss', ids: Array.from({ length: 250 }, (_, i) => `id${i}`) })
     expect(args('report.updateMany')!.where.id.in).toHaveLength(200)
+  })
+
+  it('settles exactly the rows THIS call dismissed (won appeals in the batch, #15)', async () => {
+    h.dismissedRows = [{ id: 'a', reporterProfileId: null }, { id: 'c', reporterProfileId: null }]
+    await post({ action: 'bulk-dismiss', ids: ['a', 'b', 'c'] })
+    expect(effects('settleReportCharges').map((e) => e.args[0])).toEqual([['a', 'c']])
   })
 })
 
@@ -752,6 +767,25 @@ describe('dismiss-report', () => {
     h.updateManyCount = 0
     expect((await post({ action: 'dismiss-report', id: 'r1' })).text).toBe('{"ok":true}')
     expect(effects('notifyDispute')).toHaveLength(0)
+    expect(effects('settleReportCharges')).toHaveLength(0) // nothing transitioned → nothing to lift
+  })
+
+  // #15 (audit 2026-09-23): dismissing a report re-opened by APPEAL is a won appeal — the charge it
+  // carried and the enforcement it drove must lift now, not stay until someone notices.
+  it('hands the dismissed report to settleReportCharges (the won-appeal lift)', async () => {
+    h.report = { ...R }
+    await post({ action: 'dismiss-report', id: 'r1' })
+    const settle = effects('settleReportCharges')
+    expect(settle).toHaveLength(1)
+    expect(settle[0].args[0]).toEqual(['r1'])
+  })
+
+  it('a failing settle is best-effort — the dismissal that landed still answers 200 {"ok":true}', async () => {
+    h.report = { ...R }
+    h.throwOn = 'settleReportCharges'
+    const r = await post({ action: 'dismiss-report', id: 'r1' })
+    expect(r.status).toBe(200)
+    expect(r.text).toBe('{"ok":true}')
   })
 })
 
@@ -779,6 +813,8 @@ describe('abusive-report — the anti-fake-report purge', () => {
     expect(effects('applyTrustEvent')[0].args).toEqual([
       'rep1', 'manual_adjust', -FALSE_REPORT_PENALTY, { reason: 'false_report:r1', reportId: 'r1' },
     ])
+    // #15: an appealed report ruled abusive is a won appeal for the respondent — its charge lifts.
+    expect(effects('settleReportCharges').map((e) => e.args[0])).toEqual([['r1']])
   })
 
   /**
@@ -815,14 +851,26 @@ describe('abusive-report — the anti-fake-report purge', () => {
       { id: 'r3', targetProfileId: 'victim1', targetSellerId: null, severity: 'minor' },
     ]
     await post({ action: 'abusive-report', id: 'r1' })
-    const purgeRead = called('report.findMany').map((c) => c.args as Row).find((a) => a.where.status === 'confirmed')!
-    expect(purgeRead.where).toEqual({ reporterProfileId: 'rep1', status: 'confirmed', id: { not: 'r1' } })
+    const purgeRead = called('report.findMany').map((c) => c.args as Row).find((a) => a.where.reporterProfileId)!
+    // An APPEALED report (re-opened: 'open' + appealedAt) is still this reporter's confirmed charge.
+    expect(purgeRead.where).toEqual({
+      reporterProfileId: 'rep1',
+      id: { not: 'r1' },
+      OR: [{ status: 'confirmed' }, { status: 'open', appealedAt: { not: null } }],
+    })
     expect(purgeRead.take).toBe(200)
     const overturn = called('report.updateMany').map((c) => c.args as Row).find((a) => a.data.status === 'overturned')!
     expect(overturn.where).toEqual({ id: { in: ['r2', 'r3'] } })
     expect(overturn.data.resolvedBy).toBe('mod@eno.vn')
     // Deduped: one recompute for the one affected owner, uncapped so the stolen points restore.
     expect(effects('recomputeTrust').map((e) => e.args)).toEqual([['victim1', { uncapped: true }]])
+    // The reversal is also written to the LEDGER (the Report row can cascade away with its
+    // listing), and BEFORE the recompute that must see it.
+    const rev = effects('recordChargeReversals')
+    expect(rev).toHaveLength(1)
+    expect((rev[0].args[0] as Row[]).map((r) => r.id)).toEqual(['r2', 'r3'])
+    expect(rev[0].args[1]).toBe('overturned')
+    expect(h.fx.findIndex((e) => e.m === 'recordChargeReversals')).toBeLessThan(h.fx.findIndex((e) => e.m === 'recomputeTrust'))
   })
 
   it('an UNCLAIMED storefront victim gets its mirror credited back directly', async () => {

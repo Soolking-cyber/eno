@@ -59,6 +59,8 @@ vi.mock('./db', () => {
   }
   // applyEnforcement's interactive transaction runs against the same fake client.
   db.$transaction = async (fn: (tx: Row) => unknown) => fn(db)
+  // …whose Profile row lock re-reads the state it decided on (no concurrent writer in this file).
+  db.$queryRaw = async () => [{ enforcementState: h.profileState }]
   return { db }
 })
 vi.mock('./push', () => ({ sendPushToProfile: async () => 0 }))
