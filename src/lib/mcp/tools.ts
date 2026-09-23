@@ -7,7 +7,7 @@ import { assertSafeUrl } from '@/lib/ssrf'
 import type { ApiAuth } from '@/lib/api/auth'
 import { listingOwnedBy } from '@/lib/api/auth'
 import { parsePageParams, pageQuery, buildPage } from '@/lib/api/pagination'
-import { createListingCore, updateListingCore, setStatusCore, deleteListingCore } from '@/lib/core/listings'
+import { createListingCore, updateListingCore, setStatusCore, deleteListingCore, DELETE_HOLD_MESSAGE } from '@/lib/core/listings'
 import { bulkImportCore, rehostListingImage, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
 import { syncListingsCore, SYNC_MAX_ROWS, type SyncRow } from '@/lib/core/sync'
 import { updateSellerCore } from '@/lib/core/seller'
@@ -165,19 +165,27 @@ export const TOOLS: McpTool[] = [
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
       const res = await setStatusCore(id, String(args.status))
-      if (!res.ok) throw new ToolError(res.error, isIdentityBlockCode(res.error) ? publishBlockedBody(res.error).message.en : res.error)
+      if (!res.ok) {
+        // A relist refused because the account is held or suspended (the hold leak) gets a sentence,
+        // like postingGate's refusal in create_listing, rather than the bare code.
+        const message = isIdentityBlockCode(res.error) ? publishBlockedBody(res.error).message.en
+          : res.error === 'account_held' || res.error === 'account_suspended' ? 'This account is held or suspended, so its listings cannot be put back on sale right now.'
+            : res.error
+        throw new ToolError(res.error, message)
+      }
       return { ok: true, status: res.status }
     },
   },
   {
     name: 'delete_listing',
-    description: 'Delete one of the shop\'s listings.',
+    description: 'Delete one of the shop\'s listings. While the shop or the listing is under investigation (an open report, or the account is held/suspended) it is hidden instead — the result then says `deleted: false, hidden: true` and why.',
     scope: 'listings:write',
     input: z.object({ id: z.string() }),
     handler: async (auth, args) => {
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
-      await deleteListingCore(id)
+      const res = await deleteListingCore(id)
+      if (res.ok && !res.deleted) return { ok: true, deleted: false, hidden: true, reason: res.reason, message: DELETE_HOLD_MESSAGE[res.reason] }
       return { ok: true }
     },
   },

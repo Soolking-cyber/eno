@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
-import { updateListingCore, deleteListingCore } from '@/lib/core/listings'
+import { updateListingCore, deleteListingCore, DELETE_HOLD_MESSAGE } from '@/lib/core/listings'
 import { resolveApiKey, listingOwnedBy } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
 
@@ -44,11 +44,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE /api/v1/listings/{id} — remove a listing. Scope: listings:write.
+// While the shop's account or the listing is under investigation the listing is HIDDEN instead of
+// deleted (a delete would cascade other people's reports and chats): still 200, with
+// `deleted: false, hidden: true, reason, message` so an integration can tell the two apart.
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const r = await resolveApiKey(req, 'listings:write')
   if (!r.ok) return apiAuthError(r)
   const { id } = await params
   if (!(await listingOwnedBy(id, r.auth.sellerId))) return apiError(404, 'not_found', 'Listing not found.', r.rate)
-  await deleteListingCore(id)
+  const res = await deleteListingCore(id)
+  if (res.ok && !res.deleted) {
+    return apiOk({ ok: true, deleted: false, hidden: true, reason: res.reason, message: DELETE_HOLD_MESSAGE[res.reason] }, r.rate)
+  }
   return apiOk({ ok: true }, r.rate)
 }

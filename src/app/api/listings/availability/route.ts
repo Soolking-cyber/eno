@@ -7,6 +7,7 @@ import { recomputeRankScoreForListings } from '@/lib/ranking'
 import { rateLimit } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
 import { ApiError, route } from '@/lib/api/handler'
+import { blocksPosting, normalizeEnforcementState } from '@/lib/enforcement-machine'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -54,6 +55,17 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
     ? (await db.listing.findMany({ where: { id: { in: soldRequested }, sellerId: seller.id }, select: { id: true } })).map((l) => l.id)
     : []
 
+  // ⛔ THE HOLD GUARD, EXTENDED TO THE BATCH (owner, 2026-09-24) — the twin of confirmCore's refusal
+  // (core/listings.ts, "THE HOLD LEAK"). A held or suspended seller's live rows are the ones the hold
+  // PULLED: still status 'active', only verified=false — and the confirm below matches on status alone,
+  // so it bumped their postedAt and they came back at the top of the feed the day the hold ended. While
+  // the account blocks posting, NO confirm is applied (no bump, no availability stamp), exactly as
+  // confirmCore refuses every single confirm. Marking sold still goes through: taking a listing down is
+  // always allowed. `profile` is this request's own row, so the state is the storefront owner's — the
+  // same Profile.enforcementState column confirmCore reads.
+  const state = normalizeEnforcementState(profile.enforcementState)
+  const holdRefusal = blocksPosting(state) ? (state === 'suspended' ? 'account_suspended' : 'account_held') : null
+
   const now = new Date()
   let confirmed = 0
   let markedSold = 0
@@ -61,7 +73,7 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
     const r = await db.listing.updateMany({ where: { id: { in: sold }, sellerId: seller.id }, data: { status: 'sold' } })
     markedSold = r.count
   }
-  if (confirm.length) {
+  if (confirm.length && !holdRefusal) {
     const cutoff = new Date(now.getTime() - BUMP_COOLDOWN_DAYS * 86_400_000)
     // Bump feed recency only for listings NOT bumped within the cooldown (anti-gaming);
     // the rest just record availability so the reminder stops, without re-topping.
@@ -89,5 +101,7 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
   after(() => { for (const id of sold) removeFromIndex(id) }) // pull sold items from AI search
   // The seller engaged with the review → reset the consecutive-skip counter.
   if (profile.availabilitySkips > 0) after(() => db.profile.update({ where: { id: profile.id }, data: { availabilitySkips: 0 } }).catch((e) => logError(e, { op: 'availability.resetSkips' })))
-  return { ok: true, confirmed, markedSold }
+  // `confirmRefused` names the hold when confirms were sent and none applied (the daily-review client
+  // is fire-and-forget; an integration can tell "nothing to bump" from "refused").
+  return { ok: true, confirmed, markedSold, ...(holdRefusal && confirm.length ? { confirmRefused: holdRefusal } : {}) }
 })

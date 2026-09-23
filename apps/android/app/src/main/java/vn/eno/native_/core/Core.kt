@@ -169,6 +169,25 @@ object Api {
             client.newCall(req).execute().use { handleStatus(it.code, hadToken); it.code }
         }
 
+    /// Like [send], but also hands back the response BODY (null when there is none) — for a call whose
+    /// 2xx answer still carries something to show: DELETE /api/listings/{id} HIDES instead of deleting
+    /// while the listing or the account is under investigation, and its body says why.
+    suspend fun sendForBody(method: String, path: String, jsonBody: String? = null): Pair<Int, String?> =
+        withContext(Dispatchers.IO) {
+            ensureFreshToken?.invoke()
+            val hadToken = accessToken != null
+            // Same body rule as send(): OkHttp needs a body for POST/PUT/PATCH; DELETE stays bodyless.
+            val body = jsonBody?.toRequestBody("application/json".toMediaType())
+                ?: if (method in setOf("POST", "PUT", "PATCH")) ByteArray(0).toRequestBody(null) else null
+            val req = Request.Builder()
+                .url("https://eno.vn/$path")
+                .header("User-Agent", "EnoNativeApp/1 android-native")
+                .apply { accessToken?.let { header("Authorization", "Bearer $it") } }
+                .method(method, body)
+                .build()
+            client.newCall(req).execute().use { handleStatus(it.code, hadToken); it.code to it.body?.string() }
+        }
+
     suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T =
         withContext(Dispatchers.IO) {
             ensureFreshToken?.invoke()

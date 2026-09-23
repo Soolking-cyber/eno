@@ -18,6 +18,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const res = await confirmCore(id, r.auth.profileId)
   // A confirm that would revive a sold/hidden listing, refused by the identity gate (gate on only).
   if (!res.ok && isIdentityBlockCode(res.error)) return apiOk(publishBlockedV1(res.error), r.rate, PUBLISH_BLOCKED_STATUS)
+  // Refused because the shop's account is held or suspended (confirmCore) — a 403 with its own code,
+  // never the 404 below: the listing exists, the account may not re-offer it right now.
+  if (!res.ok && (res.error === 'account_held' || res.error === 'account_suspended')) {
+    return apiError(403, res.error, 'This account is held or suspended, so its listings cannot be confirmed or put back on sale right now.', r.rate)
+  }
   if (!res.ok) return apiError(404, 'not_found', 'Listing not found.', r.rate)
   return apiOk({ ok: true, bumped: res.bumped }, r.rate)
 }

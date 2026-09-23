@@ -280,10 +280,12 @@ describe('setStatusCore — relisting is refused, never held', () => {
     expect(h.reads).toEqual(['listing.findUnique', 'listing.findUnique'])
   })
 
-  it('⛔ gate off: relisting writes exactly what it always wrote, with no extra read', async () => {
-    h.current = { status: 'sold', seller: { ownerId: 'owner-1' } }
+  it('⛔ gate off: relisting writes exactly what it always wrote — one read (the hold check), no identity decision', async () => {
+    h.current = { status: 'sold', seller: { ownerId: 'owner-1', owner: { enforcementState: 'good_standing' } } }
     expect(await setStatusCore('l1', 'active')).toEqual({ ok: true, status: 'active' })
-    expect(h.reads).toEqual([])
+    // The ONE read is the account-hold check (the hold leak, 2026-09-24), which applies with the
+    // identity gate off too; it also carries the owner id, so the gate never reads a second time.
+    expect(h.reads).toEqual(['listing.findUnique'])
     expect(h.decisionCalls).toEqual([])
     expect(h.updates).toHaveLength(1)
     expect(h.updates[0].where).toEqual({ id: 'l1' })
@@ -292,17 +294,18 @@ describe('setStatusCore — relisting is refused, never held', () => {
 })
 
 describe('confirmCore — gated ONLY when "still available" would REVIVE a sold/hidden listing', () => {
-  const live = { postedAt: new Date(), status: 'active', sellerTrustScore: 100, featured: false, views: 0, contactCount: 0 }
+  const live = { postedAt: new Date(), status: 'active', sellerTrustScore: 100, featured: false, views: 0, contactCount: 0, seller: { ownerId: 'owner-1', owner: { enforcementState: 'good_standing' } } }
 
   it('gate on + refused owner + a sold listing → 403 with the code and NO write', async () => {
     h.enforced = true
     h.decision = REFUSED
-    // findUnique serves both confirmCore's own read and the gate's owner lookup.
+    // confirmCore's own read carries the storefront owner — the gate makes no second read.
     h.current = { ...live, status: 'sold', seller: { ownerId: 'owner-1' } }
     expect(await confirmCore('l1', 'owner-1')).toEqual({ ok: false, code: 403, error: 'identity_unverified' })
     expect(h.updates).toEqual([])
     // The decision is the STOREFRONT owner's, read from the listing, not the caller's profile id.
     expect(h.decisionCalls).toEqual([{ ownerId: 'owner-1' }])
+    expect(h.reads).toEqual(['listing.findUnique'])
   })
 
   it('gate on + refused owner: the ordinary confirm on a LIVE listing is untouched', async () => {
@@ -320,6 +323,83 @@ describe('confirmCore — gated ONLY when "still available" would REVIVE a sold/
     expect(h.reads).toEqual(['listing.findUnique']) // confirmCore's own read, nothing more
     expect(h.updates).toHaveLength(1)
     expect(h.updates[0].data).toMatchObject({ status: 'active', soldAt: null, soldChannel: null, soldToProfileId: null, soldPlatform: null, marketPosition: null })
+  })
+})
+
+// ⛔ THE HOLD LEAK (2026-09-24). A hold pulls only the rows that were ACTIVE; sold and hidden rows keep
+// verified=true, so a relist or a revive-by-confirm put them straight back on the public feed while the
+// account was held. Refused in the two cores every seller path goes through — gate on or off.
+describe('the hold leak — a held or suspended owner cannot put a listing back on sale', () => {
+  const owned = (status: string, state: string) => ({
+    postedAt: new Date(), status, sellerTrustScore: 100, featured: false, views: 0, contactCount: 0,
+    seller: { ownerId: 'owner-1', owner: { enforcementState: state } },
+  })
+
+  for (const [state, code] of [['held', 'account_held'], ['suspended', 'account_suspended']] as const) {
+    for (const from of ['sold', 'hidden']) {
+      it(`setStatusCore: ${state} owner, ${from} → active → 403 ${code}, NO write, no identity decision`, async () => {
+        h.current = owned(from, state)
+        expect(await setStatusCore('l1', 'active')).toEqual({ ok: false, code: 403, error: code })
+        expect(h.updates).toEqual([])
+        expect(h.decisionCalls).toEqual([])
+      })
+    }
+
+    it(`setStatusCore: ${state} owner — the hold refusal wins over the identity gate`, async () => {
+      h.enforced = true
+      h.decision = REFUSED
+      h.current = owned('sold', state)
+      expect(await setStatusCore('l1', 'active')).toEqual({ ok: false, code: 403, error: code })
+      expect(h.decisionCalls).toEqual([])
+    })
+
+    it(`confirmCore: ${state} owner, a sold listing (a revive) → 403 ${code}, NO write`, async () => {
+      h.current = owned('sold', state)
+      expect(await confirmCore('l1', 'owner-1')).toEqual({ ok: false, code: 403, error: code })
+      expect(h.updates).toEqual([])
+    })
+
+    it(`confirmCore: ${state} owner, even an ALREADY-ACTIVE (pulled) listing → refused, no bump`, async () => {
+      h.current = owned('active', state)
+      expect(await confirmCore('l1', 'owner-1')).toEqual({ ok: false, code: 403, error: code })
+      expect(h.updates).toEqual([])
+    })
+  }
+
+  it('taking a listing DOWN stays allowed while held (sold, hidden)', async () => {
+    h.current = owned('active', 'held')
+    expect(await setStatusCore('l1', 'sold')).toEqual({ ok: true, status: 'sold' })
+    expect(await setStatusCore('l1', 'hidden')).toEqual({ ok: true, status: 'hidden' })
+    expect(h.updates).toHaveLength(2)
+  })
+
+  it('a held owner re-sending active on a row that is ALREADY active is not a revive and is not refused', async () => {
+    h.current = owned('active', 'held')
+    expect(await setStatusCore('l1', 'active')).toEqual({ ok: true, status: 'active' })
+  })
+
+  it('warned and throttled owners relist and confirm as before', async () => {
+    for (const state of ['warned', 'throttled', 'good_standing']) {
+      h.updates = []
+      h.current = owned('sold', state)
+      expect(await setStatusCore('l1', 'active'), state).toEqual({ ok: true, status: 'active' })
+      h.current = owned('hidden', state)
+      expect(await confirmCore('l1', 'owner-1'), state).toEqual({ ok: true, bumped: false })
+    }
+  })
+
+  it('an ownerless storefront (a platform import) has no enforcement state and is never refused', async () => {
+    h.current = { ...owned('sold', 'held'), seller: { ownerId: null, owner: null } }
+    expect(await setStatusCore('l1', 'active')).toEqual({ ok: true, status: 'active' })
+    expect(await confirmCore('l1', 'owner-1')).toEqual({ ok: true, bumped: false })
+  })
+
+  it('the partner sync reports the refusal on the row (a race past its up-front budget check)', async () => {
+    h.existing = [{ id: 'L-sold', externalId: 'sold-1', status: 'sold' }]
+    h.current = owned('sold', 'held')
+    const out = await syncListingsCore(SELLER, [{ externalId: 'sold-1', status: 'active' }], 'partial')
+    expect(out.results).toEqual([{ external_id: 'sold-1', id: 'L-sold', action: 'failed', error: 'account_held' }])
+    expect(h.updates).toEqual([])
   })
 })
 

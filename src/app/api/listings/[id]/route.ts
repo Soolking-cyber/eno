@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { updateListingCore, deleteListingCore } from '@/lib/core/listings'
+import { DELETE_HOLD_COPY } from '@/lib/delete-hold-copy'
 import { serializeListing } from '@/lib/serialize'
 import { getPriceBand } from '@/lib/price-stat'
 import { topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
@@ -116,11 +117,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json({ ok: true })
 }
 
-// DELETE — a seller removes their OWN listing (cascades reports/conversations).
+// DELETE — a seller removes their OWN listing (cascades reports/conversations) — or, while the
+// account or the listing is under investigation, it is HIDDEN instead (deleteListingCore):
+// 200 `{ ok: true, deleted: false, hidden: true, reason, message: { en, vi } }`. The web dashboard
+// words it itself (tr); `message` is for the native dashboards, which call this same route and had
+// nothing to show — a held seller watched a "deleted" listing come back hidden with no reason.
+// A row that vanished concurrently stays the idempotent `{ ok: true }` it always was.
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await checkListingOwner(id)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.code })
-  await deleteListingCore(id)
+  const r = await deleteListingCore(id)
+  if (r.ok && !r.deleted) return NextResponse.json({ ok: true, deleted: false, hidden: true, reason: r.reason, message: DELETE_HOLD_COPY[r.reason] })
   return NextResponse.json({ ok: true })
 }

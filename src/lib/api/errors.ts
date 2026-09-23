@@ -382,6 +382,15 @@ export type NicheApiErrorCode =
   | 'legacy_charge'
   | 'choose_reports'
 
+  /**
+   * ⚠️ TWO CODES THAT WERE ALREADY ON THE WIRE THROUGH A VARIABLE and never in this file:
+   * postingGate's `{ error: 'account_held' | 'account_suspended' }` object is returned whole by
+   * POST /api/listings (`NextResponse.json(gate, …)`), which no literal scan sees. They are named now
+   * because setStatusCore and confirmCore return them too (the hold leak, 2026-09-24), and
+   * `ListingStatusErrorCode` is asserted a subset of this union.
+   */
+  | 'account_held'
+  | 'account_suspended'
   | 'send_failed'
   | 'send_in_flight'
   | 'sign_failed'
@@ -641,6 +650,8 @@ const ALL = [
   'identity_linked',
   'legacy_charge',
   'choose_reports',
+  'account_held',
+  'account_suspended',
   'send_failed',
   'send_in_flight',
   'shop_unavailable',

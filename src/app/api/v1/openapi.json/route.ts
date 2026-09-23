@@ -1072,11 +1072,21 @@ export const SPEC = {
       delete: {
         operationId: 'deleteListing',
         summary: 'Delete a listing',
-        description: 'Permanent. Cascades the listing\'s reports and conversations and decrements its brand count. There is no undo — prefer `setListingStatus` with "hidden" if you may want it back.',
+        description: 'Permanent. Cascades the listing\'s conversations and decrements its brand count; its already-decided reports are kept. There is no undo — prefer `setListingStatus` with "hidden" if you may want it back. ⚠️ While the shop\'s account is held or suspended, or a report about the listing or the shop is still open, the listing is HIDDEN instead of deleted (a delete would erase other people\'s reports and chats): the response is still 200, with `deleted: false`, `hidden: true`, a `reason` and a `message`. It can be deleted once the review or report is resolved.',
         security: requires('listings:write'),
         parameters: [{ name: 'id', in: 'path', required: true, description: 'The listing id.', schema: { type: 'string' } }],
         responses: {
-          '200': ok('Deleted.', OK_ACK),
+          '200': ok('Deleted — or hidden instead while under investigation (`deleted: false`).', {
+            type: 'object',
+            required: ['ok'],
+            properties: {
+              ok: { type: 'boolean', const: true },
+              deleted: { type: 'boolean', const: false, description: 'Present (false) only when the listing was hidden instead of deleted.' },
+              hidden: { type: 'boolean', const: true, description: 'Present only when the listing was hidden instead of deleted.' },
+              reason: { type: 'string', enum: ['account_suspended', 'account_held', 'open_report'], description: 'Why the delete became a hide.' },
+              message: { type: 'string', description: 'A plain-English sentence to show the shop.' },
+            },
+          }),
           ...authFailures(),
           '404': NOT_FOUND_LISTING,
         },
@@ -1108,12 +1118,12 @@ export const SPEC = {
           // ⚠️ AFTER `...authFailures()`, SO THIS KEY REPLACES ITS 403 — `insufficient_scope` has to be
           // listed here again, or the spec stops documenting a refusal the endpoint still sends.
           '403': fail(
-            'The credential lacks `listings:write`, or re-activating a sold or hidden listing was refused by the seller identity gate (only while it is enforced; a listing that is already active is never refused). The identity bodies carry the structured refusal — `verifyUrl`, bilingual `message`, `legalBasis` — beside `error`. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the identity codes happen after authentication and carry the rate-limit set below.',
-            ['insufficient_scope', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            'The credential lacks `listings:write`, or re-activating a sold or hidden listing was refused: `account_held` / `account_suspended` while the shop\'s account is held or suspended (always enforced), or the seller identity gate (only while it is enforced). A listing that is already active is never refused, and marking one sold or hidden never is. The identity bodies carry the structured refusal — `verifyUrl`, bilingual `message`, `legalBasis` — beside `error`. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account and identity codes happen after authentication and carry the rate-limit set below.',
+            ['insufficient_scope', 'account_held', 'account_suspended', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': NOT_FOUND_LISTING,
           '422': fail(
-            '`status` was absent or not one of the three allowed values. ⚠️ `invalid_status` is the ONLY code this status can carry: `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the seller identity gate\'s `identity_*` refusals are the exception and answer 403 above.',
+            '`status` was absent or not one of the three allowed values. ⚠️ `invalid_status` is the ONLY code this status can carry: `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the account-hold (`account_held`, `account_suspended`) and seller identity gate (`identity_*`) refusals are the exceptions and answer 403 above.',
             ['invalid_status'],
           ),
         },
@@ -1138,8 +1148,8 @@ export const SPEC = {
           ...authFailures(),
           // ⚠️ Replaces authFailures()'s 403 (same object literal, later key) — insufficient_scope restated.
           '403': fail(
-            'The credential lacks `listings:write`, or the confirm would have re-activated a sold or hidden listing and the seller identity gate refused it (only while it is enforced). Confirming a listing that is already active is never refused. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the identity codes happen after authentication and carry the rate-limit set below.',
-            ['insufficient_scope', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            'The credential lacks `listings:write`; or the shop\'s account is held or suspended (`account_held` / `account_suspended` — every confirm is refused while it lasts, including one on a listing that is already active); or the confirm would have re-activated a sold or hidden listing and the seller identity gate refused it (only while it is enforced). ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account and identity codes happen after authentication and carry the rate-limit set below.',
+            ['insufficient_scope', 'account_held', 'account_suspended', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': NOT_FOUND_LISTING,
         },
