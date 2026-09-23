@@ -50,7 +50,9 @@ export const metadata: Metadata = {
 // that catalogue. Read the module header before adding anything about visa here.
 //
 // ⚠️ KEEP IN SYNC WITH THE THINGS THIS PAGE DESCRIBES, because a privacy policy is the one document
-// that goes stale silently: src/lib/consent.ts (the three tiers named below), the providers actually
+// that goes stale silently: src/lib/consent.ts + consent-value.ts (the three purposes named below,
+// the 12-month validity, the native-app override) and src/app/api/consent (what a consent record
+// holds), src/lib/consent-runtime.ts (what a withdrawal deletes), the providers actually
 // wired (checked 2026-08-01 — Upstash and Vercel were named here and are BOTH retired: rate-limit
 // state moved into Postgres, hosting moved to Cloud Run, and there is no @vercel/analytics in the
 // tree), and the retention behaviour in src/app/api/cron/visa-retention.
@@ -100,17 +102,32 @@ const baseSections: PrivacySection[] = [
       'To prevent fraud and abuse, run the trust-score system, handle reports and disputes, and keep the marketplace safe for everyone using it.',
       'To translate listing and interface content into the language you choose.',
       'To answer your questions, reports and support requests.',
-      'With your consent only: to measure the service with analytics, to personalise what you see using your own activity on this site, and to send conversion signals to advertising platforms. Those three are described under “Cookies and tracking”.',
+      'With your consent only, asked for separately: to personalise what you see using your own activity on this site; to measure the service with Google Analytics; and to send advertising measurement signals to Meta (and to Google, when Analytics is on as well). Those three are described under “Cookies and tracking”.',
       ...(IS_SERVICES ? PRIVACY_SERVICES_PURPOSES : []),
-      'The basis for all of this is your consent: expressed by a clear action, asked for separately for each purpose that needs it, never bundled into a single take-it-or-leave-it box, and withdrawable at any time without losing access to the parts of the service that do not depend on it. Where Vietnamese law allows processing without consent we rely only on the narrow grounds it lists — performing a contract you asked us to perform, meeting a legal obligation such as keeping e-commerce records, protecting someone’s life or health in an emergency, and answering a lawful request from a competent state authority. We do not sell personal data and we do not trade in it; Vietnamese law prohibits that, and so do we.',
+      'The basis for all of this is your consent: expressed by a clear action, asked for separately for each purpose that needs it — each has its own switch, and each is off until you turn it on — and withdrawable at any time without losing access to the parts of the service that do not depend on it. Where Vietnamese law allows processing without consent we rely only on the narrow grounds it lists — performing a contract you asked us to perform, meeting a legal obligation such as keeping e-commerce records, protecting someone’s life or health in an emergency, and answering a lawful request from a competent state authority. We do not sell personal data and we do not trade in it; Vietnamese law prohibits that, and so do we.',
     ],
   ],
   [
     'recipients',
     'Who else receives your data',
     [
-      'We use a small number of providers strictly to run this service, each bound by a data-processing agreement and each given only the data its job needs: Supabase (authentication, the database, and private file storage), Google Cloud (the servers this site runs on, Google Cloud Translation for content translation, and Vertex AI for search and assistant features), Cloudflare (network security, DDoS protection and the sign-in CAPTCHA), Microsoft Azure Translator (fallback translation), Resend (transactional email such as sign-in links and notifications), and messaging providers (Telegram, WhatsApp and Zalo) that deliver one-time login codes.',
-      'With your consent only: Google Analytics, and Meta for conversion measurement — including events sent from our server, which need the same opt-in as a browser pixel and are withheld without it. If you have not chosen “Allow all”, neither receives anything about you.',
+      /**
+       * ⛔ TRANSACTIONAL EMAIL: CLOUDFLARE FIRST, RESEND AS THE FALLBACK — ON eno.vn ONLY (owner,
+       * 2026-09-24: "resend fallback"). Cloudflare Email Sending (the eno-mailer Worker) sends every
+       * message it can; only a message Cloudflare cannot send goes out through Resend. eno.forum has NO
+       * fallback — a forum message through Resend would arrive From eno.vn until eno.forum is verified
+       * there — so Resend is not a recipient on that site, and naming it would make its list wrong.
+       * That is why the email paragraph is per-edition: two whole literals, like the tracking sentence
+       * below, because legal copy is approved as a paragraph. What Cloudflare receives and keeps is
+       * spelled out because message bodies are a new kind of data for it: until now it saw traffic.
+       * Keep this in step with docs/compliance/pdpl-dossier-draft.md (§2.1, §3.2 rows 12/12a, Phụ lục B
+       * B11/B11a) — ./page.test.tsx pins both.
+       */
+      'We use a small number of providers strictly to run this service, each bound by a data-processing agreement and each given only the data its job needs: Supabase (authentication, the database, and private file storage), Google Cloud (the servers this site runs on, Google Cloud Translation for content translation, and Vertex AI for search and assistant features), Cloudflare (network security, DDoS protection, the sign-in CAPTCHA, and delivery of transactional email such as sign-in links and notifications), Microsoft Azure Translator (fallback translation), and messaging providers (Telegram, WhatsApp and Zalo) that deliver one-time login codes.',
+      IS_SERVICES
+        ? 'To deliver an email to you, Cloudflare receives your email address and the content of that message, and uses them only to deliver it. Cloudflare keeps an activity log of the emails it sends for us, including the recipient address, for 30 days. Cloudflare is based in the United States, so this is one of the transfers described under “Processing outside Vietnam”.'
+        : 'To deliver an email to you, Cloudflare receives your email address and the content of that message, and uses them only to deliver it. Cloudflare keeps an activity log of the emails it sends for us, including the recipient address, for 30 days. Only when Cloudflare cannot send a message do we send that message through a second provider, Resend, instead: Resend then receives the same two things — your email address and the content of that message — and likewise uses them only to deliver it. Cloudflare and Resend are both based in the United States, so this is one of the transfers described under “Processing outside Vietnam”.',
+      'With your consent only: Google, through Google Analytics, if you switch on Analytics; and Meta, for advertising measurement, if you switch on Advertising — including events sent from our server, which need the same opt-in as a browser pixel and are withheld without it. Google receives advertising signals only when Analytics is on as well, because they travel through Google Analytics. If a switch is off, nothing is sent to that provider for that purpose. Inside the eno mobile app, Analytics and Advertising stay off whatever you choose.',
       ...(IS_SERVICES ? PRIVACY_SERVICES_RECIPIENTS : []),
       'We also disclose data when Vietnamese law requires it: to a competent state authority acting within its powers, and where we must report information about sellers (for example to the tax authority). Where we are permitted to tell you about such a disclosure, we will.',
     ],
@@ -136,8 +153,10 @@ const baseSections: PrivacySection[] = [
     'cookies',
     'Cookies and tracking',
     [
-      'Essential storage keeps you signed in and remembers your language, your currency and your saved listings. It always works, and it tracks nothing about you across other sites.',
-      'On-site personalisation — the “For You” row, built from your own activity on this site — is ranked on our own servers and never leaves us. Choosing “Essential only” switches it off.',
+      'Essential storage keeps you signed in and remembers your language, your currency, your saved listings and your cookie choice. It always works, and it tracks nothing about you across other sites. Two more things stay on your device only: your recent searches and recently used areas, so the search box can offer them again (you can clear them from the search box at any time), and, for the current browser tab only, a short note of which listings you opened so that reloading a page does not count as a second view.',
+      'Beyond that we ask separately for three optional uses, and each stays off until you switch it on. Personalisation: your device keeps a list of the categories, brands and listings you view here, and we use it, with your recent searches, to rank the “For You” and “Recently viewed” rows on our own servers; this is never shared with advertisers. Analytics: Google Analytics counts visits and the pages people use, and we note which link or campaign first brought you here, and keep that with your account if you sign up. Advertising: we send Meta signals about actions such as viewing a listing, contacting a seller, posting a listing and signing up, so our ads can be measured — with your email address or phone number scrambled (hashed) first, together with your IP address and browser details — and, if Analytics is on as well, Google Analytics may share advertising signals with Google’s ad products.',
+      'Under Vietnamese law, data that tracks your behaviour and activity online is sensitive personal data. That is why none of these three runs until you choose it, and why declining costs you nothing: search, messaging, posting and sign-in all work exactly the same.',
+      'When you make or change a choice we keep a record of it as evidence of what you agreed to: which switches were on, the version of the notice you saw, whether you chose on the first screen or in the settings, the site and language, the time, and your account if you were signed in. The record is linked to a random identifier kept with your choice on your device — not to your IP address. Your choice is remembered for 12 months; after that we ask again.',
       /**
        * ⛔ THIS SENTENCE IS PER-EDITION BECAUSE THE BEHAVIOUR IS. It read "Decline and no
        * third-party tracking runs, server-side included" on both sites, and that stopped being
@@ -152,13 +171,13 @@ const baseSections: PrivacySection[] = [
        * as sensitive personal data needing opt-in. Do not "unify" these two strings.
        *
        * ⚠️ THE FORUM WORDING STILL CLAIMS ONLY WHAT IS TRUE: the container loads, and the things
-       * inside it are what a reader is being told about. GA and the server-side Meta conversion
-       * signals genuinely do still wait for “Allow all” on BOTH editions, so that half of the
-       * promise survives verbatim.
+       * inside it are what a reader is being told about. Since consent v2 the container starts with
+       * Google's consent signals set to "denied" and is told your choice — but a non-Google tag in
+       * it is not bound by those signals, so the sentence does not claim it is.
        */
       IS_SERVICES
-        ? 'Analytics and advertising — Google Analytics, and Meta conversion signals including the ones our server sends — run only if you choose “Allow all”. Decline and neither of those runs, server-side included. One exception, stated plainly: our tag manager (Google Tag Manager) loads for every visitor to this site, and any measurement tag configured inside it may run before you choose. You can change your mind at any time with the button at the end of this page; withdrawing consent stops Google Analytics and the Meta conversion signals immediately and does not cost you any part of the service.'
-        : 'Analytics and advertising — Google Analytics, and Meta conversion signals including the ones our server sends — run only if you choose “Allow all”. Decline and no third-party tracking runs, server-side included. You can change your mind at any time with the button at the end of this page; withdrawing consent stops the trackers immediately and does not cost you any part of the service.',
+        ? 'Google Analytics runs only if you switch on Analytics, and the Meta and Google advertising signals — including the ones our server sends — only if you switch on Advertising. One exception, stated plainly: our tag manager (Google Tag Manager) loads for every visitor to this site; it starts with Google’s consent signals set to “denied” and is told your choice, but any measurement tag configured inside it may run before you choose. You can change your mind at any time with the button at the end of this page or the Cookie settings link. Turning a use off takes effect immediately on this device — its tracking stops, and the cookies and on-device history it used (the Google Analytics cookies, the first-visit link cookie, the Meta and Google advertising cookies, your viewing history) are deleted — and it does not cost you any part of the service.'
+        : 'Google Analytics runs only if you switch on Analytics, and the Meta and Google advertising signals — including the ones our server sends — only if you switch on Advertising. Decline and no third-party tracking runs, server-side included. You can change your mind at any time with the button at the end of this page or the Cookie settings link. Turning a use off takes effect immediately on this device — its tracking stops, and the cookies and on-device history it used (the Google Analytics cookies, the first-visit link cookie, the Meta and Google advertising cookies, your viewing history) are deleted — and it does not cost you any part of the service.',
     ],
   ],
   [
@@ -211,7 +230,7 @@ export default function PrivacyPage() {
       title="Privacy Policy"
       meta={
         <>
-          <p className="mt-3 text-sm text-ink-4"><Tr text="Last updated: August 2026" /></p>
+          <p className="mt-3 text-sm text-ink-4"><Tr text="Last updated: September 2026" /></p>
           <p className="mt-2 max-w-[70ch] text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of this policy is the authoritative one." /></p>
         </>
       }

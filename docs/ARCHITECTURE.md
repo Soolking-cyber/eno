@@ -259,24 +259,19 @@ This is the single most important security invariant. **There are no RLS policie
 
 Network-layer hardening: `src/middleware.ts` is an **edge-ingress guard** — when `EDGE_SECRET` is set, every `/api/*` request must carry the `x-eno-edge` header injected by a Cloudflare Transform Rule, blocking attackers hitting the raw Cloud Run `*.run.app` origin directly (which would let them spoof `cf-connecting-ip` and defeat IP-keyed rate limits). It is a no-op until configured, and bypasses crons, `/api/auth/send-sms`, and `/api/feeds/*` (which carry their own auth).
 
-### Consent tiers (`src/lib/consent.ts`)
+### Consent v2 (`src/lib/consent-value.ts`, `src/lib/consent.ts`, `src/lib/consent-runtime.ts`)
 
-A three-tier client-side consent model, stored in `localStorage` under `eno-cookie-consent` (`ConsentLevel = 'all' | 'personalized' | 'essential'`, line 9):
+Three independent purposes, each with its own switch in the consent card, **all OFF until the visitor switches them on** (silence is not consent — PDPL 91/2025 Art 9(4)(d)):
 
-- **`essential`** — functional storage only (caching the user's own inbox/prefs/recently-viewed for instant repeat loads).
-- **`personalized`** — essential + on-site "For You" personalization using the user's own first-party on-site activity (ranked on eno's own server, never leaves). **No ad-network pixels.**
-- **`all`** — personalized + ad-network signals (Meta/Google retargeting).
+- **`p` personalization** — the "For You" / "Recently viewed" rows. The on-device view history (`eno:viewed`, `eno:viewed_ids`) is not even written without it.
+- **`a` analytics** — GA4 (loaded only with `a`, Google Consent Mode default-denied then updated) and the first-touch attribution cookie `eno_attr` (and its server copy onto the Profile at signup).
+- **`d` advertising** — Meta Conversions API (browser beacon and server) and Google ad signals.
 
-Before any choice, functional caching stays in-memory only. The accessors encode the policy:
+Stored as `v2.<p><a><d>.<unix seconds>.<consent id>` in ONE `eno-consent-v2` cookie (domain-scoped so `<shop>.eno.vn` storefronts share it) plus localStorage; the cookie wins. Valid 12 months, then asked again. `resolveConsent()` is the single reading rule for the browser AND the server (`serverConsent(headers)`): only a v2 value can grant; legacy `'essential'`/`'accepted'` = a refusal that is never re-asked; legacy `'all'`/`'personalized'` = no answer (asked once). Every v2 write stamps the literal `'essential'` into the three v1 slots so stale tabs can only under-track. Inside the native apps (`window.Capacitor` or the `EnoNativeApp`/`EnoNativeTabs` UA marker) `a` and `d` are forced off on client and server.
 
-- `hasConsent()` (line 17) — true once any choice is made (incl. legacy `'accepted'`).
-- `personalizationAllowed()` (line 28) — **`read() !== 'essential'`**: on-site personalization is **ON by default**; only an explicit "Essential only / Decline" opts out, so a returning user with local searches gets "For You" without re-consenting. Independent of the ad tier.
-- `hasAdConsent()` (line 33) — **`read() === 'all'`** only; gates ad-network pixels.
-- `setConsent(level='all')` (line 48) writes the choice and broadcasts a `eno:consent` `CustomEvent` so live components react without a reload.
+Enforcement: `analytics-tags.tsx` syncs storage and runs `enforceConsentCleanup()` + `applyConsentMode()` on every load, every `eno:consent`, and when another tab changes the choice (`storage` on `eno-consent-v2`, plus a cookie re-read on focus/visibilitychange) (deletes `_ga*`/`eno_attr` without `a`, `_fbp`/`_fbc`/`_gcl_*` without `d`, view history without `p`); `analytics.ts` `ga()`/`fb()` re-check consent per event; `meta-capi.ts` and `account-type/route.ts` gate on `serverConsent()`. Every choice is recorded via `POST /api/consent` as a `consent.recorded` row in the append-only `compliance_audit` log (no IP) — only by a production build answering on a real eno host (a local preview is wired to the production database, so it writes nothing), bound to the request's own consent cookie, rate-limited 120/h per IP+consent id, 1,000/h per IP and 20,000/h overall, with a 1 s `lock_timeout` on the log's shared advisory lock.
 
-These are the actual enforcement points: `analytics-tags.tsx` gates ad pixels on `hasAdConsent()` and re-reads on the `eno:consent` event (lines 26-29); `lib/analytics.ts` gates the Meta `ViewContent` beacon on `hasAdConsent()` (line 87); `for-you-rail.tsx` gates its first-party rail on `personalizationAllowed()` (line 34). Legacy `'accepted'` maps to `essential` for ad purposes but keeps personalization on.
-
-Relevant files: `src/lib/admin.ts`, `src/lib/profile.ts`, `src/lib/supabase/server.ts`, `src/lib/supabase/browser.ts`, `src/lib/supabase-admin.ts`, `src/lib/db.ts`, `src/lib/consent.ts`, `src/middleware.ts`, `src/app/api/auth/send-sms/route.ts`, `src/app/auth/callback/route.ts`, `src/app/api/profile/account-type/route.ts`, `src/app/api/me/route.ts`, `src/app/onboard/onboard-client.tsx`, `src/context/auth-context.tsx`, `src/components/marketplace/sign-in-form.tsx`, `src/components/marketplace/account-type-switcher.tsx`.
+Relevant files: `src/lib/admin.ts`, `src/lib/profile.ts`, `src/lib/supabase/server.ts`, `src/lib/supabase/browser.ts`, `src/lib/supabase-admin.ts`, `src/lib/db.ts`, `src/lib/consent.ts`, `src/lib/consent-value.ts`, `src/lib/consent-runtime.ts`, `src/app/api/consent/route.ts`, `src/middleware.ts`, `src/app/api/auth/send-sms/route.ts`, `src/app/auth/callback/route.ts`, `src/app/api/profile/account-type/route.ts`, `src/app/api/me/route.ts`, `src/app/onboard/onboard-client.tsx`, `src/context/auth-context.tsx`, `src/components/marketplace/sign-in-form.tsx`, `src/components/marketplace/account-type-switcher.tsx`.
 
 ---
 
@@ -847,11 +842,11 @@ Flow:
 
 ### 3. Consent-gated Pixel & GA4
 
-`src/lib/consent.ts` defines three tiers stored in `localStorage` (`eno-cookie-consent`): `essential` → `personalized` → `all`. Helpers: `hasConsent()` (any choice), `personalizationAllowed()` (on-site "For You", ON unless explicit `essential`), and **`hasAdConsent()` (only `'all'`)** which gates every ad-network signal.
+See "Consent v2" above for the model. GA4 needs the Analytics purpose, CAPI and `fb()` the Advertising purpose.
 
 `src/components/marketplace/analytics-tags.tsx`:
-- **GA4** (`NEXT_PUBLIC_GA_ID`, default `G-CKTZK62B0X`) is injected **only after first user interaction** (`pointerdown`/`keydown`/`touchstart`/`scroll`) with a 6 s idle fallback, via `next/script` `lazyOnload` — so ~155 KiB of vendor JS never competes with LCP/TBT and Lighthouse (which never interacts) sees a clean critical path.
-- **Meta Pixel** is rendered **only if `hasAdConsent()` AND `NEXT_PUBLIC_META_PIXEL_ID` is set** (`analytics-tags.tsx:69`). It's reactive to the `eno:consent` event, so it flips on the instant the user clicks "Allow". By default the Pixel is **off**, `window.fbq` is undefined, and every `fb()` call in `analytics.ts` no-ops harmlessly. The CAPI conversions in §1 are independent of this and always run.
+- **GA4** (`GA_ID` in `src/lib/analytics.ts`, default `G-CKTZK62B0X`) is injected **only with the Analytics purpose and after first user interaction** (`pointerdown`/`keydown`/`touchstart`/`scroll`) with a 6 s idle fallback, via `next/script` `lazyOnload`; it boots with Consent Mode all-denied and is updated from the stored answer.
+- **No Meta Pixel is loaded by this repo.** On eno.forum a Pixel can only come from the GTM container (a paused Custom HTML tag as of 2026-09-23); `fb()` refuses to fire without the Advertising purpose, and the container receives the Consent Mode default/updates.
 
 GA4 events still fire for `view_item`, `search` (`analytics.ts:91`), `generate_lead` (contact), `post_listing`, and `sign_up`. The Meta *conversion* equivalents (Contact/Lead/CompleteRegistration) are deliberately **not** fired client-side — they're server-side CAPI only, to avoid double-counting.
 

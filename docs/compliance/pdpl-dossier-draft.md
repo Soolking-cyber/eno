@@ -99,8 +99,8 @@ Each dossier is **01 bộ bản gốc** to **Cục An ninh mạng và phòng, ch
 ### 2.1 Thông tin các bên liên quan / Parties
 
 - **Bên Kiểm soát và xử lý dữ liệu cá nhân:** as §1.1.
-- **Bên Xử lý dữ liệu cá nhân (processors acting for eno):** Google Cloud (Google Asia Pacific Pte. Ltd.), Supabase Inc. (on AWS ap-southeast-1), Cloudflare Inc., Microsoft (Azure Translator), Resend Inc., Telegram Gateway, Meta Platforms (WhatsApp Business), VNG Corporation (Zalo ZNS). Full detail, per-recipient, in **Phụ lục B**.
-- **Bên thứ ba (independent controllers receiving data with consent only):** Google LLC (Google Analytics 4), Meta Platforms Inc. (Conversions API). Both are switched off unless the user selects the "Allow all" consent tier.
+- **Bên Xử lý dữ liệu cá nhân (processors acting for eno):** Google Cloud (Google Asia Pacific Pte. Ltd.), Supabase Inc. (on AWS ap-southeast-1), Cloudflare Inc. (edge, CAPTCHA, and — since 2026-09 — transactional email via Cloudflare Email Sending, the primary sender; US-based), Microsoft (Azure Translator), Resend Inc. (fallback transactional email, used only when Cloudflare cannot send a message; US-based), Telegram Gateway, Meta Platforms (WhatsApp Business), VNG Corporation (Zalo ZNS). Full detail, per-recipient, in **Phụ lục B**.
+- **Bên thứ ba (independent controllers receiving data with consent only):** Google LLC (Google Analytics 4), Meta Platforms Inc. (Conversions API). Each is off until the user switches on its own purpose (consent v2, 2026-09): Google Analytics 4 needs **Analytics**, the Meta Conversions API needs **Advertising**; Google receives advertising signals only when both are on, because they travel through Google Analytics. Every choice is recorded in `compliance_audit` (`consent.recorded`) by `POST /api/consent`.
 - **Chủ thể dữ liệu / data subjects:** registered users of eno.vn (buyers, sellers, both — the same account can be either), and non-registered visitors whose technical data reaches the edge and the logs. eno.vn serves the Vietnamese market with a substantial foreign-resident audience; the majority of subjects are expected to be **công dân Việt Nam**.
 
 ### 2.2 Mục đích xử lý dữ liệu cá nhân / Purposes
@@ -120,7 +120,7 @@ Each dossier is **01 bộ bản gốc** to **Cục An ninh mạng và phòng, ch
 | 11 | Trợ lý AI: phân loại ảnh, chỉnh sửa mô tả, tìm kiếm bằng hình ảnh, trợ lý mua sắm (Google Vertex AI / Gemini; Vertex AI Search) | Sự đồng ý — đăng nhập bắt buộc, có hạn mức |
 | 12 | Xác định vị trí để sắp xếp tin theo khoảng cách và hiển thị bản đồ | **Sự đồng ý rõ ràng** (quyền của trình duyệt) — dữ liệu vị trí là DLCN **nhạy cảm** |
 | 13 | Trung tâm trợ giúp: hỏi–đáp có thể bình chọn, bình luận, lưu và báo cáo | Thực hiện hợp đồng |
-| 14 | Đo lường và quảng cáo: Google Analytics 4, Meta Conversions API (server-side) | **Chỉ khi có sự đồng ý ở mức "Allow all"**; mặc định TẮT, kể cả phía máy chủ |
+| 14 | Đo lường và quảng cáo: Google Analytics 4, Meta Conversions API (server-side) | **Chỉ khi có sự đồng ý riêng cho từng mục đích** ("Phân tích" cho GA4, "Quảng cáo" cho Meta CAPI); mặc định TẮT, kể cả phía máy chủ; luôn TẮT trong ứng dụng gốc |
 | 15 | Nhật ký kỹ thuật (IP, user-agent) để giới hạn tần suất và chặn lạm dụng | Lợi ích chính đáng / an ninh hệ thống |
 
 **Không bán, không trao đổi dữ liệu cá nhân.** eno does not sell personal data and operates no data brokerage. Ranking is disclosed in full at `/legal/ranking` and **does not use** the reader's personal data, browsing history, demographics, nationality or device to reorder results — two people running the same search see the same order (MEASURED: `docs/compliance-2026.md §4.1`, generated from `src/lib/ranking-formula.ts`).
@@ -165,9 +165,9 @@ Google Cloud Load Balancer → Cloud Run  (asia-southeast1 · SINGAPORE)   ← n
   │           ├→ Cloud Translation API
   │           ├→ Azure Translator               (region southeastasia)
   │           ├→ Google/OSM geocoding
-  │           ├→ Resend (email) · Telegram / WhatsApp / Zalo (OTP)
+  │           ├→ Cloudflare Email Sending (email giao dịch — CHÍNH, qua Worker eno-mailer) / Resend (DỰ PHÒNG, chỉ khi Cloudflare không gửi được) · Telegram / WhatsApp / Zalo (OTP)
   │           ├→ Web Push (FCM / Mozilla / Apple)
-  │           └→ Meta CAPI · Google Analytics   ⟨CHỈ KHI CÓ ĐỒNG Ý "Allow all"⟩
+  │           └→ Meta CAPI · Google Analytics   ⟨CHỈ KHI CÓ ĐỒNG Ý RIÊNG: "Quảng cáo" / "Phân tích"⟩
   ▼
 Supabase — PostgreSQL 17.6 + Auth + Storage
    aws-1-ap-southeast-1  (AWS · SINGAPORE)
@@ -289,19 +289,20 @@ As §1.1. Đầu mối phụ trách việc chuyển và tiếp nhận dữ liệ
 | 2 | **Google Asia Pacific Pte. Ltd. — Cloud Run** | **Singapore** — `asia-southeast1` | Mọi dữ liệu đi qua ứng dụng khi xử lý (in transit / in memory) | Máy chủ ứng dụng | Bên Xử lý | DPA | `cloudbuild.yaml:91` |
 | 3 | **Google — Cloud Logging** | Singapore (cùng dự án) | Nhật ký yêu cầu: IP, user-agent, đường dẫn | Vận hành, gỡ lỗi, an ninh | Bên Xử lý | DPA; giữ **12 tháng** *(INFERRED từ `docs/compliance-2026.md §4.2`)* **[VERIFY]** | — |
 | 4 | **Google — Secret Manager, Artifact Registry** | asia-southeast1 (registry), europe-west1 (build) | Không chứa dữ liệu cá nhân | Bí mật cấu hình; ảnh container | Bên Xử lý | DPA | `cloudbuild.yaml:77,157` |
-| 5 | **Cloudflare, Inc.** | **Toàn cầu (anycast)** | IP, user-agent, cookie, siêu dữ liệu TLS của **mọi** yêu cầu; token Turnstile; định tuyến email đến | CDN, WAF, chống DDoS, CAPTCHA, chuyển tiếp email vào | Bên Xử lý | DPA | `src/lib/turnstile-verify.ts`; `src/lib/email-alias.ts` |
+| 5 | **Cloudflare, Inc.** | **Toàn cầu (anycast)** | IP, user-agent, cookie, siêu dữ liệu TLS của **mọi** yêu cầu; token Turnstile; định tuyến email đến | CDN, WAF, chống DDoS, CAPTCHA, chuyển tiếp email vào (email gửi đi: xem dòng 12 và 12a) | Bên Xử lý | DPA | `src/lib/turnstile-verify.ts`; `src/lib/email-alias.ts` |
 | 6 | **Google — Vertex AI (Gemini 3.7 Flash)** | **Endpoint "global"** — Google có thể xử lý tại nhiều vùng | Ảnh và mô tả tin đăng do người bán gửi; câu hỏi người dùng nhập cho trợ lý mua sắm | Phân loại ảnh, chỉnh sửa mô tả, tìm bằng hình ảnh, trợ lý mua sắm | Bên Xử lý | DPA; đăng nhập bắt buộc + hạn mức | `src/lib/gemini.ts:70,113` |
 | 7 | **Google — Vertex AI Search** | **location "global"** | **Chỉ trường công khai của tin đăng** — tiêu đề, mô tả, danh mục, giá, thành phố, điểm tin nhiệm. **Không có số điện thoại người bán** | Tìm kiếm ngữ nghĩa | Bên Xử lý | DPA; tài liệu chỉ mục do mã nguồn dựng, loại trừ PII | `src/lib/vertex-search.ts:262,271` |
 | 8 | **Google — Cloud Translation API** | Toàn cầu | Văn bản tin đăng và chuỗi giao diện | Dịch nội dung | Bên Xử lý | DPA; kết quả lưu đệm nội bộ (`Translation`) | `src/lib/translate.ts:27` |
 | 9 | **Microsoft (Azure AI Translator)** | Endpoint toàn cầu, region **southeastasia** | Như trên (nhà cung cấp dự phòng) | Dịch nội dung | Bên Xử lý | DPA | `src/lib/translate.ts:23,187` |
 | 10 | **Google — Geocoding API** *(khi có khóa)* | Toàn cầu | Tọa độ hoặc chuỗi địa chỉ do người dùng cung cấp | Chuyển tọa độ ⇄ quận/phường | Bên Xử lý | DPA; chỉ chạy khi khóa được cấu hình | `src/app/api/reverse-geocode/route.ts` |
 | 11 | **OpenStreetMap Foundation (Nominatim)** | **Vương quốc Anh / EU** | Như trên — dùng khi không có khóa Google | Dự phòng chuyển tọa độ | Bên Thứ ba (dịch vụ công) | ⚠️ **Không có DPA** — dịch vụ công cộng miễn phí. **[COUNSEL]** | `src/app/api/reverse-geocode/route.ts:74` |
-| 12 | **Resend, Inc.** | Hoa Kỳ / EU **[VERIFY]** | Địa chỉ email người nhận, nội dung thư (liên kết đăng nhập, thông báo, bản tin) | Gửi email giao dịch | Bên Xử lý | DPA; địa chỉ trong nhật ký được che | `src/lib/mail.ts:1` |
+| 12 | **Cloudflare, Inc. — Email Sending** (Worker `eno-mailer`) — **nhà cung cấp CHÍNH** từ 09/2026 | **Hoa Kỳ** (công ty Mỹ); thư được xử lý trên mạng toàn cầu của Cloudflare **[VERIFY vùng xử lý]** | Địa chỉ email người nhận, nội dung thư (liên kết đăng nhập, thông báo); **nhật ký hoạt động gửi thư (có địa chỉ người nhận) lưu 30 ngày** | Gửi email giao dịch | Bên Xử lý | Cloudflare DPA (chung với dòng 5); địa chỉ trong nhật ký ứng dụng được che; "Email preview" phải TẮT — nếu bật, Cloudflare lưu nội dung thư khoảng 7 ngày **[VERIFY đã tắt]** | `src/lib/mail.ts`; `infra/cloudflare/eno-mailer.js` |
+| 12a | **Resend, Inc.** — **nhà cung cấp DỰ PHÒNG**: chỉ khi Cloudflare không gửi được (dòng 12) | **Hoa Kỳ** (công ty Mỹ); tên miền eno.vn được cấu hình gửi từ vùng AWS `ap-northeast-1` (Tokyo, Nhật Bản) *(ghi nhận 19/07/2026)* **[VERIFY]** | Địa chỉ email người nhận, nội dung thư (liên kết đăng nhập, thông báo) — **chỉ của những thư mà Cloudflare không gửi được** | Gửi email giao dịch (dự phòng) | Bên Xử lý | Resend DPA **[VERIFY đã ký]**; địa chỉ trong nhật ký ứng dụng được che; thời hạn Resend lưu nhật ký và nội dung thư theo gói dịch vụ **[VERIFY]** | `src/lib/mail.ts` |
 | 13 | **Telegram Gateway** | Ngoài Việt Nam | **Số điện thoại + mã OTP** | Gửi mã đăng nhập | Bên Xử lý | DPA **[VERIFY tồn tại]**; không bao giờ ghi log OTP | `src/lib/otp-channels.ts:84` |
 | 14 | **Meta Platforms (WhatsApp Business)** | Hoa Kỳ / Ireland | **Số điện thoại + mã OTP** | Gửi mã đăng nhập cho số nước ngoài | Bên Xử lý | DPA **[VERIFY]** | `src/lib/otp-channels.ts:116` |
 | 15 | **VNG Corporation (Zalo ZNS)** | **VIỆT NAM** | Số điện thoại + mã OTP | Gửi mã đăng nhập cho số Việt Nam | Bên Xử lý | Trong nước — **không phải chuyển ra nước ngoài** | `src/lib/zalo-zns.ts` |
-| 16 | **Meta Platforms, Inc. — Conversions API** | Hoa Kỳ | `sha256(email)`, `sha256(số điện thoại)`, `sha256(id nội bộ)`, **IP thô**, user-agent, cookie `_fbp`/`_fbc` | Đo lường chuyển đổi quảng cáo | **Bên Thứ ba / Bên Kiểm soát độc lập** | **CHỈ khi có đồng ý "Allow all"**; máy chủ fail-closed khi không có cookie đồng ý | `src/lib/meta-capi.ts:23,44–50` |
-| 17 | **Google LLC — Analytics 4** (`G-CKTZK62B0X`) | Hoa Kỳ | Client-id, lượt xem trang, sự kiện, IP | Đo lường sử dụng | **Bên Thứ ba** | **CHỈ khi có đồng ý "Allow all"**; không nạp mã cho đến khi người dùng tương tác | `src/components/marketplace/analytics-tags.tsx:22,70` |
+| 16 | **Meta Platforms, Inc. — Conversions API** | Hoa Kỳ | `sha256(email)`, `sha256(số điện thoại)`, `sha256(id nội bộ)`, **IP thô**, user-agent, cookie `_fbp`/`_fbc` | Đo lường chuyển đổi quảng cáo | **Bên Thứ ba / Bên Kiểm soát độc lập** | **CHỈ khi người dùng bật mục "Quảng cáo"**; máy chủ fail-closed khi không có cookie đồng ý v2; luôn tắt trong ứng dụng gốc | `src/lib/meta-capi.ts`; `src/lib/consent-value.ts` |
+| 17 | **Google LLC — Analytics 4** (`G-CKTZK62B0X`) | Hoa Kỳ | Client-id, lượt xem trang, sự kiện, IP | Đo lường sử dụng | **Bên Thứ ba** | **CHỈ khi người dùng bật mục "Phân tích"**; Consent Mode mặc định "denied"; không nạp mã cho đến khi người dùng tương tác; luôn tắt trong ứng dụng gốc | `src/components/marketplace/analytics-tags.tsx` |
 | 18 | **Google / Mozilla / Apple — dịch vụ Web Push** | Hoa Kỳ, toàn cầu | URL endpoint đẩy + khóa `p256dh`/`auth` + nội dung thông báo | Gửi thông báo đẩy | Bên Xử lý (theo tiêu chuẩn Web Push) | VAPID; nội dung mã hóa đầu-cuối theo chuẩn | `src/lib/push.ts` |
 | 19 | **Google — Firebase Cloud Messaging + Apple APNs** | Hoa Kỳ | Token thiết bị + nội dung thông báo | Đẩy thông báo cho ứng dụng gốc | Bên Xử lý | DPA. **Trạng thái: chưa hoạt động — `NativePushToken` = 0 dòng** | `src/lib/native-push.ts:63` |
 | 20 | **Google — Identity Services / OAuth** | Hoa Kỳ | Email, họ tên, ảnh đại diện từ tài khoản Google | Đăng nhập bằng Google — **13/22 danh tính hiện dùng Google** | Bên Thứ ba | Người dùng chủ động chọn; phạm vi tối thiểu | `auth.identities` MEASURED |
@@ -313,8 +314,9 @@ The transfers are **infrastructural, not commercial**. eno.vn does not send pers
 
 - **Rows 1–4 (hosting and database)** exist because there is no Vietnam region for the managed Postgres and container platform in use. The data does not leave the operator's control: it sits in the operator's own project, under the operator's own credentials, with row-level security on every table.
 - **Rows 6–9 (AI and translation)** are per-request calls, not bulk exports. The AI search index carries **public listing fields only, with seller contact data deliberately excluded at the document-mapping layer**.
-- **Rows 12–14 (email and OTP)** transfer the minimum needed to deliver a message: an address or a phone number and the message body. The OTP is never logged.
-- **Rows 16–17 (advertising and analytics)** are the only transfers made for a purpose the user could reasonably decline, and they are the only ones that require explicit opt-in. Without the "Allow all" tier **nothing is sent, server-side included**.
+- **Rows 12, 12a and 13–14 (email and OTP)** transfer the minimum needed to deliver a message: an address or a phone number and the message body. The OTP is never logged.
+- **Rows 12 and 12a (Cloudflare and Resend) are both United States companies**, so every transactional email — the recipient's address and the message itself — is a transfer to a US-based processor. Cloudflare sends every message it can; Resend receives a message only when Cloudflare cannot send it, and then receives exactly the same two things for the same purpose.
+- **Rows 16–17 (advertising and analytics)** are the only transfers made for a purpose the user could reasonably decline, and they are the only ones that require explicit opt-in. Each needs its own switch ("Phân tích" / "Quảng cáo"); without it **nothing is sent for that purpose, server-side included**.
 
 ### 3.4 Loại dữ liệu cá nhân chuyển ra nước ngoài
 
@@ -393,12 +395,13 @@ All rows MEASURED against `prisma/schema.prisma` and `information_schema` on 14/
 | B8 | Microsoft — Azure AI Translator | southeastasia | Như B7 | Dịch dự phòng | Bên Xử lý | Microsoft DPA | ☐ **cần thu thập** |
 | B9 | Google — Geocoding API | Toàn cầu | Tọa độ / chuỗi địa chỉ | Chuyển đổi địa chỉ | Bên Xử lý | CDPA; chỉ chạy khi có khóa | ☐ |
 | B10 | OpenStreetMap Foundation (Nominatim) | UK/EU | Tọa độ / chuỗi địa chỉ | Dự phòng địa chỉ | Bên Thứ ba (dịch vụ công) | **Không có DPA** — cân nhắc bỏ hoặc tự vận hành | ✗ **[COUNSEL]** |
-| B11 | Resend, Inc. | US/EU **[VERIFY]** | Email người nhận + nội dung thư | Email giao dịch | Bên Xử lý | Resend DPA | ☐ **cần thu thập** |
+| B11 | Cloudflare, Inc. — Email Sending (nhà cung cấp CHÍNH từ 09/2026) | US (xử lý trên mạng toàn cầu) **[VERIFY vùng xử lý]** | Email người nhận + nội dung thư; nhật ký hoạt động gửi thư lưu **30 ngày** | Email giao dịch | Bên Xử lý | Cloudflare DPA (chung với B4) | ☐ **cần thu thập** (cùng DPA với B4) |
+| B11a | Resend, Inc. — DỰ PHÒNG (chỉ khi Cloudflare không gửi được) | US (gửi từ AWS `ap-northeast-1`, Tokyo) **[VERIFY]** | Email người nhận + nội dung thư — chỉ của thư Cloudflare không gửi được | Email giao dịch (dự phòng) | Bên Xử lý | Resend DPA | ☐ **cần thu thập** |
 | B12 | Telegram Gateway | Ngoài VN | Số điện thoại + OTP | Gửi mã đăng nhập | Bên Xử lý | Không ghi log OTP | ☐ **[VERIFY có DPA]** |
 | B13 | Meta Platforms (WhatsApp Business) | US/IE | Số điện thoại + OTP | Gửi mã đăng nhập (số nước ngoài) | Bên Xử lý | Meta DPA | ☐ **[VERIFY]** |
 | B14 | VNG Corporation (Zalo ZNS) | **Việt Nam** | Số điện thoại + OTP | Gửi mã đăng nhập (số VN) | Bên Xử lý | **Trong nước — không phải chuyển ra nước ngoài** | ☐ |
-| B15 | Meta Platforms, Inc. — Conversions API | US | `sha256(email/phone/id)`, IP, user-agent, `_fbp`, `_fbc` | Đo lường quảng cáo | **Bên Kiểm soát độc lập** | **Chỉ khi đồng ý "Allow all"**; máy chủ fail-closed | ☐ **[VERIFY khóa có được đặt trong môi trường sản xuất không]** |
-| B16 | Google LLC — Analytics 4 (`G-CKTZK62B0X`) | US | Client-id, lượt xem, sự kiện, IP | Đo lường sử dụng | **Bên Kiểm soát độc lập** | **Chỉ khi đồng ý "Allow all"**; chỉ nạp sau khi người dùng tương tác | ☐ |
+| B15 | Meta Platforms, Inc. — Conversions API | US | `sha256(email/phone/id)`, IP, user-agent, `_fbp`, `_fbc` | Đo lường quảng cáo | **Bên Kiểm soát độc lập** | **Chỉ khi bật "Quảng cáo"**; máy chủ fail-closed | ☐ **[VERIFY khóa có được đặt trong môi trường sản xuất không]** |
+| B16 | Google LLC — Analytics 4 (`G-CKTZK62B0X`) | US | Client-id, lượt xem, sự kiện, IP | Đo lường sử dụng | **Bên Kiểm soát độc lập** | **Chỉ khi bật "Phân tích"**; chỉ nạp sau khi người dùng tương tác | ☐ |
 | B17 | Google / Mozilla / Apple — Web Push | US, toàn cầu | Endpoint đẩy + khóa + nội dung | Thông báo đẩy | Bên Xử lý (theo chuẩn) | VAPID; nội dung mã hóa | n/a — dịch vụ chuẩn |
 | B18 | Google FCM + Apple APNs | US | Token thiết bị + nội dung | Đẩy cho ứng dụng gốc | Bên Xử lý | **CHƯA HOẠT ĐỘNG — 0 token** | ☐ |
 | B19 | Google — Identity Services / OAuth | US | Email, họ tên, ảnh từ tài khoản Google | Đăng nhập bằng Google (13/22 danh tính) | Bên Thứ ba | Người dùng chủ động; phạm vi tối thiểu | n/a |
@@ -477,7 +480,7 @@ All rows MEASURED against `prisma/schema.prisma` and `information_schema` on 14/
 
 ### 5. ⛔ Chưa có bản sao DPA của bất kỳ bên nhận nào
 Điều 18(2) và Điều 19 NĐ 356/2025 liệt kê **"bản sao hợp đồng hoặc thỏa thuận về việc xử lý dữ liệu cá nhân"** là **thành phần hồ sơ**, không phải tài liệu tham khảo. Hồ sơ thiếu một thành phần bắt buộc sẽ bị trả về mà không cần đọc nội dung.
-**Cách sửa nhỏ nhất:** với Google, Cloudflare, Microsoft và Meta, DPA là điều khoản tiêu chuẩn có thể chấp nhận và tải xuống trong bảng điều khiển — làm được trong một buổi chiều. Supabase, Resend và Telegram Gateway cần yêu cầu riêng. **OpenStreetMap Nominatim không có DPA và không thể có** — hoặc bỏ nhánh dự phòng đó, hoặc tự vận hành, hoặc để counsel giải trình.
+**Cách sửa nhỏ nhất:** với Google, Cloudflare, Microsoft và Meta, DPA là điều khoản tiêu chuẩn có thể chấp nhận và tải xuống trong bảng điều khiển — làm được trong một buổi chiều. Supabase, Resend (email dự phòng) và Telegram Gateway cần yêu cầu riêng; email giao dịch chính do Cloudflare gửi, nằm trong DPA của Cloudflare. **OpenStreetMap Nominatim không có DPA và không thể có** — hoặc bỏ nhánh dự phòng đó, hoặc tự vận hành, hoặc để counsel giải trình.
 **Chặn nộp hồ sơ: CÓ.**
 
 ### 6. ⛔ Ba trường `[OWNER INPUT]` và cờ `OPERATOR_REGISTERED`
@@ -490,7 +493,7 @@ Bằng cao đẳng trở lên, ≥02 năm kinh nghiệm pháp chế/CNTT/an ninh
 **Chặn nộp hồ sơ: KHÔNG — nhưng dễ bị trả về.**
 
 ### 8. ⚠️ Xác minh trạng thái môi trường sản xuất cho ba bên nhận
-`RESEND_API_KEY`, `META_PIXEL_ID`/`META_CAPI_TOKEN`, `NEXT_PUBLIC_GA_ID`, `TELEGRAM_BOT_TOKEN`/`FB_PAGE_*`, `GOOGLE_MAPS_API_KEY` — không thể đọc từ checkout này (chúng nằm trong GCP Secret Manager `eno-root-env`). Một bên nhận được liệt kê nhưng thực tế chưa bật khiến hồ sơ **quá rộng**; một bên đang bật mà không liệt kê khiến hồ sơ **sai**.
+`MAILER_URL`/`MAILER_KEY` (Cloudflare Email Sending), `RESEND_API_KEY` (Resend, dự phòng), `META_PIXEL_ID`/`META_CAPI_TOKEN`, `NEXT_PUBLIC_GA_ID`, `TELEGRAM_BOT_TOKEN`/`FB_PAGE_*`, `GOOGLE_MAPS_API_KEY` — không thể đọc từ checkout này (chúng nằm trong GCP Secret Manager `eno-root-env`). Một bên nhận được liệt kê nhưng thực tế chưa bật khiến hồ sơ **quá rộng**; một bên đang bật mà không liệt kê khiến hồ sơ **sai**.
 **Cách sửa nhỏ nhất:** đọc `eno-root-env` một lần và đánh dấu Phụ lục B thành "đang hoạt động" / "đã cấu hình nhưng chưa bật" / "chưa cấu hình".
 **Chặn nộp hồ sơ: KHÔNG — nhưng ảnh hưởng độ chính xác của Phụ lục B.**
 
