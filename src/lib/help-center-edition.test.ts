@@ -127,7 +127,11 @@ vi.mock('@/lib/db', () => ({
     forumComment: { findMany: async () => [] },
     // The sitemap's other four reads. Empty is fine: this file is about the help block, and the
     // listing/seller scoping has its own suite in src/lib/edition-scope.test.ts.
-    listing: { findMany: async () => [] },
+    // ⚠️ `groupBy` IS NOT OPTIONAL HERE EVEN THOUGH THIS SUITE IS ABOUT HELP ARTICLES. The sitemap
+    // route wraps its whole body in a try/catch, so a missing mock does not surface as "groupBy is
+    // not a function" — it produces a VALID BUT EMPTY sitemap, and every assertion below then
+    // passes vacuously. Only the `listed.length > 0` guard in the last test catches it.
+    listing: { findMany: async () => [], groupBy: async () => [] },
     category: { findMany: async () => [] },
     seller: { findMany: async () => [] },
     review: { findMany: async () => [] },

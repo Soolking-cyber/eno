@@ -1,4 +1,5 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { conditionWhere, type ListingCondition } from '@/lib/listing-condition'
 // ⚠️ THE TAXONOMY UNION, NOT `string`. A typo silently empties the rail — there is no slug test
 // covering this dimension the way seo-landing-slugs.test.ts covers category/subcategory (fable).
 import { VisaDisclosure } from './visa-disclosure'
@@ -59,6 +60,20 @@ export type SeoContent = {
    * because the rail would still be full.
    */
   listingType?: ListingType
+  /**
+   * Narrow to one CONDITION — `used` or `new`.
+   *
+   * ⛔ WITHOUT THIS A "SECONDHAND" PAGE IS A CATEGORY PAGE WEARING A SECONDHAND TITLE.
+   * `/moving-sales-vietnam` pointed at `moving-sale`, a category with ZERO listings, while 3,201
+   * used furniture/appliance rows sat one category away — the page ranked (456 impressions, the
+   * site's #2 page) and funnelled every one of them into an empty rail. Pointing it at
+   * `furniture-appliances` without a condition narrowing would be the opposite error: that
+   * category is 6,391 listings of which roughly half are brand new.
+   *
+   * ⚠️ IT MUST ALSO BE SET ON THE CTA — see seo-landing-href.ts, which widens its "narrowed at
+   * all" test for this field. The component's contract is that the CTA shows what the rail showed.
+   */
+  condition?: ListingCondition
   /**
    * Narrow further by listing ATTRIBUTES (facet key → value), e.g. `{ visaSpeed: '1H' }`.
    *
@@ -131,6 +146,31 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
   // after the query genuinely returns, so an outage falls back to today's behaviour.
   let inventoryKnown = false
   const browseHref = seoBrowseHref(content)
+  /**
+   * ⛔ EVERY `AND`-SHAPED NARROWING GOES IN ONE ARRAY, NEVER SPREAD AS A TOP-LEVEL `AND` KEY.
+   *
+   * Two of them own `AND`: the condition predicate (`{ AND: [not-null, NOT new-ish] }`) and the
+   * attribute block below. Spread into the same object literal, the LATER key silently wins and
+   * the earlier narrowing disappears — a "Secondhand" page would rail brand-new goods while its
+   * CTA, which carries `condition=used`, showed a different set. Both reviewers caught this on the
+   * first draft; no page sets both fields today, so nothing would have failed, which is exactly
+   * how it would have reached production.
+   *
+   * This is the same "caller composes its own AND array" shape `feed-query.ts` uses, and the
+   * reason edition-scope.ts wraps rather than spreads.
+   */
+  const narrowings: object[] = []
+  const conditionNarrowing = conditionWhere(content.condition)
+  if (conditionNarrowing) narrowings.push(conditionNarrowing)
+  if (content.attributes) {
+    // One `contains` per attribute rather than one over the whole object: key order inside the
+    // stored JSON is whatever the wizard happened to write, so a multi-key substring would match
+    // nothing on most rows. Measured — the live visa listings carry visaEntryType/visaSpeed in
+    // three different orders.
+    for (const [k, v] of Object.entries(content.attributes)) {
+      narrowings.push({ attributes: { contains: `"${k}":"${v}"` } })
+    }
+  }
   try {
     const rows = await db.listing.findMany({
       // ⚠️ ONE INSERTION COVERS TEN LANDING PAGES. This is a COMPONENT, so a route-level audit never
@@ -152,13 +192,10 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
          * mixed-currency inventory; widening it there would change pages this diff is not about.
          */
         ...(content.models?.length ? { currency: '₫' } : {}),
-        // One `contains` per attribute rather than one over the whole object: key order inside
-        // the stored JSON is whatever the wizard happened to write, so a multi-key substring
-        // would match nothing on most rows. Measured — the live visa listings carry
-        // visaEntryType/visaSpeed in three different orders.
-        ...(content.attributes
-          ? { AND: Object.entries(content.attributes).map(([k, v]) => ({ attributes: { contains: `"${k}":"${v}"` } })) }
-          : {}),
+        // ⚠️ ONE `AND`, BUILT ABOVE. Both the condition predicate and the attribute filters are
+        // AND-shaped; spreading them as two `AND` keys here would have let the later silently
+        // overwrite the earlier. See the `narrowings` block at the top of this function.
+        ...(narrowings.length ? { AND: narrowings } : {}),
       }),
       // Narrowed pages sort by price: these are products (one entry type × one speed), and the
       // question a visitor arrives with is what it costs. Category pages keep featured-then-newest.

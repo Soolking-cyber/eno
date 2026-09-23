@@ -30,6 +30,25 @@ describe('seoBrowseHref', () => {
     ).toBe('/?category=services&subcategory=visa-legal&attr_visaSpeed=1H')
   })
 
+  it('narrows on condition alone, and does NOT fall through to the whole category', () => {
+    // ⛔ THE /moving-sales-vietnam REGRESSION, IN THE FORM IT WOULD ACTUALLY TAKE. That page rails
+    // USED furniture out of a category that is 6,391 listings, roughly half of them brand new. If
+    // `condition` did not widen the "narrowed at all" test, its CTA would read /c/furniture-appliances
+    // and send a visitor who just read secondhand prices into new-goods retail — a valid, full page,
+    // so nothing would look broken.
+    expect(seoBrowseHref({ categorySlug: 'furniture-appliances', condition: 'used' })).toBe(
+      '/?category=furniture-appliances&condition=used',
+    )
+  })
+
+  it('uses the feed’s own `condition` param name so the rail and the CTA select the same rows', () => {
+    // `feed-query.ts` reads `searchParams.get('condition')` and applies the SAME predicate the rail
+    // used, via @/lib/listing-condition. One definition, two callers — see that file's header.
+    expect(
+      seoBrowseHref({ categorySlug: 'furniture-appliances', subcategorySlug: 'sofas', condition: 'used' }),
+    ).toBe('/?category=furniture-appliances&subcategory=sofas&condition=used')
+  })
+
   it('narrows on attributes even with NO subcategory — the case agy refuted', () => {
     // ⚠️ THE REGRESSION THIS FILE EXISTS FOR. The first implementation keyed the whole decision on
     // `subcategorySlug`, so a page filtering its rail by attributes alone rendered a narrow set of

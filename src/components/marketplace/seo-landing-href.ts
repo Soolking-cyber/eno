@@ -32,6 +32,21 @@ export type SeoBrowseTarget = {
    */
   listingType?: string
   /**
+   * Narrow to one CONDITION — `used` or `new`, matched by `@/lib/listing-condition`.
+   *
+   * ⛔ THE SIXTH NARROWING DIMENSION, AND IT WIDENS THE "NARROWED AT ALL" TEST BELOW for exactly
+   * the reason the `listingType` note gives. `/moving-sales-vietnam` narrows to USED
+   * furniture-appliances; without this its CTA would funnel to `/c/furniture-appliances`, where
+   * 3,190 of the 6,391 listings are brand new — a visitor who just read about secondhand prices
+   * would land on new-goods retail. Silent, because that destination is also a valid page full of
+   * listings.
+   *
+   * ⚠️ `condition` IS THE FEED'S OWN PARAM NAME (`feed-query.ts` reads `searchParams.get('condition')`),
+   * so this stays one convention rather than a second one — the same argument the `attr_` and
+   * `type` params already make below.
+   */
+  condition?: 'new' | 'used'
+  /**
    * Narrow to one BRAND (`Listing.brandSlug`) and, with `models`, to named product lines.
    *
    * ⛔ THE FOURTH AND FIFTH NARROWING DIMENSIONS, AND THEY MUST WIDEN THE "NARROWED AT ALL" TEST
@@ -61,7 +76,14 @@ export function seoBrowseHref(content: SeoBrowseTarget): string {
   // destinations are valid pages full of listings. No page does that today; the point is that
   // adding one would not have been a mistake anybody could see.
   const models = content.models ?? []
-  if (!content.subcategorySlug && !content.listingType && !content.brandSlug && models.length === 0 && attrs.length === 0) {
+  if (
+    !content.subcategorySlug &&
+    !content.listingType &&
+    !content.brandSlug &&
+    !content.condition &&
+    models.length === 0 &&
+    attrs.length === 0
+  ) {
     return `/c/${content.categorySlug}`
   }
   const params = new URLSearchParams({ category: content.categorySlug })
@@ -73,6 +95,9 @@ export function seoBrowseHref(content: SeoBrowseTarget): string {
   // `type` is the explorer's own param name — `listings-explorer.tsx` reads `params.get('type')`
   // and `feed-query.ts` filters `listingType` on it. Same convention, not a second one.
   if (content.listingType) params.set('type', content.listingType)
+  // `condition` is the feed's own param name — feed-query.ts reads it and applies the SAME
+  // predicate this page's rail used, via @/lib/listing-condition. One definition, two callers.
+  if (content.condition) params.set('condition', content.condition)
   // `attr_<key>=<value>` is the feed's own convention, not a new one — see
   // src/app/api/listings/feed-query.ts, which turns each into a `contains` on the attributes JSON.
   // The landing page's Prisma query builds the same predicate from the same object, which is what

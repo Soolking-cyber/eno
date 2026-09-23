@@ -39,7 +39,7 @@ export const revalidate = 86400
 
 export async function GET() {
   try {
-    const [listings, ownListings, categories, sellers, helpArticles] = await Promise.all([
+    const [listings, ownListings, categories, liveByCategory, sellers, helpArticles] = await Promise.all([
       /**
        * ⚠️ SCOPED HERE AND NOWHERE ELSE, DELIBERATELY. The category maxima, the category/district
        * combos and the seller-storefront URLs further down are all DERIVED from exactly these rows,
@@ -85,7 +85,26 @@ export async function GET() {
         orderBy: { updatedAt: 'desc' },
         take: 45000,
       }),
-      db.category.findMany({ select: { slug: true } }),
+      db.category.findMany({ select: { slug: true, id: true } }),
+      /**
+       * ⛔ WHICH CATEGORIES ACTUALLY HAVE A LIVE LISTING — ITS OWN UNBOUNDED AGGREGATE, NOT A READ
+       * OF `catMax`. `/c/<slug>` serves `noindex, follow` when its category is empty, so submitting
+       * one asks Google to index a page that tells it not to. Measured in Search Console: the four
+       * empty categories (`property`, `moving-sale`, `jobs`, `community-events`) were drawing 80
+       * impressions across 27 submitted URLs, all of them dead ends.
+       *
+       * ⚠️ IT CANNOT BE DERIVED FROM `catMax`, AND THAT IS THE WHOLE REASON THIS QUERY EXISTS. The
+       * row above is capped at `take: 45000` over ~98,700 live listings ordered by `updatedAt desc`,
+       * so a small, rarely-touched category (books-stationery is 426 listings) can fall entirely
+       * outside the window — and a guard reading that map would then drop a perfectly good category
+       * page from the sitemap, silently, with the set changing on every affiliate sync. A `groupBy`
+       * counts the whole table and cannot be fooled by the cap.
+       */
+      db.listing.groupBy({
+        by: ['categoryId'],
+        where: await scopedListingWhere({ verified: true, status: 'active' }),
+        _count: { _all: true },
+      }),
       // ⚠️ NO `verifiedSeller` FILTER. It used to be `where: { verifiedSeller: true }`, and NOT ONE
       // seller in the database has ever had that flag set — so this block emitted zero URLs and the
       // sitemap contained no storefronts at all. The visible cost was concrete: /eno_visa, which
@@ -276,7 +295,24 @@ export async function GET() {
     // sitemap ships while the MoIT test-operation notice still shows. The sitewide
     // noindex header in next.config.ts was removed the same day.
     // Faceted category pages (programmatic SEO entry points)
+    //
+    // ⚠️ THE PREDICATE MIRRORS THE SELLER BLOCK BELOW, deliberately: a category with no live
+    // listing is a thin page that serves `noindex`, so it is not submitted, and the moment one
+    // listing lands it reappears on the next revalidate. Same shape, same reasoning.
+    /**
+     * ⚠️ PRESENCE, NOT A COUNT COMPARISON — `groupBy` never returns a zero-count group, so a
+     * `_count._all > 0` filter would be dead code that reads like a real guard (opus).
+     *
+     * ⚠️ AND THE PREDICATE IS THE PAGE'S OWN, VERIFIED RATHER THAN ASSUMED. `/c/<slug>` decides
+     * `robots: { index: false }` from `load-category.ts:37` —
+     * `count({ scopedListingWhere({ categoryId, verified: true, status: 'active' }) }) === 0`.
+     * The aggregate above is that same predicate grouped instead of counted per category, so the
+     * sitemap and the page cannot disagree about which categories are indexable. A stricter
+     * predicate here would drop good pages; a looser one would keep submitting the dead ends.
+     */
+    const liveCategoryIds = new Set(liveByCategory.map((g) => g.categoryId))
     for (const c of categories) {
+      if (!liveCategoryIds.has(c.id)) continue
       xml += `  <url><loc>${hostUrl}/c/${c.slug}</loc>${lm(catMax.get(c.slug))}</url>\n`
     }
 

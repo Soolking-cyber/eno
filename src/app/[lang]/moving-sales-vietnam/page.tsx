@@ -12,30 +12,59 @@ export const revalidate = 3600
 export const metadata: Metadata = {
   title: `Moving Sales & Secondhand Furniture in Vietnam | ${SITE_NAME}`,
   description:
-    'Shop expat moving sales in Vietnam — secondhand furniture, appliances and home goods in Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported.',
+    'Buy secondhand furniture and appliances in Ho Chi Minh City — sofas, wardrobes, air conditioners, washing machines and more, used and priced below retail. Every eno.vn seller has a public trust score.',
   alternates: { canonical: '/moving-sales-vietnam' },
   openGraph: {
     title: `Moving Sales & Secondhand Furniture in Vietnam | ${SITE_NAME}`,
     description:
-      'Expat moving sales — furniture, appliances and home goods at great prices, with fewer fake photos and bait prices.',
+      'Secondhand furniture and appliances in Ho Chi Minh City at a fraction of retail, with fewer fake photos and bait prices.',
   },
 }
 
 const CONTENT: SeoContent = {
-  eyebrow: 'Moving Sales · Vietnam',
+  /**
+   * ⚠️ THE TITLE, H1 AND SLUG KEEP "MOVING SALES" DELIBERATELY — they are the ranking asset. This
+   * page earns 456 impressions at avg position 15.5 on moving-sale and where-to-sell-furniture
+   * queries; renaming the slug would forfeit that and need a redirect. The eyebrow and body now
+   * lead with what the rail ACTUALLY holds (used furniture and appliances), so the page reads
+   * honestly to someone who arrives on either intent — buying secondhand, or clearing a flat.
+   */
+  eyebrow: 'Secondhand · Ho Chi Minh City',
   h1: 'Moving Sales & Secondhand Furniture in Vietnam',
   intro:
-    'Furnish your place for less. Expats and internationals leaving Vietnam sell quality furniture, appliances and home goods through moving sales — sofas, beds, fridges, washing machines, kitchenware and more, mostly in Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported, so the items and prices are real.',
-  categorySlug: 'moving-sale',
-  cta: 'Browse moving sales',
+    'Furnish your place for less. Secondhand furniture, appliances and home goods in Ho Chi Minh City — sofas, wardrobes, dining sets, air conditioners, washing machines, air purifiers and robot vacuums, listed used and priced well below retail. Every eno.vn seller has a public trust score and bad listings get reported, so the items and prices are real.',
+  /**
+   * ⛔ `furniture-appliances` NARROWED TO USED, NOT `moving-sale`. This page pointed at the
+   * `moving-sale` category, which has **zero** live listings, while 3,201 used furniture and
+   * appliance rows sat one category away. Measured in Search Console: 456 impressions and 15
+   * clicks over 93 days — the SECOND most-seen page on the site — every one of them funnelled
+   * into an empty rail and the component's own "inventory is empty" branch.
+   *
+   * ⚠️ THE CONDITION NARROWING IS NOT OPTIONAL HERE. `furniture-appliances` is 6,391 listings of
+   * which only 3,201 are used; without it a page titled "Secondhand" would rail brand-new goods.
+   */
+  categorySlug: 'furniture-appliances',
+  condition: 'used',
+  /**
+   * ⚠️ THE COPY ASSERTS HO CHI MINH CITY AND THE RAIL HAS NO DISTRICT NARROWING — that pairing is
+   * only safe because it was MEASURED, not assumed. 2026-09-23, /api/listings sampled 100 used
+   * furniture-appliance rows: 100 of 100 are Hồ Chí Minh. SeoContent has no district field, so
+   * there is nothing enforcing it.
+   *
+   * ⛔ SO THIS IS A CLAIM WITH AN EXPIRY. The first Hanoi or Da Nang sofa posted to this category
+   * rails under an FAQ literally titled "What secondhand furniture can I buy in Ho Chi Minh City?"
+   * (opus). Re-measure when non-HCMC supply appears; the fix is then either a district narrowing
+   * on the rail or hedging this copy back to "mostly".
+   */
+  cta: 'Browse secondhand furniture',
   sections: [
     {
-      title: 'What people sell',
-      body: 'Sofas, dining sets, beds and wardrobes; fridges, washing machines, air conditioners and microwaves; plus TVs, kitchenware, plants and décor. Great quality at a fraction of retail because sellers need to clear out before they fly.',
+      title: 'What you will find',
+      body: 'Sofas, dining sets, wardrobes, shoe cabinets and office desks; air conditioners, washing machines, air purifiers, robot vacuums and small kitchen appliances. Most sit between roughly half a million and five million đồng, with larger appliances above that — a fraction of what the same item costs new.',
     },
     {
-      title: 'Move-out friendly',
-      body: 'Many listings are available for pickup on a set date, and sellers are often happy to bundle multiple items. Message the seller in-app to arrange viewing and pickup.',
+      title: 'Move-in and move-out friendly',
+      body: 'Furnishing a new place or clearing one out, the practical questions are the same: can you see it, can you collect it, and will it fit. Message the seller in-app to arrange a viewing, agree a pickup date, and ask for measurements before you cross town.',
     },
     {
       title: 'Buy without the guesswork',
@@ -44,8 +73,8 @@ const CONTENT: SeoContent = {
   ],
   faqs: [
     {
-      q: 'What can I buy at expat moving sales?',
-      a: 'Furniture, large and small appliances, kitchenware, electronics and home décor — usually well-kept and priced to sell quickly.',
+      q: 'What secondhand furniture can I buy in Ho Chi Minh City?',
+      a: 'Sofas, beds, wardrobes, dining and office tables, shelving and shoe cabinets, plus used appliances — air conditioners, washing machines, air purifiers and robot vacuums. Listings show the condition the seller set, and you can message them before you travel to see it.',
     },
     {
       q: 'Can I arrange pickup?',
@@ -53,7 +82,7 @@ const CONTENT: SeoContent = {
     },
     {
       q: 'How does eno.vn keep listings genuine?',
-      a: 'Every moving-sale seller has a public trust score and buyers can report bad listings, so misleading photos and prices get caught and penalized and reflect what’s actually available.',
+      a: 'Every seller has a public trust score built from evidence rather than self-description, and buyers can report bad listings, so misleading photos and bait prices get caught and penalized.',
     },
   ],
 }

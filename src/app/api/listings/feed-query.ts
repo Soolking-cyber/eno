@@ -15,6 +15,7 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 // The cap lives in a client-safe module because the browser has to chunk to the same number.
 import { IDS_FAST_PATH_MAX } from '@/lib/listing-ids'
 import { districtScopeForSlug } from '@/lib/district-slug'
+import { conditionWhere } from '@/lib/listing-condition'
 
 // Subcategory facet counts are expensive (one multi-LIKE COUNT per subcategory)
 // and change slowly. Memoize per filter-signature with a short TTL so the fan-out
@@ -159,17 +160,18 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
   if (category && category !== 'all') {
     andFilters.push({ category: { slug: category } })
   }
-  if (condition && condition !== 'all') {
-    // Case-INSENSITIVE: stored condition values are inconsistently cased
-    // (new/New/Like new/used/Used/Good…). "new" matches anything new-ish; "used"
-    // is everything else that has a condition set (exclude the null/unset rows so a
-    // non-physical/blank item isn't wrongly counted as used).
-    const NEWISH = { OR: [{ condition: { contains: 'new', mode: 'insensitive' as const } }, { condition: { contains: 'mới', mode: 'insensitive' as const } }] }
-    if (condition === 'new') {
-      andFilters.push(NEWISH)
-    } else if (condition === 'used') {
-      andFilters.push({ AND: [{ condition: { not: null } }, { NOT: NEWISH }] })
-    }
+  // Case-INSENSITIVE and bilingual: stored condition values are inconsistently cased
+  // (new/New/Like new/used/Used/Good/mới). "new" matches anything new-ish; "used" is
+  // everything else that HAS a condition set — the null guard stops a service or a job
+  // counting as used merely by being not-new.
+  //
+  // ⚠️ THE PREDICATE MOVED TO @/lib/listing-condition AND DID NOT CHANGE. It now has a second
+  // caller: the SEO landing rail (seo-landing.tsx). seo-landing-href.ts requires that a landing
+  // page's CTA link to exactly the set its rail displayed, and that page links here — so the two
+  // must share one definition of "used" or the invariant breaks while both pages still look full.
+  {
+    const w = conditionWhere(condition as 'new' | 'used' | 'all' | undefined)
+    if (w) andFilters.push(w)
   }
   /**
    * Generic district filter driven by DISTRICTS[].match (EN + VI variants), matched against both
