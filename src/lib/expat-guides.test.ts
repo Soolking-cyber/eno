@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { EXPAT_GUIDES, EXPAT_GUIDE_PATHS, expatGuidesExcept } from './expat-guides'
+import { EXPAT_GUIDES, EXPAT_GUIDE_PATHS, expatGuidesExcept, marketplaceGuideAlternates, MARKETPLACE_GUIDES, marketplaceGuidesExcept } from './expat-guides'
 
 /**
  * THE ARRIVAL GUIDES — two guarantees that nothing else in the toolchain can check.
@@ -77,5 +77,60 @@ describe('expat guides registry', () => {
     const first = EXPAT_GUIDES[0].slug
     expect(expatGuidesExcept(first).map((g) => g.href)).not.toContain(`/${first}`)
     expect(expatGuidesExcept().length).toBe(EXPAT_GUIDES.length)
+  })
+})
+
+describe('marketplace guide hreflang', () => {
+  it('every pair is RECIPROCAL — a one-way pair is ignored by Google outright', () => {
+    for (const g of MARKETPLACE_GUIDES) {
+      if (!g.pair) continue
+      const other = MARKETPLACE_GUIDES.find((x) => x.slug === g.pair)
+      expect(other, `${g.slug} names pair ${g.pair}, which is not in the registry`).toBeTruthy()
+      expect(other!.pair, `${other!.slug} does not point back at ${g.slug}`).toBe(g.slug)
+      expect(g.lang, `${g.slug} has a pair but no lang`).toBeTruthy()
+      expect(other!.lang, `${other!.slug} has a pair but no lang`).toBeTruthy()
+      expect(other!.lang, `${g.slug} and ${other!.slug} are both ${g.lang}`).not.toBe(g.lang)
+    }
+  })
+
+  it('both sides of a pair emit the SAME languages map', () => {
+    // ⛔ THE POINT OF READING BOTH SIDES FROM ONE FUNCTION. Hand-written `alternates` in two page
+    // files drift, and the drift is invisible: each page looks correct on its own.
+    for (const g of MARKETPLACE_GUIDES) {
+      if (!g.pair) continue
+      const a = marketplaceGuideAlternates(g.slug)
+      const b = marketplaceGuideAlternates(g.pair)
+      expect(a.languages).toEqual(b.languages)
+      expect(a.canonical).not.toBe(b.canonical)
+    }
+  })
+
+  it('x-default points at the ENGLISH article, never the Vietnamese one', () => {
+    // On a .vn domain, omitting x-default lets Google serve the Vietnamese page to everyone —
+    // including the English-speaking audience this marketplace exists for.
+    for (const g of MARKETPLACE_GUIDES) {
+      if (!g.pair) continue
+      const alt = marketplaceGuideAlternates(g.slug)
+      expect(alt.languages!['x-default']).toBe(alt.languages!.en)
+    }
+  })
+
+  it('an unpaired guide gets a bare canonical and NO languages map', () => {
+    // Pointing a language at a page that does not exist is worse than declaring nothing.
+    const unpaired = MARKETPLACE_GUIDES.find((g) => !g.pair)
+    if (!unpaired) return
+    const alt = marketplaceGuideAlternates(unpaired.slug)
+    expect(alt.canonical).toBe(`/${unpaired.slug}`)
+    expect('languages' in alt).toBe(false)
+  })
+
+  it('"Keep reading" never crosses languages', () => {
+    for (const g of MARKETPLACE_GUIDES) {
+      const lang = g.lang ?? 'en'
+      for (const rel of marketplaceGuidesExcept(g.slug)) {
+        const target = MARKETPLACE_GUIDES.find((x) => `/${x.slug}` === rel.href)!
+        expect(target.lang ?? 'en', `${g.slug} links to ${target.slug} across languages`).toBe(lang)
+      }
+    }
   })
 })

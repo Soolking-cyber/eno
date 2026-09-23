@@ -1,6 +1,8 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
+import { seoLandingRobots } from '@/components/marketplace/seo-landing-robots'
+import { LANDING_TARGET } from './landing-target'
 
 // 1h, not 7d. The copy IS static, but the page also renders a LIVE 8-listing rail and an
 // "inventory is empty" branch — so at weekly regeneration a category that filled on Monday kept
@@ -9,7 +11,7 @@ import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landin
 // copy on the pages built to convert search traffic is not (astra).
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+const BASE_METADATA: Metadata = {
   title: `Jobs for Expats & Internationals in Vietnam | ${SITE_NAME}`,
   description:
     'Find jobs for expats and internationals in Vietnam — teaching, hospitality, marketing, tech and English-required roles in Ho Chi Minh City. Every eno.vn employer has a public trust score and bad listings get reported.',
@@ -60,4 +62,16 @@ const CONTENT: SeoContent = {
 
 export default function Page() {
   return <SeoLanding content={CONTENT} />
+}
+
+/**
+ * ⛔ `noindex, follow` WHILE THERE IS NOTHING TO SHOW — COMPUTED, SO IT LIFTS ITSELF.
+ *
+ * `jobs` holds zero live listings. Search Console shows this page earning ZERO impressions over 93 days,
+ * so suppressing it costs nothing measurable and stops the bounce a visitor would get.
+ * The moment real supply lands the count is non-zero and the page goes indexable again on the
+ * next revalidate — no list to maintain, which is why it is computed rather than hard-coded.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  return { ...BASE_METADATA, ...(await seoLandingRobots(LANDING_TARGET)) }
 }

@@ -1,5 +1,6 @@
+import { type ListingCondition } from '@/lib/listing-condition'
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { conditionWhere, type ListingCondition } from '@/lib/listing-condition'
+import { seoLandingWhere } from './seo-landing-where'
 // ⚠️ THE TAXONOMY UNION, NOT `string`. A typo silently empties the rail — there is no slug test
 // covering this dimension the way seo-landing-slugs.test.ts covers category/subcategory (fable).
 import { VisaDisclosure } from './visa-disclosure'
@@ -146,57 +147,15 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
   // after the query genuinely returns, so an outage falls back to today's behaviour.
   let inventoryKnown = false
   const browseHref = seoBrowseHref(content)
-  /**
-   * ⛔ EVERY `AND`-SHAPED NARROWING GOES IN ONE ARRAY, NEVER SPREAD AS A TOP-LEVEL `AND` KEY.
-   *
-   * Two of them own `AND`: the condition predicate (`{ AND: [not-null, NOT new-ish] }`) and the
-   * attribute block below. Spread into the same object literal, the LATER key silently wins and
-   * the earlier narrowing disappears — a "Secondhand" page would rail brand-new goods while its
-   * CTA, which carries `condition=used`, showed a different set. Both reviewers caught this on the
-   * first draft; no page sets both fields today, so nothing would have failed, which is exactly
-   * how it would have reached production.
-   *
-   * This is the same "caller composes its own AND array" shape `feed-query.ts` uses, and the
-   * reason edition-scope.ts wraps rather than spreads.
-   */
-  const narrowings: object[] = []
-  const conditionNarrowing = conditionWhere(content.condition)
-  if (conditionNarrowing) narrowings.push(conditionNarrowing)
-  if (content.attributes) {
-    // One `contains` per attribute rather than one over the whole object: key order inside the
-    // stored JSON is whatever the wizard happened to write, so a multi-key substring would match
-    // nothing on most rows. Measured — the live visa listings carry visaEntryType/visaSpeed in
-    // three different orders.
-    for (const [k, v] of Object.entries(content.attributes)) {
-      narrowings.push({ attributes: { contains: `"${k}":"${v}"` } })
-    }
-  }
   try {
     const rows = await db.listing.findMany({
       // ⚠️ ONE INSERTION COVERS TEN LANDING PAGES. This is a COMPONENT, so a route-level audit never
       // finds it — and the comment below is the tell: these pages were built to surface the live
       // visa listings by attribute, which is exactly what must not happen on eno.vn.
-      where: await scopedListingWhere({
-        verified: true,
-        status: 'active',
-        category: { slug: content.categorySlug },
-        ...(content.subcategorySlug ? { subcategorySlug: content.subcategorySlug } : {}),
-        ...(content.listingType ? { listingType: content.listingType } : {}),
-        ...(content.brandSlug ? { brandSlug: content.brandSlug } : {}),
-        ...(content.models?.length ? { model: { in: content.models } } : {}),
-        /**
-         * ⚠️ ONE CURRENCY, AND ONLY ON A PRODUCT PAGE. A model-narrowed rail sorts by price ASC, so
-         * a listing priced in USD sorts above every đồng listing — $1,200 is a smaller number than
-         * 38,000,000 (agy, twice). Scoped to `models` rather than applied to the whole component
-         * because the five category landing pages do not sort by price and have lived happily with
-         * mixed-currency inventory; widening it there would change pages this diff is not about.
-         */
-        ...(content.models?.length ? { currency: '₫' } : {}),
-        // ⚠️ ONE `AND`, BUILT ABOVE. Both the condition predicate and the attribute filters are
-        // AND-shaped; spreading them as two `AND` keys here would have let the later silently
-        // overwrite the earlier. See the `narrowings` block at the top of this function.
-        ...(narrowings.length ? { AND: narrowings } : {}),
-      }),
+      // ⛔ THE SAME PREDICATE `generateMetadata` COUNTS WITH — see seo-landing-where.ts. Built once,
+      // in one place, so the rail and the page's own `robots` tag can never disagree about whether
+      // this page has inventory.
+      where: await scopedListingWhere(seoLandingWhere(content)),
       // Narrowed pages sort by price: these are products (one entry type × one speed), and the
       // question a visitor arrives with is what it costs. Category pages keep featured-then-newest.
       // Narrowed pages sort by price — and a brand/model page is the narrowest of them.

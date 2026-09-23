@@ -217,6 +217,21 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // this list only decides whether the words have to go through tr().
     "src/app/\\[lang\\]/furnishing-a-home-in-vietnam/page.tsx",
     "src/app/\\[lang\\]/selling-up-before-you-leave-vietnam/page.tsx",
+    // ── The 2026-09-23 inventory-backed cluster ──────────────────────────────────────────────
+    // Same exemption, and the SAME two reasons already stated above, one per language:
+    //   · the English pages are English-only SEO prose aimed at English queries;
+    //   · the Vietnamese pages are Vietnamese-only prose aimed at Vietnamese queries, and running
+    //     "thanh lý đồ gia dụng cũ" through tr() would produce an English page nobody searched for.
+    // ⚠️ THE VIETNAMESE ONES ARE THE WHOLE POINT OF THE SLUG. src/proxy.ts serves both languages at
+    // ONE url, so Googlebot (which crawls as `en`) only ever sees a shared page's English rendering
+    // — a Vietnamese article is invisible unless it has its own slug, which is why these exist.
+    // ⚠️ ALL ORDINARY `page.tsx`, i.e. they ship on BOTH editions, so none of this prose may name a
+    // visa, an itinerary or PayPal. edition-lint enforces that; this list only decides tr().
+    "src/app/\\[lang\\]/secondhand-furniture-ho-chi-minh-city/page.tsx",
+    "src/app/\\[lang\\]/thanh-ly-do-gia-dung-cu-tphcm/page.tsx",
+    "src/app/\\[lang\\]/do-cu-cua-nguoi-nuoc-ngoai/page.tsx",
+    "src/app/\\[lang\\]/renting-an-apartment-vietnam-foreigner/page.tsx",
+    "src/app/\\[lang\\]/rental-deposit-vietnam/page.tsx",
     // THE PHONE-BUYING CLUSTER (src/lib/phone-guides.ts) — sixteen articles, eight topics, each
     // topic written twice: once in English for English queries, once in Vietnamese for Vietnamese
     // ones.

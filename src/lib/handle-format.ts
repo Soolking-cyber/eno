@@ -7,6 +7,7 @@
  * relative for exactly the same reason.
  */
 import { PHONE_GUIDE_PATHS } from './phone-guides'
+import { EXPAT_GUIDE_SLUGS, MARKETPLACE_GUIDE_SLUGS } from './expat-guides'
 import { fold } from './fold'
 
 // Pure @handle rules — client-safe (no db / server-only), shared by the server lib
@@ -85,7 +86,7 @@ const RESERVED = new Set([
   // ⚠️ `app` IS THE QR REDIRECT SHIPPED 2026-09-16 (src/app/app/route.ts) and it was claimable until
   // handle-format.test.ts caught it — the test reads the route tree, which is exactly why it exists.
   // A member holding @app would have shadowed the one URL the download QR encodes.
-  'app', 'furnishing-a-home-in-vietnam', 'selling-up-before-you-leave-vietnam',
+  'app',
   'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'iphone-18-vietnam',
   // ⚠️ THE PER-MODEL LANDING PAGES, ADDED 2026-09-19. A member holding @iphone-18-pro-vietnam
   // would shadow the route entirely — /[handle] renders the storefront in place, so the SEO page
@@ -98,6 +99,15 @@ const RESERVED = new Set([
    * in place of the article with no error anywhere.
    */
   ...PHONE_GUIDE_PATHS,
+  /**
+   * ⛔ FROM THE REGISTRY, NOT HAND-COPIED. `furnishing-a-home-in-vietnam` and
+   * `selling-up-before-you-leave-vietnam` used to be typed into the literal above; when seven more
+   * guides landed on 2026-09-23 nobody updated it and handle-format.test.ts failed on the first
+   * new slug. Reading the registry means adding a guide reserves its handle in the same edit —
+   * the same reason PHONE_GUIDE_PATHS is spread rather than transcribed.
+   */
+  ...MARKETPLACE_GUIDE_SLUGS,
+  ...EXPAT_GUIDE_SLUGS,
   'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam',
   'moving-to-vietnam', 'partners', 'services-for-expats-vietnam', 'unsubscribe',
   'vietnam-evisa', 'wholesale-green-coffee-vietnam',

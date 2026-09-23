@@ -11,6 +11,9 @@ import { SERVICES_SITEMAP_PATHS } from '@/lib/edition-services-copy'
 import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS } from '@/lib/expat-guides'
 import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
+import { seoLandingWhere } from '@/components/marketplace/seo-landing-where'
+import { LANDING_TARGET as JOBS_TARGET } from '@/app/[lang]/jobs-vietnam-expats/landing-target'
+import { LANDING_TARGET as MOTORBIKE_TARGET } from '@/app/[lang]/motorbikes-for-sale-vietnam/landing-target'
 import { slugify } from '@/lib/slug'
 import { NextResponse } from 'next/server'
 
@@ -205,6 +208,42 @@ export async function GET() {
     // ⚠️ SERVICES EDITION ONLY — see the note on the e-visa loop below.
     if (IS_SERVICES) xml += `  <url><loc>${hostUrl}/itinerary</loc></url>\n`
 
+    /**
+     * WHICH KEYWORD LANDINGS CURRENTLY HAVE NOTHING TO SHOW.
+     *
+     * ⚠️ IT MIRRORS EACH PAGE'S OWN `robots` DECISION rather than re-deriving one — the same
+     * narrowing, through `seoLandingWhere`, so the two cannot disagree about WHICH listings count.
+     *
+     * ⛔ THEY SHARE THE PREDICATE, NOT THE CLOCK, AND AN EARLIER DRAFT OF THIS COMMENT CLAIMED
+     * OTHERWISE. This sitemap is rebuilt on its own `revalidate`; each page bakes its `robots` tag
+     * into ISR HTML with `revalidate = 3600`. So when the first motorbike is posted the sitemap can
+     * start submitting the URL while the cached page still answers `noindex` for up to an hour —
+     * the "Submitted URL marked noindex" warning, briefly and self-correcting, in the ONE direction
+     * where the alternative (never submitting) is worse. Both reviewers caught the overclaim.
+     *
+     * ⚠️ A FAILED COUNT SUBMITS THE PAGE. `Promise.allSettled` and the `?? 1` below mean a database
+     * hiccup leaves the URL in the sitemap, which is the pre-existing behaviour; treating "could not
+     * look" as "empty" would silently drop real pages out of the index on one bad build.
+     */
+    const GATED_LANDINGS = [
+      // ⛔ THE TARGETS ARE IMPORTED FROM THE PAGES, NOT RETYPED HERE. Hand-copying shares the
+      // FUNCTION but not the VALUE: a typo ('motorbikes' for 'motorbike') counts zero, drops the
+      // URL from the sitemap permanently, and fails no test. Caught in review.
+      { path: 'jobs-vietnam-expats', target: JOBS_TARGET },
+      { path: 'motorbikes-for-sale-vietnam', target: MOTORBIKE_TARGET },
+    ]
+    const landingCounts = await Promise.allSettled(
+      GATED_LANDINGS.map(async (l) =>
+        db.listing.count({ where: await scopedListingWhere(seoLandingWhere(l.target)) }),
+      ),
+    )
+    const emptyLandings = new Set(
+      GATED_LANDINGS.filter((l, i) => {
+        const r = landingCounts[i]
+        return (r.status === 'fulfilled' ? r.value : 1) === 0
+      }).map((l) => l.path),
+    )
+
     // SEO keyword landing pages (funnel to categories → track the site's freshest content)
     for (const p of [
       'housing-vietnam-expats',
@@ -217,8 +256,16 @@ export async function GET() {
       'iphone-18-pro-vietnam',
       'iphone-18-pro-max-vietnam',
       'iphone-duo-vietnam',
-      'jobs-vietnam-expats',
-      'motorbikes-for-sale-vietnam',
+      /**
+       * ⛔ THESE TWO ARE SUBMITTED ONLY WHILE THEY HAVE INVENTORY — see `emptyLandings` above.
+       * Each computes `robots: { index: false }` when its rail is empty (seo-landing-robots.ts), and
+       * submitting a URL that answers `noindex` is the "Submitted URL marked noindex" error this
+       * same file just stopped producing for empty CATEGORIES. Measured 2026-09-23: `jobs` holds 0
+       * listings and `vehicles/motorbike` holds 0, so both are suppressed today and both return the
+       * moment somebody posts.
+       */
+      ...(emptyLandings.has('jobs-vietnam-expats') ? [] : ['jobs-vietnam-expats']),
+      ...(emptyLandings.has('motorbikes-for-sale-vietnam') ? [] : ['motorbikes-for-sale-vietnam']),
       'moving-sales-vietnam',
       // Marketplace commerce copy, not a licensed service — it ships on BOTH editions like any
       // other listing surface, so no IS_SERVICES gate here.
