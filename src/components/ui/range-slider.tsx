@@ -1,7 +1,11 @@
 'use client'
 
 import { Slider as SliderPrimitive } from '@base-ui/react/slider'
+import type { KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils'
+
+/** Base UI's default `largeStep` (PageUp/PageDown, Shift+Arrow); Root is not passed another. */
+const LARGE_STEP = 10
 
 /** THE dual-thumb range slider primitive — sibling of `<Slider>` (single handle).
  *  Don't re-roll two stacked `<input type="range">`s; import this.
@@ -33,20 +37,27 @@ import { cn } from '@/lib/utils'
  *     you drag one past it. The old slider clamped instead and left the other value alone.
  *
  *  `onChange` fires live during the drag (cheap: local state). `onCommit` fires when the
- *  interaction settles — pointer-up, key-up, track press — and is where the expensive work
- *  belongs (URL writes, refetches), which is what both call sites already do.
+ *  interaction settles — pointer-up, a track press, and EVERY key press — and is where the
+ *  expensive work belongs (URL writes, refetches), which is what both call sites already do.
+ *  ⚠️ Keyboard commits happen on KEYDOWN, once per press: Base UI 1.6's thumb calls
+ *  `onValueChange` and then `onValueCommitted` from inside its keydown handler
+ *  (SliderRoot.js `handleInputChange`), and nothing in the slider listens for keyup.
  *  Styling mirrors `ui/slider.tsx` (`.eno-thumb` is the div-thumb twin of the
  *  `::-webkit-slider-thumb` rule `.eno-slider` uses) so the two read as one family.
  */
 export function RangeSlider({
-  value, min, max, step = 1, onChange, onCommit, className, thumbAriaLabels: ariaLabel,
+  value, min, max, step = 1, onChange, onCommit, className, thumbAriaLabels: ariaLabel, getAriaValueText,
 }: {
   value: [number, number]
   min: number
   max: number
   step?: number
-  onChange: (value: [number, number]) => void
-  /** Settle callback: pointer-up / key-up / track press. */
+  /** `activeThumb` is the thumb being moved (0 = low, 1 = high). A caller whose slider positions
+   *  are not the values themselves (the price panel moves over bin-edge INDICES and can hold a typed
+   *  price between two of them) needs it to update only the side that moved — otherwise the
+   *  untouched thumb's position would be converted back and overwrite what the user typed. */
+  onChange: (value: [number, number], activeThumb: number) => void
+  /** Settle callback: pointer-up / each key press / track press. */
   onCommit?: (value: [number, number]) => void
   className?: string
   /** [minLabel, maxLabel] — one string per thumb; each is applied as the individual
@@ -54,6 +65,9 @@ export function RangeSlider({
    *  so this deliberately does NOT reuse the `aria-label` name — an array there is a valid
    *  per-thumb API but jsx-a11y/aria-proptypes reads the JSX literally and false-flags it. */
   thumbAriaLabels?: [string, string]
+  /** Spoken value per thumb. Needed when the slider's positions are not what the user is choosing
+   *  (the price panel's positions are bin indices; "42" means nothing read aloud). */
+  getAriaValueText?: (value: number, index: number) => string
 }) {
   // Degenerate bounds: the price panel's histogram can hold a single price, i.e.
   // dataMin === dataMax. Base UI divides by (max - min) and an infinite percentage
@@ -69,6 +83,45 @@ export function RangeSlider({
   const lo = clamp(value[0])
   const hi = Math.max(lo, clamp(value[1]))
   const values: [number, number] = [lo, hi]
+  const ariaText = getAriaValueText ? (_formatted: string, v: number, i: number) => getAriaValueText(v, i) : undefined
+  /**
+   * The thumb a change moved. Base UI 1.6 names it on every change it emits for a range slider
+   * (keyboard: the focused thumb; pointer: the pressed or nearest one), but `-1` is its own "no
+   * thumb" value (`setValue` without details) and nothing in the types rules it out. A caller that
+   * reads `activeThumb === 0 ? low : high` would write a low-thumb move into the HIGH bound — so an
+   * unnamed change is attributed to the value that actually moved.
+   */
+  const movedThumb = (v: readonly number[], named: number): 0 | 1 => {
+    if (named === 0 || named === 1) return named
+    return Math.abs(v[1] - values[1]) > Math.abs(v[0] - values[0]) ? 1 : 0
+  }
+
+  // ⚠️ A THUMB BETWEEN TWO STOPS MUST STEP TO THE NEAREST STOP, not skip it. Base UI's keyboard
+  // handler rounds the thumb to a stop FIRST and then adds the step (SliderThumb.js: roundValueToStep
+  // → getNewValue), so from 54.2 ArrowLeft lands on 53 and from 54.8 ArrowRight on 56 — one stop
+  // skipped each time. Only the price panel ever holds a between-stops value (a typed price sits
+  // between two bin edges); an on-stop thumb falls through to Base UI untouched. Our handler runs
+  // before Base UI's (mergeProps calls the caller's handler first) and Base UI bails on
+  // `defaultPrevented`. Home/End are left to Base UI — they go to the ends or the neighbour, which
+  // is already right. LTR only: nothing in the app renders RTL.
+  const stepFromBetween = (index: 0 | 1) => (e: KeyboardEvent<HTMLInputElement>) => {
+    const k = (values[index] - min) / step
+    if (Math.abs(k - Math.round(k)) < 1e-9) return
+    const up = e.key === 'ArrowUp' || e.key === 'ArrowRight' || e.key === 'PageUp'
+    const down = e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'PageDown'
+    if (!up && !down) return
+    e.preventDefault()
+    const n = e.key.startsWith('Page') || e.shiftKey ? LARGE_STEP : 1
+    let v = min + (up ? Math.floor(k) + n : Math.ceil(k) - n) * step
+    v = Math.min(Math.max(v, min), hiBound)
+    // The no-crossing guard, as Base UI's getSliderValue applies it on its own keyboard path.
+    v = index === 0 ? Math.min(v, values[1]) : Math.max(v, values[0])
+    if (v === values[index]) return
+    const next: [number, number] = index === 0 ? [v, values[1]] : [values[0], v]
+    const out: [number, number] = [Math.min(next[0], max), Math.min(next[1], max)]
+    onChange(out, index)
+    onCommit?.(out)
+  }
 
   return (
     <SliderPrimitive.Root
@@ -87,7 +140,7 @@ export function RangeSlider({
       // clamped to the real `max`. Without this, a user could drag to min+step and write a
       // filter bound one step ABOVE the only price that exists — excluding the sole matching
       // listing. The native inputs this replaced were simply immovable there.
-      onValueChange={(v) => onChange([Math.min(v[0], max), Math.min(v[1], max)])}
+      onValueChange={(v, details) => onChange([Math.min(v[0], max), Math.min(v[1], max)], movedThumb(v, details.activeThumbIndex))}
       onValueCommitted={(v) => onCommit?.([Math.min(v[0], max), Math.min(v[1], max)])}
       className={cn(className)}
     >
@@ -99,8 +152,8 @@ export function RangeSlider({
           {/* Indicator = the old blue fill div; Base UI positions it between the two
               thumbs itself (inset-inline-start + width, height: inherit from Track). */}
           <SliderPrimitive.Indicator className="rounded-full bg-primary" />
-          <SliderPrimitive.Thumb index={0} aria-label={ariaLabel?.[0]} className="eno-thumb" />
-          <SliderPrimitive.Thumb index={1} aria-label={ariaLabel?.[1]} className="eno-thumb" />
+          <SliderPrimitive.Thumb index={0} aria-label={ariaLabel?.[0]} getAriaValueText={ariaText} onKeyDown={stepFromBetween(0)} className="eno-thumb" />
+          <SliderPrimitive.Thumb index={1} aria-label={ariaLabel?.[1]} getAriaValueText={ariaText} onKeyDown={stepFromBetween(1)} className="eno-thumb" />
         </SliderPrimitive.Track>
       </SliderPrimitive.Control>
     </SliderPrimitive.Root>

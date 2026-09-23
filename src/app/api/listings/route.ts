@@ -20,6 +20,7 @@ import { computeFacetCounts, subcategoryDimension, type FacetCounts } from '@/li
 import { semanticRank } from './semantic-rank'
 import { resolveSellerForPost } from './resolve-seller'
 import { publishOutcome, recordPublishOutcome } from '@/lib/publish-funnel'
+import { buildHistogram } from '@/lib/price-histogram'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,12 +43,31 @@ export async function GET(req: NextRequest) {
   const { category, q, sort, featuredOnly, limit, offset, priceMin, priceMax, histogram, looseMatch, priorityCategory, andFilters, pgTextFilter, subcategoryFilter, where } =
     await buildFeedFilters(searchParams)
 
-  // Histogram mode: return just the matching prices (VND) for the active filters.
-  // Capped so a huge catalog stays a small payload; the client buckets them.
+  /**
+   * HISTOGRAM MODE — the price distribution of EVERY listing matching the active filters, as nice
+   * log-spaced bins (src/lib/price-histogram.ts). `where` already omits the price clause itself
+   * (feed-query suppresses it under `histogram=1`; see facet-counts.ts), so the panel shows the whole
+   * market around the user's range rather than only what is already inside it.
+   *
+   * ⚠️ AGGREGATED IN SQL, NOT SHIPPED AS ROWS. This used to be `findMany … orderBy price asc take
+   * 5000` — a truncation to the 5,000 CHEAPEST prices, not a sample — and the panel read its first
+   * and last entries as the full range. On production (98,755 public listings, 0 → 1.45B VND) that
+   * cut the range off far below the real max, clamped typed maxima, hid the upper presets and capped
+   * "{n} available" at 5,000. `GROUP BY price` over all public rows is 9,758 groups and measured
+   * 153 ms, so the full distribution is affordable; the payload is a few hundred numbers.
+   *
+   * `where` is `{ AND: andFilters }`, and the text and subcategory clauses are IN `andFilters` (they
+   * are returned separately only so other paths can drop them) — so this is the keyword feed's set
+   * exactly, minus price (feed-query.histogram.test.ts). ⚠️ ONE GAP, NOT SQL-EXPRESSIBLE: when
+   * `semanticRank` fires (q ≥ 3 chars, default sort, Vertex configured and answering) the feed is
+   * Vertex's ≤120 ranked ids ∪ these keyword matches, and Vertex is queried WITH the price band, so
+   * its half has no price-free form to aggregate. Here the count is then a lower bound, short by at
+   * most the ranked ids the keywords miss.
+   */
   if (histogram) {
-    const rows = await db.listing.findMany({ where, select: { price: true }, orderBy: { price: 'asc' }, take: 5000 })
+    const groups = await db.listing.groupBy({ by: ['price'], where, _count: { _all: true } })
     return NextResponse.json(
-      { prices: rows.map((r) => r.price) },
+      buildHistogram(groups.map((g) => ({ price: g.price, count: g._count._all }))),
       // s-maxage = the CDN (Cloudflare) edge TTL, separate from the browser max-age;
       // stale-while-revalidate lets the edge serve instantly while refreshing in the
       // background → hot price-histogram queries are served from Vietnam, not origin.

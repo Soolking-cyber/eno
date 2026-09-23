@@ -34,6 +34,7 @@ import { ViewToggles, SortStrip } from './explorer-toolbar'
 import { ResultLine, shouldOfferSaveSearch } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
+import { histogramQueryFrom } from '@/lib/price-histogram'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -1514,33 +1515,19 @@ export function ListingsExplorer({
   })
   const showVideoView = (videoAvail?.total ?? 0) > 0
 
-  // Filter signature (no price/sort/pagination) for the price-histogram fetch, so
-  // the slider's distribution reflects every OTHER active filter.
+  /**
+   * The price-histogram request: the FEED'S OWN params (plus the building drill-in the live query
+   * adds), minus price/sort/paging — so "{n} available" counts exactly the set the grid shows.
+   * ⛔ DERIVED, NOT REBUILT. This used to be a hand-written copy of the feed's params and it
+   * drifted twice: with a brand picked it dropped `subcategory` (the 2026-08-25 phone-cases fix
+   * reached `baseParamsString` and not here) and it never sent `match=any`, so the panel counted
+   * a different set than the grid beneath it. `histogramQueryFrom` explains what it strips.
+   */
   const histogramQuery = useMemo(() => {
-    const p = scopedParams()
-    p.set('histogram', '1')
-    if (activeBrand !== 'all') {
-      p.set('brand', activeBrand)
-      if (activeLine) p.set('line', activeLine)
-      if (activeModel !== 'all') {
-        p.set('model', activeModel)
-        if (activeCategory !== 'all') p.set('category', activeCategory)
-      }
-    } else {
-      if (activeCategory !== 'all') p.set('category', activeCategory)
-      if (activeSubcategory !== 'all') p.set('subcategory', activeSubcategory)
-    }
-    if (!nearby && activeDistrict !== 'all') p.set('district', activeDistrict)
-    if (!nearby && activeProvince) p.set('province', activeProvince.nameEn)
-    if (!nearby && activeWard) p.set('ward', activeWard.nameEn)
-    if (conditionFilter !== 'all') p.set('condition', conditionFilter)
-    // The price slider must describe the good-price rows it filters, not the whole shelf.
-    if (goodPriceOnly) p.set('deal', 'good')
-    if (listingType !== 'all') p.set('type', listingType)
-    if (debouncedQuery.trim()) p.set('q', debouncedQuery.trim())
-    applyFilterParams(p, customFilters, activeCategory, activeSubcategory)
-    return p.toString()
-  }, [activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, debouncedQuery, customFilters])
+    const p = new URLSearchParams(baseParamsString)
+    if (selectedBuilding) p.set('building', selectedBuilding)
+    return histogramQueryFrom(p)
+  }, [baseParamsString, selectedBuilding])
 
   // Identity of the current feed (every filter that defines "this result set"), used
   // to key the back-nav snapshot so it only restores onto the exact same feed.
@@ -2907,6 +2894,7 @@ export function ListingsExplorer({
                   verifiedOnly={verifiedOnly}
                   setVerifiedOnly={setVerifiedOnly}
                   histogramQuery={histogramQuery}
+                  histogramApproximate={!!nearby || debouncedQuery.trim().length > 0}
                 />
               </div>
             }

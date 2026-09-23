@@ -190,6 +190,7 @@ export type FacetBarProps = {
   verifiedOnly: boolean
   setVerifiedOnly: Dispatch<SetStateAction<boolean>>
   histogramQuery: string // active filters (sans price/pagination) for the price histogram
+  histogramApproximate?: boolean // the grid's set differs from what the histogram can count (nearby / text search)
   trailing?: ReactNode // extra control at the end of the chip row (e.g. the mobile sort chip)
   /**
    * Live chip counts — the `facets` key of the GET /api/listings response, passed straight through
@@ -240,6 +241,7 @@ export function FacetBar({
   verifiedOnly,
   setVerifiedOnly,
   histogramQuery,
+  histogramApproximate,
   trailing,
   facetCounts = {},
 }: FacetBarProps) {
@@ -332,6 +334,7 @@ export function FacetBar({
       value={priceRange}
       onChange={setPriceRange}
       query={histogramQuery}
+      countsApproximate={histogramApproximate}
       className="text-body hover:bg-muted"
       activeClassName={active}
       wrapperClassName={wrap}

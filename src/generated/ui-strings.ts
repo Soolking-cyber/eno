@@ -1056,7 +1056,9 @@ export const UI_STRINGS: string[] = [
   "No listings yet",
   "No matches",
   "No matches yet",
+  "No maximum",
   "No messages yet. Tap \"Message\" on a listing to start a chat.",
+  "No minimum",
   "No offers — ask & buy directly",
   "No photos or videos found in that ZIP.",
   "No replies yet",
@@ -2218,5 +2220,6 @@ export const UI_STRINGS: string[] = [
   "Ảnh chụp thanh toán, trò chuyện hoặc sản phẩm là hữu ích nhất. Bên còn lại và đội ngũ eno.vn sẽ thấy nội dung bạn gửi. Ảnh được lưu riêng tư và chỉ hiển thị trong hồ sơ này.",
   "Ảnh quá lớn (tối đa 12MB). Hãy chọn ảnh nhỏ hơn.",
   "Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.",
-  "— alerts on new matches"
+  "— alerts on new matches",
+  "≈{n} available"
 ]
