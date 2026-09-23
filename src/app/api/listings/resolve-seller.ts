@@ -6,6 +6,7 @@ import { getVerifiedPhone } from '@/lib/admin'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { phoneTakenByOther } from '@/lib/phone-unique'
+import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
 
 // Resolve the storefront this listing belongs to. CRITICAL: a SIGNED-IN poster's
 // listing must attach to THEIR Profile-owned Seller (ownerId) — otherwise it
@@ -52,15 +53,16 @@ export async function resolveSellerForPost(meId: string | null, contactPhone: st
       if (byPhone && !byPhone.ownerId && verifiedPhone && verifiedPhone === byPhone.phone) {
         // Claim the unowned guest storefront for this account. updateMany + the ownerId:null guard
         // makes it atomic and claim-once, matching profile.ts — two racing claims cannot both win.
-        const claimed = await db.seller.updateMany({
-          where: { id: byPhone.id, ownerId: null },
-          data: { ownerId: meId, claimedAt: new Date() },
-        })
+        // ⚖️ SELLER IDENTITY GATE (gate on only): claimGuestStorefront parks the storefront's live
+        // listings in the same transaction as the claim if this account cannot publish yet. The post
+        // that triggered the claim is then refused by createListingCore with the same code, so the
+        // seller is told why. Gate off → the same single claim-once updateMany as before.
+        const { claimed } = await claimGuestStorefront({ match: { id: byPhone.id }, ownerId: meId })
         // ⚠️ On a LOST race, re-read before creating. `Seller.ownerId` is @unique, so if the
         // concurrent request that beat us was this same account's, a blind create would throw a
         // P2002 and fail the post. Losing the claim means either we now own it (our own concurrent
         // request won) or someone else does — check ours first, and only then fall back.
-        seller = claimed.count > 0
+        seller = claimed
           ? await db.seller.findUniqueOrThrow({ where: { id: byPhone.id } })
           : (await db.seller.findUnique({ where: { ownerId: meId } }))
             ?? await db.seller.create({

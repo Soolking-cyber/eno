@@ -6,6 +6,7 @@ import { sendPushToProfile } from './push'
 import { pickLocale } from './admin-macros'
 import { DAY_MS } from './trust-math'
 import { isVerifiedCatalogueSeller } from './catalogue-seller'
+import { partitionByIdentityGate, settleHolds } from './compliance/seller-publish-gate'
 import {
   ENFORCEMENT,
   ENFORCEMENT_REASON,
@@ -154,10 +155,27 @@ function parsePulled(json: string | null | undefined): string[] {
 // Restore listings a hold pulled — only rows the seller still keeps 'active'
 // (sold/hidden since stay down) and that are still un-verified (an admin re-approve
 // in between isn't stomped… it's already true, updateMany just matches fewer rows).
-async function restoreListings(ids: string[], client: Pick<typeof db, 'listing'> = db): Promise<void> {
-  if (!ids.length) return
-  await client.listing.updateMany({ where: { id: { in: ids }, status: 'active', verified: false }, data: { verified: true } })
+//
+// ⚖️ SELLER IDENTITY GATE: a lift or expiry is an enforcement decision, not an identity one, so for
+// an owner the gate refuses the pulled rows are PARKED (identityHold) instead of published, and
+// releaseIdentityHolds() publishes them when the seller verifies. Returns how many were parked.
+// Gate off → `held` is empty with no read, and the write is the one this function always made,
+// plus `identityHold: false` — a row this restore publishes must never go live still carrying a hold.
+async function restoreListings(ids: string[], client: Pick<typeof db, 'listing'> = db): Promise<{ held: number }> {
+  if (!ids.length) return { held: 0 }
+  const { allowed, held } = await partitionByIdentityGate(ids)
+  if (allowed.length) await client.listing.updateMany({ where: { id: { in: allowed }, status: 'active', verified: false }, data: { verified: true, identityHold: false } })
+  // ⚠️ THE IDS THE PARK WROTE, NOT THE DECISION SET `held` — for the count AND for the re-check. The
+  // guard skips rows sold/hidden/re-approved since the pull and rows ALREADY parked, and handing the
+  // whole set to settleHolds let a pre-existing hold it released cancel out a row parked HERE (the
+  // cap below `parked` hid that only while every id shared one owner). Same fix as the admin batch.
+  const parked = held.length
+    ? (await client.listing.updateManyAndReturn({ where: { id: { in: held }, status: 'active', verified: false, identityHold: false }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
+    : []
+  // A verification that landed between the decision and the park is released here (settleHolds).
+  const released = parked.length ? await settleHolds(parked) : 0
   for (const id of ids) { try { revalidatePublicPath(`/listings/${id}`) } catch { /* no request scope */ } }
+  return { held: Math.max(0, parked.length - released) }
 }
 
 // Refresh the seller's PUBLIC surfaces after a state transition: the storefront +
@@ -208,7 +226,7 @@ export async function getEnforcement(profileId: string): Promise<{ state: Enforc
 export async function applyEnforcement(
   profileId: string,
   next: EnforcementDecision,
-  ctx: { decidedBy: string; triggerReportId?: string | null; adminNote?: string | null },
+  ctx: { decidedBy: string; triggerReportId?: string | null; adminNote?: string | null; onHeld?: (held: number) => void },
 ): Promise<boolean> {
   try {
     const p = await db.profile.findUnique({ where: { id: profileId }, select: { enforcementState: true } })
@@ -226,8 +244,19 @@ export async function applyEnforcement(
     // action (so no lift could ever restore them) and an unchanged profile state.
     // Path revalidation happens AFTER commit — never inside the txn.
     const nextSev = ENFORCEMENT_SEVERITY[next.state]
-    const revalidateIds = await db.$transaction(async (tx) => {
+    // ⚖️ SELLER IDENTITY GATE, resolved BEFORE the transaction (it reads Profile and
+    // identity_verifications; neither belongs inside a write lock). Only a downgrade below `held`
+    // restores anything, and a restore for an owner the gate refuses PARKS the rows (identityHold)
+    // instead of publishing them. Gate off → nothing is read and every id is `allowed`.
+    const restoring = nextSev < ENFORCEMENT_SEVERITY.held ? prevActive.flatMap((a) => parsePulled(a.pulledListingIds)) : []
+    const identityHeld = new Set((await partitionByIdentityGate(restoring)).held)
+    const { touched: revalidateIds, parked } = await db.$transaction(async (tx) => {
       const touched: string[] = []
+      // Rows the identity gate ACTUALLY parked — the ids the park write itself returned. Not
+      // `identityHeld`: that is the decision set, and the park's `status: 'active', verified: false,
+      // identityHold: false` guard skips rows sold, hidden or re-approved since the pull, and rows
+      // already parked, none of which this restore parked.
+      const parked: string[] = []
       if (prevActive.length) {
         await tx.enforcementAction.updateMany({
           where: { id: { in: prevActive.map((a) => a.id) } },
@@ -243,7 +272,15 @@ export async function applyEnforcement(
         const ids = parsePulled(a.pulledListingIds)
         if (!ids.length) continue
         if (nextSev >= ENFORCEMENT_SEVERITY.held) carried.push(...ids)
-        else { await tx.listing.updateMany({ where: { id: { in: ids }, status: 'active', verified: false }, data: { verified: true } }); touched.push(...ids) }
+        else {
+          const publish = ids.filter((id) => !identityHeld.has(id))
+          const park = ids.filter((id) => identityHeld.has(id))
+          if (publish.length) await tx.listing.updateMany({ where: { id: { in: publish }, status: 'active', verified: false }, data: { verified: true, identityHold: false } })
+          // `identityHold: false` in the guard: a row already parked is not "held by this restore", so it
+          // is neither re-written nor counted — the same meaning `held` has in the admin batch.
+          if (park.length) parked.push(...(await tx.listing.updateManyAndReturn({ where: { id: { in: park }, status: 'active', verified: false, identityHold: false }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id))
+          touched.push(...ids)
+        }
       }
 
       if (next.state !== 'good_standing') {
@@ -273,15 +310,22 @@ export async function applyEnforcement(
             // public while reporting success — the very defect being fixed. `drained` is
             // true only on proof of completion (an empty or short batch).
             let drained = false
+            // ⚖️ IDENTITY-PARKED ROWS ARE PULLED TOO, and converted: a row the identity gate parked
+            // (verified=false, identityHold=true) is not public, but releaseIdentityHolds() would
+            // publish it the moment the seller verifies — while this hold is still in force. So it
+            // joins the pull list with identityHold cleared, and a lift restores it through
+            // restoreListings, which re-applies the identity gate. The drain invariant below still
+            // holds: every processed row ends verified=false AND identityHold=false, so it leaves
+            // the WHERE. Gate never on → no such rows, and the OR matches exactly what it did.
             for (let pass = 0; pass < 1000; pass++) {
               const live = await tx.listing.findMany({
-                where: { sellerId: { in: owned.map((s) => s.id) }, status: 'active', verified: true },
+                where: { sellerId: { in: owned.map((s) => s.id) }, status: 'active', OR: [{ verified: true }, { identityHold: true }] },
                 select: { id: true },
                 orderBy: { id: 'asc' },
                 take: 500,
               })
               if (!live.length) { drained = true; break }
-              await tx.listing.updateMany({ where: { id: { in: live.map((l) => l.id) } }, data: { verified: false } })
+              await tx.listing.updateMany({ where: { id: { in: live.map((l) => l.id) } }, data: { verified: false, identityHold: false } })
               pulledNow.push(...live.map((l) => l.id))
               if (live.length < 500) { drained = true; break }
             }
@@ -316,9 +360,21 @@ export async function applyEnforcement(
 
       const until = next.expiresAt ? new Date(next.expiresAt) : null
       await tx.profile.update({ where: { id: profileId }, data: { enforcementState: next.state, enforcementUntil: until } })
-      return touched
+      return { touched, parked }
     })
     for (const id of revalidateIds) { try { revalidatePublicPath(`/listings/${id}`) } catch { /* no request scope */ } }
+    // A downgrade restore the identity gate parked instead of publishing — the admin set-state
+    // console reports it; system callers (syncEnforcement) pass no callback and it is logged.
+    // AFTER the commit: settleHolds re-checks the owner, closing the window between the decision
+    // (read before the transaction) and the park written inside it. Counted from — and re-checked
+    // over — exactly the ids the park wrote, as restoreListings does: given the whole decision set,
+    // a PRE-EXISTING hold the re-check released was counted as one of ours and could floor the
+    // report to 0 while a row this restore parked was still parked.
+    const parkedCount = parked.length ? Math.max(0, parked.length - (await settleHolds(parked))) : 0
+    if (parkedCount) {
+      if (ctx.onHeld) ctx.onHeld(parkedCount)
+      else console.warn('[enforcement] downgrade restore parked by identity gate', { profileId, held: parkedCount })
+    }
 
     // Ban-evasion anchors (Phase 3): entering suspension records the account's
     // phone+email; leaving it clears them (covers admin set-state downgrades, which
@@ -356,7 +412,12 @@ export async function applyEnforcement(
 export async function syncEnforcement(
   profileId: string,
   breakdown: TrustBreakdown,
-  opts?: { persistedScore?: number; triggerReportId?: string | null },
+  opts?: {
+    persistedScore?: number
+    triggerReportId?: string | null
+    /** Rows a downgrade restore PARKED behind the seller identity gate — for an admin caller to show. */
+    onHeld?: (held: number) => void
+  },
 ): Promise<void> {
   try {
     const p = await db.profile.findUnique({
@@ -396,7 +457,7 @@ export async function syncEnforcement(
     })
 
     if (!canSystemTransition({ state: current, decidedBy: active?.decidedBy ?? 'system' }, effective.state)) return
-    await applyEnforcement(profileId, effective, { decidedBy: 'system', triggerReportId: opts?.triggerReportId ?? null })
+    await applyEnforcement(profileId, effective, { decidedBy: 'system', triggerReportId: opts?.triggerReportId ?? null, onHeld: opts?.onHeld })
   } catch (e) {
     // Fail-quiet contract: the sync rides trust recomputes / report resolutions —
     // an enforcement hiccup must never fail the moderation flow or the cron.
@@ -409,7 +470,7 @@ export async function syncEnforcement(
  * resets the profile to good_standing, resolves a pending appeal favourably, and
  * notifies. Returns false when the action isn't active (idempotent for retries).
  */
-export async function liftAction(actionId: string, opts: { to: 'lifted' | 'overturned'; by: string }): Promise<boolean> {
+export async function liftAction(actionId: string, opts: { to: 'lifted' | 'overturned'; by: string; onHeld?: (held: number) => void }): Promise<boolean> {
   try {
     const action = await db.enforcementAction.findUnique({
       where: { id: actionId },
@@ -428,7 +489,9 @@ export async function liftAction(actionId: string, opts: { to: 'lifted' | 'overt
         ...(action.appealedAt && !action.appealOutcome ? { appealOutcome: 'overturned', appealResolvedAt: new Date() } : {}),
       },
     })
-    await restoreListings(parsePulled(action.pulledListingIds))
+    const restored = await restoreListings(parsePulled(action.pulledListingIds))
+    // The caller (the admin console) reports rows the identity gate parked instead of restoring.
+    if (restored.held) opts.onHeld?.(restored.held)
     // updateMany: tolerate a since-deleted profile (matches the old raw-UPDATE semantics).
     await db.profile.updateMany({
       where: { id: action.profileId },
@@ -462,7 +525,9 @@ export async function expireEnforcement(): Promise<number> {
     if (!due.length) return 0
     await db.enforcementAction.updateMany({ where: { id: { in: due.map((a) => a.id) } }, data: { status: 'expired' } })
     for (const a of due) {
-      await restoreListings(parsePulled(a.pulledListingIds)) // rare: a timed hold
+      // rare: a timed hold. Identity-parked rows are logged — a cron has nobody to show a count to.
+      const { held } = await restoreListings(parsePulled(a.pulledListingIds))
+      if (held) console.warn('[enforcement] expiry restore parked by identity gate', { profileId: a.profileId, held })
       await db.profile.updateMany({
         where: { id: a.profileId },
         data: { enforcementState: 'good_standing', enforcementUntil: null },

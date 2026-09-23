@@ -188,6 +188,8 @@ export async function applyStockReconcile(
      * `'eno'` or `'external'`. Without this predicate a datafeed that re-listed a SKU would
      * resurrect a listing a buyer had already bought.
      */
+    // ⚖️ OUTSIDE THE SELLER IDENTITY GATE BY DESIGN — only the ownerless affiliate storefronts reach
+    // this (no person to verify; see seller-publish-decision.ts). An owned seller here would need it.
     restored += await dbc.$executeRaw(sql.sql`
       UPDATE "Listing" SET status = 'active', "updatedAt" = now()
        WHERE id IN (${sql.join(chunk.map((id) => sql.sql`${id}`))})

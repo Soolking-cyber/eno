@@ -120,6 +120,10 @@ export const GET = route({ auth: 'cron' }, async () => {
        * one value this job could not tell its own retirement from a moderator's decision, and
        * restoring stock would have resurrected moderated listings.
        */
+      // ⚖️ OUTSIDE THE SELLER IDENTITY GATE BY DESIGN: this job only ever touches OWNERLESS partner
+      // storefronts (the platform's own feed imports), and there is no person behind one to verify —
+      // seller-publish-decision.ts lets ownerless non-guest storefronts through for exactly this.
+      // If this job ever runs over an OWNED seller, a restock is a revive and must ask the gate.
       if (row.status === 'active' && !p.inStock) { data.status = 'sold'; soldOut++ }
       else if (row.status === 'sold' && p.inStock) { data.status = 'active'; restocked++ }
       if (!Object.keys(data).length) continue

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { confirmCore } from '@/lib/core/listings'
 import { resolveApiKey, listingOwnedBy } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
+import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,6 +16,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   if (!(await listingOwnedBy(id, r.auth.sellerId))) return apiError(404, 'not_found', 'Listing not found.', r.rate)
   const res = await confirmCore(id, r.auth.profileId)
+  // A confirm that would revive a sold/hidden listing, refused by the identity gate (gate on only).
+  if (!res.ok && isIdentityBlockCode(res.error)) return apiOk(publishBlockedV1(res.error), r.rate, PUBLISH_BLOCKED_STATUS)
   if (!res.ok) return apiError(404, 'not_found', 'Listing not found.', r.rate)
   return apiOk({ ok: true, bumped: res.bumped }, r.rate)
 }

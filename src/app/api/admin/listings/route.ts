@@ -6,6 +6,7 @@ import { bumpBrandCount } from '@/lib/brand'
 import { reindexListing } from '@/lib/listing-index'
 import { fold } from '@/lib/fold'
 import { LISTING_CARD_SELECT, serializeListingCard } from '@/lib/serialize'
+import { partitionByIdentityGate, settleHolds } from '@/lib/compliance/seller-publish-gate'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,9 @@ export const dynamic = 'force-dynamic'
 // offset combination → 200 `{listings,total}` (limit clamped 1..100, offset ≥ 0, unchanged).
 // POST branches held: guest / non-admin → 403 `{"error":"Forbidden"}` · malformed JSON → 400
 // `{"error":"bad_request"}` · no usable ids → 400 `{"error":"no_ids"}` · unrecognised action → 400
-// `{"error":"bad_action"}` · success → 200 `{"ok":true,"affected":n}`.
+// `{"error":"bad_action"}` · success → 200 `{"ok":true,"affected":n}` (+ `"held":h` when the seller identity
+// gate parked any in this request, + `"alreadyHeld":k` when the batch included rows it had parked before
+// — neither ever appears while IDENTITY_GATE_ENFORCED is off, so the off-state body is unchanged).
 //
 // ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, ON EACH METHOD: neither had a try/catch around its Prisma
 // calls, so a DB rejection (GET's findMany/count, POST's deleteMany/updateMany, or bumpBrandCount)
@@ -89,6 +92,20 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
   if (!ids.length) return NextResponse.json({ error: 'no_ids' }, { status: 400 })
 
   let affected = 0
+  // Listings the seller identity gate PARKED instead of publishing (activate/verify only, gate on
+  // only). Reported so the console can say "published 8 · 2 held until the seller verifies" rather
+  // than letting an operator believe all ten went live. Always 0 while the gate is off.
+  // ⚠️ `held` IS WHAT THIS REQUEST PARKED — the ids the park write itself returned, less any the
+  // re-check released — never a count derived from the decision set. Deriving it from the set
+  // counted rows the WHERE guard skipped, and handing that set to settleHolds let a PRE-EXISTING
+  // hold released by the re-check cancel out one parked here: "2 activated, 0 held", with the
+  // parked row visible nowhere.
+  let held = 0
+  // Rows in the batch that were ALREADY parked (verified=false, identityHold=true) before this
+  // request. They are neither "activated/published" (they are not public, and this request did not
+  // make them so) nor "held" (this request did not park them) — so they get their own count, and the
+  // console says they are still waiting on the seller. Always 0 while the gate is off.
+  let alreadyHeld = 0
   switch (body.action) {
     case 'delete': {
       // Decrement brand counts for any branded listings before they're gone.
@@ -101,11 +118,70 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
       break
     }
     case 'hide': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { status: 'hidden' } })).count; break
-    case 'activate': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { status: 'active' } })).count; break
+    case 'activate': {
+      // ⚖️ Activating a VERIFIED row that is not live yet publishes it, so for an owner the identity
+      // gate refuses that row is parked instead: the status the admin asked for is applied, with
+      // verified→false + identityHold→true until they verify. Two kinds of gated row are NOT parked:
+      //   · already unverified — not public either way; giving it identityHold would turn a
+      //     moderator's takedown into something verifying undoes.
+      //   · already active AND verified — already public. The gate governs ENTERING public state; an
+      //     "activate" that changes nothing must not quietly become a takedown.
+      const { allowed, held: gated } = await partitionByIdentityGate(ids)
+      affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed } }, data: { status: 'active' } })).count : 0
+      if (gated.length) {
+        // ⚠️ THE UNPARKED ROWS FIRST: once a row is parked it is itself `verified: false`, and running
+        // this second would match it again and double-count. The two WHEREs are disjoint as ordered.
+        // An ALREADY-parked row lands here too (it is unverified): its status is applied, so it goes
+        // live as the admin asked once the seller verifies — but it is counted as `alreadyHeld`, not
+        // as affected. The returned flags are the rows' own, untouched by this status-only write.
+        const rest = await db.listing.updateManyAndReturn({ where: { id: { in: gated }, OR: [{ verified: false }, { status: 'active' }] }, data: { status: 'active' }, select: { verified: true, identityHold: true } })
+        const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: true, status: { not: 'active' } }, data: { status: 'active', verified: false, identityHold: true }, select: { id: true } })).map((r) => r.id)
+        // A verification that landed between the decision and the park is released here (see
+        // settleHolds); those rows went live after all, so they count as affected, not held. Only
+        // the ids parked HERE are re-checked, so only they can be counted as released.
+        const released = parked.length ? await settleHolds(parked) : 0
+        held = parked.length - released
+        alreadyHeld = rest.filter((r) => !r.verified && r.identityHold).length
+        // ⚠️ `affected` NEVER INCLUDES A PARKED ROW — in both gated actions. It means "took effect as
+        // asked", exactly as it does for an owner the gate allows; parked rows are reported as `held`
+        // alongside, so "activate · 8 · 2 held" and "verify · 8 · 2 held" mean the same thing for the
+        // same ten ids. Of the rows the gate intercepted, only the ones this request parked AND then
+        // itself released went public because of it, so only those join `affected`.
+        affected += rest.length - alreadyHeld + released
+      }
+      break
+    }
     case 'feature': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { featured: true } })).count; break
     case 'unfeature': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { featured: false } })).count; break
-    case 'verify': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { verified: true } })).count; break
-    case 'unverify': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { verified: false } })).count; break
+    case 'verify': {
+      // ⚖️ "Publish" — for an owner the identity gate refuses, the admin's approval is recorded as a
+      // HOLD (identityHold) and becomes a publish the moment they verify. Never a silent no-op.
+      // A gated row that is ALREADY verified is left exactly as it is (counted, not rewritten): the
+      // gate governs entering public state, and re-verifying must not turn into a takedown.
+      const { allowed, held: gated } = await partitionByIdentityGate(ids)
+      // `identityHold: false` rides the publish: a row parked earlier (the gate was on and has since
+      // been switched off, or the owner verified and the release missed it) must not go live still
+      // carrying a hold. Only the response is pinned byte-identical with the gate off — this column
+      // is already false on every row the gate never touched.
+      affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed } }, data: { verified: true, identityHold: false } })).count : 0
+      if (gated.length) {
+        // Read BEFORE the park and the re-check: afterwards a parked row and a pre-existing hold look
+        // the same, and a pre-existing hold the re-check released would look "already verified".
+        const before = await db.listing.findMany({ where: { id: { in: gated } }, select: { verified: true, identityHold: true } })
+        alreadyHeld = before.filter((r) => !r.verified && r.identityHold).length
+        // `identityHold: false` in the WHERE: an already-parked row is not parked again, so it can
+        // never be counted as held by this request.
+        const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: false, identityHold: false }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
+        const released = parked.length ? await settleHolds(parked) : 0
+        held = parked.length - released
+        // Already verified (left as asked, as the allowed path counts it) + parked-then-released here.
+        affected += before.filter((r) => r.verified).length + released
+      }
+      break
+    }
+    // ⛔ A TAKEDOWN CLEARS identityHold TOO — otherwise a listing parked by the identity gate and then
+    // pulled here would be republished by releaseIdentityHolds() the day its seller verifies.
+    case 'unverify': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { verified: false, identityHold: false } })).count; break
     default: return NextResponse.json({ error: 'bad_action' }, { status: 400 })
   }
 
@@ -113,5 +189,7 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
   // Sync AI search: each id upserts if it's still public, else drops out (handles
   // hide/unverify/delete → remove, activate/verify → add, feature → refresh).
   after(() => { for (const id of ids) reindexListing(id) })
-  return NextResponse.json({ ok: true, affected })
+  // `held` / `alreadyHeld` only when non-zero, so with the gate off the body is byte-for-byte what it
+  // always was.
+  return NextResponse.json({ ok: true, affected, ...(held ? { held } : {}), ...(alreadyHeld ? { alreadyHeld } : {}) })
 })

@@ -81,7 +81,7 @@ if (!EXECUTE) {
 
 const onThisDesk = existing.find((r) => r.sellerId === seller.id)
 if (onThisDesk) {
-  await db.query(`update "Listing" set status='hidden', price=0, verified=true, "updatedAt"=now() where id=$1`, [onThisDesk.id])
+  await db.query(`update "Listing" set status='hidden', price=0, verified=true, "identityHold"=false, "updatedAt"=now() where id=$1`, [onThisDesk.id])
   console.log(`\n✓ anchor already on this desk — normalised (hidden, free, verified): ${onThisDesk.id}`)
 } else {
   /**

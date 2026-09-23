@@ -7,6 +7,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, PublishBlockedError } from '@/lib/publish-guard'
+import { isIdentityBlockCode, publishBlockedJson, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 import { localizeListingTitles } from '@/lib/translate'
 import { consolidateSellerHandle } from '@/lib/handle'
 import { getCurrentProfileId } from '@/lib/admin'
@@ -424,13 +425,20 @@ async function createListing(req: NextRequest) {
 
     // Build + create + fire side-effects in the shared core (same code path the
     // future /api/v1 create will reuse). Seller + category are already resolved.
-    const result = await createListingCore({ seller, category, title, price, body, headers: req.headers })
+    // ⚖️ `guestCreate` is "no session", NOT "no owner": this route is the only one that can see a
+    // signed-out poster, and it is the only caller that may set it. A signed-in poster always lands on
+    // a storefront they own (resolveSellerForPost), so `!meId` and an ownerless storefront coincide
+    // here — the flag just says which of the two the identity gate is actually keyed on.
+    const result = await createListingCore({ seller, guestCreate: !meId, category, title, price, body, headers: req.headers })
     return NextResponse.json(result, { status: 201 })
   } catch (e) {
     // Restricted account / no photo / banned / contact-in-text / duplicate → a clear,
     // fixable code (403 for the trust gate since it isn't fixable now; 409 for a
     // duplicate of a live listing — detail carries the existing listing's id; 400 rest).
     if (e instanceof PublishBlockedError) {
+      // ⚖️ The identity (legal) blocks answer 403 with the structured refusal — verify link, legal
+      // citation, draft-kept flag — and keep `error: <code>` so every existing client still branches.
+      if (isIdentityBlockCode(e.code)) return NextResponse.json(publishBlockedJson(e.code), { status: PUBLISH_BLOCKED_STATUS })
       return NextResponse.json(
         { error: e.code, detail: e.detail },
         { status: e.code === 'account_restricted' ? 403 : e.code === 'duplicate_listing' ? 409 : 400 },

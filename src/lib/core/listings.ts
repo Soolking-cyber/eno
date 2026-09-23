@@ -30,8 +30,8 @@ import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 import { identityGateEnforced } from '@/lib/compliance/account-state'
-import { verificationStatusForDecision } from '@/lib/compliance/recompute-verification'
-import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError, type PublishBlockCode } from '@/lib/publish-guard'
+import { assertSellerMayPublish, sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
+import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError, type IdentityBlockCode, type PublishBlockCode } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
@@ -161,15 +161,55 @@ export function parseVideoField(raw: unknown): { action: 'set'; url: string } | 
  */
 export type SoldMeta = { channel?: string | null; buyerProfileId?: string | null; platform?: string | null }
 
-/** Every code `setStatusCore` can put on the wire. Named for the same reason as the union below. */
-export type ListingStatusErrorCode = 'invalid_status' | 'not_found'
+/**
+ * Every code `setStatusCore` can put on the wire. Named for the same reason as the union below.
+ * The identity codes are reachable only while IDENTITY_GATE_ENFORCED is on (see identityGateForRevive).
+ */
+export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | IdentityBlockCode
+
+/**
+ * The seller identity gate for a SELLER-INITIATED revive — a listing moving from sold/hidden back to
+ * active (setStatusCore, confirmCore). Returns null when the move may go ahead.
+ *
+ * ⚠️ ONLY A TRANSITION INTO ACTIVE IS GATED, NOT EVERY WRITE OF 'active'. A listing that is already
+ * live stays live: the gate governs entering public state, it does not take down what an unverified
+ * seller published before their deadline (that is a separate, deliberate decision nobody has made).
+ * This matters most for the partner sync, which re-sends `status: 'active'` for every row on every
+ * run — refusing those would fail whole catalogues over listings that are not changing state.
+ *
+ * ⛔ GATE OFF → RETURNS BEFORE ANY READ, so both callers behave exactly as they did before the gate.
+ * `decision` lets a batch caller (the sync) resolve the owner once and pass it in.
+ */
+async function identityGateForRevive(
+  listingId: string,
+  opts: { currentStatus?: string; ownerId?: string | null; decision?: SellerPublishDecision },
+): Promise<IdentityBlockCode | null> {
+  if (!identityGateEnforced()) return null
+  let { currentStatus, ownerId } = opts
+  if (currentStatus === undefined || (ownerId === undefined && !opts.decision)) {
+    const row = await db.listing.findUnique({ where: { id: listingId }, select: { status: true, seller: { select: { ownerId: true } } } })
+    if (!row) return null // the write below answers the missing row the way it always has
+    currentStatus ??= row.status
+    ownerId ??= row.seller.ownerId
+  }
+  if (currentStatus === 'active') return null
+  const d = opts.decision ?? await sellerPublishDecision({ ownerId: ownerId ?? null })
+  return d.ok ? null : d.code
+}
 
 export async function setStatusCore(
   listingId: string,
   status: string,
   soldMeta?: SoldMeta,
+  opts?: { publishDecision?: SellerPublishDecision },
 ): Promise<{ ok: true; status: string } | { ok: false; code: number; error: ListingStatusErrorCode }> {
   if (!LISTING_STATUSES.has(status)) return { ok: false, code: 400, error: 'invalid_status' }
+  // Seller identity gate (NĐ 248/2026): relisting is a seller act, so a refused owner is REFUSED,
+  // not held. Only 'active' can publish; sold/hidden are never gated.
+  if (status === 'active') {
+    const blocked = await identityGateForRevive(listingId, { decision: opts?.publishDecision })
+    if (blocked) return { ok: false, code: 403, error: blocked }
+  }
   // Sale attribution: stamp it when a listing is marked sold; CLEAR it on reactivate
   // so a resold-then-relisted item never carries a stale buyer/channel.
   const saleData =
@@ -212,7 +252,7 @@ export async function setStatusCore(
  * the day's activity earns a (daily-capped) trust reward. Intentionally does NOT
  * revalidate the cached page (recency surfaces live via the client feed).
  */
-export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' }> {
+export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode }> {
   const now = new Date()
   const current = await db.listing.findUnique({ where: { id: listingId }, select: { postedAt: true, status: true, sellerTrustScore: true, featured: true, views: true, contactCount: true } })
   // Typed 404 instead of letting the update's P2025 surface as a 500 — the row can
@@ -224,6 +264,16 @@ export async function confirmCore(listingId: string, profileId: string): Promise
   // Otherwise the listing goes live still de-indexed, its page still 404ing, carrying a
   // stale buyer/channel.
   const wasInactive = current.status !== 'active'
+  // Seller identity gate — ONLY when this confirm would REVIVE a sold/hidden listing (owner,
+  // 2026-09-23). The ordinary confirm, on a listing that is already live, is untouched in every
+  // state of the switch; with the switch off, the revive is untouched too (no read is made).
+  // ⚠️ The decision is the STOREFRONT OWNER's (Seller.ownerId, read by the helper), not `profileId`:
+  // the caller's profile is only the owner on the session route; on /api/v1 it is whichever profile
+  // the key belongs to, and the gate is about the person the listing is published under.
+  if (wasInactive) {
+    const blocked = await identityGateForRevive(listingId, { currentStatus: current.status })
+    if (blocked) return { ok: false, code: 403, error: blocked }
+  }
   const bump = canBump(current.postedAt, now.getTime())
   try {
     await db.listing.update({
@@ -722,13 +772,19 @@ export async function createListingCore(input: {
   // forgot" in the present tense read as an unfixed break to two external reviewers, who both filed
   // it as "the build is red or the diff is incomplete". It is neither: that sentence is history.
   seller: { id: string; trustTier: string; trustScore: number; phone: string | null; ownerId: string | null }
+  // ⚖️ WHO IS POSTING, NOT WHO OWNS THE ROW: true ONLY for a signed-out post through the session web
+  // route (api/listings). It was derived here as `!seller.ownerId`, which also caught an ownerless
+  // shop posting with an API key (api/v1/listings, MCP create_listing) — refused as a "guest" while
+  // /bulk and /sync let the identical shop through as a platform import. Required, like `ownerId`,
+  // so a new caller has to decide rather than inherit a default.
+  guestCreate: boolean
   category: { id: string; slug: string; name: string; nameVi: string }
   title: string
   price: number
   body: Record<string, unknown>
   headers: Headers
 }): Promise<{ id: string; verified: boolean }> {
-  const { seller, category, title, price, body, headers } = input
+  const { seller, guestCreate, category, title, price, body, headers } = input
   const categorySlug = category.slug
 
   const images: string[] = Array.isArray(body.images)
@@ -776,14 +832,20 @@ export async function createListingCore(input: {
   // badge". Expiry here is DERIVED, so a passport that lapsed this morning still reads `verified`
   // in Profile until a sweep runs — reading the cache would let precisely that seller publish.
   //
-  // ⚠️ A GUEST SELLER HAS NO ownerId AND THEREFORE NO IDENTITY, so it stays `undefined` — the
-  // guard's documented "not this caller's job" value, i.e. today's behaviour. That is a HOLE while
-  // the gate is on: a guest post bypasses verification entirely. Closing it is a product decision
-  // (require sign-in to post) rather than a change to make quietly here.
-  const identityStatus = identityGateEnforced() && seller.ownerId
-    ? await verificationStatusForDecision(seller.ownerId)
-    : undefined
-  assertPublishable({ trustTier: seller.trustTier, verificationStatus: identityStatus, images, texts: [title, description], categorySlug, lat, lng, district })
+  // ⛔ THE GUEST HOLE THIS COMMENT USED TO DESCRIBE IS CLOSED (owner, 2026-09-23). A guest seller has
+  // no ownerId and therefore no identity; this path used to pass `undefined` for it — "not this
+  // caller's job" — so a guest post bypassed verification entirely while the gate was on. The
+  // decision now lives in ONE helper shared by every publish path (seller-publish-gate.ts). A guest
+  // is a SIGNED-OUT web post (`guestCreate`, set by the caller that knows there is no session), which
+  // the gate refuses with `identity_sign_in_required` — the wizard turns that into "sign in, then
+  // verify". An ownerless shop reached by API key is a platform import, allowed exactly as on /bulk.
+  //
+  // ⚠️ STILL CHECKED FIRST, as assertPublishable's step 0 was: a legal block outranks every content
+  // complaint, so a seller who cannot publish anyway is not sent to fix their photos first. The
+  // helper is a no-op (no reads) while the gate is off, and assertPublishable gets no status, i.e.
+  // its identity step stays the documented "not this caller's job".
+  await assertSellerMayPublish({ ownerId: seller.ownerId, guestCreate })
+  assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description], categorySlug, lat, lng, district })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category
   // (else its primary type); subcategory falls back to keyword-suggest.

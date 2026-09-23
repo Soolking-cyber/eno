@@ -4,6 +4,8 @@ import { resolveApiKey } from '@/lib/api/auth'
 import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { TOOLS_BY_NAME, toolDescriptors, ToolError } from '@/lib/mcp/tools'
+import { PublishBlockedError } from '@/lib/publish-guard'
+import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
 import type { ApiAuth } from '@/lib/api/auth'
 
 export const runtime = 'nodejs'
@@ -85,6 +87,16 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
         return rpcResult(msg.id, { content: [{ type: 'text', text: JSON.stringify(result) }] })
       } catch (e) {
         if (e instanceof ToolError) return toolErr(msg.id, e.code, e.message)
+        // ⚖️ AN IDENTITY REFUSAL IS AN ANSWER, NOT A CRASH: the code goes back verbatim with the same
+        // English copy the partner API sends, so the agent can tell its operator to verify.
+        // ⚠️ IDENTITY CODES ONLY, DELIBERATELY. The content refusals createListingCore also throws as
+        // PublishBlockedError (photos_min, banned_words, duplicate_listing, account_restricted, …)
+        // have always answered `internal_error` here, and the identity gate ships with the promise
+        // that nothing changes while it is off. Surfacing those codes too is probably right, but it
+        // is a separate MCP contract change and should ship as one, not ride in with the gate.
+        if (e instanceof PublishBlockedError && isIdentityBlockCode(e.code)) {
+          return toolErr(msg.id, e.code, publishBlockedBody(e.code).message.en)
+        }
         console.error('[mcp] tool error', name, e)
         return toolErr(msg.id, 'internal_error', 'The tool failed to execute.')
       }

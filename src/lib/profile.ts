@@ -7,6 +7,7 @@ import { checkBanEvasion } from './enforcement'
 import { recordNewAccount, recordPhoneVerified, recomputeTrust } from './trust'
 import { autoClaimHandle, consolidateSellerHandle } from './handle'
 import { logError } from '@/lib/log'
+import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
 
 /**
  * Idempotent: ensure the authenticated user has exactly one Profile row
@@ -72,11 +73,12 @@ export async function ensureProfile(user: User) {
   if (verifiedPhone) {
     try {
       // Atomic claim-once: updateMany with the ownerId:null guard.
-      const r = await db.seller.updateMany({
-        where: { phone: verifiedPhone, ownerId: null },
-        data: { ownerId: profile.id, claimedAt: new Date() },
-      })
-      if (r.count > 0) {
+      // ⚖️ Through claimGuestStorefront: with the seller identity gate on and this account refused,
+      // the storefront's live listings are parked IN THE SAME TRANSACTION as the claim — never a
+      // separate step after it that a later failure here could skip for good. Gate off → the same
+      // single updateMany this always was.
+      const r = await claimGuestStorefront({ match: { phone: verifiedPhone }, ownerId: profile.id })
+      if (r.claimed) {
         const claimed = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true } })
         // Light up any conversations that were waiting on this seller to claim.
         if (claimed) {

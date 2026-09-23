@@ -6,6 +6,7 @@ import { dispatchListingEventsBatch } from '@/lib/webhooks'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
 import { withIdempotency } from '@/lib/api/idempotency'
+import { publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 import { after } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -54,6 +55,19 @@ export async function POST(req: NextRequest) {
 
     const rows = raw.map((x) => toBulkRow((x ?? {}) as Record<string, unknown>))
     const result = await bulkImportCore(seller, rows)
+    // The identity gate refused the whole batch before any row was touched.
+    if (result.blocked) {
+      return {
+        status: PUBLISH_BLOCKED_STATUS,
+        body: {
+          ...publishBlockedV1(result.blocked),
+          created: 0,
+          failed: result.failed,
+          image_budget_reached: false,
+          results: result.results.map((x) => ({ row: x.row, id: null, external_id: x.external_id ?? null, error: x.error ?? null })),
+        },
+      }
+    }
 
     const createdIds = result.results.filter((x) => x.id).map((x) => x.id!) // notify partner webhooks for the live imports
     if (createdIds.length) after(() => dispatchListingEventsBatch('listing.created', createdIds, seller.id))

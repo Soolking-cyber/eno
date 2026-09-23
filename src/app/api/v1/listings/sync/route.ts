@@ -4,6 +4,7 @@ import { syncListingsCore, SYNC_MAX_ROWS, type SyncRow } from '@/lib/core/sync'
 import { postingGate } from '@/lib/enforcement'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
+import { publishBlockedV1 } from '@/lib/compliance/publish-block-response'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -46,5 +47,8 @@ export async function POST(req: NextRequest) {
     retired: out.retired,
     failed: out.failed,
     results: out.results,
+    // Present only when the seller identity gate refused at least one create/revive in this call.
+    // A 200 still: the rest of the sync (edits, sold/hidden) applied, as partial success always has.
+    ...(out.blocked ? { publish_blocked: publishBlockedV1(out.blocked) } : {}),
   }, r.rate)
 }

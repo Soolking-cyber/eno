@@ -904,7 +904,7 @@ try {
     if (existing) {
       const setSql = fields.map(([column], i) => `"${column}" = $${i + 1}`).join(', ')
       await db.query(
-        `UPDATE "Listing" SET ${setSql}, negotiable = false, verified = true, "updatedAt" = now()
+        `UPDATE "Listing" SET ${setSql}, negotiable = false, verified = true, "identityHold" = false, "updatedAt" = now()
          WHERE id = $${fields.length + 1}`,
         [...fields.map(([, value]) => value), existing.id],
       )
@@ -950,7 +950,7 @@ try {
   if (anchorExisting) {
     // Structural invariants only — re-asserted every run, copy left alone.
     await db.query(
-      `UPDATE "Listing" SET price = 0, currency = '₫', status = 'hidden', verified = true, negotiable = false, "updatedAt" = now() WHERE id = $1`,
+      `UPDATE "Listing" SET price = 0, currency = '₫', status = 'hidden', verified = true, "identityHold" = false, negotiable = false, "updatedAt" = now() WHERE id = $1`,
       [anchorExisting.id],
     )
     console.log(`  anchor   ${anchorExisting.id} (generic anchor — hidden, ₫0, unsellable by design)`)

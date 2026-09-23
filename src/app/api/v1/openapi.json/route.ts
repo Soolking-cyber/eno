@@ -1014,8 +1014,11 @@ export const SPEC = {
           ...authFailures(),
           '400': fail('The body was not valid JSON.', ['bad_request']),
           '403': fail(
-            'Posting is blocked for this account, or the shop\'s trust score is too low to publish. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS AND THEY CARRY DIFFERENT HEADERS: `insufficient_scope` is refused by the credential guard BEFORE the rate limiter and carries only `X-Request-Id`, while the account/trust codes are produced after authentication and carry the full rate-limit set below. Read the headers as "present on the post-authentication codes", not as a guarantee for the status.',
-            ['insufficient_scope', 'account_held', 'account_suspended', 'probation_listing_cap', 'account_restricted'],
+            'Posting is blocked for this account, the shop\'s trust score is too low to publish, or the seller identity gate refused the shop\'s owner (the `identity_*` codes — only while the gate is enforced; those bodies also carry `code`, `accountState`, `actionable`, `verifyUrl`, a bilingual `message` and the `legalBasis` beside `error`). ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS AND THEY CARRY DIFFERENT HEADERS: `insufficient_scope` is refused by the credential guard BEFORE the rate limiter and carries only `X-Request-Id`, while the account/trust codes are produced after authentication and carry the full rate-limit set below. Read the headers as "present on the post-authentication codes", not as a guarantee for the status.',
+            // ⚠️ NOT `identity_sign_in_required`: that is the signed-out WEB poster's code, and a key is
+            // never a guest. createListingCore takes guest-ness from its caller, and this route passes
+            // false — an ownerless shop behind a key is a platform import, let through as on /bulk.
+            ['insufficient_scope', 'account_held', 'account_suspended', 'probation_listing_cap', 'account_restricted', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': fail('The credential resolved to a shop row that no longer exists.', ['not_found']),
           '409': fail(
@@ -1024,7 +1027,9 @@ export const SPEC = {
           ),
           '422': fail(
             'The payload was refused by validation or by a publish gate. Fix the content and re-post.',
-            ['invalid_input', 'unknown_category', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            // ⚠️ The identity codes moved to 403 on 2026-09-23 with the seller identity gate: they are a
+            // legal block, not a content one, and publish-block-response.ts fixes 403 for them.
+            ['invalid_input', 'unknown_category', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required'],
           ),
         },
       },
@@ -1100,9 +1105,15 @@ export const SPEC = {
           }),
           ...authFailures(),
           '400': fail('The body was not valid JSON.', ['bad_request']),
+          // ⚠️ AFTER `...authFailures()`, SO THIS KEY REPLACES ITS 403 — `insufficient_scope` has to be
+          // listed here again, or the spec stops documenting a refusal the endpoint still sends.
+          '403': fail(
+            'The credential lacks `listings:write`, or re-activating a sold or hidden listing was refused by the seller identity gate (only while it is enforced; a listing that is already active is never refused). The identity bodies carry the structured refusal — `verifyUrl`, bilingual `message`, `legalBasis` — beside `error`. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the identity codes happen after authentication and carry the rate-limit set below.',
+            ['insufficient_scope', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+          ),
           '404': NOT_FOUND_LISTING,
           '422': fail(
-            '`status` was absent or not one of the three allowed values. ⚠️ `invalid_status` is the ONLY code this status can carry: `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every core failure onto 422 regardless.',
+            '`status` was absent or not one of the three allowed values. ⚠️ `invalid_status` is the ONLY code this status can carry: `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the seller identity gate\'s `identity_*` refusals are the exception and answer 403 above.',
             ['invalid_status'],
           ),
         },
@@ -1125,6 +1136,11 @@ export const SPEC = {
             },
           }),
           ...authFailures(),
+          // ⚠️ Replaces authFailures()'s 403 (same object literal, later key) — insufficient_scope restated.
+          '403': fail(
+            'The credential lacks `listings:write`, or the confirm would have re-activated a sold or hidden listing and the seller identity gate refused it (only while it is enforced). Confirming a listing that is already active is never refused. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the identity codes happen after authentication and carry the rate-limit set below.',
+            ['insufficient_scope', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+          ),
           '404': NOT_FOUND_LISTING,
         },
       },
@@ -1175,8 +1191,8 @@ export const SPEC = {
           ...authFailures(),
           '400': fail('The body was not valid JSON.', ['bad_request']),
           '403': fail(
-            'Posting is blocked for this account, so the whole batch was refused before any row ran. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account codes happen after authentication and carry the rate-limit set below.',
-            ['insufficient_scope', 'account_held', 'account_suspended', 'probation_listing_cap'],
+            'Posting is blocked for this account, so the whole batch was refused before any row ran. The `identity_*` codes come from the seller identity gate (only while it is enforced) and their body also carries the structured refusal and the per-row `results`. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account codes happen after authentication and carry the rate-limit set below.',
+            ['insufficient_scope', 'account_held', 'account_suspended', 'probation_listing_cap', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': fail('The credential resolved to a shop row that no longer exists.', ['not_found']),
           '409': fail('A request with the same `Idempotency-Key` is still running. Retry shortly.', ['idempotency_in_progress']),
@@ -1192,6 +1208,7 @@ export const SPEC = {
           'Each row is matched to a listing by your own `externalId` (unique per shop) and created or updated accordingly.',
           'mode `partial` (the default) touches only the rows you send. mode `full` additionally RETIRES — hides, not deletes — every active listing of yours whose externalId is absent from this payload, making your storefront a mirror of your system in one call.',
           'Naturally idempotent, so no `Idempotency-Key` is needed. Up to 200 rows.',
+          'While the seller identity gate is enforced and refuses the shop\'s owner, every CREATE and every re-activation of a sold/hidden row fails with the `identity_*` code in its result, the rest of the sync still applies, and `publish_blocked` names the refusal once.',
         ].join(' '),
         security: requires('listings:write'),
         requestBody: {
@@ -1216,6 +1233,7 @@ export const SPEC = {
               retired: { type: 'integer', description: 'Listings hidden because they were absent from a `full` sync. Always 0 in `partial` mode.' },
               failed: { type: 'integer' },
               results: { type: 'array', items: schemaRef('SyncRowResult') },
+              publish_blocked: { type: 'object', description: 'Present only when the seller identity gate refused at least one create or re-activation in this call: the structured refusal (`error.code` is an `identity_*` code, plus `verifyUrl`, a bilingual `message` and `legalBasis`).' },
             },
           }),
           ...authFailures(),

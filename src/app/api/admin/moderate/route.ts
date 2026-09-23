@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
 import { applyTrustEvent, penalizeSeller, recomputeTrust, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
 import { syncEnforcement } from '@/lib/enforcement'
+import { partitionByIdentityGate, settleHolds } from '@/lib/compliance/seller-publish-gate'
 import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
 import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS, addDisputeMessage, notifyDispute, respondentProfileId } from '@/lib/dispute'
 import { logError } from '@/lib/log'
@@ -106,6 +107,15 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
   const isBulk = action === 'bulk-dismiss' || action === 'bulk-confirm'
   if (!id && !isBulk) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
+  // ⚖️ SELLER IDENTITY GATE: a report resolution re-derives the seller's enforcement state, and a
+  // DOWNGRADE below `held` restores the listings the hold pulled — which, for an owner the gate
+  // refuses, are PARKED instead of published. Every syncEnforcement below reports that count here,
+  // and the actions that can trigger one add `held` to their body (only when non-zero, so with the
+  // gate off every body is byte-for-byte what it was) for the console to toast.
+  let syncHeld = 0
+  const onHeld = (n: number) => { syncHeld += n }
+  const withHeld = <T extends Record<string, unknown>>(b: T): T | (T & { held: number }) => (syncHeld ? { ...b, held: syncHeld } : b)
+
   const normSeverity = (v: unknown): 'minor' | 'moderate' | 'severe' =>
     (['minor', 'moderate', 'severe'].includes(String(v)) ? String(v) : 'moderate') as 'minor' | 'moderate' | 'severe'
 
@@ -176,7 +186,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         if (report.targetProfileId) {
           const res = await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${rid}`, reportId: rid })
           // Enforcement ladder: re-derive now that the confirmation landed (fail-quiet inside).
-          if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: rid })
+          if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: rid, onHeld })
         } else if (report.targetSellerId) await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${rid}`, reportId: rid })
         // ⚠️ A FAILED TAKEDOWN MUST NOT BE COUNTED AS A CONFIRMATION. This used to swallow the
         // error and fall through to `confirmed++` and a 200, so staff were told a listing had been
@@ -184,7 +194,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         // visible in Cloud Logging but changed nothing the operator sees.
         if (report.listingId) {
           try {
-            await db.listing.update({ where: { id: report.listingId }, data: { verified: false } })
+            await db.listing.update({ where: { id: report.listingId }, data: { verified: false, identityHold: false } })
             revalidatePublicPath(`/listings/${report.listingId}`)
           } catch (e) {
             logError(e, { op: 'moderate.unverifyListing', reportId: rid, listingId: report.listingId })
@@ -210,27 +220,42 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
           { status: 500 },
         )
       }
-      return NextResponse.json({ ok: true, confirmed, skipped: ids.length - confirmed })
+      return NextResponse.json(withHeld({ ok: true, confirmed, skipped: ids.length - confirmed }))
     }
 
     case 'approve': {
       // Publish a held listing and dismiss any open reports against it.
-      const listing = await db.listing.findUnique({ where: { id }, select: { id: true } })
+      const listing = await db.listing.findUnique({ where: { id }, select: { id: true, verified: true } })
       if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      // ⚖️ SELLER IDENTITY GATE (gate on only): the approval is a CONTENT verdict and still dismisses
+      // the reports, but if the owner cannot publish yet the listing is PARKED (identityHold) rather
+      // than published — releaseIdentityHolds() publishes it when they verify. `held: 1` tells the
+      // console so the operator is not told a listing went live that did not. Gate off → `allowed`
+      // is [id] with no read, and this is the old write verbatim.
+      // ⚠️ An approval of a listing that is ALREADY verified changes nothing and is not parked — the
+      // gate governs entering public state, and approving must never become a takedown.
+      const { held: gated } = await partitionByIdentityGate([id])
+      let held = gated.length && !listing.verified ? 1 : 0
       await db.$transaction([
-        db.listing.update({ where: { id }, data: { verified: true } }),
+        // The publish clears identityHold: a row parked earlier for an owner the gate now allows must
+        // not go live still carrying a hold (a live row with identityHold=true is one a later release
+        // or a takedown that forgot the column could mis-handle). The response is unchanged.
+        db.listing.update({ where: { id }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false } }),
         db.report.updateMany({
           where: { listingId: id, status: 'open' },
           data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date() },
         }),
       ])
+      // A verification that landed between the decision and the park: released now, and not held.
+      if (held && (await settleHolds([id]))) held = 0
       revalidatePublicPath(`/listings/${id}`)
-      return NextResponse.json({ ok: true })
+      // `held` only when non-zero: with the gate off the body stays byte-for-byte `{"ok":true}`.
+      return NextResponse.json(held ? { ok: true, held } : { ok: true })
     }
 
     case 'reject': {
       // Remove the listing entirely (cascade deletes its reports).
-      const listing = await db.listing.findUnique({ where: { id }, select: { id: true } })
+      const listing = await db.listing.findUnique({ where: { id }, select: { id: true, verified: true } })
       if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       await db.listing.delete({ where: { id } })
       revalidatePublicPath(`/listings/${id}`)
@@ -238,7 +263,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
     }
 
     case 'unpublish': {
-      await db.listing.update({ where: { id }, data: { verified: false } })
+      await db.listing.update({ where: { id }, data: { verified: false, identityHold: false } })
       revalidatePublicPath(`/listings/${id}`)
       return NextResponse.json({ ok: true })
     }
@@ -269,7 +294,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         // Enforcement ladder: re-derive the state now that the confirmation landed —
         // a frozen scam → held (listings pulled), conduct-restricted → throttled,
         // a corroborated pattern → warned. Fail-quiet inside (deploy-order safe).
-        if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: id })
+        if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: id, onHeld })
       } else if (report.targetSellerId) {
         await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${id}`, reportId: id })
       }
@@ -279,7 +304,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       let takedownFailed = false
       if (report.listingId) {
         try {
-          await db.listing.update({ where: { id: report.listingId }, data: { verified: false } })
+          await db.listing.update({ where: { id: report.listingId }, data: { verified: false, identityHold: false } })
           revalidatePublicPath(`/listings/${report.listingId}`)
         } catch (e) {
           logError(e, { op: 'moderate.unverifyListing', reportId: id, listingId: report.listingId })
@@ -300,7 +325,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       if (takedownFailed) {
         return NextResponse.json({ error: 'takedown_failed', listingId: report.listingId }, { status: 500 })
       }
-      return NextResponse.json({ ok: true })
+      return NextResponse.json(withHeld({ ok: true }))
     }
 
     case 'dismiss-report': {
@@ -369,7 +394,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
             const affected = [...new Set(purged.map((r) => r.targetProfileId).filter((x): x is string => !!x))]
             for (const pid of affected) {
               const res = await recomputeTrust(pid, { uncapped: true })
-              if (res) await syncEnforcement(pid, res.breakdown, { persistedScore: res.score })
+              if (res) await syncEnforcement(pid, res.breakdown, { persistedScore: res.score, onHeld })
             }
             // Storefront-only targets (no owning profile at report time): the original
             // dock was a direct mirror mutation, so mirror the reversal the same way —
@@ -381,7 +406,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
               if (!s) continue
               if (s.ownerId) {
                 const res = await recomputeTrust(s.ownerId, { uncapped: true })
-                if (res) await syncEnforcement(s.ownerId, res.breakdown, { persistedScore: res.score })
+                if (res) await syncEnforcement(s.ownerId, res.breakdown, { persistedScore: res.score, onHeld })
               } else {
                 await penalizeSeller(r.targetSellerId, SEVERITY_PENALTY[normSeverity(r.severity)], { reason: `overturned:${r.id}` })
               }
@@ -391,7 +416,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
           console.error('[moderate] abusive-reporter purge failed', e)
         }
       }
-      return NextResponse.json({ ok: true })
+      return NextResponse.json(withHeld({ ok: true }))
     }
 
     case 'extend-window': {
@@ -448,9 +473,9 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       const marked = upd.count
       if (marked > 0 && report.targetProfileId) {
         const res = await recomputeTrust(report.targetProfileId)
-        if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score })
+        if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, onHeld })
       }
-      return NextResponse.json({ ok: true, remediated: marked > 0 })
+      return NextResponse.json(withHeld({ ok: true, remediated: marked > 0 }))
     }
 
     default:

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkListingOwner } from '@/lib/listing-owner'
 import { confirmCore } from '@/lib/core/listings'
+import { isIdentityBlockCode, publishBlockedJson, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.code })
 
   const res = await confirmCore(id, auth.profileId)
+  // A confirm that would REVIVE a sold/hidden listing, refused by the identity gate (gate on only).
+  if (!res.ok && isIdentityBlockCode(res.error)) return NextResponse.json(publishBlockedJson(res.error), { status: PUBLISH_BLOCKED_STATUS })
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.code })
   return NextResponse.json({ ok: true })
 }

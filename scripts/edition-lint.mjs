@@ -120,6 +120,12 @@ const ALLOW = new Map([
   ["src/lib/core/seller.ts", "updateSellerCore reads `where: { id: sellerId }` for a sellerId already authorized by its two callers (session PATCH /api/seller and key-authed PAT\u2026"],
   ["src/lib/core/sync.ts", "Both reads pin `sellerId: seller.id` where seller came from `where: { id: r.auth.sellerId }` in the key-authed sync route; rows are ids fed into up\u2026"],
   ["src/lib/dispute.ts", "partyRoleFor selects only seller.ownerId for an id comparison, and counterpartyName is reachable only after loadDisputeForParty returns a role \u2014 a\u2026"],
+  // Seller identity gate (2026-09-23): neither file serves a surface. Every read is by id for a
+  // decision the caller already scoped — the listing ids an admin/enforcement batch named, a claimed
+  // storefront's sellerId, or `ownerId: <the profile being verified>` — and the writes only ever
+  // HIDE (park) or restore rows that were public before, never widen who sees what.
+  ["src/lib/compliance/identity-holds.ts", "Reads are `ownerId: <profile just verified>` then `sellerId: { in: that owner's sellers }, identityHold: true` - owner-scoped release of rows the gate parked; no surface."],
+  ["src/lib/compliance/seller-publish-gate.ts", "Reads are `id: { in: <ids the admin/enforcement caller named> }` (owner lookup only) and `sellerId: <the claimed storefront>` - a publish decision, not a surface."],
   ["src/lib/enforcement.ts", "Seller/listing reads are `ownerId: profileId` / `sellerId: { in: owned }` for the account being enforced (admin- or cron-supplied per the header at\u2026"],
   ["src/lib/image-provenance.ts", "Returns Promise<void>; the cross-seller dHash $queryRaw is deliberately platform-wide \u2014 excluding the desk would stop detection of scammers stealin\u2026"],
   ["src/lib/listing-analytics.ts", "getListingAnalytics's `where: { sellerId }` is passed r.auth.sellerId by both callers (api/v1/analytics/listings and mcp/tools.ts:233), resolved fr\u2026"],

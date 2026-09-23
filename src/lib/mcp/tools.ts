@@ -15,6 +15,7 @@ import { postingGate } from '@/lib/enforcement'
 import { getListingAnalytics } from '@/lib/listing-analytics'
 import { dispatchListingEventsBatch, generateWebhookSecret } from '@/lib/webhooks'
 import { after } from 'next/server'
+import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
 
 // ── Partner MCP tools ─────────────────────────────────────────────────────────────
 // Each tool is a thin, shop-scoped wrapper over the SAME cores the /api/v1 routes use.
@@ -133,7 +134,9 @@ export const TOOLS: McpTool[] = [
       }
       const images = await rehostAll(args.images as string[] | undefined)
       const body = { description: args.description, images, district: args.district, condition: args.condition, negotiable: args.negotiable, listingType: args.listingType, brand: args.brand, model: args.model }
-      const created = await createListingCore({ seller, category, title, price, body, headers: new Headers() })
+      // Never a guest (an API key authenticated this call) — an ownerless shop is a platform import,
+      // as on /api/v1 and in bulk_import / sync_listings.
+      const created = await createListingCore({ seller, guestCreate: false, category, title, price, body, headers: new Headers() })
       return { listing: created }
     },
   },
@@ -162,7 +165,7 @@ export const TOOLS: McpTool[] = [
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
       const res = await setStatusCore(id, String(args.status))
-      if (!res.ok) throw new ToolError(res.error, res.error)
+      if (!res.ok) throw new ToolError(res.error, isIdentityBlockCode(res.error) ? publishBlockedBody(res.error).message.en : res.error)
       return { ok: true, status: res.status }
     },
   },
@@ -191,6 +194,9 @@ export const TOOLS: McpTool[] = [
         image_urls: x.images?.length ? x.images.join('|') : undefined, external_id: x.externalId,
       }))
       const result = await bulkImportCore(seller, rows)
+      // The identity gate refused the whole batch (nothing was created) — a tool ERROR carrying the
+      // code, not a "success" whose every row failed, so the agent can tell the seller what to do.
+      if (result.blocked) throw new ToolError(result.blocked, publishBlockedBody(result.blocked).message.en)
       const createdIds = result.results.filter((r) => r.id).map((r) => r.id!)
       if (createdIds.length) after(() => dispatchListingEventsBatch('listing.created', createdIds, seller.id))
       return { created: result.created, failed: result.failed, results: result.results }
@@ -205,7 +211,11 @@ export const TOOLS: McpTool[] = [
       const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
       if (!seller) throw new ToolError('not_found', 'Shop not found.')
       const mode = args.mode === 'full' ? 'full' : 'partial'
-      return syncListingsCore(seller, args.listings as SyncRow[], mode)
+      const out = await syncListingsCore(seller, args.listings as SyncRow[], mode)
+      // A partial success, not a tool error: edits and sold/hidden rows applied. But the identity
+      // gate's refusal of the creates/revives is named once with its copy, the way /api/v1 does it
+      // (`publish_blocked`), so the agent can tell the seller what to do instead of parsing codes.
+      return out.blocked ? { ...out, publish_blocked: { code: out.blocked, message: publishBlockedBody(out.blocked).message.en } } : out
     },
   },
   {

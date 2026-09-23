@@ -6,6 +6,8 @@ import { bulkPostingBudget } from '@/lib/enforcement'
 import { updateListingCore, setStatusCore } from '@/lib/core/listings'
 import { removeFromIndex } from '@/lib/listing-index'
 import { dispatchListingEventsBatch } from '@/lib/webhooks'
+import { sellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
+import type { IdentityBlockCode } from '@/lib/publish-guard'
 
 // Catalogue sync core (Phase 3). Upserts the shop's listings by the partner's OWN id
 // (externalId, unique per shop). `partial` only touches the rows you send; `full` also
@@ -36,7 +38,7 @@ export async function syncListingsCore(
   seller: { id: string; ownerId?: string | null; trustTier: string; trustScore: number },
   rows: SyncRow[],
   mode: 'partial' | 'full',
-): Promise<{ created: number; updated: number; retired: number; failed: number; results: SyncRowResult[] }> {
+): Promise<{ created: number; updated: number; retired: number; failed: number; results: SyncRowResult[]; blocked?: IdentityBlockCode }> {
   // Enforcement ladder in the core (audit P0 #3): a held/suspended seller must not
   // create, re-activate, or otherwise manage listings through sync — from ANY caller
   // (route, MCP, future). Creations additionally inherit the probation create-budget
@@ -51,6 +53,13 @@ export async function syncListingsCore(
     }
   }
   const results: SyncRowResult[] = []
+
+  // Seller identity gate — resolved ONCE for the whole call and handed to both halves below, so a
+  // 200-row sync costs one decision, not 200. Gate off → PUBLISH_ALLOWED with no read.
+  // A refusal does not fail the sync wholesale: updates to listings that STAY where they are (a price
+  // change on a live row, marking something sold) are not publishing and go through. What is refused
+  // is every transition INTO public state — each create, and each revive of a sold/hidden row.
+  const publishDecision = await sellerPublishDecision({ ownerId: seller.ownerId ?? null })
 
   // Every row must carry an externalId (the upsert key, camelCase or snake_case). Rows
   // without one are reported. DEDUPE within the payload — last occurrence of an externalId
@@ -67,9 +76,10 @@ export async function syncListingsCore(
 
   // Which externalIds already exist for THIS shop → update; the rest → create.
   const existing = extIds.length
-    ? await db.listing.findMany({ where: { sellerId: seller.id, externalId: { in: extIds } }, select: { id: true, externalId: true } })
+    ? await db.listing.findMany({ where: { sellerId: seller.id, externalId: { in: extIds } }, select: { id: true, externalId: true, status: true } })
     : []
   const idByExt = new Map(existing.map((l) => [l.externalId!, l.id]))
+  const statusByExt = new Map(existing.map((l) => [l.externalId!, l.status]))
 
   const toCreate = valid.filter((v) => !idByExt.has(v.ext))
   const toUpdate = valid.filter((v) => idByExt.has(v.ext))
@@ -89,7 +99,7 @@ export async function syncListingsCore(
       image_urls: Array.isArray(row.images) ? row.images.map((u) => String(u).trim()).filter(Boolean).join('|') : undefined,
       external_id: ext,
     }))
-    const res = await bulkImportCore(seller, bulkRows)
+    const res = await bulkImportCore(seller, bulkRows, { publishDecision })
     res.results.forEach((rr, i) => {
       const ext = toCreate[i].ext
       if (rr.id) { createdIds.push(rr.id); results.push({ external_id: ext, id: rr.id, action: 'created' }) }
@@ -103,6 +113,12 @@ export async function syncListingsCore(
   // (searchText rebuild + reindex + its own 'listing.updated' webhook). Status via setStatusCore.
   for (const { row, ext } of toUpdate) {
     const id = idByExt.get(ext)!
+    // ⚠️ A REFUSED REVIVE FAILS THE ROW BEFORE ANY WRITE. Checking only at setStatusCore would apply
+    // the row's edits and then refuse its status, leaving a half-applied row reported as failed.
+    if (!publishDecision.ok && row.status === 'active' && statusByExt.get(ext) !== 'active') {
+      results.push({ external_id: ext, id, action: 'failed', error: publishDecision.code })
+      continue
+    }
     try {
       const body: Record<string, unknown> = {}
       if (row.title !== undefined) body.title = row.title
@@ -119,7 +135,12 @@ export async function syncListingsCore(
         const u = await updateListingCore(id, body)
         if (!u.ok) { results.push({ external_id: ext, id, action: 'failed', error: u.error }); continue }
       }
-      if (row.status !== undefined && VALID_STATUS.has(String(row.status))) await setStatusCore(id, String(row.status))
+      if (row.status !== undefined && VALID_STATUS.has(String(row.status))) {
+        const st = await setStatusCore(id, String(row.status), undefined, { publishDecision })
+        // Only reachable in a race (the row went inactive between the read above and now): report
+        // it rather than counting a refused revive as an update.
+        if (!st.ok) { results.push({ external_id: ext, id, action: 'failed', error: st.error }); continue }
+      }
       updated++
       results.push({ external_id: ext, id, action: 'updated' })
     } catch {
@@ -146,5 +167,8 @@ export async function syncListingsCore(
   }
 
   const failed = results.filter((x) => x.action === 'failed').length
-  return { created: createdIds.length, updated, retired, failed, results }
+  // Name the identity refusal once when it actually cost a row, so callers can surface it as the
+  // reason rather than leaving the partner to spot the code repeated across `results`.
+  const blocked = !publishDecision.ok && results.some((x) => x.error === publishDecision.code) ? publishDecision.code : undefined
+  return { created: createdIds.length, updated, retired, failed, results, ...(blocked ? { blocked } : {}) }
 }

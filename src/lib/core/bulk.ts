@@ -2,7 +2,7 @@ import 'server-only'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { containsPhoneNumber } from '@/lib/phone'
-import { containsContactInfo, findBannedWord, minPhotosFor } from '@/lib/publish-guard'
+import { containsContactInfo, findBannedWord, minPhotosFor, type IdentityBlockCode } from '@/lib/publish-guard'
 import { countDistinctAngles } from '@/lib/image-hash-url'
 import { buildSearchText, fold } from '@/lib/fold'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
@@ -16,6 +16,7 @@ import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { storeListingImage, IMG_MAX_BYTES } from '@/lib/core/media'
 import { browseRankScore } from '@/lib/ranking'
 import { parseVnd } from '@/lib/vnd'
+import { sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 
 // Bulk-import core (Phase 0). The business-tier bulk CSV importer, decoupled from auth:
 // takes the ALREADY-RESOLVED seller + the rows and returns per-row results. Reused by the
@@ -52,7 +53,8 @@ async function rehost(url: string): Promise<string | null> {
 export async function bulkImportCore(
   seller: { id: string; ownerId?: string | null; trustTier: string; trustScore: number },
   rows: BulkRow[],
-): Promise<{ created: number; failed: number; results: BulkRowResult[]; imageBudgetReached: boolean }> {
+  opts?: { publishDecision?: SellerPublishDecision },
+): Promise<{ created: number; failed: number; results: BulkRowResult[]; imageBudgetReached: boolean; blocked?: IdentityBlockCode }> {
   // Enforcement ladder lives IN the core (audit P0 #3 + review): every caller — the
   // session route, /api/v1, the MCP tools, anything future — is covered here, not just
   // the routes. Held/suspended → the whole batch fails with the stable code; probation
@@ -70,6 +72,29 @@ export async function bulkImportCore(
       }
     }
     if (budget.maxNewActive != null) createBudget = budget.maxNewActive
+  }
+
+  // Seller identity gate (NĐ 248/2026) — a bulk import is SELLER-INITIATED, so a refused owner fails
+  // the WHOLE batch before any row is touched, exactly like `budget.blocked` above: per-row failures
+  // would make a 200-row CSV report 200 identical errors and still re-host every image first.
+  // `blocked` names the code once so every caller (session route, /api/v1, MCP) can surface it as a
+  // refusal rather than as a pile of failed rows. One decision per import, never per row; the sync
+  // core resolves it itself and passes it in. Gate off → no read, and `blocked` is never set.
+  // ⚠️ `guestCreate` is NOT set: every caller here is an authenticated shop, and an ownerless shop on
+  // these paths is a platform import seller, which the gate deliberately lets through.
+  const decision = opts?.publishDecision ?? await sellerPublishDecision({ ownerId: seller.ownerId ?? null })
+  if (!decision.ok) {
+    const code = decision.code
+    return {
+      created: 0,
+      failed: rows.length,
+      // ⚠️ Each refused row carries its `external_id`, normalised exactly as a created row's is below:
+      // a partner correlates results by its own id, and /api/v1/listings/bulk answered
+      // `external_id: null` for every item of a refused batch.
+      results: rows.map((r, i) => ({ row: i + 1, ...(r.external_id ? { external_id: String(r.external_id).trim() } : {}), error: code })),
+      imageBudgetReached: false,
+      blocked: code,
+    }
   }
   let createdCount = 0
 

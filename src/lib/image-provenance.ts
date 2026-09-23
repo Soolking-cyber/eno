@@ -82,7 +82,7 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
     for (const [id, c] of matchCount) if (c > best) { best = c; originalId = id }
     if (best >= 2 && best > hexes.length / 2) {
       const writes: Prisma.PrismaPromise<unknown>[] = [
-        db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false } }),
+        db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false, identityHold: false } }),
         db.report.create({
           data: {
             listingId: l.id,

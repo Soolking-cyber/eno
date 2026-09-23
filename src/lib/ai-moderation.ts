@@ -156,7 +156,7 @@ export async function moderateListingById(listingId: string): Promise<void> {
     // and stays live, fail-open). Feed requires verified=true AND status='active'. The admin
     // confirming the report is what moves trust — the AI never penalises directly.
     const writes: Prisma.PrismaPromise<unknown>[] = [
-      db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false } }),
+      db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false, identityHold: false } }),
       db.report.create({
         data: {
           listingId: l.id,

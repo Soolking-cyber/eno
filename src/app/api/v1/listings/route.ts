@@ -5,6 +5,7 @@ import { containsPhoneNumber } from '@/lib/phone'
 import { createListingCore } from '@/lib/core/listings'
 import { postingGate } from '@/lib/enforcement'
 import { PublishBlockedError } from '@/lib/publish-guard'
+import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
 import { withIdempotency } from '@/lib/api/idempotency'
@@ -76,12 +77,18 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const created = await createListingCore({ seller, category, title, price, body, headers: req.headers })
+      // Never a guest: a key is a credential. An ownerless shop here is a platform import, which the
+      // identity gate lets through — exactly as /bulk and /sync treat the same shop.
+      const created = await createListingCore({ seller, guestCreate: false, category, title, price, body, headers: req.headers })
       return { status: 201, body: { listing: created } }
     } catch (e) {
       // Same publish rules as the session post path: restricted shop / no photo / banned
       // words / contact info in text → a structured 422 (403 for the trust gate).
       if (e instanceof PublishBlockedError) {
+        // ⚖️ Identity (legal) blocks: 403 + the structured refusal, `error.code` unchanged. These used
+        // to fall through to the ternary's last arm and tell a partner to "remove phone numbers" from
+        // a listing whose only problem was an unverified owner.
+        if (isIdentityBlockCode(e.code)) return { status: PUBLISH_BLOCKED_STATUS, body: publishBlockedV1(e.code) }
         const message = e.code === 'account_restricted' ? 'Shop is restricted (low trust) — cannot publish until its score recovers.'
           : e.code === 'photo_required' ? 'At least one image is required.'
           : e.code === 'photos_min' ? 'At least 3 images from different angles are required (the same photo repeated counts as one).'

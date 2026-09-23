@@ -21,7 +21,13 @@ export type PreStatusInput = {
   enforced: boolean
   /** The PROFILE that owns the storefront. null = an ownerless (guest or import) storefront. */
   ownerId: string | null
-  /** True ONLY on the seller-initiated create path, where an ownerless storefront means a guest. */
+  /**
+   * True ONLY for a GUEST — who is posting, not whether the row has an owner. The session web route
+   * (api/listings) sets it for a SIGNED-OUT post; scripts/publish-held.ts, which has no session to
+   * ask, sets it for an ownerless storefront carrying a phone (Seller.phone is the guest-claim key).
+   * Every other caller leaves it false, API-key creates included: an ownerless shop behind a key is
+   * a platform import, not a guest, and is allowed below on every path alike.
+   */
   guestCreate?: boolean
   /** Profile.createdAt of the owner. null/undefined = unknown (profile row missing) → no grace. */
   accountCreatedAt?: Date | null
@@ -44,10 +50,10 @@ export function decideBeforeStatus(input: PreStatusInput): SellerPublishDecision
     // 2026-09-23). The code is the guest's own, not `identity_unverified`: the wizard has to say
     // "sign in, then verify", because there is no account to send to the verify page.
     //
-    // ⚠️ OWNERLESS BUT NOT A GUEST IS ALLOWED, AND THAT IS BY DESIGN, NOT A HOLE. Admin, cron and
-    // script paths also touch storefronts with no owner: the affiliate/partner import sellers
-    // (src/app/api/cron/partner-stock, src/lib/affiliate-price-refresh.ts) and the Rever reference
-    // listings. There is no person behind them to verify — they are the platform's own catalogue
+    // ⚠️ OWNERLESS BUT NOT A GUEST IS ALLOWED, AND THAT IS BY DESIGN, NOT A HOLE. Admin, cron,
+    // script and API-key paths also touch storefronts with no owner: the affiliate/partner import
+    // sellers (src/app/api/cron/partner-stock, src/lib/affiliate-price-refresh.ts) and the Rever
+    // reference listings. There is no person behind them to verify — they are the platform's own catalogue
     // imports, published under its own responsibility — so refusing them would not make anyone
     // verify, it would just empty those shelves.
     return input.guestCreate ? { ok: false, code: 'identity_sign_in_required' } : PUBLISH_ALLOWED

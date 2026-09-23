@@ -195,16 +195,20 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // Manual relief: restores pulled listings, resets to good_standing, resolves a
       // pending appeal in the seller's favour, notifies.
       if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-      const ok = await liftAction(id, { to: 'lifted', by: admin })
-      return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: 'not_active' }, { status: 409 })
+      // `held` = pulled listings the seller identity gate parked instead of restoring (gate on only;
+      // present in the body only when non-zero, so the gate-off response is unchanged).
+      let held = 0
+      const ok = await liftAction(id, { to: 'lifted', by: admin, onHeld: (n) => { held = n } })
+      return ok ? NextResponse.json(held ? { ok: true, held } : { ok: true }) : NextResponse.json({ error: 'not_active' }, { status: 409 })
     }
 
     case 'overturn': {
       // The action was WRONG (not just no-longer-needed) — same effects as lift, but
       // the record says overturned (feeds fairness accounting).
       if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-      const ok = await liftAction(id, { to: 'overturned', by: admin })
-      return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: 'not_active' }, { status: 409 })
+      let held = 0
+      const ok = await liftAction(id, { to: 'overturned', by: admin, onHeld: (n) => { held = n } })
+      return ok ? NextResponse.json(held ? { ok: true, held } : { ok: true }) : NextResponse.json({ error: 'not_active' }, { status: 409 })
     }
 
     case 'uphold_appeal': {
@@ -236,6 +240,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       const profile = await db.profile.findUnique({ where: { id: profileId }, select: { id: true } })
       if (!profile) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       const days = Number(body.days)
+      let held = 0
       const applied = await applyEnforcement(
         profileId,
         {
@@ -243,14 +248,14 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
           reason: String(body.reason || '').trim() || ENFORCEMENT_REASON.ADMIN_MANUAL,
           expiresAt: Number.isFinite(days) && days > 0 ? Date.now() + days * DAY_MS : null,
         },
-        { decidedBy: admin, adminNote: String(body.note || '').trim().slice(0, 1000) || null },
+        { decidedBy: admin, adminNote: String(body.note || '').trim().slice(0, 1000) || null, onHeld: (n) => { held = n } },
       )
       // Acting FROM a review flag answers it — close the flag in the same request so
       // the console never shows a stale "needs review" for a case already decided.
       const flagId = String(body.flagId || '').trim()
       if (flagId) await dismissFlag(flagId)
       // false = no-op (already in that state) — non-fatal.
-      return NextResponse.json({ ok: true, applied })
+      return NextResponse.json(held ? { ok: true, applied, held } : { ok: true, applied })
     }
 
     default:

@@ -4,6 +4,7 @@ import { postingGate } from '@/lib/enforcement'
 import { rateLimit } from '@/lib/ratelimit'
 import { bulkImportCore, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
 import { ApiError, route } from '@/lib/api/handler'
+import { publishBlockedJson, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -62,5 +63,12 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
     return NextResponse.json({ error: 'too_many_rows', max: BULK_MAX_ROWS }, { status: 400 })
   }
 
-  return await bulkImportCore(seller, rows)
+  const result = await bulkImportCore(seller, rows)
+  // The identity gate refused the whole batch (nothing was created): answer it as the refusal it is —
+  // 403 + the structured body — instead of a 200 whose every row says the same thing. The per-row
+  // results ride along so a client that only reads `results` still sees why.
+  if (result.blocked) {
+    return NextResponse.json({ ...publishBlockedJson(result.blocked), created: 0, failed: result.failed, results: result.results }, { status: PUBLISH_BLOCKED_STATUS })
+  }
+  return result
 })

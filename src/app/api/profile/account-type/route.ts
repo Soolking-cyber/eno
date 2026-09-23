@@ -8,6 +8,7 @@ import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { parseAttributionCookie } from '@/lib/attribution'
 import { consolidateSellerHandle, revertToPersonalHandle } from '@/lib/handle'
 import { ApiError, route } from '@/lib/api/handler'
+import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
 
 export const runtime = 'nodejs'
 
@@ -148,13 +149,14 @@ export const POST = route(
       try {
         if (byPhone && !byPhone.ownerId && verifiedPhone && verifiedPhone === byPhone.phone) {
           // Atomic claim-once via the ownerId:null guard, so two racing claims cannot both win.
-          const claimed = await db.seller.updateMany({
-            where: { id: byPhone.id, ownerId: null },
-            data: { ownerId: profile.id, name: businessName!, claimedAt: new Date(), ...legalData },
-          })
+          // ⚖️ SELLER IDENTITY GATE — THE THIRD CLAIM PATH, missed by the first wiring of the gate.
+          // Claiming re-parents every live listing on the storefront; with the gate on and this
+          // account refused, claimGuestStorefront parks them in the same transaction as the claim.
+          // Gate off → the same single claim-once updateMany as before.
+          const { claimed } = await claimGuestStorefront({ match: { id: byPhone.id }, ownerId: profile.id, data: { name: businessName!, ...legalData } })
           // ⚠️ On a LOST race, re-read before creating — Seller.ownerId is @unique, so if our own
           // concurrent request already made one, a blind create throws P2002 and 500s onboarding.
-          if (claimed.count === 0 && !(await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } }))) {
+          if (!claimed && !(await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } }))) {
             await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100 } })
           }
         } else if (byPhone && !byPhone.ownerId) {
