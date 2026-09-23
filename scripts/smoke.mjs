@@ -39,9 +39,19 @@ async function main() {
 
   // 3. Machine artifacts parse.
   {
+    // /sitemap.xml is a SITEMAP INDEX since 2026-09-24 (src/lib/sitemap.ts): it must name the pages
+    // child, and EVERY child it names must be a real urlset — an index pointing at a broken child is
+    // the failure a check of the index alone would pass. Children are read by path, same origin.
     const { r } = await timed('/sitemap.xml')
     const body = r.status === 200 ? await r.text() : ''
-    ok('/sitemap.xml → 200 + <urlset>', r.status === 200 && /<urlset[\s>]/.test(body) && /<loc>/.test(body))
+    const children = [...body.matchAll(/<sitemap>\s*<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)
+    ok('/sitemap.xml → 200 + <sitemapindex> naming /sitemaps/pages.xml', r.status === 200 && /<sitemapindex[\s>]/.test(body) && children.includes('/sitemaps/pages.xml'), `${children.length} children`)
+    for (const path of children) {
+      const child = await timed(path)
+      const childBody = child.r.status === 200 ? await child.r.text() : ''
+      // pages.xml always has URLs (the home page at least); a listings child can be empty past the end.
+      ok(`${path} → 200 + <urlset>`, child.r.status === 200 && /<urlset[\s>]/.test(childBody) && (path !== '/sitemaps/pages.xml' || /<loc>/.test(childBody)), `${child.r.status}`)
+    }
 
     const man = await timed('/manifest.webmanifest')
     let mj = null; try { mj = JSON.parse(await man.r.text()) } catch { /* */ }

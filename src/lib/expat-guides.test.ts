@@ -13,7 +13,7 @@ import { EXPAT_GUIDES, EXPAT_GUIDE_PATHS, expatGuidesExcept, marketplaceGuideAlt
  * scripts/edition-lint.mjs Rule B catches it from the other direction (the tree is in its list); this
  * catches it from the registry's, so removing either guard still leaves one.
  *
- * ⚠️ TWO: THE REGISTRY'S VALUES MUST STAY VOCABULARY-FREE. src/app/sitemap.xml/route.ts imports
+ * ⚠️ TWO: THE REGISTRY'S VALUES MUST STAY VOCABULARY-FREE. src/app/sitemaps/pages.xml/route.ts imports
  * `EXPAT_GUIDE_PATHS` and compiles on BOTH editions, so every string in this module lands in
  * eno.vn's server bundle. That is fine precisely because none of them says "visa" — and it stops
  * being fine the first time somebody writes a more descriptive blurb. The module header states the
@@ -57,7 +57,8 @@ describe('expat guides registry', () => {
   })
 
   it('the sitemap submits the guides, and only on the services edition', () => {
-    const sitemap = readFileSync('src/app/sitemap.xml/route.ts', 'utf8')
+    // /sitemap.xml became an index on 2026-09-24; every non-listing URL moved to this child.
+    const sitemap = readFileSync('src/app/sitemaps/pages.xml/route.ts', 'utf8')
     // ⚠️ IMPORTED, NOT RETYPED — the same failure this registry exists to prevent. A sitemap that
     // hard-coded these two paths would silently stop covering the third guide.
     expect(sitemap).toMatch(/EXPAT_GUIDE_PATHS/)

@@ -71,8 +71,15 @@ export const PROVINCES: { slug: string; name: string; nameEn: string }[] = [
 
 // HCMC districts (slug ↔ VI/EN label). `match` = substrings used by the listings
 // API to filter the listing `district` field (EN + VI variants).
+//
+// ⛔ THE `all` ENTRY SAID "All HCMC" / "Toàn bộ HCMC", AND `all` HAS NEVER FILTERED BY CITY. It is
+// "no district scope" (districtScopeForSlug returns null for it), so the default view returns every
+// city's rows. That was merely imprecise while every listing was in HCMC; with Hà Nội and Đà Nẵng
+// rentals imported (nhatot, muaban, 2026-09) the default rentals view would show them under a label
+// saying HCMC. The label now says what the filter does. A caller that knows the selected province
+// should label it with `allDistrictsLabel()`, which names that province instead.
 export const DISTRICTS: { slug: string; name: string; nameEn: string; match?: string[] }[] = [
-  { slug: 'all', name: 'Toàn bộ HCMC', nameEn: 'All HCMC' },
+  { slug: 'all', name: 'Tất cả thành phố', nameEn: 'All cities' },
   { slug: 'thu-duc', name: 'TP Thủ Đức', nameEn: 'Thu Duc City', match: ['Thu Duc', 'Thủ Đức', 'Thao Dien', 'Thảo Điền', 'District 2', 'Quận 2', 'District 9', 'Quận 9'] },
   { slug: 'd1', name: 'Quận 1', nameEn: 'District 1', match: ['District 1', 'Quận 1'] },
   { slug: 'd3', name: 'Quận 3', nameEn: 'District 3', match: ['District 3', 'Quận 3'] },
@@ -96,3 +103,69 @@ export const DISTRICTS: { slug: string; name: string; nameEn: string; match?: st
   { slug: 'hoc-mon', name: 'Hóc Môn', nameEn: 'Hoc Mon District', match: ['Hoc Mon', 'Hóc Môn'] },
   { slug: 'nha-be', name: 'Nhà Bè', nameEn: 'Nha Be District', match: ['Nha Be', 'Nhà Bè'] },
 ]
+
+/**
+ * The label for the district picker's `all` option — which is "no district scope", NOT "all of HCMC".
+ *
+ * With no province chosen the feed spans every city, so it says so. With one chosen (the area
+ * filter's `?province=`), the province filter is what narrows the feed and `all` means "anywhere in
+ * it", so the province is named. Display only: the filter value stays `all` either way.
+ */
+export function allDistrictsLabel(
+  province: { name: string; nameEn: string } | null | undefined,
+  lang: string,
+  /** The caller's `tr` from useLanguage(), so the copy reaches the MT languages through ui-strings. */
+  tr: (en: string, vi: string) => string = (en, vi) => (lang === 'vi' ? vi : en),
+): string {
+  if (!province) return tr('All cities', 'Tất cả thành phố')
+  return `${tr('All of', 'Toàn bộ')} ${lang === 'vi' ? province.name : province.nameEn}`
+}
+
+/** The vn-units.json GSO code of Hồ Chí Minh — the one province `DISTRICTS` lists districts for. */
+export const DISTRICTS_PROVINCE_CODE = '79'
+
+/**
+ * The district options the picker offers under the area filter's province.
+ *
+ * ⛔ `DISTRICTS` IS HCMC'S LIST. With Hà Nội or Đà Nẵng chosen, offering "District 1 … Nhà Bè" under
+ * an "All of Ha Noi" heading states that those are Hà Nội districts, and picking one ANDs an HCMC
+ * district with the Hà Nội province: an empty feed. So under any other province only `all` is
+ * offered — plus the current pick when it is an HCMC district, so a selection that has not been
+ * reset yet (useDropStaleDistrict resets it on the province change) still has its option. No
+ * province, or HCMC, keeps the full list.
+ * ⚠️ A /c/<category>/<district> landing slug outside `DISTRICTS` (`thao-dien`) has never been an
+ * option here, under any province — that predates this function. Its active-filter chip shows and
+ * clears it, and it is not reset on a province change because nothing here knows which province a
+ * landing slug belongs to (an imported Hà Nội district is one too).
+ */
+export function districtOptionsFor(
+  province: { code: string } | null | undefined,
+  activeDistrict: string,
+): typeof DISTRICTS {
+  if (!province || province.code === DISTRICTS_PROVINCE_CODE) return DISTRICTS
+  return DISTRICTS.filter((d) => d.slug === 'all' || d.slug === activeDistrict)
+}
+
+/**
+ * The district pick to keep when the province becomes `provinceCode`.
+ *
+ * ⛔ AN HCMC DISTRICT DOES NOT SURVIVE A MOVE TO ANOTHER PROVINCE: Hà Nội AND "District 1" is an empty
+ * feed, and the picker (districtOptionsFor) no longer offers HCMC's districts there. So a `DISTRICTS`
+ * slug resets to `all` under any other province. No province or HCMC keeps it, and a slug that is not
+ * in `DISTRICTS` (a /c/<category>/<district> landing slug, resolved by the server) is left alone.
+ */
+export function districtAfterProvinceChange(provinceCode: string | null | undefined, activeDistrict: string): string {
+  if (!provinceCode || provinceCode === DISTRICTS_PROVINCE_CODE || activeDistrict === 'all') return activeDistrict
+  return DISTRICTS.some((d) => d.slug === activeDistrict) ? 'all' : activeDistrict
+}
+
+/** A district option's label in `lang`; the `all` option goes through `allDistrictsLabel()`. */
+export function districtOptionLabel(
+  d: { slug: string; name: string; nameEn: string },
+  lang: string,
+  province?: { name: string; nameEn: string } | null,
+  tr?: (en: string, vi: string) => string,
+): string {
+  if (d.slug === 'all') return allDistrictsLabel(province, lang, tr)
+  return lang === 'vi' ? d.name : d.nameEn
+}

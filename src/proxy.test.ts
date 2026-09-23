@@ -147,8 +147,8 @@ describe('language rewrite into the hidden [lang] segment', () => {
   it('the matcher skips only the real root handlers, not handles that merely start like them', async () => {
     const { config } = await import('./proxy')
     const re = new RegExp(`^${config.matcher[1]}$`)
-    for (const p of ['/', '/c/rentals', '/listing-images-shop', '/apple', '/mdx', '/auth/callback']) expect(re.test(p), p).toBe(true)
-    for (const p of ['/listing-images', '/listing-images/x', '/md/home', '/app', '/_next/static/a.js', '/icon.svg', '/agents.md']) expect(re.test(p), p).toBe(false)
+    for (const p of ['/', '/c/rentals', '/listing-images-shop', '/sitemaps-shop', '/apple', '/mdx', '/auth/callback']) expect(re.test(p), p).toBe(true)
+    for (const p of ['/listing-images', '/listing-images/x', '/sitemaps', '/sitemaps/pages.xml', '/sitemaps/listings-0.xml', '/md/home', '/app', '/_next/static/a.js', '/icon.svg', '/agents.md']) expect(re.test(p), p).toBe(false)
   })
 
   it('⛔ every route handler left at the src/app root is excluded — a rewrite would 404 it', async () => {

@@ -150,7 +150,8 @@ async function underEdition(edition: 'marketplace' | 'services') {
   vi.resetModules()
   const helpCenter = await import('@/lib/help-center')
   const helpData = await import('@/lib/help-center-data')
-  const sitemap = await import('@/app/sitemap.xml/route')
+  // /sitemap.xml is an index since 2026-09-24; the help answers are submitted by the pages child.
+  const sitemap = await import('@/app/sitemaps/pages.xml/route')
   const xml = await (await sitemap.GET()).text()
   return { ...helpCenter, ...helpData, xml }
 }

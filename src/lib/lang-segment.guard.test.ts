@@ -28,7 +28,9 @@ describe('the [lang] segment', () => {
   })
 
   it('every page tree lives under [lang]; only route handlers and metadata stay at the root', () => {
-    const ALLOWED = new Set(['[lang]', 'api', 'app', 'md', 'llms.txt', 'openapi.json', 'robots.txt', 'sitemap.xml',
+    // `sitemaps` holds only `.xml` route handlers (/sitemaps/pages.xml, /sitemaps/listings-<k>.xml):
+    // every URL under it has a dot, which proxy.ts's matcher already excludes, so no page is lost.
+    const ALLOWED = new Set(['[lang]', 'api', 'app', 'md', 'llms.txt', 'openapi.json', 'robots.txt', 'sitemap.xml', 'sitemaps',
       'manifest.ts', 'icon.svg', 'apple-icon.png', 'favicon.ico', 'global-error.tsx', 'globals.css', 'listing-images'])
     const extra = readdirSync('src/app').filter((n) => !ALLOWED.has(n))
     // A new root entry either belongs under [lang] (a page) or must be excluded in proxy.ts's matcher.

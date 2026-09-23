@@ -7,7 +7,7 @@ import { CustomSelect } from './custom-select'
 import { RangeFacetControl } from './range-facet-control'
 import { CategoryIcon } from './category-icons'
 import { STROKE_UI } from '@/lib/icon-tokens'
-import { DISTRICTS } from './listings-explorer.constants'
+import { districtOptionLabel, districtOptionsFor } from './listings-explorer.constants'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Switch } from '@/components/ui/switch'
@@ -33,6 +33,9 @@ type Props = {
   setVerifiedOnly: Dispatch<SetStateAction<boolean>>
   activeDistrict: string
   setActiveDistrict: Dispatch<SetStateAction<string>>
+  /** The area filter's province, if one is applied — names the district picker's `all` option and,
+   *  outside HCMC, drops the HCMC-only district options (districtOptionsFor). */
+  activeProvince?: { code: string; name: string; nameEn: string } | null
   conditionFilter: string
   setConditionFilter: Dispatch<SetStateAction<string>>
   customFilters: Record<string, string>
@@ -52,6 +55,7 @@ export function ExplorerFilters({
   setVerifiedOnly,
   activeDistrict,
   setActiveDistrict,
+  activeProvince = null,
   conditionFilter,
   setConditionFilter,
   customFilters,
@@ -221,7 +225,9 @@ export function ExplorerFilters({
         <CustomSelect
           value={activeDistrict}
           onChange={setActiveDistrict}
-          options={DISTRICTS.map(d => ({ value: d.slug, label: lang === 'vi' ? d.name : d.nameEn }))}
+          // ⚠️ `all` is "no district scope", not "all of HCMC" — see allDistrictsLabel(). The other
+          // options are HCMC's; districtOptionsFor() drops them under another province.
+          options={districtOptionsFor(activeProvince, activeDistrict).map(d => ({ value: d.slug, label: districtOptionLabel(d, lang, activeProvince, tr) }))}
           label={tr('District / Commune', 'Quận / Huyện')}
           placeholder={tr('Select District', 'Chọn Quận / Huyện')}
           activeClassName="text-accent-foreground border-accent-foreground/35"

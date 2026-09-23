@@ -345,9 +345,11 @@ export const config = {
   matcher: [
     '/api/:path*',
     // Every page path. Excluded: Next internals, the root-level route handlers that live OUTSIDE
-    // `[lang]` (md/, app, listing-images), and anything with a dot — static files, metadata routes,
-    // `.well-known`, `*.md`, feeds. A storefront handle cannot contain a dot (HANDLE_RE), so no page
-    // path is lost to that rule.
-    '/((?!_next/|api(?:/|$)|md(?:/|$)|app$|listing-images(?:/|$)|.*\\.).*)',
+    // `[lang]` (md/, app, listing-images, sitemaps/), and anything with a dot — static files, metadata
+    // routes, `.well-known`, `*.md`, feeds. A storefront handle cannot contain a dot (HANDLE_RE), so
+    // no page path is lost to that rule. `sitemaps/` only serves `.xml` children (already dotted) and
+    // is listed so the bare directory path is not rewritten into a `[lang]` page that 404s; the
+    // handle is reserved in handle-format.ts for the same reason `listing-images` is.
+    '/((?!_next/|api(?:/|$)|md(?:/|$)|app$|listing-images(?:/|$)|sitemaps(?:/|$)|.*\\.).*)',
   ],
 }

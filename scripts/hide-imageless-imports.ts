@@ -23,13 +23,13 @@
  */
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+// Every seller whose rows are imported reference listings, pinned by id. ⚠️ THE LIST LIVES IN ONE
+// MODULE NOW: it was a literal here, and the nhatot, muaban and honeycomb importers all shipped
+// seller ids it did not carry. src/lib/import-sellers.test.ts fails when an importer's id is missing.
+import { IMPORT_SELLERS } from '../src/lib/import-sellers'
 
 const APPLY = process.argv.includes('--apply')
 const RESTORE = process.argv.includes('--restore')
-
-/** Every seller whose rows are imported reference listings. Pinned by id — `Seller.name` is not
- *  unique and is user-settable, so a name lookup could sweep a real shop's listings. */
-const IMPORT_SELLERS = ['bds-vn-import-seller-0001', 'cmub0wead0000zrq418bqq27m']
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL }),
@@ -37,7 +37,7 @@ const db = new PrismaClient({
 })
 
 async function main() {
-  const base = { sellerId: { in: IMPORT_SELLERS } }
+  const base = { sellerId: { in: [...IMPORT_SELLERS] } }
   /** `images` is a TEXT column holding a JSON array; '[]' and '' are both "no photo". */
   const imageless = { OR: [{ images: '[]' }, { images: '' }] }
 

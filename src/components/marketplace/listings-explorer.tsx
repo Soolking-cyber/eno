@@ -28,6 +28,7 @@ import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
 import { DISTRICTS } from './listings-explorer.constants'
+import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
 import { ViewToggles, SortStrip } from './explorer-toolbar'
@@ -277,6 +278,9 @@ export function ListingsExplorer({
   const [activeDistrict, setActiveDistrict] = useState('all')
   // New area model (Vietnam 2025: province → ward), driven by the AreaFilter.
   const [activeProvince, setActiveProvince] = useState<Geo | null>(null)
+  // ⛔ An HCMC district pick resets when the province leaves HCMC (Hà Nội AND District 1 is an empty
+  // feed) — one effect for all four paths that set the province. See use-drop-stale-district.ts.
+  useDropStaleDistrict(activeProvince?.code ?? null, setActiveDistrict)
   const [activeWard, setActiveWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null) // {lat,lng,radiusKm} when "search near you" is on
   const [conditionFilter, setConditionFilter] = useState('all') // 'all' | 'new' | 'used'
@@ -3526,6 +3530,9 @@ export function ListingsExplorer({
         setVerifiedOnly={setVerifiedOnly}
         activeDistrict={activeDistrict}
         setActiveDistrict={setActiveDistrict}
+        // Names the district picker's `all` option ("All of Ha Noi" / "All cities") and, outside HCMC,
+        // drops the HCMC-only district options. The filter value is untouched.
+        activeProvince={activeProvince}
         conditionFilter={conditionFilter}
         setConditionFilter={setConditionFilter}
         customFilters={customFilters}
