@@ -57,11 +57,18 @@ export const TRUST = {
   SEVERITY_WEIGHT: { minor: 5, moderate: 18, severe: 45 } as Record<ReportSeverity, number>,
   // Per-class exponential decay half-lives: minor fades in ~3 months, moderate ~1yr.
   DECAY_HALF_LIFE_DAYS: { minor: 45, moderate: 180, severe: 365 } as Record<ReportSeverity, number>,
-  // Scam (severe) decay is FROZEN at 100% until ≥ SCAM_CLEAN_TX verified clean
-  // transactions AFTER the event — reform requires behavior, not patience
-  // (Friedman–Resnick dues-paying) — then decays with H=365 to a permanent floor.
-  SCAM_CLEAN_TX: 5,
+  // Scam (severe) decay is FROZEN at 100% until the dues are PAID — reform requires behavior,
+  // not patience (Friedman–Resnick dues-paying) — then decays with H=365 to a permanent floor.
+  // ⛔ "DUES PAID" IS NOT "THE HOLD WAS RELEASED" (owner, 2026-09-23: "stopgap now, automate
+  // later"). The hold itself ends only by a human (a reversal, or an admin release — scamStage);
+  // a release puts the listings back and leaves this charge frozen at full weight. What will one
+  // day thaw it is buyer-CONFIRMED sales from independent buyers after the release — not built, so
+  // nothing thaws it today. It used to be "5 transactions after the event", where a transaction was
+  // a listing the seller marked sold THEMSELVES: a held seller walked out in a minute.
   SCAM_FLOOR: 0.4, // a confirmed scam NEVER fully disappears
+  // An admin may release a scam hold no sooner than this after the charge was confirmed: time for
+  // other victims of the same seller to come forward before the listings go back up.
+  SCAM_RELEASE_MIN_DAYS: 14,
 
   // Remediation (Amazon pattern): a confirmed report the seller demonstrably FIXED
   // (admin sets Report.remediatedAt) keeps its record but counts at half weight.
@@ -211,32 +218,34 @@ export function credibilityWeight(a: {
 
 /**
  * Per-class penalty decay. minor: 2^(−age/45d) (gone in ~3 months) · moderate:
- * 2^(−age/180d) (~1 yr) · severe (scam): FROZEN at 100% until ≥5 verified clean
- * transactions AFTER the event, then 2^(−ageSinceFifthCleanTx/365d) down to a
- * permanent 40% floor — time alone never launders fraud (Friedman–Resnick).
+ * 2^(−age/180d) (~1 yr) · severe (scam): FROZEN at 100% until the dues are paid, then
+ * 2^(−daysSinceDuesPaid/365d) down to a permanent 40% floor — time alone never launders
+ * fraud (Friedman–Resnick).
+ *
+ * `daysSinceDuesPaid` is null for every charge today: the only thing allowed to pay the dues is
+ * buyer-confirmed graduation after a release, which is not built (see TRUST.SCAM_FLOOR). The slot is
+ * kept, and tested, so that graduation plugs in here rather than growing a second decay rule.
  */
 export function decayFactor(
   severity: ReportSeverity,
   ageDays: number,
-  scam?: { cleanTxAfter: number; daysSinceFifthCleanTx: number | null },
+  scam?: { daysSinceDuesPaid: number | null },
 ): number {
   const age = Math.max(0, ageDays)
   if (severity !== 'severe') {
     return Math.pow(2, -age / TRUST.DECAY_HALF_LIFE_DAYS[severity])
   }
-  const cleanTx = scam?.cleanTxAfter ?? 0
-  if (cleanTx < TRUST.SCAM_CLEAN_TX || scam?.daysSinceFifthCleanTx == null) return 1 // frozen — dues not paid
-  const sinceFifth = Math.max(0, scam.daysSinceFifthCleanTx)
-  return Math.max(TRUST.SCAM_FLOOR, Math.pow(2, -sinceFifth / TRUST.DECAY_HALF_LIFE_DAYS.severe))
+  if (scam?.daysSinceDuesPaid == null) return 1 // frozen — dues not paid
+  const since = Math.max(0, scam.daysSinceDuesPaid)
+  return Math.max(TRUST.SCAM_FLOOR, Math.pow(2, -since / TRUST.DECAY_HALF_LIFE_DAYS.severe))
 }
 
 export type ConductItem = {
   severity: ReportSeverity
   credibility: number // reporter credibilityWeight (0.1–1.0)
   ageDays: number // days since the report was CONFIRMED
-  // severe only — the frozen-scam rule inputs:
-  cleanTxAfter?: number
-  daysSinceFifthCleanTx?: number | null
+  /** severe only — days since the dues were paid (future graduation); null/absent = frozen. */
+  daysSinceDuesPaid?: number | null
 }
 
 /** C · Conduct (0–90): Σ over admin-confirmed reports of sev × cred × decay. */
@@ -246,7 +255,7 @@ export function conductPenalty(items: ReadonlyArray<ConductItem>): number {
     sum +=
       TRUST.SEVERITY_WEIGHT[it.severity] *
       it.credibility *
-      decayFactor(it.severity, it.ageDays, { cleanTxAfter: it.cleanTxAfter ?? 0, daysSinceFifthCleanTx: it.daysSinceFifthCleanTx ?? null })
+      decayFactor(it.severity, it.ageDays, { daysSinceDuesPaid: it.daysSinceDuesPaid ?? null })
   }
   return Math.min(TRUST.CONDUCT_MAX, sum)
 }
@@ -305,7 +314,7 @@ export type TierInputs = {
   responseWilson: number // Wilson lower bound on replied-within-24h (0..1)
   reports90: ReportWindow // confirmed reports in the last 90d
   reports180: ReportWindow // …and 180d (Exceptional's clean window)
-  hasScamHold: boolean // a confirmed scam still FROZEN (dues unpaid) → hard Restricted
+  hasScamHold: boolean // a confirmed scam no human has released yet (scamStage) → hard Restricted
 }
 
 /**
@@ -420,6 +429,71 @@ export function reportClearsCharge(r: ReportStanding | undefined): boolean {
  */
 export const CHARGE_REVERSAL_PREFIX = 'reversed:'
 
+// ── The scam hold's ONLY exits (owner, 2026-09-23: "stopgap now, automate later") ──────────────
+
+/**
+ * TrustEvent written when an ADMIN RELEASES a scam hold: type 'manual_adjust', delta 0 (the charge
+ * keeps its full weight in C — a release is not a pardon), reason `scam_release:<chargeKey>`, and the
+ * reportId column set when the charge has one. Reason-prefixed for the same reason as
+ * CHARGE_REVERSAL_PREFIX: no other manual_adjust row can be mistaken for a release. Written only by
+ * src/lib/scam-hold.ts, after the release rules (14 days, verified identity, a written plan).
+ */
+export const SCAM_RELEASE_PREFIX = 'scam_release:'
+
+/**
+ * The ledger key of one severe charge: its reportId, or `event:<TrustEvent.id>` for a legacy charge
+ * with no report. Every current writer attaches a reportId; the fallback exists so that no charge is
+ * ever un-releasable — a hold nobody can end is the trap this whole change removes.
+ */
+export function scamChargeKey(e: { id: string; reportId: string | null }): string {
+  return e.reportId ?? `event:${e.id}`
+}
+
+/** Latest release marker per charge key (epoch ms), read off the profile's ledger rows. */
+export function scamReleaseMarkers(
+  events: ReadonlyArray<{ type: string; reason: string | null; createdAt: Date }>,
+): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const e of events) {
+    if (e.type !== 'manual_adjust' || !e.reason?.startsWith(SCAM_RELEASE_PREFIX)) continue
+    const key = e.reason.slice(SCAM_RELEASE_PREFIX.length)
+    if (!key) continue
+    out.set(key, Math.max(out.get(key) ?? 0, e.createdAt.getTime()))
+  }
+  return out
+}
+
+/**
+ * Where one STANDING severe charge sits on the way out of a scam hold:
+ *   'held'     — no human has released it: the account is held, listings pulled, posting blocked.
+ *   'released' — an admin release marker was written AFTER the confirmation. The hold ends; the
+ *                charge's weight does not (decayFactor stays frozen).
+ *
+ * ⛔ WHAT IS DELIBERATELY NOT AN INPUT: sales. A listing the seller marks sold and an offer the seller
+ * accepts are both things the seller does alone, and "5 of them after the event" was the whole exit
+ * until 2026-09-23 — a held seller marked five pulled listings sold and was out within the day. A
+ * REVERSED charge (won appeal, overturn) never reaches this function: standingConductEvents drops it.
+ *
+ * FUTURE — graduation: buyer-CONFIRMED sales from independent buyers after the release become a third
+ * stage here, and the only thing that may set decayFactor's daysSinceDuesPaid. Not built.
+ *
+ * Same comparison as the reversal marker: a marker only releases confirmations written BEFORE it.
+ */
+export type ScamStage = 'held' | 'released'
+export function scamStage(confirmedAtMs: number, releasedAtMs: number | undefined): ScamStage {
+  return releasedAtMs !== undefined && releasedAtMs >= confirmedAtMs ? 'released' : 'held'
+}
+
+/** One standing severe charge, as computeTrustV2 reports it (the admin release/overturn read this). */
+export type ScamCharge = { key: string; reportId: string | null; confirmedAtMs: number; stage: ScamStage }
+
+/** The earliest moment an admin may release this set of held charges (every one must be ≥14 days old). */
+export function scamReleaseEligibleAtMs(charges: ReadonlyArray<Pick<ScamCharge, 'confirmedAtMs'>>): number {
+  let latest = -Infinity
+  for (const c of charges) latest = Math.max(latest, c.confirmedAtMs)
+  return latest + TRUST.SCAM_RELEASE_MIN_DAYS * DAY_MS
+}
+
 /**
  * The report_confirmed events that still stand: drop events whose Report was resolved as
  * not-a-violation — or that a reversal marker in the LEDGER cancels — then keep ONE event per
@@ -466,8 +540,9 @@ export function standingConductEvents<E extends { reportId: string | null; creat
 // ── Sale timing (audit 2026-09-23, #26) ──────────────────────────────────────────────
 
 /**
- * WHEN a sold listing sold, for the transaction count and the scam freeze's "clean
- * transactions AFTER the event".
+ * WHEN a sold listing sold, for the transaction count (T, the tier volumes, velocity).
+ * (It also timed the scam freeze's "clean transactions AFTER the event" until 2026-09-23; a
+ * self-marked sale no longer ends a scam hold at all — see scamStage.)
  *
  * soldAt first: it is stamped when status→'sold' (setStatusCore's attributing path) and
  * cleared on reactivation. updatedAt is only a FALLBACK for sold rows that never got a

@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   seller: null as Row | null,
   ownedSellers: [] as Row[],
   sold: [] as Row[],
+  acceptedOffers: [] as Row[],
   executeRawCount: 0,
   appealedReports: [] as Row[],
   chargedEvents: [] as Row[],
@@ -65,7 +66,7 @@ vi.mock('@/lib/db', () => {
       },
       review: { findMany: async () => [] },
       conversation: { count: async () => 0 },
-      message: { findMany: async () => [] },
+      message: { findMany: async () => h.acceptedOffers },
       listing: {
         count: async () => 0,
         findMany: async (a: Row) => { rec('listing.findMany', a); return h.sold },
@@ -99,6 +100,7 @@ beforeEach(() => {
   h.seller = { id: 's1', responseRate: 100, responseMetricAt: null }
   h.ownedSellers = [{ id: 's1', trustScore: 60, trustTier: 'standard' }]
   h.sold = []
+  h.acceptedOffers = []
   h.executeRawCount = 0
   h.appealedReports = []
   h.chargedEvents = []
@@ -119,18 +121,22 @@ describe('#26 — sale timing ignores a restamped updatedAt', () => {
     expect(b?.inputs.hasScamHold).toBe(true)
   })
 
-  it('five sales genuinely AFTER the scam still pay the dues', async () => {
+  // ⛔ INVERTED 2026-09-23. This test used to assert the OPPOSITE ("five sales genuinely after the
+  // scam still pay the dues") — and "genuinely" was the flaw: a `sold` row is the seller's own
+  // claim. A held seller marked five pulled listings sold and walked out within the day.
+  it('⛔ five sales the seller marked AFTER the scam no longer end the hold', async () => {
     h.events = [confirmed('r1', 20, -45)]
     h.reports = [{ id: 'r1', severity: 'severe', reporterProfileId: null, status: 'confirmed', remediatedAt: null }]
     h.sold = Array.from({ length: 5 }, (_, i) => ({ id: `l${i}`, soldAt: new Date(Date.now() - (10 - i) * DAY), updatedAt: new Date(Date.now() - DAY) }))
-    expect((await computeTrustV2('p1'))?.inputs.hasScamHold).toBe(false)
+    const b = (await computeTrustV2('p1'))!
+    expect(b.inputs.hasScamHold).toBe(true)
+    expect(b.inputs.transactions365).toBe(5) // they still count as track record — just not as an exit
+    expect(b.C).toBe(45 * TRUST.CRED_DEFAULT) // and the charge is still frozen at full weight
   })
 
-  it('a sold row with no soldAt falls back to updatedAt', async () => {
-    h.events = [confirmed('r1', 20, -45)]
-    h.reports = [{ id: 'r1', severity: 'severe', reporterProfileId: null, status: 'confirmed', remediatedAt: null }]
+  it('a sold row with no soldAt falls back to updatedAt (track record)', async () => {
     h.sold = Array.from({ length: 5 }, (_, i) => ({ id: `l${i}`, soldAt: null, updatedAt: new Date(Date.now() - (10 - i) * DAY) }))
-    expect((await computeTrustV2('p1'))?.inputs.hasScamHold).toBe(false)
+    expect((await computeTrustV2('p1'))?.inputs.transactions365).toBe(5)
   })
 
   it('the sold query is windowed on soldAt, with updatedAt only for rows that have none', async () => {
@@ -318,5 +324,63 @@ describe('#15 — settleReportCharges re-derives exactly the charged profiles', 
     expect(await settleReportCharges(['r1'])).toBe(0)
     expect(called('trustEvent.createMany')).toHaveLength(0)
     expect(called('syncEnforcement')).toHaveLength(0)
+  })
+})
+
+describe('the scam hold ends only by a human (2026-09-23)', () => {
+  const severe = { id: 'r1', severity: 'severe', reporterProfileId: null, status: 'confirmed', remediatedAt: null }
+  const release = (key: string, ageDays: number) =>
+    ({ id: `m-${key}`, type: 'manual_adjust', delta: 0, reason: `scam_release:${key}`, reportId: key.startsWith('event:') ? null : key, createdAt: new Date(Date.now() - ageDays * DAY) })
+
+  it('an admin release marker written AFTER the confirmation ends the hold — and only the hold', async () => {
+    h.events = [confirmed('r1', 20, -45), release('r1', 1)]
+    h.reports = [severe]
+    const b = (await computeTrustV2('p1'))!
+    expect(b.inputs.hasScamHold).toBe(false)
+    expect(b.inputs.scamCharges).toEqual([{ key: 'r1', reportId: 'r1', confirmedAtMs: expect.any(Number), stage: 'released' }])
+    // A release is not a pardon: C keeps the full, frozen charge; the delta-0 marker adds nothing to M.
+    expect(b.C).toBe(45 * TRUST.CRED_DEFAULT)
+    expect(b.M).toBe(0)
+  })
+
+  it('a marker OLDER than the confirmation releases nothing', async () => {
+    h.events = [confirmed('r1', 5, -45), release('r1', 10)]
+    h.reports = [severe]
+    const b = (await computeTrustV2('p1'))!
+    expect(b.inputs.hasScamHold).toBe(true)
+    expect(b.inputs.scamCharges[0].stage).toBe('held')
+  })
+
+  it('a release of ONE charge leaves another charge holding', async () => {
+    h.events = [confirmed('r1', 20, -45), confirmed('r2', 3, -45), release('r1', 1)]
+    h.reports = [severe, { ...severe, id: 'r2' }]
+    const b = (await computeTrustV2('p1'))!
+    expect(b.inputs.hasScamHold).toBe(true)
+    expect(b.inputs.scamCharges.map((c) => [c.key, c.stage]).sort()).toEqual([['r1', 'released'], ['r2', 'held']])
+  })
+
+  it('accepted offers do not end it either', async () => {
+    h.events = [confirmed('r1', 20, -45)]
+    h.reports = [severe]
+    h.acceptedOffers = Array.from({ length: 6 }, (_, i) => ({ createdAt: new Date(Date.now() - i * DAY), conversation: { listingId: `o${i}` } }))
+    const b = (await computeTrustV2('p1'))!
+    expect(b.inputs.transactions365).toBe(6)
+    expect(b.inputs.hasScamHold).toBe(true)
+  })
+
+  it('a legacy charge with no report is releasable by its event key', async () => {
+    const legacy = { id: 'ev-legacy', type: 'report_confirmed', delta: -25, reason: 'legacy', reportId: null, createdAt: new Date(Date.now() - 30 * DAY) }
+    h.events = [legacy]
+    expect((await computeTrustV2('p1'))!.inputs.scamCharges).toEqual([{ key: 'event:ev-legacy', reportId: null, confirmedAtMs: expect.any(Number), stage: 'held' }])
+    h.events = [legacy, release('event:ev-legacy', 1)]
+    expect((await computeTrustV2('p1'))!.inputs.hasScamHold).toBe(false)
+  })
+
+  it('the transaction window is T\'s trailing year, no longer stretched back to the oldest scam', async () => {
+    h.events = [confirmed('r1', 800, -45)]
+    h.reports = [severe]
+    await computeTrustV2('p1')
+    const since = called('listing.findMany')[0].args.where.OR[0].soldAt.gte as Date
+    expect(Date.now() - since.getTime()).toBeLessThan(366 * DAY)
   })
 })

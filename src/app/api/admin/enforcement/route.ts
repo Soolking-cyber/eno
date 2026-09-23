@@ -12,6 +12,8 @@ import {
   upholdAppeal,
   type EnforcementState,
 } from '@/lib/enforcement'
+import { ENFORCEMENT_SEVERITY } from '@/lib/enforcement-machine'
+import { overturnScamHold, profileHasScamHold, releaseScamHold, scamChargesForAction, type ScamHoldOutcome, type ScamHoldRefusal } from '@/lib/scam-hold'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -73,12 +75,32 @@ type QueueAction = {
 // `{"error":"bad_request"}` · unknown profile → 404 `{"error":"Not found"}` · unrecognised action →
 // 400 `{"error":"Unknown action"}` · success → 200 `{"ok":true}` (set-state: `{ok,applied}`).
 //
+// ⛔ SCAM HOLDS (2026-09-23). A scam hold is DERIVED from the trust ledger, and the daily sync
+// re-applies what it derives — so moving only the enforcement row (a lift, an overturn, a hand-set
+// state below `held`) was undone within a day, after the seller had been told everything was
+// restored. Now: `lift` and a downgrading `set-state` answer 409 `{"error":"scam_hold_use_release"}`
+// while the account derives a scam hold; `overturn` on a scam_hold row reverses the report(s) in the
+// ledger (src/lib/scam-hold.ts); `overturn_scam` does the same from any row of a scam-held account;
+// `release_scam_hold` is the release (14 days · no open report · verified identity · a written plan).
+// Their refusals carry their own codes and statuses (ScamHoldRefusal) — the console maps each to a
+// sentence. An overturn reverses ONLY the reports named in `reportIds` (or the single standing charge
+// when none is named; otherwise 409 `choose_reports` with the list): `GET ?charges=<actionId>` returns
+// that list for the console's overturn dialog — 200 `{charges}` · 409 `{"error":"not_active"}`.
+//
 // ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, ON EACH METHOD. GET's first query (the SLA candidates
 // findMany) sits OUTSIDE the try/catch, and POST has no try/catch at all around liftAction /
 // dismissFlag / applyEnforcement — so a DB rejection in either used to reach Next's default 500
 // HTML. route() now catches it, logs with an `op`, and returns `{"error":"internal_error"}` 500.
 // That is the accepted improvement, and it IS a wire change on those failure paths.
-export const GET = route({ auth: 'admin' }, async () => {
+export const GET = route({ auth: 'admin' }, async ({ req }) => {
+  // The overturn dialog's read: the standing scam charges behind one action's account, so the admin
+  // sees — and chooses — exactly which reports an overturn reverses.
+  const chargesFor = new URL(req.url).searchParams.get('charges')?.trim()
+  if (chargesFor) {
+    const charges = await scamChargesForAction(chargesFor)
+    return charges ? NextResponse.json({ charges }) : NextResponse.json({ error: 'not_active' }, { status: 409 })
+  }
+
   // Buyer-waiting reports (>72h, unanswered), OLDEST first: the longest-waiting
   // buyer is served first. Phase 3: pre-screened reports (repeat-false reporters)
   // are EXCLUDED — they must not jump the queue on the SLA clock.
@@ -184,17 +206,48 @@ export const GET = route({ auth: 'admin' }, async () => {
   }
 })
 
+/** An overturn's selection bound — far above any real account's standing charges; a body past it is refused. */
+const OVERTURN_MAX_REPORTS = 100
+
 export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
-  let body: { action?: string; id?: string; profileId?: string; state?: string; reason?: string; note?: string; days?: number; flagId?: string }
+  let body: { action?: string; id?: string; profileId?: string; state?: string; reason?: string; note?: string; days?: number; flagId?: string; plan?: string; reportIds?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
   const action = String(body.action || '')
   const id = String(body.id || '').trim()
+  // The reports an overturn reverses — the admin's selection in the dialog. Absent → the core decides
+  // (the one standing charge, or `choose_reports`).
+  // ⚠️ REFUSED OVER THE BOUND, NEVER TRUNCATED (review, 2026-09-24): this was `.slice(0, 20)`, so an
+  // admin who ticked 25 charges had 20 overturned and was not told — a partial selection, which the
+  // overturn itself refuses to apply ("never applied to a partial selection", scam-hold.ts).
+  // …and for the same reason a malformed element refuses the whole selection rather than being dropped
+  // from it (`['r1', 7]` used to overturn r1 alone and answer ok).
+  if (body.reportIds !== undefined && (!Array.isArray(body.reportIds) || body.reportIds.some((x) => typeof x !== 'string'))) {
+    return NextResponse.json({ error: 'invalid_input' }, { status: 400 })
+  }
+  const reportIds = body.reportIds as string[] | undefined
+  if (reportIds && reportIds.length > OVERTURN_MAX_REPORTS) return NextResponse.json({ error: 'too_many_rows', max: OVERTURN_MAX_REPORTS }, { status: 400 })
+
+  // A scam-hold outcome on the wire: `{ok, state, charges, remaining?}` (+ held). A REFUSAL is written
+  // at each call site as `{ error: r.error, ...scamFields(r) }` with the refusal's own status —
+  // spelled out there, next to the call, because src/lib/api/errors.test.ts proves these codes are on
+  // the wire by finding `r = await <fn> … error: r.error` in this file (RE_EMITTED_UNIONS).
+  const scamOk = (r: ScamHoldOutcome, held: number) => NextResponse.json(held ? { ...r, held } : r)
+  const scamFields = (r: ScamHoldRefusal) => {
+    const { ok: _ok, status: _status, error: _error, ...rest } = r
+    return rest
+  }
+  const USE_RELEASE = () => NextResponse.json({ error: 'scam_hold_use_release' }, { status: 409 })
 
   switch (action) {
     case 'lift': {
       // Manual relief: restores pulled listings, resets to good_standing, resolves a
       // pending appeal in the seller's favour, notifies.
       if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      // A scam hold is not lifted, it is RELEASED (or its report overturned) — a lift would be undone
+      // by the next sync. Checked on the PROFILE, not the row: an admin suspension on top of a scam
+      // hold would drop straight back into it too.
+      const target = await db.enforcementAction.findUnique({ where: { id }, select: { profileId: true } })
+      if (target && (await profileHasScamHold(target.profileId))) return USE_RELEASE()
       // `held` = pulled listings the seller identity gate parked instead of restoring (gate on only;
       // present in the body only when non-zero, so the gate-off response is unchanged).
       let held = 0
@@ -206,9 +259,39 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // The action was WRONG (not just no-longer-needed) — same effects as lift, but
       // the record says overturned (feeds fairness accounting).
       if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      const target = await db.enforcementAction.findUnique({ where: { id }, select: { profileId: true, reason: true, status: true } })
+      if (target?.status === 'active' && target.reason === ENFORCEMENT_REASON.SCAM_HOLD) {
+        // A wrong SCAM hold is a wrong scam REPORT: overturn it in the ledger, or the sync re-holds.
+        let held = 0
+        const r = await overturnScamHold({ actionId: id, admin, reportIds, onHeld: (n) => { held = n } })
+        if (!r.ok) return NextResponse.json({ error: r.error, ...scamFields(r) }, { status: r.status })
+        return scamOk(r, held)
+      }
+      if (target && (await profileHasScamHold(target.profileId))) return USE_RELEASE()
       let held = 0
       const ok = await liftAction(id, { to: 'overturned', by: admin, onHeld: (n) => { held = n } })
       return ok ? NextResponse.json(held ? { ok: true, held } : { ok: true }) : NextResponse.json({ error: 'not_active' }, { status: 409 })
+    }
+
+    case 'overturn_scam': {
+      // Overturn the chosen scam report(s) behind a hold from ANY active row of the account (an admin
+      // suspension on top of a scam hold has no scam_hold row to click). A non-scam row is left alone.
+      if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      let held = 0
+      const r = await overturnScamHold({ actionId: id, admin, reportIds, onHeld: (n) => { held = n } })
+      if (!r.ok) return NextResponse.json({ error: r.error, ...scamFields(r) }, { status: r.status })
+      return scamOk(r, held)
+    }
+
+    case 'release_scam_hold': {
+      // The release: refuses unless ≥14 days since confirmation, no open report against the account,
+      // a live verified identity not shared with another held/suspended account, and a written plan
+      // (stored on the audit record).
+      if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      let held = 0
+      const r = await releaseScamHold({ actionId: id, admin, plan: String(body.plan ?? ''), onHeld: (n) => { held = n } })
+      if (!r.ok) return NextResponse.json({ error: r.error, ...scamFields(r) }, { status: r.status })
+      return scamOk(r, held)
     }
 
     case 'uphold_appeal': {
@@ -239,6 +322,8 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       }
       const profile = await db.profile.findUnique({ where: { id: profileId }, select: { id: true } })
       if (!profile) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      // Hand-setting a scam-held account BELOW held is a lift by another name — refused the same way.
+      if (ENFORCEMENT_SEVERITY[state] < ENFORCEMENT_SEVERITY.held && (await profileHasScamHold(profileId))) return USE_RELEASE()
       const days = Number(body.days)
       let held = 0
       const applied = await applyEnforcement(

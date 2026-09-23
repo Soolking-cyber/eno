@@ -83,6 +83,7 @@ vi.mock('next/server', () => ({ after: (fn: () => Promise<unknown>) => { h.pendi
 vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
 
 const { syncEnforcement, applyEnforcement, upholdAppeal } = await import('./enforcement')
+const { TRUST } = await import('./trust-math')
 
 const breakdown = (o: { scam?: boolean; score?: number; C?: number }) => ({
   score: o.score ?? 80,
@@ -181,6 +182,55 @@ describe('upholdAppeal tells the truth about who lifts it', () => {
   })
 
   it('a system-derived action keeps the "lifts automatically" copy', async () => {
-    expect(await upheld({ state: 'held', reason: 'scam_hold', decidedBy: 'system' })).toMatch(/lifts automatically/)
+    expect(await upheld({ state: 'throttled', reason: 'conduct_restricted', decidedBy: 'system' })).toMatch(/lifts automatically/)
+  })
+
+  // ⛔ 2026-09-23: a scam hold is system-created but only a PERSON ends it (a release or an overturn),
+  // so "lifts automatically as your record improves" became a promise the platform cannot keep.
+  it('an upheld SCAM hold says how it ends — never "automatically", never by marking items sold', async () => {
+    const body = await upheld({ state: 'held', reason: 'scam_hold', decidedBy: 'system' })
+    expect(body).not.toMatch(/automatically/)
+    expect(body).toMatch(/verify your identity/)
+    expect(body).toMatch(/marked sold/)
+    expect(body).toContain(`${TRUST.SCAM_RELEASE_MIN_DAYS} days`)
+    expect(h.notices[0].url).toBe('/dashboard/verification')
+  })
+})
+
+describe('the scam-hold notices (seller copy, EN + VI)', () => {
+  it('a system scam hold sends its OWN notice, not the generic "held" one', async () => {
+    await syncEnforcement('p1', breakdown({ scam: true }))
+    await Promise.all(h.pending)
+    expect(h.profile.enforcementState).toBe('held')
+    const n = h.notices[0]
+    expect(n.body).toMatch(/Marking items as sold does not lift this/)
+    expect(n.body).toMatch(/verify your identity/)
+    expect(n.body).toContain(`${TRUST.SCAM_RELEASE_MIN_DAYS} days`)
+    expect(n.url).toBe('/dashboard/verification')
+  })
+
+  it('the Vietnamese recipient gets the Vietnamese copy', async () => {
+    h.profile.locale = 'vi'
+    await syncEnforcement('p1', breakdown({ scam: true }))
+    await Promise.all(h.pending)
+    expect(h.notices[0].body).toMatch(/đánh dấu đã bán không gỡ được/)
+    expect(h.notices[0].body).toContain(`${TRUST.SCAM_RELEASE_MIN_DAYS} ngày`)
+  })
+
+  it('a sync carrying the release notice says "released", not "under review"', async () => {
+    seed('held', { reason: 'scam_hold', decidedBy: 'system' })
+    await syncEnforcement('p1', breakdown({ score: 50, C: 27 }), { notice: 'scam_released' })
+    await Promise.all(h.pending)
+    expect(h.profile.enforcementState).toBe('throttled')
+    expect(h.notices[0].title).toBe('Your listings are visible again')
+    expect(h.notices[0].body).not.toMatch(/under review/)
+  })
+
+  it('a non-scam hold keeps the generic held notice', async () => {
+    await applyEnforcement('p1', { state: 'held', reason: 'admin_manual', expiresAt: null }, { decidedBy: 'mod@eno.vn' })
+    await Promise.all(h.pending)
+    expect(h.notices[0].title).toBe('Your listings are paused')
+    expect(h.notices[0].body).toMatch(/you can appeal if this is a mistake/)
+    expect(h.notices[0].url).toBe('/dashboard')
   })
 })

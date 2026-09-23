@@ -3,6 +3,7 @@ import type { PublishBlockCode } from '@/lib/publish-guard'
 import type { ListingStatusErrorCode, ListingUpdateErrorCode } from '@/lib/core/listings'
 import type { SellerUpdateErrorCode } from '@/lib/core/seller'
 import type { OwnerCheckErrorCode } from '@/lib/listing-owner'
+import type { ScamHoldRefusalCode } from '@/lib/scam-hold'
 
 /**
  * THE ERROR VOCABULARY THAT IS ALREADY ON THE WIRE.
@@ -361,6 +362,26 @@ export type NicheApiErrorCode =
   | 'reserved'
   | 'retry'
   | 'save_failed'
+  // POST /api/admin/enforcement: a lift / downgrade the next daily sync would undo, because the
+  // account still derives a scam hold — the console points the admin at Release or Overturn instead.
+  | 'scam_hold_use_release'
+
+  /**
+   * ⚠️ SEVEN MORE FROM A LIBRARY LAYER THE TEXT SCAN CANNOT SEE — the scam-hold release and overturn
+   * (src/lib/scam-hold.ts, `ScamHoldRefusalCode`), which POST /api/admin/enforcement re-emits as
+   * `{ error: r.error, …fields }`. Pinned both ways: errors.test.ts harvests the union through
+   * RE_EMITTED_UNIONS, and the assertion at the bottom of this file fails the build if the union grows
+   * a code this file does not list. (`not_active` and `identity_unverified`, the other two members,
+   * were already on the wire from other routes.)
+   */
+  | 'plan_required'
+  | 'no_scam_hold'
+  | 'release_too_soon'
+  | 'open_reports'
+  | 'identity_linked'
+  | 'legacy_charge'
+  | 'choose_reports'
+
   | 'send_failed'
   | 'send_in_flight'
   | 'sign_failed'
@@ -612,6 +633,14 @@ const ALL = [
   'reserved',
   'retry',
   'save_failed',
+  'scam_hold_use_release',
+  'plan_required',
+  'no_scam_hold',
+  'release_too_soon',
+  'open_reports',
+  'identity_linked',
+  'legacy_charge',
+  'choose_reports',
   'send_failed',
   'send_in_flight',
   'shop_unavailable',
@@ -691,7 +720,7 @@ void _everyCodeIsListed
  * returning `admin_required`, a code the transition function itself never produces.
  */
 type UnlistedHelperCode = Exclude<
-  SellerUpdateErrorCode | ListingStatusErrorCode | OwnerCheckErrorCode,
+  SellerUpdateErrorCode | ListingStatusErrorCode | OwnerCheckErrorCode | ScamHoldRefusalCode,
   ApiErrorCode
 >
 const _everyHelperCodeIsAnApiCode:

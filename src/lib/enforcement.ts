@@ -4,7 +4,7 @@ import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from './db'
 import { sendPushToProfile } from './push'
 import { pickLocale } from './admin-macros'
-import { DAY_MS } from './trust-math'
+import { DAY_MS, TRUST } from './trust-math'
 import { isVerifiedCatalogueSeller } from './catalogue-seller'
 import { partitionByIdentityGate, settleHolds } from './compliance/seller-publish-gate'
 import {
@@ -77,8 +77,12 @@ class EnforcementConflict extends Error {
 }
 
 // ── Seller-facing notices (calm, specific, ONE action — never punitive-corporate).
-// EN + VI; the recipient gets THEIR language (Profile.locale). Deep link: /dashboard.
-type Notice = { title: { en: string; vi: string }; body: { en: string; vi: string } }
+// EN + VI; the recipient gets THEIR language (Profile.locale). Deep link: /dashboard, unless the
+// notice names a different single action (`url`).
+type Notice = { title: { en: string; vi: string }; body: { en: string; vi: string }; url?: string }
+
+// The release wait, from the constant the release rule enforces — never retyped into copy.
+const RELEASE_DAYS = TRUST.SCAM_RELEASE_MIN_DAYS
 const NOTICE: Record<string, Notice> = {
   warned: {
     title: { en: 'A note about your account', vi: 'Lưu ý về tài khoản của bạn' },
@@ -115,6 +119,35 @@ const NOTICE: Record<string, Notice> = {
       vi: 'Đăng tin và nhắn tin tạm dừng trong khi chúng tôi xem xét tài khoản của bạn. Bạn có thể gửi một khiếu nại từ trang quản lý.',
     },
   },
+  // ⛔ A SCAM HOLD GETS ITS OWN NOTICE, because the generic `held` copy is wrong for it twice over:
+  // it implies the review is still running (the report is already CONFIRMED), and it says nothing
+  // about how the hold ends — which since 2026-09-23 is only by a person: a won appeal on the report,
+  // or a release (verified identity + a written plan + an admin, no sooner than RELEASE_DAYS after
+  // the confirmation). Sellers used to be able to mark items sold to get out; saying so outright
+  // stops them trying. The one action is verification, the step only the seller can take.
+  scam_hold: {
+    title: { en: 'Your listings are paused', vi: 'Tin đăng của bạn đã tạm dừng' },
+    body: {
+      en: `A serious report against your account was confirmed, so your listings are hidden. Marking items as sold does not lift this. If the report is wrong, appeal it from the case page. To ask for your listings back: verify your identity, then message our support team with your plan — what happened and what you have changed. We review requests no sooner than ${RELEASE_DAYS} days after the report was confirmed.`,
+      vi: `Một báo cáo nghiêm trọng về tài khoản của bạn đã được xác nhận nên tin đăng của bạn đang bị ẩn. Việc đánh dấu đã bán không gỡ được hạn chế này. Nếu báo cáo không đúng, hãy khiếu nại trong trang hồ sơ vụ việc. Để yêu cầu khôi phục tin đăng: hãy xác minh danh tính, sau đó nhắn cho đội hỗ trợ kế hoạch của bạn — điều gì đã xảy ra và bạn đã thay đổi những gì. Chúng tôi chỉ xem xét yêu cầu sau ít nhất ${RELEASE_DAYS} ngày kể từ khi báo cáo được xác nhận.`,
+    },
+    url: '/dashboard/verification',
+  },
+  // Sent with the transition a RELEASE causes (scam-hold.ts). The charge keeps its weight, so the
+  // account may land in `throttled` (caution line, low tier) rather than good standing — the generic
+  // `throttled` copy ("under review") would be false, and "everything is restored" would be too.
+  // ⚠️ NO PROMISE ABOUT POSTING (review, 2026-09-24). A released seller usually stays in the
+  // restricted tier, which refuses new listings, and whether a release should give posting back is
+  // an OWNER decision not yet made — so the copy says posting "may stay blocked" and names no path
+  // or timeline (it used to say "while your trust score rebuilds", which implied one). It also says
+  // the listing the confirmed report was about does NOT come back (forgetPulledListings).
+  scam_released: {
+    title: { en: 'Your listings are visible again', vi: 'Tin đăng của bạn đã hiển thị trở lại' },
+    body: {
+      en: 'Our team reviewed your plan and released the hold: the listings it paused are visible again, apart from any listing a confirmed report was about. The confirmed report stays on your record at full weight, so buyers may see a caution note and posting new listings may stay blocked. Message our support team if you have questions.',
+      vi: 'Đội ngũ của chúng tôi đã xem xét kế hoạch của bạn và gỡ tạm dừng: các tin đăng bị tạm dừng đã hiển thị trở lại, trừ tin đăng mà báo cáo đã xác nhận nhắc đến. Báo cáo đã xác nhận vẫn được giữ nguyên trong hồ sơ của bạn, vì vậy người mua có thể thấy lưu ý thận trọng và việc đăng tin mới có thể vẫn bị chặn. Nếu có câu hỏi, hãy nhắn cho đội hỗ trợ của chúng tôi.',
+    },
+  },
   // Ban-evasion review (Phase 3): held pending a HUMAN look — the copy must not
   // accuse (a phone match is often a family member: VN families share numbers).
   ban_evasion_review: {
@@ -138,6 +171,17 @@ const NOTICE: Record<string, Notice> = {
       vi: 'Chúng tôi đã xem xét kỹ khiếu nại của bạn và quyết định được giữ nguyên. Hạn chế sẽ tự gỡ khi hồ sơ của bạn cải thiện.',
     },
   },
+  // Upheld on a SCAM HOLD: system-created, but it no longer "lifts automatically as your record
+  // improves" — nothing the seller does alone ends it (scamStage), so the generic upheld copy would
+  // be a promise the platform cannot keep. It says what does end it.
+  appeal_upheld_scam: {
+    title: { en: 'Your appeal was reviewed', vi: 'Khiếu nại của bạn đã được xem xét' },
+    body: {
+      en: `We looked at your appeal carefully and the hold stays. It does not lift on its own or when items are marked sold. To ask for release: verify your identity and message our support team with your plan — we review it no sooner than ${RELEASE_DAYS} days after the report was confirmed.`,
+      vi: `Chúng tôi đã xem xét kỹ khiếu nại của bạn và việc tạm dừng vẫn được giữ nguyên. Hạn chế này không tự gỡ và cũng không được gỡ khi đánh dấu đã bán. Để yêu cầu gỡ: hãy xác minh danh tính và nhắn cho đội hỗ trợ kế hoạch của bạn — chúng tôi chỉ xem xét sau ít nhất ${RELEASE_DAYS} ngày kể từ khi báo cáo được xác nhận.`,
+    },
+    url: '/dashboard/verification',
+  },
   // Upheld on a HUMAN-PROTECTED action (an admin's, or a ban-evasion review): the system can never
   // lift it (planSystemMove), so "lifts automatically" would be a promise the platform cannot keep.
   appeal_upheld_manual: {
@@ -158,10 +202,11 @@ function notifyEnforcement(profileId: string, noticeKey: string) {
       if (!copy) return
       const p = await db.profile.findUnique({ where: { id: profileId }, select: { locale: true } })
       const l = pickLocale(p?.locale)
+      const url = copy.url ?? '/dashboard'
       await db.notification.create({
-        data: { recipientId: profileId, type: 'system', title: copy.title[l], body: copy.body[l], actorName: 'eno.vn', url: '/dashboard' },
+        data: { recipientId: profileId, type: 'system', title: copy.title[l], body: copy.body[l], actorName: 'eno.vn', url },
       })
-      await sendPushToProfile(profileId, { title: copy.title[l], body: copy.body[l], url: '/dashboard', tag: 'eno-enforcement' })
+      await sendPushToProfile(profileId, { title: copy.title[l], body: copy.body[l], url, tag: 'eno-enforcement' })
     } catch (e) {
       console.error('[enforcement] notify failed', profileId, e)
     }
@@ -200,6 +245,50 @@ async function restoreListings(ids: string[], client: Pick<typeof db, 'listing'>
   const released = parked.length ? await settleHolds(parked) : 0
   for (const id of ids) { try { revalidatePublicPath(`/listings/${id}`) } catch { /* no request scope */ } }
   return { held: Math.max(0, parked.length - released) }
+}
+
+/**
+ * Take listings OUT of every active hold's restore list (`pulledListingIds`), so no later lift, expiry,
+ * downgrade or scam-hold release republishes them. For a listing a MODERATION decision took down while
+ * a hold had it pulled — above all the listing a confirmed scam report is about.
+ *
+ * ⛔ WHY IT EXISTS (review of the scam-hold release, 2026-09-24). confirm-report re-derives enforcement
+ * FIRST — the resulting scam hold pulls every live listing, the reported one included, and records it —
+ * and only then takes the reported listing down. Both writes are the same `verified=false`, so the hold's
+ * list could not tell "pulled by the hold" from "taken down by the report", and the restore on release
+ * (or overturn, or any lift) put the confirmed scam listing back on the public feed. A takedown is not
+ * the hold's to undo — the admin re-approves in Moderation ("NO AUTO-REPUBLISH", core/listings.ts).
+ *
+ * Throws on a DB failure (the release/overturn callers must not go on to restore); confirm-report,
+ * whose dock has already landed, calls it best-effort. Compare-and-set per row: a row a concurrent
+ * transition rewrote is re-read rather than overwritten with a stale list.
+ */
+export async function forgetPulledListings(listingIds: ReadonlyArray<string | null | undefined>): Promise<number> {
+  const ids = [...new Set(listingIds.filter((x): x is string => !!x))]
+  if (!ids.length) return 0
+  let forgotten = 0
+  for (let attempt = 0; attempt < 3; attempt++) {
+    // `contains` on the JSON text narrows to rows that can hold one of the ids (cuids never collide
+    // as substrings of one another once quoted); the exact membership test is parsePulled below.
+    const rows = await db.enforcementAction.findMany({
+      where: { status: 'active', OR: ids.map((id) => ({ pulledListingIds: { contains: `"${id}"` } })) },
+      select: { id: true, pulledListingIds: true },
+    })
+    let raced = false
+    for (const r of rows) {
+      const before = parsePulled(r.pulledListingIds)
+      const kept = before.filter((id) => !ids.includes(id))
+      if (kept.length === before.length) continue
+      const { count } = await db.enforcementAction.updateMany({
+        where: { id: r.id, status: 'active', pulledListingIds: r.pulledListingIds },
+        data: { pulledListingIds: kept.length ? JSON.stringify(kept) : null },
+      })
+      if (count) forgotten += before.length - kept.length
+      else raced = true
+    }
+    if (!raced) return forgotten
+  }
+  throw new Error('forgetPulledListings: the hold kept changing under the rewrite')
 }
 
 // Refresh the seller's PUBLIC surfaces after a state transition: the storefront +
@@ -263,6 +352,11 @@ export async function applyEnforcement(
     expect?: { state: EnforcementState; activeId: string | null }
     /** This move re-instates a superseded human action (planSystemMove) — retire the floor row. */
     reinstatesFloor?: boolean
+    /**
+     * The NOTICE key to send instead of the state's own — for a transition whose cause the state
+     * alone misdescribes (a scam-hold RELEASE landing in `throttled` is not "under review").
+     */
+    notice?: string
   },
 ): Promise<boolean> {
   // A stale-snapshot refusal is the normal answer for a system caller (the next sync re-derives
@@ -461,11 +555,18 @@ export async function applyEnforcement(
     else if (current === 'suspended') await clearBannedIdentity(profileId)
 
     await revalidateSellerSurfaces(profileId) // ISR caution line (listing/storefront)
+    // ⚠️ THE OVERRIDE ONLY SPEAKS FOR A MOVE BELOW `held` (review, 2026-09-24). Its one caller is the
+    // scam-hold release, whose words are "your listings are visible again" — true only when this move
+    // restores them. A release's re-derive cannot land at held or above today (the release clears the
+    // derived hold, and a floor is never above held), but that is an argument across three files; a
+    // move that pulls or keeps listings down always gets its own state's notice instead.
+    const noticeOverride = ctx.notice && nextSev < ENFORCEMENT_SEVERITY.held ? ctx.notice : undefined
     notifyEnforcement(
       profileId,
-      next.reason === ENFORCEMENT_REASON.INSURANCE_GRACE ? 'grace'
+      noticeOverride ?? (next.reason === ENFORCEMENT_REASON.INSURANCE_GRACE ? 'grace'
         : next.reason === ENFORCEMENT_REASON.BAN_EVASION_REVIEW ? 'ban_evasion_review'
-          : next.state,
+          : next.reason === ENFORCEMENT_REASON.SCAM_HOLD ? 'scam_hold'
+            : next.state),
     )
     return true
   } catch (e) {
@@ -499,6 +600,8 @@ export async function syncEnforcement(
     triggerReportId?: string | null
     /** Rows a downgrade restore PARKED behind the seller identity gate — for an admin caller to show. */
     onHeld?: (held: number) => void
+    /** NOTICE key override for the transition this sync applies (applyEnforcement ctx.notice). */
+    notice?: string
   },
 ): Promise<void> {
   try {
@@ -565,6 +668,7 @@ export async function syncEnforcement(
       expect: { state: current, activeId: active?.id ?? null },
       triggerReportId: opts?.triggerReportId ?? null,
       onHeld: opts?.onHeld,
+      notice: opts?.notice,
     })
   } catch (e) {
     // Fail-quiet contract: the sync rides trust recomputes / report resolutions —
@@ -672,8 +776,14 @@ export async function upholdAppeal(actionId: string): Promise<boolean> {
     if (!action || !action.appealedAt || action.appealOutcome) return false
     await db.enforcementAction.update({ where: { id: actionId }, data: { appealOutcome: 'upheld', appealResolvedAt: new Date() } })
     // Only a SYSTEM-endable action "lifts automatically as your record improves"; an admin's or a
-    // ban-evasion review never does (planSystemMove), so it gets the honest copy.
-    notifyEnforcement(action.profileId, isHumanProtected(action) ? 'appeal_upheld_manual' : 'appeal_upheld')
+    // ban-evasion review never does (planSystemMove), so it gets the honest copy — and neither does
+    // a scam hold, which only a person ends (scamStage), so it gets copy saying how.
+    notifyEnforcement(
+      action.profileId,
+      isHumanProtected(action) ? 'appeal_upheld_manual'
+        : action.reason === ENFORCEMENT_REASON.SCAM_HOLD ? 'appeal_upheld_scam'
+          : 'appeal_upheld',
+    )
     return true
   } catch (e) {
     console.error('[enforcement] uphold failed', actionId, e)
