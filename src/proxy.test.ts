@@ -78,7 +78,7 @@ describe('language rewrite into the hidden [lang] segment', () => {
     const { proxy } = await import('./proxy')
     const res = proxy(new NextRequest(`https://eno.vn${path}`, { method: init.method ?? 'GET', headers: { host: 'eno.vn', ...(init.headers ?? {}) } }))
     const target = res.headers.get('x-middleware-rewrite')
-    return { status: res.status, rewrite: target ? new URL(target).pathname : null, contentLanguage: res.headers.get('content-language') }
+    return { status: res.status, rewrite: target ? new URL(target).pathname : null, contentLanguage: res.headers.get('content-language'), setCookie: res.headers.get('set-cookie') }
   }
 
   it('renders Vietnamese for a Vietnamese browser and English otherwise', async () => {
@@ -87,6 +87,21 @@ describe('language rewrite into the hidden [lang] segment', () => {
     expect((await run('/c/rentals', { headers: { 'accept-language': 'en-US' } })).rewrite).toBe('/en/c/rentals')
     expect((await run('/c/rentals')).rewrite).toBe('/en/c/rentals')
     expect((await run('/', { headers: { 'accept-language': 'vi' } })).contentLanguage).toBe('vi')
+  })
+
+  it('⛔ Content-Language is EXACTLY the rendered variant on every edge-cached route family', async () => {
+    // infra/cloudflare/eno-html-edge-cache.js stores a page only if this header equals its key's
+    // variant (`en` / `vi`, lowercase, no region). Emit `vi-VN`, or drop it, and the edge cache
+    // silently stores nothing — every test there stays green, TTFB goes back to origin speed.
+    for (const path of ['/', '/c/rentals', '/privacy', '/safety', '/sellers/s1', '/terms']) {
+      for (const [al, want] of [['vi-VN,vi;q=0.9', 'vi'], ['en-US,en;q=0.9', 'en']] as const) {
+        const r = await run(path, { headers: { 'accept-language': al } })
+        expect(r.contentLanguage, `${path} ${al}`).toBe(want)
+        expect(r.rewrite?.split('/')[1], `${path} ${al}`).toBe(want)
+        // …and it sets no cookie: the Worker refuses to store a response that does.
+        expect(r.setCookie, `${path} ${al}`).toBeNull()
+      }
+    }
   })
 
   it('lets the lang cookie override the browser', async () => {

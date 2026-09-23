@@ -18,8 +18,29 @@
  * ⛔ WHY IT EXISTS AT ALL: one public URL serves TWO server-rendered languages (`/` is ~39 KB br in
  * `en` and a different document in `vi`), and the Cloudflare cache cannot key on language. So the
  * app sets `Cloudflare-CDN-Cache-Control: no-store` (src/proxy.ts) and this Worker supplies the
- * missing key itself, keying on the INPUTS `lang-variant.ts` reads — the `lang` cookie, else the
- * raw Accept-Language — rather than re-implementing the rule, so the two cannot drift.
+ * missing key itself: the RESOLVED variant, `__k=en` or `__k=vi`.
+ *
+ * ⛔ IT USED TO KEY ON THE RAW INPUTS, AND THEY DRIFTED (audit #127). The claim was that keying on
+ * "the `lang` cookie, else the raw Accept-Language" could not disagree with the origin. It could:
+ * this file took the FIRST `lang=` and lowercased it without decoding, while Next's parser takes the
+ * LAST duplicate, percent-decodes it and matches case-sensitively. `lang=EN` + `Accept-Language: vi`,
+ * `lang=%76%69`, and `lang=en; lang=vi` were each keyed one language and rendered the other — so
+ * one request could plant Vietnamese HTML under the key every returning English reader uses.
+ * Now two independent guards:
+ *   1. variantFor() below is the origin's rule — Next's cookie parsing (last wins, decodeURIComponent,
+ *      case kept) + src/lib/lang-variant.ts — and src/lib/edge-worker.test.ts runs THIS file against
+ *      Next's real parser and the app's real `langVariantFor` over a matrix, so a copy that drifts
+ *      fails the build instead of the cache;
+ *   2. nothing is stored unless the origin's own `Content-Language` (set by src/proxy.ts) equals the
+ *      key's variant — so even a drift the matrix misses cannot PLANT the wrong language under a key.
+ *      ⚠️ It guards storing, not serving: a reader whose headers the Worker misjudges still gets the
+ *      copy for the variant it computed. Guard 1 is what keeps that from happening.
+ *
+ * ROUTES (zone-level, NOT part of this script — `deploy-worker.sh` leaves them alone). Read from
+ * the API 2026-09-23, identical on both zones, apex AND www:
+ *   /   /c/*   /privacy*   /safety*   /sellers/*   /terms*
+ * `/sellers/*` is force-dynamic at the origin (`private, no-store`), so it is passed through
+ * uncached — see storable(); the others send `s-maxage` and cache.
  *
  * ⛔ STALE-WHILE-REVALIDATE IS THE POINT OF THE 2026-09-22 REVISION. Measured that day:
  *   eno.vn      HIT ×5, TTFB 0.18 s, age 115
@@ -64,11 +85,95 @@ const FRESH_TTL = 300;
  */
 const SWR_TTL = 21600;
 
-function langKeyInputs(request) {
-  const cookie = request.headers.get("cookie") || "";
-  const m = /(?:^|;\s*)lang=([A-Za-z-]{2,10})(?:;|$)/.exec(cookie);
-  if (m) return "c=" + m[1].toLowerCase();
-  return "a=" + (request.headers.get("accept-language") || "").toLowerCase().slice(0, 120);
+/** Mirror of src/lib/i18n/langs.ts LANGS — the drift test fails if they differ. */
+const LANGS = ["en", "vi", "zh-Hans", "ko", "ja", "ru", "km", "ms", "th", "fr", "hi"];
+
+/** Next's cookie parser, byte for byte (next/dist/compiled/@edge-runtime/cookies parseCookie):
+ *  split on `; *`, decodeURIComponent each value, the LAST duplicate wins, case is kept. */
+function cookieValue(header, name) {
+  let found = null;
+  for (const pair of (header || "").split(/; */)) {
+    if (!pair) continue;
+    const at = pair.indexOf("=");
+    if (at === -1) { if (pair === name) found = "true"; continue; }
+    if (pair.slice(0, at) !== name) continue;
+    try { found = decodeURIComponent(pair.slice(at + 1)); } catch { /* Next skips undecodable pairs */ }
+  }
+  return found;
+}
+
+/** src/lib/lang-variant.ts matchSupportedLanguage / acceptLanguageOrder / langVariantFor, verbatim. */
+function matchSupported(raw) {
+  const lc = raw.trim().toLowerCase();
+  if (!lc) return null;
+  if (lc.startsWith("zh")) return "zh-Hans";
+  const primary = lc.split("-")[0];
+  return LANGS.includes(primary) ? primary : null;
+}
+function acceptOrder(header) {
+  if (!header) return [];
+  return header
+    .split(",")
+    .map((part, i) => {
+      const [tag, ...params] = part.trim().split(";");
+      const q = params.map((p) => p.trim()).find((p) => p.startsWith("q="));
+      const qv = q ? Number(q.slice(2)) : 1;
+      return { tag: tag.trim(), q: Number.isFinite(qv) ? qv : 0, i };
+    })
+    .filter((x) => x.tag && x.tag !== "*" && x.q > 0)
+    .sort((a, b) => b.q - a.q || a.i - b.i)
+    .map((x) => x.tag);
+}
+function variantFor(request) {
+  const cookie = cookieValue(request.headers.get("cookie"), "lang");
+  if (cookie && LANGS.includes(cookie)) return cookie === "vi" ? "vi" : "en";
+  for (const tag of acceptOrder(request.headers.get("accept-language"))) {
+    const hit = matchSupported(tag);
+    if (hit) return hit === "vi" ? "vi" : "en";
+  }
+  return "en";
+}
+
+/**
+ * Does the ORIGIN allow a shared cache to hold this document? If not, a copy we already hold is wrong
+ * too — the refresh evicts it.
+ *   · 200 text/html — nothing else is a document;
+ *   · the origin OPTS IN: `s-maxage` > 0, and no `private` / `no-store` / `no-cache`. A force-dynamic
+ *     page (/sellers/*: profile edits, the enforcement caution line) was being stored anyway and
+ *     served for up to SWR_TTL, out of reach of revalidatePublicPath (audit #402). Every other routed
+ *     page sends `s-maxage` (measured on both zones, 2026-09-23), so requiring it costs nothing and
+ *     means a page can only enter the edge cache because the origin said so.
+ */
+function originShareable(res) {
+  const ct = res.headers.get("content-type") || "";
+  const cc = res.headers.get("cache-control") || "";
+  return (
+    res.status === 200 &&
+    ct.includes("text/html") &&
+    /\bs-maxage=[1-9]/i.test(cc) &&
+    !/\b(private|no-store|no-cache)\b/i.test(cc)
+  );
+}
+
+/**
+ * …and may THIS response be the copy stored under `variant`? Two more conditions, and neither is a
+ * reason to EVICT — both describe the request, not the document, and evicting on them would hand any
+ * visitor a lever to empty the entry for everyone:
+ *   · `Content-Language` equals the key's variant — guard 2 above. A mismatch means this visitor's
+ *     headers resolve differently here than at the origin; the copy we hold was checked against its
+ *     key when it was stored, so it stays. src/proxy.test.ts pins that the origin sends exactly
+ *     `en` / `vi`; the live origin was measured doing exactly that on every route, both zones.
+ *   · no `Set-Cookie` — a response that sets a cookie was rendered for ONE visitor (a sign-in
+ *     landing, say): stripping the header on store kept the cookie out of the shared entry but not
+ *     whatever the document said about that visitor. No routed page sets one today (24 origin
+ *     responses, both zones, both variants, 2026-09-23; src/proxy.test.ts pins the proxy side).
+ */
+function storable(res, variant) {
+  return (
+    originShareable(res) &&
+    (res.headers.get("content-language") || "").toLowerCase() === variant &&
+    !res.headers.has("set-cookie")
+  );
 }
 
 /**
@@ -77,8 +182,8 @@ function langKeyInputs(request) {
  * carries `If-None-Match` / `If-Modified-Since`, the origin answers 304, the refresh stores
  * nothing because 304 is not 200 — and the entry stays stale until SWR_TTL runs out, refusing to
  * update however many people ask for it. Both reviewers caught this independently.
- * ⚠️ What the refresh DOES need is whatever `langKeyInputs` keys on, or it would fetch the wrong
- * language and store it under this key. Accept-Language and the cookie carry that, and the cookie
+ * ⚠️ What the refresh DOES need is whatever `variantFor` reads, or it would fetch the wrong
+ * language — and storable() would then refuse it, so the entry would just go on ageing. Accept-Language and the cookie carry that, and the cookie
  * is safe here because a signed-in reader never reaches this code (see the -auth-token bypass).
  */
 function refreshHeaders(request) {
@@ -90,10 +195,8 @@ function refreshHeaders(request) {
   return h;
 }
 
-function cacheKeyFor(url, request) {
-  const keyUrl =
-    url.origin + url.pathname + (url.search ? url.search + "&" : "?") +
-    "__k=" + encodeURIComponent(langKeyInputs(request));
+function cacheKeyFor(url, variant) {
+  const keyUrl = url.origin + url.pathname + (url.search ? url.search + "&" : "?") + "__k=" + variant;
   return new Request(keyUrl, { method: "GET" });
 }
 
@@ -132,8 +235,17 @@ export default {
     /** ⚠️ Signed-in readers bypass entirely — a personalised document must never enter a shared key. */
     const cookie = request.headers.get("cookie") || "";
     if (cookie.includes("-auth-token")) return fetch(request);
+    /**
+     * ⛔ AN AGENT ASKING FOR MARKDOWN MUST REACH THE ORIGIN (audit #88). `/`, `/terms` and `/privacy`
+     * negotiate on Accept (next.config.ts rewrites them to /md/*), and the key does not carry Accept,
+     * so a HIT answered text/markdown requests with the stored HTML — the zone Cache Rule's markdown
+     * exclusion never ran, because this Worker answers first. Case-insensitive, unlike that rule; at
+     * worst an Accept that merely MENTIONS markdown loses edge caching, which is harmless.
+     */
+    if (/markdown/i.test(request.headers.get("accept") || "")) return fetch(request);
 
-    const key = cacheKeyFor(url, request);
+    const variant = variantFor(request);
+    const key = cacheKeyFor(url, variant);
     const cache = caches.default;
     const hit = await cache.match(key);
 
@@ -155,10 +267,20 @@ export default {
               headers: refreshHeaders(request),
               redirect: "manual",
             }));
-            const ct = fresh.headers.get("content-type") || "";
-            if (fresh.status === 200 && ct.includes("text/html")) {
+            if (storable(fresh, variant)) {
               await cache.put(key, toStored(fresh, Date.now()));
-            } else if (fresh.status === 404 || fresh.status === 410 || (fresh.status >= 300 && fresh.status < 400)) {
+            } else if (
+              fresh.status === 404 || fresh.status === 410 ||
+              // 304 is "unchanged", not "moved" — never a reason to drop the copy we hold.
+              (fresh.status >= 300 && fresh.status < 400 && fresh.status !== 304) ||
+              /**
+               * A 200 the origin no longer lets a shared cache hold (the page went force-dynamic)
+               * must leave the cache too: keeping the old copy would go on serving what
+               * originShareable() just refused. A 200 refused only for its language or its
+               * Set-Cookie keeps the copy (see storable()).
+               */
+              (fresh.status === 200 && !originShareable(fresh))
+            ) {
               /**
                * ⛔ A GONE PAGE MUST LEAVE THE CACHE, NOT JUST FAIL TO UPDATE. Storing only 200s
                * looks safe and is the opposite: when a listing is moderated, deleted (404/410) or
@@ -185,8 +307,7 @@ export default {
     }
 
     const res = await fetch(request);
-    const ct = res.headers.get("content-type") || "";
-    if (res.status !== 200 || !ct.includes("text/html")) return res;
+    if (!storable(res, variant)) return res;
 
     const now = Date.now();
     const store = toStored(res, now);

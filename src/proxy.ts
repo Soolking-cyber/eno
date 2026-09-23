@@ -208,13 +208,16 @@ function rewriteToLang(req: NextRequest, lang: LangVariant, pathname: string): N
   // (infra/vn-node/eno-deploy.sh, langcheck) is the end-to-end proof.
   //
   // ⚠️ THIS IS STILL THE DEFAULT, AND IT IS STILL LOAD-BEARING — but since 2026-09-20 a Cloudflare
-  // Worker (`eno-html-edge-cache`, on `/`, `/terms*`, `/privacy*` in both zones) DOES cache HTML at
-  // the edge, and it does so by DELETING this header after supplying the missing key itself. The
-  // Worker keys on the INPUTS this file's `langVariantFor()` reads — the `lang` cookie, else the raw
-  // Accept-Language — rather than re-implementing the rule, so it cannot drift away from
-  // src/lib/lang-variant.ts. Measured effect: homepage TTFB 0.49s → 0.16s.
-  // ⛔ SO DO NOT REMOVE THIS HEADER "because the Worker handles it". The Worker covers three paths;
-  // every other page still relies on this line, and that layering is the safety property.
+  // Worker (infra/cloudflare/eno-html-edge-cache.js; routes `/`, `/c/*`, `/privacy*`, `/safety*`,
+  // `/sellers/*`, `/terms*` on apex and www of both zones) DOES cache HTML at the edge, deleting this
+  // header after supplying the missing key itself: the RESOLVED variant, computed with this app's
+  // own rule (src/lib/lang-variant.ts + Next's cookie parsing). It once keyed on the raw inputs and
+  // drifted (audit #127); src/lib/edge-worker.test.ts now runs it against the real parser and
+  // `langVariantFor`, and it refuses to store a response whose `Content-Language` (set just above)
+  // differs from its key. It also passes `private`/`no-store` responses (e.g. /sellers/*) through
+  // uncached. Measured effect: homepage TTFB 0.49s → 0.16s.
+  // ⛔ SO DO NOT REMOVE THIS HEADER "because the Worker handles it". The Worker covers six route
+  // patterns; every other page still relies on this line, and that layering is the safety property.
   res.headers.set('Cloudflare-CDN-Cache-Control', 'no-store')
   /**
    * ⚠️ AND `Vary: Accept-Language, Cookie` IS DELIBERATELY NOT SET HERE — IT DOES NOT SURVIVE.
