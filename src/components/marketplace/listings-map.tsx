@@ -18,6 +18,7 @@ import { useLanguage, useTr } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
+import { radiusBoundingBox } from '@/lib/geo-radius'
 import { MAP_GLYPH_LABEL, MAP_GLYPH_PATH, mapGlyphFor, type MapGlyph } from '@/lib/listing-map-glyph'
 import { MapBuildingCard } from './map-building-card'
 import type { Nearby } from './area-filter'
@@ -370,7 +371,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
    */
   const onSelectBuildingRef = useRef(onSelectBuilding)
   onSelectBuildingRef.current = onSelectBuilding
-  const radiusCircleRef = useRef<any>(null) // the "search near you" radius overlay
+  const areaShapeRef = useRef<any>(null) // the area-search overlay — a RECTANGLE, see below
   const fitKeyRef = useRef<string>('') // last filter signature we auto-fit bounds for
   const [ready, setReady] = useState(false)
   // Leaflet script failed to load (offline / blocked) — without this the overlay
@@ -720,7 +721,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       // be dropped with the markers — otherwise a rebuilt pin matches a stale entry and skips its
       // first paint, leaving the previous listing's price on a marker that is now someone else's.
       markerHtmlRef.current.clear()
-      radiusCircleRef.current = null // removed with the map; drop the stale ref
+      areaShapeRef.current = null // removed with the map; drop the stale ref
     }
   }, [ready])
 
@@ -886,16 +887,25 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     // "Search near you" → draw / update the radius circle centred on the picked point
     // (listings are already narrowed to this radius upstream). Remove it when cleared.
     if (nearby) {
-      const center: [number, number] = [nearby.lat, nearby.lng]
-      const radiusM = nearby.radiusKm * 1000
-      if (radiusCircleRef.current) {
-        radiusCircleRef.current.setLatLng(center).setRadius(radiusM)
+      /**
+       * ⛔ A RECTANGLE, NOT A CIRCLE, BECAUSE A RECTANGLE IS WHAT THE DATABASE FILTERS. The area
+       * search is a lat/lng range pair (src/lib/geo-radius.ts) — an exact circle would have meant
+       * handing the feed an `id IN (…)` set of 28,224 ids at a 10 km radius, which is not a query
+       * to hand Postgres. A box is ~27% larger than the circle it contains and reaches √2·r into
+       * the corners, so a drawn circle over a box filter would put visible results OUTSIDE the ring
+       * the reader was promised. Drawing the true shape is the honest option, and it is what
+       * "search this area" means on every other map.
+       */
+      const b = radiusBoundingBox(nearby)
+      const bounds: [[number, number], [number, number]] = [[b.minLat, b.minLng], [b.maxLat, b.maxLng]]
+      if (areaShapeRef.current) {
+        areaShapeRef.current.setBounds(bounds)
       } else {
-        radiusCircleRef.current = L.circle(center, { radius: radiusM, color: '#0A66C2', weight: 1.5, fillColor: '#0A66C2', fillOpacity: 0.06 }).addTo(map)
+        areaShapeRef.current = L.rectangle(bounds, { color: '#0A66C2', weight: 1.5, fillColor: '#0A66C2', fillOpacity: 0.06 }).addTo(map)
       }
-    } else if (radiusCircleRef.current) {
-      map.removeLayer(radiusCircleRef.current)
-      radiusCircleRef.current = null
+    } else if (areaShapeRef.current) {
+      map.removeLayer(areaShapeRef.current)
+      areaShapeRef.current = null
     }
 
     // Auto-fit when the FILTER context changes — district, AREA (province/ward via
@@ -915,9 +925,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       fitKeyRef.current = fitKey
     } else if (fitKeyRef.current !== fitKey) {
       fitKeyRef.current = fitKey
-      if (nearby && radiusCircleRef.current) {
+      if (nearby && areaShapeRef.current) {
         // Fly to the selected radius — show exactly the area the buyer chose.
-        map.fitBounds(radiusCircleRef.current.getBounds(), { padding: [30, 30] })
+        map.fitBounds(areaShapeRef.current.getBounds(), { padding: [30, 30] })
       } else if (bounds.length > 0) {
         map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 })
       }

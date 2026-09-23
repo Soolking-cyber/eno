@@ -15,6 +15,7 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 // The cap lives in a client-safe module because the browser has to chunk to the same number.
 import { IDS_FAST_PATH_MAX } from '@/lib/listing-ids'
 import { districtScopeForSlug } from '@/lib/district-slug'
+import { parseRadiusParams, radiusWhere } from '@/lib/geo-radius'
 import { conditionWhere } from '@/lib/listing-condition'
 
 // Subcategory facet counts are expensive (one multi-LIKE COUNT per subcategory)
@@ -239,6 +240,26 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
   if (districtFilter) {
     andFilters.push(districtFilter)
   }
+
+  /**
+   * RADIUS — "within N km of this point", resolved in the DATABASE.
+   *
+   * ⛔ THIS REPLACES A BROWSER-SIDE FILTER THAT LOST ALMOST EVERYTHING. There was no coordinate
+   * parameter at all, so the explorer raised its page size to 100, DISABLED pagination, and
+   * haversine-filtered those hundred rows. On 19,359 live listings that is a radius search of page
+   * one, and nothing told the reader the other 19,259 were never looked at.
+   *
+   * ⛔ IT LANDS IN `andFilters`, WHICH IS THE WHOLE REASON IT IS SHAPED AS A PLAIN RANGE PAIR. This
+   * one `where` is shared by the feed, the total, the price histogram and the sub-category facet
+   * counts, so all five inherit the narrowing unchanged. An earlier draft resolved an exact circle
+   * and passed an `id IN (…)` set instead — correct, but 28,224 ids at a 10 km radius on production,
+   * which is not a query to hand Postgres. See geo-radius.ts for the measurements.
+   *
+   * ⚠️ AND NOTHING PRUNES AFTERWARDS: what the box selects is what the reader sees, and the map
+   * draws that same box rather than a circle it does not actually apply.
+   */
+  const radius = parseRadiusParams(searchParams)
+  if (radius) andFilters.push(radiusWhere(radius))
 
   /**
    * BUILDING (project) narrowing — the map's "show me this tower's units" filter.

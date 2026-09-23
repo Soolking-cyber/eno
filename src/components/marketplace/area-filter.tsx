@@ -309,10 +309,19 @@ export function AreaFilter({
                     <div className="flex items-end gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">{tr('Search range', 'Bán kính tìm')}</span>
+                          {/* ⚠️ NOT "bán kính" — that word means RADIUS, and the search is a BOX of
+                              this half-width (the map draws it). Only the aria-label was corrected
+                              at first, which left a sighted Vietnamese reader promised a shape the
+                              query does not apply. */}
+                          <span className="text-muted-foreground">{tr('Search area', 'Vùng tìm kiếm')}</span>
                           <span className="font-bold text-foreground">{radiusKm} km</span>
                         </div>
-                        <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
+                        {/* ⚠️ "AREA", NOT "RADIUS". The database filters a lat/lng BOX of this
+                            half-width (src/lib/geo-radius.ts explains why a circle does not scale),
+                            and the map draws that box — so a control promising a radius would be
+                            promising a shape the search does not apply. The number still means
+                            kilometres; it is the half-width rather than a radius. */}
+                        <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search area size in km', 'Kích thước vùng tìm theo km')} />
                         <div className="flex justify-between text-3xs text-ink-4"><span>1 km</span><span>20 km</span></div>
                       </div>
                       <IconButton

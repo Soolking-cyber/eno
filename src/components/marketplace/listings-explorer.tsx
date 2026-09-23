@@ -393,18 +393,27 @@ export function ListingsExplorer({
   // background when the snapshot is older than the 30s staleTime — one cheap
   // /api/listings call in exchange for a feed that's actually current.
   const [seedFetchedAt] = useState(() => initialFetchedAt ?? Date.now())
-  // When "search near you" is on, distance-FILTER the fetched set client-side, but keep
-  // the TRUST-first ranking the API already applied (higher-trust sellers first), with
-  // distance only as a tiebreaker. So "near you" narrows by radius without throwing away
-  // the trust hierarchy. (Coordinates are approximate — district-derived — for now.)
+  /**
+   * ⚠️ THIS IS NOW A PASS-THROUGH, and the comment that stood here described the opposite. It said
+   * the area was distance-FILTERED client-side while keeping the API's trust ranking with distance
+   * as a tiebreaker. All three halves of that moved: the area is filtered by the database, the
+   * ranking is the feed's own `rankScore` (the bounded trust⊕recency blend, so the trust hierarchy
+   * is not lost), and distance ordering now lives in `mapSortedListings`, which anchors on
+   * `nearby` when it is set — i.e. exactly where an area search is performed. In grid and list view
+   * an area search is ordered like any other feed; a reviewer was right that this changed, and it
+   * changed deliberately rather than by omission.
+   */
   const shownListings = useMemo(() => {
-    if (!nearby) return listings
+    /**
+     * ⛔ NO LONGER PRUNES, AND THAT IS THE POINT. This used to haversine-filter the fetched page,
+     * which on a capped page IS data loss — the rows it dropped were ones the cap had already
+     * chosen to return, so later pages could never surface them. The area is applied by the
+     * database now (`lat`/`lng`/`radiusKm` → a lat/lng range pair in buildFeedFilters), so every
+     * row that arrives is already inside it and re-filtering here could only ever remove something
+     * the server meant to include.
+     */
     return listings
-      .map((l) => ({ l, d: haversineKm(nearby, getListingCoordinates(l)) }))
-      .filter((x) => x.d <= nearby.radiusKm)
-      .sort((a, b) => (b.l.seller.trustScore - a.l.seller.trustScore) || (a.d - b.d))
-      .map((x) => x.l)
-  }, [listings, nearby])
+  }, [listings])
   // Map view: inject the out-of-feed focus listing (For You rail / ?focus= deep
   // link) ahead of the feed. Memoized — an inline expression allocated a fresh
   // array every render, forcing the map's markers effect to re-run needlessly.
@@ -1225,6 +1234,17 @@ export function ListingsExplorer({
     if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
     if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
     if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
+    /**
+     * ⛔ THE AREA IS A SERVER FILTER NOW. It used to exist only in the browser: the page size was
+     * raised to 100, pagination was switched off, and those hundred rows were haversine-filtered —
+     * so an area search on 19,359 listings silently considered page one and nothing else. These
+     * three params put the same question to the database, where it can see every row.
+     */
+    if (nearby) {
+      params.set('lat', String(nearby.lat))
+      params.set('lng', String(nearby.lng))
+      params.set('radiusKm', String(nearby.radiusKm))
+    }
     if (conditionFilter !== 'all') params.set('condition', conditionFilter)
     if (goodPriceOnly) params.set('deal', 'good')
     if (listingType !== 'all') params.set('type', listingType)
@@ -1289,7 +1309,10 @@ export function ListingsExplorer({
       // Structural filters come from the shared memo; only paging is per-query here.
       // "Near you" ignores area filters and pulls a broad set to distance-filter client-side.
       const params = new URLSearchParams(baseParamsString)
-      const limit = nearby ? 100 : FIRST_PAGE_SIZE
+      // ⚠️ ORDINARY PAGE SIZE EVEN WITH AN AREA SET. The 100 existed only to give the old
+      // client-side filter enough rows to sieve; with the filter in the database an area search
+      // paginates like any other.
+      const limit = FIRST_PAGE_SIZE
       const offset = (page - 1) * limit
       params.set('limit', String(limit))
       params.set('offset', String(offset))
@@ -1670,7 +1693,7 @@ export function ListingsExplorer({
           return listingsData.listings
         })
         setReachedEnd(false) // a fresh feed (filter change / reload) — paging is open again
-      } else if (listingsData.offset === (page - 1) * (nearby ? 100 : 12)) {
+      } else if (listingsData.offset === (page - 1) * FIRST_PAGE_SIZE) {
         // Real data for THIS page (not a placeholderData replay, whose offset lags a page).
         const fresh = listingsData.listings.filter((l: SerializedListingCard) => !seenIdsRef.current.has(l.id))
         if (fresh.length > 0) {
@@ -1830,6 +1853,13 @@ export function ListingsExplorer({
     if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
         if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
         if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
+        // Same area params as the main builder above — two param sets that disagree are two
+        // different questions, and the prefetch would warm a page the feed never asks for.
+        if (nearby) {
+          params.set('lat', String(nearby.lat))
+          params.set('lng', String(nearby.lng))
+          params.set('radiusKm', String(nearby.radiusKm))
+        }
         if (conditionFilter !== 'all') params.set('condition', conditionFilter)
         if (goodPriceOnly) params.set('deal', 'good')
         if (listingType !== 'all') params.set('type', listingType)
@@ -1942,7 +1972,13 @@ export function ListingsExplorer({
   }, [shownListings, nearby, mapCenter])
   const mapSentinelRef = useRef<HTMLDivElement | null>(null)
   const mapWrapRef = useRef<HTMLDivElement | null>(null)
-  const hasMore = !nearby && !reachedEnd && listings.length < totalCount
+  /**
+   * ⚠️ `nearby` NO LONGER DISABLES PAGINATION. It had to while the area was filtered in the browser:
+   * page two would have been sieved against the same circle and produced ragged, half-empty pages.
+   * The database applies the area now, so an area search pages exactly like an unfiltered one — and
+   * `totalCount` is the count of the area rather than of the whole city.
+   */
+  const hasMore = !reachedEnd && listings.length < totalCount
   useEffect(() => {
     if (!hasMore) return
     // ⚠️ THE GATE, AND IT IS THE REASON THE HOME PAGE HAS A FOOTER. Undirected browse never
