@@ -36,17 +36,15 @@ import { PwaBadge } from "@/components/native/pwa-badge";
 export function Providers({
   children,
   lang,
-  viDict,
 }: {
   children: React.ReactNode
   lang: LangVariant
-  viDict?: Record<string, string>
 }) {
   return (
     <>
       <PrelaunchNotice />
       <ThemeProvider>
-        <LanguageProvider initialLang={lang} initialViDict={viDict}>
+        <LanguageProvider initialLang={lang}>
           {/* Native-shell (Capacitor) bootstrap — a no-op on web; on iOS/Android it hides the
               splash, theme-matches the status bar, bridges the native keyboard, handles back,
               and (needs LanguageProvider) localizes the long-press action sheet. Still inside

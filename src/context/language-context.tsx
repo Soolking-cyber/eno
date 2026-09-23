@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useMemo, useEffect, useSyncExternalStore } from 'react'
+import React, { createContext, useContext, useState, useMemo, useEffect, useSyncExternalStore, use } from 'react'
 import { detectContentLang } from '@/lib/detect-lang'
 import { LANGUAGES, type Language } from '@/lib/i18n/langs'
 import { TR_OVERRIDES } from '@/lib/i18n/glossary'
@@ -12,6 +12,7 @@ import {
   viDict,
   viLoaded,
   loadViOverrides,
+  viDictForHydration,
   emitTrChange,
   subscribeTr,
   getTrSnapshot,
@@ -116,6 +117,62 @@ interface LanguageContextProps {
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined)
 
 /**
+ * ⛔ A VIETNAMESE PAGE NEEDS THE DICTIONARY BEFORE ITS FIRST RENDER — ON THE SERVER AND IN
+ * HYDRATION ALIKE — OR THE CLIENT'S TEXT DISAGREES WITH THE SERVER'S HTML. It used to arrive as a
+ * prop from the root layout, which serialized all 2,060 entries (171 KB, 53 KB gz) into the RSC
+ * payload of EVERY Vietnamese document — 66% of a static page's gzipped HTML, re-sent on every
+ * full load because inline flight data cannot be cached (audit #1).
+ *
+ * Now this gate SUSPENDS on the lazy dictionary chunk instead (loadViOverrides — a content-hashed
+ * Next chunk the browser caches across pages). On the server that is a one-time module load per
+ * process. In hydration React keeps the server HTML on screen and resumes once the chunk lands, so
+ * nothing mismatches and nothing is render-blocking: the page PAINTS from its HTML exactly as
+ * before and becomes interactive after the chunk (cached after the first page).
+ *
+ * ⚠️ IT IS ITS OWN HOOKLESS COMPONENT ABOVE THE PROVIDER, AND THAT IS LOAD-BEARING. The first cut
+ * called `use()` at the top of LanguageProvider, before its `useState`s. A component that suspends
+ * on its first mount is REPLAYED when the promise settles, and that replay threw React #467
+ * ("Update hook called on initial render") in the production build — measured in the browser on
+ * /about. A component with no hooks has nothing to replay, and the provider below it mounts once,
+ * with the dictionary already there, exactly as it did when it arrived as a prop.
+ * `use()` is given a memoized promise (viDictForHydration), so every retry sees the same object. On
+ * the client it never rejects — a failed chunk degrades the page (English and machine-translated
+ * strings, see viDictForHydration) instead of taking it down; on the server a failure fails the
+ * render rather than caching English at a Vietnamese URL.
+ *
+ * ⚠️ THE TRADE, MEASURED: on a cold cache the whole tree hydrates only after this chunk arrives
+ * (53 KB gz — the same bytes the inline dictionary used to add to the document, so a first visit
+ * costs about what it did). Every LATER full page load is ~54 KB gz lighter and the chunk comes from
+ * cache: /about in Vietnamese 75.7 → 21.6 KB gz, home 111.6 → 57.8 KB gz.
+ */
+function ViDictGate({
+  initialLang,
+  initialViDict,
+  children,
+}: {
+  initialLang: Language
+  initialViDict?: Record<string, string>
+  children: React.ReactNode
+}) {
+  if (initialViDict) seedViDict(initialViDict)
+  else if (initialLang === 'vi' && !viLoaded) use(viDictForHydration())
+  return children
+}
+
+/** The provider. `initialViDict` remains for tests and any caller that already holds the dictionary. */
+export function LanguageProvider(props: {
+  children: React.ReactNode
+  initialLang?: Language
+  initialViDict?: Record<string, string>
+}) {
+  return (
+    <ViDictGate initialLang={props.initialLang ?? 'en'} initialViDict={props.initialViDict}>
+      <LanguageProviderInner initialLang={props.initialLang}>{props.children}</LanguageProviderInner>
+    </ViDictGate>
+  )
+}
+
+/**
  * ⛔ `initialLang` IS THE LANGUAGE THE SERVER ALREADY RENDERED, AND STARTING ANYWHERE ELSE UNDOES THE
  * FEATURE. This provider used to start at 'en' on every request and switch after hydration, so a
  * Vietnamese visitor read English for 4–6 s on a throttled phone and watched the layout shift as it
@@ -123,16 +180,13 @@ const LanguageContext = createContext<LanguageContextProps | undefined>(undefine
  * passes it here, so the first paint is already in the right language and hydration agrees with it.
  * The nine machine-translated languages still arrive on the English variant and swap client-side.
  */
-export function LanguageProvider({
+function LanguageProviderInner({
   children,
   initialLang = 'en',
-  initialViDict,
 }: {
   children: React.ReactNode
   initialLang?: Language
-  initialViDict?: Record<string, string>
 }) {
-  if (initialViDict) seedViDict(initialViDict)
   const [lang, setLangState] = useState<Language>(initialLang)
   // The variant THIS page was rendered in. Server text, data and every router-cache entry are in it,
   // whatever the client state says later, so every "does this need a reload" question is asked against
@@ -376,7 +430,7 @@ export function LanguageProvider({
       if (vi != null) return vi
       const hv = viDict[en]
       if (hv != null) return hv
-      if (!viLoaded) { void loadViOverrides(); return en } // dict inbound — emitTrChange repaints
+      if (!viLoaded) { void loadViOverrides().catch(() => {}); return en } // dict inbound — emitTrChange repaints
     }
     const override = TR_OVERRIDES[en]?.[lang]
     if (override) return override
@@ -438,12 +492,14 @@ export function useTr(text: string | null | undefined): string {
     if (lang === 'vi' && !viLoaded) {
       // Dict inbound — wait for it before falling back to machine translation.
       let c = false
-      loadViOverrides().then(() => {
+      // Settles either way: a dictionary chunk that failed to load falls back to machine translation.
+      const settle = () => {
         if (c) return
         const hv = viDict[safe]
         if (hv != null) setVal(hv)
         else translateText(safe, lang).then((t2) => { if (!c) setVal(t2) })
-      })
+      }
+      loadViOverrides().then(settle, settle)
       return () => { c = true }
     }
     if (lang === 'vi') { const hv = viDict[safe]; if (hv != null) { setVal(hv); return } }

@@ -28,32 +28,74 @@ let scheduled = false
 // the whole tree — unlike bumping provider state.
 let trVersion = 0
 const trListeners = new Set<() => void>()
-// Hand-authored VI dictionary — lazily imported so its ~22 KB never ships in the
-// first-load bundle of non-Vietnamese sessions (mirrors the UI_STRINGS lazy pattern).
+// Hand-authored VI dictionary — lazily imported so it never ships in the first-load bundle of
+// non-Vietnamese sessions (mirrors the UI_STRINGS lazy pattern). ⚠️ It is no longer small: 2,060
+// entries, 171 KB raw / 53 KB gz since 2026-09-20 — which is why it must never be inlined per page.
 // Sync readers (tr/useTr) see {} until the chunk lands, then emitTrChange repaints.
 // NOTE: consumers read these as ESM live bindings — only this module reassigns them.
 export let viDict: Record<string, string> = {}
+export const VI_RETRY_MS = 30_000
 export let viLoaded = false
 let viLoading: Promise<void> | null = null
 export function loadViOverrides(): Promise<void> {
   if (viLoaded) return Promise.resolve()
   if (!viLoading) {
-    viLoading = import('@/generated/vi-overrides').then((m) => {
-      viDict = m.VI_OVERRIDES
-      viLoaded = true
-      emitTrChange()
-    })
+    viLoading = import('@/generated/vi-overrides').then(
+      (m) => {
+        viDict = m.VI_OVERRIDES
+        viLoaded = true
+        emitTrChange()
+      },
+      (e: unknown) => {
+        // SERVER: forget the failure, or one bad load would fail every later Vietnamese render in this
+        // process. CLIENT: keep it for VI_RETRY_MS first — every <Tr> asks, and re-arming at once
+        // turned one missing chunk into ~30 requests for it (measured with the chunk blocked). After
+        // the pause the next asker tries once more, so a soft-navigating session can still recover
+        // (a success repaints through emitTrChange) — one attempt per interval, never a storm.
+        if (typeof window === 'undefined') viLoading = null
+        else setTimeout(() => { if (!viLoaded) viLoading = null }, VI_RETRY_MS)
+        throw e
+      },
+    )
   }
   return viLoading
 }
 
 /**
- * ⛔ SEEDED SYNCHRONOUSLY WHEN THE SERVER RENDERED VIETNAMESE. The lazy import above is right for a
- * visitor who switches INTO Vietnamese, and wrong for a page whose HTML is already Vietnamese: the
- * server would render `viDict` strings that the client cannot see until a chunk lands, so hydration
- * would disagree with the HTML. The root layout passes the dictionary as a prop on the `vi` variant
- * only (src/app/[lang]/layout.tsx) and LanguageProvider calls this before its first render — on the
- * server and on the client alike. Idempotent; a later loadViOverrides() resolves immediately.
+ * The gate's promise (LanguageProvider → ViDictGate). Memoized so React's `use()` sees one object
+ * across retries — and it behaves differently on each side, deliberately:
+ *
+ * · SERVER: the loader's own promise, REJECTIONS INCLUDED. A render that cannot load the dictionary
+ *   must fail, not quietly render English into a page that ISR keeps for hours and Cloudflare
+ *   caches on top. The loader resets itself on failure, so the next request tries again — nothing
+ *   here is memoized on the server side of this function.
+ * · CLIENT: a promise that NEVER REJECTS. The gate sits above every provider, so a rejection would
+ *   take the whole page down for Vietnamese visitors, and the trigger is routine: HTML cached from
+ *   before a deploy asking for a chunk the new build no longer has. On failure the gate lets the tree
+ *   render without the dictionary; React then finds the Vietnamese server HTML does not match,
+ *   discards it and client-renders — `tr()` strings in English, `useTr` strings through machine
+ *   translation (batched per language). A MIXED page, degraded but alive, never a dead one. It stays
+ *   settled for THIS page load (re-arming it would have React retry a failing fetch in a loop); the
+ *   next full load tries again. (The inline dictionary this replaced could not fail at all, so this
+ *   path is new — audit #1 review.)
+ */
+let viGate: Promise<void> | null = null
+export function viDictForHydration(): Promise<void> {
+  if (typeof window === 'undefined') return loadViOverrides()
+  if (!viGate) {
+    viGate = loadViOverrides().catch((e: unknown) => {
+      console.error('[i18n] Vietnamese dictionary chunk failed to load — rendering without it', e)
+    })
+  }
+  return viGate
+}
+
+/**
+ * Seed the dictionary synchronously from a caller that already holds it (tests, and the
+ * `initialViDict` prop). A page whose HTML is already Vietnamese does NOT go through here any more:
+ * LanguageProvider suspends on loadViOverrides() instead, so hydration waits for the chunk rather
+ * than the document carrying the whole dictionary (audit #1). Idempotent; a later
+ * loadViOverrides() resolves immediately.
  */
 export function seedViDict(dict: Record<string, string>) {
   if (viLoaded) return

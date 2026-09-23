@@ -6,7 +6,6 @@ import { AttributionCapture } from "@/components/marketplace/attribution-capture
 import { Providers } from "./providers";
 import { notFound } from "next/navigation";
 import { LANG_VARIANTS, type LangVariant } from "@/lib/lang-variant";
-import { VI_OVERRIDES } from "@/generated/vi-overrides";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
 import { COMPANY, OPERATOR_REGISTERED } from "@/lib/site-legal";
 // The content-hashed sprite URL, from the generated shim — never a literal here, or a glyph edit
@@ -533,10 +532,10 @@ export default async function RootLayout({
       <body className="antialiased text-foreground">
         {/* The provider pyramid + persistent chrome live in ./providers.tsx (audit §E) —
             this file keeps only document concerns (fonts, metadata, viewport, head). */}
-        {/* ⚠️ The Vietnamese dictionary rides the vi variant only (~24 KB, before compression): the
-            provider must hold it BEFORE its first render, or the server's Vietnamese HTML and the
-            client's hydration disagree. English pages never carry it. */}
-        <Providers lang={lang} viDict={lang === "vi" ? VI_OVERRIDES : undefined}>{children}</Providers>
+        {/* ⛔ NO DICTIONARY PROP. It used to ride here on the vi variant — 171 KB (53 KB gz) serialized
+            into every Vietnamese document's RSC payload, 66% of a static page (audit #1). The provider
+            now loads it as a cacheable chunk and suspends on it (context/language-context.tsx). */}
+        <Providers lang={lang}>{children}</Providers>
         <AnalyticsTags />
         <AttributionCapture />
       </body>
