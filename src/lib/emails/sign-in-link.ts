@@ -11,7 +11,8 @@ import { renderBrandEmail, emailCta, esc, EMAIL } from './layout'
 //   · on 2026-07-19 a Resend key rotation invalidated them, and every sign-in and signup
 //     failed with `535 "Authentication credentials invalid"` for three days.
 // `admin.generateLink()` mints the same token WITHOUT touching SMTP, so delivery is now
-// ours: same Resend path, same brand shell, same logs as every other email.
+// ours: same mail path (src/lib/mail.ts — Cloudflare Email Sending since 2026-09-23), same
+// brand shell, same logs as every other email.
 //
 // ⚠️ SIGN-IN AND SIGN-UP ARE DIFFERENT EMAILS. Requesting a link for an address with no
 // account CREATES one — that has always been true (Supabase's `shouldCreateUser` defaults

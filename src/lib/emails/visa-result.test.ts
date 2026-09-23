@@ -245,3 +245,76 @@ describe('visa result email · hostile and missing values', () => {
     expect(html).toContain('Case reference')
   })
 })
+
+// ── LINK-ONLY DELIVERY (2026-09-23) ─────────────────────────────────────────────────────────
+// Cloudflare Email Sending caps a whole message at 5 MiB and a result PDF may be 10 MiB, so a big
+// visa is emailed as a link to the chat that already holds it. The one thing this variant must
+// never do is tell the applicant a file is attached when it is not.
+describe('visa result email · link-only delivery', () => {
+  const CHAT = `${ORIGIN}/messages/convo-42`
+
+  it('says the file is in the chat, never that it is attached — both languages', () => {
+    const en = renderVisaResultEmail({ givenName: 'Minh', reference: REFERENCE, origin: ORIGIN, locale: 'en', delivery: 'link', chatUrl: CHAT })
+    const vi = renderVisaResultEmail({ givenName: 'Minh', reference: REFERENCE, origin: ORIGIN, locale: 'vi', delivery: 'link', chatUrl: CHAT })
+    expect(`${en.html}\n${en.text}`).not.toMatch(/attached to this email/i)
+    expect(en.html).toMatch(/too large to attach/i)
+    expect(en.html).toMatch(/thank you/i)
+    expect(`${vi.html}\n${vi.text}`).not.toContain('được đính kèm trong email này')
+    expect(vi.html).toContain('quá lớn để đính kèm')
+    expect(vi.html).toContain('Cảm ơn bạn')
+    for (const out of [en, vi]) {
+      expect(out.text).not.toMatch(/undefined|null|NaN|\[object/)
+      expect(out.subject).toContain(REFERENCE)
+    }
+  })
+
+  it('sends the CTA and the plain-text link to THIS case\'s thread', () => {
+    const { html, text } = renderVisaResultEmail({ givenName: null, reference: REFERENCE, origin: ORIGIN, locale: 'en', delivery: 'link', chatUrl: CHAT })
+    expect(html).toContain(`href="${CHAT}"`)
+    expect(text).toContain(CHAT)
+    expect(html).toContain('Open your chat to download it')
+  })
+
+  it('never links off this origin — a foreign or relative chatUrl falls back to /messages', () => {
+    for (const bad of ['https://evil.example/messages/x', `${ORIGIN}.evil.example/messages/x`, '/messages/convo-42', 'javascript:alert(1)']) {
+      const { html, text } = renderVisaResultEmail({ givenName: null, reference: REFERENCE, origin: ORIGIN, locale: 'en', delivery: 'link', chatUrl: bad })
+      expect(html).not.toContain(bad)
+      expect(text).toContain(`${ORIGIN}/messages`)
+      expect(text).not.toContain(bad)
+    }
+  })
+
+  it('leaks no payload field in the link variant either', () => {
+    const payload = sentinelPayload()
+    for (const locale of ['en', 'vi'] as const) {
+      const { subject, html, text } = renderVisaResultEmail({ givenName: 'Minh', reference: REFERENCE, origin: ORIGIN, locale, delivery: 'link', chatUrl: CHAT })
+      const all = `${subject}\n${html}\n${text}`
+      for (const sentinel of Object.values(payload)) expect(all).not.toContain(sentinel)
+    }
+  })
+
+  it('the default is still the attached email the owner asked for', () => {
+    const { html } = renderVisaResultEmail({ givenName: 'Minh', reference: REFERENCE, origin: ORIGIN, locale: 'en' })
+    expect(html).toMatch(/attached to this email as a PDF/i)
+    expect(html).toContain(`href="${ORIGIN}/messages"`)
+  })
+})
+
+// ── REPLIES REACH SUPPORT (2026-09-24) ─────────────────────────────────────────────────────
+// This mail is sent as class `transactional`, so the eno-mailer Worker sets Reply-To to the
+// edition's support inbox. The copy used to say "This mailbox is not monitored" — telling an
+// applicant with a wrong visa that the obvious thing (hitting Reply) goes nowhere, when it does not.
+describe('visa result email · replies reach support', () => {
+  it('never claims the mailbox is unmonitored, and says a reply reaches support — both languages, both deliveries', () => {
+    for (const delivery of ['attached', 'link'] as const) {
+      const en = renderVisaResultEmail({ givenName: 'Minh', reference: REFERENCE, origin: ORIGIN, locale: 'en', delivery })
+      const vi = renderVisaResultEmail({ givenName: 'Minh', reference: REFERENCE, origin: ORIGIN, locale: 'vi', delivery })
+      for (const out of [en, vi]) expect(`${out.html}\n${out.text}`).not.toMatch(/not monitored|không nhận phản hồi/i)
+      expect(en.text).toMatch(/reply to this email — it reaches our support team/)
+      expect(vi.text).toContain('trả lời email này — thư sẽ đến đội hỗ trợ')
+      // The written-to address is still offered, and it is this build's own.
+      expect(en.text).toContain('support@eno.forum')
+      expect(vi.text).toContain('support@eno.forum')
+    }
+  })
+})

@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { renderVisaResultEmail } from '@/lib/emails/visa-result'
 import { SITE_NAME } from '@/lib/edition'
 import { COMPANY } from '@/lib/site-legal'
-import { sendMail } from '@/lib/mail'
+import { sendMailDetailed } from '@/lib/mail'
 import { insertMessage, type VisaResultMeta } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
 import { VISA_BUCKET } from '@/lib/visa-admin'
@@ -67,6 +67,45 @@ import { normalizeVisaReference } from './reference'
  * read. A real e-Visa PDF is a few hundred KB.
  */
 export const VISA_RESULT_MAX_BYTES = 10 * 1024 * 1024
+
+/**
+ * The largest PDF the thank-you email ATTACHES. Above it the email carries a link to the chat
+ * instead (sendVisaResultThankYou).
+ *
+ * ⚠️ HALF OF WHAT THE UPLOAD ACCEPTS, AND THAT GAP IS REAL. Mail goes through Cloudflare Email
+ * Sending (src/lib/mail.ts), which caps a WHOLE message at 5 MiB. Base64 grows a file by 4/3 and
+ * MIME wraps it at 76 columns, so 3.5 MiB of PDF is ~4.8 MiB on the wire once the html and text
+ * parts ride along — the most that still fits. Resend allowed 40 MB, which is why this never
+ * mattered before. A real e-Visa is a few hundred KB; a scanned one can be several MB.
+ */
+export const VISA_RESULT_ATTACH_MAX_BYTES = Math.floor(3.5 * 1024 * 1024)
+
+/**
+ * The result route's answer-by time, from the moment its handler starts: the route declares
+ * `maxDuration = 30`, and this leaves ~5 s for what follows the email (closing the case, the
+ * response). Everything the thank-you email does — the attached attempt AND the link fallback —
+ * shares whatever of it is left, as ONE deadline (sendVisaResultThankYou). src/lib/mail.ts gives an
+ * attachment exactly one attempt, so the old 20 s + 0.3 s + 20 s (~40 s) worst case is gone.
+ */
+export const VISA_RESULT_DEADLINE_MS = 25_000
+
+/**
+ * The idempotency key for this case's thank-you email: the case AND the file. `kind` separates the
+ * attached email from the link-only one (a `too_large` answer is followed by the link email, which
+ * must not be deduplicated against the attempt that failed).
+ *
+ * ⚠️ NEVER PER CASE ALONE. The documented wrong-PDF recovery (delete the row and its object, then
+ * upload the corrected file — see the header) re-sends within the Worker's 24 h window. With a
+ * per-case key the corrected email was swallowed as a duplicate and reported to the desk as sent,
+ * leaving the applicant with only the WRONG visa — possibly someone else's. Keyed on the PDF's hash,
+ * the corrected file is a different email; the same file (the resume path re-reading the stored
+ * object) is still the same one. The Worker also refuses a reused key with a different body
+ * (`idempotency_conflict`), so a collision fails loudly instead of silently.
+ */
+export function visaResultIdempotencyKey(kind: 'attached' | 'link', applicationId: string, pdf: Uint8Array): string {
+  const digest = createHash('sha256').update(pdf).digest('hex').slice(0, 16)
+  return `${kind === 'attached' ? 'visa-result' : 'visa-result-link'}:${applicationId}:${digest}`
+}
 
 /** Every way a candidate file is refused. Each is a distinct sentence in the admin UI. */
 export type VisaResultPdfProblem =
@@ -399,13 +438,35 @@ export async function findVisaResultCard(applicationId: string, documentId: stri
   return null
 }
 
-export type VisaResultMailOutcome = 'sent' | 'no_address' | 'unavailable' | 'failed'
+/**
+ * `sent_link_only`: delivered, but the PDF was too large to attach, so the email points at the
+ * chat that holds it (VISA_RESULT_ATTACH_MAX_BYTES). The desk's toast reports it as delivered.
+ */
+export type VisaResultMailOutcome = 'sent' | 'sent_link_only' | 'no_address' | 'unavailable' | 'failed'
 
 /**
- * The thank-you email, with the visa attached.
+ * The applicant's own thread, as an ABSOLUTE url for an email — the thread the card was just
+ * posted to. Falls back to the inbox list when the thread cannot be resolved: a link that opens
+ * one step early beats no link.
+ */
+async function visaResultChatUrl(applicationId: string, origin: string): Promise<string> {
+  try {
+    const convo = await resolveVisaResultThread(applicationId)
+    if (convo?.id) return `${origin}/messages/${encodeURIComponent(convo.id)}`
+  } catch {
+    console.error('[visa-result] could not resolve the thread for the link-only email')
+  }
+  return `${origin}/messages`
+}
+
+/**
+ * The thank-you email, with the visa attached — or, when the PDF is too large for the mail
+ * provider's 5 MiB message cap, with a link to the chat that already holds it (`sent_link_only`).
  *
- * Sent exactly once per case because the document row it follows can only be created once
- * (see the header) — not because anything here checks whether it has run before.
+ * Sent exactly once per result document because the document row it follows can only be created
+ * once (see the header) — not because anything here checks whether it has run before. After the
+ * wrong-PDF recovery a case gets a SECOND document, and its email is a new one: the mailer key
+ * carries the file's hash (visaResultIdempotencyKey).
  *
  * ⚠️ THE ADDRESS IS DECRYPTED HERE AND GOES NOWHERE ELSE. It is read out of the encrypted
  * payload, handed to sendMail, and dropped. It is not returned, not logged (sendMail masks
@@ -421,7 +482,14 @@ export async function sendVisaResultThankYou(input: {
   encryptedPayload: string
   reference: string | null | undefined
   pdf: Buffer
+  /**
+   * Epoch ms by which the email step must be done, shared by the attached attempt and the link
+   * fallback. The result route passes its own (handler start + VISA_RESULT_DEADLINE_MS); a caller
+   * without one gets VISA_RESULT_DEADLINE_MS from now.
+   */
+  deadline?: number
 }): Promise<VisaResultMailOutcome> {
+  const deadline = input.deadline ?? Date.now() + VISA_RESULT_DEADLINE_MS
   try {
     if (!visaCryptoReady()) return 'unavailable'
     const payload = decryptVisaPayload(input.encryptedPayload)
@@ -437,33 +505,59 @@ export async function sendVisaResultThankYou(input: {
     const locale = profile?.locale === 'vi' ? 'vi' : 'en'
 
     const reference = normalizeVisaReference(input.reference)
-    const email = renderVisaResultEmail({
+    // ⚠️ THE FALLBACK HOST, THE NAME AND THE INBOX ALL FOLLOW THE BUILD. This fell back to
+    // https://eno.vn and the copy hardcoded eno.vn / support@eno.vn, so the services build that
+    // sends this mail named the LICENSED marketplace as the visa provider and contact.
+    const origin = (process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`).replace(/\/+$/, '')
+    const common = {
       // Given names only. The email module documents why it carries no other field, and
       // this is the one call site that decides what it is handed.
       givenName: typeof payload.givenNames === 'string' && payload.givenNames.trim() ? payload.givenNames.trim() : null,
       reference: reference ?? '',
-      // ⚠️ THE FALLBACK HOST, THE NAME AND THE INBOX ALL FOLLOW THE BUILD. This fell back to
-      // https://eno.vn and the copy hardcoded eno.vn / support@eno.vn, so the services build that
-      // sends this mail named the LICENSED marketplace as the visa provider and contact.
-      origin: (process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`).replace(/\/+$/, ''),
+      origin,
       locale,
       siteName: SITE_NAME,
       supportEmail: COMPANY.email,
-    })
+    } as const
 
-    const ok = await sendMail({
+    // ⚠️ ATTACH WHEN IT FITS, LINK WHEN IT DOES NOT — never "fail" a visa that is already in the
+    // chat because of its size. The ceiling is VISA_RESULT_ATTACH_MAX_BYTES (5 MiB per message on
+    // Cloudflare). If the provider still answers `too_large` — the estimate is an estimate — the
+    // same visa goes out as a link. The keys are per case AND per file (visaResultIdempotencyKey):
+    // a retry of the same email is deduplicated by the mailer, a corrected file is a new email.
+    // Both sends share ONE deadline, so the route answers inside its maxDuration.
+    if (input.pdf.length <= VISA_RESULT_ATTACH_MAX_BYTES) {
+      const email = renderVisaResultEmail({ ...common, delivery: 'attached' })
+      const attached = await sendMailDetailed({
+        to: address,
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+        attachments: [{
+          filename: visaResultFilename(reference),
+          // BASE64 TEXT, not a Buffer — src/lib/mail.ts documents why a Buffer arrives corrupt.
+          content: input.pdf.toString('base64'),
+          contentType: 'application/pdf',
+        }],
+        tag: 'visa-result',
+        idempotencyKey: visaResultIdempotencyKey('attached', input.applicationId, input.pdf),
+        deadline,
+      })
+      if (attached.ok) return 'sent'
+      if (attached.code !== 'too_large') return 'failed'
+    }
+
+    const email = renderVisaResultEmail({ ...common, delivery: 'link', chatUrl: await visaResultChatUrl(input.applicationId, origin) })
+    const linked = await sendMailDetailed({
       to: address,
       subject: email.subject,
       html: email.html,
       text: email.text,
-      attachments: [{
-        filename: visaResultFilename(reference),
-        // BASE64 TEXT, not a Buffer — src/lib/mail.ts documents why a Buffer arrives corrupt.
-        content: input.pdf.toString('base64'),
-        contentType: 'application/pdf',
-      }],
+      tag: 'visa-result-link',
+      idempotencyKey: visaResultIdempotencyKey('link', input.applicationId, input.pdf),
+      deadline,
     })
-    return ok ? 'sent' : 'failed'
+    return linked.ok ? 'sent_link_only' : 'failed'
   } catch (e) {
     // No address, no payload contents, no attachment — just the stage that failed.
     console.error('[visa-result] thank-you email failed', (e as Error)?.name)

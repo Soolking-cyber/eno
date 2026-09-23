@@ -5,7 +5,7 @@ import { rateLimit, escalatingCooldown } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { safeNextPath } from '@/lib/url'
 import { canonicalEmail } from '@/lib/email-alias'
-import { sendMail } from '@/lib/mail'
+import { sendMailDetailed } from '@/lib/mail'
 import { renderSignInEmail } from '@/lib/emails/sign-in-link'
 import { renderSignInCodeEmail } from '@/lib/emails/sign-in-code'
 import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
@@ -21,9 +21,10 @@ import { SITE_NAME } from '@/lib/edition'
 // the request returned 200 and no mail ever arrived. Three days of blocked signups.
 //
 // `admin.generateLink` mints exactly the same token but does NOT send anything, so
-// delivery becomes ours: the Resend path the rest of the app already uses, the brand
-// shell every other email already renders through, and failures that show up in OUR logs
-// instead of inside a service whose config the repo cannot read.
+// delivery becomes ours: the mail path the rest of the app already uses (src/lib/mail.ts →
+// the eno-mailer Worker → Cloudflare Email Sending, with Resend as eno.vn's fallback since
+// 2026-09-23), the brand shell every other email already renders through, and failures that
+// show up in OUR logs instead of inside a service whose config the repo cannot read.
 //
 // WHAT MOVED HERE AS A RESULT. Supabase was also enforcing two things on that endpoint
 // that now have no owner unless this route takes them:
@@ -40,7 +41,7 @@ import { SITE_NAME } from '@/lib/edition'
 // an account is not something an unauthenticated caller gets to learn, so "sent",
 // "already exists", and "generate failed" are indistinguishable from outside.
 
-export const runtime = 'nodejs' // supabase-js admin + Resend, not edge
+export const runtime = 'nodejs' // supabase-js admin + node:crypto request signing, not edge
 export const dynamic = 'force-dynamic'
 
 // Deliberately generous vs. the SMS ladder (60s → 5m → 15m → 30m): email costs a
@@ -65,9 +66,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 // Every branch therefore returns a NextResponse and passes through the wrapper untouched.
 //
 // ⚠️ THE ONE ACCEPTED WIRE CHANGE: a throw that used to fall through to Next's default 500 now
-// answers `{"error":"internal_error"}` 500. It is reachable — `generateLink` and `sendMail` are
-// network calls that REJECT (rather than returning an error object) when the fetch itself fails,
-// and getSupabaseAdmin() throws on missing env.
+// answers `{"error":"internal_error"}` 500. It is reachable — `generateLink` is a network call
+// that REJECTS (rather than returning an error object) when the fetch itself fails, and
+// getSupabaseAdmin() throws on missing env. (`sendMailDetailed` never throws.)
 export const POST = route({ auth: 'public' }, async ({ req }) => {
   let body: { email?: string; captchaToken?: string; next?: string; lang?: string; deliver?: string }
   try {
@@ -203,11 +204,24 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   const { subject, html, text } = wantCode
     ? renderSignInCodeEmail({ code: emailOtp!, origin, email, lang, mode, siteName: SITE_NAME })
     : renderSignInEmail({ url: actionLink!, origin, email, lang, mode, siteName: SITE_NAME })
-  const sent = await sendMail({ to: email, subject, html, text })
-  if (!sent) {
-    // sendMail already logged the reason. This is the failure mode that was invisible
-    // before — now it's a 502 the form can actually tell the user about, instead of a
-    // success screen in front of an inbox that will stay empty.
+  // class 'signin' draws on the Worker's RESERVED share of the daily quota, so a backlog of
+  // background mail can never be the reason a visitor cannot sign in — and the Worker sends it
+  // with no Reply-To, so replying cannot carry this live link or code into the support inbox.
+  const sent = await sendMailDetailed({
+    to: email, subject, html, text, class: 'signin', tag: wantCode ? 'signin-code' : 'signin-link',
+  })
+  if (!sent.ok) {
+    // sendMailDetailed already logged the code with a masked address. This is the failure mode
+    // that was invisible before — now it's a 502 the form can actually tell the user about,
+    // instead of a success screen in front of an inbox that will stay empty.
+    //
+    // ⛔ EVERY CODE GETS THE SAME ANSWER, `suppressed` INCLUDED. A suppressed address has
+    // bounced or complained before, and whether it has is not something an unauthenticated
+    // caller gets to learn (see ENUMERATION above). The distinction stays in OUR logs, where an
+    // admin can lift a wrongful suppression once the owner proves control of the address.
+    if (sent.code === 'suppressed') {
+      console.warn('[auth/email-link] recipient is on the Cloudflare suppression list — answered the generic send_failed; once the owner proves control of the address, an admin lifts it in the Cloudflare dashboard (Email Service → Sending → Suppressions; runbook: infra/cloudflare/eno-mailer.README.md)')
+    }
     return NextResponse.json({ error: 'send_failed' }, { status: 502 })
   }
 

@@ -17,15 +17,24 @@ const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`
 
 // Weekly marketing digest (Vercel Cron → see vercel.json). Guarded by CRON_SECRET,
 // exactly like daily-reminders. Builds the content ONCE (top picks + moving sales) and
-// emails every opted-in account with an address. Fully env-gated: with no RESEND_API_KEY
-// it short-circuits without touching recipients (nothing sends until the key lands).
+// emails every opted-in account with an address.
+//
+// ⛔ IT CANNOT SEND TODAY, BY DESIGN (2026-09-23). Mail moved from Resend to Cloudflare Email
+// Sending, which is TRANSACTIONAL-ONLY and keeps ONE suppression list for the whole account — a
+// spam complaint about a digest would block that address's sign-in links on both editions, with
+// no expiry. So `mailEnabled('marketing')` is always false and this route answers
+// `mail: "disabled"` without touching recipients; the sends below also declare
+// `class: 'marketing'`, which src/lib/mail.ts and the Worker both refuse, so a bypass fails
+// closed. Resend, now eno.vn's fallback transport, is no way around this: mail.ts refuses
+// marketing before it picks a transport. Reviving the digest needs a provider that permits
+// marketing mail AND a suppression list of its own.
 //
 // ⚠️ WS6 MIGRATION — `auth: 'cron'`. "Exactly like daily-reminders" above was literal: the guard
 // deleted here was one of five byte-identical `bearerOk()` copies, now a single timing-safe
 // comparison in `src/lib/api/handler.ts`. All four branches unchanged:
 //   · unset CRON_SECRET, or a missing/malformed/wrong Bearer token → `{"error":"forbidden"}` 401
 //   · empty catalogue → `{"ok":true,"skipped":"no_content"}` 200
-//   · no RESEND_API_KEY → `{"ok":true,"mail":"disabled","top":…,"sales":…}` 200
+//   · marketing mail disabled (always, see above) → `{"ok":true,"mail":"disabled","top":…,"sales":…}` 200
 //   · success → `{"ok":true,"recipients":…,"sent":…,"failed":…,"top":…,"sales":…}` 200
 //
 // ⚠️ ONE ACCEPTED WIRE CHANGE, AS A SHAPE: any unhandled throw in this handler now returns
@@ -38,8 +47,9 @@ export const GET = route({ auth: 'cron' }, async () => {
   if (top.length === 0) {
     return { ok: true, skipped: 'no_content' }
   }
-  // Key not set yet → don't loop recipients; report the no-op so a manual hit is legible.
-  if (!mailEnabled()) {
+  // Marketing mail is off (see the header) → don't loop recipients; report the no-op so a
+  // manual hit is legible.
+  if (!mailEnabled('marketing')) {
     return { ok: true, mail: 'disabled', top: top.length, sales: sales.length }
   }
 
@@ -66,6 +76,8 @@ export const GET = route({ auth: 'cron' }, async () => {
         })
         return sendMail({
           to: r.email,
+          class: 'marketing',
+          tag: 'weekly-digest',
           subject,
           html,
           text,

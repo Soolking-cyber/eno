@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // THE FINISHED VISA — the three properties that decide whether this feature is safe to ship,
@@ -53,6 +54,9 @@ const h = vi.hoisted(() => {
       rateLimitOk: true,
       cryptoReady: true,
       mailOk: true,
+      mailResults: [] as Array<{ ok: true; messageId: string } | { ok: false; code: string }>,
+      /** Milliseconds the (fake) clock moves forward inside a step — models a slow card, send or read. */
+      clockSteps: { card: 0, mail: 0, read: 0 },
       // data
       application: application as Record<string, unknown> | null,
       loadError: null as { code?: string } | null,
@@ -149,6 +153,7 @@ vi.mock('@/lib/visa/storage', () => ({
   // The resume branch re-reads the committed PDF for the email attachment.
   readVisaFile: async (path: string) => {
     h.state.storageDownloads.push(path)
+    if (h.state.clockSteps.read) vi.setSystemTime(Date.now() + h.state.clockSteps.read)
     if (h.state.downloadFails) throw new Error('visa_storage_read_failed')
     return h.state.storedBytes
   },
@@ -197,6 +202,7 @@ vi.mock('@/lib/messages', () => ({
   insertMessage: async (convo: { id: string }, senderId: string, _body: string, opts?: { kind?: string; meta?: unknown; preview?: string }) => {
     h.state.cards.push({ senderId, kind: opts?.kind, meta: opts?.meta, preview: opts?.preview })
     h.state.order.push('card')
+    if (h.state.clockSteps.card) vi.setSystemTime(Date.now() + h.state.clockSteps.card)
     return { id: 'message-1', mine: true, body: '', createdAt: '', kind: opts?.kind ?? 'text', offerAmount: null, offerStatus: null, meta: null }
   },
 }))
@@ -210,6 +216,15 @@ vi.mock('@/lib/visa-shop', () => ({
   VISA_SHOP_OWNER_EMAILS: [] as readonly string[],
 }))
 vi.mock('@/lib/mail', () => ({
+  // result.ts needs the CODE, not a boolean: `too_large` is what turns an attached email into a
+  // link-only one. `mailResults` scripts a sequence of answers; otherwise `mailOk` decides.
+  sendMailDetailed: async (msg: Record<string, unknown>) => {
+    h.state.mails.push(msg)
+    if (h.state.clockSteps.mail) vi.setSystemTime(Date.now() + h.state.clockSteps.mail)
+    const scripted = h.state.mailResults.shift()
+    if (scripted) return scripted
+    return h.state.mailOk ? { ok: true, messageId: 'mail-1' } : { ok: false, code: 'unavailable' }
+  },
   sendMail: async (msg: Record<string, unknown>) => { h.state.mails.push(msg); return h.state.mailOk },
 }))
 vi.mock('@/lib/emails/visa-result', () => ({
@@ -276,9 +291,12 @@ vi.mock('@/lib/visa/db', () => {
   }
 })
 
-const { POST } = await import('@/app/api/visa/admin/applications/[id]/result/route.svc')
+const { POST, maxDuration: RESULT_ROUTE_MAX_DURATION_S } = await import('@/app/api/visa/admin/applications/[id]/result/route.svc')
 const { GET } = await import('@/app/api/visa/applications/[id]/result/route.svc')
-const { checkVisaResultPdf, visaResultFilename, VISA_RESULT_MAX_BYTES } = await import('./result')
+const { checkVisaResultPdf, visaResultFilename, VISA_RESULT_MAX_BYTES, VISA_RESULT_ATTACH_MAX_BYTES, VISA_RESULT_DEADLINE_MS } = await import('./result')
+
+/** The first 16 hex of the file's SHA-256 — what the thank-you email's idempotency key carries. */
+const pdfTag = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex').slice(0, 16)
 
 const params = (id = APP_ID) => ({ params: Promise.resolve({ id }) })
 
@@ -295,6 +313,8 @@ beforeEach(() => {
   s.rateLimitOk = true
   s.cryptoReady = true
   s.mailOk = true
+  s.mailResults = []
+  s.clockSteps = { card: 0, mail: 0, read: 0 }
   s.application = {
     id: APP_ID, user_id: 'applicant-1', status: 'processing', reference: 'EV-1042', encrypted_payload: 'envelope',
   }
@@ -592,6 +612,101 @@ describe('upload route — delivery', () => {
     expect(h.state.cards).toHaveLength(1)
   })
 
+  // ── SIZE-AWARE DELIVERY (2026-09-23): Cloudflare Email Sending caps a WHOLE message at 5 MiB, the
+  // upload accepts 10 MiB. A visa too big to attach goes out as a link to the chat that holds it —
+  // never as a "failed" email for a result the applicant can already download.
+  describe('email size', () => {
+    /** The mocked renderer echoes its input into the subject; read what the caller passed. */
+    const renderedOf = (i: number) => JSON.parse(String(h.state.mails[i].subject).replace(/^subject /, ''))
+
+    it('attaches a PDF at the ceiling, keyed to the case AND the file', async () => {
+      const bytes = pdf('x'.repeat(VISA_RESULT_ATTACH_MAX_BYTES - 32))
+      expect(bytes.length).toBeLessThanOrEqual(VISA_RESULT_ATTACH_MAX_BYTES)
+      const res = await POST(uploadRequest(bytes), params())
+      expect(await res.json()).toMatchObject({ card: 'posted', email: 'sent' })
+      expect(h.state.mails).toHaveLength(1)
+      expect(h.state.mails[0]).toMatchObject({ tag: 'visa-result', idempotencyKey: `visa-result:${APP_ID}:${pdfTag(bytes)}` })
+      expect(h.state.mails[0].attachments).toHaveLength(1)
+      expect(renderedOf(0).delivery).toBe('attached')
+    })
+
+    it('sends a LINK, not an attachment, for a PDF over the ceiling — and says so to the desk', async () => {
+      const bytes = pdf('x'.repeat(VISA_RESULT_ATTACH_MAX_BYTES + 1024))
+      const res = await POST(uploadRequest(bytes), params())
+      expect(res.status).toBe(201)
+      expect(await res.json()).toMatchObject({ card: 'posted', email: 'sent_link_only' })
+      expect(h.state.mails).toHaveLength(1)
+      expect(h.state.mails[0].attachments).toBeUndefined()
+      expect(h.state.mails[0]).toMatchObject({ tag: 'visa-result-link', idempotencyKey: `visa-result-link:${APP_ID}:${pdfTag(bytes)}` })
+      // The link goes to THIS case's thread — the one the card was just posted to — absolute.
+      expect(renderedOf(0)).toMatchObject({ delivery: 'link', chatUrl: expect.stringMatching(/^https?:\/\/[^/]+\/messages\/convo-1$/) })
+    })
+
+    it('falls back to the link when the provider still answers too_large', async () => {
+      h.state.mailResults = [{ ok: false, code: 'too_large' }, { ok: true, messageId: 'mail-2' }]
+      const res = await POST(uploadRequest(pdf('small')), params())
+      expect(await res.json()).toMatchObject({ email: 'sent_link_only' })
+      expect(h.state.mails).toHaveLength(2)
+      expect(h.state.mails[0].attachments).toHaveLength(1)
+      expect(h.state.mails[1].attachments).toBeUndefined()
+      expect(renderedOf(1).delivery).toBe('link')
+    })
+
+    it('does NOT fall back for any other failure — a suppressed address stays failed', async () => {
+      h.state.mailResults = [{ ok: false, code: 'suppressed' }]
+      const res = await POST(uploadRequest(pdf('small')), params())
+      expect(await res.json()).toMatchObject({ card: 'posted', email: 'failed' })
+      expect(h.state.mails).toHaveLength(1)
+    })
+
+    it('reports failed when even the link could not be sent', async () => {
+      h.state.mailResults = [{ ok: false, code: 'unavailable' }]
+      const res = await POST(uploadRequest(pdf('x'.repeat(VISA_RESULT_ATTACH_MAX_BYTES + 1))), params())
+      expect(await res.json()).toMatchObject({ email: 'failed' })
+    })
+
+    it('⛔ a CORRECTED PDF for the same case is a new email — never deduplicated against the wrong one', async () => {
+      // The documented wrong-PDF recovery: the desk deletes the row and its object, then uploads the
+      // corrected file within the mailer's 24 h window. A per-case key made the Worker swallow it as
+      // a duplicate and report the WRONG visa's send as success.
+      const wrong = pdf('the wrong visa')
+      const corrected = pdf('the corrected visa')
+      await POST(uploadRequest(wrong), params())
+      await POST(uploadRequest(corrected), params())
+      expect(h.state.mails).toHaveLength(2)
+      const [a, b] = h.state.mails.map((m) => String(m.idempotencyKey))
+      expect(a).toBe(`visa-result:${APP_ID}:${pdfTag(wrong)}`)
+      expect(b).toBe(`visa-result:${APP_ID}:${pdfTag(corrected)}`)
+      expect(a).not.toBe(b)
+    })
+
+    it('the SAME file keeps the same key, so a retry of that one email is still deduplicated', async () => {
+      await POST(uploadRequest(pdf('same')), params())
+      await POST(uploadRequest(pdf('same')), params())
+      expect(h.state.mails[0].idempotencyKey).toBe(h.state.mails[1].idempotencyKey)
+    })
+
+    it('the attached attempt and the link fallback share ONE deadline, set when the route started', async () => {
+      // A slow card (3 s) and a slow attached attempt (5 s): neither may buy the email more time.
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        vi.setSystemTime(new Date('2026-09-24T10:00:00Z'))
+        const start = Date.now()
+        h.state.clockSteps = { card: 3000, mail: 5000, read: 0 }
+        h.state.mailResults = [{ ok: false, code: 'too_large' }, { ok: true, messageId: 'mail-2' }]
+        await POST(uploadRequest(pdf('small')), params())
+        expect(h.state.mails).toHaveLength(2)
+        const [d1, d2] = h.state.mails.map((m) => m.deadline as number)
+        expect(d1).toBe(start + VISA_RESULT_DEADLINE_MS)
+        expect(d2).toBe(d1)
+      } finally {
+        vi.useRealTimers()
+      }
+      // …which leaves the route ≥ 5 s to close the case and answer inside its declared maxDuration.
+      expect(VISA_RESULT_DEADLINE_MS).toBeLessThanOrEqual((RESULT_ROUTE_MAX_DURATION_S - 5) * 1000)
+    })
+  })
+
   it('still answers 201 when only the EMAIL failed — the card is the route that matters', async () => {
     // The email is genuinely best-effort: the applicant can already reach the PDF from the
     // card in their thread, so a mail outage must not un-spend a delivered result.
@@ -772,7 +887,24 @@ describe('upload route — resume delivery', () => {
     // …and the email attachment was RE-READ from storage (the request body is not trusted).
     expect(h.state.storageDownloads).toEqual(['applicant-1/case/result-1.pdf'])
     expect(h.state.mails).toHaveLength(1)
+    // Keyed on the STORED file.
+    expect(h.state.mails[0].idempotencyKey).toBe(`visa-result:${APP_ID}:${pdfTag(h.state.storedBytes)}`)
     expect(h.state.events.some((e) => e.event === 'result_delivery_resumed')).toBe(true)
+  })
+
+  it('bounds the resumed email by the ROUTE\'s deadline too — a slow storage re-read does not extend it', async () => {
+    seedExistingDoc()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-09-24T10:00:00Z'))
+      const start = Date.now()
+      h.state.clockSteps = { card: 2000, mail: 0, read: 4000 }
+      await POST(uploadRequest(pdf()), params())
+      expect(h.state.mails).toHaveLength(1)
+      expect(h.state.mails[0].deadline).toBe(start + VISA_RESULT_DEADLINE_MS)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('503s WITHOUT resuming when the delivery check itself fails — "could not tell" never re-posts', async () => {

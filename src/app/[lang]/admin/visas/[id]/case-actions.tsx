@@ -156,11 +156,15 @@ function VisaResultUpload({ id, hasResult }: { id: string; hasResult: boolean })
       // The upload SUCCEEDED even if the card or the email did not — the route says which,
       // and the operator must be told rather than shown a flat "done". There is no retry
       // for the upload itself, so a half-landed delivery is a thing a human follows up.
+      // `sent_link_only` IS a delivery: the PDF was over the mail provider's 5 MiB message cap,
+      // so the applicant was emailed a link to the chat that holds it (src/lib/visa/result.ts).
+      const linkOnly = data?.email === 'sent_link_only'
       const missed = [
         data?.card === 'posted' ? null : 'chat card',
-        data?.email === 'sent' ? null : `email (${(data?.email || 'unknown').replaceAll('_', ' ')})`,
+        data?.email === 'sent' || linkOnly ? null : `email (${(data?.email || 'unknown').replaceAll('_', ' ')})`,
       ].filter(Boolean)
       if (missed.length) toast.warning(`Visa stored, but ${missed.join(' and ')} did not go out`)
+      else if (linkOnly) toast.success('Visa delivered — card posted; the PDF was too large to attach, so the email links to the chat')
       else toast.success('Visa delivered — card posted and emailed')
       // The control is rendered from the server's document list; re-read it rather than
       // holding a second copy of "has a result" on the client.

@@ -158,6 +158,10 @@ export const PUT = route(
             `Không sử dụng bất kỳ liên kết đăng nhập nào bạn không tự yêu cầu.</p>`
           await sendMail({
             to: profile.email,
+            // 'security' is the LAST class the mailer's daily budget refuses — not even a sign-in
+            // spray can spend the quota this alert needs (infra/cloudflare/eno-mailer.js).
+            class: 'security',
+            tag: 'payout-changed',
             subject: `Your payout account was changed / Tài khoản nhận tiền đã thay đổi — ${SITE_NAME}`,
             html: renderBrandEmail({ preheader: 'Your payout account was changed', bodyHtml, origin }),
             text:

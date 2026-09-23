@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { getVisaDb } from '@/lib/visa/db'
 import { recordVisaEvent } from '@/lib/visa/records'
 import {
+  VISA_RESULT_DEADLINE_MS,
   VISA_RESULT_MAX_BYTES,
   checkVisaResultPdf,
   findVisaResultCard,
@@ -88,6 +89,11 @@ const refuse = (error: string, status: number) => NextResponse.json({ error }, {
 // read only AFTER the one-result-per-case cap has been checked, so a refused 10 MB PDF is never
 // buffered. The wrapper parses the body before the handler runs.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // ⚠️ THE ANSWER-BY TIME, FROM THE FIRST LINE. maxDuration is 30 s; the thank-you email is the one
+  // step here that can run long (a 3.5 MiB attachment to Cloudflare), so it gets whatever is left of
+  // this budget as ONE deadline shared by the attached attempt and the link fallback — never a fresh
+  // timeout per send. The ~5 s that remain cover closing the case and the response.
+  const answerBy = Date.now() + VISA_RESULT_DEADLINE_MS
   // (1) ADMIN ONLY. getAdmin() re-verifies the session with the auth server and matches it
   // against ADMIN_EMAILS — the same gate as the bundle and takeover routes. NOTHING is read
   // or written before it passes; result.test.ts drives a non-admin request with every data
@@ -180,6 +186,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           encryptedPayload: application.encrypted_payload,
           reference: application.reference,
           pdf,
+          deadline: answerBy,
         })
       } catch {
         console.error('[visa-result] resume could not re-read the stored PDF for the email')
@@ -275,6 +282,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     encryptedPayload: application.encrypted_payload,
     reference: application.reference,
     pdf: bytes,
+    deadline: answerBy,
   })
 
   // (12) CLOSE THE CASE, so the desk can move to the next one (owner, 2026-08-20: the approval

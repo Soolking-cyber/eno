@@ -35,12 +35,14 @@ export type VisaResultEmail = { subject: string; html: string; text: string }
 /**
  * ⛔ NO SITE NAME OR ADDRESS IS TYPED INTO THIS COPY — both arrive as `site` / `support`.
  *
- * Every line below used to say "eno.vn" and "support@eno.vn", and this email is sent ONLY by the
- * services edition (its one caller is src/lib/visa/result.ts, behind `.svc.` routes). So the mail
- * that hands a customer their finished visa thanked them "for trusting eno.vn" and told them to
- * write to eno.vn's inbox — the LICENSED marketplace, which may not offer visa services, named in
- * writing as the provider and the contact for one. Same pattern as business-verification.ts: the
- * caller passes SITE_NAME and COMPANY.email, so the words follow the build that sends them.
+ * Every line below used to say "eno.vn" and "support@eno.vn". Its one caller is
+ * src/lib/visa/result.ts, behind `.svc.` routes — compiled into the services edition, and ALSO into
+ * the marketplace build that hosts the partner-run visa desk (MARKETPLACE_HOSTS_SERVICES,
+ * infra/vn-node/eno-build.sh). So the words cannot be fixed to either site: the eno.forum mail that
+ * handed a customer their finished visa thanked them "for trusting eno.vn" and told them to write to
+ * eno.vn's inbox — the LICENSED marketplace named in writing as the provider of a service it does
+ * not offer. Same pattern as business-verification.ts: the caller passes SITE_NAME and
+ * COMPANY.email, so the words follow the build that sends them.
  */
 const COPY = {
   en: {
@@ -56,8 +58,18 @@ const COPY = {
     tip: 'Before you fly: print a copy and keep it with your passport. You will be asked for it at check-in and again at the border.',
     ctaLabel: 'Open your chat →',
     signoff: (site: string) => `Safe travels, and thank you for using ${site}.`,
-    noReply: (site: string, support: string) =>
-      `This mailbox is not monitored. If anything on the visa looks wrong, reply in your ${site} chat or write to ${support} with your case reference and we will pick it up.`,
+    // ⚠️ REPLIES ARE READ. This mail goes out as class `transactional`, so the eno-mailer Worker
+    // sets Reply-To to this edition's support inbox (infra/cloudflare/eno-mailer.js) — the copy
+    // must not tell the applicant their reply goes nowhere.
+    contact: (site: string, support: string) =>
+      `If anything on the visa looks wrong, just reply to this email — it reaches our support team — or write in your ${site} chat or to ${support}. Include your case reference and we will pick it up.`,
+    // ── link-only delivery: the PDF was too large to attach (see renderVisaResultEmail) ──
+    linkPreheader: (site: string) => `Your e-Visa PDF is waiting in your ${site} chat.`,
+    linkThanks: (site: string) =>
+      `Thank you for trusting ${site} with your Vietnam e-Visa. It has been approved, and your visa is ready to download as a PDF.`,
+    linkInChat: (site: string) =>
+      `The file is too large to attach to an email, so it is waiting for you in your ${site} chat. Open the chat to download it — it stays there, so you can download it again any time.`,
+    linkCtaLabel: 'Open your chat to download it →',
   },
   vi: {
     subject: (ref: string) => `Thị thực điện tử Việt Nam của bạn đã sẵn sàng — ${ref}`,
@@ -72,8 +84,14 @@ const COPY = {
     tip: 'Trước chuyến bay: hãy in một bản và mang theo cùng hộ chiếu. Bạn sẽ được yêu cầu xuất trình khi làm thủ tục bay và tại cửa khẩu.',
     ctaLabel: 'Mở cuộc trò chuyện →',
     signoff: (site: string) => `Chúc bạn thượng lộ bình an, và cảm ơn bạn đã sử dụng dịch vụ của ${site}.`,
-    noReply: (site: string, support: string) =>
-      `Hộp thư này không nhận phản hồi. Nếu có điều gì chưa đúng trên thị thực, hãy nhắn trong cuộc trò chuyện ${site} hoặc gửi email tới ${support} kèm mã hồ sơ, chúng tôi sẽ xử lý ngay.`,
+    contact: (site: string, support: string) =>
+      `Nếu có điều gì chưa đúng trên thị thực, bạn chỉ cần trả lời email này — thư sẽ đến đội hỗ trợ của chúng tôi — hoặc nhắn trong cuộc trò chuyện ${site}, hoặc gửi email tới ${support}. Vui lòng kèm mã hồ sơ, chúng tôi sẽ xử lý ngay.`,
+    linkPreheader: (site: string) => `Tệp PDF thị thực điện tử của bạn đang chờ trong cuộc trò chuyện ${site}.`,
+    linkThanks: (site: string) =>
+      `Cảm ơn bạn đã tin tưởng ${site} cho hồ sơ thị thực điện tử Việt Nam. Hồ sơ đã được duyệt, và thị thực của bạn đã sẵn sàng để tải về dưới dạng PDF.`,
+    linkInChat: (site: string) =>
+      `Tệp quá lớn để đính kèm vào email, nên thị thực đang chờ bạn trong cuộc trò chuyện ${site}. Hãy mở cuộc trò chuyện để tải về — tệp luôn được lưu ở đó, bạn có thể tải lại bất cứ lúc nào.`,
+    linkCtaLabel: 'Mở cuộc trò chuyện để tải về →',
   },
 } as const
 
@@ -112,6 +130,12 @@ function clean(value: string | null | undefined, max: number): string | null {
  * the only handle the customer and the desk share, so it appears in the subject, the body
  * and the plain-text part — a customer searching their inbox a year later finds the case
  * by that string alone.
+ *
+ * ⚠️ TWO DELIVERIES, ONE EMAIL. `delivery: 'attached'` (the default) is the email the owner asked
+ * for, with the PDF attached. `delivery: 'link'` exists because Cloudflare Email Sending caps a
+ * whole message at 5 MiB while a result PDF may be up to 10 MiB: the copy then says the file is in
+ * the chat and the call to action goes to `chatUrl` — the case's own thread when the caller can
+ * resolve it. It must never claim an attachment that is not there.
  */
 export function renderVisaResultEmail(input: {
   givenName: string | null
@@ -122,20 +146,28 @@ export function renderVisaResultEmail(input: {
   siteName: string
   /** This build's support inbox — pass COMPANY.email, never a literal. */
   supportEmail: string
+  /** 'attached' (default): the PDF rides along. 'link': it does not — see above. */
+  delivery?: 'attached' | 'link'
+  /** ABSOLUTE url of the applicant's chat holding the result. Defaults to `${origin}/messages`. */
+  chatUrl?: string
 }): VisaResultEmail {
   const lang: Lang = input.locale === 'vi' ? 'vi' : 'en'
   const c = COPY[lang]
   const site = input.siteName
   const support = input.supportEmail
-  const thanks = c.thanks(site)
-  const inChat = c.inChat(site)
+  const linkOnly = input.delivery === 'link'
+  const thanks = linkOnly ? c.linkThanks(site) : c.thanks(site)
+  const inChat = linkOnly ? c.linkInChat(site) : c.inChat(site)
   const signoff = c.signoff(site)
-  const noReply = c.noReply(site, support)
+  const contact = c.contact(site, support)
   const name = clean(input.givenName, 40)
   // A blank reference would render "Case reference ·" with a hole in it; an em dash is at
   // least visibly wrong to the desk, where an empty line reads as normal.
   const reference = clean(input.reference, 32) ?? '—'
   const origin = input.origin.replace(/\/+$/, '')
+  // Only an absolute http(s) url on THIS origin is accepted; anything else falls back to the
+  // inbox list, so a caller mistake can never put a foreign link in front of an applicant.
+  const chatUrl = input.chatUrl && input.chatUrl.startsWith(`${origin}/`) ? input.chatUrl : `${origin}/messages`
 
   const bodyHtml = `
       <tr><td style="padding:8px 24px 0;">
@@ -157,14 +189,14 @@ export function renderVisaResultEmail(input: {
         <p style="margin:14px 0 0;font-size:15px;font-weight:600;color:${INK};line-height:1.6;">${esc(signoff)}</p>
       </td></tr>
       <tr><td style="padding:14px 24px 0;">
-        <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">${esc(noReply)}</p>
+        <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">${esc(contact)}</p>
       </td></tr>`
 
   const html = renderBrandEmail({
-    preheader: c.preheader(site),
+    preheader: linkOnly ? c.linkPreheader(site) : c.preheader(site),
     bodyHtml,
     origin,
-    cta: { label: c.ctaLabel, url: `${origin}/messages` },
+    cta: { label: linkOnly ? c.linkCtaLabel : c.ctaLabel, url: chatUrl },
   })
 
   const text = [
@@ -181,9 +213,9 @@ export function renderVisaResultEmail(input: {
     '',
     signoff,
     '',
-    `${origin}/messages`,
+    chatUrl,
     '',
-    noReply,
+    contact,
   ].join('\n')
 
   return { subject: c.subject(reference), html, text }
