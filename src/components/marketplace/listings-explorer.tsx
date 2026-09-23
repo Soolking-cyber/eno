@@ -35,6 +35,7 @@ import { ResultLine, shouldOfferSaveSearch } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { histogramQueryFrom } from '@/lib/price-histogram'
+import { useRegisterExplorer } from '@/lib/explorer-presence'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -260,6 +261,8 @@ export function ListingsExplorer({
   listingsRef,
   sellerId,
 }: Props) {
+  // Tell the header an explorer is here to receive its search/area/map events (explorer-presence.ts).
+  useRegisterExplorer()
   const { lang, t, tr } = useLanguage()
   const { openSignIn } = useAuth()
   // Desktop ← / → arrows for the horizontally-scrollable category grid (same primitive as the rails).
