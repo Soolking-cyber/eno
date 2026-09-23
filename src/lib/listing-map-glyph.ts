@@ -101,12 +101,26 @@ export const MAP_GLYPH_PATH: Record<MapGlyph, string> = {
  * HTML, so this is what goes on the marker's `alt` — the only thing a screen reader gets, because
  * the visible content is a number and a picture.
  */
-export const MAP_GLYPH_LABEL: Record<MapGlyph, { en: string; vi: string }> = {
-  apartment: { en: 'Apartment', vi: 'Căn hộ' },
-  house: { en: 'House', vi: 'Nhà' },
-  office: { en: 'Office', vi: 'Văn phòng' },
-  room: { en: 'Room', vi: 'Phòng' },
-  land: { en: 'Land', vi: 'Đất' },
-  vehicle: { en: 'Vehicle', vi: 'Xe' },
-  other: { en: 'Listing', vi: 'Tin đăng' },
+export const MAP_GLYPH_LABEL: Record<MapGlyph, { en: string; enOne: string; enPlural: string; vi: string }> = {
+  apartment: { en: 'Apartment', enOne: 'apartment', enPlural: 'apartments', vi: 'căn hộ' },
+  house: { en: 'House', enOne: 'house', enPlural: 'houses', vi: 'nhà' },
+  office: { en: 'Office', enOne: 'office', enPlural: 'offices', vi: 'văn phòng' },
+  room: { en: 'Room', enOne: 'room', enPlural: 'rooms', vi: 'phòng' },
+  /** ⚠️ `en` IS THE TYPE LABEL, `enOne`/`enPlural` ARE THE COUNTED NOUN, and `land` is why all three
+   *  exist: the pin's type reads "Land", but you count "1 plot" / "4 plots", never "1 land". A test
+   *  caught this deriving the singular by lowercasing `en`. */
+  land: { en: 'Land', enOne: 'plot', enPlural: 'plots', vi: 'lô đất' },
+  vehicle: { en: 'Vehicle', enOne: 'vehicle', enPlural: 'vehicles', vi: 'xe' },
+  other: { en: 'Listing', enOne: 'listing', enPlural: 'listings', vi: 'tin đăng' },
+}
+
+/**
+ * "157 apartments" / "1 apartment" — and the plural is SPELT OUT rather than an `+ 's'`, because
+ * "plots" is not "lands" and a naive rule would have shipped it. Vietnamese does not inflect for
+ * number, so the vi form is the same word either way; that is the language, not an omission.
+ */
+export function glyphCountLabel(glyph: MapGlyph, count: number, lang: string): string {
+  const l = MAP_GLYPH_LABEL[glyph]
+  if (lang === 'vi') return `${count} ${l.vi}`
+  return `${count} ${count === 1 ? l.enOne : l.enPlural}`
 }

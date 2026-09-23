@@ -19,6 +19,7 @@ import { useFavorites } from '@/context/favorites-context'
 import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
 import { MAP_GLYPH_LABEL, MAP_GLYPH_PATH, mapGlyphFor, type MapGlyph } from '@/lib/listing-map-glyph'
+import { MapBuildingCard } from './map-building-card'
 import type { Nearby } from './area-filter'
 import { OSM_CREDIT, CARTO_CREDIT } from '@/lib/map-credit'
 import { cn } from '@/lib/utils'
@@ -100,6 +101,12 @@ type Props = {
   buildings?: BuildingPin[]
   selectedBuilding?: string | null
   onSelectBuilding?: (key: string | null) => void
+  /**
+   * The explorer's own feed query string, so the building card asks for units with the SAME filters
+   * the pin's count and price range were computed under. Without it the card's header and its strip
+   * answer different questions — see map-building-card.tsx.
+   */
+  feedParams?: string
 }
 
 // SELF-HOSTED (public/vendor/leaflet, byte-verified against the npm 1.9.4 tarball) — was
@@ -327,7 +334,7 @@ function MapCredit({ className }: { className?: string }) {
   )
 }
 
-export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove, buildings, selectedBuilding, onSelectBuilding }: Props) {
+export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove, buildings, selectedBuilding, onSelectBuilding, feedParams }: Props) {
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
   const { currency: pickedCurrency, rates: fxRates } = useCurrency()
@@ -374,6 +381,13 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   // ref mirrors the open card id so marker/map click handlers (captured in effects)
   // always see the current value without stale closures.
   const [card, setCard] = useState<SerializedListingCard | null>(null)
+  /**
+   * The building pin's own card. Separate state from `card` because the two are different objects
+   * with different lifetimes — a listing card follows hover on desktop and the touch two-step on
+   * mobile, while this one is opened by an explicit tap and dismissed explicitly.
+   */
+  const [buildingCard, setBuildingCard] = useState<BuildingPin | null>(null)
+  const [buildingCardPos, setBuildingCardPos] = useState<{ x: number; y: number; above: boolean; centered?: boolean } | null>(null)
   // Card pops ABOVE the tapped pin (anchored to its screen position) — `above`
   // flips it below the pin when there isn't room near the top edge.
   const [cardPos, setCardPos] = useState<{ x: number; y: number; above: boolean; centered?: boolean } | null>(null)
@@ -522,10 +536,20 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   // tap only opens the card; the FIRST tap on that card scrolls the feed to it, the
   // second opens the listing.
   const peekedRef = useRef<string | null>(null)
+  /** The open listing card's object, which may have come from outside the current feed page. */
+  const openCardObjRef = useRef<SerializedListingCard | null>(null)
 
   const openCard = (l: SerializedListingCard, center = false, scroll = listIsBeside()) => {
     if (cardIdRef.current !== l.id) peekedRef.current = null
     cardIdRef.current = l.id; setCard(l)
+    /**
+     * ⛔ THE OPEN CARD'S OWN OBJECT, because it is not always in `listings` (reviewer). A unit
+     * opened from the building strip was fetched by that card, so `listingsRef.current.find(...)`
+     * in the move handler misses it entirely and silently skips re-placing — the card then froze at
+     * one pixel while the map moved under it, which is precisely the bug just fixed for the
+     * building card.
+     */
+    openCardObjRef.current = l
     if (center) recenterOnPin(l)
     placeCardFor(l); onHover?.(l.id)
     if (scroll) onPinOpen?.(l.id)
@@ -538,7 +562,63 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     peekedRef.current = l.id
     onPinOpen(l.id) // first tap: bring its card into view in the feed below
   }
-  const closeCard = () => { cardIdRef.current = null; peekedRef.current = null; setCard(null); setCardPos(null); onHover?.(null) }
+  /**
+   * ⚠️ POSITIONED FROM THE MARKER'S OWN LATLNG, not from the click event. A click on a Leaflet
+   * marker reports the pointer, so the card would hang off wherever inside the pin the finger
+   * landed and drift between taps; projecting the pin's coordinate pins the card to the pin.
+   */
+  /**
+   * ⛔ CLAMPED ON BOTH AXES, AND THE COMMENT USED TO CLAIM THAT WITHOUT DOING IT (reviewers). Only
+   * `x` was bounded; `y` was the raw pin position, so on a short map — a phone's 60dvh view, or the
+   * listing-detail map — the card simply ran off the bottom and the carousel and its button were
+   * unreachable. Worse, `above` was decided against a fixed 400px, which on a container SHORTER
+   * than that is never satisfiable, so the card could only ever be placed downward, i.e. always off
+   * the edge. Below that height it is centred instead, the same escape the listing card uses.
+   */
+  const buildingCardPlacement = (pt: { x: number; y: number }, el: HTMLElement) => {
+    const w = Math.min(360, el.clientWidth - 24)
+    const CARD_H = 400
+    const x = Math.min(Math.max(pt.x, w / 2 + 8), Math.max(w / 2 + 8, el.clientWidth - w / 2 - 8))
+    if (el.clientHeight < CARD_H + 28) {
+      return { x: el.clientWidth / 2, y: el.clientHeight / 2, above: false, centered: true }
+    }
+    /**
+     * ⚠️ WHICHEVER SIDE HAS MORE ROOM, not "above if the pin is low enough". On a mid-height map a
+     * pin can have too little room BOTH ways, and picking by a fixed threshold then clamped the
+     * card back over the pin it belongs to (reviewer). Comparing the two gaps at least puts it on
+     * the roomier side; the clamp still keeps it inside.
+     */
+    const above = pt.y > el.clientHeight - pt.y
+    const y = above
+      ? Math.max(pt.y, CARD_H + 24)
+      : Math.min(pt.y, el.clientHeight - CARD_H - 14)
+    return { x, y, above, centered: false }
+  }
+
+  const openBuildingCard = (b: BuildingPin) => {
+    const map = mapInstanceRef.current, el = mapRef.current
+    setBuildingCard(b)
+    if (!map || !el) return
+    const pt = map.latLngToContainerPoint([b.lat, b.lng])
+    /**
+     * ⛔ CLAMPED INSIDE THE MAP, BOTH AXES. The first version placed the card above the pin whenever
+     * `y > 260` and left x alone, which put its top edge off the top of the map for any pin in the
+     * upper half — the header and hero were simply cut off. The card is ~360 wide and ~400 tall, so
+     * it goes ABOVE only when that much room genuinely exists above the pin, and its centre is
+     * pulled back inside the container so a pin near either edge cannot push it out of view.
+     */
+    setBuildingCardPos(buildingCardPlacement(pt, el))
+  }
+  /** The building whose card is open, for the map handlers captured once at init. */
+  const buildingCardRef = useRef<BuildingPin | null>(null)
+  buildingCardRef.current = buildingCard
+  const openBuildingCardRef = useRef(openBuildingCard)
+  openBuildingCardRef.current = openBuildingCard
+  const closeBuildingCardRef = useRef<() => void>(() => {})
+  const closeBuildingCard = () => { setBuildingCard(null); setBuildingCardPos(null) }
+  closeBuildingCardRef.current = closeBuildingCard
+
+  const closeCard = () => { cardIdRef.current = null; peekedRef.current = null; openCardObjRef.current = null; setCard(null); setCardPos(null); onHover?.(null) }
   // Desktop hover UX: keep the card open while the cursor is over the marker OR the
   // card, and close it gracefully a beat after the cursor leaves both — so it never
   // persists over the cards behind it (and the small grace period lets the cursor
@@ -589,13 +669,38 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       keepBuffer: 1,        // hold fewer off-screen tiles → fewer requests on slow links
       updateWhenIdle: true, // defer tile fetches until a pan/zoom settles
     }).addTo(map)
-    map.on('click', () => closeCard()) // tap the map background → close the card
+    map.on('click', () => { closeCard(); closeBuildingCardRef.current() }) // tap the map background → close both cards
     // Keep the card glued to its pin while the map pans/zooms.
     map.on('move zoom', () => {
       const id = cardIdRef.current
-      if (!id) return
-      const l = listingsRef.current.find((x) => x.id === id)
-      if (l) placeCardFor(l)
+      if (id) {
+        const l = listingsRef.current.find((x) => x.id === id) ?? (openCardObjRef.current?.id === id ? openCardObjRef.current : undefined)
+        if (l) placeCardFor(l)
+      }
+      /**
+       * ⛔ THE BUILDING CARD FOLLOWS THE MAP TOO — both reviewers caught that it did not. Its
+       * position was projected once at tap time and never again, so panning one screen left the
+       * card floating over empty tiles, anchored to a pixel coordinate that no longer meant
+       * anything. This is the very handler the listing card has for that reason; the building card
+       * simply was not in it.
+       */
+      const b = buildingCardRef.current
+      const el2 = mapRef.current
+      if (b && el2) {
+        const p2 = map.latLngToContainerPoint([b.lat, b.lng])
+        /**
+         * ⛔ OFF THE MAP MEANS CLOSED, NOT CLAMPED TO THE EDGE (reviewers). The placement function
+         * pulls the card inside the container on both axes, which is right while the pin is
+         * visible and wrong the moment it is not: panning two screens away left the card pasted to
+         * the edge, still describing a tower nobody could see. A bounds check on the PIN is the
+         * thing; the clamp only ever keeps a visible pin's card from overhanging.
+         */
+        if (p2.x < -40 || p2.y < -40 || p2.x > el2.clientWidth + 40 || p2.y > el2.clientHeight + 40) {
+          closeBuildingCardRef.current()
+        } else {
+          setBuildingCardPos(buildingCardPlacement(p2, el2))
+        }
+      }
     })
     mapInstanceRef.current = map
     const sizer = setTimeout(() => map.invalidateSize(), 80)
@@ -699,7 +804,25 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
          * effect's deps would then rebuild every marker constantly — which reads as "clicking does
          * nothing". Same reason `listings` is mirrored into a ref above.
          */
-        marker.on('click', () => onSelectBuildingRef.current?.(active ? null : b.key))
+        marker.on('click', () => {
+          /**
+           * One tap does both halves of what a building pin is for: the card shows the project and
+           * its units on the map, and the rail beside the map narrows to the same tower. Re-tapping
+           * the ACTIVE pin clears both, so the pin stays its own way back out — the invariant the
+           * original handler documented, now covering the card too.
+           */
+          /**
+           * ⛔ DECIDED ON WHETHER THIS TOWER'S CARD IS OPEN, NOT ON `active` ALONE (reviewer). A tap
+           * on the map background closes the card but deliberately leaves the rail narrowed — so
+           * with `active` as the only test, the pin was still "active" and the next tap took the
+           * clear branch instead of reopening. The card could never be got back without first
+           * clearing and tapping twice: a one-shot pin. Reopening is the obvious meaning of tapping
+           * a pin whose card is not showing, and the rail's own "All buildings" button remains the
+           * way out of the filter.
+           */
+          if (buildingCardRef.current?.key === b.key) { onSelectBuildingRef.current?.(null); closeBuildingCardRef.current() }
+          else { onSelectBuildingRef.current?.(b.key); openBuildingCardRef.current(b) }
+        })
         markersRef.current.set(`building:${b.key}`, marker)
       })
     }
@@ -738,7 +861,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
        * ⚠️ AND IT IS TRANSLATED. `.en` was hardcoded here at first, which on a Vietnamese-first
        * marketplace announced "Apartment — …" to a vi reader; MAP_GLYPH_LABEL carries both.
        */
-      const glyphName = tr(MAP_GLYPH_LABEL[lGlyph].en, MAP_GLYPH_LABEL[lGlyph].vi)
+      // The vi nouns are stored lowercase because they are counted ("157 căn hộ"); a tooltip is a
+      // label, so it opens with a capital.
+      const viName = MAP_GLYPH_LABEL[lGlyph].vi
+      const glyphName = tr(MAP_GLYPH_LABEL[lGlyph].en, viName.charAt(0).toUpperCase() + viName.slice(1))
       const marker = L.marker([lat, lng], { icon, riseOnHover: true, title: `${glyphName} — ${l.title}` }).addTo(map)
       // A rebuild mid-selection must keep the selected pin on top — the styling
       // effect only runs on [selectedId, ready], not on a redraw.
@@ -802,6 +928,21 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     const sizeT = setTimeout(() => { if (mapInstanceRef.current === map) map.invalidateSize() }, 80)
     return () => clearTimeout(sizeT)
   }, [listings, ready, activeDistrict, areaKey, nearby, locale, buildings, selectedBuilding])
+
+  /**
+   * ⛔ A CARD MUST NOT OUTLIVE ITS PIN (reviewer). Change a filter so the tower falls out of the
+   * result set and the marker layer is rebuilt without it — but the card kept its own copy of the
+   * building and stayed open, re-anchored on every pan to a coordinate with no pin under it. The
+   * explorer already clears a SELECTION that is no longer in the refetched list ("a building filter
+   * the user cannot see must not survive"); this is the same rule for the card.
+   * ⚠️ `buildings === undefined` means not loaded yet, which is not the same as "gone" — only an
+   * actual list that omits the key closes it.
+   */
+  useEffect(() => {
+    if (!buildingCard || !buildings) return
+    if (!buildings.some((b) => b.key === buildingCard.key)) closeBuildingCard()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildings, buildingCard])
 
   // Update marker styling on selection / hover (no full rebuild).
   useEffect(() => {
@@ -948,6 +1089,43 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       {ready && <MapCredit className="bottom-1 left-2" />}
 
       {/* Airbnb-style info card — pops ON TOP of the tapped pin, magnifying out of it */}
+      {/**
+        * ⚠️ RENDERED BEFORE THE LISTING CARD so the listing card wins on z-order if both are ever
+        * open at once — tapping a unit inside this card opens that unit's own card, and the one the
+        * reader just asked for must be the one on top.
+        */}
+      {buildingCard && buildingCardPos && (
+        <div
+          className="absolute z-[1100] pointer-events-none"
+          style={{
+            left: buildingCardPos.x,
+            top: buildingCardPos.centered
+              ? buildingCardPos.y
+              : buildingCardPos.above ? buildingCardPos.y - 14 : buildingCardPos.y + 14,
+            transform: buildingCardPos.centered
+              ? 'translate(-50%, -50%)'
+              : buildingCardPos.above ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
+          }}
+        >
+          <div className="pointer-events-auto duration-150 ease-out animate-in fade-in zoom-in-95">
+            <MapBuildingCard
+              /**
+               * ⛔ THE LIVE PIN, NOT THE SNAPSHOT TAKEN AT TAP TIME (reviewer). `buildingCard` holds
+               * the BuildingPin as it was when tapped; change the price ceiling with the card open
+               * and the strip refetches under the new filters while the header kept saying
+               * "12 apartments · 3–8 tỷ" over three ≤5 tỷ units. The count and range belong to the
+               * refreshed pin, so read them from `buildings` every render and fall back to the
+               * snapshot only while that list is still in flight.
+               */
+              building={buildings?.find((b) => b.key === buildingCard.key) ?? buildingCard}
+              width={Math.min(360, (mapRef.current?.clientWidth ?? 360) - 24)}
+              feedParams={feedParams}
+              onOpenListing={(l) => { closeBuildingCard(); activateCard(l) }}
+              onSeeAll={(id) => { closeBuildingCard(); if (id) onPinOpen?.(id) }}
+            />
+          </div>
+        </div>
+      )}
       {card && cardPos && (
         <div
           className="absolute z-[1100] pointer-events-none"

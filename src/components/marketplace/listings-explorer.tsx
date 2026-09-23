@@ -3331,6 +3331,7 @@ export function ListingsExplorer({
                       buildings={buildingPins}
                       selectedBuilding={selectedBuilding}
                       onSelectBuilding={handleSelectBuilding}
+                  feedParams={baseParamsString}
                       activeDistrict={activeDistrict}
                       onOpenListing={handleOpen}
                       selectedId={hoveredId ?? focusId}

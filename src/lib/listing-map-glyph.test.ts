@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAP_GLYPH_LABEL, MAP_GLYPH_PATH, mapGlyphFor, type MapGlyph } from './listing-map-glyph'
+import { MAP_GLYPH_LABEL, MAP_GLYPH_PATH, glyphCountLabel, mapGlyphFor, type MapGlyph } from './listing-map-glyph'
 import { SUBCATEGORIES } from './subcategories'
 
 /**
@@ -89,6 +89,38 @@ describe('the glyph table', () => {
   it('stays simple enough to read at pin size', () => {
     for (const b of buckets) {
       expect(MAP_GLYPH_PATH[b].length, `${b} is too detailed for a 13px pin`).toBeLessThan(150)
+    }
+  })
+})
+
+describe('glyphCountLabel', () => {
+  /** ⛔ THE REASON THE PLURAL IS SPELT OUT: `+ 's'` would have shipped "lands". */
+  it('pluralises EVERY bucket without inventing a word', () => {
+    // ⚠️ Named in full because the spec says "every bucket" — a reviewer noticed it had been
+    // claiming that while skipping `room` and `vehicle`.
+    expect(glyphCountLabel('apartment', 157, 'en')).toBe('157 apartments')
+    expect(glyphCountLabel('house', 2, 'en')).toBe('2 houses')
+    expect(glyphCountLabel('office', 3, 'en')).toBe('3 offices')
+    expect(glyphCountLabel('room', 5, 'en')).toBe('5 rooms')
+    expect(glyphCountLabel('land', 4, 'en')).toBe('4 plots')
+    expect(glyphCountLabel('vehicle', 6, 'en')).toBe('6 vehicles')
+    expect(glyphCountLabel('other', 9, 'en')).toBe('9 listings')
+  })
+  it('uses the singular for exactly one', () => {
+    expect(glyphCountLabel('apartment', 1, 'en')).toBe('1 apartment')
+    expect(glyphCountLabel('land', 1, 'en')).toBe('1 plot')
+  })
+  /** Vietnamese does not inflect for number — the same word either way is the language, not a gap. */
+  it('does not inflect Vietnamese', () => {
+    expect(glyphCountLabel('apartment', 1, 'vi')).toBe('1 căn hộ')
+    expect(glyphCountLabel('apartment', 157, 'vi')).toBe('157 căn hộ')
+  })
+  /** A counted noun reads lowercase ("157 căn hộ"); the pin tooltip capitalises it at its own site. */
+  it('keeps the Vietnamese nouns lowercase for counting', () => {
+    for (const b of Object.values(MAP_GLYPH_LABEL)) {
+      expect(b.vi[0]).toBe(b.vi[0].toLowerCase())
+      expect(b.enPlural[0]).toBe(b.enPlural[0].toLowerCase())
+      expect(b.enOne[0]).toBe(b.enOne[0].toLowerCase())
     }
   })
 })
