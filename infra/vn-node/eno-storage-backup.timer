@@ -1,0 +1,18 @@
+[Unit]
+Description=Nightly off-box copy of the eno storage volume
+
+[Timer]
+# 01:45 ICT (the box runs local time). Slotted after the database dump it copies the roles file
+# from, and clear of everything else:
+#   01:15  eno-backup            — database dump + roles dump (reads the disk briefly)
+#   01:45  THIS                  — storage sync, manifest, roles upload
+#   02:30  eno-restore-drill     — Mondays only
+#   03:00  affiliate-prices
+#   04:30  eno-docker-prune
+OnCalendar=*-*-* 01:45:00
+# If the box was off at 01:45, run at next boot: a skipped night widens the window of loss.
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

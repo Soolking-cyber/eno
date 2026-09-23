@@ -1,0 +1,38 @@
+[Unit]
+Description=eno nightly off-box copy of the storage volume + roles dump
+# ⚠️ Wants, not Requires, matching eno-backup: the script's own checks decide the outcome.
+Wants=network-online.target
+# After eno-backup: when a boot fires both overdue timers at once, the roles dump must exist before
+# this uploads the newest one (otherwise it uploads a days-old file and fails on staleness).
+After=network-online.target docker.service eno-backup.service
+# The volume is a directory on the root fs today; this keeps a future separate mount from being read
+# (and its absence mirrored) before it is up.
+RequiresMountsFor=/opt/eno/supabase/volumes/storage
+
+[Service]
+EnvironmentFile=-/etc/default/eno-backup
+Type=oneshot
+ExecStart=/opt/eno/bin/eno-storage-backup.sh
+# A SIGKILL (MemoryMax, TimeoutStartSec) never reaches the script's ERR trap, so the failure marker
+# is written here too — the unit state alone is easy to miss.
+ExecStopPost=/bin/sh -c 'if [ "$SERVICE_RESULT" != success ]; then { date -u +%%FT%%TZ; echo "unit ended: $SERVICE_RESULT/$EXIT_CODE/$EXIT_STATUS"; } >> /opt/eno/backups/.last-storage-failure; fi'
+# ⚠️ A BACKUP MUST NEVER COST THE SITE. The volume walk touches 555k files and the upload is
+# 32 GB on the first run, on the same CPUs and disk that serve eno.vn and eno.forum. Lowest IO
+# priority + nice 19 + batch scheduling = it yields to the site; the rclone --bwlimit in the
+# script does the same for the uplink.
+Nice=19
+CPUSchedulingPolicy=batch
+# best-effort at the LOWEST priority, not idle: idle is starved outright by any sustained IO, which
+# would turn a busy night into a timed-out, skipped backup.
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# rclone --fast-list holds the bucket listing in RAM (~1 KB per object, ~0.6 GB today). A cap
+# means a runaway listing kills the backup, never the database next to it.
+MemoryHigh=1536M
+MemoryMax=3G
+# The first sync of 32 GB at the 20 MiB/s limit is ~30 min; nightly runs are minutes. A hung
+# upload must end as a visible failure, not an unbounded run the next timer skips behind.
+TimeoutStartSec=8h
+# ⛔ A FAILED BACKUP MUST BE VISIBLE: oneshot propagates the exit code to `systemctl --failed`.
+StandardOutput=journal
+StandardError=journal
