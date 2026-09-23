@@ -15,7 +15,7 @@ import { postingGate } from '@/lib/enforcement'
 import { rateLimit } from '@/lib/ratelimit'
 import { createListingCore } from '@/lib/core/listings'
 import { migrateLegacyCategoryParams } from '@/lib/taxonomy'
-import { idsFastPath, buildFeedFilters, buildFeedOrderBy, getSubcategoryCounts } from './feed-query'
+import { idsFastPath, buildFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
 import { computeFacetCounts, subcategoryDimension, type FacetCounts } from '@/lib/facet-counts'
 import { semanticRank } from './semantic-rank'
 import { resolveSellerForPost } from './resolve-seller'
@@ -135,9 +135,11 @@ export async function GET(req: NextRequest) {
   // were ignored. Counts now match what the click returns.
   const facetBaseFilters = andFilters.filter((f) => f !== subcategoryFilter && f !== pgTextFilter)
 
+  // Both totals go through the count cache (feed-query.ts, audit M2): a load-more page within the
+  // minute takes the number page 1 already paid for instead of re-scanning for it.
   let categoryTotalPromise: Promise<number> = Promise.resolve(0)
   if (category && category !== 'all') {
-    categoryTotalPromise = db.listing.count({ where: { AND: facetBaseFilters } })
+    categoryTotalPromise = countListingsCached({ AND: facetBaseFilters })
   }
 
   const promises: [
@@ -219,7 +221,7 @@ export async function GET(req: NextRequest) {
             skip: offset,
             select: LISTING_CARD_SELECT,
           }),
-    semanticListings ? Promise.resolve(semanticTotal) : db.listing.count({ where }),
+    semanticListings ? Promise.resolve(semanticTotal) : countListingsCached(where),
     undefined
   ]
 

@@ -26,6 +26,54 @@ const SUBCOUNT_CACHE_MAX = 500
 const subCountCache = new Map<string, { at: number; data: { slug: string; count: number }[] }>()
 
 /**
+ * ⛔ THE FEED'S TOTAL WAS THE MOST EXPENSIVE STATEMENT IN THE DATABASE (audit M2 + #362). Measured
+ * on production, 2026-09-20 → 09-23: `SELECT COUNT(*) … WHERE verified AND status AND sellerId NOT
+ * IN (desk)` was 13% of ALL database time — 7,332 calls at 139 ms, each a sequential scan of the
+ * 366 MB heap (the desk exclusion is not in any index, so no count could stay index-only). The
+ * facet and subcategory counts beside it were already memoized; the two totals were not, and they
+ * ran on every infinite-scroll page for a number the client already had.
+ *
+ * Same shape as the two caches above: keyed by the full `where`, 60 s fresh — the same minute the
+ * response itself promises (`s-maxage=60`), so a total can already be that stale at the edge — and
+ * one addition: CONCURRENT IDENTICAL COUNTS SHARE ONE QUERY, as the facet cache does, because the
+ * unfiltered home feed is one key for every visitor. Load-more pages hit it too: `total` on page 7
+ * is page 1's number, asked for again within the minute. The field is still ALWAYS a number — the
+ * explorer, the storefront and the native apps all read it, so dropping it past page 1 would be a
+ * contract change, not an optimisation.
+ * A failed count is not cached — the next request asks again.
+ */
+const COUNT_TTL = 60_000
+const COUNT_CACHE_MAX = 500
+const countCache = new Map<string, { at: number; n: number }>()
+const countInFlight = new Map<string, Promise<number>>()
+
+/** `db.listing.count({ where })` through the cache above. */
+export function countListingsCached(where: Prisma.ListingWhereInput): Promise<number> {
+  const key = JSON.stringify(where)
+  const hit = countCache.get(key)
+  if (hit && Date.now() - hit.at < COUNT_TTL) {
+    // LRU on READ, not just on write: the unfiltered home-feed total is the hottest key by far, and
+    // a burst of distinct filtered searches must not push it out while it is being served.
+    countCache.delete(key)
+    countCache.set(key, hit)
+    return Promise.resolve(hit.n)
+  }
+  const running = countInFlight.get(key)
+  if (running) return running
+  const work = db.listing
+    .count({ where })
+    .then((n) => {
+      countCache.delete(key) // re-inserted below, so a refreshed key moves to the young end
+      if (countCache.size >= COUNT_CACHE_MAX) countCache.delete(countCache.keys().next().value!) // evict oldest
+      countCache.set(key, { at: Date.now(), n })
+      return n
+    })
+    .finally(() => countInFlight.delete(key))
+  countInFlight.set(key, work)
+  return work
+}
+
+/**
  * Fast path: fetch a specific set of PUBLIC listings by id (used by /saved).
  *
  * Must match the public invariant everywhere else (verified + active) — without status:'active' a

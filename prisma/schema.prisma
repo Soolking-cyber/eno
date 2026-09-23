@@ -911,6 +911,14 @@ model Listing {
   // Seller join + external sort. One for the all-categories feed, one by-category.
   @@index([verified, status, rankScore])
   @@index([verified, status, categoryId, rankScore])
+  // The feed's COUNTs (audit M2): every public count carries `sellerId NOT IN (desk)`, and no other
+  // index holds sellerId, so each one read the 366 MB heap — the whole-feed total was a 187 ms
+  // sequential scan and 13% of all database time. With sellerId in the key both the whole-feed and
+  // the per-category count stay INDEX-ONLY (an index-only count measured 36 ms). Applied by
+  // scripts/listing-count-index-ddl.mjs (CONCURRENTLY); nothing breaks if it is not there yet.
+  // ⚠️ APPLY IT WITH THAT SCRIPT, NEVER FROM `prisma migrate diff`: the diff emits a plain CREATE
+  // INDEX, which blocks every write to Listing while it builds, and inside the safe flow's BEGIN/COMMIT.
+  @@index([verified, status, categoryId, sellerId])
   // Legacy trust-only ranked indexes (kept for the explicit price/popular tiebreaks).
   @@index([verified, status, sellerTrustScore, postedAt])
   @@index([verified, status, categoryId, sellerTrustScore, postedAt])

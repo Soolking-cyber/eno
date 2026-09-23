@@ -62,6 +62,8 @@ console.error(`
     3. READ the output. Keep ADD COLUMN / CREATE TABLE / CREATE INDEX / ADD CONSTRAINT.
        ⚠️ A Prisma ALTER TABLE is MULTI-CLAUSE — how a statement STARTS proves nothing
        about its tail. Reject any statement containing DROP, not a list of kinds.
+       ⚠️ A CREATE INDEX on an EXISTING table stays OUT of the transaction: plain, it
+       blocks every write while it builds. Run it alone as CREATE INDEX CONCURRENTLY.
     4. Apply with psql -v ON_ERROR_STOP=1 inside BEGIN/COMMIT, restore both FKs, then
        run \`npm run db:ddl\`, then \`npx prisma generate\`.
     5. Migrate the DB BEFORE deploying. Prisma selects every scalar column, so a new

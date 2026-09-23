@@ -95,6 +95,9 @@ from memory.
      ⚠️ A Prisma `ALTER TABLE` is MULTI-CLAUSE: matching how a statement *starts* proves nothing
      about its tail. One carried `ALTER COLUMN "unsubscribeToken" DROP DEFAULT` behind the
      `ADD COLUMN`s. Assert on the whole statement, and reject **any** `DROP`, not a list of kinds.
+     ⚠️ A `CREATE INDEX` on an EXISTING table does NOT go in the transaction: plain, it blocks
+     every write to that table while it builds. Run it as `CREATE INDEX CONCURRENTLY`, alone —
+     e.g. `scripts/listing-count-index-ddl.mjs` owns `Listing_verified_status_categoryId_sellerId_idx`.
   4. Apply with `psql -v ON_ERROR_STOP=1` inside `BEGIN/COMMIT`, restore both FKs, then
      `node scripts/compliance-ddl.mjs` and the other DDL scripts, then `prisma generate`.
   5. **Migrate the DB BEFORE deploying.** Prisma selects every scalar column, so a new revision

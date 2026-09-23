@@ -30,35 +30,77 @@ const W_CONTACT = 5
 const PINNED_SLUGS = ['rentals', 'jobs', 'services', 'moving-sale'] as const
 
 /**
+ * ⚠️ THE TWO AGGREGATES BELOW ARE MEMOIZED FOR DEMAND_TTL (audit M2). Measured on production
+ * 2026-09-20 → 09-23 they were ~20% of ALL database time — ~5,000 calls each at ~95 ms, both full
+ * scans of the listing heap — because `/s/[handle]` is force-dynamic and paid for them on every
+ * visit. The answer is a category ORDER and a chip count; five minutes of drift in either is
+ * invisible next to a home page that is already ISR'd for six hours.
+ *
+ * Only the raw rows are cached, never the mapped array, so every caller still gets fresh objects it
+ * may mutate. A failed read is not cached (the caller's catch returns [] for that request only),
+ * and concurrent callers share one read.
+ *
+ * ⛔ KEYED BY THE EDITION SCOPE, although each edition is its own container today (the edition is
+ * inlined at build time). The scope is what keeps desk counts off the licensed marketplace's chips;
+ * an unkeyed entry would be one refactor — one process serving both sites — away from handing
+ * eno.forum's desk-inclusive numbers to eno.vn. The lookup is the same one every call made anyway.
+ */
+const DEMAND_TTL = 5 * 60_000
+type DemandRows = Awaited<ReturnType<typeof loadDemandRows>>
+type EditionScope = Awaited<ReturnType<typeof marketplaceListingScope>>
+const demandCache = new Map<string, { at: number; rows: DemandRows }>()
+const demandInFlight = new Map<string, Promise<DemandRows>>()
+
+async function loadDemandRows(editionScope: EditionScope) {
+  return Promise.all([
+    /**
+     * ⚠️ THIS NESTED `_count` IS INVISIBLE TO scripts/edition-lint.mjs — its regex matches
+     * `db.listing.*`, and this is `db.category.findMany`. A Prisma client extension would not
+     * cover it either. It only ever gets fixed by hand, which is why it is called out here: it is
+     * the number on every category chip, and without the scope the services category advertises
+     * 15 listings that a marketplace visitor cannot see.
+     *
+     * The RAW fragment, not scopedListingWhere: the value must stay a plain ListingWhereInput
+     * inside `_count.select`, and there is no sibling `sellerId` here to collide with.
+     */
+    db.category.findMany({
+      include: { _count: { select: { listings: { where: { verified: true, status: 'active', ...editionScope } } } } },
+    }),
+    // Decides the ORDER of the home category rail: desk views and contacts would otherwise float
+    // the services category to the front of the licensed marketplace's grid.
+    db.listing.groupBy({
+      by: ['categoryId'],
+      where: { verified: true, status: 'active', ...editionScope },
+      _sum: { views: true, contactCount: true, savedCount: true },
+    }),
+  ])
+}
+
+async function demandRows(): Promise<DemandRows> {
+  const editionScope = await marketplaceListingScope()
+  const key = JSON.stringify(editionScope)
+  const hit = demandCache.get(key)
+  if (hit && Date.now() - hit.at < DEMAND_TTL) return hit.rows
+  const running = demandInFlight.get(key)
+  if (running) return running
+  const work = loadDemandRows(editionScope)
+    .then((rows) => {
+      demandCache.set(key, { at: Date.now(), rows })
+      return rows
+    })
+    .finally(() => demandInFlight.delete(key))
+  demandInFlight.set(key, work)
+  return work
+}
+
+/**
  * All categories ordered by live DEMAND (most-wanted first) for the search rails +
  * home grid. One aggregate query over active listings; safe to call from ISR pages
  * (cached by their revalidate window). Falls back to empty on a DB error.
  */
 export async function getCategoriesByDemand(): Promise<SerializedCategory[]> {
   try {
-    const editionScope = await marketplaceListingScope()
-    const [categories, demand] = await Promise.all([
-      /**
-       * ⚠️ THIS NESTED `_count` IS INVISIBLE TO scripts/edition-lint.mjs — its regex matches
-       * `db.listing.*`, and this is `db.category.findMany`. A Prisma client extension would not
-       * cover it either. It only ever gets fixed by hand, which is why it is called out here: it is
-       * the number on every category chip, and without the scope the services category advertises
-       * 15 listings that a marketplace visitor cannot see.
-       *
-       * The RAW fragment, not scopedListingWhere: the value must stay a plain ListingWhereInput
-       * inside `_count.select`, and there is no sibling `sellerId` here to collide with.
-       */
-      db.category.findMany({
-        include: { _count: { select: { listings: { where: { verified: true, status: 'active', ...editionScope } } } } },
-      }),
-      // Decides the ORDER of the home category rail: desk views and contacts would otherwise float
-      // the services category to the front of the licensed marketplace's grid.
-      db.listing.groupBy({
-        by: ['categoryId'],
-        where: { verified: true, status: 'active', ...editionScope },
-        _sum: { views: true, contactCount: true, savedCount: true },
-      }),
-    ])
+    const [categories, demand] = await demandRows()
 
     const score = new Map(
       demand.map((d) => [
