@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { EnoLoader } from '@/components/ui/eno-loader'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User, Store, Loader2, Check } from '@/components/ui/icons'
@@ -130,7 +131,7 @@ export function OnboardClient() {
   if (loading || !identityLoaded || !user || accountType) {
     return (
       <main id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" />
+        <EnoLoader />
       </main>
     )
   }

@@ -25,7 +25,7 @@ import type { Nearby } from './area-filter'
 import { OSM_CREDIT, CARTO_CREDIT } from '@/lib/map-credit'
 import { cn } from '@/lib/utils'
 import { handleExternalClick } from '@/lib/native-browser'
-import { Spinner } from '@/components/ui/spinner'
+import { EnoLoader } from '@/components/ui/eno-loader'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 
@@ -1111,12 +1111,41 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
               </Button>
             </>
           ) : (
-            <>
-              <Spinner size="md" />
-              <span className="text-3xs font-bold text-slate-700 uppercase tracking-wider">
-                {tr('Loading map…', 'Đang tải bản đồ...')}
-              </span>
-            </>
+            /**
+             * ⛔ A SKELETON OF THE MAP, NOT A SPINNER. This shipped a spinner and the words "Loading
+             * map…" INSIDE THE FIRST HTML of every listing page — measured at byte 100,103 of the
+             * PDP response — so the one placeholder a reader met on arrival was a rotating circle
+             * that says nothing about what is coming. A spinner is the right control for work of
+             * unknown shape; a map is a known shape, so the honest placeholder looks like a map.
+             *
+             * ⚠️ THE MOTION IS CONFINED TO THE PIN'S PILL, and it uses the house `.shimmer` sweep
+             * rather than `animate-pulse` — which this codebase bans in four separate files because
+             * it fades the whole SUBTREE to 50% opacity and drops small text below contrast. A
+             * shimmering 260px slab would also be more distracting than the spinner it replaces;
+             * one moving pill says "still working" without flashing the panel.
+             *
+             * `aria-busy` + a visually-hidden label keeps the announcement a screen reader used to
+             * get from the visible "Loading map…" text.
+             */
+            <div className="absolute inset-0 select-none" aria-busy="true">
+              {/* The faint grid a street map resolves into. */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 opacity-[0.35]"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to right, var(--color-border) 1px, transparent 1px), linear-gradient(to bottom, var(--color-border) 1px, transparent 1px)',
+                  backgroundSize: '48px 48px',
+                }}
+              />
+              {/* ⚠️ THE BRANDED LOADER SITS WHERE THE PIN WILL BE (owner, 2026-09-24). The skeleton
+                  carries the SHAPE of what is coming — grid, attribution strip — and the flip tile
+                  says it is still being fetched; a skeleton alone reads as an empty map on a slow
+                  link. The two are complementary, not alternatives. */}
+              <EnoLoader className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" label={tr('Loading map…', 'Đang tải bản đồ...')} />
+              {/* The attribution strip's own footprint, so nothing shifts when it arrives. */}
+              <div aria-hidden="true" className="absolute bottom-1.5 left-1.5 h-4 w-14 rounded-lg bg-muted" />
+            </div>
           )}
         </div>
       )}

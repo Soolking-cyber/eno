@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { EnoLoader } from '@/components/ui/eno-loader'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
@@ -121,7 +122,7 @@ export function HandoffWaiting({ nonce }: { nonce: string }) {
         <>
           {/* h-6 + accent ink = the app-wide page-wait spinner (onboard, disputes, appeals,
               reports all use it) — size-7 gray was this flow's private dialect. */}
-          <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" aria-hidden />
+          <EnoLoader />
           <h1 className="mt-4 text-lg font-extrabold tracking-tight text-foreground">
             {phase === 'exchanging' ? tr('Signing you in…', 'Đang đăng nhập…') : tr('Finish in your browser', 'Hoàn tất trong trình duyệt')}
           </h1>

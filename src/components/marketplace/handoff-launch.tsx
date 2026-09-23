@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2 } from '@/components/ui/icons'
+import { EnoLoader } from '@/components/ui/eno-loader'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 
@@ -42,7 +42,7 @@ export function HandoffLaunch({ nonce }: { nonce: string }) {
       {!stuck ? (
         <>
           {/* h-6 + accent ink = the app-wide page-wait spinner convention (see handoff-waiting). */}
-          <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" aria-hidden />
+          <EnoLoader />
           <p className="mt-4 text-sm font-semibold text-muted-foreground">
             {tr('Opening Google…', 'Đang mở Google…')}
           </p>

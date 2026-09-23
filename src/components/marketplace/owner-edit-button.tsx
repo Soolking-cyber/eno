@@ -105,6 +105,7 @@ export function OwnerEditButton({
         tapTarget={!dense}
         onClick={go}
         onMouseEnter={() => router.prefetch(href)}
+        onFocus={() => router.prefetch(href)}
         aria-label={label}
         title={label}
         className={cn(!dense && 'press', className)}
@@ -120,6 +121,7 @@ export function OwnerEditButton({
       size="sm"
       onClick={go}
       onMouseEnter={() => router.prefetch(href)}
+        onFocus={() => router.prefetch(href)}
       className={cn('gap-1.5', className)}
     >
       <Pencil className="h-4 w-4" aria-hidden />

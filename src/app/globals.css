@@ -1597,6 +1597,50 @@ body:has(.dashboard-canvas) #status-bar-backdrop {
   100% { transform: translateX(100%); }
 }
 
+/* ── The eno loader: an acrylic tile flipping in 3D with the "e" punched through ──────────
+   Owner, 2026-09-24: "if we have a loading state use this one but semitransparent and
+   personalized to app where square has our logo inside on both sides like a semitransparent
+   acrylic with e logo punched through".
+
+   ⛔ THE GLYPH IS A HOLE, NOT INK. Two mask layers — the "e" and an opaque rectangle — combined
+   with `mask-composite: exclude`, so the tile is painted EVERYWHERE EXCEPT the letter and the page
+   behind shows through it. Drawing a white "e" on top would look identical on a white page and
+   wrong on every photo, dialog and dark surface; a real hole is right on all of them.
+
+   ⚠️ `-webkit-` PAIRS ARE NOT OPTIONAL HERE. Safari still needs `-webkit-mask-*`, and its
+   composite keyword is `xor`, not `exclude` — the unprefixed value is not a synonym. Omitting
+   either line leaves Safari with an unpunched solid tile, which is a silent, brand-shaped bug.
+
+   ⚠️ BOTH FACES CARRY THE MARK because the flip never hides one: `backface-visibility` is left
+   visible, so the back of the tile is the same masked surface seen from behind. That is what makes
+   the letter read on both sides, as asked, without a second element to keep in sync.
+
+   ⚠️ 0.9s, MATCHING THE SHIMMER. The same "fast, not calm" rule from the loading audit: a full
+   flip inside one second reads as working. */
+@keyframes eno-flip {
+  0%   { transform: perspective(160px) rotateX(0deg)    rotateY(0deg); }
+  50%  { transform: perspective(160px) rotateX(-180deg) rotateY(0deg); }
+  100% { transform: perspective(160px) rotateX(-180deg) rotateY(-180deg); }
+}
+.eno-flip {
+  border-radius: 22%;
+  background: color-mix(in oklab, var(--brand) 26%, transparent);
+  border: 1px solid color-mix(in oklab, var(--brand) 40%, transparent);
+  -webkit-backdrop-filter: blur(6px) saturate(140%);
+  backdrop-filter: blur(6px) saturate(140%);
+  -webkit-mask-image: url('/logo-e-mask.svg'), linear-gradient(#000, #000);
+  -webkit-mask-size: 62% 62%, auto;
+  -webkit-mask-position: center, center;
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  -webkit-mask-composite: xor;
+  mask-image: url('/logo-e-mask.svg'), linear-gradient(#000, #000);
+  mask-size: 62% 62%, auto;
+  mask-position: center, center;
+  mask-repeat: no-repeat, no-repeat;
+  mask-composite: exclude;
+  animation: eno-flip 0.9s ease-in-out infinite;
+}
+
 /* Skeleton shimmer — GPU-composited sweep (animates transform, not
    background-position, so it stays off the main thread / paint). */
 .shimmer {
@@ -1616,7 +1660,15 @@ body:has(.dashboard-canvas) #status-bar-backdrop {
    * during the fast middle — so the placeholder flashes, then sits apparently dead for most of a
    * second. Constant motion is the one case the easing rules call for `linear`.
    */
-  animation: shimmer 1.4s linear infinite;
+  /**
+   * ⚠️ 0.9s, NOT 1.4s — UNDER ONE SECOND PER CYCLE (owner, loading audit). A sheen that takes nearly
+   * a second and a half to cross a tile reads as calm, and calm is the wrong register for a
+   * placeholder: it suggests the page has settled when it is still working. Under a second the same
+   * sweep reads as activity. It is not made faster than that because a sheen crossing more than once
+   * a second stops being motion and becomes a flicker — and `linear` (below) means every part of the
+   * cycle is equally visible, so the whole duration counts.
+   */
+  animation: shimmer 0.9s linear infinite;
 }
 
 /* Branded skeleton — a centred, faint eno wordmark over the shimmer so loading
@@ -2674,6 +2726,15 @@ html.dark .leaflet-tile-pane {
    * and every `<Spinner>` keep saying "working" without a single degree of spin.
    */
   .animate-spin {
+    animation: reduced-motion-pulse 1.6s ease-in-out infinite !important;
+  }
+  /**
+   * ⚠️ THE FLIP LOADER GETS THE SAME ESCAPE HATCH, for the reason written directly above. A 3D flip
+   * is a bigger vestibular trigger than a spinning ring, so it must not survive this media query —
+   * but the blanket `0.01ms` rule would leave a motionless acrylic tile that reads as a decorative
+   * logo rather than as work in progress. Same trade: opacity over time, no transform at all.
+   */
+  .eno-flip {
     animation: reduced-motion-pulse 1.6s ease-in-out infinite !important;
   }
   @keyframes reduced-motion-pulse {

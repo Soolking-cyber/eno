@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
+import { EnoLoader } from '@/components/ui/eno-loader'
 import { SITE_NAME } from '@/lib/edition'
 import { Suspense } from 'react'
-import { Loader2 } from '@/components/ui/icons'
 import type { Metadata } from 'next'
 import { getCurrentProfile } from '@/lib/admin'
 import { safeNextPath } from '@/lib/url'
@@ -81,7 +81,7 @@ export default async function OnboardPage({
     <Suspense
       fallback={
         <main id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" />
+          <EnoLoader />
         </main>
       }
     >

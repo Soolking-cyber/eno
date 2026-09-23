@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { EnoLoader } from '@/components/ui/eno-loader'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
@@ -213,7 +214,7 @@ export default function DisputeRoomPage() {
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
+          <div className="flex justify-center py-20"><EnoLoader /></div>
         ) : !user ? (
           <div className="mt-10 text-center">
             {/* Display stroke (§2) — a 40px Scale at the UI weight is the rubber-stamp
@@ -230,7 +231,7 @@ export default function DisputeRoomPage() {
             <Link href="/disputes" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted">{t('All disputes', 'Tất cả khiếu nại')}</Link>
           </div>
         ) : !data ? (
-          <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
+          <div className="flex justify-center py-20"><EnoLoader /></div>
         ) : (
           <>
             {/* ── Case header ── */}

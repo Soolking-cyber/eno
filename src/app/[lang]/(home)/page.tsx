@@ -24,14 +24,47 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
     // verified:true AND status:'active' matches the /api/listings response (GET
     // forces verified+active-only), so this SSR data can seed React Query's
     // default-view cache exactly — and never leaks sold/hidden items on first paint.
+    /**
+     * ⛔ THE SCOPE IS RESOLVED BEFORE THE ARRAY, NOT INSIDE IT. It used to be `await
+     * scopedListingWhere(...)` written as an ARGUMENT to two of the entries below — and an array
+     * literal evaluates left to right, so that await suspended CONSTRUCTION of the array. The count,
+     * the businesses rail and the trending rail were not merely awaited later, they had not been
+     * STARTED: `Promise.all` cannot run what does not exist yet. Only `getCategoriesByDemand()`
+     * overlapped it. Hoisting it means all five actually begin together, which is what this
+     * `Promise.all` was always meant to say.
+     *
+     * ⚠️ The cost was bounded because `scopedListingWhere`'s seller lookups are `cache()`d, so this
+     * was one desk-seller round trip rather than four — but it sat in front of the home page's
+     * entire server render, which is the one place a round trip is least affordable.
+     */
+    /**
+     * ⚠️ AND THE ONE QUERY THAT DOES NOT NEED THE SCOPE IS STARTED BEFORE IT (reviewer). Hoisting
+     * the await alone would have made this measurably SLOWER, not faster: `getCategoriesByDemand()`
+     * used to overlap the scope lookup, and putting the await first serialised it behind. Kicking it
+     * off without awaiting keeps that overlap while the other four still begin together — strictly
+     * better than either arrangement.
+     */
+    const categoriesPromise = getCategoriesByDemand()
+    /**
+     * ⛔ MARKED HANDLED THE INSTANT IT IS CREATED (reviewer). Between this line and the `Promise.all`
+     * below there is an `await`; if THAT throws, the function unwinds before `Promise.all` ever
+     * adopts this promise — leaving a rejected floating promise with no handler, i.e. an
+     * `unhandledRejection` from the most-requested route in the app. Attaching a no-op catch marks
+     * the original as observed without changing what `Promise.all` sees: it still receives the
+     * original promise and still rejects on it.
+     */
+    categoriesPromise.catch(() => {})
+    const publicScope = await scopedListingWhere({ verified: true, status: 'active' })
+
     const [serializedCategories, listings, total, businesses, trending] = await Promise.all([
-      // Categories ordered by live DEMAND — most-wanted lead the rail + home grid.
-      getCategoriesByDemand(),
+      // Categories ordered by live DEMAND — most-wanted lead the rail + home grid. Already in
+      // flight, above.
+      categoriesPromise,
       diverseFeedWindow(
         // ⚠️ EDITION-SCOPED. eno.vn is a licensed sàn TMĐT; the e-visa SKUs are ordinary Listing
         // rows and they rank into this feed. This is the ISR-baked HTML of the root URL, served
         // from disk to every anonymous visitor and every crawler — the most-seen leak there was.
-        await scopedListingWhere({ verified: true, status: 'active' }),
+        publicScope,
         // Match /api/listings' default sort EXACTLY (the balanced rankScore blend, id
         // tiebreaker) so this SSR seed doesn't reshuffle on hydration into the client feed.
         [{ rankScore: 'desc' }, { id: 'desc' }],
@@ -40,7 +73,9 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       // MUST match the findMany predicate exactly: this seeds the client explorer's `initialTotal`,
       // which terminates its load-more (`listings.length < total`). A count that disagrees with the
       // cards either stops the infinite feed 14 items early or never lets it finish.
-      db.listing.count({ where: await scopedListingWhere({ verified: true, status: 'active' }) }),
+      // Same object as the findMany above, so the two cannot drift — which is the invariant the
+      // comment demands and which two separate `await` calls only happened to satisfy.
+      db.listing.count({ where: publicScope }),
       // Outstanding-businesses rail, server-known (perf Phase 1): the rail's
       // presence/geometry is decided at first paint — the client fetch's
       // skeleton→empty collapse was the homepage's dominant CLS (0.142).

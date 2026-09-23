@@ -183,7 +183,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
     // No overflow-hidden on the card — it would clip the Share popover. The image
     // rounds its own top corners instead.
     return (
-      <div className={cn('flex flex-col rounded-2xl border bg-card transition-colors', selected ? 'border-brand ring-1 ring-brand' : 'border-border/70 hover:border-line-strong')} onMouseEnter={prefetch} onTouchStart={prefetch}>
+      <div className={cn('flex flex-col rounded-2xl border bg-card transition-colors', selected ? 'border-brand ring-1 ring-brand' : 'border-border/70 hover:border-line-strong')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
         <button onClick={open} className="relative aspect-square w-full overflow-hidden rounded-t-2xl bg-tint cursor-pointer" aria-label={title}>
           {img && (
             <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -204,7 +204,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   // Row (list view) — horizontal thumbnail + details.
   return (
-    <div className={cn('flex gap-3 rounded-2xl p-3 transition-colors', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch}>
+    <div className={cn('flex gap-3 rounded-2xl p-3 transition-colors', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
       {selectable && <span className="self-center">{checkbox}</span>}
       <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint" aria-label={title}>
         {img && (

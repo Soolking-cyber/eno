@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { EnoLoader } from '@/components/ui/eno-loader'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
@@ -71,7 +72,7 @@ export default function ReportSupplementPage() {
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-lg flex-1 px-3 py-10 sm:px-6 lg:px-8">
         {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
+          <div className="flex justify-center py-20"><EnoLoader /></div>
         ) : !user ? (
           <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
             {/* Display tier (§2) — 40px+ placeholder glyphs carry the 1.5 illustration

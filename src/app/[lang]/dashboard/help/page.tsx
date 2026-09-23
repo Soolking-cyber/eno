@@ -1,7 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
+import { EnoLoader } from '@/components/ui/eno-loader'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { Spinner } from '@/components/ui/spinner'
 import { loadHelpCenter } from '@/lib/help-center-data'
 import { HelpClient } from './help-client'
 
@@ -21,8 +21,8 @@ export default function HelpPage() {
   return (
     <Suspense
       fallback={
-        <div role="status" className="flex min-h-[50vh] items-center justify-center">
-          <Spinner size="lg" />
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <EnoLoader size="lg" />
         </div>
       }
     >

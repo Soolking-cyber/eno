@@ -2083,7 +2083,19 @@ export function ListingsExplorer({
   }, [listings, page, totalCount, feedSig, feedUnlocked, router])
   // Warm the listing page before the click (hover on desktop, touchstart on mobile)
   // so it opens instantly instead of SSR-ing on click. De-duped by Next's prefetch cache.
-  const prefetchListing = useCallback((id: string) => { router.prefetch(`/listings/${id}`) }, [router])
+  /**
+   * ⛔ DEDUPED, BECAUSE `onFocus` BUBBLES (reviewer). React's `onFocus` is `focusin`, so the wrapper
+   * that carries it fires once per FOCUSABLE DESCENDANT — a card with an image button, a title link
+   * and a locate button warms the same route three times, and tabbing a 50-card feed would have
+   * issued ~150 prefetches. Hover has the same shape on a fast mouse sweep. One route is warmed
+   * once per session; `router.prefetch` caches internally too, but not before paying the call.
+   */
+  const prefetchedRef = useRef<Set<string>>(new Set())
+  const prefetchListing = useCallback((id: string) => {
+    if (prefetchedRef.current.has(id)) return
+    prefetchedRef.current.add(id)
+    router.prefetch(`/listings/${id}`)
+  }, [router])
 
   // "Locate on map" from any card/row → switch to the map view focused on this
   // listing (the map flies to + opens its pin). Scrolls the feed into view so the
@@ -3265,6 +3277,11 @@ export function ListingsExplorer({
                         data-feed-card={l.id}
                         className="flex flex-col h-full"
                         onMouseEnter={() => prefetchListing(l.id)}
+                        // ⚠️ FOCUS AS WELL AS HOVER. Keyboard and switch users never fire a pointer
+                        // event, so every warm-up in this app was mouse-only and they alone paid the
+                        // full navigation. `onFocus` is the keyboard's hover. (A `{/* */}` comment
+                        // here is a SYNTAX ERROR — it is only valid in child position.)
+                        onFocus={() => prefetchListing(l.id)}
                         onTouchStart={() => prefetchListing(l.id)}
                       >
                         {/* ⚠️ `lcp` IS CONDITIONAL, AND THE CONDITION IS "IS THE PROMO BANNER ON

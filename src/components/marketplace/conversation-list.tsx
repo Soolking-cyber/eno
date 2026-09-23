@@ -105,6 +105,7 @@ export function ConversationList() {
               <div
                 key={c.id}
                 onMouseEnter={() => prefetchThread(c.id)}
+                onFocus={() => prefetchThread(c.id)}
                 onTouchStart={() => prefetchThread(c.id)}
                 /**
                  * ⛔ A STANDING OFFER IS A DISTINCT ROW STATE, NOT A SHADE OF UNREAD. Owner,
