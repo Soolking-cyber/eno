@@ -105,8 +105,14 @@ root_list=$(rclone lsf "$CRYPT_BASE" 2>&1) \
   || fail "cannot reach the crypt remote (outage? config?): $(printf '%s' "$root_list" | tail -n 3)"
 printf '%s\n' "$root_list" | grep -qx '.key-canary' \
   || fail "the crypt remote does not show .key-canary — its key is NOT the escrowed one (or the canary was never written); refusing"
-[ "$(rclone cat "$(join "$CRYPT_BASE" .key-canary)" 2>&1)" = "$KEY_CANARY" ] \
-  || fail "the key canary reads back wrong — refusing"
+# The listing above just SUCCEEDED, so the bucket is reachable: a canary that will not read or reads
+# wrong points at the key (or a damaged canary object) — never "just an outage". stdout only in the
+# comparison: rclone's NOTICE lines on stderr must not become part of the value.
+canary_err=$(mktemp)
+canary=$(rclone cat "$(join "$CRYPT_BASE" .key-canary)" 2>"$canary_err") \
+  || { e=$(tail -n 3 "$canary_err"); rm -f "$canary_err"; fail "cannot read the key canary: $e — a transient read failure, a damaged canary, or a key that is not the escrowed one; re-run once, and if it persists compare the key with the vault copy (do NOT rewrite the canary)"; }
+rm -f "$canary_err"
+[ "$canary" = "$KEY_CANARY" ] || fail "the key canary decrypts to something else — compare the key with the vault copy; do NOT rewrite the canary"
 [ -d "$SRC" ] || fail "storage volume missing at $SRC"
 
 positive_int() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$((10#$1))" -ge 1 ]; }
@@ -115,10 +121,21 @@ positive_int() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$((10#$1))" -ge 
 # The private cap sits near a day's retention sweep (a few documents), NOT near the bucket size: a
 # bug that erases 30 passports must stop here, because the private half has no orphan window.
 MAX_DELETE="${ENO_STORAGE_MAX_DELETE:-25}"      # private sync: identity documents erased off-box per run
-MAX_EXPIRE="${ENO_STORAGE_MAX_EXPIRE:-10000}"   # public: expired orphan photos deleted off-box per run
+# 2,000, not 10,000: normal expiry is ~0 (no deletions in 30 days, measured 2026-09-23), so thousands
+# expiring at once is a bulk delete or an incompletely restored volume 14 days on — confirm it by hand.
+MAX_EXPIRE="${ENO_STORAGE_MAX_EXPIRE:-2000}"    # public: expired orphan photos deleted off-box per run
 positive_int "$MAX_DELETE" || fail "ENO_STORAGE_MAX_DELETE='$MAX_DELETE' is not a positive integer"
 positive_int "$MAX_EXPIRE" || fail "ENO_STORAGE_MAX_EXPIRE='$MAX_EXPIRE' is not a positive integer"
 MAX_DELETE=$((10#$MAX_DELETE)); MAX_EXPIRE=$((10#$MAX_EXPIRE))
+# Orphan alarms (§7). Validated HERE, before anything runs: a non-numeric value would otherwise make
+# `[ -gt ]` false inside an `if` and silently disable the alarm.
+MAX_NEW_ORPHANS="${ENO_STORAGE_MAX_NEW_ORPHANS:-1000}"   # photos newly deleted on the box in one night
+MAX_ORPHANS="${ENO_STORAGE_MAX_ORPHANS:-5000}"           # total deleted-but-kept photos, while growing
+ORPHAN_GROWTH_NOISE="${ENO_STORAGE_ORPHAN_GROWTH_NOISE:-100}"
+positive_int "$MAX_NEW_ORPHANS" || fail "ENO_STORAGE_MAX_NEW_ORPHANS='$MAX_NEW_ORPHANS' is not a positive integer"
+positive_int "$MAX_ORPHANS" || fail "ENO_STORAGE_MAX_ORPHANS='$MAX_ORPHANS' is not a positive integer"
+case "$ORPHAN_GROWTH_NOISE" in ''|*[!0-9]*) fail "ENO_STORAGE_ORPHAN_GROWTH_NOISE='$ORPHAN_GROWTH_NOISE' is not a number" ;; esac
+MAX_NEW_ORPHANS=$((10#$MAX_NEW_ORPHANS)); MAX_ORPHANS=$((10#$MAX_ORPHANS)); ORPHAN_GROWTH_NOISE=$((10#$ORPHAN_GROWTH_NOISE))
 BWLIMIT="${ENO_STORAGE_BWLIMIT:-20M}"
 SAMPLE_N="${ENO_STORAGE_SAMPLE:-20}"
 positive_int "$SAMPLE_N" || fail "ENO_STORAGE_SAMPLE='$SAMPLE_N' is not a positive integer"
@@ -400,7 +417,7 @@ rclone lsf -R --files-only --fast-list "${PUBLIC[@]}" "$DEST" > "$REMOTE_LIST" \
   | { grep -E "$PUBLIC_RE" || true; } > "$LOCAL_LIST"
 cutoff=$(date -u -d "-$ORPHAN_DAYS days" +%Y%m%dT%H%M%SZ)
 had_orphan_state=no; [ -f "$ORPHANS" ] && had_orphan_state=yes
-read -r n_orphans n_due n_new < <(python3 - "$REMOTE_LIST" "$LOCAL_LIST" "$ORPHANS" "$STAMP" "$cutoff" "$DUE" <<'PY'
+read -r n_orphans n_due n_new n_prev < <(python3 - "$REMOTE_LIST" "$LOCAL_LIST" "$ORPHANS" "$STAMP" "$cutoff" "$DUE" <<'PY'
 import os, sys
 remote_f, local_f, state_f, stamp, cutoff, due_f = sys.argv[1:7]
 def paths(f):
@@ -421,7 +438,7 @@ with open(state_f + ".tmp", "w", encoding="utf-8") as fh:
 os.replace(state_f + ".tmp", state_f)
 with open(due_f, "w", encoding="utf-8") as fh:
     fh.writelines(p + "\n" for p in due)
-print(len(orphans), len(due), sum(1 for first in state.values() if first == stamp))
+print(len(orphans), len(due), sum(1 for first in state.values() if first == stamp), len(old))
 PY
 ) || fail "orphan bookkeeping"
 echo "orphans: $n_orphans deleted on the box but kept in the bucket ($n_new new tonight); $n_due past $ORPHAN_DAYS days"
@@ -432,9 +449,21 @@ echo "orphans: $n_orphans deleted on the box but kept in the bucket ($n_new new 
 # Measured 2026-09-23: ZERO storage deletions in the previous 30 days, so this fires on bulk
 # operations (an import rollback) — exactly when a person should confirm it was meant.
 # ⚠️ Not on a box's first run: with no orphan state yet, every existing orphan looks "new".
-MAX_NEW_ORPHANS="${ENO_STORAGE_MAX_NEW_ORPHANS:-1000}"
 if [ "$had_orphan_state" = yes ] && [ "$n_new" -gt "$MAX_NEW_ORPHANS" ]; then
   defer "$n_new photos were deleted on the box since last night (alarm at $MAX_NEW_ORPHANS) — they expire off-box in $ORPHAN_DAYS days; restore them before then if unintended"
+fi
+# ⛔ …AND ON THE TOTAL, WHILE IT GROWS. A slow leak (900 a night) never trips the nightly alarm, and a
+# rebuilt box with an incompletely restored volume is exempt from it on night 1 — both would then
+# expire silently. The total orphan count is ~0 in normal operation (no deletions in 30 days, measured
+# 2026-09-23), so past MAX_ORPHANS and still GROWING means something is eating photos. "Growing" means
+# by more than ORPHAN_GROWTH_NOISE a night: after a planned bulk delete the handful of ordinary
+# deletions must not re-arm it every night for 14 nights.
+if [ "$n_orphans" -gt "$MAX_ORPHANS" ] && { [ "$had_orphan_state" = no ] || [ "$n_orphans" -gt $(( n_prev + ORPHAN_GROWTH_NOISE )) ]; }; then
+  if [ "$had_orphan_state" = no ]; then
+    defer "$n_orphans photos are in the bucket but not on this box (first run here — an incomplete restore?) (alarm at $MAX_ORPHANS) — they expire off-box in $ORPHAN_DAYS days"
+  else
+    defer "$n_orphans photos are deleted on the box but still in the bucket, and the number grew by $(( n_orphans - n_prev )) tonight (alarm at $MAX_ORPHANS) — the oldest expire off-box within $ORPHAN_DAYS days"
+  fi
 fi
 # ⛔ THE ORPHAN LIST GOES OFF-BOX TOO. It is the only record of which photos in the bucket were
 # DELETED rather than simply newer than a manifest — without it a restore can only guess, and
@@ -442,7 +471,7 @@ fi
 gzip -c "$ORPHANS" | rclone rcat "$(join "$CRYPT_BASE" storage-state)/orphans-$STAMP.tsv.gz" \
   || fail "orphan state upload (rclone exit $?)"
 if [ "$n_due" -gt "$MAX_EXPIRE" ]; then
-  fail "$n_due orphans due for deletion exceeds ENO_STORAGE_MAX_EXPIRE=$MAX_EXPIRE — nothing deleted. If that bulk delete was intended, run once by hand: ENO_STORAGE_MAX_EXPIRE=$n_due $0"
+  defer "$n_due orphans due for deletion exceeds ENO_STORAGE_MAX_EXPIRE=$MAX_EXPIRE — nothing deleted off-box. If that bulk delete was intended, run once by hand: ENO_STORAGE_MAX_EXPIRE=$n_due $0"
 elif [ "$n_due" -gt 0 ]; then
   rclone delete "$DEST" --files-from "$DUE" || fail "deleting $n_due expired orphans (rclone exit $?)"
   echo "deleted $n_due orphans older than $ORPHAN_DAYS days"

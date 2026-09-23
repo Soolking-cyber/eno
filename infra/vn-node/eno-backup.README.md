@@ -114,12 +114,14 @@ erasures under the retention policy, and a backup that kept a deleted passport f
 would breach it. ⛔ `rclone sync --backup-dir` would have been simpler and does not work:
 Bizfly returns `501 NotImplemented` for server-side copy.
 
-Guards (each rehearsed against a scratch volume, prefix and key on 2026-09-23, 87/87 checks, with the production bucket verified untouched afterwards):
+Guards — each one exercised by `infra/vn-node/eno-storage-rehearsal.sh` (scratch volume, scratch bucket
+prefix, scratch key; fingerprints the production bucket before and after; exits non-zero if any
+check fails — all passed on 2026-09-23):
 refuses to run if the volume shrank >10% since the last good run, or the private half (mirrored,
 no orphan window) holds under half of what its backup holds (or none at all) — measured against the
 bucket, so a fresh box with an unrestored private half cannot erase the backup of it (`ENO_STORAGE_ALLOW_SHRINK=1` once, by hand, for a
 deliberate mass delete; `ENO_STORAGE_ALLOW_PRIVATE_SHRINK=1` for the private half); caps identity-document erasures at `ENO_STORAGE_MAX_DELETE` (25/run — a day's retention sweep, not the bucket size) and
-orphan-photo expiry separately at `ENO_STORAGE_MAX_EXPIRE` (10,000/run); fails a sample check that verified nothing ("hashes could not be checked", or an empty public sample); fails (after finishing
+orphan-photo expiry separately at `ENO_STORAGE_MAX_EXPIRE` (2,000/run — normal expiry is ~0); fails a sample check that verified nothing ("hashes could not be checked", or an empty public sample); fails (after finishing
 everything else) when the roles dump is missing or over 2 days old, or when more than
 `ENO_STORAGE_MAX_NEW_ORPHANS` (1,000) photos were deleted on the box since the night before — the
 orphans are recorded and nothing is deleted off-box, so that alarm leaves 14 days to restore them;
@@ -137,10 +139,13 @@ When a run fails on purpose — each failure names its own override, run ONCE by
 | store shrank | the volume lost >10% of its files | `ENO_STORAGE_ALLOW_SHRINK=1 /opt/eno/bin/eno-storage-backup.sh` |
 | private half: … private sync SKIPPED | identity documents fell below half of the week's high; everything else still ran | `ENO_STORAGE_ALLOW_PRIVATE_SHRINK=1 …` — its own switch, on purpose; it also resets the week's high so it is needed once |
 | sync of private buckets stopped | more identity documents erased tonight than the cap (25) | `ENO_STORAGE_MAX_DELETE=<n> …` |
-| orphans due … exceeds | more than 10,000 expired photos to delete off-box | `ENO_STORAGE_MAX_EXPIRE=<n> …` |
+| orphans due … exceeds | more than 2,000 expired photos to delete off-box in one night (normal is ~0) | check they were meant to go, then `ENO_STORAGE_MAX_EXPIRE=<n> …` |
 | N photos were deleted on the box | a bulk delete (e.g. an import rollback) — nothing is lost yet | nothing: it fires once; restore within 14 days if it was NOT intended |
+| N photos are deleted … and the number is growing | a slow leak (>100 more a night past 5,000), or a rebuilt box whose volume was restored incompletely | find the cause; the oldest orphans expire within 14 days. If it is intended, it goes quiet once growth stops (or raise `ENO_STORAGE_MAX_ORPHANS`) |
 | cannot reach the crypt remote | an outage | wait; do NOT touch the key or the canary |
-| does not show .key-canary | the key in use is not the escrowed one | restore the escrowed key from the vault |
+| does not show .key-canary / decrypts to something else | the key in use is not the escrowed one | compare the box's `[eno-offsite-crypt]` section with `vault.sh get eno-offsite-crypt`; restore the escrowed one. ⛔ Never rewrite the canary to silence this — that blesses whatever key is on the box |
+| cannot read the key canary | a transient read failure, a damaged canary, or the wrong key | re-run once; if it persists, treat it as the row above |
+
 
 Install (root, once):
 
