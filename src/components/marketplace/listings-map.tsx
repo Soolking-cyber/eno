@@ -108,6 +108,12 @@ type Props = {
    * answer different questions — see map-building-card.tsx.
    */
   feedParams?: string
+  /**
+   * The GeoJSON outline of the ward or district being browsed, or null when there is none to draw.
+   * Fetched by the explorer (see /api/geo/boundary) rather than here, so the map stays a renderer
+   * and the request is shared with react-query's cache.
+   */
+  boundary?: unknown
 }
 
 // SELF-HOSTED (public/vendor/leaflet, byte-verified against the npm 1.9.4 tarball) — was
@@ -335,7 +341,7 @@ function MapCredit({ className }: { className?: string }) {
   )
 }
 
-export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove, buildings, selectedBuilding, onSelectBuilding, feedParams }: Props) {
+export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove, buildings, selectedBuilding, onSelectBuilding, feedParams, boundary }: Props) {
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
   const { currency: pickedCurrency, rates: fxRates } = useCurrency()
@@ -371,6 +377,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
    */
   const onSelectBuildingRef = useRef(onSelectBuilding)
   onSelectBuildingRef.current = onSelectBuilding
+  const boundaryLayerRef = useRef<any>(null) // the ward/district outline layer
   const areaShapeRef = useRef<any>(null) // the area-search overlay — a RECTANGLE, see below
   const fitKeyRef = useRef<string>('') // last filter signature we auto-fit bounds for
   const [ready, setReady] = useState(false)
@@ -953,6 +960,35 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     if (!buildings.some((b) => b.key === buildingCard.key)) closeBuildingCard()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildings, buildingCard])
+
+  /**
+   * THE AREA OUTLINE. A separate layer from the markers on purpose: it changes when the reader picks
+   * a different ward or district, which is far rarer than a listings redraw, and rebuilding a
+   * 500-point polygon on every feed refetch would be visible.
+   *
+   * ⚠️ NON-INTERACTIVE, AND THAT IS LOAD-BEARING. A filled Leaflet polygon swallows clicks, so an
+   * outline over the map would eat every pin tap inside the area it describes — i.e. exactly the
+   * pins the reader came to press. `interactive: false` lets the taps through.
+   */
+  useEffect(() => {
+    if (!ready) return
+    const L = (window as any).L
+    const map = mapInstanceRef.current
+    if (!map) return
+    if (boundaryLayerRef.current) { map.removeLayer(boundaryLayerRef.current); boundaryLayerRef.current = null }
+    if (!boundary) return
+    try {
+      boundaryLayerRef.current = L.geoJSON(boundary, {
+        interactive: false,
+        style: { color: '#0A66C2', weight: 2, opacity: 0.85, fillColor: '#0A66C2', fillOpacity: 0.05, dashArray: '4 3' },
+      }).addTo(map)
+      // Under the markers: the outline is context, the pins are the content.
+      boundaryLayerRef.current.bringToBack?.()
+    } catch {
+      // A malformed geometry must not take the map down — no outline is a fine outcome.
+      boundaryLayerRef.current = null
+    }
+  }, [boundary, ready])
 
   // Update marker styling on selection / hover (no full rebuild).
   useEffect(() => {

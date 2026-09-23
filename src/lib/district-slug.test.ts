@@ -17,7 +17,7 @@ vi.mock('@/lib/db', () => ({
 }))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: any) => w }))
 
-import { allDistrictNames, districtNamesForSlug, resetDistrictNameCache } from './district-slug'
+import { allDistrictNames, districtNamesForSlug, resetDistrictNameCache, districtScopeForSlug } from './district-slug'
 
 beforeEach(() => {
   resetDistrictNameCache()
@@ -64,5 +64,47 @@ describe('districtNamesForSlug', () => {
     await districtNamesForSlug('thao-dien')
     await allDistrictNames()
     expect(h.calls).toBe(1)
+  })
+})
+
+describe('curated district scope — the "Quận 1 matches Quận 12" bug', () => {
+  const flat = (w: unknown): string[] => JSON.stringify(w).match(/"contains":"[^"]+"/g)?.map(m => m.slice(12, -1)) ?? []
+
+  /**
+   * ⛔ THIS SHIPPED AND IT WAS BAD. `contains: 'Quận 1'` also matches "Quận 12", so measured on the
+   * live feed `?district=d1` returned 2,573 listings of which 59 of 60 sampled were in Quận 12 —
+   * District 1 is the city centre and among the most-used filters on the site. After the fix the
+   * same query returns 1,297 and 60 of 60 sampled are Quận 1.
+   */
+  it('excludes the longer district names its own spellings are a prefix of', async () => {
+    const w = await districtScopeForSlug('d1')
+    const json = JSON.stringify(w)
+    expect(json).toContain('NOT')
+    const excluded = flat((w as { AND: unknown[] }).AND[1])
+    expect(excluded).toEqual(expect.arrayContaining(['Quận 10', 'Quận 11', 'Quận 12']))
+    expect(excluded).toEqual(expect.arrayContaining(['District 10', 'District 11', 'District 12']))
+    /**
+     * ⚠️ AND THE EXCLUSION NEVER TOUCHES `location`. It is free text, so excluding on it would drop
+     * a real District 1 listing whose address or directions happen to name a neighbour — trading a
+     * false-positive bug for a quieter false-negative one.
+     */
+    expect(JSON.stringify((w as { AND: unknown[] }).AND[1])).not.toContain('location')
+  })
+
+  /** A district whose name is nobody's prefix must not pay for the guard. */
+  it('adds no exclusions where none can apply', async () => {
+    const w = await districtScopeForSlug('binh-thanh')
+    expect(JSON.stringify(w)).not.toContain('NOT')
+  })
+
+  /** The exclusions come from the curated list, so a two-digit district excludes nothing. */
+  it('does not exclude anything from the longest name in a family', async () => {
+    expect(JSON.stringify(await districtScopeForSlug('d12'))).not.toContain('NOT')
+  })
+
+  /** Unchanged: `all` is no scope, and an unknown slug must narrow to nothing, never to everything. */
+  it('keeps the all/unknown contract', async () => {
+    expect(await districtScopeForSlug('all')).toBeNull()
+    expect(await districtScopeForSlug('')).toBeNull()
   })
 })

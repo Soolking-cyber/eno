@@ -1491,6 +1491,40 @@ export function ListingsExplorer({
     shownListings.length > 0 &&
     (!fetchedFor || fetchedFor.category !== activeCategory || fetchedFor.subcategory !== activeSubcategory)
 
+  /**
+   * WHAT TO OUTLINE: the most specific area the reader has chosen, ward first.
+   *
+   * ⚠️ A DISTRICT IS THE `DISTRICTS` DISPLAY NAME, NOT THE SLUG. OSM has never heard of `d1`; it
+   * knows "Quận 1" — and that is also the vocabulary these listings use, which is why the abolished
+   * districts still match as historic boundaries. `all` is not an area and outlines nothing.
+   */
+  const outlineTarget = useMemo(() => {
+    if (activeWard && activeProvince) return { kind: 'ward' as const, name: activeWard.name, province: activeProvince.name }
+    if (activeDistrict && activeDistrict !== 'all') {
+      const d = DISTRICTS.find((x) => x.slug === activeDistrict)
+      if (d) return { kind: 'district' as const, name: d.name, province: 'Hồ Chí Minh' }
+    }
+    return null
+  }, [activeWard, activeProvince, activeDistrict])
+
+  /**
+   * ⚠️ MAP VIEW ONLY, and cached hard. An outline is only ever drawn on the map, so fetching it for
+   * a grid reader is pure waste; and an administrative boundary does not move, so once the server
+   * has it there is no reason to ask again this session.
+   */
+  const { data: outlineData } = useQuery({
+    queryKey: ['geo-boundary', outlineTarget?.kind, outlineTarget?.name, outlineTarget?.province],
+    enabled: viewMode === 'map' && !!outlineTarget,
+    staleTime: Infinity,
+    gcTime: 60 * 60 * 1000,
+    queryFn: async () => {
+      const t = outlineTarget!
+      const res = await fetch(`/api/geo/boundary?kind=${t.kind}&name=${encodeURIComponent(t.name)}&province=${encodeURIComponent(t.province)}`)
+      if (!res.ok) return { boundary: null }
+      return (await res.json()) as { boundary: unknown }
+    },
+  })
+
   const buildingPins = useMemo(() => buildingsData?.buildings ?? [], [buildingsData])
   const activeBuilding = useMemo(
     () => (selectedBuilding ? buildingPins.find((b) => b.key === selectedBuilding) ?? null : null),
@@ -3372,6 +3406,7 @@ export function ListingsExplorer({
                       selectedBuilding={selectedBuilding}
                       onSelectBuilding={handleSelectBuilding}
                   feedParams={baseParamsString}
+                  boundary={outlineData?.boundary ?? null}
                       activeDistrict={activeDistrict}
                       onOpenListing={handleOpen}
                       selectedId={hoveredId ?? focusId}
