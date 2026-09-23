@@ -1,6 +1,8 @@
 import { containsPhoneNumber } from './phone'
 import { fold } from './fold'
 import { countDistinctAngles } from './image-hash-url'
+// Client-safe (its only import is the edition flag) — publish-guard is also bundled into the wizard.
+import { canPublish, type VerificationStatus } from './compliance/account-state'
 
 // Every listing must show the item from at least this many DIFFERENT angles (distinct photos,
 // not the same shot repeated). Buyers can't inspect condition from one photo; it's also a cheap
@@ -37,7 +39,17 @@ export function minPhotosFor(categorySlug: string | null | undefined): number {
 // ⚠️ `identity_unverified` / `identity_expired` are LEGAL blocks, not quality blocks, and they are
 // listed first because they are checked first (see assertPublishable). Verification is required to
 // publish under NĐ 248/2026 — see docs/compliance-2026.md §1 and src/lib/compliance/account-state.ts.
-export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'account_restricted' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required'
+export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required'
+
+// ⚠️ `identity_sign_in_required` IS THE GUEST'S CODE, AND IT IS DISTINCT FROM `identity_unverified` ON
+// PURPOSE. Both mean "verify before you sell", but a guest has no account to verify: sending them to
+// /dashboard/account/verify bounces them through sign-in with no explanation of why. The wizard turns
+// this one into "sign in, then verify", which is the only sequence that can actually succeed.
+// Emitted only by the seller publish gate (src/lib/compliance/seller-publish-gate.ts) while
+// IDENTITY_GATE_ENFORCED is on — never while it is off.
+
+/** The identity (legal) subset of the publish codes — the ones that answer 403 + publishBlockedBody. */
+export type IdentityBlockCode = Extract<PublishBlockCode, `identity_${string}`>
 
 export class PublishBlockedError extends Error {
   code: PublishBlockCode
@@ -226,14 +238,30 @@ export function assertPublishable(input: { trustTier?: string; verificationStatu
  */
 export function assertIdentityVerified(status: string | undefined | null) {
   if (status == null) return // caller has no profile loaded — see the note above
+  const code = identityBlockCodeFor(status)
+  if (code) throw new PublishBlockedError(code)
+}
+
+/**
+ * The refusal a verification status maps to, or null when it may publish.
+ *
+ * ⛔ "MAY IT PUBLISH" IS canPublish()'S ANSWER, NOT THIS SWITCH'S. account-state.ts calls canPublish
+ * "THE ONLY FUNCTION THAT DECIDES PUBLISHING", and until the seller gate landed it had no callers —
+ * this switch carried its own `case 'verified': return`, i.e. a second copy of the predicate. The
+ * switch below now only chooses WHICH words a refusal gets; whether there is a refusal at all is
+ * delegated, so the two can never disagree.
+ */
+export function identityBlockCodeFor(status: string): IdentityBlockCode | null {
+  // The cast is safe in the direction that matters: canPublish is `status === 'verified'`, so an
+  // unrecognised string is simply not publishable and falls through to the fail-closed default.
+  if (canPublish(status as VerificationStatus)) return null
   switch (status) {
-    case 'verified': return
-    case 'pending': throw new PublishBlockedError('identity_pending')
-    case 'expired': throw new PublishBlockedError('identity_expired')
-    case 'revoked': throw new PublishBlockedError('identity_suspended')
+    case 'pending': return 'identity_pending'
+    case 'expired': return 'identity_expired'
+    case 'revoked': return 'identity_suspended'
     // 'unverified' | 'rejected' | anything unrecognised. ⚠️ FAIL CLOSED on an unknown value: a
     // typo or a future status must not silently become permission to publish.
-    default: throw new PublishBlockedError('identity_unverified')
+    default: return 'identity_unverified'
   }
 }
 

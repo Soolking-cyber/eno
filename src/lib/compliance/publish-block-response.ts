@@ -1,4 +1,4 @@
-import type { PublishBlockCode } from '@/lib/publish-guard'
+import type { IdentityBlockCode, PublishBlockCode } from '@/lib/publish-guard'
 import { ACCOUNT_STATE, type VerificationStatus } from './account-state'
 import { LEGAL_BASIS } from './legal-basis'
 
@@ -31,9 +31,21 @@ export type PublishBlockedBody = {
   draftPreserved: boolean
 }
 
-const IDENTITY_CODES = new Set<PublishBlockCode>([
-  'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended',
-])
+// ⚠️ `satisfies` FORCES THIS LIST TO BE COMPLETE: a sixth identity code added to PublishBlockCode
+// without being added here fails the build, instead of silently answering it as a content block
+// (no legal citation, no verify link, a 400 where the contract says 403).
+const IDENTITY_CODE_LIST = [
+  'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended', 'identity_sign_in_required',
+] as const satisfies readonly IdentityBlockCode[]
+type _EveryIdentityCodeListed = Exclude<IdentityBlockCode, (typeof IDENTITY_CODE_LIST)[number]> extends never ? true : never
+const _everyIdentityCodeListed: _EveryIdentityCodeListed = true
+void _everyIdentityCodeListed
+const IDENTITY_CODES = new Set<PublishBlockCode>(IDENTITY_CODE_LIST)
+
+/** Is this one of the LEGAL (identity) blocks — the ones answered 403 with the structured body? */
+export function isIdentityBlockCode(code: unknown): code is IdentityBlockCode {
+  return typeof code === 'string' && IDENTITY_CODES.has(code as PublishBlockCode)
+}
 
 const COPY: Record<string, { en: string; vi: string }> = {
   identity_unverified: {
@@ -44,8 +56,8 @@ const COPY: Record<string, { en: string; vi: string }> = {
   identity_pending: {
     // ⚠️ "WITHIN A WORKING DAY", NOT "A FEW MINUTES" — a person reviews it, and every other surface
     // says a working day. The email promise is now true: see lib/kyc/notify-outcome.ts.
-    en: 'Your documents are being reviewed by a person on our team, usually within a working day. We will let you know the result in your dashboard and by email, and your draft is saved.',
-    vi: 'Hồ sơ của bạn đang được nhân viên của chúng tôi xem xét, thường trong một ngày làm việc. Chúng tôi sẽ thông báo kết quả trong bảng điều khiển và qua email, và bản nháp của bạn đã được lưu.',
+    en: 'Your documents are being reviewed by a person on our team, usually within a working day. We will let you know the result in your dashboard and by email.',
+    vi: 'Hồ sơ của bạn đang được nhân viên của chúng tôi xem xét, thường trong một ngày làm việc. Chúng tôi sẽ thông báo kết quả trong bảng điều khiển và qua email.',
   },
   identity_expired: {
     // ⚠️ Deliberately NOT phrased as a failure. This person DID verify; a document lapsed. Telling
@@ -57,7 +69,19 @@ const COPY: Record<string, { en: string; vi: string }> = {
     en: 'Publishing is suspended on this account. Our team has emailed you the details and how to respond.',
     vi: 'Tài khoản này đang bị tạm ngừng quyền đăng tin. Đội ngũ của chúng tôi đã gửi email cho bạn kèm chi tiết và cách phản hồi.',
   },
+  identity_sign_in_required: {
+    // ⚠️ A GUEST, NOT AN UNVERIFIED ACCOUNT — there is nothing to verify until they have an account,
+    // so the sentence has to name both steps in order.
+    // ⚠️ NO "YOUR DRAFT IS SAVED" IN ANY OF THIS COPY. It goes to API and MCP clients whose drafts the
+    // server never stored (every refusal happens before the first write), so the promise would be
+    // false wherever it was read. The in-app wording lives in src/lib/identity-block-copy.ts.
+    en: 'Vietnamese law requires sellers to verify their identity before publishing. Sign in or create an account, then verify — it takes about two minutes.',
+    vi: 'Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin. Hãy đăng nhập hoặc tạo tài khoản, sau đó xác minh — mất khoảng hai phút.',
+  },
 }
+
+/** Where a guest goes: sign-in first, landing on the verify page afterwards. */
+const GUEST_VERIFY_URL = '/signin?next=/dashboard/account/verify'
 
 /**
  * Build the refusal body.
@@ -69,6 +93,7 @@ const COPY: Record<string, { en: string; vi: string }> = {
 export function publishBlockedBody(
   code: PublishBlockCode,
   status?: VerificationStatus | null,
+  opts: { draftPreserved?: boolean } = {},
 ): PublishBlockedBody {
   const isIdentity = IDENTITY_CODES.has(code)
   const suspended = code === 'identity_suspended'
@@ -81,7 +106,7 @@ export function publishBlockedBody(
     // hunting for a control that does not exist. Only blocks the user can actually clear are
     // actionable: the identity ones (except suspension) and the content ones.
     actionable: isIdentity ? !suspended : code !== 'account_restricted',
-    verifyUrl: isIdentity && !suspended ? '/dashboard/account/verify' : null,
+    verifyUrl: !isIdentity || suspended ? null : code === 'identity_sign_in_required' ? GUEST_VERIFY_URL : '/dashboard/account/verify',
     message: COPY[code] ?? {
       en: 'This listing cannot be published yet.',
       vi: 'Tin đăng này chưa thể được đăng.',
@@ -89,11 +114,52 @@ export function publishBlockedBody(
     ...(isIdentity
       ? { legalBasis: { en: LEGAL_BASIS.identityDecree.en, vi: LEGAL_BASIS.identityDecree.vi } }
       : {}),
-    // ⚠️ ALWAYS TRUE for identity blocks: the server must have persisted the draft before
-    // returning this, or the promise is a lie and the user loses their work.
-    draftPreserved: isIdentity,
+    // ⚠️ TRUE ONLY WHEN THE CALLER SAYS IT PERSISTED SOMETHING. The flag promises the server kept the
+    // draft; no route does today (createListingCore and bulkImportCore refuse before any write), so
+    // every current caller answers false. It was `isIdentity` until 2026-09-23, which told every
+    // refused client its work was saved when nothing had been stored. A future path that really
+    // saves the draft before refusing passes `{ draftPreserved: true }`.
+    draftPreserved: opts.draftPreserved === true,
   }
 }
 
 /** HTTP status for a block. See the 403-not-401 note above. */
 export const PUBLISH_BLOCKED_STATUS = 403
+
+/**
+ * The SESSION-route body for an identity block: the structured refusal, with `error` carrying the
+ * CODE rather than 'publish_blocked'.
+ *
+ * ⚠️ `error: code` IS THE COMPATIBILITY CONTRACT, NOT AN OVERSIGHT. Every existing client branches on
+ * `body.error` (the post wizard's `msg === 'identity_…'`, the publish funnel's outcome bucket,
+ * native builds already in people's pockets), and those answered `{ error: code }` before this body
+ * existed. The richer fields ride alongside; nothing that read the old shape loses its answer.
+ */
+/**
+ * The account state an identity code stands for, so a 403 carries `accountState` even where the
+ * caller holds only the code (every route below). Without this both helpers answered a pending seller
+ * with accountState: null while the message said "being reviewed" — a client branching on
+ * accountState mis-routed them. `identity_unverified` also covers a REJECTED document; both mean
+ * "no usable verification yet" and share the unverified state's call to action.
+ */
+const STATE_FOR_CODE: Partial<Record<IdentityBlockCode, VerificationStatus>> = {
+  identity_unverified: 'unverified',
+  identity_pending: 'pending',
+  identity_expired: 'expired',
+  identity_suspended: 'revoked',
+  // identity_sign_in_required: no account, so no state — null is the honest answer.
+}
+
+export function publishBlockedJson(code: IdentityBlockCode): Omit<PublishBlockedBody, 'error'> & { error: IdentityBlockCode } {
+  return { ...publishBlockedBody(code, STATE_FOR_CODE[code] ?? null), error: code }
+}
+
+/**
+ * The /api/v1 body for an identity block. The partner API's envelope is `{ error: { code, message } }`
+ * (src/lib/api/respond.ts) and generated clients parse exactly that, so the code and an English
+ * message stay there and the structured fields ride at the top level.
+ */
+export function publishBlockedV1(code: IdentityBlockCode): Omit<PublishBlockedBody, 'error'> & { error: { code: IdentityBlockCode; message: string } } {
+  const body = publishBlockedBody(code, STATE_FOR_CODE[code] ?? null)
+  return { ...body, error: { code, message: body.message.en } }
+}

@@ -296,6 +296,7 @@ export type NicheApiErrorCode =
   | 'duplicate_listing'
   | 'identity_expired'
   | 'identity_pending'
+  | 'identity_sign_in_required' // the guest's refusal while IDENTITY_GATE_ENFORCED is on (2026-09-23)
   | 'identity_suspended'
   | 'identity_unverified'
   | 'location_required'
@@ -595,6 +596,7 @@ const ALL = [
   'duplicate_listing',
   'identity_expired',
   'identity_pending',
+  'identity_sign_in_required',
   'identity_suspended',
   'identity_unverified',
   'location_required',

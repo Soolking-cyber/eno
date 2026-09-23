@@ -1,6 +1,8 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import { assertTransition, canTransition, type VerificationStatus } from './account-state'
+import { asStatus, deriveVerification, type VerificationRow as Row } from './derive-verification'
+import { releaseIdentityHolds } from './identity-holds'
 
 // ── THE ONLY SANCTIONED WRITER OF Profile.verification* ─────────────────────────────────────────
 //
@@ -25,16 +27,6 @@ const ROW_SELECT = {
   decidedAt: true, documentExpiresAt: true, assuranceLevel: true,
 } as const
 
-type Row = {
-  id: string
-  tier: string
-  method: string
-  status: string
-  decidedAt: Date | null
-  documentExpiresAt: Date | null
-  assuranceLevel: string | null
-}
-
 export type RecomputeResult = {
   /** What the cache says now — whether or not this call changed it. */
   status: VerificationStatus
@@ -46,77 +38,10 @@ export type RecomputeResult = {
   illegalTransition?: { from: VerificationStatus; to: VerificationStatus }
 }
 
-const KNOWN: readonly VerificationStatus[] = ['unverified', 'pending', 'verified', 'rejected', 'expired', 'revoked']
-const asStatus = (v: string): VerificationStatus | null =>
-  (KNOWN as readonly string[]).includes(v) ? (v as VerificationStatus) : null
-
-/**
- * Which row speaks for this profile, and what it means TODAY.
- *
- * ⚠️ REVOKED WINS OVER EVERYTHING, INCLUDING A NEWER ROW. Revocation is an admin or authority act;
- * if it did not outrank a subsequent submission, a revoked seller could bury it under a fresh
- * pending row and the cache would report `pending` — which `canPublish` treats far more kindly.
- * The transition table already refuses to leave `revoked`; this keeps the DERIVATION honest too.
- */
-/**
- * ⚠️ GENERIC OVER THE ROW, so a caller that selected more columns (the status route reads the
- * reviewer's note off the source row) gets them back on `source` without a cast.
- */
-export function deriveVerification<R extends Row>(rows: R[], now: Date): { status: VerificationStatus; source: R | null } {
-  if (rows.length === 0) return { status: 'unverified', source: null }
-
-  const revoked = rows.find((r) => r.status === 'revoked')
-  if (revoked) return { status: 'revoked', source: revoked }
-
-  // The newest DECIDED row is the verdict. An undecided (pending) row alongside it means a
-  // resubmission is in flight, which does not undo the previous verdict — but see below.
-  const decided = rows.filter((r) => r.decidedAt !== null)
-    .sort((a, b) => (b.decidedAt!.getTime() - a.decidedAt!.getTime()))
-  const latest = decided[0]
-
-  // ⛔ A STILL-VALID VERIFICATION SURVIVES A LATER REJECTION, AND THE FIRST VERSION DID NOT DO THIS.
-  // Taking `decided[0]` unconditionally meant a seller verified in March who resubmits in August —
-  // to update a detail, or with a second document — and is REJECTED loses the March verification
-  // too: the account drops from `verified` to `rejected` and can no longer publish, on the strength
-  // of an attempt that was only ever additive. Caught by external review.
-  //
-  // ⚠️ THE ESCAPE HATCH IS `revoked`, NOT REJECTION. If a reviewer concludes the earlier record was
-  // fraudulent, revoking it outranks everything above — that is what the first branch is for. A
-  // rejection says "this submission does not qualify", never "the previous one was a lie", and the
-  // two must not be conflated on an account someone is trying to sell from.
-  if (latest && latest.status !== 'verified') {
-    const standing = decided.find((r) => r.status === 'verified'
-      && !(r.documentExpiresAt && r.documentExpiresAt.getTime() < startOfDay(now)))
-    if (standing) return { status: 'verified', source: standing }
-  }
-
-  if (latest?.status === 'verified') {
-    // ⛔ THE DOCUMENT CLOCK, CHECKED HERE AND NOWHERE ELSE. Decree 248/2026 Art 18.1(b) requires a
-    // foreign seller's passport to be valid; a row that said `verified` in March says nothing about
-    // today. Strictly BEFORE, so a document expiring today is still good today — the same calendar
-    // -day leniency verify-decision.ts applies at submission.
-    const exp = latest.documentExpiresAt
-    if (exp && exp.getTime() < startOfDay(now)) return { status: 'expired', source: latest }
-    return { status: 'verified', source: latest }
-  }
-
-  // No verdict yet, or the last verdict was a rejection: a pending row is the live state, because
-  // the seller has acted since.
-  const pending = rows.find((r) => r.status === 'pending')
-  if (pending) return { status: 'pending', source: pending }
-
-  if (latest) {
-    const s = asStatus(latest.status)
-    if (s) return { status: s, source: latest }
-  }
-  return { status: 'unverified', source: null }
-}
-
-/** Midnight ICT as a UTC instant. Every compliance date in this codebase is +07:00. */
-function startOfDay(now: Date): number {
-  const ict = new Date(now.getTime() + 7 * 3600_000)
-  return Date.UTC(ict.getUTCFullYear(), ict.getUTCMonth(), ict.getUTCDate()) - 7 * 3600_000
-}
+// ⚠️ THE DERIVATION MOVED TO derive-verification.ts (pure, no db, no server-only) so that a SCRIPT can
+// run the same answer — scripts/publish-held.ts gates on it through a raw pg client, and it cannot
+// import this file. Re-exported here so every existing caller and test keeps its import.
+export { deriveVerification } from './derive-verification'
 
 /**
  * Recompute and persist the cache for one profile. Safe to call repeatedly — it writes only when
@@ -129,6 +54,37 @@ function startOfDay(now: Date): number {
  * here would mean one bad row silently stops every other seller's document clock.
  */
 export async function recomputeVerification(profileId: string, now: Date = new Date()): Promise<RecomputeResult> {
+  const { result, derived } = await recomputeCache(profileId, now)
+  // ⚖️ AUTO-PUBLISH ON VERIFY — the other half of the seller identity gate's HOLD. Keyed on the
+  // DERIVED status, i.e. the same identity_verifications answer the gate itself decides on, and not
+  // on `changed`: a cache that already read `verified` (an expiry the sweep never recorded, then a
+  // renewal) must still release what was parked while the decision said otherwise, and an illegal
+  // cache transition must not strand holds the gate would now allow.
+  // ⚠️ FAIL-QUIET: this runs inside KYC decisions and the admin users console. A listing-write
+  // hiccup must never fail a verification; the next recompute for this profile retries the release.
+  // ⚠️ NOT GATED ON identityGateEnforced(), DELIBERATELY. That predicate is marketplace-edition AND
+  // the flag, but both editions share one database: a verification recomputed by the eno.forum build
+  // (or after the switch was turned off again) would otherwise release nothing, and a now-verified
+  // seller's parked listings would stay invisible until some later recompute on the other build.
+  // Releasing is always right once the owner is verified. Its cost with nothing held is two small
+  // INDEXED reads (Seller by ownerId, Listing by sellerId) and no write.
+  // ⛔ AND ONLY WHEN THE RECOMPUTE'S OWN ANSWER IS `verified` — not merely the derivation. On an
+  // illegal transition the cache write is refused and the profile keeps its old state (say `revoked`,
+  // set by another path); releasing then would republish every parked listing of an account the rest
+  // of the app still treats as suspended.
+  if (derived === 'verified' && result.status === 'verified') {
+    try {
+      const released = await releaseIdentityHolds(profileId)
+      if (released) console.info('[recompute-verification] released identity holds', { profileId, released })
+    } catch (e) {
+      console.error('[recompute-verification] identity-hold release failed', { profileId }, e)
+    }
+  }
+  return result
+}
+
+/** The cache write itself; returns the derived status alongside, for the release above. */
+async function recomputeCache(profileId: string, now: Date): Promise<{ result: RecomputeResult; derived: VerificationStatus }> {
   const rows = (await db.identityVerification.findMany({
     where: { profileId },
     select: ROW_SELECT,
@@ -139,11 +95,11 @@ export async function recomputeVerification(profileId: string, now: Date = new D
 
   const profile = await db.profile.findUnique({ where: { id: profileId }, select: { verificationStatus: true } })
   const from = asStatus(profile?.verificationStatus ?? 'unverified') ?? 'unverified'
-  if (from === status) return { status, sourceId: source?.id ?? null, changed: false }
+  if (from === status) return { derived: status, result: { status, sourceId: source?.id ?? null, changed: false } }
 
   if (!canTransition(from, status)) {
     console.error('[recompute-verification] illegal transition', { profileId, from, to: status, sourceId: source?.id })
-    return { status: from, sourceId: source?.id ?? null, changed: false, illegalTransition: { from, to: status } }
+    return { derived: status, result: { status: from, sourceId: source?.id ?? null, changed: false, illegalTransition: { from, to: status } } }
   }
   assertTransition(from, status) // belt and braces: the check above already passed
 
@@ -158,7 +114,7 @@ export async function recomputeVerification(profileId: string, now: Date = new D
       verifiedAt: status === 'verified' ? (source?.decidedAt ?? null) : null,
     },
   })
-  return { status, sourceId: source?.id ?? null, changed: true }
+  return { derived: status, result: { status, sourceId: source?.id ?? null, changed: true } }
 }
 
 /**

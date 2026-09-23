@@ -787,6 +787,15 @@ model Listing {
   /// Added additively by scripts/building-key-ddl.mjs — never via `prisma db push`.
   buildingKey             String?
   verified                Boolean            @default(false)
+  /// IDENTITY HOLD — the seller identity gate (src/lib/compliance/seller-publish-gate.ts) parked this
+  /// listing instead of publishing it: an admin approved/activated it, an enforcement lift restored
+  /// it, scripts/publish-held.ts ran, or its guest storefront was claimed — while the owner could
+  /// not yet publish (IDENTITY_GATE_ENFORCED on, unverified past their deadline). `verified` stays
+  /// false; when the owner becomes verified, releaseIdentityHolds() flips both back in one write.
+  /// ⛔ EVERY TAKEDOWN (verified:false as a moderation act) MUST ALSO WRITE identityHold:false, or
+  /// verifying would republish a listing a moderator pulled. Always false while the gate is off.
+  /// Added additively by scripts/listing-identity-hold-ddl.mjs — never via `prisma db push`.
+  identityHold            Boolean            @default(false)
   verificationMethod      String?
   verifiedAt              DateTime?
   verifiedBy              String?

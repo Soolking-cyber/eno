@@ -79,13 +79,22 @@ describe('publish-guard identity gate', () => {
 })
 
 describe('blocked-publish response', () => {
-  it('points a fixable block at the verify route and preserves the draft', () => {
+  it('points a fixable block at the verify route', () => {
     const b = publishBlockedBody('identity_unverified', 'unverified')
     expect(b.accountState).toBe('PENDING_VERIFICATION')
     expect(b.actionable).toBe(true)
     expect(b.verifyUrl).toBe('/dashboard/account/verify')
-    expect(b.draftPreserved).toBe(true)
     expect(b.legalBasis?.vi).toContain('248/2026')
+  })
+
+  it('⚠️ never claims a draft was saved unless the caller says it persisted one', () => {
+    // Every current refusal happens before the first write — no route stores the draft.
+    for (const code of ['identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended', 'identity_sign_in_required'] as const) {
+      const b = publishBlockedBody(code)
+      expect(b.draftPreserved).toBe(false)
+      expect(`${b.message.en} ${b.message.vi}`).not.toMatch(/draft|bản nháp/i)
+    }
+    expect(publishBlockedBody('identity_unverified', null, { draftPreserved: true }).draftPreserved).toBe(true)
   })
 
   it('offers no self-service route on suspension', () => {
