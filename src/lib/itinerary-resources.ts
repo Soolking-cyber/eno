@@ -1,4 +1,5 @@
 import type { GeneratedItineraryResponse } from './itinerary-data'
+import { COMPANY } from '@/lib/site-legal'
 
 export type ItineraryResourceKind =
   | 'concierge'
@@ -67,8 +68,12 @@ export function buildItineraryResourceGroups(result: GeneratedItineraryResponse)
       title: 'eno Concierge', titleVi: 'eno Concierge', kind: 'concierge',
       description: 'Ask eno to coordinate bookings and call transport providers; the fee is 10% of bookings arranged, with your approval first.',
       descriptionVi: 'Nhờ eno điều phối đặt chỗ và gọi đơn vị vận chuyển; phí là 10% giá trị đặt chỗ được sắp xếp và bạn duyệt trước.',
-      url: `mailto:support@eno.vn?subject=${conciergeSubject}&body=${conciergeBody}`,
+      // ⛔ COMPANY.email, NOT `support@eno.vn`. Hiring the concierge to arrange an itinerary is the
+      // service eno.vn is not licensed to offer, so its inbox may not be the one this hands out.
+      url: `mailto:${COMPANY.email}?subject=${conciergeSubject}&body=${conciergeBody}`,
     },
+    // ↓ This one DOES point at eno.vn and that is deliberate: a disclosed link to the sibling
+    // marketplace's travel category, not eno.vn presented as the provider of this itinerary.
     {
       title: 'eno Travel Marketplace', titleVi: 'Chợ du lịch eno', kind: 'marketplace',
       description: 'Find local tours, transport, tickets, and travel services from Vietnam-based providers.',

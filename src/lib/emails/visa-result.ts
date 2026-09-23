@@ -32,38 +32,48 @@ type Lang = 'en' | 'vi'
 
 export type VisaResultEmail = { subject: string; html: string; text: string }
 
+/**
+ * ⛔ NO SITE NAME OR ADDRESS IS TYPED INTO THIS COPY — both arrive as `site` / `support`.
+ *
+ * Every line below used to say "eno.vn" and "support@eno.vn", and this email is sent ONLY by the
+ * services edition (its one caller is src/lib/visa/result.ts, behind `.svc.` routes). So the mail
+ * that hands a customer their finished visa thanked them "for trusting eno.vn" and told them to
+ * write to eno.vn's inbox — the LICENSED marketplace, which may not offer visa services, named in
+ * writing as the provider and the contact for one. Same pattern as business-verification.ts: the
+ * caller passes SITE_NAME and COMPANY.email, so the words follow the build that sends them.
+ */
 const COPY = {
   en: {
     subject: (ref: string) => `Your Vietnam e-Visa is ready — ${ref}`,
-    preheader: 'The PDF is attached to this email, and it is saved in your eno.vn chat too.',
+    preheader: (site: string) => `The PDF is attached to this email, and it is saved in your ${site} chat too.`,
     heading: 'Your e-Visa is ready',
     greeting: (name: string | null) => (name ? `Hi ${name},` : 'Hi there,'),
-    thanks:
-      'Thank you for trusting eno.vn with your Vietnam e-Visa. It has been approved, and your visa is attached to this email as a PDF.',
-    inChat:
-      'The same file is saved in your eno.vn chat, so you can download it again any time — no need to keep this email.',
+    thanks: (site: string) =>
+      `Thank you for trusting ${site} with your Vietnam e-Visa. It has been approved, and your visa is attached to this email as a PDF.`,
+    inChat: (site: string) =>
+      `The same file is saved in your ${site} chat, so you can download it again any time — no need to keep this email.`,
     refLabel: 'Case reference',
     tip: 'Before you fly: print a copy and keep it with your passport. You will be asked for it at check-in and again at the border.',
     ctaLabel: 'Open your chat →',
-    signoff: 'Safe travels, and thank you for using eno.vn.',
-    noReply:
-      'This mailbox is not monitored. If anything on the visa looks wrong, reply in your eno.vn chat or write to support@eno.vn with your case reference and we will pick it up.',
+    signoff: (site: string) => `Safe travels, and thank you for using ${site}.`,
+    noReply: (site: string, support: string) =>
+      `This mailbox is not monitored. If anything on the visa looks wrong, reply in your ${site} chat or write to ${support} with your case reference and we will pick it up.`,
   },
   vi: {
     subject: (ref: string) => `Thị thực điện tử Việt Nam của bạn đã sẵn sàng — ${ref}`,
-    preheader: 'Tệp PDF được đính kèm trong email này, và cũng được lưu trong cuộc trò chuyện eno.vn của bạn.',
+    preheader: (site: string) => `Tệp PDF được đính kèm trong email này, và cũng được lưu trong cuộc trò chuyện ${site} của bạn.`,
     heading: 'Thị thực điện tử của bạn đã sẵn sàng',
     greeting: (name: string | null) => (name ? `Chào ${name},` : 'Xin chào,'),
-    thanks:
-      'Cảm ơn bạn đã tin tưởng eno.vn cho hồ sơ thị thực điện tử Việt Nam. Hồ sơ đã được duyệt, và thị thực của bạn được đính kèm trong email này dưới dạng PDF.',
-    inChat:
-      'Tệp này cũng được lưu trong cuộc trò chuyện eno.vn của bạn, nên bạn có thể tải lại bất cứ lúc nào — không cần giữ email này.',
+    thanks: (site: string) =>
+      `Cảm ơn bạn đã tin tưởng ${site} cho hồ sơ thị thực điện tử Việt Nam. Hồ sơ đã được duyệt, và thị thực của bạn được đính kèm trong email này dưới dạng PDF.`,
+    inChat: (site: string) =>
+      `Tệp này cũng được lưu trong cuộc trò chuyện ${site} của bạn, nên bạn có thể tải lại bất cứ lúc nào — không cần giữ email này.`,
     refLabel: 'Mã hồ sơ',
     tip: 'Trước chuyến bay: hãy in một bản và mang theo cùng hộ chiếu. Bạn sẽ được yêu cầu xuất trình khi làm thủ tục bay và tại cửa khẩu.',
     ctaLabel: 'Mở cuộc trò chuyện →',
-    signoff: 'Chúc bạn thượng lộ bình an, và cảm ơn bạn đã sử dụng dịch vụ của eno.vn.',
-    noReply:
-      'Hộp thư này không nhận phản hồi. Nếu có điều gì chưa đúng trên thị thực, hãy nhắn trong cuộc trò chuyện eno.vn hoặc gửi email tới support@eno.vn kèm mã hồ sơ, chúng tôi sẽ xử lý ngay.',
+    signoff: (site: string) => `Chúc bạn thượng lộ bình an, và cảm ơn bạn đã sử dụng dịch vụ của ${site}.`,
+    noReply: (site: string, support: string) =>
+      `Hộp thư này không nhận phản hồi. Nếu có điều gì chưa đúng trên thị thực, hãy nhắn trong cuộc trò chuyện ${site} hoặc gửi email tới ${support} kèm mã hồ sơ, chúng tôi sẽ xử lý ngay.`,
   },
 } as const
 
@@ -108,9 +118,19 @@ export function renderVisaResultEmail(input: {
   reference: string
   origin: string
   locale: Lang
+  /** This build's own name — pass SITE_NAME. Never typed into the copy (see COPY above). */
+  siteName: string
+  /** This build's support inbox — pass COMPANY.email, never a literal. */
+  supportEmail: string
 }): VisaResultEmail {
   const lang: Lang = input.locale === 'vi' ? 'vi' : 'en'
   const c = COPY[lang]
+  const site = input.siteName
+  const support = input.supportEmail
+  const thanks = c.thanks(site)
+  const inChat = c.inChat(site)
+  const signoff = c.signoff(site)
+  const noReply = c.noReply(site, support)
   const name = clean(input.givenName, 40)
   // A blank reference would render "Case reference ·" with a hole in it; an em dash is at
   // least visibly wrong to the desk, where an empty line reads as normal.
@@ -121,8 +141,8 @@ export function renderVisaResultEmail(input: {
       <tr><td style="padding:8px 24px 0;">
         <h1 style="margin:0 0 12px;font-size:22px;font-weight:800;color:${INK};letter-spacing:-0.01em;">${esc(c.heading)}</h1>
         <p style="margin:0;font-size:15px;color:${INK};line-height:1.6;">${esc(c.greeting(name))}</p>
-        <p style="margin:10px 0 0;font-size:15px;color:${INK};line-height:1.6;">${esc(c.thanks)}</p>
-        <p style="margin:10px 0 0;font-size:15px;color:${INK};line-height:1.6;">${esc(c.inChat)}</p>
+        <p style="margin:10px 0 0;font-size:15px;color:${INK};line-height:1.6;">${esc(thanks)}</p>
+        <p style="margin:10px 0 0;font-size:15px;color:${INK};line-height:1.6;">${esc(inChat)}</p>
       </td></tr>
       <tr><td style="padding:18px 24px 0;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${EMAIL.CANVAS};border:1px solid ${BORDER};border-radius:14px;">
@@ -134,14 +154,14 @@ export function renderVisaResultEmail(input: {
       </td></tr>
       <tr><td style="padding:16px 24px 0;">
         <p style="margin:0;font-size:14px;color:${INK};line-height:1.6;">${esc(c.tip)}</p>
-        <p style="margin:14px 0 0;font-size:15px;font-weight:600;color:${INK};line-height:1.6;">${esc(c.signoff)}</p>
+        <p style="margin:14px 0 0;font-size:15px;font-weight:600;color:${INK};line-height:1.6;">${esc(signoff)}</p>
       </td></tr>
       <tr><td style="padding:14px 24px 0;">
-        <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">${esc(c.noReply)}</p>
+        <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">${esc(noReply)}</p>
       </td></tr>`
 
   const html = renderBrandEmail({
-    preheader: c.preheader,
+    preheader: c.preheader(site),
     bodyHtml,
     origin,
     cta: { label: c.ctaLabel, url: `${origin}/messages` },
@@ -152,18 +172,18 @@ export function renderVisaResultEmail(input: {
     '',
     c.greeting(name),
     '',
-    c.thanks,
-    c.inChat,
+    thanks,
+    inChat,
     '',
     `${c.refLabel}: ${reference}`,
     '',
     c.tip,
     '',
-    c.signoff,
+    signoff,
     '',
     `${origin}/messages`,
     '',
-    c.noReply,
+    noReply,
   ].join('\n')
 
   return { subject: c.subject(reference), html, text }

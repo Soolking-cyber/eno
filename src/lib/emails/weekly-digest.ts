@@ -45,9 +45,9 @@ function sectionHeading(text: string): string {
   return `<h2 style="margin:28px 0 4px;font-size:18px;font-weight:800;color:${INK};letter-spacing:-0.01em;">${esc(text)}</h2>`
 }
 
-function textVersion(top: DigestItem[], sales: DigestItem[], origin: string, unsubscribeUrl: string): string {
+function textVersion(top: DigestItem[], sales: DigestItem[], origin: string, unsubscribeUrl: string, site: string): string {
   const line = (i: DigestItem) => `• ${i.title} — ${formatMoneyFull(i.price, i.currency, 'en')}${i.drop ? ` (${i.drop})` : i.urgent ? ' (Urgent)' : ''}\n  ${origin}/listings/${i.id}`
-  const parts = ['This week on eno.vn', '', 'TOP PICKS', ...top.map(line)]
+  const parts = [`This week on ${site}`, '', 'TOP PICKS', ...top.map(line)]
   if (sales.length) parts.push('', 'MOVING SALES', ...sales.map(line))
   parts.push('', `Browse: ${origin}`, '', `Unsubscribe: ${unsubscribeUrl}`)
   return parts.join('\n')
@@ -59,12 +59,17 @@ export function renderWeeklyDigest(opts: {
   origin: string
   unsubscribeUrl: string
   recipientName?: string | null
+  /**
+   * This build's own name — pass SITE_NAME. The route is compiled into BOTH editions, so a literal
+   * "eno.vn" here would reach eno.forum accounts the day its cron is pointed at the forum.
+   */
+  siteName: string
 }): { subject: string; html: string; text: string } {
-  const { top, sales, origin, unsubscribeUrl, recipientName } = opts
+  const { top, sales, origin, unsubscribeUrl, recipientName, siteName } = opts
 
   const subject = sales.length
-    ? `This week on eno.vn — top picks & ${sales.length} moving sale${sales.length > 1 ? 's' : ''}`
-    : `This week on eno.vn — top picks for you`
+    ? `This week on ${siteName} — top picks & ${sales.length} moving sale${sales.length > 1 ? 's' : ''}`
+    : `This week on ${siteName} — top picks for you`
 
   const preheader = sales.length
     ? `${top.length} top picks and ${sales.length} price drops from Vietnam's trusted marketplace.`
@@ -75,7 +80,7 @@ export function renderWeeklyDigest(opts: {
   const bodyHtml = `
       <tr><td style="padding:4px 24px 0;">
         <p style="margin:12px 0 0;font-size:15px;color:${INK};">${hi}</p>
-        <p style="margin:6px 0 0;font-size:14px;color:${MUTED};line-height:1.5;">Here's what's moving on eno.vn this week — handpicked top listings and the latest price drops. Everything's on the app; message the seller to arrange.</p>
+        <p style="margin:6px 0 0;font-size:14px;color:${MUTED};line-height:1.5;">Here's what's moving on ${esc(siteName)} this week — handpicked top listings and the latest price drops. Everything's on the app; message the seller to arrange.</p>
       </td></tr>
 
       <!-- top picks -->
@@ -94,10 +99,10 @@ export function renderWeeklyDigest(opts: {
     preheader,
     bodyHtml,
     origin,
-    cta: { label: 'Browse eno.vn →', url: origin },
-    audienceNote: "You're receiving this because you have an eno.vn account.",
+    cta: { label: `Browse ${siteName} →`, url: origin },
+    audienceNote: `You're receiving this because you have an ${siteName} account.`,
     unsubscribeUrl,
   })
 
-  return { subject, html, text: textVersion(top, sales, origin, unsubscribeUrl) }
+  return { subject, html, text: textVersion(top, sales, origin, unsubscribeUrl, siteName) }
 }

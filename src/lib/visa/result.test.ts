@@ -503,6 +503,10 @@ describe('upload route — delivery', () => {
     // Exactly one email, with the PDF attached and a filename built from the reference.
     expect(h.state.mails).toHaveLength(1)
     expect(h.state.mails[0].to).toBe('applicant@example.com')
+    // ⛔ Rendered as THIS build (vitest pins services): eno.forum's name and inbox, never eno.vn's.
+    // The mocked renderer echoes its input into the subject, so this reads what the caller passed.
+    const rendered = JSON.parse(String(h.state.mails[0].subject).replace(/^subject /, ''))
+    expect(rendered).toMatchObject({ siteName: 'eno.forum', supportEmail: 'support@eno.forum' })
     const attachments = h.state.mails[0].attachments as Array<{ filename: string; content: string; contentType: string }>
     expect(attachments).toHaveLength(1)
     expect(attachments[0].filename).toBe('EV-1042-evisa.pdf')

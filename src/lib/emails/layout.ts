@@ -1,4 +1,4 @@
-// Shared branded email shell — EVERY outgoing eno.vn email renders inside this
+// Shared branded email shell — EVERY outgoing email, on both editions, renders inside this
 // (owner ask 2026-07-19: real logo + design matching the app). Email constraints
 // rule the implementation: table layout, fully INLINED styles (clients strip
 // <style>), absolute prod URLs, and the palette mirrors the app canon — single
@@ -13,7 +13,8 @@
 // a hardcoded "eno.vn" meant every eno.forum email opened with the licensed marketplace's name in
 // the sender's own header block. Same leak class as the 58 page titles SITE_NAME was introduced for.
 
-import { SITE_NAME } from '@/lib/edition'
+import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
+import { COMPANY } from '@/lib/site-legal'
 
 export const EMAIL = {
   BLUE: '#0A66C2',
@@ -35,12 +36,39 @@ export function emailCta(label: string, url: string): string {
   return `<a href="${esc(url)}" style="display:inline-block;background:${EMAIL.BLUE};color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:12px;">${esc(label)}</a>`
 }
 
+/**
+ * The legal line at the foot of every email — PER EDITION, exactly as the site footer is.
+ *
+ * ⛔ IT USED TO BE A LITERAL "Công ty TNHH ENO · … · support@eno.vn / eno.vn — …" ON BOTH BUILDS,
+ * so every eno.forum email — the finished e-Visa, the payout-change alert, a forum sign-in link —
+ * closed with the LICENSED marketplace's legal name, its domain and its inbox. That is the one leak
+ * src/lib/site-legal.ts exists to prevent: Công ty TNHH ENO may not offer visa, itinerary or PayPal,
+ * so naming it at the foot of the mail that delivers a visa presents it as the provider.
+ *
+ * ⚠️ THE SERVICES BRANCH PRINTS NO COMPANY BLOCK AT ALL — site name and contact address only —
+ * because the forum SITE footer prints none either (owner, 2026-08-17; see the `IS_MARKETPLACE &&`
+ * operator block in components/marketplace/footer.tsx). eno.forum's operator is not incorporated,
+ * and its placeholder name ("registration in progress") is not a thing to put in every inbox.
+ * When that entity exists, fill in `OPERATORS.services` and give this branch its name — never
+ * borrow the marketplace's.
+ *
+ * The marketplace branch is byte-identical to the old literal; it now reads COMPANY because
+ * site-legal.ts forbids a company name typed anywhere else.
+ */
+function legalFooterHtml(): string {
+  if (IS_MARKETPLACE) {
+    return `${esc(COMPANY.name)} · TP. Hồ Chí Minh, Việt Nam · ${esc(COMPANY.email)}<br/>
+          ${esc(SITE_NAME)} — Vietnam's trusted marketplace for the international community.`
+  }
+  return `${esc(SITE_NAME)} · ${esc(COMPANY.email)}`
+}
+
 export function renderBrandEmail(opts: {
   /** Hidden inbox-preview line (shows next to the subject in list views). */
   preheader: string
   /** The card's content rows — caller-built, caller-escaped HTML. */
   bodyHtml: string
-  /** Absolute site origin for links + the logo (https://eno.vn in prod). */
+  /** Absolute site origin for links + the logo (this edition's NEXT_PUBLIC_APP_URL in prod). */
   origin: string
   /** Optional centred brand CTA under the body. */
   cta?: { label: string; url: string }
@@ -72,8 +100,7 @@ export function renderBrandEmail(opts: {
       <tr><td style="padding:20px 24px 24px;border-top:1px solid ${E.BORDER};">
         ${audience}
         <p style="margin:${audience ? '10px' : '0'} 0 0;font-size:11px;color:${E.MUTED};line-height:1.6;">
-          Công ty TNHH ENO · TP. Hồ Chí Minh, Việt Nam · support@eno.vn<br/>
-          eno.vn — Vietnam's trusted marketplace for the international community.
+          ${legalFooterHtml()}
         </p>
       </td></tr>
     </table>

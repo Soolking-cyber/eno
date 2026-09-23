@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { visaPayloadSchema } from '@/lib/visa/schema'
 import { formatVisaReference } from '@/lib/visa/reference'
-import { renderVisaResultEmail } from './visa-result'
+import { renderVisaResultEmail as renderWithIdentity } from './visa-result'
 
 // ── WHAT THESE TESTS ARE FOR ──────────────────────────────────────────────────────────
 //
@@ -18,8 +18,19 @@ import { renderVisaResultEmail } from './visa-result'
 // The rest lock the shape the owner asked for: thanks, both languages, the reference the
 // customer can search their inbox by, and the two places the file can be found.
 
-const ORIGIN = 'https://eno.vn'
+// ⚠️ THE FORUM'S ORIGIN AND IDENTITY, because this email is sent ONLY by the services edition (its one
+// caller is src/lib/visa/result.ts, behind `.svc.` routes) and vitest pins that edition. These tests
+// used to render it as eno.vn and assert "Công ty TNHH ENO" in its footer — pinning, as correct, the
+// licensed marketplace named as the visa provider. services-operator-identity.test.ts guards that.
+const ORIGIN = 'https://www.eno.forum'
 const REFERENCE = formatVisaReference(42) // EV-1042
+
+/** Rendered as the real (services-only) caller renders it: the forum's site name and support mailbox. */
+const renderVisaResultEmail = (input: Omit<Parameters<typeof renderWithIdentity>[0], 'siteName' | 'supportEmail'>) =>
+  // The forum's identity, EXPLICITLY — not read from whatever edition the test process happens to run
+  // as. (This email is only ever sent by the services build; the edition-switching behaviour itself
+  // is pinned in src/lib/services-operator-identity.test.ts.)
+  renderWithIdentity({ ...input, siteName: 'eno.forum', supportEmail: 'support@eno.forum' })
 
 /** Every payload key with a value that could not occur by accident in brand copy. */
 function sentinelPayload(): Record<string, string> {
@@ -63,7 +74,7 @@ describe('visa result email · minimal PII', () => {
     expect(all).not.toMatch(/\b[A-Z]{1,2}\d{6,9}\b/) // passport / identity number
     expect(all).not.toMatch(/\b\d{4}-\d{2}-\d{2}\b/) // any ISO date
     const addresses = all.match(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi) ?? []
-    expect(new Set(addresses)).toEqual(new Set(['support@eno.vn']))
+    expect(new Set(addresses)).toEqual(new Set(['support@eno.forum']))
   })
 
   it('keeps the applicant out of the subject and the inbox preview', () => {
@@ -103,15 +114,16 @@ describe('visa result email · the owner’s ask', () => {
       origin: ORIGIN,
       locale: 'en',
     })
-    expect(html).toContain('https://eno.vn/messages')
-    expect(text).toContain('https://eno.vn/messages')
-    expect(html).toMatch(/saved in your eno\.vn chat/i)
+    expect(html).toContain('https://www.eno.forum/messages')
+    expect(text).toContain('https://www.eno.forum/messages')
+    expect(html).toMatch(/saved in your eno\.forum chat/i)
   })
 
   it('renders inside the brand shell rather than a hand-rolled layout', () => {
     const { html } = renderVisaResultEmail({ givenName: 'Minh', reference: REFERENCE, origin: ORIGIN, locale: 'en' })
-    expect(html).toContain('https://eno.vn/logo.png') // the shared header wordmark
-    expect(html).toContain('Công ty TNHH ENO') // the shared legal footer
+    expect(html).toContain('https://www.eno.forum/logo.png') // the shared header wordmark
+    expect(html).toContain('eno.forum · support@eno.forum') // the shared footer — the forum's own
+    expect(html).not.toContain('Công ty TNHH ENO') // never the licensed marketplace's operator block
     expect(html).toContain('#0A66C2') // the one brand blue
   })
 
@@ -220,11 +232,11 @@ describe('visa result email · hostile and missing values', () => {
     const { html, text } = renderVisaResultEmail({
       givenName: 'Minh',
       reference: REFERENCE,
-      origin: 'https://eno.vn/',
+      origin: 'https://www.eno.forum/',
       locale: 'en',
     })
-    expect(html).not.toContain('https://eno.vn//')
-    expect(text).toContain('https://eno.vn/messages')
+    expect(html).not.toContain('https://www.eno.forum//')
+    expect(text).toContain('https://www.eno.forum/messages')
   })
 
   it('shows a visibly empty reference rather than a silent hole', () => {

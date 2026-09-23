@@ -3,6 +3,8 @@ import { createHash, randomUUID } from 'node:crypto'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { renderVisaResultEmail } from '@/lib/emails/visa-result'
+import { SITE_NAME } from '@/lib/edition'
+import { COMPANY } from '@/lib/site-legal'
 import { sendMail } from '@/lib/mail'
 import { insertMessage, type VisaResultMeta } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
@@ -440,8 +442,13 @@ export async function sendVisaResultThankYou(input: {
       // this is the one call site that decides what it is handed.
       givenName: typeof payload.givenNames === 'string' && payload.givenNames.trim() ? payload.givenNames.trim() : null,
       reference: reference ?? '',
-      origin: (process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').replace(/\/+$/, ''),
+      // ⚠️ THE FALLBACK HOST, THE NAME AND THE INBOX ALL FOLLOW THE BUILD. This fell back to
+      // https://eno.vn and the copy hardcoded eno.vn / support@eno.vn, so the services build that
+      // sends this mail named the LICENSED marketplace as the visa provider and contact.
+      origin: (process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`).replace(/\/+$/, ''),
       locale,
+      siteName: SITE_NAME,
+      supportEmail: COMPANY.email,
     })
 
     const ok = await sendMail({

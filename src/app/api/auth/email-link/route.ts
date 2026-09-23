@@ -10,6 +10,7 @@ import { renderSignInEmail } from '@/lib/emails/sign-in-link'
 import { renderSignInCodeEmail } from '@/lib/emails/sign-in-code'
 import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
 import { route } from '@/lib/api/handler'
+import { SITE_NAME } from '@/lib/edition'
 
 // Magic-link sender — eno.vn's own, replacing supabase.auth.signInWithOtp({ email }).
 //
@@ -126,7 +127,7 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   const origin =
     serverAuthUsesRequestOrigin() && isLoopbackHost(req.headers.get('host'))
       ? loopbackOrigin(req.headers.get('host')!)
-      : process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+      : process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}` // this build's host, never the other edition's
   // `next` is where the visitor resumes after signing in. It arrives from the client, so
   // it goes through the same same-origin guard /auth/callback uses — an open redirect
   // here would hand the freshly-minted session to whoever crafted the link.
@@ -200,8 +201,8 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   const lang = body.lang === 'vi' ? 'vi' : 'en'
   const mode = verifyType === 'signup' ? 'signup' : 'signin'
   const { subject, html, text } = wantCode
-    ? renderSignInCodeEmail({ code: emailOtp!, origin, email, lang, mode })
-    : renderSignInEmail({ url: actionLink!, origin, email, lang, mode })
+    ? renderSignInCodeEmail({ code: emailOtp!, origin, email, lang, mode, siteName: SITE_NAME })
+    : renderSignInEmail({ url: actionLink!, origin, email, lang, mode, siteName: SITE_NAME })
   const sent = await sendMail({ to: email, subject, html, text })
   if (!sent) {
     // sendMail already logged the reason. This is the failure mode that was invisible

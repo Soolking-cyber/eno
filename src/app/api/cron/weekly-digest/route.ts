@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { sendMail, mailEnabled } from '@/lib/mail'
 import { getDigestContent } from '@/lib/digest'
 import { renderWeeklyDigest } from '@/lib/emails/weekly-digest'
+import { SITE_NAME } from '@/lib/edition'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,7 @@ export const maxDuration = 60
 const MAX_RECIPIENTS = 5000 // safety cap per run
 const CONCURRENCY = 20 // bounded fan-out so we don't serialize thousands of sends
 
-const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`
 
 // Weekly marketing digest (Vercel Cron → see vercel.json). Guarded by CRON_SECRET,
 // exactly like daily-reminders. Builds the content ONCE (top picks + moving sales) and
@@ -61,7 +62,7 @@ export const GET = route({ auth: 'cron' }, async () => {
         const unsubToken = mintUnsubscribeToken(r.id) ?? r.unsubscribeToken
         const unsubscribeUrl = `${ORIGIN}/unsubscribe?token=${unsubToken}`
         const { subject, html, text } = renderWeeklyDigest({
-          top, sales, origin: ORIGIN, unsubscribeUrl, recipientName: r.displayName,
+          top, sales, origin: ORIGIN, unsubscribeUrl, recipientName: r.displayName, siteName: SITE_NAME,
         })
         return sendMail({
           to: r.email,

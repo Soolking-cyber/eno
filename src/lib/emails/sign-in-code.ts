@@ -30,55 +30,60 @@ const { INK, MUTED } = EMAIL
 
 type Lang = 'en' | 'vi'
 
-const COPY = {
+/**
+ * ⛔ THE SITE NAME IS A PARAMETER, NOT A WORD IN THE COPY — see the same note in sign-in-link.ts.
+ * Both editions send this code; a hardcoded "eno.vn" told eno.forum's app users they were signing
+ * in to the licensed marketplace.
+ */
+const COPY = (site: string) => ({
   signin: {
     en: {
-      subject: 'Your eno.vn sign-in code',
+      subject: `Your ${site} sign-in code`,
       preheader: 'Enter this code in the app. It expires in one hour.',
       heading: 'Your sign-in code',
-      body: 'Enter this code in the eno.vn app to finish signing in.',
+      body: `Enter this code in the ${site} app to finish signing in.`,
       ignore: 'If you didn’t request it, you can safely ignore this email — nobody can sign in without the code.',
     },
     vi: {
-      subject: 'Mã đăng nhập eno.vn của bạn',
+      subject: `Mã đăng nhập ${site} của bạn`,
       preheader: 'Nhập mã này trong ứng dụng. Mã hết hạn sau một giờ.',
       heading: 'Mã đăng nhập của bạn',
-      body: 'Nhập mã này trong ứng dụng eno.vn để hoàn tất đăng nhập.',
+      body: `Nhập mã này trong ứng dụng ${site} để hoàn tất đăng nhập.`,
       ignore: 'Nếu bạn không yêu cầu, hãy bỏ qua email này — không ai đăng nhập được nếu không có mã.',
     },
   },
   signup: {
     en: {
-      subject: 'Confirm your email to create your eno.vn account',
-      preheader: 'This address has no eno.vn account yet — enter the code to create one.',
-      heading: 'Create your eno.vn account',
-      body: 'This address doesn’t have an eno.vn account yet. Enter this code in the app to confirm it and finish creating one.',
+      subject: `Confirm your email to create your ${site} account`,
+      preheader: `This address has no ${site} account yet — enter the code to create one.`,
+      heading: `Create your ${site} account`,
+      body: `This address doesn’t have an ${site} account yet. Enter this code in the app to confirm it and finish creating one.`,
       ignore: 'If you didn’t request this, ignore this email — the account stays unconfirmed and cannot be used by anyone.',
     },
     vi: {
-      subject: 'Xác nhận email để tạo tài khoản eno.vn',
-      preheader: 'Địa chỉ này chưa có tài khoản eno.vn — nhập mã để tạo mới.',
-      heading: 'Tạo tài khoản eno.vn',
-      body: 'Địa chỉ này chưa có tài khoản eno.vn. Nhập mã này trong ứng dụng để xác nhận và hoàn tất việc tạo tài khoản.',
+      subject: `Xác nhận email để tạo tài khoản ${site}`,
+      preheader: `Địa chỉ này chưa có tài khoản ${site} — nhập mã để tạo mới.`,
+      heading: `Tạo tài khoản ${site}`,
+      body: `Địa chỉ này chưa có tài khoản ${site}. Nhập mã này trong ứng dụng để xác nhận và hoàn tất việc tạo tài khoản.`,
       ignore: 'Nếu bạn không yêu cầu, hãy bỏ qua email này — tài khoản sẽ không được xác nhận và không ai dùng được.',
     },
   },
-} as const
+}) as const
 
-const SHARED = {
+const SHARED = (site: string) => ({
   en: {
     forAddress: 'This was sent to',
     expiry: 'This code works once and expires in one hour.',
     // A code can be read aloud to an attacker on the phone; a link cannot. Every bank and
     // exchange carries this line for exactly that reason.
-    phishing: 'eno.vn will never ask you for this code. Never share it with anyone.',
+    phishing: `${site} will never ask you for this code. Never share it with anyone.`,
   },
   vi: {
     forAddress: 'Email này được gửi tới',
     expiry: 'Mã chỉ dùng được một lần và hết hạn sau một giờ.',
-    phishing: 'eno.vn sẽ không bao giờ hỏi bạn mã này. Đừng chia sẻ mã với bất kỳ ai.',
+    phishing: `${site} sẽ không bao giờ hỏi bạn mã này. Đừng chia sẻ mã với bất kỳ ai.`,
   },
-} as const
+}) as const
 
 export function renderSignInCodeEmail(opts: {
   code: string
@@ -87,11 +92,13 @@ export function renderSignInCodeEmail(opts: {
   email: string
   lang?: Lang
   mode?: SignInMode
+  /** This build's own name — pass SITE_NAME (see COPY). */
+  siteName: string
 }): { subject: string; html: string; text: string } {
   const lang: Lang = opts.lang === 'vi' ? 'vi' : 'en'
   const mode: SignInMode = opts.mode === 'signup' ? 'signup' : 'signin'
-  const c = COPY[mode][lang]
-  const s = SHARED[lang]
+  const c = COPY(opts.siteName)[mode][lang]
+  const s = SHARED(opts.siteName)[lang]
   const { code, origin, email } = opts
 
   const bodyHtml = `

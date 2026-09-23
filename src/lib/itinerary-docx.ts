@@ -24,6 +24,25 @@ import type { ActivityPlan, GeneratedItineraryResponse } from '@/lib/itinerary-d
 import { buildItineraryResourceGroups } from '@/lib/itinerary-resources'
 import { localeForLanguage, type Language } from '@/lib/languages'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { SITE_NAME } from '@/lib/edition'
+import { COMPANY } from '@/lib/site-legal'
+
+/**
+ * ⛔ THE WORDMARK, THE FOOTER HOST AND THE CONCIERGE INBOX ALL COME FROM THIS BUILD, NEVER A LITERAL.
+ *
+ * This document is exported ONLY by services-edition routes (`api/itineraries/**` are `.svc.`), and
+ * it used to print "eno.vn" in the header of every page, "www.eno.vn" in every footer, ".vn /
+ * VIETNAM ITINERARY" on the cover and `mailto:support@eno.vn` as the address to hire the concierge.
+ * That is the LICENSED marketplace — which may not offer itinerary services — named as the author of
+ * an itinerary and the contact for arranging one, in the one artefact a traveller prints and keeps.
+ *
+ * The mark keeps its two-tone "eno" + ".tld" shape; only the tail now follows SITE_NAME. A cross-link
+ * that points AT eno.vn (the travel-marketplace entry in itinerary-resources.ts) is a disclosed link
+ * to the sibling site, which is allowed; presenting eno.vn as the provider or contact is not.
+ */
+const [WORDMARK_HEAD, WORDMARK_TAIL] = SITE_NAME.startsWith('eno.') ? ['eno', SITE_NAME.slice(3)] : [SITE_NAME, '']
+const SITE_HOST = `www.${SITE_NAME}`
+const CONCIERGE_EMAIL = COMPANY.email
 
 const BRAND = '0A66C2'
 const BRAND_DEEP = '123F6D'
@@ -256,11 +275,11 @@ function brandDocument(meta: { title: string; subject: string; description: stri
       },
       headers: { default: new Header({ children: [new Paragraph({
         border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: LINE } }, spacing: { after: 100 },
-        children: [docRun({ text: 'eno', bold: true, color: BRAND, size: 19 }), docRun({ text: '.vn  •  ', bold: true, color: INK, size: 17 }), docRun({ text: meta.headerTail, color: MUTED, size: 16 })],
+        children: [docRun({ text: WORDMARK_HEAD, bold: true, color: BRAND, size: 19 }), docRun({ text: `${WORDMARK_TAIL}  •  `, bold: true, color: INK, size: 17 }), docRun({ text: meta.headerTail, color: MUTED, size: 16 })],
       })] }) },
       footers: { default: new Footer({ children: [new Paragraph({
         alignment: AlignmentType.CENTER,
-        children: [docRun({ children: ['www.eno.vn  •  ', PageNumber.CURRENT], color: MUTED, size: 15 })],
+        children: [docRun({ children: [`${SITE_HOST}  •  `, PageNumber.CURRENT], color: MUTED, size: 15 })],
       })] }) },
       children,
     }],
@@ -283,7 +302,7 @@ export async function createItineraryDocx(
 
   children.push(
     coverTable([
-      new Paragraph({ spacing: { after: 150 }, children: [docRun({ text: 'eno', bold: true, color: WHITE, size: 24 }), docRun({ text: `.vn  /  ${tr('Vietnam itinerary', 'Lịch trình Việt Nam').toUpperCase()}`, bold: true, color: 'B8D9F7', size: 17, characterSpacing: 30 })] }),
+      new Paragraph({ spacing: { after: 150 }, children: [docRun({ text: WORDMARK_HEAD, bold: true, color: WHITE, size: 24 }), docRun({ text: `${WORDMARK_TAIL}  /  ${tr('Vietnam itinerary', 'Lịch trình Việt Nam').toUpperCase()}`, bold: true, color: 'B8D9F7', size: 17, characterSpacing: 30 })] }),
       new Paragraph({ spacing: { after: 150 }, children: [docRun({ text: plan.title, bold: true, color: WHITE, size: 42 })] }),
       new Paragraph({ spacing: { after: 130, line: 310 }, children: [docRun({ text: plan.summary, color: 'E7F1FA', size: 21 })] }),
       new Paragraph({ children: [docRun({ text: plan.routeSummary, bold: true, color: WHITE, size: 21 })] }),
@@ -299,7 +318,7 @@ export async function createItineraryDocx(
     calloutBox([
       new Paragraph({ spacing: { after: 70 }, children: [docRun({ text: tr('Want eno to handle the bookings?', 'Bạn muốn eno lo việc đặt chỗ?'), bold: true, color: BRAND_DEEP, size: 23 })] }),
       new Paragraph({ spacing: { after: 70 }, children: [docRun({ text: tr('eno Concierge can arrange stays and activities, call transport providers, and coordinate the details. The service fee is 10% of the bookings we arrange; you approve every cost first.', 'eno Concierge có thể đặt chỗ ở và hoạt động, gọi đơn vị vận chuyển và điều phối chi tiết. Phí dịch vụ là 10% giá trị đặt chỗ do eno sắp xếp; bạn duyệt mọi chi phí trước.'), color: BODY, size: 19 })] }),
-      new Paragraph({ children: [new ExternalHyperlink({ link: `mailto:support@eno.vn?subject=${encodeURIComponent(`eno Concierge — ${plan.title}`)}`, children: [docRun({ text: 'support@eno.vn', bold: true, color: BRAND, underline: {} })] })] }),
+      new Paragraph({ children: [new ExternalHyperlink({ link: `mailto:${CONCIERGE_EMAIL}?subject=${encodeURIComponent(`eno Concierge — ${plan.title}`)}`, children: [docRun({ text: CONCIERGE_EMAIL, bold: true, color: BRAND, underline: {} })] })] }),
     ]),
   )
 
@@ -469,7 +488,7 @@ export async function createSavedItineraryDocx(input: SavedItineraryDocxInput, l
   // Cover
   children.push(
     coverTable([
-      new Paragraph({ spacing: { after: 150 }, children: [docRun({ text: 'eno', bold: true, color: WHITE, size: 24 }), docRun({ text: `.vn  /  ${tr('Vietnam itinerary', 'Lịch trình Việt Nam').toUpperCase()}`, bold: true, color: 'B8D9F7', size: 17, characterSpacing: 30 })] }),
+      new Paragraph({ spacing: { after: 150 }, children: [docRun({ text: WORDMARK_HEAD, bold: true, color: WHITE, size: 24 }), docRun({ text: `${WORDMARK_TAIL}  /  ${tr('Vietnam itinerary', 'Lịch trình Việt Nam').toUpperCase()}`, bold: true, color: 'B8D9F7', size: 17, characterSpacing: 30 })] }),
       new Paragraph({ spacing: { after: 150 }, children: [docRun({ text: input.title, bold: true, color: WHITE, size: 42 })] }),
       new Paragraph({ children: [docRun({ text: `${input.destinationLabel}  •  ${input.days} ${tr('days', 'ngày')}`, bold: true, color: 'E7F1FA', size: 21 })] }),
       ...(interestLine ? [new Paragraph({ spacing: { before: 120 }, children: [docRun({ text: interestLine, color: 'B8D9F7', size: 18 })] })] : []),
@@ -485,7 +504,7 @@ export async function createSavedItineraryDocx(input: SavedItineraryDocxInput, l
     calloutBox([
       new Paragraph({ spacing: { after: 70 }, children: [docRun({ text: tr('Want eno to handle the bookings?', 'Bạn muốn eno lo việc đặt chỗ?'), bold: true, color: BRAND_DEEP, size: 23 })] }),
       new Paragraph({ spacing: { after: 70 }, children: [docRun({ text: tr('eno Concierge can arrange stays and activities and coordinate the details. The service fee is 10% of the bookings we arrange; you approve every cost first.', 'eno Concierge có thể đặt chỗ ở và hoạt động và điều phối chi tiết. Phí dịch vụ là 10% giá trị đặt chỗ do eno sắp xếp; bạn duyệt mọi chi phí trước.'), color: BODY, size: 19 })] }),
-      new Paragraph({ children: [new ExternalHyperlink({ link: `mailto:support@eno.vn?subject=${encodeURIComponent(`eno Concierge — ${input.title}`)}`, children: [docRun({ text: 'support@eno.vn', bold: true, color: BRAND, underline: {} })] })] }),
+      new Paragraph({ children: [new ExternalHyperlink({ link: `mailto:${CONCIERGE_EMAIL}?subject=${encodeURIComponent(`eno Concierge — ${input.title}`)}`, children: [docRun({ text: CONCIERGE_EMAIL, bold: true, color: BRAND, underline: {} })] })] }),
     ]),
   )
 

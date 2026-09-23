@@ -5,6 +5,14 @@ import { Resend } from 'resend'
 // runs end-to-end and just doesn't deliver. Same env-gated guard as push.ts / VAPID.
 const KEY = process.env.RESEND_API_KEY
 // Must be a domain verified in Resend (eno.vn). Override via MAIL_FROM env.
+//
+// ⚠️ ONE SENDER FOR BOTH EDITIONS, AND ON eno.forum THAT IS A KNOWN LEAK LEFT FOR THE OWNER. Unless
+// the forum container sets MAIL_FROM, every eno.forum email — the finished e-Visa included — arrives
+// FROM "eno.vn <no-reply@eno.vn>", the licensed marketplace, even though its body and footer now
+// name eno.forum (emails/layout.ts). No Reply-To is set, so a reply goes to no-reply@eno.vn. The fix
+// is NOT a per-edition default here: a forum address only sends once eno.forum is verified as a
+// sending domain with the provider (and the API key in use is allowed to send from it). Verify that,
+// then set MAIL_FROM on the services deployment — e.g. "eno.forum <no-reply@eno.forum>".
 const FROM = process.env.MAIL_FROM || 'eno.vn <no-reply@eno.vn>'
 const resend = KEY ? new Resend(KEY) : null
 

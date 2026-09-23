@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { renderSignInEmail } from './sign-in-link'
-import { renderSignInCodeEmail } from './sign-in-code'
+import { renderSignInEmail as renderLink } from './sign-in-link'
+import { renderSignInCodeEmail as renderCode } from './sign-in-code'
+
+// These tests pin token and copy invariants, not the site name, so they render as eno.vn; the
+// per-edition name is pinned in src/lib/services-operator-identity.test.ts.
+const renderSignInEmail = (o: Omit<Parameters<typeof renderLink>[0], 'siteName'>) => renderLink({ siteName: 'eno.vn', ...o })
+const renderSignInCodeEmail = (o: Omit<Parameters<typeof renderCode>[0], 'siteName'>) => renderCode({ siteName: 'eno.vn', ...o })
 
 // ⚠️ THE INVARIANT THESE PROTECT: the magic link and the 8-digit code are the SAME GoTrue
 // token, measured against the live project on 2026-07-22 — consuming `hashed_token` makes
@@ -73,6 +78,23 @@ describe('sign-in emails · signup is visibly different from sign-in', () => {
       const { html, text } = renderSignInCodeEmail({ code, origin: ORIGIN, email: EMAIL })
       expect(html, code).toContain(code)
       expect(text, code).toContain(code)
+    }
+  })
+})
+
+describe('sign-in emails · the site name is a parameter, never a literal', () => {
+  // Both editions send these. A literal "eno.vn" mailed eno.forum visitors "Sign in to eno.vn".
+  it('names whichever site the caller passes, in every mode and language', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      for (const mode of ['signin', 'signup'] as const) {
+        for (const m of [
+          renderLink({ url: URL.replace('https://eno.vn', 'https://www.eno.forum'), origin: 'https://www.eno.forum', email: EMAIL, lang, mode, siteName: 'eno.forum' }),
+          renderCode({ code: CODE, origin: 'https://www.eno.forum', email: EMAIL, lang, mode, siteName: 'eno.forum' }),
+        ]) {
+          expect(m.subject).toContain('eno.forum')
+          expect(`${m.subject}${m.text}`).not.toContain('eno.vn')
+        }
+      }
     }
   })
 })

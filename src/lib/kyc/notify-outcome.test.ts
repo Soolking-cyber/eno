@@ -23,7 +23,9 @@ vi.mock('@/lib/db', () => ({
     },
   },
 }))
-vi.mock('@/lib/edition', () => ({ SITE_NAME: 'eno.forum' }))
+// The whole edition surface, not just SITE_NAME: the email layout reads IS_MARKETPLACE and
+// site-legal.ts reads EDITION at module scope to pick the footer's operator.
+vi.mock('@/lib/edition', () => ({ SITE_NAME: 'eno.forum', IS_SERVICES: true, IS_MARKETPLACE: false, EDITION: 'services' }))
 vi.mock('@/lib/mail', () => ({
   sendMail: async (m: { to: string; subject: string; html: string; text: string }) => { h.s.mails.push(m); return true },
 }))
