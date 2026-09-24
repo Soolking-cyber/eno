@@ -272,7 +272,7 @@ export function AreaFilter({
           <PopoverPrimitive.Popup
             finalFocus={anchorRef}
             aria-label={tr('Choose area', 'Chọn khu vực')}
-            className="w-90 max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
+            className="w-90 max-h-[min(72vh,var(--available-height,72vh))] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
           >
             <div className="space-y-4">
               {/* Province/City + Ward side-by-side (user decision 2026-07-13): one row,
