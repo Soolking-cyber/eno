@@ -1,6 +1,5 @@
-import { Prisma } from '@/generated/prisma/client'
-import { fold } from './fold'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
+import { inferDistrictFromQuery } from './district-query'
 import { CATEGORY_BY_SLUG, LISTING_TYPE_LABEL, type ListingType } from './taxonomy'
 import { groupVnd, moneyLocale } from './vnd'
 
@@ -49,39 +48,10 @@ export function normalizeParams(input: unknown): SavedSearchParams {
   }
 }
 
-// District filter mirroring /api/listings (DISTRICTS[].match against district+location).
-function districtFilter(slug?: string): Prisma.ListingWhereInput | undefined {
-  if (!slug || slug === 'all') return undefined
-  const def = DISTRICTS.find((d) => d.slug === slug)
-  if (!def?.match?.length) return undefined
-  const OR: Prisma.ListingWhereInput[] = []
-  for (const m of def.match) OR.push({ district: { contains: m } }, { location: { contains: m } })
-  return { OR }
-}
-
-// Build the Prisma where for a saved search — IDENTICAL semantics to the public
-// feed (/api/listings) so "matches" line up with what the buyer would see.
-export function buildListingWhere(p: SavedSearchParams): Prisma.ListingWhereInput {
-  const and: Prisma.ListingWhereInput[] = [{ verified: true }, { status: 'active' }]
-  if (p.category) and.push({ category: { slug: p.category } })
-  if (p.subcategory) and.push({ subcategorySlug: p.subcategory })
-  if (p.brand) and.push({ brandSlug: p.brand })
-  if (p.model) and.push({ model: p.model })
-  if (p.listingType) and.push({ listingType: p.listingType })
-  if (p.condition === 'new') and.push({ OR: [{ condition: { contains: 'new' } }, { condition: { contains: 'mới' } }] })
-  else if (p.condition === 'used') and.push({ NOT: { OR: [{ condition: { contains: 'new' } }, { condition: { contains: 'mới' } }] } })
-  if (typeof p.priceMin === 'number' || typeof p.priceMax === 'number') {
-    const price: Prisma.FloatFilter = {}
-    if (typeof p.priceMin === 'number') price.gte = p.priceMin
-    if (typeof p.priceMax === 'number') price.lte = p.priceMax
-    and.push({ price })
-  }
-  if (p.q) and.push({ searchText: { contains: fold(p.q) } })
-  const df = districtFilter(p.district)
-  if (df) and.push(df)
-  if (p.attrs) for (const [k, v] of Object.entries(p.attrs)) and.push({ attributes: { contains: `"${k}":"${v}"` } })
-  return { AND: and }
-}
+// ⚠️ THE PRISMA WHERE FOR A SAVED SEARCH (`buildListingWhere`) LIVES IN ./saved-search-where.ts. It
+// reads the database (the district scope resolves landing slugs against stored names), and this
+// module is plain parsing and labelling — keeping the two apart means importing these helpers can
+// never pull Prisma into a bundle.
 
 // Canonical URL (home explorer) that re-applies a saved search.
 export function toUrlParams(p: SavedSearchParams): string {
@@ -114,8 +84,12 @@ export function describeParams(p: SavedSearchParams, lang: 'en' | 'vi' = 'en'): 
   }
   if (p.listingType) parts.push(LISTING_TYPE_LABEL[p.listingType as ListingType]?.[lang] ?? p.listingType)
   if (p.district) {
-    const d = DISTRICTS.find((x) => x.slug === p.district)
-    if (d) parts.push(lang === 'vi' ? d.name : d.nameEn)
+    // A /c/<category>/<district> landing slug (`quan-7`, `quan-binh-thanh`) is a real scope too, so it
+    // is named rather than left out: by the curated district its words read as (localized, accented),
+    // else de-slugified the way the explorer's chip shows it.
+    const curated = DISTRICTS.find((x) => x.slug === p.district)?.slug ?? inferDistrictFromQuery(p.district.replace(/-/g, ' '))?.slug
+    const d = curated ? DISTRICTS.find((x) => x.slug === curated) : undefined
+    parts.push(d ? (lang === 'vi' ? d.name : d.nameEn) : p.district.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
   }
   if (typeof p.priceMin === 'number' || typeof p.priceMax === 'number') {
     // Locale-aware grouping (vi = "12.000.000", en = "12,000,000") + the right VND

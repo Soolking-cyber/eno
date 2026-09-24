@@ -24,7 +24,7 @@
 // that picked one for them would be wrong in the other two.
 //
 // ── WHAT ALREADY EXISTS (inventoried 2026-08-12; do NOT rebuild any of it) ────────────────────
-//   · `src/lib/saved-search.ts` — SavedSearchParams, `buildListingWhere()` (feed-identical
+//   · `src/lib/saved-search.ts` — SavedSearchParams, `buildListingWhere()` (now in saved-search-where.ts; feed-identical
 //     matching), `toUrlParams()`, `describeParams()`. The MATCHING is solved. This file never
 //     matches anything; it is handed candidates that already matched.
 //   · `src/app/api/cron/saved-search-alerts/route.ts` — the live cron. It counts matches newer

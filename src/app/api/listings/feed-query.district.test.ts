@@ -33,7 +33,8 @@ import { resetDistrictNameCache, districtScopeForSlug } from '@/lib/district-slu
 /** The district clause `buildFeedFilters` produced, whatever shape it took. */
 async function districtClause(param: string) {
   const { andFilters } = await buildFeedFilters(new URLSearchParams(`district=${param}`))
-  return andFilters.find((f: any) => f.district !== undefined || (f.OR && f.OR.some((o: any) => o.district !== undefined)))
+  // Any shape — a numbered district's scope is an AND of a guard and the bounded match.
+  return andFilters.find((f: any) => JSON.stringify(f).includes('"district":'))
 }
 
 beforeEach(() => {
@@ -79,6 +80,85 @@ describe('the feed’s district filter', () => {
     expect(fromPage).toEqual(fromFeed)
     // And it is the curated match, which is what the explorer's chips have always meant.
     expect(fromFeed.OR).toBeDefined()
+  })
+})
+
+/**
+ * ⛔ "still cant search by district" (owner, 2026-09-24). A district typed into the search box was
+ * reduced to the token `quan` — the digit dropped as too short — so "Quận 7" returned every HCMC
+ * rental. It must now be the SAME scope `?district=` applies, with only the remaining words left for
+ * the text filter.
+ */
+describe('a district typed into the query', () => {
+  const build = (qs: string) => buildFeedFilters(new URLSearchParams(qs))
+  const tokens = (f: any) => (f ? (f.AND ?? f.OR ?? [f]).map((c: any) => c.searchText.contains) : null)
+
+  it('"Quận 7" narrows to exactly the d7 scope, with no text filter left', async () => {
+    const r = await build(`q=${encodeURIComponent('Quận 7')}`)
+    expect(r.andFilters).toContainEqual(await districtScopeForSlug('d7'))
+    expect(r.pgTextFilter).toBeNull()
+    expect(r.inferredDistrict).toBe('d7')
+    // Nothing left to rank on, so no paid semantic call is made for a bare district.
+    expect(r.q).toBeUndefined()
+  })
+
+  it('"căn hộ quận 7" keeps "can ho" as text AND applies d7', async () => {
+    const r = await build(`q=${encodeURIComponent('căn hộ quận 7')}`)
+    expect(r.andFilters).toContainEqual(await districtScopeForSlug('d7'))
+    expect(tokens(r.pgTextFilter)).toEqual(['can', 'ho'])
+    expect(r.q).toBe('căn hộ')
+  })
+
+  it('"2pn quận 2" → the thu-duc scope plus the text "2pn"', async () => {
+    const r = await build(`q=${encodeURIComponent('2pn quận 2')}`)
+    expect(r.andFilters).toContainEqual(await districtScopeForSlug('thu-duc'))
+    expect(tokens(r.pgTextFilter)).toEqual(['2pn'])
+    expect(r.inferredDistrict).toBe('thu-duc')
+  })
+
+  it.each(['iphone 7', '7 triệu'])('%j infers no district and is searched as typed', async (q) => {
+    const r = await build(`q=${encodeURIComponent(q)}`)
+    expect(r.inferredDistrict).toBeNull()
+    expect(await districtClause(`all&q=${encodeURIComponent(q)}`)).toBeUndefined()
+    expect(r.q).toBe(q)
+  })
+
+  it('an explicit ?district=d1 wins over "quận 7" in the query, which stays text', async () => {
+    const r = await build(`district=d1&q=${encodeURIComponent('quận 7')}`)
+    expect(r.andFilters).toContainEqual(await districtScopeForSlug('d1'))
+    expect(r.andFilters).not.toContainEqual(await districtScopeForSlug('d7'))
+    expect(r.inferredDistrict).toBeNull()
+    expect(r.q).toBe('quận 7')
+  })
+
+  it('a shorthand is a district only beside a place word — a bare "D5" stays a product search', async () => {
+    expect((await build(`q=${encodeURIComponent('căn hộ Q7')}`)).inferredDistrict).toBe('d7')
+    expect((await build('category=rentals&q=D5')).inferredDistrict).toBeNull()
+    expect((await build('q=D5')).q).toBe('D5')
+  })
+
+  it('?district=all is "no district", not a pick — the query still infers', async () => {
+    const r = await build(`district=all&q=${encodeURIComponent('Quận 7')}`)
+    expect(r.inferredDistrict).toBe('d7')
+  })
+
+  /**
+   * ⛔ d1 MATCHED QUẬN 10, 11 AND 12. `contains 'Quận 1'` is a substring test: production returned
+   * 2,794 rentals for a district holding 1,373, and inferring "Quận 1" onto that scope would have
+   * shipped the same lie through the search box.
+   */
+  it('the d1 scope is number-bounded: every clause for "Quận 1" ends at a delimiter or the field end', async () => {
+    const outer: any = await districtScopeForSlug('d1')
+    // AND[0] is the number-bounded match, AND[1] the canonical-column exclusion of Quận 10–12
+    // (district-slug.ts). Inside the match, AND[0] is the cheap bare-substring guard and AND[1] is
+    // what decides (district-match.ts).
+    const scope = outer.AND[0]
+    expect(JSON.stringify(outer.AND[1])).toContain('Quận 12')
+    const needles = scope.AND[1].OR.map((c: any) => (c.district ?? c.location))
+    expect(needles).not.toContainEqual({ contains: 'Quận 1' })
+    expect(needles).toContainEqual({ endsWith: 'Quận 1' })
+    expect(needles).toContainEqual({ contains: 'Quận 1 ' })
+    expect(needles).toContainEqual({ contains: 'Quận 1,' })
   })
 })
 

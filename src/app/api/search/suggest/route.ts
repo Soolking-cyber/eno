@@ -6,6 +6,9 @@ import { fold } from '@/lib/fold'
 import { normalizeBrand } from '@/lib/brand-normalize'
 import { rateLimit } from '@/lib/ratelimit'
 import { route } from '@/lib/api/handler'
+import { inferDistrictFromQuery } from '@/lib/district-query'
+import { districtScopeForSlug } from '@/lib/district-slug'
+import type { Prisma } from '@/generated/prisma/client'
 
 export const runtime = 'nodejs'
 
@@ -44,9 +47,21 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
   if (!rl.success) return NextResponse.json({ q, listings: [], categories: [], brands: [] })
 
   const folded = fold(q)
+  /**
+   * ⛔ A DISTRICT IN THE QUERY IS THE FEED'S DISTRICT SCOPE HERE TOO (src/lib/district-query.ts).
+   * The typeahead matched "Quận 1" as the lone token `quan` — its six listings were the same six for
+   * every numbered district, and 0 of them were in Quận 1. The dropdown is the preview of what Enter
+   * returns, so it reads the query the way the feed now does: district scope, remaining words as text.
+   */
+  const inferred = inferDistrictFromQuery(q)
+  const textFolded = inferred ? fold(inferred.rest) : folded
   // AND each ≥2-char token (matches /api/listings) so multi-word typeahead narrows.
-  const tokens = folded.split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
-  const searchAnd = tokens.length ? tokens.map((t) => ({ searchText: { contains: t } })) : [{ searchText: { contains: folded } }]
+  const tokens = textFolded.split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
+  const searchAnd: Prisma.ListingWhereInput[] = tokens.length
+    ? tokens.map((t) => ({ searchText: { contains: t } }))
+    : textFolded ? [{ searchText: { contains: textFolded } }] : []
+  const districtScope = inferred ? await districtScopeForSlug(inferred.slug) : null
+  if (districtScope) searchAnd.push(districtScope)
   // Brand matching key ("Louis V" → "louisv") so a spaced prefix still hits "louisvuitton".
   const brandKey = normalizeBrand(q)
 

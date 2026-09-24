@@ -2,7 +2,8 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { sendPushToProfile } from '@/lib/push'
-import { buildListingWhere, toUrlParams, type SavedSearchParams } from '@/lib/saved-search'
+import { toUrlParams, type SavedSearchParams } from '@/lib/saved-search'
+import { buildListingWhere } from '@/lib/saved-search-where'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,7 +51,7 @@ export const GET = route({ auth: 'cron' }, async () => {
             // ⚠️ SCOPED HERE, NOT INSIDE buildListingWhere. That helper is shared with the browse
             // feed, which already carries the scope via andFilters — pushing it in there too would
             // double-apply it and couple two surfaces that should stay independent.
-            where: await scopedListingWhere({ AND: [buildListingWhere(params), { createdAt: { gt: s.lastNotifiedAt } }] }),
+            where: await scopedListingWhere({ AND: [await buildListingWhere(params), { createdAt: { gt: s.lastNotifiedAt } }] }),
           })
           if (matches === 0) return { notified: 0, pushed: 0 }
           const title = matches === 1 ? '🔔 New match for your saved search' : `🔔 ${matches} new matches for your saved search`

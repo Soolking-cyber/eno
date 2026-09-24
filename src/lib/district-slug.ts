@@ -3,6 +3,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { slugify } from '@/lib/slug'
 import type { Prisma } from '@/generated/prisma/client'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
+import { districtMatchWhere, longerDistrictSpellings } from '@/lib/district-match'
 
 /**
  * RESOLVES A SEO DISTRICT SLUG BACK TO THE DISTRICT VALUES LISTINGS ACTUALLY CARRY.
@@ -94,40 +95,26 @@ export async function districtScopeForSlug(slug: string): Promise<Prisma.Listing
   if (!value || value === 'all') return null
   const curated = DISTRICTS.find((d) => d.slug === value)
   if (curated?.match?.length) {
-    const OR: Prisma.ListingWhereInput[] = []
-    for (const m of curated.match) OR.push({ district: { contains: m } }, { location: { contains: m } })
+    // ⛔ NUMBER-BOUNDED for the numbered spellings: a bare `contains 'Quận 1'` also matched Quận 10,
+    // 11 and 12 (d1 returned 2,794 rentals for a district holding 1,373). See district-match.ts.
+    const scope = districtMatchWhere(curated.match)
     /**
-     * ⛔ A SUBSTRING MATCH ON "Quận 1" ALSO MATCHES "Quận 12", AND THAT WAS SHIPPING. Measured on
-     * the live feed before this guard: `?district=d1` returned 2,573 listings of which 59 out of 60
-     * sampled were in Quận 12 — District 1 is the city centre and one of the most-used filters on
-     * the site, and it was answering with District 12. The same held for District 10 and 11, and
-     * for the English spellings.
+     * ⛔ AND THE CANONICAL COLUMN MAY NOT NAME A LONGER DISTRICT (decf5f4a, kept through the merge
+     * with the number-bounded match above). Measured on the live feed before either guard:
+     * `?district=d1` returned 2,573 listings of which 59 of 60 sampled were in Quận 12. The bounded
+     * match already refuses "Quận 12" in either column; this second guard refuses a row whose
+     * `district` IS a longer name even when its free-text `location` happens to mention ours at a
+     * boundary ("Quận 12 … gần Quận 1"). The exclusions are derived from the curated list
+     * (longerDistrictSpellings), never typed out, so they cannot rot when a district is added.
      *
-     * ⚠️ THE EXCLUSIONS ARE DERIVED FROM THE CURATED LIST, NOT TYPED OUT. Hard-coding "not 10, 11,
-     * 12" would rot the moment a district is added or renamed; taking every OTHER curated spelling
-     * that has one of ours as a prefix keeps the two in step by construction. Only a longer string
-     * can be a false positive, so that is exactly the set to exclude.
-     *
-     * ⚠️ AND IT IS PREFIX-ONLY ON PURPOSE. "Quận 1" is not a false match for "Tân Bình" merely
-     * because both are districts — only for names that START with it and continue, which is the
-     * shape the digits create.
-     */
-    const longer = DISTRICTS.flatMap((d) => (d.slug === curated.slug ? [] : d.match ?? []))
-      .filter((other) => curated.match!.some((m) => other.length > m.length && other.startsWith(m)))
-    /**
      * ⚠️ THE EXCLUSION TESTS `district` ONLY, NEVER `location` (reviewer). `location` is free text —
      * "Quận 1, gần Quận 10", a cross-street, a directions blurb — so excluding on it would drop
      * genuine District 1 listings for mentioning a neighbour, trading a false-positive bug for a
-     * false-negative one. `district` is the canonical column, and it is where the false positives
-     * actually live: of 60 sampled rows returned by the broken filter, 59 had `district` = "Quận 12"
-     * outright.
+     * false-negative one. facet-counts.ts mirrors exactly this pair, so the chip count equals the tap.
      */
-    if (longer.length) {
-      const NOT: Prisma.ListingWhereInput[] = []
-      for (const m of [...new Set(longer)]) NOT.push({ district: { contains: m } })
-      return { AND: [{ OR }, { NOT: { OR: NOT } }] }
-    }
-    return { OR }
+    const longer = longerDistrictSpellings(curated.slug)
+    if (longer.length) return { AND: [scope, { NOT: { OR: longer.map((m) => ({ district: { contains: m } })) } }] }
+    return scope
   }
   return { district: { in: await districtNamesForSlug(value) } }
 }

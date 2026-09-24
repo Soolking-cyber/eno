@@ -159,6 +159,29 @@ describe('releasedParams', () => {
     expect(Object.fromEntries(releasedParams(src, 'model'))).toEqual({ category: 'vehicles', condition: 'new' })
   })
 
+  /**
+   * ⛔ THE TEXT IS DROPPED FROM EVERY COUNT, BUT A DISTRICT READ OUT OF IT IS A STRUCTURAL FILTER.
+   * The feed turns "căn hộ quận 7" into the d7 scope; deleting `q` without keeping that would count
+   * every chip over the whole city while the grid shows Quận 7.
+   */
+  it('keeps a district inferred from the query as the district param — except on the area rail', () => {
+    const src = new URLSearchParams({ category: 'rentals', q: 'căn hộ quận 7', condition: 'new' })
+    expect(Object.fromEntries(releasedParams(src, 'condition'))).toEqual({ category: 'rentals', district: 'd7' })
+    expect(Object.fromEntries(releasedParams(src, 'area'))).toEqual({ category: 'rentals', condition: 'new' })
+  })
+
+  it('reads the words the way the feed does, on every rail — the category rail included', () => {
+    // A bare shorthand is text in the feed, so it is dropped here with the rest of the text.
+    expect(releasedParams(new URLSearchParams({ category: 'rentals', q: 'Q7' }), 'condition').get('district')).toBeNull()
+    expect(releasedParams(new URLSearchParams({ category: 'rentals', q: 'căn hộ Q7' }), 'category').get('district')).toBe('d7')
+    expect(releasedParams(new URLSearchParams({ category: 'rentals', q: 'Quận 7' }), 'category').get('district')).toBe('d7')
+  })
+
+  it('an explicit district is never overwritten by the query', () => {
+    const src = new URLSearchParams({ district: 'd1', q: 'quận 7' })
+    expect(Object.fromEntries(releasedParams(src, 'condition'))).toEqual({ district: 'd1' })
+  })
+
   it('releases every location param together — a place replaces a place', () => {
     const p = releasedParams(new URLSearchParams({ district: 'd1', province: 'Hanoi', ward: 'X', category: 'vehicles' }), 'area')
     expect(Object.fromEntries(p)).toEqual({ category: 'vehicles' })
@@ -208,10 +231,13 @@ describe('districtSlugsFor — mirrors buildDistrictFilter', () => {
     expect(districtSlugsFor({ district: 'bình thạnh', location: '' })).toEqual([])
   })
 
-  it('reproduces the District 1 / District 10 overlap rather than tidying it away', () => {
-    // The filter itself returns District 10 rows for ?district=d1. A "cleaner" classifier here
-    // would report a d1 count the tap does not deliver.
-    expect(districtSlugsFor({ district: 'District 10', location: '' }).sort()).toEqual(['d1', 'd10'])
+  it('no longer counts District 10 as District 1 — the filter is number-bounded now, and this follows it', () => {
+    // ⛔ This asserted ['d1', 'd10'] while the filter matched 'Quận 1' as a bare substring (d1 = 2,794
+    // rentals for a district holding 1,373). The filter was fixed (src/lib/district-match.ts) and
+    // the mirror goes through the same module, so the count still equals the tap.
+    expect(districtSlugsFor({ district: 'District 10', location: '' })).toEqual(['d10'])
+    expect(districtSlugsFor({ district: 'Quận 12', location: 'Quận 12 (P. Đông Hưng Thuận mới)' })).toEqual(['d12'])
+    expect(districtSlugsFor({ district: null, location: 'Phường 5, Quận 1, Hồ Chí Minh' })).toEqual(['d1'])
   })
 
   it('never emits the "all" slug — that is the released state, not an option', () => {

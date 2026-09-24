@@ -4,6 +4,8 @@ import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
 import { CATEGORY_BY_SLUG, LISTING_TYPES, categoryHasBrand, rangeFacetsFor, typesFor } from '@/lib/taxonomy'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { matchesProvinceRow } from '@/lib/province-match'
+import { districtTextMatches, longerDistrictSpellings } from '@/lib/district-match'
+import { inferDistrictFromQuery } from '@/lib/district-query'
 
 /**
  * LIVE CHIP COUNTS — "how many results do I get if I tap this?", for every rail in the feed.
@@ -214,17 +216,20 @@ export function conditionBucket(condition: string | null | undefined): 'new' | '
  * `LIKE '%x%'` on Postgres, and the district filter passes no mode. `toLowerCase()` here would
  * count rows the tap does not return.
  *
- * ⚠️ A ROW CAN LAND IN TWO DISTRICTS AND THAT IS FAITHFUL, NOT A BUG HERE. 'District 1' is a
- * substring of 'District 10', so the existing filter returns District 10 rows for `?district=d1`.
- * The counts reproduce it so the number matches the tap; fixing the overlap means fixing the
- * filter in feed-query.ts, and then this follows.
+ * ⚠️ A ROW CAN STILL LAND IN TWO DISTRICTS AND THAT IS FAITHFUL (a location naming a ward that
+ * shares a district's name). What no longer happens is 'District 1' claiming 'District 10': the
+ * filter matches a numbered spelling only at a number boundary (src/lib/district-match.ts), and
+ * this mirrors it through the same module, so the count still equals the tap.
  */
 export function districtSlugsFor(row: { district?: string | null; location?: string | null }): string[] {
   const hay = [row.district ?? '', row.location ?? '']
   const out: string[] = []
   for (const d of DISTRICTS) {
     if (!d.match?.length) continue // 'all' carries no match list — it is the released state
-    if (d.match.some((m) => hay.some((h) => h.includes(m)))) out.push(d.slug)
+    if (!d.match.some((m) => hay.some((h) => districtTextMatches(h, m)))) continue
+    // The feed's second guard (district-slug.ts): the canonical column may not name a longer district.
+    if (longerDistrictSpellings(d.slug).some((l) => (row.district ?? '').includes(l))) continue
+    out.push(d.slug)
   }
   return out
 }
@@ -342,6 +347,22 @@ export function releasedParams(searchParams: URLSearchParams, dimension: FacetDi
       p.delete('province')
       p.delete('ward')
       break
+  }
+  /**
+   * ⛔ A DISTRICT READ OUT OF THE QUERY SURVIVES THE TEXT BEING DROPPED. The feed turns "căn hộ quận
+   * 7" into the d7 scope plus the text "căn hộ" (src/lib/district-query.ts); deleting `q` below
+   * would drop the scope with the words, and every chip would count the whole city while the grid
+   * showed Quận 7 — a count the tap does not return. So the inferred slug is written back as the
+   * `district` param it is equivalent to, from the ORIGINAL request, exactly when the feed would
+   * infer it (no explicit district). The `area` rail is the one dimension that releases it: it
+   * counts "if you pick THIS place instead". The inference reads the words alone, so every chip —
+   * each a different category — would read them the same way the tap does.
+   * ⚠️ The memo key stays bounded: a slug out of `DISTRICTS`, never the free text.
+   */
+  const explicit = searchParams.get('district')
+  if (dimension !== 'area' && (!explicit || explicit === 'all')) {
+    const inferred = inferDistrictFromQuery(searchParams.get('q'))
+    if (inferred) p.set('district', inferred.slug)
   }
   for (const k of [...PRESENTATION_PARAMS, ...TEXT_PARAMS]) p.delete(k)
   return p

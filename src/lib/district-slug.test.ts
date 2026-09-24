@@ -18,6 +18,8 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: any) => w }))
 
 import { allDistrictNames, districtNamesForSlug, resetDistrictNameCache, districtScopeForSlug } from './district-slug'
+import { districtMatchWhere } from './district-match'
+import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 
 beforeEach(() => {
   resetDistrictNameCache()
@@ -99,7 +101,10 @@ describe('curated district scope — the "Quận 1 matches Quận 12" bug', () =
 
   /** The exclusions come from the curated list, so a two-digit district excludes nothing. */
   it('does not exclude anything from the longest name in a family', async () => {
-    expect(JSON.stringify(await districtScopeForSlug('d12'))).not.toContain('NOT')
+    // ⚠️ The number-bounded match (district-match.ts) carries its own NOT inside the scope, so the
+    // test is "no exclusion ANDed on top", not "no NOT anywhere" (merge of decf5f4a with 7603f2dd).
+    const d12 = DISTRICTS.find((d) => d.slug === 'd12')!
+    expect(await districtScopeForSlug('d12')).toEqual(districtMatchWhere(d12.match!))
   })
 
   /** Unchanged: `all` is no scope, and an unknown slug must narrow to nothing, never to everything. */

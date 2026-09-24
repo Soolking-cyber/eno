@@ -15,6 +15,7 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 // The cap lives in a client-safe module because the browser has to chunk to the same number.
 import { IDS_FAST_PATH_MAX } from '@/lib/listing-ids'
 import { districtScopeForSlug } from '@/lib/district-slug'
+import { inferDistrictFromQuery } from '@/lib/district-query'
 import { parseRadiusParams, radiusWhere } from '@/lib/geo-radius'
 import { conditionWhere } from '@/lib/listing-condition'
 import { provinceWhere, wardWhere } from '@/lib/province-match'
@@ -237,10 +238,26 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
    * used to return the entire catalogue. A scope the caller asked for and the server cannot honour
    * is an empty result, not an unscoped one.
    */
-  const districtFilter = await districtScopeForSlug(district || 'all')
+  /**
+   * ⛔ A DISTRICT TYPED INTO THE SEARCH BOX IS THE SAME SCOPE AS ONE PICKED — see
+   * src/lib/district-query.ts. "Quận 7" used to reach the text filter below as the lone token
+   * `quan` (the digit was dropped as too short), which matches every HCMC rental: 20,047 results,
+   * identical for every numbered district. Now the phrase selects the district scope and leaves
+   * the text filter, which gets only what is left ("căn hộ quận 7" → d7 AND "căn hộ").
+   * ⚠️ AN EXPLICIT `?district=` ALWAYS WINS, and the query is then left exactly as typed: a person
+   * who picked a district and also typed one asked for the pick. `all` is not a pick — it is the
+   * explorer's "no district", so it does not suppress the inference.
+   * ⚠️ IT IS PUSHED AS THE DISTRICT FILTER, NOT AS PART OF `pgTextFilter`, and that placement is the
+   * point: the semantic path, the facet base and the subcategory counts all drop `pgTextFilter`
+   * but keep every structural filter, so the district reaches all of them.
+   */
+  const inferred = q && (!district || district === 'all') ? inferDistrictFromQuery(q) : null
+  const districtFilter = await districtScopeForSlug(inferred ? inferred.slug : district || 'all')
   if (districtFilter) {
     andFilters.push(districtFilter)
   }
+  /** What is left of `q` for the text filter and for semantic ranking; undefined when nothing is. */
+  const textQ = inferred ? inferred.rest || undefined : q
 
   /**
    * RADIUS — "within N km of this point", resolved in the DATABASE.
@@ -296,14 +313,14 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
   // drop it — but it's still pushed into andFilters, so the keyword/fallback path and
   // facet counts behave exactly as before when semantic ranking isn't used.
   let pgTextFilter: Prisma.ListingWhereInput | null = null
-  if (q) {
+  if (textQ) {
     // Accent-insensitive + cross-language: match the folded query against the
     // pre-folded searchText blob (covers EN title + VI titleVi + desc + location).
     // AND each ≥2-char token so multi-word queries NARROW: "honda red" must match a
     // row containing both tokens (any order/field), not the literal substring.
-    const qTokens = fold(q).split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
+    const qTokens = fold(textQ).split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
     const tokenClauses = qTokens.map((t) => ({ searchText: { contains: t } }))
-    pgTextFilter = qTokens.length ? (looseMatch ? { OR: tokenClauses } : { AND: tokenClauses }) : { searchText: { contains: fold(q) } }
+    pgTextFilter = qTokens.length ? (looseMatch ? { OR: tokenClauses } : { AND: tokenClauses }) : { searchText: { contains: fold(textQ) } }
     andFilters.push(pgTextFilter)
   }
 
@@ -464,7 +481,12 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
 
   return {
     category,
-    q,
+    // ⚠️ THE TEXT THAT IS LEFT, NOT THE RAW QUERY: the route hands this to semantic ranking, and a
+    // query that was only a district ("Quận 7") has no words left to rank on — the district scope
+    // in `andFilters` does the work, and no paid Vertex call is made for it.
+    q: textQ,
+    /** The `DISTRICTS` slug `q` was read as, or null. The explorer shows it as a removable chip. */
+    inferredDistrict: inferred?.slug ?? null,
     sort,
     featuredOnly,
     limit,

@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   const fastPath = await idsFastPath(searchParams)
   if (fastPath) return fastPath
 
-  const { category, q, sort, featuredOnly, limit, offset, priceMin, priceMax, histogram, looseMatch, priorityCategory, andFilters, pgTextFilter, subcategoryFilter, where } =
+  const { category, q, inferredDistrict, sort, featuredOnly, limit, offset, priceMin, priceMax, histogram, looseMatch, priorityCategory, andFilters, pgTextFilter, subcategoryFilter, where } =
     await buildFeedFilters(searchParams)
 
   /**
@@ -296,6 +296,13 @@ export async function GET(req: NextRequest) {
       // Live counts for every chip rail — see src/lib/facet-counts.ts for the shape. `{}` on a
       // load-more page or when `facets=0` was asked for.
       facets,
+      /**
+       * The `DISTRICTS` slug the text query was read as ("căn hộ quận 7" → `d7`), or null — the
+       * scope is already applied to `listings` and `total`. src/lib/district-query.ts decides it; the
+       * explorer calls that same function to draw the chip, so this field is for every OTHER client
+       * (the native apps, a shared link's consumer) to be able to say which district it is showing.
+       */
+      inferredDistrict,
     },
     {
       headers: {

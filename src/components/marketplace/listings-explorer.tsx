@@ -28,6 +28,7 @@ import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE } from './listings-explorer.constants'
+import { queryChips } from '@/lib/district-query'
 import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
@@ -2554,7 +2555,22 @@ export function ListingsExplorer({
   // empty state so the two never drift. Brand+model collapse into one chip.
   const getActiveChips = (): { label: string; onClear: () => void }[] => {
     const chips: { label: string; onClear: () => void }[] = []
-    if (debouncedQuery.trim()) chips.push({ label: `"${debouncedQuery.trim()}"`, onClear: () => setQuery('') })
+    /**
+     * ⚠️ A DISTRICT READ OUT OF THE QUERY GETS ITS OWN CHIP. The server turns "căn hộ quận 7" into the
+     * d7 scope plus the text "căn hộ" (src/lib/district-query.ts) exactly when no district param is
+     * sent — the request builder above sends one only when `!nearby && activeDistrict !== 'all'`, so
+     * that is the condition here, and the same pure function gives the same answer without waiting
+     * on the response. Two chips say what was applied, and each one clears ONLY itself: removing the
+     * district leaves the words, removing the words leaves the district phrase in the box (which
+     * re-infers the same district). Display only — no state is added and no request changes.
+     */
+    for (const c of queryChips(debouncedQuery, !nearby && activeDistrict !== 'all', lang)) {
+      if (c.kind === 'text') chips.push({ label: `"${c.text}"`, onClear: () => setQuery(c.clearTo) })
+      else {
+        const d = DISTRICTS.find((x) => x.slug === c.slug)
+        if (d) chips.push({ label: lang === 'vi' ? d.name : d.nameEn, onClear: () => setQuery(c.clearTo) })
+      }
+    }
     if (activeSubcategory !== 'all') {
       const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
       chips.push({ label: sub ? (lang === 'vi' ? sub.nameVi : sub.name) : activeSubcategory, onClear: () => setActiveSubcategory('all') })
