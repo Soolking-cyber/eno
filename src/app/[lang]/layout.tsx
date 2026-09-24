@@ -198,17 +198,24 @@ const SITE_TAGLINE = IS_SERVICES
   ? SERVICES_SITE_TAGLINE
   : "A trusted marketplace for expats and internationals in Vietnam. Housing, jobs, motorbikes, services and moving sales — sellers build trust scores and the community keeps listings honest.";
 
-// Both schemes are supported now (real dark theme in globals.css `.dark`,
-// toggled System/Light/Dark). theme-color is media-matched so the iOS status-bar
-// / toolbar stays seamless with the chrome in each scheme (white header in light,
-// dark canvas in dark). viewportFit:"cover" activates env(safe-area-inset-*) so
-// the safe-area padding the header/nav/body declare is honored (notch + home bar).
+// Both schemes are supported (real dark theme in globals.css `.dark`, toggled System/Light/Dark).
+// viewportFit:"cover" activates env(safe-area-inset-*) so the safe-area padding the header/nav/body
+// declare is honored (notch + home bar).
+//
+// ⛔ NO `themeColor` HERE — THE ONE <meta name="theme-color"> IS WRITTEN BY THE PRE-PAINT SCRIPT BELOW.
+// This used to be a pair media-matched to the OS scheme, `#ffffff` light / `#1b1b1b` dark, and it was
+// wrong three ways: it followed the OS, not the app's own toggle (OS light + app Dark painted a white
+// status bar over rgb(28,29,31)); neither colour was the canvas even when they agreed (#ffffff is not
+// the #f8fbfe page); and no media query can see a choice stored in localStorage anyway.
+// ⚠️ WHY IT CANNOT STAY A NEXT TAG THAT THE SCRIPT EDITS: React 19 manages a rendered <meta> as a
+// "hoistable" and re-finds it by its `content` attribute (react-dom's getHydratableHoistableCache).
+// Rewrite that content before hydration and React no longer recognises the node — it APPENDS a fresh
+// copy with the static colour, and a later client navigation can remove the edited one. So the tag is
+// owned by the script and theme-context.tsx alone; React never renders one. Its content is the
+// computed `--background` (the canvas, by the rule in globals.css), falling back to the same two
+// values — #f8fbfe / #1c1d1f — if the stylesheet could not be read.
 export const viewport: Viewport = {
   colorScheme: "light dark",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#1b1b1b" },
-  ],
   viewportFit: "cover",
   // Android/Chromium: shrink the LAYOUT viewport when the keyboard opens so 100dvh +
   // fixed bottom bars fit above it with zero JS. iOS Safari ignores this (it overlays
@@ -315,9 +322,19 @@ export default async function RootLayout({
   return (
     <html lang={lang} className={`${openRunde.variable}`} suppressHydrationWarning>
       <head>
+        {/* The no-JavaScript theme-color. With scripting ON the parser reads a <noscript> in <head> as
+            raw text, so this creates NO element and the script below owns the one live tag; with
+            scripting OFF it is the tag. #f8fbfe, not a light/dark pair: without JS nothing ever
+            adds `.dark`, so the canvas is the light one whatever the OS prefers. */}
+        <noscript>
+          <meta name="theme-color" content="#f8fbfe" />
+        </noscript>
         {/* Set the theme class BEFORE paint to avoid a flash of the wrong scheme —
             reads the persisted System/Light/Dark choice + the OS preference. Kept
-            in sync with ThemeProvider. Also sets the native + native-<platform>
+            in sync with ThemeProvider. It then writes the page's ONE theme-color meta from
+            the resolved canvas colour (see the note on `viewport` above) — this inline
+            script runs after the stylesheets it follows have loaded, so `--background` is
+            readable here; the literal fallbacks cover the case where it is not. Also sets the native + native-<platform>
             classes pre-paint (Capacitor injects window.Capacitor at documentStart
             in remote-server mode): the html.native-ios overscroll rule (iOS
             pull-to-refresh reachability) must hold from first paint, not from
@@ -364,7 +381,7 @@ export default async function RootLayout({
             splash is already hidden. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=matchMedia('(prefers-reduced-transparency: reduce)');var a=function(){document.documentElement.classList.toggle('reduce-transparency',m.matches)};a();if(m.addEventListener)m.addEventListener('change',a);}catch(e){}try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l)document.documentElement.lang=l;}catch(e){}try{var dc=document.documentElement.classList;var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));(function(){var done=false;var lift=function(){if(done)return;try{var r=C.nativePromise('SplashScreen','hide',{fadeOutDuration:200});done=true;if(r&&typeof r.catch==='function')r.catch(function(){done=false;});}catch(e){}};var po=null;try{po=new PerformanceObserver(function(list){for(var i=0,e=list.getEntries();i<e.length;i++){if(e[i].name==='first-contentful-paint'){po.disconnect();requestAnimationFrame(lift);return;}}});po.observe({type:'paint',buffered:true});}catch(e){po=null;}if(!po){var dcl=function(){requestAnimationFrame(function(){requestAnimationFrame(lift);});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',dcl,{once:true});else dcl();}setTimeout(lift,4000);})();}else if(navigator.userAgent.indexOf('EnoNativeTabs')>-1){dc.add('native');dc.add('native-ios');dc.add('native-tabs');}else if(!window.scrollY){dc.add('page-at-top');}}catch(e){}})();`,
+            __html: `(function(){try{var m=matchMedia('(prefers-reduced-transparency: reduce)');var a=function(){document.documentElement.classList.toggle('reduce-transparency',m.matches)};a();if(m.addEventListener)m.addEventListener('change',a);}catch(e){}try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l)document.documentElement.lang=l;}catch(e){}try{var de=document.documentElement,tc=document.querySelector('meta[name="theme-color"]');if(!tc){tc=document.createElement('meta');tc.name='theme-color';document.head.appendChild(tc);}tc.content=getComputedStyle(de).getPropertyValue('--background').trim()||(de.classList.contains('dark')?'#1c1d1f':'#f8fbfe');}catch(e){}try{var dc=document.documentElement.classList;var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));(function(){var done=false;var lift=function(){if(done)return;try{var r=C.nativePromise('SplashScreen','hide',{fadeOutDuration:200});done=true;if(r&&typeof r.catch==='function')r.catch(function(){done=false;});}catch(e){}};var po=null;try{po=new PerformanceObserver(function(list){for(var i=0,e=list.getEntries();i<e.length;i++){if(e[i].name==='first-contentful-paint'){po.disconnect();requestAnimationFrame(lift);return;}}});po.observe({type:'paint',buffered:true});}catch(e){po=null;}if(!po){var dcl=function(){requestAnimationFrame(function(){requestAnimationFrame(lift);});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',dcl,{once:true});else dcl();}setTimeout(lift,4000);})();}else if(navigator.userAgent.indexOf('EnoNativeTabs')>-1){dc.add('native');dc.add('native-ios');dc.add('native-tabs');}else if(!window.scrollY){dc.add('page-at-top');}}catch(e){}})();`,
           }}
         />
         {/* ⚠️ THE ICON SPRITE — ONE REQUEST THAT EVERY PAGE NEEDS, AND THE ONLY THING THE PRELOAD

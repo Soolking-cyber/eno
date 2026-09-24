@@ -208,7 +208,11 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
         sideOffset={6}
         // bg-brand-100: one step deeper than the brand-50 row it opens from, so the dropdown reads
         // as going a level IN rather than as a detached white menu floating over the rail.
-        className="flex w-64 max-h-[60vh] flex-col gap-0.5 overflow-y-auto scroll-thin rounded-2xl bg-brand-100 p-1.5 shadow-pop ring-0"
+        // ⚠️ THE HEIGHT IS CAPPED BY WHAT THE POSITIONER MEASURED, not by 60vh alone — the same cap
+        // ui/select.tsx and area-filter.tsx use. Opened from a rail at y=410 on an 844px phone, a
+        // bare 60vh (506px) ran the menu to y=916 and the last rows could never be scrolled into
+        // reach. `--available-height` is Base UI's measured room below the trigger.
+        className="flex w-64 max-h-[min(60vh,var(--available-height,60vh))] flex-col gap-0.5 overflow-y-auto scroll-thin rounded-2xl bg-brand-100 p-1.5 shadow-pop ring-0"
       >
         {/* The whole line, stated rather than implied by tapping the chip. */}
         <DropdownMenuItem
@@ -271,10 +275,26 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
   )
 }
 
-const menuRowCls = 'w-full shrink-0 justify-start gap-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer tap-44'
+/**
+ * ⛔ THE VISIBLE ROW IS THE HIT AREA — NO `tap-44`. The rows used to be 28px tall with a 44px
+ * `tap-44` ::before centred on each, and the rows sit 2px apart: every row's pseudo reached ~9px
+ * into the row BELOW it and, being later in paint order, the next row's pseudo covered the lower
+ * half of this one. Measured on a phone-sized viewport: a tap on the CENTRE of "iPhone 16 Pro Max"
+ * picked "iPhone 16 Pro", 3 of 3 times, and on all 16 rows `elementFromPoint` at the centre
+ * returned the next row down. The row is now 44px of real box (`min-h-11 py-2.5`), so what you
+ * see is exactly what you hit — the rule `ui/icon-button.tsx` spells out for `tapTarget`.
+ */
+const menuRowCls = 'w-full shrink-0 justify-start gap-0 whitespace-nowrap rounded-lg px-2.5 min-h-11 py-2.5 text-left text-sm font-semibold transition-colors cursor-pointer'
 const menuRowOn = 'bg-card text-accent-foreground shadow-sm'
 const menuRowOff = 'text-foreground hover:bg-card/70 hover:text-accent-foreground'
-const chipCls = 'inline-flex w-full shrink-0 items-center justify-start gap-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer tap-44 relative'
+/**
+ * ⚠️ NO `tap-44` ON THE LINE CHIPS EITHER — they sit in a THREE-ROW grid with a 2px row gap, so a
+ * 44px pseudo on a 28px chip overlaps its neighbours above and below and a tap near an edge opens
+ * the wrong line (the same fault the menu rows above had). The chip stays 28px, which is under the
+ * 44px floor: growing it changes the rail's height and is the owner's call, not a hit-area fix.
+ * `active:scale-100` stays — the chip is the dropdown's anchor and a press transform would move it.
+ */
+const chipCls = 'inline-flex w-full shrink-0 items-center justify-start gap-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer relative'
 // ⚠️ `text-foreground`, not `text-body`: measured on the tinted surfaces, `--body` falls below AA.
 const chipOn = 'bg-card text-accent-foreground shadow-sm'
 const chipOff = 'text-foreground hover:bg-card/70 hover:text-accent-foreground'

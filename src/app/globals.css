@@ -2642,9 +2642,16 @@ html.dark .leaflet-tile-pane {
   z-index: 90; /* over page chrome, under overlays (z-100+) so a dialog can never open behind it */
   display: grid;
   place-items: center;
+  /* The wisp below is a box wider than the screen that slides past both edges; clip it here, which is
+     also exactly where the old viewport-sized gradient stopped. */
+  overflow: hidden;
   background-color: var(--background);
   opacity: 1;
-  transition: opacity 320ms var(--ease-out, ease-out);
+  /* ⚠️ THE EXIT IS 200ms ON THE STRONG EASE-OUT, and app-splash.tsx unmounts at 220ms to match — change
+     one, change the other. It was 320ms on `var(--ease-out, ease-out)`, a token this file never defines,
+     so it ran on the weak keyword: the curtain spent a third of a second leaving a page that was
+     already ready. Exits are faster than entrances; the reader is waiting on this one. */
+  transition: opacity 200ms var(--ease-out-strong);
   /* ⚠️ 8s, NOT 5s. The component's ceiling only SETS the target at 4s; easing into it plus the fade runs
      past 5s on a 30fps device, and a bailout that fires then would hard-cut the wordmark mid-sweep — the
      margin has to be positive on the devices that need it (opus, agy). The blanket reduced-motion rule
@@ -2686,7 +2693,7 @@ html.dark .leaflet-tile-pane {
 
 /* The wisp that travels with the edge — a blurred sliver of the background colour riding just ahead of
    the reveal, which is what turns a gradient into weather. Purely decorative, and it leaves with the
-   overlay. */
+   overlay. (Its rule is further down, after the services width.) */
 /* eno.forum is NINE glyphs against eno.vn's six, so one width would set its letters smaller (agy).
    MEASURED, not guessed: at 412px the marketplace mark renders 239px wide over a 9356.9-unit viewBox —
    0.02554 px per font unit. Matching that against this mark's 14238.8-unit box needs ~364px, which is
@@ -2695,15 +2702,30 @@ html.dark .leaflet-tile-pane {
   width: min(88vw, 470px);
 }
 
+/* ⛔ THE WISP IS A FIXED BLOB THAT MOVES, NOT A GRADIENT THAT IS REDRAWN. It used to be a full-viewport
+   `inset: 0` layer whose radial-gradient CENTRE read --splash-reveal, under `filter: blur(14px)` — so every
+   frame of the sweep re-rasterised a viewport-sized blur. Measured in WebKit, removing only the wisp took
+   curtain-done from 5.34s to 3.15–3.22s. Now the SAME ellipse (radii 38vw × 60vh, background → transparent
+   at 70%) is painted once into a box exactly that size, blurred once on its own layer (will-change), and
+   carried across by `transform`, which the compositor moves without repainting it.
+   The geometry is the old look unchanged: the box is 76vw × 120vh, centred on x = 0 by the -38vw left
+   and on the viewport's middle by top/bottom -10%, and translateX(reveal × 100vw) puts its centre where
+   the old gradient's `at calc(reveal × 100%) 50%` was. ⚠️ Do NOT add `transform` to its transition —
+   the component writes the position every frame and a transition would make the wisp lag the edge. */
 #app-splash::after {
   content: '';
   position: absolute;
-  inset: 0;
+  top: -10%;
+  bottom: -10%;
+  left: -38vw;
+  width: 76vw;
   pointer-events: none;
-  background: radial-gradient(38% 60% at calc(var(--splash-reveal, 0) * 100%) 50%, var(--background) 0%, transparent 70%);
+  background: radial-gradient(50% 50% at 50% 50%, var(--background) 0%, transparent 70%);
   opacity: 0.55;
   filter: blur(14px);
-  transition: opacity 320ms ease-out;
+  transform: translateX(calc(var(--splash-reveal, 0) * 100vw));
+  will-change: transform;
+  transition: opacity 200ms var(--ease-out-strong);
 }
 
 #app-splash[data-done]::after { opacity: 0; }
@@ -2886,6 +2908,19 @@ html.dark .leaflet-tile-pane {
 [data-sonner-toast] [data-close-button] {
   border-radius: 9999px;
 }
+/* ⚠️ A 44px HIT AREA ON A 20px BUTTON, without changing what is drawn. Sonner paints the ✕ as a 20×20
+   disc on the toast's corner, and a 20px target is the thing a thumb misses. The pseudo reaches 13px
+   past the PADDING box — sonner gives the button a 1px border, so that is 18 + 26 = 44 (-12px measured
+   42×42) — and, being part of the button, dispatches to it. The button is
+   already `position: absolute` (sonner's own rule), which is what anchors this — the same contract as
+   `.tap-44`. Sonner starts a swipe only on a pointerdown that is not on a <button>, so the rest of
+   the toast body still swipes to dismiss; only the 44px square around the ✕ stops doing so. Where it
+   sits and whether toasts use richColors are the owner's, and unchanged. */
+[data-sonner-toast] [data-close-button]::before {
+  content: '';
+  position: absolute;
+  inset: -13px;
+}
 /* On-brand toast icons (no richColors green/red fills — the card stays our
    popover surface; only the small status icon carries colour). */
 [data-sonner-toast][data-type="success"] [data-icon],
@@ -2944,6 +2979,13 @@ html.dark .leaflet-tile-pane {
 }
 .overlay-scrim[data-starting-style],
 .overlay-scrim[data-ending-style] { opacity: 0; }
+/* ⚠️ THE EXIT CAN BE MATCHED TO ITS POPUP, AND FOR A 75ms POPUP IT HAS TO BE. Base UI unmounts the
+   backdrop when the POPUP's exit animation finishes, not the backdrop's own. So a popup that leaves in
+   75ms took its 150ms scrim with it mid-fade — measured on the Area panel: the scrim still at 0.38
+   opacity (blur and tint) when it was cut, a visible snap on every close. A caller whose popup exits
+   faster sets `--scrim-exit` (duration + easing) on its backdrop to the popup's own timing so the two
+   land together. Unset, it is the 150ms ease-out every other overlay has always had. */
+.overlay-scrim[data-ending-style] { transition: opacity var(--scrim-exit, 150ms ease-out); }
 /* ⚠️ BOTH SPELLINGS, AND THE UNPREFIXED ONE ALONE IS A REGRESSION. The utility this replaced
    (`supports-backdrop-filter:backdrop-blur-xs`) compiled to -webkit-backdrop-filter AND
    backdrop-filter; iOS Safari before 18 only understands the prefixed one, so declaring just the

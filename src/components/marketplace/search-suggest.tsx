@@ -153,8 +153,9 @@ export function SearchSuggest({
           type="button"
           {...optionProps(0)}
           onMouseDown={pickDown(onSubmitQuery)}
+          // py-2.5 (≈40px): the row Enter runs, and the one a thumb aims for first — it was 36px.
           className={cn(
-            'flex w-full items-center justify-start gap-2 whitespace-normal rounded-xl px-2 py-2 text-left text-sm font-semibold text-accent-foreground transition-colors cursor-pointer',
+            'flex w-full items-center justify-start gap-2 whitespace-normal rounded-xl px-2 py-2.5 text-left text-sm font-semibold text-accent-foreground transition-colors cursor-pointer',
             activeIndex === 0 ? 'bg-muted' : 'hover:bg-muted',
           )}
         >

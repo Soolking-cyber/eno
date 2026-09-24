@@ -504,7 +504,12 @@ export function ResultLine({
               // note). flex-nowrap keeps the chips on one line inside it; `flex-1 min-w-0` lets
               // the list shrink below its content so the overflow becomes ITS scrollbar rather
               // than the page's.
-              className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain scrollbar-none"
+              // ⚠️ `-my-2.5 py-2.5` IS THE ✕'s HIT AREA, NOT SPACING. A scroller clips on BOTH
+              // axes (overflow-x: auto computes overflow-y to auto), so the chip ✕'s 10px vertical
+              // extender (ui/badge.tsx, RemovableBadge) was cut back to this list's 28px box. The
+              // padding gives it room inside the clip; the equal negative margin keeps the row's
+              // layout exactly where it was.
+              className="-my-2.5 flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain py-2.5 scrollbar-none"
             >
               {filters.map((f, i) => (
                 // ⚠️ `min-w-0` IS LOAD-BEARING, NOT TIDINESS. A flex item defaults to
@@ -563,7 +568,10 @@ export function ResultLine({
               }}
               // ⚠️ `shrink-0` — it is a SIBLING of the chip scroller now, not inside it, and this
               // is what stops it being squeezed to nothing by a long chip run.
-              className="shrink-0 rounded-full px-2 py-1 text-xs font-semibold text-body underline-offset-2 hover:underline"
+              // ⚠️ `min-h-10 px-3`: the commit/undo controls need a real target, and this was 64×24.
+              // The row it sits in is already 40px tall, so 40 costs no height. Moving it to the
+              // START of the row is the owner's call, not done here.
+              className="min-h-10 shrink-0 rounded-full px-3 text-xs font-semibold text-body underline-offset-2 hover:underline"
             >
               {tr('Clear all', 'Xóa tất cả')}
             </Button>

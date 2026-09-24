@@ -478,9 +478,13 @@ export function Header() {
             <div className="relative w-full">
             {/* Morphing search "window": a rounded pill when idle that flattens its
                 bottom and fuses with the suggestions panel into one continuous white
-                window when open (Google-style monolith). */}
+                window when open (Google-style monolith).
+                ⚠️ THREE NAMED PROPERTIES, NEVER `transition-all`. What changes between idle and open
+                is paint only — the fill, the shadow, the bottom radius. `all` also caught the layout
+                that re-flows inside on focus (the input grows 76→180px while the AI and Map buttons
+                unmount), so opening the field could animate geometry nobody asked to see. */}
             <div className={cn(
-              'relative z-50 flex items-center transition-all duration-200 ease-out',
+              'relative z-50 flex items-center transition-[background-color,box-shadow,border-radius] duration-200 ease-[var(--ease-out-strong)]',
               panelOpen
                 // Open = the fused search WINDOW (a panel, not an input): rounded-2xl to match the
                 // suggestions panel it fuses with at sm+ (bottom flattened where they join), so the
@@ -537,7 +541,11 @@ export function Header() {
                 aria-expanded={instantOpen}
                 aria-controls={instantOpen ? SUGGEST_ID : undefined}
                 aria-activedescendant={activeOptionId}
-                className="min-w-0 flex-1 bg-transparent py-3 pl-2 pr-2 text-base text-foreground outline-none placeholder:text-ink-4"
+                // `text-ellipsis`: on a phone the idle field has ~60px of text room beside Map and
+                // ✨, and the placeholder needs ~117px, so it was clipped MID-GLYPH ('Find pr',
+                // 'Tìm sả'). An ellipsis at least ends on a whole letter. The copy and the button
+                // layout are the owner's call.
+                className="min-w-0 flex-1 bg-transparent py-3 pl-2 pr-2 text-base text-ellipsis text-foreground outline-none placeholder:text-ink-4"
               />
               {/* De-crowd rule — keyed on ENGAGEMENT (suggest panel open), never on text
                   presence. searchVal persists after submit, so a value-based swap would hide
@@ -637,10 +645,15 @@ export function Header() {
                   image into this bar still visual-searches (handler above). */}
             </div>
 
-            {/* Recent searches + recent locations — flush bottom of the same window */}
+            {/* Recent searches + recent locations — flush bottom of the same window.
+                ⚠️ BOTH PANELS STOP ABOVE THE ON-SCREEN KEYBOARD. They open on focus, so the keyboard
+                is up whenever they are, and a 70vh cap alone ran them under it (y60–551 for 'Quận 7'
+                against a keyboard top near 508 on a 390×844 phone). `--kb-h` is the app-wide
+                keyboard height (globals.css, KEYBOARD GEOMETRY; 0 when there is none), and 4.5rem is
+                the panel's 3.75rem top plus a 12px gap; the rest scrolls inside the panel. */}
             {suggestOpen && (
               <>
-                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 space-y-4 rounded-2xl bg-popover p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-4.5rem-env(safe-area-inset-top)))] space-y-4 overflow-y-auto rounded-2xl bg-popover p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -701,7 +714,7 @@ export function Header() {
 
             {/* Instant matches — live listings + categories as you type (≥2 chars) */}
             {instantOpen && (
-              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-popover p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-4.5rem-env(safe-area-inset-top)))] overflow-y-auto rounded-2xl bg-popover p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                 <SearchSuggest
                   items={suggestItems}
                   loading={live.loading}

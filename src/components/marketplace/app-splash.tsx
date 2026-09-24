@@ -20,9 +20,20 @@ import { IS_SERVICES } from '@/lib/edition'
  * ⚠️ IT EASES TOWARD EACH STAGE RATHER THAN JUMPING, because a bar that teleports reads as fake even
  * when it is honest. The easing only ever moves toward a target a real event has already set.
  *
- * ⛔ AND IT HAS A CEILING: after SPLASH_MAX_MS the reveal completes regardless. A dead network must
- * never leave the reader staring at a wordmark — the app behind this can show its own offline state,
- * and this is exactly the reasoning capacitor.config.ts gives for the native splash's own 3s floor.
+ * ⛔ EVERY EASE IS MEASURED IN MILLISECONDS, NEVER IN FRAMES. The first version moved 16% of the
+ * remaining distance PER FRAME, so its length was the device's frame rate: at 4x CPU throttling the
+ * page was fully ready and the mark was still chasing the end 2.2s later (0.99 at 9.13s, 71 frames at
+ * ~30fps). Before ready the smoothing is now `1 - exp(-dt / 90ms)` of the gap per frame, whatever dt
+ * is; once ready, the rest of the mark paints on a fixed REVEAL_MS ease-out-cubic, so "ready" is at
+ * most REVEAL_MS away from "done" on every device.
+ *
+ * ⛔ AND IT HAS A CEILING: SPLASH_MAX_MS after NAVIGATION the reveal completes regardless. A dead
+ * network must never leave the reader staring at a wordmark — the app behind this can show its own
+ * offline state, and this is exactly the reasoning capacitor.config.ts gives for the native splash's
+ * own 3s floor. ⚠️ FROM NAVIGATION, NOT FROM THIS EFFECT: the reader has been looking at the
+ * server-rendered curtain since first paint, and a timer armed at hydration measured the wrong wait —
+ * at 4x CPU it armed at 5.3s and fired at 9.43s. `performance.now()` is the time since navigation, so
+ * the timer gets only what is LEFT of the budget (zero, if hydration itself came in late).
  *
  * ⛔ ONCE PER DOCUMENT LOAD — WHICH IS NOT THE SAME AS ONCE PER SESSION, and the difference matters here
  * because sign-in is passwordless: a magic link and an OAuth return are both FULL document loads, so the
@@ -36,6 +47,10 @@ import { IS_SERVICES } from '@/lib/edition'
  * at first paint, this is what the WebView reveals underneath it.
  */
 const SPLASH_MAX_MS = 4000
+/** Once the page is ready, how long the rest of the mark takes to paint in. Fixed, in ms. */
+const REVEAL_MS = 250
+/** Time constant of the pre-ready smoothing: ~63% of the remaining gap closes every 90ms. */
+const SMOOTH_MS = 90
 /** How wide the soft edge is, as a share of the mark. Wide enough to read as cloud, not as a wipe. */
 const FEATHER = 0.22
 
@@ -79,17 +94,44 @@ export function AppSplash() {
     let shown = still ? 1 : 0.12
     let raf = 0
     let alive = true
+    let last = performance.now()
+    /** Set when the page is ready: the moment, and where the mark stood, the final ease starts from. */
+    let readyAt = -1
+    let from = 0
+    /** Latched once the mark is whole and `done` is set — nothing may write the reveal after that. */
+    let finished = false
     const set = (v: number) => root.style.setProperty('--splash-reveal', String(v))
+    /**
+     * ⚠️ THE CURTAIN'S `data-done` IS WRITTEN HERE AS WELL AS THROUGH STATE. On a slow phone the moment
+     * this runs is the tail of hydration, and a setState is then queued behind the rest of the tree:
+     * measured at 4x CPU, the ceiling fired and React committed `data-done` 116ms later. The attribute
+     * is what starts the CSS fade, so it goes on the node directly; React's own commit of the same
+     * attribute follows and changes nothing. `done` state still drives the unmount.
+     */
+    const markDone = () => { finished = true; root.setAttribute('data-done', ''); setDone(true) }
     set(shown)
 
     const step = () => {
-      if (!alive) return
-      // Critically-damped-ish easing: 16% of the remaining distance each frame, so it glides into each
-      // milestone and never overshoots. Snap the last hair so the mark always finishes fully painted.
-      shown += (target - shown) * 0.16
-      if (target >= 1 && target - shown < 0.004) shown = 1
+      if (!alive || finished) return
+      // ⚠️ `performance.now()`, NOT the timestamp rAF passes in. That timestamp is when the frame BEGAN,
+      // and on a phone mid-hydration a long task can sit between the frame's start and this callback —
+      // measured at 4x CPU, a frame running at 3674ms carried a stamp from before a 287ms task, so the
+      // "fixed" 250ms ease computed p < 1 and took another frame to finish. The wall clock cannot lag.
+      const now = performance.now()
+      if (readyAt >= 0) {
+        // Ready: finish on the clock. ease-out-cubic over REVEAL_MS from wherever the mark stood, so a
+        // slow device drops frames of this ease but never stretches it. (Clamped at 0 for safety.)
+        const p = Math.min(1, Math.max(0, now - readyAt) / REVEAL_MS)
+        shown = p >= 1 ? 1 : from + (1 - from) * (1 - (1 - p) ** 3)
+      } else {
+        // Before ready: glide toward the last milestone reached, by a share of the gap that depends on
+        // ELAPSED TIME, not on how many frames this device managed. It never overshoots a target.
+        const dt = Math.max(0, now - last)
+        shown += (target - shown) * (1 - Math.exp(-dt / SMOOTH_MS))
+      }
+      last = now
       set(shown)
-      if (shown >= 1) { setDone(true); return }
+      if (shown >= 1) { markDone(); return }
       raf = requestAnimationFrame(step)
     }
     if (!still) raf = requestAnimationFrame(step)
@@ -102,7 +144,7 @@ export function AppSplash() {
      * synchronously: paint the mark whole and mark it done, whatever the frame clock is doing.
      */
     const finish = (snap = false) => {
-      if (!alive) return
+      if (!alive || finished) return
       reach(1)
       // ⚠️ SNAP ONLY WHEN A FRAME CANNOT BE TRUSTED. Forcing shown to 1 on every finish teleported the
       // mark on a warm cache, where the page is already complete when this mounts (opus, agy). A visible
@@ -113,11 +155,19 @@ export function AppSplash() {
       // reaches 1 does not exist — finish() returned without setting `done` and the overlay sat there
       // until the 4s ceiling, on every single load. Both reviewers found it; it is the accommodation
       // becoming the punishment.
+      // ⛔ A SNAP ENDS THE LOOP. The ceiling can land in the middle of the timed ease below; the first
+      // version of that ease kept running after the snap and pulled the mark back from 1 to ~0.85 while
+      // the curtain was already fading (measured at 4x CPU). `finished` stops the loop and any later
+      // finish(); cancelling the frame is belt-and-braces.
       if (snap || still || document.hidden) {
+        cancelAnimationFrame(raf)
         shown = 1
         set(1)
-        setDone(true)
+        markDone()
+        return
       }
+      // Start the fixed-length final ease once; a second finish() (the ceiling) must not restart it.
+      if (readyAt < 0) { readyAt = performance.now(); from = shown }
     }
 
     let fontsDone = false
@@ -143,7 +193,9 @@ export function AppSplash() {
       window.addEventListener('load', onReady, { once: true })
     }
 
-    const ceiling = setTimeout(() => finish(true), SPLASH_MAX_MS)
+    // ⛔ What is LEFT of the budget since navigation — see the header. Zero if hydration came in late,
+    // in which case the curtain lifts on the next task instead of four more seconds from now.
+    const ceiling = setTimeout(() => finish(true), Math.max(0, SPLASH_MAX_MS - performance.now()))
     return () => {
       alive = false
       cancelAnimationFrame(raf)
@@ -153,10 +205,11 @@ export function AppSplash() {
     }
   }, [])
 
-  // Unmount only after the fade, so the node is not ripped out mid-transition.
+  // Unmount only after the fade, so the node is not ripped out mid-transition. 220ms = the 200ms exit
+  // in globals.css (#app-splash) plus a frame of slack; it must never be shorter than that fade.
   useEffect(() => {
     if (!done) return
-    const t = setTimeout(() => setGone(true), 620)
+    const t = setTimeout(() => setGone(true), 220)
     return () => clearTimeout(t)
   }, [done])
 

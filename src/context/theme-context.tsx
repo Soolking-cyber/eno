@@ -84,6 +84,35 @@ function mirrorResolvedThemeToNative(dark: boolean): void {
   } catch { /* web / plugin absent */ }
 }
 
+/**
+ * ⛔ THE BROWSER CHROME FOLLOWS THE CANVAS, AND THE CANVAS FOLLOWS THE APP'S TOGGLE — NOT THE OS.
+ *
+ * The page's single `<meta name="theme-color">` is created by the pre-paint script in
+ * src/app/[lang]/layout.tsx and owned from then on by that script and this function; React never
+ * renders one (the note on `viewport` there says why: React 19 re-finds a rendered <meta> by its
+ * `content`, so editing one it manages makes it append a stale duplicate). Whenever `.dark` flips,
+ * the tag takes the computed `--background`, so the status bar / toolbar and the page are one colour
+ * in all four OS × app combinations instead of seaming wherever the two disagree.
+ * ⚠️ Called AFTER the class toggle, so the value read is the new scheme's. If the tag has gone
+ * (the pre-paint script failed, or a client-rendered root cleared <head>), it is recreated.
+ */
+export function syncThemeColor(root: HTMLElement): void {
+  try {
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.name = 'theme-color'
+      document.head.appendChild(meta)
+    }
+    // The token first; the body's painted colour if the token is unreadable (it is the same colour by
+    // the one-canvas rule in globals.css). No literal here — the fallback literals live in the
+    // pre-paint script, the one place that can run before the stylesheet is usable.
+    const bg = getComputedStyle(root).getPropertyValue('--background').trim()
+      || getComputedStyle(document.body).backgroundColor
+    if (bg) meta.content = bg
+  } catch { /* no document / no CSSOM — the chrome keeps its previous colour */ }
+}
+
 // Apply the resolved scheme to <html> — mirrors the no-FOUC inline script in
 // layout so the class set pre-hydration stays consistent.
 function apply(theme: Theme): 'light' | 'dark' {
@@ -115,6 +144,7 @@ function apply(theme: Theme): 'light' | 'dark' {
   root.classList.add('theme-switching')
   void root.offsetHeight // force the suppression to land BEFORE the colours change
   root.classList.toggle('dark', dark)
+  syncThemeColor(root)
   releaseThemeFreeze(root)
   mirrorResolvedThemeToNative(dark)
   return dark ? 'dark' : 'light'
@@ -161,6 +191,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setResolved(apply(initial)) // pre-paint guess was wrong (OS flipped mid-load) — really apply
     } else {
       setResolved(next) // DOM already correct: sync React state only, touch nothing
+      // …except a missing theme-color tag, which the pre-paint script normally writes. A lookup,
+      // not a style read, in the common case where it is there.
+      if (!document.querySelector('meta[name="theme-color"]')) syncThemeColor(document.documentElement)
     }
   }, [])
 

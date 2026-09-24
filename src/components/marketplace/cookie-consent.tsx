@@ -348,7 +348,12 @@ export function CookieConsent() {
                the settings view would push the actions off a landscape phone with no way to reach
                them. A consent card whose "Decline" cannot be reached is the worst possible failure
                mode here, so it scrolls rather than overflowing. Raised in review. */
-            className="pointer-events-auto relative flex max-h-full w-full max-w-md flex-col overflow-y-auto rounded-2xl bg-popover p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-200 sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95"
+            /* ⚠️ 150ms IN, 100ms OUT, ON THE STRONG EASE-OUT — not the symmetric 200ms `ease` it
+               had (both halves measured at 200ms on the keyword curve). The reader just answered
+               the card; its leaving is the system responding, so it goes faster than it came, and
+               it moves on the same curve as every other overlay. When it appears and whether it
+               shows at all are the owner's, and untouched here. */
+            className="pointer-events-auto relative flex max-h-full w-full max-w-md flex-col overflow-y-auto rounded-2xl bg-popover p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-150 ease-[var(--ease-out-strong)] sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95 data-closed:duration-100"
           >
             {/* ⛔ THE CARD IS TWO STACKED SECTIONS, NOT TWO COLUMNS — owner, 2026-08-28. The mascot
             used to be a sibling of the whole content block, so it occupied a full-height left

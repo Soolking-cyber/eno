@@ -261,7 +261,18 @@ export function RemovableBadge({
         // target stays faded while the pointer is plainly on it. Scoping it to the button gives the
         // whole tap target one state. Specificity is fine: `[&_svg]:` emits `.cls:hover svg`
         // (0,2,1) and beats the plain `opacity-60` utility (0,1,0) on the glyph.
-        className="size-6 text-brand-dark transition-colors hover:bg-brand-100 hover:[&_svg]:opacity-100 focus-visible:[&_svg]:opacity-100"
+        //
+        // ⚠️ A 44px-TALL HIT AREA THAT IS 24px WIDE — `after:` over `tapTarget`, ON PURPOSE. The ✕
+        // was a 24×24 target with no press state. `tapTarget` (a centred 44×44 `::before`) would
+        // grow it SIDEWAYS too, across the 6px gap and into the next chip's label, which is the
+        // wrong-control trap `tapTarget={false}` was set to avoid. So the extender is vertical
+        // only (`-inset-y-2.5`: 10px above and below), where the chip row has open space — the sort
+        // strip sits ~16px above and the view toggles ~17px below. IconButton has no `::after` of
+        // its own (it is `relative`, which anchors this); `tapTarget={false}` drops the `::before`.
+        // ⚠️ The chip scroller clips vertically (overflow-x forces overflow-y), so result-line.tsx
+        // pads it out by the same 10px — without that this extender is cut back to the chip.
+        // Press: `active:scale-[0.9]` + the hover tint, 100ms — the control answers the finger.
+        className="size-6 text-brand-dark transition-[scale,background-color] duration-100 hover:bg-brand-100 active:scale-[0.9] active:bg-brand-100 after:absolute after:inset-x-0 after:-inset-y-2.5 after:content-[''] hover:[&_svg]:opacity-100 focus-visible:[&_svg]:opacity-100"
       >
         {/* 14px, the chip-glyph step (docs/icon-language.md §4). Written as `size-3.5` rather
             than `h-3.5 w-3.5`: identical geometry, but it also satisfies the `[class*='size-']`

@@ -124,15 +124,27 @@ function itemClassName(isActive: boolean) {
    undimmed while every other overlay scrimmed it. `.overlay-scrim` is the one definition (see
    globals.css); the z-[1200] stays because this control opens INSIDE other overlays and has to
    clear them. */
-const BACKDROP_Z = 'overlay-scrim fixed inset-0 z-[1200]'
+// `--scrim-exit` matches POPUP_MOTION's 75ms exit (below), so the scrim and the menu leave together.
+const BACKDROP_Z = 'overlay-scrim fixed inset-0 z-[1200] [--scrim-exit:75ms_var(--ease-out-strong)]'
 const POSITIONER_Z = 'z-[1201]'
 // ⚠️ min-w-64 + max-w, NOT the plain w-(--anchor-width) the plain variant uses. The
 // searchable card holds a search field AND long labels ("Phường Bến Nghé, Quận 1"), and
 // AreaFilter renders its two pickers in a `grid-cols-2`, so the anchor is HALF the panel.
 // Tracking that width truncated every ward name to a few characters. The card is allowed
 // to be wider than its trigger; collisionPadding keeps it on screen.
+/**
+ * ⚠️ THE ui/popover MOTION RECIPE, BOTH HALVES — shared by the two popups in this file. They used to
+ * animate the OPEN only (150ms `ease-out` fade), so a pick or an outside tap made the menu vanish on
+ * frame 1 while its `.overlay-scrim` faded for 150ms behind it: measured on 'Any type' / 'Any
+ * condition'. Now: grow from the trigger (`--transform-origin`, set by the Positioner) in 100ms with a
+ * 95% zoom, leave in 75ms — exits faster than entrances — on the strong ease-out every other popover
+ * in the app uses. Base UI waits for the declared exit before it hides/unmounts the popup, which is why
+ * both halves have to exist together (see the note on the plain Select's popup).
+ */
+const POPUP_MOTION =
+  'origin-(--transform-origin) duration-100 ease-[var(--ease-out-strong)] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=top]:data-closed:slide-out-to-bottom-2 data-closed:duration-75'
 const POPUP_CARD =
-  'min-w-64 max-w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-2xl bg-popover shadow-pop duration-150 ease-out data-open:animate-in data-open:fade-in-0'
+  `min-w-64 max-w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-2xl bg-popover shadow-pop ${POPUP_MOTION}`
 
 /** The marketplace's facet/filter select: a detached popover card 6px under the trigger
  *  (same width, floored at 176px so a narrow pill's menu stays readable), portaled to
@@ -389,10 +401,11 @@ function PlainSelect({
             // w-(--anchor-width) + min-w-44 == the old Math.max(triggerRect.width, 176):
             // track the trigger, but never let a narrow pill's menu render as a sliver.
             //
-            // Enter-only animation, matching the old `animate-in fade-in duration-150`. There is
-            // deliberately NO data-closed:animate-out — the hand-rolled menu vanished instantly.
-            // If you ever add one, add BOTH halves: Base UI waits for a declared exit
-            // animation/transition to finish before it tears the popup down.
+            // ⚠️ BOTH HALVES NOW (POPUP_MOTION, above). This was enter-only, inherited from the
+            // hand-rolled menu that vanished instantly — and that is what it still did, on frame 1,
+            // while the scrim behind it faded. The two halves go together: Base UI waits for the
+            // declared exit animation to finish before it hides the popup, and an exit with no
+            // enter (or the reverse) is the asymmetry this replaced.
             //
             // ⚠️ Do NOT "fix" the popup still being in the DOM after close. Base UI force-mounts
             // the list so typing on a CLOSED trigger can jump the value (native-<select> parity).
@@ -400,7 +413,7 @@ function PlainSelect({
             // subtree is 0×0 AND out of the accessibility tree — an AX snapshot after Escape shows
             // no listbox and no options. It is NOT a leak (the node count stays at one across
             // repeated open/close) and NOT a visible orphan.
-            className="max-h-60 w-(--anchor-width) min-w-44 overflow-y-auto overflow-x-hidden rounded-2xl bg-popover p-1.5 shadow-pop scroll-thin duration-150 ease-out data-open:animate-in data-open:fade-in-0"
+            className={cn('max-h-60 w-(--anchor-width) min-w-44 overflow-y-auto overflow-x-hidden rounded-2xl bg-popover p-1.5 shadow-pop scroll-thin', POPUP_MOTION)}
           >
             <SelectPrimitive.List>
               {options.map((opt) => {

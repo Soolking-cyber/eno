@@ -682,7 +682,9 @@ export function FacetBar({
               setCustomFilters({})
               setVerifiedOnly(true)
             }}
-            className="shrink-0 px-1 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
+            // min-h-12 px-3 text-sm — the SAME 48px as the pills it clears. It was 39×16 of 12px
+            // text: the one control that undoes every filter was the hardest thing in the row to hit.
+            className="shrink-0 min-h-12 px-3 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer"
           >
             {tr('Clear', 'Xóa lọc')}
           </Button>

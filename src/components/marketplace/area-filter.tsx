@@ -258,8 +258,13 @@ export function AreaFilter({
             which is exactly the inconsistency the shared scrim was introduced to end — and twice as
             dark as every other overlay. It bypasses ui/popover (it drives PopoverPrimitive directly
             for the z-layering described above), so it has to opt into the class by name. Keep the
-            z-[99]: the panel sits at z-[100] and a CustomSelect opened inside it goes higher still. */}
-        <PopoverPrimitive.Backdrop className="overlay-scrim fixed inset-0 z-[99] animate-in fade-in duration-150" />
+            z-[99]: the panel sits at z-[100] and a CustomSelect opened inside it goes higher still.
+            ⚠️ NO `animate-in` HERE: `.overlay-scrim` already fades BOTH ways off Base UI's
+            data-starting-style / data-ending-style. A keyframe enter on top of it only animated the
+            open, so the scrim faded in and then vanished on close.
+            `--scrim-exit` = the popup's own 75ms exit below, so the two finish together instead of
+            the popup's unmount cutting the scrim off mid-fade (see `.overlay-scrim` in globals.css). */}
+        <PopoverPrimitive.Backdrop className="overlay-scrim fixed inset-0 z-[99] [--scrim-exit:75ms_var(--ease-out-strong)]" />
         <PopoverPrimitive.Positioner
           anchor={anchorRef}
           side="bottom"
@@ -269,10 +274,15 @@ export function AreaFilter({
           collisionPadding={8}
           className="z-[100]"
         >
+          {/* ⚠️ THE ui/popover MOTION RECIPE, BOTH HALVES. This drove the primitive directly with only
+              `animate-in fade-in`, so it had no exit at all (a backdrop tap hard-cut the panel at
+              ~61ms) and scaled from its own centre. Now it grows from the trigger
+              (`--transform-origin`, set by the Positioner) in 100ms and leaves in 75ms on the same
+              strong ease-out as every other popover — exits faster than entrances. */}
           <PopoverPrimitive.Popup
             finalFocus={anchorRef}
             aria-label={tr('Choose area', 'Chọn khu vực')}
-            className="w-90 max-h-[min(72vh,var(--available-height,72vh))] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
+            className="w-90 max-h-[min(72vh,var(--available-height,72vh))] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-border bg-popover px-4 pt-4 shadow-pop scroll-thin origin-(--transform-origin) duration-100 ease-[var(--ease-out-strong)] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=top]:data-closed:slide-out-to-bottom-2 data-closed:duration-75"
           >
             <div className="space-y-4">
               {/* Province/City + Ward side-by-side (user decision 2026-07-13): one row,
@@ -363,7 +373,7 @@ export function AreaFilter({
                           aria-pressed={picked}
                           onClick={() => { onPickDistrict(picked ? 'all' : d.slug); onClose() }}
                           className={cn(
-                            'rounded-lg border px-3 py-1.5 text-sm font-semibold whitespace-normal transition-colors cursor-pointer',
+                            'rounded-lg border px-3 py-2 text-sm font-semibold whitespace-normal transition-colors cursor-pointer',
                             picked ? 'border-brand bg-primary text-white' : 'border-line-strong text-body hover:bg-muted',
                           )}
                         >
@@ -454,7 +464,16 @@ export function AreaFilter({
               )}
             </div>
 
-            <div className="mt-4 flex gap-3">
+            {/* ⚠️ THE PANEL'S MAIN ACTION STAYS ON SCREEN. The panel scrolls inside its own
+                `--available-height` cap, and this row sat at the END of that scroll: opened from the
+                home header, Apply measured 274px below the panel's visible bottom, and in Vietnamese
+                it was cut by the panel edge. Sticky to the scrollport's bottom, bleeding over the
+                popup's side padding (-mx-4) on its own opaque plate so the content scrolls UNDER it.
+                ⚠️ THE POPUP HAS NO BOTTOM PADDING — this row carries it (`pb-…`). A sticky box stops
+                at the scroll container's PADDING edge, not its border: with the popup's p-4 the row
+                parked 16px above the panel's bottom and the district chips scrolled visibly through
+                that strip beneath it (measured and screenshotted). No bottom padding, no strip. */}
+            <div className="sticky bottom-0 -mx-4 mt-4 flex gap-3 border-t border-border bg-popover px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <Button variant="ghost" size="none" onClick={reset} className="flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted hover:text-body">{mode === 'pick' ? tr('Clear', 'Xóa') : tr('Delete filter', 'Xóa lọc')}</Button>
               <Button variant="cta" size="none" onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-colors"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</Button>
             </div>

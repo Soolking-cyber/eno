@@ -41,7 +41,10 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
               // active:scale-100 is load-bearing: this button is the popover anchor and
               // floating-ui reads its rect — a press transform would move it.
               // justify-start likewise: the chip is w-full and its label must stay left-aligned.
-              'inline-flex w-full shrink-0 items-center justify-start gap-1 whitespace-nowrap rounded-lg px-2.5 py-1 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer tap-44 relative',
+              // ⚠️ NO `tap-44`: this chip sits in the model cascade's THREE-ROW grid with a 2px row
+              // gap, where a 44px pseudo on a 28px chip overlaps the chips above and below it and a
+              // tap near an edge fires the wrong one (see chipCls in model-cascade.tsx).
+              'inline-flex w-full shrink-0 items-center justify-start gap-1 whitespace-nowrap rounded-lg px-2.5 py-1 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer relative',
               open ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground',
             )}
           >

@@ -21,12 +21,16 @@ type SortTab = 'newest' | 'recent' | 'popular' | 'price'
  *  the tab until at least one video listing exists (deep links via ?view=video still work). */
 export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showVideo?: boolean }) {
   const { tr } = useLanguage()
-  // p-2.5 + 20px icon = a 40px tap target (h-5 is the §4 ladder step for action-row icons —
-  // the old h-[18px] was an off-ladder arbitrary size). tap-44 can't be used here — four
-  // toggles sit a `gap-1` apart, so 44px hit areas would overlap and steal each other's taps
-  // (same failure the video-feed rail hit).
+  // p-2.5 + 20px icon = a 40px box (h-5 is the §4 ladder step for action-row icons — the old
+  // h-[18px] was an off-ladder arbitrary size).
+  // ⚠️ `tap-44` FITS HERE EXACTLY, AND THIS COMMENT USED TO SAY THE OPPOSITE. The four toggles sit
+  // a `gap-1` (4px) apart, i.e. at a 44px PITCH. A centred 44px hit area on a 40px box reaches 2px
+  // each side — half of each gap — so neighbouring extenders ABUT and cannot overlap. Measured
+  // without it: 40px targets with a 4px dead strip between every pair. The overlap failure the old
+  // note feared (the video-feed rail) needs a pitch under 44px; re-check this if the gap or the
+  // padding ever shrinks. `relative` is the tap-44 contract: ui/button is not positioned.
   const tab = (mode: ViewMode) =>
-    cn('rounded-lg p-2.5 transition-colors duration-200 cursor-pointer', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
+    cn('relative rounded-lg p-2.5 transition-colors duration-200 cursor-pointer tap-44', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
   /**
    * ⛔ THE PER-GLYPH `wash()` IS GONE BECAUSE IT NEVER RENDERED. It carried a careful comment about
    * §5 duotone — "the glyph's ONE closed region gains the brand wash" — and named a child selector

@@ -70,7 +70,8 @@ export function PricePresetChips({
             // is the honest role; without it the `on` paint was invisible to a screen reader.
             aria-pressed={on}
             className={cn(
-              'rounded-full border px-3 py-1 text-xs font-semibold transition-colors cursor-pointer',
+              // py-2 (≈34px): these APPLY a range in one tap, and at py-1 they were 26px tall.
+              'rounded-full border px-3 py-2 text-xs font-semibold transition-colors cursor-pointer',
               on ? 'border-accent-foreground/40 bg-tint text-accent-foreground' : 'border-border text-body hover:bg-muted',
             )}
           >

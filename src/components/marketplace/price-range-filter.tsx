@@ -341,18 +341,21 @@ export function PriceRangeFilter({
               </label>
             </div>
 
+            {/* ⚠️ 44px TARGETS FOR THE TWO CONTROLS THAT COMMIT OR UNDO THE RANGE — they were
+                34×16 (Reset) and 63×28 (Done). Reset grows by padding and pulls back with `-ml-3`,
+                so its WORD stays aligned with the inputs above while the target grows around it. */}
             <div className="mt-4 flex items-center justify-between">
               <Button variant="link" size="none"
                 type="button"
                 onClick={() => { setLo(null); setHi(null); onChange('all') }}
-                className="text-xs font-semibold text-body underline-offset-2 hover:underline cursor-pointer"
+                className="min-h-11 -ml-3 px-3 text-xs font-semibold text-body underline-offset-2 hover:underline cursor-pointer"
               >
                 {tr('Reset', 'Đặt lại')}
               </Button>
               <Button variant="cta" size="none"
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-lg px-4 py-1.5 text-xs transition-colors cursor-pointer"
+                className="min-h-11 rounded-lg px-5 text-sm transition-colors cursor-pointer"
               >
                 {tr('Done', 'Xong')}
               </Button>
