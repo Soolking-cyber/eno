@@ -26,6 +26,7 @@
  */
 import { buildSearchText, fold } from './fold'
 import { listingMoneyFor } from './taxonomy'
+import { localizeImportText, type MissingSegment } from './import-i18n'
 import vnUnits from '../data/vn-units.json'
 
 /** ⛔ PINNED BY ID, never resolved by name — `Seller.name` is not unique and is user-settable. */
@@ -684,6 +685,8 @@ export type MappedHoneycomb = {
   buildingKey: string | null
   searchText: string
   images: string[]
+  /** Mixed-language segments the reviewed dictionary does not cover yet (import-i18n.ts) — a report, never stored. */
+  untranslated: MissingSegment[]
 }
 
 /**
@@ -779,6 +782,15 @@ export function assessHoneycomb(
   /** Belt and braces: composed from checked parts, so this cannot trip — if it ever does, drop. */
   if (hasHouseNumber(location) || hasHouseNumber(street)) return { ok: false, reason: 'houseNumber' }
 
+  /**
+   * ⛔ THE VIETNAMESE TEXT IS MADE VIETNAMESE HERE, NOT LATER IN THE DATABASE (import-i18n.ts): the
+   * source is an English site, so the Vietnamese block printed "Đường: Song Hanh Street". Every text
+   * field is refreshed (mutableOf), so only a fix in the mapper survives a re-run. The English "Rent:
+   * US$…" line is en-US already and is left alone, so usdFromDescription still reads it. Before
+   * `searchText`, which folds the localized titles.
+   */
+  const text = localizeImportText({ title, titleVi, description, descriptionVi })
+
   const lat = building && inRange(building.lat, 8, 24) ? building.lat : null
   const lng = building && inRange(building.lng, 102, 110) ? building.lng : null
   return {
@@ -786,7 +798,7 @@ export function assessHoneycomb(
     row: {
       externalId: `${EXTERNAL_ID_PREFIX}${r.postId}`,
       affiliateUrl: r.url,
-      title, titleVi, description, descriptionVi,
+      title: text.title, titleVi: text.titleVi, description: text.description, descriptionVi: text.descriptionVi,
       priceUsd: usd,
       price,
       subcategorySlug: cat.subcategorySlug,
@@ -799,8 +811,10 @@ export function assessHoneycomb(
       lat: lat !== null && lng !== null ? lat : null,
       lng: lat !== null && lng !== null ? lng : null,
       buildingKey: building?.slug ?? null,
-      searchText: buildSearchText([title, titleVi, street, placeEn, placeViFull, r.project, cat.en, cat.vi, r.code]),
+      /** ⚠️ title and titleVi FIRST — rebaseSearchText (import-i18n.ts) relies on that order. */
+      searchText: buildSearchText([text.title, text.titleVi, street, placeEn, placeViFull, r.project, cat.en, cat.vi, r.code]),
       images: r.images,
+      untranslated: text.missing,
     },
   }
 }

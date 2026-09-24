@@ -17,6 +17,8 @@ import {
 } from './nhatot-listing'
 import { DOOR_IN_TEXT, checkRow, projectLineProblems, projectValueProblem, slashDoorLineProblems, streetLineProblems, streetValueProblem, type VerifyRow } from '../../scripts/verify-nhatot-import'
 import { overlayImagePath } from './image-mark-url'
+import { localizeImportText } from './import-i18n'
+import { fold } from './fold'
 
 vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://sb.eno.vn/')
 // process.env is per WORKER: undo the stub so no later suite in this worker inherits it.
@@ -202,13 +204,16 @@ describe('mapNhatotAd', () => {
       affiliateUrl: 'https://www.nhatot.com/134859113.htm',
       location: 'Quận 12 (P. Đông Hưng Thuận mới)',
     })
-    expect(r.mutable.title).toBe('Apartment · 1 bed · 1 bath · 30 m² for rent — P. Đông Hưng Thuận mới, Quận 12')
+    /** ⛔ The English title is English (src/lib/import-i18n.ts); the Vietnamese one keeps the source's place. */
+    expect(r.mutable.title).toBe('Apartment · 1 bed · 1 bath · 30 m² for rent — Đông Hưng Thuận Ward (new), District 12')
     expect(r.mutable.titleVi).toBe('Cho thuê Căn hộ / Chung cư 1PN 30m² — P. Đông Hưng Thuận mới, Quận 12')
     expect(r.mutable.description.startsWith('Listed on Nhatot.com. eno links to the original')).toBe(true)
     expect(r.mutable.descriptionVi).toContain('Giá thuê: 4.000.000 đ/tháng')
     /** vnd.ts's English grouping — the hand-rolled formatter printed the Vietnamese dots here too. */
     expect(r.mutable.description).toContain('Rent: 4,000,000 đ/month')
     expect(r.mutable.searchText).toContain('quan 12')
+    /** …and the English words too, so "district 12" finds it. */
+    expect(r.mutable.searchText).toContain('district 12')
   })
 
   it('⛔ nothing the poster wrote reaches the row', () => {
@@ -385,7 +390,8 @@ describe('the fixes from the 2026-09-24 review', () => {
       expect(JSON.stringify(legacy)).not.toMatch(/102|506|\/35|Kiệt 64/)
     }
     const kept = mapNhatotAd({ ...a, street_name: 'Đường số 12' }, OPTS)
-    expect(kept.ok && kept.row.mutable.description).toMatch(/^Street: Đường số 12$/m)
+    /** The English line carries the reviewed translation of the SAME kept name (import-i18n.ts). */
+    expect(kept.ok && kept.row.mutable.description).toMatch(/^Street: Street No\. 12$/m)
     expect(kept.ok && kept.row.mutable.descriptionVi).toMatch(/^Đường: Đường số 12$/m)
   })
 
@@ -774,20 +780,20 @@ describe('mapNhatotAd — the ward facts', () => {
   }
   it('no new ward: the old one is THE ward, never "former"', () => {
     const { en, vi } = facts({ ward_name: 'Phường 9', ward_name_v3: null })
-    expect(en).toMatch(/^Ward: Phường 9$/m)
+    expect(en).toMatch(/^Ward: Ward 9$/m)   // English text, English words (import-i18n.ts)
     expect(en).not.toMatch(/Former ward/)
     expect(vi).toMatch(/^Phường\/xã: Phường 9$/m)
     expect(vi).not.toMatch(/Phường cũ/)
   })
   it('a renamed ward: the new one is the ward, the old one is former', () => {
     const { en, vi } = facts({ ward_name: 'Phường 12', ward_name_v3: 'Phường Bình Thạnh' })
-    expect(en).toMatch(/^Ward: Phường Bình Thạnh$/m)
-    expect(en).toMatch(/^Former ward: Phường 12$/m)
+    expect(en).toMatch(/^Ward: Bình Thạnh Ward$/m)
+    expect(en).toMatch(/^Former ward: Ward 12$/m)
     expect(vi).toMatch(/^Phường cũ: Phường 12$/m)
   })
   it('an unchanged ward is not repeated as former', () => {
     const { en } = facts({ ward_name: 'Phường Bình Thạnh', ward_name_v3: 'Phường Bình Thạnh' })
-    expect(en).toMatch(/^Ward: Phường Bình Thạnh$/m)
+    expect(en).toMatch(/^Ward: Bình Thạnh Ward$/m)
     expect(en).not.toMatch(/Former ward/)
   })
 })
@@ -932,5 +938,40 @@ describe('ids and liveness evidence the retire pass can act on', () => {
     expect(stageNhatotLiveness({ list_id: 7, verdict: 'live', http: 404, status: null })).toBeNull()
     expect(stageNhatotLiveness({ list_id: 7, verdict: 'live', http: 200, status: 'active' })?.verdict).toBe('live')
     expect(stageNhatotLiveness({ list_id: 7, verdict: 'unknown', http: 500, status: null })?.verdict).toBe('unknown')
+  })
+})
+
+/**
+ * ⛔ THE ENGLISH TEXT IS MADE ENGLISH IN THE MAPPER (src/lib/import-i18n.ts), because every text field
+ * is in the importer's MUTABLE_KEYS and a database-only fix would be reverted by the next refresh.
+ */
+describe('mapNhatotAd — the English text is English (import-i18n)', () => {
+  it('localizes the title and the Street / Ward / District lines, before the row and searchText are produced', () => {
+    const m = mapped()
+    if (!m.ok) throw new Error(m.reason)
+    const r = m.row.mutable
+    expect(r.title).toBe('Apartment · 1 bed · 1 bath · 30 m² for rent — Đông Hưng Thuận Ward (new), District 12')
+    expect(r.description).toMatch(/^Street: Nguyễn Văn Quá Street$/m)
+    expect(r.description).toMatch(/^Ward: Đông Hưng Thuận Ward$/m)
+    expect(r.description).toMatch(/^District: District 12$/m)
+    expect(r.description).not.toMatch(/Phường|Quận|Đường /)
+    // The Vietnamese text keeps the source's names.
+    expect(r.titleVi).toBe('Cho thuê Căn hộ / Chung cư 1PN 30m² — P. Đông Hưng Thuận mới, Quận 12')
+    expect(r.descriptionVi).toMatch(/^Đường: Đường Nguyễn Văn Quá$/m)
+    expect(r.descriptionVi).toMatch(/^Quận\/huyện: Quận 12$/m)
+    // searchText is folded from the LOCALIZED titles (title first — rebaseSearchText relies on it).
+    expect(r.searchText.startsWith(fold(`${r.title} ${r.titleVi} `))).toBe(true)
+    expect(r.searchText).toContain('dong hung thuan ward (new), district 12')
+    expect(m.row.untranslated).toEqual([])
+    // What the mapper stores is a fixed point: the one-off would find nothing left to change.
+    const again = localizeImportText(r)
+    expect([again.title, again.titleVi, again.description, again.descriptionVi]).toEqual([r.title, r.titleVi, r.description, r.descriptionVi])
+  })
+
+  it('a street the dictionary lacks stays as the source wrote it, and is reported', () => {
+    const m = mapped({ street_name: 'Đường Chưa Dịch' })
+    if (!m.ok) throw new Error(m.reason)
+    expect(m.row.mutable.description).toMatch(/^Street: Đường Chưa Dịch$/m)
+    expect(m.row.untranslated).toEqual([{ target: 'en', kind: 'desc:Street', src: 'Đường Chưa Dịch' }])
   })
 })

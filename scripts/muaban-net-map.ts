@@ -17,6 +17,7 @@
  */
 import vnUnits from '../src/data/vn-units.json'
 import { buildSearchText } from '../src/lib/fold'
+import { localizeImportText, type MissingSegment } from '../src/lib/import-i18n'
 import { browseRankScore } from '../src/lib/ranking-formula'
 import { listingMoneyFor } from '../src/lib/taxonomy'
 
@@ -825,6 +826,8 @@ export type MappedRow = {
   imageSources: string[]
   /** muaban's own post date (sourcePostedAt). CREATE-ONLY, with the rankScore it implies (createOnlyFields). */
   postedAt: Date
+  /** Mixed-language segments the reviewed dictionary does not cover yet (import-i18n.ts) — a report, never stored. */
+  untranslated: MissingSegment[]
 }
 
 /**
@@ -954,11 +957,25 @@ export function mapRecord(item: MuabanListItem, detail: MuabanDetail | null, opt
     ['Số tầng', floors], ['Hướng', facing], ['Khu vực', location], ['Giá thuê', `${vnd(price)}/tháng`],
   ] as [string, unknown][]).filter(([, v]) => v !== null && v !== undefined && v !== '').map(([k, v]) => `${k}: ${v}`).join('\n')
 
-  const mutable: MutableFields = {
+  /**
+   * ⛔ THE ENGLISH TEXT IS MADE ENGLISH HERE, NOT LATER IN THE DATABASE (src/lib/import-i18n.ts): the
+   * title's "— Phường 22, Quận Bình Thạnh", "Type: Nhà trọ, phòng trọ", "Facing: Bắc", the Location
+   * line and the Vietnamese-grouped "Rent: 2.500.000 đ/month" all reach the English text from the
+   * source. Every field here is refreshed (sameMutable), so only a fix in the mapper survives a re-run.
+   * Before `searchText`, which folds the localized titles.
+   */
+  const text = localizeImportText({
     title,
     titleVi,
     description: `Listed on ${SELLER_NAME}. eno links to the original — enquiries and viewings are handled there, not by eno.\n\n${factsEn}`,
     descriptionVi: `Tin đăng trên ${SELLER_NAME}. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.\n\n${factsVi}`,
+  })
+
+  const mutable: MutableFields = {
+    title: text.title,
+    titleVi: text.titleVi,
+    description: text.description,
+    descriptionVi: text.descriptionVi,
     price,
     priceUnit: RENT_PRICE_UNIT,
     currency: '₫',
@@ -975,9 +992,10 @@ export function mapRecord(item: MuabanListItem, detail: MuabanDetail | null, opt
     areaM2,
     attributes: bedroomsAttribute(beds),
     affiliateUrl,
-    searchText: buildSearchText([title, titleVi, location, district, kindVi, type.en, c.city, c.cityEn]),
+    /** ⚠️ title and titleVi FIRST — rebaseSearchText (src/lib/import-i18n.ts) relies on that order. */
+    searchText: buildSearchText([text.title, text.titleVi, location, district, kindVi, type.en, c.city, c.cityEn]),
   }
-  return { ok: true, row: { externalId: `${EXTERNAL_PREFIX}:${item.id}`, sourceId: item.id, cityKey, mutable, imageSources, postedAt } }
+  return { ok: true, row: { externalId: `${EXTERNAL_PREFIX}:${item.id}`, sourceId: item.id, cityKey, mutable, imageSources, postedAt, untranslated: text.missing } }
 }
 
 /** Field-by-field equality, so a re-run skips unchanged rows and does not bump `updatedAt`. */

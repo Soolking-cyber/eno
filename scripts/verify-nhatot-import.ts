@@ -45,6 +45,19 @@ const SAFE_NUMBERED = [
   /^(?:đường\s+)?(?:quốc\s+lộ|ql|tỉnh\s+lộ|tl|hương\s+lộ|đường\s+tỉnh|đt)\s*\d{1,3}[a-z]?$/iu,
   /^(?:(?:đường|phố)\s+)?\d{1,2}\s+tháng\s+\d{1,2}$/iu,
   /^(?:đường|phố)\s+\d{1,2}\s*\/\s*\d{1,2}$/iu,
+  /**
+   * The SAME shapes as the English "Street:" line now prints them (src/lib/import-i18n.ts replaces
+   * the value with its reviewed translation): 'Đường số 12' → 'Street No. 12', 'Đường 15B' → 'Street
+   * 15B', 'Quốc lộ 13' → 'National Route 13', 'Tỉnh lộ 10' → 'Provincial Road 10', 'Hương lộ 2' →
+   * 'Hương Lộ 2 Road', 'Đường 3 Tháng 2' → '3 Tháng 2 Street'. Anchored whole, like the rows above:
+   * each still names no street a door could belong to, and 'Street No. 12 Lê Lợi' matches none of
+   * them and falls through to the door-word rule ('no. 12').
+   */
+  /^street\s+no\.\s+\d{1,3}[a-z]?$/iu,
+  /^street\s+\d{1,3}[a-z]?$/iu,
+  /^(?:national\s+route|provincial\s+road)\s+\d{1,3}[a-z]?$/iu,
+  /^hương\s+lộ\s+\d{1,3}[a-z]?\s+road$/iu,
+  /^\d{1,2}\s+tháng\s+\d{1,2}\s+street$/iu,
 ]
 /** Door words on the value with its TONE marks removed (sắc/huyền/hỏi/ngã/nặng; vowel marks kept, so
  *  'Ngô' is not 'ngo'): a misspelt 'hẽm' or 'ngỏ' is still an alley. */

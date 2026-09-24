@@ -82,6 +82,7 @@ import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { countDistinctAngles } from '../src/lib/image-hash-url'
 import { imageVerdict, measureImage, MIN_IMAGE_LONG_EDGE, PLACEHOLDER_ENTROPY, PLACEHOLDER_FLAT, type ImageMeasure, type PhotoOutcome } from '../src/lib/import-photo-check'
 import { formatMoneyFull } from '../src/lib/vnd'
+import { untranslatedSummary } from '../src/lib/import-i18n'
 import {
   NHATOT_API, NHATOT_CATEGORIES, NHATOT_CITIES, NHATOT_DEFAULT_CATEGORIES, NHATOT_GAP_MS_DEFAULT,
   NHATOT_GAP_MS_MIN, NHATOT_LOGO_FALLBACK_URL, NHATOT_LOGO_URL, NHATOT_MIN_PHOTOS, NHATOT_PAGE_MAX,
@@ -666,6 +667,7 @@ async function importMain() {
   console.log(`  by subcategory  ${JSON.stringify(hist((r) => r.mutable.subcategorySlug ?? '(none)'))}`)
   console.log(`  price unit      ${JSON.stringify(hist((r) => r.mutable.priceUnit))}`)
   console.log(`  with bedrooms   ${batch.filter((r) => r.mutable.attributes).length}   with area ${batch.filter((r) => r.mutable.areaM2 !== null).length}   with coords ${batch.filter((r) => r.mutable.lat !== null).length}   with a Street fact ${batch.filter((r) => /^Street: /m.test(r.mutable.description)).length}`)
+  console.log(`  untranslated    ${untranslatedSummary(batch.flatMap((r) => r.untranslated)) || 'none — every mixed-language segment has a reviewed translation'}`)
   console.log(`photos            ${photos} candidate photos (${NHATOT_MIN_PHOTOS}–${Math.max(NHATOT_MIN_PHOTOS, MAX_PHOTOS)}/listing); ${newPhotos} for new rows — each judged at --apply (real photo, size floor, ≥${NHATOT_MIN_PHOTOS} distinct or the row is not created), the kept ones re-hosted → listings/affiliate/m/ (overlay mark; source watermarks accepted by the owner)${PROBE_PHOTOS ? '' : '  · --probe-photos runs that judgement now'}`)
   console.log(`category          ${category.name} (${category.id})`)
   console.log(`seller            ${seller

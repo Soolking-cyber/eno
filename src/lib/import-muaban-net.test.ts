@@ -5,6 +5,8 @@ import { listingMoneyFor } from '@/lib/taxonomy'
 import { matchesProvince } from '@/lib/facet-counts'
 import { browseRankScore } from '@/lib/ranking-formula'
 import * as sharedPhotoCheck from '@/lib/import-photo-check'
+import { localizeImportText } from '@/lib/import-i18n'
+import { fold } from '@/lib/fold'
 import {
   CITIES, IMAGE_RE, MAX_IMAGES, MAX_STAGE_AGE_HOURS, MIN_DELAY_MS, MIN_SOURCE_POSTED_AT, SELLER_ID, SELLER_NAME,
   adminOnly, affiliateUrlFor, bedroomsAttribute, canonicalDistrict, canonicalWard, compareNewest, countFrom, coverToDetail,
@@ -152,12 +154,16 @@ describe('mapRecord — the real card + detail page', () => {
       lat: null, lng: null, areaM2: 89,
       attributes: null,
       affiliateUrl: LINK,
-      title: 'House · 89 m² for rent — Phường Tân Thành, Quận Tân Phú',
+      // ⛔ The English title is English (src/lib/import-i18n.ts); the Vietnamese one keeps the source's place.
+      title: 'House · 89 m² for rent — Tân Thành Ward, Tân Phú District',
       titleVi: 'Cho thuê Nhà mặt tiền 89m² — Phường Tân Thành, Quận Tân Phú',
     })
     expect(m.row.mutable.description.startsWith('Listed on Muaban.net. eno links to the original')).toBe(true)
-    expect(m.row.mutable.description).toContain('Rent: 25.000.000 đ/month')
+    // English commas on the English rent line; the Vietnamese one keeps its dots.
+    expect(m.row.mutable.description).toContain('Rent: 25,000,000 đ/month')
+    expect(m.row.mutable.description).toContain('Location: Tân Thành Ward, Tân Phú District, Ho Chi Minh City')
     expect(m.row.mutable.descriptionVi).toContain('Giá thuê: 25.000.000 đ/tháng')
+    expect(m.row.mutable.descriptionVi).toContain('Khu vực: Phường Tân Thành, Quận Tân Phú, Hồ Chí Minh')
     expect(m.row.mutable.description).toContain('Floors: 1')
     expect(m.row.mutable.searchText).toContain('tan phu')
     expect(m.row.imageSources).toEqual(DETAIL.images.map((i) => i.url))
@@ -359,7 +365,7 @@ describe('bedrooms — ⛔ a missing count is NOT a Studio', () => {
   it('carries through mapRecord as the facet JSON', () => {
     const m = mapRecord(card({ attributes: [{ value: '50 m²' }, { value: '5 PN' }] }), detail({ attributes: [{ value: '50 m²' }, { value: '5 PN' }] }), ALL)
     expect(m.ok && m.row.mutable.attributes).toBe('{"bedrooms":"3"}')
-    expect(m.ok && m.row.mutable.title).toBe('House · 5 bed · 50 m² for rent — Phường Tân Thành, Quận Tân Phú')
+    expect(m.ok && m.row.mutable.title).toBe('House · 5 bed · 50 m² for rent — Tân Thành Ward, Tân Phú District')
   })
 })
 
@@ -703,5 +709,41 @@ describe('sameMutable — a re-run skips unchanged rows so updatedAt (the sitema
     expect(sameMutable(m.row.mutable, { ...stored, price: 26_000_000 })).toBe(false)
     expect(sameMutable(m.row.mutable, { ...stored, lat: 10.7 })).toBe(false)
     expect(sameMutable(m.row.mutable, { ...stored, priceUnit: 'VND' })).toBe(false)
+  })
+})
+
+/**
+ * ⛔ THE ENGLISH TEXT IS MADE ENGLISH IN THE MAPPER (src/lib/import-i18n.ts), because every text field
+ * is refreshed (sameMutable) and a database-only fix would be reverted by the next run.
+ */
+describe('mapRecord — the English text is English (import-i18n)', () => {
+  it('localizes the title, Type, Facing and Location, and gives the English rent English commas', () => {
+    const m = mapRecord(card(), detail({ parameters: [...DETAIL.parameters, { label: 'Hướng cửa chính', value: 'Đông Nam', group: false }] }), ALL)
+    if (!m.ok) throw new Error(m.reason)
+    const r = m.row.mutable
+    expect(r.title).toBe('House · 89 m² for rent — Tân Thành Ward, Tân Phú District')
+    expect(r.description).toMatch(/^Type: Street-front house$/m)
+    expect(r.description).toMatch(/^Facing: Southeast$/m)
+    expect(r.description).toMatch(/^Location: Tân Thành Ward, Tân Phú District, Ho Chi Minh City$/m)
+    expect(r.description).toMatch(/^Rent: 25,000,000 đ\/month$/m)
+    expect(r.description).not.toMatch(/Phường|Quận|25\.000\.000/)
+    // The Vietnamese text keeps the source's names and the Vietnamese number format.
+    expect(r.descriptionVi).toMatch(/^Loại hình: Nhà mặt tiền$/m)
+    expect(r.descriptionVi).toMatch(/^Hướng: Đông Nam$/m)
+    expect(r.descriptionVi).toMatch(/^Giá thuê: 25\.000\.000 đ\/tháng$/m)
+    // searchText is folded from the LOCALIZED titles (title first — rebaseSearchText relies on it).
+    expect(r.searchText.startsWith(fold(`${r.title} ${r.titleVi} `))).toBe(true)
+    expect(r.searchText).toContain('tan thanh ward, tan phu district')
+    expect(r.searchText).toContain('quan tan phu')
+    expect(m.row.untranslated).toEqual([])
+    const again = localizeImportText(r)
+    expect([again.title, again.titleVi, again.description, again.descriptionVi]).toEqual([r.title, r.titleVi, r.description, r.descriptionVi])
+  })
+
+  it('a property type the dictionary lacks stays as the source wrote it, and is reported', () => {
+    const m = mapRecord(card({ category_name: 'Loại chưa dịch' }), detail(), ALL)
+    if (!m.ok) throw new Error(m.reason)
+    expect(m.row.mutable.description).toMatch(/^Type: Loại chưa dịch$/m)
+    expect(m.row.untranslated).toEqual([{ target: 'en', kind: 'desc:Type', src: 'Loại chưa dịch' }])
   })
 })

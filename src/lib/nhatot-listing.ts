@@ -23,6 +23,7 @@ import { PublishBlockedError, assertCleanTexts, minPhotosFor } from './publish-g
 import { formatMoneyFull } from './vnd'
 import { browseRankScore } from './ranking-formula'
 import { dropNearDuplicates, galleryPlan, type ImageSizeFloor, type PhotoOutcome } from './import-photo-check'
+import { localizeImportText, type MissingSegment } from './import-i18n'
 
 /**
  * ⛔ THE SELLER IS PINNED BY ID. `Seller.name` is not unique and is user-settable, so a name lookup
@@ -443,6 +444,8 @@ export type NhatotMapped = {
    * the default browse ranked as if it were posted today. Never refreshed on update.
    */
   postedAt: Date
+  /** Mixed-language segments the reviewed dictionary does not cover yet (import-i18n.ts) — a report, never stored. */
+  untranslated: MissingSegment[]
   /** The refreshable fields: written on create AND on update. Never status/verified/images. */
   mutable: {
     title: string
@@ -556,15 +559,25 @@ export function mapNhatotAd(ad: NhatotStagedAd, opts: NhatotMapOptions): { ok: t
   const location = `${district ?? city.cityVi}${ward ? ` (${ward})` : ''}${isHcm ? '' : `, ${city.cityVi}`}`
 
   /**
+   * ⛔ THE ENGLISH TEXT IS MADE ENGLISH HERE, NOT LATER IN THE DATABASE (import-i18n.ts): the title's
+   * "— P. Tân Hòa mới, Quận Tân Bình" and the Street / Ward / Former ward / District / Building lines
+   * carry Chợ Tốt's Vietnamese values, and every one of these fields is in MUTABLE_KEYS — a row fixed
+   * only in the database would be reverted by the next refresh. Done before the screen (so the screen
+   * sees what is published) and before searchText (so "district 7" finds the English title).
+   */
+  const text = localizeImportText({ title, titleVi, description: blockEn, descriptionVi: blockVi })
+
+  /**
    * ⛔ THE SAME CONTACT/ADDRESS SCREEN A SELLER'S OWN POST GOES THROUGH (publish-guard's
    * assertCleanTexts: phone, email, link, @handle, "zalo: …", "số nhà N", banned words). The owner
    * accepted contact marks burned into PHOTOS as part of the rival-watermark decision; TEXT is not
    * covered by that, and the building / street / ward fields are poster- or source-typed. Our own
    * intro paragraph is not screened — it names the source's domain, which the link rule would flag
-   * on every row.
+   * on every row. Both the composed and the localized text are screened: a dictionary entry must not
+   * be able to launder a source value the screen would have refused.
    */
   try {
-    assertCleanTexts([title, titleVi, location, blockEn, blockVi])
+    assertCleanTexts([title, titleVi, location, blockEn, blockVi, text.title, text.titleVi, text.description, text.descriptionVi])
   } catch (e) {
     if (e instanceof PublishBlockedError) return { ok: false, reason: e.code === 'banned_words' ? 'bannedWords' : 'contactInText' }
     throw e
@@ -577,11 +590,12 @@ export function mapNhatotAd(ad: NhatotStagedAd, opts: NhatotMapOptions): { ok: t
       sourceId: ad.list_id,
       images,
       postedAt,
+      untranslated: text.missing,
       mutable: {
-        title,
-        titleVi,
-        description: `${NHATOT_INTRO_EN}\n\n${blockEn}`,
-        descriptionVi: `${NHATOT_INTRO_VI}\n\n${blockVi}`,
+        title: text.title,
+        titleVi: text.titleVi,
+        description: `${NHATOT_INTRO_EN}\n\n${text.description}`,
+        descriptionVi: `${NHATOT_INTRO_VI}\n\n${text.descriptionVi}`,
         price,
         priceUnit: NHATOT_PRICE_UNIT,
         currency: '₫',
@@ -596,8 +610,9 @@ export function mapNhatotAd(ad: NhatotStagedAd, opts: NhatotMapOptions): { ok: t
         areaM2: area,
         attributes: beds === null ? null : JSON.stringify({ bedrooms: beds }),
         affiliateUrl,
+        /** ⚠️ title and titleVi FIRST — rebaseSearchText (import-i18n.ts) relies on that order. */
         searchText: buildSearchText([
-          title, titleVi, location, district, ad.kind_label, ad.ward_name, project,
+          text.title, text.titleVi, location, district, ad.kind_label, ad.ward_name, project,
           street, city.cityVi, city.cityEn,
         ]),
       },

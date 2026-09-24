@@ -57,6 +57,7 @@ import { PrismaClient } from '../src/generated/prisma/client'
 import { makeImageHost } from '../src/lib/host-product-image'
 import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { measureImage } from '../src/lib/import-photo-check'
+import { untranslatedSummary } from '../src/lib/import-i18n'
 import {
   ALLOWED_HOSTS, CITIES, EXTERNAL_PREFIX, MAX_STAGE_AGE_HOURS, PLACEHOLDER_ENTROPY, PLACEHOLDER_FLAT, PROPERTY_TYPES,
   RENT_PRICE_UNIT, SELLER_ID, SELLER_LOGO_URL, SELLER_NAME,
@@ -472,6 +473,7 @@ async function main() {
     console.log(`  bedrooms attr   ${JSON.stringify(hist((r) => r.mutable.attributes ?? '(none)'))}`)
     console.log(`  priceUnit       ${JSON.stringify(hist((r) => r.mutable.priceUnit))}`)
     console.log(`  with coords     ${batch.filter((r) => r.mutable.lat !== null).length}   with area ${batch.filter((r) => r.mutable.areaM2 !== null).length}`)
+    console.log(`  untranslated    ${untranslatedSummary(batch.flatMap((r) => r.untranslated)) || 'none — every mixed-language segment has a reviewed translation'}`)
     {
       /** What the create-only rank starts at: from muaban's own publish_at, never the import time. */
       const now = Date.now()

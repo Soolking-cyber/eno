@@ -81,6 +81,7 @@ import { makeImageHost } from '../src/lib/host-product-image'
 import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { browseRankScore } from '../src/lib/ranking-formula'
 import { minPhotosFor } from '../src/lib/publish-guard'
+import { untranslatedSummary } from '../src/lib/import-i18n'
 import { REVER_BUILDINGS } from '../src/generated/rever-buildings'
 import {
   HONEYCOMB_SELLER_ID as SELLER_ID, HONEYCOMB_SELLER_NAME as SELLER_NAME, HONEYCOMB_LOGO_URL as LOGO_URL,
@@ -488,6 +489,7 @@ async function main() {
   console.log(`  by city         ${JSON.stringify(hist((k) => k.city))}   (the vn-units Vietnamese name — what the wizard stores)`)
   console.log(`  by district     ${JSON.stringify(hist((k) => k.district ?? '(none)'))}`)
   console.log(`  by location     ${JSON.stringify(hist((k) => k.location))}`)
+  console.log(`  untranslated    ${untranslatedSummary(keep.flatMap((k) => k.untranslated)) || 'none — every mixed-language segment has a reviewed translation'}`)
   console.log(`city filter       ${CITY ?? '(none — hcmc, hanoi, danang all accepted; this source is HCMC-only)'}`)
   console.log(`category          ${category.name} (${category.id}) · priceUnit ${HONEYCOMB_MONEY.priceUnit} · currency ${HONEYCOMB_MONEY.currency}`)
   if (seller) {

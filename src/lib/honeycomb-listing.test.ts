@@ -5,6 +5,8 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { matchesProvinceRow } from '@/lib/province-match'
 import { REVER_BUILDINGS } from '@/generated/rever-buildings'
 import vnUnits from '@/data/vn-units.json'
+import { localizeImportText } from '@/lib/import-i18n'
+import { fold } from '@/lib/fold'
 import {
   allowedImage, allowedTarget, applyPreflight, assessHoneycomb, buildingFor, checkWard, cityOf, defaultSince,
   districtOf, galleryImages, hasHouseNumber, isGoneStatus, isPropertySitemap, journalDirProblem, oldDistrictsFor,
@@ -746,5 +748,36 @@ describe('⛔ seller refusals and retirement', () => {
     expect(retireCandidates(rows, new Set([URL1])).map((r) => r.id)).toEqual(['b'])
     // An edited, off-host link is never probed (nor hidden on whatever that host answers).
     expect(retireCandidates([{ id: 'x', affiliateUrl: 'https://evil.example/property/gone/' }, { id: 'y', affiliateUrl: 'http://honeycomb.com.vn/property/gone/' }], new Set()).map((r) => r.id)).toEqual([])
+  })
+})
+
+/**
+ * ⛔ THE VIETNAMESE TEXT IS MADE VIETNAMESE IN THE MAPPER (src/lib/import-i18n.ts): the source is an
+ * English site, and every text field is refreshed (mutableOf), so a database-only fix would be
+ * reverted by the next run.
+ */
+describe('assessHoneycomb — the Vietnamese text is Vietnamese (import-i18n)', () => {
+  it('localizes the Vietnamese street line and leaves the English text — and its US$ rent line — alone', () => {
+    const a = assessHoneycomb(rec({ address: 'No.12, Song Hanh Street, An Phu Ward, District 2, HCMC' }), opts)
+    if (!a.ok) throw new Error(a.reason)
+    const m = a.row
+    expect(m.descriptionVi).toMatch(/^Đường: Đường Song Hành$/m)
+    expect(m.descriptionVi).not.toMatch(/Song Hanh Street/)
+    expect(m.description).toMatch(/^Street: Song Hanh Street$/m)
+    expect(m.description).toContain('Rent: US$2,692/month')
+    // The re-run price guard still reads the source dollar figure from the stored description.
+    expect(usdFromDescription(m.description)).toBe(2692)
+    expect(m.title).toBe('3 bed · 2 bath apartment for rent — The Estella Heights, An Phu Ward, District 2')
+    expect(m.searchText.startsWith(fold(`${m.title} ${m.titleVi} `))).toBe(true)
+    expect(m.untranslated).toEqual([])
+    const again = localizeImportText(m)
+    expect([again.title, again.titleVi, again.description, again.descriptionVi]).toEqual([m.title, m.titleVi, m.description, m.descriptionVi])
+  })
+
+  it('an English street the dictionary lacks stays in the Vietnamese block, and is reported', () => {
+    const a = assessHoneycomb(rec({ address: 'Untranslated Boulevard, An Phu Ward, District 2, HCMC' }), opts)
+    if (!a.ok) throw new Error(a.reason)
+    expect(a.row.descriptionVi).toMatch(/^Đường: Untranslated Boulevard$/m)
+    expect(a.row.untranslated).toEqual([{ target: 'vi', kind: 'descVi:Đường', src: 'Untranslated Boulevard' }])
   })
 })
