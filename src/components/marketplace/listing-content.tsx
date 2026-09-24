@@ -108,13 +108,47 @@ export function RichText({ text, className }: { text: string; className?: string
   )
 }
 
+/**
+ * The description's Vietnamese column, or null when it is not a Vietnamese description at all.
+ *
+ * ⚠️ A FEED WITH ONE TEXT WRITES IT INTO BOTH COLUMNS (import-accesstrade / import-partners store the
+ * feed description as both; import-supersports falls back `descriptionVi = viBody || enBody`). Where
+ * that text is English — 1,922 stored descriptions on 2026-09-24 — useLocalized, which prefers `vi`
+ * over the translation cache for a Vietnamese reader, showed that reader the English text and never
+ * asked for a translation. So a `vi` that is the source text itself, when the source is not
+ * Vietnamese, is treated as absent: the reader gets the cached (else client machine)
+ * Vietnamese translation, exactly as for a listing with no descriptionVi. A Vietnamese source keeps
+ * it — there the copy IS the Vietnamese text.
+ *
+ * ⚠️ THE KNOWN COST, CHOSEN: "not Vietnamese" is detectContentLang's answer — the rule the page already
+ * uses to decide what the source language is. Vietnamese typed WITHOUT marks ("Giay chay bo nhe") has
+ * nothing that detector can see, so an identical copy of it takes the translation path too: the
+ * reader gets a Vietnamese→Vietnamese translation of the seller's text instead of the text itself. A
+ * narrower "is it English?" test was tried in review (2026-09-24) and every version of it either
+ * missed plain English ("Brand new. Never used.") or dropped Vietnamese that carried two English
+ * words ("Cap sac for iPhone and Samsung"): a new edge each round, so the simple rule stands.
+ *
+ * ⛔ DESCRIPTIONS ONLY. A titleVi equal to the title is usually deliberate — an English book or
+ * product name the Vietnamese shelf lists as-is — so LocalizedTitle keeps today's behaviour.
+ */
+export function ownDescriptionVi(text: string, vi: string | null | undefined): string | null {
+  if (!vi || !text) return vi || null
+  const src = sameText(text)
+  const same = vi === text || sameText(vi) === src
+  // Detected on the NFC form: the detector knows Vietnamese by its PRECOMPOSED letters (ơ, ư, đ …),
+  // and a column stored NFD would otherwise read as plain Latin (opus, review round 2).
+  return same && detectContentLang(src) !== 'vi' ? null : vi
+}
+/** The same text whatever the column's Unicode form, line endings or outer whitespace. */
+const sameText = (s: string) => s.normalize('NFC').replace(/\r\n?/g, '\n').trim()
+
 /** Localized listing description rendered with light markdown (bullets / bold / paragraphs). */
 export function ListingDescription({ text, vi, i18n, className }: { text: string; vi?: string | null; i18n?: Record<string, string> | null; className?: string }) {
   const { lang } = useLanguage()
   // ⚠️ `vi` WAS HARDCODED null HERE while the heading passed titleVi through the same hook — so a
   // listing stored in two languages showed its title correctly and its description always in the
   // primary one. The slot existed; nothing was filling it.
-  const out = useLocalized(text, vi ?? null, i18n)
+  const out = useLocalized(text, ownDescriptionVi(text, vi), i18n)
   const cl = detectContentLang(out)
   // `allow-select`: keep the description selectable/copyable in the native app, where chrome
   // selection is disabled (globals.css html.native). Content text is the exception users need.
