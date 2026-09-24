@@ -230,7 +230,7 @@ purge_edge(){
     out=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$z/purge_cache" \
       -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
       --data '{"purge_everything":true}' 2>&1)
-    if printf '%s' "$out" | grep -q '"success":[[:space:]]*true'; then ok "purged $z"
+    if grep -q '"success":[[:space:]]*true' <<<"$out"; then ok "purged $z"
     else bad "purge rejected for $z: $(printf '%s' "$out" | head -c 200)"; fail=1; fi
   done
   return $fail
@@ -623,7 +623,14 @@ if ! complete_manifest "$FMAN"; then
 fi
 # ⚠️ `(/\[lang\])?` for the same reason as LEAK above: the key is `/[lang]/itinerary/page` now, and
 # the old literal would have refused every healthy forum build.
-if ! printf '%s' "$FMAN" | grep -qE '"(/\[lang\])?/itinerary/page"'; then
+# ⛔ A HERE-STRING, NEVER `printf … | grep -q`, UNDER `set -o pipefail`. grep -q exits at its FIRST
+# match and closes the pipe; bash's printf builtin writes the manifest in several chunks, so a later
+# chunk can hit the closed pipe and die of SIGPIPE (141) — even though the manifest (27.6 KB) is under
+# the pipe buffer. pipefail fails the pipeline and the `!` turned that into "has NO /itinerary/page".
+# MEASURED ON THE BOX 2026-09-24 with the real forum manifest (route on line 101): the pipe form
+# rejected 2 of 8 runs (PPRPPRPP). That is the "intermittent false rejection" recorded five times
+# (2026-08-23 … 2026-09-24). src/lib/deploy-script.test.ts keeps it from coming back.
+if ! grep -qE '"(/\[lang\])?/itinerary/page"' <<<"$FMAN"; then
   bad "eno-forum:local was read cleanly ($(printf '%s' "$FMAN" | grep -oE '\"/[^\"]*\"' | sort -u | wc -l | tr -d ' ') routes) but has NO /itinerary/page."
   bad "It is not the services edition — built with the wrong env file."
   untag_bad; exit 1
