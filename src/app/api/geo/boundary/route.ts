@@ -26,6 +26,7 @@ import vnUnits from '@/data/vn-units.json'
 import {
   boundaryCacheKey,
   countPoints,
+  districtQueryCandidates,
   pickBoundary,
   simplifyGeometry,
   type BoundaryKind,
@@ -74,35 +75,70 @@ export async function GET(req: NextRequest) {
   }
 
   let geometry: { type: string; coordinates: unknown } | null = null
+  /**
+   * ⚠️ A DISTRICT GETS MORE THAN ONE NAME TO TRY; A WARD GETS EXACTLY ONE. Two of the curated
+   * districts were missing purely because of how WE spell them — "Quận 7 (Phú Mỹ Hưng)" carries a
+   * gloss OSM has never heard of, and "Nhà Bè" is filed there as "Huyện Nhà Bè" (both measured
+   * against the live API, 2026-09-24). Ward names come from `vn-units.json`, which is the official
+   * list, so there is nothing to alias and no reason to spend extra requests on them.
+   * ⛔ THE LOOP STOPS AT THE FIRST USABLE ANSWER, so the common case is still ONE request. Only a
+   * genuine miss pays for the extra tries, and it then caches that miss for thirty days.
+   */
+  const candidates = kind === 'district'
+    ? districtQueryCandidates(name, province)
+    : [{ q: `${name}, ${province}`, expect: name }]
   try {
-    const url =
-      'https://nominatim.openstreetmap.org/search?' +
-      new URLSearchParams({
-        q: `${name}, ${province}`,
-        format: 'jsonv2',
-        polygon_geojson: '1',
-        limit: '10',
-        countrycodes: 'vn',
-        extratags: '1',
+    for (const candidate of candidates) {
+      const url =
+        'https://nominatim.openstreetmap.org/search?' +
+        new URLSearchParams({
+          q: candidate.q,
+          format: 'jsonv2',
+          polygon_geojson: '1',
+          limit: '10',
+          countrycodes: 'vn',
+          extratags: '1',
+        })
+      const res = await fetch(url, {
+        // The same identified agent the reverse-geocode route uses; the policy asks for a real one.
+        headers: { 'User-Agent': 'eno.vn Marketplace/1.0 (https://eno.vn)' },
+        // ⚠️ 6s, NOT 8s: a district can now try up to four candidates, so the per-try budget has to
+        // come down or one anonymous cold request holds a server connection for the better part of a
+        // minute (reviewer). Four tries plus spacing is ~27s worst case, and only on a genuine miss.
+        signal: AbortSignal.timeout(6000),
       })
-    const res = await fetch(url, {
-      // The same identified agent the reverse-geocode route uses; the policy asks for a real one.
-      headers: { 'User-Agent': 'eno.vn Marketplace/1.0 (https://eno.vn)' },
-      signal: AbortSignal.timeout(8000),
-    })
-    /**
-     * ⛔ A NON-200 IS NOT A MISS EITHER, AND THIS IS THE SUBTLE ONE. Nominatim answers 429 when the
-     * one-request-per-second policy is exceeded; without this early return that 429 would fall
-     * through with `geometry === null` and be WRITTEN as `found = false` — denying a perfectly real
-     * ward for the full thirty-day negative TTL because we were briefly too quick. Only a completed
-     * lookup that actually saw OSM's answer may record a miss.
-     */
-    if (!res.ok) return failed(`upstream-${res.status}`)
-    const picked = pickBoundary((await res.json()) as OsmResult[], kind, name)
-    if (picked?.geojson) {
-      const before = countPoints(picked.geojson)
-      geometry = simplifyGeometry(picked.geojson)
-      if (geometry) console.log(`[boundary] ${key} ${before} → ${countPoints(geometry)} points`)
+      /**
+       * ⛔ A NON-200 IS NOT A MISS EITHER, AND THIS IS THE SUBTLE ONE. Nominatim answers 429 when the
+       * one-request-per-second policy is exceeded; without this early return that 429 would fall
+       * through with `geometry === null` and be WRITTEN as `found = false` — denying a perfectly real
+       * ward for the full thirty-day negative TTL because we were briefly too quick. Only a completed
+       * lookup that actually saw OSM's answer may record a miss.
+       * ⚠️ BAILING OUT OF THE WHOLE LOOP, not just this candidate: a 429 says nothing about the name,
+       * so trying the next alias would both waste a request and risk caching a miss on rate-limiting.
+       */
+      if (!res.ok) return failed(`upstream-${res.status}`)
+      // ⛔ THE CANDIDATE IS WHAT THE NAME CHECK COMPARES AGAINST, not the curated label. Otherwise
+      // asking for "Huyện Nhà Bè" would be rejected for not being called "Nhà Bè" — and, worse, the
+      // check would stop being the thing that proves we got the area we asked for.
+      const picked = pickBoundary((await res.json()) as OsmResult[], kind, candidate.expect, province)
+      if (picked?.geojson) {
+        const before = countPoints(picked.geojson)
+        geometry = simplifyGeometry(picked.geojson)
+        /**
+         * ⛔ ONLY A GEOMETRY WE CAN ACTUALLY DRAW ENDS THE SEARCH (reviewer). `simplifyGeometry`
+         * returns null for anything that is not a Polygon/MultiPolygon, so breaking on a `picked`
+         * whose geometry did not survive left `geometry === null`, fell through, and WROTE
+         * `found = false` — caching a false negative for thirty days on an area whose very next
+         * candidate might have resolved.
+         */
+        if (geometry) {
+          console.log(`[boundary] ${key} via "${candidate.q}" ${before} → ${countPoints(geometry)} points`)
+          break
+        }
+      }
+      // Space the retries out — this is the one path that issues more than one request, and OSM's
+      // policy is one per second. Skipped after the last candidate, which has nothing to wait for.
+      if (candidate !== candidates[candidates.length - 1]) await new Promise((r) => setTimeout(r, 1100))
     }
   } catch {
     // A timeout or a DNS failure is not evidence that the area has no boundary — return without

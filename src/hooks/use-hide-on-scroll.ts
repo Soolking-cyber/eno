@@ -20,6 +20,7 @@ export function useHideOnScroll({ threshold = 6, revealOffset = 80 }: { threshol
     // The trade is that `hidden` cannot change until the user's first scroll frame, which is exactly
     // when it could first be meaningful: the bars start visible and a scroll is what hides them.
     let lastY: number | null = null
+    let lastHeight = 0
     let ticking = false
 
     const update = () => {
@@ -29,6 +30,28 @@ export function useHideOnScroll({ threshold = 6, revealOffset = 80 }: { threshol
       // the initial `lastY` would be 0 and a page restored mid-scroll would read one enormous
       // downward delta and hide the chrome on the user's first pixel of movement.
       if (lastY === null) {
+        lastY = y
+        lastHeight = document.documentElement.scrollHeight
+        return
+      }
+      /**
+       * ⛔ A DOCUMENT THAT GREW IS NOT A USER WHO SCROLLED — AND AT THE BOTTOM OF AN INFINITE
+       * FEED THAT IS THE ONLY THING HAPPENING. Measured on prod 2026-09-24, desktop 1440x900,
+       * sitting still at the bottom of the home feed: the next page appends, `scrollHeight` goes
+       * 3524 → 3962, and because the viewport is pinned to the bottom the browser advances
+       * `window.scrollY` by the SAME 438px to keep the content anchored. Nobody touched the
+       * wheel. This hook then read +438 as a deliberate scroll-down and slid the 64px header
+       * away; the next page did it again, which is the "navbar jumping at the bottom" the owner
+       * reported. It is desktop-visible because a tall viewport reaches the sentinel's 600px
+       * rootMargin while still pinned at the bottom.
+       * ⚠️ RE-ANCHOR AND DECIDE NOTHING, rather than trying to subtract the growth. The delta is
+       * only meaningless when it came from the resize; a user genuinely scrolling through a frame
+       * that also appended simply has that one frame skipped, and the next frame reads true.
+       * Deciding nothing for a frame is invisible; guessing a correction is not.
+       */
+      const height = document.documentElement.scrollHeight
+      if (height !== lastHeight) {
+        lastHeight = height
         lastY = y
         return
       }

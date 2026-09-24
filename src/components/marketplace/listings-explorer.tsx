@@ -27,7 +27,7 @@ import { RecentlyViewedRail } from './recently-viewed-rail'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
-import { DISTRICTS } from './listings-explorer.constants'
+import { DISTRICTS, DISTRICTS_PROVINCE_CODE } from './listings-explorer.constants'
 import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
@@ -143,6 +143,24 @@ const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { 
  *  "Near you" path deliberately pulls a broader set — it distance-filters client-side —
  *  and is the one caller that overrides it. */
 const FIRST_PAGE_SIZE = 12
+
+/**
+ * ⛔ AUTO-PAGINATION STOPS HERE AND WAITS FOR A CLICK — owner, 2026-09-24: "it auto laod too much
+ * make sure user clicks load button before autoloading post 100 products".
+ *
+ * The feed used to auto-page forever once unlocked. Measured on prod that day (desktop 1440x900,
+ * sitting still at the bottom of the home feed): the document went 3556 → 3962 → 7881px in 1.5
+ * SECONDS with no user input, because each append moved the sentinel back into its own 600px
+ * rootMargin. That is the "loads too much", and it also caused the header to jump — a bottom-pinned
+ * viewport has `scrollY` advanced by the browser when content grows, which `useHideOnScroll` could
+ * not tell from a scroll-down (fixed there, in its own comment).
+ *
+ * ⚠️ A CEILING, NOT A HARD STOP. Every click raises it by another 100, so the contract is "auto-load
+ * a hundred, then ask" repeatedly — not "a hundred and then paginate by hand forever".
+ * ⚠️ NOT A MULTIPLE OF `FIRST_PAGE_SIZE` (12) ON PURPOSE: the gate compares ROWS LOADED, so it trips
+ * at the first page boundary at or past 100 (108) rather than pretending the owner said 96 or 120.
+ */
+const AUTO_LOAD_CAP = 100
 
 // Perf: the LIST view's row and the MOBILE filters drawer were static imports, so both shipped
 // in the home route's first load even though neither is on the default path — the feed renders
@@ -480,7 +498,7 @@ export function ListingsExplorer({
   // The back-nav snapshot, read once on mount and applied when the feed's filters
   // settle to the same signature (filters hydrate from the URL in an effect, so the
   // match can't be made synchronously at mount).
-  const pendingSnapRef = useRef<{ sig: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number; unlocked?: boolean; anchorId?: string | null; anchorTop?: number | null } | null>(null)
+  const pendingSnapRef = useRef<{ sig: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number; unlocked?: boolean; ceiling?: number; anchorId?: string | null; anchorTop?: number | null } | null>(null)
   const snapReadRef = useRef(false)
   const [subcategoryCounts, setSubcategoryCounts] = useState<Record<string, number>>({})
   /**
@@ -636,6 +654,7 @@ export function ListingsExplorer({
     setPriceRange('all')
     setShowExplorer(false)
     setFeedUnlocked(false) // re-gate the home feed (footer reachable again)
+    setAutoLoadCeiling(AUTO_LOAD_CAP) // …and start the auto-load budget over
     // ⚠️ THE VIEW IS PART OF "GO HOME" NOW (2026-08-11). It was not, and did not need to be,
     // while the landing was its own tree that ignored viewMode entirely — a logo tap from the
     // map landed on the landing and the stale 'map' was invisible. One tree means a leftover
@@ -774,6 +793,7 @@ export function ListingsExplorer({
     // Back to undirected browse → back behind the pagination gate, exactly as the logo reset
     // does. Without it the home feed keeps auto-paginating and the footer stays lost.
     setFeedUnlocked(false)
+    setAutoLoadCeiling(AUTO_LOAD_CAP)
   }, [
     showExplorer, viewMode, activeCategory, query, debouncedQuery, activeDistrict, activeSubcategory, activeBrand,
     activeModel, activeLine, listingType, conditionFilter, goodPriceOnly, priceRange, activeProvince, activeWard,
@@ -1525,6 +1545,65 @@ export function ListingsExplorer({
     },
   })
 
+  /**
+   * EVERY DISTRICT'S SHAPE, so the map can be used to PICK one — owner, 2026-09-24: "on district
+   * mode user can click and select dirstict on map show outlines on hover".
+   *
+   * ⚠️ "DISTRICT MODE" IS DERIVED, NOT A NEW TOGGLE. The map is at district granularity whenever the
+   * reader has not narrowed to a ward; adding a mode switch for something the filter state already
+   * says would be a second place to get it wrong. A ward reader has already chosen a finer area, and
+   * painting the surrounding districts over it would invite them to throw that choice away by
+   * accident.
+   * ⚠️ HCMC ONLY, because `DISTRICTS` is a curated Hồ Chí Minh list (DISTRICTS_PROVINCE_CODE '79').
+   * Outside it there is nothing to offer, and the endpoint would answer with an empty array anyway.
+   * ⚠️ Map view only and cached for the session, for the same reason the single outline above is.
+   */
+  const districtPickEnabled = viewMode === 'map' && !activeWard
+    && (!activeProvince || activeProvince.code === DISTRICTS_PROVINCE_CODE)
+  const { data: districtShapesData } = useQuery({
+    queryKey: ['geo-boundaries', 'district', 'Hồ Chí Minh'],
+    enabled: districtPickEnabled,
+    /**
+     * ⚠️ `Infinity` ONLY FOR A COMPLETE ANSWER (reviewers, twice). Shapes do not move, so the full
+     * set is worth pinning for the session — but a request landing mid-warm returns a SUBSET, and
+     * an earlier version keyed this on "is it non-empty", which pinned that subset just as firmly
+     * as the whole thing: a reader who opened the map after one district had been stored kept
+     * exactly that one for the session. The route already says which it is; trusting that is what
+     * makes the server's short partial TTL mean anything on the client.
+     */
+    staleTime: (q) => ((q.state.data as { complete?: boolean } | undefined)?.complete ? Infinity : 0),
+    gcTime: 60 * 60 * 1000,
+    queryFn: async () => {
+      const res = await fetch(`/api/geo/boundaries?province=${encodeURIComponent('Hồ Chí Minh')}`)
+      if (!res.ok) return { boundaries: [], complete: false }
+      return (await res.json()) as { boundaries: { slug: string; name: string; nameEn: string; geojson: unknown }[]; complete?: boolean }
+    },
+  })
+  /**
+   * ⚠️ THE ACTIVE DISTRICT IS EXCLUDED FROM THE PICK LAYER. It already has its own solid outline
+   * (the `boundary` prop); leaving it in would stack a hover highlight on top of that and let the
+   * reader "select" what is already selected.
+   */
+  const districtShapes = useMemo(
+    () => (districtShapesData?.boundaries ?? []).filter((d) => d.slug !== activeDistrict),
+    [districtShapesData, activeDistrict],
+  )
+  const handleSelectDistrict = useCallback((slug: string) => {
+    setActiveDistrict(slug)
+    /**
+     * ⚠️ CLEAR THE NARROWER FILTERS THE NEW AREA CANNOT CONTAIN (reviewer). `selectedBuilding` is a
+     * single tower and `nearby` is a radius somewhere else entirely; either one surviving a district
+     * pick intersects with it and hands back an empty feed that nothing on screen explains — the
+     * same trap the building-selection guard elsewhere in this file exists to close.
+     */
+    setSelectedBuilding(null)
+    setNearby(null)
+    // Picking an area is a new feed: start it at page one, and put the auto-load budget back so a
+    // deep previous browse does not carry its spent ceiling into a fresh district.
+    setPage(1)
+    setAutoLoadCeiling(AUTO_LOAD_CAP)
+  }, [])
+
   const buildingPins = useMemo(() => buildingsData?.buildings ?? [], [buildingsData])
   const activeBuilding = useMemo(
     () => (selectedBuilding ? buildingPins.find((b) => b.key === selectedBuilding) ?? null : null),
@@ -1604,6 +1683,26 @@ export function ListingsExplorer({
     [activeCategory, activeSubcategory, activeBrand, activeModel, activeDistrict, activeProvince?.code, activeWard?.code, nearby, conditionFilter, goodPriceOnly, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters],
   )
 
+  /**
+   * ⛔ THE AUTO-LOAD BUDGET BELONGS TO ONE FEED, NOT TO THE SESSION (reviewer). It was reset on the
+   * logo/home paths and on a district pick, but not when the reader changed category, query, price,
+   * province, brand or condition — so someone who clicked "Load more" up to 200 on one feed got the
+   * NEXT one auto-loading to 200 as well, which defeats the cap on every path except the three that
+   * happened to be wired. `feedSig` is this file's existing identity for "these are different
+   * results", and it is exactly the right granularity: it changes when the query does and not when
+   * a new page of the same query arrives.
+   * ⚠️ Skips the first run so a restored back-nav ceiling is not immediately thrown away — the
+   * restore effect runs on the same signature.
+   */
+  const feedSigForCap = useRef<string | null>(null)
+  useEffect(() => {
+    if (feedSigForCap.current === null) { feedSigForCap.current = feedSig; return }
+    if (feedSigForCap.current === feedSig) return
+    feedSigForCap.current = feedSig
+    setAutoLoadCeiling(AUTO_LOAD_CAP)
+  }, [feedSig])
+
+
   // Rehydrate the feed after a back-nav from a listing: restore the accumulated rows,
   // page depth and scroll position (Baymard: dumping the buyer at the top of a reset
   // feed is a leading cause of abandonment). The snapshot is read once on mount, then
@@ -1647,6 +1746,28 @@ export function ListingsExplorer({
       // scroll dead-ended at a "Load more" button they had already pressed. (Declared
       // further down the component — read inside an effect, so it is initialised by now.)
       setFeedUnlocked(snap.unlocked === true)
+      /**
+       * Restore the auto-load budget, and never restore one SMALLER than the rows coming back — an
+       * older snapshot without a ceiling would otherwise re-gate a feed mid-scroll.
+       * ⚠️ AND NEVER A BIGGER ONE EITHER (reviewer). Rounding the restored length UP to the next
+       * whole cap handed 108 restored rows a ceiling of 200 — so a back-nav, the most common path
+       * on this marketplace, auto-paged to twice the budget the owner asked for. The floor is the
+       * row count itself: the reader gets back exactly what they had, and the button is waiting.
+       */
+      setAutoLoadCeiling(Math.max(
+        typeof snap.ceiling === 'number' ? snap.ceiling : AUTO_LOAD_CAP,
+        snap.listings.length || 0,
+        AUTO_LOAD_CAP,
+      ))
+      /**
+       * ⛔ CLAIM THIS SIGNATURE FOR THE CAP, OR THE RESTORE IS UNDONE ONE TICK LATER (reviewer).
+       * The per-feed reset below fires whenever `feedSig` CHANGES and skips only its own first run —
+       * but the filters hydrate from the URL asynchronously, so the signature changes again just
+       * after this restore and threw the recovered ceiling away. The reader came back to 108 rows
+       * and was immediately gated behind a "Load more" they had already pressed, which is the exact
+       * dead end the snapshot exists to prevent.
+       */
+      feedSigForCap.current = feedSig
     }
   }, [feedSig])
 
@@ -1976,6 +2097,11 @@ export function ListingsExplorer({
   // infinite after any directed browsing, which is precisely the footer-loss this gate exists to
   // prevent, so it trades a cosmetic oddity for the regression.
   const [feedUnlocked, setFeedUnlocked] = useState(false)
+  /**
+   * How many rows auto-pagination may reach before it stops and waits for a click. Raised by one
+   * CAP per press, so the feed alternates auto-load → button → auto-load. See AUTO_LOAD_CAP.
+   */
+  const [autoLoadCeiling, setAutoLoadCeiling] = useState(AUTO_LOAD_CAP)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   // Map view's result list scrolls inside its own column on desktop, so the
   // infinite-scroll sentinel must live INSIDE that column and observe it as the
@@ -2025,6 +2151,12 @@ export function ListingsExplorer({
     // undirected browsing too, but it has no "Browse everything" button to unlock with, so
     // gating it produces a dead end rather than a reachable footer.
     if (showDiscovery && !feedUnlocked) return
+    // ⛔ THE CAP. Past the ceiling the observer is never created, so the sentinel sits inert and the
+    // footer's "Load more" is the only way on. Deliberately NOT done by unmounting the sentinel:
+    // this file's standing invariant is that the sentinel div must never be hidden/display:none
+    // (a hidden element is never intersected and pagination dies silently) — leaving it mounted and
+    // simply not observing it keeps that guarantee true while still stopping the auto-fetch.
+    if (listings.length >= autoLoadCeiling) return
     // ⚠️ NEVER AUTO-PAGE A FEED WHOSE QUERY HAS NOT LANDED YET. `query` is the committed search
     // and `debouncedQuery` is what the fetcher actually uses, 150ms behind it; while they differ
     // the rows on screen belong to the PREVIOUS query, so appending page 2 appends the wrong
@@ -2052,7 +2184,7 @@ export function ListingsExplorer({
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasMore, queryFetching, prefetchNextPage, viewMode, showDiscovery, feedUnlocked, query, debouncedQuery])
+  }, [hasMore, queryFetching, prefetchNextPage, viewMode, showDiscovery, feedUnlocked, query, debouncedQuery, listings.length, autoLoadCeiling])
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
@@ -2074,13 +2206,17 @@ export function ListingsExplorer({
           // The home feed's infinite scroll is opt-in; restoring depth without the unlock
           // would strand the buyer behind a "Load more" they already pressed.
           unlocked: feedUnlocked,
+          // ⚠️ The auto-load ceiling rides along for the same reason `unlocked` does: coming back
+          // to 108 restored rows with the budget reset to 100 would strand the buyer behind a
+          // "Load more" they already pressed.
+          ceiling: autoLoadCeiling,
           anchorId: l.id,
           anchorTop: card ? card.getBoundingClientRect().top : null,
         }))
       }
     } catch { /* ignore quota/serialization */ }
     router.push(`/listings/${l.id}`)
-  }, [listings, page, totalCount, feedSig, feedUnlocked, router])
+  }, [listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling, router])
   // Warm the listing page before the click (hover on desktop, touchstart on mobile)
   // so it opens instantly instead of SSR-ing on click. De-duped by Next's prefetch cache.
   /**
@@ -3406,6 +3542,31 @@ export function ListingsExplorer({
                             {tr('Loading more…', 'Đang tải thêm…')}
                           </div>
                         )}
+                        {/* ⛔ THE CAP'S BUTTON HAS TO EXIST HERE TOO. The footer that carries it for
+                            the grid is gated on `viewMode !== 'map'`, and the map column paginates
+                            through its OWN sentinel — so without this the map reader hits the
+                            ceiling and auto-load simply stops with no control, which is precisely
+                            the dead end the `feedUnlocked` gate was written to avoid. An external
+                            reviewer flagged it as the one thing to check before committing, and it
+                            was real. */}
+                        {/* ⚠️ THE SAME GUARDS THE SENTINEL AND THE FOOTER BUTTON CARRY (reviewer).
+                            `query !== debouncedQuery` is the one that matters: the fetcher runs
+                            150ms behind the committed search, so a press inside that window pages
+                            the PREVIOUS query's inventory and then throws it away when the filter
+                            signature settles. `showDiscovery && !feedUnlocked` keeps this from
+                            appearing beside the undirected feed's own unlock button. */}
+                        {hasMore && listings.length >= autoLoadCeiling && !queryFetching
+                          && query.trim() === debouncedQuery.trim()
+                          && !(showDiscovery && !feedUnlocked) && (
+                          <Button
+                            variant="bare"
+                            size="none"
+                            onClick={() => { prefetchNextPage(); setPage((p) => p + 1); setAutoLoadCeiling((c) => c + AUTO_LOAD_CAP) }}
+                            className="w-full rounded-xl border border-line-strong px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted"
+                          >
+                            {tr('Load more', 'Tải thêm')}
+                          </Button>
+                        )}
                         {!hasMore && totalCount > 24 && (
                           <p className="text-center text-xs font-semibold text-ink-4">{tr("You've reached the end", 'Bạn đã xem hết')}</p>
                         )}
@@ -3426,6 +3587,8 @@ export function ListingsExplorer({
                       onSelectBuilding={handleSelectBuilding}
                   feedParams={baseParamsString}
                   boundary={outlineData?.boundary ?? null}
+                  districtShapes={districtPickEnabled ? districtShapes : undefined}
+                  onSelectDistrict={districtPickEnabled ? handleSelectDistrict : undefined}
                       activeDistrict={activeDistrict}
                       onOpenListing={handleOpen}
                       selectedId={hoveredId ?? focusId}
@@ -3505,6 +3668,32 @@ export function ListingsExplorer({
                         className="w-full rounded-xl border border-line-strong px-6 py-3 text-sm font-bold text-foreground transition-colors hover:bg-muted"
                       >
                         {tr('Browse everything', 'Xem tất cả tin đăng')}
+                      </Button>
+                    </div>
+                  )}
+                  {/* ⛔ THE AUTO-LOAD CAP'S BUTTON (owner, 2026-09-24). Shown once the feed has
+                      auto-paged to the ceiling; pressing it raises the ceiling by another 100 and
+                      hands the next stretch back to the sentinel.
+                      ⚠️ Carries the SAME `!(queryFetching && page > 1)` guard as the "Browse
+                      everything" button above, for the same reason recorded there: the button and
+                      the spinner must be mutually exclusive or the footer swaps a 44px control for
+                      a ~19px spinner and shifts the page under the reader.
+                      ⚠️ Mutually exclusive with "Browse everything" too — that one only renders
+                      while `!feedUnlocked`, which on this feed means 12 rows, far below the cap;
+                      the explicit `!(showDiscovery && !feedUnlocked)` keeps that true even if the
+                      unlock gate's own condition is changed later. */}
+                  {hasMore
+                    && listings.length >= autoLoadCeiling
+                    && !(showDiscovery && !feedUnlocked)
+                    && !(queryFetching && page > 1) && (
+                    <div className="border-t border-border pt-6">
+                      <Button
+                        variant="bare"
+                        size="none"
+                        onClick={() => { prefetchNextPage(); setPage((p) => p + 1); setAutoLoadCeiling((c) => c + AUTO_LOAD_CAP) }}
+                        className="w-full rounded-xl border border-line-strong px-6 py-3 text-sm font-bold text-foreground transition-colors hover:bg-muted"
+                      >
+                        {tr('Load more', 'Tải thêm')}
                       </Button>
                     </div>
                   )}

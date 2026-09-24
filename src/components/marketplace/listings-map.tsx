@@ -114,6 +114,13 @@ type Props = {
    * and the request is shared with react-query's cache.
    */
   boundary?: unknown
+  /**
+   * Every curated district's outline, for the pick-a-district-on-the-map layer below. Fetched by
+   * the explorer (see /api/geo/boundaries) so this component stays a renderer.
+   */
+  districtShapes?: { slug: string; name: string; nameEn: string; geojson: unknown }[]
+  /** Selecting a district by clicking its shape. Absent → the layer is not drawn at all. */
+  onSelectDistrict?: (slug: string) => void
 }
 
 // SELF-HOSTED (public/vendor/leaflet, byte-verified against the npm 1.9.4 tarball) — was
@@ -341,7 +348,7 @@ function MapCredit({ className }: { className?: string }) {
   )
 }
 
-export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove, buildings, selectedBuilding, onSelectBuilding, feedParams, boundary }: Props) {
+export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove, buildings, selectedBuilding, onSelectBuilding, feedParams, boundary, districtShapes, onSelectDistrict }: Props) {
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
   const { currency: pickedCurrency, rates: fxRates } = useCurrency()
@@ -378,6 +385,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   const onSelectBuildingRef = useRef(onSelectBuilding)
   onSelectBuildingRef.current = onSelectBuilding
   const boundaryLayerRef = useRef<any>(null) // the ward/district outline layer
+  const districtLayerRef = useRef<any>(null) // the pick-a-district hover/click layer
   const areaShapeRef = useRef<any>(null) // the area-search overlay — a RECTANGLE, see below
   const fitKeyRef = useRef<string>('') // last filter signature we auto-fit bounds for
   const [ready, setReady] = useState(false)
@@ -625,8 +633,25 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   const closeBuildingCardRef = useRef<() => void>(() => {})
   const closeBuildingCard = () => { setBuildingCard(null); setBuildingCardPos(null) }
   closeBuildingCardRef.current = closeBuildingCard
+  /**
+   * Is a card open RIGHT NOW? Read by the district pick layer to tell "choose this area" from
+   * "dismiss the card I just opened" — see the click handler there for why that matters. A ref,
+   * not state: the layer's handlers are built once per shape set and would close over a stale value.
+   */
+  /** The building card is only ever opened by a deliberate click, so it always pins. */
+  const buildingCardOpenRef = useRef(false)
+  buildingCardOpenRef.current = buildingCard !== null
+  /**
+   * ⛔ WAS THE OPEN CARD PINNED BY A CLICK, OR IS IT JUST A HOVER PEEK? On desktop this map opens
+   * the listing card on `mouseover` (see the marker handlers), so "a card is open" is the NORMAL
+   * state whenever the cursor has passed a pin — and blocking district clicks on that alone meant a
+   * reader whose cursor had just brushed a marker clicked a district and got nothing, silently.
+   * A reviewer caught that the guard was right for click-to-dismiss and wrong for hover. Only a
+   * card the reader deliberately opened makes the next click a dismissal.
+   */
+  const cardPinnedRef = useRef(false)
 
-  const closeCard = () => { cardIdRef.current = null; peekedRef.current = null; openCardObjRef.current = null; setCard(null); setCardPos(null); onHover?.(null) }
+  const closeCard = () => { cardIdRef.current = null; peekedRef.current = null; openCardObjRef.current = null; cardPinnedRef.current = false; setCard(null); setCardPos(null); onHover?.(null) }
   // Desktop hover UX: keep the card open while the cursor is over the marker OR the
   // card, and close it gracefully a beat after the cursor leaves both — so it never
   // persists over the cards behind it (and the small grace period lets the cursor
@@ -884,9 +909,11 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
         // below, that would drag the page off the map (see the two-step note above)
         // and the card's first tap does it instead.
         if (!isHoverable() && cardIdRef.current === l.id) onOpenListing(l) // touch: 2nd tap on the pin still opens
-        else openCard(l, true, listIsBeside())
+        else { cardPinnedRef.current = true; openCard(l, true, listIsBeside()) }
       })
-      marker.on('mouseover', () => { if (isHoverable()) { cancelClose(); openCard(l) } else { onHover?.(l.id) } })
+      // ⚠️ A HOVER-OPENED CARD IS NOT PINNED — see `cardPinnedRef`. Clearing it here is what keeps
+      // a district click working for a reader whose cursor merely passed over a pin.
+      marker.on('mouseover', () => { if (isHoverable()) { cancelClose(); cardPinnedRef.current = false; openCard(l) } else { onHover?.(l.id) } })
       marker.on('mouseout', () => { if (isHoverable()) { scheduleClose() } else { onHover?.(null) } })
       markersRef.current.set(l.id, marker)
     })
@@ -996,6 +1023,114 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       boundaryLayerRef.current = null
     }
   }, [boundary, ready])
+
+  /**
+   * PICK A DISTRICT BY CLICKING THE MAP — owner, 2026-09-24: "on district mode user can click and
+   * select dirstict on map show outlines on hover".
+   *
+   * ⛔ INVISIBLE UNTIL HOVERED, WHICH IS THE POINT AND NOT A COMPROMISE. Drawing twenty outlines at
+   * once turns a map whose content is PINS into a net of lines with the merchandise underneath it —
+   * the owner asked for the outline to appear on hover, so at rest each district is a transparent
+   * hit area with no stroke and no fill, and only the one under the cursor draws itself.
+   *
+   * ⛔ THIS LAYER IS INTERACTIVE, UNLIKE EVERY OTHER SHAPE ON THIS MAP, so the note on the outline
+   * above — a filled polygon swallows the taps meant for the pins inside it — applies here with
+   * full force and is handled rather than avoided:
+   *   · it sits at the BACK (`bringToBack`), under the marker pane, so a pin always wins the click;
+   *   · a click is only treated as a district pick when it did NOT land on a marker, which Leaflet
+   *     tells us by `originalEvent` propagation — markers stop it before it reaches the polygon;
+   *   · and `fillOpacity: 0` still receives events in Leaflet (unlike CSS `pointer-events`), which
+   *     is exactly why an invisible hit area works at all here.
+   *
+   * ⚠️ NOT DRAWN AT ALL WITHOUT `onSelectDistrict`. A hover highlight that cannot be clicked is a
+   * map that looks interactive and is not, which is worse than a plain one.
+   */
+  useEffect(() => {
+    if (!ready) return
+    const L = (window as any).L
+    const map = mapInstanceRef.current
+    if (!map) return
+    if (districtLayerRef.current) { map.removeLayer(districtLayerRef.current); districtLayerRef.current = null }
+    if (!onSelectDistrict || !districtShapes?.length) return
+    /**
+     * ⛔ HOVER-CAPABLE POINTERS ONLY, AND THIS IS A CORRECTNESS GATE, NOT A NICETY. The affordance
+     * the owner asked for is "show outlines on hover" — on touch there IS no hover, so the shapes
+     * would be invisible hit areas with no feedback whatsoever, and the FIRST tap on any empty
+     * patch of map would silently change the district filter and reset the feed. Worse, tapping the
+     * map is the standard way to dismiss a Leaflet popup, so closing a listing card would re-filter
+     * the page. An external reviewer caught this and it is the real defect in the first version:
+     * an invisible control that fires on the gesture people use to cancel.
+     */
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return
+
+    // At rest: a hit area only. On hover: the outline the owner asked for.
+    const REST = { color: '#0A66C2', weight: 0, opacity: 0, fillColor: '#0A66C2', fillOpacity: 0 }
+    const HOVER = { color: '#0A66C2', weight: 2, opacity: 0.9, fillColor: '#0A66C2', fillOpacity: 0.08 }
+
+    try {
+      const group = L.featureGroup()
+      for (const d of districtShapes) {
+        if (!d?.geojson) continue
+        /**
+         * ⚠️ `bubblingMouseEvents` LEFT AT ITS DEFAULT (true) ON PURPOSE. Setting it false stops the
+         * event reaching the map container, which is what dragging, double-click zoom and the
+         * map's own click handling all ride on — a reviewer flagged it as blocking panning across
+         * the whole city, and a polygon that covers HCMC is exactly where that would hurt.
+         */
+        const layer = L.geoJSON(d.geojson, { interactive: true, style: REST })
+        // The accessible/visible name for the hover affordance. `sticky` keeps it with the cursor
+        // rather than pinned to the polygon's centroid, which for a long district is off screen.
+        layer.bindTooltip(uiLang === 'vi' ? d.name : d.nameEn, { sticky: true, direction: 'top', opacity: 0.95 })
+        layer.on('mouseover', () => layer.setStyle(HOVER))
+        layer.on('mouseout', () => layer.setStyle(REST))
+        /**
+         * ⛔ A CLICK THAT DISMISSES A CARD IS NOT A DISTRICT PICK. This map's click-to-close is
+         * `map.on('click', …)` above — "tap the map background → close both cards" — so a reader who
+         * opens a listing card and clicks the map to get rid of it would otherwise ALSO land on the
+         * transparent district under the cursor, re-filtering the page and resetting the feed to
+         * page one. A reviewer found this and was right; the first fix guarded `map._popup`, which
+         * is dead code here because this map binds no Leaflet popups at all (`bindPopup` appears
+         * nowhere in this file) — it uses React cards. Guarding the actual card state is the fix.
+         * ⚠️ THE ORDER IS WHAT MAKES IT WORK: Leaflet runs this layer's handler BEFORE the click
+         * bubbles to the map's own, so the card is still open when this asks.
+         *
+         * ⚠️ AND IGNORE A TOUCH-ORIGIN CLICK EVEN HERE (reviewer). `(hover: hover)` describes the
+         * PRIMARY pointer, so a touchscreen laptop with a mouse attached passes the gate above and
+         * can still deliver a finger tap. `pointerType` is what the event itself says it was.
+         */
+        layer.on('click', (e: any) => {
+          const oe = e?.originalEvent
+          if (oe && oe.pointerType && oe.pointerType !== 'mouse') return
+          // Only a PINNED card (click-opened, or a building card) makes this click a dismissal; a
+          // hover peek must not swallow it. See `cardPinnedRef`.
+          if (cardPinnedRef.current || buildingCardOpenRef.current) return
+          onSelectDistrict(d.slug)
+        })
+        group.addLayer(layer)
+      }
+      districtLayerRef.current = group.addTo(map)
+      // ⛔ BEHIND EVERYTHING. `bringToBack` is what keeps a pin's click a pin's click — measured:
+      // the marker pane computes to z-index 600 against the overlay pane's 400, so a pin wins the
+      // click at its own centre.
+      // ⚠️ ORDER MATTERS AND THE FIRST VERSION HAD IT BACKWARDS (reviewer): whichever layer calls
+      // `bringToBack` LAST ends up furthest back. Sending the active-area outline back first, then
+      // this group, leaves the outline ABOVE the pick layer — which is what the intent was.
+      boundaryLayerRef.current?.bringToBack?.()
+      group.bringToBack?.()
+    } catch {
+      // A malformed geometry must not take the map down — no pick-layer is a fine outcome.
+      districtLayerRef.current = null
+    }
+    // ⚠️ AN EXPLICIT CLEANUP, not just the removal at the top of the next run (reviewer). The two
+    // are equivalent while this effect re-runs, and differ on UNMOUNT — which is the case that
+    // leaves listeners and layers on a map instance nobody is looking at any more.
+    return () => {
+      if (districtLayerRef.current) {
+        try { map.removeLayer(districtLayerRef.current) } catch { /* map already gone */ }
+        districtLayerRef.current = null
+      }
+    }
+  }, [districtShapes, onSelectDistrict, ready, uiLang, boundary])
 
   // Update marker styling on selection / hover (no full rebuild).
   useEffect(() => {
