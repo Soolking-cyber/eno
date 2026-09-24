@@ -76,6 +76,42 @@ describe('pickBoundary', () => {
     expect(pickBoundary(r, 'district', 'Quận 1')?.type).toBe('historic')
   })
 
+  /**
+   * ⛔ THE TWO LOOK-ALIKES THE ABOLISHED DISTRICTS ACTUALLY RETURN, probed against the live API on
+   * 2026-09-24 when `d2`/`d9` were added to the curated list. Neither Quận 2 nor Quận 9 has had an
+   * administrative boundary since the 2021 merger into Thủ Đức, and the country-scoped fallback
+   * (see `districtQueryCandidates`) reaches nationwide — so these are exactly what it finds:
+   * a NEIGHBOURHOOD 600km away in Hội An, and a MEKONG DELTA MILITARY REGION. Outlining either as
+   * a Saigon district would be the "outline that is a guess" this module exists to refuse, and the
+   * name check is the only thing between us and the first one (it is a real `administrative`
+   * boundary with real geometry). Pinned so a future loosening of that check fails here.
+   */
+  it('refuses the real look-alikes for the abolished districts', () => {
+    const hoiAn: OsmResult[] = [{
+      category: 'boundary', type: 'administrative',
+      display_name: 'Tổ dân phố Quan Châu 2, Phường Hòa Xuân, Hội An, Việt Nam', geojson: poly([]),
+    }]
+    expect(pickBoundary(hoiAn, 'district', 'Quận 2', 'Hồ Chí Minh')).toBeNull()
+
+    const militaryRegion: OsmResult[] = [{
+      category: 'boundary', type: 'military_district',
+      display_name: 'Quân khu 9, Việt Nam', geojson: poly([]),
+    }]
+    expect(pickBoundary(militaryRegion, 'district', 'Quận 9', 'Hồ Chí Minh')).toBeNull()
+
+    /**
+     * ⚠️ THE POSITIVE CONTROL, without which the two rejections above prove nothing (reviewer): the
+     * fixtures carry EMPTY geometry, so if `pickBoundary` refused them for their coordinates rather
+     * than their NAME and TYPE, the test would pass while testing nothing. The same empty polygon,
+     * correctly named and typed, must be accepted.
+     */
+    const realOne: OsmResult[] = [{
+      category: 'boundary', type: 'historic',
+      display_name: 'Quận 2, Thành phố Hồ Chí Minh, Việt Nam', geojson: poly([]),
+    }]
+    expect(pickBoundary(realOne, 'district', 'Quận 2', 'Hồ Chí Minh')).not.toBeNull()
+  })
+
   /** No match is a real answer: the map must draw nothing rather than draw a guess. */
   it('returns null when nothing is an administrative area', () => {
     expect(pickBoundary([], 'ward')).toBeNull()

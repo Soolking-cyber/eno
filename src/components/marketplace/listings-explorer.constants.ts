@@ -80,14 +80,48 @@ export const PROVINCES: { slug: string; name: string; nameEn: string }[] = [
 // should label it with `allDistrictsLabel()`, which names that province instead.
 export const DISTRICTS: { slug: string; name: string; nameEn: string; match?: string[] }[] = [
   { slug: 'all', name: 'Tất cả thành phố', nameEn: 'All cities' },
+  /**
+   * ⛔ THỦ ĐỨC IS THE UMBRELLA AND KEEPS MATCHING ITS OLD DISTRICTS — do not trim this list when
+   * you see `d2`/`d9` below. HCMC abolished Districts 2 and 9 in 2021 and merged them, with the old
+   * Thủ Đức district, into Thành phố Thủ Đức; sellers never stopped typing the old names. Measured
+   * on production 2026-09-24: the `district` column holds "Quận 2" on 4,337 rows and "Quận 9" on
+   * 1,254, against only 1,097 saying "TP. Thủ Đức". So selecting Thủ Đức must return all three, and
+   * it returns 5,830 — dropping these four spellings would hide three quarters of its inventory.
+   */
   { slug: 'thu-duc', name: 'TP Thủ Đức', nameEn: 'Thu Duc City', match: ['Thu Duc', 'Thủ Đức', 'Thao Dien', 'Thảo Điền', 'District 2', 'Quận 2', 'District 9', 'Quận 9'] },
   { slug: 'd1', name: 'Quận 1', nameEn: 'District 1', match: ['District 1', 'Quận 1'] },
+  /**
+   * ⛔ d2 AND d9 ARE ABOLISHED DISTRICTS, LISTED ON PURPOSE — owner, 2026-09-24, after asking "why
+   * there is no district 9 in district search". They have not existed since 2021 (see the Thủ Đức
+   * entry above), and leaving them out made the picker read d1, d3–d8, d10–d12 with two holes that
+   * look like a bug. They are kept BELOW d1 in the old numeric order so the list still scans.
+   *
+   * ⚠️ THEY NARROW, THEY DO NOT DUPLICATE. Thủ Đức stays the umbrella (5,830 rows); these return
+   * only their own — 4,337 and 1,254 — which is what someone picking "District 9" means. Both
+   * spellings are exactly what the data carries: the `district` column has no "Q.9"/"Quan 9"/
+   * "District 02" variants at all, and the filter ORs `location` too, which is where the free-text
+   * "Quận 9 (P. Long Bình mới)" forms live.
+   *
+   * ⚠️ NEITHER WILL EVER GET A MAP OUTLINE, and that is correct rather than missing. OSM has no
+   * administrative boundary for either — probed 2026-09-24: "Quận 2, Việt Nam" returns a
+   * neighbourhood in Hội An and "Quận 9, Việt Nam" returns Quân khu 9, a Mekong Delta MILITARY
+   * region. `pickBoundary`'s name and type checks refuse both (pinned as tests in
+   * geo-boundary.test.ts); the map simply offers no shape for them, which is why
+   * /api/geo/boundaries counts a district as "complete" once it is SETTLED rather than drawn.
+   *
+   * ⚠️ NO EXCLUSION SET IS NEEDED and none is generated: the prefix guard in district-slug.ts only
+   * excludes curated spellings that EXTEND ours, and nothing starts with "Quận 2"/"Quận 9" — there
+   * is no Quận 2x in Vietnam, and production carries no such string.
+   */
+  { slug: 'd2', name: 'Quận 2 (Thủ Đức)', nameEn: 'District 2 (Thu Duc)', match: ['District 2', 'Quận 2'] },
   { slug: 'd3', name: 'Quận 3', nameEn: 'District 3', match: ['District 3', 'Quận 3'] },
   { slug: 'd4', name: 'Quận 4', nameEn: 'District 4', match: ['District 4', 'Quận 4'] },
   { slug: 'd5', name: 'Quận 5', nameEn: 'District 5', match: ['District 5', 'Quận 5'] },
   { slug: 'd6', name: 'Quận 6', nameEn: 'District 6', match: ['District 6', 'Quận 6'] },
   { slug: 'd7', name: 'Quận 7 (Phú Mỹ Hưng)', nameEn: 'District 7 (Phu My Hung)', match: ['District 7', 'Quận 7', 'Phu My Hung', 'Phú Mỹ Hưng'] },
   { slug: 'd8', name: 'Quận 8', nameEn: 'District 8', match: ['District 8', 'Quận 8'] },
+  /** Abolished 2021 and folded into Thủ Đức — see the d2 entry above for the whole rationale. */
+  { slug: 'd9', name: 'Quận 9 (Thủ Đức)', nameEn: 'District 9 (Thu Duc)', match: ['District 9', 'Quận 9'] },
   { slug: 'd10', name: 'Quận 10', nameEn: 'District 10', match: ['District 10', 'Quận 10'] },
   { slug: 'd11', name: 'Quận 11', nameEn: 'District 11', match: ['District 11', 'Quận 11'] },
   { slug: 'd12', name: 'Quận 12', nameEn: 'District 12', match: ['District 12', 'Quận 12'] },

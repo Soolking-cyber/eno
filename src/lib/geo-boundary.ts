@@ -12,8 +12,11 @@
  * returns a LANDUSE point, "Phường Bến Nghé" returns a customs OFFICE, and "Thành phố Thủ Đức"
  * returns a university campus. Taking `results[0]` would have drawn a car park and called it a ward.
  * Filtering to an administrative boundary WITH polygon geometry is the whole difference between this
- * working and it being nonsense: with that filter, 18 of 20 sampled HCMC wards and 19 of 22 curated
+ * working and it being nonsense: with that filter, 18 of 20 sampled HCMC wards and 18 of the curated
  * districts return a usable outline.
+ * ⚠️ THE DISTRICT COUNT MOVES — it was 22 when this was measured and is 24 since `d2`/`d9` were
+ * curated (2026-09-24). Treat the numbers here as a dated measurement, not as an invariant; the
+ * code derives every count from the list itself.
  *
  * ⚠️ THE 2025 REFORM SHOWS UP IN THE DATA, AND NOT AS A BLOCKER. Both plan reviewers predicted
  * districts would be unmatchable because the reform abolished them. They are still there — as
@@ -93,8 +96,7 @@ export function pickBoundary(results: OsmResult[], kind: BoundaryKind, expectedN
 /**
  * The names to ASK OSM for, in order, for one curated district.
  *
- * ⛔ FOUR OF TWENTY-TWO DISTRICTS CAME BACK EMPTY AND TWO OF THOSE WERE OUR OWN STRING, NOT OSM's
- * DATA. Measured against the live API on 2026-09-24, from the production box:
+ * ⛔ FOUR DISTRICTS CAME BACK EMPTY AND TWO OF THOSE WERE OUR OWN STRING, NOT OSM's DATA. Measured against the live API on 2026-09-24, from the production box:
  *   · we asked for "Quận 7 (Phú Mỹ Hưng)" — the picker's display name, carrying a neighbourhood
  *     gloss OSM has never heard of. Asking for "Quận 7" returns `boundary/historic` with a polygon.
  *   · we asked for "Nhà Bè"; OSM files it as "Huyện Nhà Bè" and returns a polygon for that.

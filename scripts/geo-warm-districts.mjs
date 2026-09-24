@@ -3,7 +3,7 @@
  * Fill `GeoBoundary` with every curated district outline, once.
  *
  * ⛔ WHY A SCRIPT AND NOT A REQUEST-TIME FETCH. `/api/geo/boundaries` is cache-only on purpose:
- * OSM's Nominatim policy is ONE request per second, so warming ~23 districts inside a page load
+ * OSM's Nominatim policy is ONE request per second, so warming two dozen districts inside a page load
  * would stall it for half a minute and, run concurrently by two readers, is how a production IP
  * gets banned — which would take the reverse-geocode route down with it. This does the same work
  * out of band, sequentially, at a deliberate 1.1s spacing.
@@ -17,8 +17,14 @@
  * OSM; the route records that as `found=false` and this reports it. Re-running is safe and cheap —
  * cached areas answer from the DB without touching OSM.
  *
- *   node scripts/geo-warm-districts.mjs                 # against production
- *   BASE=http://localhost:3000 node scripts/geo-warm-districts.mjs
+ *   npm run geo:warm                                    # against production
+ *   BASE=http://localhost:3000 npm run geo:warm
+ *
+ * ⛔ RUN IT AFTER ANY DEPLOY THAT ADDS OR RENAMES A CURATED DISTRICT, and nothing enforces that —
+ * an external reviewer checked and this script is referenced by no CI job, no deploy script and no
+ * hook. The cost of forgetting is not a broken map: unwarmed keys leave `/api/geo/boundaries`
+ * "incomplete", which drops its edge TTL from a day to five minutes AND collapses the client's
+ * staleTime to 0, so every map mount refetches the whole shape payload until someone runs this.
  */
 import { readFileSync } from 'node:fs'
 

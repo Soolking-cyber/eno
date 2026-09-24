@@ -1564,14 +1564,20 @@ export function ListingsExplorer({
     queryKey: ['geo-boundaries', 'district', 'Hồ Chí Minh'],
     enabled: districtPickEnabled,
     /**
-     * ⚠️ `Infinity` ONLY FOR A COMPLETE ANSWER (reviewers, twice). Shapes do not move, so the full
-     * set is worth pinning for the session — but a request landing mid-warm returns a SUBSET, and
-     * an earlier version keyed this on "is it non-empty", which pinned that subset just as firmly
-     * as the whole thing: a reader who opened the map after one district had been stored kept
-     * exactly that one for the session. The route already says which it is; trusting that is what
-     * makes the server's short partial TTL mean anything on the client.
+     * ⚠️ THREE STATES, NOT TWO, AND BOTH EXTREMES WERE WRONG IN TURN (reviewers, three rounds).
+     * Pinning any non-empty answer kept a mid-warm SUBSET for the whole session; then pinning only
+     * a complete one sent `staleTime` to 0 for every partial answer, so a district added but not
+     * yet warmed made every map mount refetch the entire shape payload, sitewide, until someone
+     * ran `npm run geo:warm`. A partial answer is perfectly usable — it just should be re-asked
+     * soon rather than trusted forever, which is what the server's own 5-minute partial TTL says.
+     * Only an EMPTY answer is worth nothing and must not be pinned at all.
      */
-    staleTime: (q) => ((q.state.data as { complete?: boolean } | undefined)?.complete ? Infinity : 0),
+    staleTime: (q) => {
+      const d = q.state.data as { complete?: boolean; boundaries?: unknown[] } | undefined
+      if (d?.complete) return Infinity           // settled: shapes do not move
+      if (d?.boundaries?.length) return 5 * 60_000 // partial: usable now, re-ask soon
+      return 0                                   // nothing yet: do not pin an empty answer
+    },
     gcTime: 60 * 60 * 1000,
     queryFn: async () => {
       const res = await fetch(`/api/geo/boundaries?province=${encodeURIComponent('Hồ Chí Minh')}`)

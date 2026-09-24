@@ -47,7 +47,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "node scripts/db-guard.mjs db:migrate && prisma migrate dev",
     "db:reset": "node scripts/db-guard.mjs db:reset && prisma migrate reset",
-    "icons": "node scripts/gen-icons.mjs"
+    "icons": "node scripts/gen-icons.mjs",
+    "geo:warm": "node scripts/geo-warm-districts.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

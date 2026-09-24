@@ -3,7 +3,7 @@
  * outlining the one already chosen.
  *
  * ⛔ CACHE-ONLY, AND THAT IS THE WHOLE DESIGN. The single-area route (`/api/geo/boundary`) may go
- * to Nominatim on a miss; this one must never, because it answers for ~23 areas and OSM's usage
+ * to Nominatim on a miss; this one must never, because it answers for two dozen areas and OSM's usage
  * policy is ONE request per second — a cold call would hold the connection open for the better part
  * of half a minute and, done twice concurrently, is exactly the behaviour that gets a production IP
  * banned. So this reads `GeoBoundary` and nothing else: an area that is not cached is simply absent
@@ -27,7 +27,7 @@ import { boundaryCacheKey } from '@/lib/geo-boundary'
 
 export const runtime = 'nodejs'
 
-type Row = { key: string; geojson: unknown }
+type Row = { key: string; geojson: unknown; found: boolean }
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
@@ -54,16 +54,21 @@ export async function GET(req: NextRequest) {
 
   let rows: Row[] = []
   try {
+    /**
+     * ⚠️ READ THE MISSES TOO, because "complete" means SETTLED, not "has a shape" — see the TTL
+     * note below. `found` comes back so the caller can still be handed only the drawable ones.
+     */
     rows = await db.$queryRaw<Row[]>(Prisma.sql`
-      SELECT "key", "geojson" FROM "GeoBoundary"
-      WHERE "found" = true AND "key" IN (${Prisma.join(wanted.map((w) => w.key))})
+      SELECT "key", "geojson", "found" FROM "GeoBoundary"
+      WHERE "key" IN (${Prisma.join(wanted.map((w) => w.key))})
     `)
   } catch {
     // A cache that cannot be read means no shapes to hover, not a broken page.
     return NextResponse.json({ boundaries: [] }, { headers: { 'Cache-Control': 'no-store' } })
   }
 
-  const byKey = new Map(rows.map((r) => [r.key, r.geojson]))
+  const byKey = new Map(rows.filter((r) => r.found).map((r) => [r.key, r.geojson]))
+  const settled = new Set(rows.map((r) => r.key)) // looked up at all, hit or definitive miss
   const boundaries = wanted
     .filter((w) => byKey.has(w.key))
     .map((w) => ({ slug: w.slug, name: w.name, nameEn: w.nameEn, geojson: byKey.get(w.key) }))
@@ -74,11 +79,16 @@ export async function GET(req: NextRequest) {
    * has populated anything; with one TTL for both answers, that empty array would sit in the edge
    * cache for a day (and be servable stale for a week) while the table behind it was full. The
    * feature would look broken for a day with nothing wrong in the database.
-   * ⚠️ "Complete" means every district we asked for, so a warm run that genuinely cannot resolve
-   * one keeps this on the short TTL rather than pinning a permanent near-miss — cheap, and it
-   * self-heals the moment the missing one lands.
+   * ⛔ "COMPLETE" MEANS SETTLED, NOT "HAS A SHAPE" — and getting that wrong makes the long TTL dead
+   * code. Some curated districts have NO boundary in OSM and never will: measured 2026-09-24,
+   * "Quận 2" returns a neighbourhood in Hội An and "Quận 9" returns Quân khu 9, a Mekong Delta
+   * military region, both correctly refused by `pickBoundary`'s name and type checks. Defining
+   * complete as `boundaries.length === wanted.length` would therefore be permanently false the
+   * moment such a district is curated, pinning every reader to the 5-minute TTL forever. A district
+   * the route has looked up and definitively recorded as a miss is FINISHED, not pending — so what
+   * this asks is "is anything still unknown?".
    */
-  const complete = boundaries.length === wanted.length
+  const complete = wanted.every((w) => settled.has(w.key))
   return NextResponse.json(
     { boundaries, complete },
     {
