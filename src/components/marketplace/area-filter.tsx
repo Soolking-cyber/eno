@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type RefObject } from 'react'
+import { DISTRICTS } from './listings-explorer.constants'
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { LocateFixed, Loader2, Check, ChevronsUpDown } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
@@ -76,15 +77,26 @@ function DisabledField({ label }: { label: string }) {
  * Base UI Selects — which portal their own listbox — keep working untouched.
  */
 export function AreaFilter({
-  open, anchorRef, onClose, province, ward, nearby, onApply, onReset, mode = 'search', hideLocate = false,
+  open, anchorRef, onClose, province, ward, district, onDistrictSupported = false, nearby, onApply, onReset, mode = 'search', hideLocate = false,
 }: {
   open: boolean
   anchorRef?: RefObject<HTMLElement | null>
   onClose: () => void
   province: Geo | null
   ward: Geo | null
+  /**
+   * The curated HCMC district slug, or 'all'. Optional because the post-wizard picker (`mode:
+   * 'pick'`) has no use for it — a seller states where a thing IS, in the official hierarchy.
+   */
+  district?: string
+  /**
+   * Whether the parent can actually APPLY a district. The select is hidden when it cannot: a
+   * fully functional-looking dropdown whose Apply silently does nothing is worse than no dropdown
+   * (reviewer).
+   */
+  onDistrictSupported?: boolean
   nearby: Nearby | null
-  onApply: (r: { province: Geo | null; ward: Geo | null; nearby: Nearby | null }) => void
+  onApply: (r: { province: Geo | null; ward: Geo | null; district?: string; nearby: Nearby | null }) => void
   onReset: () => void
   // 'search' = explorer filter (radius slider). 'pick' = post wizard location
   // picker — choose/auto-fetch a place, NO search-range slider or search wording.
@@ -104,6 +116,7 @@ export function AreaFilter({
   const [address, setAddress] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
   const [locating, setLocating] = useState(false)
+  const [districtSlug, setDistrictSlug] = useState('all')
   const pendingWard = useRef<string[]>([]) // ward-name candidates from geolocation, applied once its wards load
   // Latest-value refs: resolveAddress runs from the async geolocation callback, which closes over
   // provinces/wards from the render where locate() was clicked. If those lists finished loading
@@ -132,10 +145,11 @@ export function AreaFilter({
     if (!open) return
     setProvCode(province?.code || HCMC)
     setWardCode(ward?.code || '')
+    setDistrictSlug(district ?? 'all')
     setLoc(nearby ? { lat: nearby.lat, lng: nearby.lng } : null)
     setRadiusKm(nearby?.radiusKm ?? 5)
     setAddress(null)
-  }, [open, province, ward, nearby])
+  }, [open, province, ward, district, nearby])
 
   // Wards for the selected province — ONLY while the popover is open (perf Phase 1:
   // a persisted/geolocated province made every cold load fetch that province's wards
@@ -215,12 +229,15 @@ export function AreaFilter({
     onApply({
       province: toGeo(provinces.find((p) => p.code === provCode)),
       ward: toGeo(wards.find((w) => w.code === wardCode)),
+      // Belt and braces with the reset above: never SEND a district for a province that has none,
+      // whatever the draft state happens to hold.
+      district: provCode === HCMC ? districtSlug : 'all',
       nearby: loc ? { ...loc, radiusKm } : null,
     })
     onClose()
   }
 
-  const reset = () => { setProvCode(HCMC); setWardCode(''); setLoc(null); setAddress(null); setRadiusKm(5); onReset(); onClose() }
+  const reset = () => { setProvCode(HCMC); setWardCode(''); setDistrictSlug('all'); setLoc(null); setAddress(null); setRadiusKm(5); onReset(); onClose() }
 
   // Symmetry, preserved from the old hand-rolled placement: right-align the panel under
   // triggers on the right half of the screen (e.g. the header pin) and left-align under
@@ -269,7 +286,19 @@ export function AreaFilter({
                   <Label className="text-xs font-bold text-foreground leading-normal">{tr('Province / City', 'Tỉnh / Thành phố')}</Label>
                   <CustomSelect
                     value={provCode}
-                    onChange={(c) => { setProvCode(c); setWardCode('') }}
+                    onChange={(c) => {
+                      setProvCode(c)
+                      setWardCode('')
+                      /**
+                       * ⛔ AND DROP THE DISTRICT. It is an HCMC-only list, and the select below
+                       * disappears the moment another province is chosen — so a district left set
+                       * would keep narrowing the feed from a control the reader can no longer see.
+                       * Concretely (reviewer): pick District 1, Apply, switch to Đà Nẵng, Apply →
+                       * a Đà Nẵng province filter ANDed with an HCMC district filter, zero
+                       * listings, and nothing on screen to undo.
+                       */
+                      setDistrictSlug('all')
+                    }}
                     options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
                     label={tr('Province / City', 'Tỉnh / Thành phố')}
                     placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
@@ -296,6 +325,36 @@ export function AreaFilter({
                   )}
                 </div>
               </div>
+
+              {/**
+                * ⛔ DISTRICT IS AN HCMC CONVENIENCE, NOT THE OFFICIAL HIERARCHY — and the note above
+                * this block is still true: Vietnam's 2025 two-tier model has no district level, so
+                * city → ward IS the official path and that is why these two lead.
+                *
+                * But the LISTINGS still speak in districts: sellers write "Quận 1", "Bình Thạnh",
+                * the curated list is matched against the stored `district`/`location` text, and the
+                * outline the map draws for a district comes back from OSM as a `historic` boundary
+                * under exactly those names. Until the data is re-expressed in wards, a reader
+                * looking for District 1 needs somewhere to say so — and it was buried in the Filter
+                * panel while every other geographic scope lived here.
+                *
+                * ⚠️ HCMC ONLY, because DISTRICTS is a hand-curated HCMC list. Offering it under any
+                * other province would present a filter that silently matches nothing.
+                */}
+              {mode === 'search' && provCode === HCMC && onDistrictSupported && (
+                <div className="min-w-0 space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground leading-normal">{tr('District', 'Quận / Huyện')}</Label>
+                  <CustomSelect
+                    value={districtSlug}
+                    onChange={setDistrictSlug}
+                    options={DISTRICTS.map((d) => ({ value: d.slug, label: lang === 'vi' ? d.name : d.nameEn }))}
+                    label={tr('District', 'Quận / Huyện')}
+                    placeholder={tr('Any district', 'Mọi quận/huyện')}
+                    className={FIELD}
+                    activeClassName={FIELD}
+                  />
+                </div>
+              )}
 
               {/* Near you / use your location — the action button below is self-explanatory,
                   so no heading. Hidden when the parent provides its own geolocate button. */}

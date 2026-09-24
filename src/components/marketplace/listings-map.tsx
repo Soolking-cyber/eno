@@ -908,7 +908,14 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       if (areaShapeRef.current) {
         areaShapeRef.current.setBounds(bounds)
       } else {
-        areaShapeRef.current = L.rectangle(bounds, { color: '#0A66C2', weight: 1.5, fillColor: '#0A66C2', fillOpacity: 0.06 }).addTo(map)
+        /**
+         * ⛔ `interactive: false`, OR THE SEARCH AREA EATS EVERY PIN INSIDE IT. A filled Leaflet
+         * vector is a click target across its whole fill, so this overlay sat on top of exactly the
+         * pins the reader drew it around — the same trap the boundary outline below already guards
+         * against, missed here because the shape predates that rule (the original L.circle had it
+         * too). Confirmed from a live DOM: the path rendered with `class="leaflet-interactive"`.
+         */
+        areaShapeRef.current = L.rectangle(bounds, { interactive: false, color: '#0A66C2', weight: 1.5, fillColor: '#0A66C2', fillOpacity: 0.06 }).addTo(map)
       }
     } else if (areaShapeRef.current) {
       map.removeLayer(areaShapeRef.current)

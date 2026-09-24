@@ -179,6 +179,10 @@ export type FacetBarProps = {
   setWard: Dispatch<SetStateAction<Geo | null>>
   nearby: Nearby | null
   setNearby: Dispatch<SetStateAction<Nearby | null>>
+  /** The curated HCMC district slug and its setter — see the note in <AreaFilter>. Optional so
+   *  every other consumer of this bar is unaffected. */
+  district?: string
+  setDistrict?: (slug: string) => void
   priceRange: string
   setPriceRange: Dispatch<SetStateAction<string>>
   conditionFilter: string
@@ -230,6 +234,8 @@ export function FacetBar({
   setWard,
   nearby,
   setNearby,
+  district,
+  setDistrict,
   priceRange,
   setPriceRange,
   conditionFilter,
@@ -639,9 +645,14 @@ export function FacetBar({
           onClose={() => setAreaOpen(false)}
           province={province}
           ward={ward}
+          district={district}
+          onDistrictSupported={!!setDistrict}
           nearby={nearby}
-          onApply={({ province: p, ward: w, nearby: nb }) => { setProvince(p); setWard(w); setNearby(nb) }}
-          onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
+          onApply={({ province: p, ward: w, district: d, nearby: nb }) => {
+            setProvince(p); setWard(w); setNearby(nb)
+            if (d !== undefined) setDistrict?.(d)
+          }}
+          onReset={() => { setProvince(null); setWard(null); setNearby(null); setDistrict?.('all') }}
         />
       </div>
     </div>

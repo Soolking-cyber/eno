@@ -2972,6 +2972,8 @@ export function ListingsExplorer({
                   setWard={setActiveWard}
                   nearby={nearby}
                   setNearby={setNearby}
+                  district={activeDistrict}
+                  setDistrict={setActiveDistrict}
                   priceRange={priceRange}
                   setPriceRange={setPriceRange}
                   conditionFilter={conditionFilter}
