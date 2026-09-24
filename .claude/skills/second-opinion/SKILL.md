@@ -22,6 +22,13 @@ Measured on the same real refute-prompt at medium: `gpt-6-astra` 19,302 tokens /
 and shares their blind spots, so it never stands in for them. When only ONE of agy/codex returned a
 VERDICT, say "single-sourced" out loud; when neither did, the work has had no independent review.
 
+⛔ **A MODEL ID THAT ERRORS TELLS YOU NOTHING ABOUT ONE THAT DOES NOT.** A parallel session probed
+`gpt-astra-6-sol`, `astra-6-sol` and `gpt-6-sol`, got errors on all three, and concluded the astra
+family was gone — while `gpt-6-astra` exists and is what the measurement above was run against.
+⚠️ And codex accepts an UNKNOWN id with only a "fallback metadata" warning, then runs on a
+mis-specified model, so an id that "works" is not evidence either. Probe it, read the banner, and
+confirm a real VERDICT came back before pinning it.
+
 **How to invoke the external reviewers (read-only, non-interactive):**
 - **codex** — pipe the prompt via STDIN, never as an argument (the arg form hangs waiting on stdin).
   ⚠️ **CODEX WASTES ITS RUN EXPLORING UNLESS YOU FORBID IT.** Seen repeatedly (2026-07-21..23):
@@ -29,8 +36,9 @@ VERDICT, say "single-sourced" out loud; when neither did, the work has had no in
   reaches a verdict. Two fixes, use BOTH:
   · **Constrain the run**: add `-c web_search=disabled --skip-git-repo-check` and keep
     `--sandbox read-only`, so it cannot burn the budget searching the web or walking the tree.
-    Full line, verified 2026-07-23 to return a VERDICT in seconds:
-    `codex exec -m gpt-5.6-sol -c model_reasoning_effort=high -c web_search=disabled --skip-git-repo-check --sandbox read-only < prompt.txt`
+    Full line — ⚠️ `medium` since 2026-09-24 (owner's instruction), re-verified that day to return a
+    VERDICT in seconds; the `high` in the older lines below is the pre-restore effort:
+    `codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only < prompt.txt`
   · **Constrain the PROMPT** — open with this preamble verbatim:
     *"Answer ONLY from the code pasted below. Do NOT read files, do NOT search the web, do NOT
     explore the repo — everything you need is inline. Your FIRST line MUST be `VERDICT: CONFIRMED`
@@ -48,9 +56,14 @@ VERDICT, say "single-sourced" out loud; when neither did, the work has had no in
   the full repro and what was already ruled out. The scroll-rail root cause fell out in minutes once
   framed as "arrows work on the server-seeded rail, not the async-fetched one — why?" instead of
   another blind edit.
-  **Owner-set invocation (2026-07-21) — use exactly this:**
-  `echo "<review prompt>" | codex exec -m gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only`
-  (or heredoc into stdin). Verify the banner echoes `model: gpt-5.6-sol` / `reasoning effort: high`.
+  **Owner-set invocation — `medium` since 2026-09-24** (it was `high` from 2026-07-21; medium is current):
+  `echo "<review prompt>" | codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only`
+  (or heredoc into stdin). ⚠️ **Verify the banner echoes `reasoning effort: medium`** — it said `high`
+  here until 2026-09-24, and an operator checking against that stale line would "fix" the effort
+  upward, which is exactly what CLAUDE.md now forbids.
+  ⚠️ The 2026-07-21 quote of this command carried no `web_search=disabled` / `--skip-git-repo-check`;
+  they are added above because the bullet directly overhead says to use BOTH, and a bare "use exactly
+  this" without them is how this reviewer spends a run exploring instead of answering.
 - **antigravity** — `agy -p "<prompt>" --model gemini-3.8-flash-high --dangerously-skip-permissions --print-timeout 300s`.
   ⚠️ **EITHER FORM WORKS — AND A `invalid model selection` ERROR IS NOT THE MODEL NAME.** On
   2026-09-23 a dispatch died with *"model Gemini 3.8 Flash (High) is not recognized as a known

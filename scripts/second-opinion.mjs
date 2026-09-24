@@ -67,9 +67,9 @@ const RECEIPTS = join(ROOT, '.second-opinion')
  * ⛔ THE TWO LISTS MUST BE EDITED TOGETHER. A name here with no seat below can never answer; a seat
  * below with no name here answers into a void.
  *
- * ⚠️ TWO SEATS, TWO LABS — and opus is the same model that writes most diffs here, so its verdict
- * is a self-review. The 2-lab quorum therefore means agy alone is the independent vote: weight a
- * REFUTED from agy heavily, and go and measure rather than out-voting it.
+ * ⚠️ THREE SEATS, THREE LABS since 2026-09-24 — and opus is the same model that writes most diffs
+ * here, so its verdict is a self-review. The independent votes are agy and astra: weight a REFUTED
+ * from either heavily, and go and measure rather than out-voting it.
  */
 const REVIEWER_NAMES = ['agy', 'codex', 'opus']
 
@@ -296,6 +296,9 @@ process.on('SIGTERM', () => process.exit(143))
 // ⚠️ SINCE 2026-09-24 codex ALSO TAKES STDIN, so past 180KB the full diff is still read by codex
 // (OpenAI) and opus (Anthropic): two labs, the quorum holds, and codex is the independent vote.
 // (2026-09-23..24, with no OpenAI seat, opus was alone past 180KB and the gate refused.)
+// ⛔ THAT IS STILL ONE INDEPENDENT FAMILY, NOT TWO — codex plus the author's own model nodding at
+// itself. The gate now lets such a diff pass where it refused outright for a day; splitting the
+// change until agy can see all of it is better than leaning on the seat that restored the quorum.
 const AGY_LIMIT = 180_000
 // ⚠️ BYTES, NOT CHARACTERS (astra, agy, opus, 2026-09-14): ARG_MAX is a byte limit, and `prompt.length` counts UTF-16
 // units — a diff full of Vietnamese copy and ⚠️ marks is 2–4 bytes a character, so a "180KB" string could be 400KB on
@@ -307,8 +310,10 @@ const agyTruncated = promptBytes.length > AGY_LIMIT
 const REVIEWERS = [
   /**
    * ⛔ SINCE 2026-09-24: THREE SEATS, THREE LABS — agy (Google), codex (OpenAI), opus (Anthropic).
-   * agy and codex are the INDEPENDENT votes; opus is the author's own model. The paragraph below is
-   * the 2026-09-23 two-seat state, kept as history.
+   * agy and codex are the INDEPENDENT votes; opus is the author's own model, so a unanimous 3/3 is
+   * TWO families agreeing plus a self-check. A REFUTED from agy or codex is a real objection — go
+   * and measure it rather than out-voting it with opus. The paragraph below is the 2026-09-23
+   * two-seat state, kept as history.
    *
    * ⛔ (HISTORY) TWO SEATS, TWO LABS — AND ONLY ONE OF THEM IS INDEPENDENT. The OpenAI seat was removed on
    * 2026-09-23 ("remove astra from the 2nd opinion"), so what remains is agy (Google) and opus
@@ -319,13 +324,13 @@ const REVIEWERS = [
    * ⚠️ THE QUORUM IS PER LAB, NOT PER SEAT — see the enforcement near the end of this file
    * ("THE QUORUM IS LABS, NOT SEATS"), which refuses on `labsCounted`. What counts ENTRIES is the
    * printed `N/M seats answered` line, and conflating the two is easy: an earlier draft of this
-   * very comment claimed the quorum counted entries, which opus refuted. With two seats in two labs
-   * the numbers coincide; they diverged when one lab held two seats, which is how the removed
-   * OpenAI generation turned a "4/4" into four seats across three labs.
+   * very comment claimed the quorum counted entries, which opus refuted. With one seat per lab the
+   * numbers coincide, as they do on today's three; they diverge when one lab holds two seats, which
+   * is how an earlier OpenAI generation turned a "4/4" into four seats across three labs.
    *
-   * ⚠️ PAST agy's 180KB CUTOFF agy stops counting and opus certifies ALONE — the author's own
-   * model. The lab quorum is then unreachable and the gate refuses the commit. That is correct:
-   * split the change rather than forcing it through on a self-review.
+   * ⚠️ PAST agy's 180KB CUTOFF agy stops counting and the panel is astra + opus — two labs, so the
+   * quorum holds, but only ONE of them is independent. Prefer splitting the change until agy can
+   * see all of it over certifying a large diff on a single outside family.
    */
   {
     name: 'agy',
@@ -444,7 +449,21 @@ const REVIEWERS = [
    * `--skip-git-repo-check` + `--sandbox read-only` are what stop codex burning its whole run
    * exploring the tree instead of answering (the 46-minute hang recorded below).
    * ⚠️ PROBE A NEW MODEL ID BEFORE PINNING IT: codex accepts an unknown id with only a "fallback
-   * metadata" warning and runs on a mis-specified model.
+   * metadata" warning and runs on a mis-specified model. ⛔ THAT CUTS BOTH WAYS AND A PARALLEL
+   * SESSION GOT IT HALF WRONG: probing `gpt-astra-6-sol`, `astra-6-sol` and `gpt-6-sol` produced
+   * errors and it concluded the family did not exist — but `gpt-6-astra` DOES, and was measured
+   * against this seat (19,302 tokens / 22s vs 9,881 / 21s for the same verdict and findings). The
+   * name that errors tells you nothing about the name that does not; measure, do not infer.
+   *
+   * ⚠️ THIS SEAT HAS NO `--print-timeout` EQUIVALENT, so the 420s harness bound is its only guard.
+   * agy carries `--print-timeout 400s` precisely so it can report its OWN failure from inside that
+   * bound; `codex exec --help` offers nothing similar, so a codex that overruns is killed by the
+   * process-group reap and recorded as `no-answer` with the reap's reason. Bounded and diagnosable,
+   * but it still drops the panel a seat — the same shape as a mis-specified model id above.
+   *
+   * ⚠️ `medium` IS THE ONE SEAT BELOW the others' high/max, and that is the owner's instruction, not
+   * a slip — do not "correct" it upward. It is also the FASTER end, so the note on the opus seat
+   * about no seat being slower than the 420s bound is unaffected by this one.
    */
   {
     name: 'codex',
@@ -465,12 +484,12 @@ const REVIEWERS = [
     // description of the current state, so read them as such.
     // ⚠️ THIS COSTS THE SEAT ITS INDEPENDENCE AND THAT IS THE KNOWN TRADE. fable was a DIFFERENT
     // MODEL from the author; opus is THE SAME MODEL that writes most of these diffs, so a
-    // unanimous 4/4 is codex + astra (both OpenAI) + agy agreeing plus the author nodding at itself.
-    // Weight dissent from codex, astra or agy accordingly; a 4/4 is three labs, not four families.
+    // unanimous 3/3 is astra + agy agreeing plus the author nodding at itself. Weight dissent from
+    // astra or agy accordingly; the count of LABS overstates the count of independent families by one.
     // ⚠️ `--effort high`, NOT max — owner, 2026-09-13: "2nd opinion is codex astra on high agy 3.8
-    // flash and claude opus 5 on high efforts". Every seat now runs at the same tier (codex and astra
-    // were already `model_reasoning_effort=high`, agy is Gemini 3.8 Flash (High)), so no single seat
-    // is the slow one the 420s bound below has to be tuned around.
+    // flash and claude opus 5 on high efforts". ⛔ THE "every seat at the same tier" CLAIM THAT USED
+    // TO FOLLOW IS NO LONGER TRUE: astra runs at `medium` since 2026-09-24 (owner's instruction).
+    // That is the FASTER end, so the 420s bound below is still tuned around this seat, not that one.
     args: ['-p', '--model', 'claude-opus-5', '--effort', 'high', '--permission-mode', 'plan'],
     stdin: true,
   },
@@ -594,16 +613,31 @@ const labsCounted = new Set(counted.map((r) => r.lab)).size
 console.log(`\n${answered.length}/${REVIEWERS.length} seats answered across ${labsAnswered} lab(s) — ${counted.length} seat(s) / ${labsCounted} lab(s) saw the full diff.`)
 // ⛔ opus IS THE SAME MODEL THAT WRITES MOST OF THESE DIFFS. A CONFIRMED from opus beside a REFUTED from agy is
 // an independent reviewer objecting — weight it that way.
-// ⚠️ PRINTED ON EVERY RUN, not only written here (astra): the agy-truncation banner used to say this out loud on
-// big diffs, and on this panel it is true of every diff, so a "2/2 across 2 labs" must never read as two
-// independent families.
+/**
+ * ⛔ EVERY BANNER BELOW NAMES THE SEATS THAT ACTUALLY ANSWERED — NEVER THE SEATS THAT WERE MEANT TO,
+ * AND THAT IS WHY THEY ARE NOT A FOURTH SEAT LIST. They used to be one: until 2026-09-24 this block
+ * hardcoded "agy is the ONLY independent seat", and a parallel attempt at restoring the OpenAI seat
+ * edited REVIEWER_NAMES, the REVIEWERS array and the secret-scan string while missing it — so the
+ * gate printed that line on a three-seat run where codex had just voted. Two seats caught it
+ * reviewing that very diff: the file's own anti-drift lesson landing on the file.
+ * ⛔ AND THE FIRST FIX WAS WORSE, WHICH IS THE REAL WARNING. It hardcoded the other direction —
+ * "the countable panel is codex + opus, so the quorum still passes" — printed off `agyTruncated`,
+ * which is computed BEFORE any reviewer runs. On a big diff where codex ALSO no-answers that tells
+ * the operator the quorum passes in the same breath as the gate refuses the commit. Deriving from
+ * `counted` is what makes these lines incapable of drifting; do not put a seat name back in.
+ *
+ * ⚠️ "INDEPENDENT" HERE MEANS "A NON-ANTHROPIC LAB", not "independent of whoever wrote this". They
+ * coincide because CLAUDE.md pins every worker on this repo to Opus, so the Anthropic seat is the
+ * author's own model. If that stops being true, this is where it will mislead first.
+ */
 // ⚠️ INDEPENDENT = A NON-ANTHROPIC LAB THAT COUNTED (answered AND saw the full diff). opus is the author's
 // own model, so its verdict never makes a review independent. Reported in LABS, not seats: two seats from
 // one lab are one opinion. Printed whether or not opus answered — a missing opus must not hide the count.
 // Past agy's 180KB cutoff agy does not count; codex reads the full diff on stdin, so whether the review is
 // independent then depends on codex having ANSWERED — never assume it.
-const independentLabs = [...new Set(counted.filter((r) => r.lab !== 'anthropic').map((r) => r.lab))]
-const independentSeats = counted.filter((r) => r.lab !== 'anthropic').map((r) => r.name)
+const independent = counted.filter((r) => r.lab !== 'anthropic')
+const independentLabs = [...new Set(independent.map((r) => r.lab))]
+const independentSeats = independent.map((r) => r.name)
 if (agyTruncated) {
   console.log('\n⚠️  THIS DIFF IS OVER 180KB, SO agy DOES NOT COUNT — consider splitting the change.')
 }
@@ -614,6 +648,45 @@ if (independentLabs.length === 0) {
   console.log(`⚠️  Independent seats that counted: ${independentSeats.join(' + ')} (${independentLabs.length} lab(s)). opus is the`)
   console.log('   SAME MODEL that wrote most diffs here — a REFUTED from an independent seat is the real objection.')
   if (independentLabs.length === 1) console.log('   Only ONE independent lab counted — say "single-sourced" out loud.')
+}
+/**
+ * ⛔ A TRUNCATED REVIEWER CANNOT CERTIFY THE DIFF — BUT A DEFECT IT FOUND IS STILL A DEFECT.
+ * codex caught this reviewing the seat restore, and it is the sharper half of the >180KB argument.
+ * Truncation drops a seat from `counted` REGARDLESS OF ITS VERDICT, so on a 220KB diff where agy
+ * reads the first 180KB, finds a licensing leak and says REFUTED while codex and opus confirm the
+ * rest: the quorum holds on two labs, the commit is certified, and agy's REFUTED is printed once in
+ * the per-seat list and never referred to again — every banner above is built from `counted`, so
+ * none of them can see it either.
+ * ⚠️ NOT COUNTING IT IS STILL RIGHT: it did not see the tail, so it cannot vouch for the tail. What
+ * was wrong was letting it pass in SILENCE. This changes no quorum; it refuses to let a found
+ * defect leave the screen quietly.
+ * ⛔ AND IT DELIBERATELY DOES NOT EXIT NON-ZERO, though all three seats asked for that. THIS GATE
+ * CERTIFIES THAT REVIEW HAPPENED, NOT THAT IT PASSED — a REFUTED from a seat that saw the WHOLE
+ * diff does not block a commit either, by design, because roughly a third of reviewer claims here
+ * do not survive measurement and an auto-block would make the gate something to route around.
+ * Blocking on a TRUNCATED refusal while a full-diff refusal passes would be incoherent. If that
+ * trade is revisited, revisit it for both — and it is the owner's call, not a side effect of a
+ * seat restore.
+ */
+const truncatedDissent = answered.filter((r) => r.truncated && r.verdict === 'REFUTED')
+if (truncatedDissent.length) {
+  console.log(`\n⛔ A TRUNCATED SEAT REFUTED THIS DIFF: ${truncatedDissent.map((r) => r.name).join(', ')}.`)
+  console.log('   It does not count toward the quorum — it could not see the whole diff — but it found a')
+  console.log('   defect in the part it DID see. Read its finding above and measure it before committing.')
+}
+// ⚠️ TWO INDEPENDENT FAMILIES DISAGREEING IS THE SIGNAL, NOT A TIE TO BREAK WITH opus. The policy in
+// CLAUDE.md is to measure the dissent rather than out-vote it, and a 2-1 split is exactly where
+// out-voting is tempting — so say it at the moment it applies. `verdict` is only ever CONFIRMED or
+// REFUTED here (the parser's regex captures nothing else; anything unparsed is `no-answer` and was
+// already filtered out of `answered`), so a split cannot be spurious.
+// ⛔ GATED ON LABS, NOT SEATS (agy, reviewing this). The first version said `independent.length >= 2`,
+// which is a SEAT count — and the rule this same block enforces is that independence is per lab, so
+// two seats from one lab disagreeing is one family changing its mind, not a family split. The two
+// numbers coincide on today's one-seat-per-lab panel and diverged the last time one lab held two
+// seats, which is the exact drift this file keeps re-learning.
+if (independentLabs.length >= 2 && new Set(independent.map((r) => r.verdict)).size > 1) {
+  console.log(`⚠️  THE INDEPENDENT FAMILIES SPLIT: ${independent.map((r) => `${r.name}=${r.verdict}`).join(', ')}.`)
+  console.log('   Go and MEASURE the REFUTED claim. Do not settle it with the Anthropic seat — same model as the author.')
 }
 
 // ⚠️ THE RECEIPT IS WRITTEN ONLY AFTER THE QUORUM HOLDS — AND THIS ORDER IS THE GATE.

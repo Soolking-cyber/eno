@@ -16,7 +16,7 @@ Vietnamese expat marketplace. `PRELAUNCH=true` until the owner flips it.
 | A bug that already survived one plausible fix | `deep-debugger` | Opus · xhigh |
 | **Second opinion** (plan AND finished diff; ALSO every security/bug audit — owner 2026-07-23) | `antigravity` (agy) + `codex` + Opus 5 · high | ⛔ **SINCE 2026-09-24: agy `gemini-3.8-flash-high` + codex `gpt-5.6-sol` at MEDIUM + Opus 5 (high).** Owner: *"add gpt astra 6 sol medium reasoning as 2nd opinion from codex"* / *"which has normal token consumption and good reasoning needs a balance"*. Measured on one real refute-prompt: `gpt-6-astra` 19,302 tokens vs `gpt-5.6-sol` 9,881 tokens, same verdict and findings → sol. Two INDEPENDENT labs again (Google + OpenAI); say "single-sourced" only when just one of them answered. Invocation: `codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only < prompt.txt`. |
 | Second opinion — Anthropic-lineage | `fable-reviewer` | ⛔ **OUT OF BUDGET since 2026-09-09** — do not dispatch. Use Opus · xhigh in its place until the owner says otherwise. |
-| Commit-gate panel | `scripts/second-opinion.mjs` | ⛔ **agy `gemini-3.8-flash-high` + codex `gpt-5.6-sol` (medium) + Opus 5 · high — since 2026-09-24** (the 2026-09-23 "permanent" removal of the OpenAI seat was reversed by the owner). Three seats, three labs, quorum = two labs. codex takes the diff on stdin, so past agy's 180KB cutoff the full diff is still read by codex + opus and the gate can pass — but then codex is the ONLY independent vote: call it single-sourced. Opus is the same model that writes most diffs here; a REFUTED from agy or codex is the real objection — go and measure it. |
+| Commit-gate panel | `scripts/second-opinion.mjs` | ⛔ **agy `gemini-3.8-flash-high` + codex `gpt-5.6-sol` (medium) + Opus 5 · high — since 2026-09-24** (the 2026-09-23 "permanent" removal of the OpenAI seat was reversed by the owner). Three seats, three labs, quorum = two labs. codex takes the diff on stdin, so past agy's 180KB cutoff the full diff is still read by codex + opus and the gate can pass — but then codex is the ONLY independent vote: call it single-sourced. Opus is the same model that writes most diffs here; a REFUTED from agy or codex is the real objection — go and measure it. ⛔ **THE SEAT LIST IS WRITTEN IN THREE PLACES IN THAT FILE** (`REVIEWER_NAMES`, the `REVIEWERS` array, and the secret-scan warning string) and a seat missing from one drifts SILENTLY — change all three together. ⚠️ There was a FOURTH until 2026-09-24: the end-of-run banners hardcoded seat names, a parallel restore attempt missed them, and the gate printed *"agy is the ONLY independent seat"* on a three-seat run where codex had just voted. They now derive from what actually answered — **do not put a seat name back into them.** ⚠️ And `.claude/hooks/second-opinion.sh` names the panel in its refusal message — a FIFTH place, outside the script entirely. |
 | Shipping to prod (the whole ritual) | `/ship` | Opus · medium |
 | Seller/admin e2e suite | `/authed-e2e` | Opus · low |
 | Design, architecture, anything genuinely novel | main thread | session model |
@@ -32,14 +32,22 @@ Three habits that follow:
 - (HISTORY, superseded 2026-09-24) **SINCE 2026-09-23 THE REVIEWERS ARE agy `gemini-3.8-flash-high` + Opus 5 (high), for BOTH the gate and plan/diff
   second opinions.** Every OpenAI seat (sol, then astra) is retired. The 2026-09-14 bullet below is history; where it or
   anything under it says codex/astra, read REMOVED.
-  ⚠️ **agy CAN FAIL WITH `invalid model selection` AND IT IS NOT THE MODEL NAME.** On 2026-09-23 one dispatch died with
+- ⚠️ **MEDIUM EFFORT IS DELIBERATE AND IS THE ONE SEAT BELOW the others' high/max.** It is what the owner asked for
+  (*"which has normal token consumption and good reasoning needs a balance there"*); do not "correct" it upward.
+- ⛔ **A MODEL ID THAT ERRORS TELLS YOU NOTHING ABOUT ONE THAT DOES NOT — MEASURE, DO NOT INFER.** A parallel session
+  probed `gpt-astra-6-sol`, `astra-6-sol` and `gpt-6-sol`, got errors, and concluded the astra family did not exist.
+  **`gpt-6-astra` DOES exist** and was measured head-to-head against the chosen seat. ⚠️ Worse, codex accepts an
+  UNKNOWN id with only a "fallback metadata" warning and runs on a mis-specified model — so probe a new id and read
+  the banner before pinning it.
+- ⚠️ **agy CAN FAIL WITH `invalid model selection` AND IT IS NOT THE MODEL NAME.** On 2026-09-23 one dispatch died with
   *"model Gemini 3.8 Flash (High) is not recognized as a known model"* — note the error also printed `--effort ""`. Both
   `--model "Gemini 3.8 Flash (High)"` (what `scripts/second-opinion.mjs` passes) and `--model gemini-3.8-flash-high`
   were then re-tested and BOTH answered, so the display name is fine and the failure was transient. **Retry rather than
-  "fixing" the model name** — and confirm a VERDICT actually landed, because with the OpenAI seat gone an agy that did
-  not answer leaves NO independent reviewer at all.
-- ⛔ **HISTORY — DO NOT DISPATCH codex FROM THIS BULLET.** Superseded by the 2026-09-23 removal above; the panel is agy
-  + Opus and there is no OpenAI seat. Kept for the VERIFY-a-reviewer's-claims lesson at the end, which still applies.
+  "fixing" the model name** — and confirm a VERDICT actually landed. ⚠️ With astra restored an agy that does not answer
+  no longer leaves NO independent reviewer — but it does leave ONE, so say which families actually voted.
+- ⚠️ **THE BULLET BELOW IS THE 2026-09-14 ARRANGEMENT, AND ITS codex SEAT IS LIVE AGAIN** (2026-09-24) — read it for
+  the reviewer-claims lesson at the end, but take the seat list and the effort from the rows above, not from it: the
+  seat now runs at **medium**, not high.
   (From 2026-09-09 to 2026-09-14 the gate was down to TWO MODELS AND ONE NON-AUTHOR FAMILY.) Main thread is Opus, the
   Anthropic-lineage seat is Opus too (fable is out of budget — owner, 2026-09-09), and the then-DEFAULT external
   reviewers were **codex (GPT-5.6 sol, high)** and **antigravity (Gemini 3.8 Flash, High)** — run BOTH on substantive code, on the PLAN and the finished diff, and on **every security or bug audit** (owner 2026-07-15; codex removed 2026-07-21 during an account outage, **RESTORED by the owner 2026-07-23** — "codex is not banned, add codex to loop when planning"). ⚠️ **VERIFY a reviewer's factual claims** — on 2026-07-23 Gemini called two TRUE facts (VN's 63→34 province merger, MPI→Ministry-of-Finance) "hallucinations" because its training predates the mid-2025 reforms; both were confirmed via primary sources. Test what a reviewer tells you rather than trusting it. They fail differently, which is the whole point: an Opus review of Opus code shares its blind spots. **Anything irreversible or money/trust-adjacent — offers, publish gate, contact reveals, conversations, payments, anything that writes to prod — gets at least one non-Opus reviewer before it ships.** When everyone agrees, that's when to ask the dissenter, not when to relax. ⚠️ If codex starts erroring with *"model is not supported when using Codex with a ChatGPT account"*, that is the account/credits state, not a config bug — fall back to Gemini and carry on rather than burning turns on it.
