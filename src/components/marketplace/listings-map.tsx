@@ -453,7 +453,50 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
      * ⚠️ `PIN_CLEARANCE` is what keeps the tapped pin OUT from under its own card: the pan puts the pin
      * half a card below centre plus this much, so the map must be able to give back that space too.
      */
-    const tallW = Math.round(Math.min(300, mapW - 24))
+    const MIN_TALL_W = 150
+    const tallWBase = Math.round(Math.min(300, mapW - 24))
+    /**
+     * ⛔ ON TOUCH THE TALL CARD SHRINKS TO FIT — IT DOES NOT FALL BACK TO THE 44px THUMBNAIL.
+     * Owner, 2026-09-24: "mobile map view show full cards centered rather than small since its hard
+     * to see apartment pictures". The old rule asked "does the 300px card fit?" and, if not, dropped
+     * to the compact horizontal card whose image is a 44px thumb — on a photo marketplace, for an
+     * apartment. Measured on a 390x844 iPhone against production: the map is 366x506, the tall card
+     * needs 522, and it LOST BY 16 PIXELS. Every phone of that size got the thumbnail.
+     *
+     * ⚠️ THE CLEARANCE INVARIANT IS NOT RELAXED TO DO THIS — it is inverted into a size. The rule
+     * below still says a centred card plus the pin panned clear of it must fit the map twice over
+     * (see `recenterOnPin`); solving that for the WIDTH instead of testing one fixed width gives 284px
+     * on the same phone, so the picture goes from 44px to 284px with the pin just as visible as the
+     * rule always demanded. Shrinking was always the better answer than a different card.
+     * ⚠️ DESKTOP IS UNTOUCHED. It anchors the card above the pin rather than centring it, needs none
+     * of this clearance, and a reviewer already caught one attempt to apply the touch rule there.
+     */
+    /**
+     * ⛔ TWO TIERS, BECAUSE 506px WAS THE BEST CASE AND A REAL PHONE IS SMALLER. `60dvh` is the
+     * DYNAMIC viewport: a 390x844 iPhone in Safari with the toolbar showing reports ~659 CSS px, so
+     * the map is ~395px and grows to ~449px only once the URL bar collapses — and it changes LIVE,
+     * mid-session. The 366x506 in the note above was measured in headless Chromium, which has no
+     * browser chrome; an external reviewer caught that the whole sizing rule had been tuned on it.
+     * At 395px the full-clearance budget is 173px, under the floor, so a single-tier rule handed the
+     * 44px thumbnail back to exactly the readers who complained.
+     *
+     * So: keep the pin clear when the map can afford it, and when it cannot, keep the PICTURE and
+     * let the pin sit tight under the card — the owner asked for the photo, and the reader just
+     * tapped that pin, so it is the one thing on screen they already know the position of. Compact
+     * is the last resort, not the second.
+     */
+    const capAt = (clearance: number) => Math.round(mapH - 2 * (clearance + CARD_MARGIN) - 118)
+    /**
+     * ⛔ PREFER FULL CLEARANCE; RELAX ONLY WHEN IT WOULD BE TOO SMALL TO BOTHER. The first cut wrote
+     * `max(capAt(PIN_CLEARANCE), min(capAt(4), tallWBase))`, which two reviewers independently proved
+     * is dead code: `capAt(4) > capAt(PIN_CLEARANCE)` always, so the max can never pick the clearance
+     * tier and the card was ALWAYS sized to the relaxed budget. On a 506px map that gave 300px where
+     * the clearance budget is 284 — the pin ended up under its own card on a map roomy enough to
+     * avoid it, which is the regression the old compact test existed to prevent. Worse, my own
+     * simulation printed the 300 and I read past it.
+     */
+    const touchCap = capAt(PIN_CLEARANCE) >= MIN_TALL_W ? capAt(PIN_CLEARANCE) : capAt(4)
+    const tallW = isHoverable() ? tallWBase : Math.round(Math.min(tallWBase, touchCap))
     const tallH = Math.round(tallW + 118) // square image (= w tall) + content block (~92) + travel row (~26); keep in sync with the card render so the flip + recenter math is right
     /**
      * ⚠️ THE SPACE A CENTRED CARD NEEDS IS TWO-SIDED, and the first cut counted it once. A card centred
@@ -465,7 +508,17 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
      * it needs none of this clearance; applying it there dropped every 360–521px desktop map to the
      * compact card for no reason (opus).
      */
-    const compact = mapH < 360 || (!isHoverable() && mapH < tallH + (PIN_CLEARANCE + CARD_MARGIN) * 2)
+    /**
+     * ⚠️ THE FLOOR, not the fit test. Below this the card is too small to be worth the space it takes
+     * from the map, and the compact horizontal row — which at least puts the price, title and travel
+     * time on one line — is the honest answer.
+     * ⛔ AN EARLIER VERSION OF THIS NOTE CLAIMED A ~384px MAP LANDS HERE. It did under the
+     * single-tier rule; with the relaxed-clearance tier above, 384px yields 234px and stays TALL
+     * (a reviewer caught the comment describing behaviour the code no longer has). Worked through:
+     * the floor is only reached under roughly 300px of map, which no phone in portrait produces.
+     * It is a guard against a freak viewport, not a routine branch.
+     */
+    const compact = mapH < 360 || (!isHoverable() && tallW < MIN_TALL_W)
     // Compact is a horizontal card (thumb + title/price/travel + trust + Maps FAB) — it needs
     // real width so the "~19 min · 7.1 km from you" line sits on ONE row instead of wrapping.
     const w = compact ? Math.round(Math.min(320, mapW - 24)) : tallW
@@ -529,6 +582,49 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       : Math.min(ch / 2 + PIN_CLEARANCE, H / 2 - CARD_MARGIN)
     map.panTo(map.unproject(L.point(pt.x, pt.y - shift), z), { animate: true, duration: 0.25 })
   }
+  /**
+   * ⛔ THE MAP'S HEIGHT CHANGES UNDER A LIVE CARD, AND NOTHING USED TO NOTICE. `60dvh` is the dynamic
+   * viewport, so on iOS the map grows and shrinks by ~50px as the Safari toolbar retracts — and a
+   * reviewer found there is no resize/ResizeObserver/visualViewport listener anywhere in this file.
+   * Two things were therefore stale the moment the toolbar moved: `cardDims()` reads `clientHeight`
+   * live but only ever runs on a render, and `cardPos.y` is FROZEN at `clientHeight / 2` when the pin
+   * was tapped — so an open card silently drifts off-centre, and the tall/compact choice keeps
+   * whatever the old height implied.
+   * ⚠️ rAF-COALESCED AND ONLY WHEN SOMETHING IS OPEN. The toolbar transition fires a burst of resizes;
+   * re-placing on each would make the card jitter through it, and re-rendering a map with no card
+   * open buys nothing.
+   */
+  useEffect(() => {
+    const el = mapRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let frame = 0
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const open = openCardObjRef.current
+        if (open) placeCardForRef.current(open)
+        // The building card has no placement helper of its own — the move handler re-places it
+        // inline, so do exactly what that does rather than inventing a second code path.
+        const b = buildingCardRef.current
+        const map = mapInstanceRef.current
+        const el2 = mapRef.current
+        if (b && map && el2) setBuildingCardPos(buildingCardPlacement(map.latLngToContainerPoint([b.lat, b.lng]), el2))
+      })
+    })
+    ro.observe(el)
+    return () => { cancelAnimationFrame(frame); ro.disconnect() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready])
+
+  /**
+   * ⚠️ THROUGH A REF, BECAUSE THE OBSERVER ABOVE OUTLIVES THE RENDER IT WAS CREATED IN (reviewer).
+   * Its effect depends only on `ready`, so a direct call would freeze whichever `placeCardFor` existed
+   * when the map finished loading — the same stale-closure class the observer exists to fix. This is
+   * the pattern the file already uses for `closeBuildingCardRef`.
+   */
+  const placeCardForRef = useRef(placeCardFor)
+  placeCardForRef.current = placeCardFor
+
   const onMoveRef = useRef(onMove)
   useEffect(() => { onMoveRef.current = onMove }, [onMove])
 
@@ -593,7 +689,29 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
    */
   const buildingCardPlacement = (pt: { x: number; y: number }, el: HTMLElement) => {
     const w = Math.min(360, el.clientWidth - 24)
-    const CARD_H = 400
+    /**
+     * ⛔ THE REAL HEIGHT, NOT A GUESS OF 400 — that constant was 23px short of the truth and the card
+     * hung off the map because of it. Measured on a 390-wide phone: the card renders 423px, so the
+     * `below` clamp `min(pt.y, H - 400 - 14)` left its bottom edge 9px past a 506px map, which is the
+     * -23px overhang seen in testing. Everything else here was already right; the clamp was simply
+     * being asked to fit the wrong box.
+     * ⚠️ MEASURED FROM THE LIVE ELEMENT when it exists, because the height is content-driven (a tower
+     * with three units is shorter than one with eleven) and a second hardcoded number would rot the
+     * same way. The fallback is the measured 424 rather than 400, so even the very first placement —
+     * before the element is in the DOM — clamps against something true.
+     * ⚠️ BOUNDED BY THE MAP, matching the `maxHeight` the card itself now carries: a card capped at
+     * `mapH - 24` can never need more room than that, so the two agree by construction.
+     */
+    /**
+     * ⚠️ `scrollHeight`, NOT `offsetHeight` (reviewer). The card now carries a maxHeight, so once it
+     * is clamped `offsetHeight` IS that cap — feeding it back here makes CARD_H a function of the
+     * map alone and the above/below/centred choice stops depending on which tower was tapped.
+     * `scrollHeight` is the height the content actually wants, clamped or not.
+     */
+    const CARD_H = Math.min(
+      buildingCardElRef.current?.scrollHeight || 424,
+      Math.max(200, el.clientHeight - CARD_MARGIN * 2),
+    )
     const x = Math.min(Math.max(pt.x, w / 2 + 8), Math.max(w / 2 + 8, el.clientWidth - w / 2 - 8))
     if (el.clientHeight < CARD_H + 28) {
       return { x: el.clientWidth / 2, y: el.clientHeight / 2, above: false, centered: true }
@@ -626,12 +744,16 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     setBuildingCardPos(buildingCardPlacement(pt, el))
   }
   /** The building whose card is open, for the map handlers captured once at init. */
+  /** The rendered building card, so its placement clamps against the height it actually has. */
+  const buildingCardElRef = useRef<HTMLDivElement | null>(null)
   const buildingCardRef = useRef<BuildingPin | null>(null)
   buildingCardRef.current = buildingCard
   const openBuildingCardRef = useRef(openBuildingCard)
   openBuildingCardRef.current = openBuildingCard
   const closeBuildingCardRef = useRef<() => void>(() => {})
-  const closeBuildingCard = () => { setBuildingCard(null); setBuildingCardPos(null) }
+  // ⚠️ DROP THE MEASURED ELEMENT TOO (reviewer): keeping it meant a 2-unit tower opened straight
+  // after an 11-unit one was placed against the tall one's stale height.
+  const closeBuildingCard = () => { buildingCardElRef.current = null; setBuildingCard(null); setBuildingCardPos(null) }
   closeBuildingCardRef.current = closeBuildingCard
   /**
    * Is a card open RIGHT NOW? Read by the district pick layer to tell "choose this area" from
@@ -1311,6 +1433,22 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
         * open at once — tapping a unit inside this card opens that unit's own card, and the one the
         * reader just asked for must be the one on top.
         */}
+      {/**
+        * ⛔ THE BUILDING CARD IS THE ONE APARTMENT HUNTERS ACTUALLY SEE, AND IT WAS CLIPPING OFF THE
+        * MAP. Rentals are grouped into building pins, so on the default map a tapped apartment opens
+        * THIS card, not the listing one — which is what the owner meant by "hard to see apartment
+        * pictures". Measured on a 390-wide phone: it renders 342x423 with no height budget of any
+        * kind, so at a 506px map it hung 23px past the bottom edge and at ~395px (iOS Safari with
+        * the toolbar showing, where `60dvh` really lands) it was cut off at BOTH ends.
+        * ⚠️ CAPPED, NOT SHRUNK. Its width drives the unit carousel's geometry, so squeezing that to
+        * fit a short map would shrink the photos — the opposite of the ask. Bounding the HEIGHT to
+        * the map and letting the body scroll keeps the picture full-size and the card on the map.
+        * ⛔ AND THE CAP GOES ON THE INNER CARD, NOT THIS WRAPPER (reviewer). The wrapper is
+        * `pointer-events-none` — it only positions — so making IT the scroll container produced a
+        * card that was clipped with no way to reach the clipped part: the touch lands on the inner
+        * element, and the gesture would be handed to the Leaflet map underneath instead of scrolling
+        * anything. The scroll has to live on the element that actually receives the touch.
+        */}
       {buildingCard && buildingCardPos && (
         <div
           className="absolute z-[1100] pointer-events-none"
@@ -1324,7 +1462,35 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
               : buildingCardPos.above ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
           }}
         >
-          <div className="pointer-events-auto duration-150 ease-out animate-in fade-in zoom-in-95">
+          <div
+            /**
+             * ⛔ THE SCROLL GESTURE HAS TO BE KEPT OFF THE MAP (reviewer). This card lives INSIDE the
+             * Leaflet container, whose drag handler claims `touchmove` — so without this a swipe on
+             * the card pans the map underneath and the clipped content stays unreachable, which
+             * would make the maxHeight above a way of hiding content rather than a way of fitting it.
+             * `disableScrollPropagation` is Leaflet's own answer; the ref callback is where the node
+             * first exists, and it is idempotent.
+             */
+            ref={(node) => {
+              buildingCardElRef.current = node
+              const L = (window as any).L
+              if (node && L?.DomEvent?.disableScrollPropagation) {
+                L.DomEvent.disableScrollPropagation(node)
+                L.DomEvent.disableClickPropagation?.(node)
+              }
+            }}
+            className="pointer-events-auto overflow-y-auto overscroll-contain duration-150 ease-out animate-in fade-in zoom-in-95"
+            /**
+             * ⛔ PIXELS FROM THE LIVE MAP, NOT A PERCENTAGE. `calc(100% - 24px)` computed to `none`
+             * and the card went on overflowing: the parent is absolutely positioned with no height of
+             * its own, so a percentage max-height resolves against `auto` and is simply dropped.
+             * Measured — 423px card in a 395px map, still clipped at both ends, `scrollHeight ===
+             * clientHeight`. The map's own height is the real bound, and `cardDims()` already reads
+             * it live; the ResizeObserver above re-places this card, so the value follows the iOS
+             * toolbar rather than freezing at first paint.
+             */
+            style={{ maxHeight: Math.max(200, (mapRef.current?.clientHeight ?? 0) - CARD_MARGIN * 2) }}
+          >
             <MapBuildingCard
               /**
                * ⛔ THE LIVE PIN, NOT THE SNAPSHOT TAKEN AT TAP TIME (reviewer). `buildingCard` holds

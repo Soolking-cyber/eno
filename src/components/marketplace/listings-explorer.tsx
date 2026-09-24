@@ -42,6 +42,7 @@ import { useRegisterExplorer } from '@/lib/explorer-presence'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
@@ -1692,6 +1693,22 @@ export function ListingsExplorer({
     () => (districtShapesData?.boundaries ?? []).filter((d) => d.slug !== activeDistrict),
     [districtShapesData, activeDistrict],
   )
+  /**
+   * ⛔ "ASK TO NARROW IT DOWN" ON THE MOBILE MAP — owner, 2026-09-24: "if there are more than 100
+   * available options ask to narrow it down with price range popup and filter popup like 2bd 3bd etc".
+   *
+   * ⚠️ IT OPENS THE FILTERS DRAWER THAT ALREADY EXISTS rather than adding popups. `ExplorerFiltersDrawer`
+   * is the house bottom-sheet for exactly this, it already carries price, rooms and everything else,
+   * and its Apply CTA already answers "how many are left" — building a second price popover beside it
+   * would be the hand-rolled duplicate CLAUDE.md's Base-UI policy exists to prevent.
+   *
+   * ⛔ ROOMS IS OFFERED ONLY WHEN IT EXISTS, AND THAT IS NOT A DETAIL. `facetsFor()` returns a facet
+   * carrying `subcats` ONLY when a matching subcategory is active, so on "all categories" it returns
+   * NOTHING — a "2BR / 3BR" button on the default map would open a drawer with no such control in it.
+   * The label is read from the taxonomy too, because `bedrooms` is defined TWICE (under `rentals` and
+   * under `property`) with different option sets.
+   */
+
   const handleSelectDistrict = useCallback((slug: string) => {
     // Through the Area panel's replace rule (pickDistrictFromArea): a district typed into the box
     // leaves it, so the map pick is the one district applied.
@@ -1809,6 +1826,30 @@ export function ListingsExplorer({
     feedSigForCap.current = feedSig
     setAutoLoadCeiling(AUTO_LOAD_CAP)
   }, [feedSig])
+
+  const NARROW_PROMPT_MIN = 100
+  /**
+   * ⚠️ THE DISMISSAL IS KEYED TO THE FEED, NOT TO THE SESSION (reviewers, twice). Plain `useState`
+   * made one "Dismiss" silence the prompt for the rest of the visit — change category, clear the
+   * filters, pan somewhere denser, and it never came back, so the owner's "ask to narrow it down"
+   * simply stopped working. Storing the feed signature that was dismissed means a NEW search asks
+   * again while the one you waved away stays quiet.
+   */
+  const [dismissedForSig, setDismissedForSig] = useState<string | null>(null)
+  const roomsFacet = useMemo(
+    () => facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory)
+      .find((f) => f.key === 'bedrooms'),
+    [activeCategory, activeSubcategory],
+  )
+  /**
+   * ⚠️ `nearby` COUNTS WHAT IS ON SCREEN, NOT `totalCount` — the same split the result line makes.
+   * A radius search is one broad fetch narrowed client-side, so `totalCount` is the unnarrowed city
+   * and would show the prompt over a handful of pins.
+   */
+  const narrowPromptCount = nearby ? shownListings.length : totalCount
+  const showNarrowPrompt = viewMode === 'map'
+    && dismissedForSig !== feedSig
+    && narrowPromptCount > NARROW_PROMPT_MIN
 
 
   // Rehydrate the feed after a back-nav from a listing: restore the accumulated rows,
@@ -3693,8 +3734,61 @@ export function ListingsExplorer({
                       * `mapSortedListings.length`, which is only the pages loaded so far and would
                       * climb from 24 toward 157 as the reader scrolled.
                       */}
+                    {/* ⚠️ NOT A COUNT READOUT. <ResultLine> already announces the total in a live
+                        region on this surface; repeating it here would make a screen reader say it
+                        twice on every filter change. This is a PROMPT — it names the problem and
+                        hands over the control, and it is dismissible so it never becomes a nag.
+                        ⚠️ `lg:hidden` — desktop has the whole filter rail beside the map and needs
+                        no prompt. In the flow (not sticky) so it never covers the map or fights the
+                        sticky sort strip above it. */}
+                    {showNarrowPrompt && (
+                      <div className="material -mx-1 mb-1 rounded-xl border border-border/70 bg-card/70 p-2.5 backdrop-blur lg:hidden">
+                        <p className="text-xs font-semibold text-foreground">
+                          {tr('Too many places to see clearly', 'Quá nhiều chỗ để xem rõ')}
+                        </p>
+                        <p className="mt-0.5 text-xs text-body">
+                          {roomsFacet
+                            ? tr('Filter by price or rooms to see the photos properly.', 'Lọc theo giá hoặc số phòng để xem ảnh rõ hơn.')
+                            : tr('Filter by price or area to see the photos properly.', 'Lọc theo giá hoặc khu vực để xem ảnh rõ hơn.')}
+                        </p>
+                        {/**
+                          * ⛔ ONE BUTTON, NOT THREE — and the reason is honesty, not tidiness. The first
+                          * cut offered "Price", a rooms chip and "All filters" side by side; a reviewer
+                          * pointed out all three called `setIsMobileFilterOpen(true)` and nothing else,
+                          * so "Price" did not take you to price and the rooms chip did not take you to
+                          * rooms. `ExplorerFiltersDrawer` takes no section target, so per-facet buttons
+                          * cannot honour their own labels without threading a scroll/focus anchor
+                          * through it — and three controls that lie about where they go are worse than
+                          * one that says exactly what it does. The copy names what is inside instead.
+                          */}
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <Button
+                            variant="bare"
+                            size="none"
+                            onClick={() => setIsMobileFilterOpen(true)}
+                            className="rounded-full border border-line-strong px-3.5 py-1.5 text-xs font-bold text-foreground transition-colors hover:bg-muted"
+                          >
+                            {tr('Narrow it down', 'Thu hẹp kết quả')}
+                          </Button>
+                          <Button
+                            variant="bare"
+                            size="none"
+                            onClick={() => setDismissedForSig(feedSig)}
+                            className="ml-auto px-2 py-1.5 text-xs font-semibold text-body transition-colors hover:text-foreground"
+                          >
+                            {tr('Dismiss', 'Bỏ qua')}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {/* ⚠️ NO `relative` ON THE ROW BELOW — `sticky` already establishes the containing
+                        block the ✕ anchors to, and adding both emits two position utilities where the
+                        later one in Tailwind's order wins (reviewer), so `relative` would be a no-op
+                        that reads like the thing making the corner button work. `pr-8` reserves the
+                        corner. (This comment sits OUTSIDE the `&&` — a JSX comment in expression
+                        position is a syntax error, per CLAUDE.md's landmine list.) */}
                     {activeBuilding && (
-                      <div className="material sticky top-0 z-10 -mx-1 mb-1 flex items-center gap-3 rounded-xl border border-border/70 bg-card/70 p-2 backdrop-blur">
+                      <div className="material sticky top-0 z-10 -mx-1 mb-1 flex items-center gap-3 rounded-xl border border-border/70 bg-card/70 p-2 pr-8 backdrop-blur">
                         {activeBuilding.hero && (
                           <Image
                             src={activeBuilding.hero}
@@ -3719,6 +3813,27 @@ export function ListingsExplorer({
                         >
                           {tr('All buildings', 'Tất cả')}
                         </Button>
+                        {/**
+                          * ⛔ THE CORNER ✕ — owner, 2026-09-24: "add x closing button top right of this
+                          * card to close the building mode and continue surfing the other apartments".
+                          * The action is identical to "All buildings" beside it (`setSelectedBuilding(null)`),
+                          * and that is the point: the labelled button reads as a FILTER — "Tất cả" is
+                          * literally the word every other filter uses for its unset state — so a reader
+                          * who has drilled into one tower does not recognise it as the way out. A ✕ in
+                          * the corner is the one affordance nobody has to interpret. Keeping both is the
+                          * ordinary dialog shape (an ✕ and a labelled action), not a duplicate to tidy
+                          * away; the ✕ says "close", the button says where you land.
+                          * ⚠️ `pr-8` on the row above reserves this corner so the ✕ never sits on top of
+                          * the button or the truncated building name.
+                          */}
+                        <IconButton
+                          size="xs"
+                          onClick={() => { setSelectedBuilding(null); mapListRef.current?.scrollTo({ top: 0 }) }}
+                          aria-label={tr('Close building', 'Đóng toà nhà')}
+                          className="absolute right-1.5 top-1.5 h-6 w-6 text-ink-4 hover:bg-muted hover:text-foreground"
+                        >
+                          <X className="h-4 w-4 shrink-0" />
+                        </IconButton>
                       </div>
                     )}
                     {mapSortedListings.map((l) => (
