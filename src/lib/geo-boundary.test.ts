@@ -112,6 +112,65 @@ describe('pickBoundary', () => {
     expect(pickBoundary(realOne, 'district', 'Quận 2', 'Hồ Chí Minh')).not.toBeNull()
   })
 
+  /**
+   * ⛔ THE 2025-REFORM BUG THIS GUARD EXISTS FOR, and it was outlining nine of twenty-two districts
+   * wrong in production. The reform abolished HCMC's districts and reused their names for new
+   * WARDS, so a bare-name lookup now returns a current unit of the same name: measured against the
+   * live API, "Bình Thạnh" returns `Phường Bình Thạnh` (3.3 km² against the district's 20.8) and
+   * "Củ Chi" returns `Ấp Củ Chi`, a HAMLET (0.7 km² against 434.7). Both are real `administrative`
+   * boundaries with real geometry and exactly the right name, so every other check here passed them.
+   */
+  it('refuses a ward or hamlet that answers to a district name', () => {
+    const ward: OsmResult[] = [{
+      category: 'boundary', type: 'administrative',
+      display_name: 'Phường Bình Thạnh, Thành phố Hồ Chí Minh, Việt Nam', geojson: poly([]),
+    }]
+    expect(pickBoundary(ward, 'district', 'Bình Thạnh', 'Hồ Chí Minh')).toBeNull()
+
+    const hamlet: OsmResult[] = [{
+      category: 'boundary', type: 'administrative',
+      display_name: 'Ấp Củ Chi, Xã Tân An Hội, Thành phố Hồ Chí Minh, Việt Nam', geojson: poly([]),
+    }]
+    expect(pickBoundary(hamlet, 'district', 'Củ Chi', 'Hồ Chí Minh')).toBeNull()
+
+    // …while the real district, which announces itself as one, is still accepted.
+    const district: OsmResult[] = [{
+      category: 'boundary', type: 'historic',
+      display_name: 'Quận Bình Thạnh, Thành phố Hồ Chí Minh, Việt Nam', geojson: poly([]),
+    }]
+    expect(pickBoundary(district, 'district', 'Bình Thạnh', 'Hồ Chí Minh')).not.toBeNull()
+  })
+
+  /**
+   * ⛔ A TOWNLET IS COMMUNE-LEVEL AND EVERY RURAL DISTRICT HAS ONE WITH ITS EXACT NAME. Three
+   * reviewers found `thị trấn` missing from the guard independently: it would have cleared both the
+   * guard and the name check on the bare-name fallback candidate, outlining a ~10 km² town as a
+   * 434.7 km² huyện — the same bug one candidate later.
+   * ⚠️ `Thị xã` is the opposite case and MUST still pass: it is a district-level town, not a commune.
+   */
+  it('refuses a thị trấn for a district, but still accepts a thị xã', () => {
+    const townlet: OsmResult[] = [{
+      category: 'boundary', type: 'administrative',
+      display_name: 'Thị trấn Củ Chi, Huyện Củ Chi, Việt Nam', geojson: poly([]),
+    }]
+    expect(pickBoundary(townlet, 'district', 'Củ Chi', 'Hồ Chí Minh')).toBeNull()
+
+    const town: OsmResult[] = [{
+      category: 'boundary', type: 'administrative',
+      display_name: 'Thị xã Bến Cát, Thành phố Hồ Chí Minh, Việt Nam', geojson: poly([]),
+    }]
+    expect(pickBoundary(town, 'district', 'Bến Cát', 'Hồ Chí Minh')).not.toBeNull()
+  })
+
+  /** ⚠️ A WARD LOOKUP must still accept a ward — the guard is scoped to `kind === 'district'`. */
+  it('still accepts a ward when a ward is what was asked for', () => {
+    const ward: OsmResult[] = [{
+      category: 'boundary', type: 'administrative',
+      display_name: 'Phường An Khánh, Thành phố Hồ Chí Minh, Việt Nam', geojson: poly([]),
+    }]
+    expect(pickBoundary(ward, 'ward', 'An Khánh', 'Hồ Chí Minh')).not.toBeNull()
+  })
+
   /** No match is a real answer: the map must draw nothing rather than draw a guess. */
   it('returns null when nothing is an administrative area', () => {
     expect(pickBoundary([], 'ward')).toBeNull()
@@ -216,10 +275,45 @@ describe('districtQueryAliases', () => {
     expect(districtQueryAliases('TP Thủ Đức')).toContain('Thành phố Thủ Đức')
   })
 
-  /** The exact name must be asked FIRST — an alias is a fallback, never a replacement. */
-  it('always asks for the given name first', () => {
-    for (const n of ['Quận 1', 'Nhà Bè', 'Quận 7 (Phú Mỹ Hưng)', 'TP Thủ Đức']) {
+  /**
+   * ⛔ THE "EXACT NAME FIRST" RULE IS DEAD FOR BARE NAMES, AND THAT INVERSION IS THE 2025-REFORM FIX.
+   * It held while a bare name resolved to the district. It does not now: the reform reused the
+   * district names for new wards, so "Bình Thạnh" returns a 3.3km² WARD and "Củ Chi" a 0.7km²
+   * HAMLET, while "Quận Bình Thạnh"/"Huyện Củ Chi" return the real 20.8 and 434.7km² districts.
+   * A name that already carries its own prefix is still asked for exactly as given.
+   */
+  it('asks the prefixed forms first for a bare name, and the given name first otherwise', () => {
+    for (const n of ['Quận 1', 'Quận 7 (Phú Mỹ Hưng)', 'TP Thủ Đức']) {
       expect(districtQueryAliases(n)[0]).toBe(n)
+    }
+    const bare = districtQueryAliases('Nhà Bè')
+    expect(bare[0]).toBe('Quận Nhà Bè')
+    expect(bare).toContain('Huyện Nhà Bè')
+    expect(bare).toContain('Nhà Bè')
+    expect(bare.indexOf('Nhà Bè')).toBeGreaterThan(bare.indexOf('Huyện Nhà Bè'))
+  })
+
+  /**
+   * ⛔ BOTH PREFIXES, BECAUSE WHICH ONE A DISTRICT TAKES IS NOT DERIVABLE from the curated list —
+   * urban districts are `Quận`, rural ones `Huyện`, and nothing stored says which. Measured: Gò Vấp
+   * and Bình Tân are Quận; Củ Chi, Hóc Môn and Bình Chánh are Huyện. Dropping either loses half.
+   */
+  it('offers Quận, Huyện and Thành phố for a bare name', () => {
+    for (const n of ['Gò Vấp', 'Củ Chi', 'Hóc Môn', 'Bình Tân']) {
+      const a = districtQueryAliases(n)
+      expect(a).toContain(`Quận ${n}`)
+      expect(a).toContain(`Huyện ${n}`)
+      // ⚠️ A district-level CITY stored without its prefix would otherwise never be asked for in
+      // the only form that resolves it (reviewer) — "Thủ Đức" must still reach "Thành phố Thủ Đức".
+      expect(a).toContain(`Thành phố ${n}`)
+    }
+  })
+
+  /** ⚠️ `Thị xã`/`TX` count as ALREADY prefixed — no "Quận Thị xã …" nonsense on top of a town. */
+  it('does not prefix a name that already carries a district-level one', () => {
+    for (const n of ['Thị xã Bến Cát', 'TX Bến Cát', 'Quận 1', 'TP Thủ Đức']) {
+      expect(districtQueryAliases(n)[0]).toBe(n)
+      expect(districtQueryAliases(n).some((a) => /^(Quận|Huyện)\s+(Thị xã|TX|Quận|TP)/i.test(a))).toBe(false)
     }
   })
 
@@ -260,6 +354,8 @@ describe('districtQueryCandidates', () => {
    */
   it('reaches Thủ Đức and Cần Giờ through the country scope', () => {
     expect(qs('TP Thủ Đức')).toContain('Thành phố Thủ Đức, Việt Nam')
+    // ⚠️ Cần Giờ is a huyện, and the country scope is what reaches it since the reform moved it
+    // out from under Hồ Chí Minh — both halves matter, so assert the exact pair.
     expect(qs('Cần Giờ')).toContain('Huyện Cần Giờ, Việt Nam')
   })
 
@@ -275,7 +371,7 @@ describe('districtQueryCandidates', () => {
     for (const n of ['Quận 1', 'TP Thủ Đức', 'Cần Giờ', 'Quận 7 (Phú Mỹ Hưng)']) {
       const q = qs(n)
       expect(new Set(q).size).toBe(q.length)
-      expect(q.length).toBeLessThanOrEqual(4)
+      expect(q.length).toBeLessThanOrEqual(6)
     }
   })
 

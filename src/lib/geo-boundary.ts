@@ -66,13 +66,41 @@ export function pickBoundary(results: OsmResult[], kind: BoundaryKind, expectedN
    * away correct answers to guard against rare wrong ones.
    */
   const fold = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/\s+/g, ' ').trim()
+  /**
+   * ⛔ A WARD IS NEVER A DISTRICT, AND AFTER THE 2025 REFORM IT WILL HAPPILY ANSWER TO THE SAME NAME.
+   * The reform abolished HCMC's districts and reused their names for new wards, so OSM now returns
+   * `Phường Bình Thạnh` (3.3 km²) for "Bình Thạnh" and `Ấp Củ Chi` — a HAMLET, 0.7 km² — for "Củ
+   * Chi", where the districts are 20.8 and 434.7. Both are genuine `administrative` boundaries with
+   * real geometry and the right name, so every other check here passes them: nine of twenty-two
+   * curated districts were outlining a ward or a hamlet before this guard existed.
+   * ⚠️ IT KEYS ON THE VIETNAMESE UNIT PREFIX, which is the only thing in the answer that says what
+   * KIND of place it is — `admin_level` does not separate them any more (a post-reform ward is
+   * level 6, the same level the districts used to be). Asking for a district therefore refuses
+   * anything that announces itself as a ward, hamlet, commune or block.
+   * ⛔ `thị trấn` IS IN THE LIST AND IS THE ONE THAT NEARLY GOT AWAY — all three reviewers caught
+   * its absence independently. A townlet is commune-level, and EVERY rural district has one sharing
+   * its exact name: Thị trấn Củ Chi, Thị trấn Hóc Môn, Thị trấn Nhà Bè. Without it the bare-name
+   * fallback candidate would clear this guard and then clear the name check (`got.endsWith(' ' +
+   * want)`), outlining a ~10 km² town as a 434.7 km² huyện — the very bug this guard was written
+   * for, still reachable one candidate later.
+   * ⚠️ `thị\s*trấn` IS ANCHORED SEPARATELY FROM `xã` ON PURPOSE: `Thị xã` is DISTRICT-level (a town,
+   * not a commune) and must keep passing, while `Thị trấn` must not. Anchoring `xã` at the start is
+   * what keeps "Thị xã Bến Cát" out of this list.
+   * ⚠️ The abbreviated OSM forms (`P.`, `TT.`, `KP.`) are here too, for the same reason.
+   */
+  const WARD_LEVEL = /^(phường|p\.|xã|thị\s*trấn|tt\.|ấp|thôn|khu\s*phố|kp\.|tổ\s*dân\s*phố|làng|bản)\s*/i
+  const districtOnly = kind === 'district'
+    ? usable.filter((r) => !WARD_LEVEL.test((r.display_name ?? '').split(',')[0].trim()))
+    : usable
+  if (!districtOnly.length) return null
+
   const named = expectedName
-    ? usable.filter((r) => {
+    ? districtOnly.filter((r) => {
         const want = fold(expectedName)
         const got = fold(r.display_name?.split(',')[0] ?? '')
         return got === want || got.endsWith(` ${want}`) || want.endsWith(` ${got}`)
       })
-    : usable
+    : districtOnly
   if (!named.length) return null
   /**
    * ⚠️ WHEN THE NAME MATCHES MORE THAN ONCE, THE ONE IN THE EXPECTED PROVINCE WINS. The name check
@@ -120,8 +148,43 @@ export function districtQueryAliases(name: string): string[] {
   // "TP Thủ Đức" → "Thành phố Thủ Đức" — our abbreviation, spelled out the way OSM spells it.
   push(bare.replace(/^TP\.?\s+/i, 'Thành phố '))
 
-  // A name with no administrative prefix is a rural district in this list; OSM prefixes those.
-  if (!/^(Quận|Huyện|Thành phố|TP)\b/i.test(bare)) push(`Huyện ${bare}`)
+  /**
+   * ⛔ BOTH PREFIXES, AND THEY GO FIRST — this is the fix for the worst boundary bug this file has
+   * had. Measured 2026-09-24 across all 22 curated districts: NINE were outlining the wrong thing,
+   * because Vietnam's 2025 reform ABOLISHED the districts and REUSED THEIR NAMES FOR NEW WARDS. So a
+   * bare-name query now resolves to a current unit of the same name and OSM ranks it first:
+   *   · "Củ Chi"      → `Ấp Củ Chi`, a HAMLET — 0.7 km² where the district is 434.7
+   *   · "Bình Thạnh"  → `Phường Bình Thạnh`, a WARD — 3.3 km² where the district is 20.8
+   *   · and the same for Tân Bình, Tân Phú, Gò Vấp, Phú Nhuận, Bình Tân, Hóc Môn, Bình Chánh.
+   * The abolished district does not even appear in the bare-name results. Asking for "Quận Bình
+   * Thạnh" or "Huyện Củ Chi" returns it as `historic` with the exact right area, every time.
+   *
+   * ⚠️ WHICH PREFIX A DISTRICT TAKES IS NOT DERIVABLE — urban ones are `Quận`, rural ones `Huyện`,
+   * and the curated list stores neither. So both are tried, prefixed forms FIRST because the bare
+   * name is the one that now resolves to the wrong place.
+   */
+  /**
+   * ⛔ `(?:\s|$)`, NOT `\b` — JavaScript's word boundary is ASCII-only, so it matches after the "n"
+   * of "Huyện" and NOT after the "ã" of "Thị xã". With `\b` this test silently failed for exactly
+   * the prefixes that end in a diacritic, and "Thị xã Bến Cát" came back out as "Quận Thị xã Bến
+   * Cát". Its own test caught it.
+   */
+  if (!/^(Quận|Huyện|Thành phố|TP|Thị xã|TX)(?:\s|$)/i.test(bare)) {
+    /**
+     * ⚠️ REBUILT, NOT APPENDED TO — the bare name is the LEAST trustworthy form since the reform, so
+     * it goes last rather than first. ⚠️ `Thành phố` is offered too (reviewer): a district-level
+     * city stored WITHOUT its prefix — "Thủ Đức" rather than "TP Thủ Đức" — would otherwise never
+     * be asked for in the only form that resolves it. ⚠️ And `Thị xã`/`TX` count as already
+     * prefixed, so a town name does not get "Quận Thị xã …" built on top of it.
+     */
+    const withGloss = name !== bare ? [name] : []
+    out.length = 0
+    push(`Quận ${bare}`)
+    push(`Huyện ${bare}`)
+    push(`Thành phố ${bare}`)
+    push(bare)
+    for (const g of withGloss) push(g)
+  }
 
   return out
 }
@@ -169,11 +232,25 @@ export function districtQueryCandidates(
    * yields at most two aliases), and that is exactly why it would have rotted silently: the first
    * label combining a parenthetical with a `TP`/`Huyện` prefix would have been quietly unfindable
    * and then negatively cached for thirty days.
-   * ⚠️ The exact name stays FIRST (it is right for the eighteen that already work); the last alias
-   * is the most transformed, so the pair spans the range at the same cost.
+   * ⛔ THE "EXACT NAME STAYS FIRST" RULE THAT USED TO BE DOCUMENTED HERE IS DEAD, and leaving it
+   * would be the third stale comment this file has shipped (reviewer). It was right while a bare
+   * name resolved to the district; since the 2025 reform the bare name resolves to a WARD of the
+   * same name, so for a bare input the prefixed forms lead and the plain one is the fallback. A
+   * name that carries its own prefix is still asked for exactly as given.
    */
-  const all = districtQueryAliases(name)
-  const aliases = all.length <= 2 ? all : [all[0], all[all.length - 1]]
+  /**
+   * ⛔ THE FIRST TWO, BECAUSE THE PREFIXED FORMS NOW LEAD. This used to take [first, last] on the
+   * theory that the exact name was best and the last was the most transformed — true when the bare
+   * name came first. Since the 2025-reform fix it does not: for a bare rural name the list is
+   * [Quận X, Huyện X, X], and first-and-last picked "Quận X" and the BARE name while dropping
+   * "Huyện X" — the only form that resolves a huyện. Its own test caught it.
+   * ⚠️ THREE, NOT TWO, AND THREE IS THE MEASURED CEILING rather than a round number. The two shapes
+   * a real district takes both need exactly three: a bare name wants [Quận X, Huyện X, X], and a
+   * prefixed name carrying a gloss wants [TP X (Y), TP X, Thành phố X]. At two, each of those lost
+   * its last entry — which is the one that resolves. Both losses were caught by tests rather than
+   * by reading, which is why the cap is now derived from the alias shapes instead of guessed.
+   */
+  const aliases = districtQueryAliases(name).slice(0, 3)
   const out: { q: string; expect: string }[] = []
   for (const scope of [province, country]) {
     if (!scope) continue
@@ -182,10 +259,13 @@ export function districtQueryCandidates(
       if (!out.some((c) => c.q === q)) out.push({ q, expect: a })
     }
   }
-  // ⚠️ FOUR, NOT SIX (reviewer): every real district resolves within two aliases × two scopes, and
-  // each extra candidate costs another upstream call and another ~7s on the one path a cold
-  // anonymous request can take. Measured — Thủ Đức, Cần Giờ, Nhà Bè and Quận 7 all land by #4.
-  return out.slice(0, 4)
+  /**
+   * ⚠️ SIX = three aliases × two scopes, raised from four when the 2025-reform fix made three aliases
+   * necessary (see above). The cost is paid ONLY on a genuine miss — a cold district that resolves
+   * on its first candidate still makes one call — and a miss then caches for thirty days. The warm
+   * script keeps this off the request path entirely for the curated list.
+   */
+  return out.slice(0, 6)
 }
 
 /**
