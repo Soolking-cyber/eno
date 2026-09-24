@@ -13,11 +13,18 @@
  * honeycomb mutableOf, muaban sameMutable), so a row fixed only in the database would be reverted by
  * the next refresh. The mappers call `localizeImportText` on what they compose, before the
  * unchanged-row comparison and before `searchText` is folded; scripts/localize-import-listings.ts
- * applies the same function once to rows already stored.
+ * applies the same function once to rows already stored. The Batdongsan and Rever importers refresh
+ * their text too (`update: mutable`), with a template of their own: `localizeReferenceImportText`
+ * (below) runs inside their compose(), and the one-off picks it for those two sellers.
  *
  * THE DICTIONARY (src/data/import-segment-translations.json) is a REVIEWED list, not machine output
  * at run time: every mixed-language segment found in the stored rows on 2026-09-24, translated by
  * ten translators and validated (every number preserved, no cross-chunk disagreement). Keys are NFC.
+ * Extended on 2026-09-24 (part 3) with the Batdongsan / Rever segments, ADD-ONLY: no committed value
+ * was replaced. ⚠️ ONE ENTRY IS NOT FROM THE REVIEWED LIST: "Nam" → "South". The extraction found
+ * mixed-language segments by their diacritics, and "Nam" is plain ASCII, so the one compass point
+ * without a mark was never extracted while its seven siblings were; it is a compass entry, so it
+ * applies on a Facing / Direction line only.
  *
  * THE CONTRACT
  *  - Only a segment the dictionary has is replaced, WHOLE: the part of a title after " — ", or the
@@ -42,16 +49,20 @@
  *  - an entry whose TRANSLATION is street-shaped ("… Street", "… Road", "Street No. 12", "National
  *    Route 13"; Vietnamese "Đường …") applies ONLY on the street line (Street / Đường), never on a
  *    ward, district, building, location or title. Measured on the reviewed set: every street-shaped
- *    translation is a street entry, and the 9 street entries that are not street-shaped ("Cầu Him
+ *    translation is a street entry, and the street entries that are not street-shaped ("Cầu Him
  *    Lam" → "Him Lam Bridge", "khu Tên Lửa" → "Tên Lửa Area") name their own kind in the source.
+ *    ⚠️ "Street-shaped" means ONE part: a translation with a comma is a whole address (two Rever
+ *    Address entries start "Street No. …, Thảo Điền, …") and no street entry has one (isStreetEntry).
  * The same holds for compass directions: an entry translating to "North" … "Southwest" is used on the
- * Facing line only. The remaining families are interchangeable where they can meet — every ward,
- * district and location entry names an administrative unit (measured on 6,201 staged rows: each
- * cross-label hit was one, e.g. "District: Quận 4" via a title entry), building entries are
- * identities, and the 8 Type entries are property kinds.
+ * Facing / Direction line only. The remaining families are interchangeable where they can meet —
+ * every ward, district, location and address entry names an administrative unit (measured on 6,201
+ * staged rows: each cross-label hit was one, e.g. "District: Quận 4" via a title entry), building
+ * entries are identities, and the Type entries (8, then 7 more for Batdongsan / Rever) are property
+ * kinds.
  * A new label needs its segments reviewed and its name added here.
  *
- * PURE — no I/O, no env. Imported by the three mappers and by the one-off, never by the app.
+ * PURE — no I/O, no env. Imported by the three mappers, the Batdongsan and Rever importers and the
+ * one-off, never by the app.
  */
 import segments from '../data/import-segment-translations.json'
 import { fold } from './fold'
@@ -94,27 +105,46 @@ const STREET_SHAPED: Record<ImportTextTarget, RegExp> = {
  */
 const canon = (s: string) => s.normalize('NFC').replace(/\u00D0/g, '\u0110')
 
+/**
+ * Is this translation a STREET (so the entry is kept to the street line)? Street-shaped and a single
+ * part. ⚠️ A translation with a comma is a whole ADDRESS, not a street: Rever's "Address:" line reads
+ * "Số 11, Thảo Điền, Quận 2, Hồ Chí Minh" → "Street No. 11, Thảo Điền, District 2, Ho Chi Minh City",
+ * which starts like a numbered street and would otherwise be refused on the very line it was reviewed
+ * for. Measured on the reviewed set (2026-09-24): 0 of the 765 street entries has a comma; the 2
+ * comma-carrying street-shaped translations are both Address entries.
+ */
+const isStreetEntry = (target: ImportTextTarget, v: string) => STREET_SHAPED[target].test(v) && !v.includes(',')
+
 type Dict = { byKey: ReadonlyMap<string, string>; translations: ReadonlySet<string>; streetOnly: ReadonlySet<string>; facingOnly: ReadonlySet<string> }
 /** A Map, not the parsed object: a plain-object lookup of "constructor" would return a function. */
 function load(o: Record<string, string>, target: ImportTextTarget): Dict {
   const byKey = new Map<string, string>()
   for (const [k, v] of Object.entries(o)) byKey.set(canon(k), v.normalize('NFC'))
-  const streetOnly = new Set([...byKey].filter(([, v]) => STREET_SHAPED[target].test(v)).map(([k]) => k))
+  const streetOnly = new Set([...byKey].filter(([, v]) => isStreetEntry(target, v)).map(([k]) => k))
   const facingOnly = new Set([...byKey].filter(([, v]) => target === 'en' && FACING_SHAPED.test(v)).map(([k]) => k))
   return { byKey, translations: new Set(byKey.values()), streetOnly, facingOnly }
 }
 const DICTS: Record<ImportTextTarget, Dict> = { en: load(segments.en, 'en'), vi: load(segments.vi, 'vi') }
 
 /**
+ * The fact labels whose value is a compass direction: the property importers' "Facing", and the
+ * reference template's "Direction" (Rever — the same "Hướng", eight values: Đông Nam, Tây Bắc, …).
+ */
+const COMPASS_LABELS: ReadonlySet<string> = new Set(['Facing', 'Direction'])
+
+/**
  * The reviewed translation of one whole segment, or undefined. The lookup is on the NFC form.
  * `slot` is where the segment sits — a fact label, or 'title' for a title's location. A street-shaped
- * entry is refused anywhere but the street line, a compass entry anywhere but Facing. Without a slot
- * it is the raw dictionary lookup.
+ * entry is refused anywhere but the street line, a compass entry anywhere but a compass line. Without
+ * a slot it is the raw dictionary lookup.
+ * ⚠️ "Direction" TAKES COMPASS ENTRIES ONLY. No segment was reviewed under that label; the compass
+ * entries were (on muaban's Facing line) and they are the only ones known to be right there.
  */
 export function translateSegment(target: ImportTextTarget, segment: string, slot?: string): string | undefined {
   const d = DICTS[target], key = canon(segment)
   if (slot !== undefined && slot !== STREET_LABEL[target] && d.streetOnly.has(key)) return undefined
-  if (slot !== undefined && slot !== 'Facing' && d.facingOnly.has(key)) return undefined
+  if (slot !== undefined && !COMPASS_LABELS.has(slot) && d.facingOnly.has(key)) return undefined
+  if (slot === 'Direction' && !d.facingOnly.has(key)) return undefined
   return d.byKey.get(key)
 }
 
@@ -170,8 +200,7 @@ function localizeTitle(title: string, target: ImportTextTarget, missing: Missing
 const VI_GROUPED = /(?<![\d.,])\d{1,3}(?:\.\d{3})+(?![\d.,])/g
 export const englishRentValue = (value: string) => value.replace(VI_GROUPED, (m) => m.replaceAll('.', ','))
 
-function localizeFacts(text: string, target: ImportTextTarget, missing: Missing): string {
-  const labels = target === 'en' ? EN_LABELS : VI_LABELS
+function localizeFacts(text: string, target: ImportTextTarget, missing: Missing, labels: ReadonlySet<string> = target === 'en' ? EN_LABELS : VI_LABELS): string {
   const lines = text.split('\n')
   let changed = false
   for (let i = 0; i < lines.length; i++) {
@@ -188,7 +217,10 @@ function localizeFacts(text: string, target: ImportTextTarget, missing: Missing)
       const hit = translateSegment(target, value, label)
       if (hit !== undefined) {
         if (hit !== value) next = `${label}: ${hit}`
-      } else if (value && !isTranslation(target, value) && looksUntranslated(target, value, EN_STREET_WORD)) {
+      } else if (value && !isTranslation(target, value)
+        /** A Direction is a compass point or it is untranslated — "Nam" is plain ASCII and the
+         *  diacritic test alone would never report it. */
+        && (label === 'Direction' ? !FACING_SHAPED.test(value) : looksUntranslated(target, value, EN_STREET_WORD))) {
         missing.add(target, `${target === 'en' ? 'desc' : 'descVi'}:${label}`, value)
       }
     }
@@ -208,6 +240,59 @@ export function localizeImportText<V extends string | null>(t: ImportTexts<V>): 
   const description = localizeFacts(t.description, 'en', missing)
   const titleVi = (t.titleVi === null ? null : localizeTitle(t.titleVi, 'vi', missing)) as V
   const descriptionVi = (t.descriptionVi === null ? null : localizeFacts(t.descriptionVi, 'vi', missing)) as V
+  return { title, titleVi, description, descriptionVi, missing: missing.list() }
+}
+
+/**
+ * THE REFERENCE-LISTING TEMPLATE — scripts/import-batdongsan-rentals.ts and scripts/import-rever-rentals.ts.
+ * Their compose() writes ONE fact block, with the SAME English labels, into BOTH descriptions:
+ *   Type: Nhà trọ / Phòng trọ · Area: 24 m² · Bedrooms · Bathrooms · Location: Quận 11 (P. Hòa Bình mới)
+ *   (Batdongsan) · Direction: Đông Nam · Address: Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh (Rever)
+ *   · Rent: 6.300.000 đ/month
+ * So the English text carries Vietnamese values, and the Vietnamese text carries English labels.
+ *  - ENGLISH: the same contract as localizeImportText — the title location and the values of the
+ *    labels below, looked up whole in the reviewed dictionary, and the Rent number gets English commas.
+ *    "Address" is these templates' own label (its segments were reviewed as `desc:Address`); on
+ *    "Direction" only a compass entry applies (translateSegment).
+ *  - VIETNAMESE: a FIXED label map (REFERENCE_VI_LABELS — muaban's Vietnamese labels, plus Địa chỉ for
+ *    Address) and "đ/month" → "đ/tháng" on the Rent line. The VALUES are left exactly as they are: they
+ *    are the source's Vietnamese already.
+ * Idempotent: a mapped label is Vietnamese and never maps again; a translation is never a key with a
+ * different translation (the dictionary test).
+ */
+export const REFERENCE_EN_FACT_LABELS: readonly string[] = ['Type', 'Location', 'Address', 'Direction']
+const REFERENCE_EN_LABELS: ReadonlySet<string> = new Set(REFERENCE_EN_FACT_LABELS)
+export const REFERENCE_VI_LABELS: Readonly<Record<string, string>> = {
+  Type: 'Loại hình', Area: 'Diện tích', Bedrooms: 'Phòng ngủ', Bathrooms: 'Phòng vệ sinh',
+  Location: 'Khu vực', Address: 'Địa chỉ', Rent: 'Giá thuê', Direction: 'Hướng',
+}
+/** Own-property lookup: a label of "constructor" must not find Object.prototype's. */
+const referenceViLabel = (label: string) => (Object.hasOwn(REFERENCE_VI_LABELS, label) ? REFERENCE_VI_LABELS[label] : undefined)
+
+function vietnameseReferenceFacts(text: string): string {
+  const lines = text.split('\n')
+  let changed = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const cut = line.indexOf(': ')
+    if (cut <= 0) continue
+    const label = line.slice(0, cut)
+    const vi = referenceViLabel(label)
+    if (vi === undefined) continue
+    const value = line.slice(cut + 2)
+    lines[i] = `${vi}: ${label === 'Rent' ? value.replace(/đ\/month$/, 'đ/tháng') : value}`
+    changed = true
+  }
+  return changed ? lines.join('\n') : text
+}
+
+/** localizeImportText for the Batdongsan / Rever template — see the block above. */
+export function localizeReferenceImportText<V extends string | null>(t: ImportTexts<V>): LocalizedImportTexts<V> {
+  const missing = new Missing()
+  const title = localizeTitle(t.title, 'en', missing)
+  const description = localizeFacts(t.description, 'en', missing, REFERENCE_EN_LABELS)
+  const titleVi = (t.titleVi === null ? null : localizeTitle(t.titleVi, 'vi', missing)) as V
+  const descriptionVi = (t.descriptionVi === null ? null : vietnameseReferenceFacts(t.descriptionVi)) as V
   return { title, titleVi, description, descriptionVi, missing: missing.list() }
 }
 

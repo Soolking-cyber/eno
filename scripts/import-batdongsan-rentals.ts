@@ -34,13 +34,13 @@
  * (18 fields, no coordinates) is stale. Check the field list before trusting notes about it.
  */
 import { readFileSync } from 'node:fs'
-import { PrismaClient } from '../src/generated/prisma/client'
-import { PrismaPg } from '@prisma/adapter-pg'
+import { invokedDirectly } from '../src/lib/cli-entry'
 import { buildSearchText } from '../src/lib/fold'
+import { localizeReferenceImportText, untranslatedSummary, type LocalizedImportTexts } from '../src/lib/import-i18n'
 
 /** ⛔ PINNED BY ID, never resolved by display name — `Seller.name` is not unique and IS user
  *  settable (`api/profile/account-type`), so a name lookup could attach these to a real shop. */
-const SELLER_ID = 'bds-vn-import-seller-0001'
+export const SELLER_ID = 'bds-vn-import-seller-0001'
 const SELLER_NAME = 'Batdongsan.com.vn'
 
 const SUBCAT: Record<string, string | null> = {
@@ -90,7 +90,16 @@ const allowedTarget = (u: unknown): u is string =>
 
 type Row = Record<string, any>
 
-function compose(r: Row, price: number) {
+/**
+ * The four texts of one row. ⛔ LOCALIZED HERE, INSIDE COMPOSE, because `update: mutable` below
+ * REFRESHES title / titleVi / description / descriptionVi on every re-run: a fix made only in the
+ * database would be reverted by the next import. localizeReferenceImportText (src/lib/import-i18n.ts)
+ * makes the English text English (title location, Type / Location values from the reviewed
+ * dictionary, English-grouped rent) and gives the Vietnamese fact block Vietnamese labels
+ * ("Loại hình:", "Giá thuê: … đ/tháng"); `missing` lists what the dictionary does not cover yet.
+ * scripts/localize-import-listings.ts applies the same function to the rows already stored.
+ */
+export function compose(r: Row, price: number): LocalizedImportTexts {
   const bits: string[] = []
   if (r.bedrooms) bits.push(`${r.bedrooms} bed`)
   if (r.bathrooms) bits.push(`${r.bathrooms} bath`)
@@ -102,16 +111,18 @@ function compose(r: Row, price: number) {
     ['Bathrooms', r.bathrooms], ['Location', r.location], ['Rent', `${vnd(price)}/month`],
   ] as [string, any][]).filter(([, v]) => v !== null && v !== undefined && v !== '')
     .map(([k, v]) => `${k}: ${v}`).join('\n')
-  return {
+  return localizeReferenceImportText({
     title: `${bits.join(' · ') || 'Property'} for rent — ${where}`,
     titleVi: `Cho thuê ${kind}${r.bedrooms ? ` ${r.bedrooms}PN` : ''}${r._area ? ` ${r._area}m²` : ''} — ${where}`,
     description: `Listed on Batdongsan.com.vn. eno links to the original — enquiries and viewings are handled there, not by eno.\n\n${facts}`,
     descriptionVi: `Tin đăng trên Batdongsan.com.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.\n\n${facts}`,
-  }
+  })
 }
 
 async function main() {
   if (!SRC) throw new Error('--src <all_rentals.json> is required')
+  const { PrismaClient } = await import('../src/generated/prisma/client')
+  const { PrismaPg } = await import('@prisma/adapter-pg')
   const db = new PrismaClient({
     adapter: new PrismaPg({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL }),
     log: ['warn', 'error'],
@@ -157,6 +168,7 @@ async function main() {
   console.log(`rows on seller    ${already}`)
   console.log(`images            NONE — see the header; agent headshots + rival watermarks`)
   console.log(`mode              ${APPLY ? 'APPLY — WRITES TO PRODUCTION' : 'DRY RUN'}`)
+  console.log(`untranslated      ${untranslatedSummary(batch.flatMap((r) => compose(r, r.price_vnd).missing)) || 'none — every mixed-language segment has a reviewed translation'}`)
 
   if (!APPLY) {
     const s = batch[0]
@@ -179,7 +191,9 @@ async function main() {
   let created = 0, updated = 0
   for (const r of batch) {
     const price = r.price_vnd as number
-    const c = compose(r, price)
+    /** The four text columns only — `missing` is a report (the `untranslated` line above), never a column. */
+    const { title, titleVi, description, descriptionVi } = compose(r, price)
+    const c = { title, titleVi, description, descriptionVi }
     const beds = Number(r.bedrooms) > 0 ? Math.min(Number(r.bedrooms), 3) : null
     const externalId = `bds:${r.code}`
     const mutable = {
@@ -225,4 +239,7 @@ async function main() {
   console.log(`  -- hard delete is NOT paste-safe: Order is onDelete:Restrict and six relations Cascade.`)
   await db.$disconnect()
 }
-main().catch((e) => { console.error(e); process.exit(1) })
+/** Run only when executed — compose() above is imported by the unit test (real paths: src/lib/cli-entry.ts). */
+if (invokedDirectly(import.meta.url)) {
+  main().catch((e) => { console.error(e); process.exit(1) })
+}

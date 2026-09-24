@@ -4,15 +4,18 @@ import { IMPORT_SELLERS } from './import-sellers'
 import { NHATOT_SELLER_ID } from './nhatot-listing'
 import { HONEYCOMB_SELLER_ID } from './honeycomb-listing'
 import { SELLER_ID as MUABAN_SELLER_ID } from '../../scripts/muaban-net-map'
-import { fold } from './fold'
+import { SELLER_ID as BATDONGSAN_SELLER_ID, compose as composeBatdongsan } from '../../scripts/import-batdongsan-rentals'
+import { SELLER_ID as REVER_SELLER_ID, compose as composeRever } from '../../scripts/import-rever-rentals'
+import { buildSearchText, fold } from './fold'
+import { localizeImportText, localizeReferenceImportText } from './import-i18n'
 import {
-  BATCH, LOCALIZE_SELLERS, TEXT_FIELDS, inScope, journalLine, journalOutcome, missingReport, parseArgs, parseJournal, pickSamples, planRow,
-  rollbackCommand, rollbackDecision, rowWhere, scopeWhere, shellQuote, stillAsWritten, type StoredRow,
+  BATCH, LOCALIZE_SELLERS, REFERENCE_SELLERS, TEXT_FIELDS, inScope, journalLine, journalOutcome, localizerFor, missingReport, parseArgs, parseJournal,
+  pickSamples, planRow, rollbackCommand, rollbackDecision, rowWhere, scopeWhere, shellQuote, stillAsWritten, type StoredRow,
 } from '../../scripts/localize-import-listings'
 
 /**
  * scripts/localize-import-listings.ts — the one-off that applies src/lib/import-i18n.ts to rows the
- * three property importers ALREADY stored. Its pure half is tested here; the places where the I/O
+ * five property importers ALREADY stored. Its pure half is tested here; the places where the I/O
  * half calls it are pinned at the source level (the script opens a database when executed).
  */
 const row = (over: Partial<StoredRow> = {}): StoredRow => {
@@ -28,16 +31,18 @@ const row = (over: Partial<StoredRow> = {}): StoredRow => {
   }
 }
 
+const FIVE = ['nhatot-import-seller-0001', 'muaban-net-import-seller-0001', 'honeycomb-import-seller-0001', 'bds-vn-import-seller-0001', 'cmub0wead0000zrq418bqq27m']
+
 describe('the one-off’s seller scope', () => {
-  it('is exactly the three importers import-i18n localizes, each pinned by id and each in IMPORT_SELLERS', () => {
-    expect([...LOCALIZE_SELLERS]).toEqual([NHATOT_SELLER_ID, MUABAN_SELLER_ID, HONEYCOMB_SELLER_ID])
-    expect([...LOCALIZE_SELLERS]).toEqual(['nhatot-import-seller-0001', 'muaban-net-import-seller-0001', 'honeycomb-import-seller-0001'])
+  it('is exactly the five importers import-i18n localizes, each pinned by id and each in IMPORT_SELLERS', () => {
+    expect([...LOCALIZE_SELLERS]).toEqual([NHATOT_SELLER_ID, MUABAN_SELLER_ID, HONEYCOMB_SELLER_ID, BATDONGSAN_SELLER_ID, REVER_SELLER_ID])
+    expect([...LOCALIZE_SELLERS]).toEqual(FIVE)
     for (const s of LOCALIZE_SELLERS) expect(IMPORT_SELLERS as readonly string[]).toContain(s)
-    expect(scopeWhere()).toEqual({ sellerId: { in: ['nhatot-import-seller-0001', 'muaban-net-import-seller-0001', 'honeycomb-import-seller-0001'] } })
+    expect(scopeWhere()).toEqual({ sellerId: { in: FIVE } })
   })
 
-  it('⛔ never plans a write for any other seller — the other imports, or a real person — whatever the text says', () => {
-    for (const other of ['bds-vn-import-seller-0001', 'cmub0wead0000zrq418bqq27m', 'mogi-vn-import-seller-0001', 'cmreal0user0shop', '']) {
+  it('⛔ never plans a write for any other seller — a parked import, a real person — whatever the text says', () => {
+    for (const other of ['mogi-vn-import-seller-0001', 'alonhadat-com-vn-import-seller-0001', 'cmreal0user0shop', '']) {
       expect(inScope(other), other).toBe(false)
       expect(planRow(row({ sellerId: other })), other).toBeNull()
     }
@@ -69,6 +74,79 @@ describe('the one-off’s seller scope', () => {
   })
 })
 
+/**
+ * ⛔ THE ONE-OFF AND THE IMPORTER MUST AGREE, OR THE NEXT RE-IMPORT REWRITES EVERY ROW. For a row the
+ * pre-part-3 importer stored (its compose() output, verbatim below), the one-off's plan must be EXACTLY
+ * what the importer composes now — title, titleVi, both descriptions and the searchText it folds.
+ * Measured on the whole source files as well: 22,443 of 22,443 importer-kept Batdongsan rows and
+ * 3,554 of 3,554 priced Rever rows identical.
+ */
+describe('Batdongsan and Rever: the reference template', () => {
+  const BDS_ROW = {
+    code: 'pr46310931', ward: 'P. Hòa Bình mới', district: 'Quận 11', location: 'Quận 11 (P. Hòa Bình mới)',
+    property_type: 'Nhà trọ / Phòng trọ', area_raw: '24 m²', _area: 24, bedrooms: 1, bathrooms: 1, price_vnd: 6_300_000,
+  }
+  const BDS_FACTS = 'Type: Nhà trọ / Phòng trọ\nArea: 24 m²\nBedrooms: 1\nBathrooms: 1\nLocation: Quận 11 (P. Hòa Bình mới)\nRent: 6.300.000 đ/month'
+  const bdsStored = (): StoredRow => {
+    const title = '1 bed · 1 bath · 24 m² for rent — P. Hòa Bình mới, Quận 11'
+    const titleVi = 'Cho thuê Nhà trọ / Phòng trọ 1PN 24m² — P. Hòa Bình mới, Quận 11'
+    return {
+      id: 'cm-bds-1', sellerId: BATDONGSAN_SELLER_ID, externalId: 'bds:pr46310931', title, titleVi,
+      description: `Listed on Batdongsan.com.vn. eno links to the original — enquiries and viewings are handled there, not by eno.\n\n${BDS_FACTS}`,
+      descriptionVi: `Tin đăng trên Batdongsan.com.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.\n\n${BDS_FACTS}`,
+      searchText: buildSearchText([title, titleVi, BDS_ROW.location, BDS_ROW.district, BDS_ROW.property_type]),
+    }
+  }
+  const REVER_ROW = {
+    id: '1654850630130_5651', ward: 'Thạnh Mỹ Lợi', district: 'Quận 2', full_address: 'Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh',
+    property_type: 'Căn hộ / Chung cư', area_raw: '60 m²', area_m2: 60, bedrooms: 2, bathrooms: 2, direction: 'Tây Nam', price_vnd: 10_000_000,
+  }
+  const REVER_FACTS = 'Type: Căn hộ / Chung cư\nArea: 60 m²\nBedrooms: 2\nBathrooms: 2\nDirection: Tây Nam\nAddress: Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh\nRent: 10.000.000 đ/month'
+  const reverStored = (): StoredRow => {
+    const title = '2 bed · 2 bath · 60 m² for rent — Thạnh Mỹ Lợi, Quận 2'
+    const titleVi = 'Cho thuê Căn hộ / Chung cư 2PN 60m² — Thạnh Mỹ Lợi, Quận 2'
+    return {
+      id: 'cm-rever-1', sellerId: REVER_SELLER_ID, externalId: 'rever:1654850630130_5651', title, titleVi,
+      description: `Listed on Rever.vn. eno links to the original — enquiries and viewings are handled by Rever, not by eno.\n\n${REVER_FACTS}`,
+      descriptionVi: `Tin đăng trên Rever.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do Rever xử lý, không qua eno.\n\n${REVER_FACTS}`,
+      searchText: buildSearchText([title, titleVi, REVER_ROW.full_address, REVER_ROW.district, REVER_ROW.property_type]),
+    }
+  }
+
+  it('picks the reference localizer for those two sellers and the property one for the other three', () => {
+    expect([...REFERENCE_SELLERS]).toEqual(['bds-vn-import-seller-0001', 'cmub0wead0000zrq418bqq27m'])
+    for (const s of REFERENCE_SELLERS) expect(localizerFor(s)).toBe(localizeReferenceImportText)
+    for (const s of [NHATOT_SELLER_ID, MUABAN_SELLER_ID, HONEYCOMB_SELLER_ID]) expect(localizerFor(s)).toBe(localizeImportText)
+  })
+
+  it('⛔ plans EXACTLY what the importer now composes — so a re-import finds the row unchanged', () => {
+    for (const [stored, c, extra] of [
+      [bdsStored(), composeBatdongsan(BDS_ROW, BDS_ROW.price_vnd), [BDS_ROW.location, BDS_ROW.district, BDS_ROW.property_type]],
+      [reverStored(), composeRever(REVER_ROW, REVER_ROW.price_vnd), [REVER_ROW.full_address, REVER_ROW.district, REVER_ROW.property_type]],
+    ] as const) {
+      const p = planRow(stored)!
+      expect(p.next).toEqual({
+        title: c.title, titleVi: c.titleVi, description: c.description, descriptionVi: c.descriptionVi,
+        searchText: buildSearchText([c.title, c.titleVi, ...extra]),
+      })
+      expect(p.changed).toEqual(['title', 'description', 'descriptionVi', 'searchText'])
+      expect(p.missing).toEqual([])
+      // Idempotent: the planned text, stored, plans nothing.
+      expect(planRow({ ...stored, ...p.next })!.changed).toEqual([])
+    }
+  })
+
+  it('the Vietnamese block gets Vietnamese labels, the English one English values', () => {
+    const p = planRow(reverStored())!
+    expect(p.next.descriptionVi).toContain('\nĐịa chỉ: Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh\nGiá thuê: 10.000.000 đ/tháng')
+    expect(p.next.description).toContain('\nDirection: Southwest\nAddress: Đồng Văn Cống Street, Thạnh Mỹ Lợi, District 2, Ho Chi Minh City\nRent: 10,000,000 đ/month')
+    // ⛔ The OTHER template on the same row would leave the Vietnamese labels English — which is why
+    // the one-off must pick by seller.
+    const wrong = localizeImportText({ title: p.old.title, titleVi: p.old.titleVi, description: p.old.description, descriptionVi: p.old.descriptionVi })
+    expect(wrong.descriptionVi).toBe(p.old.descriptionVi)
+  })
+})
+
 describe('the journal and the rollback', () => {
   it('a journal line carries the OLD and the new text of all five columns, and parses back', () => {
     const p = planRow(row())!
@@ -81,8 +159,8 @@ describe('the journal and the rollback', () => {
 
   it('⛔ refuses a whole journal that names another seller, or a line it did not write', () => {
     const p = planRow(row())!
-    const bad = { ...journalLine(p), sellerId: 'bds-vn-import-seller-0001' }
-    expect(() => parseJournal(`${JSON.stringify(journalLine(p))}\n${JSON.stringify(bad)}`)).toThrow(/line 2 names seller bds-vn-import-seller-0001/)
+    const bad = { ...journalLine(p), sellerId: 'mogi-vn-import-seller-0001' }
+    expect(() => parseJournal(`${JSON.stringify(journalLine(p))}\n${JSON.stringify(bad)}`)).toThrow(/line 2 names seller mogi-vn-import-seller-0001/)
     expect(() => parseJournal(JSON.stringify({ v: 1, id: 'x', sellerId: MUABAN_SELLER_ID }))).toThrow(/not a localize-import-listings line/)
   })
 
@@ -231,5 +309,10 @@ describe('scripts/localize-import-listings.ts wiring', () => {
     expect(src).toMatch(/new PrismaPg\(write \? \{ connectionString \} : \{ connectionString, options: '-c default_transaction_read_only=on' \}\)/)
     expect(src).toMatch(/SHOW default_transaction_read_only/)
     expect(src).toMatch(/const db = await openDb\(args\.apply\)/)
+  })
+
+  it('⛔ runs main() whenever it is the script executed — compared on REAL paths, so a symlink cannot make it a silent no-op', () => {
+    expect(src).toMatch(/\nif \(invokedDirectly\(import\.meta\.url\)\) \{\n\s+main\(\)/)
+    expect(src).not.toMatch(/pathToFileURL/)
   })
 })

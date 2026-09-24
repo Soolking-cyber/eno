@@ -36,9 +36,9 @@
  * competing normalisation of the same fact.
  */
 import { readFileSync, statSync } from 'node:fs'
-import { PrismaClient } from '../src/generated/prisma/client'
-import { PrismaPg } from '@prisma/adapter-pg'
+import { invokedDirectly } from '../src/lib/cli-entry'
 import { buildSearchText } from '../src/lib/fold'
+import { localizeReferenceImportText, untranslatedSummary, type LocalizedImportTexts } from '../src/lib/import-i18n'
 
 /**
  * ⛔ THE SELLER IS PINNED BY ID, NEVER LOOKED UP BY NAME. `Seller.name` has NO unique constraint
@@ -48,7 +48,7 @@ import { buildSearchText } from '../src/lib/fold'
  * every row to that account, whose owner could edit them and would receive the enquiries. A
  * reviewer caught this; it was a live capture risk, not a style point.
  */
-const SELLER_ID = 'cmub0wead0000zrq418bqq27m'
+export const SELLER_ID = 'cmub0wead0000zrq418bqq27m'
 const SELLER_NAME = 'Rever.vn'
 
 /**
@@ -123,7 +123,17 @@ const allowedTarget = (u: unknown): u is string =>
 
 type Row = Record<string, any>
 
-function compose(r: Row, price: number) {
+/**
+ * The four texts of one row. ⛔ LOCALIZED HERE, INSIDE COMPOSE, because `update: mutable` below
+ * REFRESHES title / titleVi / description / descriptionVi on every re-run: a fix made only in the
+ * database would be reverted by the next import. localizeReferenceImportText (src/lib/import-i18n.ts)
+ * makes the English text English (title location, Type / Address values from the reviewed
+ * dictionary, a compass Direction, English-grouped rent) and gives the Vietnamese fact block
+ * Vietnamese labels ("Địa chỉ:", "Hướng:", "Giá thuê: … đ/tháng"); `missing` lists what the
+ * dictionary does not cover yet. scripts/localize-import-listings.ts applies the same function to
+ * the rows already stored.
+ */
+export function compose(r: Row, price: number): LocalizedImportTexts {
   const bits: string[] = []
   if (r.bedrooms) bits.push(`${r.bedrooms} bed`)
   if (r.bathrooms) bits.push(`${r.bathrooms} bath`)
@@ -137,16 +147,18 @@ function compose(r: Row, price: number) {
   ] as [string, any][]).filter(([, v]) => v !== null && v !== undefined && v !== '')
     .map(([k, v]) => `${k}: ${v}`).join('\n')
 
-  return {
+  return localizeReferenceImportText({
     title: `${bits.join(' · ') || 'Property'} for rent — ${where}`,
     titleVi: `Cho thuê ${kind}${r.bedrooms ? ` ${r.bedrooms}PN` : ''}${r.area_m2 ? ` ${r.area_m2}m²` : ''} — ${where}`,
     description: `Listed on Rever.vn. eno links to the original — enquiries and viewings are handled by Rever, not by eno.\n\n${facts}`,
     descriptionVi: `Tin đăng trên Rever.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do Rever xử lý, không qua eno.\n\n${facts}`,
-  }
+  })
 }
 
 async function main() {
   if (!SRC || !STATUS) throw new Error('--src <all_rentals.json> and --status <rever-status.jsonl> are required')
+  const { PrismaClient } = await import('../src/generated/prisma/client')
+  const { PrismaPg } = await import('@prisma/adapter-pg')
   const adapter = new PrismaPg({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL })
   const db = new PrismaClient({ adapter, log: ['warn', 'error'] })
 
@@ -240,6 +252,7 @@ async function main() {
     : statusAgeDays > 7 ? `status file ${statusAgeDays.toFixed(0)}d old` : `coverage ${(coverage * 100).toFixed(1)}% < 98%`
   console.log(`retire pass       ${canRetire ? 'ON — hides rows no longer available (ONE-WAY)' : `OFF (${retireOff})`}`)
   console.log(`mode              ${APPLY ? 'APPLY — WRITES TO PRODUCTION' : 'DRY RUN'}`)
+  console.log(`untranslated      ${untranslatedSummary(batch.flatMap((r) => compose(r, r._price).missing)) || 'none — every mixed-language segment has a reviewed translation'}`)
 
   /**
    * ⛔ A STALE STATUS FILE REFUSES THE WRITE, IT DOES NOT WARN. Availability and price both come
@@ -284,7 +297,9 @@ async function main() {
   let created = 0, updated = 0
   for (const r of batch) {
     const price = r._price as number
-    const c = compose(r, price)
+    /** The four text columns only — `missing` is a report (the `untranslated` line above), never a column. */
+    const { title, titleVi, description, descriptionVi } = compose(r, price)
+    const c = { title, titleVi, description, descriptionVi }
     const images = (r.images as unknown[]).filter(allowedImage)
     /**
      * ⛔ A MISSING BEDROOM COUNT IS NOT A STUDIO. `Number(r.bedrooms || 0)` mapped absent to 0, and
@@ -404,4 +419,7 @@ async function main() {
   await db.$disconnect()
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+/** Run only when executed — compose() above is imported by the unit test (real paths: src/lib/cli-entry.ts). */
+if (invokedDirectly(import.meta.url)) {
+  main().catch((e) => { console.error(e); process.exit(1) })
+}

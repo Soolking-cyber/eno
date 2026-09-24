@@ -1,5 +1,5 @@
 /**
- * ONE-OFF: make the English text of rows ALREADY imported by the three property importers English,
+ * ONE-OFF: make the English text of rows ALREADY imported by the five property importers English,
  * and their Vietnamese text Vietnamese — the same change src/lib/import-i18n.ts now makes inside
  * each importer's compose step, applied once to what is stored.
  *
@@ -9,15 +9,20 @@
  *   npx tsx scripts/localize-import-listings.ts --apply --journal-dir <durable dir> [--limit N]
  *   npx tsx scripts/localize-import-listings.ts --rollback <journal.jsonl> [--apply]
  *
- * ⛔ SCOPE IS THREE SELLERS, PINNED BY ID: Chợ Tốt Nhà, Muaban.net and Honeycomb House
- * (LOCALIZE_SELLERS, each one also in src/lib/import-sellers.ts). Every read and every write carries
- * `sellerId IN (…those three)` in its WHERE, so a row of any other seller — a real person's post, the
- * Rever or Batdongsan imports whose text is composed differently — is never read or written.
+ * ⛔ SCOPE IS FIVE SELLERS, PINNED BY ID: Chợ Tốt Nhà, Muaban.net, Honeycomb House, Batdongsan.com.vn
+ * and Rever.vn (LOCALIZE_SELLERS, each one also in src/lib/import-sellers.ts). Every read and every
+ * write carries `sellerId IN (…those five)` in its WHERE, so a row of any other seller — a real
+ * person's post, a partner feed — is never read or written.
+ * ⚠️ TWO TEMPLATES. Batdongsan and Rever compose their text differently (one fact block with English
+ * labels in BOTH languages), so their rows go through localizeReferenceImportText — the function their
+ * importers' compose() now calls — and the other three through localizeImportText (localizerFor).
  *
  * ⛔ ONLY FIVE COLUMNS ARE WRITTEN: title, titleVi, description, descriptionVi, searchText. searchText
  * is re-derived by rebaseSearchText (import-i18n.ts): the folded title head is swapped for the
  * localized one, exactly what the importer now composes, so the next refresh of the row finds it
- * unchanged (measured on the 2026-09-24 staged files: 6,201 of 6,201 mapped rows identical).
+ * unchanged (measured on the 2026-09-24 staged files: 6,201 of 6,201 mapped rows identical; and on
+ * the 2026-09-21 source files, 22,443 of 22,443 importer-kept Batdongsan rows and 3,554 of 3,554
+ * priced Rever rows).
  *
  * ⛔ A WRITE IS JOURNALLED BEFORE IT HAPPENS. --apply refuses to start without --journal-dir on a
  * durable disk (not /tmp, /private/tmp, /var/folders or os.tmpdir(), symlinks resolved). Each batch of
@@ -48,15 +53,21 @@
 import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { invokedDirectly } from '../src/lib/cli-entry'
 import { IMPORT_SELLERS } from '../src/lib/import-sellers'
 import { NHATOT_SELLER_ID } from '../src/lib/nhatot-listing'
 import { HONEYCOMB_SELLER_ID, journalDirProblem } from '../src/lib/honeycomb-listing'
 import { SELLER_ID as MUABAN_SELLER_ID } from './muaban-net-map'
-import { localizeImportText, rebaseSearchText, type MissingSegment } from '../src/lib/import-i18n'
+import { SELLER_ID as BATDONGSAN_SELLER_ID } from './import-batdongsan-rentals'
+import { SELLER_ID as REVER_SELLER_ID } from './import-rever-rentals'
+import { localizeImportText, localizeReferenceImportText, rebaseSearchText, type MissingSegment } from '../src/lib/import-i18n'
 
-/** The three importers whose composed text import-i18n.ts localizes. Nothing else is in scope. */
-export const LOCALIZE_SELLERS = [NHATOT_SELLER_ID, MUABAN_SELLER_ID, HONEYCOMB_SELLER_ID] as const
+/** The five importers whose composed text import-i18n.ts localizes. Nothing else is in scope. */
+export const LOCALIZE_SELLERS = [NHATOT_SELLER_ID, MUABAN_SELLER_ID, HONEYCOMB_SELLER_ID, BATDONGSAN_SELLER_ID, REVER_SELLER_ID] as const
+/** The two whose importers compose the reference template (one fact block, English labels in both languages). */
+export const REFERENCE_SELLERS: readonly string[] = [BATDONGSAN_SELLER_ID, REVER_SELLER_ID]
+/** The function the seller's own importer now runs inside its compose step. */
+export const localizerFor = (sellerId: string) => (REFERENCE_SELLERS.includes(sellerId) ? localizeReferenceImportText : localizeImportText)
 export const BATCH = 200
 
 export const TEXT_FIELDS = ['title', 'titleVi', 'description', 'descriptionVi', 'searchText'] as const
@@ -70,8 +81,8 @@ export const inScope = (sellerId: string) => (LOCALIZE_SELLERS as readonly strin
 export const scopeWhere = () => ({ sellerId: { in: [...LOCALIZE_SELLERS] } })
 /**
  * The WHERE fragment every WRITE carries: this row, of the seller and externalId it was read with —
- * a row that moved between the three sellers since is not this row any more (codex, 2026-09-24) —
- * and that seller still one of the three.
+ * a row that moved between the five sellers since is not this row any more (codex, 2026-09-24) —
+ * and that seller still one of the five.
  */
 export const rowWhere = (r: { id: string; sellerId: string; externalId: string | null }) =>
   ({ id: r.id, externalId: r.externalId, sellerId: { equals: r.sellerId, in: [...LOCALIZE_SELLERS] } })
@@ -85,7 +96,7 @@ const pick = (r: TextFields): TextFields => ({ title: r.title, titleVi: r.titleV
 export function planRow(row: StoredRow): Plan | null {
   if (!inScope(row.sellerId)) return null
   const old = pick(row)
-  const loc = localizeImportText({ title: old.title, titleVi: old.titleVi, description: old.description, descriptionVi: old.descriptionVi })
+  const loc = localizerFor(row.sellerId)({ title: old.title, titleVi: old.titleVi, description: old.description, descriptionVi: old.descriptionVi })
   const next: TextFields = {
     title: loc.title, titleVi: loc.titleVi, description: loc.description, descriptionVi: loc.descriptionVi,
     searchText: rebaseSearchText(old.searchText, old, loc),
@@ -440,7 +451,7 @@ async function main() {
   else await localize(args)
 }
 
-/** Run only when executed — the pure half above is imported by the unit test. */
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+/** Run only when executed — the pure half above is imported by the unit test (real paths: src/lib/cli-entry.ts). */
+if (invokedDirectly(import.meta.url)) {
   main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1) })
 }

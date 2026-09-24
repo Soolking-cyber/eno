@@ -3,8 +3,8 @@ import segments from '@/data/import-segment-translations.json'
 import { assertCleanTexts } from './publish-guard'
 import { fold } from './fold'
 import {
-  EN_FACT_LABELS, VI_FACT_LABELS, englishRentValue, localizeImportText, rebaseSearchText, titleLocation,
-  translateSegment, untranslatedSummary, type ImportTexts,
+  EN_FACT_LABELS, REFERENCE_EN_FACT_LABELS, REFERENCE_VI_LABELS, VI_FACT_LABELS, englishRentValue, localizeImportText,
+  localizeReferenceImportText, rebaseSearchText, titleLocation, translateSegment, untranslatedSummary, type ImportTexts,
 } from './import-i18n'
 import { streetValueProblem } from '../../scripts/verify-nhatot-import'
 
@@ -46,9 +46,12 @@ const strip = (t: ReturnType<typeof localizeImportText>) => ({ title: t.title, t
 describe('the reviewed dictionary (src/data/import-segment-translations.json)', () => {
   const all = (['en', 'vi'] as const).flatMap((t) => Object.entries(segments[t] as Record<string, string>).map(([src, tr]) => ({ t, src, tr })))
 
-  it('is the reviewed set: 1,284 English and 8 Vietnamese segments, every key and value NFC', () => {
-    expect(Object.keys(segments.en)).toHaveLength(1284)
-    expect(Object.keys(segments.vi)).toHaveLength(8)
+  it('is the reviewed set: 1,866 English and 9 Vietnamese segments, every key and value NFC', () => {
+    // Part 1: 1,284 + 8. Part 3 (2026-09-24) ADDED 581 + 1 reviewed entries (Batdongsan / Rever and a
+    // second extraction) without replacing a committed value, plus ONE by hand: "Nam" → "South" (the
+    // header of import-i18n.ts says why).
+    expect(Object.keys(segments.en)).toHaveLength(1866)
+    expect(Object.keys(segments.vi)).toHaveLength(9)
     for (const { src, tr } of all) {
       expect(src, src).toBe(src.normalize('NFC'))
       expect(tr, src).toBe(tr.normalize('NFC'))
@@ -97,7 +100,9 @@ describe('the reviewed dictionary (src/data/import-segment-translations.json)', 
   })
 
   it('every translated street passes the INDEPENDENT door check of scripts/verify-nhatot-import.ts', () => {
-    const streets = all.filter(({ t, tr }) => t === 'en' && /(?:^Street\b|\b(?:Street|Road)$|^(?:National Route|Provincial Road)\b)/.test(tr))
+    // A translation with a comma is a whole ADDRESS (Rever's "Address:" line), not a street value — the
+    // door check is for the Street line. Those two are pinned in the Address test below.
+    const streets = all.filter(({ t, tr }) => t === 'en' && !tr.includes(',') && /(?:^Street\b|\b(?:Street|Road)$|^(?:National Route|Provincial Road)\b)/.test(tr))
     expect(streets.length).toBeGreaterThan(400)
     for (const { src, tr } of streets) expect(streetValueProblem(tr), `${src} → ${tr}`).toBeNull()
     // …and the new English numbered shapes are still whole-value only: a name after the number is a door.
@@ -158,6 +163,11 @@ describe('localizeImportText — the three real rows', () => {
     for (const [src] of Object.entries(segments.en as Record<string, string>)) {
       const once = strip(localizeImportText({ title: `Room for rent — ${src}`, titleVi: 'x', description: `Location: ${src}\nStreet: ${src}`, descriptionVi: 'x' }))
       expect(strip(localizeImportText(once)), src).toEqual(once)
+      const ref = strip(localizeReferenceImportText({
+        title: `Room for rent — ${src}`, titleVi: `Cho thuê — ${src}`,
+        description: `Type: ${src}\nLocation: ${src}\nAddress: ${src}\nDirection: ${src}`, descriptionVi: `Type: ${src}\nAddress: ${src}\nRent: 1.000.000 đ/month`,
+      }))
+      expect(strip(localizeReferenceImportText(ref)), src).toEqual(ref)
     }
   })
 })
@@ -247,11 +257,11 @@ describe('localizeImportText — the contract', () => {
   })
 
   it('the street scope is read from the translation’s shape, and catches every street-shaped entry', () => {
-    const shaped = Object.entries(segments.en as Record<string, string>).filter(([, tr]) => /(?:^Street\s| (?:Street|Road)$|^(?:National Route|Provincial Road)\s)/.test(tr))
+    const shaped = Object.entries(segments.en as Record<string, string>).filter(([, tr]) => !tr.includes(',') && /(?:^Street\s| (?:Street|Road)$|^(?:National Route|Provincial Road)\s)/.test(tr))
     expect(shaped.length).toBeGreaterThan(500)
     for (const [src, tr] of shaped) {
       expect(translateSegment('en', src, 'Street'), src).toBe(tr)
-      for (const slot of ['title', 'Ward', 'Former ward', 'District', 'Building', 'Location', 'Type', 'Facing']) expect(translateSegment('en', src, slot), `${slot}: ${src}`).toBeUndefined()
+      for (const slot of ['title', 'Ward', 'Former ward', 'District', 'Building', 'Location', 'Type', 'Facing', 'Address', 'Direction']) expect(translateSegment('en', src, slot), `${slot}: ${src}`).toBeUndefined()
     }
     // A Type that merely starts with the word is not a street, and a street entry that names its own
     // kind (a bridge, an area) is not street-shaped — both apply where they are found.
@@ -325,13 +335,15 @@ describe('localizeImportText — the contract', () => {
       title: 'Room for rent — Nhà Bè Commune (new), Nhà Bè District',    // a translation: not missing
       titleVi: 'Cho thuê — Thao Dien Ward, District 2',                    // English left in Vietnamese
       description: 'Street: Hoang Hoa Tham Street\nFacing: Hướng Mới\nFacing: Hướng Mới',   // plain English; a duplicate
-      descriptionVi: 'Đường: Hanoi Highway\nĐường: Nguyễn Văn Linh',
+      descriptionVi: 'Đường: Pham Van Dong Highway\nĐường: Nguyễn Văn Linh',
     })
     expect(out.missing).toEqual([
       { target: 'en', kind: 'desc:Facing', src: 'Hướng Mới' },
       { target: 'vi', kind: 'titleVi-location', src: 'Thao Dien Ward, District 2' },
-      { target: 'vi', kind: 'descVi:Đường', src: 'Hanoi Highway' },
+      { target: 'vi', kind: 'descVi:Đường', src: 'Pham Van Dong Highway' },
     ])
+    // "Hanoi Highway" was this test's untranslated example until part 3 reviewed it.
+    expect(localizeImportText({ title: 'x', titleVi: 'x', description: 'x', descriptionVi: 'Đường: Hanoi Highway' }).descriptionVi).toBe('Đường: Xa lộ Hà Nội')
   })
 
   it('leaves our own prose alone: the intro has no fact label, and an unlisted label is never looked up', () => {
@@ -384,5 +396,168 @@ describe('untranslatedSummary — the importers’ dry-run coverage line', () =>
       { target: 'en', kind: 'desc:Street', src: 'B' }, { target: 'vi', kind: 'descVi:Đường', src: 'C Street' },
     ])
     expect(line).toMatch(/^3 distinct \(en desc:Street 2, vi descVi:Đường 1\) e\.g\. "A" ×2/)
+  })
+})
+
+/**
+ * localizeReferenceImportText — the Batdongsan / Rever template: one fact block with the SAME English
+ * labels in both descriptions. Two REAL rows, composed by the importers' compose() before part 3 from
+ * the 2026-09-21 source files (batdongsan pr46310931, rever 1654850630130_5651).
+ */
+const BDS_INTRO_EN = 'Listed on Batdongsan.com.vn. eno links to the original — enquiries and viewings are handled there, not by eno.'
+const BDS_INTRO_VI = 'Tin đăng trên Batdongsan.com.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.'
+const BDS_FACTS = 'Type: Nhà trọ / Phòng trọ\nArea: 24 m²\nBedrooms: 1\nBathrooms: 1\nLocation: Quận 11 (P. Hòa Bình mới)\nRent: 6.300.000 đ/month'
+const BATDONGSAN: ImportTexts = {
+  title: '1 bed · 1 bath · 24 m² for rent — P. Hòa Bình mới, Quận 11',
+  titleVi: 'Cho thuê Nhà trọ / Phòng trọ 1PN 24m² — P. Hòa Bình mới, Quận 11',
+  description: `${BDS_INTRO_EN}\n\n${BDS_FACTS}`,
+  descriptionVi: `${BDS_INTRO_VI}\n\n${BDS_FACTS}`,
+}
+const REVER_INTRO_EN = 'Listed on Rever.vn. eno links to the original — enquiries and viewings are handled by Rever, not by eno.'
+const REVER_INTRO_VI = 'Tin đăng trên Rever.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do Rever xử lý, không qua eno.'
+const REVER_FACTS = 'Type: Căn hộ / Chung cư\nArea: 60 m²\nBedrooms: 2\nBathrooms: 2\nDirection: Tây Nam\nAddress: Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh\nRent: 10.000.000 đ/month'
+const REVER: ImportTexts = {
+  title: '2 bed · 2 bath · 60 m² for rent — Thạnh Mỹ Lợi, Quận 2',
+  titleVi: 'Cho thuê Căn hộ / Chung cư 2PN 60m² — Thạnh Mỹ Lợi, Quận 2',
+  description: `${REVER_INTRO_EN}\n\n${REVER_FACTS}`,
+  descriptionVi: `${REVER_INTRO_VI}\n\n${REVER_FACTS}`,
+}
+
+describe('localizeReferenceImportText — the Batdongsan / Rever template', () => {
+  it('batdongsan: English title, Type, Location and rent; Vietnamese labels and "đ/tháng"; Vietnamese values untouched', () => {
+    const out = localizeReferenceImportText(BATDONGSAN)
+    expect(out.title).toBe('1 bed · 1 bath · 24 m² for rent — Hòa Bình Ward (new), District 11')
+    expect(changedLines(BATDONGSAN.description, out.description)).toEqual([
+      ['Type: Nhà trọ / Phòng trọ', 'Type: Boarding room'],
+      ['Location: Quận 11 (P. Hòa Bình mới)', 'Location: District 11 (Hòa Bình Ward, new)'],
+      ['Rent: 6.300.000 đ/month', 'Rent: 6,300,000 đ/month'],
+    ])
+    expect(out.descriptionVi).toBe(`${BDS_INTRO_VI}\n\nLoại hình: Nhà trọ / Phòng trọ\nDiện tích: 24 m²\nPhòng ngủ: 1\nPhòng vệ sinh: 1\nKhu vực: Quận 11 (P. Hòa Bình mới)\nGiá thuê: 6.300.000 đ/tháng`)
+    expect(out.titleVi).toBe(BATDONGSAN.titleVi)
+    expect(out.missing).toEqual([])
+  })
+
+  it('rever: the Address and the compass Direction become English; the Vietnamese block keeps "Tây Nam" and the address', () => {
+    const out = localizeReferenceImportText(REVER)
+    expect(out.title).toBe('2 bed · 2 bath · 60 m² for rent — Thạnh Mỹ Lợi, District 2')
+    expect(changedLines(REVER.description, out.description)).toEqual([
+      ['Type: Căn hộ / Chung cư', 'Type: Apartment'],
+      ['Direction: Tây Nam', 'Direction: Southwest'],
+      ['Address: Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh', 'Address: Đồng Văn Cống Street, Thạnh Mỹ Lợi, District 2, Ho Chi Minh City'],
+      ['Rent: 10.000.000 đ/month', 'Rent: 10,000,000 đ/month'],
+    ])
+    expect(changedLines(REVER.descriptionVi, out.descriptionVi)).toEqual([
+      ['Type: Căn hộ / Chung cư', 'Loại hình: Căn hộ / Chung cư'],
+      ['Area: 60 m²', 'Diện tích: 60 m²'],
+      ['Bedrooms: 2', 'Phòng ngủ: 2'],
+      ['Bathrooms: 2', 'Phòng vệ sinh: 2'],
+      ['Direction: Tây Nam', 'Hướng: Tây Nam'],
+      ['Address: Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh', 'Địa chỉ: Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh'],
+      ['Rent: 10.000.000 đ/month', 'Giá thuê: 10.000.000 đ/tháng'],
+    ])
+    expect(out.missing).toEqual([])
+  })
+
+  it('is idempotent, and a stored row with no Vietnamese text keeps null', () => {
+    for (const row of [BATDONGSAN, REVER]) {
+      const once = strip(localizeReferenceImportText(row))
+      const twice = localizeReferenceImportText(once)
+      expect(strip(twice)).toEqual(once)
+      expect(twice.missing).toEqual([])
+    }
+    const nul = localizeReferenceImportText({ ...BATDONGSAN, titleVi: null, descriptionVi: null })
+    expect(nul.titleVi).toBeNull()
+    expect(nul.descriptionVi).toBeNull()
+  })
+
+  it('the label sets are fixed: four looked-up English labels, eight mapped Vietnamese ones', () => {
+    expect(REFERENCE_EN_FACT_LABELS).toEqual(['Type', 'Location', 'Address', 'Direction'])
+    expect(REFERENCE_VI_LABELS).toEqual({
+      Type: 'Loại hình', Area: 'Diện tích', Bedrooms: 'Phòng ngủ', Bathrooms: 'Phòng vệ sinh',
+      Location: 'Khu vực', Address: 'Địa chỉ', Rent: 'Giá thuê', Direction: 'Hướng',
+    })
+  })
+
+  it('⛔ Vietnamese: only a whole, exact label is mapped; "đ/month" changes on the Rent line only; the intro is prose', () => {
+    const descriptionVi = [
+      REVER_INTRO_VI, '',
+      'Rent: 10.000.000 đ/month',
+      'Area: 12 đ/month',                        // not the Rent line: the value is left as it is
+      'Rent: US$1,154/month',                    // no "đ/month" — the label maps, the value stays
+      'rent: 1 đ/month', 'Rent 1 đ/month', 'Floors: 3', 'constructor: x', 'toString: y',
+    ].join('\n')
+    const out = localizeReferenceImportText({ title: 'x', titleVi: 'x', description: 'x', descriptionVi })
+    expect(out.descriptionVi!.split('\n')).toEqual([
+      REVER_INTRO_VI, '',
+      'Giá thuê: 10.000.000 đ/tháng',
+      'Diện tích: 12 đ/month',
+      'Giá thuê: US$1,154/month',
+      'rent: 1 đ/month', 'Rent 1 đ/month', 'Floors: 3', 'constructor: x', 'toString: y',
+    ])
+  })
+
+  it('⛔ English: only Type / Location / Address / Direction are looked up — never Ward, Street or a label of the other template', () => {
+    // 'An Phú' is a STREET entry ("An Phú Street") and a ward name: never used off the street line.
+    const out = localizeReferenceImportText({
+      title: 'x', titleVi: 'x', descriptionVi: 'x',
+      description: 'Ward: Phường 22\nStreet: An Phú\nAddress: An Phú\nLocation: An Phú\nDistrict: Quận 4\nFacing: Đông Nam',
+    })
+    expect(out.description).toBe('Ward: Phường 22\nStreet: An Phú\nAddress: An Phú\nLocation: An Phú\nDistrict: Quận 4\nFacing: Đông Nam')
+    expect(out.missing.map((m) => m.kind)).toEqual(['desc:Address', 'desc:Location'])
+    // …while the other template does look up its own labels and ignores this one's.
+    expect(localizeImportText({ title: 'x', titleVi: 'x', descriptionVi: 'x', description: 'District: Quận 4\nAddress: Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh' }).description)
+      .toBe('District: District 4\nAddress: Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh')
+  })
+
+  it('⛔ Direction takes a COMPASS entry only, and reports anything that is not a compass point — "Nam" is ASCII', () => {
+    expect(translateSegment('en', 'Nam', 'Direction')).toBe('South')
+    expect(translateSegment('en', 'Nam', 'Facing')).toBe('South')
+    expect(translateSegment('en', 'Nam', 'Location')).toBeUndefined()
+    expect(translateSegment('en', 'Nam', 'title')).toBeUndefined()
+    // A non-compass entry ("Nhà trọ / Phòng trọ" is a Type; "Quận 4" a district) is refused on Direction.
+    expect(translateSegment('en', 'Nhà trọ / Phòng trọ', 'Direction')).toBeUndefined()
+    const out = localizeReferenceImportText({ title: 'x', titleVi: 'x', descriptionVi: 'x', description: 'Direction: Nam\nDirection: Quận 4\nDirection: Dong Nam\nDirection: South' })
+    expect(out.description).toBe('Direction: South\nDirection: Quận 4\nDirection: Dong Nam\nDirection: South')
+    expect(out.missing).toEqual([
+      { target: 'en', kind: 'desc:Direction', src: 'Quận 4' },
+      { target: 'en', kind: 'desc:Direction', src: 'Dong Nam' },
+    ])
+  })
+
+  it('an Address translation that starts like a numbered street is a whole address: it applies on its line, and a street never does', () => {
+    const comma = Object.entries(segments.en as Record<string, string>).filter(([, tr]) => tr.includes(',') && /^Street\s/.test(tr))
+    expect(comma.map(([src]) => src)).toEqual(['Số 104-BTT, Bình Trưng Tây, Quận 2, Hồ Chí Minh', 'Số 11, Thảo Điền, Quận 2, Hồ Chí Minh'])
+    for (const [src, tr] of comma) {
+      expect(tr).toMatch(/, District 2, Ho Chi Minh City$/)
+      expect(translateSegment('en', src, 'Address'), src).toBe(tr)
+      expect(localizeReferenceImportText({ title: 'x', titleVi: 'x', descriptionVi: 'x', description: `Address: ${src}` }).description).toBe(`Address: ${tr}`)
+    }
+    // Every OTHER street-shaped translation is one part — so "no comma" is what separates a street
+    // from an address, measured on the whole file (import-i18n.ts isStreetEntry).
+    const shaped = Object.entries(segments.en as Record<string, string>)
+      .filter(([, tr]) => /(?:^Street\s|\s(?:Street|Road|Avenue|Boulevard|Highway|Alley|Lane)$|^(?:National Route|Provincial Road|Provincial Route)\s)/.test(tr))
+    expect(shaped.length).toBeGreaterThan(700)
+    expect(shaped.filter(([, tr]) => tr.includes(','))).toEqual(comma)
+  })
+
+  it('reports what the dictionary lacks — an unknown address, a title location, a Type — and changes none of it', () => {
+    const t: ImportTexts = {
+      title: '2 bed for rent — Bến Nghé, Quận 1', titleVi: 'Cho thuê — Bến Nghé, Quận 1',
+      description: 'Type: Đất nền\nAddress: Tôn Đức Thắng, Bến Nghé, Quận 1, Hồ Chí Minh\nRent: 5.000.000 đ/month',
+      descriptionVi: 'Type: Đất nền\nAddress: Tôn Đức Thắng, Bến Nghé, Quận 1, Hồ Chí Minh',
+    }
+    const out = localizeReferenceImportText(t)
+    expect(out.title).toBe(t.title)
+    expect(out.description).toBe('Type: Đất nền\nAddress: Tôn Đức Thắng, Bến Nghé, Quận 1, Hồ Chí Minh\nRent: 5,000,000 đ/month')
+    expect(out.descriptionVi).toBe('Loại hình: Đất nền\nĐịa chỉ: Tôn Đức Thắng, Bến Nghé, Quận 1, Hồ Chí Minh')
+    expect(out.missing).toEqual([
+      { target: 'en', kind: 'title-location', src: 'Bến Nghé, Quận 1' },
+      { target: 'en', kind: 'desc:Type', src: 'Đất nền' },
+      { target: 'en', kind: 'desc:Address', src: 'Tôn Đức Thắng, Bến Nghé, Quận 1, Hồ Chí Minh' },
+    ])
+    // The Vietnamese title's location is looked up and reported like the other template's.
+    const vi = localizeReferenceImportText({ ...t, titleVi: 'Cho thuê — Thao Dien Ward, District 2' })
+    expect(vi.titleVi).toBe('Cho thuê — Thao Dien Ward, District 2')
+    expect(vi.missing).toContainEqual({ target: 'vi', kind: 'titleVi-location', src: 'Thao Dien Ward, District 2' })
   })
 })
