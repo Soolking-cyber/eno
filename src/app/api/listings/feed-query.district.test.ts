@@ -12,11 +12,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * honour is an empty result, never an unscoped one.
  */
 
-const h = vi.hoisted(() => ({ districts: [] as { district: string | null }[] }))
+const h = vi.hoisted(() => ({
+  districts: [] as { district: string | null }[],
+  /** What `findFirst` answers for a where — resolveFeedFilters' existence probe. Default: a row. */
+  firstRow: (_where: unknown): { id: string } | null => ({ id: 'x' }),
+  probes: [] as unknown[],
+}))
 
 vi.mock('@/lib/db', () => ({
   db: {
-    listing: { groupBy: vi.fn(async () => h.districts) },
+    listing: {
+      groupBy: vi.fn(async () => h.districts),
+      findFirst: vi.fn(async (args: { where: unknown }) => { h.probes.push(args.where); return h.firstRow(args.where) }),
+    },
     category: { findUnique: vi.fn(async () => null) },
   },
 }))
@@ -27,7 +35,7 @@ vi.mock('@/lib/edition-scope', () => ({
 vi.mock('@/lib/serialize', () => ({ LISTING_CARD_SELECT: {}, serializeListingCard: (r: any) => r }))
 vi.mock('@/lib/translate', () => ({ localizeListingTitles: async (l: any) => l }))
 
-import { buildFeedFilters } from './feed-query'
+import { buildFeedFilters, resetExistsCache, resolveFeedFilters } from './feed-query'
 import { resetDistrictNameCache, districtScopeForSlug } from '@/lib/district-slug'
 
 /** The district clause `buildFeedFilters` produced, whatever shape it took. */
@@ -40,6 +48,9 @@ async function districtClause(param: string) {
 beforeEach(() => {
   resetDistrictNameCache()
   h.districts = [{ district: 'Thao Dien' }, { district: 'Thảo Điền' }, { district: 'District 1' }]
+  h.firstRow = () => ({ id: 'x' })
+  h.probes = []
+  resetExistsCache()
 })
 
 describe('the feed’s district filter', () => {
@@ -123,12 +134,48 @@ describe('a district typed into the query', () => {
     expect(r.q).toBe(q)
   })
 
-  it('an explicit ?district=d1 wins over "quận 7" in the query, which stays text', async () => {
+  /**
+   * ⛔ AN EXPLICIT DISTRICT WINS, AND THE TYPED PHRASE IS STRIPPED EITHER WAY (verifier, 2026-09-24).
+   * Left as typed, "Quận 7" was the token `quan`, which every HCMC row carries: `district=d1&q=Quận 7`
+   * answered 1,457 rows, all Quận 1, as if the words had been read. The pick decides the district and
+   * the phrase is not a text search.
+   */
+  it('an explicit ?district=d1 wins over "quận 7" in the query, and the phrase does not become the token `quan`', async () => {
     const r = await build(`district=d1&q=${encodeURIComponent('quận 7')}`)
     expect(r.andFilters).toContainEqual(await districtScopeForSlug('d1'))
     expect(r.andFilters).not.toContainEqual(await districtScopeForSlug('d7'))
     expect(r.inferredDistrict).toBeNull()
-    expect(r.q).toBe('quận 7')
+    expect(r.pgTextFilter).toBeNull()
+    expect(r.q).toBeUndefined()
+  })
+
+  /** Beside product words the "district" is part of a product's name, and under a pick it stays text (codex, opus). */
+  it('under an explicit district a product title keeps its words — only a place search loses its phrase', async () => {
+    const r = await build(`district=d1&q=${encodeURIComponent('Hồi ức Phú Nhuận')}`)
+    expect(r.andFilters).toContainEqual(await districtScopeForSlug('d1'))
+    expect(tokens(r.pgTextFilter)).toEqual(['hoi', 'uc', 'phu', 'nhuan'])
+    expect(r.inferredDistrict).toBeNull()
+  })
+
+  it('under an explicit district a bare district NAME stays text — it may be the whole query (a book: "Phú Nhuận")', async () => {
+    const r = await build(`district=d1&q=${encodeURIComponent('Phú Nhuận')}`)
+    expect(tokens(r.pgTextFilter)).toEqual(['phu', 'nhuan'])
+    expect(r.q).toBe('Phú Nhuận')
+  })
+
+  it('under an explicit district only the words beside a typed one are searched — agreeing or not', async () => {
+    const other = await build(`district=d1&q=${encodeURIComponent('căn hộ quận 7')}`)
+    expect(other.andFilters).toContainEqual(await districtScopeForSlug('d1'))
+    expect(tokens(other.pgTextFilter)).toEqual(['can', 'ho'])
+    const same = await build(`district=d7&q=${encodeURIComponent('quận 7')}`)
+    expect(same.pgTextFilter).toBeNull()
+    expect(same.inferredDistrict).toBeNull() // the district applied is the explicit one
+  })
+
+  it('reads the address form "Q.7" as Quận 7 with nothing left to search', async () => {
+    const r = await build(`category=rentals&q=${encodeURIComponent('Q. 7')}`)
+    expect(r.inferredDistrict).toBe('d7')
+    expect(r.pgTextFilter).toBeNull()
   })
 
   it('a shorthand is a district only beside a place word — a bare "D5" stays a product search', async () => {
@@ -180,5 +227,89 @@ describe('the orders the paginating surfaces depend on', () => {
   it('"recent" IS the storefront’s server-render order', async () => {
     const { buildFeedOrderBy } = await import('./feed-query')
     expect(buildFeedOrderBy('recent')).toEqual([{ postedAt: 'desc' }, { id: 'desc' }])
+  })
+})
+
+/**
+ * ⛔ THE DISTRICT READING MAY NEVER MAKE A PRODUCT SEARCH WORSE (verifier, 2026-09-24). Products carry
+ * no district, so a district scope over a product search answers 0 — "Hồi ức Phú Nhuận" (a book)
+ * went 46 → 0 once it was read as Phú Nhuận. resolveFeedFilters serves the plain words whenever the
+ * district reading finds nothing and they find something, and says so with `inferredDistrict: null`.
+ */
+describe('resolveFeedFilters — the plain words win when the district reading finds nothing', () => {
+  const resolve = (qs: string) => resolveFeedFilters(new URLSearchParams(qs))
+  const tokens = (f: any) => (f ? (f.AND ?? f.OR ?? [f]).map((c: any) => c.searchText.contains) : null)
+  const hasDistrictScope = (w: unknown) => JSON.stringify(w).includes('Phu Nhuan')
+
+  it('serves the plain words, with no district, when the reading finds 0 and they find some', async () => {
+    h.firstRow = (w) => (hasDistrictScope(w) ? null : { id: 'book' })
+    const r = await resolve(`q=${encodeURIComponent('Hồi ức Phú Nhuận')}`)
+    expect(r.inferredDistrict).toBeNull()
+    expect(r.q).toBe('Hồi ức Phú Nhuận')
+    expect(tokens(r.pgTextFilter)).toEqual(['hoi', 'uc', 'phu', 'nhuan'])
+    expect(r.andFilters).not.toContainEqual(await districtScopeForSlug('phu-nhuan'))
+    expect(h.probes).toHaveLength(2)
+  })
+
+  it('keeps the district when it has matches — and asks only once', async () => {
+    const r = await resolve(`q=${encodeURIComponent('Hồi ức Phú Nhuận')}`)
+    expect(r.inferredDistrict).toBe('phu-nhuan')
+    expect(r.andFilters).toContainEqual(await districtScopeForSlug('phu-nhuan'))
+    expect(h.probes).toHaveLength(1)
+  })
+
+  it('never probes a housing search — "penthouse quận 7" with none in Quận 7 is an honest zero', async () => {
+    h.firstRow = (w) => (JSON.stringify(w).includes('Quận 7') ? null : { id: 'elsewhere' })
+    const r = await resolve(`category=rentals&q=${encodeURIComponent('penthouse quận 7')}`)
+    expect(r.inferredDistrict).toBe('d7')
+    expect(h.probes).toHaveLength(0)
+  })
+
+  /** Both readings empty: the district reading stays, so its chip and counts still say what was asked (codex). */
+  it('keeps the district when the plain words find nothing either', async () => {
+    h.firstRow = () => null
+    const r = await resolve(`q=${encodeURIComponent('Hồi ức Phú Nhuận')}`)
+    expect(r.inferredDistrict).toBe('phu-nhuan')
+    expect(h.probes).toHaveLength(2)
+  })
+
+  it('a probe that fails keeps the district reading — the net never turns a search into a 500', async () => {
+    h.firstRow = () => { throw new Error('statement timeout') }
+    const r = await resolve(`q=${encodeURIComponent('Hồi ức Phú Nhuận')}`)
+    expect(r.inferredDistrict).toBe('phu-nhuan')
+  })
+
+  it('never falls back for a bare numbered district — its plain words are the token that matched everything', async () => {
+    h.firstRow = () => null
+    const r = await resolve(`category=fashion&q=${encodeURIComponent('Quận 7')}`)
+    expect(r.inferredDistrict).toBe('d7')
+    expect(h.probes).toHaveLength(0)
+  })
+
+  it('asks nothing for a search without a district, or under an explicit one', async () => {
+    await resolve('q=iphone')
+    await resolve(`district=d1&q=${encodeURIComponent('Hồi ức Phú Nhuận')}`)
+    expect(h.probes).toHaveLength(0)
+  })
+
+  it('decides without the price band, so the histogram request (which never sends one) decides the same', async () => {
+    await resolve(`priceMin=1000&priceMax=2000&q=${encodeURIComponent('Hồi ức Phú Nhuận')}`)
+    expect(JSON.stringify(h.probes[0])).not.toContain('"price"')
+    expect(JSON.stringify(h.probes[0])).toContain('hoi')
+  })
+
+  it('asks once per search within the minute — the load-more pages re-resolve the same filters', async () => {
+    h.firstRow = (w) => (hasDistrictScope(w) ? null : { id: 'book' })
+    await resolve(`q=${encodeURIComponent('Hồi ức Phú Nhuận')}&offset=0`)
+    await resolve(`q=${encodeURIComponent('Hồi ức Phú Nhuận')}&offset=24`)
+    expect(h.probes).toHaveLength(2)
+  })
+
+  it('concurrent resolutions of one cold search share each probe', async () => {
+    h.firstRow = (w) => (hasDistrictScope(w) ? null : { id: 'book' })
+    const qs = `q=${encodeURIComponent('Hồi ức Phú Nhuận')}`
+    const [a, b] = await Promise.all([resolve(qs), resolve(qs)])
+    expect([a.inferredDistrict, b.inferredDistrict]).toEqual([null, null])
+    expect(h.probes).toHaveLength(2)
   })
 })

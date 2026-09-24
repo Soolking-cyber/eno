@@ -16,7 +16,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { createListingCore } from '@/lib/core/listings'
 import { RELEASED_CHARGE_MAX_ACTIVE } from '@/lib/released-charge-copy'
 import { migrateLegacyCategoryParams } from '@/lib/taxonomy'
-import { idsFastPath, buildFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
+import { idsFastPath, buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
 import { computeFacetCounts, subcategoryDimension, type FacetCounts } from '@/lib/facet-counts'
 import { semanticRank } from './semantic-rank'
 import { resolveSellerForPost } from './resolve-seller'
@@ -41,8 +41,11 @@ export async function GET(req: NextRequest) {
   const fastPath = await idsFastPath(searchParams)
   if (fastPath) return fastPath
 
+  // ⚠️ RESOLVED, not merely built: a district read out of `q` that would find nothing where the plain
+  // words find something is dropped here (resolveFeedFilters), and every figure below — rows, total,
+  // histogram, facet counts — follows that one decision.
   const { category, q, inferredDistrict, sort, featuredOnly, limit, offset, priceMin, priceMax, histogram, looseMatch, priorityCategory, andFilters, pgTextFilter, subcategoryFilter, where } =
-    await buildFeedFilters(searchParams)
+    await resolveFeedFilters(searchParams)
 
   /**
    * HISTOGRAM MODE — the price distribution of EVERY listing matching the active filters, as nice
@@ -111,7 +114,7 @@ export async function GET(req: NextRequest) {
    */
   let facetsError: unknown = null
   const facetsPromise: Promise<FacetCounts> = wantFacets
-    ? computeFacetCounts({ searchParams, buildFilters: buildFeedFilters }).catch((e: unknown) => {
+    ? computeFacetCounts({ searchParams, buildFilters: buildFeedFilters, inferredDistrict }).catch((e: unknown) => {
         facetsError = e
         return {} as FacetCounts
       })
@@ -297,10 +300,11 @@ export async function GET(req: NextRequest) {
       // load-more page or when `facets=0` was asked for.
       facets,
       /**
-       * The `DISTRICTS` slug the text query was read as ("căn hộ quận 7" → `d7`), or null — the
-       * scope is already applied to `listings` and `total`. src/lib/district-query.ts decides it; the
-       * explorer calls that same function to draw the chip, so this field is for every OTHER client
-       * (the native apps, a shared link's consumer) to be able to say which district it is showing.
+       * The `DISTRICTS` slug the text query was read as AND APPLIED ("căn hộ quận 7" → `d7`), or null
+       * — the scope is already in `listings` and `total`. ⛔ THE EXPLORER'S DISTRICT CHIP READS THIS
+       * FIELD and never re-runs the parser for it: null also when an explicit `?district=` won, or
+       * when the district reading found nothing and the plain words were served instead
+       * (resolveFeedFilters). The native apps and any other client read it for the same reason.
        */
       inferredDistrict,
     },

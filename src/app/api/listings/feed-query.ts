@@ -15,7 +15,7 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 // The cap lives in a client-safe module because the browser has to chunk to the same number.
 import { IDS_FAST_PATH_MAX } from '@/lib/listing-ids'
 import { districtScopeForSlug } from '@/lib/district-slug'
-import { inferDistrictFromQuery } from '@/lib/district-query'
+import { hasPlainTextFallback, inferDistrictFromQuery, strippedUnderExplicitDistrict, type DistrictInference } from '@/lib/district-query'
 import { parseRadiusParams, radiusWhere } from '@/lib/geo-radius'
 import { conditionWhere } from '@/lib/listing-condition'
 import { provinceWhere, wardWhere } from '@/lib/province-match'
@@ -49,6 +49,44 @@ const COUNT_TTL = 60_000
 const COUNT_CACHE_MAX = 500
 const countCache = new Map<string, { at: number; n: number }>()
 const countInFlight = new Map<string, Promise<number>>()
+
+/**
+ * "Does ANY live row match?" — resolveFeedFilters' probe, memoized like the counts above (60 s, same
+ * bound) so the load-more pages of one search, each of which re-resolves its filters, ask once.
+ * Measured on production through the tunnel, 2026-09-24 (median of 7): 49–82 ms when a row exists,
+ * ~330 ms to prove none does (a full scan, the rare path). A failed probe is not cached.
+ */
+const EXISTS_TTL = 60_000
+const existsCache = new Map<string, { at: number; yes: boolean }>()
+// Concurrent identical probes share one query, as the counts do (codex, opus): the feed, the map's
+// buildings and a load-more page can all resolve the same cold search at once, and the zero path is
+// a full scan.
+const existsInFlight = new Map<string, Promise<boolean>>()
+export function anyListingCached(where: Prisma.ListingWhereInput): Promise<boolean> {
+  const key = JSON.stringify(where)
+  const hit = existsCache.get(key)
+  if (hit && Date.now() - hit.at < EXISTS_TTL) return Promise.resolve(hit.yes)
+  const running = existsInFlight.get(key)
+  if (running) return running
+  const work = db.listing
+    .findFirst({ where, select: { id: true } })
+    .then((row) => {
+      const yes = !!row
+      existsCache.delete(key)
+      if (existsCache.size >= COUNT_CACHE_MAX) existsCache.delete(existsCache.keys().next().value!) // evict oldest
+      existsCache.set(key, { at: Date.now(), yes })
+      return yes
+    })
+    .finally(() => existsInFlight.delete(key))
+  existsInFlight.set(key, work)
+  return work
+}
+
+/** Test seam: forget every memoized probe. */
+export function resetExistsCache(): void {
+  existsCache.clear()
+  existsInFlight.clear()
+}
 
 /** `db.listing.count({ where })` through the cache above. */
 export function countListingsCached(where: Prisma.ListingWhereInput): Promise<number> {
@@ -119,8 +157,16 @@ export async function idsFastPath(searchParams: URLSearchParams): Promise<NextRe
   })
 }
 
+export type FeedFilterOptions = {
+  /**
+   * `false` reads `q` as plain text only — no district is inferred from it and no phrase is
+   * stripped. Used by resolveFeedFilters' fallback; every other caller leaves it alone.
+   */
+  inferDistrict?: boolean
+}
+
 /** Parse the feed's search params and build the Prisma where clause + the tracked sub-filters. */
-export async function buildFeedFilters(searchParams: URLSearchParams) {
+export async function buildFeedFilters(searchParams: URLSearchParams, opts: FeedFilterOptions = {}) {
   const category = searchParams.get('category') || undefined // slug
   const subcategory = searchParams.get('subcategory') || undefined // slug
   const district = searchParams.get('district') || undefined
@@ -202,11 +248,15 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
   if (featuredOnly) {
     andFilters.push({ featured: true })
   }
+  // Tracked like pgTextFilter so resolveFeedFilters can decide on the set WITHOUT the band — the
+  // histogram request never carries it, and the two must reach the same decision.
+  let priceFilter: Prisma.ListingWhereInput | null = null
   if (!histogram && (!Number.isNaN(priceMin) || !Number.isNaN(priceMax))) {
     const price: Prisma.FloatFilter = {}
     if (!Number.isNaN(priceMin)) price.gte = priceMin
     if (!Number.isNaN(priceMax)) price.lte = priceMax
-    andFilters.push({ price })
+    priceFilter = { price }
+    andFilters.push(priceFilter)
   }
   if (category && category !== 'all') {
     andFilters.push({ category: { slug: category } })
@@ -244,20 +294,28 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
    * `quan` (the digit was dropped as too short), which matches every HCMC rental: 20,047 results,
    * identical for every numbered district. Now the phrase selects the district scope and leaves
    * the text filter, which gets only what is left ("căn hộ quận 7" → d7 AND "căn hộ").
-   * ⚠️ AN EXPLICIT `?district=` ALWAYS WINS, and the query is then left exactly as typed: a person
-   * who picked a district and also typed one asked for the pick. `all` is not a pick — it is the
-   * explorer's "no district", so it does not suppress the inference.
+   * ⚠️ AN EXPLICIT `?district=` ALWAYS WINS — a person who picked a district asked for the pick.
+   * `all` is not a pick — it is the explorer's "no district", so it does not suppress the inference.
+   * ⛔ AND A NUMBERED DISTRICT PHRASE NEVER REACHES THE TEXT FILTER (verifier, 2026-09-24). It used to
+   * be left as typed under an explicit pick, where "Quận 7" is the lone token `quan` — which matches
+   * every HCMC row, so `district=d1&q=Quận 7` answered 1,457 rows, all Quận 1, as though the words had
+   * been read. Under a pick it is stripped (strippedUnderExplicitDistrict); a district NAME stays
+   * text there, because it folds to specific tokens and may be part of a product's name ("Hồi ức Phú
+   * Nhuận", a book) — cutting it lost that query (codex, opus).
    * ⚠️ IT IS PUSHED AS THE DISTRICT FILTER, NOT AS PART OF `pgTextFilter`, and that placement is the
    * point: the semantic path, the facet base and the subcategory counts all drop `pgTextFilter`
    * but keep every structural filter, so the district reaches all of them.
    */
-  const inferred = q && (!district || district === 'all') ? inferDistrictFromQuery(q) : null
-  const districtFilter = await districtScopeForSlug(inferred ? inferred.slug : district || 'all')
+  const explicitDistrict = district && district !== 'all' ? district : undefined
+  const phrase: DistrictInference | null = q && opts.inferDistrict !== false ? inferDistrictFromQuery(q) : null
+  const inferred = explicitDistrict ? null : phrase
+  const districtFilter = await districtScopeForSlug(explicitDistrict ?? inferred?.slug ?? 'all')
   if (districtFilter) {
     andFilters.push(districtFilter)
   }
   /** What is left of `q` for the text filter and for semantic ranking; undefined when nothing is. */
-  const textQ = inferred ? inferred.rest || undefined : q
+  const stripped = phrase && (!explicitDistrict || strippedUnderExplicitDistrict(phrase)) ? phrase : null
+  const textQ = stripped ? stripped.rest || undefined : q
 
   /**
    * RADIUS — "within N km of this point", resolved in the DATABASE.
@@ -485,8 +543,11 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
     // query that was only a district ("Quận 7") has no words left to rank on — the district scope
     // in `andFilters` does the work, and no paid Vertex call is made for it.
     q: textQ,
-    /** The `DISTRICTS` slug `q` was read as, or null. The explorer shows it as a removable chip. */
+    /** The `DISTRICTS` slug `q` was read as and APPLIED, or null. The explorer shows it as a chip. */
     inferredDistrict: inferred?.slug ?? null,
+    /** The full reading behind `inferredDistrict` — resolveFeedFilters needs its words. */
+    districtInference: inferred,
+    priceFilter,
     sort,
     featuredOnly,
     limit,
@@ -501,6 +562,45 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
     subcategoryFilter,
     where,
   }
+}
+
+/**
+ * THE FEED'S FILTERS, WITH THE DISTRICT READING NEVER ALLOWED TO MAKE A SEARCH WORSE.
+ *
+ * ⛔ A PRODUCT SEARCH THAT NAMES A PLACE BY ACCIDENT WAS SCOPED TO THAT PLACE AND FOUND NOTHING.
+ * Products carry no district (78,425 of the live HCMC rows have none), so a district scope over a
+ * product search returns 0 — measured by the verifier on production, 2026-09-24: "Hồi ức Phú Nhuận"
+ * (a book) 46 → 0, "pin sạc dự phòng Q3" 1 → 0, "lau nhà Q2" 2 → 0. The parser's context rules catch
+ * the common shapes; this is the net under all of them: when the district scope plus the remaining
+ * words matches NOTHING and the plain words (no inference) match SOMETHING, the plain reading is
+ * served and `inferredDistrict` is null, so the explorer's chip — which follows the response, never
+ * its own parse — says no district was applied. When both are empty the district reading stays:
+ * its chip and its facet counts still describe what was asked (codex).
+ *
+ * ⚠️ DECIDED ON THE FILTERS WITHOUT THE PRICE BAND. The histogram request (`histogram=1`) never
+ * carries one, and the feed and its price slider must read the query the same way; a band that
+ * empties the district's results is the reader's own filter, answered honestly as 0.
+ * ⚠️ NOT FOR A BARE NUMBERED DISTRICT (hasPlainTextFallback): its plain reading is the `quan` token
+ * the district reading exists to replace.
+ * ⚠️ COST: one `findFirst` (LIMIT 1, memoized 60 s and shared in flight — anyListingCached) when a
+ * district was inferred and a fallback is possible — measured 49–82 ms through the tunnel when a row
+ * exists, ~330 ms to prove none does — and a second one only when the first finds nothing. No query
+ * at all for a search without a district, for a bare numbered district, or for a housing search
+ * (hasPlainTextFallback).
+ * ⚠️ EVERY SURFACE THAT SHOWS A FEED READS THROUGH THIS: the route (rows, total, histogram), its
+ * facet counts (handed the decision, see releasedParams) and the map's buildings. The typeahead and
+ * saved-search alerts apply the same rule over their own queries.
+ */
+export async function resolveFeedFilters(searchParams: URLSearchParams) {
+  const f = await buildFeedFilters(searchParams)
+  if (!f.districtInference || !hasPlainTextFallback(f.districtInference)) return f
+  const anyRow = async (x: { andFilters: Prisma.ListingWhereInput[]; priceFilter: Prisma.ListingWhereInput | null }) =>
+    anyListingCached(await scopedListingWhere({ AND: x.andFilters.filter((c) => c !== x.priceFilter) }))
+  // ⚠️ A FAILED PROBE KEEPS THE DISTRICT READING (opus): the net must not turn a search that would
+  // have answered into a 500. Failures are not cached, so the next request asks again.
+  if (await anyRow(f).catch(() => true)) return f
+  const plain = await buildFeedFilters(searchParams, { inferDistrict: false })
+  return (await anyRow(plain).catch(() => false)) ? plain : f
 }
 
 // Every branch ends with { id: 'desc' } — a UNIQUE, monotonic tiebreaker. Without it,

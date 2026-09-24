@@ -6,6 +6,7 @@ import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
 import { RangeFacetControl } from './range-facet-control'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
+import { DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -179,8 +180,11 @@ export type FacetBarProps = {
   setWard: Dispatch<SetStateAction<Geo | null>>
   nearby: Nearby | null
   setNearby: Dispatch<SetStateAction<Nearby | null>>
-  /** The curated HCMC district slug and its setter — see the note in <AreaFilter>. Optional so
-   *  every other consumer of this bar is unaffected. */
+  /** The applied district slug (`?district=`) and its setter — see the note in <AreaFilter>.
+   *  Optional so every other consumer of this bar is unaffected; without the setter the Area panel
+   *  draws no district list. The bar calls it with 'all' whenever an area pick REPLACES the
+   *  district (districtSurvivesArea), so the parent can drop a district TYPED into the search box
+   *  at the same moment. */
   district?: string
   setDistrict?: (slug: string) => void
   priceRange: string
@@ -259,12 +263,16 @@ export function FacetBar({
   const uid = useId()
   // Load-bearing ref: <AreaFilter anchorRef> reads this node's rect to place its popover.
   const areaBtnRef = useRef<HTMLButtonElement>(null)
-  // The area pill is "active" when a ward/province or a near-you search is set.
-  const areaActive = !!ward || !!province || !!nearby
+  // The area pill is "active" when a ward/province/district or a near-you search is set.
+  const districtPicked = !!district && district !== 'all'
+  const areaActive = !!ward || !!province || !!nearby || districtPicked
+  // ⚠️ THE DISTRICT OUTRANKS THE PROVINCE: with HCMC applied as well, "Quận 7" says what narrows.
   const areaLabel = ward
     ? (lang === 'vi' ? ward.name : ward.nameEn)
     : nearby
     ? tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`)
+    : districtPicked
+    ? districtSlugLabel(district!, lang)
     : province
     ? (lang === 'vi' ? province.name : province.nameEn)
     : tr('Area', 'Khu vực')
@@ -456,7 +464,7 @@ export function FacetBar({
     advFacets.filter((f) => f.key !== 'condition' && customFilters[f.key]).length
 
   const hasActive =
-    !!province || !!ward || !!nearby || conditionFilter !== 'all' || priceRange !== 'all' ||
+    !!province || !!ward || !!nearby || districtPicked || conditionFilter !== 'all' || priceRange !== 'all' ||
     listingType !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
 
   // A segmented toggle button (selected = filled blue; same height either way).
@@ -625,6 +633,7 @@ export function FacetBar({
               setProvince(null)
               setWard(null)
               setNearby(null)
+              if (districtPicked) setDistrict?.('all')
               setConditionFilter('all')
               setPriceRange('all')
               setListingType('all')
@@ -646,11 +655,31 @@ export function FacetBar({
           province={province}
           ward={ward}
           district={district}
-          onDistrictSupported={!!setDistrict}
+          /**
+           * ⛔ A PLACE REPLACES A PLACE, IN BOTH DIRECTIONS (districtSurvivesArea). Picking a district
+           * drops the ward, the radius and a province outside HCMC; applying a ward, a radius or
+           * another province drops the district. HCMC alone contains the district and keeps it.
+           */
+          onPickDistrict={setDistrict ? (slug) => {
+            if (slug !== 'all') {
+              setWard(null)
+              setNearby(null)
+              if (province && province.code !== DISTRICTS_PROVINCE_CODE) setProvince(null)
+            }
+            setDistrict(slug)
+          } : undefined}
           nearby={nearby}
-          onApply={({ province: p, ward: w, district: d, nearby: nb }) => {
+          onApply={({ province: p, ward: w, nearby: nb }) => {
+            // Only a CHANGED place replaces the district: an Apply that re-sends the radius already
+            // applied must not strip a district from the search box (opus). The panel's province
+            // defaults to HCMC, and HCMC contains every curated district, so that is no change here.
+            const changed = w?.code !== ward?.code ||
+              nb?.lat !== nearby?.lat || nb?.lng !== nearby?.lng || nb?.radiusKm !== nearby?.radiusKm ||
+              (p?.code !== province?.code && !!p && p.code !== DISTRICTS_PROVINCE_CODE)
             setProvince(p); setWard(w); setNearby(nb)
-            if (d !== undefined) setDistrict?.(d)
+            // …but a PICKED district that the applied place already contradicts (a landing slug under
+            // Hà Nội) is resolved by any Apply (opus): the pick is dropped, the place stays.
+            if ((changed || districtPicked) && !districtSurvivesArea({ province: p, ward: w, nearby: nb })) setDistrict?.('all')
           }}
           onReset={() => { setProvince(null); setWard(null); setNearby(null); setDistrict?.('all') }}
         />

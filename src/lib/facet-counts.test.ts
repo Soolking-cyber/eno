@@ -177,6 +177,18 @@ describe('releasedParams', () => {
     expect(releasedParams(new URLSearchParams({ category: 'rentals', q: 'Quận 7' }), 'category').get('district')).toBe('d7')
   })
 
+  /**
+   * ⛔ THE ROUTE'S DECISION, NOT A FRESH PARSE (verifier, 2026-09-24). When the district reading
+   * finds nothing and the plain words find something, the feed serves the plain words and applies no
+   * district; the counts must then not be computed inside that district.
+   */
+  it('writes back the district the feed APPLIED — none when the route says none, whatever the words parse as', () => {
+    const src = new URLSearchParams({ q: 'Hồi ức Phú Nhuận' })
+    expect(releasedParams(src, 'condition').get('district')).toBe('phu-nhuan') // no decision handed over
+    expect(releasedParams(src, 'condition', null).get('district')).toBeNull()
+    expect(releasedParams(new URLSearchParams({ q: 'căn hộ quận 7' }), 'condition', 'd7').get('district')).toBe('d7')
+  })
+
   it('an explicit district is never overwritten by the query', () => {
     const src = new URLSearchParams({ district: 'd1', q: 'quận 7' })
     expect(Object.fromEntries(releasedParams(src, 'condition'))).toEqual({ district: 'd1' })
@@ -238,6 +250,16 @@ describe('districtSlugsFor — mirrors buildDistrictFilter', () => {
     expect(districtSlugsFor({ district: 'District 10', location: '' })).toEqual(['d10'])
     expect(districtSlugsFor({ district: 'Quận 12', location: 'Quận 12 (P. Đông Hưng Thuận mới)' })).toEqual(['d12'])
     expect(districtSlugsFor({ district: null, location: 'Phường 5, Quận 1, Hồ Chí Minh' })).toEqual(['d1'])
+  })
+
+  /**
+   * The feed's second guard (decf5f4a): the canonical `district` column may not name a longer
+   * district, even when free-text `location` mentions ours at a boundary. The mirror must follow it
+   * or the d1 chip counts a row the d1 tap does not return.
+   */
+  it('refuses a row whose district column names a longer district, as the feed does', () => {
+    expect(districtSlugsFor({ district: 'Quận 12', location: 'Quận 12, gần Quận 1' })).toEqual(['d12'])
+    expect(districtSlugsFor({ district: 'Quận 1', location: 'gần Quận 12' })).toContain('d1')
   })
 
   it('never emits the "all" slug — that is the released state, not an option', () => {

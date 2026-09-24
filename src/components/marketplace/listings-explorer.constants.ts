@@ -203,3 +203,29 @@ export function districtOptionLabel(
   if (d.slug === 'all') return allDistrictsLabel(province, lang, tr)
   return lang === 'vi' ? d.name : d.nameEn
 }
+
+/**
+ * Whether an applied district survives an area pick of `area` — i.e. whether the two can both
+ * narrow the feed without contradicting each other.
+ *
+ * ⛔ A PLACE REPLACES A PLACE (the facet counts already count the `area` rail that way). A ward or a
+ * "near you" radius is a place of its own, and ANDed with a district it is either redundant or an
+ * empty feed (a Quận 1 ward AND Quận 7 = nothing, with two chips and no hint which one to drop). A
+ * province outside HCMC contradicts every curated district (districtAfterProvinceChange). Only HCMC
+ * itself — which the Area panel's province defaults to, so pressing Apply without touching it sends
+ * it — contains the district and keeps it.
+ */
+export function districtSurvivesArea(area: { province: { code: string } | null; ward: unknown; nearby: unknown }): boolean {
+  return !area.ward && !area.nearby && (!area.province || area.province.code === DISTRICTS_PROVINCE_CODE)
+}
+
+/**
+ * The label for an applied district slug: the curated name in `lang`, else the slug de-slugified —
+ * a /c/<category>/<district> landing slug (`quan-7`, `thao-dien`) is not in DISTRICTS but is still a
+ * real, clearable filter.
+ */
+export function districtSlugLabel(slug: string, lang: string): string {
+  const d = DISTRICTS.find((x) => x.slug === slug)
+  if (d) return lang === 'vi' ? d.name : d.nameEn
+  return slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}

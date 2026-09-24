@@ -27,8 +27,9 @@ import { RecentlyViewedRail } from './recently-viewed-rail'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
-import { DISTRICTS, DISTRICTS_PROVINCE_CODE } from './listings-explorer.constants'
+import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
+import { clearPlaceForTypedDistrict, queryAfterAreaPick, queryForExplicitDistrict } from './explorer-place'
 import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
@@ -212,10 +213,6 @@ const AUTO_LOAD_CAP = 100
 const CompactListingRow = dynamic(() => import('./compact-listing-row').then((m) => m.CompactListingRow), {
   ssr: false,
   loading: () => <CompactListingRowSkeleton />,
-})
-
-const ExplorerFiltersDrawer = dynamic(() => import('./explorer-filters').then((m) => m.ExplorerFiltersDrawer), {
-  ssr: false,
 })
 
 const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.ListingsMap), {
@@ -407,31 +404,14 @@ export function ListingsExplorer({
   // card outside the feed — e.g. the For You rail — asks to be located).
   const [focusListing, setFocusListing] = useState<SerializedListingCard | null>(null)
   const router = useRouter()
-  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
-  // Deferring the drawer's IMPORT is not enough on its own: it was rendered unconditionally, so
-  // next/dynamic would fetch the chunk the moment the page hydrates and the bytes would still
-  // arrive on every home load — the import alone would only move them out of the first bundle.
-  //
-  // Rendered on `isMobileFilterOpen || filtersEverOpened`: the first term mounts it in the SAME
-  // render as the open, so nothing waits a tick; the latch then keeps it mounted afterwards, so
-  // closing still plays the drawer's exit animation instead of unmounting mid-flight.
-  //
-  // ⚠️ Today this is moot, and the reason is worth knowing: the drawer is UNREACHABLE. The only
-  // caller of setIsMobileFilterOpen(true) is the 'open-mobile-filters' listener below, and
-  // NOTHING in the repo dispatches that event — Header's events were renamed to the `eno:*`
-  // convention and this one was orphaned (grepped src/, apps/, capacitor/). So its bytes were
-  // shipping on every home load for a panel no user can open. Deferring it is the safe half of
-  // the fix; whether to re-wire the trigger or delete the drawer is a product call, not this
-  // task's. Deferring this and the list row together measured -118.4 KB of downloaded JS on the
-  // home route; that total is not separable per component, so don't quote a figure for either.
-  //
-  // If the trigger is ever re-wired, consider a `loading:` for this dynamic — the first open
-  // waits on the chunk with no visual feedback (both reviewers raised it; untestable while the
-  // drawer is unreachable, so no speculative UI was added).
-  const [filtersEverOpened, setFiltersEverOpened] = useState(false)
-  useEffect(() => {
-    if (isMobileFilterOpen) setFiltersEverOpened(true)
-  }, [isMobileFilterOpen])
+  // ⛔ NO FILTERS DRAWER ANY MORE, AND NO 'open-mobile-filters' LISTENER. The bottom drawer
+  // (explorer-filters.tsx) could only be opened by that window event, and nothing had dispatched it
+  // since the header's events moved to the `eno:*` names — so its "Quận / Huyện" picker was the one
+  // district control in the app and no user could reach it (owner, 2026-09-24: "still cant search
+  // by district"). The district choice now lives in the Area panel (area-filter.tsx), next to
+  // province, ward and "near you", on every screen size; the drawer's other groups already had live
+  // homes in the facet bar. Deleted rather than re-wired: a second place to pick the same district
+  // is a second place for the two to disagree.
   const [showExplorer, setShowExplorer] = useState(false)
   // The sticky sort strip tracks the auto-hiding header (same hook): header shown →
   // pinned just below it; header rolled away → pinned at the viewport top.
@@ -806,9 +786,9 @@ export function ListingsExplorer({
   // stranded on a filterless results view with no chip, no Save box and therefore no "Clear all".
   // Three reviewers found the asymmetry. The rule is symmetry: this test mirrors the latch's axis
   // list plus the area axes (which the header sets alongside showExplorer directly).
-  // Not reachable today either way — measured 2026-08-11, the only two callers of setVerifiedOnly
-  // in the app are FacetBar's "Clear" (which sets it TRUE) and explorer-filters.tsx, the drawer
-  // this file documents as having no trigger anywhere in the repo.
+  // Not reachable today either way — the only caller of setVerifiedOnly left in the app is
+  // FacetBar's "Clear", which sets it TRUE (the unreachable filters drawer that also held a
+  // switch for it was deleted 2026-09-24).
   //
   // ⚠️ THE MAP AND VIDEO VIEWS ARE EXEMPT ON PURPOSE. They are directed surfaces whether or not a
   // filter is set — the footer's Map link opens an unfiltered map deliberately — and they carry
@@ -850,13 +830,6 @@ export function ListingsExplorer({
     activeModel, activeLine, listingType, conditionFilter, goodPriceOnly, priceRange, activeProvince, activeWard,
     nearby, customFilters,
   ])
-
-  // Listen to open-mobile-filters event from Header
-  useEffect(() => {
-    const handleOpenFilters = () => setIsMobileFilterOpen(true)
-    window.addEventListener('open-mobile-filters', handleOpenFilters)
-    return () => window.removeEventListener('open-mobile-filters', handleOpenFilters)
-  }, [])
 
   // The last search term sent to analytics — so 'search' fires once per distinct
   // committed query, not again on every pagination/sort/filter refetch of the same term.
@@ -918,6 +891,9 @@ export function ListingsExplorer({
     setActiveBrand('all'); setActiveLine('')
     setActiveModel('all')
     setActiveSubcategory('all')
+    // ⛔ A district typed into the box replaces the district, ward, radius (and non-HCMC province)
+    // already picked — otherwise an explicit pick silently wins over the words (explorer-place.ts).
+    clearPlaceForTypedDistrict(trimmed, { setDistrict: setActiveDistrict, setWard: setActiveWard, setNearby, setProvince: setActiveProvince })
     if (trimmed.length >= 2) saveSearchToHistory(trimmed)
     setQuery(trimmed)
   }, [saveSearchToHistory])
@@ -945,10 +921,12 @@ export function ListingsExplorer({
       setPriceRange('all')
     }
     setLooseMatch(true)
+    // The same place rule as a typed search (explorer-place.ts) — every path that commits words.
+    clearPlaceForTypedDistrict(q, { setDistrict: setActiveDistrict, setWard: setActiveWard, setNearby, setProvince: setActiveProvince })
     setQuery(q)
   }, [saveSearchToHistory, applyResolved])
 
-  // Header ↔ explorer bridge (custom events, same pattern as 'open-mobile-filters').
+  // Header ↔ explorer bridge (custom `eno:*` window events).
   // The header's search box + area selector drive the explorer here, and we tell the
   // header whether the hero search pill is on this page so it can reveal its own
   // search once the hero scrolls out of view.
@@ -957,6 +935,8 @@ export function ListingsExplorer({
     setNearby(null)
     setActiveProvince(loc.province)
     setActiveWard(loc.ward)
+    // A place replaces a place — a picked or typed district included (pickDistrictFromArea).
+    if (!districtSurvivesArea({ province: loc.province, ward: loc.ward, nearby: null })) replaceDistrictRef.current('all')
     setShowExplorer(true)
     setShowSuggestions(false)
   }, [])
@@ -980,6 +960,9 @@ export function ListingsExplorer({
       setActiveProvince(d?.province ?? null)
       setActiveWard(d?.ward ?? null)
       setNearby(d?.nearby ?? null)
+      // A ward, a radius or another province replaces a district — picked OR typed into the box
+      // (districtSurvivesArea; pickDistrictFromArea strips a typed one the server applied).
+      if (!districtSurvivesArea({ province: d?.province ?? null, ward: d?.ward ?? null, nearby: d?.nearby ?? null })) replaceDistrictRef.current('all')
       setShowExplorer(true)
       document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
     }
@@ -1016,6 +999,7 @@ export function ListingsExplorer({
         setActiveProvince(d?.province ?? null)
         setActiveWard(d?.ward ?? null)
         setNearby(d?.nearby ?? null)
+        if (!districtSurvivesArea({ province: d?.province ?? null, ward: d?.ward ?? null, nearby: d?.nearby ?? null })) replaceDistrictRef.current('all')
         setShowExplorer(true)
         document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
       }
@@ -1059,7 +1043,9 @@ export function ListingsExplorer({
   // reader and the notification deep-link handler below.
   const applyParams = useCallback((raw: URLSearchParams) => {
     const params = migrateLegacyCategoryParams(raw)
-    setQuery(params.get('q') || '')
+    // ⚠️ With an explicit `?district=` the server strips a district phrase from `q`, so the box shows
+    // the words it actually searches (explorer-place.ts) rather than a phrase it ignores.
+    setQuery(queryForExplicitDistrict(params.get('q') || '', params.get('district')))
     setLooseMatch(params.get('match') === 'any') // visual search lands with ?match=any
     setActiveCategory(params.get('category') || 'all')
     setActiveDistrict(params.get('district') || 'all')
@@ -1484,6 +1470,45 @@ export function ListingsExplorer({
     adoptedCacheRef.current = true
     setListings(listingsData.listings)
   }
+
+  /**
+   * ⛔ THE DISTRICT THE SERVER READ OUT OF THE WORDS, AS THE SERVER SAID IT — never re-derived here.
+   * The feed may decline a reading the parser makes: an explicit district wins, and a reading that
+   * finds nothing where the plain words find something is dropped (resolveFeedFilters in
+   * feed-query.ts, verifier 2026-09-24: "Hồi ức Phú Nhuận", a book, went 46 → 0 as Phú Nhuận). A chip
+   * recomputed in the browser would then name a district the results are not in. So the chip reads
+   * the response's `inferredDistrict`, remembered with the words and the district param it answered,
+   * and shows no district chip for words the server has not answered yet.
+   * ⚠️ NOT WHILE `placeholderData` IS SHOWING: that is the PREVIOUS key's payload — another query's
+   * answer. A sort or page change keeps the same words and district, so the remembered answer still
+   * matches them and the chip does not flicker while the new page loads.
+   */
+  const districtParamSent = !nearby && activeDistrict !== 'all' ? activeDistrict : ''
+  const [serverDistrict, setServerDistrict] = useState<{ q: string; sent: string; slug: string | null } | null>(null)
+  useEffect(() => {
+    if (!listingsData || queryShowingStaleSet) return
+    const slug = (listingsData as { inferredDistrict?: string | null }).inferredDistrict ?? null
+    setServerDistrict({ q: debouncedQuery.trim(), sent: districtParamSent, slug })
+  }, [listingsData, queryShowingStaleSet, debouncedQuery, districtParamSent])
+  const serverInferredDistrict =
+    serverDistrict && serverDistrict.q === debouncedQuery.trim() && serverDistrict.sent === districtParamSent ? serverDistrict.slug : null
+
+  /**
+   * The Area panel's district pick (and every area pick that REPLACES the district — the facet bar
+   * calls this with 'all' then, see districtSurvivesArea). ⚠️ A PLACE REPLACES A PLACE, TYPED ONES
+   * INCLUDED: a district the server read out of the search box would otherwise stay applied under
+   * the new pick — beside an explicit district it is ignored while its chip still shows it, beside a
+   * ward it ANDs into an empty feed — so its words leave the box (the district chip's own clear).
+   */
+  const pickDistrictFromArea = useCallback((slug: string) => {
+    setActiveDistrict(slug)
+    // Read from the LIVE box: newer typing is never overwritten with older words (explorer-place.ts).
+    setQuery((live) => queryAfterAreaPick(live, debouncedQuery, slug, serverInferredDistrict))
+  }, [debouncedQuery, serverInferredDistrict])
+  // The header's area events and the recent-location chips are registered once; they reach the
+  // CURRENT replace rule through this ref (synced in an effect, never assigned during render).
+  const replaceDistrictRef = useRef(pickDistrictFromArea)
+  useEffect(() => { replaceDistrictRef.current = pickDistrictFromArea }, [pickDistrictFromArea])
 
   // Does the catalog have ANY video listings? Gates the ▷ Video view toggle — with zero
   // videos the takeover is a guaranteed dead end, so the tab stays hidden until at least
@@ -2556,15 +2581,15 @@ export function ListingsExplorer({
   const getActiveChips = (): { label: string; onClear: () => void }[] => {
     const chips: { label: string; onClear: () => void }[] = []
     /**
-     * ⚠️ A DISTRICT READ OUT OF THE QUERY GETS ITS OWN CHIP. The server turns "căn hộ quận 7" into the
-     * d7 scope plus the text "căn hộ" (src/lib/district-query.ts) exactly when no district param is
-     * sent — the request builder above sends one only when `!nearby && activeDistrict !== 'all'`, so
-     * that is the condition here, and the same pure function gives the same answer without waiting
-     * on the response. Two chips say what was applied, and each one clears ONLY itself: removing the
-     * district leaves the words, removing the words leaves the district phrase in the box (which
-     * re-infers the same district). Display only — no state is added and no request changes.
+     * ⚠️ A DISTRICT READ OUT OF THE QUERY GETS ITS OWN CHIP — WHEN THE SERVER SAYS IT APPLIED ONE.
+     * The server turns "căn hộ quận 7" into the d7 scope plus the text "căn hộ" (src/lib/
+     * district-query.ts), unless an explicit district wins or the reading finds nothing where the
+     * plain words find something; `serverInferredDistrict` is its answer (see above), so the chip can
+     * never name a district the grid is not in. Two chips say what was applied, and each one clears
+     * ONLY itself: removing the district leaves the words, removing the words leaves the district
+     * phrase in the box (which re-infers the same district).
      */
-    for (const c of queryChips(debouncedQuery, !nearby && activeDistrict !== 'all', lang)) {
+    for (const c of queryChips(debouncedQuery, serverInferredDistrict, lang)) {
       if (c.kind === 'text') chips.push({ label: `"${c.text}"`, onClear: () => setQuery(c.clearTo) })
       else {
         const d = DISTRICTS.find((x) => x.slug === c.slug)
@@ -2581,14 +2606,13 @@ export function ListingsExplorer({
       chips.push({ label: activeModel, onClear: () => setActiveModel('all') })
     }
     if (activeDistrict !== 'all') {
-      const d = DISTRICTS.find((x) => x.slug === activeDistrict)
       // ⚠️ A DISTRICT SLUG DOES NOT HAVE TO COME FROM `DISTRICTS`. The /c/<category>/<district>
       // landing pages send their own slugified district name (`thao-dien`), which the API resolves
       // (src/lib/district-slug.ts) but this list does not carry. The chip must still read as a
       // place rather than as a URL fragment, so an unknown slug is de-slugified for display — the
-      // filter itself is the server's answer, not this label.
-      const fallback = activeDistrict.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-      chips.push({ label: d ? (lang === 'vi' ? d.name : d.nameEn) : fallback, onClear: () => setActiveDistrict('all') })
+      // filter itself is the server's answer, not this label (districtSlugLabel, shared with the
+      // facet bar's Area pill).
+      chips.push({ label: districtSlugLabel(activeDistrict, lang), onClear: () => setActiveDistrict('all') })
     }
     // Area / location (new province→ward model + "near you" radius) — so the saved
     // search + alert clearly include where the user is looking.
@@ -2629,7 +2653,8 @@ export function ListingsExplorer({
     // cascade line selection is a filter. The eslint-disable that used to sit on this line is gone
     // because it was reported UNUSED once the array was complete — a stale suppression is worse
     // than none, since it hides the next omission too.
-    [debouncedQuery, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, priceRange, customFilters, verifiedOnly, nearby, lang],
+    // `serverInferredDistrict` too: the district chip is the server's answer and arrives after the words.
+    [debouncedQuery, serverInferredDistrict, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, priceRange, customFilters, verifiedOnly, nearby, lang],
   )
 
 
@@ -3284,7 +3309,7 @@ export function ListingsExplorer({
                   nearby={nearby}
                   setNearby={setNearby}
                   district={activeDistrict}
-                  setDistrict={setActiveDistrict}
+                  setDistrict={pickDistrictFromArea}
                   priceRange={priceRange}
                   setPriceRange={setPriceRange}
                   conditionFilter={conditionFilter}
@@ -3934,32 +3959,6 @@ export function ListingsExplorer({
           </div>
         )}
       </div>
-
-      {/* MOBILE BOTTOM SLIDE-UP DRAWER OVERLAY — mounted on first open (see filtersEverOpened),
-          then kept mounted so its exit animation survives every subsequent close. */}
-      {(isMobileFilterOpen || filtersEverOpened) && (
-      <ExplorerFiltersDrawer
-        open={isMobileFilterOpen}
-        onOpenChange={setIsMobileFilterOpen}
-        totalCount={totalCount}
-        categories={categories}
-        activeCategory={activeCategory}
-        handleCategorySelect={handleCategorySelect}
-        activeSubcategory={activeSubcategory}
-        verifiedOnly={verifiedOnly}
-        setVerifiedOnly={setVerifiedOnly}
-        activeDistrict={activeDistrict}
-        setActiveDistrict={setActiveDistrict}
-        // Names the district picker's `all` option ("All of Ha Noi" / "All cities") and, outside HCMC,
-        // drops the HCMC-only district options. The filter value is untouched.
-        activeProvince={activeProvince}
-        conditionFilter={conditionFilter}
-        setConditionFilter={setConditionFilter}
-        customFilters={customFilters}
-        setCustomFilters={setCustomFilters}
-      />
-      )}
-
     </section>
   )
 }

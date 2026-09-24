@@ -8,8 +8,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * the district out of it.
  */
 
-const h = vi.hoisted(() => ({ rows: [] as { district: string | null }[] }))
-vi.mock('@/lib/db', () => ({ db: { listing: { groupBy: vi.fn(async () => h.rows) } } }))
+const h = vi.hoisted(() => ({
+  rows: [] as { district: string | null }[],
+  /** The existence probe behind the plain-words safety net. Default: the district reading has rows. */
+  firstRow: (_where: unknown): { id: string } | null => ({ id: 'x' }),
+}))
+vi.mock('@/lib/db', () => ({
+  db: { listing: { groupBy: vi.fn(async () => h.rows), findFirst: vi.fn(async (a: { where: unknown }) => h.firstRow(a.where)) } },
+}))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: any) => w }))
 
 import { describeParams } from './saved-search'
@@ -19,6 +25,7 @@ import { districtScopeForSlug, resetDistrictNameCache } from './district-slug'
 beforeEach(() => {
   resetDistrictNameCache()
   h.rows = [{ district: 'Quận 7' }, { district: 'Quận 1' }]
+  h.firstRow = () => ({ id: 'x' })
 })
 
 describe('buildListingWhere — the feed’s district scope', () => {
@@ -39,10 +46,62 @@ describe('buildListingWhere — the feed’s district scope', () => {
     expect(w.AND).not.toContainEqual({ searchText: { contains: 'can ho quan 7' } })
   })
 
-  it('an explicit district wins and the query stays text', async () => {
-    const w: any = await buildListingWhere({ district: 'd1', q: 'quận 7' })
+  it('under an explicit district a product title keeps its words, as on the feed', async () => {
+    const w: any = await buildListingWhere({ district: 'd1', q: 'Hồi ức Phú Nhuận' })
     expect(w.AND).toContainEqual(await districtScopeForSlug('d1'))
-    expect(w.AND).toContainEqual({ searchText: { contains: 'quan 7' } })
+    expect(w.AND).toContainEqual({ searchText: { contains: 'hoi uc phu nhuan' } })
+  })
+
+  it('an explicit district wins, and the typed district is not left behind as text (as on the feed)', async () => {
+    const w: any = await buildListingWhere({ district: 'd1', q: 'căn hộ quận 7' })
+    expect(w.AND).toContainEqual(await districtScopeForSlug('d1'))
+    expect(w.AND).not.toContainEqual(await districtScopeForSlug('d7'))
+    expect(w.AND).toContainEqual({ searchText: { contains: 'can ho' } })
+    expect(JSON.stringify(w)).not.toContain('quan 7')
+  })
+
+  /**
+   * ⛔ THE FEED'S SAFETY NET, FOR THE ALERT TOO. A saved "Hồi ức Phú Nhuận" (a book) showed the plain
+   * words on the feed, because the Phú Nhuận reading found nothing; an alert watching Phú Nhuận would
+   * never fire for the book the search showed.
+   */
+  it('watches the plain words when the district reading matches no live listing and they match some', async () => {
+    h.firstRow = (w) => (JSON.stringify(w).includes('Phu Nhuan') ? null : { id: 'book' })
+    const w: any = await buildListingWhere({ q: 'Hồi ức Phú Nhuận' })
+    expect(w.AND).toContainEqual({ searchText: { contains: 'hoi uc phu nhuan' } })
+    expect(w.AND).not.toContainEqual(await districtScopeForSlug('phu-nhuan'))
+  })
+
+  it('decides without the price band, as the feed does', async () => {
+    const probes: string[] = []
+    h.firstRow = (w) => { probes.push(JSON.stringify(w)); return { id: 'x' } }
+    const w: any = await buildListingWhere({ q: 'Hồi ức Phú Nhuận', priceMin: 1000, priceMax: 2000 })
+    expect(probes).toHaveLength(1)
+    expect(probes[0]).not.toContain('"price"')
+    expect(JSON.stringify(w)).toContain('"price"') // the alert itself keeps the band
+  })
+
+  it('keeps the district reading when the plain words match nothing live either', async () => {
+    h.firstRow = () => null
+    const w: any = await buildListingWhere({ q: 'Hồi ức Phú Nhuận' })
+    expect(w.AND).toContainEqual(await districtScopeForSlug('phu-nhuan'))
+  })
+
+  it('a failed probe keeps the district reading — an alert must not error over its safety net', async () => {
+    h.firstRow = () => { throw new Error('timeout') }
+    const w: any = await buildListingWhere({ q: 'Hồi ức Phú Nhuận' })
+    expect(w.AND).toContainEqual(await districtScopeForSlug('phu-nhuan'))
+  })
+
+  it('keeps the district reading when it has live matches', async () => {
+    const w: any = await buildListingWhere({ q: 'Hồi ức Phú Nhuận' })
+    expect(w.AND).toContainEqual(await districtScopeForSlug('phu-nhuan'))
+  })
+
+  it('keeps a housing search on its district even with no live match — the zero is honest', async () => {
+    h.firstRow = (w) => (JSON.stringify(w).includes('Phu Nhuan') ? null : { id: 'elsewhere' })
+    const w: any = await buildListingWhere({ category: 'rentals', q: 'phòng trọ Phú Nhuận' })
+    expect(w.AND).toContainEqual(await districtScopeForSlug('phu-nhuan'))
   })
 
   it('a stored district of "all" is no district — the query still infers, as it does on the feed', async () => {

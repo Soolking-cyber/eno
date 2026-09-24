@@ -51,4 +51,30 @@ describe('suggest — a district in the query', () => {
     await suggest('iphone 7')
     expect(findMany.mock.calls[0][0].where.AND).toEqual([{ searchText: { contains: 'iphone' } }])
   })
+
+  /**
+   * ⛔ THE FEED'S SAFETY NET, IN THE PREVIEW TOO (resolveFeedFilters). "Hồi ức Phú Nhuận" is a book: read
+   * as Phú Nhuận it suggests nothing, while Enter now serves the plain words — so the dropdown asks
+   * again with the plain words rather than preview an empty set.
+   */
+  it('asks again with the plain words when the district reading suggests nothing', async () => {
+    await suggest('Hồi ức Phú Nhuận')
+    expect(findMany.mock.calls).toHaveLength(2)
+    expect(findMany.mock.calls[1][0].where.AND).toEqual(
+      ['hoi', 'uc', 'phu', 'nhuan'].map((t) => ({ searchText: { contains: t } })),
+    )
+  })
+
+  it('does not ask again when the district reading has suggestions, or for a bare numbered district', async () => {
+    findMany.mockImplementationOnce(async () => [{ id: 'a', images: '[]', category: { slug: 'rentals' } }] as any)
+    await suggest('Hồi ức Phú Nhuận')
+    expect(findMany.mock.calls).toHaveLength(1)
+    findMany.mockClear()
+    // A housing search never asks again: its zero is honest (hasPlainTextFallback).
+    await suggest('phòng trọ Phú Nhuận')
+    expect(findMany.mock.calls).toHaveLength(1)
+    findMany.mockClear()
+    await suggest('Quận 1')
+    expect(findMany.mock.calls).toHaveLength(1)
+  })
 })

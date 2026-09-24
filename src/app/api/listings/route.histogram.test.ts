@@ -31,7 +31,9 @@ vi.mock('@/lib/db', () => ({
 }))
 vi.mock('./feed-query', () => ({
   idsFastPath: async () => null,
-  buildFeedFilters: async () => ({ histogram: true, where: h.where, andFilters: [], offset: 0, limit: 24 }),
+  // The route reads through resolveFeedFilters (the typed-district safety net); the histogram is
+  // built from whatever it resolves.
+  resolveFeedFilters: async () => ({ histogram: true, where: h.where, andFilters: [], offset: 0, limit: 24 }),
   buildFeedOrderBy: () => ({}),
   getSubcategoryCounts: async () => [],
 }))

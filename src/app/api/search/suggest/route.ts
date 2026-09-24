@@ -6,7 +6,7 @@ import { fold } from '@/lib/fold'
 import { normalizeBrand } from '@/lib/brand-normalize'
 import { rateLimit } from '@/lib/ratelimit'
 import { route } from '@/lib/api/handler'
-import { inferDistrictFromQuery } from '@/lib/district-query'
+import { hasPlainTextFallback, inferDistrictFromQuery, type DistrictInference } from '@/lib/district-query'
 import { districtScopeForSlug } from '@/lib/district-slug'
 import type { Prisma } from '@/generated/prisma/client'
 
@@ -54,34 +54,46 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
    * returns, so it reads the query the way the feed now does: district scope, remaining words as text.
    */
   const inferred = inferDistrictFromQuery(q)
-  const textFolded = inferred ? fold(inferred.rest) : folded
-  // AND each ≥2-char token (matches /api/listings) so multi-word typeahead narrows.
-  const tokens = textFolded.split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
-  const searchAnd: Prisma.ListingWhereInput[] = tokens.length
-    ? tokens.map((t) => ({ searchText: { contains: t } }))
-    : textFolded ? [{ searchText: { contains: textFolded } }] : []
-  const districtScope = inferred ? await districtScopeForSlug(inferred.slug) : null
-  if (districtScope) searchAnd.push(districtScope)
+  /** The typeahead's WHERE for the query read with its district (`reading`) or as plain words (null). */
+  const whereFor = async (reading: DistrictInference | null) => {
+    const textFolded = reading ? fold(reading.rest) : folded
+    // AND each ≥2-char token (matches /api/listings) so multi-word typeahead narrows.
+    const tokens = textFolded.split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
+    const searchAnd: Prisma.ListingWhereInput[] = tokens.length
+      ? tokens.map((t) => ({ searchText: { contains: t } }))
+      : textFolded ? [{ searchText: { contains: textFolded } }] : []
+    const districtScope = reading ? await districtScopeForSlug(reading.slug) : null
+    if (districtScope) searchAnd.push(districtScope)
+    return scopedListingWhere({ verified: true, status: 'active', AND: searchAnd })
+  }
+  const suggestFor = async (where: Prisma.ListingWhereInput) => db.listing.findMany({
+    where,
+    // Same balanced rankScore blend as the browse feed — the typeahead is a placement
+    // surface too, so a trusted-and-fresh seller's match surfaces above a weaker one,
+    // and the quick suggestions agree with the full results (no jarring re-sort on submit).
+    orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
+    take: 6,
+    select: {
+      id: true, title: true, titleVi: true, price: true, currency: true,
+      priceUnit: true, location: true, images: true,
+      category: { select: { slug: true } },
+    },
+  })
   // Brand matching key ("Louis V" → "louisv") so a spaced prefix still hits "louisvuitton".
   const brandKey = normalizeBrand(q)
 
   // Hoisted above the Promise.all: an await inside an array element would serialise the three
   // queries that this Promise.all exists to overlap.
-  const suggestWhere = await scopedListingWhere({ verified: true, status: 'active', AND: searchAnd })
+  const suggestWhere = await whereFor(inferred)
   const [listings, allCategories, brands] = await Promise.all([
-    db.listing.findMany({
-      where: suggestWhere,
-      // Same balanced rankScore blend as the browse feed — the typeahead is a placement
-      // surface too, so a trusted-and-fresh seller's match surfaces above a weaker one,
-      // and the quick suggestions agree with the full results (no jarring re-sort on submit).
-      orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
-      take: 6,
-      select: {
-        id: true, title: true, titleVi: true, price: true, currency: true,
-        priceUnit: true, location: true, images: true,
-        category: { select: { slug: true } },
-      },
-    }),
+    /**
+     * ⛔ THE FEED'S SAFETY NET, HERE TOO (resolveFeedFilters in feed-query.ts): a district reading that
+     * suggests nothing while the plain words would ("Hồi ức Phú Nhuận", a book) falls back to the
+     * plain words, so the preview never shows less than Enter returns. A second query only on that
+     * empty path; never for a bare numbered district (hasPlainTextFallback).
+     */
+    suggestFor(suggestWhere).then(async (rows) =>
+      rows.length === 0 && inferred && hasPlainTextFallback(inferred) ? suggestFor(await whereFor(null)) : rows),
     // Categories are a tiny fixed set — fetch once and match on FOLDED text in JS
     // so accent-free input ("can ho") matches "Căn hộ", consistent with the
     // accent-insensitive listing search (and one fewer DB round-trip per keystroke).

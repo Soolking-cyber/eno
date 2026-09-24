@@ -303,7 +303,16 @@ const TEXT_PARAMS = ['q', 'match']
  * `province` and `ward` are three expressions of one choice, so a district count computed with the
  * previous province still applied would answer a question nobody asked.
  */
-export function releasedParams(searchParams: URLSearchParams, dimension: FacetDimension): URLSearchParams {
+export function releasedParams(
+  searchParams: URLSearchParams,
+  dimension: FacetDimension,
+  /**
+   * The district the feed read out of `q` and APPLIED — the response's `inferredDistrict`, after
+   * resolveFeedFilters. Omitted (a caller with no feed decision to hand over), the words are read
+   * here the way buildFeedFilters reads them.
+   */
+  inferredDistrict?: string | null,
+): URLSearchParams {
   const p = new URLSearchParams(searchParams)
   switch (dimension) {
     case 'category':
@@ -358,11 +367,15 @@ export function releasedParams(searchParams: URLSearchParams, dimension: FacetDi
    * counts "if you pick THIS place instead". The inference reads the words alone, so every chip —
    * each a different category — would read them the same way the tap does.
    * ⚠️ The memo key stays bounded: a slug out of `DISTRICTS`, never the free text.
+   * ⛔ IT IS THE FEED'S DECISION THAT IS WRITTEN BACK, NOT A FRESH PARSE. When the district reading
+   * finds nothing and the plain words find something, the feed serves the plain words and applies no
+   * district (resolveFeedFilters); counting the chips inside that district would then report zeros
+   * for a grid that is full. The route passes its `inferredDistrict`, null in that case.
    */
   const explicit = searchParams.get('district')
   if (dimension !== 'area' && (!explicit || explicit === 'all')) {
-    const inferred = inferDistrictFromQuery(searchParams.get('q'))
-    if (inferred) p.set('district', inferred.slug)
+    const slug = inferredDistrict !== undefined ? inferredDistrict : inferDistrictFromQuery(searchParams.get('q'))?.slug
+    if (slug) p.set('district', slug)
   }
   for (const k of [...PRESENTATION_PARAMS, ...TEXT_PARAMS]) p.delete(k)
   return p
@@ -389,6 +402,12 @@ export type FacetCountOptions = {
   searchParams: URLSearchParams
   /** `buildFeedFilters` from the feed route. */
   buildFilters: FeedFilterBuilder
+  /**
+   * The district the feed read out of `q` and applied (its response's `inferredDistrict`), so every
+   * chip is counted inside the scope the grid shows — see releasedParams. Omitted, it is re-read
+   * from the words.
+   */
+  inferredDistrict?: string | null
   /**
    * Which rails to count. Omit to let `defaultDimensions()` pick from the active category — which
    * is what the route does, and what keeps a category with no brand rail from paying for one.
@@ -535,12 +554,12 @@ export function __clearFacetCountCache() {
  * condition fails LOUD rather than quietly publishing e-Visa SKUs on the licensed marketplace.
  */
 export async function computeFacetCounts(opts: FacetCountOptions): Promise<FacetCounts> {
-  const { searchParams, buildFilters, provinceValues, now } = opts
+  const { searchParams, buildFilters, provinceValues, now, inferredDistrict } = opts
   const dimensions = opts.dimensions ?? defaultDimensions(searchParams)
 
   /** Every filter for `dimension`'s count: the feed's own AND-array minus the free-text clause. */
   const baseFor = async (dimension: FacetDimension): Promise<Prisma.ListingWhereInput[]> => {
-    const { andFilters, pgTextFilter } = await buildFilters(releasedParams(searchParams, dimension))
+    const { andFilters, pgTextFilter } = await buildFilters(releasedParams(searchParams, dimension, inferredDistrict))
     return andFilters.filter((f) => f !== pgTextFilter)
   }
 

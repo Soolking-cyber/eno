@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inferDistrictFromQuery, queryChips } from './district-query'
+import { hasPlainTextFallback, inferDistrictFromQuery, queryChips } from './district-query'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 
 /**
@@ -160,37 +160,56 @@ describe('inferDistrictFromQuery — named districts', () => {
 })
 
 describe('queryChips — what the explorer shows for a typed query', () => {
+  /** What the server answered (`inferredDistrict`) — the chips follow it, never a local re-parse. */
+  const server = (q: string) => inferDistrictFromQuery(q)?.slug ?? null
+
   it('a plain query is one text chip that clears to nothing', () => {
-    expect(queryChips('iphone 7', false)).toEqual([{ kind: 'text', text: 'iphone 7', clearTo: '' }])
+    expect(queryChips('iphone 7', null)).toEqual([{ kind: 'text', text: 'iphone 7', clearTo: '' }])
   })
 
   it('"căn hộ quận 7" is two chips, each clearing only itself', () => {
-    expect(queryChips('căn hộ quận 7', false)).toEqual([
+    expect(queryChips('căn hộ quận 7', 'd7')).toEqual([
       { kind: 'text', text: 'căn hộ', clearTo: 'quận 7' },
       { kind: 'district', slug: 'd7', clearTo: 'căn hộ' },
     ])
   })
 
   it('a bare district is one district chip that clears the box', () => {
-    expect(queryChips('Quận 7', false)).toEqual([{ kind: 'district', slug: 'd7', clearTo: '' }])
+    expect(queryChips('Quận 7', 'd7')).toEqual([{ kind: 'district', slug: 'd7', clearTo: '' }])
   })
 
   it('a bare shorthand is a text chip, as the server reads it', () => {
-    expect(queryChips('Q7', false)).toEqual([{ kind: 'text', text: 'Q7', clearTo: '' }])
+    expect(queryChips('Q7', server('Q7'))).toEqual([{ kind: 'text', text: 'Q7', clearTo: '' }])
   })
 
-  it('with a district param already sent the server infers nothing, and neither does the chip', () => {
-    expect(queryChips('quận 7', true)).toEqual([{ kind: 'text', text: 'quận 7', clearTo: '' }])
+  /**
+   * ⛔ THE CHIP FOLLOWS THE SERVER (verifier, 2026-09-24). The feed drops a district reading that
+   * finds nothing while the plain words find something ("Hồi ức Phú Nhuận", a book: 46 → 0 as Phú
+   * Nhuận), and an explicit district param wins over a typed one. In both cases the server answers
+   * `inferredDistrict: null`, and a chip re-derived in the browser would name a district the grid is
+   * not in. So a null answer is ONE text chip, whatever the parser would have read.
+   */
+  it('names no district when the server applied none — the words parse as one, the answer is what counts', () => {
+    expect(inferDistrictFromQuery('Hồi ức Phú Nhuận')?.slug).toBe('phu-nhuan')
+    expect(queryChips('Hồi ức Phú Nhuận', null)).toEqual([{ kind: 'text', text: 'Hồi ức Phú Nhuận', clearTo: '' }])
+    expect(queryChips('quận 7', null)).toEqual([{ kind: 'text', text: 'quận 7', clearTo: '' }])
+  })
+
+  it('a district the server read but this parser does not still gets its chip, clearing the words that produced it', () => {
+    expect(queryChips('something new', 'd3')).toEqual([
+      { kind: 'text', text: 'something new', clearTo: '' },
+      { kind: 'district', slug: 'd3', clearTo: '' },
+    ])
   })
 
   it('clearing the words keeps the district even when the district needed them (a shorthand)', () => {
-    expect(queryChips('căn hộ Q7', false)).toEqual([
+    expect(queryChips('căn hộ Q7', 'd7')).toEqual([
       { kind: 'text', text: 'căn hộ', clearTo: 'Quận 7 (Phú Mỹ Hưng)' },
       { kind: 'district', slug: 'd7', clearTo: 'căn hộ' },
     ])
-    expect(queryChips('nha be 2pn', false)[0]).toEqual({ kind: 'text', text: '2pn', clearTo: 'Nhà Bè' })
+    expect(queryChips('nha be 2pn', 'nha-be')[0]).toEqual({ kind: 'text', text: '2pn', clearTo: 'Nhà Bè' })
     // Where the phrase stands on its own, the person's own words stay.
-    expect(queryChips('căn hộ quận 7', false)[0]).toEqual({ kind: 'text', text: 'căn hộ', clearTo: 'quận 7' })
+    expect(queryChips('căn hộ quận 7', 'd7')[0]).toEqual({ kind: 'text', text: 'căn hộ', clearTo: 'quận 7' })
   })
 
   it('every district’s own name, in both languages, reads back as that district — the fallback above relies on it', () => {
@@ -201,10 +220,124 @@ describe('queryChips — what the explorer shows for a typed query', () => {
   })
 
   it('puts the district back in the visitor’s language', () => {
-    expect(queryChips('căn hộ Q7', false, 'en')[0]).toEqual({ kind: 'text', text: 'căn hộ', clearTo: 'District 7 (Phu My Hung)' })
+    expect(queryChips('căn hộ Q7', 'd7', 'en')[0]).toEqual({ kind: 'text', text: 'căn hộ', clearTo: 'District 7 (Phu My Hung)' })
   })
 
   it('no query, no chip', () => {
-    expect(queryChips('   ', false)).toEqual([])
+    expect(queryChips('   ', 'd7')).toEqual([])
+  })
+})
+
+/**
+ * ⛔ "Q." IS HOW AN ADDRESS WRITES QUẬN (verifier, 2026-09-24). In Rentals "Q.7" and "q.2" returned 0,
+ * and "Q. 7" returned 5,611 rentals in Bình Thạnh, Tân Bình and Phú Nhuận and none in Quận 7 — the
+ * text filter matched the token `q.` against "Q. Bình Thạnh". No live product is named Q-dot-number,
+ * so the dot is evidence on its own; the bare "Q7"/"D7" still needs a place word.
+ */
+describe('inferDistrictFromQuery — the "Q." address form', () => {
+  it.each([['Q.7', 'd7'], ['Q. 7', 'd7'], ['q.2', 'thu-duc'], ['Q.10', 'd10'], ['q . 1', 'd1']])('reads %j alone as %s', (q, s) => {
+    expect(slug(q)).toBe(s)
+  })
+
+  it('reads "Q.Bình Thạnh" and "Q. Gò Vấp" as the named district', () => {
+    expect(slug('Q.Bình Thạnh')).toBe('binh-thanh')
+    expect(slug('Q. Gò Vấp')).toBe('go-vap')
+  })
+
+  it('removes the whole address form from the words', () => {
+    expect(inferDistrictFromQuery('Q.7')).toEqual({ slug: 'd7', phrase: 'Q.7', rest: '' })
+    expect(inferDistrictFromQuery('nhà nguyên căn Q. 7')?.rest).toBe('nhà nguyên căn')
+  })
+
+  it('keeps the bare shorthand a product search — 129 live electronics listings carry one', () => {
+    for (const q of ['Q7', 'D7', 'q2', 'Q 7', 'D.7']) expect(slug(q)).toBeNull()
+  })
+
+  it('still refuses a quantity after the dot form', () => {
+    expect(slug('q.7.5')).toBeNull()
+    expect(slug('Q.7 tuổi')).toBeNull()
+  })
+})
+
+/**
+ * ⛔ PRODUCT WORDS BUILT FROM A PLACE SYLLABLE ARE NOT HOUSING CONTEXT (verifier, 2026-09-24). Each of
+ * these read the shorthand as a district and returned 0 where the plain words found the product:
+ * "pin sạc dự phòng Q3" 1 → 0, "lau nhà Q2" 2 → 0, "dây đồng hồ nâu đất D1" 1 → 0,
+ * "tivi samsung Q7 phòng khách" 1 → 0.
+ */
+describe('inferDistrictFromQuery — compounds that are not a place', () => {
+  it.each([
+    'pin sạc dự phòng Q3', 'lau nhà Q2', 'dây đồng hồ nâu đất D1', 'tivi samsung Q7 phòng khách',
+    'pin sac du phong q3', 'cay lau nha q2', 'đèn phòng ngủ Q7', 'ghế văn phòng D7', 'văn phòng phẩm Q1',
+  ])('%j stays a product search', (q) => {
+    expect(inferDistrictFromQuery(q)).toBeNull()
+  })
+
+  it('a compound is masked only when the typed accents are its own — "nhà sạch" (a clean house) is a place', () => {
+    expect(slug('nhà sách Q7')).toBeNull() // a bookshop
+    expect(slug('nhà sạch Q7')).toBe('d7')
+  })
+
+  it('the same words beside a real place word still read the district', () => {
+    expect(slug('căn hộ Q7 phòng khách rộng')).toBe('d7')
+    expect(slug('2 phòng ngủ Q7')).toBe('d7') // a room COUNT is a place
+    expect(slug('văn phòng Q1')).toBe('d1')
+    expect(slug('nhà Q2')).toBe('thu-duc')
+    expect(slug('phòng q7')).toBe('d7')
+  })
+})
+
+describe('inferDistrictFromQuery — a person’s name is not a district', () => {
+  it('a surname before a bare district name makes it a name ("Nguyễn Tân Bình", an author)', () => {
+    expect(slug('Nguyễn Tân Bình')).toBeNull()
+    expect(slug('sách Nguyễn Tân Bình')).toBeNull()
+    expect(slug('nguyen tan binh')).toBeNull()
+  })
+
+  it('an ordinary word that folds to a surname does not', () => {
+    expect(slug('căn hộ Bình Thạnh')).toBe('binh-thanh') // "hộ" is not "Hồ"
+    expect(slug('can ho binh thanh')).toBe('binh-thanh')
+    expect(slug('đường Phú Nhuận')).toBe('phu-nhuan') // "đường" is not "Dương"
+    expect(slug('duong phu nhuan')).toBe('phu-nhuan') // a surname that is also a word needs its accents
+  })
+
+  it('a prefix still says it is the place', () => {
+    expect(slug('Nguyễn quận Tân Bình')).toBe('tan-binh')
+  })
+})
+
+describe('inferDistrictFromQuery — the preposition before a district is checked for its accents', () => {
+  it('"ô" is not "ở" — "Cờ ô quan 6" keeps its words', () => {
+    expect(inferDistrictFromQuery('Cờ ô quan 6')).toEqual({ slug: 'd6', phrase: 'quan 6', rest: 'Cờ ô' })
+  })
+
+  it('"ở" and a bare "o" still go with the district', () => {
+    expect(inferDistrictFromQuery('căn hộ ở quận 7')?.rest).toBe('căn hộ')
+    expect(inferDistrictFromQuery('can ho o quan 7')?.rest).toBe('can ho')
+    expect(inferDistrictFromQuery('phòng tại quận 3')?.rest).toBe('phòng')
+  })
+})
+
+describe('hasPlainTextFallback — when the feed may serve the plain words instead', () => {
+  it('yes when words that are not about a place are left beside the district', () => {
+    expect(hasPlainTextFallback(inferDistrictFromQuery('Hồi ức Phú Nhuận')!)).toBe(true)
+    expect(hasPlainTextFallback(inferDistrictFromQuery('iphone quận 7')!)).toBe(true)
+  })
+
+  /** "penthouse quận 7" with no penthouse in Quận 7 is an honest zero; its plain words are every district's penthouses. */
+  it('no when the other words are about somewhere to live — the district reading is the right one', () => {
+    expect(hasPlainTextFallback(inferDistrictFromQuery('căn hộ quận 7')!)).toBe(false)
+    expect(hasPlainTextFallback(inferDistrictFromQuery('phòng trọ Phú Nhuận')!)).toBe(false)
+    expect(hasPlainTextFallback(inferDistrictFromQuery('penthouse quận 7')!)).toBe(false)
+  })
+
+  it('yes for a district NAME alone — "Phú Nhuận" as plain words is still a search', () => {
+    expect(hasPlainTextFallback(inferDistrictFromQuery('Phú Nhuận')!)).toBe(true)
+  })
+
+  it('no for a numbered district alone — its plain words are the `quan` token that matched everything', () => {
+    expect(hasPlainTextFallback(inferDistrictFromQuery('Quận 7')!)).toBe(false)
+    expect(hasPlainTextFallback(inferDistrictFromQuery('District 1')!)).toBe(false)
+    expect(hasPlainTextFallback(inferDistrictFromQuery('Q.7')!)).toBe(false)
   })
 })

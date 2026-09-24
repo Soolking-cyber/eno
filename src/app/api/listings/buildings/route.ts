@@ -26,12 +26,14 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { migrateLegacyCategoryParams } from '@/lib/taxonomy'
 import { REVER_BUILDINGS } from '@/generated/rever-buildings'
 import { mapGlyphFor, type MapGlyph } from '@/lib/listing-map-glyph'
-import { buildFeedFilters } from '../feed-query'
+import { resolveFeedFilters } from '../feed-query'
 
 export async function GET(req: NextRequest) {
   const searchParams = migrateLegacyCategoryParams(req.nextUrl.searchParams)
   try {
-    const { andFilters } = await buildFeedFilters(searchParams)
+    // Resolved like the feed (resolveFeedFilters): a district reading the feed dropped for finding
+    // nothing is dropped here too, or the pins would count a scope the list is not showing.
+    const { andFilters } = await resolveFeedFilters(searchParams)
 
     /**
      * ⚠️ GROUPED BY (buildingKey, subcategorySlug) RATHER THAN buildingKey ALONE, so a pin can draw

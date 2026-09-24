@@ -12,9 +12,11 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
  * fix is to recognise the phrase and apply the scope `?district=<slug>` already applies.
  *
  * ⚠️ PURE AND CLIENT-SAFE ON PURPOSE. The server calls it to build the filter (feed, totals,
- * histogram, facet counts, map buildings, typeahead, saved-search alerts) and the explorer calls it
- * to draw the chip for the district it inferred. One function, the same inputs, the same answer —
- * that is what lets the chip say what the server did without a round trip.
+ * histogram, facet counts, map buildings, typeahead, saved-search alerts); the explorer calls it
+ * only to split a chip's words from its district. WHICH district the chip names is the server's
+ * answer (`inferredDistrict` on the response), never this function's: the feed may decline a
+ * reading — an explicit `?district=` wins, and a reading that finds nothing where the plain words
+ * find something is dropped (resolveFeedFilters in feed-query.ts) — so the browser cannot know it.
  * ⛔ ITS ONLY INPUT IS THE TEXT, AND THAT IS A DECISION, NOT AN OMISSION. A version that also read
  * the browsed category (so a bare "Q7" meant Quận 7 inside Rentals) was reviewed five times and
  * every round found another surface that could not see the category the same way — the typeahead
@@ -24,7 +26,8 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
  * saved alert.
  *
  * WHAT COUNTS AS A DISTRICT PHRASE (accent- and case-insensitive):
- *  · numbered, 1–12 — "Quận 7", "quan 7", "quận7", "Q7", "Q.7", "Q 7", "District 7", "Dist 7", "D7".
+ *  · numbered, 1–12 — "Quận 7", "quan 7", "quận7", "Q.7", "Q. 7", "District 7", "Dist 7", and —
+ *    beside a place word only — "Q7", "Q 7", "D7".
  *    Quận 2 and Quận 9 resolve to `thu-duc`, because that is where `DISTRICTS` puts them (they were
  *    merged into TP Thủ Đức in 2021).
  *  · named — every lettered spelling in `DISTRICTS[].match` ("Bình Thạnh", "Gò Vấp", "Phú Mỹ Hưng"
@@ -44,7 +47,11 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
  *    also ordinary words without accents ("cu chi", "can gio", "hoc mon", "nha be") therefore count
  *    only when the rest of the query is about somewhere to live ("căn hộ Q7", "2pn q7", "phòng Q7")
  *    — and never beside a brand known to use the letter ("audi q7"). A bare "Q7" stays text, as it
- *    was. "Quận 7" and "District 7" need no context: nothing else is called that.
+ *    was. "Quận 7", "District 7" and the address form "Q.7" / "Q. 7" need no context: nothing else
+ *    is called that. A place word inside a compound that is not a place ("sạc dự phòng", "lau nhà",
+ *    "nâu đất", "phòng khách") is not context (NOT_PLACE_COMPOUNDS).
+ *  · A NAME THAT IS A PERSON'S. A bare district name right after a Vietnamese surname ("Nguyễn Tân
+ *    Bình", an author) is a name, not the district.
  *  · TWO DIFFERENT DISTRICTS. "quận 1 hoặc quận 3" is left as text — one filter cannot say "or".
  *  · THẢO ĐIỀN. It is in the `thu-duc` match list, but it is a WARD: as text it already finds its
  *    262 rentals precisely (255 of them in Quận 2), and scoping it to Thủ Đức would widen that to
@@ -176,8 +183,36 @@ const NAMED_RE = new RegExp(
 /** The city the curated districts belong to — redundant once a district is known. */
 const CITY_RE = /(^|[^a-z0-9])((?:thanh\s+pho|tp)\s*\.?\s*)?(ho\s+chi\s+minh(?:\s+city)?|hcmc|hcm|sai\s*gon|tphcm)(?![a-z0-9])/g
 
-/** A preposition that only made sense in front of the district ("ở quận 7", "in district 7"). */
-const PREPOSITION_BEFORE = /(^|\s)(?:o|tai|in|at|near|around|gan|quanh|khu\s+vuc|khu)\s*[,.]?\s*$/
+/**
+ * A preposition that only made sense in front of the district ("ở quận 7", "in district 7").
+ * ⚠️ ACCENT-CHECKED against the word it stands for: folded, "ô" (as in "cờ ô quan", a board game)
+ * reads as "ở" and was stripped with the district (verifier). Typed bare ("o quan 7") still counts.
+ */
+const PREPOSITION_BEFORE = /(^|\s)(o|tai|in|at|near|around|gan|quanh|khu\s+vuc|khu)\s*[,.]?\s*$/
+const PREPOSITION_TARGET: Record<string, string> = { o: 'ở', tai: 'tại', gan: 'gần', 'khu vuc': 'khu vực' }
+
+/**
+ * Vietnamese surnames. A bare district name right after one is a person's or a street's name, not the
+ * district: "Nguyễn Tân Bình" is an author (verifier: 122 results → 14 once it was read as Tân Bình).
+ * ⚠️ Most of these are also ordinary words without their accents ("dương"/"đường", "ngô"/"ngõ",
+ * "phan"/"phần"), so only the five that are nothing else count when typed bare; the rest must carry
+ * their own accents. "Hồ" is left out entirely: bare it is the "hộ" of "căn hộ Bình Thạnh".
+ */
+const SURNAMES = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh', 'Phan', 'Vũ', 'Võ', 'Đặng', 'Bùi', 'Đỗ', 'Ngô', 'Dương', 'Lý']
+const SURNAME_TARGET = new Map(SURNAMES.map((w) => [foldPlain(w), w]))
+const SURNAME_BARE_OK = new Set(['nguyen', 'pham', 'hoang', 'huynh', 'bui'])
+const WORD_BEFORE = /(^|[^a-z0-9])([a-z]+)\s+$/
+
+function precededBySurname(f: Folded, start: number): boolean {
+  const m = f.text.slice(0, start).match(WORD_BEFORE)
+  if (!m) return false
+  const target = SURNAME_TARGET.get(m[2])
+  if (!target) return false
+  const wordStart = m.index! + m[1].length
+  const typed = originalOf(f, wordStart, wordStart + m[2].length)
+  if (!accentsCompatible(typed, target)) return false
+  return hasAccent(typed) || SURNAME_BARE_OK.has(m[2])
+}
 
 /**
  * Words that say the rest of the query is about somewhere to live — enough context for a shorthand
@@ -198,13 +233,49 @@ const PLACE_RE = new RegExp(
   `(^|[^a-z0-9])(${[...PLACE_TARGET.keys()].sort((a, b) => b.length - a.length).map((k) => escapeRe(k).replace(/ /g, '\\s+')).join('|')})(?![a-z0-9])`,
   'g',
 )
-/** "2pn", "3 br", "1 bedroom" — a room count is a place however it is spelled. */
-const ROOM_COUNT_RE = /(^|[^a-z0-9])\d+\s*(?:pn|br|bed|bedroom|wc)(?![a-z])/
+/** "2pn", "3 br", "1 bedroom", "2 phòng ngủ" — a room COUNT is a place however it is spelled. */
+const ROOM_COUNT_RE = /(^|[^a-z0-9])\d+\s*(?:pn|br|bed|bedroom|wc|phong\s+ngu)(?![a-z])/
+
+/**
+ * ⛔ COMPOUNDS IN WHICH A PLACE WORD IS NOT A PLACE. "phòng", "nhà" and "đất" are one syllable, and
+ * Vietnamese builds ordinary product words out of them: a power bank is "sạc dự phòng", a mop "cây lau
+ * nhà", a colour "nâu đất", a living-room TV "tivi phòng khách". Read as housing context they turned
+ * product searches into district scopes that match nothing (verifier, 2026-09-24): "pin sạc dự phòng
+ * Q3" 1 → 0, "lau nhà Q2" 2 → 0, "dây đồng hồ nâu đất D1" 1 → 0, "tivi samsung Q7 phòng khách" 1 → 0.
+ * A place word inside one of these compounds is masked before the scan. Accent-checked like every
+ * other word here, so "phong khach" typed bare is masked too — a housing search that says "phòng
+ * khách" almost always also says "căn hộ" or a room count, which still count.
+ * ⚠️ NOT EXHAUSTIVE AND NOT MEANT TO BE: the feed's safety net (resolveFeedFilters in
+ * feed-query.ts) serves the plain-text results whenever the district reading finds nothing and the
+ * plain words find something, so a compound missing from this list costs a precise reading, not
+ * the product search.
+ */
+const NOT_PLACE_COMPOUNDS = [
+  'dự phòng', 'đề phòng', 'phòng khách', 'phòng ngủ', 'phòng tắm', 'phòng bếp', 'phòng ăn',
+  'phòng cháy', 'phòng chống', 'phòng ngừa', 'phòng vệ', 'phòng thủ', 'phòng hộ', 'phòng gym', 'phòng net',
+  'lau nhà', 'dọn nhà', 'nhà bếp', 'nhà tắm', 'nhà vệ sinh', 'nhà cửa', 'nhà sản xuất', 'nhà phân phối',
+  'nhà xe', 'nhà sách', 'nhà thuốc', 'nhà cung cấp', 'nhà búp bê', 'nhà đồ chơi',
+  'nâu đất', 'đất sét', 'đất nung', 'nồi đất', 'đất trồng', 'gốm đất',
+  'văn phòng phẩm', 'ghế văn phòng', 'bàn văn phòng', 'office chair', 'office desk', 'room spray',
+]
+const NOT_PLACE_TARGET = new Map(NOT_PLACE_COMPOUNDS.map((w) => [foldPlain(w), w]))
+const NOT_PLACE_RE = new RegExp(
+  `(^|[^a-z0-9])(${[...NOT_PLACE_TARGET.keys()].sort((a, b) => b.length - a.length).map((k) => escapeRe(k).replace(/ /g, '\\s+')).join('|')})(?![a-z0-9])`,
+  'g',
+)
 
 function hasPlaceContext(rest: string): boolean {
   const f = foldWithMap(rest)
   if (ROOM_COUNT_RE.test(f.text)) return true
-  for (const m of f.text.matchAll(PLACE_RE)) {
+  // Mask the compounds first (same length, so every offset below still maps to the original).
+  let text = f.text
+  for (const m of f.text.matchAll(NOT_PLACE_RE)) {
+    const start = m.index! + m[1].length
+    const target = NOT_PLACE_TARGET.get(m[2].replace(/\s+/g, ' '))
+    if (!target || !accentsCompatible(originalOf(f, start, start + m[2].length), target)) continue
+    text = text.slice(0, start) + ' '.repeat(m[2].length) + text.slice(start + m[2].length)
+  }
+  for (const m of text.matchAll(PLACE_RE)) {
     const start = m.index! + m[1].length
     const target = PLACE_TARGET.get(m[2].replace(/\s+/g, ' '))
     if (target && accentsCompatible(originalOf(f, start, start + m[2].length), target)) return true
@@ -245,7 +316,16 @@ export function inferDistrictFromQuery(q: string | null | undefined): DistrictIn
     if (prefix === 'quan') {
       if (!accentsCompatible(typedPrefix, 'quận')) continue
     } else if (hasAccent(typedPrefix)) continue // "đ7" is not D7
-    spans.push({ start, end, slug, needsContext: prefix === 'q' || prefix === 'd' })
+    /**
+     * ⚠️ "Q." IS THE ADDRESS ABBREVIATION, NOT A MODEL CODE. "Q.7", "Q. 7", "q.2" are how a
+     * Vietnamese address writes Quận — measured 2026-09-24: 0 live listings use a Q-dot-number as a
+     * product name, while "Q. 7" used to reach the text filter as the token `q.` and returned 5,611
+     * rentals in Bình Thạnh, Tân Bình and Phú Nhuận ("Q. Bình Thạnh" …) and none in Quận 7. So a dot
+     * after the q is enough on its own. The bare shorthand ("Q7", "D7") still needs a place word:
+     * 129 live electronics listings carry such a code (Roborock Q7, Huawei Watch D2 …).
+     */
+    const dotted = prefix === 'q' && sep.includes('.')
+    spans.push({ start, end, slug, needsContext: (prefix === 'q' && !dotted) || prefix === 'd' })
   }
 
   for (const m of f.text.matchAll(NAMED_RE)) {
@@ -264,6 +344,7 @@ export function inferDistrictFromQuery(q: string | null | undefined): DistrictIn
       if (!accentsCompatible(typedPrefix, target)) continue
       if (prefix === 'h' && !sep.includes('.')) continue // "H. Nhà Bè", never a bare h
     }
+    if (!prefix && precededBySurname(f, start)) continue
     // A "Quận/Huyện" prefix or a "district" suffix, or the name's own accents, says it is the place.
     const confident = !!prefix || !!suffix || hasAccent(typedName) || !AMBIGUOUS_NAMES.has(key)
     spans.push({ start, end, slug: entry.slug, needsContext: !confident })
@@ -287,7 +368,12 @@ export function inferDistrictFromQuery(q: string | null | undefined): DistrictIn
     let from = s.start
     if (s.slug) {
       const before = f.text.slice(0, from).match(PREPOSITION_BEFORE)
-      if (before) from = before.index! + before[1].length
+      if (before) {
+        const pStart = before.index! + before[1].length
+        const word = before[2].replace(/\s+/g, ' ')
+        const typed = originalOf(f, pStart, pStart + before[2].length)
+        if (accentsCompatible(typed, PREPOSITION_TARGET[word] ?? word)) from = pStart
+      }
     }
     for (let i = f.map[from] ?? f.chars.length; i <= f.map[s.end - 1]; i++) drop[i] = true
   }
@@ -315,23 +401,76 @@ function tidy(s: string): string {
     .trim()
 }
 
+/**
+ * WHETHER THE QUERY READ WITHOUT ITS DISTRICT IS STILL A SEARCH — i.e. whether the feed may fall back
+ * to it when the district reading finds nothing (resolveFeedFilters in feed-query.ts).
+ * ⛔ NOT WHEN NOTHING BUT A NUMBERED DISTRICT WAS TYPED. "Quận 7" as plain text is the lone token
+ * `quan` — the bug this module exists to fix (it matched every HCMC rental, and in Fashion it matches
+ * "quần", trousers). So a bare numbered district in a category with no listings there stays an honest
+ * zero.
+ * ⛔ NOR WHEN THE OTHER WORDS ARE ABOUT SOMEWHERE TO LIVE ("penthouse quận 7", "phòng trọ Phú
+ * Nhuận"). Then the district reading is the right one even when it finds nothing — the plain words
+ * would answer with penthouses in every other district, since every HCMC rental carries "quan" — and
+ * the feed skips the existence probe altogether (measured 50–80 ms on production, 2026-09-24).
+ * Words that are not about a place ("pin sạc dự phòng Q3", "Hồi ức Phú Nhuận") or a district NAME
+ * alone ("Phú Nhuận", the title of a book) are a real text search, and a product search must never
+ * be the worse for the district reading.
+ */
+/**
+ * Whether the words are a search for a PLACE — nothing but the district ("Quận 7", "Bình Thạnh"), or
+ * the district beside words about somewhere to live ("căn hộ Q7"). The other shape — a district
+ * beside product words ("Hồi ức Phú Nhuận", a book) — is the one the feed may yet serve as plain
+ * words, so the explorer does not let it replace a province, ward or radius the reader picked.
+ */
+export function isPlaceSearch(inferred: DistrictInference): boolean {
+  return !inferred.rest || hasPlaceContext(inferred.rest)
+}
+
+/**
+ * Whether an explicit `?district=` strips this phrase from the words: only a NUMBERED phrase, whose
+ * text is the lone token the district reading exists to replace ("Quận 7" → `quan`, "District 7" →
+ * `district`), which matches every HCMC row (verifier: `district=d1&q=Quận 7` answered all of Quận 1
+ * "as if the words had been read"). A district NAME stays text under a pick — "Phú Nhuận" folds to
+ * two specific tokens, and it may be a product's name ("Hồi ức Phú Nhuận", a book): cutting it lost
+ * the query outright (codex, opus). One rule for the feed, the alerts and the explorer's box.
+ */
+export function strippedUnderExplicitDistrict(inferred: DistrictInference): boolean {
+  return /\d/.test(inferred.phrase)
+}
+
+export function hasPlainTextFallback(inferred: DistrictInference): boolean {
+  if (inferred.rest && hasPlaceContext(inferred.rest)) return false
+  return inferred.rest.length > 0 || !/\d/.test(inferred.phrase)
+}
+
 export type QueryChip =
   | { kind: 'text'; text: string; clearTo: string }
   | { kind: 'district'; slug: string; clearTo: string }
 
 /**
- * The explorer's applied-filter chips for the typed query: the words, and — when the server will
- * read one out of them — the district, each clearing ONLY itself. Clearing the district leaves the
+ * The explorer's applied-filter chips for the typed query: the words, and — when the SERVER read a
+ * district out of them — the district, each clearing ONLY itself. Clearing the district leaves the
  * words (`clearTo: rest`); clearing the words leaves the district phrase in the box, which re-infers
- * the same district. `districtSent` is whether the request carries its own `district` param, in
- * which case the server infers nothing and neither does this. `lang` picks which of the district's
- * own names goes back into the box when the typed phrase could not stand alone.
+ * the same district. `lang` picks which of the district's own names goes back into the box when the
+ * typed phrase could not stand alone.
+ *
+ * ⛔ `serverInferred` IS THE RESPONSE'S `inferredDistrict`, NOT A RE-RUN OF THE PARSER HERE. The feed
+ * can decline a reading the parser makes — an explicit `?district=` wins, and when the district scope
+ * finds nothing while the plain words find something it serves the plain words (resolveFeedFilters) —
+ * and a chip recomputed in the browser would then name a district the results are not in. The parser
+ * runs here only to split the words from the phrase so each chip can clear itself; `null` (no district
+ * applied, or no answer yet for this text) is one text chip.
  */
-export function queryChips(typed: string, districtSent: boolean, lang = 'vi'): QueryChip[] {
+export function queryChips(typed: string, serverInferred: string | null, lang = 'vi'): QueryChip[] {
   const q = typed.trim()
   if (!q) return []
-  const inferred = districtSent ? null : inferDistrictFromQuery(q)
-  if (!inferred) return [{ kind: 'text', text: q, clearTo: '' }]
+  if (!serverInferred) return [{ kind: 'text', text: q, clearTo: '' }]
+  const inferred = inferDistrictFromQuery(q)
+  if (!inferred || inferred.slug !== serverInferred) {
+    // The server read a district this copy of the parser does not (a deploy between the two): name
+    // the district that IS applied, and let clearing it clear the words that produced it.
+    return [{ kind: 'text', text: q, clearTo: '' }, { kind: 'district', slug: serverInferred, clearTo: '' }]
+  }
   /**
    * ⚠️ CLEARING THE WORDS MUST KEEP THE DISTRICT EVEN WHEN THE DISTRICT NEEDED THEM. "căn hộ Q7" is
    * Quận 7 only BECAUSE of "căn hộ"; leaving "Q7" alone in the box would read as a product search
