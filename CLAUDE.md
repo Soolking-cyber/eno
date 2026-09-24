@@ -14,9 +14,9 @@ Vietnamese expat marketplace. `PRELAUNCH=true` until the owner flips it.
 | UI diff → canon drift | `canon-reviewer` | Opus · high |
 | Copy → bilingual contract | `i18n-reviewer` | Opus · high |
 | A bug that already survived one plausible fix | `deep-debugger` | Opus · xhigh |
-| **Second opinion** (plan AND finished diff; ALSO every security/bug audit — owner 2026-07-23) | `antigravity` (agy) + Opus 5 · high | ⛔ **agy `gemini-3.8-flash-high` ONLY as the external family, since 2026-09-23** — owner: *"remove astra from the 2nd opinion"*. Every OpenAI/codex seat is removed with no restore date. ⚠️ That leaves **ONE non-Anthropic reviewer**: say "single-sourced" out loud when agy is the only family that answered, and do not treat an Opus-on-Opus agreement as a second opinion. |
+| **Second opinion** (plan AND finished diff; ALSO every security/bug audit — owner 2026-07-23) | `antigravity` (agy) + `codex` + Opus 5 · high | ⛔ **SINCE 2026-09-24: agy `gemini-3.8-flash-high` + codex `gpt-5.6-sol` at MEDIUM + Opus 5 (high).** Owner: *"add gpt astra 6 sol medium reasoning as 2nd opinion from codex"* / *"which has normal token consumption and good reasoning needs a balance"*. Measured on one real refute-prompt: `gpt-6-astra` 19,302 tokens vs `gpt-5.6-sol` 9,881 tokens, same verdict and findings → sol. Two INDEPENDENT labs again (Google + OpenAI); say "single-sourced" only when just one of them answered. Invocation: `codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only < prompt.txt`. |
 | Second opinion — Anthropic-lineage | `fable-reviewer` | ⛔ **OUT OF BUDGET since 2026-09-09** — do not dispatch. Use Opus · xhigh in its place until the owner says otherwise. |
-| Commit-gate panel | `scripts/second-opinion.mjs` | ⛔ **agy `gemini-3.8-flash-high` + Opus 5 · high — PERMANENT since 2026-09-23.** Owner: *"remove astra from the 2nd opinion"*. That is a removal, not the 2026-09-20 pause it supersedes: there is **no restore date** and nothing to re-enable when OpenAI quota returns. Do not re-add a `codex`/`astra` seat unless the owner asks. ⛔ TWO SEATS, TWO LABS, and Opus is the SAME MODEL that writes most of these diffs, so **agy is the only independent vote**: a REFUTED from agy is the whole panel objecting — go and measure it. ⚠️ Past 180KB agy is truncated and stops counting, which leaves opus alone and the lab quorum UNREACHABLE; the gate refuses the commit and the answer is to split the change, not to force it. |
+| Commit-gate panel | `scripts/second-opinion.mjs` | ⛔ **agy `gemini-3.8-flash-high` + codex `gpt-5.6-sol` (medium) + Opus 5 · high — since 2026-09-24** (the 2026-09-23 "permanent" removal of the OpenAI seat was reversed by the owner). Three seats, three labs, quorum = two labs. codex takes the diff on stdin, so past agy's 180KB cutoff the full diff is still read by codex + opus and the gate can pass — but then codex is the ONLY independent vote: call it single-sourced. Opus is the same model that writes most diffs here; a REFUTED from agy or codex is the real objection — go and measure it. |
 | Shipping to prod (the whole ritual) | `/ship` | Opus · medium |
 | Seller/admin e2e suite | `/authed-e2e` | Opus · low |
 | Design, architecture, anything genuinely novel | main thread | session model |
@@ -25,10 +25,11 @@ Three habits that follow:
 
 - **Delegate search to `scout`.** Not to save money — to keep bulk grep output out of the main context. You get the conclusion, not the file dump.
 - **Escalate, don't grind.** A fix that didn't hold goes to `deep-debugger` (Opus, xhigh), not to a second guess at the same altitude.
-- ⛔ **SINCE 2026-09-23 THE GATE IS agy + Opus 5, PERMANENTLY** — owner: *"remove astra from the 2nd opinion"*. The
+- ⛔ **SINCE 2026-09-24 THE PANEL IS agy + codex (`gpt-5.6-sol`, medium) + Opus 5** — owner re-added the OpenAI seat; the two bullets below describe the 2026-09-23 agy+Opus state and are HISTORY.
+- (HISTORY) **SINCE 2026-09-23 THE GATE IS agy + Opus 5, PERMANENTLY** — owner: *"remove astra from the 2nd opinion"*. The
   line below is the 2026-09-14 arrangement and is now HISTORY: read every "astra"/"codex" in this file as REMOVED, not
   as paused. There is no date on which it comes back.
-- ⛔ **SINCE 2026-09-23 THE REVIEWERS ARE agy `gemini-3.8-flash-high` + Opus 5 (high), for BOTH the gate and plan/diff
+- (HISTORY, superseded 2026-09-24) **SINCE 2026-09-23 THE REVIEWERS ARE agy `gemini-3.8-flash-high` + Opus 5 (high), for BOTH the gate and plan/diff
   second opinions.** Every OpenAI seat (sol, then astra) is retired. The 2026-09-14 bullet below is history; where it or
   anything under it says codex/astra, read REMOVED.
   ⚠️ **agy CAN FAIL WITH `invalid model selection` AND IT IS NOT THE MODEL NAME.** On 2026-09-23 one dispatch died with

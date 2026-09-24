@@ -317,8 +317,8 @@ this hook exists because that rule was skipped twice on 2026-08-03 despite being
 
 Run:  node scripts/second-opinion.mjs
 
-It dispatches codex, agy and qwen IN PARALLEL against the staged diff, prints their verdicts, and
-writes .second-opinion/${hash}.json. At least TWO families must actually answer — a reviewer that
+It dispatches agy, codex (gpt-5.6-sol) and opus IN PARALLEL against the staged diff, prints their verdicts, and
+writes .second-opinion/${hash}.json. At least TWO labs must actually answer — a reviewer that
 errors or returns nothing is not a pass. A REFUTED verdict does not block the commit; read the
 findings and VERIFY each by measuring before acting on it.
 

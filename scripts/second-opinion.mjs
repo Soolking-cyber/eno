@@ -40,7 +40,17 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // its verdicts — receipts validated on codex + opus alone. MOOT since 2026-09-23: the seat is removed entirely
 // (see the block below), so nothing named astra is dispatched or counted anywhere.
 /**
- * ⛔ PANEL SINCE 2026-09-23 = agy + opus, AND THE OpenAI SEAT IS GONE FOR GOOD. Owner, 2026-09-23:
+ * ⛔ PANEL SINCE 2026-09-24 = agy + codex + opus — owner: "add gpt astra 6 sol medium reasoning as 2nd
+ * opinion from codex", then, asked which: "which has normal token consumption and good reasoning needs
+ * a balance there". MEASURED, not guessed: the same real refute-prompt (the 10107374 diff, 13KB) on
+ * both at medium effort — gpt-6-astra 19,302 tokens / 22s, gpt-5.6-sol 9,881 tokens / 21s, the SAME
+ * verdict and the same two core findings (astra added one point about a row shape production holds 0
+ * of). So the seat is `gpt-5.6-sol` at `model_reasoning_effort=medium`: half the tokens for the same
+ * reasoning on this repo's diffs. Re-measure before switching it to astra or to high.
+ * The owner re-added the OpenAI seat, which is what the paragraph below said it would take; it is
+ * history from here on.
+ *
+ * ⛔ (HISTORY) PANEL 2026-09-23..24 = agy + opus, AND THE OpenAI SEAT IS GONE FOR GOOD. Owner, 2026-09-23:
  * "remove astra from the 2nd opinion". That supersedes the 2026-09-20 pause ("remove codex until it
  * comes back again in 3 days") — this is a removal, not a timer, so there is no restore date and
  * nothing to re-enable when quota returns. Do not re-add a `codex`/`astra` seat without the owner
@@ -61,7 +71,7 @@ const RECEIPTS = join(ROOT, '.second-opinion')
  * is a self-review. The 2-lab quorum therefore means agy alone is the independent vote: weight a
  * REFUTED from agy heavily, and go and measure rather than out-voting it.
  */
-const REVIEWER_NAMES = ['agy', 'opus']
+const REVIEWER_NAMES = ['agy', 'codex', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -211,7 +221,7 @@ if (process.env.SECOND_OPINION_SKIP_SECRET_SCAN !== '1') {
     // ⚠️ THIS IS THE THIRD PLACE THE SEAT LIST IS WRITTEN — after REVIEWER_NAMES and REVIEWERS —
     // and opus flagged it reviewing this very change: the diff's own lesson is that duplicated seat
     // lists drift, and it fixed two of the three. Update this string whenever a seat moves.
-    console.error('   agy and opus are third-party services; a credential sent to them cannot be recalled.')
+    console.error('   agy, codex and opus are third-party services; a credential sent to them cannot be recalled.')
     console.error('   Remove the value from the staged content (git reset the file, move it to Secret Manager via')
     console.error('   scripts/secret-set.sh), then re-run. If this is a FALSE POSITIVE — a fixture, a public key, a')
     console.error('   sample in documentation — re-run with SECOND_OPINION_SKIP_SECRET_SCAN=1 and say so out loud.')
@@ -283,9 +293,9 @@ process.on('SIGTERM', () => process.exit(143))
 // "reviewed" must mean the reviewer saw the licensing-relevant hunk — which, in a big diff, is as
 // likely to be at the end as the start. opus takes the prompt on stdin and so gets the whole thing;
 // agy's truncated verdict is recorded but deliberately not counted.
-// ⛔ WITH THE OpenAI SEAT REMOVED (2026-09-23) THAT LEAVES OPUS ALONE PAST 180KB, and opus is the
-// same model that writes most of these diffs — so on a diff that big the lab quorum is UNREACHABLE
-// and the gate refuses the commit. That is the designed outcome: split the change, do not force it.
+// ⚠️ SINCE 2026-09-24 codex ALSO TAKES STDIN, so past 180KB the full diff is still read by codex
+// (OpenAI) and opus (Anthropic): two labs, the quorum holds, and codex is the independent vote.
+// (2026-09-23..24, with no OpenAI seat, opus was alone past 180KB and the gate refused.)
 const AGY_LIMIT = 180_000
 // ⚠️ BYTES, NOT CHARACTERS (astra, agy, opus, 2026-09-14): ARG_MAX is a byte limit, and `prompt.length` counts UTF-16
 // units — a diff full of Vietnamese copy and ⚠️ marks is 2–4 bytes a character, so a "180KB" string could be 400KB on
@@ -296,7 +306,11 @@ const agyTruncated = promptBytes.length > AGY_LIMIT
 
 const REVIEWERS = [
   /**
-   * ⛔ TWO SEATS, TWO LABS — AND ONLY ONE OF THEM IS INDEPENDENT. The OpenAI seat was removed on
+   * ⛔ SINCE 2026-09-24: THREE SEATS, THREE LABS — agy (Google), codex (OpenAI), opus (Anthropic).
+   * agy and codex are the INDEPENDENT votes; opus is the author's own model. The paragraph below is
+   * the 2026-09-23 two-seat state, kept as history.
+   *
+   * ⛔ (HISTORY) TWO SEATS, TWO LABS — AND ONLY ONE OF THEM IS INDEPENDENT. The OpenAI seat was removed on
    * 2026-09-23 ("remove astra from the 2nd opinion"), so what remains is agy (Google) and opus
    * (Anthropic). opus is the same model that writes most diffs in this repo, which makes it a
    * self-review: **agy is the whole independent panel.** A REFUTED from agy is not one voice among
@@ -423,6 +437,22 @@ const REVIEWERS = [
    * is still the same lab, so a unanimous 3/3 is two families agreeing, not three. If a third
    * independent family ever becomes reachable — an OpenRouter key, an opencode login — take it.
    */
+  /**
+   * THE OpenAI SEAT, BACK 2026-09-24 on the owner's word, on `gpt-5.6-sol` at MEDIUM — chosen by
+   * measurement for token cost (see REVIEWER_NAMES). Takes the prompt on STDIN, so unlike agy it is
+   * never truncated and it keeps the quorum reachable past 180KB. `web_search=disabled` +
+   * `--skip-git-repo-check` + `--sandbox read-only` are what stop codex burning its whole run
+   * exploring the tree instead of answering (the 46-minute hang recorded below).
+   * ⚠️ PROBE A NEW MODEL ID BEFORE PINNING IT: codex accepts an unknown id with only a "fallback
+   * metadata" warning and runs on a mis-specified model.
+   */
+  {
+    name: 'codex',
+    lab: 'openai',
+    cmd: 'codex',
+    args: ['exec', '-m', 'gpt-5.6-sol', '-c', 'model_reasoning_effort=medium', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'],
+    stdin: true,
+  },
   {
     name: 'opus',
     lab: 'anthropic',
@@ -567,19 +597,23 @@ console.log(`\n${answered.length}/${REVIEWERS.length} seats answered across ${la
 // ⚠️ PRINTED ON EVERY RUN, not only written here (astra): the agy-truncation banner used to say this out loud on
 // big diffs, and on this panel it is true of every diff, so a "2/2 across 2 labs" must never read as two
 // independent families.
-// ⛔ PAST agy's 180KB CUTOFF, ON THIS TWO-SEAT PANEL, agy does not count AND THE QUORUM BECOMES UNREACHABLE —
-// opus alone is one lab, so `labsCounted < 2` refuses the commit. That is correct, not a bug: there is no
-// independent reviewer left. The fix is to SPLIT THE CHANGE until agy sees all of it, not to force it through.
-// While astra was on the panel (until 2026-09-20) a big diff still certified on astra + opus; it cannot now.
+// ⚠️ INDEPENDENT = A NON-ANTHROPIC LAB THAT COUNTED (answered AND saw the full diff). opus is the author's
+// own model, so its verdict never makes a review independent. Reported in LABS, not seats: two seats from
+// one lab are one opinion. Printed whether or not opus answered — a missing opus must not hide the count.
+// Past agy's 180KB cutoff agy does not count; codex reads the full diff on stdin, so whether the review is
+// independent then depends on codex having ANSWERED — never assume it.
+const independentLabs = [...new Set(counted.filter((r) => r.lab !== 'anthropic').map((r) => r.lab))]
+const independentSeats = counted.filter((r) => r.lab !== 'anthropic').map((r) => r.name)
 if (agyTruncated) {
-  console.log('\n⛔ THIS DIFF IS OVER 180KB, SO agy DOES NOT COUNT — and agy is the ONLY independent seat on the')
-  console.log('   current two-seat panel, so the lab quorum CANNOT be met and this commit will be refused.')
-  console.log('   Split the change until agy can see all of it. Forcing it through certifies on opus alone,')
-  console.log('   which is the same model that wrote it.')
+  console.log('\n⚠️  THIS DIFF IS OVER 180KB, SO agy DOES NOT COUNT — consider splitting the change.')
 }
-if (counted.some((r) => r.name === 'opus')) {
-  console.log('⚠️  opus is the SAME MODEL that wrote most diffs here — its verdict is a self-review. agy is the ONLY')
-  console.log('   independent seat on this panel: if agy REFUTED, that dissent is the whole panel.')
+if (independentLabs.length === 0) {
+  console.log('⛔ NO INDEPENDENT REVIEW: no non-Anthropic seat counted on this diff. opus alone is the author\'s')
+  console.log('   own model — this diff is UNREVIEWED, not single-sourced.')
+} else {
+  console.log(`⚠️  Independent seats that counted: ${independentSeats.join(' + ')} (${independentLabs.length} lab(s)). opus is the`)
+  console.log('   SAME MODEL that wrote most diffs here — a REFUTED from an independent seat is the real objection.')
+  if (independentLabs.length === 1) console.log('   Only ONE independent lab counted — say "single-sourced" out loud.')
 }
 
 // ⚠️ THE RECEIPT IS WRITTEN ONLY AFTER THE QUORUM HOLDS — AND THIS ORDER IS THE GATE.

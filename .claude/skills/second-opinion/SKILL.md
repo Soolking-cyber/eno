@@ -1,6 +1,6 @@
 ---
 name: second-opinion
-description: How to actually invoke the external reviewer (antigravity/agy) — exact CLI flags, the anti-exploration prompt preamble, and the failure modes that produce a silent non-review. Load when dispatching a second opinion at plan or diff time.
+description: How to actually invoke the external reviewers (antigravity/agy and codex gpt-5.6-sol) — exact CLI flags, the anti-exploration prompt preamble, and the failure modes that produce a silent non-review. Load when dispatching a second opinion at plan or diff time.
 ---
 
 # Invoking the external reviewers
@@ -9,16 +9,20 @@ The POLICY — second opinion mandatory at BOTH plan and finished diff, ask them
 than review, and a reviewer that did not answer is NOT a passed review — lives in the root
 `CLAUDE.md` and stays there. This file is only the mechanics.
 
-⛔ **THE OpenAI SEAT IS REMOVED — owner, 2026-09-23: _"remove astra from the 2nd opinion"_.**
-Every `codex`/`astra` instruction below is HISTORY, kept because the anti-exploration lessons in it
-apply to any CLI reviewer. Do not dispatch codex; there is no restore date.
+⛔ **THE OpenAI SEAT IS BACK — owner, 2026-09-24: _"add gpt astra 6 sol medium reasoning as 2nd
+opinion from codex"_, then _"which has normal token consumption and good reasoning needs a balance"_.**
+Measured on the same real refute-prompt at medium: `gpt-6-astra` 19,302 tokens / 22 s, `gpt-5.6-sol`
+9,881 tokens / 21 s, same verdict and same core findings. **The seat is `gpt-5.6-sol` at
+`model_reasoning_effort=medium`.** Exact line (prompt on stdin):
+`codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only < prompt.txt`
+(The 2026-09-23 removal, and any "do not dispatch codex" below, is history. Where a line below says
+`model_reasoning_effort=high`, use medium.)
 
-⚠️ **THAT LEAVES ONE EXTERNAL FAMILY.** agy is now the only non-Anthropic reviewer, so an agy that
-errors, times out or returns no VERDICT means the work has had NO independent review — not a
-partial one. Say "single-sourced" out loud in that case rather than letting an Opus seat stand in
-for it: Opus writes most of these diffs and shares their blind spots.
+⚠️ **TWO EXTERNAL FAMILIES AGAIN — agy (Google) and codex (OpenAI).** Opus writes most of these diffs
+and shares their blind spots, so it never stands in for them. When only ONE of agy/codex returned a
+VERDICT, say "single-sourced" out loud; when neither did, the work has had no independent review.
 
-**How to invoke the external reviewer (read-only, non-interactive):**
+**How to invoke the external reviewers (read-only, non-interactive):**
 - **codex** — pipe the prompt via STDIN, never as an argument (the arg form hangs waiting on stdin).
   ⚠️ **CODEX WASTES ITS RUN EXPLORING UNLESS YOU FORBID IT.** Seen repeatedly (2026-07-21..23):
   given a read-only sandbox it greps node_modules and web-searches for the whole run and never
