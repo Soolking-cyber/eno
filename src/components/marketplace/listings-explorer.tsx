@@ -44,7 +44,7 @@ import { useLanguage, Tr } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor, migrateLegacyCategoryParams } from '@/lib/taxonomy'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { hashKey, useQuery, useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -90,6 +90,36 @@ function parseFilterParams(p: URLSearchParams, categorySlug: string, subcategory
     }
   })
   return out
+}
+
+/**
+ * WHICH ANSWER A FEED PAGE BELONGS TO: its react-query key with the page taken out, and the language
+ * folded to what the payload actually varies on (`answerLang`).
+ * ⛔ DERIVED FROM THE KEY, NOT FROM `filterSig`. Two payloads cached under one key must carry one
+ * signature, and `filterSig` cannot promise that: it JSON-stringifies `customFilters` and `nearby`
+ * in insertion order, while react-query hashes the key with sorted object keys. The same filters
+ * rebuilt in another order (a URL with its `attr_*` params reordered) would then read as two result
+ * sets over the SAME cache entries — the sync effect's guard would reset to page 1, page 1 would
+ * come back from cache under the old stamp, the sentinel would ask for page 2 again, and the feed
+ * would loop. `hashKey` is react-query's own hash, so equal keys give equal signatures by
+ * construction.
+ */
+function resultSetSig(queryKey: readonly unknown[]): string {
+  const [name, params] = queryKey as [string, Record<string, unknown>]
+  const set = Object.fromEntries(
+    Object.entries(params).filter(([k]) => k !== 'page').map(([k, v]) => (k === 'lang' ? [k, answerLang(v as string)] : [k, v])),
+  )
+  return hashKey([name, set])
+}
+/**
+ * The part of the reader's language that changes the PAYLOAD. en and vi rows carry both titles
+ * (`localizeListingTitles` returns early for them), so switching between the two re-labels the same
+ * rows in place; any other language gets its own `titleI18n` in the response, so rows fetched in
+ * English are a different answer for a Korean reader — keeping them, or extending them with Korean
+ * pages whose ids were already seen, left English titles under a Korean UI.
+ */
+function answerLang(lang: string): string | null {
+  return lang === 'en' || lang === 'vi' ? null : lang
 }
 
 // CategoryRails and the FacetBar are code-split out of the home route's initial bundle.
@@ -494,11 +524,31 @@ export function ListingsExplorer({
   const restoredScrollRef = useRef<{ y: number; anchorId: string | null; anchorTop: number } | null>(null)
   const restoreRafRef = useRef(0)
   const restoreStopRef = useRef<(() => void) | null>(null)
-  const skipFirstPageResetRef = useRef(false)
+  /**
+   * ⛔ WHICH RESULT SET THE ROWS IN `listings` BELONG TO — `resultSetSig` of the query their
+   * payload was fetched for (`fetchedFor.sig`, stamped in the queryFn; `liveSig` for an answer that
+   * never went through it, i.e. the ISR seed), or the snapshot's on a back-nav restore.
+   * `undefined` = unknown (an unstamped placeholder), which the append guard lets through and the
+   * back-nav restore refuses (it restores only rows whose provenance IS the current query).
+   * The sync effect APPENDS a page only onto rows of the same signature. It exists because the
+   * owner watched a grid keep 39 "iPhone 12 Pro Max" cards under "3 listings · iPhone 13 Mini"
+   * (2026-09-24): the page counter survived a filter change, the new model was fetched at
+   * offset 48, and the append branch had no way to tell that the page belonged to another query.
+   *
+   * ⛔ `skipFirstPageResetRef` USED TO SIT HERE AND IT WAS THE CAUSE. It told the in-render page
+   * reset (below, at `filterSig`) to skip "the restore's own" filter change — but the restore runs
+   * in a layout effect one render AFTER that change, so nothing consumed it, and it swallowed the
+   * reader's NEXT filter change instead: the reset never ran, and the new filters were fetched at
+   * the restored depth. It was written for a passive-effect reset (62134f1a), where the ordering
+   * held; f780cc23 moved the reset into render and the flag silently inverted. The restore needs
+   * no guard at all: it runs only once `feedSig` already equals the snapshot's, and `setPage`
+   * changes no signature. Do not bring it back.
+   */
+  const rowsSigRef = useRef<string | undefined>(undefined)
   // The back-nav snapshot, read once on mount and applied when the feed's filters
   // settle to the same signature (filters hydrate from the URL in an effect, so the
   // match can't be made synchronously at mount).
-  const pendingSnapRef = useRef<{ sig: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number; unlocked?: boolean; ceiling?: number; anchorId?: string | null; anchorTop?: number | null } | null>(null)
+  const pendingSnapRef = useRef<{ sig: string; rowsSig?: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number; unlocked?: boolean; ceiling?: number; anchorId?: string | null; anchorTop?: number | null } | null>(null)
   const snapReadRef = useRef(false)
   const [subcategoryCounts, setSubcategoryCounts] = useState<Record<string, number>>({})
   /**
@@ -1184,17 +1234,22 @@ export function ListingsExplorer({
   // fired one render late, so the new query first refetched at the STALE page (offset>0) and
   // the list visibly reshuffled to the page-1 results — the "double-sort" search jitter.
   // Doing it here means useQuery (below) reads page=1 on the SAME render → a single offset-0
-  // fetch, no flip. Skips the back-nav restore (which intentionally rehydrates a deeper page).
+  // fetch, no flip.
+  // ⛔ UNCONDITIONAL. There used to be a "skip once for the back-nav restore" exception here and it
+  // is what broke the first filter change after every deep Back — see `rowsSigRef` above.
+  // `looseMatch`, `answerLang` and the shop are in the signature because they are in the request
+  // and the query key: a request that changes without resetting the page is exactly the bug this
+  // block prevents (see `answerLang` for why en↔vi does not count; the shop changes when a
+  // storefront-to-storefront navigation keeps this component mounted).
   const filterSig = JSON.stringify([
     activeCategory, debouncedQuery, activeDistrict, conditionFilter, goodPriceOnly, listingType, verifiedOnly,
     sort, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, priceRange, nearby,
-    activeProvince?.code ?? null, activeWard?.code ?? null, selectedBuilding,
+    activeProvince?.code ?? null, activeWard?.code ?? null, selectedBuilding, looseMatch, answerLang(lang), sellerId ?? null,
   ])
   const prevFilterSigRef = useRef(filterSig)
   if (prevFilterSigRef.current !== filterSig) {
     prevFilterSigRef.current = filterSig
-    if (skipFirstPageResetRef.current) skipFirstPageResetRef.current = false
-    else if (page !== 1) setPage(1)
+    if (page !== 1) setPage(1)
   }
 
   /**
@@ -1287,49 +1342,64 @@ export function ListingsExplorer({
     // memoise the marketplace's params on a storefront's first render and never widen them again.
   }, [scopedParams, activeBrand, activeModel, activeLine, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters, lang])
 
+  // The feed query's key, named so `resultSetSig` can read the same object the query is keyed on.
+  const listingsQueryKey = [
+    'listings',
+    {
+      // ⛔ THE SHOP IS PART OF THE REQUEST (`scopedParams`), SO IT IS PART OF THE KEY — the same class
+      // as `line` and `near` below: without it two storefronts' feeds shared cache entries, and
+      // `resultSetSig` could not tell their pages apart. `null` on the marketplace.
+      seller: sellerId ?? null,
+      category: activeCategory,
+      subcategory: activeSubcategory,
+      brand: activeBrand,
+      model: activeModel,
+      /**
+       * ⛔ `line` IS PART OF THE KEY BECAUSE IT IS PART OF THE REQUEST. Without it, changing only
+       * the cascade's line or generation produced the SAME cache key: the fetch went out and came
+       * back correct (measured: `?line=iPhone 20` returns 1), and react-query served the previous
+       * payload anyway — so the feed sat at 978 iPhones under a selected "iPhone 20 1" chip. It
+       * reads as "the filter does nothing", and it is worst exactly where the new result is
+       * SMALLEST, because a large overlap hides the staleness.
+       * Same class as `lang` below, which this file already documents.
+       */
+      line: activeLine,
+      district: activeDistrict,
+      province: activeProvince?.code ?? null,
+      ward: activeWard?.code ?? null,
+      /**
+       * ⛔ THE CIRCLE, NOT "IS THERE A CIRCLE". This was `nearby ? 1 : 0` while the request sends
+       * `lat`/`lng`/`radiusKm`, so widening "Near you" from 5 km to 10 km produced the SAME key:
+       * no request went out and the 5 km rows sat under a "Within 10 km" chip (measured in
+       * listings-explorer.back-nav-filter.test.tsx). Same class as `line` above. The prefetch
+       * key below carries the same value — both keys or neither.
+       */
+      near: nearby ? [nearby.lat, nearby.lng, nearby.radiusKm] : 0,
+      condition: conditionFilter,
+      deal: goodPriceOnly ? 'good' : 'all',
+      type: listingType,
+      q: debouncedQuery,
+      match: looseMatch ? 'any' : 'all',
+      sort,
+      verified: verifiedOnly ? 'true' : 'all',
+      price: priceRange,
+      building: selectedBuilding,
+      page,
+      customFilters,
+      // ⛔ `lang` IS PART OF THE KEY BECAUSE IT IS NOW PART OF THE RESPONSE. The feed used to
+      // carry titles in every prewarmed language, so an in-place language switch could re-render
+      // from the SAME cached payload. Asking the server for one language (21% smaller) makes the
+      // response language-specific — and a key that ignores it would leave a Korean reader
+      // looking at the English titles react-query already had, with no refetch to correct it.
+      // Caught in review before it shipped; a language switch is rare, so the extra fetch is free.
+      lang,
+    },
+  ]
+  /** The result set the CURRENT key asks for — the provenance of any non-placeholder answer. */
+  const liveSig = resultSetSig(listingsQueryKey)
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isPlaceholderData: queryShowingStaleSet, isError: queryError, refetch: refetchListings } = useQuery({
-    queryKey: [
-      'listings',
-      {
-        category: activeCategory,
-        subcategory: activeSubcategory,
-        brand: activeBrand,
-        model: activeModel,
-        /**
-         * ⛔ `line` IS PART OF THE KEY BECAUSE IT IS PART OF THE REQUEST. Without it, changing only
-         * the cascade's line or generation produced the SAME cache key: the fetch went out and came
-         * back correct (measured: `?line=iPhone 20` returns 1), and react-query served the previous
-         * payload anyway — so the feed sat at 978 iPhones under a selected "iPhone 20 1" chip. It
-         * reads as "the filter does nothing", and it is worst exactly where the new result is
-         * SMALLEST, because a large overlap hides the staleness.
-         * Same class as `lang` below, which this file already documents.
-         */
-        line: activeLine,
-        district: activeDistrict,
-        province: activeProvince?.code ?? null,
-        ward: activeWard?.code ?? null,
-        near: nearby ? 1 : 0,
-        condition: conditionFilter,
-        deal: goodPriceOnly ? 'good' : 'all',
-        type: listingType,
-        q: debouncedQuery,
-        match: looseMatch ? 'any' : 'all',
-        sort,
-        verified: verifiedOnly ? 'true' : 'all',
-        price: priceRange,
-        building: selectedBuilding,
-        page,
-        customFilters,
-        // ⛔ `lang` IS PART OF THE KEY BECAUSE IT IS NOW PART OF THE RESPONSE. The feed used to
-        // carry titles in every prewarmed language, so an in-place language switch could re-render
-        // from the SAME cached payload. Asking the server for one language (21% smaller) makes the
-        // response language-specific — and a key that ignores it would leave a Korean reader
-        // looking at the English titles react-query already had, with no refetch to correct it.
-        // Caught in review before it shipped; a language switch is rare, so the extra fetch is free.
-        lang,
-      },
-    ],
-    queryFn: async () => {
+    queryKey: listingsQueryKey,
+    queryFn: async ({ queryKey }) => {
       // Structural filters come from the shared memo; only paging is per-query here.
       // "Near you" ignores area filters and pulls a broad set to distance-filter client-side.
       const params = new URLSearchParams(baseParamsString)
@@ -1375,8 +1445,10 @@ export function ListingsExplorer({
        * this `queryFn` is a fresh closure per render and captures that render's value, so a
        * request started under Services keeps stamping `services` however many times the reader
        * taps afterwards. Changing this to read from a ref WOULD introduce the bug described.
+       * `sig` is the result set (see `resultSetSig`), for the sync effect's append guard and the
+       * back-nav snapshot — see `rowsSigRef`. It comes from THIS request's own key.
        */
-      return { ...(await res.json()), fetchedFor: { category: activeCategory, subcategory: activeSubcategory } }
+      return { ...(await res.json()), fetchedFor: { category: activeCategory, subcategory: activeSubcategory, sig: resultSetSig(queryKey) } }
     },
     placeholderData: (previousData) => previousData,
     // Seed the DEFAULT view (page 1, no filters) with the server-rendered data so
@@ -1686,7 +1758,9 @@ export function ListingsExplorer({
       activeProvince?.code ?? null, activeWard?.code ?? null, nearby ? 1 : 0,
       conditionFilter, goodPriceOnly, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters,
     ]),
-    [activeCategory, activeSubcategory, activeBrand, activeModel, activeDistrict, activeProvince?.code, activeWard?.code, nearby, conditionFilter, goodPriceOnly, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters],
+    // ⚠️ `activeLine` WAS MISSING HERE while it sat in the array above, so a line-only change kept
+    // the previous feed's signature on the back-nav snapshot.
+    [activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince?.code, activeWard?.code, nearby, conditionFilter, goodPriceOnly, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters],
   )
 
   /**
@@ -1735,13 +1809,35 @@ export function ListingsExplorer({
     const snap = pendingSnapRef.current
     if (snap && snap.sig === feedSig) {
       pendingSnapRef.current = null
-      skipFirstPageResetRef.current = true
+      /**
+       * ⛔ ONLY ROWS THAT ANSWER THE CURRENT QUESTION ARE RESTORED — the snapshot's `rowsSig` must
+       * equal `liveSig` exactly, or it is dropped and the feed loads normally from the top.
+       * `feedSig` alone is too coarse to decide this: it ignores the exact "near you" circle, the
+       * drill-in building, `match=any` and the payload language, and it names the filters that were
+       * SELECTED, not the ones the rows on screen came from. Each gap put foreign rows back on screen
+       * — live and tappable, since restored rows are not a react-query placeholder and nothing dims
+       * them — until the current query answered: a card tapped while the next model was still
+       * loading brought the previous model's rows back under the new count; an English snapshot
+       * came back under a Korean UI. A snapshot with no `rowsSig` (written before it existed, or
+       * of rows with no known provenance) cannot match either, which costs a one-time lost restore
+       * after a deploy. Never widen this to "close enough": a missed restore lands at the top of a
+       * correct feed, a wrong one shows the owner's screenshot.
+       * ⚠️ CONSUMED ON THE FIRST MATCH, NOT KEPT WAITING — deliberately. A version that kept a
+       * mismatched snapshot pending (so a late-settling input could still match it) left it armed for
+       * as long as the reader stayed on that feed, to fire later when they happened to recreate the
+       * rows' exact query — a scroll jump out of nowhere. The one known late input is the language of
+       * the nine machine-translated locales on a FULL-DOCUMENT Back (the provider's effect lands a
+       * render after this one); such a reader lands at the top of a correct feed instead. A
+       * client-side Back — the normal one — keeps the provider mounted, so its language is settled.
+       */
+      if (snap.rowsSig !== liveSig) return
       restoredScrollRef.current = {
         y: snap.scrollY,
         anchorId: typeof snap.anchorId === 'string' ? snap.anchorId : null,
         anchorTop: typeof snap.anchorTop === 'number' ? snap.anchorTop : 0,
       }
       setListings(snap.listings)
+      rowsSigRef.current = snap.rowsSig // === liveSig, checked above
       seenIdsRef.current = new Set(snap.listings.map((l: SerializedListingCard) => l.id))
       maxOffsetRef.current = (snap.page - 1) * 12 // deepest offset already loaded (feed page size)
       setReachedEnd(false)
@@ -1775,7 +1871,7 @@ export function ListingsExplorer({
        */
       feedSigForCap.current = feedSig
     }
-  }, [feedSig])
+  }, [feedSig, liveSig])
 
   // Put the buyer back where they were, once the restored rows are actually IN THE DOM.
   // A single scrollTo in the commit that restored them is not enough: the grid renders off
@@ -1848,22 +1944,52 @@ export function ListingsExplorer({
       // for the infinite feed. Dedupe by id so the placeholderData transition between
       // pages can't double-insert. seenIdsRef (kept in step here) measures "new rows this
       // page" outside the updater; only a deeper page with nothing new stops pagination.
+      //
+      // ⛔ THE ROWS AND THE COUNT MUST ALWAYS COME FROM THE SAME QUERY STATE. Every early `return`
+      // below skips `setTotalCount` on purpose: a count adopted from a payload whose rows were
+      // NOT adopted is exactly "3 listings" printed over 39 iPhone 12 Pro Max cards (owner,
+      // 2026-09-24). A payload that is NOT a placeholder is the answer to the current key, so it
+      // belongs to `liveSig` even without a stamp — that is what gives the ISR seed (`initialData`,
+      // which never passes through the queryFn) its provenance. Only an unstamped PLACEHOLDER is
+      // unknown, and unknown on either side is let through.
+      const stamped = (listingsData as { fetchedFor?: { sig?: string } }).fetchedFor?.sig
+      const payloadSig = stamped ?? (queryShowingStaleSet ? undefined : liveSig)
+      const otherFeed = payloadSig !== undefined && rowsSigRef.current !== undefined && payloadSig !== rowsSigRef.current
       if (page === 1) {
+        // ⛔ ONLY AN OFFSET-0 PAYLOAD ANSWERS PAGE 1. Anything deeper is `placeholderData` replaying
+        // the page the reader was on before the filter change — the OLD query's rows, and after a
+        // Back from the end of a feed that page is empty, which painted "No listings match" for
+        // the length of the request. Leave the rows (dimmed by `queryShowingStaleSet`) and the
+        // count as they are until the page-1 answer lands.
+        if ((listingsData.offset ?? 0) > 0) return
+        // Mid-restore the snapshot already holds more rows than a fresh page 1 — keep it
+        // (seenIdsRef/maxOffsetRef were set by the restore effect; don't reset them). Only for
+        // the SAME feed: a page 1 of other filters replaces, restore or not.
+        const keepRestored = restoredScrollRef.current != null && !otherFeed
         setListings((prev) => {
-          // Mid-restore the snapshot already holds more rows than a fresh page 1 — keep it
-          // (seenIdsRef/maxOffsetRef were set by the restore effect; don't reset them).
-          if (restoredScrollRef.current != null && prev.length > listingsData.listings.length) return prev
+          if (keepRestored && prev.length > listingsData.listings.length) return prev
           seenIdsRef.current = new Set(listingsData.listings.map((l: SerializedListingCard) => l.id))
           maxOffsetRef.current = 0
+          // Set WITH the rows, in the same updater as the two refs above, so the rows and their
+          // provenance can never be observed apart. Idempotent if React replays the updater; not
+          // reached on the keep-restored bail-out, whose rows keep the snapshot's provenance.
+          rowsSigRef.current = payloadSig
           return listingsData.listings
         })
         setReachedEnd(false) // a fresh feed (filter change / reload) — paging is open again
+      } else if (otherFeed) {
+        // ⛔ A LATER PAGE OF A DIFFERENT RESULT SET: the page counter outlived a filter change
+        // (the stale `skipFirstPageResetRef` did exactly this). Appending it is how "iPhone 17 Pro
+        // Max" rows ended up under 39 "iPhone 12 Pro Max" ones. Start the new filters from the top.
+        setPage(1)
+        return
       } else if (listingsData.offset === (page - 1) * FIRST_PAGE_SIZE) {
         // Real data for THIS page (not a placeholderData replay, whose offset lags a page).
         const fresh = listingsData.listings.filter((l: SerializedListingCard) => !seenIdsRef.current.has(l.id))
         if (fresh.length > 0) {
           fresh.forEach((l: SerializedListingCard) => seenIdsRef.current.add(l.id))
           maxOffsetRef.current = Math.max(maxOffsetRef.current, listingsData.offset)
+          if (rowsSigRef.current === undefined) rowsSigRef.current = payloadSig
           setListings((prev) => [...prev, ...fresh])
         } else if (listingsData.offset > maxOffsetRef.current) {
           setReachedEnd(true) // a genuinely deeper page returned nothing new — stop the loop
@@ -1910,7 +2036,7 @@ export function ListingsExplorer({
         }
       }
     }
-  }, [listingsData, page, debouncedQuery, saveSearchToHistory, activeCategory])
+  }, [listingsData, page, debouncedQuery, saveSearchToHistory, activeCategory, queryShowingStaleSet, liveSig])
 
   // Loading is DERIVED from the query — it was mirrored into state via an effect,
   // which lagged a render behind and added a redundant state/effect pair.
@@ -1944,6 +2070,25 @@ export function ListingsExplorer({
   // untouched, so the "refreshing" affordance survives.
   const hasSeededAnswer = listingsData !== undefined
   const isLoading = queryLoading || (queryFetching && listings.length === 0 && !hasSeededAnswer)
+  /**
+   * ⛔ THE CURRENT QUESTION FAILED AND NOTHING ON SCREEN ANSWERS IT: page 1 of the current key errored
+   * with no data of its own, so whatever `listings` still holds is the PREVIOUS filters' rows (or the
+   * ISR seed) — showing them under the new chips is the owner's screenshot again, reached through a
+   * failed request instead of a stale page. The grid below yields to the error state (with Try again)
+   * instead. Measured before this: a deep feed whose next model request 503'd kept every old card on
+   * screen, dimmed, with no error, for as long as the reader looked.
+   * ⚠️ PAGE 1 ONLY. A failed LOAD-MORE leaves rows that are genuinely this feed's; hiding them would
+   * throw away a good answer to report a missing tail. And a background refetch that errors keeps its
+   * data (`listingsData` defined), so a feed that already answered is never replaced by this.
+   * ⚠️ The load-more sentinel lives inside the grid block, so it unmounts with it — nothing can page
+   * past a page 1 that never arrived. That is an unmount on "no rows to show", like the empty state,
+   * NOT the `hidden` sentinel the landmine note forbids.
+   * ⚠️ KNOWN AND ACCEPTED: after a full-document Back (sessionStorage survives, the react-query cache
+   * does not), a SHALLOW restore whose page-1 refetch then fails shows this error over rows that did
+   * match. Those rows are a minutes-old snapshot rather than an answer; an honest error with Try
+   * again is the safe side of that trade.
+   */
+  const failedWithoutAnswer = queryError && page === 1 && listingsData === undefined
 
   // Count helper for subcategory items
   const getSubcategoryCount = useCallback(
@@ -1969,6 +2114,7 @@ export function ListingsExplorer({
       queryKey: [
         'listings',
         {
+          seller: sellerId ?? null, // the shop — see the main feed key
           category: activeCategory,
           subcategory: activeSubcategory,
           brand: activeBrand,
@@ -1977,7 +2123,7 @@ export function ListingsExplorer({
           district: activeDistrict,
           province: activeProvince?.code ?? null,
           ward: activeWard?.code ?? null,
-          near: nearby ? 1 : 0,
+          near: nearby ? [nearby.lat, nearby.lng, nearby.radiusKm] : 0, // the circle — see the main feed key
           condition: conditionFilter,
           deal: goodPriceOnly ? 'good' : 'all',
           type: listingType,
@@ -2079,6 +2225,7 @@ export function ListingsExplorer({
     priceRange,
     customFilters,
     queryClient,
+    sellerId,
   ])
 
   // Infinite feed (FB-style): an off-screen sentinel below the list bumps the page
@@ -2209,6 +2356,9 @@ export function ListingsExplorer({
         const card = document.querySelector(`[data-feed-card="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(l.id) : l.id}"]`)
         sessionStorage.setItem('eno:feed-snap', JSON.stringify({
           sig: feedSig, listings, page, totalCount, scrollY: window.scrollY, ts: Date.now(),
+          // Where THESE rows came from — not the current filters, which can already be the next
+          // ones while their rows are still loading. See `rowsSigRef`.
+          rowsSig: rowsSigRef.current,
           // The home feed's infinite scroll is opt-in; restoring depth without the unlock
           // would strand the buyer behind a "Load more" they already pressed.
           unlocked: feedUnlocked,
@@ -2318,7 +2468,10 @@ export function ListingsExplorer({
   const renderErrorState = (className?: string) => (
     <EmptyState
       icon={AlertTriangle}
-      title={tr("Couldn't load listings.", 'Không tải được tin đăng.')}
+      // `role="alert"` on the text itself: when a filter change fails, the result line's live count
+      // goes blank (see `failedWithoutAnswer`), so without this a screen-reader user would hear the
+      // number vanish and never be told why. On the text, not a wrapper, so the button is not in it.
+      title={<span role="alert">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</span>}
       className={className}
       action={
         <Button variant="cta" size="none"
@@ -3217,7 +3370,9 @@ export function ListingsExplorer({
                   is handed only the crumbs and the chips. Two elements announcing the same figure
                   is how a live region becomes noise. */}
             <ResultLine
-              count={nearby ? shownListings.length : totalCount}
+              // `null` while the current filters' page 1 FAILED: the held count is the previous
+              // filters' answer, and it would sit above the error as if it were this one's.
+              count={failedWithoutAnswer ? null : nearby ? shownListings.length : totalCount}
               crumbs={ladderCrumbs}
               filters={resultFilters}
               onClearAll={resultFilters.length > 1 ? clearAllFilters : undefined}
@@ -3316,7 +3471,7 @@ export function ListingsExplorer({
             )
           )}
 
-          {viewMode !== 'video' && !isLoading && shownListings.length === 0 && (
+          {viewMode !== 'video' && !isLoading && (shownListings.length === 0 || failedWithoutAnswer) && (
             queryError ? renderErrorState(showDiscovery ? 'gap-3 bg-card/60 py-16' : undefined) : renderEmptyState()
           )}
 
@@ -3361,7 +3516,7 @@ export function ListingsExplorer({
                 ⚠️ And do not write the closing marker of a block comment inside one, even as prose:
                 it ends the comment there and the remainder becomes JSX text with stray braces.
                 That is what broke it a second time, one line below this. */}
-          {viewMode !== 'video' && shownListings.length > 0 && (
+          {viewMode !== 'video' && shownListings.length > 0 && !failedWithoutAnswer && (
             /* ⚠️ `inert` AND `pointer-events-none` TOGETHER — not one or the other. The class alone
                only blocks the mouse: a keyboard reader can still Tab onto a stale card and press
                Enter, and a screen reader can still activate it, which is the wrong listing opening

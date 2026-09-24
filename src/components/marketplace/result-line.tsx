@@ -71,8 +71,10 @@ export type ResultFilter = {
 }
 
 export type ResultLineProps = {
-  /** Total matching listings. Clamped to a non-negative integer before formatting. */
-  count: number
+  /** Total matching listings. Clamped to a non-negative integer before formatting.
+   *  `null` = there is no answer to count (the request for these filters failed): the line prints
+   *  no number rather than the previous filters' one, and keeps its node (live region, focus target). */
+  count: number | null
   /** The ladder, root first. Omit/empty for an unfiltered feed. */
   crumbs?: ResultCrumb[]
   /** Active filters IN PICK ORDER. See ResultFilter. */
@@ -410,7 +412,7 @@ export function ResultLine({
             `tabIndex={-1}` makes it a programmatic focus destination only (never in the tab
             order) for the last-chip-removed case above. */}
         <p ref={countRef} tabIndex={-1} aria-live="polite" className="text-xs font-bold text-ink sm:text-sm">
-          {resultCountLabel(count, lang, tr)}
+          {count === null ? null : resultCountLabel(count, lang, tr)}
         </p>
 
         {ladder.length > 0 && (
