@@ -675,58 +675,44 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     onPinOpen(l.id) // first tap: bring its card into view in the feed below
   }
   /**
-   * ⚠️ POSITIONED FROM THE MARKER'S OWN LATLNG, not from the click event. A click on a Leaflet
-   * marker reports the pointer, so the card would hang off wherever inside the pin the finger
-   * landed and drift between taps; projecting the pin's coordinate pins the card to the pin.
+   * ⛔ (HISTORY) THIS FUNCTION USED TO ANCHOR THE CARD TO THE PIN, AND EVERY LINE OF IT WAS CLAMPING.
+   * Kept because it is the argument FOR centring rather than an account of what the code does — two
+   * reviewers rightly flagged the previous version of this block as describing an above/below choice
+   * and a height threshold that no longer exist, which is exactly how the stale `400` constant rotted.
+   * What it used to say, and why none of it is needed now:
+   *   · it positioned from the marker's own latlng, not the click point, so the card would not drift
+   *     between taps — moot once the card does not follow the pin at all;
+   *   · it clamped BOTH axes, after a version that clamped only `x` and let the card run off the
+   *     bottom of a short map with its carousel and button unreachable;
+   *   · it chose above/below by whichever side had more room, after a version that used a fixed
+   *     400px threshold — unsatisfiable on a shorter container, so the card could only ever be
+   *     placed downward, i.e. always off the edge.
+   * A centred card has no edge to hang off, so all of that machinery went with the anchoring.
+   * ⚠️ WIDTH IS STILL BOUNDED, just not here: the card is rendered with
+   * `width={Math.min(360, mapW - 24)}`, so it cannot outgrow a narrow map. Reviewers read the
+   * deletion of this function's local `w` as removing horizontal containment; it never owned it.
    */
-  /**
-   * ⛔ CLAMPED ON BOTH AXES, AND THE COMMENT USED TO CLAIM THAT WITHOUT DOING IT (reviewers). Only
-   * `x` was bounded; `y` was the raw pin position, so on a short map — a phone's 60dvh view, or the
-   * listing-detail map — the card simply ran off the bottom and the carousel and its button were
-   * unreachable. Worse, `above` was decided against a fixed 400px, which on a container SHORTER
-   * than that is never satisfiable, so the card could only ever be placed downward, i.e. always off
-   * the edge. Below that height it is centred instead, the same escape the listing card uses.
-   */
-  const buildingCardPlacement = (pt: { x: number; y: number }, el: HTMLElement) => {
-    const w = Math.min(360, el.clientWidth - 24)
+  const buildingCardPlacement = (_pt: { x: number; y: number }, el: HTMLElement) => {
     /**
-     * ⛔ THE REAL HEIGHT, NOT A GUESS OF 400 — that constant was 23px short of the truth and the card
-     * hung off the map because of it. Measured on a 390-wide phone: the card renders 423px, so the
-     * `below` clamp `min(pt.y, H - 400 - 14)` left its bottom edge 9px past a 506px map, which is the
-     * -23px overhang seen in testing. Everything else here was already right; the clamp was simply
-     * being asked to fit the wrong box.
-     * ⚠️ MEASURED FROM THE LIVE ELEMENT when it exists, because the height is content-driven (a tower
-     * with three units is shorter than one with eleven) and a second hardcoded number would rot the
-     * same way. The fallback is the measured 424 rather than 400, so even the very first placement —
-     * before the element is in the DOM — clamps against something true.
-     * ⚠️ BOUNDED BY THE MAP, matching the `maxHeight` the card itself now carries: a card capped at
-     * `mapH - 24` can never need more room than that, so the two agree by construction.
+     * ⛔ ALWAYS CENTRED ON THE MAP, NEVER ANCHORED TO THE PILL — owner, 2026-09-24: "center card to
+     * map not the building pill". This is the same call already made for the listing card on touch
+     * (2026-09-16, "center the product card to the map center"), now extended to the building card
+     * on every input: a tower's card is a panel about a place, not a speech bubble pointing at a
+     * dot, and anchoring it made its position jump around the viewport as the reader moved between
+     * pins that happen to sit high or low.
+     *
+     * ⚠️ THIS DELETES A LOT OF CLAMPING, AND THAT IS THE POINT RATHER THAN A LOSS. The old branch
+     * chose above/below by whichever side had more room and then pulled the card back inside the
+     * container on both axes — machinery that existed ONLY to stop an anchored card hanging off an
+     * edge (its history: the first version put the top edge off-screen for any pin in the upper
+     * half, and a later one picked the side by a fixed threshold and clamped the card back over its
+     * own pin). A centred card cannot hang off an edge, so none of it has anything left to do.
+     * The height cap on the card itself is what keeps it inside a short map; see its `maxHeight`.
+     * ⚠️ `_pt` IS KEPT so the callers — open, and the map-move re-place — do not change shape, and
+     * so the pin's projected point is still the thing that decides the card is OFF the map and
+     * should close (that check lives in the move handler, not here).
      */
-    /**
-     * ⚠️ `scrollHeight`, NOT `offsetHeight` (reviewer). The card now carries a maxHeight, so once it
-     * is clamped `offsetHeight` IS that cap — feeding it back here makes CARD_H a function of the
-     * map alone and the above/below/centred choice stops depending on which tower was tapped.
-     * `scrollHeight` is the height the content actually wants, clamped or not.
-     */
-    const CARD_H = Math.min(
-      buildingCardElRef.current?.scrollHeight || 424,
-      Math.max(200, el.clientHeight - CARD_MARGIN * 2),
-    )
-    const x = Math.min(Math.max(pt.x, w / 2 + 8), Math.max(w / 2 + 8, el.clientWidth - w / 2 - 8))
-    if (el.clientHeight < CARD_H + 28) {
-      return { x: el.clientWidth / 2, y: el.clientHeight / 2, above: false, centered: true }
-    }
-    /**
-     * ⚠️ WHICHEVER SIDE HAS MORE ROOM, not "above if the pin is low enough". On a mid-height map a
-     * pin can have too little room BOTH ways, and picking by a fixed threshold then clamped the
-     * card back over the pin it belongs to (reviewer). Comparing the two gaps at least puts it on
-     * the roomier side; the clamp still keeps it inside.
-     */
-    const above = pt.y > el.clientHeight - pt.y
-    const y = above
-      ? Math.max(pt.y, CARD_H + 24)
-      : Math.min(pt.y, el.clientHeight - CARD_H - 14)
-    return { x, y, above, centered: false }
+    return { x: el.clientWidth / 2, y: el.clientHeight / 2, above: false, centered: true }
   }
 
   const openBuildingCard = (b: BuildingPin) => {
