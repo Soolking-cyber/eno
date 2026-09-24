@@ -28,8 +28,8 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
  * WHAT COUNTS AS A DISTRICT PHRASE (accent- and case-insensitive):
  *  · numbered, 1–12 — "Quận 7", "quan 7", "quận7", "Q.7", "Q. 7", "District 7", "Dist 7", and —
  *    beside a place word only — "Q7", "Q 7", "D7".
- *    Quận 2 and Quận 9 resolve to `thu-duc`, because that is where `DISTRICTS` puts them (they were
- *    merged into TP Thủ Đức in 2021).
+ *    Quận 2 and Quận 9 resolve to their own `d2`/`d9` entries (abfca169) — the narrowest entry that
+ *    spells them — not to the `thu-duc` umbrella that also still matches them.
  *  · named — every lettered spelling in `DISTRICTS[].match` ("Bình Thạnh", "Gò Vấp", "Phú Mỹ Hưng"
  *    → d7 …), optionally with a "Quận/Q./Huyện/H./TP/Thành phố" prefix or a "district/city" suffix.
  *
@@ -131,17 +131,53 @@ const hasAccent = (s: string) => Array.from(s).some((c) => decompose(c).marks.le
 const foldPlain = (s: string) => foldWithMap(s).text.replace(/\s+/g, ' ').trim()
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-/** Numbered district → slug, read off the "Quận N" / "District N" spellings in `DISTRICTS`. */
+/**
+ * `inner` narrows `outer`: every spelling of `inner` is also one of `outer`'s (d2 inside thu-duc).
+ * ⚠️ THE ONE DEFINITION OF "NARROWER" IN THIS FILE — NUMBERED and oneDistrict both read it, and
+ * district-query.test.ts pins the invariant it relies on: two entries that share a spelling are
+ * nested, one's spellings a subset of the other's.
+ */
+export function narrows(inner: string, outer: string): boolean {
+  const i = DISTRICTS.find((d) => d.slug === inner)?.match ?? []
+  const o = DISTRICTS.find((d) => d.slug === outer)?.match ?? []
+  return i.length > 0 && i.every((m) => o.includes(m))
+}
+
+/**
+ * The one district several phrases name, or null. A narrower and its umbrella named together are
+ * one place, and the narrower answers: "Quận 2 (Thủ Đức)" is d2's own name, "Quận 2, Thủ Đức" an
+ * address. Anything else ("quận 1 hoặc quận 3", "quận 1 thủ đức") is two places, which one filter
+ * cannot say.
+ * ⚠️ NO "OR" RULE, ON PURPOSE: one was tried for "Quận 2 hoặc Thủ Đức" and every reviewer found a
+ * new way it misfired ("hay" is also "good"; the connector sat anywhere in the query; it stayed in
+ * the text). That query narrows to Quận 2 — rare, and inside what was asked.
+ */
+function innermost(slugs: string[]): string | null {
+  const uniq = [...new Set(slugs)]
+  if (uniq.length === 1) return uniq[0]
+  return uniq.find((s) => uniq.every((o) => o === s || narrows(s, o))) ?? null
+}
+
+/**
+ * Numbered district → slug, read off the "Quận N" / "District N" spellings in `DISTRICTS`.
+ * ⚠️ THE NARROWEST ENTRY WINS. Since abfca169 "Quận 2" and "Quận 9" are spelled by two entries — the
+ * `thu-duc` umbrella (which keeps matching the old names: most of its inventory still says them) and
+ * their own `d2`/`d9` narrowers. A person who types "Quận 2" asked for Quận 2 — the same scope the
+ * picker's "Quận 2 (Thủ Đức)" applies — so the narrower answers (3,741 rows, where the umbrella's
+ * 5,896 also hold Quận 9 and every "TP. Thủ Đức" row).
+ */
 const NUMBERED: Map<number, string> = (() => {
-  const out = new Map<number, string>()
+  const spellers = new Map<number, string[]>()
   for (const d of DISTRICTS) {
     for (const m of d.match ?? []) {
       const n = m.match(/^(?:Quận|District)\s+(\d{1,2})$/)
-      if (n && !out.has(Number(n[1]))) out.set(Number(n[1]), d.slug)
+      if (n) spellers.set(Number(n[1]), [...(spellers.get(Number(n[1])) ?? []), d.slug])
     }
   }
-  return out
+  return new Map([...spellers].map(([k, slugs]) => [k, innermost(slugs) ?? slugs[0]]))
 })()
+
+
 
 /** A ward, not a district — see "THẢO ĐIỀN" above. Folded. */
 const NOT_A_DISTRICT = new Set(['thao dien'])
@@ -351,9 +387,8 @@ export function inferDistrictFromQuery(q: string | null | undefined): DistrictIn
   }
 
   if (spans.length === 0) return null
-  const slugs = new Set(spans.map((s) => s.slug))
-  if (slugs.size !== 1) return null
-  const slug = spans[0].slug!
+  const slug = innermost(spans.map((s) => s.slug!))
+  if (!slug) return null
 
   // City names go too — only once a district is known (see the module comment).
   for (const m of f.text.matchAll(CITY_RE)) {
@@ -385,7 +420,8 @@ export function inferDistrictFromQuery(q: string | null | undefined): DistrictIn
     if (SHORTHAND_BRANDS.test(foldPlain(rest))) return null
   }
 
-  const first = spans.find((s) => s.slug)!
+  // The phrase of the district that ANSWERED ("thủ đức quận 9" → "quận 9"), not merely the first one.
+  const first = spans.find((s) => s.slug === slug)!
   return { slug, phrase: originalOf(f, first.start, first.end).trim(), rest }
 }
 

@@ -130,9 +130,20 @@ describe('queryForExplicitDistrict — a URL carrying ?district= and ?q= togethe
  */
 describe('listings-explorer.tsx wiring', () => {
   const src = readFileSync(join(__dirname, 'listings-explorer.tsx'), 'utf8')
-  const landingSearch = src.slice(src.indexOf('const handleLandingSearch = useCallback'), src.indexOf('}, [saveSearchToHistory])'))
-
+  /**
+   * The source between two markers. ⚠️ BOTH MUST BE FOUND, AND IN ORDER, or `slice` would run to the
+   * end of the file and every `toContain` below would pass vacuously (opus).
+   */
+  const between = (start: string, end: string) => {
+    const i = src.indexOf(start)
+    const j = src.indexOf(end, i)
+    expect(i, start).toBeGreaterThan(-1)
+    expect(j, end).toBeGreaterThan(i)
+    expect(j - i).toBeLessThan(4000)
+    return src.slice(i, j)
+  }
   it('a typed search runs the place rule', () => {
+    const landingSearch = between('const handleLandingSearch = useCallback', '}, [saveSearchToHistory])')
     expect(landingSearch).toContain('clearPlaceForTypedDistrict(trimmed, { setDistrict: setActiveDistrict, setWard: setActiveWard, setNearby, setProvince: setActiveProvince })')
   })
 
@@ -147,11 +158,16 @@ describe('listings-explorer.tsx wiring', () => {
   })
 
   it('every other place-picking and word-committing path follows the same rules', () => {
-    const visual = src.slice(src.indexOf('const applyVisualSearch = useCallback'), src.indexOf('}, [saveSearchToHistory, applyResolved])'))
+    const visual = between('const applyVisualSearch = useCallback', '}, [saveSearchToHistory, applyResolved])')
     expect(visual).toContain('clearPlaceForTypedDistrict(q, {')
     // the header's area event, the pending area stash and the recent-location chips
     expect(src.match(/replaceDistrictRef\.current\('all'\)/g)).toHaveLength(3)
     expect(src).toContain("setQuery(queryForExplicitDistrict(params.get('q') || '', params.get('district')))")
+  })
+
+  it('a district picked on the map goes through the same replace rule', () => {
+    const mapPick = between('const handleSelectDistrict = useCallback', '}, [pickDistrictFromArea])')
+    expect(mapPick).toContain('pickDistrictFromArea(slug)')
   })
 
   it('there is no dead opener left: no drawer, no open-mobile-filters listener', () => {

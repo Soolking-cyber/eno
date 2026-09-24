@@ -120,11 +120,11 @@ describe('a district typed into the query', () => {
     expect(r.q).toBe('căn hộ')
   })
 
-  it('"2pn quận 2" → the thu-duc scope plus the text "2pn"', async () => {
+  it('"2pn quận 2" → the Quận 2 scope (d2, narrower than the Thủ Đức umbrella) plus the text "2pn"', async () => {
     const r = await build(`q=${encodeURIComponent('2pn quận 2')}`)
-    expect(r.andFilters).toContainEqual(await districtScopeForSlug('thu-duc'))
+    expect(r.andFilters).toContainEqual(await districtScopeForSlug('d2'))
     expect(tokens(r.pgTextFilter)).toEqual(['2pn'])
-    expect(r.inferredDistrict).toBe('thu-duc')
+    expect(r.inferredDistrict).toBe('d2')
   })
 
   it.each(['iphone 7', '7 triệu'])('%j infers no district and is searched as typed', async (q) => {

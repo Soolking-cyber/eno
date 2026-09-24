@@ -1693,7 +1693,9 @@ export function ListingsExplorer({
     [districtShapesData, activeDistrict],
   )
   const handleSelectDistrict = useCallback((slug: string) => {
-    setActiveDistrict(slug)
+    // Through the Area panel's replace rule (pickDistrictFromArea): a district typed into the box
+    // leaves it, so the map pick is the one district applied.
+    pickDistrictFromArea(slug)
     /**
      * ⚠️ CLEAR THE NARROWER FILTERS THE NEW AREA CANNOT CONTAIN (reviewer). `selectedBuilding` is a
      * single tower and `nearby` is a radius somewhere else entirely; either one surviving a district
@@ -1706,7 +1708,7 @@ export function ListingsExplorer({
     // deep previous browse does not carry its spent ceiling into a fresh district.
     setPage(1)
     setAutoLoadCeiling(AUTO_LOAD_CAP)
-  }, [])
+  }, [pickDistrictFromArea])
 
   const buildingPins = useMemo(() => buildingsData?.buildings ?? [], [buildingsData])
   const activeBuilding = useMemo(

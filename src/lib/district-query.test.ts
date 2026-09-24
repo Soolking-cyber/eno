@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasPlainTextFallback, inferDistrictFromQuery, queryChips } from './district-query'
+import { hasPlainTextFallback, inferDistrictFromQuery, narrows, queryChips } from './district-query'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 
 /**
@@ -59,9 +59,38 @@ describe('inferDistrictFromQuery — numbered districts', () => {
     expect(slug('phòng nikon d5')).toBeNull()
   })
 
-  it('maps Quận 2 and Quận 9 to Thủ Đức, where DISTRICTS puts them', () => {
-    expect(slug('Quận 2')).toBe('thu-duc')
-    expect(slug('phòng trọ q9')).toBe('thu-duc')
+  /**
+   * Since abfca169 Quận 2 and Quận 9 have their own entries, narrowers inside the Thủ Đức umbrella
+   * (which still matches their old names). The person asked for Quận 2, so the narrowest entry answers.
+   */
+  it('maps Quận 2 and Quận 9 to their own entries, not the Thủ Đức umbrella that also spells them', () => {
+    expect(slug('Quận 2')).toBe('d2')
+    expect(slug('phòng trọ q9')).toBe('d9')
+    expect(slug('TP Thủ Đức')).toBe('thu-duc')
+  })
+
+  it('reads a narrower named beside its umbrella — d2’s own name, "Quận 2 (Thủ Đức)" — as the narrower', () => {
+    expect(inferDistrictFromQuery('Quận 2 (Thủ Đức)')).toEqual({ slug: 'd2', phrase: 'Quận 2', rest: '' })
+    expect(inferDistrictFromQuery('thủ đức quận 9')).toEqual({ slug: 'd9', phrase: 'quận 9', rest: '' })
+    expect(slug('quận 1 thủ đức')).toBeNull() // not nested: two places
+  })
+
+  it('an address naming a narrower and its umbrella is the narrower', () => {
+    expect(inferDistrictFromQuery('căn hộ Quận 2, Thủ Đức')).toEqual({ slug: 'd2', phrase: 'Quận 2', rest: 'căn hộ' })
+  })
+
+  /**
+   * ⛔ THE INVARIANT "NARROWER" RESTS ON (opus, codex): two entries that share a spelling must be
+   * nested — one's spellings a subset of the other's. Add a spelling to d2 that thu-duc lacks and
+   * "Quận 2 (Thủ Đức)" silently stops resolving; this fails first.
+   */
+  it('every pair of DISTRICTS entries that share a spelling — compared FOLDED, as queries are read — is nested', () => {
+    const fold = (m: string) => m.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase()
+    for (const a of DISTRICTS) for (const b of DISTRICTS) {
+      if (a.slug >= b.slug || !a.match || !b.match) continue
+      if (!a.match.some((m) => b.match!.some((n) => fold(n) === fold(m)))) continue
+      expect([a.slug, b.slug, narrows(a.slug, b.slug) || narrows(b.slug, a.slug)]).toEqual([a.slug, b.slug, true])
+    }
   })
 
   it('keeps 1 and 10–12 apart', () => {
@@ -75,8 +104,8 @@ describe('inferDistrictFromQuery — numbered districts', () => {
     expect(inferDistrictFromQuery('căn hộ quận 7')).toEqual({ slug: 'd7', phrase: 'quận 7', rest: 'căn hộ' })
   })
 
-  it('"2pn quận 2" → the Thủ Đức scope with "2pn" left as text', () => {
-    expect(inferDistrictFromQuery('2pn quận 2')).toEqual({ slug: 'thu-duc', phrase: 'quận 2', rest: '2pn' })
+  it('"2pn quận 2" → the Quận 2 scope with "2pn" left as text', () => {
+    expect(inferDistrictFromQuery('2pn quận 2')).toEqual({ slug: 'd2', phrase: 'quận 2', rest: '2pn' })
   })
 
   it('drops a preposition that only belonged to the district, and the city it implies', () => {
@@ -154,8 +183,9 @@ describe('inferDistrictFromQuery — named districts', () => {
     expect(inferDistrictFromQuery('🏠 quần 7')).toBeNull() // the accent check still sees the right letters
   })
 
-  it('two phrases for the same district are both removed', () => {
-    expect(inferDistrictFromQuery('quận 2 thủ đức')).toEqual({ slug: 'thu-duc', phrase: 'quận 2', rest: '' })
+  it('two phrases for one place are both removed', () => {
+    expect(inferDistrictFromQuery('quận 2 thủ đức')).toEqual({ slug: 'd2', phrase: 'quận 2', rest: '' })
+    expect(inferDistrictFromQuery('thủ đức tp thủ đức')).toEqual({ slug: 'thu-duc', phrase: 'thủ đức', rest: '' })
   })
 })
 
@@ -235,7 +265,7 @@ describe('queryChips — what the explorer shows for a typed query', () => {
  * so the dot is evidence on its own; the bare "Q7"/"D7" still needs a place word.
  */
 describe('inferDistrictFromQuery — the "Q." address form', () => {
-  it.each([['Q.7', 'd7'], ['Q. 7', 'd7'], ['q.2', 'thu-duc'], ['Q.10', 'd10'], ['q . 1', 'd1']])('reads %j alone as %s', (q, s) => {
+  it.each([['Q.7', 'd7'], ['Q. 7', 'd7'], ['q.2', 'd2'], ['Q.10', 'd10'], ['q . 1', 'd1']])('reads %j alone as %s', (q, s) => {
     expect(slug(q)).toBe(s)
   })
 
@@ -282,7 +312,7 @@ describe('inferDistrictFromQuery — compounds that are not a place', () => {
     expect(slug('căn hộ Q7 phòng khách rộng')).toBe('d7')
     expect(slug('2 phòng ngủ Q7')).toBe('d7') // a room COUNT is a place
     expect(slug('văn phòng Q1')).toBe('d1')
-    expect(slug('nhà Q2')).toBe('thu-duc')
+    expect(slug('nhà Q2')).toBe('d2')
     expect(slug('phòng q7')).toBe('d7')
   })
 })
