@@ -913,6 +913,7 @@ export const UI_STRINGS: string[] = [
   "Live preview",
   "Live prices could not be read just now — they are back on the next refresh.",
   "Liên hệ",
+  "Load more",
   "Loading",
   "Loading map…",
   "Loading more…",
