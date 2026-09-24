@@ -292,6 +292,12 @@ async function openDb(write: boolean) {
   const db = new PrismaClient({
     adapter: new PrismaPg(write ? { connectionString } : { connectionString, options: '-c default_transaction_read_only=on' }),
     log: ['warn', 'error'],
+    // ⛔ A batch of BATCH updates is ONE transaction, and with a driver adapter even the array form of
+    // $transaction runs as an interactive one — under Prisma's 5 s default. Through the SSH tunnel a
+    // 200-row batch took 5.1 s (measured 2026-09-24, first production apply): every batch expired and
+    // rolled back, nothing was written. The journal line is fsynced first, so a timeout is safe but
+    // useless; give the batch room instead.
+    transactionOptions: { timeout: 120_000, maxWait: 30_000 },
   })
   if (!write) {
     const ro = await db.$queryRawUnsafe<{ default_transaction_read_only: string }[]>('SHOW default_transaction_read_only')
