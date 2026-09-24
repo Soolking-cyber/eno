@@ -81,8 +81,16 @@ function AlertDialogHeader({
   return (
     <div
       data-slot="alert-dialog-header"
+      // ⚠️ THE TWO-COLUMN MEDIA LAYOUT (≥sm, size=default) IS DECIDED HERE, ON THE HEADER — a :has()
+      // on the element it styles. It used to be a group-has variant on the TITLE (col-start-2 when the
+      // content had media), i.e. a :has() in a non-subject position, which Chromium cannot scope: every
+      // DOM insertion on the page re-matched it (see ui/alert.tsx for the measurement). Two explicit
+      // `auto` columns reproduce the old implicit grid exactly — the title's col-start-2 was what
+      // created the second `auto` track, and auto-placement then puts media (row-span-2) in column 1,
+      // the title in column 2 row 1 and the description in column 2 row 2. That relies on the media
+      // being the FIRST child, which both callers (trip-card.tsx, delete-account.tsx) do.
       className={cn(
-        "grid grid-rows-[auto_1fr] place-items-center gap-1.5 text-center has-data-[slot=alert-dialog-media]:grid-rows-[auto_auto_1fr] has-data-[slot=alert-dialog-media]:gap-x-4 sm:group-data-[size=default]/alert-dialog-content:place-items-start sm:group-data-[size=default]/alert-dialog-content:text-left sm:group-data-[size=default]/alert-dialog-content:has-data-[slot=alert-dialog-media]:grid-rows-[auto_1fr]",
+        "grid grid-rows-[auto_1fr] place-items-center gap-1.5 text-center has-data-[slot=alert-dialog-media]:grid-rows-[auto_auto_1fr] has-data-[slot=alert-dialog-media]:gap-x-4 sm:group-data-[size=default]/alert-dialog-content:place-items-start sm:group-data-[size=default]/alert-dialog-content:text-left sm:group-data-[size=default]/alert-dialog-content:has-data-[slot=alert-dialog-media]:grid-rows-[auto_1fr] sm:group-data-[size=default]/alert-dialog-content:has-data-[slot=alert-dialog-media]:grid-cols-[auto_auto]",
         className
       )}
       {...props}
@@ -130,7 +138,7 @@ function AlertDialogTitle({
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
       className={cn(
-        "font-heading text-base font-medium sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2",
+        "font-heading text-base font-medium",
         className
       )}
       {...props}

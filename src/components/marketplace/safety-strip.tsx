@@ -104,11 +104,16 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
         {protections}
         {/* Guide link left, Report right (user-picked 2026-07-14) — the old
             standalone tips|report footer was a duplicate of this same link. */}
-        {/* Guide left, Report right (user-picked 2026-07-14). `-my-1` pulls the row back into
+        {/* Guide left, Report right (user-picked 2026-07-14). `-mb-1` pulls the row back into
             the block: Report is a `tap-44` control, so its 44px hit area otherwise pushed a
-            visible gap below the strip that looked like stray padding. */}
-        <div className="-my-1 flex items-center justify-between gap-3">
-          <Link href="/safety" className="font-semibold text-accent-foreground hover:underline">
+            visible gap below the strip that looked like stray padding.
+            ⚠️ `mt-0.5`, NOT THE `-mt-1` HALF OF THE OLD `-my-1`. Both controls on this row carry a
+            44px hit area on a 20px line — 12px of overhang each way — and with the top pulled in,
+            that overhang covered the bottom ~5px of the "ENO protects you" row above (measured with
+            an elementFromPoint grid: its bottom band hit-tested to Guide and Report). 6px more room
+            clears it, so each of the three controls owns its full 44px. */}
+        <div className="-mb-1 mt-0.5 flex items-center justify-between gap-3">
+          <Link href="/safety" className="relative tap-44 font-semibold text-accent-foreground hover:underline active:opacity-60">
             {tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}
           </Link>
           {action}

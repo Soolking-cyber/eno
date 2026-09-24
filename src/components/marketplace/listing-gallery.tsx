@@ -257,6 +257,24 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
    */
   useEffect(() => {
     if (!closing) return
+    /**
+     * ⛔ LEAVING THE LIGHTBOX RETURNS YOU TO THE PHOTO YOU WERE LOOKING AT. The page gallery used to
+     * stay wherever it was when the lightbox opened: open on photo 2, swipe to 4 inside, close — and
+     * the carousel still read "2 / 5", so the reader lost their place at the moment they came back.
+     * Synced HERE, as the exit STARTS, not in the unmount cleanup: the scrim is still ~92% black for
+     * this frame, so the jump happens behind it and the fade reveals the right photo, instead of the
+     * carousel visibly snapping sideways after the overlay has gone.
+     * `instant`, not smooth: a smooth scroll would still be travelling when the scrim clears.
+     * Mobile slot = photo index + 1 when the video is slot 0; the desktop viewport's `sel` counts the
+     * same way. A `md:hidden` scroller has clientWidth 0 on desktop and is skipped.
+     */
+    const slot = idx + (hasVideo ? 1 : 0)
+    const scroller = mobileScrollerRef.current
+    if (scroller && scroller.clientWidth > 0) {
+      scroller.scrollTo({ left: slot * scroller.clientWidth, behavior: 'instant' })
+      setSlide(slot)
+    }
+    setSel(slot)
     // ⛔ ASK THE ELEMENT WHETHER AN EXIT ANIMATION EXISTS — the deadline alone made dismissal WORSE
     // for the readers it was meant to protect. With animations suppressed the old code closed
     // instantly; the deadline held a full-screen scrim with the scroll lock on for 400ms after
@@ -287,6 +305,8 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
   const [idx, setIdx] = useState(0)
   const [slide, setSlide] = useState(0) // mobile carousel position (for the n/N chip)
   const [sel, setSel] = useState(0) // desktop viewport selection (video = slot 0 when present)
+  /** The mobile scroll-snap strip, so closing the lightbox can bring it to the photo last shown. */
+  const mobileScrollerRef = useRef<HTMLDivElement | null>(null)
   const startX = useRef<number | null>(null)
 
   // Double-tap zoom state: null = fit; {tx,ty} = zoomed at ZOOM, panned by (tx,ty).
@@ -378,6 +398,23 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
       if (e.key === 'Escape') closeLightbox()
       else if (e.key === 'ArrowLeft') setIdx((n) => Math.max(0, n - 1))
       else if (e.key === 'ArrowRight') setIdx((n) => Math.min(last, n + 1))
+      else if (e.key === 'Tab') {
+        // ⚠️ TAB STAYS INSIDE. `aria-modal` promises the page behind is unreachable, and moving focus
+        // in is only half of that: from Close, Tab used to walk straight out into the links and
+        // buttons UNDER the scrim, where Enter would fire a control nobody can see. It wraps at both
+        // ends instead. Every control in here renders only while visible (the arrows and the thumb
+        // rail are conditional), so a plain query is the whole list.
+        const root = scrimRef.current
+        if (!root) return
+        const items = Array.from(root.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'))
+        if (!items.length) return
+        const a = document.activeElement
+        const outside = !(a instanceof Node) || !root.contains(a)
+        if (e.shiftKey ? outside || a === root || a === items[0] : outside || a === items[items.length - 1]) {
+          e.preventDefault()
+          ;(e.shiftKey ? items[items.length - 1] : items[0]).focus()
+        }
+      }
     }
     const onPop = () => closeLightbox()
     window.addEventListener('keydown', onKey)
@@ -391,6 +428,38 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
       if (window.history.state?.lightbox) window.history.back()
     }
   }, [open, last])
+
+  // Focus in on open, back on close. ITS OWN EFFECT, keyed on `open` alone: the one above also re-runs
+  // when `last` changes, and a restore there would pull focus out of a lightbox that is still open.
+  useEffect(() => {
+    if (!open) return
+    /**
+     * ⛔ A DIALOG MOVES FOCUS IN AND GIVES IT BACK. This one did neither: while it was open focus
+     * stayed on the photo button UNDER the scrim (a screen reader was still reading the page, and
+     * Tab walked the page behind a modal), and on close it fell to <body>, so a keyboard user was
+     * thrown back to the top of the document.
+     * ⚠️ WHERE IT GOES DEPENDS ON HOW THE LIGHTBOX WAS OPENED — Base UI's own rule for its dialogs.
+     * From the keyboard (the opener is :focus-visible) it lands on Close, the one control that
+     * matters, with its ring. From a tap it lands on the dialog itself (tabIndex -1): WebKit paints a
+     * :focus-visible ring on programmatic focus, so focusing Close after a tap would draw a ring on
+     * every iPhone open — globals.css excludes exactly the `[tabindex="-1"][role="dialog"]` shape
+     * from the ring for that reason. Either way focus is inside and VoiceOver announces the dialog.
+     * Tab is kept inside by the key handler below. ⚠️ Moving to the Base UI Dialog (an inert page
+     * behind it, so a screen reader's virtual cursor cannot wander out either) is the complete fix and
+     * a separate refactor: the gesture handlers below were tuned over many rounds and are left alone.
+     */
+    const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+    const fromKeyboard = !!opener && opener.matches(':focus-visible')
+    const closeBtn = scrimRef.current?.querySelector<HTMLElement>('[data-lightbox-close]')
+    ;(fromKeyboard && closeBtn ? closeBtn : scrimRef.current)?.focus({ preventScroll: true })
+    return () => {
+      // Give focus back to what opened it — the photo button, still in the page. preventScroll:
+      // restoring focus must never move the page the reader is returning to. After a TAP on iOS
+      // nothing held focus (WebKit does not focus a tapped button), so there is nothing to restore
+      // and focusing the photo instead would paint WebKit's programmatic-focus ring on it.
+      if (opener?.isConnected) opener.focus({ preventScroll: true })
+    }
+  }, [open])
 
   if (images.length === 0) {
     // Radius tracks the real gallery (square on mobile) so the empty state doesn't flash a
@@ -456,6 +525,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                  flick that hits either end CHAINS out to the nearest scrollable ancestor — and in
                  the iOS WebView it hands the gesture to swipe-back navigation, so flicking past the
                  last photo leaves the listing entirely. */
+              ref={mobileScrollerRef}
               className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
               onScroll={(e) => {
                 const el = e.currentTarget
@@ -464,12 +534,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             >
               {/* Video is slide 0 — poster = the first photo, autoplays once it's on-screen. */}
               {hasVideo && (
-                <div className="relative aspect-square w-full shrink-0 snap-center overflow-hidden rounded-none">
+                <div className="relative aspect-square w-full shrink-0 snap-center snap-always overflow-hidden rounded-none">
                   <GalleryVideo src={video!} poster={images[0]} />
                 </div>
               )}
               {images.map((img, i) => (
-                <Button key={i} variant="bare" size="none" onClick={() => openAt(i)} className="relative block aspect-square w-full shrink-0 snap-center overflow-hidden rounded-none bg-tint cursor-pointer active:scale-100">
+                <Button key={i} variant="bare" size="none" onClick={() => openAt(i)} className="relative block aspect-square w-full shrink-0 snap-center snap-always overflow-hidden rounded-none bg-tint cursor-pointer active:scale-100">
                   <BlurFillImage img={img} alt={`${title} — photo ${i + 1}`} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0 && !hasVideo} />
                 </Button>
               ))}
@@ -591,6 +661,8 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
           role="dialog"
           aria-modal="true"
           aria-label={title}
+          // Focus target for a TAP-opened lightbox — see the open effect. -1: reachable by script only.
+          tabIndex={-1}
           /* ⛔ `[touch-action:pinch-zoom]`, NEVER `touch-none` — THIS WAS `touch-none` AND IT KILLED
              ZOOM ON THE ONE SURFACE BUILT FOR EXAMINING A PHOTO. `none` forbids every browser
              gesture including two-finger zoom, across the whole viewport (measured: 390x664, 100%
@@ -606,7 +678,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
            *  controls inside, which would otherwise tear the lightbox down mid-open. */
           onAnimationEnd={(e) => { if (e.target === e.currentTarget && closing) { setClosing(false); setOpen(false) } }}
           className={cn(
-            'fixed inset-0 z-[100] flex [touch-action:pinch-zoom] items-center justify-center overscroll-none bg-black/92',
+            'fixed inset-0 z-[100] flex [touch-action:pinch-zoom] items-center justify-center overscroll-none bg-black/92 outline-none',
             // ⚠️ ONCE IT IS LEAVING IT MUST STOP TAKING TAPS. A reviewer caught it: the scrim keeps
             // `fixed inset-0` and a live onClick for the whole exit, so a tap-to-close followed
             // straight away by a tap on what is underneath ate the second one — 100ms of dead
@@ -628,6 +700,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             variant="overlay"
             onClick={closeLightbox}
             aria-label={tr('Close', 'Đóng')}
+            data-lightbox-close
             // Safe-area term: the lightbox is a fullscreen overlay and the native WebView is
             // edge-to-edge, so a bare top-4 puts Close under the Dynamic Island. 0 on web.
             className="absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] icon-shadow-brand"
@@ -646,7 +719,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
           <div
             ref={frameRef}
             data-protected
-            className="relative h-[78vh] w-[92vw] max-w-5xl [touch-action:pinch-zoom] overflow-hidden"
+            // max-h: on a notched phone (59/34 insets) 78vh put the photo UNDER both overlay controls —
+            // Close (y75–115) overlapped the frame by 22px and the thumb rail by 13px. The cap reserves
+            // the insets plus the two control bands (Close top, rail bottom), so the controls frame the
+            // photo instead of covering it. Inert wherever 78vh already fits: at 0 insets on a 390x844
+            // phone, and on a 1280x800 desktop, 78vh is the smaller of the two.
+            className="relative h-[78vh] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-9rem)] w-[92vw] max-w-5xl [touch-action:pinch-zoom] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => toggleZoom(e.clientX, e.clientY)}
             onTouchStart={(e) => {

@@ -115,7 +115,9 @@ export function ProtectionsRow({ inline = false }: {
           // tinted strip and left rule read as the only emphasised thing in the block, which is
           // the correct hierarchy when one of the two can cost someone money.
           className={cn(
-            'press whitespace-normal text-left font-normal transition-colors',
+            // `min-h-11`: "ENO protects you" measured 312x37 — the one control in the safety block under
+            // the 44px floor. A min-height, so a line that wraps still grows the row naturally.
+            'press min-h-11 whitespace-normal text-left font-normal transition-colors',
             inline
               // ⚠️ `inline-flex w-auto`, NOT `w-full justify-start`. As a full-width row the
               // chevron was flung to the far right of the strip, four hundred-odd pixels from

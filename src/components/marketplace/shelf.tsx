@@ -33,8 +33,11 @@ export const RAIL_SKELETON_COUNT = 4
  *  headers drifted apart in the first place. mb-3, not mb-2.5: the 8pt rhythm steps. */
 export const SECTION_HEADER_ROW = 'mb-3 flex items-center justify-between gap-2'
 export const SECTION_TITLE = 'text-lg font-semibold text-foreground'
+// `relative tap-44 active:opacity-60`: See all was 63x20 and answered a press with nothing on a Link
+// (the Button call sites get ui/button's scale on top). The 44px area is a ::before, so it needs the
+// `relative` beside it — see the tap-44 note in globals.css.
 export const SECTION_SEE_ALL =
-  'flex shrink-0 items-center gap-0.5 text-sm font-semibold text-accent-foreground hover:underline'
+  'relative tap-44 flex shrink-0 items-center gap-0.5 text-sm font-semibold text-accent-foreground hover:underline active:opacity-60'
 
 /* ⛔ CHIP_CATEGORY_ICON_STROKE (`[stroke-width:2]`) WAS DELETED 2026-08-07 — do not
    re-add it. It re-tiered a small category glyph by winning over the svg's own
@@ -138,7 +141,10 @@ export function RailBeam({ scrollerRef, canRight }: {
   // ⚠️ ALWAYS RENDERED, VISIBILITY TOGGLED BY THE ATTRIBUTE — dropping the element instead would
   // shift the rail by 1px the moment a late fetch makes it scrollable. `aria-hidden` because it
   // restates an affordance the scroller already exposes to assistive tech.
-  return <div className="rail-beam" data-swipeable={canRight && !everScrolled ? '' : undefined} aria-hidden="true" />
+  // `pointer-events-none`: a decorative 2px line, but `position:relative` and later in the DOM than the
+  // header row, so it sat ON TOP of See all's 44px hit area and took the bottom 3px of it (measured
+  // with elementFromPoint: 42px instead of 44). A mark that means "this scrolls" must not take taps.
+  return <div className="rail-beam pointer-events-none" data-swipeable={canRight && !everScrolled ? '' : undefined} aria-hidden="true" />
 }
 
 export function Shelf({

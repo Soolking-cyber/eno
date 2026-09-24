@@ -72,7 +72,15 @@ export function BackToTop() {
     <>
       <div
         className={cn(
-          'fixed z-[60] flex flex-col items-center gap-2.5',
+          // ⛔ `pointer-events-none` ON THE COLUMN, `pointer-events-auto` ON EACH VISIBLE CONTROL.
+          // The column is a 44px-wide box that spans BOTH slots whatever is showing — including the
+          // chevron's slot while the chevron is opacity-0 at the top of the page. That invisible box
+          // took taps: on 4 of 7 phone PDPs a touch 20px inside the primary CTA's right edge hit-tested
+          // to this div (x330–374, y666–764 on a 390pt screen), so "Book"/"Chat" silently did nothing,
+          // or opened Contact support on the laptop and rental pages. An invisible layer must not take
+          // input; the controls opt back in individually (the chevron only while shown, the support
+          // mark via its className). The 10px gap between the two stops being a dead strip too.
+          'pointer-events-none fixed z-[60] flex flex-col items-center gap-2.5',
           // ⚠️ NEVER OVER A MODAL. At z-[60] this cluster floated ON TOP of the report
           // dialog's "Gửi báo cáo" submit and over the protections sheet's copy — a tap on
           // the CTA's right edge scrolled the page instead of filing a fraud report (blind
@@ -137,7 +145,7 @@ export function BackToTop() {
             // The deepening now lives with the plate in globals.css, so every plated glyph in the
             // app hovers the same way and this line cannot drift from them.
             'back-to-top-chevron relative flex h-11 w-11 items-center justify-center transition-all duration-200 active:scale-[0.96] tap-44',
-            show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
+            show ? 'pointer-events-auto opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
           )}
         >
           {/* STROKE_FLOAT (§2): a chevron floating over card imagery — heavier than chrome so it
@@ -158,7 +166,10 @@ export function BackToTop() {
             nearest to it; putting the chevron between them would have the nav's motion jump a gap.
             Neither position shifts the other: both are always in the DOM (the chevron fades with
             `opacity`, never `display`), so the column's geometry is fixed whatever either is doing. */}
-        <SupportButton />
+        {/* `pointer-events-auto` re-enables the mark inside the column's `pointer-events-none`. Its own
+            scrolled-away state still wins below lg: `max-lg:pointer-events-none` is a variant rule and
+            sorts after this plain utility, and `inert` removes it regardless. */}
+        <SupportButton className="pointer-events-auto" />
 
       </div>
 

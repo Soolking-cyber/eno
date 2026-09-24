@@ -11,11 +11,14 @@
  *   4. Raw Tailwind palette colours (bg-red-600 …)     → use the semantic tokens
  *   5. Off-scale headings above the 3xl/30px cap       → use the fluid .h-display class
  *   6. JSX comments in expression position, and onClick on a div/span
+ *   7. :has() in a NON-SUBJECT position (the group-has / peer-has variants, and a has
+ *      variant chained onto a child variant) — Chromium restyles the whole document on
+ *      every DOM insertion while one is in the stylesheet; see the rule for the numbers
  *   + two structural gates: raw controls (use src/components/ui/*) and hand-rolled
  *     popups (createPortal). Each has its own allowlist, documented at its definition.
  *
  * Plus one gate with a WIDER reach — see THE MONEY GATE below:
- *   7. Money formatted outside src/lib/vnd.ts. This one scans .ts AS WELL AS .tsx,
+ *   8. Money formatted outside src/lib/vnd.ts. This one scans .ts AS WELL AS .tsx,
  *      because the worst instance ever found (itinerary-docx.ts, which ships figures
  *      into a document a traveller prints) lived in a .ts file that rules 1–6 never open.
  *
@@ -641,6 +644,25 @@ const RULES = [
   {
     name: 'onClick on generic element (use <button>, <Button>, or proper routing elements)',
     re: /<(div|span)[^>]*\bonClick=/g,
+  },
+  {
+    // ⛔ A :has() THE BROWSER CANNOT SCOPE RESTYLES THE WHOLE DOCUMENT ON EVERY DOM INSERTION.
+    // Tailwind compiles the group-has / peer-has variants to `:is(:where(.group):has(…) *)` and a
+    // has variant chained onto `*:` to `:is(.x:has(…) > *)` — the :has() sits on an ANCESTOR of the
+    // element being styled. Chromium's invalidation for that shape is not scoped to the subtree, so
+    // while even one such rule is in the stylesheet, appending an empty <div> ANYWHERE restyles the
+    // document. Measured on the live home page (2026-09-24): 2,009–2,051 elements, ~23ms per
+    // insertion unthrottled, from two rules in ui/alert.tsx — a primitive that was not even on the
+    // page. With them gone: 7 elements, 1.1ms. At 4x CPU the Price popover's INP went 352→224ms and
+    // the style cost of opening the account dialog 263→52ms. Every portal, feed append and search
+    // suggestion was paying it.
+    // ✅ Subject position is fine and stays allowed (`has-[>svg]:grid-cols-…` on the element itself
+    // — measured harmless). When a child needs to know about a sibling, have the COMPONENT write a
+    // data attribute (ui/alert.tsx: data-has-icon / data-has-title) and select on that.
+    // ⚠️ The pattern is written without a complete class candidate on purpose: Tailwind scans raw
+    // text, and a literal here would compile the very selector this bans into the bundle.
+    name: 'non-subject :has() variant (group-has / peer-has, or a has variant followed by a child variant) — restyles the whole document on every DOM insertion; put the :has() on the element it styles, or have the component write a data attribute',
+    re: /(?<![-\w])(?:group|peer)-has-|(?<![-\w])has-[^\s'"`]*?:\*{1,2}:/g,
   },
 ]
 

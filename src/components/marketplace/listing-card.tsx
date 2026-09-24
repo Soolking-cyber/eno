@@ -81,6 +81,12 @@ function prettyBrand(slug: string): string {
  *  the pointer is a worse bug than a speculative fetch. */
 const COLLAPSE_MS = 400
 
+/** Upper bound on how long a tapped card holds its "opening" state if the next screen never paints
+ *  (a failed navigation, a push that was superseded). The slowest tap → first PDP frame measured on
+ *  the live feed was 2.3s at 4x CPU, so 4s outlasts every real navigation and still lets a stuck
+ *  card recover on its own. */
+const PENDING_MAX_MS = 4000
+
 type Props = {
   listing: SerializedListingCard
   onOpen: (listing: SerializedListingCard) => void
@@ -250,6 +256,35 @@ function ListingCardImpl({
   // (redundant, and it crowds the price row on a narrow card).
   const hasDrop = listing.prevPrice != null && !!dropPercent(listing.prevPrice, listing.price)
 
+  /**
+   * ⛔ A TAPPED CARD HOLDS ITS PRESS UNTIL THE NEXT SCREEN PAINTS. `onOpen` is a router push, and
+   * the PDP's first frame lands 0.5–0.7s after the tap on a fast phone and 1.1–2.3s at 4x CPU
+   * (measured on the live feed). The `active:` press released at touchend (~110ms), so for the rest
+   * of that wait the feed looked exactly as it did before the tap — the frame at +250ms was
+   * pixel-identical to the pre-tap one, and a buyer who sees nothing happen taps again.
+   * `pending` keeps the card pressed (scale 0.97, the same depth as the press, so the handoff is
+   * seamless) and dims its photo, until the route unmounts this card. Transform and opacity only.
+   * ⚠️ ONLY THE TWO NAVIGATING HANDLERS CALL `open()`. The heart, the quick actions and every other
+   * in-card <button> stop propagation and never reach it — they do not navigate, so they must not
+   * look like they do. A modifier/middle click opens a new tab and does not set it either: this
+   * page is not going anywhere.
+   * ⚠️ The timer is a floor under a navigation that never arrives, not the normal exit — the
+   * normal exit is this component unmounting.
+   */
+  const [pending, setPending] = useState(false)
+  const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (pendingTimer.current) clearTimeout(pendingTimer.current) }, [])
+  const open = () => {
+    // Already opening: a second tap is the buyer asking "did it hear me?" — the pressed card is the
+    // answer. Re-calling onOpen would push the same route again (a duplicate history entry, a second
+    // feed snapshot). The 4s floor below still frees the card if the first push never lands.
+    if (pending) return
+    setPending(true)
+    if (pendingTimer.current) clearTimeout(pendingTimer.current)
+    pendingTimer.current = setTimeout(() => { pendingTimer.current = null; setPending(false) }, PENDING_MAX_MS)
+    onOpen(listing)
+  }
+
   return (
     // `data-card-root` is the hook for the NATIVE long-press action sheet (native-bootstrap.tsx),
     // and it has to hang on the ROOT rather than on the card link: the stretched <a data-card-link>
@@ -260,6 +295,7 @@ function ListingCardImpl({
     // included — is one long-press target. Inert on web.
     <div
       data-card-root
+      data-pending={pending || undefined}
       // ⚠️ PRESS IS 0.97, NOT 0.985 — the old value was below the perceptual threshold on the
       // app's most-tapped surface. Scale is RELATIVE, so the same number is a different amount
       // of travel at different sizes: 0.985 on a 179px card moves the edge 2.7px, which reads
@@ -277,7 +313,7 @@ function ListingCardImpl({
       // = 0.946) and raising the card to 0.97 made it louder, which is how a reviewer found
       // it. Only `button` is exempted, NOT `a`: the card's stretched link IS the card's own
       // press, so exempting anchors would delete the feedback this line exists to provide.
-      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 [touch-action:manipulation]"
+      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 data-pending:scale-[0.97] [touch-action:manipulation]"
     >
       {/* Card = link, actions = siblings. The whole card navigates via this ONE real,
           keyboard-focusable stretched <a> (the card link). Every IconButton below is a
@@ -299,7 +335,7 @@ function ListingCardImpl({
         onClick={(e) => {
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
           e.preventDefault()
-          onOpen(listing)
+          open()
         }}
         className="absolute inset-0 z-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       />
@@ -326,7 +362,7 @@ function ListingCardImpl({
         // measurement before reaching for either again.
         // The accessible name moved to the meta row; see the sr-only there.
         className={cn(
-          'relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate transition-shadow duration-200 ease-out group-hover:shadow-[var(--shadow-card)]',
+          'relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate [transition:box-shadow_200ms_ease-out,opacity_150ms_var(--ease-out-strong)] group-hover:shadow-[var(--shadow-card)] group-data-pending:opacity-80',
         )}
         onClick={(e) => {
           // Image-area click → open the listing. It bubbles up from the photo, scrims,
@@ -345,7 +381,7 @@ function ListingCardImpl({
             return
           }
           if (Date.now() - suppressClickAt.current < SWIPE_CLICK_WINDOW_MS) { suppressClickAt.current = 0; return }
-          onOpen(listing)
+          open()
         }}
         onAuxClick={(e) => {
           // Middle-click (button 1) → open the listing in a new tab, matching the anchor and what

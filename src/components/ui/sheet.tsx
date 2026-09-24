@@ -88,16 +88,35 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-overlay transition duration-200 ease-in-out data-ending-style:duration-150 data-ending-style:ease-in data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-[2.5rem] data-[side=bottom]:data-starting-style:translate-y-[2.5rem] data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:translate-x-[-2.5rem] data-[side=left]:data-starting-style:translate-x-[-2.5rem] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-[2.5rem] data-[side=right]:data-starting-style:translate-x-[2.5rem] data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:translate-y-[-2.5rem] data-[side=top]:data-starting-style:translate-y-[-2.5rem] data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
+          /* ⛔ `--ease-out-strong` BOTH WAYS, AND `transform` STAYS IN THE PROPERTY LIST.
+             · This was `ease-in-out` in and `ease-in` out — the only overlay primitive off the app's
+               curve. Measured: 200ms cubic-bezier(0.4,0,0.2,1) in, 150ms cubic-bezier(0.4,0,1,1) out.
+               `ease-in` spends the first third of an exit barely moving, which is exactly when the
+               reader is watching; every other overlay here (ui/dialog, ui/alert-dialog, the lightbox)
+               already moves both ways on the strong ease-out and keeps its asymmetry in the DURATION
+               (150 out vs 200 in), not the curve.
+             · `translate` is what the enter/exit offsets write (Tailwind v4's standalone property);
+               `transform` is what use-swipe-dismiss writes inline while a finger drags the panel.
+               Drop `transform` and a cancelled swipe snaps home in one frame instead of easing back.
+             · `opacity` for the fade. Nothing else on a sheet should animate, so the list is closed. */
+          "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-overlay transition-[opacity,translate,transform] duration-200 ease-[var(--ease-out-strong)] data-ending-style:duration-150 data-ending-style:ease-[var(--ease-out-strong)] data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-[2.5rem] data-[side=bottom]:data-starting-style:translate-y-[2.5rem] data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:translate-x-[-2.5rem] data-[side=left]:data-starting-style:translate-x-[-2.5rem] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-[2.5rem] data-[side=right]:data-starting-style:translate-x-[2.5rem] data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:translate-y-[-2.5rem] data-[side=top]:data-starting-style:translate-y-[-2.5rem] data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
           // A side="bottom" sheet is pinned to `bottom: 0`, i.e. UNDER the iOS home indicator /
           // Android gesture bar — and, because the native app runs with `Keyboard: { resize: None }`
           // (capacitor.config.ts), behind the on-screen keyboard the moment it contains a field.
           // `.kb-bottom` is the app-wide contract for exactly that (globals.css, "KEYBOARD-AWARE
           // SURFACES"): ONE declaration that reserves the home-indicator inset at rest and grows
           // onto the keyboard while typing. Do not hand-roll a second env(safe-area-inset-bottom)
-          // here. Deliberately bottom-only: left/right are `inset-y-0 h-full` side panels whose own
-          // footer padding owns that edge, and side="top" never touches it.
+          // here. Bottom sheets only: side="top" never touches that edge, and the full-height left/right
+          // panels take the plain inset below (they hold no bottom-docked field for a keyboard to cover).
           side === "bottom" && "kb-bottom",
+          // ⚠️ THE TOP INSET, AND THE SIDE PANELS' BOTTOM ONE. A side/top sheet is `top: 0` on an
+          // edge-to-edge screen (the native app, an installed PWA), so its header and its X sat under
+          // the status bar: with 59/34 insets the support sheet's title was at y16–40 and the X at
+          // y12–36, inside the 59px notch band — a close button you cannot reach. The side panels'
+          // footers likewise ran into the home indicator. `env()` is 0 in a browser tab, so every
+          // sheet renders exactly as before there. (The bottom sheet's inset is `.kb-bottom`'s job.)
+          side !== "bottom" && "pt-[env(safe-area-inset-top)]",
+          (side === "left" || side === "right") && "pb-[env(safe-area-inset-bottom)]",
           className
         )}
         {...props}
@@ -118,7 +137,12 @@ function SheetContent({
             // creates a stacking context that paints over an un-z-indexed close, and the result is
             // a sheet that cannot be dismissed by tapping. It was missing here before this change
             // too — reviewer-caught while comparing the two primitives side by side.
-            className="ring-offset-background focus:ring-ring tap-44 absolute top-3 right-3 z-50 rounded-full text-ink-4 hover:text-foreground transition hover:scale-105 active:scale-[0.96] focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none cursor-pointer"
+            // Below the status bar on a side/top sheet: the popup's top inset is PADDING, and this is
+            // absolutely positioned, so it adds the inset itself. A bottom sheet never reaches the notch.
+            className={cn(
+              "ring-offset-background focus:ring-ring tap-44 absolute right-3 z-50 rounded-full text-ink-4 hover:text-foreground transition hover:scale-105 active:scale-[0.96] focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none cursor-pointer",
+              side === "bottom" ? "top-3" : "top-[calc(0.75rem+env(safe-area-inset-top))]",
+            )}
           >
             <XIcon className="size-6" />
             <span className="sr-only"><Tr text="Close" /></span>

@@ -72,12 +72,18 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
           announcement for no gain. The NAME carries the accessible link. */}
       {/* `title` here, not on the Link: the Link is aria-hidden, and a tooltip is for the
           sighted reader who needs the gold ring explained — see the note in seller-card.tsx. */}
-      <Link href={href} aria-hidden tabIndex={-1} className="shrink-0 rounded-full" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
+      <Link href={href} aria-hidden tabIndex={-1} className="shrink-0 rounded-full active:opacity-60" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
         <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg"  />
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <Link href={href} className="truncate text-sm font-bold text-foreground hover:underline">{name}</Link>
+          {/* ⚠️ THE TRUNCATION MOVED ONTO THE INNER SPAN, AND THAT IS WHAT MAKES `tap-44` WORK HERE. This
+              link was 72x20 with no press state. `tap-44` grows the hit area with an absolute ::before —
+              but `truncate` is `overflow:hidden`, which clips the element's own ::before to its 20px box,
+              so on the link itself the 44px area would exist in the stylesheet and nowhere on screen.
+              The link keeps `min-w-0` (what `overflow:hidden` used to give it for free) so a long name
+              still shrinks to the row and ellipsises inside the span. */}
+          <Link href={href} className="relative min-w-0 tap-44 text-sm font-bold text-foreground hover:underline active:opacity-60"><span className="block truncate">{name}</span></Link>
           {/* ⚠️ THE RING IS DECORATION; THIS IS THE ACTUAL LABEL. The worded badge was removed
               (owner, 2026-08-11) in favour of the gold ring on the avatar above — but a ring
               has no accessible name and no meaning to anyone who cannot separate that gold
@@ -121,7 +127,10 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
       <Link
         href={href}
         aria-label={tr('Visit shop', 'Vào gian hàng')}
-        className="group flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-secondary"
+        // `relative tap-44`: 64x28 → a 44px-tall hit area around the same pill. `active:bg-secondary`
+        // is the press — the hover wash, shown on touch too, in 60ms; the release eases back at the
+        // transition's normal 150ms, so the press reads instantly and the let-go does not flash.
+        className="group relative tap-44 flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-secondary active:bg-secondary active:duration-[60ms]"
       >
         {tr('Shop', 'Gian hàng')}
         {/* `motion-reduce:group-hover:translate-x-0` is NOT redundant beside

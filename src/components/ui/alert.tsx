@@ -34,7 +34,20 @@ const alertVariants = cva(
   // The icon spans two rows ONLY when there is a title to sit beside — otherwise the
   // row-span invents an empty second row, and the row-gap makes a title-less callout
   // (which most of the real ones are) 2-4px taller than the div it replaced.
-  "group/alert relative grid w-full gap-0.5 rounded-2xl border px-2.5 py-2 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 has-data-[slot=alert-title]:*:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current",
+  // ⛔ "IS THERE A TITLE / AN ICON" IS A DATA ATTRIBUTE THE COMPONENT WRITES, NOT A :has() QUERY.
+  // Both used to be `:has()` in a NON-SUBJECT position (a has-variant chained onto a child
+  // variant, and a group-has variant on the title). Chromium cannot scope the invalidation of
+  // those, so EVERY DOM insertion anywhere on the page — a portal opening, a feed append, a search
+  // suggestion — restyled the whole document: 2,009–2,051 elements (~23ms unthrottled) per empty
+  // <div> appended, measured on the live home page, against 7 elements / 1.1ms with the two rules
+  // gone. At 4x CPU that was ~220ms of style inside every overlay's INP. The component knows
+  // whether it was given `icon`/`title`, so it says so (data-has-icon / data-has-title) and the
+  // selectors become plain attribute matches. The subject-position `has-[>svg]:` rules above are
+  // deliberately kept: measured harmless, because a :has() on the element being styled is scoped.
+  // scripts/design-lint.mjs now refuses both non-subject shapes.
+  // ⚠️ Do not spell a full class candidate of the old rules in this comment: Tailwind scans raw
+  // text, and a literal here would compile the expensive selector straight back into the bundle.
+  "group/alert relative grid w-full gap-0.5 rounded-2xl border px-2.5 py-2 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 data-has-title:*:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current",
   {
     variants: {
       variant: {
@@ -81,13 +94,23 @@ const alertVariants = cva(
 type AlertProps = Omit<React.ComponentProps<"div">, "title"> &
   VariantProps<typeof alertVariants> & {
     /** Leading icon. Rendered as a DIRECT grid child so the base grid/auto-size
-     *  rules apply — pass the bare lucide element, e.g. icon={<TriangleAlert />}. */
+     *  rules apply — pass the bare lucide element, e.g. icon={<TriangleAlert />}.
+     *  ⚠️ PASS THE ICON AND THE TITLE AS THESE PROPS, NOT AS CHILDREN. The two-column layout
+     *  (title beside the icon, the icon spanning title + body) keys off `data-has-icon` /
+     *  `data-has-title`, which only these props write — see the note on alertVariants for why it
+     *  is not a :has() query any more. An `<svg>` + `<AlertTitle>` composed as children would put
+     *  the body under the icon. Every caller uses the props (checked when this changed). */
     icon?: React.ReactNode
     /** Optional heading. When present, children are auto-wrapped in AlertDescription. */
     title?: React.ReactNode
     /** Optional trailing slot, absolutely positioned top-right (reserves pr-18). */
     action?: React.ReactNode
   }
+
+/** True when React would put something on screen for this node (null/undefined/booleans/"" render nothing). */
+function renders(node: React.ReactNode): boolean {
+  return node != null && typeof node !== "boolean" && node !== ""
+}
 
 function Alert({
   className,
@@ -101,18 +124,26 @@ function Alert({
   children,
   ...props
 }: AlertProps) {
+  // "Will React render something here" — NOT `!= null`. `icon={cond && <X />}` is the ordinary idiom
+  // and yields `false`, which renders nothing; flagging it would push the title into a second column
+  // the grid does not have (the svg-keyed grid-cols rule would not match). The render branches below
+  // use the SAME test, so the attributes can never disagree with what is on screen.
+  const hasIcon = renders(icon)
+  const hasTitle = renders(title)
   return (
     <div
       data-slot="alert"
       role="alert"
+      data-has-icon={hasIcon ? "" : undefined}
+      data-has-title={hasTitle ? "" : undefined}
       className={cn(alertVariants({ variant, tone, appearance, size }), className)}
       {...props}
     >
       {icon}
-      {title != null && <AlertTitle>{title}</AlertTitle>}
+      {hasTitle && <AlertTitle>{title}</AlertTitle>}
       {/* No title ⇒ children pass through untouched (the old composed API).
           With a title ⇒ they are the body, so they get description styling. */}
-      {title != null ? <AlertDescription>{children}</AlertDescription> : children}
+      {hasTitle ? <AlertDescription>{children}</AlertDescription> : children}
       {action != null && <AlertAction>{action}</AlertAction>}
     </div>
   )
@@ -123,7 +154,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "font-medium group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground",
+        "font-medium group-data-has-icon/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground",
         className
       )}
       {...props}
