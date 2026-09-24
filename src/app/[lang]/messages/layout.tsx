@@ -47,7 +47,13 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
        * Something that must be opaque over content (a drawer, a sheet) should say so with the wash
        * itself — `.wash-surface` — not with the flat token.
        */
-      className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden lg:h-[calc(100dvh-var(--banner-h,0px))]"
+      /**
+       * ⚠️ 4.5rem IS THE TAB BAR'S REAL HEIGHT (72px) — the same number <BottomNavSpacer/> and
+       * account-panel-body.tsx reserve. It said 4rem, so the shell ran 8px UNDER the bar at 390×844
+       * (shell bottom 780, nav top 772): the composer kept 4px of clearance and the last inbox row
+       * never cleared the bar. Change the three together.
+       */
+      className="flex h-[calc(100dvh-4.5rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden lg:h-[calc(100dvh-var(--banner-h,0px))]"
     >
       <Header />
       <KbDebug />

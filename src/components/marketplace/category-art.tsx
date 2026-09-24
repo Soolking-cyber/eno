@@ -1,5 +1,5 @@
 import { categoryTileArtPath } from '@/lib/category-art'
-import { CATEGORY_ART } from '@/generated/icon-paths'
+import { CATEGORY_GLYPH_SLUGS } from '@/generated/icon-paths'
 import { cn } from '@/lib/utils'
 import { CategoryIcon } from './category-icons'
 import { ArtImage } from '@/components/marketplace/art-image'
@@ -27,11 +27,14 @@ import { ArtImage } from '@/components/marketplace/art-image'
  *   · every tile is now a request instead of inline path data (they are small, cacheable and
  *     served from the same origin, but it is 21 requests that used to be zero).
  * ⚠️ If a future pack ships as flat single-colour SVG, the old approach is the better one — the
- * git history has it, and `CATEGORY_ART` in src/generated/icon-paths.ts still holds the paths.
+ * git history has it, and the Solar geometry is still generated into public/icons/{rest,selected}/
+ * (scripts/gen-icons.mjs). ⛔ It is NO LONGER in src/generated/icon-paths.ts: that table was ~71 KB
+ * of dead path data on every first load (2026-09-25), and it now emits only the slugs.
  *
- * ⚠️ THE FILE SET AND `CATEGORY_ART` MUST STAY IN STEP. `CategoryTileGlyph` below only calls this
- * for slugs present in that registry, so an entry added there WITHOUT re-running the generator
- * renders a broken image. The generator asserts the two match; keep it that way.
+ * ⚠️ THE FILE SET AND `CATEGORY_GLYPH_SLUGS` MUST STAY IN STEP. `CategoryTileGlyph` below only calls
+ * this for slugs present in that registry, so an entry added there WITHOUT re-running the raster
+ * generator renders nothing (CategoryArt returns null for a slug with no file). The generators
+ * assert their lists; keep it that way.
  */
 /**
  * ⛔ THE COLOUR IS IN THE ARTWORK NOW, NOT IN A FILTER (owner, 2026-09-18, supplying 27 new renders:
@@ -128,8 +131,8 @@ export function CategoryArt({
  * The tile glyph a call site should reach for: Solar when the slug has artwork, the lucide
  * registry otherwise.
  *
- * ⚠️ THE FALLBACK IS THE POINT, NOT A LOOSE END. `CATEGORY_ART` covers SEVENTEEN slugs — the 15
- * taxonomy categories plus `free` and `all`. `category-icons.tsx` registers 98 immutable keys
+ * ⚠️ THE FALLBACK IS THE POINT, NOT A LOOSE END. `CATEGORY_GLYPH_SLUGS` covers TWENTY-ONE slugs — the 17
+ * taxonomy categories plus `free`, `wanted`, `wholesale` and `all`. `category-icons.tsx` registers 98 immutable keys
  * (`Category.icon`, mirrored in the database) covering every category AND subcategory, so the
  * ~81 subcategory glyphs have no Solar equivalent and must keep resolving to lucide. A caller
  * addressing a subcategory passes a slug this map does not hold and gets its lucide glyph, which
@@ -146,7 +149,7 @@ export function CategoryTileGlyph({
   selected?: boolean
   className?: string
 }) {
-  return CATEGORY_ART[slug] ? (
+  return CATEGORY_GLYPH_SLUGS.has(slug) ? (
     <CategoryArt slug={slug} selected={selected} className={className} />
   ) : (
     <CategoryIcon name={icon} selected={selected} className={className} />

@@ -9,7 +9,11 @@ import { cn } from '@/lib/utils'
 type Preset = { label: string; value: number }
 
 const CAP = 999_000_000_000 // 999 tỷ — guards the ×unit chips from absurd results
-const chip = 'rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:hover:bg-tint disabled:hover:text-body cursor-pointer'
+// `relative tap-44`: 24px drawn, 44px hit (10px each way). ⚠️ Paired with the row's `gap-y-5` below —
+// the chips WRAP in the post wizard's max-w-xs price column, and at the old 6px row gap each row's
+// 10px reach overlapped the other's by 14px, so the lower chip (later in the DOM, painted on top)
+// stole taps from the bottom of the one above. 20px lets the two reaches meet without crossing.
+const chip = 'relative rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:hover:bg-tint disabled:hover:text-body cursor-pointer tap-44'
 
 /**
  * VND amount input. VND has many zeros (12.000.000), so typing is made fast:
@@ -86,7 +90,7 @@ export function VndInput({
       </p>
 
       {/* Fast-entry chips */}
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
+      <div className="mt-1.5 flex flex-wrap gap-x-1.5 gap-y-5">
         <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000)} disabled={!digits} className={chip}>×{groupVnd('1000', locale)}</Button>
         <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000', locale)}</Button>
         {/* tỷ / billion — completes the VN unit ladder (nghìn → triệu → tỷ) so cars,

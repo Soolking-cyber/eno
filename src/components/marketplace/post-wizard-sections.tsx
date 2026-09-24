@@ -159,12 +159,19 @@ export function MediaSection({
             ) : (
               // transition-opacity is load-bearing: it must beat the base
               // transition-all, or the tile's drag transform animates.
+              // ⛔ pointer-events-none UNTIL HOVER — AN INVISIBLE BUTTON MUST NOT BE PRESSABLE. On a
+              // touch screen `group-hover` never matches (Tailwind v4 wraps it in @media (hover:hover)),
+              // so this sat at opacity 0 with pointer-events auto: a tap on a tile's bottom-left
+              // corner silently REORDERED the photos (measured [501b,1082,846c] -> [846c,501b,1082]),
+              // swallowed the long-press that starts a drag there, and covered 22px of the crop chip.
+              // Hover (desktop) and keyboard focus still reveal AND arm it; a visible touch "Make
+              // cover" action is a separate owner decision.
               <Button
                 type="button"
                 variant="bare"
                 size="none"
                 onClick={() => movePhoto(i, 0)}
-                className="absolute bottom-1 left-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-3xs font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer"
+                className="pointer-events-none absolute bottom-1 left-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-3xs font-bold text-white opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 cursor-pointer"
               >
                 {t('Đặt làm bìa', 'Make cover')}
               </Button>
@@ -184,7 +191,11 @@ export function MediaSection({
                 type="button"
                 onClick={() => setCropIndex(i)}
                 aria-label={t('Cắt ảnh thành hình vuông', 'Crop photo to square')}
-                className="absolute bottom-1 right-1 flex h-6 items-center gap-1 rounded-lg bg-black/55 px-1.5 text-3xs font-bold text-white cursor-pointer"
+                // tap-44 WITHOUT `relative` — it is already `absolute`, which is positioned, and a
+                // `relative` here would out-sort it and drop the chip into the tile's flow. The tile's
+                // overflow-hidden clips the hit area at the tile edge (4px below the chip), so the
+                // reach is 10px up + 4px down: ~38px tall, up from 24.
+                className="absolute bottom-1 right-1 flex h-6 items-center gap-1 rounded-lg bg-black/55 px-1.5 text-3xs font-bold text-white cursor-pointer tap-44"
               >
                 <Crop className="h-3 w-3" />
                 {p.square === false ? t('Đầy đủ', 'Full') : t('Vuông', 'Square')}
@@ -319,7 +330,7 @@ export function MediaSection({
           size="none"
           onClick={autofillFromPhoto}
           disabled={!!aiBusy}
-          className="mt-3 gap-1.5 rounded-xl border border-line-strong px-3 py-1.5 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-50 cursor-pointer"
+          className="relative mt-3 gap-1.5 rounded-xl border border-line-strong px-3 py-1.5 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-50 cursor-pointer tap-44"
         >
           {aiBusy === 'photo' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
           {t('Tự điền từ ảnh', 'Autofill from photo')}

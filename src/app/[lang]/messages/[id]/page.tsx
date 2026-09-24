@@ -15,6 +15,7 @@ import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, Alert
 import { STROKE_NAV } from '@/lib/icon-tokens'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
+import { routeSend } from '@/lib/chat-send-route'
 import { ChatCardMetaProvider } from '@/components/marketplace/chat-card-shell'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
@@ -1393,6 +1394,25 @@ export default function ThreadPage() {
     setConciergeArmed((armed) => !armed)
   }
 
+  /**
+   * ⛔ THE ONE SEND ACTION — Return AND the tap-Send button both call this. Armed → the same field,
+   * a different destination (/concierge instead of the ordinary message POST). They used to carry
+   * their own copies of the routing and the tap's copy forgot the TRIP desk: on a phone, where the
+   * tap is the primary path, a traveller's question went to the human desk as a plain message while
+   * the placeholder said "Ask Eno concierge…". The decision lives in routeSend (pure, tested); do
+   * not inline it back into either entry point.
+   */
+  const dispatchSend = () => {
+    // The SAME busy rule as the tap-Send button's `disabled`, here so Return obeys it too: while a
+    // desk is answering (or a switch-to-person is in flight) nothing is sent from the composer —
+    // otherwise Return during askTripHuman (which disarms first) posted the typed text to the desk.
+    if (conciergeBusy || tripBusy) return
+    const route = routeSend({ conciergeArmed, tripConciergeArmed })
+    if (route === 'concierge') return void askConcierge(text)
+    if (route === 'trip') return void askTripConcierge(text)
+    return void send()
+  }
+
   // "they can request human intervention or help if needed" — flips the thread's mode and
   // puts the request in front of the desk. The wizard deliberately keeps working while they
   // wait; only an admin TAKEOVER stops the cards.
@@ -1879,7 +1899,7 @@ export default function ThreadPage() {
                   })()}
                 </>
               ) : thread.messages.some((m) => !m.mine) ? (
-                <Button variant="bare" size="none" onClick={requestContact} disabled={revealing} className="gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted cursor-pointer">
+                <Button variant="bare" size="none" onClick={requestContact} disabled={revealing} className="relative gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted cursor-pointer tap-44">
                   {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
                   {tr('Request number · Zalo / WhatsApp', 'Lấy số · Zalo / WhatsApp')}
                 </Button>
@@ -1960,7 +1980,7 @@ export default function ThreadPage() {
                 // Button — overriding a button's role would strip its button semantics and lose the
                 // retry affordance.
                 <span role="alert">
-                  <Button variant="bare" size="none" onClick={() => retry(m)} className="gap-1 px-0 text-3xs font-semibold text-destructive hover:underline cursor-pointer">
+                  <Button variant="bare" size="none" onClick={() => retry(m)} className="relative gap-1 px-0 text-3xs font-semibold text-destructive hover:underline cursor-pointer tap-44">
                     <RotateCcw className="h-3 w-3" aria-hidden /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
                   </Button>
                 </span>
@@ -2197,11 +2217,17 @@ export default function ThreadPage() {
                       </div>
                     )}
                     {!m.mine && m.offerStatus === 'pending' && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <Button variant="cta" size="none" onClick={() => actOffer(m.id, 'accept')} className="rounded-lg px-3 py-1 text-xs transition-colors cursor-pointer">{tr('Accept', 'Chấp nhận')}</Button>
+                      /* relative tap-44 on all three: they draw 24px tall and act on MONEY. Each is
+                         wider than 44px, so the hit area only grows vertically (10px each way).
+                         ⚠️ gap-y-5, NOT gap-2, BECAUSE THE ROW WRAPS: at 320px (EN and VI) Counter
+                         drops to a second row, and at an 8px row gap each row's 10px reach landed on
+                         the other's drawn button — a tap on the bottom of Accept could decline or
+                         counter (measured: 22 stolen points). 20px lets the reaches meet, not cross. */
+                      <div className="mt-2 flex flex-wrap gap-x-2 gap-y-5">
+                        <Button variant="cta" size="none" onClick={() => actOffer(m.id, 'accept')} className="relative rounded-lg px-3 py-1 text-xs transition-colors cursor-pointer tap-44">{tr('Accept', 'Chấp nhận')}</Button>
                         {/* hover:text-body is LOAD-BEARING: ghost injects hover:text-accent-foreground,
                             and text-body is a COLOUR — without the re-assert the label flips colour on hover. */}
-                        <Button variant="ghost" size="none" onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted hover:text-body cursor-pointer">{tr('Decline', 'Từ chối')}</Button>
+                        <Button variant="ghost" size="none" onClick={() => actOffer(m.id, 'decline')} className="relative rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted hover:text-body cursor-pointer tap-44">{tr('Decline', 'Từ chối')}</Button>
                         {/* Countering SENDS a new offer, so hide it on a fixed-price listing
                             (Accept/Decline don't send offers and stay). A stale pending offer
                             can outlive a switch to fixed price — the 409 would otherwise reject
@@ -2211,7 +2237,7 @@ export default function ThreadPage() {
                             `undefined !== false` → true, so a support thread would offer to counter
                             an offer against a product that does not exist. */}
                         {!!thread?.listing && thread.listing.negotiable !== false && (
-                          <Button variant="ghost" size="none" onClick={() => { setOfferInput(groupVnd(String(m.offerAmount ?? 0), locale)); setCounterMode(true); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</Button>
+                          <Button variant="ghost" size="none" onClick={() => { setOfferInput(groupVnd(String(m.offerAmount ?? 0), locale)); setCounterMode(true); setShowOffer(true) }} className="relative rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer tap-44">{tr('Counter', 'Trả giá')}</Button>
                         )}
                       </div>
                     )}
@@ -2412,7 +2438,7 @@ export default function ThreadPage() {
                   size="none"
                   type="button"
                   onClick={() => { scrollBottom(true); setNewBelow(false) }}
-                  className="flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs shadow-pop transition-transform active:scale-[0.96] cursor-pointer"
+                  className="relative flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs shadow-pop transition-transform active:scale-[0.96] cursor-pointer tap-44"
                 >
                   <ArrowDown className="h-3.5 w-3.5" aria-hidden /> {tr('New messages', 'Tin nhắn mới')}
                 </Button>
@@ -2666,17 +2692,10 @@ export default function ThreadPage() {
                 ref={composerRef}
                 value={text}
                 onChange={setText}
-                /* Armed → the same field, the same Return key, a different destination:
-                   /concierge instead of the ordinary message POST.
-                   ⚠️ TWO DESKS, ONE COMPOSER. The visa and trip flags are checked in a fixed
-                   order and can never both be true (a thread is one kind), but the order is
-                   written out rather than left to a || chain so a future third desk has an
-                   obvious place to go and cannot silently steal the other's questions. */
-                onSend={() => {
-                  if (conciergeArmed) return void askConcierge(text)
-                  if (tripConciergeArmed) return void askTripConcierge(text)
-                  return send()
-                }}
+                /* Armed → the same field, the same Return key, a different destination.
+                   ⚠️ TWO DESKS, ONE COMPOSER, ONE ROUTE — dispatchSend is shared with the tap-Send
+                   button below; see routeSend (src/lib/chat-send-route.ts) for the fixed order. */
+                onSend={dispatchSend}
                 placeholder={conciergeArmed || tripConciergeArmed ? tr('Ask Eno concierge…', 'Hỏi Eno concierge…') : tr('Write a message…', 'Nhập tin nhắn…')}
                 ariaLabel={conciergeArmed || tripConciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Write a message', 'Nhập tin nhắn')}
               />
@@ -2701,10 +2720,12 @@ export default function ThreadPage() {
                  under the finger (the earlier reason tap-Send was unreliable). Return
                  still sends too (enterKeyHint="send"). */
               <ChatSendButton
-                onClick={() => (conciergeArmed ? void askConcierge(text) : send())}
-                disabled={!text.trim() || conciergeBusy}
-                aria-label={conciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Send', 'Gửi')}
-                title={conciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Send', 'Gửi')}
+                onClick={dispatchSend}
+                // tripBusy too: without it a second tap while the trip concierge is answering was
+                // live, and fell through to an ordinary send of whatever had been typed since.
+                disabled={!text.trim() || conciergeBusy || tripBusy}
+                aria-label={conciergeArmed || tripConciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Send', 'Gửi')}
+                title={conciergeArmed || tripConciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Send', 'Gửi')}
               />
             )}
           </div>

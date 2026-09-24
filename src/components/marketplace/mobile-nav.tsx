@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link, { useLinkStatus } from 'next/link'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
-import { useAuth } from '@/context/auth-context'
+import { preloadSignIn, useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
@@ -173,7 +173,9 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
   }, [deferred, loading, user, href, router, openSignIn, pathname])
   if (gate) {
     return (
-      <Button type="button" variant="bare" size="none" onClick={() => openSignIn()} aria-label={label} className={TAB}>
+      // onPointerDown={preloadSignIn}: the dialog's chunk starts downloading on the finger's
+      // DOWN, ~100ms before the click that opens it — see preloadSignIn in auth-context.tsx.
+      <Button type="button" variant="bare" size="none" onPointerDown={preloadSignIn} onClick={() => openSignIn()} aria-label={label} className={TAB}>
         <span className={cn(stack ?? STACK, 'text-body')}>
           {/* The sign-in gate is never the active tab, so the icon renders in its idle form. */}
           <TabStack icon={typeof icon === 'function' ? icon(false) : icon} label={label} />

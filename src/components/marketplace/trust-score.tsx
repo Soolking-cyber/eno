@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useLanguage } from '@/context/language-context'
 import { trustScoreColor } from '@/lib/trust-score'
-import { UI_ART } from '@/generated/icon-paths'
+/* The two shields ONLY — not UI_ART, which is every UI glyph in one object and put ~118 KB of path
+   data on the first load of every page with a card. See ui-art-shields.ts / scripts/gen-icons.mjs. */
+import { SHIELD_VERIFIED, TRUST_SHIELD } from '@/generated/ui-art-shields'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -101,7 +103,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
             Painted with `fill`, not `stroke` — Solar's Outline weight is a filled ring, which
             holds its exact weight at 11px where a stroked path would thin out. */}
         <svg width={11} height={11} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
-          {UI_ART['shield-verified'].rest.map((p, i) => (
+          {SHIELD_VERIFIED.rest.map((p, i) => (
             <path
               key={i}
               d={p.d}
@@ -219,8 +221,9 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
 
                 ⚠️ NO TICK IN A BADGE THAT CARRIES THE SCORE — the numeral owns the optical centre
                 (owner, 2026-08-07: "maybe not tickmark here"). `shield-verified` / `shield-star`
-                exist in UI_ART for surfaces where a shield stands alone with no number. */}
-            {UI_ART['trust-shield'].selected.map((p, i) => (
+                exist in UI_ART for surfaces where a shield stands alone with no number (emit one into
+                its own module like ui-art-shields.ts rather than importing UI_ART). */}
+            {TRUST_SHIELD.selected.map((p, i) => (
               <path
                 key={i}
                 d={p.d}
@@ -244,7 +247,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
                 as a FILLED ring rather than a stroke, so this paints with `fill`, not `stroke`
                 — and it means the ring keeps its exact weight at every size instead of thinning
                 as the badge shrinks, which a stroked path would do. */}
-            {UI_ART['trust-shield'].rest.map((p, i) => (
+            {TRUST_SHIELD.rest.map((p, i) => (
               <path
                 key={i}
                 d={p.d}

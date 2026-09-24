@@ -532,7 +532,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // field flags clear the instant a field is filled, so the red recedes as they go.
   const [attempted, setAttempted] = useState(false)
   const err = {
-    photo: attempted && photos.length < 3,
+    // minPhotos, NOT 3 — the same minPhotosFor() the checklist and the server gate use. A literal
+    // 3 flagged a Services listing (min 1) with "Add at least 1 photo" and a red ring after the
+    // seller had added exactly that one photo, while "Still needed" correctly omitted photos.
+    photo: attempted && photos.length < minPhotos,
     category: attempted && !categorySlug,
     title: (touched.title || attempted) && title.trim().length < 3,
     // The 20-char minimum BLOCKS publish (see `checks`) but used to render no message at
@@ -855,16 +858,19 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // is not a margin here: this bar's height tracks OS font scaling and Vietnamese labels are
   // longer, either of which eats it. 13rem = 208px gives 25px, which survives a step of text
   // enlargement. It is still a guess at a measured thing, which is why the warning below matters.
+  // ⚠️ 14rem SINCE 2026-09-25, RE-MEASURED AS THIS WARNS: the "still needed" chips grew from 23px to
+  // 36px tall (tap targets), so the bar measured 196px at 390×844 with them showing — 13rem left 12px.
+  // 14rem = 224px restores the ~28px margin argued for above.
   // ⚠️ IF YOU CHANGE THE BAR'S CONTENTS, RE-MEASURE THIS. The two numbers are coupled with nothing
   // to enforce it: the bar grows, this does not, and the failure is silent — the last field simply
   // sits under the bar and the seller cannot reach it.
   return (
-    <div className="pb-[calc(13rem+env(safe-area-inset-bottom))] lg:pb-0">
+    <div className="pb-[calc(14rem+env(safe-area-inset-bottom))] lg:pb-0">
       {/* Exit is a <Link>, not an <a>: inside the Capacitor WebView a raw anchor is a fresh
           HTTP load of the live site — blank screen, full document teardown. The draft is
           already autosaved to localStorage, so a soft nav loses nothing. */}
       {!embedded && (
-        <Link href="/" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer">
+        <Link href="/" className="relative inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer tap-44">
           <ChevronLeft className="h-4 w-4" /> {t('Thoát', 'Exit')}
         </Link>
       )}
@@ -981,7 +987,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       type="button"
                       aria-pressed={categorySlug === c.slug}
                       onClick={() => chooseCategory(c.slug)}
-                      className={cn('gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
+                      // Same target recipe as <Chips> (post-wizard-parts): py-2.5 draws 40px, tap-44
+                      // adds 2px each way — inside the row's 8px gap, so no chip reaches another.
+                      className={cn('relative gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors tap-44', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
                     >
                       {/* ⚠️ FILL IS THE SELECTION CUE (owner, 2026-08-07: "use icons filling only
                           when selected, not as default"). `selected` is the SAME boolean that
@@ -1080,7 +1088,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   flex GAP does not collapse with a sibling's margin the way the old `space-y-1.5`
                   block flow did — they ADD. An mb-1.5 here would put 12px under the row, not 6px. */}
               {aiEnabled && (
-                <div className="flex max-w-2xl justify-end">
+                /* pb-1.5 is the room "Polish with AI"'s tap-44 reaches into. The textarea below is
+                   `relative` so it keeps every tap on its own box (a stray tap there must never
+                   rewrite the description with paid AI); with the plain 6px gap that left the
+                   button a 39px target. 6px more makes it a full 44 without touching the field. */
+                <div className="flex max-w-2xl justify-end pb-1.5">
                   <Button
                     type="button"
                     variant="bare"
@@ -1092,7 +1104,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     // disabled:pointer-events-none — this button is disabled until the
                     // description has 3 chars, and that is exactly when its title=
                     // tooltip explains why. A disabled <button> still fires no click.
-                    className="gap-1 rounded-lg px-2 py-1 text-2xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:pointer-events-auto disabled:opacity-40 cursor-pointer"
+                    className="relative gap-1 rounded-lg px-2 py-1 text-2xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:pointer-events-auto disabled:opacity-40 cursor-pointer tap-44"
                   >
                     {aiBusy === 'desc' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                     {t('Chỉnh bằng AI', 'Polish with AI')}
@@ -1108,7 +1120,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     onBlur={() => touch('description')}
                     rows={5}
                     placeholder={t('Mô tả chi tiết…', 'Describe it in detail…')}
-                    className={cn('max-w-2xl resize-none', err.description && 'ring-2 ring-destructive/60')}
+                    // `relative` so the field keeps its OWN taps: the "Polish with AI" button above
+                    // carries tap-44, whose hit area reaches ~4px past the 6px gap into this box, and a
+                    // positioned pseudo paints (and hit-tests) above an unpositioned sibling. A tap on
+                    // the field's top edge must focus it, never rewrite the description with paid AI.
+                    className={cn('relative max-w-2xl resize-none', err.description && 'ring-2 ring-destructive/60')}
                   />
                 }
               />
@@ -1245,7 +1261,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           bottom-0 (so there's no gap when the nav auto-hides) while the button is
           padded up clear of the nav; the form root reserves matching space below so
           the last fields never hide behind it. */}
-      <div data-fab-clear className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] material backdrop-blur lg:hidden">
+      {/* ⚠️ `[html.kb-open_&]:pb-3` — THE 4.75rem IS THE BOTTOM NAV'S CLEARANCE, AND THE NAV HIDES WHILE
+          TYPING (globals.css `html.kb-open .mobile-nav`). Keeping it reserved 76px for chrome that was
+          not there: at 390×508 (Android, keyboard up) the bar stood 183px tall — 36% of the viewport —
+          and the focused description ran underneath it. Sliding the whole bar away while typing is a
+          separate owner decision; this only stops reserving room for a nav that is gone.
+          The safe-area inset goes too, on purpose: above a keyboard there is no home indicator to
+          clear — the same "no stale home-indicator gap above the keyboard" rule as .kb-bottom. */}
+      <div data-fab-clear className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] [html.kb-open_&]:pb-3 material backdrop-blur lg:hidden">
         <div className="mx-auto max-w-7xl space-y-2">
           {/* What's still missing — mobile parity with the desktop checklist */}
           {/* ⚠️ TAPPABLE CHIPS ON ONE SCROLLING ROW — was a `truncate`d sentence, and both halves
@@ -1270,7 +1293,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     variant="bare"
                     size="none"
                     onClick={() => scrollToField(c.key)}
-                    className="press shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-1 text-2xs font-semibold text-warning cursor-pointer"
+                    // min-h-9 py-2, NOT tap-44: this row is an overflow-x scroller, which clips a
+                    // pseudo-element hit area to its own box — the chip has to BE the target.
+                    className="press min-h-9 shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-2 text-2xs font-semibold text-warning cursor-pointer"
                   >
                     {c.label}
                   </Button>

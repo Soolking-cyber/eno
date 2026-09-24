@@ -228,7 +228,9 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
           type="button"
           aria-pressed={value === o.value}
           onClick={() => onPick(o.value)}
-          className={cn('gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', value === o.value ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
+          // py-2.5 + tap-44: 40px drawn, 44px hit. The 2px the pseudo reaches past each edge sits
+          // inside the row's 8px gap, so no chip's hit area ever lands on its neighbour's.
+          className={cn('relative gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44', value === o.value ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
         >
           {o.icon && (
             // Fill marks the pick (owner, 2026-08-07: "use icons filling only when selected").

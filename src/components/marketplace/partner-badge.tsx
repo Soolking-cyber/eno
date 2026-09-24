@@ -3,7 +3,7 @@ import * as React from 'react'
 
 import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
-import { UI_ART } from '@/generated/icon-paths'
+import { SHIELD_VERIFIED } from '@/generated/ui-art-shields'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -116,7 +116,7 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
         >
           {/* The trust chip's exact glyph — Solar shield-verified at 11px, painted the same way (trust-score.tsx mini). */}
           <svg width={11} height={11} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
-            {UI_ART['shield-verified'].rest.map((p, i) => (
+            {SHIELD_VERIFIED.rest.map((p, i) => (
               <path key={i} d={p.d} fill="currentColor" fillRule={p.evenOdd ? 'evenodd' : undefined} clipRule={p.evenOdd ? 'evenodd' : undefined} />
             ))}
           </svg>

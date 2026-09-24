@@ -33,10 +33,34 @@ function maybeTrackSignUp(u: User): void {
 // page yet a logged-out visitor needs neither up front. Load the client lazily
 // after mount (keeps it out of the initial bundle / off the hydration path) and
 // the sign-in dialog only when it's actually opened.
-const SignInDialog = dynamic(
-  () => import('@/components/marketplace/sign-in-dialog').then((m) => m.SignInDialog),
-  { ssr: false },
-)
+/**
+ * ⛔ ONE `import()` EXPRESSION, SHARED BY THE `dynamic()` BELOW AND BY `preloadSignIn` — NOT TWO
+ * `import()`s OF THE SAME PATH. Measured on a Turbopack build (2026-09-25): an inline
+ * `dynamic(() => import(X))` is rewritten by Next's next/dynamic transform into its OWN chunk group,
+ * so a second, plain `import(X)` of the identical specifier emitted a SEPARATE 6 KB chunk carrying a
+ * duplicate of SignInDialog — the preload warmed that copy while the click still waited on the
+ * dynamic() one. Routing both through this one loader makes them the same request.
+ */
+const loadSignInDialog = () => import('@/components/marketplace/sign-in-dialog')
+const SignInDialog = dynamic(() => loadSignInDialog().then((m) => m.SignInDialog), { ssr: false })
+
+/**
+ * Start fetching the sign-in dialog's chunks NOW — call it on `pointerdown` of a guest-gated control.
+ *
+ * The first tap on any gated action used to wait on the network: the dialog's chunks started only
+ * when `openSignIn` mounted it on `click`, so its first frame landed 380ms after the tap on a fast
+ * phone and 860ms at 4× CPU against production (a second tap, chunks cached: 82ms). A finger's
+ * pointerdown→click gap is ~100ms on its own; starting the fetch there spends that gap on the
+ * download instead of on nothing. Idempotent — the module loader dedupes repeat calls.
+ *
+ * ⚠️ It only fetches — it mounts nothing, so `everOpened` (below) still starts false and a page load
+ * with no tap requests no sign-in chunk.
+ */
+export const preloadSignIn = () => {
+  // Swallowed on purpose: a preload that fails (offline at pointerdown) must not surface as an
+  // unhandled rejection — the real open() on click asks for the same module again and reports there.
+  loadSignInDialog().catch(() => {})
+}
 
 /** Optional listing context for the sign-in dialog: when a gated action names
  *  WHAT signing in unlocks ("message James about X"), conversion beats a generic

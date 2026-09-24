@@ -100,7 +100,9 @@ export function StepRail({
                 type="button"
                 onClick={() => onStepSelect(step.key, i)}
                 aria-label={step.label}
-                className="press rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                // relative tap-44: the node draws at 36px; the 4px the hit area reaches past each
+                // side stays inside the connector's 6px margin, never on the next node.
+                className="press relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand/40 tap-44"
               >
                 {node}
               </button>

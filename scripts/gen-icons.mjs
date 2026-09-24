@@ -572,22 +572,38 @@ for (const p of plan) {
   ;(art[bucket][p.name] ??= {})[p.state] = asPaths(p.body)
 }
 
+/** One glyph's `{ rest, selected }` literal; `pad` is the indent of the line that opens it. */
+const artLiteral = (states, pad = '') =>
+  '{\n' +
+  ['rest', 'selected']
+    .map(
+      (s) =>
+        `${pad}  ${s}: [${states[s]
+          .map((q) => `{ d: ${JSON.stringify(q.d)}${q.evenOdd ? ', evenOdd: true' : ''} }`)
+          .join(', ')}],`
+    )
+    .join('\n') +
+  `\n${pad}}`
 const lit = (rows) =>
   Object.entries(rows)
-    .map(
-      ([name, states]) =>
-        `  ${JSON.stringify(name)}: {\n` +
-        ['rest', 'selected']
-          .map(
-            (s) =>
-              `    ${s}: [${states[s]
-                .map((q) => `{ d: ${JSON.stringify(q.d)}${q.evenOdd ? ', evenOdd: true' : ''} }`)
-                .join(', ')}],`
-          )
-          .join('\n') +
-        `\n  },`
-    )
+    .map(([name, states]) => `  ${JSON.stringify(name)}: ${artLiteral(states, '  ')},`)
     .join('\n')
+
+/**
+ * ⛔ THE CATEGORY TILES' PATH DATA IS NO LONGER EMITTED — ONLY THEIR SLUGS (2026-09-25).
+ *
+ * The tiles have drawn the owner's raster pack since 2026-09-18 (category-art.tsx), so the ~71 KB of
+ * Solar geometry this table held was DEAD: `CategoryTileGlyph` read it for one thing — "does this
+ * slug have tile artwork?" — and shipped every path string to answer it. Measured on the first-load
+ * chunk that carried it (together with UI_ART, below): 61 KB brotli / 186,553 B decoded, 100%
+ * evaluated, the second-largest first-load chunk on both home and the PDP. A set of slugs answers
+ * the same question in a few hundred bytes. The geometry is still generated — public/icons/rest|selected
+ * and the `asPaths` shape check above still run over every tile — it just no longer reaches a bundle.
+ */
+const categorySlugs = Object.keys(art.category)
+if (categorySlugs.length !== CATEGORIES.length) {
+  fail(`icon-paths.ts: ${categorySlugs.length} category glyph slugs emitted, ${CATEGORIES.length} tiles declared`)
+}
 
 writeFileSync(
   join(ROOT, 'src/generated/icon-paths.ts'),
@@ -599,6 +615,11 @@ writeFileSync(
 //
 // \`evenOdd\` carries Solar's \`fill-rule="evenodd"\`, which is load-bearing: without it every
 // counter (the hole in a keyhole, the gap in a padlock) fills solid and the glyph becomes a blob.
+//
+// ⚠️ DO NOT IMPORT \`UI_ART\` FROM A COMPONENT. It is one object holding every UI glyph (~118 KB of
+// path data), so a route that imports it to draw ONE glyph ships all of them on first load — which
+// is how two shields cost the home page a 61 KB-brotli chunk. Emit the glyph you need into its own
+// small module instead (see ui-art-shields.ts, written by the same generator).
 
 /** One filled subpath. \`evenOdd\` means it needs \`fillRule="evenodd"\` to keep its holes. */
 export type IconPath = { readonly d: string; readonly evenOdd?: boolean }
@@ -606,16 +627,54 @@ export type IconPath = { readonly d: string; readonly evenOdd?: boolean }
 /** \`rest\` = Solar Outline, \`selected\` = Solar Bold. Both are separately drawn glyphs. */
 export type IconArt = { readonly rest: readonly IconPath[]; readonly selected: readonly IconPath[] }
 
-/** The 17 category tiles, keyed by taxonomy slug. */
-export const CATEGORY_ART: Readonly<Record<string, IconArt>> = {
-${lit(art.category)}
-}
+/**
+ * The ${categorySlugs.length} category tiles that have artwork, keyed by taxonomy slug — a REGISTRY, not path
+ * data: the tiles draw the raster pack (category-art.tsx), so only membership is needed here.
+ */
+export const CATEGORY_GLYPH_SLUGS: ReadonlySet<string> = new Set(${JSON.stringify(categorySlugs)})
 
-/** The 40 UI glyphs, keyed by the app-facing name in \`src/lib/ui-icons.ts\`. */
+/** The ${Object.keys(art.ui).length} UI glyphs, keyed by the app-facing name in \`src/lib/ui-icons.ts\`. ⚠️ See the header. */
 export const UI_ART: Readonly<Record<string, IconArt>> = {
 ${lit(art.ui)}
 }
 `
+)
+
+/**
+ * ⛔ THE TRUST SHIELDS GET THEIR OWN MODULE, SO THE CARDS THAT DRAW THEM DO NOT SHIP THE WHOLE SET.
+ *
+ * trust-score.tsx and partner-badge.tsx render on every listing card and inline these two glyphs as
+ * <path>s (a gradient fill and a numeral over the shield cannot ride a sprite \`<use>\`). They used
+ * to read them out of UI_ART, which put all ~51 UI glyphs on the hydration path of every page with
+ * a card. This module holds exactly the two they draw.
+ *
+ * ⚠️ COMMITTED, UNLIKE icon-paths.ts: it is a few KB of human-checkable output, and every build
+ * rewrites it byte-for-byte from the same pinned @solar-icons/static — so a diff here after a build
+ * means the SOURCE changed (a dependency bump), which is exactly what a reviewer should see.
+ */
+const SHIELDS = [
+  { name: 'shield-verified', ident: 'SHIELD_VERIFIED' },
+  { name: 'trust-shield', ident: 'TRUST_SHIELD' },
+]
+for (const { name } of SHIELDS) {
+  if (!art.ui[name]?.rest || !art.ui[name]?.selected) fail(`ui-art-shields.ts: UI row "${name}" is missing — the trust badges draw it`)
+}
+writeFileSync(
+  join(ROOT, 'src/generated/ui-art-shields.ts'),
+  `// GENERATED by scripts/gen-icons.mjs — do not edit. Run \`npm run icons\`.
+//
+// The two Solar shields the trust badges inline (trust-score.tsx, partner-badge.tsx), and nothing
+// else — see the note above SHIELDS in the generator for why they do not come from UI_ART.
+
+/** One filled subpath. \`evenOdd\` means it needs \`fillRule="evenodd"\` to keep its holes. */
+export type ShieldPath = { readonly d: string; readonly evenOdd?: boolean }
+
+/** \`rest\` = Solar Outline, \`selected\` = Solar Bold. */
+export type ShieldArt = { readonly rest: readonly ShieldPath[]; readonly selected: readonly ShieldPath[] }
+
+${SHIELDS.map(({ name, ident }) =>
+  `/** Solar \`${UI.find((r) => r.name === name).icon}\` — the \`${name}\` row. */\n` +
+  `export const ${ident}: ShieldArt = ${artLiteral(art.ui[name])}\n`).join('\n')}`
 )
 
 // ── the lucide drop-in shim ──────────────────────────────────────────────────────────────────
