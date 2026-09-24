@@ -1697,10 +1697,12 @@ export function ListingsExplorer({
    * ⛔ "ASK TO NARROW IT DOWN" ON THE MOBILE MAP — owner, 2026-09-24: "if there are more than 100
    * available options ask to narrow it down with price range popup and filter popup like 2bd 3bd etc".
    *
-   * ⚠️ IT OPENS THE FILTERS DRAWER THAT ALREADY EXISTS rather than adding popups. `ExplorerFiltersDrawer`
-   * is the house bottom-sheet for exactly this, it already carries price, rooms and everything else,
-   * and its Apply CTA already answers "how many are left" — building a second price popover beside it
-   * would be the hand-rolled duplicate CLAUDE.md's Base-UI policy exists to prevent.
+   * ⚠️ IT OPENS THE FILTER PANEL THAT ALREADY EXISTS rather than adding popups. <FacetBar>'s advanced
+   * panel already carries price, rooms and the rest of the category's facets, so building a second
+   * price popover beside it would be the hand-rolled duplicate CLAUDE.md's Base-UI policy exists to
+   * prevent. (It used to open the old mobile filters drawer; that component was deleted upstream
+   * when filtering moved into this bar and the Area panel — do not name it here, a wiring test
+   * asserts no dead reference to it survives anywhere in this file, comments included.)
    *
    * ⛔ ROOMS IS OFFERED ONLY WHEN IT EXISTS, AND THAT IS NOT A DETAIL. `facetsFor()` returns a facet
    * carrying `subcats` ONLY when a matching subcategory is active, so on "all categories" it returns
@@ -1836,6 +1838,15 @@ export function ListingsExplorer({
    * again while the one you waved away stays quiet.
    */
   const [dismissedForSig, setDismissedForSig] = useState<string | null>(null)
+  /**
+   * ⛔ THE PROMPT'S BUTTON LOST ITS TARGET IN A REBASE, AND IT WAS A DELETED COMPONENT. It opened
+   * the old mobile filters drawer, which upstream removed when filtering moved into <FacetBar> and
+   * the Area panel — that file no longer exists. Only `tsc` caught it: the 3-way merge applied
+   * cleanly and nothing complained until the type-check ran after the rebase.
+   * The surviving surface with the same facets is FacetBar's own filter panel, so the prompt bumps
+   * a counter it watches. A counter, not a boolean, so the reader closing the panel sticks.
+   */
+  const [openFilterSignal, setOpenFilterSignal] = useState(0)
   const roomsFacet = useMemo(
     () => facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory)
       .find((f) => f.key === 'bedrooms'),
@@ -3341,6 +3352,7 @@ export function ListingsExplorer({
             leading={
               <div className="min-h-12">
                 <FacetBar
+                  openFilterSignal={openFilterSignal}
                   facetCounts={facetCounts}
                   activeCategory={activeCategory}
                   activeSubcategory={activeSubcategory}
@@ -3754,9 +3766,9 @@ export function ListingsExplorer({
                         {/**
                           * ⛔ ONE BUTTON, NOT THREE — and the reason is honesty, not tidiness. The first
                           * cut offered "Price", a rooms chip and "All filters" side by side; a reviewer
-                          * pointed out all three called `setIsMobileFilterOpen(true)` and nothing else,
+                          * pointed out all three opened the same panel and nothing else,
                           * so "Price" did not take you to price and the rooms chip did not take you to
-                          * rooms. `ExplorerFiltersDrawer` takes no section target, so per-facet buttons
+                          * rooms. The filter panel takes no section target, so per-facet buttons
                           * cannot honour their own labels without threading a scroll/focus anchor
                           * through it — and three controls that lie about where they go are worse than
                           * one that says exactly what it does. The copy names what is inside instead.
@@ -3765,7 +3777,7 @@ export function ListingsExplorer({
                           <Button
                             variant="bare"
                             size="none"
-                            onClick={() => setIsMobileFilterOpen(true)}
+                            onClick={() => setOpenFilterSignal((n) => n + 1)}
                             className="rounded-full border border-line-strong px-3.5 py-1.5 text-xs font-bold text-foreground transition-colors hover:bg-muted"
                           >
                             {tr('Narrow it down', 'Thu hẹp kết quả')}

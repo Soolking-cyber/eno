@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
 import { MapPin, ChevronDown, SlidersHorizontal, X } from '@/components/ui/icons'
 import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { scrollBehavior } from '@/lib/reduced-motion'
 import { useLanguage } from '@/context/language-context'
 import { CONDITION_FACET, facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
@@ -168,6 +169,8 @@ function ChipCount({ n, selected }: { n: number | null; selected: boolean }) {
 }
 
 export type FacetBarProps = {
+  /** Bump to open the advanced filter panel; see the note on the destructured prop in FacetBar. */
+  openFilterSignal?: number
   activeCategory: string
   activeSubcategory: string // drives subcategory-specific facets (e.g. cc vs L engine)
   /** ⚠️ NO LONGER A PICKER — the panel's subcategory chips were removed on 2026-08-12 (see
@@ -229,6 +232,16 @@ export type FacetBarProps = {
 // from the canonical taxonomy (src/lib/taxonomy.ts). Only the facets relevant to
 // the active category show.
 export function FacetBar({
+  /**
+   * ⛔ AN OPEN SIGNAL, NOT AN OPEN BOOLEAN. The map's "narrow it down" prompt has to be able to open
+   * this panel, but it must not OWN whether it is open — the reader closing it has to stick, and a
+   * controlled boolean from a parent that never hears about the close would reopen it on the next
+   * render. A monotonically increasing counter says "open it now" once per bump and leaves the state
+   * here, where the trigger and the Escape key already live.
+   * ⚠️ Its previous target, `ExplorerFiltersDrawer`, was deleted upstream when filtering moved into
+   * this bar and the Area panel; this is the surviving surface that holds the same facets.
+   */
+  openFilterSignal,
   activeCategory,
   activeSubcategory,
   setActiveSubcategory,
@@ -459,6 +472,34 @@ export function FacetBar({
    * whose chip is not in here to remove. Same reason it left the panel's own "Clear all" below.
    */
   const hasAdvanced = advFacets.length > 0
+
+  /**
+   * ⛔ THE ADVANCED PANEL DOES NOT ALWAYS EXIST, AND THAT IS THE WHOLE DIFFICULTY. `facetsFor()`
+   * returns nothing for "all categories", so `hasAdvanced` is false on the DEFAULT map — which is
+   * exactly the surface where a ">100 results" prompt fires. Setting `advOpen` there opened a
+   * Popover with no trigger and no content: the button appeared to do nothing, which is how it
+   * tested (verified on the built app before this).
+   * So: open the panel when there IS one, and otherwise bring this bar's own controls — Price, Area,
+   * Condition, which exist on every surface — into view and put focus on the first, which is a real
+   * outcome rather than a no-op. Done from inside FacetBar because this is its DOM; reaching into it
+   * from the explorer would be the fragile version.
+   */
+  const barRef = useRef<HTMLDivElement | null>(null)
+  const lastOpenSignal = useRef(openFilterSignal ?? 0)
+  useEffect(() => {
+    const next = openFilterSignal ?? 0
+    if (next === lastOpenSignal.current || next <= 0) return
+    lastOpenSignal.current = next
+    if (hasAdvanced) { setAdvOpen(true); return }
+    const el = barRef.current
+    if (!el) return
+    // ⚠️ `scrollBehavior()`, NOT a literal 'smooth' — design-lint caught this: an explicit behavior
+    // in the options bag outranks `scroll-behavior: auto !important` in globals.css, so the
+    // reduced-motion kill switch would read as if it worked and do nothing.
+    el.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
+    // The first facet trigger — focus makes the hand-off visible without forcing a panel open.
+    el.querySelector<HTMLButtonElement>('button[aria-expanded]')?.focus()
+  }, [openFilterSignal, hasAdvanced])
   const activeAdvCount =
     (conditionFilter !== 'all' ? 1 : 0) +
     advFacets.filter((f) => f.key !== 'condition' && customFilters[f.key]).length
@@ -502,7 +543,7 @@ export function FacetBar({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={barRef}>
       {/* Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps. */}
       {/* ⚠️ `overscroll-x-contain` — see the note in listing-gallery.tsx: without it a flick at
           either end of this strip chains to an ancestor, or to the iOS swipe-back gesture. It only
