@@ -142,9 +142,16 @@ describe('cookie consent card', () => {
   it('enters in 150ms and leaves in 100ms on the strong ease-out (was a symmetric 200ms `ease`)', async () => {
     render(<LanguageProvider><CookieConsent /></LanguageProvider>)
     await act(async () => { vi.advanceTimersByTime(5_000) })
-    const card = document.querySelector('.shadow-overlay.max-w-md')
-    expect(card).not.toBeNull()
-    expect(tokens(card!)).toEqual(expect.arrayContaining(['duration-150', 'ease-[var(--ease-out-strong)]', 'data-closed:duration-100', 'data-closed:animate-out']))
-    expect(tokens(card!)).not.toContain('duration-200')
+    const card = screen.getByRole('dialog', { name: 'Cookie consent' })
+    expect(tokens(card)).toEqual(expect.arrayContaining(['duration-150', 'ease-[var(--ease-out-strong)]', 'data-closed:duration-100', 'data-closed:animate-out']))
+    expect(tokens(card)).not.toContain('duration-200')
+  })
+
+  it('docked at the bottom, it rises from that edge and sinks back into it — no centred zoom', async () => {
+    render(<LanguageProvider><CookieConsent /></LanguageProvider>)
+    await act(async () => { vi.advanceTimersByTime(5_000) })
+    const card = screen.getByRole('dialog', { name: 'Cookie consent' })
+    expect(tokens(card)).toEqual(expect.arrayContaining(['slide-in-from-bottom-4', 'data-closed:slide-out-to-bottom-4']))
+    expect(tokens(card)).not.toContain('zoom-in-95')
   })
 })

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
 import { getConsent, setConsent, syncConsentCookie } from '@/lib/consent'
@@ -52,9 +51,58 @@ function Toggle({ title, desc, value, onChange, locked = false }: { title: strin
  */
 const SHOW_AFTER_MS = 4_000
 
-/** Sleek, compact consent banner — a horizontal card with the shield mascot filling
- *  the height on the left and tight copy + slim actions on the right. "Allow" turns on
- *  personalized recommendations + ad signals; "Settings" fine-tunes each or declines. */
+/**
+ * ⛔ HOW LONG A FRESHLY SHOWN BAR — OR A FRESHLY SWITCHED VIEW — IGNORES CLICKS ON ITS CHOICES.
+ *
+ * The bar arrives on its own, four seconds in, at the bottom of the screen: the band a thumb is
+ * already working in. Measured on the old centred card (prod, 390x844): a tap aimed at a listing
+ * card landed on "Allow cookies" as the card appeared, and a photo tap on the PDP landed on the
+ * card. A tap the finger had already committed to before the bar existed is not a choice, and on
+ * this surface a mis-tap WRITES a consent decision the reader never made, in either direction.
+ * So for 400ms after the bar appears nothing on it records anything; the same window re-arms when
+ * the view changes, because Settings expands the bar in place and a double-tap on it would
+ * otherwise land its second half on Save, and whenever the bar comes back after stepping aside.
+ * ⚠️ ONLY WHAT APPEARS ON ITS OWN IS GUARDED. The footer's "Cookie settings" is a deliberate open —
+ * the reader asked for it and is already aimed — so that bar acts on its first click (review, twice:
+ * a silent no-op on the withdrawal path is the one place a dropped click is not acceptable).
+ * ⚠️ IGNORED IN onClick, NOT WITH `pointer-events-none`. Disarming the hit test would let that
+ * in-flight tap fall THROUGH the bar onto whatever is underneath — the opposite of the point. The
+ * bar keeps catching every tap in its box; it just does not act on the too-early ones.
+ * ⚠️ 400ms is below a deliberate read-aim-tap (a new surface has to be seen before it is aimed at)
+ * and above the lag between a finger committing and the press landing; it is the figure the mobile
+ * audit recommended. A tap it swallows costs one more tap. A tap it lets through costs a consent.
+ */
+const ARM_AFTER_MS = 400
+
+/**
+ * Is something else holding the screen — a scrimmed overlay open, or the virtual keyboard up?
+ *
+ * ⛔ THE AUTO-PROMPT NEVER SITS ON TOP OF EITHER: it waits for both to clear before it appears, and
+ * if one opens while it is up it steps aside and comes back when they close. The bar lives at
+ * z-[200] in the bottom band, which is exactly where a sheet's or a dialog's primary action sits: a
+ * guest who taps Account at t=2s would have the sign-in sheet's buttons covered at t=4s. And with the
+ * keyboard up the bar would ride above it, over the search field or a chat composer — the tab bar
+ * hides then for the same reason (`html.kb-open`, globals.css).
+ * ⚠️ STEPPING ASIDE IS A STATE CHANGE, NOT ONLY A HIDE, so the bar re-enters with its animation and a
+ * fresh ARM_AFTER_MS window: it returns the moment the overlay closes, which is the moment a finger
+ * that just closed it is still in the bottom band. (The wrapper ALSO hides by CSS — instantly, for
+ * the ≤BUSY_POLL_MS before the state catches up. That is only safe because pointer dismissal is off:
+ * hidden but dismissible, the first tap inside the sheet would have closed a consent prompt nobody
+ * could see, storing nothing — opus caught that shape at plan time.)
+ * ⚠️ `.overlay-scrim` is the one class every scrimmed overlay renders while open — ui/dialog,
+ * sheet, drawer, alert-dialog, select, dropdown, combobox, and the explorer's area filter and
+ * custom select — and none of them keep it mounted when closed, so it is the "something else owns
+ * the screen" signal (back-to-top reads the same idea off data-slots).
+ */
+function screenBusy(): boolean {
+  return document.documentElement.classList.contains('kb-open') || document.querySelector('.overlay-scrim') !== null
+}
+/** How often the auto-prompt re-checks `screenBusy()` — only while it is waiting or on screen. */
+const BUSY_POLL_MS = 250
+
+/** The consent bar — a slim strip docked above the tab bar (owner, 2026-09-25: "Slim bottom bar").
+ *  One sentence and three equal choices: Accept / Decline / Settings. Settings expands the same bar
+ *  into the detailed choices, which is also what the footer's "Cookie settings" opens directly. */
 export function CookieConsent() {
   const { tr } = useLanguage()
   // Where initial focus goes when the dialog opens — see initialFocus on the Popup below.
@@ -70,6 +118,8 @@ export function CookieConsent() {
    * covers both, and is the behaviour a person would describe as "I closed it".
    */
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Whether the choices act on a click yet — see ARM_AFTER_MS. A ref, so a click reads it live. */
+  const armed = useRef(false)
   const [show, setShow] = useState(false)
   /**
    * Did the CARD open because the user asked for it (footer "Cookie settings"), or did it appear on
@@ -81,6 +131,8 @@ export function CookieConsent() {
   const [everShown, setEverShown] = useState(false)
   /** The auto-open fired while the visitor was on /signin; show it once they are elsewhere. */
   const [deferred, setDeferred] = useState(false)
+  /** The auto-open fired while an overlay or the keyboard held the screen — see screenBusy(). */
+  const [waiting, setWaiting] = useState(false)
   const [view, setView] = useState<'ask' | 'settings'>('ask')
   const [perso, setPerso] = useState(true)
   // ⛔ AD PERSONALIZATION STARTS OFF. It started ON, so a first visitor who opened "Cookie settings"
@@ -121,13 +173,12 @@ export function CookieConsent() {
     if (getConsent() !== null) return
     /**
      * ⛔ DEFERRED, NOT SUPPRESSED, ON THE SIGN-IN ROUTE — AND THE FIRST VERSION OF THIS GUARD GOT
-     * THAT WRONG. This card is `fixed inset-0 … items-center justify-center` — dead centre of the
-     * viewport by design, and with no backdrop it simply sits over whatever is there. `/signin` now
-     * centres the sign-in card in the same place (it renders the popup's own `<SignInCard>`), so
-     * the two overlapped almost perfectly: measured on a 1440x900 build, the consent card covered
-     * the heading, the Google button, the email field and the submit, leaving only the legal line
-     * and "Back to eno.vn" visible around its edges. Reported as the page being "empty", which is
-     * exactly how it reads.
+     * THAT WRONG. When this was a centred card it sat dead centre of the viewport, and `/signin`
+     * centres the sign-in card (the popup's own `<SignInCard>`) in the same place: measured on a
+     * 1440x900 build, the consent card covered the heading, the Google button, the email field and
+     * the submit, and the page was reported as "empty". The bar now docks at the bottom instead, but
+     * on a phone the sign-in form's submit and legal line sit in that same bottom band, so the
+     * deferral still earns its place and is kept as it was.
      * ⛔ BUT A BARE `return` HERE WOULD HAVE SUPPRESSED CONSENT FOR THE WHOLE SESSION, not deferred
      * it, and the comment claiming otherwise would have been false. This component is mounted from
      * a layout that never unmounts, so a visitor who ENTERS at /signin — a magic-link landing, an
@@ -150,6 +201,7 @@ export function CookieConsent() {
        */
       if (getConsent() !== null) return
       if (window.location.pathname === SIGNIN_PATH) setDeferred(true)
+      else if (screenBusy()) setWaiting(true)
       else setShow(true)
     }, SHOW_AFTER_MS)
     autoTimer.current = t
@@ -173,10 +225,10 @@ export function CookieConsent() {
     /**
      * ⛔ AND A CARD THAT IS ALREADY OPEN STEPS ASIDE WHEN THE VISITOR ARRIVES AT /signin. The timer
      * check cannot cover this: the card may have opened legitimately on `/` and the visitor then
-     * navigate to the sign-in route, where it lands on the form exactly as before. Measured, the
-     * realistic path self-resolves — clicking a sign-in link is an outside press, which dismisses
-     * this non-modal dialog on the way out — but that makes the invariant accidentally true rather
-     * than true, and a Back navigation does not press anything. A reviewer walked it through.
+     * navigate to the sign-in route, where it lands on the form exactly as before. This used to
+     * self-resolve by accident — clicking a sign-in link was an outside press, which dismissed the
+     * non-modal card on the way out — and the bar no longer closes on an outside press (see the Root
+     * below), so this branch is now the ONLY thing that moves it off /signin. A test pins it.
      * ⚠️ `!openedByUser`, so a visitor who deliberately opened Cookie settings on /signin (their
      * PDPL withdrawal right, reachable from the footer everywhere) is not closed out from under
      * their own click.
@@ -189,11 +241,55 @@ export function CookieConsent() {
       return
     }
     if (!deferred) return
-    setShow(true)
     setDeferred(false)
+    // Off /signin, but something may still hold the screen — hand over to the wait, not the bar.
+    if (screenBusy()) setWaiting(true)
+    else setShow(true)
   }, [deferred, pathname, show, openedByUser])
 
+  /**
+   * The other half of `screenBusy()`, for the automatic prompt only. While it WAITS, look again every
+   * BUSY_POLL_MS and show it the moment the overlay has closed and the keyboard is down — the same
+   * three exits as the timer: decided meanwhile → never; on /signin → the route deferral above takes
+   * it; otherwise → shown. While it is UP, step it aside the moment something else takes the screen.
+   * A poll, not a MutationObserver on <body>: what it watches is a class on <html> as well as an
+   * element anywhere in the portal layer, a mutation observer there would fire on every feed append,
+   * and a querySelector four times a second is nothing. It runs only while the prompt is waiting or
+   * showing, and a deliberate (footer) open is left alone — the reader asked for it.
+   */
+  const autoShown = show && !openedByUser
+  useEffect(() => {
+    if (!waiting && !autoShown) return
+    const iv = setInterval(() => {
+      if (waiting) {
+        if (getConsent() !== null) { setWaiting(false); return }
+        if (screenBusy()) return
+        setWaiting(false)
+        if (window.location.pathname === SIGNIN_PATH) setDeferred(true)
+        else setShow(true)
+      } else if (screenBusy()) {
+        setShow(false)
+        setWaiting(true)
+      }
+    }, BUSY_POLL_MS)
+    return () => clearInterval(iv)
+  }, [waiting, autoShown])
+
   useEffect(() => { if (show) setEverShown(true) }, [show])
+
+  /**
+   * Arm the choices ARM_AFTER_MS after the bar appears on its own, and again after every view change
+   * — see the constant for why. Before the effect runs `armed` is already false (it starts false and
+   * `close()` resets it), so there is no frame in which a just-shown bar acts on a click. A deliberate
+   * open (the footer's Cookie settings) is armed at once.
+   */
+  useEffect(() => {
+    if (!show) return
+    if (openedByUser) { armed.current = true; return }
+    armed.current = false
+    const t = setTimeout(() => { armed.current = true }, ARM_AFTER_MS)
+    return () => clearTimeout(t)
+  }, [show, view, openedByUser])
 
   // Withdrawal right (PDPL): the footer "Cookie settings" link dispatches this to
   // reopen the banner any time, pre-filled with the current choice, so consent is
@@ -211,10 +307,10 @@ export function CookieConsent() {
   /**
    * ⛔ MOUNTED ONCE SHOWN, SO THE EXIT ANIMATION THE POPUP DECLARES CAN ACTUALLY RUN. This was
    * `if (!show) return null`, which unmounts `DialogPrimitive.Root` in the same commit that closes
-   * it — so `data-closed:animate-out fade-out zoom-out-95` on the popup below never had a frame to
-   * run in, and the card vanished instantly after fading in over 200ms. Declared-but-dead exit
-   * animation, and the same shape auth-context.tsx already solved for the sign-in dialog (its note
-   * on `everOpened` explains the identical trade).
+   * it — so the `data-closed:animate-out` on the popup below never had a frame to run in, and the
+   * card vanished instantly after animating in. Declared-but-dead exit animation, and the same
+   * shape auth-context.tsx already solved for the sign-in dialog (its note on `everOpened` explains
+   * the identical trade).
    * ⚠️ `everShown`, NOT a plain `true`: nothing renders before the 4s timer or the footer's reopen
    * fires, so a visitor who never sees the card never mounts a dialog at all.
    * ⚠️ `|| show` IS WHAT KEEPS THE OPEN INSTANT. `everShown` latches in an effect, which runs after
@@ -233,9 +329,15 @@ export function CookieConsent() {
    *     than the question, pre-filled from a `getConsent()` that had returned null.
    *   · `openedByUser` back to false, so a later automatic appearance cannot inherit "the user
    *     asked for this" from an earlier footer click and steal focus.
+   * The bar adds two more: the choices disarm, so the next appearance starts its ARM_AFTER_MS
+   * window from zero; and a waiting auto-open (screenBusy) is cancelled with the timer it continues.
    */
   const close = () => {
     if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null }
+    armed.current = false
+    // A waiting auto-open is the timer's continuation, so it is cancelled with it: a visitor who
+    // opened Cookie settings while it waited and then closed it must not get the prompt back.
+    setWaiting(false)
     setShow(false)
     setOpenedByUser(false)
     setView('ask')
@@ -249,9 +351,23 @@ export function CookieConsent() {
      * branches for that reason, not just on "Allow".
      */
   }
-  const allow = () => { setConsent('all'); close() }
-  const save = () => { setConsent(ads ? 'all' : perso ? 'personalized' : 'essential'); close() }
-  const decline = () => { setConsent('essential'); close() }
+  /** A choice that acts only once the bar has been on screen long enough to be seen — ARM_AFTER_MS. */
+  const whenArmed = (act: () => void) => () => { if (armed.current) act() }
+  const allow = whenArmed(() => { setConsent('all'); close() })
+  const save = whenArmed(() => { setConsent(ads ? 'all' : perso ? 'personalized' : 'essential'); close() })
+  const decline = whenArmed(() => { setConsent('essential'); close() })
+  /**
+   * Settings expands the bar in place. ⚠️ FOCUS MOVES TO THE BAR ITSELF, because the button that was
+   * just pressed is about to unmount with the ask view — left alone, a keyboard user's focus falls
+   * to <body> and their next Tab starts from the top of the page. The popup, not the first toggle:
+   * the same reason `initialFocus` names the popup (a pre-focused control is one Enter away from
+   * changing a consent setting on the user's behalf).
+   */
+  const openSettings = whenArmed(() => {
+    seedFromConsent()
+    setView('settings')
+    popupRef.current?.focus({ preventScroll: true })
+  })
 
   // Native copy branch is PRESENTATION-ONLY: same trigger, choices, storage and events —
   // the WebView shares the site's tracking signals, so PDPL consent semantics are identical;
@@ -261,51 +377,84 @@ export function CookieConsent() {
 
   const primary = 'rounded-lg px-4 py-1.5 text-sm transition-colors active:scale-[0.96] cursor-pointer'
   const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-body active:scale-[0.96] cursor-pointer'
+  /**
+   * ⛔ ONE CLASS STRING FOR ALL THREE FIRST-LAYER CHOICES — equal weight is the owner's brief
+   * (2026-09-25: "Accept / Decline / Settings with EQUAL visual weight"), and it REPLACES the
+   * 2026-08-28 one-dominant-CTA layout (a filled full-width "Allow cookies" over text-link
+   * "Cookie settings" / "Decline"). That layout's own note called its prominence gap "the ceiling,
+   * not a starting point": EDPB Guidelines 03/2022 on deceptive design patterns name a filled
+   * accept over a plain-text refuse directly. Same variant, same box, same type, so the only thing
+   * that distinguishes the three is the word on each.
+   * ⚠️ `outline`, not `cta` ×3: three filled brand buttons would make the strip the loudest thing
+   * on the page, which is the opposite of a slim bar. ⚠️ `min-h-11` is a real 44px target;
+   * `whitespace-normal` because "Chấp nhận" in a third of a 320px bar must wrap, not clip; `.press`
+   * is the house press (ui/button presses once at 0.97 with it — see docs/design-language.md §6).
+   */
+  const choice = 'press min-h-11 w-full whitespace-normal rounded-xl px-2 py-2 text-center text-sm font-semibold leading-tight text-foreground'
 
   return (
-    /* ⚠️ CENTERED AGAIN (owner, 2026-08-06) — BUT NEVER WITH A BACKDROP. READ THIS BEFORE EDITING.
-       An earlier centred version cost THREE Google OAuth verification rejections. It sat over a
-       `fixed inset-0 bg-black/40 backdrop-blur-[2px]` backdrop and auto-opened on every first
-       visit; Google's brand reviewer is ALWAYS a first visit, so what they screenshotted was a
-       dialog on top of a blurred, un-clickable page — reported back as "Your home page is behind a
-       login page" and, because the heading was unreadable behind it, "the app name does not match
-       the app name on your home page". (The third, "does not explain the purpose", was the sr-only
-       <h1> — fixed in c0c3017b.)
-
-       ⚠️ THE CULPRIT WAS THE BACKDROP, NOT THE POSITION — "both complaints, one backdrop", as the
-       previous note itself recorded. So centring is safe to restore and the two things that fixed
-       the rejection are kept, and must stay kept:
+    /* ⛔ A BAR AT THE BOTTOM, NEVER A CARD IN THE MIDDLE — AND STILL NEVER WITH A BACKDROP.
+       Owner, 2026-09-25: "Slim bottom bar". The centred card this replaces measured 366x473 at
+       y=186 on a 390x844 phone — 53% of the screen, over the feed and the PDP gallery, with its team
+       photo as the first-visit LCP (5.0s fast, 11.2s at 4x CPU). The bar docks above the tab bar,
+       holds one sentence and three choices, and leaves the middle of the screen alone.
+       ⛔ THE TWO THINGS THAT FIXED THREE GOOGLE OAUTH VERIFICATION REJECTIONS STAY EXACTLY AS THEY
+       WERE. An earlier centred version sat over a `fixed inset-0 bg-black/40 backdrop-blur-[2px]`
+       backdrop and auto-opened on every first visit; Google's brand reviewer is ALWAYS a first
+       visit, so they screenshotted a dialog over a blurred, un-clickable page — "Your home page is
+       behind a login page" and "the app name does not match". The culprit was the backdrop, so:
          · `modal={false}` — the page behind stays interactive and un-trapped.
-         · `pointer-events-none` on this wrapper (re-armed to `auto` on the card alone) — clicks
-           pass through everywhere except the card, so nothing is blocked.
+         · `pointer-events-none` on the wrapper (re-armed to `auto` on the bar alone) — clicks pass
+           through everywhere except the bar, so nothing is blocked.
        There is no backdrop element here and there must not be one. If you find yourself adding
-       `inset-0 bg-*` or any blur to make the card "pop", that is the exact change that was
-       rejected three times.
+       `inset-0 bg-*` or any blur to make the bar "pop", that is the exact change that was
+       rejected three times. The 4s delay above helps the same reviewer for free.
 
-       The 4s delay above helps the same reviewer for free: they see the home page first.
-
-       Consent semantics are unchanged either way — nothing non-essential fires until a choice is
-       stored (src/lib/consent.ts), which is what PDPL requires. A wall was never the mechanism. */
-    <DialogPrimitive.Root open={show} modal={false} onOpenChange={(open) => { if (!open) close() }}>
+       Consent semantics are unchanged by any of this — nothing non-essential fires until a choice
+       is stored (src/lib/consent.ts), which is what PDPL requires. A wall was never the mechanism,
+       and a bar is not one either. */
+    /* ⛔ `disablePointerDismissal`: A TAP OR A SWIPE ON THE PAGE NO LONGER CLOSES IT. A non-modal
+       Base UI dialog closes on any outside press by default — a touch drag of 10px counts — and
+       closing stores nothing and cancels the timer, so the visitor is not asked again until a full
+       reload. On the centred card that let a 53%-of-the-screen card get out of the way. On a slim
+       bar it means the first scroll of the feed removes the prompt before anyone reads it — measured
+       on the local build: one 240px swipe, bar gone, consent null. Review raised it on both seats.
+       This file's own rule decides it: on a PDPL surface, silently never asking is the worse failure.
+       So the bar stays until it is answered; it covers 13–15% of a phone screen at the bottom, not the
+       page. Escape still closes it (a deliberate key, not a stray touch), and it still steps aside for
+       /signin and for any overlay or the keyboard (screenBusy). */
+    <DialogPrimitive.Root open={show} modal={false} disablePointerDismissal onOpenChange={(open) => { if (!open) close() }}>
       <DialogPrimitive.Portal>
-        {/* Centred in the viewport. `inset-0` here is GEOMETRY ONLY — it is what lets flex centre
-            the card — and carries no background or blur; see the note above for why that matters.
-            `pointer-events-none` is what keeps a full-viewport element from swallowing every click
-            on the page behind it, so it is load-bearing rather than tidy. Padded on all sides so
-            the card never touches the edge, and `py-` clears the mobile tab bar / safe area when a
-            short viewport pushes it low. */}
-        {/* ⚠️ THE TOP GUTTER COLLAPSES ON A SHORT VIEWPORT AND THE BOTTOM ONE NEVER DOES — they look
-            symmetrical and they are not doing the same job. The BOTTOM 4.5rem clears the fixed
-            mobile tab bar (it tracks <BottomNavSpacer/>) plus the home indicator, so it is load
-            bearing at every height. The TOP 4.5rem is only breathing room, and on a 320px-tall
-            landscape phone the pair took 144px — 45% of the screen — leaving the card 176px of
-            `max-h-full`, which is LESS than the pinned consent half needs. MEASURED at 480x320:
-            Allow sat on screen but the Cookie settings / Decline row began 12px below the fold and
-            took a scroll to reach, which is the one failure this card must not have. Collapsing the
-            top gutter alone gives the card 232px and the whole pinned half fits with room over.
-            ⚠️ This is a GUTTER, not content: nothing is hidden by viewport here, which is the trap
-            recorded further down. */}
-        <div className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center px-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pt-[4.5rem] [@media(max-height:480px)]:pt-4 lg:px-4 lg:py-4">
+        {/* ⛔ GEOMETRY ONLY — no background, no blur, and `pointer-events-none`, which is what keeps
+            a wrapper this size from swallowing taps on the page (see the note above).
+            ⚠️ BOTTOM = THE TAB BAR (4.5rem, which must track <BottomNavSpacer/> and mobile-nav's
+            min-h) + the safe area + a 0.5rem breath. The `max(env(), var())` pair is the same one
+            back-to-top uses: Android WebView < 140 hands the inset over as a CSS variable instead
+            of env(), and everywhere else the variable is unset and this equals plain env().
+            ⚠️ IT DOES NOT FOLLOW THE TAB BAR WHEN THAT SCROLLS AWAY. A consent control that slides
+            72px under a thumb that is aiming at it is a mis-tap generator; a floating rounded bar
+            reads as intended whether the tab bar is there or not. Where there is NO web tab bar —
+            desktop (lg), and the native SwiftUI shell's embedded tabs (`html.native-tabs`) — the
+            4.5rem goes.
+            ⚠️ `top-0` + `items-end` make the wrapper a bottom-anchored column, so the bar's
+            `max-h-full` has a real height to cap against when Settings expands it; the top padding
+            keeps it off the notch.
+            ⚠️ z-[200] IS ABOVE THE BACK-TO-TOP / SUPPORT CLUSTER (z-60, right-4, the same 5rem
+            band) AND THE INSTALL HINT (z-70), ON PURPOSE: the bar covers them while it is up rather
+            than the other way round, where the support bubble would sit on the Settings button and
+            take its taps. It is also above every modal (z-50) — which is why the auto-prompt waits
+            while one is open and steps aside when one opens (see screenBusy()), and why the wrapper
+            is `display:none` the instant a scrim or the keyboard appears, before that state change
+            lands. (Also for the footer-opened bar, which does not step aside: hidden, it just waits
+            under the overlay with its switches as they were.) */}
+        <div
+          className={cn(
+            'pointer-events-none fixed inset-x-0 top-0 z-[200] flex items-end justify-center px-2 pt-[max(0.5rem,env(safe-area-inset-top),var(--safe-area-inset-top,0px))]',
+            'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] lg:bottom-4 lg:px-4',
+            '[html.native-tabs_&]:bottom-[calc(0.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))]',
+            '[html.kb-open_&]:hidden [body:has(.overlay-scrim)_&]:hidden',
+          )}
+        >
           <DialogPrimitive.Popup
             ref={popupRef}
             /**
@@ -333,242 +482,102 @@ export function CookieConsent() {
              * `interactionType === 'touch' ? popup : true`, which put initial focus on the inline
              * "Privacy policy" link mid-sentence and painted a focus ring split across the line
              * wrap (visible on the very first screen of the native app). Deliberately NOT the
-             * "Allow" button — pre-focusing the accept action would make Enter consent for the
+             * "Accept" button — pre-focusing the accept action would make Enter consent for the
              * user, and PDPL requires consent be an affirmative act.
              */
             initialFocus={openedByUser ? popupRef : false}
-            /* pointer-events-auto re-arms clicks on the card ITSELF — the wrapper disables them so
-               the page behind stays usable. Do not move this to the wrapper.
-               Zooms in now that it is centred; a slide-from-bottom on a centred card reads as the
-               card having missed its mark. */
-            /* ⚠️ `max-h-full overflow-y-auto` IS INSURANCE, NOT A FIX FOR A LIVE BUG. Measured on
-               844x390 and 740x360 landscape, 360x640 and 320x480: nothing clips and all three
-               buttons stay on screen today. But the card has no height cap otherwise, and the copy
-               is translated — a longer Vietnamese string, a third language, or one more toggle in
-               the settings view would push the actions off a landscape phone with no way to reach
-               them. A consent card whose "Decline" cannot be reached is the worst possible failure
-               mode here, so it scrolls rather than overflowing. Raised in review. */
-            /* ⚠️ 150ms IN, 100ms OUT, ON THE STRONG EASE-OUT — not the symmetric 200ms `ease` it
-               had (both halves measured at 200ms on the keyword curve). The reader just answered
-               the card; its leaving is the system responding, so it goes faster than it came, and
-               it moves on the same curve as every other overlay. When it appears and whether it
-               shows at all are the owner's, and untouched here. */
-            className="pointer-events-auto relative flex max-h-full w-full max-w-md flex-col overflow-y-auto rounded-2xl bg-popover p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-150 ease-[var(--ease-out-strong)] sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95 data-closed:duration-100"
+            /* pointer-events-auto re-arms taps on the BAR ITSELF — its whole box, the gaps between
+               the buttons and its padding included, so no tap inside it ever reaches the page
+               underneath. The wrapper disables them so the page behind stays usable. Do not move
+               this to the wrapper.
+               ⚠️ `max-h-full overflow-y-auto` IS WHAT KEEPS DECLINE REACHABLE WHEN SETTINGS EXPANDS
+               THE BAR on a landscape phone (844x390: ~300px between the notch pad and the tab bar)
+               or under a longer translation: it scrolls rather than pushing a choice off-screen,
+               which is the one failure this surface must not have.
+               ⚠️ 150ms IN, 100ms OUT, ON THE STRONG EASE-OUT — the timing wave 1 settled for this
+               surface (exits faster than entrances; the reader just answered, so leaving is the
+               system responding). The zoom it had is gone with the centring: a docked bar rises
+               from the edge it is docked to and sinks back into it, a 1rem travel it can do without
+               ever reading as a slide across the page. Reduced motion is the global kill switch in
+               globals.css (every animation and transition at 0.01ms), as for every overlay here. */
+            className="pointer-events-auto relative flex max-h-full w-full max-w-3xl flex-col overflow-y-auto rounded-2xl bg-popover p-3 shadow-overlay outline-none md:px-4 animate-in fade-in slide-in-from-bottom-4 duration-150 ease-[var(--ease-out-strong)] data-closed:animate-out data-closed:fade-out data-closed:slide-out-to-bottom-4 data-closed:duration-100"
           >
-            {/* ⛔ THE CARD IS TWO STACKED SECTIONS, NOT TWO COLUMNS — owner, 2026-08-28. The mascot
-            used to be a sibling of the whole content block, so it occupied a full-height left
-            column: on a tall card it floated in the middle of its own empty gutter, and the rule
-            beneath the introduction could only ever span the RIGHT column, which read as a divider
-            inside one section rather than a division of the card.
-            Now the introduction runs the full width above the rule, and the mascot sits beside the
-            cookie question below it, where it belongs — it is the cookie mascot, and that is the
-            cookie half. */}
-        <div>
           {view === 'ask' ? (
-            <>
-              {/**
-                * ⛔ THE INTRODUCTION IS A PHOTOGRAPH NOW — owner, 2026-09-17: remove the headline,
-                * the one-line pitch and the three proof points, "replace with image make it fit
-                * nicely across all platforms". What went is recorded rather than mourned: a
-                * headline, a what-we-do line and three claims that each had to be checkable in the
-                * product on the day it shipped. Those claims are gone WITH the copy, so this card
-                * now asserts nothing about verification, pricing or placement — which is the
-                * safest state a pre-consent surface can be in.
-                * ⚠️ WHAT MUST NOT COME BACK IS A SPLASH. The note above the Root records three
-                * Google OAuth verification rejections that a centred card over a backdrop cost us.
-                * A photograph is a cheaper introduction than five blocks of copy and it has to stay
-                * that way: if this grows a headline AND a pitch AND bullets again, the card is back
-                * to scrolling on a landscape phone.
-                *
-                * ⛔ THE TAGLINE IS LIVE TEXT, NOT THE PIXELS IT ARRIVED IN, AND THAT IS NOT A LIBERTY
-                * TAKEN WITH THE ARTWORK. The supplied image bakes "We help you to buy, sell, rent,
-                * connect." into itself, in dark blue on a white plate. Two things make that
-                * unshippable on this card, both measurable rather than aesthetic:
-                *   · IT WOULD BE ENGLISH ONLY. Vietnamese is the primary market, every user-facing
-                *     string here goes through tr(), and this one is a promise read BEFORE consent.
-                *     A promise that exists in one language only is the thing this repo does not do.
-                *   · IT WOULD BE UNREADABLE IN DARK MODE. Keeping the white plate puts a white slab
-                *     inside a dark popover; dropping the plate leaves dark-blue lettering on a
-                *     near-black card.
-                * So the photograph is cut out of its white background and the words are set as type
-                * that follows the theme and the language. ⚠️ The cut-out floods IN FROM THE BORDER,
-                * which is why the white `e` on each polo and the white collar trim survive — they
-                * are enclosed by blue and never reachable from an edge. Source artwork is the
-                * owner's original; the asset is public/consent-team.webp and nothing regenerates
-                * it, so keep the original if it ever needs re-cropping.
-                *
-                * ⛔ THE RULE THE DELETED COPY LEFT BEHIND, KEPT HERE BECAUSE IT OUTLIVED ITS TEXT:
-                * NEVER PUT AN EDITION BRANCH INSIDE `tr()` ON THIS CARD. The old intro line briefly
-                * branched on IS_MARKETPLACE to name trips and e-visa on the forum — correct at
-                * RENDER and wrong in the ARTIFACT, because scripts/gen-ui-strings.mjs scrapes tr()
-                * calls out of the SOURCE, so both branches landed in the marketplace string table
-                * and eno.vn shipped a bundle containing copy for services it may not advertise. A
-                * reviewer caught it and src/generated/ui-strings.ts settled it. If the editions
-                * ever need different copy here, the services variant belongs in its own `.svc.`
-                * module the marketplace build never compiles — not in a ternary the generator
-                * flattens. The photograph and the tagline below name no service, so today this
-                * file is edition-neutral and must stay that way.
-                */}
-              {/* ⚠️ HEIGHT-CLAMPED, NOT WIDTH-CLAMPED — that is what "fit nicely across all
-                  platforms" actually requires here. The cut-out is ~1.2:1, so sizing it by width
-                  would make it ~375px tall inside a 448px card, taller than the whole consent half,
-                  and it would push Allow off a landscape phone. `clamp(6.5rem,24vh,12.5rem)` ties
-                  the photo to the VIEWPORT's height instead: 200px on a phone held upright, ~104px
-                  on a 360px-tall landscape one, never more than 200px on a desktop card. `w-auto`
-                  lets the width follow, so it stays centred and uncropped at every size.
-                  ⚠️ `alt=""` ON PURPOSE. The two lines below ARE the words in the picture and they
-                  are the dialog's accessible name; a descriptive alt would announce that sentence
-                  twice. */}
-              <div className="flex justify-center">
-                <Image
-                  src="/consent-team.webp"
-                  alt=""
-                  width={1000}
-                  height={837}
-                  sizes="250px"
-                  /**
-                   * ⚠️ THE EDGES ARE MASKED, NOT CROPPED (owner, 2026-09-18: "the image on cookie
-                   * popup make its edges softer more pleasant"). The photo is a cut-out on a flat
-                   * ground, so on the dark theme it met the dialog as a hard rectangle. A radial
-                   * mask fades the last ~15% of the frame to nothing, which reads as the picture
-                   * sitting IN the card instead of on top of it, in either theme — a vignette in
-                   * alpha rather than a painted gradient, so it never fights the surface colour.
-                   * `-webkit-mask-image` alongside it because Safari still needs the prefix.
-                   */
-                  className="h-[clamp(6.5rem,24vh,12.5rem)] w-auto max-w-full object-contain [mask-image:radial-gradient(115%_95%_at_50%_44%,#000_62%,rgba(0,0,0,0.45)_84%,transparent_100%)] [-webkit-mask-image:radial-gradient(115%_95%_at_50%_44%,#000_62%,rgba(0,0,0,0.45)_84%,transparent_100%)]"
-                />
-              </div>
-              {/* ⛔ THE TITLE IS "Cookie consent" AND IT IS INVISIBLE; THE TAGLINE IS ORDINARY TEXT
-                  BESIDE IT. The tagline WAS the Title, and an `aria-label` on the popup was then
-                  added to correct the name — both wrong, and a reviewer caught the second one from
-                  the spec. Accessible-name computation takes `aria-labelledby` FIRST and ignores
-                  `aria-label` when both are present; Base UI always points `aria-labelledby` at the
-                  Title, so the label did nothing and the dialog kept announcing itself as "We help
-                  you to buy, sell, rent, connect." Verified in the rendered accessibility tree, not
-                  from the argument.
-                  ⚠️ So the Title says what the dialog IS — the one thing a screen reader user needs
-                  before deciding whether to engage with it, on a surface that asks for consent —
-                  and the tagline stays in the reading order as content, announced when they reach
-                  it. Neither is hidden from anyone; they are in the order each is useful.
-                  ⚠️ `tracking-tight` on the display line only: letters read too far apart as type
-                  grows, so the canon wants negative tracking at display sizes and none at body. */}
+            <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:gap-4">
+              {/* ⛔ THE TITLE IS "Cookie consent" AND IT IS INVISIBLE. It is the dialog's accessible
+                  name (Base UI points `aria-labelledby` at the Title, which outranks any
+                  `aria-label`), so it says what the dialog IS — the one thing a screen reader user
+                  needs before deciding whether to engage with a surface that asks for consent.
+                  ⛔ THE TEAM PHOTOGRAPH AND ITS TAGLINE ARE GONE FROM THE FIRST LAYER (owner,
+                  2026-09-25: a slim bar, "no team photo"). On a first visit that photo was the
+                  page's LCP element — 47,600px² against the largest feed image's 32,041px², painted
+                  at ~5s — so it was costing the metric as well as the screen. The asset stays in
+                  public/ (src/lib/import-photo-check.test.ts reads it); nothing renders it now.
+                  ⛔ NEVER PUT AN EDITION BRANCH INSIDE `tr()` ON THIS CARD. scripts/gen-ui-strings.mjs
+                  scrapes tr() calls out of the SOURCE, so both branches of a ternary land in the
+                  marketplace string table — an eno.forum-only sentence naming trips or e-visa would
+                  ship in eno.vn's bundle. The copy below names no service and must stay that way;
+                  a services variant would belong in its own `.svc.` module. */}
               <DialogPrimitive.Title className="sr-only">{tr('Cookie consent', 'Đồng ý cookie')}</DialogPrimitive.Title>
-              <p className="mt-1.5 text-center leading-tight">
-                <span className="block text-sm font-bold text-foreground">
-                  {tr('We help you to', 'Chúng tôi giúp bạn')}
-                </span>
-                <span className="block text-xl font-extrabold tracking-tight text-accent-foreground">
-                  {tr('buy, sell, rent, connect.', 'mua, bán, thuê, kết nối.')}
-                </span>
-              </p>
               {/**
-                * ⛔ THE CONSENT ASK IS ITS OWN SECTION, AT FULL SIZE, AND THE FIRST DRAFT BROKE THAT.
-                * Adding the introduction pushed this line to `text-2xs` under a marketing headline —
-                * so the smallest type on the card was the only place explaining what "Allow" does.
-                * GDPR Art. 7(2) requires a consent request be "clearly distinguishable from other
-                * matters" and intelligible; a reviewer was right that the diff argued consent law to
-                * justify when the TOUR starts while quietly weakening the NOTICE. The rule above
-                * separates the introduction from the request, and the size goes back to `text-sm`.
-                * ⚠️ If the card ever needs to be shorter, cut the introduction — never this.
+                * ⛔ ONE SENTENCE, A QUESTION, AND IT SAYS WHAT "ACCEPT" TURNS ON. A question because it is
+                * a request, not a notice: shown while nothing is stored, "We use cookies to…" would
+                * assert processing that has not been agreed to (opus, on the diff). Accept stores 'all', which is
+                * the "For You" suggestions built from the visitor's own activity PLUS Meta/Google ad
+                * signals — the settings view's own rows say the same. The long sentence this replaces
+                * named only the first and promised Allow would "keep you signed in", which was never
+                * true: sign-in is essential storage and works whatever is chosen, so the promise only
+                * made Decline sound like it would sign you out.
+                * ⛔ "SUGGEST", NEVER "RANK" OR "REORDER" (codex, on the diff). /legal/ranking — the
+                * disclosure a sàn TMĐT owes — says results are NOT reordered by personal data and two
+                * people running the same search see the same order. Personalization feeds the For You
+                * row, not the result order; a consent line saying "rank listings for you" would
+                * contradict a legal page in the visitor's first ten seconds.
+                * ⚠️ `text-sm`, never the smallest type on the bar: GDPR Art. 7(2) wants a consent
+                * request "clearly distinguishable" and intelligible, and this is the whole request.
+                * If the bar ever needs to be shorter, cut words — never the size.
+                * ⚠️ Wording is a legal surface: the parked consent v2 (hold/email-consent) carries
+                * counsel-pending text that will replace this; see the report for what it must keep.
                 */}
-              {/* ⚠️ `-mx-3 px-3` (and the sm: pair) BLEEDS THE RULE TO THE CARD EDGES. Inside the
-                  padding it stops short of both sides and reads as an underline under the proof
-                  list; edge to edge it reads as what it is, the seam between two sections.
-                  ⚠️ Still `sticky bottom-0` — this whole half stays pinned, so the introduction
-                  scrolls behind it and the controls never leave the screen. `bg-popover` matches
-                  the card's own token so the pinned half is opaque in both themes. */}
-              <div className="sticky bottom-0 z-10 -mx-3 mt-2.5 border-t border-line bg-popover px-3 pt-2.5 sm:-mx-4 sm:px-4">
-              {/* ⛔ THE COOKIE MASCOT IS GONE FROM THIS VIEW — owner, 2026-09-17, pointing straight at
-                  the node: "remove this". It shared the pinned half with the consent question and it
-                  cost that half ~92px of permanent height, which is why it used to hide itself under
-                  `max-height:560px`. The card now opens on a photograph of the team, so a second
-                  illustration two inches below it was competing with the thing it introduces.
-                  ⚠️ THE SETTINGS VIEW KEEPS ITS COPY, and that is not an oversight: that view has no
-                  photo, so the mascot is the only thing standing between three toggles and a wall of
-                  plain rows. Removing it there is a separate decision nobody has made. */}
-              <p className="text-sm leading-snug text-muted-foreground">
+              <p className="text-sm leading-snug text-muted-foreground md:flex-1">
                 {isNative
                   ? tr(
-                      'Allow us to put the most relevant products first and to measure what works, so the app keeps getting better for you. ',
-                      'Cho phép chúng tôi đưa sản phẩm phù hợp nhất lên đầu và đo lường hiệu quả, để ứng dụng ngày càng hợp với bạn hơn. ',
+                      'Can we use your activity in the app to suggest listings for you and to personalize ads on Meta and Google? ',
+                      'Bạn có đồng ý để chúng tôi dùng hoạt động của bạn trong ứng dụng để gợi ý tin đăng và cá nhân hoá quảng cáo trên Meta và Google? ',
                     )
                   : tr(
-                      'Allow cookies and we’ll put the most relevant products first — and keep you signed in. ',
-                      'Cho phép cookie để chúng tôi đưa sản phẩm phù hợp nhất lên đầu — và giữ bạn đăng nhập. ',
+                      'Can we use cookies to suggest listings for you and to personalize ads on Meta and Google? ',
+                      'Bạn có đồng ý để chúng tôi dùng cookie gợi ý tin đăng cho bạn và cá nhân hoá quảng cáo trên Meta và Google? ',
                     )}
                 <Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
               </p>
               {/**
-                * ⛔ ONE DOMINANT CTA, THE OTHER TWO AS TEXT BENEATH IT — owner's call, 2026-08-28,
-                * made after the trade was put to them twice. Allow is a full-width filled button
-                * at the LOWEST point of the card, which on a phone is the centre of the natural
-                * thumb arc; Cookie settings and Decline sit under it as text, split left and right
-                * so a right thumb travelling to Allow cannot brush Decline on the way.
-                *
-                * ⚠️ WHAT THIS TRADES, RECORDED SO THE DECISION STAYS VISIBLE RATHER THAN BECOMING
-                * FOLKLORE. The risk here is NOT the position: Decline is still one tap, on the
-                * first layer, in legible ink — and that is what CNIL's €150M/€60M decisions against
-                * Google and Meta actually turned on, where refusing took MORE clicks than
-                * accepting. The risk is the PROMINENCE gap between a filled button and a text
-                * link, which EDPB Guidelines 03/2022 on deceptive design patterns name directly,
-                * and eno is mid-licensing as a sàn TMĐT.
-                * ⛔ SO THIS IS THE CEILING, NOT A STARTING POINT. Do NOT move Decline behind a
-                * second screen, add a tap to refuse, or fade it until it stops reading as a
-                * control. Those are the changes that turn an arguable layout into a fineable one.
-                * The equal-weight version is one swap — Decline back to a `variant="ghost"` button
-                * of the same width and height as Allow — and the design canvas keeps it drawn.
-                *
-                * ⚠️ `.press` ON ALL THREE, NOT A HAND-WRITTEN TRANSITION. The old `transition-colors`
-                * animated colour and nothing else, so the `active:scale` snapped in and snapped back
-                * — press feedback that was there in the markup and absent on screen. The obvious fix
-                * (`transition-[transform,…]`) is ALSO wrong and design-lint caught it: Tailwind v4
-                * compiles `scale-*` to the standalone `scale` property, not `transform`, so that
-                * list subscribes to something nothing writes. `.press` is the house utility and it
-                * already encodes the right behaviour — 40ms in on `:active`, a 220ms spring back
-                * out, on `scale` — plus `touch-action: manipulation`, which drops the legacy 300ms
-                * tap delay. Feedback on the press, and no latency in front of it.
-                * ⚠️ `rounded-xl` (12px), NOT the mockup's 14px: `--radius-xl` is the button tier in
-                * docs/design-language.md and design-lint enforces the scale. ⚠️ `min-h-11` on the
-                * text actions is a real 44px target — they are the interactive element themselves,
-                * so this does NOT use the `tap-44` utility, whose pseudo-overlay covers a
-                * positioned ancestor when it lands on an unpositioned element.
+                * ⚠️ ACCEPT · DECLINE · SETTINGS, IN THE OWNER'S ORDER, AND ONE ROW. Three equal
+                * columns on a phone; beside the sentence from md up. Settings sits under the right
+                * thumb, and it is the one choice that records nothing — a slip there opens the
+                * detailed choices instead of writing a decision.
+                * ⛔ Do NOT move Decline behind a second screen, give it less weight than Accept, or
+                * add a tap to refuse. Those are the changes that turn a layout into a finding.
                 */}
-              <Button
-                variant="cta"
-                size="none"
-                onClick={allow}
-                className="press mt-3 flex w-full items-center justify-center rounded-xl px-4 py-3 text-base font-extrabold cursor-pointer"
-              >
-                {tr('Allow cookies', 'Cho phép cookie')}
-              </Button>
-              {/* ⚠️ `mt-3`, NOT `mt-1`. Four pixels under a full-width primary put a 44px Decline
-                  target directly in the path of an overshooting thumb — and a mis-tap here writes
-                  a consent decision the reader did not make, in either direction. The earlier
-                  reasoning only considered horizontal travel; the collision is vertical. */}
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <Button
-                  variant="ghost"
-                  size="none"
-                  onClick={() => { seedFromConsent(); setView('settings') }}
-                  className="press min-h-11 rounded-lg px-1 text-sm font-semibold text-body hover:text-foreground cursor-pointer"
-                >
-                  {tr('Cookie settings', 'Tùy chỉnh cookie')}
+              <div className="grid grid-cols-3 gap-2 md:w-80 md:shrink-0">
+                <Button variant="outline" size="none" onClick={allow} className={choice}>
+                  {tr('Accept', 'Chấp nhận')}
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="none"
-                  onClick={decline}
-                  className="press min-h-11 rounded-lg px-1 text-sm font-semibold text-foreground cursor-pointer"
-                >
+                <Button variant="outline" size="none" onClick={decline} className={choice}>
                   {tr('Decline', 'Từ chối')}
                 </Button>
+                <Button variant="outline" size="none" onClick={openSettings} className={choice}>
+                  {tr('Settings', 'Tùy chỉnh')}
+                </Button>
               </div>
-              </div>
-            </>
+            </div>
           ) : (
             <>
-              {/* ⚠️ The settings view keeps the mascot beside it — the ask view moved its copy into
-                  the consent half, and without this the mascot would vanish entirely on this view. */}
+              {/* THE DETAILED CHOICES, UNCHANGED — "Settings opens the existing detailed choices"
+                  (owner brief). They expand the same bar upward rather than opening a second
+                  surface. The cookie mascot stays beside them from sm up: the owner removed it
+                  from the first layer on 2026-09-17 and kept it here, where it is the only thing
+                  between three toggles and a wall of plain rows. */}
               <div className="flex items-center gap-3">
               <Mascot name="cookie" className="hidden h-20 w-20 shrink-0 self-center text-foreground sm:block" />
               <div className="min-w-0 flex-1">
@@ -586,7 +595,6 @@ export function CookieConsent() {
               </div>
             </>
           )}
-        </div>
       </DialogPrimitive.Popup>
     </div>
   </DialogPrimitive.Portal>
