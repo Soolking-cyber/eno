@@ -71,8 +71,8 @@ async function renderCard(lang: Language, m: AvailabilityRequestMeta, mine: bool
   return out
 }
 
-const FREE_EN = 'Free — the eno team checks for you at no charge, and adds no fee or markup to the rent.'
-const FREE_VI = 'Miễn phí — đội ngũ eno kiểm tra giúp bạn, không thu phí và không cộng thêm vào giá thuê.'
+const FREE_EN = 'Free service to find your next home — the price you see is the price you get.'
+const FREE_VI = 'Dịch vụ miễn phí giúp bạn tìm nhà — giá bạn thấy là giá bạn trả.'
 
 describe('parseAvailabilityRequestMeta', () => {
   it('accepts a well-formed card', () => {

@@ -234,7 +234,7 @@ describe('sending', () => {
     typeContact('+447700900123')
     submit()
     expect(auth.openSignIn).toHaveBeenCalledTimes(1)
-    expect(auth.openSignIn.mock.calls[0][0].note).toMatch(/Free: no fees, no markup on the rent/)
+    expect(auth.openSignIn.mock.calls[0][0].note).toMatch(/Free service: the price you see is the price you get/)
     expect(posts).toHaveLength(0)
     expect(readDraft()?.pending?.clientRequestId).toBeTruthy()
   })
@@ -428,7 +428,7 @@ describe('a guest press while the session is still resolving', () => {
     auth.loading = false
     rerender(<RentalCheckView />)
     await waitFor(() => expect(auth.openSignIn).toHaveBeenCalledTimes(1))
-    expect(auth.openSignIn.mock.calls[0][0].note).toMatch(/no markup on the rent/)
+    expect(auth.openSignIn.mock.calls[0][0].note).toMatch(/the price you see is the price you get/)
     expect(screen.getByRole('button', { name: 'Check these for me' })).toBeTruthy()
     expect(posts).toHaveLength(0)
   })

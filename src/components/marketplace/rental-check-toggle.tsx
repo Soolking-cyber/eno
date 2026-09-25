@@ -34,14 +34,14 @@ type Tr = (en: string, vi?: string) => string
  */
 export const rentalFreeLine = (tr: Tr) =>
   tr(
-    'Free — the eno team checks for you at no charge, and adds no fee or markup to the rent.',
-    'Miễn phí — đội ngũ eno kiểm tra giúp bạn, không thu phí và không cộng thêm vào giá thuê.',
+    'Free service to find your next home — the price you see is the price you get.',
+    'Dịch vụ miễn phí giúp bạn tìm nhà — giá bạn thấy là giá bạn trả.',
   )
 /** The pill's second line — the tightest space in the flow. */
-export const rentalFreeShort = (tr: Tr) => tr('Free check · no fees', 'Kiểm tra miễn phí · không phí')
+export const rentalFreeShort = (tr: Tr) => tr('Free · same price as listed', 'Miễn phí · đúng giá niêm yết')
 /** Under the send button: the moment the visitor commits, so it names all three promises. */
 export const rentalFreeCta = (tr: Tr) =>
-  tr('Free check · no fees · no markup on the rent', 'Kiểm tra miễn phí · không phí · không cộng thêm vào giá thuê')
+  tr('Free service · the price you see is the price you get', 'Dịch vụ miễn phí · thấy giá nào, trả giá đó')
 
 export type RentalCheckToggleListing = RentalCheckSource & { sellerId: string }
 
@@ -193,8 +193,8 @@ export function RentalCheckHint({ className }: { className?: string }) {
       <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
       <span>
         {tr(
-          'Pick up to 5 rentals and the eno team checks availability for you — free, no fees, no markup on the rent.',
-          'Chọn tối đa 5 căn, đội ngũ eno kiểm tra phòng trống giúp bạn — miễn phí, không phí, không cộng thêm vào giá thuê.',
+          'Pick up to 5 rentals and the eno team checks availability for you — a free service to find your next home, and the price you see is the price you get.',
+          'Chọn tối đa 5 căn, đội ngũ eno kiểm tra phòng trống giúp bạn — dịch vụ miễn phí giúp bạn tìm nhà, giá bạn thấy là giá bạn trả.',
         )}
       </span>
     </p>

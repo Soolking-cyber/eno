@@ -215,8 +215,8 @@ export function AvailabilityRequestCard({ meta, mine }: { meta: AvailabilityRequ
       </div>
       <p className="mt-3 text-xs font-medium text-success">
         {tr(
-          'Free — the eno team checks for you at no charge, and adds no fee or markup to the rent.',
-          'Miễn phí — đội ngũ eno kiểm tra giúp bạn, không thu phí và không cộng thêm vào giá thuê.',
+          'Free service to find your next home — the price you see is the price you get.',
+          'Dịch vụ miễn phí giúp bạn tìm nhà — giá bạn thấy là giá bạn trả.',
         )}
       </p>
     </ChatCard>

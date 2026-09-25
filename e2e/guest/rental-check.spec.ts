@@ -59,12 +59,12 @@ test('guest: collect two, the pill clears the chrome, the list shows both, sendi
 
   await collectTwo(page)
   // The first add explains that the check is free.
-  await expect(page.getByText('Free — the eno team checks for you at no charge, and adds no fee or markup to the rent.').first()).toBeVisible()
+  await expect(page.getByText('Free service to find your next home — the price you see is the price you get.').first()).toBeVisible()
 
   const pill = page.locator('[data-rental-check-pill]')
   await expect(pill).toBeVisible()
   await expect(pill).toContainText('Check 2 rentals')
-  await expect(pill).toContainText('Free check · no fees')
+  await expect(pill).toContainText('Free · same price as listed')
 
   // Geometry: the pill must not sit on the bottom nav, the support mark or the chevron.
   const pillBox = (await pill.boundingBox())!
@@ -84,14 +84,14 @@ test('guest: collect two, the pill clears the chrome, the list shows both, sendi
   await expect(page).toHaveURL(/\/rentals\/check$/)
   await expect(page.locator('[data-rental-row]')).toHaveCount(2)
   await expect(page.locator('[data-rental-check-pill]')).toHaveCount(0)
-  await expect(page.getByText('Free check · no fees · no markup on the rent')).toBeVisible()
+  await expect(page.getByText('Free service · the price you see is the price you get')).toBeVisible()
 
   await page.getByRole('radio', { name: 'WhatsApp' }).click()
   await page.locator('#rc-contact').fill('+44 7700 900123')
   await page.getByRole('button', { name: 'Check these for me' }).click()
   const note = page.locator('[data-sign-in-note]')
   await expect(note).toBeVisible()
-  await expect(note).toContainText('no markup on the rent')
+  await expect(note).toContainText('the price you see is the price you get')
   expect(posts, 'a guest press must not reach the API').toEqual([])
 })
 

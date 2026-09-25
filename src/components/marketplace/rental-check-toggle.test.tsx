@@ -173,7 +173,7 @@ describe('the pill (back-to-top cluster)', () => {
     expect(pill()).toBeNull()
     act(() => { addToBasket(listing(1)); addToBasket(listing(2)) })
     expect(pill()?.textContent).toContain('Check 2 rentals')
-    expect(pill()?.textContent).toContain('Free check · no fees')
+    expect(pill()?.textContent).toContain('Free · same price as listed')
     expect(pill()?.getAttribute('href')).toBe('/rentals/check')
     act(() => { addToBasket(listing(3)) })
     expect(pill()?.textContent).toContain('Check 3 rentals')

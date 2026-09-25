@@ -11,7 +11,7 @@ import { rentalFreeShort } from './rental-check-toggle'
 import { cn } from '@/lib/utils'
 
 /**
- * The basket's way back: "Check n rentals / Free check · no fees", floating above the chevron.
+ * The basket's way back: "Check n rentals / Free · same price as listed", floating above the chevron.
  *
  * ⛔ IT LIVES INSIDE back-to-top.tsx's CLUSTER, NOT IN A FIXED LAYER OF ITS OWN. That column already
  * clears the bottom nav, lifts over every `data-fab-clear` sticky bar (the PDP contact bar among

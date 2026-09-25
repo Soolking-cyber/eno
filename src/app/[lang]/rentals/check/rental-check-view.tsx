@@ -111,8 +111,8 @@ export function RentalCheckView() {
 
   const value = channel === 'email' ? email : phone
   const signInNote = tr(
-    'Sign in to send your list — the eno team replies in Messages. Free: no fees, no markup on the rent.',
-    'Đăng nhập để gửi danh sách — đội ngũ eno sẽ trả lời trong Tin nhắn. Miễn phí: không thu phí, không cộng thêm vào giá thuê.',
+    'Sign in to send your list — the eno team replies in Messages. Free service: the price you see is the price you get.',
+    'Đăng nhập để gửi danh sách — đội ngũ eno sẽ trả lời trong Tin nhắn. Dịch vụ miễn phí: giá bạn thấy là giá bạn trả.',
   )
 
   // ── the draft: read once, then followed ───────────────────────────────────────────────────────
