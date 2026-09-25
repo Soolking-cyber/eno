@@ -151,8 +151,8 @@ export function compose(r: Row, price: number): LocalizedImportTexts {
   return localizeReferenceImportText({
     title: `${bits.join(' · ') || 'Property'} for rent — ${where}`,
     titleVi: `Cho thuê ${kind}${r.bedrooms ? ` ${r.bedrooms}PN` : ''}${r.area_m2 ? ` ${r.area_m2}m²` : ''} — ${where}`,
-    description: `Listed on Rever.vn. eno links to the original — enquiries and viewings are handled by Rever, not by eno.\n\n${facts}`,
-    descriptionVi: `Tin đăng trên Rever.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do Rever xử lý, không qua eno.\n\n${facts}`,
+    description: `Listed on Rever.vn.\n\n${facts}`,
+    descriptionVi: `Tin đăng trên Rever.vn.\n\n${facts}`,
   })
 }
 

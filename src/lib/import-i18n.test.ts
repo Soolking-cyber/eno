@@ -17,22 +17,22 @@ import { streetValueProblem } from '../../scripts/verify-nhatot-import'
 const NHATOT: ImportTexts = {
   title: 'Apartment · 2 bed · 2 bath · 80 m² for rent — Xã Nhà Bè mới, Huyện Nhà Bè',
   titleVi: 'Cho thuê Căn hộ / Chung cư 2PN 80m² — Xã Nhà Bè mới, Huyện Nhà Bè',
-  description: 'Listed on Nhatot.com. eno links to the original — enquiries and viewings are handled there, not by eno.\n\nType: Apartment\nArea: 80 m²\nBedrooms: 2\nBathrooms: 2\nBuilding: Celesta Rise\nStreet: Đường Nguyễn Hữu Thọ\nWard: Xã Nhà Bè\nFormer ward: Xã Phước Kiển\nDistrict: Huyện Nhà Bè\nCity: Ho Chi Minh City\nRent: 13,000,000 đ/month',
-  descriptionVi: 'Tin đăng trên Nhatot.com. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.\n\nLoại hình: Chung cư\nDiện tích: 80 m²\nPhòng ngủ: 2\nPhòng vệ sinh: 2\nDự án: Celesta Rise\nĐường: Đường Nguyễn Hữu Thọ\nPhường/xã: Xã Nhà Bè\nPhường cũ: Xã Phước Kiển\nQuận/huyện: Huyện Nhà Bè\nTỉnh/thành: TP. Hồ Chí Minh\nGiá thuê: 13.000.000 đ/tháng',
+  description: 'Listed on Nhatot.com.\n\nType: Apartment\nArea: 80 m²\nBedrooms: 2\nBathrooms: 2\nBuilding: Celesta Rise\nStreet: Đường Nguyễn Hữu Thọ\nWard: Xã Nhà Bè\nFormer ward: Xã Phước Kiển\nDistrict: Huyện Nhà Bè\nCity: Ho Chi Minh City\nRent: 13,000,000 đ/month',
+  descriptionVi: 'Tin đăng trên Nhatot.com.\n\nLoại hình: Chung cư\nDiện tích: 80 m²\nPhòng ngủ: 2\nPhòng vệ sinh: 2\nDự án: Celesta Rise\nĐường: Đường Nguyễn Hữu Thọ\nPhường/xã: Xã Nhà Bè\nPhường cũ: Xã Phước Kiển\nQuận/huyện: Huyện Nhà Bè\nTỉnh/thành: TP. Hồ Chí Minh\nGiá thuê: 13.000.000 đ/tháng',
 }
 const NHATOT_SEARCH = 'apartment · 2 bed · 2 bath · 80 m² for rent — xa nha be moi, huyen nha be cho thue can ho / chung cu 2pn 80m² — xa nha be moi, huyen nha be huyen nha be (xa nha be moi) huyen nha be chung cu xa phuoc kien celesta rise duong nguyen huu tho tp. ho chi minh ho chi minh city'
 const MUABAN: ImportTexts = {
   title: 'Room · 25 m² for rent — Phường 22, Quận Bình Thạnh',
   titleVi: 'Cho thuê Nhà trọ, phòng trọ 25m² — Phường 22, Quận Bình Thạnh',
-  description: 'Listed on Muaban.net. eno links to the original — enquiries and viewings are handled there, not by eno.\n\nType: Nhà trọ, phòng trọ\nArea: 25 m²\nLocation: Phường 22, Quận Bình Thạnh, Hồ Chí Minh\nRent: 2.500.000 đ/month',
-  descriptionVi: 'Tin đăng trên Muaban.net. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.\n\nLoại hình: Nhà trọ, phòng trọ\nDiện tích: 25 m²\nKhu vực: Phường 22, Quận Bình Thạnh, Hồ Chí Minh\nGiá thuê: 2.500.000 đ/tháng',
+  description: 'Listed on Muaban.net.\n\nType: Nhà trọ, phòng trọ\nArea: 25 m²\nLocation: Phường 22, Quận Bình Thạnh, Hồ Chí Minh\nRent: 2.500.000 đ/month',
+  descriptionVi: 'Tin đăng trên Muaban.net.\n\nLoại hình: Nhà trọ, phòng trọ\nDiện tích: 25 m²\nKhu vực: Phường 22, Quận Bình Thạnh, Hồ Chí Minh\nGiá thuê: 2.500.000 đ/tháng',
 }
 const MUABAN_SEARCH = 'room · 25 m² for rent — phuong 22, quan binh thanh cho thue nha tro, phong tro 25m² — phuong 22, quan binh thanh phuong 22, quan binh thanh, ho chi minh quan binh thanh nha tro, phong tro room ho chi minh ho chi minh city'
 const HONEYCOMB: ImportTexts = {
   title: '2 bed · 2 bath apartment for rent — Palm Heights, An Phu Ward, District 2',
   titleVi: 'Cho thuê căn hộ 2PN — Palm Heights, P. An Phú, Quận 2',
-  description: 'Listed on Honeycomb House (honeycomb.com.vn). eno links to the original — enquiries and viewings are handled there, not by eno.\n\nType: Apartment\nProject: Palm Heights\nBedrooms: 2\nBathrooms: 2\nStreet: Song Hanh Street\nLocation: An Phu Ward, District 2, Ho Chi Minh City\nListing code: PH316726\nRent: US$1,154/month\n\nHoneycomb House quotes this rent in US dollars. The đồng price shown on eno is converted from it and is approximate.',
-  descriptionVi: 'Tin đăng trên Honeycomb House (honeycomb.com.vn). eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.\n\nLoại: Căn hộ\nDự án: Palm Heights\nPhòng ngủ: 2\nPhòng tắm: 2\nĐường: Song Hanh Street\nKhu vực: P. An Phú, Quận 2, Hồ Chí Minh\nMã tin: PH316726\nGiá thuê: 1.154 USD/tháng\n\nHoneycomb House niêm yết giá thuê bằng USD. Giá VND hiển thị trên eno được quy đổi từ USD và chỉ mang tính tham khảo.',
+  description: 'Listed on Honeycomb House (honeycomb.com.vn).\n\nType: Apartment\nProject: Palm Heights\nBedrooms: 2\nBathrooms: 2\nStreet: Song Hanh Street\nLocation: An Phu Ward, District 2, Ho Chi Minh City\nListing code: PH316726\nRent: US$1,154/month\n\nHoneycomb House quotes this rent in US dollars. The đồng price shown on eno is converted from it and is approximate.',
+  descriptionVi: 'Tin đăng trên Honeycomb House (honeycomb.com.vn).\n\nLoại: Căn hộ\nDự án: Palm Heights\nPhòng ngủ: 2\nPhòng tắm: 2\nĐường: Song Hanh Street\nKhu vực: P. An Phú, Quận 2, Hồ Chí Minh\nMã tin: PH316726\nGiá thuê: 1.154 USD/tháng\n\nHoneycomb House niêm yết giá thuê bằng USD. Giá VND hiển thị trên eno được quy đổi từ USD và chỉ mang tính tham khảo.',
 }
 
 /** The lines of `after` that differ from `before`, as [before, after] pairs. */
@@ -347,7 +347,7 @@ describe('localizeImportText — the contract', () => {
   })
 
   it('leaves our own prose alone: the intro has no fact label, and an unlisted label is never looked up', () => {
-    const intro = 'Listed on Muaban.net. eno links to the original — enquiries and viewings are handled there, not by eno.'
+    const intro = 'Listed on Muaban.net.'
     const description = `${intro}\n\nNote: Phường 22, Quận Bình Thạnh\nFacing: Bắc`
     const out = localizeImportText({ title: intro, titleVi: 'x', description, descriptionVi: 'x' })
     expect(out.title).toBe(intro)
@@ -404,8 +404,8 @@ describe('untranslatedSummary — the importers’ dry-run coverage line', () =>
  * labels in both descriptions. Two REAL rows, composed by the importers' compose() before part 3 from
  * the 2026-09-21 source files (batdongsan pr46310931, rever 1654850630130_5651).
  */
-const BDS_INTRO_EN = 'Listed on Batdongsan.com.vn. eno links to the original — enquiries and viewings are handled there, not by eno.'
-const BDS_INTRO_VI = 'Tin đăng trên Batdongsan.com.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.'
+const BDS_INTRO_EN = 'Listed on Batdongsan.com.vn.'
+const BDS_INTRO_VI = 'Tin đăng trên Batdongsan.com.vn.'
 const BDS_FACTS = 'Type: Nhà trọ / Phòng trọ\nArea: 24 m²\nBedrooms: 1\nBathrooms: 1\nLocation: Quận 11 (P. Hòa Bình mới)\nRent: 6.300.000 đ/month'
 const BATDONGSAN: ImportTexts = {
   title: '1 bed · 1 bath · 24 m² for rent — P. Hòa Bình mới, Quận 11',
@@ -413,8 +413,8 @@ const BATDONGSAN: ImportTexts = {
   description: `${BDS_INTRO_EN}\n\n${BDS_FACTS}`,
   descriptionVi: `${BDS_INTRO_VI}\n\n${BDS_FACTS}`,
 }
-const REVER_INTRO_EN = 'Listed on Rever.vn. eno links to the original — enquiries and viewings are handled by Rever, not by eno.'
-const REVER_INTRO_VI = 'Tin đăng trên Rever.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do Rever xử lý, không qua eno.'
+const REVER_INTRO_EN = 'Listed on Rever.vn.'
+const REVER_INTRO_VI = 'Tin đăng trên Rever.vn.'
 const REVER_FACTS = 'Type: Căn hộ / Chung cư\nArea: 60 m²\nBedrooms: 2\nBathrooms: 2\nDirection: Tây Nam\nAddress: Đồng Văn Cống, Thạnh Mỹ Lợi, Quận 2, Hồ Chí Minh\nRent: 10.000.000 đ/month'
 const REVER: ImportTexts = {
   title: '2 bed · 2 bath · 60 m² for rent — Thạnh Mỹ Lợi, Quận 2',

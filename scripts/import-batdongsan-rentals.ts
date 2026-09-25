@@ -115,8 +115,8 @@ export function compose(r: Row, price: number): LocalizedImportTexts {
   return localizeReferenceImportText({
     title: `${bits.join(' · ') || 'Property'} for rent — ${where}`,
     titleVi: `Cho thuê ${kind}${r.bedrooms ? ` ${r.bedrooms}PN` : ''}${r._area ? ` ${r._area}m²` : ''} — ${where}`,
-    description: `Listed on Batdongsan.com.vn. eno links to the original — enquiries and viewings are handled there, not by eno.\n\n${facts}`,
-    descriptionVi: `Tin đăng trên Batdongsan.com.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.\n\n${facts}`,
+    description: `Listed on Batdongsan.com.vn.\n\n${facts}`,
+    descriptionVi: `Tin đăng trên Batdongsan.com.vn.\n\n${facts}`,
   })
 }
 

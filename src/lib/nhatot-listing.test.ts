@@ -208,7 +208,7 @@ describe('mapNhatotAd', () => {
     /** ⛔ The English title is English (src/lib/import-i18n.ts); the Vietnamese one keeps the source's place. */
     expect(r.mutable.title).toBe('Apartment · 1 bed · 1 bath · 30 m² for rent — Đông Hưng Thuận Ward (new), District 12')
     expect(r.mutable.titleVi).toBe('Cho thuê Căn hộ / Chung cư 1PN 30m² — P. Đông Hưng Thuận mới, Quận 12')
-    expect(r.mutable.description.startsWith('Listed on Nhatot.com. eno links to the original')).toBe(true)
+    expect(r.mutable.description.startsWith('Listed on Nhatot.com.\n\n')).toBe(true)
     expect(r.mutable.descriptionVi).toContain('Giá thuê: 4.000.000 đ/tháng')
     /** vnd.ts's English grouping — the hand-rolled formatter printed the Vietnamese dots here too. */
     expect(r.mutable.description).toContain('Rent: 4,000,000 đ/month')

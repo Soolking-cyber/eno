@@ -24,8 +24,8 @@ const row = (over: Partial<StoredRow> = {}): StoredRow => {
   return {
     id: 'cm-row-1', sellerId: MUABAN_SELLER_ID, externalId: 'muaban:71255923',
     title, titleVi,
-    description: 'Listed on Muaban.net. eno links to the original — enquiries and viewings are handled there, not by eno.\n\nType: Nhà trọ, phòng trọ\nArea: 25 m²\nLocation: Phường 22, Quận Bình Thạnh, Hồ Chí Minh\nRent: 2.500.000 đ/month',
-    descriptionVi: 'Tin đăng trên Muaban.net. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.\n\nLoại hình: Nhà trọ, phòng trọ\nDiện tích: 25 m²\nKhu vực: Phường 22, Quận Bình Thạnh, Hồ Chí Minh\nGiá thuê: 2.500.000 đ/tháng',
+    description: 'Listed on Muaban.net.\n\nType: Nhà trọ, phòng trọ\nArea: 25 m²\nLocation: Phường 22, Quận Bình Thạnh, Hồ Chí Minh\nRent: 2.500.000 đ/month',
+    descriptionVi: 'Tin đăng trên Muaban.net.\n\nLoại hình: Nhà trọ, phòng trọ\nDiện tích: 25 m²\nKhu vực: Phường 22, Quận Bình Thạnh, Hồ Chí Minh\nGiá thuê: 2.500.000 đ/tháng',
     searchText: fold(`${title} ${titleVi} phuong 22, quan binh thanh, ho chi minh ho chi minh city`),
     ...over,
   }
@@ -92,8 +92,8 @@ describe('Batdongsan and Rever: the reference template', () => {
     const titleVi = 'Cho thuê Nhà trọ / Phòng trọ 1PN 24m² — P. Hòa Bình mới, Quận 11'
     return {
       id: 'cm-bds-1', sellerId: BATDONGSAN_SELLER_ID, externalId: 'bds:pr46310931', title, titleVi,
-      description: `Listed on Batdongsan.com.vn. eno links to the original — enquiries and viewings are handled there, not by eno.\n\n${BDS_FACTS}`,
-      descriptionVi: `Tin đăng trên Batdongsan.com.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.\n\n${BDS_FACTS}`,
+      description: `Listed on Batdongsan.com.vn.\n\n${BDS_FACTS}`,
+      descriptionVi: `Tin đăng trên Batdongsan.com.vn.\n\n${BDS_FACTS}`,
       searchText: buildSearchText([title, titleVi, BDS_ROW.location, BDS_ROW.district, BDS_ROW.property_type]),
     }
   }
@@ -107,8 +107,8 @@ describe('Batdongsan and Rever: the reference template', () => {
     const titleVi = 'Cho thuê Căn hộ / Chung cư 2PN 60m² — Thạnh Mỹ Lợi, Quận 2'
     return {
       id: 'cm-rever-1', sellerId: REVER_SELLER_ID, externalId: 'rever:1654850630130_5651', title, titleVi,
-      description: `Listed on Rever.vn. eno links to the original — enquiries and viewings are handled by Rever, not by eno.\n\n${REVER_FACTS}`,
-      descriptionVi: `Tin đăng trên Rever.vn. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do Rever xử lý, không qua eno.\n\n${REVER_FACTS}`,
+      description: `Listed on Rever.vn.\n\n${REVER_FACTS}`,
+      descriptionVi: `Tin đăng trên Rever.vn.\n\n${REVER_FACTS}`,
       searchText: buildSearchText([title, titleVi, REVER_ROW.full_address, REVER_ROW.district, REVER_ROW.property_type]),
     }
   }

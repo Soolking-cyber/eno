@@ -968,8 +968,8 @@ export function mapRecord(item: MuabanListItem, detail: MuabanDetail | null, opt
   const text = localizeImportText({
     title,
     titleVi,
-    description: `Listed on ${SELLER_NAME}. eno links to the original — enquiries and viewings are handled there, not by eno.\n\n${factsEn}`,
-    descriptionVi: `Tin đăng trên ${SELLER_NAME}. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.\n\n${factsVi}`,
+    description: `Listed on ${SELLER_NAME}.\n\n${factsEn}`,
+    descriptionVi: `Tin đăng trên ${SELLER_NAME}.\n\n${factsVi}`,
   })
 
   const mutable: MutableFields = {

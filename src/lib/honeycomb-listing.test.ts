@@ -139,7 +139,7 @@ describe('assessHoneycomb — the row as it would be stored', () => {
     expect(m.attributes).toBe(JSON.stringify({ bedrooms: '3', bathrooms: '2' }))
     expect(m.buildingKey).toBe('estella-heights')
     expect(m.lat).not.toBeNull()
-    expect(m.description.startsWith('Listed on Honeycomb House (honeycomb.com.vn). eno links to the original')).toBe(true)
+    expect(m.description.startsWith('Listed on Honeycomb House (honeycomb.com.vn).\n\n')).toBe(true)
     expect(m.description).toContain('Rent: US$2,692/month')
     expect(m.descriptionVi).toContain('Giá thuê: 2.692 USD/tháng')
     expect(m.searchText).toContain('estella heights')

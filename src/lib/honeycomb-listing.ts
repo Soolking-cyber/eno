@@ -765,7 +765,7 @@ export function assessHoneycomb(
   ] as [string, unknown][]).filter(([, v]) => v !== null && v !== undefined && v !== '').map(([k, v]) => `${k}: ${v}`)
 
   const description = [
-    'Listed on Honeycomb House (honeycomb.com.vn). eno links to the original — enquiries and viewings are handled there, not by eno.',
+    'Listed on Honeycomb House (honeycomb.com.vn).',
     '',
     ...factsEn,
     rentLine(usd),
@@ -773,7 +773,7 @@ export function assessHoneycomb(
     'Honeycomb House quotes this rent in US dollars. The đồng price shown on eno is converted from it and is approximate.',
   ].join('\n')
   const descriptionVi = [
-    'Tin đăng trên Honeycomb House (honeycomb.com.vn). eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.',
+    'Tin đăng trên Honeycomb House (honeycomb.com.vn).',
     '',
     ...factsVi,
     `Giá thuê: ${fmtUsdVi(usd)} USD/tháng`,

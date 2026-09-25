@@ -408,8 +408,8 @@ const FURNISHING_EN: Record<string, string> = {
 }
 
 /** The fixed first paragraph of every description — OUR text, so it is not screened (it names a domain). */
-export const NHATOT_INTRO_EN = 'Listed on Nhatot.com. eno links to the original — enquiries and viewings are handled there, not by eno.'
-export const NHATOT_INTRO_VI = 'Tin đăng trên Nhatot.com. eno chỉ dẫn link tới tin gốc — mọi liên hệ và xem nhà do bên đó xử lý, không qua eno.'
+export const NHATOT_INTRO_EN = 'Listed on Nhatot.com.'
+export const NHATOT_INTRO_VI = 'Tin đăng trên Nhatot.com.'
 
 export type NhatotDropReason =
   | 'notRent' | 'notActive' | 'unknownRegion' | 'unknownCategory' | NhatotPriceDrop | 'noImages' | 'tooFewImages'

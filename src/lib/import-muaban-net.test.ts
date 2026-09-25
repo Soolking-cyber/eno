@@ -158,7 +158,7 @@ describe('mapRecord — the real card + detail page', () => {
       title: 'House · 89 m² for rent — Tân Thành Ward, Tân Phú District',
       titleVi: 'Cho thuê Nhà mặt tiền 89m² — Phường Tân Thành, Quận Tân Phú',
     })
-    expect(m.row.mutable.description.startsWith('Listed on Muaban.net. eno links to the original')).toBe(true)
+    expect(m.row.mutable.description.startsWith('Listed on Muaban.net.\n\n')).toBe(true)
     // English commas on the English rent line; the Vietnamese one keeps its dots.
     expect(m.row.mutable.description).toContain('Rent: 25,000,000 đ/month')
     expect(m.row.mutable.description).toContain('Location: Tân Thành Ward, Tân Phú District, Ho Chi Minh City')
