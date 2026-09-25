@@ -45,6 +45,26 @@ import { IS_SERVICES } from '@/lib/edition'
  * ⚠️ SSR'd ON PURPOSE. The overlay is in the server HTML, so it covers the first paint instead of
  * appearing after hydration — in the native shell, where native-bootstrap hides Capacitor's own splash
  * at first paint, this is what the WebView reveals underneath it.
+ *
+ * ⛔ NATIVE APP ONLY — owner, 2026-09-25: "Native app only". On the web this curtain held an ALREADY
+ * PAINTED page behind a wordmark on every full document load: 1.4–2.5s on a fast phone and 9–10s at 4x
+ * CPU (home and PDP, measured on eno.vn 2026-09-24), replayed on every magic-link/OAuth return and every
+ * ad, search or Zalo landing. In the native shell it is the hand-over from the OS splash, and there it
+ * stays exactly as it was. The gate is the codebase's own native signal, `html.native`, which the
+ * pre-paint <head> script in [lang]/layout.tsx sets from `window.Capacitor.isNativePlatform()` (or the
+ * native app's EnoNativeTabs UA) BEFORE <body> is parsed — no second detection, no UA sniff here.
+ *   · CSS (globals.css, `html:not(.native) #app-splash`) keeps the web from ever PAINTING it. The
+ *     server cannot make this call itself: the HTML is ISR-cached and shared by both audiences.
+ *   · The first effect below unmounts it on the web before arming a single timer, frame or listener,
+ *     so the web runs none of the reveal's work either.
+ * ⛔ ONE SIGNAL, READ AT THE MOMENT THE CSS READ IT. The class is sampled while this component RENDERS
+ * for hydration — before any effect in the tree has run — so it is exactly what the head script set
+ * before first paint, i.e. exactly what `html:not(.native) #app-splash` decided. It is NOT read in the
+ * effect, and there is no `isNativeShell()` belt, because both were a split brain (codex, opus): if the
+ * head script ever threw inside the app, native-bootstrap's effect adds `native` a moment later — as an
+ * earlier sibling in providers.tsx its effect runs BEFORE this one — so an effect-time read would keep
+ * a curtain the CSS had hidden, and adding the class would then un-hide it over an app already painted
+ * and in use. Read at render, that case degrades to "no splash", which is the harmless direction.
  */
 const SPLASH_MAX_MS = 4000
 /** Once the page is ready, how long the rest of the mark takes to paint in. Fixed, in ms. */
@@ -55,6 +75,8 @@ const SMOOTH_MS = 90
 const FEATHER = 0.22
 
 export function AppSplash() {
+  // See "ONE SIGNAL" above. `false` on the server, which never runs the effect that reads it.
+  const [nativeAtFirstPaint] = useState(() => typeof document !== 'undefined' && document.documentElement.classList.contains('native'))
   const [done, setDone] = useState(false)
   const [gone, setGone] = useState(false)
   const el = useRef<HTMLDivElement>(null)
@@ -81,6 +103,9 @@ export function AppSplash() {
   useEffect(() => {
     const root = el.current
     if (!root) return
+    // ⛔ The web gets no curtain (see the header): leave at hydration, before anything is armed. The
+    // server HTML carried the node because it cannot know the client; CSS kept it from painting.
+    if (!nativeAtFirstPaint) { setGone(true); return }
     /**
      * ⚠️ REDUCED MOTION SKIPS THE SWEEP, NOT THE WAIT. The mark is painted whole immediately, but the
      * overlay still leaves only when the page is READY — an early exit would hand this reader a
@@ -203,7 +228,7 @@ export function AppSplash() {
       window.removeEventListener('load', onLoad)
       window.removeEventListener('load', onReady)
     }
-  }, [])
+  }, [nativeAtFirstPaint])
 
   // Unmount only after the fade, so the node is not ripped out mid-transition. 220ms = the 200ms exit
   // in globals.css (#app-splash) plus a frame of slack; it must never be shorter than that fade.

@@ -125,7 +125,11 @@ export function Providers({
                     {/* The launch reveal. FIRST in this group so its overlay is early in the DOM, and
                         server-rendered so it covers the first paint rather than arriving after
                         hydration — in the native shell that is what Capacitor's own splash hands over
-                        to. It removes itself once the page is actually ready; see app-splash.tsx. */}
+                        to. It removes itself once the page is actually ready; see app-splash.tsx.
+                        ⛔ NATIVE APP ONLY (owner, 2026-09-25): it is still in every page's server HTML
+                        (ISR cannot tell the app from a browser), but the web never paints it
+                        (`html:not(.native) #app-splash` in globals.css) and it unmounts there at
+                        hydration without arming its clock. */}
                     <AppSplash />
                     <SaveSignupSheet />
                     <ImageShield />

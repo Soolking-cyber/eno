@@ -2675,6 +2675,16 @@ html.dark .leaflet-tile-pane {
   pointer-events: none;
 }
 
+/* ⛔ NATIVE APP ONLY — owner, 2026-09-25: "Native app only". The server HTML still carries the overlay
+   (it is ISR-cached and shared by the web and the app, so the server cannot tell them apart), and this is
+   what keeps a browser from ever painting it: `html.native` is set by the pre-paint <head> script in
+   [lang]/layout.tsx before <body> is parsed, so on the web this rule is in force from the first frame.
+   app-splash.tsx unmounts the node on the same signal at hydration. `display: none` also means the
+   bailout keyframes and the wisp never run there. The native path is untouched. */
+html:not(.native) #app-splash {
+  display: none;
+}
+
 #app-splash img {
   /* Sized by WIDTH, not height: eno.forum's f-ascender makes that mark taller for the same letters,
      and width is what makes the two read at one size. */

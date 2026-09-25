@@ -3,6 +3,9 @@ import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { AppSplash } from './app-splash'
 
 /**
@@ -22,11 +25,16 @@ import { AppSplash } from './app-splash'
  * 'complete' unless a test overrides it.
  *
  * ⚠️ EXPLICIT CLEANUP — no vitest `globals`, so Testing Library registers no afterEach of its own.
+ *
+ * ⛔ EVERY TIMING TEST BELOW RUNS AS THE NATIVE APP. Since 2026-09-25 the reveal exists only there
+ * (owner: "Native app only"), keyed off `html.native` — the class the pre-paint head script sets inside
+ * the Capacitor shell. The web's behaviour has its own block at the end of this file.
  */
 afterEach(cleanup)
 
 let frameMs = 16
 beforeEach(() => {
+  document.documentElement.classList.add('native')
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
   frameMs = 16
   // A frame clock on the fake timers: each rAF fires `frameMs` later with the fake `performance.now()`
@@ -35,6 +43,7 @@ beforeEach(() => {
   vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id))
 })
 afterEach(() => {
+  document.documentElement.classList.remove('native')
   vi.unstubAllGlobals()
   vi.useRealTimers()
   // Undo any readyState override.
@@ -141,5 +150,53 @@ describe('AppSplash — exit', () => {
     expect(splash()!.style.getPropertyValue('--splash-reveal')).toBe('1')
     // Two settle frames, then done — no ease.
     expect(msUntil(isDone, 1000)).toBeLessThanOrEqual(3 * frameMs + 8)
+  })
+})
+
+/**
+ * ⛔ THE WEB GETS NO CURTAIN — owner, 2026-09-25: "Native app only". Measured on eno.vn before this: the
+ * overlay held an already-painted page for 1.4–2.5s on a fast phone and 9–10s at 4x CPU, on every full
+ * load. Two halves, and both are pinned: the CSS that keeps a browser from painting the server-rendered
+ * node, and the component leaving at hydration without arming its clock.
+ */
+describe('AppSplash — web (no html.native)', () => {
+  beforeEach(() => { document.documentElement.classList.remove('native') })
+
+  it('unmounts at hydration and arms no timer, frame or load listener', () => {
+    const raf = vi.fn()
+    vi.stubGlobal('requestAnimationFrame', raf)
+    const add = vi.spyOn(window, 'addEventListener')
+    Object.defineProperty(document, 'readyState', { configurable: true, get: () => 'loading' })
+    render(<AppSplash />)
+    // Gone on the first commit after the mount effect — not after a 4s ceiling, not after a fade.
+    expect(splash()).toBeNull()
+    expect(raf).not.toHaveBeenCalled()
+    expect(add.mock.calls.filter(([type]) => type === 'load')).toHaveLength(0)
+    expect(vi.getTimerCount()).toBe(0)
+    add.mockRestore()
+  })
+
+  it('the native app still gets the reveal (same test, class on)', () => {
+    document.documentElement.classList.add('native')
+    render(<AppSplash />)
+    expect(splash()).not.toBeNull()
+    expect(msUntil(isDone, 3000)).toBeLessThan(Infinity)
+  })
+
+  it('a class that arrives AFTER first paint (a native fallback adding it at hydration) does not bring a late curtain', () => {
+    // The head script threw, so the CSS hid the overlay at first paint; native-bootstrap's effect (an
+    // earlier sibling) then adds `native` before this component's effect runs. Reading the class in the
+    // effect kept a curtain the CSS then UN-hid over a painted app (codex, opus on the first diff).
+    const Late = () => { React.useEffect(() => { document.documentElement.classList.add('native') }, []); return null }
+    render(<><Late /><AppSplash /></>)
+    expect(document.documentElement.classList.contains('native')).toBe(true)
+    expect(splash()).toBeNull()
+  })
+
+  it('globals.css hides the server-rendered overlay unless html.native is set', () => {
+    // The server cannot make this call (the HTML is ISR-cached for both audiences), so the rule that
+    // keeps the web from PAINTING the first frame is CSS, keyed off the pre-paint class.
+    const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8')
+    expect(css).toMatch(/html:not\(\.native\)\s+#app-splash\s*\{\s*display:\s*none;?\s*\}/)
   })
 })
