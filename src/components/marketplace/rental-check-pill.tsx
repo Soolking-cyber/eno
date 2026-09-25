@@ -39,7 +39,7 @@ export function RentalCheckPill({ className }: { className?: string }) {
       variant="cta"
       size="none"
       className={cn(
-        'pointer-events-auto min-h-11 gap-2 rounded-full py-1.5 pl-3 pr-4 shadow-pop',
+        'pointer-events-auto min-h-11 max-w-full gap-2 rounded-full py-1.5 pl-3 pr-4 shadow-pop',
         // Enter only — opacity + a 0.95 scale, never from nothing; 200ms ease-out. The global
         // reduced-motion switch in globals.css stills it.
         'animate-in fade-in zoom-in-95 duration-200 ease-out',
@@ -48,9 +48,9 @@ export function RentalCheckPill({ className }: { className?: string }) {
     >
       <Link href={RENTAL_CHECK_PATH} prefetch={false} data-rental-check-pill="">
         <ClipboardCheck className="h-5 w-5 shrink-0" aria-hidden />
-        <span className="flex flex-col items-start text-left leading-tight">
-          <span className="text-sm font-bold tabular-nums">{label}</span>
-          <span className="text-2xs font-medium text-white/85">{rentalFreeShort(tr)}</span>
+        <span className="flex min-w-0 flex-col items-start text-left leading-tight">
+          <span className="max-w-full truncate text-sm font-bold tabular-nums">{label}</span>
+          <span className="max-w-full truncate text-2xs font-medium text-white/85">{rentalFreeShort(tr)}</span>
         </span>
       </Link>
     </Button>

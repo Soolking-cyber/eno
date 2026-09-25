@@ -265,6 +265,28 @@ export function BackToTop() {
 
   return createPortal(
     <>
+      {/* ⚠️ PHONES: THE RENTAL-CHECK PILL SITS BOTTOM-LEFT, JUST ABOVE THE NAV (owner, 2026-09-25: "move this
+          on mobile above the bottom navbar but not covering icons on the right"). In the right-hand column it
+          stacked over the chevron and support mark and covered the right edge. It shares this component's
+          rules rather than re-deriving them: the same nav clearance, the same `lift` over a data-fab-clear
+          bar (the PDP contact bar), the same modal and account-panel stand-downs, and /messages exits above.
+          Desktop (lg+) keeps it in the column. */}
+      {!desktop && (<div
+        className={cn(
+          // Width-capped so even the longer Vietnamese label on a 320px phone stops short of the right-hand
+          // column: 16px gutter + 44px chevron/support column + 16px edge + 12px gap = 5.5rem.
+          'pointer-events-none fixed left-4 z-[60] max-w-[calc(100vw-5.5rem)]',
+          '[body:has([data-slot=dialog-content])_&]:hidden',
+          '[body:has([data-slot=sheet-content])_&]:hidden',
+          '[body:has([data-slot=alert-dialog-content])_&]:hidden',
+          'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))]',
+          'transition-[bottom] duration-300 motion-reduce:transition-none',
+          panelOpen && 'hidden',
+        )}
+        style={{ ...(lift ? { bottom: lift + 12 } : {}), transitionTimingFunction: 'var(--ease-spring)' }}
+      >
+        <RentalCheckPill />
+      </div>)}
       <div
         ref={column}
         className={cn(
@@ -318,7 +340,9 @@ export function BackToTop() {
             and inherits every rule this column carries (nav clearance, the data-fab-clear lift, the
             modal and panel stand-downs, the /messages exit). Renders nothing while the basket is empty.
             It carries its own `pointer-events-auto`. */}
-        <RentalCheckPill />
+        {/* Desktop only — phones get the bottom-left one above. ONE mount chosen by `desktop`, never a CSS-hidden
+            twin: two [data-rental-check-pill] nodes would make a query or a test pick the invisible one. */}
+        {desktop && <RentalCheckPill />}
 
         {/* Back to top — bare glyph, no circle: same treatment as the search-bar
             icons (quiet ink → brand blue on hover) with a subtle drop-shadow so it
