@@ -2,6 +2,7 @@ import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
+import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
 import { ApiError, route } from '@/lib/api/handler'
 import { MESSAGE_ROW_SELECT, serializeMessage } from '@/lib/messages'
 import { globalTopReactions } from '@/lib/reaction-tally'
@@ -203,13 +204,22 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
   // as the seller it's the buyer's own storefront, if they have one.
   // When I'm the seller, the counterpart is the buyer's own storefront (if they have
   // one) — fetch its trust fields in the same lookup that resolves the deep-link id.
-  const buyerStorefront = iAmBuyer
+  /**
+   * ⚠️ A RENTAL-DESK THREAD HAS NO STOREFRONT ON EITHER SIDE. The requester's counterpart is the
+   * unowned "eno team" desk: it has no page worth linking, and its `memberSince` is the day the row
+   * was lazily created, so the trust meta below would label eno's own team a "New user". The
+   * operator's counterpart is a person asking for help, not a trading partner — their shop (if any)
+   * has nothing to do with the request. And with no seller id the buyer's review prompt cannot fire:
+   * there was no deal to review. So: no seller id, no trust, both ways.
+   */
+  const isRentalDeskThread = (RENTAL_DESK_SELLER_IDS as readonly string[]).includes(convo.seller.id)
+  const buyerStorefront = iAmBuyer || isRentalDeskThread
     ? null
     : await db.seller.findUnique({
         where: { ownerId: convo.buyerProfileId },
         select: { id: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true },
       })
-  const counterpartSellerId = iAmBuyer ? convo.seller.id : (buyerStorefront?.id ?? null)
+  const counterpartSellerId = isRentalDeskThread ? null : iAmBuyer ? convo.seller.id : (buyerStorefront?.id ?? null)
 
   // Trust meta for the chat header (under the counterpart's name). Only present when
   // the counterpart has a seller identity. `isNew` = account <30d old with no reviews
@@ -217,7 +227,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
   // (asymmetric honesty). The raw responseRate number is intentionally NOT sent — the
   // response bucket needs a per-thread 90d conversation count we don't add to this
   // frequently-polled endpoint, so the client renders only score/tenure/new state.
-  const trustSrc = iAmBuyer ? convo.seller : buyerStorefront
+  const trustSrc = isRentalDeskThread ? null : iAmBuyer ? convo.seller : buyerStorefront
   const NEW_ACCOUNT_MS = 30 * 24 * 60 * 60 * 1000
   // Counterpart PRESENCE (owner 2026-07-23: bidirectional in threads) — the other
   // PERSON's heartbeat: the seller's owner Profile when I'm the buyer, the buyer's

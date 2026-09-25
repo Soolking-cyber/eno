@@ -44,38 +44,89 @@ export async function getOrCreateSupportThread(
   db: SupportThreadDb,
   buyerProfileId: string,
 ): Promise<SupportThread> {
-  const find = () =>
-    db.conversation.findFirst({
-      where: { buyerProfileId, sellerId: SUPPORT_SELLER_ID, listingId: null },
-      select: { id: true },
-    })
+  const outcome = await findOrCreate(
+    () =>
+      db.conversation.findFirst({
+        where: { buyerProfileId, sellerId: SUPPORT_SELLER_ID, listingId: null },
+        select: { id: true },
+      }),
+    () =>
+      db.conversation.create({
+        // ⚠️ NO OPENING MESSAGE IS AUTHORED HERE. The support seller is unowned, so there is no
+        // profile that could honestly send one — a greeting written by the system would render as a
+        // message FROM support that no human at support has seen. The thread opens empty with the
+        // composer focused, which is also what "open a message with support" asked for.
+        data: { buyerProfileId, sellerId: SUPPORT_SELLER_ID, listingId: null },
+        select: { id: true },
+      }),
+  )
+  return 'created' in outcome ? { id: outcome.created.id, created: true } : { id: outcome.existing.id, created: false }
+}
 
+/**
+ * THE SAME THREAD SHAPE, FOR A DESK THAT HAS A PERSON BEHIND IT — the rental availability check
+ * (src/app/api/rental-check/route.ts). Same identity (`listingId: null`), same partial unique index,
+ * same double-tap race; the one difference is `sellerProfileId`.
+ *
+ * ⚠️ `sellerProfileId` IS WHO ANSWERS, AND IT IS KEPT CURRENT. The support desk leaves it null on
+ * purpose (replies come from the admin surface). The rental desk sets it to the operator profile, so
+ * the thread lands in that person's own /messages inbox and they reply in-app like any seller. When
+ * the operator changes (RENTAL_CHECK_OPERATOR_EMAIL is repointed), an existing thread is RE-POINTED
+ * on its next use rather than left answering to nobody — a guarded update that re-asserts the
+ * thread's identity, so it can only ever touch this listing-less desk row.
+ *
+ * ⚠️ THE db HANDLE IS INJECTED, for the same reason as above.
+ */
+export async function getOrCreateListinglessThread(
+  db: ListinglessThreadDb,
+  thread: { buyerProfileId: string; sellerId: string; sellerProfileId: string },
+): Promise<SupportThread> {
+  const { buyerProfileId, sellerId, sellerProfileId } = thread
+  const outcome = await findOrCreate(
+    () =>
+      db.conversation.findFirst({
+        where: { buyerProfileId, sellerId, listingId: null },
+        select: { id: true, sellerProfileId: true },
+      }),
+    () =>
+      db.conversation.create({
+        data: { buyerProfileId, sellerId, listingId: null, sellerProfileId },
+        select: { id: true },
+      }),
+  )
+  if ('created' in outcome) return { id: outcome.created.id, created: true }
+  if (outcome.existing.sellerProfileId !== sellerProfileId) {
+    await db.conversation.updateMany({
+      where: { id: outcome.existing.id, buyerProfileId, sellerId, listingId: null },
+      data: { sellerProfileId },
+    })
+  }
+  return { id: outcome.existing.id, created: false }
+}
+
+/**
+ * Find, or create — and on losing the create race, find the winner.
+ *
+ * ⚠️ THE LOSER OF A DOUBLE-TAP, AND IT IS A REAL RACE RATHER THAN A DEFENSIVE CATCH: the button is a
+ * single tap that fires a POST, and a double-tap fires two before the first returns. The partial
+ * unique index rejects the second create; the winner's thread is the answer.
+ * ⛔ Prisma does NOT know about that index (it is hand-rolled DDL, not in schema.prisma), so this
+ * cannot be narrowed to a named constraint — it is matched on the P2002 code alone.
+ * ⚠️ Re-finding rather than rethrowing is what stops a double-tap 500ing; if the refetch also misses,
+ * the original error is the honest thing to surface.
+ */
+async function findOrCreate<T extends { id: string }>(
+  find: () => Promise<T | null>,
+  create: () => Promise<{ id: string }>,
+): Promise<{ existing: T } | { created: { id: string } }> {
   const existing = await find()
-  if (existing) return { id: existing.id, created: false }
-
+  if (existing) return { existing }
   try {
-    const created = await db.conversation.create({
-      // ⚠️ NO OPENING MESSAGE IS AUTHORED HERE. The support seller is unowned, so there is no
-      // profile that could honestly send one — a greeting written by the system would render as a
-      // message FROM support that no human at support has seen. The thread opens empty with the
-      // composer focused, which is also what "open a message with support" asked for.
-      data: { buyerProfileId, sellerId: SUPPORT_SELLER_ID, listingId: null },
-      select: { id: true },
-    })
-    return { id: created.id, created: true }
+    return { created: await create() }
   } catch (e) {
-    /**
-     * ⚠️ THE LOSER OF A DOUBLE-TAP, AND IT IS A REAL RACE RATHER THAN A DEFENSIVE CATCH: the button
-     * is a single tap that fires a POST, and a double-tap fires two before the first returns.
-     * The partial unique index rejects the second create; the winner's thread is the answer.
-     * ⛔ Prisma does NOT know about that index (it is hand-rolled DDL, not in schema.prisma), so
-     * this cannot be narrowed to a named constraint — it is matched on the P2002 code alone.
-     * ⚠️ Re-finding rather than rethrowing is what stops a double-tap 500ing; if the refetch also
-     * misses, the original error is the honest thing to surface.
-     */
     if ((e as { code?: string })?.code === 'P2002') {
       const winner = await find()
-      if (winner) return { id: winner.id, created: false }
+      if (winner) return { existing: winner }
     }
     throw e
   }
@@ -92,5 +143,23 @@ export type SupportThreadDb = {
       data: { buyerProfileId: string; sellerId: string; listingId: null }
       select: { id: true }
     }): Promise<{ id: string }>
+  }
+}
+
+/** The slice of the Prisma client getOrCreateListinglessThread uses. */
+export type ListinglessThreadDb = {
+  conversation: {
+    findFirst(args: {
+      where: { buyerProfileId: string; sellerId: string; listingId: null }
+      select: { id: true; sellerProfileId: true }
+    }): Promise<{ id: string; sellerProfileId: string | null } | null>
+    create(args: {
+      data: { buyerProfileId: string; sellerId: string; listingId: null; sellerProfileId: string }
+      select: { id: true }
+    }): Promise<{ id: string }>
+    updateMany(args: {
+      where: { id: string; buyerProfileId: string; sellerId: string; listingId: null }
+      data: { sellerProfileId: string }
+    }): Promise<{ count: number }>
   }
 }

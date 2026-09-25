@@ -305,6 +305,13 @@ describe('the registry maps each kind to ITS OWN schema', () => {
     trip_quote: { v: 1, requestId: REQ },
     trip_status: { v: 1, requestId: REQ, status: 'quoted' },
     trip_step: { v: 1, step: 2, state: 'active' },
+    // The rental availability check — its own family (buildRentalCheckMeta), but the same registry,
+    // so the same pin: it must accept its own payload and refuse every other kind's, and vice versa.
+    availability_request: {
+      v: 1, requestId: 'req-00000001',
+      items: [{ id: 'L1', title: 'Studio', titleVi: null, image: null, price: 9000000, currency: '₫', priceUnit: 'VND/month' }],
+      requirements: '', contact: { channel: 'email', value: 'a@example.com' }, origin: 'vn', lang: 'en',
+    },
   } as const
   const kinds = Object.keys(payloads) as Array<keyof typeof payloads>
 

@@ -26,7 +26,13 @@
  * counting notification rows the marketplace bell hides, which is this boundary with one consumer
  * left outside it; the route re-exports both names so its own test keeps pinning the real predicate.
  */
-export const SERVICES_ONLY_NOTIFICATION_TYPES = ['visa_result'] as const
+export const SERVICES_ONLY_NOTIFICATION_TYPES = [
+  'visa_result',
+  // A rental availability check sent from eno.forum (src/lib/messages.ts). Not services-tier CONTENT
+  // — rentals are on both editions — but its thread is on the forum's rental desk, which eno.vn
+  // hides (edition-scope.ts), so on eno.vn the row could only link to a thread that will not open.
+  'availability_request_forum',
+] as const
 
 /**
  * ⛔ ONE PREDICATE, USED BY EVERY QUERY THAT COUNTS OR LISTS NOTIFICATIONS. The list, the unread

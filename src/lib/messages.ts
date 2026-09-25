@@ -18,6 +18,13 @@ import { TRIP_TRANSITIONS } from '@/lib/trips/status'
 // The ONE wizard step machine — imported for its step list so the card contract and the wizard
 // cannot disagree about what a step is.
 import { TRIP_WIZARD_STEPS, type TripWizardStep } from '@/lib/trips/itinerary-wizard'
+// The rental availability check's contract (pure, client-safe) and its desk ids (import-free). The
+// card is gated by buildRentalCheckMeta below, which shares nothing with the visa or trip gates.
+import {
+  RENTAL_CHECK_CHANNELS, RENTAL_CHECK_ID_RE, RENTAL_CHECK_MAX_ITEMS, RENTAL_CHECK_MAX_REQUIREMENTS,
+  RENTAL_CHECK_REQUEST_ID_RE, normaliseRentalContact, type AvailabilityRequestMeta,
+} from '@/lib/rental-check/shared'
+import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
 
 // ---------------------------------------------------------------------------
 // Structured message kinds
@@ -34,6 +41,7 @@ import { TRIP_WIZARD_STEPS, type TripWizardStep } from '@/lib/trips/itinerary-wi
 //   'trip_quote'    — the trip desk's live quote, accept/decline     (metaJson)
 //   'trip_status'   — a trip case moved to a new status              (metaJson)
 //   'trip_step'     — one step of the in-thread itinerary wizard     (metaJson)
+//   'availability_request' — a rental availability check, sent to the eno team (metaJson)
 export const MESSAGE_KINDS = [
   'text', 'offer',
   'visa_step', 'visa_checkout', 'visa_result', 'visa_picker',
@@ -57,6 +65,12 @@ export const MESSAGE_KINDS = [
   // its own audit trail. Written only when the mode actually CHANGES, so flipping back and forth
   // does not fill the thread with markers.
   'trip_ai',
+  // ⚠️ THE ONLY CARD OF ITS FAMILY, AND THE REQUESTER AUTHORS IT — see buildRentalCheckMeta. It is
+  // the "check these rentals for me" request (src/app/api/rental-check/route.ts), posted into a
+  // listing-less thread with the rental desk. Unlike every trip card it carries a SNAPSHOT (titles,
+  // prices, a contact), because the request is a historical fact: what the person asked about, as it
+  // was when they asked.
+  'availability_request',
 ] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
 export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa_picker'
@@ -67,14 +81,17 @@ export type TripCardKind = 'trip_quote' | 'trip_status' | 'trip_step' | 'trip_re
 const TRIP_CARD_KINDS = new Set<string>(['trip_quote', 'trip_status', 'trip_step', 'trip_request'])
 export const isTripCardKind = (kind: string): kind is TripCardKind => TRIP_CARD_KINDS.has(kind)
 
+export type RentalCardKind = 'availability_request'
+export const isRentalCardKind = (kind: string): kind is RentalCardKind => kind === 'availability_request'
+
 /**
  * Every kind that carries metaJson. The two families are gated SEPARATELY — a visa card is
  * bound to a visa case, a trip card to an assistance request — so nothing here merges their
  * authorship checks; this union exists only so the shared plumbing (schema lookup, read-side
  * parse, "may this kind carry meta at all?") has one list to consult instead of two.
  */
-export type CardKind = VisaCardKind | TripCardKind
-export const isCardKind = (kind: string): kind is CardKind => isVisaCardKind(kind) || isTripCardKind(kind)
+export type CardKind = VisaCardKind | TripCardKind | RentalCardKind
+export const isCardKind = (kind: string): kind is CardKind => isVisaCardKind(kind) || isTripCardKind(kind) || isRentalCardKind(kind)
 
 // Versioned card payloads, persisted as a JSON string in Message.metaJson.
 // ⚠️ NO VISA PII EVER LIVES HERE. metaJson carries ids, a step number, a money
@@ -205,7 +222,8 @@ export type TripStepMeta = {
 }
 export type VisaMeta = VisaStepMeta | VisaCheckoutMeta | VisaResultMeta | VisaPickerMeta
 export type TripMeta = TripQuoteMeta | TripStatusMeta | TripStepMeta
-export type MessageMeta = VisaMeta | TripMeta
+export type { AvailabilityRequestMeta }
+export type MessageMeta = VisaMeta | TripMeta | AvailabilityRequestMeta
 
 /**
  * kind → the exact payload that kind stores. Lets parseMessageMeta hand a caller the precise
@@ -233,6 +251,7 @@ type MetaForKind = {
   trip_status: TripStatusMeta
   trip_step: TripStepMeta
   trip_request: TripRequestMeta
+  availability_request: AvailabilityRequestMeta
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -370,6 +389,71 @@ const tripStepMetaSchema = z
   })
   .strict()
 
+/**
+ * THE AVAILABILITY REQUEST — the one card that carries requester-authored free text.
+ *
+ * ⚠️ THAT IS WHY EVERY FIELD IS BOUNDED, and why the snapshot half is not the requester's to write.
+ * `items` are built by the ROUTE from the database rows at send time (the client sends ids only), so
+ * a title, a price or an image URL here was never typed by anyone in the request. The two genuinely
+ * free fields are `requirements` (≤1000, rendered as plain pre-wrapped text, never linkified) and the
+ * contact, which must be a FIXED POINT of normaliseRentalContact — the same function the form ran —
+ * so the value is provably a phone number or a plain address and the operator's deep link built from
+ * it can carry nothing else.
+ *
+ * ⚠️ `currency` IS `₫` OR AN ISO CODE, NOT ISO ONLY. The contract first said `^[A-Z]{3}$`; measured on
+ * production (read-only, 2026-09-25) every one of the 29,686 rentals stores `₫` (core/listings.ts types
+ * `money.currency` as that literal), so the ISO-only bound would have refused every real request.
+ *
+ * ⚠️ `image` refuses a protocol-relative `//host` (and any backslash), not just non-https — a bare
+ * `^/` would have admitted `//evil.example/x.jpg`, which a browser resolves off-site.
+ */
+const RENTAL_CURRENCY_RE = /^(?:₫|[A-Z]{3})$/
+/** What a stored contact must LOOK like per channel — deliberately looser than the normaliser. */
+const RENTAL_CONTACT_SHAPE: Record<(typeof RENTAL_CHECK_CHANNELS)[number], RegExp> = {
+  zalo: /^84\d{9}$/,
+  whatsapp: /^\d{8,15}$/,
+  // No whitespace, no URL-structural or quote characters, one @, a dotted domain.
+  email: /^[^\s@?#&<>"'\\/,;:()[\]%]+@[^\s@?#&<>"'\\/,;:()[\]%]+\.[^\s@?#&<>"'\\/,;:()[\]%]{2,}$/,
+}
+const RENTAL_IMAGE_RE = /^(?:https:\/\/|\/(?![/\\]))[^\s\\]*$/
+const rentalItemSchema = z
+  .object({
+    id: z.string().regex(RENTAL_CHECK_ID_RE),
+    title: z.string().max(140),
+    titleVi: z.string().max(140).nullable(),
+    image: z.string().max(512).regex(RENTAL_IMAGE_RE).nullable(),
+    price: z.number().finite().min(0).max(1e13),
+    currency: z.string().regex(RENTAL_CURRENCY_RE),
+    priceUnit: z.string().max(32),
+  })
+  .strict()
+const availabilityRequestMetaSchema = z
+  .object({
+    v: z.literal(1),
+    requestId: z.string().regex(RENTAL_CHECK_REQUEST_ID_RE),
+    items: z
+      .array(rentalItemSchema)
+      .min(1)
+      .max(RENTAL_CHECK_MAX_ITEMS)
+      .refine((items) => new Set(items.map((i) => i.id)).size === items.length),
+    requirements: z.string().max(RENTAL_CHECK_MAX_REQUIREMENTS),
+    // SHAPE here, which is what the READ side needs; the FIXED POINT is asserted on write, in
+    // buildRentalCheckMeta. Checking the fixed point on read too would tie every stored card to
+    // today's normaliser: one change to normalizePhoneForRouting (shared with the OTP router) and
+    // every committed card would stop parsing — and the route's replay lookup would stop finding
+    // them, inserting duplicates (Opus seat, round two).
+    contact: z
+      .object({ channel: z.enum(RENTAL_CHECK_CHANNELS), value: z.string().min(1).max(254) })
+      .strict()
+      .refine((c) => RENTAL_CONTACT_SHAPE[c.channel].test(c.value)),
+    origin: z.enum(['vn', 'forum']),
+    lang: z.enum(['en', 'vi']),
+  })
+  .strict()
+/** Five snapshotted rows plus 1000 characters of requirements fit in ~4 KB; the cap is the stop on a
+ *  fat row reaching every inbox poll, sized for the worst realistic escaping, not a working limit. */
+const MAX_RENTAL_META_JSON = 8192
+
 const META_SCHEMAS: { [K in CardKind]: z.ZodType<MetaForKind[K]> } = {
   visa_step: visaStepMetaSchema,
   visa_checkout: visaCheckoutMetaSchema,
@@ -379,6 +463,7 @@ const META_SCHEMAS: { [K in CardKind]: z.ZodType<MetaForKind[K]> } = {
   trip_status: tripStatusMetaSchema,
   trip_step: tripStepMetaSchema,
   trip_request: tripRequestMetaSchema,
+  availability_request: availabilityRequestMetaSchema,
 }
 const metaSchemaFor = (kind: CardKind): z.ZodType => META_SCHEMAS[kind]
 
@@ -528,6 +613,13 @@ type ConvoForSend = {
    * author cards, which is why the ordinary send routes are safe untouched.
    */
   visaApplicationId?: string | null
+  /**
+   * The thread's Seller. REQUIRED to send an availability_request card — see buildRentalCheckMeta.
+   * Only POST /api/rental-check passes it; the ordinary send routes never do, so they cannot mint
+   * one, which is the same "absence as gate zero" the visa binding relies on (and, like that one, it
+   * is not trusted alone: the transaction re-asserts the desk).
+   */
+  sellerId?: string | null
 }
 
 export type SendOpts = {
@@ -778,6 +870,39 @@ async function buildTripCardMeta(kind: TripCardKind, convo: ConvoForSend, sender
   }
 }
 
+// ---------------------------------------------------------------------------
+// WHO MAY AUTHOR AN AVAILABILITY REQUEST
+// ---------------------------------------------------------------------------
+// Its own gate — it shares nothing with the visa or trip gates, because it binds to a different
+// thing (a DESK thread, not a case):
+//
+//  1. REQUESTER AUTHORSHIP. Only the thread's buyer — the person asking — may post it. The operator
+//     answers in plain text; it never fabricates a request on someone's behalf.
+//  2. LISTING-LESS THREAD. listingId must be null: the request is about several rentals, so it can
+//     never sit in one listing's conversation (where the seller, not eno, would read the contact).
+//  3. A RENTAL DESK THREAD. sellerId must be one of RENTAL_DESK_SELLER_IDS. A caller that did not
+//     select the thread's seller cannot author one at all, and the transaction re-asserts 2+3 with a
+//     compare-and-set, so a thread cannot change identity between this check and the insert.
+//  4. SHAPE + SIZE. .strict() zod (see availabilityRequestMetaSchema), per-kind cap.
+//
+// ⚠️ Same caveat the trip gate spells out: `convo` and `senderId` are ARGUMENTS. The route loads the
+// thread it just created/found and takes the sender from the session — never from a request body.
+function buildRentalCheckMeta(convo: ConvoForSend, senderId: string, meta: MessageMeta | undefined): { json: string; meta: AvailabilityRequestMeta } {
+  if (!convo.buyerProfileId || convo.buyerProfileId !== senderId) throw new Error('rental_card_author_forbidden')
+  if (convo.listingId !== null) throw new Error('rental_card_thread_mismatch')
+  if (!convo.sellerId || !(RENTAL_DESK_SELLER_IDS as readonly string[]).includes(convo.sellerId)) throw new Error('rental_card_thread_mismatch')
+  const parsed = availabilityRequestMetaSchema.safeParse(meta)
+  if (!parsed.success) throw new Error('rental_card_meta_invalid')
+  const data = parsed.data as AvailabilityRequestMeta
+  // The FIXED POINT, on write only (see the note on the schema's contact field): what is stored must
+  // be exactly what the form's normaliser produces today.
+  const n = normaliseRentalContact(data.contact.channel, data.contact.value)
+  if (!n.ok || n.value !== data.contact.value) throw new Error('rental_card_meta_invalid')
+  const json = JSON.stringify(data)
+  if (json.length > MAX_RENTAL_META_JSON) throw new Error('rental_card_meta_too_large')
+  return { json, meta: data }
+}
+
 /**
  * Insert a message into a conversation and keep the denormalized state consistent
  * (last-message + the other party's unread), then best-effort notify the
@@ -802,12 +927,14 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   // "isCard" build step is exactly how a future kind would inherit the wrong ownership check.
   const isVisaCard = isVisaCardKind(kind)
   const isTripCard = isTripCardKind(kind)
-  const isCard = isVisaCard || isTripCard
+  const isRentalCard = isRentalCardKind(kind)
+  const isCard = isVisaCard || isTripCard || isRentalCard
   // metaJson belongs to cards ONLY — a 'text'/'offer' message carrying one would be
   // a card the renderers don't gate on, so refuse rather than silently drop it.
   if (opts?.meta && !isCard) throw new Error('message_meta_not_allowed')
   const card = isVisaCard ? await buildCardMeta(kind, convo, senderId, opts?.meta) : null
   const tripCard = isTripCard ? await buildTripCardMeta(kind, convo, senderId, opts?.meta) : null
+  const rentalCard = isRentalCard ? buildRentalCheckMeta(convo, senderId, opts?.meta) : null
 
   // Cards are sent with an empty body (see the note above) — fall back to the
   // caller-supplied bilingual preview so the inbox row isn't blank. Unchanged for
@@ -836,7 +963,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       kind,
       offerAmount: isOffer ? opts?.offerAmount ?? null : null,
       offerStatus: isOffer ? 'pending' : null,
-      metaJson: card?.json ?? tripCard?.json ?? null,
+      metaJson: card?.json ?? tripCard?.json ?? rentalCard?.json ?? null,
       replyToId,
     },
     // `as const` (not a plain literal): Prisma derives the row type from `true`
@@ -848,10 +975,17 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       replyTo: { select: { id: true, body: true, senderProfileId: true, deletedAt: true } },
     } as const,
   }
+  /**
+   * ⚠️ A THREAD WITH ONE PERSON ON BOTH SIDES HAS NOBODY TO NOTIFY. It can exist only on a desk thread
+   * whose operator is also its requester — the operator trying the rental check on themselves. The
+   * message counted as unread for the "seller" side, and opening the thread clears only the side the
+   * reader is matched as FIRST (the buyer), so the badge kept a 1 that nothing could clear.
+   */
+  const selfThread = convo.buyerProfileId === senderId && convo.sellerProfileId === senderId
   const convoUpdate = {
     lastMessageAt: new Date(),
     lastMessageText: previewText.slice(0, 140),
-    ...(iAmBuyer ? { sellerUnread: { increment: 1 } } : { buyerUnread: { increment: 1 } }),
+    ...(selfThread ? {} : iAmBuyer ? { sellerUnread: { increment: 1 } } : { buyerUnread: { increment: 1 } }),
   }
 
   type MessageRow = {
@@ -916,6 +1050,18 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       if (guard.count !== 1) throw new Error('trip_card_conversation_gone')
       return tx.message.create(createArgs)
     })) as MessageRow
+  } else if (rentalCard) {
+    // ATOMIC GUARD for an availability request: re-assert, in the same statement that bumps the
+    // thread, that it is STILL a listing-less rental-desk thread whose buyer is the sender. An
+    // UPDATE, not a read — see the trip branch above for why only a write takes a real lock.
+    message = (await db.$transaction(async (tx) => {
+      const guard = await tx.conversation.updateMany({
+        where: { id: convo.id, buyerProfileId: senderId, listingId: null, sellerId: { in: [...RENTAL_DESK_SELLER_IDS] } },
+        data: convoUpdate,
+      })
+      if (guard.count !== 1) throw new Error('rental_card_thread_mismatch')
+      return tx.message.create(createArgs)
+    })) as MessageRow
   } else {
     // A new offer supersedes any still-pending offer in the thread (from either side)
     // so only the latest is actionable — that's the "counter" flow.
@@ -975,6 +1121,51 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       }))
     } catch (e) {
       console.error('[messages] notify', e)
+    }
+  }
+
+  /**
+   * ⚠️ AN AVAILABILITY REQUEST DOES NOTIFY — it is the operator's work queue, and unlike a visa step
+   * nobody on the other side is sitting in the thread when it arrives. Bell row + push, the offer
+   * branch's shape. Skipped when the requester IS the operator (nobody needs a bell for their own
+   * request). Persisted copy is a bilingual composite for the same reason as the offer line: it is
+   * stored server-side, where tr() cannot run at render time.
+   * ⚠️ THE BODY NAMES THE ORIGIN EDITION. The operator's bell on eno.vn can show a request sent from
+   * eno.forum, whose thread eno.vn hides (edition-scope.ts); saying where it came from tells them
+   * where to open it.
+   */
+  if (recipientId && rentalCard && recipientId !== senderId) {
+    try {
+      const sender = await db.profile.findUnique({ where: { id: senderId }, select: { displayName: true, email: true } })
+      const senderName = sender?.displayName || maskEmailHandle(sender?.email) || 'Someone'
+      const n = rentalCard.meta.items.length
+      const title = 'Kiểm tra phòng trống · Availability check'
+      // ⚠️ A FORUM-ORIGIN REQUEST GETS ITS OWN TYPE, and eno.vn's bell filters it out
+      // (SERVICES_ONLY_NOTIFICATION_TYPES): its thread sits on the forum desk, which eno.vn hides, so
+      // a bell row there could only ever open "Conversation not found" (codex, round two).
+      const type = rentalCard.meta.origin === 'forum' ? 'availability_request_forum' : 'availability_request'
+      const body = `${senderName} · ${n} căn / ${n} ${n === 1 ? 'rental' : 'rentals'} · ${rentalCard.meta.origin === 'forum' ? 'eno.forum' : 'eno.vn'}`
+      // ⚠️ THE PUSH DOES NOT DEPEND ON THE BELL ROW. They are two delivery paths to the one person
+      // who works this queue; a failed insert must not also cost the push (the offer branch shares
+      // one try, and for a request nobody is watching the thread for, that is both paths at once).
+      after(() => sendPushToProfile(recipientId, {
+        title,
+        body: body.slice(0, 140),
+        url: `/messages/${convo.id}`,
+        tag: `convo-${convo.id}`,
+      }))
+      await db.notification.create({
+        data: {
+          recipientId,
+          type,
+          title,
+          body: body.slice(0, 140),
+          actorName: senderName,
+          conversationId: convo.id,
+        },
+      })
+    } catch (e) {
+      console.error('[messages] rental notify', e)
     }
   }
 

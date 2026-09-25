@@ -41,6 +41,7 @@ import {
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
 import { TripAssistChips, TripQuoteCard, TripRequestCard, TripStatusCard, TripWizardCard, TripWizardLauncher } from '@/components/marketplace/trip-cards'
+import { AvailabilityRequestCard, parseAvailabilityRequestMeta } from '@/components/marketplace/availability-request-card'
 import { Avatar } from '@/components/ui/avatar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LANGUAGES } from '@/lib/i18n/langs'
@@ -233,6 +234,7 @@ const CARD_KINDS = new Set([
   'offer',
   'visa_step', 'visa_checkout', 'visa_result', 'visa_picker',
   'trip_step', 'trip_quote', 'trip_status', 'trip_request',
+  'availability_request',
 ])
 
 function tripStepNumber(meta: unknown): number | null {
@@ -1991,7 +1993,10 @@ export default function ThreadPage() {
               as partners, and the only one has no stored phone at all. If ordinary sellers ever get
               promoted in bulk, revisit this — the honest answer then is to tell the buyer in the
               thread that the seller moved to eno chat, not to quietly re-open the reveal. */}
-          {thread && !thread.iAmSeller && (contact || !thread.sellerIsPartner) && (
+          {/* ⚠️ `thread.listing &&`: the reveal is `/api/listings/<id>/contact`, so on a LISTING-LESS
+              thread (support, the rental desk) the strip could only ever be a dead button — and on the
+              rental desk the counterpart is the eno team, whose number is not what anyone is asking for. */}
+          {thread && thread.listing && !thread.iAmSeller && (contact || !thread.sellerIsPartner) && (
             <div className="flex items-center gap-2 border-t border-border bg-background px-4 py-2">
               {contact ? (
                 <>
@@ -2033,7 +2038,9 @@ export default function ThreadPage() {
 
           {/* Messages */}
           <div ref={listRef} onScroll={() => { if (newBelow && distanceFromBottom() < 40) setNewBelow(false) }} role="log" aria-live="polite" aria-relevant="additions" className="chat-scroll flex-1 min-h-0 space-y-2 overflow-y-auto overscroll-contain px-4 py-4 scroll-thin">
-            {showFirstContactNote && <FirstContactNote />}
+            {/* A listing-less thread is with the eno team, not a stranger selling something — the
+                "never pay before meeting" line is advice about a counterpart this thread does not have. */}
+            {showFirstContactNote && thread?.listing && <FirstContactNote />}
             {thread?.messages.map((m, i, arr) => {
               /**
                * ⚠️ A TRIP CARD HAS NO BUSINESS IN AN e-VISA THREAD, and there are live ones. The
@@ -2468,7 +2475,18 @@ export default function ThreadPage() {
                   <MessageBubble mine={m.mine} className="max-w-[78%] text-ink-4">
                     {visaCardFallbackCopy(tr)}
                   </MessageBubble>
-                ) : (() => {
+                ) : m.kind === 'availability_request' ? (() => {
+                  // The rental availability check. A card whose meta this build cannot read is an
+                  // empty-bodied row, so it must NOT fall through to an empty bubble.
+                  const availabilityMeta = parseAvailabilityRequestMeta(m.meta)
+                  return availabilityMeta ? (
+                    <AvailabilityRequestCard meta={availabilityMeta} mine={m.mine} />
+                  ) : (
+                    <MessageBubble mine={m.mine} className="max-w-[78%] text-ink-4">
+                      {tr('This availability check could not be shown here.', 'Không hiển thị được yêu cầu kiểm tra phòng này.')}
+                    </MessageBubble>
+                  )
+                })() : (() => {
                   // Live translation: show the counterpart's message in MY language when the
                   // toggle is on and a translation landed, unless this message is showing its
                   // original. The child stays a STRING so MessageBubble's ContactChips safety
@@ -2524,7 +2542,10 @@ export default function ThreadPage() {
                    * height for them here.
                    */}
                 </div>
-                {m.id === offPlatformWarnId && <OffPlatformWarning />}
+                {/* ⚠️ NOT ON A LISTING-LESS THREAD: there the counterpart is eno staff, and an operator
+                    legitimately pasting a landlord's Zalo must not be flagged to the requester as an
+                    off-platform lure. */}
+                {thread.listing && m.id === offPlatformWarnId && <OffPlatformWarning />}
               </Fragment>
               )
             })}

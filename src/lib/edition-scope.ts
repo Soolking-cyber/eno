@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { IS_SERVICES } from '@/lib/edition'
 import { VISA_SHOP_OWNER_EMAILS } from '@/lib/visa-shop'
 import { TRIP_DESK_OWNER_EMAILS } from '@/lib/trips/dm-thread'
+import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
+import { FOREIGN_RENTAL_DESK_SELLER_ID, RENTAL_DESK_SELLER_ID, RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
 
 /**
  * The server half of the edition split: the `where` fragment that keeps the visa/trip desk's
@@ -292,7 +294,7 @@ export async function editionSellerScope(): Promise<{ sellerId?: { in?: string[]
   if (!hidden.length && allowed === null) return {}
   return {
     sellerId: {
-      ...(allowed ? { in: allowed } : {}),
+      ...(allowed ? { in: [...new Set([...allowed, ...reachableDeskSellerIds()])] } : {}),
       ...(hidden.length ? { notIn: hidden } : {}),
     },
   }
@@ -302,7 +304,36 @@ export async function isSellerHiddenHere(sellerId: string | null | undefined): P
   if (!sellerId) return false
   const [hidden, allowed] = await Promise.all([editionHiddenSellerIds(), editionAllowedSellerIds()])
   if (hidden.includes(sellerId)) return true
-  return allowed !== null && !allowed.includes(sellerId)
+  return allowed !== null && !allowed.includes(sellerId) && !reachableDeskSellerIds().includes(sellerId)
+}
+
+/**
+ * ⛔ THE UNOWNED DESKS THIS EDITION MUST KEEP REACHABLE WHEN THE ALLOW-LIST IS ARMED — a CONVERSATION
+ * exemption, applied ONLY in `editionSellerScope()` and `isSellerHiddenHere()` above.
+ *
+ * `editionAllowedSellerIds()` resolves ids from seller OWNER emails, and the support desk and the
+ * rental desks are deliberately UNOWNED (support-thread.ts, rental-check/desk-ids.ts) — so they can
+ * never be in it. With MARKETPLACE_ALLOWED_OWNER_EMAILS set, the buyer branch of the inbox, the unread
+ * badge and thread-open would all hide a person's OWN support or availability-check thread: a
+ * request they sent and cannot see. (The inbox's operator branch already exempts the support desk for
+ * the same reason; the buyer branch had the identical lockout, latent only because the list is not
+ * armed today.)
+ *
+ * ⚠️ PER EDITION, AND ASYMMETRIC ON PURPOSE:
+ *   · eno.vn     — its own support desk and its own rental desk. The forum's rental desk stays out
+ *                  (and is in `editionHiddenSellerIds()` besides), so a forum-origin thread never
+ *                  surfaces on the licensed marketplace.
+ *   · eno.forum  — its own support desk and BOTH rental desks. Rentals exist on both editions, and
+ *                  the operator works the queue from eno.forum, where every request is visible.
+ *
+ * ⚠️ NOT IN `marketplaceListingScope()`, `deskSellerIds()` OR THE VERTEX HELPERS. These rows have no
+ * listings; admitting them to a LISTING predicate would change nothing today and would be the wrong
+ * place for the next person to find a seller-level exemption.
+ */
+function reachableDeskSellerIds(): string[] {
+  return IS_SERVICES
+    ? [SUPPORT_SELLER_ID, ...RENTAL_DESK_SELLER_IDS]
+    : [SUPPORT_SELLER_ID, RENTAL_DESK_SELLER_ID]
 }
 
 const sellerIdsForEmails = async (emails: readonly string[]): Promise<string[]> => {
@@ -327,8 +358,18 @@ const sellerIdsForEmails = async (emails: readonly string[]): Promise<string[]> 
  * storefront and its own threads. With the list chosen per edition the guard is no longer needed —
  * and leaving it in would have kept the forum's new exclusions from ever applying.
  */
-export const editionHiddenSellerIds = cache(async (): Promise<string[]> =>
-  sellerIdsForEmails(editionHiddenEmails()))
+export const editionHiddenSellerIds = cache(async (): Promise<string[]> => {
+  const ids = await sellerIdsForEmails(editionHiddenEmails())
+  /**
+   * ⛔ eno.vn ALSO HIDES eno.forum's RENTAL DESK — a fixed id, not an owner email, because the desk is
+   * unowned (rental-check/desk-ids.ts). One requester has one availability-check thread PER EDITION;
+   * the forum's is begun on the services site, where visa and itinerary are legitimate subjects in
+   * the same chat, so it must not open, list or count on the licensed marketplace. Same reasoning as
+   * the two support desks.
+   * ⚠️ eno.forum hides nothing here: the operator reads both editions' requests there.
+   */
+  return IS_SERVICES ? ids : [...ids, FOREIGN_RENTAL_DESK_SELLER_ID]
+})
 
 
 export const deskSellerIds = cache(async (): Promise<string[]> => {
