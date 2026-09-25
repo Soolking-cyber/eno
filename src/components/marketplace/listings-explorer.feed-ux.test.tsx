@@ -9,8 +9,10 @@
  * the sync effect — is the real one. Same harness shape as listings-explorer.back-nav-filter.test.tsx.
  */
 import React from 'react'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { renderToString } from 'react-dom/server'
+import { hydrateRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedListingCard } from '@/lib/types'
 
@@ -53,8 +55,9 @@ vi.mock('./listing-card', () => ({
   ),
 }))
 vi.mock('./capture-card', () => ({ CaptureCard: () => null }))
-vi.mock('./brand-rail', () => ({ BrandRail: () => null }))
-vi.mock('./category-rail', () => ({ CategoryRail: () => null }))
+// The two rails are markers: the phone ladder contract is about WHETHER they are on the page.
+vi.mock('./brand-rail', () => ({ BrandRail: () => <div data-testid="brand-rail" /> }))
+vi.mock('./category-rail', () => ({ CategoryRail: () => <div data-testid="category-rail" /> }))
 vi.mock('./for-you-rail', () => ({ ForYouRail: () => null }))
 vi.mock('./recently-viewed-rail', () => ({ RecentlyViewedRail: () => null }))
 vi.mock('./business-rail', () => ({ BusinessRail: () => null }))
@@ -109,6 +112,7 @@ function stubFetch() {
 
 // ─── jsdom gaps the explorer touches ─────────────────────────────────────────────────────────
 type FakeIO = { cb: IntersectionObserverCallback; el: Element | null }
+const viewport = { desktop: false }
 const observers = new Set<FakeIO>()
 function installDomStubs() {
   observers.clear()
@@ -122,7 +126,9 @@ function installDomStubs() {
   }
   vi.stubGlobal('IntersectionObserver', IO)
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
-  vi.stubGlobal('matchMedia', (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false }))
+  // Every media query answers `false` — i.e. a PHONE (no `min-width: 768px`). `viewport.desktop = true`
+  // makes the md-and-up query match instead.
+  vi.stubGlobal('matchMedia', (q: string) => ({ matches: viewport.desktop && q.includes('min-width: 768px'), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false }))
   window.scrollTo = (() => {}) as typeof window.scrollTo
   window.scrollBy = (() => {}) as typeof window.scrollBy
   Element.prototype.scrollIntoView = () => {}
@@ -160,6 +166,7 @@ beforeEach(() => {
   requests.length = 0
   gate = null
   repeatFirstPage = false
+  viewport.desktop = false
   h.facet.props = null
   catalogue = Array.from({ length: 30 }, (_, i) => row(`r${i}`))
   sessionStorage.clear()
@@ -351,5 +358,93 @@ describe('Back from a listing: the browser\'s own scroll restoration is held off
     mount(client)            // ← Back: the snapshot is consumed and the restore runs
     await waitFor(() => expect(sessionStorage.getItem('eno:feed-snap')).toBeNull())
     await waitFor(() => expect(mode()).toBe('auto'))
+  })
+})
+
+describe('on a phone, a directed feed folds its category ladder into one compact row', () => {
+  const CATS = [
+    { id: 'c1', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', icon: 'Smartphone' },
+    { id: 'c2', slug: 'vehicles', name: 'Vehicles', nameVi: 'Xe cộ', icon: 'Car' },
+  ] as unknown as React.ComponentProps<typeof ListingsExplorer>['categories']
+  const rails = () => ({ category: !!screen.queryByTestId('category-rail'), brand: !!screen.queryByTestId('brand-rail') })
+  const compactRow = () => document.querySelector<HTMLElement>('[data-slot="ladder-compact-row"]')
+  const scopeButton = () => compactRow()!.querySelector('button[aria-expanded]') as HTMLButtonElement
+  function mountAt(url: string) {
+    window.history.replaceState({}, '', url)
+    return render(
+      <QueryClientProvider client={newClient()}>
+        <ListingsExplorer categories={CATS} initialListings={catalogue.slice(0, 12)} initialTotal={catalogue.length} />
+      </QueryClientProvider>,
+    )
+  }
+
+  it('home without filters is unchanged: the full tile rail, no compact row', async () => {
+    mountAt('/')
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    expect(rails().category).toBe(true)
+    expect(compactRow()).toBeNull()
+  })
+
+  it('a search folds the tile grid AND the brand rail into one row; the scope button opens and closes them', async () => {
+    mountAt('/?q=phone')
+    await waitFor(() => expect(compactRow()).not.toBeNull())
+    expect(rails()).toEqual({ category: false, brand: false }) // ~375px of controls gone from above the results
+    expect(scopeButton().getAttribute('aria-expanded')).toBe('false')
+    expect(scopeButton().textContent).toContain('All categories') // the current scope, highlighted
+    // …and the next rung is one tap away, in the same row: the categories as chips.
+    expect(within(compactRow()!).getByRole('button', { name: 'Electronics' })).toBeTruthy()
+
+    act(() => { scopeButton().click() })
+    expect(scopeButton().getAttribute('aria-expanded')).toBe('true')
+    expect(rails()).toEqual({ category: true, brand: true })
+    act(() => { scopeButton().click() })
+    expect(rails()).toEqual({ category: false, brand: false })
+  })
+
+  it('in a category, the row names it and offers its subcategories; a chip narrows like the rail\'s', async () => {
+    mountAt('/?category=electronics')
+    await waitFor(() => expect(compactRow()).not.toBeNull())
+    expect(scopeButton().textContent).toContain('Electronics')
+    const phones = within(compactRow()!).getByRole('button', { name: 'Phones' })
+    expect(phones.getAttribute('aria-pressed')).toBe('false')
+    act(() => { phones.click() })
+    await waitFor(() => expect(window.location.search).toContain('subcategory=phones'))
+    expect(within(compactRow()!).getByRole('button', { name: 'Phones' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('a COLD load of a directed URL is not folded under the reader — the fold waits for their first change', async () => {
+    // The ISR HTML is the unfiltered home and the URL's filters land after hydration; folding then
+    // would move every result up ~220px with no input (measured: CLS 0.20 → 0.54 on /?category=…).
+    window.history.replaceState({}, '', '/?q=phone')
+    const el = (
+      <QueryClientProvider client={newClient()}>
+        <ListingsExplorer categories={CATS} initialListings={catalogue.slice(0, 12)} initialTotal={catalogue.length} />
+      </QueryClientProvider>
+    )
+    const container = document.body.appendChild(document.createElement('div'))
+    container.innerHTML = renderToString(el)
+    let root: Root | null = null
+    await act(async () => { root = hydrateRoot(container, el) })
+    try {
+      await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('q') === 'phone')).toBe(true))
+      await new Promise((r) => setTimeout(r, 50))
+      expect(compactRow()).toBeNull()
+      expect(rails().category).toBe(true)
+      // The reader narrows the feed (a condition, from the facet bar): now it folds, in that commit.
+      act(() => { (h.facet.props as { setConditionFilter: (v: string) => void }).setConditionFilter('new') })
+      expect(compactRow()).not.toBeNull()
+      expect(rails().category).toBe(false)
+    } finally {
+      act(() => { root?.unmount() })
+      container.remove()
+    }
+  })
+
+  it('desktop keeps the full rails when directed', async () => {
+    viewport.desktop = true
+    mountAt('/?q=phone')
+    await waitFor(() => expect(rails().brand).toBe(true))
+    expect(rails().category).toBe(true)
+    expect(compactRow()).toBeNull()
   })
 })

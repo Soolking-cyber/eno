@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react'
+import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition, type CSSProperties } from 'react'
 import Image from 'next/image'
 // Only the glyphs this file actually renders — the vestigial hero-search set
 // (Search/MapPin/Phone/Sliders/Map/TrendingUp) died with the hero bar and was
@@ -22,6 +22,7 @@ import { CaptureCard } from './capture-card'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
+import { LadderCompactRow, LadderSlot, useMdUp } from './ladder-compact-row'
 import { ForYouRail } from './for-you-rail'
 import { RecentlyViewedRail } from './recently-viewed-rail'
 import { useNearViewport } from '@/hooks/use-near-viewport'
@@ -142,6 +143,9 @@ function answerLang(lang: string): string | null {
 function feedSnapshotPending(): boolean {
   try { return sessionStorage.getItem('eno:feed-snap') != null } catch { return false /* storage blocked */ }
 }
+/** A store that never changes — read through useSyncExternalStore only to tell the hydration render apart. */
+const subscribeNothing = () => () => {}
+
 function releaseFeedEntry() {
   // Asked now AND again if the release has to wait for `load` — a card tapped in between holds anew.
   if (!feedSnapshotPending()) releaseScrollRestoration(window, () => !feedSnapshotPending())
@@ -669,6 +673,53 @@ export function ListingsExplorer({
   const showDiscovery = isLandingMode && viewMode !== 'map' && viewMode !== 'video'
 
   /**
+   * ⛔ ON A PHONE, A DIRECTED FEED FOLDS ITS CATEGORY LADDER INTO ONE ROW (owner decision, mobile audit
+   * 2026-09-24: "Collapse to one compact row"). Measured at 390×844: with a search or filter applied
+   * the first result sat at y=681 (search) / y=535, under the ~263px tile grid and the ~112px brand
+   * rail. `!showDiscovery` is exactly "the reader has asked this feed something" (a query, any filter,
+   * a takeover view); the undirected home keeps its tiles. `md` is the rail's own phone/desktop
+   * breakpoint, and desktop keeps the full rails. See ladder-compact-row.tsx.
+   * `ladderOpen` is the reader's "show me the whole ladder" — it survives filter changes (they are
+   * usually made FROM the opened ladder) and resets when the feed goes back to undirected browse, so
+   * the next search starts folded (adjust-state-during-render, the pattern `filterSig` uses).
+   */
+  const mdUp = useMdUp()
+  /**
+   * ⚠️ …BUT NOT UNDER A READER WHO HAS NOT TOUCHED ANYTHING YET, ON A COLD LOAD OF A DIRECTED URL. The
+   * ISR HTML is the unfiltered home (one 6h copy for every URL) and the URL's filters are applied in an
+   * effect after hydration, so folding THEN moves every result on screen up ~220px with no input to
+   * explain it — measured at 390×844 on a cold /?category=electronics: CLS 0.54 with an unconditional
+   * fold against 0.28 without it (local production builds; production itself 0.20; reviewer-flagged
+   * too). So a cold load keeps the URL's own state unfolded, and the fold arms the moment the feed
+   * moves off it — normally the reader's own tap, whose commit is inside the input window. A
+   * client-side mount (Back, an in-app link) has no server paint to shift from and folds at once.
+   * ⚠️ KNOWN EDGE: a change the explorer makes on its own after the URL landed also arms it — the
+   * brand-heal fetch giving a bare `?brand=` deep link its category is the one path found. That folds
+   * once, late, on a rare link; the alternative (arming from raw input events) risks folding the rail
+   * between a pointerdown and its click, i.e. under a tap on its way to a card.
+   * `hydrating` is true only in the server render and the hydration render (useSyncExternalStore's
+   * server snapshot), so `coldLoad` records how THIS mount began.
+   */
+  const hydrating = useSyncExternalStore(subscribeNothing, () => false, () => true)
+  const [coldLoad] = useState(hydrating)
+  const [urlApplied, setUrlApplied] = useState(false)
+  const ladderSig = JSON.stringify([
+    activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince?.code ?? null,
+    activeWard?.code ?? null, nearby ? 1 : 0, conditionFilter, goodPriceOnly, listingType, query, priceRange, customFilters, viewMode,
+  ])
+  const [urlLadderSig, setUrlLadderSig] = useState<string | null>(null)
+  const [foldArmed, setFoldArmed] = useState(!coldLoad)
+  if (!foldArmed && urlApplied) {
+    if (urlLadderSig === null) setUrlLadderSig(ladderSig)
+    else if (urlLadderSig !== ladderSig) setFoldArmed(true)
+  }
+  const collapseLadder = !showDiscovery && !mdUp && foldArmed
+  const [ladderOpen, setLadderOpen] = useState(false)
+  // Folded again for the next search once the feed is back to undirected — or once the screen is wide
+  // enough to show the whole ladder anyway (a rotated tablet), so narrowing it back starts folded.
+  if ((showDiscovery || mdUp) && ladderOpen) setLadderOpen(false)
+
+  /**
    * ⛔ THE PREDICATE THESE FOUR PARAGRAPHS DOCUMENTED IS GONE, AND THIS IS WHAT IS WORTH KEEPING.
    * `showBanner` decided where `<PromoBanner>` could appear; the banner itself was removed from this
    * page on 2026-09-18 at the owner's instruction ("remove banners on desktop … Remove on both"),
@@ -1115,6 +1166,7 @@ export function ListingsExplorer({
   useEffect(() => {
     const handleUrlChange = () => applyParams(new URLSearchParams(window.location.search))
     handleUrlChange() // Initial check
+    setUrlApplied(true) // batched with the params above: the render that applies them knows it (see `foldArmed`)
     window.addEventListener('popstate', handleUrlChange)
     return () => window.removeEventListener('popstate', handleUrlChange)
   }, [applyParams])
@@ -3261,6 +3313,27 @@ export function ListingsExplorer({
               ⚠️ NOTHING UNMOUNTS ON A FILTER ANY MORE. The old pair swapped one ladder for
               another on the first tap — a user-initiated reflow of ~150px that this removes
               outright, because there is now only one component to render in either state. */}
+          {/* ⛔ …EXCEPT ON A PHONE ONCE THE FEED IS DIRECTED: then the ladder folds into ONE compact
+              row with the full rails one tap behind it (see `collapseLadder`). Undirected, and on
+              desktop, LadderSlot is a fragment and the rails below render exactly as they did. */}
+          <LadderSlot
+            collapsed={collapseLadder}
+            open={ladderOpen}
+            onOpenChange={setLadderOpen}
+            row={
+              <LadderCompactRow
+                categories={categories}
+                activeCategory={activeCategory}
+                activeSubcategory={activeSubcategory}
+                onCategory={handleCategorySelect}
+                onSubcategory={setActiveSubcategory}
+                intents={sellerId ? undefined : INTENT_SHORTCUTS}
+                activeType={listingType}
+                onIntent={(type) => setListingType(listingType === type ? 'all' : type)}
+                expanded={ladderOpen}
+              />
+            }
+          >
           <CategoryRail
             categories={categories}
             activeCategory={activeCategory}
@@ -3318,6 +3391,7 @@ export function ListingsExplorer({
               onPickLine={handlePickLine}
             />
           )}
+          </LadderSlot>
 
           {/* Category-aware facet bar (replaces the old sidebar). Now on the HOME view too —
               area, price, condition and intent are what "home is also a search page" means in
