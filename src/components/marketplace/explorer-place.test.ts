@@ -152,9 +152,15 @@ describe('listings-explorer.tsx wiring', () => {
     expect(src).toMatch(/inferredDistrict\?: string \| null \}\)\.inferredDistrict \?\? null/)
   })
 
+  it('the Area pill shows the district the words applied when none is picked — the chips\' own answer', () => {
+    expect(src).toContain("district={activeDistrict !== 'all' ? activeDistrict : (serverInferredDistrict ?? 'all')}")
+  })
+
   it('the Area panel’s district pick goes through the replace rule, and never overwrites newer typing', () => {
     expect(src).toContain('setDistrict={pickDistrictFromArea}')
     expect(src).toContain('setQuery((live) => queryAfterAreaPick(live, debouncedQuery, slug, serverInferredDistrict))')
+    // …and the fetcher's copy of the words moves in the same commit (no 150ms of district + old words).
+    expect(src).toContain('setDebouncedQuery(queryAfterAreaPick(query, debouncedQuery, slug, serverInferredDistrict))')
   })
 
   it('every other place-picking and word-committing path follows the same rules', () => {

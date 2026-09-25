@@ -19,7 +19,9 @@ const h = vi.hoisted(() => {
   const tr = (en: string) => en
   const language = { lang: 'en', t: (k: string) => k, tr, setLang: () => {} }
   const auth = { user: null, profile: null, loading: false, openSignIn: () => {} }
-  return { router, language, auth }
+  /** The props the explorer last handed <FacetBar> (a `next/dynamic` chunk, stubbed below). */
+  const facet: { props: Record<string, unknown> | null } = { props: null }
+  return { router, language, auth, facet }
 })
 
 vi.mock('next/navigation', () => ({
@@ -27,8 +29,17 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
   useSearchParams: () => new URLSearchParams(window.location.search),
 }))
-// Every code-split chunk (FacetBar, map, video, rails) is out of scope and renders nothing.
-vi.mock('next/dynamic', () => ({ default: () => () => null }))
+// Every code-split chunk renders nothing — except that the FacetBar's props are RECORDED, because the
+// Area pill's district is a contract under test. The loader is only inspected, never run; the tests
+// that read the record assert it was filled, so a probe that stops matching fails loudly.
+vi.mock('next/dynamic', () => ({
+  default: (loader: () => unknown) => {
+    if (String(loader).includes('facet-bar')) {
+      return function FacetBarProbe(props: Record<string, unknown>) { h.facet.props = props; return null }
+    }
+    return () => null
+  },
+}))
 vi.mock('@/context/language-context', () => ({
   useLanguage: () => h.language,
   useTr: (s: string) => s,
@@ -75,12 +86,14 @@ let repeatFirstPage = false
 function listingsRequests() { return requests.filter((u) => u.pathname === '/api/listings' && !u.searchParams.has('hasVideo')) }
 
 function answer(url: URL) {
+  // The server reads "Quận 7" out of the words when no explicit district is sent (district-query.ts).
+  const inferredDistrict = !url.searchParams.get('district') && /quận 7/i.test(url.searchParams.get('q') ?? '') ? 'd7' : null
   const offset = Number(url.searchParams.get('offset') ?? 0)
   const limit = Number(url.searchParams.get('limit') ?? 12)
   const from = repeatFirstPage ? 0 : offset
   return {
     listings: catalogue.slice(from, from + limit), total: catalogue.length, offset, limit,
-    subcategoryCounts: {}, categoryTotal: catalogue.length, facets: {},
+    subcategoryCounts: {}, categoryTotal: catalogue.length, facets: {}, inferredDistrict,
   }
 }
 
@@ -147,6 +160,7 @@ beforeEach(() => {
   requests.length = 0
   gate = null
   repeatFirstPage = false
+  h.facet.props = null
   catalogue = Array.from({ length: 30 }, (_, i) => row(`r${i}`))
   sessionStorage.clear()
   installDomStubs()
@@ -257,5 +271,55 @@ describe('"Browse everything" reserves the next rows in the tap\'s own frame', (
     await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('offset') === '12')).toBe(true))
     await waitFor(() => expect(skeletons()).toBe(0)) // …and released when it brought nothing new
     expect(cardIds()).toHaveLength(12)
+  })
+})
+
+describe('a district typed into search is the Area pill\'s district, and the chips never double up', () => {
+  /** The applied-filter chips on the result line, by their ✕'s accessible name. */
+  const chips = () => screen.queryAllByRole('button', { name: /^Remove / }).map((b) => b.getAttribute('aria-label'))
+  const facet = () => {
+    expect(h.facet.props).not.toBeNull() // the probe must have caught the FacetBar, or nothing below means anything
+    return h.facet.props as { district: string; setDistrict: (slug: string) => void }
+  }
+  async function searchQuan7() {
+    mount(newClient())
+    act(() => { window.dispatchEvent(new CustomEvent('eno:search', { detail: { query: 'Quận 7' } })) })
+    // The server has answered the words with its district reading.
+    await waitFor(() => expect(chips()).toEqual(['Remove District 7 (Phu My Hung)']))
+  }
+
+  it('the Area pill names the district the server read out of the words (it read "Area")', async () => {
+    await searchQuan7()
+    expect(facet().district).toBe('d7')
+  })
+
+  it('picking that district in the Area panel shows ONE chip in the same frame — never the old words beside it', async () => {
+    await searchQuan7()
+    act(() => { facet().setDistrict('d7') }) // the panel's pick: sets ?district=d7, strips "Quận 7" from the box
+    // Same commit, inside the 150ms search debounce: production showed `"Quận 7"` AND "District 7" here.
+    expect(chips()).toEqual(['Remove District 7 (Phu My Hung)'])
+    expect(facet().district).toBe('d7')
+    // …and the feed asks exactly that, from its first request: the district, without the words it
+    // replaced (production also sent one request pairing the new district with the old words).
+    await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('district') === 'd7')).toBe(true))
+    await new Promise((r) => setTimeout(r, 300)) // past the search debounce
+    const picked = listingsRequests().filter((u) => u.searchParams.get('district') === 'd7')
+    expect(picked.length).toBeGreaterThan(0)
+    expect(picked.every((u) => !u.searchParams.has('q'))).toBe(true)
+    expect(chips()).toEqual(['Remove District 7 (Phu My Hung)'])
+  })
+
+  it('dropping it in the panel drops the typed district with it, as the chip\'s ✕ does', async () => {
+    await searchQuan7()
+    const before = listingsRequests().length
+    act(() => { facet().setDistrict('all') })
+    expect(chips()).toEqual([])
+    expect(facet().district).toBe('all')
+    // …and the feed follows: nothing asks for the words or a district again. (The unfiltered feed is
+    // the server-seeded one here, so it needs no request of its own — the check is that none of the
+    // old question goes out, e.g. "Quận 7" re-sent inside the search debounce.)
+    await new Promise((r) => setTimeout(r, 300))
+    expect(listingsRequests().slice(before).filter((u) => u.searchParams.has('q') || u.searchParams.has('district'))).toEqual([])
+    expect(chips()).toEqual([])
   })
 })

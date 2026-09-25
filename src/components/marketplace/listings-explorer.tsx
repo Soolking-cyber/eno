@@ -1552,12 +1552,21 @@ export function ListingsExplorer({
    * INCLUDED: a district the server read out of the search box would otherwise stay applied under
    * the new pick — beside an explicit district it is ignored while its chip still shows it, beside a
    * ward it ANDs into an empty feed — so its words leave the box (the district chip's own clear).
+   *
+   * ⛔ AND THE WORDS LEAVE THE FETCHER'S COPY IN THE SAME COMMIT (mobile audit, 2026-09-24). The pick
+   * sets the district at once, but the words used to reach `debouncedQuery` — what the fetch, the chips
+   * and the Area pill read — 150ms later. For that window the chips showed the old "Quận 7" text chip
+   * beside the new District 7 chip (two chips for ~134ms, two layout shifts, measured), and one request
+   * went out pairing the new district with the old words. The debounce exists for TYPING; a place pick
+   * is a discrete commit, so it skips it and everything moves together. The box itself still takes the
+   * updater form: if it moved in the same tick, the debounce effect reconciles the copy as before.
    */
   const pickDistrictFromArea = useCallback((slug: string) => {
     setActiveDistrict(slug)
     // Read from the LIVE box: newer typing is never overwritten with older words (explorer-place.ts).
     setQuery((live) => queryAfterAreaPick(live, debouncedQuery, slug, serverInferredDistrict))
-  }, [debouncedQuery, serverInferredDistrict])
+    setDebouncedQuery(queryAfterAreaPick(query, debouncedQuery, slug, serverInferredDistrict))
+  }, [query, debouncedQuery, serverInferredDistrict])
   // The header's area events and the recent-location chips are registered once; they reach the
   // CURRENT replace rule through this ref (synced in an effect, never assigned during render).
   const replaceDistrictRef = useRef(pickDistrictFromArea)
@@ -3347,7 +3356,17 @@ export function ListingsExplorer({
                   setWard={setActiveWard}
                   nearby={nearby}
                   setNearby={setNearby}
-                  district={activeDistrict}
+                  /* ⛔ THE DISTRICT THE FEED IS IN, NOT ONLY THE ONE PICKED HERE (mobile audit,
+                     2026-09-24): "Quận 7" typed into search gave 2,655 listings and a "District 7"
+                     chip while this pill still read "Area" and the panel had nothing selected — two
+                     controls disagreeing about what is applied. When no district is picked, the one
+                     the server read out of the words is the applied one, so the pill names it and the
+                     panel shows it selected. Tapping it there again drops it the way the chip's ✕ does
+                     (area-filter.tsx re-emits 'all' for the picked chip): pickDistrictFromArea('all')
+                     strips the typed district from the box (queryAfterAreaPick), leaving any other
+                     words. Same answer the chips read (`serverInferredDistrict`), so the pill, the
+                     chips and the clear path can never disagree. */
+                  district={activeDistrict !== 'all' ? activeDistrict : (serverInferredDistrict ?? 'all')}
                   setDistrict={pickDistrictFromArea}
                   priceRange={priceRange}
                   setPriceRange={setPriceRange}
