@@ -185,7 +185,13 @@ export function RentalCheckView() {
   // ── the live check: which of the collected rentals can still be asked about ──────────────────
   const idsKey = items.map((i) => i.id).join(',')
   useEffect(() => {
-    const ask = idsKey ? idsKey.split(',').filter((id) => !evaluated.current.has(id)) : []
+    const inBasket = new Set(idsKey ? idsKey.split(',') : [])
+    // ⚠️ A verdict belongs to a rental that is IN the list. However it left — the Remove button,
+    // another tab, a card's chip, the clear after a send — it is forgotten here, so a re-add is asked
+    // about again instead of inheriting "available" by omission.
+    for (const id of Array.from(evaluated.current)) if (!inBasket.has(id)) evaluated.current.delete(id)
+    setUnavailable((p) => (Array.from(p).every((id) => inBasket.has(id)) ? p : new Set(Array.from(p).filter((id) => inBasket.has(id)))))
+    const ask = Array.from(inBasket).filter((id) => !evaluated.current.has(id))
     if (!ask.length) return
     const ctl = new AbortController()
     const langQ = lang !== 'en' && lang !== 'vi' ? `&lang=${lang}` : ''
@@ -282,6 +288,17 @@ export function RentalCheckView() {
   const send = async (body: RentalCheckRequestBody, attempt = 0): Promise<void> => {
     sendingRef.current = true
     setSending(true)
+    /**
+     * ⛔ A DRAFT THAT REACHES A SEND BELONGS TO THE SENDER. Stamped here — at the one moment the
+     * identity is certain (a send needs a signed-in user) — so a guest who typed, signed in and then
+     * hit a failed send does not leave their number restorable to the next guest for a week.
+     * ⚠️ DELIBERATELY NOT an effect on `user?.id`. That was tried and all three reviewers took it
+     * apart in two rounds: an identity CHANGE is ambiguous (a boot-time resolve, a magic-link return
+     * that mounts already signed in, a sign-out, an account switch, a transient null), and each
+     * reading needed its own branch. The send is not ambiguous. First attempt only: the in-flight
+     * retries run from a timer and would write an older render's state.
+     */
+    if (attempt === 0) persist()
     let stayBusy = false
     try {
       const res = await fetch(RENTAL_CHECK_API, {

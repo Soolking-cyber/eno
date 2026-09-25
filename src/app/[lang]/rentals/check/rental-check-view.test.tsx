@@ -59,6 +59,7 @@ import {
   addToBasket,
   getBasket,
   readDraft,
+  removeFromBasket,
   writeDraft,
 } from '@/lib/rental-check/store'
 import type { RentalCheckRequestBody } from '@/lib/rental-check/shared'
@@ -168,6 +169,27 @@ describe('the list', () => {
     expect(posts).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     expect(getBasket().map((i) => i.id)).toEqual(['r1'])
+  })
+
+  it.each([
+    ['the Remove button', () => fireEvent.click(screen.getByRole('button', { name: 'Remove' }))],
+    ['another tab / a card chip', () => act(() => { removeFromBasket('r2') })],
+  ])('a rental removed by %s forgets its verdict: re-added, it is checked again', async (_how, removeIt) => {
+    addToBasket(rental(1))
+    addToBasket(rental(2))
+    listingsAnswer = (ids) => ({ listings: ids.filter((i) => i !== 'r2').map((id) => ({ ...rental(Number(id.slice(1))), id })), evaluated: ids })
+    await mount()
+    await screen.findByText('No longer available')
+    removeIt()
+    // It is back on the market, and the visitor adds it again from a card.
+    listingsAnswer = (ids) => ({ listings: ids.map((id) => ({ ...rental(Number(id.slice(1))), id })), evaluated: ids })
+    act(() => { addToBasket(rental(2)) })
+    // Parsed, not substring-matched: r2 is asked about once on mount and once more after the re-add.
+    const askedR2 = () => (fetch as unknown as { mock: { calls: string[][] } }).mock.calls
+      .filter(([u]) => u.startsWith('/api/listings?ids='))
+      .filter(([u]) => decodeURIComponent(u.split('?ids=')[1].split('&')[0]).split(',').includes('r2')).length
+    await waitFor(() => expect(askedR2()).toBe(2))
+    expect(screen.queryByText('No longer available')).toBeNull()
   })
 
   it('ignores an answer that does not say what it evaluated (no verdict, no marks)', async () => {
@@ -460,6 +482,19 @@ describe('draft', () => {
     expect(readDraft()).toMatchObject({ value: '', owner: 'u1' })
     typeContact('0987654321')
     await waitFor(() => expect(readDraft()?.value).toBe('0987654321'))
+  })
+
+  it('a guest’s draft is re-owned at sign-in, so a failed send does not leave it readable to the next visitor', async () => {
+    addToBasket(rental(1))
+    const { rerender } = await mount()
+    typeContact('0987654321')
+    submit()
+    expect(readDraft()?.owner).toBeNull()
+    replies.push({ status: 503, body: { error: 'desk_unavailable' } })
+    signedIn()
+    rerender(<RentalCheckView />)
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    expect(readDraft()).toMatchObject({ owner: 'u1', value: '0987654321' })
   })
 
   it('a draft written under one account is not restored for anyone else — and is discarded', async () => {
