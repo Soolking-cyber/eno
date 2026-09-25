@@ -1,10 +1,12 @@
 'use client'
 
+import { useSyncExternalStore } from 'react'
 import dynamic from 'next/dynamic'
 import type { SerializedListingCard } from '@/lib/types'
 import { Tr } from '@/context/language-context'
 import { Spinner } from '@/components/ui/spinner'
 import { useNearViewport } from '@/hooks/use-near-viewport'
+import { ListingMapPreview } from './listing-map-preview'
 
 // The one placeholder, shared by BOTH deferral stages below (pre-viewport, and
 // next/dynamic's own chunk-loading window) so the tile never changes appearance as it
@@ -39,6 +41,31 @@ type Props = {
   activeDistrict: string
 }
 
+/**
+ * ⛔ TOUCH → A PICTURE AND AN "OPEN MAP" BUTTON; NO TOUCH → THE LIVE MAP (owner, 2026-09-25).
+ * `(any-pointer: coarse)` asks whether ANY input is a finger. A phone or a tablet answers yes and gets
+ * ListingMapPreview (listing-map-preview.tsx says why: the live map's `touch-action: none` swallowed
+ * one-finger scrolls). So does a touchscreen laptop, deliberately: its primary pointer is the trackpad,
+ * but a finger scrolling the page on its screen meets exactly the same trap (codex, twice). A desktop
+ * with only a mouse or trackpad keeps the live map exactly as before.
+ * ⚠️ SUBSCRIBED, not read once: a tablet that gains or loses a keyboard cover flips at runtime. The
+ * SERVER snapshot is `null` ("not known yet"), so the server HTML and the hydration pass both render
+ * the placeholder, and neither branch is committed until the client can actually answer.
+ */
+const COARSE = '(any-pointer: coarse)'
+const subscribeCoarse = (cb: () => void) => {
+  const mq = window.matchMedia?.(COARSE)
+  if (!mq) return () => {}
+  // Safari 13 and older expose only the legacy addListener; the modern call would be a silent no-op.
+  if (typeof mq.addEventListener === 'function') {
+    mq.addEventListener('change', cb)
+    return () => mq.removeEventListener('change', cb)
+  }
+  mq.addListener(cb)
+  return () => mq.removeListener(cb)
+}
+const coarseNow = () => window.matchMedia?.(COARSE).matches ?? false
+
 /** The PDP's location map. Mounted only once it is ~a viewport away.
  *
  *  `ssr: false` alone was NOT enough: it defers to HYDRATION, not to the viewport, so
@@ -51,20 +78,29 @@ type Props = {
  *  already use. The sentinel is the wrapper itself (not a zero-height element): the hook
  *  requires something present from FIRST render to observe, and the wrapper is already
  *  full-size, so it is the natural target. The hook fails open where IntersectionObserver
- *  is missing (old WebViews, jsdom) — there the map simply mounts as it does today. */
+ *  is missing (old WebViews, jsdom) — there the map simply mounts as it does today.
+ *  The touch preview rides the same gate, so its tiles are not fetched before the reader is near. */
 export function ListingDetailMap({ listings, activeDistrict }: Props) {
   const { ref, near } = useNearViewport<HTMLDivElement>()
+  const touch = useSyncExternalStore<boolean | null>(subscribeCoarse, coarseNow, () => null)
+  const liveMap = () => (
+    <ListingsMap
+      listings={listings}
+      activeDistrict={activeDistrict}
+      onOpenListing={() => {}}
+    />
+  )
 
   return (
     <div ref={ref} className="w-full h-full">
-      {near ? (
-        <ListingsMap
-          listings={listings}
-          activeDistrict={activeDistrict}
-          onOpenListing={() => {}}
-        />
-      ) : (
+      {!near || touch === null ? (
         <MapPlaceholder />
+      ) : touch ? (
+        // A PDP always passes its one listing; with none there is nothing to picture — and a
+        // placeholder here would be a loading tile that never resolves.
+        listings[0] ? <ListingMapPreview listing={listings[0]} liveMap={liveMap} /> : null
+      ) : (
+        liveMap()
       )}
     </div>
   )

@@ -1142,6 +1142,7 @@ export const UI_STRINGS: string[] = [
   "Open",
   "Open Google in your browser",
   "Open a case in the Dispute Center",
+  "Open map",
   "Open the Help center",
   "Open this item on SuperSports",
   "Opening Google…",
