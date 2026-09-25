@@ -30,6 +30,7 @@ import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick, queryForExplicitDistrict } from './explorer-place'
+import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
 import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
@@ -128,6 +129,22 @@ function resultSetSig(queryKey: readonly unknown[]): string {
  */
 function answerLang(lang: string): string | null {
   return lang === 'en' || lang === 'vi' ? null : lang
+}
+
+/**
+ * The feed's history entry gets the browser's own scroll restoration back — unless a back-nav
+ * snapshot is waiting for it. ⛔ "MANUAL WHILE A SNAPSHOT EXISTS" is the whole rule: `handleOpen`
+ * holds it off when it writes one, and everything that ends a restore (done, discarded, nothing to
+ * restore, unmount) lands here. Checking the store rather than trusting the caller is what keeps a
+ * restore that finishes AFTER the reader has tapped the next card from releasing the hold that tap
+ * just set.
+ */
+function feedSnapshotPending(): boolean {
+  try { return sessionStorage.getItem('eno:feed-snap') != null } catch { return false /* storage blocked */ }
+}
+function releaseFeedEntry() {
+  // Asked now AND again if the release has to wait for `load` — a card tapped in between holds anew.
+  if (!feedSnapshotPending()) releaseScrollRestoration(window, () => !feedSnapshotPending())
 }
 
 // CategoryRails and the FacetBar are code-split out of the home route's initial bundle.
@@ -531,7 +548,6 @@ export function ListingsExplorer({
   // (on the landing feed the rails above the grid mount lazily and may be absent
   // entirely when we land deep in it — an absolute offset would be thousands of px out).
   const restoredScrollRef = useRef<{ y: number; anchorId: string | null; anchorTop: number } | null>(null)
-  const restoreRafRef = useRef(0)
   const restoreStopRef = useRef<(() => void) | null>(null)
   /**
    * ⛔ WHICH RESULT SET THE ROWS IN `listings` BELONG TO — `resultSetSig` of the query their
@@ -1946,6 +1962,12 @@ export function ListingsExplorer({
           }
         }
       } catch { /* ignore */ }
+      // Nothing to restore → this entry gets the browser's own restoration back (see feed-restore.ts).
+      // A snapshot that has not matched the URL's filters once they have settled (it may never) must
+      // not keep the entry on 'manual' either: the browser decided this arrival long before then, and
+      // a LATER Back to this entry would otherwise get neither its restoration nor ours.
+      if (!pendingSnapRef.current) releaseFeedEntry()
+      else setTimeout(() => { if (pendingSnapRef.current) releaseFeedEntry() }, 1500)
     }
     const snap = pendingSnapRef.current
     if (snap && snap.sig === feedSig) {
@@ -1971,7 +1993,7 @@ export function ListingsExplorer({
        * render after this one); such a reader lands at the top of a correct feed instead. A
        * client-side Back — the normal one — keeps the provider mounted, so its language is settled.
        */
-      if (snap.rowsSig !== liveSig) return
+      if (snap.rowsSig !== liveSig) { releaseFeedEntry(); return }
       restoredScrollRef.current = {
         y: snap.scrollY,
         anchorId: typeof snap.anchorId === 'string' ? snap.anchorId : null,
@@ -2018,57 +2040,52 @@ export function ListingsExplorer({
   // A single scrollTo in the commit that restored them is not enough: the grid renders off
   // a useDeferredValue copy (so the urgent commit can still be painting the SHORT list, and
   // scrollTo would clamp against a document that is not tall enough yet), and on the landing
-  // feed the rails above the grid mount lazily. So retry across a bounded number of FRAMES —
-  // frames, not milliseconds, because a backgrounded WebView pauses rAF and a time budget
-  // would burn down while the app is in the background. Aligning the tapped CARD (rather than
-  // an absolute offset) is what makes this correct when the content above the feed has a
+  // feed the rails above the grid mount lazily. Aligning the tapped CARD (rather than an
+  // absolute offset) is what makes this correct when the content above the feed has a
   // different height than it did when we left. Any real user scroll input aborts it: we never
   // fight a finger.
+  // ⛔ THE FRAME LOOP LIVES IN feed-restore.ts (`runRestore`), unit-tested frame by frame, and it
+  // no longer stops at the first jump. Measured on production (390×844, Back from ~card 60): the
+  // card came back 294–365px off, under the sticky header and filter strip, because everything that
+  // grew ABOVE it after the one jump (the deferred grid commit, lazily mounted chrome) pushed it
+  // away. It now keeps aligning until two consecutive frames agree within 1px (cap 30 frames once
+  // found, 40 to find it), and never places the card under the pinned `#app-header` /
+  // `#explorer-toolbar` (`pinnedChromeBottom`).
   useLayoutEffect(() => {
     const target = restoredScrollRef.current
     // Already aligning — do NOT restart (or tear down) the loop just because more rows
     // arrived; the page-1 refetch swaps `listings` mid-restore and used to kill it.
     if (!target || restoreStopRef.current) return
-    let frames = 0
-    const stop = () => {
-      cancelAnimationFrame(restoreRafRef.current)
-      restoreRafRef.current = 0
-      restoreStopRef.current = null
-      restoredScrollRef.current = null
-      window.removeEventListener('touchmove', stop)
-      window.removeEventListener('wheel', stop)
-      window.removeEventListener('keydown', stop)
-    }
-    restoreStopRef.current = stop
-    // Is the document tall enough for the saved offset to land where it did before?
-    const fits = () => document.documentElement.scrollHeight >= target.y + window.innerHeight
-    const step = () => {
-      const el = target.anchorId
-        ? document.querySelector(`[data-feed-card="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(target.anchorId) : target.anchorId}"]`)
-        : null
-      if (el) {
-        window.scrollBy(0, el.getBoundingClientRect().top - target.anchorTop)
-        stop()
-        return
-      }
-      if (!target.anchorId && fits()) { window.scrollTo(0, target.y); stop(); return }
-      // ~40 frames ≈ 2/3s at 60Hz. If the tapped card never reappears (sold, moderated,
-      // or reshuffled out of the refreshed page), fall back to the raw offset — but only
-      // if the page is long enough for it, else a clamp would dump them at the bottom.
-      if (frames++ < 40) { restoreRafRef.current = requestAnimationFrame(step); return }
-      if (fits()) window.scrollTo(0, target.y)
-      stop()
-    }
+    const abort = () => restoreStopRef.current?.()
     // touchMOVE, not touchstart: a bare tap (or the tail of the edge-swipe that brought us
     // here) must not silently cancel the restore — only an actual drag counts as "the user
     // is scrolling now".
-    window.addEventListener('touchmove', stop, { passive: true })
-    window.addEventListener('wheel', stop, { passive: true })
-    window.addEventListener('keydown', stop)
-    // First attempt runs SYNCHRONOUSLY, in the layout phase, so that when the rows are
-    // already in the DOM the jump happens before the browser paints (no visible flash of
-    // the top of the feed). step() schedules its own rAF retries when they are not.
-    step()
+    window.addEventListener('touchmove', abort, { passive: true })
+    window.addEventListener('wheel', abort, { passive: true })
+    window.addEventListener('keydown', abort)
+    let finished = false
+    const cardSelector = (id: string) => `[data-feed-card="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id}"]`
+    // The first step runs SYNCHRONOUSLY, in the layout phase, so that when the rows are already
+    // in the DOM the jump happens before the browser paints (no visible flash of the top of the
+    // feed). `runRestore` schedules its own rAF frames after that.
+    const stop = runRestore(target, {
+      anchorTopOf: (id) => document.querySelector(cardSelector(id))?.getBoundingClientRect().top ?? null,
+      chromeBottom: () => pinnedChromeBottom(document),
+      scrollBy: (dy) => window.scrollBy(0, dy),
+      scrollTo: (y) => window.scrollTo(0, y),
+      fits: (y) => document.documentElement.scrollHeight >= y + window.innerHeight,
+      raf: (cb) => requestAnimationFrame(cb),
+      caf: (id) => cancelAnimationFrame(id),
+    }, () => {
+      finished = true
+      window.removeEventListener('touchmove', abort)
+      window.removeEventListener('wheel', abort)
+      window.removeEventListener('keydown', abort)
+      restoreStopRef.current = null
+      restoredScrollRef.current = null
+      releaseFeedEntry()
+    })
+    if (!finished) restoreStopRef.current = stop
   }, [listings])
 
   // Unmount is the only thing that cancels an in-flight restore from outside (the loop above
@@ -2076,7 +2093,9 @@ export function ListingsExplorer({
   // NOT useEffect: a passive cleanup is flushed AFTER paint, so on a fast back-then-forward
   // the loop would get one more frame and scroll the DESTINATION route. Layout cleanups run
   // synchronously in the commit that removes the tree.
-  useLayoutEffect(() => () => restoreStopRef.current?.(), [])
+  // ⚠️ AND IT HANDS 'auto' BACK TO WHERE THE READER WENT, if a card tap's hold is still out — the
+  // destination entry inherited 'manual' from this one (feed-restore.ts, `handBackAfterLeaving`).
+  useLayoutEffect(() => () => { restoreStopRef.current?.(); handBackAfterLeaving() }, [])
 
   // Synchronize state and trigger history caching when data changes
   useEffect(() => {
@@ -2440,6 +2459,10 @@ export function ListingsExplorer({
           anchorId: l.id,
           anchorTop: card ? card.getBoundingClientRect().top : null,
         }))
+        // A snapshot now waits for this entry: hold the browser's own scroll restoration off it, or on
+        // Back it clamps the old offset against the short document and shows the FOOTER first
+        // (feed-restore.ts has the measurement and why the destination gets 'auto' back).
+        holdScrollRestoration(window.location.pathname)
       }
     } catch { /* ignore quota/serialization */ }
     router.push(`/listings/${l.id}`)

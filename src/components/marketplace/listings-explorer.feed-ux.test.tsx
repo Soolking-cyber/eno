@@ -323,3 +323,33 @@ describe('a district typed into search is the Area pill\'s district, and the chi
     expect(chips()).toEqual([])
   })
 })
+
+describe('Back from a listing: the browser\'s own scroll restoration is held off while a snapshot waits', () => {
+  // jsdom does not implement `history.scrollRestoration`; the explorer's writes land on a plain
+  // property, which is exactly what these assertions read.
+  const mode = () => (window.history as { scrollRestoration?: string }).scrollRestoration
+  afterEach(() => { (window.history as { scrollRestoration?: string }).scrollRestoration = 'auto' })
+
+  it('tapping a card writes the snapshot AND holds "manual" on the feed\'s entry (the footer flash)', async () => {
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    expect(mode()).not.toBe('manual')
+    act(() => { screen.getAllByTestId('card')[5].click() })
+    expect(sessionStorage.getItem('eno:feed-snap')).not.toBeNull()
+    expect(mode()).toBe('manual')
+  })
+
+  it('coming Back, the entry gets "auto" again once the restore has put the card back', async () => {
+    const client = newClient()
+    window.history.replaceState({}, '', '/?q=phone')
+    const first = mount(client)
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    act(() => { screen.getAllByTestId('card')[5].click() })
+    first.unmount()          // → /listings/<id>
+    expect(mode()).toBe('manual')
+    mount(client)            // ← Back: the snapshot is consumed and the restore runs
+    await waitFor(() => expect(sessionStorage.getItem('eno:feed-snap')).toBeNull())
+    await waitFor(() => expect(mode()).toBe('auto'))
+  })
+})

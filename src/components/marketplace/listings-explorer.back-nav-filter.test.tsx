@@ -376,10 +376,22 @@ describe('rows and count always come from the same result set', () => {
     first.unmount()
     const realign = vi.fn()
     window.scrollBy = realign as unknown as typeof window.scrollBy
-    home()
-    // The restore's proof: it realigns the TAPPED card (scrollBy), which nothing else does.
-    await waitFor(() => expect(realign).toHaveBeenCalled())
-    expect(cardIds()).toEqual(seed.map((l) => l.id))
+    // The tapped card comes back somewhere other than where it was tapped (jsdom lays everything out
+    // at 0), which is what the restore exists to correct — and since feed-restore.ts it only moves the
+    // page when the card is actually off its mark.
+    const rect = Element.prototype.getBoundingClientRect
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      if (!this.hasAttribute('data-feed-card')) return rect.call(this)
+      return { top: 500, bottom: 500, left: 0, right: 0, width: 0, height: 0, x: 0, y: 500, toJSON: () => ({}) } as DOMRect
+    }
+    try {
+      home()
+      // The restore's proof: it realigns the TAPPED card (scrollBy), which nothing else does.
+      await waitFor(() => expect(realign).toHaveBeenCalledWith(0, 500))
+      expect(cardIds()).toEqual(seed.map((l) => l.id))
+    } finally {
+      Element.prototype.getBoundingClientRect = rect
+    }
   })
 
   it('a FAILED request for the new model shows an honest error with Try again — never the old cards under the new chips', async () => {
