@@ -134,7 +134,8 @@ function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon
   )
 }
 
-/** A tab that needs sign-in (Post / Messages / Account). When auth has resolved to
+/** A tab that needs sign-in (Messages / Account — Post left this list 2026-09-25, see the Post tab
+ *  below: the wizard is draft-first, so a guest belongs IN it). When auth has resolved to
  *  logged-out, tapping opens the standardized sign-in modal instead of navigating
  *  to a page that would gate inconsistently — so every gated action on mobile
  *  meets the SAME card. While auth is still resolving (or signed in) it's a normal
@@ -274,7 +275,8 @@ export function MobileNav() {
   // Gate auth-only tabs once auth has resolved logged-out. During the brief boot
   // window (loading) leave them as Links so a logged-in user is never flashed the
   // modal; the destination page is a backstop. Saved/Explore are public (favorites
-  // are device-local), so they're never gated.
+  // are device-local), and Post is draft-first (sign-in at Publish), so none of those
+  // three is ever gated.
   const gate = !loading && !user
 
   // translate-y-full + opacity-0 + pointer-events-none slide the bar out of SIGHT, but not out of
@@ -389,40 +391,64 @@ export function MobileNav() {
         />
       </Link>
 
-      <GatedTab
+      {/* ⛔ POST IS NOT A GATED TAB — owner, 2026-09-25: "Draft first, sign in at Publish". A guest's
+          tap goes straight into the wizard, exactly as the desktop header's Post button and /post
+          itself already did; the wizard keeps the draft and asks for sign-in at Publish, after the
+          sunk cost. Before this, the phone — where this coin is THE way in — was the one entry
+          that met guests with the sign-in modal instead (measured on eno.vn: the URL stayed on /
+          and the dialog opened).
+          ⚠️ A PLAIN <Link>, NOT <GatedTab gate={false}>. GatedTab swallows a tap made while auth
+          is still resolving and REPLAYS it afterwards as `user ? push(href) : openSignIn()`, so a
+          guest's first tap — most first taps land in that window — would still have opened the
+          modal. /post is the same page for a guest and a member, so there is nothing to wait for.
+          PREFETCH: off during that window for the reason GatedTab gives (it is the slowest part of a
+          cold mobile load); after it, a guest now gets the same auto prefetch a member always had —
+          deliberately. Before, a resolved guest's coin was a <button> and prefetched nothing, because
+          it went nowhere; now it goes to /post, and auto warms only the route's shell (post/loading.tsx
+          is the boundary), which is what makes the tap paint at once. Same rule as Explore and Saved.
+          Only this link's own props changed hands: GatedTab's `onHref` fed nothing but this prefetch
+          rule, the pending highlight (useLinkStatus) lives in TabBody, and its only haptic belonged
+          to the swallowed boot-window tap that no longer exists here.
+          Re-tapping never scrolls to top (`false`), as before. */}
+      <Link
         href="/post"
-        active={at('/post')}
-        onHref={at('/post')}
-        gate={gate}
+        prefetch={at('/post') || loading ? false : undefined}
+        aria-label={tr('Post', 'Đăng tin')}
+        aria-current={at('/post') ? 'page' : undefined}
+        className={TAB}
         onClick={(e) => onTabClick(e, false)}
-        label={tr('Post', 'Đăng tin')}
-        // Emphasised but FLAT: a soft tinted chip (canon chip = rounded-full + tint, §2) with a
-        // brand-blue plus — no shadow, no FAB lift, no heavy solid fill. It reads as the primary
-        // action while staying part of the same flat canvas as the other tabs.
-        // bg-brand-50, not bg-tint (icon-language §6): the Post coin is the one chrome coin in
-        // the bar, and the brand-tinted disc ties it to the category-glyph wash — same blue
-        // family, still flat.
-        stack={STACK}
-        icon={
-          // ⚠️ THE MARK FILLS THE COIN — same treatment as the floating support control, owner
-          // 2026-08-26. The bold sprite layer's ink is 0.896 of its box (21.5 of 24 units), so the
-          // box is 42px to paint 37.6px of ink inside the 40px coin: ~1.2px of visible gap. A
-          // `size-10` glyph would have painted 35.8px and read as a small plus in a big disc.
-          // ⚠️ THE RADIUS ALREADY MATCHES THE GLYPH and needs no change: this icon is Solar's
-          // `add-circle` — a plus inside a CIRCLE — and the coin is `rounded-full`. Concentric by
-          // construction, which is the whole reason the fill reads as deliberate.
-          /* ⛔ BLUE MARK ON THE ORANGE PLATE, and the pair was swapped twice before it landed (owner,
-             2026-09-18: "pos icon orange plate button itself blue", then "inverse — button icon
-             itself blue, the backplate color is orange"). So the disc carries the commerce tint and
-             the plus carries the brand — which also keeps the ink the strongest thing in the coin:
-             measured, brand blue on --cta-50 is 4.80:1, where the reverse pairing put the lighter
-             orange on a tint. Every other tab in this bar is flat blue, so this one still reads as
-             the action. */
-          <span className="flex size-10 items-center justify-center rounded-full bg-cta-50 text-brand">
-            <Plus className="h-[42px] w-[42px] shrink-0" strokeWidth={STROKE} />
-          </span>
-        }
-      />
+      >
+        <TabBody
+          active={at('/post')}
+          label={tr('Post', 'Đăng tin')}
+          // Emphasised but FLAT: a soft tinted chip (canon chip = rounded-full + tint, §2) with a
+          // brand-blue plus — no shadow, no FAB lift, no heavy solid fill. It reads as the primary
+          // action while staying part of the same flat canvas as the other tabs.
+          // bg-brand-50, not bg-tint (icon-language §6): the Post coin is the one chrome coin in
+          // the bar, and the brand-tinted disc ties it to the category-glyph wash — same blue
+          // family, still flat.
+          stack={STACK}
+          icon={
+            // ⚠️ THE MARK FILLS THE COIN — same treatment as the floating support control, owner
+            // 2026-08-26. The bold sprite layer's ink is 0.896 of its box (21.5 of 24 units), so the
+            // box is 42px to paint 37.6px of ink inside the 40px coin: ~1.2px of visible gap. A
+            // `size-10` glyph would have painted 35.8px and read as a small plus in a big disc.
+            // ⚠️ THE RADIUS ALREADY MATCHES THE GLYPH and needs no change: this icon is Solar's
+            // `add-circle` — a plus inside a CIRCLE — and the coin is `rounded-full`. Concentric by
+            // construction, which is the whole reason the fill reads as deliberate.
+            /* ⛔ BLUE MARK ON THE ORANGE PLATE, and the pair was swapped twice before it landed (owner,
+               2026-09-18: "pos icon orange plate button itself blue", then "inverse — button icon
+               itself blue, the backplate color is orange"). So the disc carries the commerce tint and
+               the plus carries the brand — which also keeps the ink the strongest thing in the coin:
+               measured, brand blue on --cta-50 is 4.80:1, where the reverse pairing put the lighter
+               orange on a tint. Every other tab in this bar is flat blue, so this one still reads as
+               the action. */
+            <span className="flex size-10 items-center justify-center rounded-full bg-cta-50 text-brand">
+              <Plus className="h-[42px] w-[42px] shrink-0" strokeWidth={STROKE} />
+            </span>
+          }
+        />
+      </Link>
 
       <GatedTab
         href="/messages"
