@@ -5,7 +5,6 @@
 export const UI_STRINGS_SERVICES: string[] = [
   "(Vietnam time)",
   "/night",
-  "1 day",
   "1 more suggestion left for this trip",
   "A Vietnam itinerary saved on eno.",
   "A list of place names does not tell you that two stops are an hour apart. Each day gets its own colour, each stop a numbered pin, and the day's route is drawn in the order you would travel it — so a day that zig-zags across the city is obvious in advance.",

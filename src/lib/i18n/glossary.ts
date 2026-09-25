@@ -11,6 +11,9 @@ import type { Language } from './langs'
 // so server-embedded paths agree; this client copy guarantees them even if a DB
 // row is later re-translated. Keep the two in sync.
 export const TR_OVERRIDES: Record<string, Partial<Record<Language, string>>> = {
+  // A mobile CARRIER's brand (ASIM's "Local", the Services > eSIM carrier chip), not the adjective,
+  // which MT renders as ko 지역 / ja 地元 / fr Locale. A name stays a name. Mirrored in glossary-data.json.
+  Local: { 'zh-Hans': 'Local', ko: 'Local', ja: 'Local', ru: 'Local', km: 'Local', ms: 'Local', th: 'Local', fr: 'Local', hi: 'Local' },
   Post: { 'zh-Hans': '发布', ko: '등록', ja: '投稿', ru: 'Разместить', fr: 'Publier' },
   // Saved-listings nav: marketplaces use "favorites", not generic "saved" (Avito
   // Избранное, Leboncoin Favoris, 闲鱼 收藏, Karrot 찜 목록, ジモティー お気に入り).

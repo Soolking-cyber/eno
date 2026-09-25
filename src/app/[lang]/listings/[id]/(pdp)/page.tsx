@@ -954,7 +954,10 @@ export default async function ListingPage({ params }: Props) {
                       const jobText = listing.listingType === 'job' ? JOB_TEXT_ATTRIBUTES[k] : undefined
                       // On a job, a facet key/value gets the taxonomy's own words ("Type: Full-time", not "Jobtype:
                       // Fulltime"). Scoped to jobs on purpose: every other category keeps its Details exactly as before.
-                      const facet = listing.listingType === 'job' && !jobText ? attrFacets.find((f) => f.key === k) : undefined
+                      // ⚠️ And to Services › eSIM: its values are SLUGS ("validity: 30-days", "dailyData:
+                      // 1-5gb") that only read right through their option label ("Validity: 30 days").
+                      const labelled = listing.listingType === 'job' || rawListing.subcategorySlug === 'esim'
+                      const facet = labelled && !jobText ? attrFacets.find((f) => f.key === k) : undefined
                       const option = facet?.options?.find((o) => o.value === String(v))
                       return (
                       <div key={k} className="flex items-start justify-between gap-4 py-2.5">

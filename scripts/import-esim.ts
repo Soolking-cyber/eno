@@ -41,6 +41,7 @@ import { buildSearchText } from '../src/lib/fold'
 import { browseRankScore } from '../src/lib/ranking-formula'
 import { findBannedWord } from '../src/lib/publish-guard'
 import { containsPhoneNumber } from '../src/lib/phone'
+import { facetsFor } from '../src/lib/taxonomy'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
@@ -51,7 +52,19 @@ const VERBOSE = process.argv.includes('--verbose')   // print every rendered tit
 
 const CATEGORY_SLUG = 'services'
 const SUBCATEGORY = 'esim'
-const NETWORKS = ['viettel', 'vinaphone', 'mobifone', 'vietnamobile'] as const
+/**
+ * The eSIM aisle's own facets. Every attribute this script writes must be one of their OPTION values:
+ * the feed filters by an exact `"key":"value"` substring, so a value the taxonomy does not offer is a
+ * listing no chip can ever find — the data file and the taxonomy are checked against each other here.
+ */
+const ESIM_FACETS = new Map(facetsFor(CATEGORY_SLUG, SUBCATEGORY).map((f) => [f.key, new Set((f.options ?? []).map((o) => o.value))]))
+/** EXACT facet values, never buckets: 30 → "30-days", 1.5 → "1-5gb". A figure the taxonomy has no
+ *  option for fails badFacetValues and the row is blocked — never rounded into a neighbouring chip. */
+const validityValue = (d: number) => (d === 1 ? '1-day' : `${d}-days`)
+const dailyValue = (gb: number) => `${String(gb).replace('.', '-')}gb`
+function badFacetValues(attrs: Record<string, string>): string[] {
+  return Object.entries(attrs).filter(([k, v]) => !ESIM_FACETS.get(k)?.has(v)).map(([k, v]) => `${k}="${v}"`)
+}
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36'
 
 type Offer = {
@@ -59,22 +72,35 @@ type Offer = {
   feeNoteEn: string; feeNoteVi: string; whoCanBuyEn: string; whoCanBuyVi: string
   howToEn: string[]; howToVi: string[]; includesEn: string | null; includesVi: string | null
   sourceUrl: string
+  /** Overrides the carrier's `foreigners` for this offer (MobiFone's Travel eSIM is passport-online). */
+  foreigners?: string
 }
 type Plan = {
   code: string; kind: 'data' | 'combo'; priceVnd: number; validityDays: number
+  /** daily = an allowance per day; pool = one total for the cycle; unlimited = never cut off (the
+   *  high-speed part, if any, is `dataPerDayGB`). Stored, not parsed from the display strings. */
+  dataStyle: 'daily' | 'pool' | 'unlimited'; dataPerDayGB: number | null
+  /** Overrides the carrier's `foreigners`: MobiFone's FR10/FR30 are the Travel eSIM's own top-ups,
+   *  bought online by the passport holder who got that eSIM online. */
+  foreigners?: string
   dataShortEn: string; dataShortVi: string; dataLongEn: string; dataLongVi: string
   callsEn: string | null; callsVi: string | null; renewalEn: string | null; renewalVi: string | null
   registerEn: string | null; registerVi: string | null; restrictionsEn: string | null; restrictionsVi: string | null
   url: string; imageUrl: string | null; sourceUrl: string
 }
 type Carrier = {
-  key: string; sellerName: string; legalName: string; website: string
+  key: string
+  /** The `carrier` facet value (taxonomy.ts). */
+  slug: string
+  /** The `foreigners` facet value: how a passport holder gets this carrier's eSIM. */
+  foreigners: string
+  sellerName: string; legalName: string; website: string
   /** Hostnames a listing may link to (the carrier's own, or its own retail arm) — exact or subdomain. */
   domains: string[]
   /** EXACT extra hosts the carrier serves its own images from (its CDN / object storage). Images may
    *  come from `domains` or these; links may not. */
   assetDomains: string[]
-  networkKind: 'MNO' | 'MVNO' | 'brand'; networkHost: typeof NETWORKS[number]
+  networkKind: 'MNO' | 'MVNO' | 'brand'; networkHost: string
   networkNoteEn: string; networkNoteVi: string; brandColor: string; logoUrl: string; bioEn: string
   /** The carrier's own eSIM image for plans with no art of their own, when there is no priced eSIM
    *  offer to borrow it from (Vietnamobile publishes no new-eSIM price, so it has no eSIM listing). */
@@ -181,6 +207,8 @@ function screenCopy(texts: string[]): string | null {
 
 type Row = {
   carrier: Carrier; externalId: string; kind: 'esim' | 'data' | 'combo'; label: string
+  /** The eSIM facet values for this listing, already checked against the taxonomy. */
+  attrs: Record<string, string>
   titleEn: string; titleVi: string; descEn: string; descVi: string; price: number; url: string; image: string; code: string
 }
 
@@ -188,7 +216,6 @@ function rowsFor(c: Carrier): { rows: Row[]; problems: string[]; planned: string
   const problems: string[] = []
   /** Every externalId the data file names for this carrier, blocked or not — see the stale report. */
   const planned: string[] = []
-  if (!NETWORKS.includes(c.networkHost)) problems.push(`networkHost "${c.networkHost}" is not a taxonomy option`)
   if (!/^#[0-9a-f]{6}$/i.test(c.brandColor) || /^#f{6}$/i.test(c.brandColor)) problems.push(`brandColor "${c.brandColor}"`)
   if (!c.bioEn.includes(`eno introduces ${c.sellerName}`)) problems.push('bioEn lacks the intermediary sentence')
   // A shape check on the data, not a block: every well-formed plan is still imported.
@@ -210,11 +237,13 @@ function rowsFor(c: Carrier): { rows: Row[]; problems: string[]; planned: string
       !(o.imageUrl && imageHostOk(o.imageUrl, c)) && `image ${o.imageUrl}`,
     ].filter(Boolean)
     offerIds.add(o.id)
+    const attrs = { planType: 'esim', network: c.networkHost, carrier: c.slug, foreigners: o.foreigners ?? c.foreigners }
+    bad.push(...badFacetValues(attrs).map((x) => `not a taxonomy option: ${x}`))
     if (bad.length) { problems.push(`${o.id}: ${bad.join(', ')}`); continue }
     const d = offerDescription(c, o)
     const screen = screenCopy([o.titleEn, o.titleVi, d.en, d.vi])
     if (screen) { problems.push(`${o.id}: ${screen}`); continue }
-    rows.push({ carrier: c, externalId: `esim:${c.key}:${o.id}`, kind: 'esim', label: o.id, code: o.id,
+    rows.push({ carrier: c, externalId: `esim:${c.key}:${o.id}`, kind: 'esim', label: o.id, code: o.id, attrs,
       titleEn: o.titleEn, titleVi: o.titleVi, descEn: d.en, descVi: d.vi, price: o.priceVnd, url: o.saleUrl, image: o.imageUrl })
   }
   const seen = new Set<string>()
@@ -234,11 +263,19 @@ function rowsFor(c: Carrier): { rows: Row[]; problems: string[]; planned: string
       (t.en.length > 140 || t.vi.length > 140) && 'title over 140 chars',
     ].filter(Boolean)
     seen.add(code)
+    const attrs: Record<string, string> = {
+      planType: p.kind, network: c.networkHost, carrier: c.slug, foreigners: p.foreigners ?? c.foreigners,
+      validity: validityValue(p.validityDays), dataStyle: p.dataStyle,
+      // Only when there IS a per-day figure: a pool plan has no "GB per day".
+      ...(typeof p.dataPerDayGB === 'number' && p.dataPerDayGB > 0 ? { dailyData: dailyValue(p.dataPerDayGB) } : {}),
+    }
+    if (p.dataStyle === 'daily' && !(typeof p.dataPerDayGB === 'number' && p.dataPerDayGB > 0)) bad.push('daily plan without dataPerDayGB')
+    bad.push(...badFacetValues(attrs).map((x) => `not a taxonomy option: ${x}`))
     if (bad.length) { problems.push(`${p.code}: ${bad.join(', ')}`); continue }
     const d = planDescription(c, p)
     const screen = screenCopy([t.en, t.vi, d.en, d.vi])
     if (screen) { problems.push(`${p.code}: ${screen}`); continue }
-    rows.push({ carrier: c, externalId: `plan:${c.key}:${code}`, kind: p.kind, label: p.code, code: p.code,
+    rows.push({ carrier: c, externalId: `plan:${c.key}:${code}`, kind: p.kind, label: p.code, code: p.code, attrs,
       titleEn: t.en, titleVi: t.vi, descEn: d.en, descVi: d.vi, price: p.priceVnd, url: p.url, image: image! })
   }
   return { rows, problems, planned }
@@ -406,7 +443,7 @@ async function main() {
       // `serviceLocation` is not a chip INSIDE eSIM (taxonomy excludes it there), but the Services-wide
       // "Online" filter still reads it, and these belong under it. `providerType` is derived for
       // posted listings (createListingCore) and must be written by hand here, or "Business" misses them.
-      const attributes = JSON.stringify({ serviceLocation: 'online', providerType: 'business', planType: r.kind, network: c.networkHost })
+      const attributes = JSON.stringify({ serviceLocation: 'online', providerType: 'business', ...r.attrs })
       const fields = {
         title: r.titleEn, titleVi: r.titleVi, description: r.descEn, descriptionVi: r.descVi,
         // ⛔ The SYMBOL '₫', never 'VND' — anything else is treated as a foreign currency (import-accesstrade.ts).

@@ -1207,6 +1207,63 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'mobifone', label: 'MobiFone', labelVi: 'MobiFone' },
         { value: 'vietnamobile', label: 'Vietnamobile', labelVi: 'Vietnamobile' },
       ] },
+      // Who SELLS it — the brand on the receipt, which is not always whose towers it rides (above).
+      { key: 'carrier', label: 'Carrier', labelVi: 'Nhà mạng', kind: 'toggle', subcats: ['esim'], optional: true, options: [
+        { value: 'viettel', label: 'Viettel', labelVi: 'Viettel' },
+        { value: 'vinaphone', label: 'VinaPhone', labelVi: 'VinaPhone' },
+        { value: 'mobifone', label: 'MobiFone', labelVi: 'MobiFone' },
+        { value: 'vietnamobile', label: 'Vietnamobile', labelVi: 'Vietnamobile' },
+        { value: 'itel', label: 'iTel', labelVi: 'iTel' },
+        { value: 'wintel', label: 'Wintel', labelVi: 'Wintel' },
+        { value: 'vnsky', label: 'VNSKY', labelVi: 'VNSKY' },
+        { value: 'local', label: 'Local', labelVi: 'Local' },
+        { value: 'sim-fpt', label: 'SIM FPT', labelVi: 'SIM FPT' },
+      ] },
+      // How a FOREIGNER gets the eSIM — the question an expat or tourist has first. Read off each
+      // carrier's own registration rules (data/esim-carriers.json): "online" means a passport is
+      // accepted by the carrier's own online/app flow; "in a store" means the passport route exists
+      // only at a counter; "Vietnamese ID" means no passport route is published at all.
+      { key: 'foreigners', label: 'For foreigners', labelVi: 'Người nước ngoài', kind: 'toggle', subcats: ['esim'], optional: true, options: [
+        { value: 'passport-online', label: 'Passport, online', labelVi: 'Hộ chiếu, mua online' },
+        { value: 'passport-store', label: 'Passport, in a store', labelVi: 'Hộ chiếu, tại cửa hàng' },
+        { value: 'vietnamese-id', label: 'Vietnamese ID needed', labelVi: 'Cần CCCD Việt Nam' },
+      ] },
+      // Plans only (the eSIM itself has no validity of its own). EXACT values, one chip each — owner,
+      // 2026-09-25: "chips … how many gb/day and 30 days plan 1 day plan". Every option is listed up front
+      // and the filter rail hides the ones with no listings, so only lengths that exist show. A new
+      // length (say 60 days) is REFUSED by scripts/import-esim.ts until it gets an option here, rather
+      // than silently filed under the nearest one.
+      { key: 'validity', label: 'Validity', labelVi: 'Thời hạn', kind: 'toggle', subcats: ['esim'], optional: true, options: [
+        { value: '1-day', label: '1 day', labelVi: '1 ngày' },
+        { value: '3-days', label: '3 days', labelVi: '3 ngày' },
+        { value: '5-days', label: '5 days', labelVi: '5 ngày' },
+        { value: '7-days', label: '7 days', labelVi: '7 ngày' },
+        { value: '10-days', label: '10 days', labelVi: '10 ngày' },
+        { value: '15-days', label: '15 days', labelVi: '15 ngày' },
+        { value: '30-days', label: '30 days', labelVi: '30 ngày' },
+      ] },
+      { key: 'dataStyle', label: 'Data allowance', labelVi: 'Kiểu data', kind: 'toggle', subcats: ['esim'], optional: true, options: [
+        { value: 'daily', label: 'Per day', labelVi: 'Theo ngày' },
+        { value: 'pool', label: 'One total pool', labelVi: 'Tổng dung lượng' },
+        { value: 'unlimited', label: 'Unlimited', labelVi: 'Không giới hạn' },
+      ] },
+      // High-speed GB PER DAY, exact — for a throttled "unlimited" plan, the high-speed part before it
+      // slows. A pool plan has no per-day figure and carries no value here. Same rule as validity: an
+      // unlisted figure is refused by the importer, never rounded into a neighbour.
+      { key: 'dailyData', label: 'Data per day', labelVi: 'Data mỗi ngày', kind: 'toggle', subcats: ['esim'], optional: true, options: [
+        { value: '1gb', label: '1GB/day', labelVi: '1GB/ngày' },
+        { value: '1-5gb', label: '1.5GB/day', labelVi: '1,5GB/ngày' },
+        { value: '2gb', label: '2GB/day', labelVi: '2GB/ngày' },
+        { value: '3gb', label: '3GB/day', labelVi: '3GB/ngày' },
+        { value: '4gb', label: '4GB/day', labelVi: '4GB/ngày' },
+        { value: '5gb', label: '5GB/day', labelVi: '5GB/ngày' },
+        { value: '6gb', label: '6GB/day', labelVi: '6GB/ngày' },
+        { value: '7gb', label: '7GB/day', labelVi: '7GB/ngày' },
+        { value: '8gb', label: '8GB/day', labelVi: '8GB/ngày' },
+        { value: '9gb', label: '9GB/day', labelVi: '9GB/ngày' },
+        { value: '10gb', label: '10GB/day', labelVi: '10GB/ngày' },
+        { value: '12gb', label: '12GB/day', labelVi: '12GB/ngày' },
+      ] },
     ],
   },
 

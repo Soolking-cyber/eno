@@ -628,5 +628,20 @@
    "fr": "Fiable",
    "hi": "विश्वसनीय"
   }
+ },
+ {
+  "en": "Local",
+  "context": "brand name of the mobile carrier Local (ASIM Telecom) on the Services > eSIM carrier chip; a name, never translated",
+  "translations": {
+   "zh-Hans": "Local",
+   "ko": "Local",
+   "ja": "Local",
+   "ru": "Local",
+   "km": "Local",
+   "ms": "Local",
+   "th": "Local",
+   "fr": "Local",
+   "hi": "Local"
+  }
  }
 ]
