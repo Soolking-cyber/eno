@@ -30,6 +30,7 @@ export function SignInCard({
   listingTitle,
   listingImage,
   sellerName,
+  note,
 }: {
   className?: string
   /**
@@ -45,6 +46,11 @@ export function SignInCard({
   listingTitle?: string
   listingImage?: string | null
   sellerName?: string
+  /**
+   * What signing in is for, when the gate is not a listing (the availability check: "free, and the
+   * eno team replies in Messages"). A context line, never a title — the title stays the site's own.
+   */
+  note?: string
 }) {
   const { tr } = useLanguage()
   const seller = sellerName || tr('the seller', 'người bán')
@@ -60,7 +66,7 @@ export function SignInCard({
               {tr(`Sign in to message ${seller} about ${listingTitle}`, `Đăng nhập để nhắn ${seller} về ${listingTitle}`)}
             </Title>
             <p className="text-xs text-muted-foreground">
-              {tr('Free · takes 20 seconds · your number stays private', 'Miễn phí · 20 giây · số của bạn được giữ kín')}
+              {note || tr('Free · takes 20 seconds · your number stays private', 'Miễn phí · 20 giây · số của bạn được giữ kín')}
             </p>
           </div>
         </div>
@@ -78,6 +84,10 @@ export function SignInCard({
           {IS_SERVICES ? tr('Sign in to eno.forum', 'Đăng nhập eno.forum') : tr('Sign in to eno.vn', 'Đăng nhập eno.vn')}
         </Title>
       )}
+      {/* The generic header's context line, only when a caller supplied one. */}
+      {!listingTitle && note ? (
+        <p data-sign-in-note="" className="mt-1.5 text-center text-xs text-muted-foreground">{note}</p>
+      ) : null}
       <SignInForm className="mt-4" />
     </div>
   )

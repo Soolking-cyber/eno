@@ -12,6 +12,7 @@ import { PartnerBadge } from './partner-badge'
 import { ImageMark } from './image-mark'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
+import { RentalCheckToggle } from './rental-check-toggle'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
@@ -745,6 +746,15 @@ function ListingCardImpl({
             )}
           </span>
         )}
+
+        {/* ⚠️ THE AVAILABILITY-CHECK CHIP (owner, 2026-09-25) — rentals only, bottom-right, the one free
+            corner (badges and heart own the top, the status chips the bottom-left, the pips the centre).
+            It is a <button>, so `has-[button:active]:scale-100` on the root keeps a press on it from
+            also pressing the card, and it stops propagation like the heart so it never opens the
+            listing. ⚠️ IT SITS BEFORE THE OFFER OVERLAY IN THE TREE ON PURPOSE: both are z-10, so the
+            overlay's click-away layer paints over the chip while a quick offer is open. The component
+            renders nothing for a non-rental or for the viewer's own listing. */}
+        {listing.category?.slug === 'rentals' && <RentalCheckToggle variant="card" listing={listing} />}
 
         {/* Quick actions (5a #6) — desktop ONLY: Chat · Offer · Locate unfurl
             horizontally OUT of the save heart (top-right), sliding LEFT into place

@@ -18,6 +18,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Mascot } from '@/components/marketplace/mascot'
 import { SellerListings } from '@/components/marketplace/seller-listings'
+import { RentalCheckHint } from '@/components/marketplace/rental-check-toggle'
 import { Tr } from '@/context/language-context'
 
 export const revalidate = 21600 // 6h — client fetches live listings; ISR HTML is first-paint+SEO only
@@ -164,6 +165,8 @@ export default async function CategoryPage({ params }: Props) {
           {/* "0 listings available." read broken on empty categories — only count when there ARE listings. */}
           {total > 0 && <> {total} {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." /></>}
         </p>
+        {/* The availability check is invisible until something says it exists — one line, rentals only. */}
+        {cat.slug === 'rentals' && <RentalCheckHint className="mt-2 max-w-prose" />}
 
         {districts.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">

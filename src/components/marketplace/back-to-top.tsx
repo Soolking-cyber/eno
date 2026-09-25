@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { SupportButton } from '@/components/marketplace/support-button'
+import { RentalCheckPill } from '@/components/marketplace/rental-check-pill'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { MAX_OBSTACLE_HEIGHT, nextScrollDirection, planClearance, tapBox, YIELDED, type Box, type ClearancePlan, type ScrollDir } from '@/lib/fab-clearance'
@@ -275,7 +276,11 @@ export function BackToTop() {
           // or opened Contact support on the laptop and rental pages. An invisible layer must not take
           // input; the controls opt back in individually (the chevron only while shown, the support
           // mark via its className). The 10px gap between the two stops being a dead strip too.
-          'pointer-events-none fixed z-[60] flex flex-col items-center gap-2.5',
+          // ⚠️ `items-end`, NOT `items-center`, SINCE THE RENTAL-CHECK PILL JOINED (2026-09-25). The pill is
+          // wider than the 44px column the two glyphs define, and centring it would push it past the
+          // right edge. Right-aligning changes nothing for the chevron and the support mark: both are
+          // exactly 44px wide, so their boxes land where they did.
+          'pointer-events-none fixed z-[60] flex flex-col items-end gap-2.5',
           // ⚠️ NEVER OVER A MODAL. At z-[60] this cluster floated ON TOP of the report
           // dialog's "Gửi báo cáo" submit and over the protections sheet's copy — a tap on
           // the CTA's right edge scrolled the page instead of filing a fraud report (blind
@@ -309,6 +314,12 @@ export function BackToTop() {
         // rides on top of it as a translate.
         style={{ ...(lift ? { bottom: lift + 12 } : {}), translate: rise ? `0 ${-rise}px` : undefined, transitionTimingFunction: 'var(--ease-spring)' }}
       >
+        {/* The availability-check basket's pill — FIRST, so it stacks above the chevron's reserved slot
+            and inherits every rule this column carries (nav clearance, the data-fab-clear lift, the
+            modal and panel stand-downs, the /messages exit). Renders nothing while the basket is empty.
+            It carries its own `pointer-events-auto`. */}
+        <RentalCheckPill />
+
         {/* Back to top — bare glyph, no circle: same treatment as the search-bar
             icons (quiet ink → brand blue on hover) with a subtle drop-shadow so it
             stays distinct over card imagery. Fades in once scrolled (slot reserved

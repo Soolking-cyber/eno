@@ -47,6 +47,7 @@ import { sellerMetrics, topSellerReviews, sameSellerListings } from '@/lib/selle
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
+import { RentalCheckToggle } from '@/components/marketplace/rental-check-toggle'
 import { AffiliateBooking } from '@/components/marketplace/affiliate-booking'
 import { JobApplyGuard } from '@/components/marketplace/job-apply-guard'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
@@ -842,6 +843,28 @@ export default async function ListingPage({ params }: Props) {
                          the traveller lands exactly where the planner runs. */
                       intent={isTripProduct ? 'plan' : 'buy'}
                     />}
+                {/* The availability check (owner, 2026-09-25): add this rental to the basket the eno team
+                    checks for free. Under whichever contact block rendered above — a partner rental still
+                    gets the check. `status === 'active'` is already true here (sold returned early), and
+                    it is repeated so this line does not depend on that. ⚠️ A NARROW PROP, NOT `listing`:
+                    this is a client component, so whatever it is handed is serialised into the page's
+                    RSC payload a second time, description and all. */}
+                {rawListing.category.slug === 'rentals' && listing.status === 'active' && (
+                  <RentalCheckToggle
+                    variant="pdp"
+                    listing={{
+                      id: listing.id,
+                      sellerId: listing.sellerId,
+                      title: listing.title,
+                      titleVi: listing.titleVi,
+                      images: listing.images.slice(0, 1),
+                      price: listing.price,
+                      currency: listing.currency,
+                      priceUnit: listing.priceUnit,
+                      category: { slug: rawListing.category.slug },
+                    }}
+                  />
+                )}
               </div>
 
               {/* 9 — ONE trust block: the scam warning, with "ENO protects you" folded in as its

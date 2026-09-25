@@ -69,6 +69,12 @@ export type SignInContext = {
   listingTitle?: string
   listingImage?: string | null
   sellerName?: string
+  /**
+   * One line saying what signing in is FOR, when the gate is not a listing — the availability check
+   * says the send is free and the reply lands in Messages. Rendered as the card's context line under
+   * the title; with a listing in hand it replaces the generic "Free · takes 20 seconds" line.
+   */
+  note?: string
 }
 
 type AuthCtx = {
@@ -672,6 +678,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           listingTitle={signInCtx?.listingTitle}
           listingImage={signInCtx?.listingImage}
           sellerName={signInCtx?.sellerName}
+          note={signInCtx?.note}
         />
       )}
     </AuthContext.Provider>

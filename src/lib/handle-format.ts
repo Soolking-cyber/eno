@@ -87,6 +87,12 @@ const RESERVED = new Set([
   // handle-format.test.ts caught it — the test reads the route tree, which is exactly why it exists.
   // A member holding @app would have shadowed the one URL the download QR encodes.
   'app',
+  // ⚠️ `rentals` IS THE AVAILABILITY-CHECK PAGE (src/app/[lang]/rentals/check, 2026-09-25). Only the
+  // nested /rentals/check is a route, but a member holding @rentals would own /rentals itself and
+  // read as the rentals section of the site. The route-tree test cannot see it (`rentals/` has no
+  // page of its own), so handle-format.test.ts pins it by name. MEASURED BEFORE RESERVING (read-only,
+  // prod, 2026-09-25): 0 of 24 handles fold to `rentals` or start with `rental`.
+  'rentals',
   'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'iphone-18-vietnam',
   // ⚠️ THE PER-MODEL LANDING PAGES, ADDED 2026-09-19. A member holding @iphone-18-pro-vietnam
   // would shadow the route entirely — /[handle] renders the storefront in place, so the SEO page

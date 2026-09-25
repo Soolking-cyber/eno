@@ -88,6 +88,16 @@ describe('validateHandle', () => {
   })
 
   /**
+   * ⚠️ PINNED BY NAME BECAUSE THE ROUTE-TREE TEST BELOW CANNOT SEE IT. `rentals/` holds no page of
+   * its own — only `rentals/check/page.tsx` — so `hasPage('rentals/')` is false and the directory is
+   * skipped. The handle still has to be reserved: whoever held @rentals would own /rentals, the
+   * parent of the availability-check page, and read as the site's rentals section.
+   */
+  it('reserves `rentals`, the availability-check parent path, in every spelling', () => {
+    for (const h of ['rentals', 'rent-als', 'rent_als']) expect(validateHandle(h), h).toBe('reserved')
+  })
+
+  /**
    * ⛔ THE INVARIANT THAT MAKES ROOT-LEVEL REWRITES SAFE, not a spot-check of one name.
    *
    * `src/app/[lang]/[handle]` is a ROOT dynamic segment, so any single-segment path next.config.ts

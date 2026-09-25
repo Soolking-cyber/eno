@@ -12,6 +12,8 @@ type Props = {
   listingTitle?: string
   listingImage?: string | null
   sellerName?: string
+  /** A context line for a gate that is not a listing (see SignInContext.note). */
+  note?: string
 }
 
 /**
@@ -25,7 +27,7 @@ type Props = {
  * "Continue with email or phone", both of which only opened this dialog — a whole extra tap and a
  * second decision in front of a visitor who had already decided.
  */
-export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName }: Props) {
+export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName, note }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-2xl shadow-overlay w-full max-w-sm sm:max-w-sm p-6 gap-0">
@@ -41,6 +43,7 @@ export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, s
           listingTitle={listingTitle}
           listingImage={listingImage}
           sellerName={sellerName}
+          note={note}
         />
       </DialogContent>
     </Dialog>
