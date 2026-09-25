@@ -4,6 +4,7 @@
  *   npx tsx scripts/set-partner-avatar.ts                                  # DRY RUN (VinWonders)
  *   npx tsx scripts/set-partner-avatar.ts --apply
  *   npx tsx scripts/set-partner-avatar.ts --seller CellphoneS --logo <url> [--official] --apply
+ *   npx tsx scripts/set-partner-avatar.ts --seller Viettel --logo-file <path> --apply   # see LOGO_FILE
  *
  * ⚠️ NO WATERMARK ON THIS ONE, and that is not an oversight. src/lib/core/media.ts spells out the
  * rule: the eno wordmark goes on LISTING photos, which get scraped and re-shared, and never on
@@ -38,7 +39,17 @@ const SELLER_NAME = arg('seller')
  * CellphoneS's storefront and hand it a partner badge. A default that is right for exactly one
  * caller must not silently serve every other one.
  */
-if (SELLER_NAME && !arg('logo')) { console.error('--seller requires --logo (refusing to reuse another partner\'s mark)'); process.exit(1) }
+/**
+ * `--logo-file`: the partner's own mark, already downloaded — for a site that serves it only to a
+ * browser (viettel.vn answers a script with a 177-byte JS cookie stub; esim.vnpt.vn's certificate
+ * chain is incomplete, which Node's fetch refuses). It must be the partner's published file, fetched
+ * by a person or a browser from the partner's own domain; every check below runs on it unchanged.
+ */
+const LOGO_FILE = arg('logo-file')
+// ⛔ And the file is never paired with the no-argument default: `--logo-file x` alone would write that
+// file onto VinWonders' storefront (a reviewer's catch).
+if (LOGO_FILE && !SELLER_NAME) { console.error('--logo-file requires --seller'); process.exit(1) }
+if (SELLER_NAME && !arg('logo') && !LOGO_FILE) { console.error('--seller requires --logo or --logo-file (refusing to reuse another partner\'s mark)'); process.exit(1) }
 const LOGO_URL = arg('logo') ?? 'https://static.vinwonders.com/production/VWs_icon_512.png'
 
 async function main() {
@@ -70,19 +81,39 @@ async function main() {
   console.log(`current avatar: ${seller.avatarUrl ?? '(none)'}`)
   console.log(`officialPartner: ${seller.officialPartner}${OFFICIAL && !seller.officialPartner ? ' -> true' : ''}`)
 
-  const res = await fetch(LOGO_URL, { signal: AbortSignal.timeout(30_000) })
-  if (!res.ok) { console.error(`logo fetch failed: ${res.status}`); process.exit(1) }
+  let src: Buffer
+  if (LOGO_FILE) {
+    src = readFileSync(LOGO_FILE)
+  } else {
+    const res = await fetch(LOGO_URL, { signal: AbortSignal.timeout(30_000) })
+    if (!res.ok) { console.error(`logo fetch failed: ${res.status}`); process.exit(1) }
+    src = Buffer.from(await res.arrayBuffer())
+  }
   const sharp = (await import('sharp')).default
-  const src = Buffer.from(await res.arrayBuffer())
   const meta = await sharp(src).metadata()
+  /**
+   * ⚠️ AN SVG RASTERISES AT ITS INTRINSIC SIZE — a carrier's header logo is typically ~120x30 — and
+   * resizing that up to 512 is a blur. Render it at the density that already reaches SIZE instead.
+   */
+  const w = meta.width ?? SIZE, h = meta.height ?? SIZE
+  const density = meta.format === 'svg' ? Math.min(2400, Math.ceil((72 * SIZE) / Math.max(w, h))) : undefined
+  /**
+   * ⚠️ THE AVATAR IS A CIRCLE (ui/avatar: rounded-full). A square mark fills it as before; a WIDE
+   * wordmark fitted edge to edge loses both ends to the mask. So a non-square mark is fitted inside
+   * the circle — its box's half-diagonal no more than the radius — and padded back out to SIZE.
+   */
+  const aspect = Math.max(w, h) / Math.min(w, h)
+  const inner = aspect > 1.15 ? Math.floor(SIZE / Math.sqrt(1 + 1 / (aspect * aspect))) : SIZE
+  const pad = Math.floor((SIZE - inner) / 2)
   // Flattened onto white rather than left transparent: the avatar renders on several surfaces
   // (dark chips, coloured cards) and a transparent cut-out would pick up whatever sits behind it.
-  const out = await sharp(src)
-    .resize(SIZE, SIZE, { fit: 'contain', background: '#ffffff' })
+  const out = await sharp(src, density ? { density } : {})
+    .resize(inner, inner, { fit: 'contain', background: '#ffffff' })
+    .extend({ top: pad, bottom: SIZE - inner - pad, left: pad, right: SIZE - inner - pad, background: '#ffffff' })
     .flatten({ background: '#ffffff' })
     .webp({ quality: 92 })
     .toBuffer()
-  console.log(`logo: ${meta.width}x${meta.height} ${meta.format} -> ${SIZE}x${SIZE} webp, ${out.length} bytes`)
+  console.log(`logo: ${meta.width}x${meta.height} ${meta.format}${density ? ` @${density}dpi` : ''} -> ${SIZE}x${SIZE} webp (mark ${inner}px), ${out.length} bytes`)
 
   /**
    * ⛔ REFUSE A LOGO THAT IS INVISIBLE ON THE BACKGROUND WE FLATTENED IT ONTO.

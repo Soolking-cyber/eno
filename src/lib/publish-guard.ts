@@ -93,6 +93,14 @@ const BANNED_WORDS = [
   'nga voi', 'sung te giac', 'cao ho', 'mat gau', 'vay te te', 'dong vat hoang da',
   // SIMs & personal data
   'sim kich hoat san', 'sim rac', 'danh sach khach hang', 'data khach hang',
+  // ⚠️ The same offence worded for an eSIM, which the Services › eSIM aisle (2026-09-25) invites:
+  // reselling an already-registered profile is trading a pre-activated SIM (ND 163/2024). Measured
+  // before adding: 0 listings in prod match, and neither does the imported carrier copy.
+  // ⛔ NOT 'sim/esim đã kích hoạt' ("already activated"): that also describes a DEVICE's state —
+  // "Apple Watch LTE, eSIM đã kích hoạt" — and a hard block on an honest used-watch post is the
+  // false positive the launch-leniency policy forbids (a reviewer's catch). Only "kích hoạt sẵn"
+  // (pre-activated) is unambiguous; other phrasings are the AI moderation `data_sim` class's job.
+  'esim kich hoat san',
   // covert surveillance / signal jammers
   'camera nguy trang', 'camera quay len', 'thiet bi nghe len', 'thiet bi pha song', 'pha song gps',
   // MLM, uniforms, gambling (low-collision terms added 2026-07-06 to match /prohibited)
@@ -122,6 +130,8 @@ const BANNED_WORDS = [
   'prostitute', 'prostitution', 'sex service',
   // covert surveillance / jammers
   'spy camera', 'gps jammer', 'signal jammer',
+  // pre-activated SIMs (the Vietnamese terms are above)
+  'pre-activated sim', 'preactivated sim', 'pre-activated esim', 'preactivated esim',
 ].map((w) => fold(w))
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const BANNED_RE = new RegExp(`\\b(${BANNED_WORDS.map(escapeRe).join('|')})\\b`)

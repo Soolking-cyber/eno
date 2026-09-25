@@ -60,6 +60,7 @@ export const LUCIDE_TO_SOLAR = {
   Camera: 'camera',
   Car: 'wheel-angle',
   CarFront: 'wheel-angle',
+  CardSim: 'sim-card',
   Cat: 'cat',
   Check: 'check-circle',
   CheckCircle2: 'check-circle',

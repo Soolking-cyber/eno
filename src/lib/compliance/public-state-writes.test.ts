@@ -88,6 +88,7 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   'scripts/import-supersports.ts': { count: 1, why: 'affiliate importer — payload literal; refuses a storefront with an ownerId' },
   'scripts/import-accesstrade.ts': { count: 1, why: 'affiliate importer — payload literal; refuses a storefront with an ownerId' },
   'scripts/seed-vinwonders.ts': { count: 1, why: 'partner storefront seed — payload literal; the seller stays ownerless (refuses an owned one)' },
+  'scripts/import-esim.ts': { count: 2, why: 'carrier eSIM/plan reference listings onto ownerless partner storefronts — the upsert’s create-only status/verified; refuses an owned or ambiguously named storefront' },
   'scripts/e2e-seed.mjs': { count: 1, why: 'e2e fixture on a disposable target' },
   'scripts/test-account-delete.mjs': { count: 1, why: 'throwaway listing for the account-deletion test' },
 }

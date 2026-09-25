@@ -1136,13 +1136,23 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'photography', name: 'Photography', nameVi: 'Chụp ảnh', icon: 'Camera', keywords: ['photographer', 'photography', 'video', 'chụp ảnh', 'quay phim'] },
       { slug: 'childcare', name: 'Childcare', nameVi: 'Trông trẻ', icon: 'Baby', keywords: ['nanny', 'babysitter', 'childcare', 'trông trẻ', 'giữ trẻ'] },
       { slug: 'pet-services', name: 'Pets', nameVi: 'Thú cưng', icon: 'PawPrint', keywords: ['pet grooming', 'pet sitting', 'vet', 'grooming', 'thú y', 'chăm sóc thú cưng'] },
+      // Mobile carriers' eSIMs and the plans that ride on them (scripts/import-esim.ts).
+      // ⚠️ LAST BEFORE 'service-other', AND ONLY eSIM-SPECIFIC KEYWORDS. suggestSubcategory() is a
+      // first-match substring test in array order: placed earlier, or given a bare 'sim' ("simple"),
+      // 'data' ("database"), 'gói cước' or 'nhà mạng' (any internet/TV package), it would pull
+      // cleaning, moving and repair posts in here. Two reviewers caught the first cut doing that.
+      // ⚠️ And nothing that reads as a PHYSICAL SIM ('sim card', 'sim du lịch'): trading pre-activated
+      // SIMs is illegal (ND 163/2024) — publish-guard.ts blocks it by text — and a suggester must not
+      // file such a post here as if it were a normal product.
+      { slug: 'esim', name: 'eSIM', nameVi: 'eSIM', icon: 'CardSim', keywords: ['esim', 'e-sim', 'gói data'] },
       { slug: 'service-other', name: 'Other', nameVi: 'Khác', icon: 'Shapes', keywords: ['other', 'khác'] },
     ],
     facets: [
       // Not asked for visa/legal work: it is online essentially by definition, and the rare
       // in-person case is something the applicant and the desk settle in the chat thread —
       // a chip that always reads "Online" is a required field that carries no information.
-      { key: 'serviceLocation', label: 'Location type', labelVi: 'Địa điểm', kind: 'toggle', excludeSubcats: ['visa-legal'], options: [
+      // eSIM is excluded for the same reason: an eSIM is delivered as a QR code, always "Online".
+      { key: 'serviceLocation', label: 'Location type', labelVi: 'Địa điểm', kind: 'toggle', excludeSubcats: ['visa-legal', 'esim'], options: [
         { value: 'at-customer', label: 'At yours', labelVi: 'Tận nơi' },
         { value: 'at-provider', label: 'At theirs', labelVi: 'Tại cơ sở' },
         { value: 'online', label: 'Online', labelVi: 'Trực tuyến' },
@@ -1181,6 +1191,22 @@ export const TAXONOMY: CategoryDef[] = [
       // data, and never as a number a client can send.
       { key: 'visaSpeed', label: 'Processing speed', labelVi: 'Tốc độ xử lý', kind: 'toggle',
         subcats: [VISA_SUBCATEGORY_SLUG], optional: true, options: VISA_SPEED_OPTIONS },
+      // ── eSIM ─────────────────────────────────────────────────────────────────
+      // Browse filters for the carrier catalogue. `optional` for the same leniency reason as the
+      // visa chips: a resident posting here must not be stopped until they pick one.
+      // `network` is whose TOWERS the SIM uses, not who sells it — iTel and Wintel ride VinaPhone,
+      // VNSKY, Local and SIM FPT ride MobiFone — which is what decides coverage for the buyer.
+      { key: 'planType', label: 'Plan type', labelVi: 'Loại gói', kind: 'toggle', subcats: ['esim'], optional: true, options: [
+        { value: 'esim', label: 'eSIM', labelVi: 'eSIM' },
+        { value: 'data', label: 'Data only', labelVi: 'Chỉ data' },
+        { value: 'combo', label: 'Data + calls', labelVi: 'Data + gọi' },
+      ] },
+      { key: 'network', label: 'Network', labelVi: 'Hạ tầng mạng', kind: 'toggle', subcats: ['esim'], optional: true, options: [
+        { value: 'viettel', label: 'Viettel', labelVi: 'Viettel' },
+        { value: 'vinaphone', label: 'VinaPhone', labelVi: 'VinaPhone' },
+        { value: 'mobifone', label: 'MobiFone', labelVi: 'MobiFone' },
+        { value: 'vietnamobile', label: 'Vietnamobile', labelVi: 'Vietnamobile' },
+      ] },
     ],
   },
 

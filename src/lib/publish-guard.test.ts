@@ -34,6 +34,18 @@ describe('findBannedWord — illegal content only', () => {
     expect(findBannedWord('iPhone 15, không phải hàng giả')).toBeNull()
   })
 
+  it('flags a pre-activated eSIM the way it flags a pre-activated SIM — and nothing a device or a carrier says', () => {
+    expect(findBannedWord('Bán esim kích hoạt sẵn data khủng')).toBeTruthy()
+    expect(findBannedWord('Pre-activated SIM for tourists')).toBeTruthy()
+    expect(findBannedWord('preactivated eSIM, works on arrival')).toBeTruthy()
+    // "Already activated" describes a DEVICE too — an honest used-watch post must publish.
+    expect(findBannedWord('Apple Watch LTE, eSIM đã kích hoạt')).toBeNull()
+    expect(findBannedWord('iPhone quốc tế, sim đã kích hoạt được')).toBeNull()
+    // How a carrier listing talks about activation must stay publishable.
+    expect(findBannedWord('Quét mã QR để cài eSIM và gọi 900 để kích hoạt')).toBeNull()
+    expect(findBannedWord('Viettel eSIM — new prepaid number, activate by QR code')).toBeNull()
+  })
+
   it('returns null for empty/nullish input', () => {
     expect(findBannedWord('')).toBeNull()
     expect(findBannedWord(null)).toBeNull()

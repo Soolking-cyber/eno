@@ -212,6 +212,8 @@ describe('isRequiredFacet — the publish gate', () => {
     expect(optional.sort()).toEqual([
       ...specFacets().map((f) => `electronics/${f.key}`),
       'services/visaEntryType', 'services/visaSpeed',
+      // eSIM browse filters — a resident reselling a SIM is not made to classify it (see taxonomy.ts).
+      'services/planType', 'services/network',
       'sports/color', 'sports/gender', 'sports/shoeSize', 'sports/size', 'sports/sport',
       // 2026-09-25: the rentals bathroom count is a FILTER the importers fill from the source; a
       // resident posting a room is never blocked on it (standing leniency policy).
