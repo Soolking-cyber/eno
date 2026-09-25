@@ -1357,9 +1357,16 @@ export function ListingsExplorer({
     // memoise the marketplace's params on a storefront's first render and never widen them again.
   }, [scopedParams, activeBrand, activeModel, activeLine, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters, lang])
 
-  // The feed query's key, named so `resultSetSig` can read the same object the query is keyed on.
-  const listingsQueryKey = [
-    'listings',
+  /**
+   * ⛔ ONE KEY BUILDER FOR EVERY PAGE OF THE FEED — the live query below AND `prefetchNextPage` read it.
+   * The prefetch used to hand-copy this object and had drifted: it carried no `match`, so its key never
+   * equalled the live one and every page was downloaded TWICE — measured on production, offsets 12…96
+   * each requested twice within ~200ms, on the phone connections where the next page is already slow.
+   * A key written once cannot drift; `page` is the only thing the two callers vary.
+   * ⚠️ `resultSetSig` reads this same object (minus `page`), so the snapshot provenance and the append
+   * guard stay keyed on exactly what the request asks for.
+   */
+  const feedKeyFields = useMemo(() => (
     {
       // ⛔ THE SHOP IS PART OF THE REQUEST (`scopedParams`), SO IT IS PART OF THE KEY — the same class
       // as `line` and `near` below: without it two storefronts' feeds shared cache entries, and
@@ -1399,7 +1406,6 @@ export function ListingsExplorer({
       verified: verifiedOnly ? 'true' : 'all',
       price: priceRange,
       building: selectedBuilding,
-      page,
       customFilters,
       // ⛔ `lang` IS PART OF THE KEY BECAUSE IT IS NOW PART OF THE RESPONSE. The feed used to
       // carry titles in every prewarmed language, so an in-place language switch could re-render
@@ -1408,13 +1414,26 @@ export function ListingsExplorer({
       // looking at the English titles react-query already had, with no refetch to correct it.
       // Caught in review before it shipped; a language switch is rare, so the extra fetch is free.
       lang,
-    },
-  ]
-  /** The result set the CURRENT key asks for — the provenance of any non-placeholder answer. */
-  const liveSig = resultSetSig(listingsQueryKey)
-  const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isPlaceholderData: queryShowingStaleSet, isError: queryError, refetch: refetchListings } = useQuery({
-    queryKey: listingsQueryKey,
-    queryFn: async ({ queryKey }) => {
+    }
+  ), [
+    sellerId, activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict,
+    activeProvince?.code, activeWard?.code, nearby, conditionFilter, goodPriceOnly, listingType, debouncedQuery,
+    looseMatch, sort, verifiedOnly, priceRange, selectedBuilding, customFilters, lang,
+  ])
+  const feedKey = useCallback((p: number) => ['listings', { ...feedKeyFields, page: p }] as const, [feedKeyFields])
+  // The feed query's key, named so `resultSetSig` can read the same object the query is keyed on.
+  const listingsQueryKey = feedKey(page)
+  /**
+   * ⛔ ONE FETCHER FOR EVERY PAGE, FOR THE SAME REASON AS `feedKey`. The prefetch used to build its own
+   * params by hand, and they had drifted too: with a brand picked it dropped `subcategory`, and it never
+   * sent `match=any`. That was harmless only BECAUSE its key never matched — the rows it fetched were
+   * never read. With one key, whatever the prefetch fetches IS the live page, so it must be the live
+   * request, byte for byte, and carry the same `fetchedFor` provenance stamp.
+   * The page comes from the KEY, not from the closure: a prefetch of page N+1 and the live page N are
+   * built by the same function in the same render.
+   */
+  const fetchFeedPage = useCallback(async ({ queryKey }: { queryKey: readonly unknown[] }) => {
+      const pageNo = (queryKey[1] as { page: number }).page
       // Structural filters come from the shared memo; only paging is per-query here.
       // "Near you" ignores area filters and pulls a broad set to distance-filter client-side.
       const params = new URLSearchParams(baseParamsString)
@@ -1422,7 +1441,7 @@ export function ListingsExplorer({
       // client-side filter enough rows to sieve; with the filter in the database an area search
       // paginates like any other.
       const limit = FIRST_PAGE_SIZE
-      const offset = (page - 1) * limit
+      const offset = (pageNo - 1) * limit
       params.set('limit', String(limit))
       params.set('offset', String(offset))
       // ⛔ THE VIEWER'S LANGUAGE, AND IT IS A PAYLOAD FIX, NOT A CORRECTNESS ONE. Without `lang`
@@ -1457,14 +1476,20 @@ export function ListingsExplorer({
        * both exact and pure: it survives `placeholderData` because it IS the data.
        * ⚠️ NOT A RACE, THOUGH IT READS LIKE ONE. A reviewer argued that reading `activeCategory`
        * after the `await` stamps the NEW category onto an OLD in-flight response. It does not:
-       * this `queryFn` is a fresh closure per render and captures that render's value, so a
+       * this `queryFn` is a fresh closure whenever the category changes (its `useCallback` deps) and
+       * captures the value current when the request STARTED, so a
        * request started under Services keeps stamping `services` however many times the reader
        * taps afterwards. Changing this to read from a ref WOULD introduce the bug described.
        * `sig` is the result set (see `resultSetSig`), for the sync effect's append guard and the
        * back-nav snapshot — see `rowsSigRef`. It comes from THIS request's own key.
        */
       return { ...(await res.json()), fetchedFor: { category: activeCategory, subcategory: activeSubcategory, sig: resultSetSig(queryKey) } }
-    },
+  }, [baseParamsString, lang, selectedBuilding, activeCategory, activeSubcategory])
+  /** The result set the CURRENT key asks for — the provenance of any non-placeholder answer. */
+  const liveSig = resultSetSig(listingsQueryKey)
+  const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isPlaceholderData: queryShowingStaleSet, isError: queryError, refetch: refetchListings } = useQuery({
+    queryKey: listingsQueryKey,
+    queryFn: fetchFeedPage,
     placeholderData: (previousData) => previousData,
     // Seed the DEFAULT view (page 1, no filters) with the server-rendered data so
     // React Query treats it as fresh (global staleTime 30s) and skips the
@@ -2210,130 +2235,20 @@ export function ListingsExplorer({
 
   const queryClient = useQueryClient()
 
+  /**
+   * Warm page+1 alongside the page bump. ⛔ THROUGH `feedKey` + `fetchFeedPage`, NOT A COPY OF THEM —
+   * see `feedKey`: the hand-copied version lacked `match`, never shared a cache entry with the live
+   * query, and doubled every page's download. Called in the same tick as `setPage(p => p + 1)`, so the
+   * live query attaches to this in-flight request instead of starting its own.
+   * ⚠️ `maxPage` DIVIDES BY THE PAGE SIZE THE FETCHER USES. It divided by 24 while pages are 12, so on a
+   * feed of 30 the warm-up for page 3 was skipped as "past the end".
+   */
   const prefetchNextPage = useCallback(() => {
     const nextPage = page + 1
-    const maxPage = Math.ceil(totalCount / 24)
+    const maxPage = Math.ceil(totalCount / FIRST_PAGE_SIZE)
     if (nextPage > maxPage) return
-
-    queryClient.prefetchQuery({
-      // Key + params must mirror the live query (incl. price) or the prefetch
-      // never matches and pagination refetches anyway.
-      queryKey: [
-        'listings',
-        {
-          seller: sellerId ?? null, // the shop — see the main feed key
-          category: activeCategory,
-          subcategory: activeSubcategory,
-          brand: activeBrand,
-          model: activeModel,
-          line: activeLine, // see the note on the main feed key — both keys carry it or neither
-          district: activeDistrict,
-          province: activeProvince?.code ?? null,
-          ward: activeWard?.code ?? null,
-          near: nearby ? [nearby.lat, nearby.lng, nearby.radiusKm] : 0, // the circle — see the main feed key
-          condition: conditionFilter,
-          deal: goodPriceOnly ? 'good' : 'all',
-          type: listingType,
-          q: debouncedQuery,
-          sort,
-          verified: verifiedOnly ? 'true' : 'all',
-          price: priceRange,
-          building: selectedBuilding,
-          page: nextPage,
-          customFilters,
-          // Same reason as the main query above: the response is language-specific now, so the
-          // prefetched next page must be keyed by language or it would seed the cache with the
-          // wrong one.
-          lang,
-        },
-      ],
-      queryFn: async () => {
-        const params = scopedParams()
-        // Mirror the live query EXACTLY (brand/model scoping + applyFilterParams) so the
-        // prefetched page matches the filtered results and populates the right cache key.
-        if (activeBrand !== 'all') {
-          params.set('brand', activeBrand)
-          if (activeModel !== 'all') {
-            params.set('model', activeModel)
-            if (activeCategory !== 'all') params.set('category', activeCategory)
-          } else if (activeCategory !== 'all') {
-            params.set('priorityCategory', activeCategory)
-          }
-        } else {
-          if (activeCategory !== 'all') params.set('category', activeCategory)
-          if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
-        }
-        // Language in the CACHE KEY (audit P2): the response body varies on language for
-    // non-en/vi viewers, but the edge caches by URL — a ru/ko variant could poison the
-    // shared entry for everyone. en/vi (the vast majority) send nothing and share one
-    // deterministic cached variant.
-    if (lang !== 'en' && lang !== 'vi') params.set('lang', lang)
-    if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
-        if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
-        if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
-        // Same area params as the main builder above — two param sets that disagree are two
-        // different questions, and the prefetch would warm a page the feed never asks for.
-        if (nearby) {
-          params.set('lat', String(nearby.lat))
-          params.set('lng', String(nearby.lng))
-          params.set('radiusKm', String(nearby.radiusKm))
-        }
-        if (conditionFilter !== 'all') params.set('condition', conditionFilter)
-        if (goodPriceOnly) params.set('deal', 'good')
-        if (listingType !== 'all') params.set('type', listingType)
-        if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
-        params.set('sort', sort)
-        params.set('verified', verifiedOnly ? 'true' : 'all')
-        if (priceRange !== 'all') {
-          const [mn, mx] = priceRange.split('-')
-          if (mn) params.set('priceMin', mn)
-          if (mx) params.set('priceMax', mx)
-        }
-
-        applyFilterParams(params, customFilters, activeCategory, activeSubcategory)
-
-        const limit = FIRST_PAGE_SIZE
-        const offset = (nextPage - 1) * limit
-        params.set('limit', String(limit))
-        params.set('offset', String(offset))
-        // See the note at the first feed fetch: without `lang` the response carries titles in
-        // nine languages the viewer does not read (21% of it).
-        params.set('lang', lang)
-        /**
-         * Drill-in to one BUILDING. The server applies this inside `buildFeedFilters`, the same
-         * builder `/api/listings/buildings` uses for its counts — so the pin that says 157 and the
-         * list it opens cannot disagree. Absent when nothing is selected, which is the normal feed.
-         */
-        if (selectedBuilding) params.set('building', selectedBuilding)
-
-        const res = await fetch(`/api/listings?${params.toString()}`)
-        if (!res.ok) throw new Error('Failed to fetch listings')
-        return res.json()
-      },
-      staleTime: 60 * 1000,
-    })
-  }, [
-    page,
-    totalCount,
-    activeCategory,
-    activeSubcategory,
-    activeBrand,
-    activeModel,
-    activeDistrict,
-    activeProvince,
-    activeWard,
-    nearby,
-    conditionFilter,
-    goodPriceOnly,
-    listingType,
-    debouncedQuery,
-    sort,
-    verifiedOnly,
-    priceRange,
-    customFilters,
-    queryClient,
-    sellerId,
-  ])
+    queryClient.prefetchQuery({ queryKey: feedKey(nextPage), queryFn: fetchFeedPage, staleTime: 60 * 1000 })
+  }, [page, totalCount, feedKey, fetchFeedPage, queryClient])
 
   // Infinite feed (FB-style): an off-screen sentinel below the list bumps the page
   // as it nears the viewport. Disabled for "near you" (single broad client-filtered
