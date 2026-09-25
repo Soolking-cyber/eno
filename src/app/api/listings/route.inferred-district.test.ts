@@ -28,7 +28,7 @@ vi.mock('./feed-query', () => {
 })
 vi.mock('@/lib/taxonomy', () => ({ migrateLegacyCategoryParams: (p: URLSearchParams) => p }))
 vi.mock('@/lib/client-ip', () => ({}))
-vi.mock('@/lib/feed-diversity', () => ({ diversityAppliesTo: () => false, diversifyBySeller: (r: unknown[]) => r }))
+vi.mock('@/lib/feed-diversity', () => ({ diversityAppliesTo: () => false, diversifyBySeller: (r: unknown[]) => r, sharedSeatsFor: () => true }))
 vi.mock('@/lib/feed-window', () => ({}))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: unknown) => w }))
 vi.mock('@/lib/serialize', () => ({ serializeListingCard: (r: unknown) => r, LISTING_CARD_SELECT: {} }))

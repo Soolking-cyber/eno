@@ -10,7 +10,8 @@ import { feedPagePlan } from './feed-window'
 
 const groupBy = vi.fn()
 const findMany = vi.fn()
-vi.mock('./db', () => ({ db: { listing: { groupBy: (a: unknown) => groupBy(a), findMany: (a: unknown) => findMany(a) } } }))
+const aggregate = vi.fn()
+vi.mock('./db', () => ({ db: { listing: { groupBy: (a: unknown) => groupBy(a), findMany: (a: unknown) => findMany(a), aggregate: (a: unknown) => aggregate(a) } } }))
 // The window must carry the licensing scope; the identity here lets a test assert it was applied.
 vi.mock('./edition-scope', () => ({
   scopedListingWhere: async (w: unknown) => ({ AND: [w, { sellerId: { notIn: ['desk'] } }] }),
@@ -29,6 +30,7 @@ beforeEach(() => {
   __resetFeedWindowCache()
   groupBy.mockReset()
   findMany.mockReset()
+  aggregate.mockReset()
 })
 
 describe('diverseFeedWindow', () => {
@@ -260,5 +262,88 @@ describe('feedPagePlan', () => {
   it('handles a head shorter than the window', () => {
     expect(feedPagePlan(7, 0, 24)).toEqual({ fromHead: { start: 0, end: 7 }, tailSkip: 0, tailTake: 17 })
     expect(feedPagePlan(0, 0, 24)).toEqual({ fromHead: null, tailSkip: 0, tailTake: 24 })
+  })
+})
+
+/**
+ * ⛔ SHARED SEATS (feed-diversity.ts). Measured 2026-09-25: nine carriers were the nine freshest
+ * sellers, took nine of the fan-out's twelve seats, and filled ~3/4 of the home window.
+ */
+describe('diverseFeedWindow — shared seats', () => {
+  const ESIM_IN = { subcategorySlug: { in: ['esim'] } }
+  const isCatalogueRead = (where: any) => JSON.stringify(where).includes('"in":["esim"]')
+  const carrierRows = (n: number) => ['fpt', 'local', 'vnsky'].flatMap((c) =>
+    Array.from({ length: n }, (_, i) => ({ id: `${c}-${i}`, sellerId: c, subcategorySlug: 'esim' })))
+
+  it('⛔ keeps catalogue rows out of the SELLER fan-out — null-safely', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 0.5 } }, { sellerId: 'b', _max: { rankScore: 0.4 } }])
+    aggregate.mockResolvedValue({ _max: { rankScore: 0.6 } })
+    findMany.mockImplementation(async ({ where }: any) => (isCatalogueRead(where) ? carrierRows(10) : stock(where.AND[1].sellerId, 30)))
+    await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
+    const clause = groupBy.mock.calls[0][0].where.AND[1]
+    // ⚠️ `NULL NOT IN ('esim')` is NULL in SQL — without the explicit null arm every listing with no
+    // subcategory would vanish from the fan-out.
+    expect(clause).toEqual({ OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: ['esim'] } }] })
+    expect(aggregate.mock.calls[0][0].where.AND[1]).toEqual(ESIM_IN)
+  })
+
+  it('places the catalogue by its best rank and interleaves its sellers inside the seat', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 0.5 } }, { sellerId: 'b', _max: { rankScore: 0.4 } }])
+    aggregate.mockResolvedValue({ _max: { rankScore: 0.6 } })
+    findMany.mockImplementation(async ({ where }: any) => (isCatalogueRead(where) ? carrierRows(10) : stock(where.AND[1].sellerId, 30)))
+    const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
+    // Best rank 0.6 beats both sellers, so round one leads with the catalogue, then a, then b.
+    expect(win.slice(0, 3).map((r: any) => r.id)).toEqual(['fpt-0', 'a-0', 'b-0'])
+    // …and the catalogue's next rows come from the NEXT carriers, one per round.
+    expect(win.slice(3, 6).map((r: any) => r.id)).toEqual(['local-0', 'a-1', 'b-1'])
+    expect(win[6].id).toBe('vnsky-0')
+  })
+
+  it('⛔ every seller in the catalogue gets a turn — ties sort in CLUSTERS, so a short fetch starves most', async () => {
+    const nine = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9']
+    // All tied, id-desc order: each carrier's 7 plans arrive together, one carrier after another.
+    const clustered = nine.flatMap((c) => Array.from({ length: 7 }, (_, i) => ({ id: `${c}-${i}`, sellerId: c, subcategorySlug: 'esim' })))
+    groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 0.5 } }, { sellerId: 'b', _max: { rankScore: 0.4 } }])
+    aggregate.mockResolvedValue({ _max: { rankScore: 0.6 } })
+    findMany.mockImplementation(async ({ where, take }: any) =>
+      (isCatalogueRead(where) ? clustered.slice(0, take) : stock(where.AND[1].sellerId, 30)))
+    const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
+    const carriersInWindow = new Set(win.filter((r: any) => r.subcategorySlug === 'esim').map((r: any) => r.sellerId))
+    expect(carriersInWindow.size).toBe(9)
+  })
+
+  it('a catalogue that ranks below a seller sits after it', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 0.5 } }, { sellerId: 'b', _max: { rankScore: 0.4 } }])
+    aggregate.mockResolvedValue({ _max: { rankScore: 0.45 } })
+    findMany.mockImplementation(async ({ where }: any) => (isCatalogueRead(where) ? carrierRows(10) : stock(where.AND[1].sellerId, 30)))
+    const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
+    expect(win.slice(0, 3).map((r: any) => r.id)).toEqual(['a-0', 'fpt-0', 'b-0'])
+  })
+
+  it('⛔ falls back to one query when the catalogue read fails, like any partial fan-out', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 0.5 } }, { sellerId: 'b', _max: { rankScore: 0.4 } }])
+    aggregate.mockRejectedValue(new Error('connection reset'))
+    findMany.mockResolvedValue(stock('fallback', 60))
+    const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
+    expect(win.every((r: any) => r.sellerId === 'fallback')).toBe(true)
+  })
+
+  it('WITHOUT the option nothing changes: no aggregate, and the fan-out reads `scoped` as before', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'a' }, { sellerId: 'b' }])
+    findMany.mockImplementation(async ({ where }: any) => stock(where?.AND?.[1]?.sellerId ?? 'x', 30))
+    await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT)
+    expect(aggregate).not.toHaveBeenCalled()
+    const scoped = { AND: [{ status: 'active' }, { sellerId: { notIn: ['desk'] } }] }
+    expect(groupBy.mock.calls[0][0].where).toEqual(scoped)
+  })
+
+  it('memoizes the two rules as two windows', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 0.5 } }, { sellerId: 'b', _max: { rankScore: 0.4 } }])
+    aggregate.mockResolvedValue({ _max: { rankScore: null } })
+    findMany.mockImplementation(async ({ where }: any) => stock(where?.AND?.[1]?.sellerId ?? 'x', 30))
+    await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT)
+    const after = groupBy.mock.calls.length
+    await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
+    expect(groupBy.mock.calls.length).toBe(after + 1)
   })
 })

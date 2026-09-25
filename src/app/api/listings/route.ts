@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
-import { diversifyBySeller, diversityAppliesTo } from '@/lib/feed-diversity'
+import { diversifyBySeller, diversityAppliesTo, sharedSeatsFor } from '@/lib/feed-diversity'
 import { diverseFeedWindow, feedPagePlan } from '@/lib/feed-window'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -144,6 +144,15 @@ export async function GET(req: NextRequest) {
   // which is the actual bug: a count said "12" but clicking yielded 2 because those
   // were ignored. Counts now match what the click returns.
   const facetBaseFilters = andFilters.filter((f) => f !== subcategoryFilter && f !== pgTextFilter)
+  /**
+   * A catalogue sold by many storefronts (Services › eSIM: nine carriers) shares ONE seat in the
+   * default feed — except inside that aisle, where the carriers are the variety (feed-diversity.ts).
+   * ⚠️ The home page and the storefront rails pass the same rule for an unfiltered feed; the SSR head
+   * and this API's head must agree or the feed reshuffles on hydration.
+   */
+  // The migrated request parameter, not a cast into the Prisma filter: the rule must follow the
+  // subcategory the reader chose, whatever shape the filter that implements it takes.
+  const sharedSeats = sharedSeatsFor(searchParams.get('subcategory'))
 
   /**
    * ⛔ A SUBCATEGORY-SCOPED FILTER IS COUNTED THE WAY EACH SIBLING'S TAP APPLIES IT. `facetBaseFilters`
@@ -227,7 +236,7 @@ export async function GET(req: NextRequest) {
        * all the way down.
        */
       : diversityAppliesTo(sort)
-        ? diverseFeedWindow(where, orderBy, LISTING_CARD_SELECT)
+        ? diverseFeedWindow(where, orderBy, LISTING_CARD_SELECT, { sharedSeats })
             /**
              * ⛔ ROWS PAST THE WINDOW MUST EXCLUDE WHAT THE WINDOW ALREADY SERVED. The window no
              * longer contains the natural top 60 — it contains each seller's best — so continuing
@@ -240,7 +249,7 @@ export async function GET(req: NextRequest) {
              * page — one extra query past row 60, not a growing one.
              */
             .then(async (win) => {
-              const head = diversifyBySeller(win)
+              const head = diversifyBySeller(win, { sharedSeats })
               const plan = feedPagePlan(head.length, offset, limit)
               /**
                * ⛔ THE TAIL IS FETCHED WITH `skip` ALREADY APPLIED, so it must NOT then be indexed

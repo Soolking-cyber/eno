@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergeRoundRobin, diversifyBySeller, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW } from './feed-diversity'
+import { mergeRoundRobin, diversifyBySeller, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW, seatKey, sharedSeatsFor } from './feed-diversity'
 
 /**
  * ⚠️ THE FIXTURE IS THE REAL PRODUCTION SHAPE, MEASURED 2026-08-13: 35 active listings, of which 14
@@ -224,5 +224,52 @@ describe('mergeRoundRobin', () => {
     expect(mergeRoundRobin([])).toEqual([])
     expect(mergeRoundRobin([[], []])).toEqual([])
     expect(mergeRoundRobin([['only']])).toEqual(['only'])
+  })
+})
+
+/**
+ * ⛔ SHARED SEATS — the shape measured on production 2026-09-25: nine carriers imported as nine
+ * storefronts, 7 plans each, all tied at the top of the rank order, filling 18 of the first 24 cards.
+ */
+describe('a catalogue sold by many storefronts shares one seat', () => {
+  const esim = (carrier: string, i: number) => ({ id: `${carrier}-${i}`, sellerId: carrier, subcategorySlug: 'esim' })
+  const CARRIERS = ['fpt', 'local', 'vnsky', 'wintel', 'itel', 'vnm', 'mobi', 'vina', 'viettel']
+  const SHAPE = [
+    ...CARRIERS.flatMap((c) => Array.from({ length: 7 }, (_, i) => esim(c, i))),
+    ...Array.from({ length: 20 }, (_, i) => ({ id: `other-${i}`, sellerId: `seller-${i}`, subcategorySlug: null })),
+  ]
+
+  it('WITHOUT the rule, nine carriers are nine seats — the flood', () => {
+    const first = diversifyBySeller(SHAPE).slice(0, 24)
+    expect(first.filter((r) => r.subcategorySlug === 'esim').length).toBeGreaterThanOrEqual(9)
+  })
+
+  it('WITH the rule, the catalogue takes one card per round', () => {
+    const first = diversifyBySeller(SHAPE, { sharedSeats: true }).slice(0, 21)
+    // 21 seats in round one: the catalogue's first row, then the twenty other sellers.
+    expect(first.filter((r) => r.subcategorySlug === 'esim')).toHaveLength(1)
+  })
+
+  it('keeps every row — a reorder, never a cap', () => {
+    const out = diversifyBySeller(SHAPE, { sharedSeats: true })
+    expect(out).toHaveLength(SHAPE.length)
+    expect(new Set(out.map((r) => r.id)).size).toBe(SHAPE.length)
+  })
+
+  it('is off inside the aisle itself, where the carriers ARE the variety', () => {
+    expect(sharedSeatsFor('esim')).toBe(false)
+    expect(sharedSeatsFor(null)).toBe(true)
+    // Any other subcategory has no catalogue rows to collapse — the rule would only cost a query.
+    expect(sharedSeatsFor('visa-legal')).toBe(false)
+    expect(sharedSeatsFor(undefined)).toBe(true)
+    const aisle = diversifyBySeller(SHAPE.filter((r) => r.subcategorySlug === 'esim'), { sharedSeats: sharedSeatsFor('esim') })
+    expect(new Set(aisle.slice(0, 9).map((r) => r.sellerId)).size).toBe(9)
+  })
+
+  it('seats a row by its seller unless the rule is on AND the row is in a shared subcategory', () => {
+    expect(seatKey({ id: 'a', sellerId: 's', subcategorySlug: 'esim' })).toBe('s')
+    expect(seatKey({ id: 'a', sellerId: 's', subcategorySlug: 'esim' }, { sharedSeats: true })).toBe('__catalogue__esim')
+    expect(seatKey({ id: 'a', sellerId: 's', subcategorySlug: 'visa-legal' }, { sharedSeats: true })).toBe('s')
+    expect(seatKey({ id: 'a', sellerId: null }, { sharedSeats: true })).toBe('__no-seller__a')
   })
 })

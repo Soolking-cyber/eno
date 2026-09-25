@@ -69,6 +69,9 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
         // tiebreaker) so this SSR seed doesn't reshuffle on hydration into the client feed.
         [{ rankScore: 'desc' }, { id: 'desc' }],
         LISTING_CARD_SELECT,
+        // The API's rule for an unfiltered feed (sharedSeatsFor(null)) — one seat for the eSIM
+        // catalogue — or the SSR head and the hydrated feed disagree.
+        { sharedSeats: true },
       ),
       // MUST match the findMany predicate exactly: this seeds the client explorer's `initialTotal`,
       // which terminates its load-more (`listings.length < total`). A count that disagrees with the
@@ -94,7 +97,7 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
      * fan-out under-filled all return the plain top-N. /api/listings applies the identical pair,
      * which is what keeps the SSR seed and the hydrated client feed in agreement.
      */
-    const firstPage = diversifyBySeller(listings).slice(0, 12)
+    const firstPage = diversifyBySeller(listings, { sharedSeats: true }).slice(0, 12)
     const serializedListings: SerializedListingCard[] = await localizeListingTitles(firstPage.map(serializeListingCard))
 
     return { categories: serializedCategories, listings: serializedListings, total, businesses, trending }

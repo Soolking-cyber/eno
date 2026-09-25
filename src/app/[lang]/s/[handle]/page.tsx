@@ -166,6 +166,8 @@ async function getData(sellerId: string): Promise<{
       await scopedListingWhere({ verified: true, status: 'active', sellerId: { not: sellerId } }),
       [{ rankScore: 'desc' }, { id: 'desc' }],
       { ...LISTING_CARD_SELECT, listingType: true },
+      // Same seat rule as /api/listings for an unfiltered feed (sharedSeatsFor(null)).
+      { sharedSeats: true },
     ),
     /**
      * ⚠️ THE REMAINDER IS A SUBTRACTION, NOT A `sellerId <> x` COUNT, AND THAT IS A MEASURED 4x.
@@ -207,7 +209,7 @@ async function getData(sellerId: string): Promise<{
      * not been interleaved at all. Slice AFTER the reorder — slicing first hands the reorder the
      * same monopolised rows it exists to break up.
      */
-    otherListings: await localizeListingTitles(diversifyBySeller(otherRows).slice(0, OTHER_LISTINGS).map(serializeListingCard)),
+    otherListings: await localizeListingTitles(diversifyBySeller(otherRows, { sharedSeats: true }).slice(0, OTHER_LISTINGS).map(serializeListingCard)),
     otherTotal: Math.max(0, marketplaceTotal - total),
     listings: await localizeListingTitles(rows.map(serializeListingCard)),
     /**

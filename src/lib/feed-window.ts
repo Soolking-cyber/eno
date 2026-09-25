@@ -1,7 +1,7 @@
 import 'server-only'
 import { db } from './db'
 import { Prisma } from '@/generated/prisma/client'
-import { FEED_DIVERSITY_WINDOW, mergeRoundRobin } from './feed-diversity'
+import { FEED_DIVERSITY_WINDOW, SHARED_SEAT_SUBCATEGORIES, mergeRoundRobin, type SeatOptions } from './feed-diversity'
 import { scopedListingWhere } from './edition-scope'
 
 /**
@@ -115,6 +115,7 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
   where: Prisma.ListingWhereInput,
   orderBy: Prisma.ListingOrderByWithRelationInput[],
   select: S,
+  opts?: SeatOptions,
 ): Promise<Prisma.ListingGetPayload<{ select: S }>[]> {
   /**
    * ⛔ THE SCOPE IS RE-APPLIED HERE, NOT ASSUMED FROM THE CALLER — and `edition-lint` is why. Both
@@ -139,7 +140,10 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
    * served another caller's shape, or worse, poison the entry for the caller that needs the full
    * card. Both call sites pass LISTING_CARD_SELECT today, which is exactly what made it invisible.
    */
-  const key = JSON.stringify([scoped, orderBy, select])
+  // ⚠️ The seat rule is part of the key: the same predicate with and without shared seats is two
+  // different windows, and the SSR head must match the API head for the SAME rule (sharedSeatsFor).
+  const sharedSeats = !!opts?.sharedSeats
+  const key = JSON.stringify([scoped, orderBy, select, sharedSeats])
   const hit = windowCache.get(key)
   /**
    * ⚠️ EVERY CALLER GETS ITS OWN ARRAY. The memo holds one array that would otherwise be handed by
@@ -158,7 +162,7 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
     windowCache.set(key, hit)
     return hit.rows.then((r) => r.slice()) as Promise<Prisma.ListingGetPayload<{ select: S }>[]>
   }
-  const built = buildWindow(scoped, orderBy, select)
+  const built = buildWindow(scoped, orderBy, select, sharedSeats)
   const rows = built.then((r) => r.rows as WindowRow[])
   // Neither a rejection nor a fallback window may stay cached — the next request must be free to
   // try again rather than inherit a head that no other page agrees with.
@@ -178,6 +182,7 @@ async function buildWindow(
   scoped: Prisma.ListingWhereInput,
   orderBy: Prisma.ListingOrderByWithRelationInput[],
   select: Prisma.ListingSelect,
+  sharedSeats = false,
 ) {
   const size = FEED_DIVERSITY_WINDOW
   // edition-lint-allow: every read in this function uses `scoped` — the value the exported
@@ -187,6 +192,17 @@ async function buildWindow(
   // exist only to satisfy a count, and a second resolution is the thing that could drift.
   const single = async () => ({ rows: await db.listing.findMany({ where: scoped, orderBy, take: size, select }), diverse: false })
   if (!ranksByRankScoreDesc(orderBy)) return single()
+
+  /**
+   * SHARED SEATS (feed-diversity.ts, SHARED_SEAT_SUBCATEGORIES): the catalogue's rows never take a
+   * SELLER seat — nine carriers would otherwise take nine of the twelve — and come back below as ONE
+   * group. ⚠️ `subcategorySlug: null` is named explicitly: SQL `NULL NOT IN ('esim')` is NULL, so a
+   * bare `notIn` would silently drop every listing that has no subcategory from the fan-out.
+   * With the rule off, `sellerScope` IS `scoped`, and every query below is exactly what it was.
+   */
+  const sellerScope: Prisma.ListingWhereInput = sharedSeats
+    ? { AND: [scoped, { OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: [...SHARED_SEAT_SUBCATEGORIES] } }] }] }
+    : scoped
 
   /**
    * ⛔ THE DATABASE PICKS AND ORDERS THE SELLERS — the first cut asked for every seller unordered
@@ -207,7 +223,7 @@ async function buildWindow(
   // edition-lint-allow: `scoped`, as above — this aggregate reads the same predicate.
   const sellers = await db.listing.groupBy({
     by: ['sellerId'],
-    where: scoped,
+    where: sellerScope,
     _max: { rankScore: true },
     orderBy: [{ _max: { rankScore: 'desc' } }, { sellerId: 'desc' }],
     take: MAX_SELLER_FANOUT,
@@ -220,9 +236,23 @@ async function buildWindow(
     return null
   })
   // A groupBy failure must not take the home page down — fall back to the behaviour that shipped.
-  if (!sellers || sellers.length < 2) return single()
+  if (!sellers) return single()
 
-  const perSeller = Math.max(1, Math.ceil(size / sellers.length) + 2)
+  // The catalogue seat, when the rule is on: its best rank (to place it among the sellers) and its rows.
+  const catalogueWhere: Prisma.ListingWhereInput = { AND: [scoped, { subcategorySlug: { in: [...SHARED_SEAT_SUBCATEGORIES] } }] }
+  const catalogueBest = sharedSeats
+    ? await db.listing.aggregate({ where: catalogueWhere, _max: { rankScore: true } })
+        .then((a) => a._max.rankScore, (e: unknown) => {
+          console.error('[feed-window] catalogue aggregate failed — serving the undiversified window', e)
+          return undefined
+        })
+    : null
+  // `undefined` = the read FAILED (fall back, like a failed fan-out); `null` = no catalogue rows.
+  if (catalogueBest === undefined) return single()
+  const seats = sellers.length + (catalogueBest != null ? 1 : 0)
+  if (seats < 2) return single()
+
+  const perSeller = Math.max(1, Math.ceil(size / seats) + 2)
   /**
    * ⚠️ A PARTIAL FAN-OUT IS NOT A WINDOW. `Promise.all` rejects on the first failure, and a
    * per-query `.catch(() => [])` would be worse than the rejection: it would silently drop a seller
@@ -230,17 +260,26 @@ async function buildWindow(
    * mismatch above. All twelve or none — and "none" means the single-query window, not an error.
    */
   // edition-lint-allow: `scoped` AND-ed with one sellerId — narrowing only, never widening.
-  const candidates = await Promise.all(
-    sellers.map((s) =>
-      db.listing.findMany({ where: { AND: [scoped, { sellerId: s.sellerId }] }, orderBy, take: perSeller, select })),
-  ).catch((e: unknown) => {
+  const candidates = await Promise.all([
+    ...sellers.map((s) =>
+      db.listing.findMany({ where: { AND: [sellerScope, { sellerId: s.sellerId }] }, orderBy, take: perSeller, select })),
+    ...(catalogueBest != null ? [catalogueGroup(catalogueWhere, orderBy, select, perSeller)] : []),
+  ]).catch((e: unknown) => {
     console.error('[feed-window] seller fan-out failed — serving the undiversified window', e)
     return null
   })
   if (!candidates) return single()
 
-  // Groups keep the order the database ranked their sellers in — see the groupBy note above.
-  const groups = candidates.filter((g) => g.length > 0)
+  // Groups keep the order the database ranked their sellers in — see the groupBy note above. The
+  // catalogue group (last in `candidates`) is slotted in before the first seller whose best row ranks
+  // BELOW the catalogue's best, so it leads exactly when its best listing would have led.
+  const sellerGroups = candidates.slice(0, sellers.length)
+  const ordered = [...sellerGroups]
+  if (catalogueBest != null) {
+    const at = sellers.findIndex((s) => (s._max.rankScore ?? -Infinity) < catalogueBest)
+    ordered.splice(at === -1 ? ordered.length : at, 0, candidates[sellers.length])
+  }
+  const groups = ordered.filter((g) => g.length > 0)
   const merged = mergeRoundRobin(groups)
   /**
    * ⛔ AN UNDER-FILLED WINDOW IS TOPPED UP, NOT ABANDONED. The first cut fell back to `single()`
@@ -273,6 +312,39 @@ async function buildWindow(
    * it. A window is diverse only if the round-robin actually contributed more than one seller.
    */
   return { rows: [...merged, ...top], diverse: groups.length >= 2 }
+}
+
+/**
+ * The shared seat's rows: the catalogue's best, INTERLEAVED BY SELLER inside the seat, so the seat's
+ * first card is one carrier's best, its second another carrier's, and so on — not seven plans from
+ * whichever carrier's ids sort first when their scores tie (nine carriers imported together all score
+ * the same). Fetches the catalogue (up to CATALOGUE_FETCH), interleaves it, keeps one seat's worth.
+ * Deterministic: same rows in, same order out, on the SSR render and the API call.
+ */
+/** Upper bound on the rows the shared seat interleaves (the eSIM catalogue is 63 today). */
+const CATALOGUE_FETCH = 240
+
+async function catalogueGroup(
+  where: Prisma.ListingWhereInput,
+  orderBy: Prisma.ListingOrderByWithRelationInput[],
+  select: Prisma.ListingSelect,
+  take: number,
+) {
+  // edition-lint-allow: `where` is catalogueWhere — `scoped` AND-ed with the shared subcategories.
+  // ⛔ NOT `take * 4`. Rows imported together tie on rankScore and then sort by id, i.e. in CLUSTERS
+  // of one seller: with 9 carriers x 7 plans, the first 28 rows were the four most recently imported
+  // carriers, and the other five could never reach the window (a reviewer's catch). The whole
+  // catalogue slice is fetched — bounded, card-sized rows, once per memoized window — so every seller
+  // gets its turn inside the seat.
+  const rows = await db.listing.findMany({ where, orderBy, take: CATALOGUE_FETCH, select })
+  const bySeller = new Map<string, typeof rows>()
+  for (const r of rows) {
+    const k = String((r as { sellerId?: string | null }).sellerId ?? (r as { id: string }).id)
+    const b = bySeller.get(k)
+    if (b) b.push(r)
+    else bySeller.set(k, [r])
+  }
+  return mergeRoundRobin([...bySeller.values()]).slice(0, take)
 }
 
 /**

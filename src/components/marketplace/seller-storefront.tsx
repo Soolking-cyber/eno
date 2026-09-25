@@ -194,6 +194,8 @@ export async function SellerStorefront({ id }: { id: string }) {
       await scopedListingWhere({ verified: true, status: 'active', sellerId: { not: id } }),
       [{ rankScore: 'desc' }, { id: 'desc' }],
       { ...LISTING_CARD_SELECT, listingType: true },
+      // Same seat rule as /api/listings for an unfiltered feed (sharedSeatsFor(null)).
+      { sharedSeats: true },
     ),
   ])
   if (!seller) notFound()
@@ -216,7 +218,7 @@ export async function SellerStorefront({ id }: { id: string }) {
   // note: the window picks WHICH rows, this interleaves them, and the window's fallback paths (a
   // groupBy failure, one seller, an under-filled fan-out) return a plain top-N nobody interleaved.
   const otherListings = await localizeListingTitles(
-    diversifyBySeller(otherRows).slice(0, OTHER_LISTINGS).map(serializeListingCard),
+    diversifyBySeller(otherRows, { sharedSeats: true }).slice(0, OTHER_LISTINGS).map(serializeListingCard),
   )
 
   // Honest, decomposed display metrics for the shared SellerCard (raw responseRate

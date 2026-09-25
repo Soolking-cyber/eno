@@ -46,7 +46,50 @@
 export const FEED_DIVERSITY_WINDOW = 60
 
 /** The shape this needs. Anything with an id and a seller works — callers pass listing rows. */
-type Diversifiable = { id: string; sellerId?: string | null }
+type Diversifiable = { id: string; sellerId?: string | null; subcategorySlug?: string | null }
+
+/**
+ * SUBCATEGORIES THAT SHARE ONE SEAT IN THE DEFAULT FEED, however many storefronts sell in them.
+ *
+ * ⛔ THE ROUND-ROBIN'S UNIT IS THE SELLER, AND A CATALOGUE SPLIT ACROSS SELLERS DEFEATS IT. Measured on
+ * production 2026-09-25, the day nine mobile carriers were imported as nine partner storefronts
+ * (scripts/import-esim.ts): the window's fan-out takes the twelve best-ranked SELLERS, the nine
+ * carriers were the nine freshest, and eSIM plans filled 18 of the first 24 home cards and roughly
+ * three-quarters of the first 60 — the same "one catalogue owns the front page" failure this module
+ * exists to prevent, arriving through nine doors instead of one. Owner: "one shared seat".
+ * So in the default feed every row of these subcategories is ONE seat, positioned by its best row;
+ * the carriers still interleave INSIDE that seat. Inside the aisle itself (the feed filtered to the
+ * subcategory) the option is off and every carrier is its own seat again — see `sharedSeatsFor`.
+ * ⚠️ Not a rank change: rankScore is untouched (it must stay the published formula's output); this
+ * decides only the ORDER of a window, exactly as the seller round-robin does.
+ */
+export const SHARED_SEAT_SUBCATEGORIES: readonly string[] = ['esim']
+
+/** Options for the seat rule. Off unless a caller asks — every pre-existing caller is unchanged. */
+export type SeatOptions = { sharedSeats?: boolean }
+
+/**
+ * Whether a feed filtered to `subcategory` should collapse the shared seats: only when NO subcategory
+ * is chosen. Inside the shared aisle every row is the catalogue and the useful variety is between its
+ * sellers; inside any other subcategory there are no catalogue rows, so the rule could only cost a
+ * query. One function so the API route and the home page cannot disagree about it.
+ * ⚠️ WHAT IT DOES NOT DO: past FEED_DIVERSITY_WINDOW the feed is plain rank order (the module's
+ * documented limit), so a tied catalogue's rows beyond its window share arrive together there — on
+ * 2026-09-25, rows ~60-115 of the home feed — until their recency component decays. The first screen
+ * is the failure this prevents; "a monopolised page six" is the accepted cost, as above.
+ */
+export function sharedSeatsFor(subcategory: string | null | undefined): boolean {
+  return !subcategory
+}
+
+/** The seat a row competes for: its seller's, or its catalogue's when the shared-seat rule is on. */
+export function seatKey(row: Diversifiable, opts?: SeatOptions): string {
+  if (opts?.sharedSeats && row.subcategorySlug && SHARED_SEAT_SUBCATEGORIES.includes(row.subcategorySlug)) {
+    return `__catalogue__${row.subcategorySlug}`
+  }
+  // `?? row.id` gives an unattributed row its own bucket; see diversifyBySeller.
+  return row.sellerId ?? `__no-seller__${row.id}`
+}
 
 /**
  * Interleave by seller, preserving relative rank inside each round.
@@ -60,14 +103,15 @@ type Diversifiable = { id: string; sellerId?: string | null }
  * Rows without a sellerId are treated as their own singleton seller: they can never be the cause of
  * a run, so grouping them together would be the one case where this reorder INVENTS a monopoly.
  */
-export function diversifyBySeller<T extends Diversifiable>(rows: readonly T[]): T[] {
+export function diversifyBySeller<T extends Diversifiable>(rows: readonly T[], opts?: SeatOptions): T[] {
   if (rows.length < 3) return [...rows]
 
   // Preserve arrival order within each seller — the caller has already sorted by rankScore.
+  // ⚠️ With `sharedSeats`, a catalogue's rows share ONE bucket and keep their arrival order inside
+  // it — which, from diverseFeedWindow, is already interleaved by carrier (see catalogueGroup).
   const bySeller = new Map<string, T[]>()
   for (const row of rows) {
-    // `?? row.id` gives an unattributed row its own bucket; see the note above.
-    const key = row.sellerId ?? `__no-seller__${row.id}`
+    const key = seatKey(row, opts)
     const bucket = bySeller.get(key)
     if (bucket) bucket.push(row)
     else bySeller.set(key, [row])
