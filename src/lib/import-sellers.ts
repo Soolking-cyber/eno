@@ -35,6 +35,7 @@ export const IMPORT_SELLERS = [
   'vieclam24h-vn-import-seller-0001',
   'rmit-edu-vn-import-seller-0001',
   'theteflacademy-com-import-seller-0001',
+  'vietnamworks-com-import-seller-0001',
   // Reserved for two importers that were built and are PARKED, not shipped (lead, 2026-09-24): Mogi's
   // photo host answers robots.txt with HTTP 500 (= disallow everything) and Alonhadat serves a
   // CAPTCHA. Their code sits outside the repo in ~/eno-import-journals/parked/. Listing an id with no
