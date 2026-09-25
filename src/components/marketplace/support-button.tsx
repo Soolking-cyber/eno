@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { logError } from '@/lib/log'
-import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { SupportDialog, Mail } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -38,7 +37,7 @@ import { cn } from '@/lib/utils'
  * matching the instant the popup unmounts, so the trigger is visible again before focus returns to
  * it. Hidden is not unmounted.
  */
-export function SupportButton({ className }: { className?: string }) {
+export function SupportButton({ className, hidden = false, yielded = false }: { className?: string; hidden?: boolean; yielded?: boolean }) {
   const { tr } = useLanguage()
   const { user } = useAuth()
   const router = useRouter()
@@ -72,13 +71,26 @@ export function SupportButton({ className }: { className?: string }) {
   }
   /**
    * ⚠️ THE SAME SIGNAL THE BOTTOM NAV USES, so the two move as one piece of chrome rather than as
-   * two things that happen to animate. mobile-nav.tsx calls this hook and applies
+   * two things that happen to animate. mobile-nav.tsx calls useHideOnScroll and applies
    * `translate-y-full opacity-0 pointer-events-none`; this mirrors it, and mirrors its transition,
    * so the support mark rides down with the bar and comes back on the same scroll-up.
-   * ⚠️ MOBILE ONLY (`max-lg:`). There is no bottom nav from lg up — nothing to move with — and
-   * hiding a support affordance on a desktop scroll would just make it hard to find.
+   * ⚠️ DECIDED BY THE CLUSTER (back-to-top.tsx), WHICH PASSES IT AS `hidden`. It calls the same hook,
+   * gated to phones, and adds its own stand-down; it has to own the answer because it keeps whatever
+   * is visible off the page's controls (owner, 2026-09-25: never over the save hearts or the CTA).
+   * ⚠️ MOBILE ONLY for the ride-down (`max-lg:`). There is no bottom nav from lg up — nothing to move
+   * with — and hiding a support affordance on a desktop scroll would just make it hard to find. The
+   * cluster never passes a scroll-away `hidden` on a desktop: it used to be computed here without the
+   * breakpoint, so `inert` below went on while the `max-lg:` classes did not, and the visible desktop
+   * mark silently stopped taking clicks after any scroll down.
    */
-  const scrolledAway = useHideOnScroll()
+  const scrolledAway = hidden
+  /**
+   * ⚠️ YIELDED IS NOT SCROLLED AWAY. The cluster sets it when, at rest, this mark sits on one of the
+   * page's own small controls (a card's save heart, a "See all") — owner, 2026-09-25: never overlap
+   * them. It FADES in place, at every breakpoint, and does not ride down: a control that slid away
+   * each time the page stopped over a heart would be motion with no meaning. Inert either way.
+   */
+  const away = scrolledAway || yielded
 
   return (
     /**
@@ -116,9 +128,9 @@ export function SupportButton({ className }: { className?: string }) {
              documents and solves with `inert`. Same three levers here: inert removes focus, pointer
              and a11y in one; aria-hidden + tabIndex=-1 are the fallback for browsers without it. */
           data-busy={opening || undefined}
-          inert={scrolledAway || undefined}
-          aria-hidden={scrolledAway || undefined}
-          tabIndex={scrolledAway ? -1 : undefined}
+          inert={away || undefined}
+          aria-hidden={away || undefined}
+          tabIndex={away ? -1 : undefined}
           className={cn(
             /* ⛔ NO PLATE. Owner, 2026-08-26: *"no outline plate for this support icon"* — this
                control carried a white `rounded-xl` plate (border + bg-popover + shadow-pop) for
@@ -189,7 +201,7 @@ export function SupportButton({ className }: { className?: string }) {
                `relative` beside its `tap-44`; `ui/button` does not, and this is a `ui/button`.
                ⚠️ Playwright's `click({force: true})` HIDES this — it dispatches at coordinates and
                lets the covering layer take them. The hit test has to be elementsFromPoint. */
-            'relative transition-[color,--i-back-opacity] duration-200 active:scale-[0.96] tap-44',
+            'relative transition-[color,opacity,--i-back-opacity] duration-200 active:scale-[0.96] tap-44',
             /* Ride down with the bottom nav, same motion the bar itself uses.
                ⚠️ `translate`, NOT `transform`, in the property list — Tailwind v4 compiles
                `translate-*` to the standalone `translate` property, so naming `transform` here
@@ -208,6 +220,8 @@ export function SupportButton({ className }: { className?: string }) {
             'max-lg:transition-[translate,opacity,--i-back-opacity] max-lg:duration-300 max-lg:ease-[var(--ease-spring)] motion-reduce:transition-none',
             scrolledAway && 'max-lg:pointer-events-none max-lg:translate-y-[calc(100%+1.25rem)] max-lg:opacity-0',
             className,
+            // After `className`, so the cluster's `pointer-events-auto` cannot win over a yield.
+            yielded && 'pointer-events-none opacity-0',
           )}
         />
       }>

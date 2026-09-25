@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { ChevronUp } from '@/components/ui/icons'
@@ -11,12 +11,47 @@ import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { SupportButton } from '@/components/marketplace/support-button'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
+import { MAX_OBSTACLE_HEIGHT, nextScrollDirection, planClearance, tapBox, type Box, type ClearancePlan, type ScrollDir } from '@/lib/fab-clearance'
+
+/** The chevron stays away until the reader is this far down — near the top there is nothing to go back to. */
+const CHEVRON_AFTER_Y = 700
+/** "At rest": this long after the last scroll event, where `scrollend` is missing. Momentum scrolling
+ *  keeps firing events, so this waits out a fling as well as a drag; `scrollend` short-cuts it. */
+const REST_MS = 120
+/** The most the cluster may rise above a bar, as a share of the viewport; past it, it stands down. */
+const MAX_LIFT_SHARE = 0.4
+/** The controls the cluster must never sit on. Scoped to <main>: the header, the tab bar and every
+ *  overlay are chrome with their own stacking rules, and the cluster already stands down under a modal. */
+const OBSTACLES = 'main button, main a[href], main [role="button"], main input, main select, main textarea'
+
+type Plan = { rise: number; standDown: boolean; chevron: boolean; support: boolean }
+const AT_REST: Plan = { rise: 0, standDown: false, chevron: false, support: false }
+
+// ⚠️ `lg` (64rem) — the breakpoint below which the tab bar exists and the support bubble rides with it.
+const DESKTOP = '(min-width: 64rem)'
+const subscribeDesktop = (cb: () => void) => {
+  const mq = typeof window !== 'undefined' ? window.matchMedia?.(DESKTOP) : undefined
+  mq?.addEventListener?.('change', cb)
+  return () => mq?.removeEventListener?.('change', cb)
+}
+const isDesktop = () => window.matchMedia?.(DESKTOP).matches ?? false
 
 /** Floating bottom-right controls, portaled to <body> (no ancestor can offset them),
- *  above the mobile bottom-nav. A bare chevron "back to top" that fades in after
- *  scrolling,circle-less. The floating Help "?" was removed (duplicate of the rail's Help row). */
+ *  above the mobile bottom-nav. A plated chevron "back to top" and the support mark. The floating
+ *  Help "?" was removed (duplicate of the rail's Help row). */
 export function BackToTop() {
-  const [show, setShow] = useState(false)
+  /**
+   * ⛔ THE CHEVRON SHOWS ONLY WHILE THE READER IS SCROLLING UP — owner, 2026-09-25: "back-to-top arrow
+   * shows ONLY while the user scrolls UP (hidden while scrolling down and near the top)". It used to
+   * appear at scrollY > 700 whatever the direction, so it rode over the feed for the whole of every
+   * scroll DOWN — exactly when a reader is looking at cards and tapping their hearts. Wanting to go
+   * back up is what scrolling up signals; that is the only time it earns the space. It is hidden on
+   * first load until a real upward scroll, and it stays after the finger lifts (a tap during momentum
+   * only stops the scroll, so the reader needs it there when the page comes to rest).
+   */
+  const [up, setUp] = useState(false)
+  const [deep, setDeep] = useState(false)
   const [mounted, setMounted] = useState(false)
   // This button has NO visible text — its aria-label is the only name a screen reader
   // gets, so it has to follow the viewer's language like any other copy. eslint's i18n
@@ -28,7 +63,33 @@ export function BackToTop() {
   // post-wizard publish bar, availability bar — all marked data-fab-clear): the
   // controls must sit ABOVE the bar, never over its CTA.
   const [lift, setLift] = useState(0)
+  /**
+   * What the VISIBLE controls do at rest about the page's own controls (src/lib/fab-clearance.ts): the
+   * rise above a bar, whether the cluster stands down (no clear place within MAX_LIFT_SHARE of the
+   * screen), and whether the chevron / the support mark yields to a small control under it. Every part
+   * of it lasts until the page moves again.
+   */
+  const [plan, setPlan] = useState<Plan>(AT_REST)
   const pathname = usePathname()
+  /**
+   * ⚠️ THE SUPPORT BUBBLE'S SCROLL SIGNAL LIVES HERE NOW, NOT IN support-button.tsx. It is the SAME hook
+   * (the tab bar's), so the bubble still rides down and back with the bar; it moved because this cluster
+   * has to know what is VISIBLE to keep it off the page's controls. And it is gated on `!desktop` here,
+   * which fixes a real bug it carried: the hide CLASSES were `max-lg:` but `inert` was not, so on a
+   * desktop the visible support mark went dead (inert swallows clicks) after any scroll down.
+   */
+  const scrolledAway = useHideOnScroll()
+  const desktop = useSyncExternalStore(subscribeDesktop, isDesktop, () => false)
+  const supportAway = scrolledAway && !desktop
+  const show = up && deep
+  const { rise, standDown } = plan
+  const chevronYields = standDown || plan.chevron
+  const supportYields = standDown || plan.support
+  const column = useRef<HTMLDivElement>(null)
+  // Whether anything is currently yielded or stood down — read by the scroll listener, which must
+  // hand the controls back the moment the page moves without re-subscribing on every plan.
+  const holding = useRef(false)
+  useEffect(() => { holding.current = standDown || plan.chevron || plan.support }, [standDown, plan])
 
   useEffect(() => { setMounted(true) }, [])
   useEffect(() => {
@@ -47,7 +108,15 @@ export function BackToTop() {
     // smooth. This is the same pattern use-hide-on-scroll.ts already uses; the coalescing is what
     // makes it correct, not the passive flag (passive only promises not to preventDefault).
     let ticking = false
-    const update = () => { ticking = false; setShow(window.scrollY > 700); measure() }
+    let dir: ScrollDir = { anchor: null, height: 0, up: false }
+    const update = () => {
+      ticking = false
+      const y = window.scrollY
+      dir = nextScrollDirection(dir, y, document.documentElement.scrollHeight)
+      setUp(dir.up)
+      setDeep(y > CHEVRON_AFTER_Y)
+      measure()
+    }
     const onScroll = () => {
       if (ticking) return
       ticking = true
@@ -62,6 +131,126 @@ export function BackToTop() {
     }
   }, [])
 
+  /**
+   * ⛔ CLEARANCE, MEASURED AT REST — the half of the owner's rule that is about WHERE, not WHEN:
+   * "never overlap the right column's save hearts and lift above the product page's sticky buy/CTA
+   * bar". Every card's heart sits at its top-right, so a right-edge cluster over a 2-column grid meets
+   * one every row; the PDP's CTA is in-flow and passes right under the bubble. So: once the page is
+   * still, look at the page controls in the column of the VISIBLE floating controls. Over a BAR (a
+   * full-width CTA) the cluster rises just above it; over a SMALL control (a heart, a "See all") the one
+   * floating control on it yields — fades out, goes inert — and nothing moves. fab-clearance.ts has the
+   * arithmetic and the measurement behind the split: moving for every control hopped the cluster on
+   * 47 of 70 stops.
+   * ⚠️ AT REST, NOT PER FRAME, ON PURPOSE. Mid-scroll a card row passes the cluster every ~300px; a
+   * per-frame rule would make it bob or blink on every row, and a tap that lands during momentum only
+   * stops the scroll — it never reaches a heart. What the reader can actually tap is the page at
+   * rest, and that is what this guarantees. Measuring only then also keeps a querySelectorAll plus a
+   * rect per control out of the scroll frames.
+   * ⚠️ `translate`, NOT `bottom`: the rise is compositor-only. `bottom` stays the fixed-bar lift above,
+   * which is measured per frame and must track a bar that is itself moving.
+   */
+  useEffect(() => {
+    if (!mounted) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let raf = 0
+    const solve = () => {
+      const col = column.current
+      if (!col) return
+      // What is meant to be on screen: the chevron only while shown (its box is 0 where native iOS
+      // hides it), the support mark unless it rode away with the tab bar.
+      const parts: HTMLElement[] = []
+      const chevron = col.querySelector<HTMLElement>('.back-to-top-chevron')
+      const support = col.querySelector<HTMLElement>('.support-mark')
+      if (show && chevron) parts.push(chevron)
+      if (!supportAway && support) parts.push(support)
+      const shown = parts.filter((p) => p.offsetWidth > 0 && p.offsetHeight > 0)
+      if (!shown.length) { setPlan(AT_REST); return }
+      // The box at its RESTING place, from LAYOUT offsets, which no transform touches: not the
+      // column's own rise (read back from the computed style, so a rise still mid-transition is
+      // undone by exactly what is painted — answers must not compound across rests), and not a
+      // control's reveal/ride-down translate (a stood-down bubble is translated off its slot).
+      const c = col.getBoundingClientRect()
+      const rise = Number.parseFloat((getComputedStyle(col).translate || '').split(' ')[1] ?? '0') || 0
+      const top0 = c.top - rise
+      const boxes: Box[] = shown.map((p) => ({ top: top0 + p.offsetTop, bottom: top0 + p.offsetTop + p.offsetHeight, left: c.left + p.offsetLeft, right: c.left + p.offsetLeft + p.offsetWidth }))
+      const box: Box = {
+        top: Math.min(...boxes.map((b) => b.top)),
+        bottom: Math.max(...boxes.map((b) => b.bottom)),
+        left: Math.min(...boxes.map((b) => b.left)),
+        right: Math.max(...boxes.map((b) => b.right)),
+      }
+      const vh = window.innerHeight
+      const obstacles: Box[] = []
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>(OBSTACLES))) {
+        const r = el.getBoundingClientRect()
+        // < 4px is an `sr-only` control (1x1, clipped) — nothing a finger can see or mean.
+        if (r.width < 4 || r.height < 4 || r.height > MAX_OBSTACLE_HEIGHT) continue
+        if (r.right < box.left - 22 || r.left > box.right + 22 || r.bottom < -22 || r.top > vh + 22) continue
+        // Only now, for the handful left in the column: a control that is hidden, inert, transparent or
+        // takes no pointer is not something the cluster can steal a tap from, and yielding to it would
+        // hide the mark for no visible reason.
+        if (el.closest('[inert]')) continue
+        const cs = getComputedStyle(el)
+        if (cs.visibility === 'hidden' || cs.opacity === '0' || cs.pointerEvents === 'none') continue
+        obstacles.push(tapBox(r))
+      }
+      const next: ClearancePlan = planClearance(boxes, obstacles, window.innerWidth, vh * MAX_LIFT_SHARE)
+      const at = (el: HTMLElement | null) => (el ? shown.indexOf(el) : -1)
+      const yielded = (el: HTMLElement | null) => at(el) >= 0 && next.yielded[at(el)]
+      const want: Plan = { rise: Math.round(next.rise), standDown: next.standDown, chevron: yielded(chevron), support: yielded(support) }
+      // ⚠️ NEVER TAKE AWAY A FOCUSED CONTROL — a keyboard user on the chevron or the mark would have focus
+      // dropped to <body> by `inert`. Rising is harmless to focus; vanishing is not.
+      // A stand-down is all-or-nothing, so under focus the previous plan simply stays (turning the
+      // stand-down off alone would drop the cluster back onto the bar it was clearing).
+      const focused = document.activeElement
+      if (focused && col.contains(focused)) {
+        if (want.standDown) return
+        want.chevron &&= !chevron?.contains(focused)
+        want.support &&= !support?.contains(focused)
+      }
+      setPlan((p) => (p.rise === want.rise && p.standDown === want.standDown && p.chevron === want.chevron && p.support === want.support ? p : want))
+    }
+    const atRest = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(solve) }, REST_MS)
+    }
+    // A yield or a stand-down lasts until the page MOVES, not until the next rest: a reader scrolling up
+    // to find the chevron must see it come back as they scroll, exactly as it would anywhere else.
+    const onScroll = () => {
+      if (holding.current) { holding.current = false; setPlan((p) => ({ ...p, standDown: false, chevron: false, support: false })) }
+      atRest()
+    }
+    // ⚠️ `scrollend` ANSWERS AT ONCE where it exists: the gap between a fling stopping and the plan
+    // landing is the only moment a tap could still reach a control that is about to yield.
+    const onScrollEnd = () => { clearTimeout(timer); cancelAnimationFrame(raf); raf = requestAnimationFrame(solve) }
+    atRest()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('scrollend', onScrollEnd, { passive: true })
+    window.addEventListener('resize', atRest, { passive: true })
+    // Late layout that changes no size the observer below would see: the page's own load, and fonts.
+    window.addEventListener('load', atRest)
+    let live = true
+    void document.fonts?.ready.then(() => { if (live) atRest() })
+    // Content that grows or shrinks under a resting cluster (the feed rendering in, a price row
+    // wrapping when the exchange rate lands) moves controls without a scroll event.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(atRest) : undefined
+    ro?.observe(document.body)
+    return () => {
+      clearTimeout(timer)
+      cancelAnimationFrame(raf)
+      ro?.disconnect()
+      live = false
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('scrollend', onScrollEnd)
+      window.removeEventListener('resize', atRest)
+      window.removeEventListener('load', atRest)
+    }
+  }, [mounted, show, supportAway, lift, pathname, panelOpen])
+
+  // Nothing visible → nothing to clear; drop the rise while hidden so the next reveal starts from the
+  // resting place instead of a stale height.
+  useEffect(() => { if (!show && supportAway) setPlan(AT_REST) }, [show, supportAway])
+
   if (!mounted) return null
   // The messenger owns the bottom-right corner (its composer's Send button + the AI
   // "Ask" bar), and its panes don't page-scroll — so the floating "?" / back-to-top
@@ -71,6 +260,7 @@ export function BackToTop() {
   return createPortal(
     <>
       <div
+        ref={column}
         className={cn(
           // ⛔ `pointer-events-none` ON THE COLUMN, `pointer-events-auto` ON EACH VISIBLE CONTROL.
           // The column is a 44px-wide box that spans BOTH slots whatever is showing — including the
@@ -104,11 +294,15 @@ export function BackToTop() {
           // the bottom-RIGHT controls no longer overlap it and need no --account-w offset — they
           // stay pinned to the right edge. Below lg the panel owns the whole screen when open, so
           // they stand down (max-lg:hidden). Same spring for a calm settle.
-          'right-4 transition-[right] duration-300 motion-reduce:transition-none lg:right-6',
+          // ⚠️ `translate` and `opacity` JOINED THE LIST for the at-rest clearance: the rise above a
+          // heart or a CTA is a `translate` (compositor-only) and standing down is a fade. Named, not
+          // `transition-all` — `bottom` (the fixed-bar lift) must keep tracking its bar frame by frame.
+          'right-4 transition-[right,translate,opacity] duration-300 motion-reduce:transition-none lg:right-6',
           panelOpen && 'max-lg:hidden',
         )}
-        // Inline bottom (beats the classes) only while a bottom bar is on screen.
-        style={{ ...(lift ? { bottom: lift + 12 } : {}), transitionTimingFunction: 'var(--ease-spring)' }}
+        // Inline bottom (beats the classes) only while a bottom bar is on screen; the at-rest rise
+        // rides on top of it as a translate.
+        style={{ ...(lift ? { bottom: lift + 12 } : {}), translate: rise ? `0 ${-rise}px` : undefined, transitionTimingFunction: 'var(--ease-spring)' }}
       >
         {/* Back to top — bare glyph, no circle: same treatment as the search-bar
             icons (quiet ink → brand blue on hover) with a subtle drop-shadow so it
@@ -126,9 +320,9 @@ export function BackToTop() {
           // aria-hidden + tabIndex=-1 are the fallback for browsers without it.
           // NOT `hidden`/display:none — the slot must keep its size so the "?" below never
           // shifts as this fades in.
-          inert={!show}
-          aria-hidden={!show || undefined}
-          tabIndex={show ? undefined : -1}
+          inert={!show || chevronYields}
+          aria-hidden={!show || chevronYields || undefined}
+          tabIndex={show && !chevronYields ? undefined : -1}
           onClick={() => window.scrollTo({ top: 0, behavior: scrollBehavior() })}
           // back-to-top-chevron is a stable hook for globals.css: native iOS hides
           // ONLY this button (status-bar tap already scrolls to top there); Android keeps the chevron.
@@ -144,8 +338,12 @@ export function BackToTop() {
             // reviewer caught that only the arrows got it while ~100 plated IconButtons did not.
             // The deepening now lives with the plate in globals.css, so every plated glyph in the
             // app hovers the same way and this line cannot drift from them.
-            'back-to-top-chevron relative flex h-11 w-11 items-center justify-center transition-all duration-200 active:scale-[0.96] tap-44',
-            show ? 'pointer-events-auto opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
+            // ⚠️ NAMED PROPERTIES, NOT `transition-all`: what moves here is opacity, the `translate-y-*`
+            // reveal (Tailwind v4's standalone `translate`) and the press `scale`.
+            'back-to-top-chevron relative flex h-11 w-11 items-center justify-center transition-[opacity,translate,scale] duration-200 active:scale-[0.96] tap-44',
+            // Scrolled away it sinks 8px as it fades (the reveal's own motion); YIELDED it fades where it is
+            // — a control that twitches whenever the page stops over a heart is motion with no meaning.
+            show && !chevronYields ? 'pointer-events-auto opacity-100 translate-y-0' : show ? 'pointer-events-none opacity-0 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
           )}
         >
           {/* STROKE_FLOAT (§2): a chevron floating over card imagery — heavier than chrome so it
@@ -168,8 +366,10 @@ export function BackToTop() {
             `opacity`, never `display`), so the column's geometry is fixed whatever either is doing. */}
         {/* `pointer-events-auto` re-enables the mark inside the column's `pointer-events-none`. Its own
             scrolled-away state still wins below lg: `max-lg:pointer-events-none` is a variant rule and
-            sorts after this plain utility, and `inert` removes it regardless. */}
-        <SupportButton className="pointer-events-auto" />
+            sorts after this plain utility, and `inert` removes it regardless. `hidden` is decided
+            HERE (the tab bar's scroll signal, phones only, or the cluster standing down) because this
+            cluster has to know what is visible to keep it off the page's controls. */}
+        <SupportButton className="pointer-events-auto" hidden={supportAway} yielded={supportYields} />
 
       </div>
 
