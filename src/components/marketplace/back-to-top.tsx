@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { SupportButton } from '@/components/marketplace/support-button'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
-import { MAX_OBSTACLE_HEIGHT, nextScrollDirection, planClearance, tapBox, type Box, type ClearancePlan, type ScrollDir } from '@/lib/fab-clearance'
+import { MAX_OBSTACLE_HEIGHT, nextScrollDirection, planClearance, tapBox, YIELDED, type Box, type ClearancePlan, type ScrollDir } from '@/lib/fab-clearance'
 
 /** The chevron stays away until the reader is this far down — near the top there is nothing to go back to. */
 const CHEVRON_AFTER_Y = 700
@@ -89,6 +89,7 @@ export function BackToTop() {
   // Whether anything is currently yielded or stood down — read by the scroll listener, which must
   // hand the controls back the moment the page moves without re-subscribing on every plan.
   const holding = useRef(false)
+  const kick = useRef<() => void>(() => {})
   useEffect(() => { holding.current = standDown || plan.chevron || plan.support }, [standDown, plan])
 
   useEffect(() => { setMounted(true) }, [])
@@ -190,6 +191,11 @@ export function BackToTop() {
         // takes no pointer is not something the cluster can steal a tap from, and yielding to it would
         // hide the mark for no visible reason.
         if (el.closest('[inert]')) continue
+        // `checkVisibility` sees an ANCESTOR's opacity-0 / visibility:hidden, which the element's own
+        // computed style does not (opacity is not inherited): a button inside a fading wrapper is not
+        // there for a finger (codex, opus). The own-style read stays as the fallback and for pointer.
+        const cv = (el as HTMLElement & { checkVisibility?: (o?: Record<string, boolean>) => boolean }).checkVisibility
+        if (cv && !cv.call(el, { opacityProperty: true, visibilityProperty: true, checkOpacity: true, checkVisibilityCSS: true })) continue
         const cs = getComputedStyle(el)
         if (cs.visibility === 'hidden' || cs.opacity === '0' || cs.pointerEvents === 'none') continue
         obstacles.push(tapBox(r))
@@ -198,16 +204,9 @@ export function BackToTop() {
       const at = (el: HTMLElement | null) => (el ? shown.indexOf(el) : -1)
       const yielded = (el: HTMLElement | null) => at(el) >= 0 && next.yielded[at(el)]
       const want: Plan = { rise: Math.round(next.rise), standDown: next.standDown, chevron: yielded(chevron), support: yielded(support) }
-      // ⚠️ NEVER TAKE AWAY A FOCUSED CONTROL — a keyboard user on the chevron or the mark would have focus
-      // dropped to <body> by `inert`. Rising is harmless to focus; vanishing is not.
-      // A stand-down is all-or-nothing, so under focus the previous plan simply stays (turning the
-      // stand-down off alone would drop the cluster back onto the bar it was clearing).
-      const focused = document.activeElement
-      if (focused && col.contains(focused)) {
-        if (want.standDown) return
-        want.chevron &&= !chevron?.contains(focused)
-        want.support &&= !support?.contains(focused)
-      }
+      // ⚠️ NO FOCUS GUARD, AND THAT IS NOW SAFE: a yield and a stand-down are visual and pointer-only
+      // (YIELDED), so neither can drop focus. The earlier guard un-yielded a FOCUSED control — which put
+      // a pointer-taking mark back on the heart after Escape returned focus from the support sheet (opus).
       setPlan((p) => (p.rise === want.rise && p.standDown === want.standDown && p.chevron === want.chevron && p.support === want.support ? p : want))
     }
     const atRest = () => {
@@ -223,6 +222,7 @@ export function BackToTop() {
     // ⚠️ `scrollend` ANSWERS AT ONCE where it exists: the gap between a fling stopping and the plan
     // landing is the only moment a tap could still reach a control that is about to yield.
     const onScrollEnd = () => { clearTimeout(timer); cancelAnimationFrame(raf); raf = requestAnimationFrame(solve) }
+    kick.current = atRest
     atRest()
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('scrollend', onScrollEnd, { passive: true })
@@ -240,12 +240,17 @@ export function BackToTop() {
       cancelAnimationFrame(raf)
       ro?.disconnect()
       live = false
+      kick.current = () => {}
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('scrollend', onScrollEnd)
       window.removeEventListener('resize', atRest)
       window.removeEventListener('load', atRest)
     }
-  }, [mounted, show, supportAway, lift, pathname, panelOpen])
+  }, [mounted, show, supportAway, pathname, panelOpen])
+  // A fixed bar sliding in or out moves the cluster's resting place (`bottom`) — re-plan at rest. Not
+  // a dependency of the effect above: `lift` changes on every frame of that slide, and re-subscribing
+  // every listener per frame is churn for nothing (opus).
+  useEffect(() => { kick.current() }, [lift])
 
   // Nothing visible → nothing to clear; drop the rise while hidden so the next reveal starts from the
   // resting place instead of a stale height.
@@ -320,9 +325,12 @@ export function BackToTop() {
           // aria-hidden + tabIndex=-1 are the fallback for browsers without it.
           // NOT `hidden`/display:none — the slot must keep its size so the "?" below never
           // shifts as this fades in.
-          inert={!show || chevronYields}
-          aria-hidden={!show || chevronYields || undefined}
-          tabIndex={show && !chevronYields ? undefined : -1}
+          // ⚠️ `inert` only while SCROLLED AWAY. A yield is visual and pointer-only: it keeps a
+          // finger off a heart, and it must not take the control from a keyboard or a screen reader
+          // (see YIELDED in src/lib/fab-clearance.ts).
+          inert={!show}
+          aria-hidden={!show || undefined}
+          tabIndex={show ? undefined : -1}
           onClick={() => window.scrollTo({ top: 0, behavior: scrollBehavior() })}
           // back-to-top-chevron is a stable hook for globals.css: native iOS hides
           // ONLY this button (status-bar tap already scrolls to top there); Android keeps the chevron.
@@ -343,7 +351,7 @@ export function BackToTop() {
             'back-to-top-chevron relative flex h-11 w-11 items-center justify-center transition-[opacity,translate,scale] duration-200 active:scale-[0.96] tap-44',
             // Scrolled away it sinks 8px as it fades (the reveal's own motion); YIELDED it fades where it is
             // — a control that twitches whenever the page stops over a heart is motion with no meaning.
-            show && !chevronYields ? 'pointer-events-auto opacity-100 translate-y-0' : show ? 'pointer-events-none opacity-0 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
+            show && !chevronYields ? 'pointer-events-auto opacity-100 translate-y-0' : show ? cn(YIELDED, 'translate-y-0') : 'pointer-events-none opacity-0 translate-y-2',
           )}
         >
           {/* STROKE_FLOAT (§2): a chevron floating over card imagery — heavier than chrome so it

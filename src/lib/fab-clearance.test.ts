@@ -72,6 +72,12 @@ describe('planClearance — lift above a BAR, yield to a SMALL control, never mo
     const cta = tapBox({ left: 12, right: 378, top: 700, bottom: 748 })
     expect(planClearance([chevron, support], [cta], 390, 300)).toEqual({ rise: 764 - (700 - 8), standDown: false, yielded: [false, false] })
   })
+  it('a desktop CTA in the buy-box column (400px of 1280) is a bar too: the cluster rises, it does not vanish', () => {
+    const cluster: Box = { left: 1212, right: 1256, top: 730, bottom: 774 }
+    const cta = tapBox({ left: 870, right: 1270, top: 720, bottom: 768 })
+    expect(planClearance([cluster], [cta], 1280, 300)).toEqual({ rise: 774 - (720 - 8), standDown: false, yielded: [false] })
+  })
+
   it('after rising above a bar, a small control at the new height still makes that control yield', () => {
     const cta = tapBox({ left: 12, right: 378, top: 700, bottom: 748 }) // rise 72 → support at 648–692
     expect(planClearance([support], [cta, heartAt(670)], 390, 300)).toEqual({ rise: 72, standDown: false, yielded: [true] })

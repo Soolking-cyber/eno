@@ -48,6 +48,8 @@ afterEach(() => {
 const chevron = () => document.querySelector<HTMLElement>('.back-to-top-chevron')!
 const support = () => document.querySelector<HTMLElement>('.support-mark')!
 const column = () => chevron().parentElement as HTMLElement
+/** Yielded = takes no pointer and is invisible, unless focus lands on it. */
+const yielded = (el: HTMLElement) => /(^|\s)pointer-events-none(\s|$)/.test(el.className) && /(^|\s)opacity-0(\s|$)/.test(el.className) && /(^|\s)focus:opacity-100(\s|$)/.test(el.className)
 const scrollTo = (to: number) => act(() => { y = to; window.dispatchEvent(new Event('scroll')); vi.advanceTimersByTime(20) })
 const rest = () => act(() => { vi.advanceTimersByTime(200) })
 
@@ -116,17 +118,31 @@ describe('BackToTop — the support mark', () => {
 })
 
 describe('BackToTop — at rest, never on a page control', () => {
-  it('the measured steal (a heart under the support mark): the mark yields in place — faded, inert — and nothing moves', () => {
+  it('a FOCUSED mark still yields — shown to the keyboard, never back under a finger', () => {
+    control({ left: 338, right: 370, top: 730, bottom: 762 })
+    render(<BackToTop />)
+    layOut()
+    act(() => { support().focus() })
+    rest()
+    expect(document.activeElement).toBe(support())
+    expect(yielded(support())).toBe(true)
+    expect(support().className).not.toMatch(/focus(-visible)?:pointer-events-auto/)
+  })
+
+  it('the measured steal (a heart under the support mark): the mark yields in place — faded, no pointer — and nothing moves', () => {
     control({ left: 338, right: 370, top: 730, bottom: 762 }) // heart centred at y=746, x=354
     render(<BackToTop />)
     layOut()
     rest()
-    expect(support().hasAttribute('inert')).toBe(true)
-    expect(support().className).toContain('opacity-0')
+    expect(yielded(support())).toBe(true)
     expect(column().style.translate).toBe('')
+    // A yield is for the finger and the eye only: a keyboard or a screen reader still reaches Support.
+    expect(support().hasAttribute('inert')).toBe(false)
+    expect(support().getAttribute('tabindex')).not.toBe('-1')
+    expect(support().getAttribute('aria-hidden')).toBeNull()
     // …and it comes straight back once the page moves.
     scrollTo(40)
-    expect(support().hasAttribute('inert')).toBe(false)
+    expect(yielded(support())).toBe(false)
   })
 
   it('a heart under the CHEVRON while scrolling up: the chevron yields, the support mark stays', () => {
@@ -138,11 +154,12 @@ describe('BackToTop — at rest, never on a page control', () => {
     scrollTo(3200) // up → chevron shown
     layOut()
     rest()
-    expect(chevron().hasAttribute('inert')).toBe(true)
+    expect(yielded(chevron())).toBe(true)
+    expect(chevron().hasAttribute('inert')).toBe(false)
     // It fades where it is — no 8px sink, which is the scrolled-away motion, not a yield's.
     expect(chevron().className).toContain('translate-y-0')
     expect(chevron().className).not.toContain('translate-y-2')
-    expect(support().hasAttribute('inert')).toBe(false)
+    expect(yielded(support())).toBe(false)
   })
 
   it('rises above the PDP CTA (a full-width bar) when it is under the cluster, and comes back down once it has gone', () => {
@@ -151,7 +168,7 @@ describe('BackToTop — at rest, never on a page control', () => {
     layOut()
     rest()
     expect(column().style.translate).toBe('0 -72px') // the support mark's bottom 764 → 8px above the CTA's 700
-    expect(support().hasAttribute('inert')).toBe(false)
+    expect(yielded(support())).toBe(false)
     // The browser now reports the column where the rise put it; the next rest must undo that, not
     // compound it (→ 144) or lose it (→ 0, which would put the mark back on the CTA).
     const col = column()
@@ -165,27 +182,30 @@ describe('BackToTop — at rest, never on a page control', () => {
     expect(column().style.translate).toBe('')
   })
 
-  it('ignores a card-sized stretched link, a control outside its column, an sr-only one and an inert one', () => {
+  it('ignores a card-sized link, an out-of-column control, an sr-only one, an inert one and one inside a hidden wrapper', () => {
     control({ left: 201, right: 378, top: 500, bottom: 800 }) // the right card's own link
     control({ left: 149, right: 181, top: 730, bottom: 762 }) // left-column heart
     control({ left: 354, right: 355, top: 740, bottom: 741 }) // sr-only: 1x1
     control({ left: 338, right: 370, top: 730, bottom: 762 }).setAttribute('inert', '') // inert heart
+    // Inside an opacity-0 wrapper: its own computed opacity is 1 (opacity does not inherit), so only
+    // checkVisibility() can tell — jsdom has none, so it is stubbed the way a browser answers.
+    const ghost = control({ left: 338, right: 370, top: 730, bottom: 762 })
+    ;(ghost as unknown as { checkVisibility: () => boolean }).checkVisibility = () => false
     render(<BackToTop />)
     layOut()
     rest()
     expect(column().style.translate).toBe('')
-    expect(support().hasAttribute('inert')).toBe(false)
+    expect(yielded(support())).toBe(false)
   })
 
-  it('stands down — invisible and inert — when no clear place above the bars exists within the cap', () => {
+  it('stands down — invisible, no pointer — when no clear place above the bars exists within the cap', () => {
     for (let i = 0; i < 8; i++) control({ left: 12, right: 378, top: 700 - i * 60, bottom: 748 - i * 60 })
     render(<BackToTop />)
     layOut()
     rest()
-    expect(support().hasAttribute('inert')).toBe(true)
-    expect(support().className).toContain('opacity-0')
+    expect(yielded(support())).toBe(true)
     // …until the page moves: a reader scrolling must get the controls back.
     scrollTo(40)
-    expect(support().hasAttribute('inert')).toBe(false)
+    expect(yielded(support())).toBe(false)
   })
 })

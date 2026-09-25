@@ -13,6 +13,7 @@ import { useLanguage } from '@/context/language-context'
 import { COMPANY } from '@/lib/site-legal'
 import { STROKE_FLOAT } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
+import { YIELDED } from '@/lib/fab-clearance'
 
 /**
  * The floating "talk to us" control, and the panel it opens.
@@ -88,9 +89,9 @@ export function SupportButton({ className, hidden = false, yielded = false }: { 
    * ⚠️ YIELDED IS NOT SCROLLED AWAY. The cluster sets it when, at rest, this mark sits on one of the
    * page's own small controls (a card's save heart, a "See all") — owner, 2026-09-25: never overlap
    * them. It FADES in place, at every breakpoint, and does not ride down: a control that slid away
-   * each time the page stopped over a heart would be motion with no meaning. Inert either way.
+   * each time the page stopped over a heart would be motion with no meaning. And it is NOT inert —
+   * the yield is for the finger and the eye; a keyboard user still reaches it (YIELDED in src/lib/fab-clearance.ts).
    */
-  const away = scrolledAway || yielded
 
   return (
     /**
@@ -128,9 +129,9 @@ export function SupportButton({ className, hidden = false, yielded = false }: { 
              documents and solves with `inert`. Same three levers here: inert removes focus, pointer
              and a11y in one; aria-hidden + tabIndex=-1 are the fallback for browsers without it. */
           data-busy={opening || undefined}
-          inert={away || undefined}
-          aria-hidden={away || undefined}
-          tabIndex={away ? -1 : undefined}
+          inert={scrolledAway || undefined}
+          aria-hidden={scrolledAway || undefined}
+          tabIndex={scrolledAway ? -1 : undefined}
           className={cn(
             /* ⛔ NO PLATE. Owner, 2026-08-26: *"no outline plate for this support icon"* — this
                control carried a white `rounded-xl` plate (border + bg-popover + shadow-pop) for
@@ -221,7 +222,7 @@ export function SupportButton({ className, hidden = false, yielded = false }: { 
             scrolledAway && 'max-lg:pointer-events-none max-lg:translate-y-[calc(100%+1.25rem)] max-lg:opacity-0',
             className,
             // After `className`, so the cluster's `pointer-events-auto` cannot win over a yield.
-            yielded && 'pointer-events-none opacity-0',
+            yielded && YIELDED,
           )}
         />
       }>

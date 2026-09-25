@@ -32,6 +32,21 @@
  * the page moves again. Measured with that rule: 2 moves, and a control yielded at ~a third of rests.
  */
 
+/**
+ * ⛔ A YIELD HIDES FROM THE FINGER AND THE EYE, NOT FROM THE KEYBOARD OR A SCREEN READER. The first
+ * version made a yielded control `inert` — and a control sits over something at ~a third of rests, so
+ * a keyboard user tabbing toward "Contact support" found it missing from the tab order for a reason
+ * that exists only on screen (opus). Now it stays focusable and announced, and shows itself whenever
+ * it HAS focus — `:focus`, not `:focus-visible`: focus restored to it by a closing sheet is programmatic,
+ * and Safari may not count that as visible, which would leave a focused control that cannot be seen
+ * (codex, opus). It still takes NO POINTER while yielded, focused or not: keyboard activation needs
+ * none, and a mark that took pointers again after Escape returned focus to it would be back on the
+ * heart it yielded to.
+ * Shared by back-to-top.tsx and support-button.tsx, so the two controls yield the same way. (A class
+ * string in a .ts file is fine: Tailwind scans every source file, not just .tsx.)
+ */
+export const YIELDED = 'pointer-events-none opacity-0 focus:opacity-100'
+
 export type Box = { top: number; bottom: number; left: number; right: number }
 
 /** The app's tap-target floor (`tap-44`): a 32px heart takes taps across 44px via a ::before, and a
@@ -82,6 +97,10 @@ export function clearanceLift(box: Box, obstacles: readonly Box[], maxLift: numb
 /** A control at least this share of the viewport wide is a BAR: it spans every lane, so the cluster
  *  rises above it. Narrower ones are what the cluster yields to. The PDP CTA is 366/390 = 94%. */
 export const WIDE_SHARE = 0.6
+/** …or at least this wide in absolute terms, which is what a bar is on a DESKTOP: the PDP's buy box
+ *  sits in a 5/12 column there, so its CTA is ~400px of a 1280px window — a bar, not a heart (codex).
+ *  Hearts, links and chips are all far narrower. */
+export const WIDE_MIN_PX = 240
 
 const overlaps = (a: Box, b: Box) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
 
@@ -103,7 +122,7 @@ export function planClearance(parts: readonly Box[], obstacles: readonly Box[], 
     left: Math.min(...parts.map((p) => p.left)),
     right: Math.max(...parts.map((p) => p.right)),
   }
-  const isWide = (o: Box) => o.right - o.left >= WIDE_SHARE * viewportWidth
+  const isWide = (o: Box) => o.right - o.left >= Math.min(WIDE_SHARE * viewportWidth, WIDE_MIN_PX)
   const rise = clearanceLift(union, obstacles.filter(isWide), maxLift)
   if (rise === null) return { rise: 0, standDown: true, yielded: parts.map(() => true) }
   const small = obstacles.filter((o) => !isWide(o))
