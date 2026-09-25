@@ -47,6 +47,9 @@ import { LANGUAGES } from '@/lib/i18n/langs'
 import { useChatTranslation } from '@/hooks/use-chat-translation'
 import { fmtTime, dayKey } from '@/lib/dates'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import { useUndoWindow } from '@/hooks/use-undo-window'
+import { OfferAnswerButtons } from '@/components/marketplace/offer-answer-buttons'
+import { answeredOnServer, choiceFor, offerActFailedCopy, overlayOfferChoices, unconfirmedOfferChoices, type OfferAction } from '@/lib/offer-choices'
 
 // `meta` is the structured payload of a CARD message (visa_step / visa_checkout) — the
 // thread GET parses and re-validates it server-side (parseMessageMeta), so an unreadable
@@ -327,12 +330,18 @@ export default function ThreadPage() {
   const { user, loading } = useAuth()
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // offer amounts follow the viewer's language
-  const { getCachedThread, cacheThread, refreshUnread, refreshConvos } = useChat()
+  const { getCachedThread, cacheThread, prefetchThread, refreshUnread, refreshConvos } = useChat()
   // Back chevron: pop the thread off the stack rather than pushing /messages on top of it.
   const onBack = useSafeBack('/messages')
   // Paint instantly from the cached thread (e.g. one the offer/Message action just
   // seeded) and revalidate in the background — no blank "loading" flash on open.
-  const [thread, setThread] = useState<Thread | null>(() => (getCachedThread(id) as Thread | null) ?? null)
+  // The cached copy is the server's last word, so an answer still on its way (sent from an earlier
+  // visit to this thread, see unconfirmedOfferChoices) is laid over it here too — or coming straight
+  // back would paint that offer `pending` with live buttons.
+  const [thread, setThread] = useState<Thread | null>(() => {
+    const cached = getCachedThread(id) as Thread | null
+    return cached ? { ...cached, messages: overlayOfferChoices(cached.messages ?? [], unconfirmedOfferChoices) } : null
+  })
 
   /**
    * Which message currently has its reaction bar open — one at a time, thread-wide.
@@ -562,34 +571,86 @@ export default function ThreadPage() {
   // can tell an incoming counterpart message from my own echo without re-subscribing.
   const meRef = useRef<string | null>(null)
 
+  /**
+   * ANSWERS TO OFFERS THE SERVER HAS NOT HEARD YET live in `unconfirmedOfferChoices` (module-level —
+   * the file says why), from the Accept/Decline tap, through the 5s undo window, until a refetch shows
+   * the server agreeing. load() lays them over every payload: without that, the 15s poll or a focus
+   * refetch landing inside the window would repaint the offer as `pending` and bring the buttons back
+   * under a toast that says "Offer accepted".
+   */
+  const offerChoices = unconfirmedOfferChoices
+  const undoWindow = useUndoWindow()
+  // The deferred POST settles after an await, when this page may have gone — these say whether the
+  // thread it answered is still the one on screen (only then is repainting it right).
+  const mountedRef = useRef(true)
+  const idRef = useRef(id)
+  useEffect(() => { idRef.current = id }, [id])
+  // load() reads the copy through a ref so a language switch does not hand it a new identity — its
+  // identity feeds the realtime subscription's deps, and re-subscribing for a string is not worth it.
+  const trRef = useRef(tr)
+  useEffect(() => { trRef.current = tr }, [tr])
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false } }, [])
+  // Moving to another thread is leaving this one, even if Next reuses the page instance for it: send
+  // what is still waiting (each answer carries its own conversation id) rather than let it ride along.
+  useEffect(() => () => undoWindow.flushAll('leave'), [id, undoWindow])
+
+  // ⚠️ THE LATEST REFETCH WINS, NOT THE LAST ONE TO ARRIVE. Several load()s overlap (the 15s poll,
+  // focus, the realtime nudge, every post-action reconcile), and on a mobile network an earlier request
+  // can land after a later one. Applying it would paint an OLDER server state over a newer one — for an
+  // offer, the `pending` from before the answer landed, bringing Accept/Decline back for a second POST
+  // (reviewer-caught, panel round 1). Each call takes a ticket; a reply older than the newest one
+  // already applied is dropped.
+  const loadTicket = useRef(0)
+  const appliedTicket = useRef(0)
   const load = useCallback(async () => {
+    const ticket = ++loadTicket.current
     const res = await fetch(`/api/conversations/${id}`)
-    if (res.status === 404 || res.status === 403) { setNotFound(true); return }
+    // Checked BEFORE any branch that paints — a superseded reply answering 403/404 must not swap a live
+    // thread a newer reply already painted for the not-found screen (reviewer-caught, round 2).
+    if (ticket < appliedTicket.current) return
+    if (res.status === 404 || res.status === 403) { appliedTicket.current = ticket; setNotFound(true); return }
     if (!res.ok) return
     const data = await res.json()
+    if (ticket < appliedTicket.current) return
+    appliedTicket.current = ticket
     cacheThread(id, data) // keep the cache warm for an instant paint next time
+    // An answer still inside its undo window whose offer the server now reports as ANSWERED (the buyer
+    // withdrew or countered, or this user answered on another device): it can no longer be sent — the
+    // route would 409 not_actionable — so close the window without sending and say so. Never overlay
+    // it: the server's decision is the one that stands.
+    for (const mid of answeredOnServer(data.messages as Msg[], [...offerChoices.keys()])) {
+      const choice = offerChoices.get(mid)
+      offerChoices.delete(mid)
+      // A window still open here means the answer was never sent, so this decided status is someone
+      // else's. With no window open, the answer was sent and this is the server agreeing: just stop
+      // overlaying, nothing to say.
+      if (undoWindow.cancel(mid)) toast.error(offerActFailedCopy(choice === 'accepted' ? 'accept' : 'decline', 'not_actionable', trRef.current))
+    }
+    // Snapshot OUTSIDE the updater — an updater must not read state that can move under it.
+    const choices = new Map(offerChoices)
     // Preserve any still-pending optimistic messages so a background poll never
     // makes a just-sent message flicker away before the POST confirms it — but DROP
     // any temp the server already returned (match on mine+body), so a poll landing
     // mid-POST can't render the message twice (server-confirmed wins).
     setThread((prev) => {
-      if (!prev) return data
+      const fresh: Thread = { ...data, messages: overlayOfferChoices(data.messages as Msg[], choices) }
+      if (!prev) return fresh
       const temps = prev.messages.filter((m) => String(m.id).startsWith('temp-'))
-      if (!temps.length) return data
+      if (!temps.length) return fresh
       // Count-aware: only drop a temp if the server has an UNMATCHED copy of the same
       // (mine, body). Sending "ok" twice → two server rows clear two temps; one temp
       // confirmed + one still pending keeps the pending bubble (no flicker-hide).
       const counts = new Map<string, number>()
-      for (const m of data.messages as Msg[]) { const k = `${m.mine}|${m.body}`; counts.set(k, (counts.get(k) || 0) + 1) }
+      for (const m of fresh.messages) { const k = `${m.mine}|${m.body}`; counts.set(k, (counts.get(k) || 0) + 1) }
       const pending = temps.filter((m) => {
         const k = `${m.mine}|${m.body}`
         const c = counts.get(k) || 0
         if (c > 0) { counts.set(k, c - 1); return false } // server already has this one
         return true
       })
-      return pending.length ? { ...data, messages: [...data.messages, ...pending] } : data
+      return pending.length ? { ...fresh, messages: [...fresh.messages, ...pending] } : fresh
     })
-  }, [id, cacheThread])
+  }, [id, cacheThread, undoWindow])
 
   /**
    * RECALL ONE OF MY MESSAGES.
@@ -1069,34 +1130,92 @@ export default function ThreadPage() {
     }
   }
 
-  // Accept/decline a pending offer (recipient only). Optimistic flip, then refetch.
-  const actingOffer = useRef(false)
-  const actOffer = async (messageId: string, action: 'accept' | 'decline') => {
-    if (actingOffer.current) return // block double-click double-POST
-    actingOffer.current = true
+  /**
+   * ACCEPT / DECLINE A PENDING OFFER (recipient only) — shown at once, sent after a 5s undo window.
+   *
+   * ⛔ OWNER, 2026-09-25: "Undo toast, 5 seconds". Both answers used to POST on the first tap, from
+   * two 24px buttons 6px apart, and neither can be taken back: accepting starts the sale (the mark-sold
+   * prompt, the safety line), declining is final. Now the card shows the choice on the tap, a toast
+   * offers Undo, and the POST goes out only when the window closes — see useUndoWindow for every way
+   * it closes and why none of them drops the answer. The server contract is unchanged; only WHEN the
+   * one request is sent moved.
+   *
+   * ⚠️ `offerChoices` holds the choice past the window and past a successful POST, until a refetch
+   * shows the server agreeing: a poll that left before the POST and lands after it still says
+   * `pending`, and would otherwise resurrect the buttons for a second POST (reviewer-caught).
+   */
+  const actOffer = (m: Msg, action: OfferAction) => {
+    if (offerChoices.has(m.id)) return // a second tap on an answer already in hand
     // Acting on an offer closes any armed counter composer — otherwise arming "Counter", then
     // Accept/Decline instead, would leave the exact-amount composer live and a stray Send could
     // fire an unintended counter-offer.
     setShowOffer(false); setCounterMode(false); setOfferInput('')
-    // Optimistic flip.
-    setThread((t) => (t ? { ...t, messages: t.messages.map((m) => (m.id === messageId ? { ...m, offerStatus: action === 'accept' ? 'accepted' : 'declined' } : m)) } : t))
+    const choice = choiceFor(action)
+    offerChoices.set(m.id, choice)
+    setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === m.id ? { ...x, offerStatus: choice } : x)) } : t))
+    // Everything the send needs is fixed NOW: the send can run after this page is gone.
+    const answer = { conversationId: id, messageId: m.id, action, iAmSeller: !!thread?.iAmSeller }
+    undoWindow.start(m.id, {
+      title: action === 'accept' ? tr('Offer accepted', 'Đã chấp nhận đề nghị') : tr('Offer declined', 'Đã từ chối đề nghị'),
+      description: formatMoneyFull(m.offerAmount || 0, '₫', locale),
+      undoLabel: tr('Undo', 'Hoàn tác'),
+      commit: () => { void sendOfferAnswer(answer) },
+      undo: () => {
+        offerChoices.delete(m.id)
+        // Only a card still showing OUR choice goes back to pending. load() cancels the window the
+        // moment the server reports the offer answered, so Undo never overwrites the server's word.
+        setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === m.id && x.offerStatus === choice ? { ...x, offerStatus: 'pending' } : x)) } : t))
+      },
+    })
+  }
+
+  // The deferred POST itself.
+  // ⚠️ `keepalive` ALWAYS, not only when leaving (reviewer-caught): the window can close on the timer
+  // and the user reload or close the tab a moment later, while this request is in flight. A plain
+  // fetch is aborted with the page; a keepalive one is delivered. Its body is a few bytes.
+  const sendOfferAnswer = async (a: { conversationId: string; messageId: string; action: OfferAction; iAmSeller: boolean }) => {
+    let res: Response | null = null
     try {
-      const res = await fetch(`/api/conversations/${id}/offer`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId, action }),
+      res = await fetch(`/api/conversations/${a.conversationId}/offer`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: a.messageId, action: a.action }),
+        keepalive: true,
       })
-      // ALWAYS reconcile from the server — on a reject (409/429/403) load() reverts
-      // the optimistic flip so we never leave a phantom "Accepted" the server refused.
-      await load()
-      if (res.ok) {
-        refreshUnread(); refreshConvos()
-        // Seller accepted → offer the natural next step (mark the listing sold).
-        if (action === 'accept' && thread?.iAmSeller) setJustAcceptedId(messageId)
-      }
-    } catch {
-      await load() // restore true state
-    } finally {
-      actingOffer.current = false
+    } catch { /* res stays null: the outcome is unknown, handled below */ }
+    const code = res && !res.ok ? await res.json().then((b) => b?.error as string | undefined).catch(() => undefined) : undefined
+    // Refused, or unknown: the server's `pending` is the truth, so stop overlaying — BEFORE load(), or
+    // the fresh payload would be painted over with the choice again. Accepted by the server: KEEP the
+    // overlay until a refetch shows the decided status (load() drops it then) — see actOffer.
+    if (!res?.ok) offerChoices.delete(a.messageId)
+    // Read AFTER the await: an unmount that triggered this send has finished by now.
+    const onScreen = mountedRef.current && idRef.current === a.conversationId
+    // ALWAYS reconcile from the server — on a reject (409/429/403) this reverts the card, so there is
+    // never a phantom "Accepted" the server refused. Off-screen, refresh the cached copy instead, so
+    // reopening the thread does not paint the answered offer as pending.
+    // ⚠️ A FAILED RECONCILE MUST NOT EAT THE VERDICT BELOW (reviewer-caught, round 2): the reconcile
+    // GET tends to fail exactly when the POST did (a tunnel, a dead cell), and a throw here used to skip
+    // the refusal toast and leave "Accepted" on screen. The next poll or focus refetch reconciles.
+    if (onScreen) await load().catch(() => {}); else prefetchThread(a.conversationId)
+    if (res?.ok) {
+      refreshUnread(); refreshConvos()
+      // Seller accepted → offer the natural next step (mark the listing sold). ⚠️ Only if still here: a
+      // seller who left inside the window does not get this one-time prompt (reviewer-noted, accepted —
+      // it lives in this page's state, and marking sold stays one tap away on the listing itself).
+      if (onScreen && a.action === 'accept' && a.iAmSeller) setJustAcceptedId(a.messageId)
+      return
     }
+    // ⛔ A REFUSAL IS SAID OUT LOUD, even after the user has moved elsewhere in the app (the Toaster is
+    // global): the card they last saw said "Accepted", and an answer that quietly did not happen is the
+    // one failure this change exists to prevent. ⚠️ NOT after the page itself is gone (reload, tab
+    // closed): keepalive delivers the request but no page is left to hear the answer, and the card
+    // shows the truth the next time the thread opens. With no response at all the outcome is UNKNOWN
+    // (a dropped response on a mobile network can follow a committed write), so that copy claims neither.
+    // `tr` re-bound to the language NOW, not at the tap — this can land seconds later. (Named `tr` on
+    // purpose: gen-ui-strings collects `tr('…')` calls, and reads `t('…','…')` as the vi-first form.)
+    const tr = trRef.current
+    toast.error(res
+      ? offerActFailedCopy(a.action, code, tr)
+      : tr('Your answer to the offer may not have been sent — check the chat.', 'Câu trả lời cho đề nghị có thể chưa được gửi — hãy kiểm tra cuộc trò chuyện.'))
   }
 
   // ── e-VISA IN THE THREAD ────────────────────────────────────────────────────────
@@ -2217,29 +2336,22 @@ export default function ThreadPage() {
                       </div>
                     )}
                     {!m.mine && m.offerStatus === 'pending' && (
-                      /* relative tap-44 on all three: they draw 24px tall and act on MONEY. Each is
-                         wider than 44px, so the hit area only grows vertically (10px each way).
-                         ⚠️ gap-y-5, NOT gap-2, BECAUSE THE ROW WRAPS: at 320px (EN and VI) Counter
-                         drops to a second row, and at an 8px row gap each row's 10px reach landed on
-                         the other's drawn button — a tap on the bottom of Accept could decline or
-                         counter (measured: 22 stolen points). 20px lets the reaches meet, not cross. */
-                      <div className="mt-2 flex flex-wrap gap-x-2 gap-y-5">
-                        <Button variant="cta" size="none" onClick={() => actOffer(m.id, 'accept')} className="relative rounded-lg px-3 py-1 text-xs transition-colors cursor-pointer tap-44">{tr('Accept', 'Chấp nhận')}</Button>
-                        {/* hover:text-body is LOAD-BEARING: ghost injects hover:text-accent-foreground,
-                            and text-body is a COLOUR — without the re-assert the label flips colour on hover. */}
-                        <Button variant="ghost" size="none" onClick={() => actOffer(m.id, 'decline')} className="relative rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted hover:text-body cursor-pointer tap-44">{tr('Decline', 'Từ chối')}</Button>
-                        {/* Countering SENDS a new offer, so hide it on a fixed-price listing
-                            (Accept/Decline don't send offers and stay). A stale pending offer
-                            can outlive a switch to fixed price — the 409 would otherwise reject
-                            the counter and, for a buyer, dock trust for a control we showed. */}
-                        {/* ⛔ `thread?.listing &&` FIRST. `thread?.listing.negotiable !== false` reads
-                            as "allow unless explicitly non-negotiable", and with NO listing that is
-                            `undefined !== false` → true, so a support thread would offer to counter
-                            an offer against a product that does not exist. */}
-                        {!!thread?.listing && thread.listing.negotiable !== false && (
-                          <Button variant="ghost" size="none" onClick={() => { setOfferInput(groupVnd(String(m.offerAmount ?? 0), locale)); setCounterMode(true); setShowOffer(true) }} className="relative rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer tap-44">{tr('Counter', 'Trả giá')}</Button>
-                        )}
-                      </div>
+                      /* 44px drawn, 12px apart — the geometry and its history live in OfferAnswerButtons.
+                         Accept/Decline are deferred behind a 5s undo toast (actOffer). */
+                      /* Countering SENDS a new offer, so hide it on a fixed-price listing
+                         (Accept/Decline don't send offers and stay). A stale pending offer
+                         can outlive a switch to fixed price — the 409 would otherwise reject
+                         the counter and, for a buyer, dock trust for a control we showed. */
+                      /* ⛔ `thread?.listing &&` FIRST. `thread?.listing.negotiable !== false` reads
+                         as "allow unless explicitly non-negotiable", and with NO listing that is
+                         `undefined !== false` → true, so a support thread would offer to counter
+                         an offer against a product that does not exist. */
+                      <OfferAnswerButtons
+                        onAccept={() => actOffer(m, 'accept')}
+                        onDecline={() => actOffer(m, 'decline')}
+                        canCounter={!!thread?.listing && thread.listing.negotiable !== false}
+                        onCounter={() => { setOfferInput(groupVnd(String(m.offerAmount ?? 0), locale)); setCounterMode(true); setShowOffer(true) }}
+                      />
                     )}
                     {m.mine && m.offerStatus === 'pending' && (
                       <div className="mt-1 text-xs text-ink-4">{tr('Waiting for a response…', 'Đang chờ phản hồi…')}</div>
