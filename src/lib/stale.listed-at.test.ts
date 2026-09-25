@@ -21,4 +21,10 @@ describe('listedAt — when a listing appeared on eno', () => {
     expect(listedAt({ postedAt })).toBe(postedAt)
     expect(listedAt({ postedAt, createdAt: null })).toBe(postedAt)
   })
+  it('a JOB shows its posting date, not the day it was imported', () => {
+    const postedAt = new Date('2026-09-20T00:00:00Z')
+    const createdAt = new Date('2026-09-25T00:00:00Z')
+    expect(listedAt({ postedAt, createdAt, listingType: 'job' })).toBe(postedAt)
+    expect(listedAt({ postedAt, createdAt, listingType: 'sell' })).toBe(createdAt)
+  })
 })

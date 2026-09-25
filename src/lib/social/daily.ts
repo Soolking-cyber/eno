@@ -86,7 +86,10 @@ async function pickFor(channel: string): Promise<PostInput | null> {
     // Several takedowns (moderation, the identity gate's hold) set verified:false and leave status
     // 'active', and the newest unposted listing is picked first — so a freshly confirmed takedown was
     // the MOST likely thing to be broadcast from eno's Page. (Audit finding #12.)
-    where: await scopedListingWhere({ status: 'active', verified: true, createdAt: { gt: since }, id: { notIn: already } }),
+    // ⛔ NOT A JOB: linked job postings are someone else's ad (scripts/import-jobs.ts), stored at price 0
+    // when the pay is not one đồng figure — broadcast from eno's own Page as "<title> 0 đ" it reads as
+    // an unpaid job and republishes a third party's posting. Posting jobs is an owner decision, not a default.
+    where: await scopedListingWhere({ status: 'active', verified: true, listingType: { not: 'job' }, createdAt: { gt: since }, id: { notIn: already } }),
     orderBy: { createdAt: 'desc' },
     /**
      * ⛔ `findMany` + take, NOT `findFirst` — REVIEWER-CAUGHT DEADLOCK, AND IT WOULD HAVE BEEN

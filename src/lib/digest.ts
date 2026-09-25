@@ -115,7 +115,9 @@ export async function getDigestContent(): Promise<{ top: DigestItem[]; sales: Di
     (async () => {
       for (const windowMs of TOP_WINDOWS_MS) {
         const rows = await db.listing.findMany({
-          where: { ...liveWhere, createdAt: { gte: new Date(Date.now() - windowMs) } },
+          // Not a job: the digest prints "— <price>" and says "message the seller", neither true of a
+          // linked job posting at price 0 (scripts/import-jobs.ts).
+          where: { ...liveWhere, listingType: { not: 'job' }, createdAt: { gte: new Date(Date.now() - windowMs) } },
           orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
           take: TOP_COUNT,
           select: SELECT,

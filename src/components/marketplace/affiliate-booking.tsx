@@ -30,6 +30,7 @@ export function AffiliateBooking({
   discountPercent,
   booking,
   rental = false,
+  job = false,
 }: {
   url: string
   partnerName: string
@@ -49,6 +50,12 @@ export function AffiliateBooking({
    * tenancy. They are different facts about the listing.
    */
   rental?: boolean
+  /**
+   * True for a JOB reference listing (`listingType === 'job'`) — a FOURTH action. You don't buy, book
+   * or rent a job: you apply, on the posting itself (eno.vn only links to it). No discount block and no
+   * checkout wording apply to it.
+   */
+  job?: boolean
 }) {
   // ⛔ https ONLY — see safeAffiliateUrl. A stored `javascript:` value would otherwise be a
   // stored-XSS sink, and this link leads to a payment page so `http:` is refused as well.
@@ -56,14 +63,14 @@ export function AffiliateBooking({
   const safeUrl = safeAffiliateUrl(url)
   if (!safeUrl) return null
 
-  const qr = affiliateQrSvg(safeUrl, { title: `QR code to book on ${partnerName}` })
+  const qr = affiliateQrSvg(safeUrl, { title: job ? `QR code to open the job posting on ${partnerName}` : `QR code to book on ${partnerName}` })
   // The product this link was minted for, when the campaign is one measured not to deep-link.
   const productStep = embeddedProductUrl(safeUrl)
 
   return (
     <section aria-labelledby="affiliate-booking-heading" className="flex flex-col gap-4">
       <h2 id="affiliate-booking-heading" className="sr-only">
-        {rental ? <Tr text="Rent from this partner" /> : booking ? <Tr text="Book this experience" /> : <Tr text="Buy from this shop" />}
+        {job ? <Tr text="Apply on the original posting" /> : rental ? <Tr text="Rent from this partner" /> : booking ? <Tr text="Book this experience" /> : <Tr text="Buy from this shop" />}
       </h2>
 
       {/*
@@ -107,9 +114,12 @@ export function AffiliateBooking({
           data-affiliate-cta="true"
           href={safeUrl}
           target="_blank"
-          rel="sponsored nofollow noopener noreferrer"
+          // A linked JOB is not a paid placement — no commission, no deal with the board — so `sponsored`
+          // would declare a relationship that does not exist. The referrer is kept so the board can see
+          // the applicant came from eno.vn.
+          rel={job ? 'nofollow noopener' : 'sponsored nofollow noopener noreferrer'}
         >
-          {rental ? <Tr text="Rent on" /> : booking ? <Tr text="Book on" /> : <Tr text="Buy on" />} {partnerName}
+          {job ? <Tr text="Apply on" /> : rental ? <Tr text="Rent on" /> : booking ? <Tr text="Book on" /> : <Tr text="Buy on" />} {partnerName}
           <ArrowUpRight className="size-4" aria-hidden />
         </a>
       </Button>
@@ -120,7 +130,7 @@ export function AffiliateBooking({
           there it would point at the page the shopper is already on. */}
       {productStep ? <AffiliateProductStep key={listingId} productUrl={productStep} listingId={listingId} /> : null}
 
-      {discountCode ? (
+      {discountCode && !job ? (
         <div className="flex flex-col gap-2 rounded-xl bg-muted/50 p-4">
           <p className="text-sm font-medium text-foreground">
             {discountPercent ? (
@@ -147,10 +157,10 @@ export function AffiliateBooking({
           <div className="shrink-0 [&>svg]:size-24 [&>svg]:rounded-lg" dangerouslySetInnerHTML={{ __html: qr }} />
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">
-              {booking ? <Tr text="Scan to book on your phone" /> : <Tr text="Scan to open on your phone" />}
+              {job ? <Tr text="Scan to open the job posting on your phone" /> : booking ? <Tr text="Scan to book on your phone" /> : <Tr text="Scan to open on your phone" />}
             </p>
             <p className="mt-1 text-xs text-body">
-              {booking ? <Tr text="Opens the same booking page, with the discount code ready to enter." /> : <Tr text="Opens the same product page on the shop's website." />}
+              {job ? <Tr text="Opens the same job posting, where you apply." /> : booking ? <Tr text="Opens the same booking page, with the discount code ready to enter." /> : <Tr text="Opens the same product page on the shop's website." />}
             </p>
           </div>
         </div>

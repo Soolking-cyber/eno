@@ -375,7 +375,7 @@ function VideoFeedItem({
             <h3 className="line-clamp-2 text-base font-semibold leading-snug drop-shadow sm:text-lg">{title}</h3>
           </Button>
           <div className="mt-1">
-            <Price native price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-xl text-white drop-shadow" />
+            <Price native price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} compact className="text-xl text-white drop-shadow" />
           </div>
           {(location || listing.model) && (
             <p className="mt-0.5 truncate text-sm text-white/80 drop-shadow">{[location, listing.model].filter(Boolean).join(' · ')}</p>
@@ -407,9 +407,12 @@ function VideoFeedItem({
           <RailButton label={tr('Save listing', 'Lưu tin')} pressed={favorited} onClick={() => toggle(listing.id)}>
             <Heart strokeWidth={STROKE_NAV} className={cn('icon-own-ink h-7 w-7 transition-colors icon-shadow-brand-strong', favorited ? 'fill-current text-destructive' : 'text-white')} />
           </RailButton>
-          <RailButton label={tr('Chat with seller', 'Nhắn tin')} onClick={chat}>
-            <MessageCircle strokeWidth={STROKE_NAV} className="h-7 w-7 icon-shadow-brand-strong" />
-          </RailButton>
+          {/* No Chat on a reference listing — nobody owns it (see /api/conversations). */}
+          {!listing.isPartnerBooking && (
+            <RailButton label={tr('Chat with seller', 'Nhắn tin')} onClick={chat}>
+              <MessageCircle strokeWidth={STROKE_NAV} className="h-7 w-7 icon-shadow-brand-strong" />
+            </RailButton>
+          )}
           <RailButton label={tr('Share', 'Chia sẻ')} onClick={share}>
             <Share2 strokeWidth={STROKE_NAV} className="h-7 w-7 icon-shadow-brand-strong" />
           </RailButton>

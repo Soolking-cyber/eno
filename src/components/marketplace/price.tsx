@@ -8,6 +8,15 @@ import { cn } from '@/lib/utils'
 
 type Props = {
   price: number
+  /**
+   * Listing.listingType, when the caller has it. ⛔ A JOB AT PRICE 0 IS NOT "FREE": it means the pay
+   * is not given as one đồng figure (none stated, per hour in another currency, or a range the
+   * listing keeps as text in its Details). The label is decided HERE, not at call sites — it was
+   * first passed per call site and every surface that forgot it (list rows, map, search suggestions,
+   * the jobs landing rail) printed "Free" on a job. Neutral on purpose: "negotiable" would be false
+   * for a posting that states its pay.
+   */
+  listingType?: string | null
   currency: string
   priceUnit: string
   compact?: boolean
@@ -59,7 +68,7 @@ type Props = {
  *  number of digits wide. */
 const FX_RESERVE_RATES = { USD: 1 / 26_000 }
 
-export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, native = false, className }: Props) {
+export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, native = false, className, listingType }: Props) {
   void compact // amounts are always shown in full now
   const { lang, tr } = useLanguage()
   const { currency: displayCur, rates, ratesPending, format } = useCurrency()
@@ -82,7 +91,7 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // is shown in its own currency, unconverted.
   const isFree = price === 0
   const amount = isFree
-    ? tr('Free', 'Miễn phí')
+    ? (listingType === 'job' ? tr('Salary: see details', 'Lương: xem chi tiết') : tr('Free', 'Miễn phí'))
     : currency === '₫' && !native ? format(price, locale) : formatMoneyFull(price, currency, locale)
   // ⚠️ NO LEADING SPACE — the space that separates the suffix from the amount is rendered as its
   // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the

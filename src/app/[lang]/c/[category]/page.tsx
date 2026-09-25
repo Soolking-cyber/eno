@@ -160,7 +160,7 @@ export default async function CategoryPage({ params }: Props) {
         {/* Measured lede — max-w-prose (65ch) keeps the reading measure inside the craft floor's
             65–75ch band; max-w-2xl ran ~80ch at text-base. */}
         <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
-          <CategoryLede name={cat.name} nameVi={cat.nameVi} />
+          <CategoryLede name={cat.name} nameVi={cat.nameVi} slug={cat.slug} />
           {/* "0 listings available." read broken on empty categories — only count when there ARE listings. */}
           {total > 0 && <> {total} {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." /></>}
         </p>

@@ -13,9 +13,12 @@ export const COMPOSE_KEY = 'eno-compose'
  * '/messages/pending' after this returns true.
  */
 export function stashQuickCompose(
-  l: Pick<SerializedListingCard, 'id' | 'title' | 'images' | 'price' | 'currency'>,
+  l: Pick<SerializedListingCard, 'id' | 'title' | 'images' | 'price' | 'currency'> & { isPartnerBooking?: boolean },
   opts: { body?: string; offerAmount?: number | null },
 ): boolean {
+  // A reference listing (outbound link, no owner) has no one to message: refuse, and the caller's
+  // fallback opens the listing, whose CTA is the outbound link. /api/conversations 409s it anyway.
+  if (l.isPartnerBooking) return false
   return stashCompose({
     listingId: l.id,
     body: opts.body,

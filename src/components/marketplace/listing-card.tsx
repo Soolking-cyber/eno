@@ -754,7 +754,8 @@ function ListingCardImpl({
             Mobile/tablet keep the always-on right-edge column below. Pressing Offer
             opens the centered discount bar (shared with mobile). */}
         <span className="pointer-events-none absolute right-11 top-2 z-10 hidden flex-row-reverse items-center gap-1 pc:flex">
-          {quickOffer === null && (
+          {/* No Chat on a reference listing — nobody owns it (see /api/conversations). */}
+          {quickOffer === null && !listing.isPartnerBooking && (
             // ⛔ ALL FOUR CONTROLS SHARE `variant="overlay"`, WHICH IS NOW A TRANSLUCENT PLATE
             // rather than the 2px black stroke that variant used to paint. Owner, 2026-08-29,
             // after the stroke came off and the glyphs proved invisible on white photos:
@@ -1047,7 +1048,7 @@ function ListingCardImpl({
               the old two-line reserve existed for. What can
               still wrap: a struck "was" price (0 of 36 feed cards carried one) and a long rent or
               property price with its unit — neither category had live cards to measure. */}
-          <Price native price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-base leading-tight sm:text-lg" />
+          <Price native price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-base leading-tight sm:text-lg" listingType={listing.listingType} />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, present
               whenever the listing HAS a live drop.
               ⚠️ IT IS NO LONGER TIED TO THE DROP BADGE, AND MUST NOT BE RE-TIED TO IT. The badge
@@ -1199,9 +1200,13 @@ function ListingCardImpl({
               and showing both spends two chips on one point. Same swap in seller-card,
               pdp-shop-link and compact-listing-row, so a partner reads identically everywhere. */}
           {/* Mini chip (glyph + number) — display only; the card itself is the button. */}
+          {/* No trust chip on a LINKED job: its "seller" is the job board, which eno.vn never rated
+              (same rule as pdp-shop-link's `linkedPosting`). */}
           {listing.seller.officialPartner
             ? <PartnerBadge asLink={false} className="shrink-0" />
-            : <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />}
+            : listing.isPartnerBooking && listing.listingType === 'job'
+              ? null
+              : <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />}
         </div>
       </div>
     </div>

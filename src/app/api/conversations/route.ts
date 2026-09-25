@@ -15,6 +15,7 @@ import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
 import { threadKind } from '@/lib/thread-kind'
 import { getVisaShopSeller, isVisaShopListing } from '@/lib/visa-shop'
 import { VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
+import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { startVisaDmFlow } from '@/lib/visa/dm-flow'
 
 export const runtime = 'nodejs'
@@ -77,9 +78,21 @@ export const POST = route(
     where: await scopedListingWhere({ id: listingId }),
     // subcategorySlug is the local "is this a visa product?" second opinion the uncertainty check
     // below needs — see the note there; it costs nothing on a row we already fetch.
-    select: { id: true, title: true, verified: true, negotiable: true, sellerId: true, subcategorySlug: true, seller: { select: { ownerId: true } } },
+    select: { id: true, title: true, verified: true, negotiable: true, sellerId: true, subcategorySlug: true, affiliateUrl: true, seller: { select: { ownerId: true } } },
   })
   if (!listing || !listing.verified) throw new ApiError('not_found', 404)
+
+  /**
+   * ⛔ A REFERENCE LISTING HAS NOBODY TO TALK TO. `affiliateUrl` rows (imported rentals, linked job
+   * postings, partner catalogues) belong to an ownerless platform seller: the thread would be created
+   * with `sellerProfileId = null`, the buyer would believe they had reached the landlord or employer,
+   * and nobody would ever read it. The PDP already swaps its composer for the outbound CTA; the card,
+   * list-row and video-feed quick actions did not, so this is the chokepoint for all of them.
+   * ⚠️ SAME PREDICATE AS THE PDP (`safeAffiliateUrl`): a row whose link the PDP will not trust is shown
+   * as an ORDINARY listing with its composer back, so refusing on the raw column would leave that page
+   * with a chat box that always fails.
+   */
+  if (safeAffiliateUrl(listing.affiliateUrl)) throw new ApiError('reference_listing', 409)
 
   // Can't message your own storefront.
   if (listing.seller.ownerId && listing.seller.ownerId === profile.id) {

@@ -75,7 +75,7 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
     take: 6,
     select: {
       id: true, title: true, titleVi: true, price: true, currency: true,
-      priceUnit: true, location: true, images: true,
+      priceUnit: true, location: true, images: true, listingType: true,
       category: { select: { slug: true } },
     },
   })
@@ -123,7 +123,7 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
         return {
           id: l.id, title: l.title, titleVi: l.titleVi, price: l.price,
           currency: l.currency, priceUnit: l.priceUnit, location: l.location,
-          image, categorySlug: l.category.slug,
+          image, categorySlug: l.category.slug, listingType: l.listingType,
         }
       }),
       categories: categories.map((c) => ({ slug: c.slug, name: c.name, nameVi: c.nameVi })),

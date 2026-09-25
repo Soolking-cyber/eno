@@ -18,6 +18,20 @@ export const IMPORT_SELLERS = [
   'nhatot-import-seller-0001', // Chợ Tốt Nhà — NHATOT_SELLER_ID in src/lib/nhatot-listing.ts
   'muaban-net-import-seller-0001', // Muaban.net — SELLER_ID in scripts/muaban-net-map.ts
   'honeycomb-import-seller-0001', // Honeycomb House — HONEYCOMB_SELLER_ID in src/lib/honeycomb-listing.ts
+  // Linked job postings — JOB_BOARDS in src/lib/job-listing.ts (scripts/import-jobs.ts), one per board.
+  // ⚠️ Jobs are OUT of scripts/hide-imageless-imports.ts (listingType 'job' is excluded there): its
+  // --restore would otherwise republish every expired job, since every job has its cover.
+  'careerlink-vn-import-seller-0001',
+  'eslcafe-com-import-seller-0001',
+  'teast-co-import-seller-0001',
+  'vietnamteachingjobs-com-import-seller-0001',
+  'eslgorilla-com-import-seller-0001',
+  'eslboards-com-import-seller-0001',
+  'tefl-org-import-seller-0001',
+  'vas-edu-vn-import-seller-0001',
+  'eiv-edu-vn-import-seller-0001',
+  'nordanglia-com-import-seller-0001',
+  'inspirededu-com-import-seller-0001',
   // Reserved for two importers that were built and are PARKED, not shipped (lead, 2026-09-24): Mogi's
   // photo host answers robots.txt with HTTP 500 (= disallow everything) and Alonhadat serves a
   // CAPTCHA. Their code sits outside the repo in ~/eno-import-journals/parked/. Listing an id with no

@@ -251,6 +251,7 @@ export type NicheApiErrorCode =
   | 'quote_changed'
   | 'quote_expired'
   | 'recipient_unreachable'
+  | 'reference_listing'                 // api/conversations — an outbound-link (affiliateUrl) listing has nobody to message
   | 'reference_mismatch'
   | 'refinement_limit'
   | 'reply_required'
@@ -626,6 +627,7 @@ const ALL = [
   'rate_limited',
   'reason_required',
   'recipient_unreachable',
+  'reference_listing',
   'refinement_limit',
   'reply_required',
   'report_cooldown',

@@ -37,7 +37,13 @@ const db = new PrismaClient({
 })
 
 async function main() {
-  const base = { sellerId: { in: [...IMPORT_SELLERS] } }
+  /**
+   * ⛔ JOBS ARE OUT OF SCOPE, BOTH WAYS. Every linked job carries a generated cover, so `--restore`'s
+   * "hidden AND now has a photo" test matches EVERY job the jobs importer hid because it closed —
+   * one routine `--restore --apply` would republish them all with live Apply links to closed
+   * postings. A job never lacks its photo either, so nothing is lost by leaving them out of the hide.
+   */
+  const base = { sellerId: { in: [...IMPORT_SELLERS] }, listingType: { not: 'job' } }
   /** `images` is a TEXT column holding a JSON array; '[]' and '' are both "no photo". */
   const imageless = { OR: [{ images: '[]' }, { images: '' }] }
 
@@ -74,7 +80,7 @@ async function main() {
   console.log(`\nROLLBACK — ⚠️ BLUNT: un-hides EVERY hidden row for these sellers, including ones the`)
   console.log(`  Rever retire pass or a moderator hid. Prefer \`--restore\`, which only brings back rows`)
   console.log(`  that now have a photo:`)
-  console.log(`  UPDATE "Listing" SET status='active' WHERE "sellerId" IN ('${IMPORT_SELLERS.join("','")}') AND status='hidden';`)
+  console.log(`  UPDATE "Listing" SET status='active' WHERE "sellerId" IN ('${IMPORT_SELLERS.join("','")}') AND status='hidden' AND "listingType" <> 'job';`)
   await db.$disconnect()
 }
 main().catch((e) => { console.error(e); process.exit(1) })

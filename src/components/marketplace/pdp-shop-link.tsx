@@ -20,7 +20,7 @@ import type { SellerMetrics } from '@/lib/seller-metrics'
  *  reviews) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
  *  buy box is gone (its "Chat now" lives on in the ContactComposer). The whole strip is a div (not
  *  one anchor) so the trust chip and the Shop link can each be their own real link. */
-export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className }: {
+export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linkedPosting = false }: {
   name: string
   avatarColor?: string | null
   avatarUrl?: string | null
@@ -30,6 +30,13 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
   href: string
   metrics: SellerMetrics
   className?: string
+  /**
+   * A LINKED JOB POSTING (scripts/import-jobs.ts): the "seller" is the job board the posting lives on,
+   * which eno.vn never rated — a TrustScore chip beside its name reads as eno vouching for employers
+   * it has not vetted, on the most scam-prone vertical. Shows a plain note instead, and drops the
+   * seller-activity strip (response time, last seen), which describes nobody.
+   */
+  linkedPosting?: boolean
 }) {
   const { tr } = useLanguage()
   const { responseBucket, lastSeenDay, memberSinceYear, reviewCount, rating, trustScore } = metrics
@@ -46,10 +53,11 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
 
   // Honest metrics strip — only signals that exist (never zero-filled), joined with middots.
   const strip: React.ReactNode[] = []
-  if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
-  if (lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
-  strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
-  if (reviewCount > 0) {
+  if (linkedPosting) strip.push(tr('Linked job posting — not vetted by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa kiểm duyệt'))
+  else if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
+  if (!linkedPosting && lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
+  if (!linkedPosting) strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
+  if (!linkedPosting && reviewCount > 0) {
     strip.push(
       // lucide Star (rating fill), NOT the '★' text glyph — same rating mark as the
       // shared SellerCard strip and the storefront review rows (icon-language §1).
@@ -111,7 +119,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
               pdp-shop-link and compact-listing-row, so a partner reads identically everywhere. */}
           {officialPartner
             ? <PartnerBadge />
-            : <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />}
+            : linkedPosting ? null : <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />}
         </div>
         {strip.length > 0 && (
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">

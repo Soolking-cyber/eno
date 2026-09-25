@@ -11,15 +11,23 @@ import { LANDING_TARGET } from './landing-target'
 // copy on the pages built to convert search traffic is not (astra).
 export const revalidate = 3600
 
+/**
+ * ⛔ EVERY CLAIM HERE MUST BE TRUE OF A LINKED JOB TOO. Most jobs on this page are reference listings
+ * (scripts/import-jobs.ts): the posting lives on a job board or a school's careers site, the Apply
+ * button opens it there, there is no in-app chat, and the "seller" is the board, not the employer —
+ * eno.vn has vetted nobody. The earlier copy promised in-app messaging and "every employer has a public
+ * trust score"; with linked jobs live that becomes a false consumer claim in FAQPage markup
+ * (Consumer Protection Law 19/2023). Direct posts by employers do still get chat, so the copy covers both.
+ */
 const BASE_METADATA: Metadata = {
   title: `Jobs for Expats & Internationals in Vietnam | ${SITE_NAME}`,
   description:
-    'Find jobs for expats and internationals in Vietnam — teaching, hospitality, marketing, tech and English-required roles in Ho Chi Minh City. Every eno.vn employer has a public trust score and bad listings get reported.',
+    'English-teaching jobs and roles for English speakers in Vietnam — Ho Chi Minh City, Hanoi, Da Nang and beyond. Each job links to the original posting, where you apply. Never pay to get a job.',
   alternates: { canonical: '/jobs-vietnam-expats' },
   openGraph: {
     title: `Jobs for Expats & Internationals in Vietnam | ${SITE_NAME}`,
     description:
-      'Teaching, hospitality, marketing, tech and English-required roles for internationals in Vietnam — fewer fake and recycled postings.',
+      'English-teaching jobs and roles for English speakers in Vietnam, each linked to the original posting.',
   },
 }
 
@@ -27,35 +35,37 @@ const CONTENT: SeoContent = {
   eyebrow: 'Jobs · Vietnam',
   h1: 'Jobs for Expats & Internationals in Vietnam',
   intro:
-    'Looking for work in Vietnam? Find jobs suited to expats and internationals — English teaching, hospitality, marketing, design, tech and roles where English is required — mostly across Ho Chi Minh City. Every eno.vn employer has a public trust score and bad listings get reported, so you skip the recycled and fake postings.',
+    'Looking for work in Vietnam? Browse English-teaching jobs and roles for English speakers across Ho Chi Minh City, Hanoi, Da Nang and other cities, gathered in one place. Most jobs link to the original posting on a job board or a school’s careers page — you read the full ad and apply there.',
   categorySlug: 'jobs',
+  railTitle: 'Latest jobs',
+  trustStrip: false,
   cta: 'Browse jobs',
   sections: [
     {
       title: 'Roles internationals look for',
-      body: 'English teaching (centres and international schools), hospitality and F&B, digital marketing, software and design, plus customer-facing roles where a foreign language is an asset. Filter the listings to find roles that explicitly require English.',
+      body: 'English teaching at language centres, public schools and international schools, plus roles at international schools and companies where English is the working language. Each listing shows the employer, city and pay the posting states.',
     },
     {
-      title: 'Apply directly, no middlemen',
-      body: 'Message the employer or recruiter in-app and follow up on your own terms. You decide when to share your contact details — only after they reply.',
+      title: 'Apply on the original posting',
+      body: 'Linked jobs open the employer’s or job board’s own posting, and your application goes to them — eno.vn does not handle applications or see your CV. Some employers post directly on eno.vn; those you can message in-app.',
     },
     {
-      title: 'Fewer scams, real opportunities',
-      body: 'Job scams targeting newcomers are common. On eno.vn every employer has a public trust score and buyers can report bad listings, so problem posters get caught fast and you spend your time on genuine opportunities.',
+      title: 'Never pay to get a job',
+      body: 'eno.vn has not vetted the employers behind linked postings. A real employer never asks for a fee, a deposit or payment for training before you start. Check the employer independently, and report a listing that looks wrong.',
     },
   ],
   faqs: [
     {
       q: 'What kinds of jobs are listed for expats?',
-      a: 'English teaching, hospitality, marketing, tech, design and other roles where English or another foreign language is useful — primarily in Ho Chi Minh City.',
+      a: 'Mostly English teaching — language centres, public schools and international schools — plus roles for English speakers, in Ho Chi Minh City, Hanoi, Da Nang and other cities.',
     },
     {
       q: 'Do I need a work permit?',
-      a: 'Most full-time roles for foreigners require a work permit and visa. Ask the employer directly through in-app chat about sponsorship before you commit.',
+      a: 'Most full-time roles for foreigners require a work permit. Ask the employer whether they arrange it before you accept an offer.',
     },
     {
       q: 'How do I apply?',
-      a: 'Tap “Message” on a job listing to contact the employer in-app; share your CV or details once they reply.',
+      a: 'Open the job and tap its Apply button: it takes you to the original posting, where you apply to the employer. eno.vn does not take applications and never charges a fee.',
     },
   ],
 }

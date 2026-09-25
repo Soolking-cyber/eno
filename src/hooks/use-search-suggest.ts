@@ -12,6 +12,8 @@ export type SuggestListing = {
   priceUnit: string
   location: string
   image: string | null
+  /** For <Price>: a price-0 job reads "Salary: see details", not "Free". */
+  listingType?: string
   categorySlug: string
 }
 export type SuggestCategory = { slug: string; name: string; nameVi: string }

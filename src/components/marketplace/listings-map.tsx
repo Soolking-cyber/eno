@@ -1529,7 +1529,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                   </span>
                   <span className="min-w-0 flex-1">
                     {/* Same order as <ListingCard>: price → one-line title (owner, 2026-09-13). */}
-                    <Price native price={card.price} currency={card.currency} priceUnit={card.priceUnit} className="block text-sm leading-tight" />
+                    <Price native price={card.price} currency={card.currency} priceUnit={card.priceUnit} listingType={card.listingType} className="block text-sm leading-tight" />
                     <span className="block truncate text-xs text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></span>
                     <span className="mt-0.5 block"><MapTravel to={getListingCoordinates(card)} userLoc={userLoc} state={locState} onRequest={requestLoc} compact /></span>
                   </span>
@@ -1588,7 +1588,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                       chip closing the location line (owner, 2026-09-13). The price is the STORED đồng
                       amount, as on the cards and the pin — see pinLabel. */}
                   <div className="flex flex-col gap-0.5 p-3 pb-1.5">
-                    <Price native price={card.price} currency={card.currency} priceUnit={card.priceUnit} className="text-lg leading-tight" />
+                    <Price native price={card.price} currency={card.currency} priceUnit={card.priceUnit} listingType={card.listingType} className="text-lg leading-tight" />
                     <p className="truncate text-sm leading-snug text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></p>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <span className="min-w-0 flex-1 truncate"><PopupPlace district={card.district} location={card.location} /></span>

@@ -1,5 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
-import { FREE_TEXT_ATTRIBUTES } from '@/lib/taxonomy'
+import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor } from '@/lib/taxonomy'
 import { plainSnippet } from '@/lib/strip-md'
 import { feedIdentifiers } from '@/lib/product-feed'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
@@ -48,6 +48,7 @@ import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { AffiliateBooking } from '@/components/marketplace/affiliate-booking'
+import { JobApplyGuard } from '@/components/marketplace/job-apply-guard'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { isBookingCategory } from '@/lib/affiliate-kind'
 import { VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
@@ -124,7 +125,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Bake the price into the social title/description so it shows in every link
   // unfurl (Facebook/Zalo/Telegram scrape OG tags, not our share text). Skip when
   // there's no meaningful price (e.g. some job posts).
-  const priceLabel = listing.price > 0 ? formatMoneyFull(listing.price, listing.currency) : ''
+  // A JOB's baked label is the pay AS THE POSTING STATES IT (attributes.salaryText): its stored price is
+  // only the lower bound of a range, and "English Teacher — 10.000.000 đ" would misstate a 10–30 tr job.
+  const isJobListing = listing.listingType === 'job'
+  const jobAttrs = isJobListing ? safeParse<Record<string, unknown>>(listing.attributes ?? '{}', {}) : {}
+  const jobSalary = typeof jobAttrs.salaryText === 'string' ? jobAttrs.salaryText : null
+  const priceLabel = isJobListing ? (jobSalary ?? '') : listing.price > 0 ? formatMoneyFull(listing.price, listing.currency) : ''
+  // A linked job closes on its apply-by date, but this page is ISR-cached for 30 days. `unavailable_after`
+  // tells Google the date itself, from row data, so it is stable across regenerations.
+  // safeAffiliateUrl, the page's own predicate: a link the page will not trust makes it an ordinary listing.
+  const jobApplyByMeta = !!safeAffiliateUrl(listing.affiliateUrl) && typeof jobAttrs.applyBy === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(jobAttrs.applyBy) ? jobAttrs.applyBy : null
   // Meta description: the listing body when the seller wrote one; otherwise a
   // composed fallback ("TITLE — PRICE, CATEGORY in LOCATION on eno.vn") so an
   // empty body never ships a junk description like "21,000,000 VND · ".
@@ -141,7 +151,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: priceLabel ? `${displayTitle} — ${priceLabel} | ${SITE_NAME}` : `${displayTitle} | ${SITE_NAME}`,
     description: desc,
     // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
-    robots: listing.verified && listing.status === 'active' ? undefined : { index: false, follow: true },
+    robots: listing.verified && listing.status === 'active'
+      ? (jobApplyByMeta ? { index: true, follow: true, unavailable_after: `${jobApplyByMeta}T23:59:59+07:00` } : undefined)
+      : { index: false, follow: true },
     alternates: {
       canonical: `${hostUrl}/listings/${id}`,
     },
@@ -246,6 +258,10 @@ export default async function ListingPage({ params }: Props) {
   const affiliateUrl = safeAffiliateUrl(listing.affiliateUrl)
   // Book a park, buy a laptop — the words and the price treatment differ (owner, 2026-08-24).
   const isBooking = isBookingCategory(listing.category?.slug)
+  // A JOB reference listing (imported from a job board, applied for on the original posting). Keyed on
+  // listingType AND the link: an ordinary employer's own job post has no affiliateUrl and keeps chat.
+  const isJob = !!affiliateUrl && listing.listingType === 'job'
+  const jobApplyBy = isJob && typeof listing.attributes?.applyBy === 'string' ? (listing.attributes.applyBy as string) : null
   // Is this the trip desk's own listing? Same trust shape as the visa check above — resolved
   // server-side from (seller, externalId) on the desk that owns the row, never from the title or
   // the category, which another seller could imitate. `cache()`d, so this costs one query per
@@ -323,6 +339,7 @@ export default async function ListingPage({ params }: Props) {
       : null
 
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []
+  const attrFacets = facetsFor(rawListing.category.slug, rawListing.subcategorySlug)
   // Structured numeric specs (vehicles) — rendered first in Details, with units.
   // `value` is a ReactNode, not a string, so a grouped number can be a client leaf:
   // mileage used to be formatted here with a hardcoded 'en-US' and a vi buyer read
@@ -480,7 +497,11 @@ export default async function ListingPage({ params }: Props) {
       {/* JSON-LD — indexable listings only (no rich snippets for hidden/sold/pending) */}
       {indexable && (
         <>
-          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(productLd) }} />
+          {/* ⛔ NO Product/Offer ON A JOB: a salary is not a price and a job is not a product — Google
+              reads that as a structured-data misrepresentation. The breadcrumb stays. */}
+          {/* No Product/Offer data for ANY job — an employer's own post included: a job is not a product, and
+              Google treats Product markup on one as misrepresentation. */}
+          {listing.listingType !== 'job' && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(productLd) }} />}
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(breadcrumbLd) }} />
         </>
       )}
@@ -577,7 +598,7 @@ export default async function ListingPage({ params }: Props) {
               from the same 772px budget, and this page has no sticky mobile CTA to fall back on —
               `PdpMobileBar` was deleted deliberately and must not come back. */}
           <div className="order-7 md:hidden">
-            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} />
+            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linkedPosting={isJob} />
           </div>
 
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
@@ -587,7 +608,7 @@ export default async function ListingPage({ params }: Props) {
           <div className="relative order-2 -mx-3 sm:-mx-6 md:hidden">
             <ListingGallery variant="mobile" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
             <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-              <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
+              <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} compact />
               <SaveListingButton id={listing.id} compact />
               {/* Owner-only, and it renders nothing for everyone else — see owner-edit-button.tsx.
                   Sits AFTER Save so the control order is identical for every viewer and the shared
@@ -640,7 +661,12 @@ export default async function ListingPage({ params }: Props) {
                     {affiliateUrl && isBooking ? (
                       <span className="text-base font-medium text-body"><Tr text="from" /></span>
                     ) : null}
-                    <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight" />
+                    {/* A JOB AT PRICE 0 WITH A STATED PAY shows the posting's own words (a range, per hour, USD) as the
+                        headline — plain wrapping text, because <Price>'s digit runs never break and a range overflowed
+                        the phone width. Verbatim, no FX (ND 340/2025). */}
+                    {listing.listingType === 'job' && listing.price === 0 && typeof listing.attributes?.salaryText === 'string'
+                      ? <span className="text-2xl font-bold tracking-tight text-price [overflow-wrap:anywhere]">{listing.attributes.salaryText}</span>
+                      : <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight" listingType={listing.listingType} />}
                     {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
                     {/* ⚠️ BOTH CLAIMS ARE WRAPPED IN <LiveUntil> BECAUSE THIS PAGE IS ISR-CACHED
                         FOR 30 DAYS. `prevPrice` and `urgent` are resolved by serialize.ts against
@@ -672,7 +698,8 @@ export default async function ListingPage({ params }: Props) {
                         </Badge>
                       </LiveUntil>
                     )}
-                    {!listing.negotiable && (
+                    {/* Not on a job: "Fixed price" beside a salary line says something no employer offered. */}
+                    {!listing.negotiable && listing.listingType !== 'job' && (
                       <Badge size="md" className="text-2xs text-body">
                         <Tag className="h-3 w-3" /><Tr text="Fixed price" />
                       </Badge>
@@ -763,16 +790,20 @@ export default async function ListingPage({ params }: Props) {
                   // checkout — the visitor follows our link, types what we told them, and it fails.
                   // A missing code shows NO discount block; silence is recoverable, a broken promise
                   // at the payment step is not. Set the code per listing to offer one.
-                  ? <AffiliateBooking
-                      url={affiliateUrl}
-                      partnerName={listing.seller.name}
-                      listingId={listing.id}
-                      discountCode={listing.affiliateDiscountCode}
-                      discountPercent={listing.affiliateDiscountPercent}
-                      booking={isBooking}
-                      /* A tenancy is neither a purchase nor a ticket — see the prop's comment. */
-                      rental={listing.listingType === 'rent'}
-                    />
+                  ? <JobApplyGuard applyBy={jobApplyBy}>
+                      <AffiliateBooking
+                        url={affiliateUrl}
+                        partnerName={listing.seller.name}
+                        listingId={listing.id}
+                        discountCode={listing.affiliateDiscountCode}
+                        discountPercent={listing.affiliateDiscountPercent}
+                        booking={isBooking}
+                        /* A tenancy is neither a purchase nor a ticket — see the prop's comment. */
+                        rental={listing.listingType === 'rent'}
+                        /* A job is applied for on the posting — see the prop's comment. */
+                        job={isJob}
+                      />
+                    </JobApplyGuard>
                   : isVisaProduct
                   ? <>
                       {/*
@@ -831,7 +862,7 @@ export default async function ListingPage({ params }: Props) {
                   */}
                 <SafetyStrip
                   categorySlug={rawListing.category.slug}
-                  variant={affiliateUrl ? (isBooking ? 'affiliate' : 'affiliate-purchase') : undefined}
+                  variant={affiliateUrl ? (isJob ? 'affiliate-job' : isBooking ? 'affiliate' : 'affiliate-purchase') : undefined}
                   protections={affiliateUrl ? undefined : <ProtectionsRow inline />}
                   action={<ReportButton listingId={listing.id} />}
                 />
@@ -858,14 +889,14 @@ export default async function ListingPage({ params }: Props) {
                 leads the left column at lg (above the gallery) and follows only the breadcrumb when
                 the layout is a single flattened column at md; hidden below md (mobile twin above). */}
             <div className="order-1 hidden md:block">
-              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} />
+              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linkedPosting={isJob} />
             </div>
 
             {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens) */}
             <div className="relative order-2 hidden md:block">
               <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
               <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-                <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
+                <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} compact />
                 <SaveListingButton id={listing.id} compact />
                 {/* Owner-only, and it renders nothing for everyone else — see owner-edit-button.tsx.
                     Sits AFTER Save so the control order is identical for every viewer and the shared
@@ -895,23 +926,33 @@ export default async function ListingPage({ params }: Props) {
                         <dd className="text-right font-medium text-foreground">{s.value}</dd>
                       </div>
                     ))}
-                    {attrs.map(([k, v]) => (
+                    {attrs.map(([k, v]) => {
+                      // A job's text facts carry their own label and are shown verbatim (JOB_TEXT_ATTRIBUTES).
+                      const jobText = listing.listingType === 'job' ? JOB_TEXT_ATTRIBUTES[k] : undefined
+                      // On a job, a facet key/value gets the taxonomy's own words ("Type: Full-time", not "Jobtype:
+                      // Fulltime"). Scoped to jobs on purpose: every other category keeps its Details exactly as before.
+                      const facet = listing.listingType === 'job' && !jobText ? attrFacets.find((f) => f.key === k) : undefined
+                      const option = facet?.options?.find((o) => o.value === String(v))
+                      return (
                       <div key={k} className="flex items-start justify-between gap-4 py-2.5">
-                        <dt className="capitalize text-muted-foreground"><Tr text={k.replace(/([A-Z])/g, ' $1')} /></dt>
+                        <dt className="capitalize text-muted-foreground"><Tr text={jobText?.label ?? facet?.label ?? k.replace(/([A-Z])/g, ' $1')} /></dt>
                         {/* Attribute values are stored lowercase — capitalize like the keys. ⚠️ Except a NAME
                             (author, publisher): it is stored as written and must never go through machine
                             translation, which would "translate" a person. */}
-                        {(FREE_TEXT_ATTRIBUTES as readonly string[]).includes(k)
+                        {jobText || (FREE_TEXT_ATTRIBUTES as readonly string[]).includes(k)
                           ? <dd className="text-right font-medium text-foreground">{String(v)}</dd>
-                          : <dd className="text-right font-medium capitalize text-foreground"><Tr text={String(v)} /></dd>}
+                          : <dd className="text-right font-medium capitalize text-foreground"><Tr text={option?.label ?? String(v)} /></dd>}
                       </div>
-                    ))}
+                      )
+                    })}
                   </dl>
                 </div>
               )}
             </div>
 
-            {/* 11 — Map */}
+            {/* 11 — Map. Not on a LINKED job: it carries only a city, and the map would pin a street it
+                does not have (with a "0" price label). */}
+            {!isJob && (
             <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20">
               <h2 className="text-lg font-semibold text-foreground"><Tr text="Location" /></h2>
               {/* ⛔ THE RING IS ON THIS WRAPPER, KEYED OFF THE CHILD'S FOCUS. The focusable is
@@ -925,11 +966,14 @@ export default async function ListingPage({ params }: Props) {
                 <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} />
               </div>
             </div>
+            )}
 
             {/* 12 — Safety note */}
             <p className="order-12 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />
+              {listing.listingType === 'job'
+                ? <Tr text="Never pay a fee, a deposit or for training to get a job, and don't send copies of your ID documents before you have checked the employer." />
+                : <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />}
             </p>
           </div>
         </div>

@@ -1328,6 +1328,21 @@ export function listingMoneyFor(input: {
 export const FREE_TEXT_ATTRIBUTES = ['author', 'publisher', 'sizes'] as const
 
 /**
+ * A job listing's text facts (scripts/import-jobs.ts writes them; the PDP Details renders them with
+ * these labels, verbatim — machine translation would mangle a company name or a pay range).
+ * ⚠️ A SEPARATE LIST FROM FREE_TEXT_ATTRIBUTES ON PURPOSE: that one also widens what listing-enrich may
+ * write onto book listings, and none of these belongs on a book. And `salaryText`, never `salary`:
+ * `salary` is the jobs RANGE facet's key (column salaryM), and a text value under it would collide.
+ */
+export const JOB_TEXT_ATTRIBUTES: Record<string, { label: string; labelVi: string }> = {
+  employer: { label: 'Employer', labelVi: 'Nhà tuyển dụng' },
+  salaryText: { label: 'Salary', labelVi: 'Mức lương' },
+  postedOn: { label: 'Posted', labelVi: 'Ngày đăng' },
+  applyBy: { label: 'Apply by', labelVi: 'Hạn nộp hồ sơ' },
+  source: { label: 'Source', labelVi: 'Nguồn' },
+}
+
+/**
  * Subcategories that became a CATEGORY: `from` category + subcategory → `to` category, no subcategory.
  * ⚠️ A saved link or back-button URL still says `category=hobbies-sports&subcategory=books`, and the feed
  * filters on both together, so without this it would show an empty aisle rather than the books.

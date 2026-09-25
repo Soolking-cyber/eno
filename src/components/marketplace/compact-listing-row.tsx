@@ -129,7 +129,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               existed only because the gold avatar ring carries no accessible name, and the badge
               now says the words on screen. An official partner shows no trust score anywhere —
               same rule in seller-card, pdp-shop-link and listing-card. */}
-          {l.seller.officialPartner ? (
+          {l.isPartnerBooking && l.listingType === 'job' ? null /* a linked job: the board was never rated */ : l.seller.officialPartner ? (
             <PartnerBadge className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')} />
           ) : (
             <TrustScore
@@ -165,7 +165,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               A container query on the text column is the correct tool if the size ever needs to
               scale here — `container-type: inline-size` plus `@sm:text-lg` — not a viewport
               breakpoint that cannot see the column it is sizing text for. */}
-          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" unit="sm" className="shrink-0 text-base" />
+          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} compact dual="sm" unit="sm" className="shrink-0 text-base" />
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line
@@ -190,7 +190,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               {tr(`${formatCount(l.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(l.contactCount, moneyLocale(lang))}`)}
             </span>
           )}
-          {l.seller.officialPartner ? (
+          {l.isPartnerBooking && l.listingType === 'job' ? null : l.seller.officialPartner ? (
             <PartnerBadge className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
           ) : (
             <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
@@ -262,6 +262,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           // forming one vertical column (user-picked 2026-07-14).
           <span aria-hidden className="hidden h-9 w-9 shrink-0 sm:block" />
         )}
+        {l.isPartnerBooking ? (
+          // A reference listing has nobody to message (see /api/conversations) — hold the 36px so
+          // the trust-badge column stays aligned, same as the no-offer placeholder above.
+          <span aria-hidden className={cn('h-9 w-9 shrink-0', offer === null ? 'block' : 'hidden')} />
+        ) : (
         <Tooltip content={tr('Chat with seller', 'Nhắn tin với người bán')} side="top">
           <IconButton
             size="md"
@@ -273,6 +278,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             <MessageCircle className="h-5 w-5" />
           </IconButton>
         </Tooltip>
+        )}
         <IconButton
           size="md"
           tapTarget={false}

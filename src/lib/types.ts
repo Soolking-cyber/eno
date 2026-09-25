@@ -55,6 +55,8 @@ export type SerializedListingCard = {
   /// ⚠️ A BOOLEAN, NOT THE URL. The affiliate href is a tracker with our publisher id in it; the
   /// card grid never needs it, and shipping it would put that id in every feed payload on the site.
   isPartnerBooking: boolean
+  /** Listing.listingType ('sell' | 'rent' | 'job' | …) — <Price> labels a price-0 job. Optional: some card builders predate it. */
+  listingType?: string
   // Active price-drop anchor (server-normalized): the struck-through "was" price
   // while the drop badge is live (3 days — see DROP.BADGE_MS in src/lib/price-drop.ts),
   // else null. Server-computed 30-day-min reference — never a seller-entered number.

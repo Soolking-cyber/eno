@@ -21,14 +21,21 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
    * that translates its own copy through tr(). A string handed in from the server page cannot be
    * translated — the first draft did exactly that and Vietnamese readers would have got the English
    * sentence, on the one line of the page that exists to prevent someone losing money.
-   */ variant?: 'affiliate' | 'affiliate-purchase' }) {
+   */ variant?: 'affiliate' | 'affiliate-purchase' | 'affiliate-job' }) {
   const { tr } = useLanguage()
 
   // ⚠️ "partner tickets" IS WRONG ON A PHONE. The affiliate line was written for VinWonders and
   // then inherited by an imported electronics catalogue, where it told a reader buying a laptop
   // that we take no deposit "for partner tickets". Same split as the CTA: you book a park, you buy
   // a laptop.
-  const line = variant === 'affiliate-purchase'
+  // A JOB is applied for on the original posting. The loss mode there is the "pay a fee to get the
+  // job" scam (training fees, uniform deposits), so that is what this line warns about.
+  const line = variant === 'affiliate-job'
+    ? tr(
+        "Apply only on the original posting — eno.vn doesn't handle applications and never charges a fee. Never pay money to get a job.",
+        'Chỉ ứng tuyển trên tin tuyển dụng gốc — eno.vn không xử lý hồ sơ và không bao giờ thu phí. Đừng bao giờ trả tiền để có việc làm.',
+      )
+    : variant === 'affiliate-purchase'
     ? tr(
         "Buy only on the shop's own website — eno.vn never takes payment for these items, and cannot refund or return one.",
         'Chỉ mua trên website chính thức của cửa hàng — eno.vn không nhận thanh toán cho các sản phẩm này, và không thể hoàn tiền hay đổi trả.',

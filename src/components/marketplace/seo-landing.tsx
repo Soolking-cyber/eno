@@ -38,6 +38,12 @@ export type SeoContent = {
    * that sells a government-adjacent service.
    */
   disclosure?: { text: string; textVi?: string; linkLabel: string }
+  /** Heading of the live listing rail; default "Trusted listings". A page whose rail is mostly LINKED
+   *  postings eno.vn has not vetted (jobs) must not call them trusted. */
+  railTitle?: string
+  /** false = no "every seller has a public trust score" strip — untrue where the rail is linked
+   *  postings whose "seller" is a job board eno.vn never rated. */
+  trustStrip?: boolean
   categorySlug: string
   /**
    * Narrow the page to ONE subcategory of `categorySlug`.
@@ -330,7 +336,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
         {/* Real verified listings (crawlable internal links) */}
         {listings.length > 0 && (
           <section className="mt-12">
-            <h2 className="h-section text-foreground mb-4">Trusted listings</h2>
+            <h2 className="h-section text-foreground mb-4">{content.railTitle ?? 'Trusted listings'}</h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {listings.map((l) => (
                 <Link key={l.id} href={`/listings/${l.id}`} className="group flex flex-col">
@@ -350,7 +356,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
                   </div>
                   {/* Same shape as <ListingCard>: price → one-line title → location (owner, 2026-09-13). */}
                   <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2">
-                    <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="text-base leading-tight sm:text-lg" />
+                    <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} className="text-base leading-tight sm:text-lg" />
                     <span className="truncate text-sm leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">{l.title}</span>
                     <span className="truncate text-xs text-muted-foreground">{l.location}</span>
                   </div>
@@ -400,6 +406,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
         )}
 
         {/* Trust strip */}
+        {content.trustStrip !== false && (
         <div className="mt-12 flex max-w-3xl items-start gap-3">
           {/* ⚠️ THIS COMMENT USED TO FORBID EXACTLY WHAT THE LINE BELOW NOW DOES — it read "the eno
               seal, not a lucide badge (icon-language §0b): this strip claims the first-party trust
@@ -420,6 +427,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
             <Link href="/trust" className="font-semibold text-accent-foreground hover:underline">See how trust works</Link>.
           </p>
         </div>
+        )}
 
         {/* FAQ — web-only, same reasoning as the editorial sections (the FAQPage
             JSON-LD above is what Google reads either way). */}

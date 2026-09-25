@@ -34,6 +34,11 @@ export function isStale(confirmedAt: string | Date | null | undefined, postedAt:
  * EXPIRED on more than half the catalogue. `createdAt` is the row's real arrival, and the later of
  * the two is the honest answer to both questions.
  */
-export function listedAt(l: { postedAt: Date; createdAt?: Date | null }): Date {
+export function listedAt(l: { postedAt: Date; createdAt?: Date | null; listingType?: string | null }): Date {
+  // ⚠️ A JOB IS THE EXCEPTION: its freshness IS the posting date. A linked job (scripts/import-jobs.ts)
+  // carries the board's posting date in `postedAt`, at most 30 days back, and "Posted 3m ago" on a job
+  // posted last week misleads the one reader who acts on age. An employer's own job post has
+  // postedAt >= createdAt anyway, so for them nothing changes.
+  if (l.listingType === 'job') return l.postedAt
   return l.createdAt && l.createdAt.getTime() > l.postedAt.getTime() ? l.createdAt : l.postedAt
 }

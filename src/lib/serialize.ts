@@ -163,6 +163,8 @@ export const LISTING_CARD_SELECT = {
   // ⚠️ PROJECTED TO A BOOLEAN by serializeListingCard — the affiliate href is a tracker
   // carrying our publisher id, and the card grid needs only the fact, not the link.
   affiliateUrl: true,
+  /** <Price> labels a price-0 JOB "Salary: see details" instead of "Free" — it needs the type. */
+  listingType: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
   seller: { select: { trustScore: true, officialPartner: true, owner: { select: { accountType: true } } } },
 } as const
@@ -179,6 +181,7 @@ type ListingCardRow = {
   subcategorySlug?: string | null
   model: string | null; condition: string | null; marketPosition: string | null; verified: boolean; postedAt: Date; createdAt: Date; savedCount: number; contactCount: number
   affiliateUrl: string | null
+  listingType?: string
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
   seller: { trustScore: number; officialPartner: boolean; owner?: { accountType: string | null } | null }
 }
@@ -206,6 +209,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     price: l.price,
     priceUnit: l.priceUnit,
     isPartnerBooking: Boolean(l.affiliateUrl),
+    listingType: l.listingType,
     currency: l.currency,
     negotiable: l.negotiable,
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),
