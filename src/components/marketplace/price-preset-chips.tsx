@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { countInRange, type PriceHistogram } from '@/lib/price-histogram'
 
 // Shopee-style one-tap budget buckets (VND, in the explorer's "min-max" string
 // semantics — '' end = open-ended, 'all' = full range). Shared by the facet-bar
@@ -22,11 +23,21 @@ export function PricePresetChips({
   value,
   onChange,
   bounds,
+  hist,
   className,
 }: {
   value: string
   onChange: (v: string) => void
   bounds?: [number, number]
+  /**
+   * The price distribution of the current filters. Given, a preset is drawn only if it would
+   * NARROW the feed (owner, 2026-09-25: "show only available filter options"): not when it holds
+   * no listing, and not when it holds every listing — "< 500k" over a Food aisle whose 17 listings
+   * all cost under 500k changes nothing. Decided only where the histogram can say so EXACTLY
+   * (`countInRange(...).exact`); where a preset edge cuts through a bin the count is an estimate
+   * and the preset stays. The applied preset always stays.
+   */
+  hist?: PriceHistogram | null
   className?: string
 }) {
   const { tr } = useLanguage()
@@ -49,9 +60,16 @@ export function PricePresetChips({
     const curMax = b ? Number(b) : Infinity
     return curMin === min && curMax === (Number.isFinite(max) ? max : Infinity)
   }
-  const shown = bounds
+  const narrows = (p: { min: number; max: number }) => {
+    if (!hist || hist.total <= 0 || isOn(p.min, p.max)) return true
+    const { count, exact } = countInRange(hist, p.min > 0 ? p.min : null, Number.isFinite(p.max) ? p.max : null)
+    return !exact || (count > 0 && count < hist.total)
+  }
+  const shown = (bounds
     ? PRESETS.filter((p) => p.min < bounds[1] && (Number.isFinite(p.max) ? p.max : Infinity) > bounds[0])
     : PRESETS
+  ).filter(narrows)
+  if (!shown.length) return null
 
   return (
     <div className={cn('flex flex-wrap gap-1.5', className)}>

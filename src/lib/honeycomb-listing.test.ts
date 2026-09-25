@@ -136,7 +136,7 @@ describe('assessHoneycomb — the row as it would be stored', () => {
     expect(m.city).toBe('Hồ Chí Minh')
     expect(m.district).toBe('Quận 2')
     expect(m.location).toBe('P. An Phú, Quận 2')
-    expect(m.attributes).toBe(JSON.stringify({ bedrooms: '3' }))
+    expect(m.attributes).toBe(JSON.stringify({ bedrooms: '3', bathrooms: '2' }))
     expect(m.buildingKey).toBe('estella-heights')
     expect(m.lat).not.toBeNull()
     expect(m.description.startsWith('Listed on Honeycomb House (honeycomb.com.vn). eno links to the original')).toBe(true)
@@ -146,12 +146,16 @@ describe('assessHoneycomb — the row as it would be stored', () => {
     expect(m.searchText).toContain('quan 2')
   })
 
-  it('⛔ a missing bedroom count writes NO attribute, and 5+ beds file under "3" (= 3+)', () => {
-    const none = assessHoneycomb(rec({ bedrooms: null }), opts)
+  it('⛔ a missing bedroom count writes NO bedroom attribute, 5 beds file under "5" and 9 under "6" (= 6+)', () => {
+    const none = assessHoneycomb(rec({ bedrooms: null, bathrooms: null }), opts)
+    const noBeds = assessHoneycomb(rec({ bedrooms: null }), opts)
     const many = assessHoneycomb(rec({ bedrooms: 5 }), opts)
-    if (!none.ok || !many.ok) throw new Error('dropped')
+    const lots = assessHoneycomb(rec({ bedrooms: 9, bathrooms: 7 }), opts)
+    if (!none.ok || !noBeds.ok || !many.ok || !lots.ok) throw new Error('dropped')
     expect(none.row.attributes).toBeNull()
-    expect(many.row.attributes).toBe(JSON.stringify({ bedrooms: '3' }))
+    expect(noBeds.row.attributes).toBe(JSON.stringify({ bathrooms: '2' }))
+    expect(many.row.attributes).toBe(JSON.stringify({ bedrooms: '5', bathrooms: '2' }))
+    expect(lots.row.attributes).toBe(JSON.stringify({ bedrooms: '6', bathrooms: '6' }))
   })
 
   it('⛔ drops an unknown category instead of guessing — that is where sale stock would appear', () => {

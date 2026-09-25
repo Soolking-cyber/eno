@@ -213,6 +213,9 @@ describe('isRequiredFacet — the publish gate', () => {
       ...specFacets().map((f) => `electronics/${f.key}`),
       'services/visaEntryType', 'services/visaSpeed',
       'sports/color', 'sports/gender', 'sports/shoeSize', 'sports/size', 'sports/sport',
+      // 2026-09-25: the rentals bathroom count is a FILTER the importers fill from the source; a
+      // resident posting a room is never blocked on it (standing leniency policy).
+      'rentals/bathrooms',
     ].sort())
   })
 

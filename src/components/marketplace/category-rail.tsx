@@ -7,7 +7,7 @@ import { CategoryIcon } from './category-icons'
 import { ChevronRight } from '@/components/ui/icons'
 import { CategoryTileGlyph } from './category-art'
 import { SUBCATEGORIES } from '@/lib/subcategories'
-import { CountChip, optionCount, railDimension } from './count-chip'
+import { CountChip, offeredKeys, optionCount, railDimension } from './count-chip'
 import { Button } from '@/components/ui/button'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
@@ -62,7 +62,7 @@ function TileLabel({ text }: { text?: string | null }) {
 // chosen" — they are conditional, not global (src/lib/facet-counts.ts). Every one of them is
 // optional: with no `facets` prop this renders exactly the countless strip it was before.
 export function CategoryRail({
-  categories,
+  categories: allCategories,
   activeCategory,
   activeSubcategory,
   subcategoryCounts,
@@ -70,7 +70,7 @@ export function CategoryRail({
   countsPending = false,
   onCategory,
   onSubcategory,
-  intents,
+  intents: allIntents,
   activeType,
   onIntent,
   shortcuts,
@@ -143,6 +143,30 @@ export function CategoryRail({
   onIntent?: (type: string) => void
 }) {
   const { lang, tr } = useLanguage()
+  /**
+   * ⛔ A CATEGORY WITH NOTHING IN IT IS NOT A TILE (owner, 2026-09-25: "show only available filter
+   * options"). Measured on production that day: Property, Moving Sale, Jobs and Community had 0
+   * public listings and were still drawn, each tap an empty feed. The count is the `category` rail
+   * (every other filter applied, the category's cascade released — exactly what the tap clears), so
+   * under a district or a condition the rail also narrows to the categories that have one; on a
+   * shop's storefront it narrows to that shop's categories. Before the first counts arrive (the ISR
+   * HTML) the category's own live total, `verifiedCount`, decides — the same "has public rows" test,
+   * so the server-rendered strip already omits the empty ones and nothing shifts on hydration.
+   * ⚠️ THE ACTIVE CATEGORY ALWAYS STAYS, so a deep link into an empty one can still be read and left.
+   */
+  const catDim = railDimension(facets?.category, allCategories.map((c) => c.slug))
+  const categories = allCategories.filter((c) => {
+    if (c.slug === activeCategory) return true
+    const n = catDim ? optionCount(catDim, c.slug) : c.verifiedCount
+    return !(typeof n === 'number' && Number.isSafeInteger(n) && n === 0)
+  })
+  /**
+   * The intent tiles (Free & Giveaways, Wanted, Wholesale) are listing-type filters, read off the
+   * `type` rail the same way: measured 2026-09-25, Free and Wanted returned 0 on every browse state.
+   * The active one stays; with no counts every tile stays.
+   */
+  const intents = allIntents?.filter((it) =>
+    offeredKeys(railDimension(facets?.type, allIntents.map((x) => x.type)), [it.type], activeType).length > 0)
   // Desktop ← / → arrows, same pair the home rails use (owner, 2026-07-22: "similar to
   // homepage category arrows"). This strip carries ~18 categories plus an expanded
   // subcategory grid, so it overflows at every desktop width — a mouse wheel only scrolls
@@ -221,8 +245,9 @@ export function CategoryRail({
   // previous category is not stale here, it is the same answer. `railDimension` is still applied
   // for one rule everywhere; on this rail it is a no-op, because the dimension is seeded with all
   // of the taxonomy's slugs and can never miss them.
-  // (The dimension itself is no longer read here — the tiles carry no count since the owner removed
-  // them in 2026-08-12 — but the reasoning above is why a held-over payload is safe on THIS rail.)
+  // (The tiles carry no NUMBER since the owner removed them on 2026-08-12, but the dimension is read
+  // again since 2026-09-25 to decide which tiles are drawn — `categories` above — and the reasoning
+  // here is why a held-over payload is safe for that too.)
 
   /**
    * ⚠️ ONE SUBCATEGORY SOURCE, AND `facets.subcategory` IS THE ONE THAT WON. The payload ships the
@@ -414,7 +439,18 @@ export function CategoryRail({
    * implicit; below the grid it has to be said, or `?category=<slug>` in the URL opens the chips for
    * a category belonging to the OTHER edition (three reviewers found this independently).
    */
-  const subs = categories.some((c) => c.slug === activeCategory) ? SUBCATEGORIES[activeCategory] ?? [] : []
+  /**
+   * ⛔ AN EMPTY SUBCATEGORY IS NOT A CHIP EITHER (owner, 2026-09-25): 65 of 130 subcategory chips
+   * read "0" on production that day — every aisle of Jobs, Property and Community, five of six
+   * vehicle kinds. A chip is dropped only on an honest, zero-seeded 0 (`facets.subcategory`); the
+   * legacy map has no zero keys, so with no fresh payload every chip stays. The active one stays.
+   * ⚠️ THE ZERO IS NOW A TRUE ZERO UNDER A SUBCATEGORY-SCOPED FILTER TOO: the route counts each
+   * sibling with only the filters its tap keeps (subcategoryDropPlan), so "Office" under
+   * Apartment › 2 BR is its 2,270 offices, not a 0 that would have hidden it.
+   */
+  const subs = categories.some((c) => c.slug === activeCategory)
+    ? (SUBCATEGORIES[activeCategory] ?? []).filter((sc) => sc.slug === activeSubcategory || subCount(sc.slug) !== 0)
+    : []
 
 
   /**

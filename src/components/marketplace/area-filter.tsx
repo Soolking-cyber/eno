@@ -12,6 +12,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Label } from '@/components/ui/label'
+import { offeredKeys, railDimension } from './count-chip'
+import type { DimensionCounts } from '@/lib/facet-counts'
 
 export type Nearby = { lat: number; lng: number; radiusKm: number }
 export type Geo = { code: string; name: string; nameEn: string }
@@ -78,6 +80,7 @@ function DisabledField({ label }: { label: string }) {
  */
 export function AreaFilter({
   open, anchorRef, onClose, province, ward, district = 'all', onPickDistrict, nearby, onApply, onReset, mode = 'search', hideLocate = false,
+  districtCounts, provinceCounts,
 }: {
   open: boolean
   anchorRef?: RefObject<HTMLElement | null>
@@ -105,6 +108,16 @@ export function AreaFilter({
   // Hide the in-panel "Use my current location" action (when the parent provides its
   // own quick geolocate button — e.g. the post wizard).
   hideLocate?: boolean
+  /**
+   * Live counts (the feed's `facets.area` / `facets.province`, src/lib/facet-counts.ts), each
+   * counted with every other filter applied and the place released. Given, a district or province
+   * with nothing in view is NOT DRAWN (owner, 2026-09-25: "show only available filter options") —
+   * measured that day, the 24 district chips returned 0 in every product category (products carry
+   * no district) and 27 of 34 provinces had no public row at all. Omitted (the post wizard's
+   * picker, a payload without counts), every place is drawn, as before.
+   */
+  districtCounts?: DimensionCounts
+  provinceCounts?: DimensionCounts
 }) {
   const { lang, tr } = useLanguage()
   const [provinces, setProvinces] = useState<Unit[]>([])
@@ -236,6 +249,29 @@ export function AreaFilter({
 
   const reset = () => { setProvCode(HCMC); setWardCode(''); setLoc(null); setAddress(null); setRadiusKm(5); onReset(); onClose() }
 
+  /**
+   * Places worth offering (offeredKeys). Provinces drop only when EMPTY — the select is also the
+   * draft that scopes the ward list and defaults to HCMC, so a province holding every row in view is
+   * still a real choice; the applied and the draft province always stay. Districts are chips that
+   * filter, so a district holding every row in view (a no-op) goes too, and a picked one stays.
+   */
+  const provDim = railDimension(provinceCounts, provinces.map((p) => p.nameEn))
+  const keptProvinces = new Set(offeredKeys(provDim, provinces.map((p) => p.nameEn), [province?.nameEn, provinces.find((p) => p.code === provCode)?.nameEn]))
+  const shownProvinces = provinces.filter((p) => keptProvinces.has(p.nameEn))
+  const districtChips = (() => {
+    const all = [
+      // ⚠️ A /c/<category>/<district> landing slug (`quan-7`) is a real pick that is not in
+      // DISTRICTS; it leads the list, pressed, so it can be seen and dropped here (opus).
+      ...(district !== 'all' && !DISTRICTS.some((d) => d.slug === district)
+        ? [{ slug: district, name: districtSlugLabel(district, 'vi'), nameEn: districtSlugLabel(district, 'en') }]
+        : []),
+      ...districtOptionsFor({ code: provCode }, district).filter((d) => d.slug !== 'all'),
+    ]
+    const dim = railDimension(districtCounts, all.map((d) => d.slug))
+    const kept = new Set(offeredKeys(dim, all.map((d) => d.slug), district, { hideNoOp: true }))
+    return all.filter((d) => kept.has(d.slug))
+  })()
+
   // Symmetry, preserved from the old hand-rolled placement: right-align the panel under
   // triggers on the right half of the screen (e.g. the header pin) and left-align under
   // those on the left (e.g. the facet Area pill) so the panel edge lines up with the
@@ -294,7 +330,7 @@ export function AreaFilter({
                   <CustomSelect
                     value={provCode}
                     onChange={(c) => { setProvCode(c); setWardCode('') }}
-                    options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
+                    options={shownProvinces.map((p) => ({ value: p.code, label: label(p) }))}
                     label={tr('Province / City', 'Tỉnh / Thành phố')}
                     placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
                     className={FIELD}
@@ -351,18 +387,11 @@ export function AreaFilter({
                 * from the draft one this list is drawn under (opus, agy, codex). Dropping a district is
                 * pressing it again, the panel's "Delete filter", or the applied chip's ×.
                 */}
-              {mode === 'search' && onPickDistrict && provCode === HCMC && (
+              {mode === 'search' && onPickDistrict && provCode === HCMC && districtChips.length > 0 && (
                 <div className="min-w-0 space-y-1.5">
                   <Label id={districtLabelId} className="text-xs font-bold text-foreground leading-normal">{tr('District (Quận/Huyện)', 'Quận / Huyện')}</Label>
                   <div role="group" aria-labelledby={districtLabelId} className="flex flex-wrap gap-1.5">
-                    {[
-                      // ⚠️ A /c/<category>/<district> landing slug (`quan-7`) is a real pick that is not in
-                      // DISTRICTS; it leads the list, pressed, so it can be seen and dropped here (opus).
-                      ...(district !== 'all' && !DISTRICTS.some((d) => d.slug === district)
-                        ? [{ slug: district, name: districtSlugLabel(district, 'vi'), nameEn: districtSlugLabel(district, 'en') }]
-                        : []),
-                      ...districtOptionsFor({ code: provCode }, district).filter((d) => d.slug !== 'all'),
-                    ].map((d) => {
+                    {districtChips.map((d) => {
                       const picked = district === d.slug
                       return (
                         <Button

@@ -72,6 +72,7 @@ const {
   districtSlugsFor,
   matchesProvince,
   releasedParams,
+  subcategoryDropPlan,
   yearBands,
   YEAR_BAND_MIN,
   __clearFacetCountCache,
@@ -84,7 +85,7 @@ const {
  * turned every key into a filter, which quietly made unknown params look load-bearing and would
  * have hidden the cache-key finding this file now pins.
  */
-const FILTER_PARAMS = ['category', 'subcategory', 'district', 'province', 'ward', 'condition', 'featured', 'priceMin', 'priceMax', 'type', 'brand', 'model', 'hasVideo']
+const FILTER_PARAMS = ['category', 'subcategory', 'district', 'province', 'ward', 'condition', 'featured', 'priceMin', 'priceMax', 'type', 'brand', 'model', 'hasVideo', 'deal']
 const seen: URLSearchParams[] = []
 const buildFilters = async (params: URLSearchParams) => {
   seen.push(new URLSearchParams(params))
@@ -291,8 +292,15 @@ describe('yearBands', () => {
 })
 
 describe('defaultDimensions', () => {
-  it('counts the category, condition, type and area rails with no category chosen', () => {
-    expect(defaultDimensions(new URLSearchParams())).toEqual(['category', 'condition', 'type', 'area'])
+  it('counts the category, condition, type, area and Good-price rails with no category chosen', () => {
+    expect(defaultDimensions(new URLSearchParams())).toEqual(['category', 'condition', 'type', 'area', 'deal'])
+  })
+
+  it('adds the Filter-panel rail only where the view offers attribute or range facets', () => {
+    expect(defaultDimensions(new URLSearchParams())).not.toContain('attr')
+    expect(defaultDimensions(new URLSearchParams({ category: 'rentals', subcategory: 'apartment-rental' }))).toContain('attr')
+    // `priorityCategory` stands in for `category` (a brand pick sends it instead).
+    expect(defaultDimensions(new URLSearchParams({ priorityCategory: 'electronics', brand: 'apple' }))).toContain('attr')
   })
 
   it('adds brand + year inside a brand category with a year facet, and model only once a brand is picked', () => {
@@ -635,5 +643,148 @@ describe('computeFacetCounts', () => {
         dimensions: ['condition'],
       }),
     ).rejects.toBe(boom)
+  })
+})
+
+/**
+ * The Filter panel's rails (2026-09-25). Same property as everything above — the number on a chip is
+ * what its tap returns — for the attribute chips, which the feed filters with `contains` needles
+ * (src/lib/attr-match.ts) and this module classifies in memory over one groupBy.
+ */
+describe('attribute, range and Good-price rails', () => {
+  const run = (query: Record<string, string>, dimensions: string[]) =>
+    computeFacetCounts({
+      searchParams: new URLSearchParams(query),
+      buildFilters,
+      dimensions: dimensions as Parameters<typeof computeFacetCounts>[0]['dimensions'],
+    })
+  const bucket = (attributes: string | null, n: number, areaM2 = 0, facetTokens: string | null = null) =>
+    ({ attributes, facetTokens, _count: { _all: n, areaM2 } })
+
+  it('releases EVERY attr_* from one base and keeps range_* in it', () => {
+    const p = releasedParams(new URLSearchParams({ category: 'rentals', attr_bedrooms: '2', attr_furnishing: 'fully', range_areaM2: '50-' }), 'attr')
+    expect(Object.fromEntries(p)).toEqual({ category: 'rentals', range_areaM2: '50-' })
+  })
+
+  it('counts each facet with the OTHER attribute filters applied and its own released', async () => {
+    h.groups['attributes+facetTokens'] = [
+      bucket('{"bedrooms":"2","furnishing":"fully"}', 10, 10),
+      bucket('{"bedrooms":"2","furnishing":"partly"}', 4, 4),
+      bucket('{"bedrooms":"3","furnishing":"fully"}', 3, 2),
+      bucket('{"bedrooms":"6"}', 2, 2),
+      bucket(null, 7, 5),
+    ]
+    const out = await run({ category: 'rentals', subcategory: 'apartment-rental', attr_bedrooms: '2', attr_furnishing: 'fully' }, ['attr'])
+    // The groupBy ran over a base with NO attr_* at all.
+    expect(h.calls.map((c) => c.by.join('+'))).toEqual(['attributes+facetTokens'])
+    expect(JSON.stringify(h.calls[0].where)).not.toContain('attr_')
+    // Bedrooms rail: furnishing=fully applied, bedrooms released → the 10 + 3 rows.
+    expect(out.attr!.bedrooms).toEqual({ all: 13, values: { 0: 0, 1: 0, 2: 10, 3: 3, 4: 0, 5: 0, 6: 0 } })
+    // Furnishing rail: bedrooms=2 applied → 10 fully, 4 partly.
+    expect(out.attr!.furnishing).toEqual({ all: 14, values: { premium: 0, fully: 10, partly: 4 } })
+    // Range presence: EVERY attr filter applied — only the 10-row bucket survives.
+    expect(out.rangePresent).toEqual({ areaM2: 10 })
+    expect(out.attrScope).toBe('rentals/apartment-rental')
+  })
+
+  it('counts the open-ended top bucket as ≥6, the way the filter does', async () => {
+    h.groups['attributes+facetTokens'] = [bucket('{"bedrooms":"6"}', 2), bucket('{"bedrooms":"9"}', 1), bucket('{"bedrooms":"5"}', 4)]
+    const out = await run({ category: 'rentals', subcategory: 'house-rental' }, ['attr'])
+    expect(out.attr!.bedrooms.values['6']).toBe(3)
+    expect(out.attr!.bedrooms.values['5']).toBe(4)
+  })
+
+  it('matches multi-valued facetTokens like the feed does', async () => {
+    h.groups['attributes+facetTokens'] = [bucket(null, 5, 0, '|size:m|size:l|'), bucket(null, 2, 0, '|size:m-l|')]
+    const out = await run({ category: 'sports', subcategory: 'sportswear' }, ['attr'])
+    expect(out.attr!.size.values.m).toBe(5)
+    expect(out.attr!.size.values.l).toBe(5)
+  })
+
+  it('splits the memo on the active attribute filters, which no base carries', async () => {
+    h.groups['attributes+facetTokens'] = [bucket('{"bedrooms":"2"}', 1)]
+    await run({ category: 'rentals', subcategory: 'apartment-rental', attr_bedrooms: '2' }, ['attr'])
+    await run({ category: 'rentals', subcategory: 'apartment-rental', attr_bedrooms: '3' }, ['attr'])
+    expect(h.calls).toHaveLength(2)
+  })
+
+  it('answers the intent menu AND Good price from ONE groupBy while neither is set', async () => {
+    h.groups['listingType+marketPosition'] = [
+      { listingType: 'sell', marketPosition: 'low', _count: { _all: 2 } },
+      { listingType: 'sell', marketPosition: null, _count: { _all: 5 } },
+      { listingType: 'free', marketPosition: null, _count: { _all: 1 } },
+    ]
+    const out = await run({ category: 'electronics' }, ['type', 'deal'])
+    expect(h.calls.map((c) => c.by.join('+'))).toEqual(['listingType+marketPosition'])
+    expect(out.type!.values.sell).toBe(7)
+    expect(out.type!.all).toBe(8)
+    expect(out.deal).toEqual({ all: 8, values: { good: 2 } })
+    // With `deal` set the two bases differ, so each rail gets its own query again.
+    h.calls = []
+    await run({ category: 'electronics', deal: 'good' }, ['type', 'deal'])
+    expect(h.calls.map((c) => c.by.join('+')).sort()).toEqual(['listingType', 'marketPosition'])
+  })
+
+  it('counts Good price from marketPosition with deal released', async () => {
+    h.groups.marketPosition = [
+      { marketPosition: 'low', _count: { _all: 3 } },
+      { marketPosition: 'fair', _count: { _all: 5 } },
+      { marketPosition: null, _count: { _all: 9 } },
+    ]
+    const out = await run({ category: 'electronics', deal: 'good' }, ['deal'])
+    expect(out.deal).toEqual({ all: 17, values: { good: 3 } })
+    expect(JSON.stringify(h.calls[0].where)).not.toContain('deal')
+  })
+})
+
+describe('model chips under a soft (priorityCategory) brand search', () => {
+  it('counts each model inside the category its tap sets, and keeps the brand rail and "All" soft', async () => {
+    h.groups['brandSlug+model+categoryId'] = [
+      { brandSlug: 'apple', model: 'MacBook Pro', categoryId: 'c-ele', _count: { _all: 52 } },
+      { brandSlug: 'apple', model: 'MacBook Pro', categoryId: 'c-fas', _count: { _all: 11 } },
+      { brandSlug: 'apple', model: 'AirTag', categoryId: 'c-fas', _count: { _all: 3 } },
+      { brandSlug: 'samsung', model: 'S26', categoryId: 'c-ele', _count: { _all: 9 } },
+    ]
+    const out = await computeFacetCounts({
+      searchParams: new URLSearchParams({ brand: 'apple', priorityCategory: 'electronics' }),
+      buildFilters,
+      dimensions: ['brand', 'model'],
+    })
+    expect(h.calls.map((c) => c.by.join('+'))).toEqual(['brandSlug+model+categoryId'])
+    // The model tap sets category=electronics: 52, not 63; AirTag lives only in fashion → 0.
+    expect(out.model!.values).toEqual({ 'MacBook Pro': 52 })
+    // "All" models and the brand tiles tap with the soft scope, so they count every category.
+    expect(out.model!.all).toBe(66)
+    expect(out.brand!.values).toEqual({ apple: 66, samsung: 9 })
+  })
+
+  it('keeps the two-column grouping when the category is hard', async () => {
+    h.groups['brandSlug+model'] = [{ brandSlug: 'apple', model: 'MacBook Pro', _count: { _all: 52 } }]
+    await computeFacetCounts({ searchParams: new URLSearchParams({ brand: 'apple', category: 'electronics' }), buildFilters, dimensions: ['brand', 'model'] })
+    expect(h.calls.map((c) => c.by.join('+'))).toEqual(['brandSlug+model'])
+  })
+})
+
+describe('subcategoryDropPlan — what each sibling tap drops', () => {
+  it('is null while no subcategory-scoped filter is active', () => {
+    expect(subcategoryDropPlan(new URLSearchParams({ category: 'rentals', subcategory: 'apartment-rental' }), 'rentals')).toBeNull()
+  })
+
+  it('drops bedrooms for Office and All, keeps it for House and Room', () => {
+    const plan = subcategoryDropPlan(new URLSearchParams({ category: 'rentals', subcategory: 'apartment-rental', attr_bedrooms: '2' }), 'rentals')!
+    expect(plan.get('office-rental')).toEqual(['attr_bedrooms'])
+    expect(plan.get('')).toEqual(['attr_bedrooms'])
+    expect(plan.get('house-rental')).toEqual([])
+    expect(plan.get('room-rental')).toEqual([])
+  })
+
+  it('treats a range facet by its column', () => {
+    const plan = subcategoryDropPlan(new URLSearchParams({ category: 'rentals', subcategory: 'apartment-rental', range_areaM2: '50-' }), 'rentals')!
+    expect(plan.get('car-rental')).toEqual(['range_areaM2'])
+    expect(plan.get('office-rental')).toEqual([])
+  })
+
+  it('never drops a param that is not one of the category’s facets — the feed still applies it', () => {
+    expect(subcategoryDropPlan(new URLSearchParams({ category: 'rentals', attr_nonsense: 'x' }), 'rentals')).toBeNull()
   })
 })

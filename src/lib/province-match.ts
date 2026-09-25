@@ -28,6 +28,13 @@ type Unit = { code: string; name: string; nameEn: string; wards: Ward[] }
 const UNITS: Unit[] = (vnUnits as Unit[]).map(({ code, name, nameEn, wards }) => ({ code, name, nameEn, wards: wards ?? [] }))
 
 /**
+ * Every province's `nameEn` — the exact `?province=` value the Area panel sends
+ * (listings-explorer: `params.set('province', activeProvince.nameEn)`) for each of the 34 units
+ * /api/geo lists. The feed route counts all of them so the panel can drop the empty ones.
+ */
+export const PROVINCE_NAMES_EN: string[] = UNITS.map((u) => u.nameEn)
+
+/**
  * The province a sent value names, by its vn-units Vietnamese or English name OR by the explorer's
  * legacy PROVINCES label ('Hanoi', 'Ho Chi Minh City') — an older saved search or shared link can
  * still carry one of those, and it must resolve to the same place.

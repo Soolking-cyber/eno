@@ -38,6 +38,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { invokedDirectly } from '../src/lib/cli-entry'
 import { buildSearchText } from '../src/lib/fold'
+import { roomAttributes } from '../src/lib/taxonomy'
 import { localizeReferenceImportText, untranslatedSummary, type LocalizedImportTexts } from '../src/lib/import-i18n'
 
 /**
@@ -307,7 +308,8 @@ async function main() {
      * land and shops, would have been filed under a studio-flat filter. Omit the attribute when
      * there is no value; a null facet is honest, a wrong one is a lie a buyer filters on.
      */
-    const beds = Number(r.bedrooms) > 0 ? Math.min(Number(r.bedrooms), 3) : null
+    // Bedrooms AND bathrooms, clamped at the taxonomy's open-ended top bucket (6+) — roomAttributes.
+    const attributes = roomAttributes({ bedrooms: r.bedrooms, bathrooms: r.bathrooms })
     const externalId = `rever:${r.id}`
     seen.add(externalId)
 
@@ -337,7 +339,7 @@ async function main() {
       lat: inRange(r.latitude, 8, 24) ? r.latitude : null,
       lng: inRange(r.longitude, 102, 110) ? r.longitude : null,
       areaM2: Number.isFinite(r.area_m2) && r.area_m2 > 0 ? r.area_m2 : null,
-      attributes: beds === null ? null : JSON.stringify({ bedrooms: String(beds) }),
+      attributes,
       affiliateUrl: r.url,
       /** ⚠️ Spread conditionally: with no --buildings file this key is ABSENT from the update
        *  payload, so Prisma leaves the column alone. Writing `null` would un-group every row. */

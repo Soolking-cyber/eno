@@ -46,6 +46,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
+import { offeredKeys } from './count-chip'
 import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor, migrateLegacyCategoryParams } from '@/lib/taxonomy'
 import { hashKey, useQuery, useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
@@ -83,9 +84,13 @@ function applyFilterParams(p: URLSearchParams, customFilters: Record<string, str
 function parseFilterParams(p: URLSearchParams, categorySlug: string, subcategorySlug: string): Record<string, string> {
   const sub = subcategorySlug === 'all' ? null : subcategorySlug
   const rf = rangeFacetsFor(categorySlug, sub)
+  // ⛔ ONLY A FACET THIS VIEW OFFERS. `?category=rentals&attr_bedrooms=2` (no subcategory — bedrooms
+  // is an apartment/house/room facet) used to land in state, draw a "bedrooms: 2" chip, and then be
+  // dropped from the request by applyFilterParams: a chip that filtered nothing (audit 2026-09-25).
+  const chipKeys = new Set(facetsFor(categorySlug, sub).filter((f) => f.kind !== 'range').map((f) => f.key))
   const out: Record<string, string> = {}
   p.forEach((value, key) => {
-    if (key.startsWith('attr_')) out[key.replace('attr_', '')] = value
+    if (key.startsWith('attr_')) { if (chipKeys.has(key.replace('attr_', ''))) out[key.replace('attr_', '')] = value }
     else if (key.startsWith('range_')) {
       const col = key.replace('range_', '')
       const f = rf.find((x) => x.range.column === col)
@@ -344,6 +349,28 @@ export function ListingsExplorer({
   const [priceRange, setPriceRange] = useState('all') // 'all' | 'min-max' (VND, empty max = open)
   const [customFilters, setCustomFilters] = useState<Record<string, string>>({})
   const [activeSubcategory, setActiveSubcategory] = useState('all')
+  /**
+   * ⛔ A FILTER THE NEW VIEW DOES NOT OFFER IS DROPPED FROM STATE, NOT KEPT AS A CHIP THAT FILTERS
+   * NOTHING. Measured on production 2026-09-25: Rentals › Apartment › 2 BR, then tap Office — the
+   * request dropped `attr_bedrooms` (applyFilterParams: offices have no bedroom facet) and returned
+   * all 2,270 offices, while "bedrooms: 2" stayed on screen as an applied filter and the Filter badge
+   * said 0. Every path that changes the subcategory or category lands here — the rail, the chip ✕,
+   * a brand pick, back/forward — so it is one effect rather than a prune in each handler.
+   * ⚠️ THE SERVER COUNTS SIBLINGS THE SAME WAY (subcategoryDropPlan in src/lib/facet-counts.ts): the
+   * number on "Office" is what this prune leaves the tap returning. Change one, change both.
+   * ⚠️ It returns the SAME object when nothing is dropped, so the common case re-renders nothing.
+   */
+  useEffect(() => {
+    const sub = activeSubcategory === 'all' ? null : activeSubcategory
+    const valid = new Set(facetsFor(activeCategory, sub).map((f) => f.key))
+    setCustomFilters((prev) => {
+      const drop = Object.keys(prev).filter((k) => !valid.has(k))
+      if (!drop.length) return prev
+      const next = { ...prev }
+      for (const k of drop) delete next[k]
+      return next
+    })
+  }, [activeCategory, activeSubcategory])
   const [activeBrand, setActiveBrand] = useState('all') // canonical brand slug, or 'all'
   const [activeModel, setActiveModel] = useState('all') // model display string, or 'all'
   /**
@@ -3348,6 +3375,8 @@ export function ListingsExplorer({
             onPickSort={pickSort}
             goodPrice={goodPriceOnly}
             onGoodPrice={(on) => startFilterTransition(() => setGoodPriceOnly(on))}
+            // Drawn only while it would narrow the feed (facets.deal — the same rule as every rail).
+            goodPriceOffered={offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
             headerHidden={headerHidden}
             leading={
               <div className="min-h-12">

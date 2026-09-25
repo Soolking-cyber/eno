@@ -443,10 +443,9 @@ describe('<FacetBar> — degradation when the dimension is absent', () => {
     await openPanel(user)
 
     expect(shown(screen.getByRole('button', { name: /^New \/ Like new/ }))).toBe('New / Like new5')
-    // ⚠️ THE HONEST-ZERO CASE, WHICH LIVES HERE NOW. `used` is missing from a dimension that IS
-    // present, so the taxonomy's chip must render a real 0 rather than vanish or go countless —
-    // "present dimension, absent key" is the one shape that means "genuinely none".
-    expect(shown(screen.getByRole('button', { name: /^Used/ }))).toBe('Used0')
+    // ⛔ `used` is missing from a dimension that IS present — "genuinely none" — so since 2026-09-25
+    // the chip is not drawn at all (owner: "show only available filter options"). Before, it drew a 0.
+    expect(screen.queryByRole('button', { name: /^Used/ })).toBeNull()
     // The warranty group has no dimension AT ALL in this payload → countless, not zeroed.
     expect(screen.getByRole('button', { name: 'In warranty' }).textContent).toBe('In warranty')
     expect(screen.getByRole('button', { name: 'No warranty' }).textContent).toBe('No warranty')
@@ -533,5 +532,66 @@ describe('<FacetBar> — the scrollable chip row does not widen', () => {
     expect(listbox.textContent).toContain('Free · 20')
     // The group's own All row: `type.all`, not the sum of the two above.
     expect(listbox.textContent).toContain('Any type · 1.2k')
+  })
+})
+
+/**
+ * ⛔ OWNER, 2026-09-25: "some chips dont filter anything shows 0 show only available filter options".
+ * An option is drawn only while tapping it would NARROW the feed — not at 0, not when it already
+ * covers every row in view — except the one the reader has selected, which stays to be cleared.
+ * With no counts at all the bar keeps its countless taxonomy appearance (no evidence, no hiding).
+ */
+describe('<FacetBar> — only options that narrow are drawn', () => {
+  const RENTAL_COUNTS = Object.freeze({
+    attrScope: 'rentals/apartment-rental',
+    attr: {
+      bedrooms: { all: 50, values: { 0: 0, 1: 20, 2: 30, 3: 0, 4: 0, 5: 0, 6: 0 } },
+      bathrooms: { all: 50, values: { 1: 50, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 } },
+      rentalPeriod: { all: 50, values: { hourly: 0, daily: 0, weekly: 0, monthly: 0, 'long-term': 0 } },
+      furnishing: { all: 50, values: { premium: 0, fully: 0, partly: 0 } },
+    },
+    rangePresent: { areaM2: 0 },
+  }) as unknown as FacetCounts
+  const rentalProps = (over: Partial<FacetBarProps> = {}) =>
+    props({ activeCategory: 'rentals', activeSubcategory: 'apartment-rental', histogramQuery: 'category=rentals', facetCounts: RENTAL_COUNTS, ...over })
+
+  it('drops the empty options, the no-op options, and a facet left with none', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...rentalProps()} />)
+    const panel = await openPanel(user)
+    const beds = within(panel).getByRole('group', { name: 'Bedrooms' })
+    expect(within(beds).getAllByRole('button').map((b) => shown(b))).toEqual(['1 BR20', '2 BR30'])
+    // Bathrooms: "1" is every row in view (50 of 50) — a tap narrows nothing — and the rest are 0.
+    expect(within(panel).queryByRole('group', { name: 'Bathrooms' })).toBeNull()
+    expect(within(panel).queryByRole('group', { name: 'Rental period' })).toBeNull()
+    // A slider over a column no row in view fills can only empty the feed.
+    expect(within(panel).queryByText('Area')).toBeNull()
+  })
+
+  it('keeps a SELECTED option even at 0, so it can be cleared', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...rentalProps({ customFilters: { bedrooms: '4' } })} />)
+    const panel = await openPanel(user)
+    const beds = within(panel).getByRole('group', { name: 'Bedrooms' })
+    expect(within(beds).getByRole('button', { name: /^4 BR/ }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('ignores counts for ANOTHER view — the taxonomy options stay, countless, until the new ones land', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...rentalProps({ activeSubcategory: 'house-rental' })} />)
+    const panel = await openPanel(user)
+    const beds = within(panel).getByRole('group', { name: 'Bedrooms' })
+    expect(within(beds).getAllByRole('button').map((b) => b.textContent)).toEqual(['Studio', '1 BR', '2 BR', '3 BR', '4 BR', '5 BR', '6+ BR'])
+    expect(within(panel).getByText('Area')).toBeTruthy()
+  })
+
+  it('draws no intent menu when every intent is either empty or all of the rows', () => {
+    renderIn('en', <FacetBar {...props({ facetCounts: { type: { all: 100, values: { sell: 100, free: 0, wanted: 0, wholesale: 0 } } } })} />)
+    expect(screen.queryByText('Any type')).toBeNull()
+  })
+
+  it('still draws the intent menu with no counts at all', () => {
+    renderIn('en', <FacetBar {...props({ facetCounts: {} })} />)
+    expect(screen.getByText('Any type')).toBeTruthy()
   })
 })

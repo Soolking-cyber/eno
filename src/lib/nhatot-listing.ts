@@ -18,7 +18,7 @@
  * a field is copied only if it is named below. A blacklist would leak the next field Chợ Tốt adds.
  */
 import { buildSearchText } from './fold'
-import { listingMoneyFor } from './taxonomy'
+import { listingMoneyFor, roomAttributes, roomCountValue } from './taxonomy'
 import { PublishBlockedError, assertCleanTexts, minPhotosFor } from './publish-guard'
 import { formatMoneyFull } from './vnd'
 import { browseRankScore } from './ranking-formula'
@@ -357,7 +357,7 @@ export function nhatotAreaM2(ad: Pick<NhatotStagedAd, 'size' | 'size_unit_string
 export function nhatotBedroomFacet(rooms: number | null, subcat: string | null): string | null {
   if (!subcat || !BEDROOM_SUBCATS.has(subcat)) return null
   if (typeof rooms !== 'number' || !Number.isFinite(rooms) || rooms <= 0) return null
-  return String(Math.min(Math.floor(rooms), 3))
+  return roomCountValue(rooms)
 }
 
 /**
@@ -608,7 +608,8 @@ export function mapNhatotAd(ad: NhatotStagedAd, opts: NhatotMapOptions): { ok: t
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
         areaM2: area,
-        attributes: beds === null ? null : JSON.stringify({ bedrooms: beds }),
+        // The bathroom count rides with the bedroom facet: offices and land get neither.
+        attributes: beds === null ? null : roomAttributes({ bedrooms: beds, bathrooms: baths }),
         affiliateUrl,
         /** ⚠️ title and titleVi FIRST — rebaseSearchText (import-i18n.ts) relies on that order. */
         searchText: buildSearchText([

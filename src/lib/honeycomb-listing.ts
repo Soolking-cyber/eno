@@ -25,7 +25,7 @@
  * price is therefore an approximation and the description says so in both languages.
  */
 import { buildSearchText, fold } from './fold'
-import { listingMoneyFor } from './taxonomy'
+import { listingMoneyFor, roomAttributes } from './taxonomy'
 import { localizeImportText, type MissingSegment } from './import-i18n'
 import vnUnits from '../data/vn-units.json'
 
@@ -729,7 +729,8 @@ export function assessHoneycomb(
   const street = streetOf(r.address)
   const building = buildingFor(r.project, opts.buildings)
   /** A missing bedroom count is NOT a Studio (contract §9): no count, no attribute. */
-  const beds = r.bedrooms !== null ? Math.min(r.bedrooms, 3) : null
+  // Bedrooms AND bathrooms, clamped at the taxonomy's open-ended top bucket (6+) — roomAttributes.
+  const attributes = roomAttributes({ bedrooms: r.bedrooms, bathrooms: r.bathrooms })
   const area = r.areaM2 !== null && Number.isFinite(r.areaM2) && r.areaM2 > 0 ? r.areaM2 : null
 
   const bits: string[] = []
@@ -806,7 +807,7 @@ export function assessHoneycomb(
       district: district?.vi ?? null,
       location,
       areaM2: area,
-      attributes: beds === null ? null : JSON.stringify({ bedrooms: String(beds) }),
+      attributes,
       // Both or neither: a half coordinate is not a place.
       lat: lat !== null && lng !== null ? lat : null,
       lng: lat !== null && lng !== null ? lng : null,

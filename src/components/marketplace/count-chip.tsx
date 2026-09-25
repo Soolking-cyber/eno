@@ -17,8 +17,10 @@ import type { TrFn } from './result-line'
  * interpolating it raw, which is a comma-grouped English figure shown to a Vietnamese reader.
  *
  * ⚠️ THE TYPE IS `number | null | undefined` AND THE THREE MEAN DIFFERENT THINGS. `0` renders
- * "0", because a zero is information: "Scooter 0" tells a buyer the taxonomy still has that shelf
- * and it is empty today, while hiding the chip is how a taxonomy silently shrinks. `null` /
+ * "0" — but ⛔ SINCE 2026-09-25 THE RAILS NO LONGER DRAW A ZERO OPTION AT ALL (owner: "some chips
+ * dont filter anything shows 0 show only available filter options"; `offeredKeys` below). A 0 now
+ * reaches this component only on a chip the reader has SELECTED, which stays so it can be cleared.
+ * `null` /
  * `undefined` render NOTHING, because an absent dimension in the payload means "not computed"
  * (`facets` is `{}` on a load-more page and with `?facets=0` — see src/lib/facet-counts.ts), and a
  * rail with no numbers is the honest degraded state. A component that mapped both to "0" would
@@ -176,6 +178,46 @@ export function railDimension(
   // moves outside the guard it would start advertising a stale total. Fail closed instead.
   if (optionKeys.length === 0) return undefined
   return optionKeys.some((k) => Object.hasOwn(dim.values, k)) ? dim : undefined
+}
+
+/**
+ * THE OPTIONS A RAIL SHOULD DRAW — the taxonomy's `keys`, minus the ones a tap cannot help with.
+ *
+ * ⛔ OWNER, 2026-09-25: "some chips dont filter anything shows 0 show only available filter
+ * options". Measured on production the same day: 65 of 130 subcategory chips read 0, 627 of 1,083
+ * Filter-panel options in non-empty views returned nothing, and "For sale" in Electronics returned
+ * all 64,144 rows — a chip that changes nothing. So two kinds of option are dropped:
+ *  · ZERO — tapping it empties the feed.
+ *  · NO-OP (`hideNoOp`, for pure filters) — its count equals `dim.all`, the rail's released total,
+ *    so every row in view already carries it and tapping it narrows nothing. Not applied to
+ *    NAVIGATION rails (categories, subcategories, brands, models): a brand that is the only brand
+ *    in view still opens its models, and a lone subcategory still opens its own facets.
+ *
+ * Three things are always kept:
+ *  · A SELECTED option — the reader must be able to see and clear what is filtering their feed,
+ *    even when the other filters have since emptied it.
+ *  · EVERYTHING, when there is no dimension (`dim` undefined): no counts means no evidence, and the
+ *    rail keeps its countless taxonomy appearance rather than guessing. That is also what makes a
+ *    fetch in flight safe — the caller holds the PREVIOUS payload (never an empty one), so the rail
+ *    shows the previous options until the new counts land and never flashes empty.
+ *  · An option whose count is malformed — corruption is not evidence of emptiness (see chipCount).
+ */
+export function offeredKeys(
+  dim: DimensionCounts | undefined,
+  keys: readonly string[],
+  selected?: string | readonly (string | null | undefined)[] | null,
+  opts: { hideNoOp?: boolean } = {},
+): string[] {
+  if (!dim) return [...keys]
+  const sel = new Set<string>(typeof selected === 'string' ? [selected] : (selected ?? []).filter((x): x is string => !!x))
+  const all = typeof dim.all === 'number' && Number.isSafeInteger(dim.all) && dim.all >= 0 ? dim.all : null
+  return keys.filter((k) => {
+    if (sel.has(k)) return true
+    const n = optionCount(dim, k)
+    if (typeof n !== 'number' || !Number.isSafeInteger(n) || n < 0) return true
+    if (n === 0) return false
+    return !(opts.hideNoOp && all !== null && n >= all)
+  })
 }
 
 /**

@@ -335,3 +335,40 @@ describe('the district list’s labels and options', () => {
     expect(list.find((p) => p.code === DISTRICTS_PROVINCE_CODE)?.name).toBe('Hồ Chí Minh')
   })
 })
+
+/**
+ * ⛔ OWNER, 2026-09-25: "show only available filter options". Measured that day, every district chip
+ * returned 0 outside Rentals (products carry no district), and 27 of 34 provinces had no public row.
+ */
+describe('the Area panel draws only places with something in view', () => {
+  const slugs = DISTRICTS.filter((d) => d.slug !== 'all').map((d) => d.slug)
+  const [first, second] = slugs
+  const counts = { all: 30, values: Object.fromEntries(slugs.map((s) => [s, s === first ? 12 : s === second ? 18 : 0])) }
+
+  it('drops the empty districts and keeps the ones with rows', async () => {
+    renderIn('en', <AreaFilter {...area({ districtCounts: counts })} />)
+    const group = await districtGroup(/District/)
+    expect(within(group).getAllByRole('button')).toHaveLength(2)
+  })
+
+  it('keeps a PICKED district even at 0', async () => {
+    const third = slugs[2]
+    renderIn('en', <AreaFilter {...area({ districtCounts: counts, district: third })} />)
+    const group = await districtGroup(/District/)
+    expect(within(group).getAllByRole('button')).toHaveLength(3)
+    expect(within(group).getAllByRole('button').filter((b) => b.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
+  })
+
+  it('draws no district list at all when none has a row', async () => {
+    const empty = { all: 5, values: Object.fromEntries(slugs.map((s) => [s, 0])) }
+    renderIn('en', <AreaFilter {...area({ districtCounts: empty })} />)
+    await screen.findAllByText(/Province \/ City/)
+    expect(screen.queryByRole('group', { name: /District/ })).toBeNull()
+  })
+
+  it('still lists every district with no counts at all', async () => {
+    renderIn('en', <AreaFilter {...area()} />)
+    const group = await districtGroup(/District/)
+    expect(within(group).getAllByRole('button')).toHaveLength(slugs.length)
+  })
+})

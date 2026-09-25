@@ -17,7 +17,8 @@ import { createListingCore } from '@/lib/core/listings'
 import { RELEASED_CHARGE_MAX_ACTIVE } from '@/lib/released-charge-copy'
 import { migrateLegacyCategoryParams } from '@/lib/taxonomy'
 import { idsFastPath, buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
-import { computeFacetCounts, subcategoryDimension, type FacetCounts } from '@/lib/facet-counts'
+import { computeFacetCounts, releasedParams, subcategoryDimension, subcategoryDropPlan, type FacetCounts } from '@/lib/facet-counts'
+import { PROVINCE_NAMES_EN } from '@/lib/province-match'
 import { semanticRank } from './semantic-rank'
 import { resolveSellerForPost } from './resolve-seller'
 import { publishOutcome, recordPublishOutcome } from '@/lib/publish-funnel'
@@ -114,7 +115,12 @@ export async function GET(req: NextRequest) {
    */
   let facetsError: unknown = null
   const facetsPromise: Promise<FacetCounts> = wantFacets
-    ? computeFacetCounts({ searchParams, buildFilters: buildFeedFilters, inferredDistrict }).catch((e: unknown) => {
+    /**
+     * `provinceValues`: EVERY province the Area panel lists (the same 34 /api/geo serves), so the panel
+     * can drop the ones with nothing in them — measured 2026-09-25, 27 of 34 had no public row at all.
+     * They are counted out of the `area` groupBy the rail already runs; no extra query.
+     */
+    ? computeFacetCounts({ searchParams, buildFilters: buildFeedFilters, inferredDistrict, provinceValues: PROVINCE_NAMES_EN }).catch((e: unknown) => {
         facetsError = e
         return {} as FacetCounts
       })
@@ -139,11 +145,46 @@ export async function GET(req: NextRequest) {
   // were ignored. Counts now match what the click returns.
   const facetBaseFilters = andFilters.filter((f) => f !== subcategoryFilter && f !== pgTextFilter)
 
+  /**
+   * ⛔ A SUBCATEGORY-SCOPED FILTER IS COUNTED THE WAY EACH SIBLING'S TAP APPLIES IT. `facetBaseFilters`
+   * keeps every `attr_*`/`range_*`, which is right for siblings that offer the facet and wrong for
+   * the ones that do not: Rentals › Apartment › 2 BR counted "Office · 0" while tapping Office
+   * returned all 2,270 offices (production, 2026-09-25), because the tap drops a filter the new
+   * subcategory does not offer. `subcategoryDropPlan` says, per target, which params its tap drops;
+   * targets are grouped by that set and each group is counted over its own base — one more memoized
+   * groupBy per distinct set (in practice one), and only while such a filter is active. The "All"
+   * chip, and `categoryTotal`, is the '' target: every subcategory-scoped facet goes with the
+   * subcategory.
+   * ⚠️ THE BASES ARE BUILT HERE, BEFORE ANY COUNT QUERY IS FIRED. Awaiting them after the queries
+   * below exist would leave those promises without a handler across an await — the unhandled-
+   * rejection crash the note on `facetsPromise` describes.
+   */
+  const dropPlan = category && category !== 'all' ? subcategoryDropPlan(searchParams, category) : null
+  let subPlans: { targets: string[]; base: typeof facetBaseFilters }[] | null = null
+  if (dropPlan) {
+    const groups = new Map<string, { drop: string[]; targets: string[] }>()
+    for (const [target, drop] of dropPlan) {
+      const sig = JSON.stringify(drop)
+      const g = groups.get(sig) ?? { drop, targets: [] }
+      g.targets.push(target)
+      groups.set(sig, g)
+    }
+    // ⚠️ EVERY GROUP IS BUILT THE SAME WAY — the one that drops nothing too — so the chips of one
+    // response come from one construction (a reviewer's point: two constructions could drift apart
+    // and make siblings incomparable). `releasedParams(…, 'subcategory')` + the feed's own builder is
+    // the path computeFacetCounts uses for every rail; with nothing dropped it is `facetBaseFilters`.
+    subPlans = await Promise.all([...groups.values()].map(async (g) => {
+      const p = releasedParams(searchParams, 'subcategory', inferredDistrict)
+      for (const k of g.drop) p.delete(k)
+      return { targets: g.targets, base: (await buildFeedFilters(p)).andFilters }
+    }))
+  }
+
   // Both totals go through the count cache (feed-query.ts, audit M2): a load-more page within the
   // minute takes the number page 1 already paid for instead of re-scanning for it.
   let categoryTotalPromise: Promise<number> = Promise.resolve(0)
   if (category && category !== 'all') {
-    categoryTotalPromise = countListingsCached({ AND: facetBaseFilters })
+    categoryTotalPromise = countListingsCached({ AND: subPlans?.find((pl) => pl.targets.includes(''))?.base ?? facetBaseFilters })
   }
 
   const promises: [
@@ -230,7 +271,12 @@ export async function GET(req: NextRequest) {
   ]
 
   if (category && category !== 'all') {
-    promises[2] = getSubcategoryCounts(facetBaseFilters)
+    const plans = subPlans
+    promises[2] = plans
+      // Each target's count comes from ITS group's base; Promise.all attaches to every query at once.
+      ? Promise.all(plans.map((pl) => getSubcategoryCounts(pl.base))).then((all) =>
+          all.flatMap((rows, i) => rows.filter((r) => plans[i].targets.includes(r.slug))))
+      : getSubcategoryCounts(facetBaseFilters)
   }
 
   const [listings, total, subCounts, categoryTotal, facetCounts] = await Promise.all([

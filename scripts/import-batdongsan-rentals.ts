@@ -36,6 +36,7 @@
 import { readFileSync } from 'node:fs'
 import { invokedDirectly } from '../src/lib/cli-entry'
 import { buildSearchText } from '../src/lib/fold'
+import { roomAttributes } from '../src/lib/taxonomy'
 import { localizeReferenceImportText, untranslatedSummary, type LocalizedImportTexts } from '../src/lib/import-i18n'
 
 /** ⛔ PINNED BY ID, never resolved by display name — `Seller.name` is not unique and IS user
@@ -194,7 +195,8 @@ async function main() {
     /** The four text columns only — `missing` is a report (the `untranslated` line above), never a column. */
     const { title, titleVi, description, descriptionVi } = compose(r, price)
     const c = { title, titleVi, description, descriptionVi }
-    const beds = Number(r.bedrooms) > 0 ? Math.min(Number(r.bedrooms), 3) : null
+    // Bedrooms AND bathrooms, clamped at the taxonomy's open-ended top bucket (6+) — roomAttributes.
+    const attributes = roomAttributes({ bedrooms: r.bedrooms, bathrooms: r.bathrooms })
     const externalId = `bds:${r.code}`
     const mutable = {
       ...c,
@@ -209,7 +211,7 @@ async function main() {
       city: 'Hồ Chí Minh',
       lat: r.latitude, lng: r.longitude,
       areaM2: r._area,
-      attributes: beds === null ? null : JSON.stringify({ bedrooms: String(beds) }),
+      attributes,
       affiliateUrl: r.url,
       searchText: buildSearchText([c.title, c.titleVi, r.location, r.district, r.property_type]),
     }

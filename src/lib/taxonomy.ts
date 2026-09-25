@@ -105,7 +105,12 @@ export type FacetDef = {
   // publishing — but it is still a real facet for FILTERING, and sanitizeAttributes
   // still whitelists its key, so browse keeps working.
   derived?: boolean
-  options: { value: string; label: string; labelVi: string }[]
+  /**
+   * `orMore` marks an OPEN-ENDED top bucket ("6+"): the chip matches its own stored value AND every
+   * larger count — see `attrNeedles` in src/lib/attr-match.ts, which the feed filter and the chip
+   * counts both read, so the count and the tap cannot disagree about what "6+" means.
+   */
+  options: { value: string; label: string; labelVi: string; orMore?: boolean }[]
 }
 
 /** A facet the post wizard BLOCKS PUBLISH on. Range facets (year/mileage/engine) were
@@ -126,6 +131,67 @@ export function askableFacetsFor(categorySlug: string, subcategorySlug?: string 
 
 // Newest selectable model year — current year + 1 (dealers list next-year models).
 const MAX_YEAR = new Date().getFullYear() + 1
+
+/**
+ * ROOM COUNTS (bedrooms, bathrooms, floors) — 1, 2, 3, 4, 5 exactly, then an open-ended `6+`.
+ *
+ * ⛔ THE TOP BUCKET USED TO BE `3+` AND IT WAS A CLAMP, NOT A LABEL. Every importer wrote
+ * `Math.min(beds, 3)`, so '3' meant "three or more" in storage while a buyer read "3 BR"; a
+ * 4-bedroom house and a 9-bedroom villa were indistinguishable. Owner, 2026-09-25: "divide more …
+ * not just 3+ go up to 6+". Measured on production the same day from the "Bedrooms: N" fact line
+ * every imported rental carries: apartments 1-5 and 6+ all have rows, houses peak at FOUR bedrooms
+ * (776) — the bucket the old clamp hid.
+ * ⚠️ EACH EXACT BUCKET IS EXACT, AND `6+` IS ≥6 BY PREDICATE, NOT BY LUCK. Writers store the count
+ * through `roomCountValue` (clamped at the top bucket, so storage stays inside this vocabulary), and
+ * the filter additionally matches every larger stored count (`orMore`, src/lib/attr-match.ts) — a
+ * row some older writer stored as '7' is still a 6+ row.
+ * ⚠️ OLD LINKS: `attr_bedrooms=3` was the "3+" chip; it is now the exact "3" chip. `3+` / `3plus`
+ * are also accepted and mean ≥3 (attr-match.ts), so a hand-written "N+" link filters as it reads.
+ */
+export const ROOM_COUNT_TOP = 6
+// ⚠️ SPELLED OUT, NOT GENERATED: scripts/gen-ui-strings.mjs harvests `label: '…'` literals from this
+// file for the machine-translated languages, and a label built in a loop is invisible to it.
+const BEDROOM_COUNT_OPTIONS: FacetDef['options'] = [
+  { value: '1', label: '1 BR', labelVi: '1 PN' },
+  { value: '2', label: '2 BR', labelVi: '2 PN' },
+  { value: '3', label: '3 BR', labelVi: '3 PN' },
+  { value: '4', label: '4 BR', labelVi: '4 PN' },
+  { value: '5', label: '5 BR', labelVi: '5 PN' },
+  { value: '6', label: '6+ BR', labelVi: '6+ PN', orMore: true },
+]
+const ROOM_COUNT_OPTIONS: FacetDef['options'] = [
+  { value: '1', label: '1', labelVi: '1' },
+  { value: '2', label: '2', labelVi: '2' },
+  { value: '3', label: '3', labelVi: '3' },
+  { value: '4', label: '4', labelVi: '4' },
+  { value: '5', label: '5', labelVi: '5' },
+  { value: '6', label: '6+', labelVi: '6+', orMore: true },
+]
+
+/**
+ * The stored facet value for a room count: '1'…'6', the top bucket absorbing everything above it,
+ * or null when there is no positive count. ⛔ A MISSING COUNT IS NOT A STUDIO — absent or 0 stays
+ * null (no attribute), never '0'; the importers' own notes record 446 offices once filed as studios.
+ */
+export function roomCountValue(n: unknown): string | null {
+  const v = typeof n === 'string' ? Number(n.trim()) : n
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 1) return null
+  return String(Math.min(Math.floor(v), ROOM_COUNT_TOP))
+}
+
+/**
+ * `attributes` JSON for an imported home: the bedroom and bathroom facets, each omitted when
+ * unknown, or null when neither is known. One helper for every importer so the stored shape (and
+ * its clamp) cannot differ by source.
+ */
+export function roomAttributes(r: { bedrooms?: unknown; bathrooms?: unknown }): string | null {
+  const out: Record<string, string> = {}
+  const beds = roomCountValue(r.bedrooms)
+  const baths = roomCountValue(r.bathrooms)
+  if (beds) out.bedrooms = beds
+  if (baths) out.bathrooms = baths
+  return Object.keys(out).length ? JSON.stringify(out) : null
+}
 
 // ── Subcategories ────────────────────────────────────────────────────────────
 export type SubcatDef = {
@@ -461,10 +527,12 @@ export const TAXONOMY: CategoryDef[] = [
       { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', kind: 'toggle',
         subcats: ['apartment-rental', 'house-rental', 'room-rental'], options: [
         { value: '0', label: 'Studio', labelVi: 'Studio' },
-        { value: '1', label: '1 BR', labelVi: '1 PN' },
-        { value: '2', label: '2 BR', labelVi: '2 PN' },
-        { value: '3', label: '3+ BR', labelVi: '3+ PN' },
+        ...BEDROOM_COUNT_OPTIONS,
       ] },
+      // ⚠️ OPTIONAL: a seller is never blocked on it (standing leniency policy). The importers fill
+      // it from the source's own bathroom count (roomAttributes).
+      { key: 'bathrooms', label: 'Bathrooms', labelVi: 'Số toilet', kind: 'toggle', optional: true,
+        subcats: ['apartment-rental', 'house-rental', 'room-rental'], options: ROOM_COUNT_OPTIONS },
       { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', kind: 'toggle',
         subcats: ['motorbike-rental', 'car-rental'], options: [
         { value: 'automatic', label: 'Automatic', labelVi: 'Tự động / Xe ga' },
@@ -516,10 +584,7 @@ export const TAXONOMY: CategoryDef[] = [
       { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', kind: 'toggle',
         subcats: ['apartment', 'house'], options: [
         { value: '0', label: 'Studio', labelVi: 'Studio' },
-        { value: '1', label: '1 BR', labelVi: '1 PN' },
-        { value: '2', label: '2 BR', labelVi: '2 PN' },
-        { value: '3', label: '3 BR', labelVi: '3 PN' },
-        { value: '4', label: '4+ BR', labelVi: '4+ PN' },
+        ...BEDROOM_COUNT_OPTIONS,
       ] },
       { key: 'legalStatus', label: 'Legal status', labelVi: 'Pháp lý', kind: 'toggle', options: [
         { value: 'red-pink-book', label: 'Title deed', labelVi: 'Sổ đỏ / Sổ hồng' },
@@ -553,18 +618,9 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'shophouse', label: 'Shophouse', labelVi: 'Shophouse' },
       ] },
       { key: 'bathrooms', label: 'Bathrooms', labelVi: 'Số toilet', kind: 'toggle',
-        subcats: ['apartment', 'house'], options: [
-        { value: '1', label: '1', labelVi: '1' },
-        { value: '2', label: '2', labelVi: '2' },
-        { value: '3', label: '3+', labelVi: '3+' },
-      ] },
+        subcats: ['apartment', 'house'], options: ROOM_COUNT_OPTIONS },
       { key: 'floors', label: 'Floors', labelVi: 'Số tầng', kind: 'toggle',
-        subcats: ['house'], options: [
-        { value: '1', label: '1', labelVi: '1' },
-        { value: '2', label: '2', labelVi: '2' },
-        { value: '3', label: '3', labelVi: '3' },
-        { value: '4', label: '4+', labelVi: '4+' },
-      ] },
+        subcats: ['house'], options: ROOM_COUNT_OPTIONS },
     ],
   },
 

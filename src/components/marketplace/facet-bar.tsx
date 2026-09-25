@@ -19,6 +19,8 @@ import { formatCount, moneyLocale } from '@/lib/vnd'
 // The chip counter's SPOKEN form. Reused rather than re-worded: this helper already groups per
 // language and already knows Vietnamese has no plural -s, and it is unit-tested for both.
 import { resultCountLabel } from './result-line'
+import { offeredKeys } from './count-chip'
+import { viewScope } from '@/lib/attr-match'
 // ⚠️ TYPE-ONLY, AND IT HAS TO STAY THAT WAY. src/lib/facet-counts.ts reaches
 // edition-scope.ts → `import 'server-only'` → src/lib/db.ts, so a VALUE import from it in this
 // 'use client' file is a build error (and worse: vitest aliases `server-only` to a no-op module,
@@ -220,10 +222,10 @@ export type FacetBarProps = {
    * this is got wrong; it degrades a mismatched rail to countless instead of to a row of zeros, but
    * it can only catch a rail whose KEYS moved, not a stale number under an unchanged one.
    *
-   * The dimensions this bar can actually spend: `type` (the listing-type chip's menu),
-   * `condition` and `subcategory` (the Filter panel). `year` and `area` are NOT read here — the
-   * year facet is a range slider, not band chips, and the area chips live in <AreaFilter>; both
-   * would need a file this component does not own.
+   * The dimensions this bar spends: `type` (the listing-type menu), `condition`, `attr` +
+   * `rangePresent` (the Filter panel, only while `attrScope` names the view on screen), and `area` +
+   * `province`, handed to <AreaFilter>. `year` is NOT read here — the year facet is a range slider,
+   * not band chips. Every one of them now also decides which options are DRAWN (offeredKeys).
    */
   facetCounts?: FacetCounts
 }
@@ -315,11 +317,14 @@ export function FacetBar({
   // The COUNTLESS labels, kept separately because the trigger uses them (see `triggerLabel` below).
   // Typed to the taxonomy's own union rather than widened to `string`, so a value that is not a
   // ListingType cannot be spelled here even though <CustomSelect>'s option type would accept it.
+  const typeCounts = railDimension(facetCounts.type, typeValues)
+  // ⛔ ONLY THE INTENTS THAT NARROW (owner, 2026-09-25 — see offeredKeys): in Electronics "For sale"
+  // was all 64,144 rows and every other intent was 0, so the whole menu was chips that did nothing.
+  const offeredTypes = offeredKeys(typeCounts, typeValues, listingType, { hideNoOp: true })
   const typeLabels: [ListingType | 'all', string][] = [
     ['all', tr('Any type', 'Mọi loại')],
-    ...LISTING_TYPES.filter((t) => typeValues.includes(t.value)).map((t) => [t.value, tr(t.label, t.labelVi)] as [ListingType, string]),
+    ...LISTING_TYPES.filter((t) => offeredTypes.includes(t.value)).map((t) => [t.value, tr(t.label, t.labelVi)] as [ListingType, string]),
   ]
-  const typeCounts = railDimension(facetCounts.type, typeValues)
   const typeOptions = typeLabels.map(([value, label]) => ({
     value,
     label: labelWithCount(label, value === 'all' ? allCount(typeCounts) : chipCount(typeCounts, value), lang),
@@ -327,10 +332,9 @@ export function FacetBar({
 
   const facets: ReactNode[] = []
 
-  // Intent filter (only meaningful when the category offers >1 intent, or on "all").
-  // `typeOptions` now carries the "Any type" row, so the >1 test that used to mean "more than one
-  // real intent" is >2 here — same condition, one more element in the array.
-  if (typeOptions.length > 2) {
+  // Intent filter (only meaningful when the category offers >1 intent, or on "all") — and, with
+  // counts in hand, only while at least one intent would actually narrow the feed or one is picked.
+  if (typeValues.length > 1 && (offeredTypes.length > 0 || listingType !== 'all')) {
     facets.push(
       <CustomSelect
         key="listingType"
@@ -422,12 +426,16 @@ export function FacetBar({
     ? CONDITION_FACET
     : facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory).find((f) => f.key === 'condition')
       ?? (conditionFilter !== 'all' ? CONDITION_FACET : undefined)
-  if (conditionFacet) {
+  const conditionCounts = conditionFacet ? railDimension(facetCounts.condition, conditionFacet.options.map((o) => o.value)) : undefined
+  // Same rule as the intent menu: "New" was every row in Sports (5,591 of 5,591) and "Used" none.
+  const offeredConditions = conditionFacet
+    ? offeredKeys(conditionCounts, conditionFacet.options.map((o) => o.value), conditionFilter, { hideNoOp: true })
+    : []
+  if (conditionFacet && offeredConditions.length > 0) {
     const conditionLabels: [string, string][] = [
       ['all', tr('Any condition', 'Mọi tình trạng')],
-      ...conditionFacet.options.map((o) => [o.value, tr(o.label, o.labelVi)] as [string, string]),
+      ...conditionFacet.options.filter((o) => offeredConditions.includes(o.value)).map((o) => [o.value, tr(o.label, o.labelVi)] as [string, string]),
     ]
-    const conditionCounts = railDimension(facetCounts.condition, conditionFacet.options.map((o) => o.value))
     facets.push(
       <CustomSelect
         key="condition"
@@ -471,7 +479,44 @@ export function FacetBar({
    * the subcategory in it would print "Filters · 2" for a rail tap the panel no longer shows and
    * whose chip is not in here to remove. Same reason it left the panel's own "Clear all" below.
    */
-  const hasAdvanced = advFacets.length > 0
+  /**
+   * ⛔ ONLY THE OPTIONS THAT WOULD NARROW, AND ONLY THE FACETS THAT HAVE ONE (owner, 2026-09-25 —
+   * see offeredKeys). Measured on production: 627 of the 1,083 Filter-panel options in non-empty
+   * views returned nothing (rentals "Rental period" 5 of 5, electronics warranty and colour, every
+   * vehicle year position), and a slider over a column no row fills could only empty the feed.
+   * The counts are the `attr` rail from src/lib/facet-counts.ts — each facet counted with the other
+   * filters applied and its own released, through the feed's own predicate (src/lib/attr-match.ts).
+   * ⚠️ ONLY WHEN THE PAYLOAD IS ABOUT THIS VIEW (`attrScope`): the facets change with the
+   * subcategory, and a payload held across a subcategory tap describes the previous one's. Until
+   * the new counts land the panel shows the taxonomy's options, countless — never an empty panel.
+   */
+  const scopeOk = facetCounts.attrScope === viewScope(activeCategory, activeSubcategory)
+  /**
+   * The counted dimension a panel facet reads, or `undefined` when there is none to read.
+   *
+   * `condition` reads its own rail; every other chip facet reads the `attr` rail (2026-09-25 —
+   * until then `attr_*` facets had no counts at all), but only while `attrScope` says the payload
+   * is about the view on screen. `year` is a counted dimension but reaches the panel as a RANGE
+   * SLIDER, not as band chips — see the ⚠️ on `facetCounts` in the props.
+   */
+  function facetDimension(f: FacetDef): DimensionCounts | undefined {
+    const dim = f.key === 'condition' ? facetCounts.condition : scopeOk ? facetCounts.attr?.[f.key] : undefined
+    // ⚠️ THE GUARD SITS OUTSIDE THE LOOKUP. Whatever dimension a facet key resolves to gets
+    // railDimension()'d on its way out, so a new rail cannot be added here and quietly skip the
+    // stale-payload check. A range facet has no options, so it resolves to undefined.
+    return railDimension(dim, f.options.map((o) => o.value))
+  }
+
+  const shownAdvFacets = advFacets.flatMap((f) => {
+    const value = f.key === 'condition' ? conditionFilter : customFilters[f.key] || 'all'
+    if (f.kind === 'range' && f.range) {
+      const present = scopeOk ? facetCounts.rangePresent?.[f.range.column] : undefined
+      return present === 0 && value === 'all' ? [] : [{ f, offered: [] as string[] }]
+    }
+    const offered = offeredKeys(facetDimension(f), f.options.map((o) => o.value), value, { hideNoOp: true })
+    return offered.length ? [{ f, offered }] : []
+  })
+  const hasAdvanced = shownAdvFacets.length > 0
 
   /**
    * ⛔ THE ADVANCED PANEL DOES NOT ALWAYS EXIST, AND THAT IS THE WHOLE DIFFICULTY. `facetsFor()`
@@ -524,23 +569,6 @@ export function FacetBar({
   // condition maps to the dedicated column; everything else to attr_* customFilters.
   const facetValue = (f: FacetDef) => (f.key === 'condition' ? conditionFilter : customFilters[f.key] || 'all')
   const setFacetValue = (f: FacetDef, v: string) => { if (f.key === 'condition') setConditionFilter(v); else setFacet(f.key, v) }
-  /**
-   * The counted dimension a panel facet reads, or `undefined` for the many that have none.
-   *
-   * ⚠️ ONLY `condition` MAPS TODAY, and the `undefined` is the correct answer for the rest, not a
-   * gap: transmission, fuel, bedrooms, storage… are `attr_*` facets that src/lib/facet-counts.ts
-   * does not count, so their chips must keep their countless appearance rather than show 0.
-   * `year` is a counted dimension but reaches the panel as a RANGE SLIDER, not as band chips — see
-   * the ⚠️ on `facetCounts` in the props for why the band rail is not built here.
-   */
-  const facetDimension = (f: FacetDef): DimensionCounts | undefined => {
-    const dim = f.key === 'condition' ? facetCounts.condition : undefined
-    // ⚠️ THE GUARD SITS OUTSIDE THE LOOKUP, NOT INSIDE THE `condition` BRANCH. Whatever dimension a
-    // future facet key resolves to gets railDimension()'d on its way out, so a new rail cannot be
-    // added here and quietly skip the stale-payload check. A range facet has no options, so it
-    // resolves to undefined and never asks — which is right, it draws no chips.
-    return railDimension(dim, f.options.map((o) => o.value))
-  }
 
   return (
     <div className="relative" ref={barRef}>
@@ -599,10 +627,10 @@ export function FacetBar({
                     was removed and what the rail now owns. The `facetCounts.subcategory`
                     dimension it read is still produced by the route and still consumed by the
                     CategoryRail; nothing about the payload changed. */}
-                {advFacets.map((f) => {
+                {shownAdvFacets.map(({ f, offered }) => {
                   const value = facetValue(f)
                   const dim = facetDimension(f)
-                  const opts = f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
+                  const opts = f.options.filter((o) => offered.includes(o.value)).map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
                   return (
                     <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
                       <label id={`${uid}-${f.key}-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
@@ -630,9 +658,7 @@ export function FacetBar({
                             onChange={(v) => setFacetValue(f, v)}
                             // Same split as the listing-type pill: counts on the OPTIONS, and the
                             // trigger keeps the plain label so a panel field cannot reflow when a
-                            // count arrives. `dim` is undefined for every select facet today, so
-                            // labelWithCount is an identity here — it is wired anyway so a facet
-                            // that later gains a dimension needs no edit at this call site.
+                            // count arrives.
                             options={[
                               { value: 'all', label: labelWithCount(tr('All', 'Tất cả'), allCount(dim), lang) },
                               ...opts.map((o) => ({ value: o.value, label: labelWithCount(o.label, chipCount(dim, o.value), lang) })),
@@ -698,6 +724,10 @@ export function FacetBar({
           province={province}
           ward={ward}
           district={district}
+          // The Area panel's chips follow the same rule as every other rail: a district or province
+          // with nothing in view is not drawn (see offeredKeys).
+          districtCounts={facetCounts.area}
+          provinceCounts={facetCounts.province}
           /**
            * ⛔ A PLACE REPLACES A PLACE, IN BOTH DIRECTIONS (districtSurvivesArea). Picking a district
            * drops the ward, the radius and a province outside HCMC; applying a ward, a radius or

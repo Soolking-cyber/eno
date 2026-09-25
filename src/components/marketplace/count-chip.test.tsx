@@ -376,7 +376,7 @@ describe('<CategoryRail> — counts at the call site', () => {
   beforeEach(() => installRailGlobals())
   afterEach(restoreRailGlobals)
 
-  it('counts the SUBCATEGORY chips — the tiles carry none — with an honest 0 on an empty one', () => {
+  it('counts the SUBCATEGORY chips — the tiles carry none — and draws no chip for an empty one', () => {
     renderIn(
       'en',
       <CategoryRail
@@ -404,8 +404,68 @@ describe('<CategoryRail> — counts at the call site', () => {
     // under a tile name, and it is what tells a visitor which rung is worth opening.
     expect(screen.getAllByRole('button', { name: /All\s*,\s*40 listings/ }).length).toBe(1)
     expect(screen.getByRole('button', { name: /Motorbike\s*,\s*12 listings/ })).toBeTruthy()
-    // ⚠️ A ZERO IS INFORMATION: the chip stays, carrying its 0, rather than vanishing.
+    // ⛔ SINCE 2026-09-25 AN EMPTY AISLE IS NOT DRAWN (owner: "show only available filter options";
+    // 65 of 130 chips read 0 on production). This test used to pin the opposite.
+    expect(screen.queryByRole('button', { name: /^Car\b/ })).toBeNull()
+  })
+
+  it('keeps the SELECTED subcategory even at 0, so it can be read and cleared', () => {
+    renderIn(
+      'en',
+      <CategoryRail
+        categories={CATS}
+        activeCategory="vehicles"
+        activeSubcategory="car"
+        subcategoryCounts={{}}
+        facets={{ subcategory: { all: 40, values: { motorbike: 12, car: 0, bicycle: 0, 'ebike-scooter': 0, 'parts-gear': 0, 'vehicle-other': 0 } } }}
+        onCategory={() => {}}
+        onSubcategory={() => {}}
+      />,
+    )
     expect(screen.getByRole('button', { name: /Car\s*,\s*0 listings/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Bicycle\b/ })).toBeNull()
+  })
+
+  it('draws no intent tile whose listing type has nothing in view — unless it is the active one', () => {
+    const intents = [
+      { type: 'free', name: 'Free', nameVi: 'Miễn phí', icon: 'Gift' },
+      { type: 'wanted', name: 'Wanted', nameVi: 'Cần mua', icon: 'Search' },
+      { type: 'wholesale', name: 'Wholesale', nameVi: 'Bán sỉ', icon: 'Boxes' },
+    ]
+    renderIn(
+      'en',
+      <CategoryRail
+        categories={CATS}
+        activeCategory="all"
+        activeSubcategory="all"
+        subcategoryCounts={{}}
+        facets={{ type: { all: 100, values: { sell: 84, free: 0, wanted: 0, wholesale: 16 } } }}
+        intents={intents}
+        activeType="wanted"
+        onIntent={() => {}}
+        onCategory={() => {}}
+        onSubcategory={() => {}}
+      />,
+    )
+    const shownTypes = [...document.querySelectorAll('[data-intent]')].map((el) => el.getAttribute('data-intent'))
+    expect(shownTypes).toEqual(['wanted', 'wholesale'])
+  })
+
+  it('draws no tile for a category with nothing in it — unless it is the active one', () => {
+    renderIn(
+      'en',
+      <CategoryRail
+        categories={CATS}
+        activeCategory="all"
+        activeSubcategory="all"
+        subcategoryCounts={{}}
+        facets={{ category: { all: 40, values: { vehicles: 40, electronics: 0 } } }}
+        onCategory={() => {}}
+        onSubcategory={() => {}}
+      />,
+    )
+    expect(screen.getByRole('button', { name: /^Vehicles$/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Electronics$/ })).toBeNull()
   })
 
   it('a payload from the PREVIOUS category does not become a grid of zeros', () => {
@@ -486,7 +546,7 @@ describe('<BrandRail> — counts at the call site', () => {
   })
   afterEach(restoreRailGlobals)
 
-  it('shows the CONDITIONAL count on MODELS, and 0 where the filters exclude one', async () => {
+  it('shows the CONDITIONAL count on MODELS, and draws no brand or model the filters exclude', async () => {
     renderIn(
       'en',
       <BrandRail
@@ -509,15 +569,16 @@ describe('<BrandRail> — counts at the call site', () => {
     // findByText for the same reason.
     await screen.findByText('Honda', undefined, WAIT)
     expect(screen.queryByRole('button', { name: /Honda\s*,\s*12 listings/ })).toBeNull()
-    expect(screen.getByText('Yamaha')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /Yamaha\s*,\s*0 listings/ })).toBeNull()
+    // ⛔ Yamaha is absent from a PRESENT dimension — 0 under these filters — so since 2026-09-25 its
+    // tile is not drawn at all (owner: "show only available filter options").
+    expect(screen.queryByText('Yamaha')).toBeNull()
     // The model rail's own "All": the chosen brand's total, not a sum of the model chips.
     expect(screen.getByRole('button', { name: /All\s*,\s*12 listings/ })).toBeTruthy()
     // 7, not the 30 /api/brands reports — the directory count answers a different question.
     expect(screen.getByRole('button', { name: /Vision\s*,\s*7 listings/ })).toBeTruthy()
-    // Wave is missing from a present dimension: an honest 0, which is the dead-end warning the
-    // whole feature exists to give at tap four.
-    expect(screen.getByRole('button', { name: /Wave\s*,\s*0 listings/ })).toBeTruthy()
+    // Wave is missing from a present dimension: 0, the dead end tap four used to warn about with a
+    // "0" — since 2026-09-25 it is simply not offered.
+    expect(screen.queryByRole('button', { name: /^Wave\b/ })).toBeNull()
   })
 
   it('a payload from another category does not zero the tiles', async () => {

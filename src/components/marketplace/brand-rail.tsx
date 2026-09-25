@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { BrandLogo } from './brand-logo'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CountChip, optionCount, railDimension } from './count-chip'
+import { CountChip, offeredKeys, optionCount, railDimension } from './count-chip'
 import { MoreOverflow } from './more-overflow'
 import { ModelCascade, hasCascade } from './model-cascade'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
@@ -281,7 +281,19 @@ export function BrandRail({
   // answer is one gesture away and it never moves while being reached for. Contrast the model grid
   // below, which CUTS at seven — a cut is where an order stops being presentation and starts
   // deciding what exists, which is why that one ranks on the number it shows and this one does not.
-  const sortedBrands = [...brands].sort((a, b) => b.count - a.count)
+  /**
+   * ⛔ A BRAND OR MODEL WITH NOTHING IN VIEW IS NOT DRAWN (owner, 2026-09-25: "show only available
+   * filter options"). /api/brands lists what the category/subcategory carries and ignores every other
+   * filter, so under Used, a price band, a district or Good price the tiles stayed while the live
+   * count behind them was 0 — measured that day: 40 of 40 Electronics brands under District 1, 33 of
+   * 40 under Good price. `facets.brand` / `facets.model` are counted with those filters applied, so
+   * an honest 0 there hides the tile; the active brand and model always stay. No count (a payload
+   * about another rail, or none yet) means no evidence, and everything stays (offeredKeys).
+   */
+  const keptBrands = new Set(offeredKeys(brandDim, brands.map((b) => b.slug), activeBrand))
+  const sortedBrands = [...brands].filter((b) => keptBrands.has(b.slug)).sort((a, b) => b.count - a.count)
+  // Every brand in the list is empty under the current filters: no rail, like a category with none.
+  if (sortedBrands.length === 0) return null
 
   /**
    * ⚠️ THE MODEL GRID RANKS ON THE NUMBER IT SHOWS, AND THE BRAND RAIL DOES NOT. That is not an
@@ -311,7 +323,8 @@ export function BrandRail({
    * second, and the demand order still breaks the remaining ties underneath.
    */
   const modelRank = (m: { model: string; count: number }) => optionCount(modelDim, m.model) ?? m.count
-  const sortedModels = [...models].sort((a, b) => modelRank(b) - modelRank(a) || b.count - a.count)
+  const keptModels = new Set(offeredKeys(modelDim, models.map((m) => m.model), activeModel))
+  const sortedModels = models.filter((m) => keptModels.has(m.model)).sort((a, b) => modelRank(b) - modelRank(a) || b.count - a.count)
   // 3×3 grid (9 cells): "All" + up to 8 models fills it exactly, so only collapse into
   // a "More" cell when there are MORE than 8 — at ≤8 show them all.
   const modelsNeedMore = sortedModels.length > 8

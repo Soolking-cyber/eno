@@ -147,7 +147,8 @@ describe('facts', () => {
     expect(nhatotBedroomFacet(2, 'office-rental')).toBeNull()
     expect(nhatotBedroomFacet(2, null)).toBeNull()
     expect(nhatotBedroomFacet(1, 'room-rental')).toBe('1')
-    expect(nhatotBedroomFacet(8, 'house-rental')).toBe('3')   // '3' = 3+
+    expect(nhatotBedroomFacet(4, 'house-rental')).toBe('4')
+    expect(nhatotBedroomFacet(8, 'house-rental')).toBe('6')   // '6' = 6+ (it was '3' = 3+ until 2026-09-25)
   })
 
   it('area: finite, positive, m² only', () => {
@@ -200,7 +201,7 @@ describe('mapNhatotAd', () => {
     expect(r.mutable).toMatchObject({
       price: 4_000_000, priceUnit: 'VND/month', currency: '₫', negotiable: false, listingType: 'rent',
       subcategorySlug: 'apartment-rental', district: 'Quận 12', city: 'Hồ Chí Minh',
-      lat: 10.836, lng: 106.629, areaM2: 30, attributes: '{"bedrooms":"1"}',
+      lat: 10.836, lng: 106.629, areaM2: 30, attributes: '{"bedrooms":"1","bathrooms":"1"}',
       affiliateUrl: 'https://www.nhatot.com/134859113.htm',
       location: 'Quận 12 (P. Đông Hưng Thuận mới)',
     })

@@ -284,7 +284,7 @@ export function PriceRangeFilter({
             {/* Preset budget chips — one tap sets the range via onChange (shared with
                 the mobile filter drawer). Hidden when outside the matching data's real
                 [min, max] — the whole distribution now, not a cheapest-5,000 slice. */}
-            <PricePresetChips value={value} onChange={onChange} bounds={hasBins && hist ? [hist.min, hist.max] : undefined} className="mt-4" />
+            <PricePresetChips value={value} onChange={onChange} bounds={hasBins && hist ? [hist.min, hist.max] : undefined} hist={hasBins && !countsApproximate ? hist : null} className="mt-4" />
 
             <div className="mt-4 flex items-end gap-3">
               <label className="min-w-0 flex-1">

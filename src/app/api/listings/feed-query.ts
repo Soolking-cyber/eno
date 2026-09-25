@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { Prisma } from '@/generated/prisma/client'
 import { isRangeColumn } from '@/lib/taxonomy'
-import { facetTokenFor } from '@/lib/facet-tokens'
+import { attrFiltersFrom, attrWhere } from '@/lib/attr-match'
 import { fold } from '@/lib/fold'
 import { aliasesFor } from '@/generated/model-lineage'
 import { localizeListingTitles } from '@/lib/translate'
@@ -487,34 +487,22 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
   // Category-specific attribute facets. Both the seed and the post wizard store
   // attributes as JSON using the taxonomy facet `.value` strings, so a generic
   // `"key":"value"` contains-match is exact — no per-category special-casing.
-  const attrKeys = Array.from(searchParams.keys()).filter((k) => k.startsWith('attr_'))
-  for (const k of attrKeys) {
-    const attrName = k.replace('attr_', '').replace(/[^a-z0-9_]/gi, '')
-    const attrVal = searchParams.get(k)
-    if (attrName && attrVal && attrVal !== 'all') {
-      /**
-       * ⚠️ TWO PLACES A FACET VALUE CAN LIVE, AND A FILTER MUST ACCEPT EITHER. Everything a human
-       * posts answers each facet ONCE and lives in `attributes` ({"size":"m"}). An imported product
-       * sold in eight sizes cannot say that, so multi-valued facets live in `facetTokens`
-       * (`|size:m|size:l|`, src/lib/facet-tokens.ts) — a column no public write path reaches, which
-       * is what makes matching it with a `contains` safe.
-       * ⚠️ `facetTokenFor` builds the needle, bars included, so a filter for `size=m` cannot match a
-       * row whose size is `m-l`. Single-valued rows are matched by the first branch exactly as
-       * before — this adds a way to match, it changes nothing about the existing one.
-       */
-      /**
-       * ⚠️ ONLY A TAXONOMY-SHAPED VALUE BUILDS A TOKEN NEEDLE. Facet values are slugs (`eu-44-plus`,
-       * `xs-s`); without this check `?attr_size=m|sport:running` assembles `|size:m|sport:running|`,
-       * a cross-facet needle no chip can express. It reads nothing it should not — the column is
-       * public data either way — but "impossible by construction" has to mean it (a reviewer's catch).
-       */
-      const tokenable = /^[a-z0-9][a-z0-9-]*$/i.test(attrVal)
-      andFilters.push({ OR: [
-        { attributes: { contains: `"${attrName}":"${attrVal}"` } },
-        ...(tokenable ? [{ facetTokens: { contains: facetTokenFor(attrName, attrVal) } }] : []),
-      ] })
-    }
-  }
+  /**
+   * ⚠️ TWO PLACES A FACET VALUE CAN LIVE, AND A FILTER MUST ACCEPT EITHER. Everything a human
+   * posts answers each facet ONCE and lives in `attributes` ({"size":"m"}). An imported product
+   * sold in eight sizes cannot say that, so multi-valued facets live in `facetTokens`
+   * (`|size:m|size:l|`, src/lib/facet-tokens.ts) — a column no public write path reaches, which
+   * is what makes matching it with a `contains` safe.
+   * ⚠️ ONLY A TAXONOMY-SHAPED VALUE BUILDS A TOKEN NEEDLE. Facet values are slugs (`eu-44-plus`,
+   * `xs-s`); without that check `?attr_size=m|sport:running` assembles `|size:m|sport:running|`,
+   * a cross-facet needle no chip can express (a reviewer's catch).
+   * ⛔ THE PREDICATE LIVES IN src/lib/attr-match.ts NOW, and the move is the point: the chip counts
+   * (src/lib/facet-counts.ts) classify grouped rows with the SAME needles, so a Filter-panel chip's
+   * number is what its tap returns. That module also holds the two shapes the plain `"key":"value"`
+   * match could not express — an open-ended "6+" room count, and "Fits" chips whose rows store a
+   * device name instead of the chip's slug.
+   */
+  for (const { key, value } of attrFiltersFrom(searchParams)) andFilters.push(attrWhere(key, value))
 
   // Numeric range facets (year/mileage/engine) live on dedicated columns and filter
   // as a min–max range: `range_<column>=min-max` (either side may be empty/open).

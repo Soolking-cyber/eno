@@ -19,7 +19,7 @@ import vnUnits from '../src/data/vn-units.json'
 import { buildSearchText } from '../src/lib/fold'
 import { localizeImportText, type MissingSegment } from '../src/lib/import-i18n'
 import { browseRankScore } from '../src/lib/ranking-formula'
-import { listingMoneyFor } from '../src/lib/taxonomy'
+import { listingMoneyFor, roomAttributes } from '../src/lib/taxonomy'
 
 /**
  * ⛔ PINNED BY ID, NEVER LOOKED UP BY NAME. `Seller.name` has no unique constraint and is user
@@ -653,10 +653,11 @@ export function countFrom(attributes: { value: string }[] | undefined, parameter
 /**
  * ⛔ A MISSING BEDROOM COUNT IS NOT A STUDIO. The facet reads '0' as "Studio"; `|| 0` would file
  * every office and shopfront under it (import-rever-rentals.ts:289-295 caught 446 of those).
- * Absent → null → no attribute. '3' means 3+ (taxonomy.ts bedrooms facet).
+ * Absent → null → no attribute. Counts are exact up to 5 and '6' means 6+ (taxonomy.ts
+ * roomAttributes); the bathroom count rides along the same way. It used to clamp at '3'.
  */
-export function bedroomsAttribute(beds: number | null): string | null {
-  return beds !== null && beds > 0 ? JSON.stringify({ bedrooms: String(Math.min(beds, 3)) }) : null
+export function bedroomsAttribute(beds: number | null, baths: number | null = null): string | null {
+  return roomAttributes({ bedrooms: beds, bathrooms: baths })
 }
 
 /**
@@ -990,7 +991,7 @@ export function mapRecord(item: MuabanListItem, detail: MuabanDetail | null, opt
     lat: coords?.lat ?? null,
     lng: coords?.lng ?? null,
     areaM2,
-    attributes: bedroomsAttribute(beds),
+    attributes: bedroomsAttribute(beds, baths),
     affiliateUrl,
     /** ⚠️ title and titleVi FIRST — rebaseSearchText (src/lib/import-i18n.ts) relies on that order. */
     searchText: buildSearchText([text.title, text.titleVi, location, district, kindVi, type.en, c.city, c.cityEn]),

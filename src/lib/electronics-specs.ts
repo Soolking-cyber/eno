@@ -208,6 +208,46 @@ export const SPECS: SpecDef[] = [
 ]
 
 /**
+ * ⛔ THE "FITS" CHIPS SEND A SLUG AND MOST ROWS STORE A DISPLAY STRING — measured on production
+ * 2026-09-25: 2,638 of 2,937 `compatibleWith` values are the device name ("iPhone 14 Pro Max",
+ * "Galaxy Z Fold8", "Redmi Note 15"), written by scripts/fix-accessory-taxonomy.ts from the
+ * catalogue's model field, while the chips and `extractSpecs` below use the slug (`iphone14`). The
+ * exact-match filter therefore found 0 of 148 iPhone 14 cases and 5 of 256 iPhone 16 ones.
+ *
+ * The filter now matches BOTH vocabularies (src/lib/attr-match.ts): the slug exactly, or a stored
+ * display string that STARTS with one of these prefixes — the same families the extractor's regex
+ * chain below assigns to each slug, spelled the way the stored strings spell them (case-sensitive:
+ * the filter is a LIKE). The display strings are kept rather than rewritten: "iPhone 14 Pro Max" is
+ * the better thing to show on the listing page. A stored device with no chip (iPhone 18, Galaxy
+ * S22…) matches none, exactly as before.
+ * ⚠️ PREFIXES ARE LEFT-ANCHORED ON THE VALUE, so 'iPhone 1' never appears here (it would swallow
+ * 11-17); every entry is checked against the stored spellings in attr-match.test.ts.
+ */
+export const COMPAT_DISPLAY_PREFIXES: Record<string, readonly string[]> = {
+  iphone17: ['iPhone 17', 'iPhone17'],
+  iphone16: ['iPhone 16', 'iPhone16'],
+  iphone15: ['iPhone 15', 'iPhone15'],
+  iphone14: ['iPhone 14', 'iPhone14'],
+  iphone13: ['iPhone 13', 'iPhone13'],
+  iphone12: ['iPhone 12', 'iPhone12'],
+  iphone11: ['iPhone 11', 'iPhone11'],
+  ipad: ['iPad'],
+  macbook: ['MacBook', 'Macbook'],
+  applewatch: ['Apple Watch'],
+  airpods: ['AirPods', 'Airpods'],
+  galaxys26: ['Galaxy S26'],
+  galaxys25: ['Galaxy S25'],
+  galaxys24: ['Galaxy S24'],
+  galaxys23: ['Galaxy S23'],
+  galaxya: ['Galaxy A'],
+  galaxyz: ['Galaxy Z', 'Galaxy Fold', 'Galaxy Flip'],
+  galaxytab: ['Galaxy Tab'],
+  xiaomi: ['Xiaomi', 'Redmi', 'POCO', 'Poco'],
+  oppo: ['OPPO', 'Oppo'],
+  vivo: ['vivo', 'Vivo'],
+}
+
+/**
  * Specs offered on a subcategory, in chip order, with values narrowed to that subcategory.
  * ⚠️ Returns NARROWED copies — call sites must read `.values` from what this returns, never from
  * the SPECS table directly, or a phone gets offered 128 GB of RAM again.

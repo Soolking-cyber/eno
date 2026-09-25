@@ -351,12 +351,14 @@ describe('parseAreaM2 — ⛔ the Vietnamese thousands dot', () => {
 })
 
 describe('bedrooms — ⛔ a missing count is NOT a Studio', () => {
-  it('reads PN from the card, caps the facet at 3+, and omits it when absent', () => {
+  it('reads PN from the card, caps the facet at 6+, and omits it when absent', () => {
     expect(countFrom([{ value: '60 m²' }, { value: '1 PN' }, { value: '1 WC' }], undefined, 'bed')).toBe(1)
     expect(countFrom([{ value: '60 m²' }, { value: '1 PN' }, { value: '1 WC' }], undefined, 'bath')).toBe(1)
     expect(countFrom([{ value: '50 m²' }], [{ label: 'Số phòng ngủ', value: '2 phòng' }], 'bed')).toBe(2)
     expect(countFrom([{ value: '100 m²' }], undefined, 'bed')).toBeNull()
-    expect(bedroomsAttribute(5)).toBe('{"bedrooms":"3"}')
+    expect(bedroomsAttribute(5)).toBe('{"bedrooms":"5"}')
+    expect(bedroomsAttribute(9)).toBe('{"bedrooms":"6"}')
+    expect(bedroomsAttribute(3, 2)).toBe('{"bedrooms":"3","bathrooms":"2"}')
     expect(bedroomsAttribute(1)).toBe('{"bedrooms":"1"}')
     expect(bedroomsAttribute(null)).toBeNull()
     expect(bedroomsAttribute(0)).toBeNull()
@@ -364,7 +366,7 @@ describe('bedrooms — ⛔ a missing count is NOT a Studio', () => {
 
   it('carries through mapRecord as the facet JSON', () => {
     const m = mapRecord(card({ attributes: [{ value: '50 m²' }, { value: '5 PN' }] }), detail({ attributes: [{ value: '50 m²' }, { value: '5 PN' }] }), ALL)
-    expect(m.ok && m.row.mutable.attributes).toBe('{"bedrooms":"3"}')
+    expect(m.ok && m.row.mutable.attributes).toBe('{"bedrooms":"5"}')
     expect(m.ok && m.row.mutable.title).toBe('House · 5 bed · 50 m² for rent — Tân Thành Ward, Tân Phú District')
   })
 })

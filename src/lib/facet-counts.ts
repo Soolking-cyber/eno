@@ -1,7 +1,8 @@
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
-import { CATEGORY_BY_SLUG, LISTING_TYPES, categoryHasBrand, rangeFacetsFor, typesFor } from '@/lib/taxonomy'
+import { CATEGORY_BY_SLUG, LISTING_TYPES, categoryHasBrand, facetsFor, rangeFacetsFor, typesFor, type FacetDef } from '@/lib/taxonomy'
+import { attrFiltersFrom, attrMatcher, viewScope } from '@/lib/attr-match'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { matchesProvinceRow } from '@/lib/province-match'
 import { districtTextMatches, longerDistrictSpellings } from '@/lib/district-match'
@@ -65,6 +66,13 @@ import { inferDistrictFromQuery } from '@/lib/district-query'
  *  · The route does not call this for `offset > 0`: a load-more page re-renders no rail, so an
  *    infinite scroll pays nothing after its first page.
  *
+ * ⚠️ 2026-09-25 ADDED TWO AGGREGATES, BOTH ONLY WHERE THEY ARE DRAWN: `deal` (one small groupBy on
+ * `marketPosition`, every browse state — the Good-price toggle is always on screen) and `attr` (one
+ * groupBy on the raw `attributes`+`facetTokens` columns, only in a view whose Filter panel has chips
+ * or sliders; ≤2,899 groups, measured). Timed through the tunnel against production the same day,
+ * first page with facets, cold memo: no measurable change against the previous revision (the noise
+ * between two runs of the same code was larger). The note below about the pool still stands.
+ *
  * ⚠️ THE ONE COST THAT IS NOT FREE IS POOL CONCURRENCY, and it is worth knowing before the catalogue
  * grows. node-postgres defaults to 10 connections (src/lib/db.ts sets no `max`), and a cold first
  * page inside a category now wants 10 or 11 at once: feed rows, the total, the subcategory groupBy,
@@ -110,7 +118,7 @@ export type DimensionCounts = {
  * rail (`?district=` / `?province=`), which is one dimension because picking a place REPLACES the
  * previous place.
  */
-export type FacetDimension = 'category' | 'subcategory' | 'brand' | 'model' | 'condition' | 'type' | 'year' | 'area'
+export type FacetDimension = 'category' | 'subcategory' | 'brand' | 'model' | 'condition' | 'type' | 'year' | 'area' | 'attr' | 'deal'
 
 /**
  * The payload. A dimension is ABSENT when it was not requested or could not apply (no brand rail
@@ -150,6 +158,25 @@ export type FacetCounts = {
   area?: DimensionCounts
   /** keyed by the exact `?province=` values the caller passed in `provinceValues` */
   province?: DimensionCounts
+  /**
+   * The Filter panel's chips: one rail per attribute facet the view offers, keyed by the facet's
+   * `key`, each with its options' counts keyed by the exact `attr_<key>` value the chip sets.
+   * Counted like every other rail — THIS facet released, every other filter applied, the other
+   * `attr_*` filters included — from one grouped query (see `attrView`).
+   * ⚠️ ONLY ABOUT `attrScope`. The facets differ per (category, subcategory), so a payload held over
+   * a subcategory tap describes the previous view's facets; a reader must check the scope first.
+   */
+  attr?: Record<string, DimensionCounts>
+  /** `${category}/${subcategory || 'all'}` — the view `attr` and `rangePresent` were counted for. */
+  attrScope?: string
+  /**
+   * Rows in the view that carry a value in each range facet's column (`year`, `areaM2`…), keyed by
+   * column. A slider over a column no row fills can only ever empty the feed — any move filters out
+   * the nulls — so the panel hides it at 0 (vehicles: `year` is set on 0 of 100 rows).
+   */
+  rangePresent?: Record<string, number>
+  /** "Good price" (`?deal=good`): `values.good` rows priced below their market band, `all` without it. */
+  deal?: DimensionCounts
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -290,10 +317,10 @@ const TEXT_PARAMS = ['q', 'match']
  * subcategory-scoped — `facetsFor(category, subcategory)` and `rangeFacetsFor(category,
  * subcategory)` in taxonomy.ts narrow by subcategory — so with `subcategory=motorbikes` and a
  * motorbike-only attribute set, the "cars" chip is counted with an attribute cars do not have and
- * reads 0. It is kept this way because the route's own `facetBaseFilters` releases exactly the
- * subcategory clause and nothing else, and TWO subcategory answers that disagree would be worse
- * than one that is conservative. Closing it properly means releasing those keys in BOTH places,
- * which is a change to src/app/api/listings/feed-query.ts.
+ * reads 0. ⛔ THE FEED ROUTE NO LONGER HAS THAT LIMIT (2026-09-25): when such a filter is active it
+ * counts each sibling with exactly the params THAT sibling's tap keeps (`subcategoryDropPlan`
+ * below), because hiding zero chips made the wrong 0 hide a real aisle. This dimension — which only
+ * a caller other than the route asks for by name — still releases the subcategory alone.
  *
  * ⚠️ `brand` AND `model` SHARE A RELEASE, so one groupBy answers both: brand counts need the model
  * released (choosing a different brand cannot keep the old brand's model), and the model counts are
@@ -356,6 +383,15 @@ export function releasedParams(
       p.delete('province')
       p.delete('ward')
       break
+    // ⚠️ EVERY `attr_*` AT ONCE, NOT ONE FACET: one grouped query answers every attribute rail, and
+    // each rail re-applies the OTHER attribute filters in memory (attrMatcher, the feed's own needles).
+    // `range_*` stays in the base — a range filter narrows the attribute chips like any other filter.
+    case 'attr':
+      for (const k of [...p.keys()]) if (k.startsWith('attr_')) p.delete(k)
+      break
+    case 'deal':
+      p.delete('deal')
+      break
   }
   /**
    * ⛔ A DISTRICT READ OUT OF THE QUERY SURVIVES THE TEXT BEING DROPPED. The feed turns "căn hộ quận
@@ -379,6 +415,55 @@ export function releasedParams(
   }
   for (const k of [...PRESENTATION_PARAMS, ...TEXT_PARAMS]) p.delete(k)
   return p
+}
+
+/**
+ * ⛔ WHAT A SUBCATEGORY TAP DROPS, PER TARGET — for the subcategory rail's counts while a
+ * SUBCATEGORY-SCOPED filter is active (bedrooms, storage, shoe size, area…).
+ *
+ * Measured on production 2026-09-25: Rentals › Apartment › 2 BR showed "Office · 0", and tapping
+ * Office returned 2,270 — every office. The rail counted Office WITH `attr_bedrooms=2` applied (a
+ * facet offices do not have), while the tap dropped it, so the chip said 0 for a full aisle. Hiding
+ * zero chips on top of that would have hidden a real sibling. The explorer now prunes a filter the
+ * new subcategory does not offer (it used to keep it on screen as a chip that filtered nothing), and
+ * this is the same rule stated for the counter: for each target — '' for the "All" chip, else a
+ * subcategory slug — the `attr_*` / `range_*` params of this category's facets that
+ * `facetsFor(category, target)` does not offer. A filter the target DOES offer is kept, so Apartment
+ * › 2 BR → House still counts two-bedroom houses (401), exactly as the tap returns them.
+ *
+ * Null when no target drops anything — the common case, where one base serves every chip.
+ * ⚠️ A param that is not one of this category's facets at all is never dropped: the feed applies it,
+ * so every count must too (the explorer never sends one).
+ */
+export function subcategoryDropPlan(searchParams: URLSearchParams, category: string): Map<string, string[]> | null {
+  const cat = CATEGORY_BY_SLUG[category]
+  if (!cat) return null
+  const attrKeys = new Set(cat.facets.filter((f) => f.kind !== 'range').map((f) => f.key))
+  const rangeCols = new Set(cat.facets.flatMap((f) => (f.kind === 'range' && f.range ? [f.range.column as string] : [])))
+  const scoped: { param: string; attr: boolean; id: string }[] = []
+  for (const k of new Set(searchParams.keys())) {
+    const v = searchParams.get(k)
+    if (!v || v === 'all') continue
+    if (k.startsWith('attr_')) {
+      const key = k.slice('attr_'.length).replace(/[^a-z0-9_]/gi, '')
+      if (attrKeys.has(key)) scoped.push({ param: k, attr: true, id: key })
+    } else if (k.startsWith('range_')) {
+      const col = k.slice('range_'.length)
+      if (rangeCols.has(col)) scoped.push({ param: k, attr: false, id: col })
+    }
+  }
+  if (!scoped.length) return null
+  const plan = new Map<string, string[]>()
+  let dropsAny = false
+  for (const target of ['', ...cat.subcategories.map((sc) => sc.slug)]) {
+    const fs = facetsFor(category, target || null)
+    const keys = new Set(fs.filter((f) => f.kind !== 'range').map((f) => f.key))
+    const cols = new Set(fs.flatMap((f) => (f.kind === 'range' && f.range ? [f.range.column as string] : [])))
+    const drop = scoped.filter((x) => (x.attr ? !keys.has(x.id) : !cols.has(x.id))).map((x) => x.param)
+    if (drop.length) dropsAny = true
+    plan.set(target, drop)
+  }
+  return dropsAny ? plan : null
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -424,6 +509,23 @@ export type FacetCountOptions = {
 }
 
 /**
+ * What the Filter panel shows for the request's view: its attribute facets (chips — condition is its
+ * own dimension) and the columns of its range facets. Mirrors the explorer, which reads
+ * `facetsFor(activeCategory, activeSubcategory)`; `priorityCategory` stands in for `category` for
+ * the reason `defaultDimensions` gives. Null when the view has neither.
+ */
+export function attrView(searchParams: URLSearchParams): { scope: string; facets: FacetDef[]; rangeColumns: string[] } | null {
+  const category = searchParams.get('category') || searchParams.get('priorityCategory') || ''
+  if (!category || category === 'all' || !CATEGORY_BY_SLUG[category]) return null
+  const sub = searchParams.get('subcategory') || ''
+  const all = facetsFor(category, sub && sub !== 'all' ? sub : null)
+  const facets = all.filter((f) => f.kind !== 'range' && f.key !== 'condition' && f.options.length > 0)
+  const rangeColumns = all.flatMap((f) => (f.kind === 'range' && f.range ? [f.range.column] : []))
+  if (!facets.length && !rangeColumns.length) return null
+  return { scope: viewScope(category, sub), facets, rangeColumns }
+}
+
+/**
  * The rails worth counting for the active category — see `FacetCountOptions.dimensions`.
  *
  * ⚠️ `subcategory` IS DELIBERATELY NOT IN HERE, THOUGH IT IS A REAL DIMENSION THIS MODULE CAN
@@ -448,8 +550,10 @@ export function defaultDimensions(searchParams: URLSearchParams): FacetDimension
   // must not narrow a count); this reads it only to decide WHICH RAILS EXIST.
   const category = searchParams.get('category') || searchParams.get('priorityCategory') || undefined
   const subcategory = searchParams.get('subcategory') || undefined
-  const dims: FacetDimension[] = ['category', 'condition', 'type', 'area']
+  // `deal` everywhere: the Good-price toggle sits in the sort strip on every browse state.
+  const dims: FacetDimension[] = ['category', 'condition', 'type', 'area', 'deal']
   if (category && category !== 'all' && CATEGORY_BY_SLUG[category]) {
+    if (attrView(searchParams)) dims.push('attr')
     // The brand rail is a property of the CATEGORY (BRAND_CATEGORY_SLUGS in taxonomy.ts); the
     // model rail lives under a chosen brand, so it cannot exist before one is chosen; the year
     // rail exists only where the category (narrowed by subcategory) declares a `year` range facet.
@@ -582,7 +686,8 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
      * the check. `buildFeedFilters` also pushes this exclusion, so the operand appears twice and
      * Postgres flattens it — cheaper than a leak.
      */
-    const [catBase, subBase, brandBase, condBase, typeBase, yearBase, areaBase] = await Promise.all([
+    const view = want.has('attr') ? attrView(searchParams) : null
+    const [catBase, subBase, brandBase, condBase, typeBase, yearBase, areaBase, attrBase, dealBase] = await Promise.all([
       want.has('category') ? baseFor('category').then((b) => scopedListingWhere({ AND: b })) : null,
       want.has('subcategory') ? baseFor('subcategory').then((b) => scopedListingWhere({ AND: b })) : null,
       want.has('brand') || want.has('model') ? baseFor('brand').then((b) => scopedListingWhere({ AND: b })) : null,
@@ -590,7 +695,33 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
       want.has('type') ? baseFor('type').then((b) => scopedListingWhere({ AND: b })) : null,
       want.has('year') ? baseFor('year').then((b) => scopedListingWhere({ AND: b })) : null,
       want.has('area') ? baseFor('area').then((b) => scopedListingWhere({ AND: b })) : null,
+      view ? baseFor('attr').then((b) => scopedListingWhere({ AND: b })) : null,
+      want.has('deal') ? baseFor('deal').then((b) => scopedListingWhere({ AND: b })) : null,
     ])
+    /** The request's own `attr_*` filters — released from `attrBase`, re-applied per rail in memory. */
+    const activeAttrs = attrFiltersFrom(searchParams)
+    /**
+     * ⛔ THE MODEL CHIPS ARE COUNTED INSIDE THE CATEGORY THEIR TAP APPLIES. With a brand and no model
+     * the explorer sends `priorityCategory` (a soft boost), so the brand base spans every category
+     * — but tapping a model sets `category` hard (listings-explorer.tsx). Counted across categories,
+     * a model chip overstated its tap (production, 2026-09-25: MacBook Pro 63 → 52, iPhone 17 Pro
+     * Max 60 → 55), and a model sold only elsewhere drew a non-zero chip whose tap returned nothing.
+     * The brand groupBy then also groups by category, and only the model buckets are narrowed; the
+     * brand tiles and the model rail's "All" keep the soft scope their own taps use.
+     */
+    const selectedBrand = searchParams.get('brand')?.trim() || ''
+    const modelCategory = want.has('model') && selectedBrand && selectedBrand !== 'all' && !searchParams.get('category')
+      ? searchParams.get('priorityCategory')?.trim() || ''
+      : ''
+    const modelInCategory = !!modelCategory && modelCategory !== 'all'
+    /**
+     * ⚠️ ONE QUERY FOR THE INTENT MENU AND THE GOOD-PRICE TOGGLE WHEN THEIR BASES ARE THE SAME — which
+     * is whenever neither `type` nor `deal` is set, i.e. almost every page. Each base releases only
+     * its own param, so with both unset they are the identical `where`, and grouping it by both
+     * columns answers both rails. The `deal` rail then costs no extra connection on a pool the note
+     * at the top of this file already calls tight (a reviewer's point, 2026-09-25).
+     */
+    const typeAndDeal = !!typeBase && !!dealBase && JSON.stringify(typeBase) === JSON.stringify(dealBase)
 
     /**
      * ⚠️ THE MEMO IS KEYED ON THE `where` CLAUSES, NOT ON THE QUERY STRING, AND THAT IS WHAT MAKES
@@ -608,6 +739,9 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
      * The selected brand narrows the MODEL buckets but is released from every base, so two brands
      * inside one category would otherwise share a key and swap model rails; the selected category
      * chooses the type/subcategory seed; and the year bands move with the calendar.
+     * ⚠️ AND THE ATTRIBUTE RAILS ADD TWO MORE: the active `attr_*` filters are released from
+     * `attrBase` and re-applied in memory, and the facet list follows the view (`view.scope`, which
+     * reads `priorityCategory` — a param every base strips).
      */
     const cacheKey = JSON.stringify([
       dimensions,
@@ -615,7 +749,10 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
       searchParams.get('brand') ?? null,
       searchParams.get('category') ?? null,
       (now ?? new Date()).getFullYear(),
-      catBase, subBase, brandBase, condBase, typeBase, yearBase, areaBase,
+      view?.scope ?? null,
+      activeAttrs,
+      modelInCategory ? modelCategory : null,
+      catBase, subBase, brandBase, condBase, typeBase, yearBase, areaBase, attrBase, dealBase,
     ])
     const hit = facetCache.get(cacheKey)
     if (hit && Date.now() - hit.at < FACET_TTL) return hit.data
@@ -638,17 +775,25 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
       inFlight.delete(cacheKey)
     }
 
+
     async function aggregate(): Promise<FacetCounts> {
     // Fired together: each groupBy is an independent aggregate on its own pooled connection, so
     // six of them cost ~one round trip rather than six. Grouped by SHARED BASE, not by rail —
     // brand+model come out of one query, and so do the district and province rails.
-    const [categoryGroups, categoryNames, subRes, brandRes, conditionRes, typeRes, yearRes, areaRes] = await Promise.all([
+    const [categoryGroups, categoryNames, subRes, brandRes, conditionRes, typeRes, yearRes, areaRes, attrRes, dealRes] = await Promise.all([
       catBase ? db.listing.groupBy({ by: ['categoryId'], where: catBase, _count: { _all: true } }) : null,
-      catBase ? categoryIdToSlug() : null,
+      catBase || modelInCategory ? categoryIdToSlug() : null,
       subBase ? db.listing.groupBy({ by: ['subcategorySlug'], where: subBase, _count: { _all: true } }) : null,
-      brandBase ? db.listing.groupBy({ by: ['brandSlug', 'model'], where: brandBase, _count: { _all: true } }) : null,
+      // ⚠️ ONE groupBy CALL PER BASE, the grouping columns chosen inside it: edition-lint's Rule A
+      // counts reads against scope guards per file, and a ternary of two calls over one scoped base
+      // would read as an unguarded read. (The cast keeps the result type; `categoryId` is read below.)
+      brandBase
+        ? db.listing.groupBy({ by: (modelInCategory ? ['brandSlug', 'model', 'categoryId'] : ['brandSlug', 'model']) as ['brandSlug', 'model'], where: brandBase, _count: { _all: true } })
+        : null,
       condBase ? db.listing.groupBy({ by: ['condition'], where: condBase, _count: { _all: true } }) : null,
-      typeBase ? db.listing.groupBy({ by: ['listingType'], where: typeBase, _count: { _all: true } }) : null,
+      typeBase
+        ? db.listing.groupBy({ by: (typeAndDeal ? ['listingType', 'marketPosition'] : ['listingType']) as ['listingType'], where: typeBase, _count: { _all: true } })
+        : null,
       yearBase ? db.listing.groupBy({ by: ['year'], where: yearBase, _count: { _all: true } }) : null,
       areaBase
         ? db.listing.groupBy({
@@ -662,6 +807,21 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
             _count: { _all: true },
           })
         : null,
+      /**
+       * ⚠️ GROUPED ON THE RAW COLUMNS, CLASSIFIED IN MEMORY — the attribute predicates are `contains`
+       * matches over a JSON string, which a groupBy cannot bucket. Measured on production
+       * 2026-09-25: the widest view (sports, whole category) is 2,899 distinct (attributes,
+       * facetTokens) pairs over 5,591 rows; every other category is under 500. The range columns
+       * ride along as NON-NULL counts (`_count.<col>`), which is all `rangePresent` needs.
+       */
+      attrBase && view
+        ? db.listing.groupBy({
+            by: ['attributes', 'facetTokens'],
+            where: attrBase,
+            _count: { _all: true, ...Object.fromEntries(view.rangeColumns.map((c) => [c, true])) } as Prisma.ListingCountAggregateInputType,
+          })
+        : null,
+      dealBase && !typeAndDeal ? db.listing.groupBy({ by: ['marketPosition'], where: dealBase, _count: { _all: true } }) : null,
     ])
     const categoryRes = categoryGroups && categoryNames ? { grouped: categoryGroups, byId: categoryNames } : null
 
@@ -694,17 +854,20 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
     if (brandRes) {
       const brandValues: Record<string, number> = {}
       const modelValues: Record<string, number> = {}
-      const selectedBrand = searchParams.get('brand')?.trim() || ''
+      const modelCategoryId = modelInCategory && categoryNames
+        ? [...categoryNames].find(([, slug]) => slug === modelCategory)?.[0] ?? null
+        : null
       let all = 0
       let modelAll = 0
-      for (const g of brandRes) {
+      for (const g of brandRes as { brandSlug: string | null; model: string | null; categoryId?: string; _count: { _all: number } }[]) {
         all += g._count._all
         if (g.brandSlug) brandValues[g.brandSlug] = (brandValues[g.brandSlug] ?? 0) + g._count._all
         // The model rail lives UNDER the chosen brand, so its buckets are this same base narrowed
         // to that brand — read back out of the rows we already have rather than re-queried.
         if (selectedBrand && selectedBrand !== 'all' && g.brandSlug === selectedBrand) {
           modelAll += g._count._all
-          if (g.model) modelValues[g.model] = (modelValues[g.model] ?? 0) + g._count._all
+          const inScope = !modelInCategory || g.categoryId === modelCategoryId
+          if (g.model && inScope) modelValues[g.model] = (modelValues[g.model] ?? 0) + g._count._all
         }
       }
       if (want.has('brand')) out.brand = { all, values: brandValues }
@@ -759,6 +922,49 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
       if (provinceValues?.length) out.province = { all, values: provinces }
     }
 
+    if (attrRes && view) {
+      type Bucket = { attributes: string | null; facetTokens: string | null; n: number; cols: Record<string, number> }
+      const buckets: Bucket[] = attrRes.map((g) => {
+        const c = g._count as unknown as Record<string, number>
+        return { attributes: g.attributes, facetTokens: g.facetTokens, n: c._all ?? 0, cols: c }
+      })
+      const actives = activeAttrs.map((a) => ({ key: a.key, test: attrMatcher(a.key, a.value) }))
+      // Does a bucket pass every active attribute filter — except `skipKey`'s own, for that facet's rail?
+      const survives = (b: Bucket, skipKey: string | null) => actives.every((a) => a.key === skipKey || a.test(b))
+      const attr: Record<string, DimensionCounts> = {}
+      for (const f of view.facets) {
+        const options = f.options.map((o) => ({ value: o.value, test: attrMatcher(f.key, o.value) }))
+        const values: Record<string, number> = Object.fromEntries(options.map((o) => [o.value, 0]))
+        let all = 0
+        for (const b of buckets) {
+          if (!survives(b, f.key)) continue
+          all += b.n
+          for (const o of options) if (o.test(b)) values[o.value] += b.n
+        }
+        attr[f.key] = { all, values }
+      }
+      const present: Record<string, number> = Object.fromEntries(view.rangeColumns.map((c) => [c, 0]))
+      for (const b of buckets) {
+        if (!survives(b, null)) continue
+        for (const col of view.rangeColumns) present[col] += b.cols[col] ?? 0
+      }
+      out.attr = attr
+      out.attrScope = view.scope
+      out.rangePresent = present
+    }
+
+    const dealRows = dealRes ?? (typeAndDeal ? (typeRes as { marketPosition: string | null; _count: { _all: number } }[] | null) : null)
+    if (dealRows) {
+      let all = 0
+      let good = 0
+      for (const g of dealRows) {
+        all += g._count._all
+        // Mirrors the feed's `deal=good` clause exactly: `marketPosition: 'low'`.
+        if (g.marketPosition === 'low') good += g._count._all
+      }
+      out.deal = { all, values: { good } }
+    }
+
     /**
      * ⚠️ FROZEN BEFORE IT IS CACHED, BECAUSE THE MEMO HANDS OUT THE SAME OBJECT TO EVERY REQUEST
      * FOR 60 SECONDS. A hit returns `hit.data` by reference — not a copy — so one consumer doing
@@ -768,8 +974,11 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
      * turns that into an immediate TypeError at the mutating line (modules are strict mode). Deep
      * enough to matter: the nested `values` records are what a caller would reach for.
      */
-    for (const dim of Object.values(out)) {
-      if (dim) Object.freeze(Object.freeze(dim).values)
+    const freezeDim = (dim: DimensionCounts | undefined) => { if (dim) Object.freeze(Object.freeze(dim).values) }
+    for (const [k, dim] of Object.entries(out)) {
+      if (k === 'attr') for (const d of Object.values(dim as Record<string, DimensionCounts>)) freezeDim(d)
+      if (k === 'attr' || k === 'rangePresent') Object.freeze(dim)
+      else if (k !== 'attrScope') freezeDim(dim as DimensionCounts)
     }
     Object.freeze(out)
     if (facetCache.size >= FACET_CACHE_MAX) facetCache.delete(facetCache.keys().next().value!) // evict oldest (insertion order)

@@ -85,6 +85,7 @@ export function SortStrip({
   onPickSort,
   goodPrice,
   onGoodPrice,
+  goodPriceOffered = true,
   headerHidden,
   leading,
 }: {
@@ -99,6 +100,14 @@ export function SortStrip({
    */
   goodPrice: boolean
   onGoodPrice: (on: boolean) => void
+  /**
+   * False when "Good price" would narrow nothing — no listing in view is priced below its market
+   * band, or every one is (the feed's `facets.deal`). Measured on production 2026-09-25: it returned
+   * 0 in 71 of 83 category and subcategory views, because only Electronics carries market bands. The
+   * toggle is then not drawn (owner: "show only available filter options") — unless it is ON, which
+   * must stay visible so it can be switched off. Defaults to true: no counts, no evidence.
+   */
+  goodPriceOffered?: boolean
   headerHidden: boolean
   /**
    * The filter controls, rendered on the LEFT of this same row.
@@ -423,6 +432,7 @@ export function SortStrip({
           )}
         </TabsTrigger>
       </TabsList>
+      {(goodPrice || goodPriceOffered) && (
       <Toggle
         pressed={goodPrice}
         onPressedChange={onGoodPrice}
@@ -449,6 +459,7 @@ export function SortStrip({
       >
         {tr('Good price', 'Giá tốt')}
       </Toggle>
+      )}
       </div>
       </div>
     </Tabs>
