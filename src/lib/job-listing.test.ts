@@ -58,7 +58,7 @@ describe('mapStagedJob — a real CareerLink row', () => {
 
 describe('mapStagedJob — refusals', () => {
   it('refuses a source outside the closed map and a link off the board', () => {
-    expect(map({ source: 'vieclam24h-teach' })).toEqual({ ok: false, reason: 'unknownSource' })
+    expect(map({ source: 'topcv' })).toEqual({ ok: false, reason: 'unknownSource' })
     expect(map({ url: 'https://evil.example/tim-viec-lam/x/3629784' })).toEqual({ ok: false, reason: 'badUrl' })
     expect(map({ url: 'http://www.careerlink.vn/tim-viec-lam/x/3629784' })).toEqual({ ok: false, reason: 'badUrl' })
     expect(map({ url: 'https://www.careerlink.vn/viec-lam/k/english' })).toEqual({ ok: false, reason: 'noJobId' })
@@ -154,6 +154,10 @@ describe('ids and urls', () => {
     expect(id('eslgorilla', 'https://eslgorilla.com/jobs/english-teacher-ho-chi-minh-vietnam')).toBe('english-teacher-ho-chi-minh-vietnam')
     expect(id('careerlink', 'https://www.careerlink.vn/tim-viec-lam/x/3612880?utm_source=fb#top')).toBe('3612880')
     expect(id('careerlink', 'https://careerlink.vn.evil.example/tim-viec-lam/x/3612880')).toBeNull()
+    expect(id('vieclam24h', 'https://vieclam24h.vn/giao-duc-dao-tao/giao-vien-tieng-anh-trung-hoc-c14p1id200945072.html?open_from=1401_1_3')).toBe('200945072')
+    expect(id('tta', 'https://www.theteflacademy.com/blog/tefl-jobs/ila-is-hiring-part-time-esl-teachers-in-ho-chi-minh-city/')).toBe('ila-is-hiring-part-time-esl-teachers-in-ho-chi-minh-city')
+    expect(id('rmit', 'https://rmit.wd3.myworkdayjobs.com/RMIT_Careers/job/Ho-Chi-Minh-City/Lecturer--Management_JR46455')).toBe('JR46455')
+    expect(id('rmit', 'https://rmit.wd3.myworkdayjobs.com/RMIT_Careers/job/Ho-Chi-Minh-City/Lecturer--Management-Renamed_JR46455')).toBe('JR46455')
   })
 
   it('one posting with and without tracking params is one row', () => {
@@ -184,7 +188,7 @@ describe('stage, expiry, sellers', () => {
 
   it('maps a gone posting to the row it would have created', () => {
     expect(jobExternalId('careerlink-english', 'https://www.careerlink.vn/tim-viec-lam/x/3612880?source=site')).toEqual({ sellerId: 'careerlink-vn-import-seller-0001', externalId: 'careerlink:3612880' })
-    expect(jobExternalId('vieclam24h-teach', 'https://vieclam24h.vn/x')).toBeNull()
+    expect(jobExternalId('topcv', 'https://www.topcv.vn/x')).toBeNull()
   })
 
   it('tombstones both language variants of the PDP', () => {

@@ -82,15 +82,21 @@ export const JOB_BOARDS = {
   eiv: { sellerId: 'eiv-edu-vn-import-seller-0001', name: 'EIV Education', hosts: ['recruitment.eiv.edu.vn'], id: null },
   nordanglia: { sellerId: 'nordanglia-com-import-seller-0001', name: 'Nord Anglia Education', hosts: ['careers.nordanglia.com'], id: /^\/job\/[^/]+\/(\d+)$/ },
   inspired: { sellerId: 'inspirededu-com-import-seller-0001', name: 'Inspired Education', hosts: ['jobs.inspirededu.com'], id: /^\/job\/[^/]+\/(\d+)$/ },
+  // Added 2026-09-25 after the coverage audit (robots allow, terms carry no reuse clause).
+  vieclam24h: { sellerId: 'vieclam24h-vn-import-seller-0001', name: 'Việc Làm 24h', hosts: ['vieclam24h.vn', 'www.vieclam24h.vn'], id: /id(\d{5,})\.html$/ },
+  // The requisition number, not the title slug Workday puts before it: an edited title must stay one row.
+  rmit: { sellerId: 'rmit-edu-vn-import-seller-0001', name: 'RMIT University Vietnam', hosts: ['rmit.wd3.myworkdayjobs.com'], id: /^\/RMIT_Careers\/job\/[^/]+\/[^/]*_(JR\d{3,})$/ },
+  tta: { sellerId: 'theteflacademy-com-import-seller-0001', name: 'The TEFL Academy', hosts: ['www.theteflacademy.com'], id: /^\/blog\/tefl-jobs\/([a-z0-9-]+)$/ },
 } as const satisfies Record<string, Board>
 export type BoardKey = keyof typeof JOB_BOARDS
 
-/** Pipeline source id → board. Two CareerLink searches feed one board. Việc Làm 24h is absent on
- *  purpose: it answers our fetcher 403, and a board we cannot read politely is not one we list. */
+/** Pipeline source id → board. Two CareerLink searches feed one board, two Việc Làm 24h searches another.
+ *  (Việc Làm 24h's earlier 403s were our own Accept header, not a block — fixed in the pipeline 2026-09-25.) */
 export const JOB_SOURCES: Record<string, BoardKey> = {
   'careerlink-teach': 'careerlink', 'careerlink-english': 'careerlink',
   eslcafe: 'eslcafe', teast: 'teast', vtj: 'vtj', eslgorilla: 'eslgorilla', eslboards: 'eslboards',
   'tefl-org': 'teflorg', vas: 'vas', eiv: 'eiv', nordanglia: 'nordanglia', inspired: 'inspired',
+  'vieclam24h-teach': 'vieclam24h', 'vieclam24h-english': 'vieclam24h', rmit: 'rmit', tta: 'tta',
 }
 
 export const JOB_SELLER_IDS: string[] = Object.values(JOB_BOARDS).map((b) => b.sellerId)
