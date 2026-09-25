@@ -71,7 +71,13 @@ const RECEIPTS = join(ROOT, '.second-opinion')
  * here, so its verdict is a self-review. The independent votes are agy and astra: weight a REFUTED
  * from either heavily, and go and measure rather than out-voting it.
  */
-const REVIEWER_NAMES = ['agy', 'codex', 'opus']
+/**
+ * ⏸ codex PAUSED 2026-09-25 — owner: "drop codex till available". Its OpenAI quota ran out ("usage limit …
+ * try again at 2:18 PM") and two build agents SLEPT waiting for it instead of committing on agy + opus.
+ * ⛔ TO RESTORE when the quota is back: put 'codex' back in this array AND uncomment its seat in REVIEWERS
+ * below. BOTH — the two lists drifting apart is what silently jammed this gate on 2026-09-16..20.
+ */
+const REVIEWER_NAMES = ['agy', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -221,7 +227,7 @@ if (process.env.SECOND_OPINION_SKIP_SECRET_SCAN !== '1') {
     // ⚠️ THIS IS THE THIRD PLACE THE SEAT LIST IS WRITTEN — after REVIEWER_NAMES and REVIEWERS —
     // and opus flagged it reviewing this very change: the diff's own lesson is that duplicated seat
     // lists drift, and it fixed two of the three. Update this string whenever a seat moves.
-    console.error('   agy, codex and opus are third-party services; a credential sent to them cannot be recalled.')
+    console.error('   agy and opus are third-party services; a credential sent to them cannot be recalled.')
     console.error('   Remove the value from the staged content (git reset the file, move it to Secret Manager via')
     console.error('   scripts/secret-set.sh), then re-run. If this is a FALSE POSITIVE — a fixture, a public key, a')
     console.error('   sample in documentation — re-run with SECOND_OPINION_SKIP_SECRET_SCAN=1 and say so out loud.')
@@ -442,36 +448,38 @@ const REVIEWERS = [
    * is still the same lab, so a unanimous 3/3 is two families agreeing, not three. If a third
    * independent family ever becomes reachable — an OpenRouter key, an opencode login — take it.
    */
-  /**
-   * THE OpenAI SEAT, BACK 2026-09-24 on the owner's word, on `gpt-5.6-sol` at MEDIUM — chosen by
-   * measurement for token cost (see REVIEWER_NAMES). Takes the prompt on STDIN, so unlike agy it is
-   * never truncated and it keeps the quorum reachable past 180KB. `web_search=disabled` +
-   * `--skip-git-repo-check` + `--sandbox read-only` are what stop codex burning its whole run
-   * exploring the tree instead of answering (the 46-minute hang recorded below).
-   * ⚠️ PROBE A NEW MODEL ID BEFORE PINNING IT: codex accepts an unknown id with only a "fallback
-   * metadata" warning and runs on a mis-specified model. ⛔ THAT CUTS BOTH WAYS AND A PARALLEL
-   * SESSION GOT IT HALF WRONG: probing `gpt-astra-6-sol`, `astra-6-sol` and `gpt-6-sol` produced
-   * errors and it concluded the family did not exist — but `gpt-6-astra` DOES, and was measured
-   * against this seat (19,302 tokens / 22s vs 9,881 / 21s for the same verdict and findings). The
-   * name that errors tells you nothing about the name that does not; measure, do not infer.
-   *
-   * ⚠️ THIS SEAT HAS NO `--print-timeout` EQUIVALENT, so the 420s harness bound is its only guard.
-   * agy carries `--print-timeout 400s` precisely so it can report its OWN failure from inside that
-   * bound; `codex exec --help` offers nothing similar, so a codex that overruns is killed by the
-   * process-group reap and recorded as `no-answer` with the reap's reason. Bounded and diagnosable,
-   * but it still drops the panel a seat — the same shape as a mis-specified model id above.
-   *
-   * ⚠️ `medium` IS THE ONE SEAT BELOW the others' high/max, and that is the owner's instruction, not
-   * a slip — do not "correct" it upward. It is also the FASTER end, so the note on the opus seat
-   * about no seat being slower than the 420s bound is unaffected by this one.
-   */
-  {
-    name: 'codex',
-    lab: 'openai',
-    cmd: 'codex',
-    args: ['exec', '-m', 'gpt-5.6-sol', '-c', 'model_reasoning_effort=medium', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'],
-    stdin: true,
-  },
+  // /**
+  //  * THE OpenAI SEAT, BACK 2026-09-24 on the owner's word, on `gpt-5.6-sol` at MEDIUM — chosen by
+  //  * measurement for token cost (see REVIEWER_NAMES). Takes the prompt on STDIN, so unlike agy it is
+  //  * never truncated and it keeps the quorum reachable past 180KB. `web_search=disabled` +
+  //  * `--skip-git-repo-check` + `--sandbox read-only` are what stop codex burning its whole run
+  //  * exploring the tree instead of answering (the 46-minute hang recorded below).
+  //  * ⚠️ PROBE A NEW MODEL ID BEFORE PINNING IT: codex accepts an unknown id with only a "fallback
+  //  * metadata" warning and runs on a mis-specified model. ⛔ THAT CUTS BOTH WAYS AND A PARALLEL
+  //  * SESSION GOT IT HALF WRONG: probing `gpt-astra-6-sol`, `astra-6-sol` and `gpt-6-sol` produced
+  //  * errors and it concluded the family did not exist — but `gpt-6-astra` DOES, and was measured
+  //  * against this seat (19,302 tokens / 22s vs 9,881 / 21s for the same verdict and findings). The
+  //  * name that errors tells you nothing about the name that does not; measure, do not infer.
+  //  *
+  //  * ⚠️ THIS SEAT HAS NO `--print-timeout` EQUIVALENT, so the 420s harness bound is its only guard.
+  //  * agy carries `--print-timeout 400s` precisely so it can report its OWN failure from inside that
+  //  * bound; `codex exec --help` offers nothing similar, so a codex that overruns is killed by the
+  //  * process-group reap and recorded as `no-answer` with the reap's reason. Bounded and diagnosable,
+  //  * but it still drops the panel a seat — the same shape as a mis-specified model id above.
+  //  *
+  //  * ⚠️ `medium` IS THE ONE SEAT BELOW the others' high/max, and that is the owner's instruction, not
+  //  * a slip — do not "correct" it upward. It is also the FASTER end, so the note on the opus seat
+  //  * about no seat being slower than the 420s bound is unaffected by this one.
+  //  */
+  // ⏸ PAUSED 2026-09-25 (owner: "drop codex till available") — see REVIEWER_NAMES. To restore, uncomment
+  // this seat AND add 'codex' back to REVIEWER_NAMES:
+  // {
+  //   name: 'codex',
+  //   lab: 'openai',
+  //   cmd: 'codex',
+  //   args: ['exec', '-m', 'gpt-5.6-sol', '-c', 'model_reasoning_effort=medium', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'],
+  //   stdin: true,
+  // },
   {
     name: 'opus',
     lab: 'anthropic',
@@ -490,7 +498,10 @@ const REVIEWERS = [
     // flash and claude opus 5 on high efforts". ⛔ THE "every seat at the same tier" CLAIM THAT USED
     // TO FOLLOW IS NO LONGER TRUE: astra runs at `medium` since 2026-09-24 (owner's instruction).
     // That is the FASTER end, so the 420s bound below is still tuned around this seat, not that one.
-    args: ['-p', '--model', 'claude-opus-5', '--effort', 'high', '--permission-mode', 'plan'],
+    // ⛔ OPUS 5.5 AT HIGH SINCE 2026-09-25 — owner: "make sure the 2n opinion is opus 5.5 with high reasoning".
+    // Probed before pinning: `claude -p --model claude-opus-5-5 --effort high` answered and its modelUsage
+    // reported claude-opus-5-5 (an unknown id would not prove itself — check modelUsage, not the exit code).
+    args: ['-p', '--model', 'claude-opus-5-5', '--effort', 'high', '--permission-mode', 'plan'],
     stdin: true,
   },
 ]

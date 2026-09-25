@@ -5,6 +5,8 @@ description: How to actually invoke the external reviewers (antigravity/agy and 
 
 # Invoking the external reviewers
 
+⏸ **codex is PAUSED since 2026-09-25 (owner: "drop codex till available" — OpenAI quota exhausted).** Dispatch agy + Opus only until the owner restores it; never sleep waiting for a quota reset. The gate still needs both to answer; over 180KB it refuses (split the change).
+
 The POLICY — second opinion mandatory at BOTH plan and finished diff, ask them to REFUTE rather
 than review, and a reviewer that did not answer is NOT a passed review — lives in the root
 `CLAUDE.md` and stays there. This file is only the mechanics.
@@ -78,7 +80,7 @@ confirm a real VERDICT came back before pinning it.
   allow-rule. Seen 2026-07-22. Feed the file CONTENT inline in the
   prompt (its agentic file-reading mode times out on `--print-timeout`); use `--print-timeout 240s`.
 - **opus** (the panel's third seat) —
-  `claude -p --model claude-opus-5 --effort max --permission-mode plan < prompt.txt`, prompt on
+  `claude -p --model claude-opus-5-5 --effort high --permission-mode plan < prompt.txt` (Opus 5.5 at high — owner, 2026-09-25), prompt on
   **stdin** so it sees the whole diff and counts toward quorum. `--permission-mode plan` is the
   sandbox: read-only, cannot edit or run anything.
   ⛔ **fable held this seat until 2026-09-09 and is now OUT OF BUDGET** — owner: *"change back to
