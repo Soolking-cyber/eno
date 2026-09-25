@@ -2318,6 +2318,46 @@ export function ListingsExplorer({
    * `totalCount` is the count of the area rather than of the whole city.
    */
   const hasMore = !reachedEnd && listings.length < totalCount
+  /**
+   * ⛔ THE NEXT ROWS ARE RESERVED IN THE GRID THE MOMENT THEY ARE ASKED FOR — as skeleton cells in the
+   * SAME grid, so a page that is on its way already has its height.
+   * Measured on production, "Browse everything" at 390×844: CLS 0.514, 3 of 3 runs. The tap unmounted
+   * the button, the discovery shelves below rose ~95px into its place UNDER THE FINGER and sat there
+   * for 0.7–0.9s, then the page-2 rows landed and threw them 2,000px down — a shift nobody's input
+   * explained. With the cells appended in the tap's own commit the shelves move down inside the input
+   * window (not counted as layout shift), and the cards then replace the cells in place:
+   * ListingCardSkeleton is the card's own box model, class for class.
+   * Three moments, each bounded by the query's own state so a cell can never be left behind:
+   *   · the grid LAGGING the rows it was handed (`useDeferredValue`) — exactly the missing count;
+   *   · the next page IN FLIGHT: `isFetching` AND `isPlaceholderData` (the rows on screen are the
+   *     previous page's answer). A background revalidation of a page already shown is not
+   *     placeholder data, so a window-focus refetch reserves nothing;
+   *   · that page's answer LANDED but the sync effect (a passive effect) has not appended it yet —
+   *     then EXACTLY its not-yet-loaded rows, the same `fresh` set the effect is about to append
+   *     (same offset test, same "not already loaded" test), so the count falls to 0 in the commit
+   *     that appends them. A page of duplicates has no such rows, and an empty deeper page sets
+   *     `reachedEnd`.
+   * ⚠️ KNOWN AND ACCEPTED: cells reserved for rows that then do not come — a failed request, a page
+   * of duplicates, a page shorter than the count promised — collapse when the answer says so. That
+   * is a shift, but a rare one, and the alternative (keeping cells for rows that are not coming) is a
+   * feed that ends in grey cards.
+   * ⚠️ Page 1 never reserves: a filter change REPLACES the rows (placeholder dim), it does not extend
+   * them. Grid and list views (each with its own row skeleton); map and video page elsewhere. The
+   * sentinel is untouched and stays mounted below the grid, cells or not (landmine).
+   */
+  const loadedIds = useMemo(() => new Set(listings.map((l) => l.id)), [listings])
+  const pendingRows = (() => {
+    if ((viewMode !== 'grid' && viewMode !== 'compact') || page <= 1 || failedWithoutAnswer) return 0
+    const lag = shownListings.length - deferredListings.length
+    if (lag > 0) return lag
+    if (!hasMore || queryError) return 0
+    const next = Math.min(FIRST_PAGE_SIZE, totalCount - listings.length)
+    if (next <= 0) return 0
+    if (queryFetching && queryShowingStaleSet) return next
+    const landed = listingsData as { offset?: number; listings?: SerializedListingCard[] } | undefined
+    if (queryShowingStaleSet || landed?.offset !== (page - 1) * FIRST_PAGE_SIZE) return 0
+    return Math.min(next, (landed.listings ?? []).filter((l) => !loadedIds.has(l.id)).length)
+  })()
   useEffect(() => {
     if (!hasMore) return
     // ⚠️ THE GATE, AND IT IS THE REASON THE HOME PAGE HAS A FOOTER. Undirected browse never
@@ -3673,6 +3713,13 @@ export function ListingsExplorer({
                       </div>
                     </Fragment>
                   ))}
+                  {/* The next page's reserved cells — see `pendingRows`. Decorative: the rows
+                      they stand in for announce themselves when they land. */}
+                  {Array.from({ length: pendingRows }, (_, i) => (
+                    <div key={`pending-${i}`} data-feed-skeleton="" aria-hidden="true" className="flex flex-col h-full">
+                      <ListingCardSkeleton />
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -3904,6 +3951,12 @@ export function ListingsExplorer({
                         onPrefetch={prefetchListing}
                         onLocate={locateOnMap}
                       />
+                    </div>
+                  ))}
+                  {/* The next page's reserved rows — see `pendingRows`. */}
+                  {Array.from({ length: pendingRows }, (_, i) => (
+                    <div key={`pending-${i}`} data-feed-skeleton="" aria-hidden="true">
+                      <CompactListingRowSkeleton />
                     </div>
                   ))}
                 </div>

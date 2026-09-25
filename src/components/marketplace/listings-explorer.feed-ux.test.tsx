@@ -63,13 +63,23 @@ const row = (id: string): SerializedListingCard =>
 /** The whole catalogue the fake server pages through; tests size it per case. */
 let catalogue: SerializedListingCard[] = []
 const requests: URL[] = []
+/** While set, every /api/listings request waits for it (a slow phone network). */
+let gate: Promise<void> | null = null
+function holdAll() {
+  let release = () => {}
+  gate = new Promise<void>((r) => { release = r })
+  return () => { gate = null; release() }
+}
+/** When set, the server answers every page past the first with page 1's rows again (a reshuffle). */
+let repeatFirstPage = false
 function listingsRequests() { return requests.filter((u) => u.pathname === '/api/listings' && !u.searchParams.has('hasVideo')) }
 
 function answer(url: URL) {
   const offset = Number(url.searchParams.get('offset') ?? 0)
   const limit = Number(url.searchParams.get('limit') ?? 12)
+  const from = repeatFirstPage ? 0 : offset
   return {
-    listings: catalogue.slice(offset, offset + limit), total: catalogue.length, offset, limit,
+    listings: catalogue.slice(from, from + limit), total: catalogue.length, offset, limit,
     subcategoryCounts: {}, categoryTotal: catalogue.length, facets: {},
   }
 }
@@ -78,6 +88,7 @@ function stubFetch() {
   vi.stubGlobal('fetch', vi.fn(async (u: string) => {
     const url = new URL(u, 'https://eno.vn')
     requests.push(url)
+    if (gate && url.pathname === '/api/listings') await gate
     const body = url.pathname === '/api/listings' ? answer(url) : {}
     return { ok: true, status: 200, json: async () => body } as Response
   }))
@@ -124,16 +135,18 @@ const entriesForPage = (client: QueryClient, page: number) =>
   client.getQueryCache().findAll({ queryKey: ['listings'] }).filter((q) => (q.queryKey as unknown as FeedKey)[1].page === page).length
 const newClient = () => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000, refetchOnWindowFocus: false } } })
 
-function mount(client: QueryClient) {
+function mount(client: QueryClient, props: Partial<React.ComponentProps<typeof ListingsExplorer>> = {}) {
   return render(
     <QueryClientProvider client={client}>
-      <ListingsExplorer categories={[]} initialListings={[]} initialTotal={0} />
+      <ListingsExplorer categories={[]} initialListings={[]} initialTotal={0} {...props} />
     </QueryClientProvider>,
   )
 }
 
 beforeEach(() => {
   requests.length = 0
+  gate = null
+  repeatFirstPage = false
   catalogue = Array.from({ length: 30 }, (_, i) => row(`r${i}`))
   sessionStorage.clear()
   installDomStubs()
@@ -183,5 +196,66 @@ describe('the next-page warm-up shares the live query\'s cache entry', () => {
     await waitFor(() => expect(cardIds()).toHaveLength(30))
     expect(warmedPages(prefetch)).toContain(3)
     expect(entriesForPage(client, 3)).toBe(1) // warmed into the entry the live page 3 then read
+  })
+})
+
+describe('"Browse everything" reserves the next rows in the tap\'s own frame', () => {
+  const skeletons = () => document.querySelectorAll('[data-feed-skeleton]').length
+  /** The home feed exactly as the ISR HTML seeds it: 12 rows of 30, behind the "Browse everything" gate. */
+  function mountHome(client = newClient()) {
+    mount(client, { initialListings: catalogue.slice(0, 12), initialTotal: catalogue.length })
+    return client
+  }
+
+  it('appends 12 skeleton cells to the same grid in the tap\'s commit, then swaps them for the cards in place', async () => {
+    mountHome()
+    expect(cardIds()).toHaveLength(12)
+    const release = holdAll() // page 2 is slow, as it is on a phone
+    act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
+
+    // Before the answer: the grid already holds page 2's height. The shelves below moved with the tap
+    // (0.514 CLS on production, where they rose into the button's place and were thrown down ~1s later).
+    expect(skeletons()).toBe(12)
+    expect(document.querySelector('.feed-grid [data-feed-skeleton]')).not.toBeNull()
+
+    release()
+    await waitFor(() => expect(cardIds()).toHaveLength(24))
+    expect(skeletons()).toBe(0)
+  })
+
+  it('reserves only what the last page can hold, and leaves nothing behind once the feed ends', async () => {
+    catalogue = catalogue.slice(0, 20) // pages of 12 and 8
+    mountHome()
+    const release = holdAll()
+    act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
+    expect(skeletons()).toBe(8)
+    release()
+    await waitFor(() => expect(cardIds()).toHaveLength(20))
+    expect(skeletons()).toBe(0)
+  })
+
+  it('the list view reserves its own rows the same way (auto-paging a searched feed)', async () => {
+    window.history.replaceState({}, '', '/?q=phone&view=compact')
+    mount(newClient())
+    const rows = () => document.querySelectorAll('[data-feed-card]').length
+    await waitFor(() => expect(rows()).toBe(12))
+    const release = holdAll()
+    scrollToSentinel()
+    expect(skeletons()).toBe(12)
+    release()
+    await waitFor(() => expect(rows()).toBe(24))
+    expect(skeletons()).toBe(0)
+  })
+
+  it('a page that brings nothing new (duplicates) does not strand its skeletons', async () => {
+    repeatFirstPage = true
+    mountHome()
+    const release = holdAll()
+    act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
+    expect(skeletons()).toBe(12) // reserved while it was on its way…
+    release()
+    await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('offset') === '12')).toBe(true))
+    await waitFor(() => expect(skeletons()).toBe(0)) // …and released when it brought nothing new
+    expect(cardIds()).toHaveLength(12)
   })
 })
