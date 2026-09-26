@@ -74,7 +74,11 @@ export function Segmented<T extends string>({
         style={{
           width: `calc((100% - 0.5rem) / ${count})`,
           transform: `translateX(${index * 100}%)`,
-          transitionTimingFunction: 'var(--ease-spring-snappy)',
+          // ease-out, NOT the snappy spring: it peaks at 1.03, and the canon says a track end is a
+          // boundary never overshot onto (globals.css easing notes). On the 4-option dashboard filter
+          // at 375px, All→Hidden overran ~7.7px against 4px of track padding — the pill poked past
+          // the track's rounded end on every jump to an end segment.
+          transitionTimingFunction: 'var(--ease-out-strong)',
           transitionDuration: '200ms',
         }}
       />
