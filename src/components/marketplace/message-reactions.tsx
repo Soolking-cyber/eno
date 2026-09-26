@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Copy, Trash2, Flag, Undo2, Heart } from '@/components/ui/icons'
 import { LottieEmoji } from '@/components/marketplace/lottie-emoji'
 import { hapticTap } from '@/lib/haptics'
+import { prefersReducedMotion } from '@/lib/reduced-motion'
 import { cn } from '@/lib/utils'
 import { PRIMARY_REACTION, REACTIONS, reactionFor, topReactions } from '@/lib/reactions'
 
@@ -581,14 +582,16 @@ export function BubbleChrome({
             // mouse. On a phone there is no gutter, so this pill and the reaction bar were drawn on
             // top of each other (owner, 2026-08-17, with a screenshot). The phone gets the stacked
             // copy inside the glyph's anchor instead — see MOBILE ACTIONS below.
-            'absolute top-1/2 z-30 flex -translate-y-1/2 items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale,translate] duration-200',
+            // Exit faster than entrance (the house close contract: open 150–200ms, close 100ms) —
+            // on the same 200ms both ways the toolbar lingered after the pointer had moved on.
+            'absolute top-1/2 z-30 flex -translate-y-1/2 items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale,translate]',
             'before:absolute before:inset-y-0 before:w-3 before:content-[""]',
             align === 'end'
               ? 'right-full mr-2 origin-right before:left-full'
               : 'left-full ml-2 origin-left before:right-full',
             actionsOpen
-              ? 'pointer-events-auto translate-x-0 scale-100 opacity-100'
-              : cn('pointer-events-none scale-90 opacity-0', align === 'end' ? 'translate-x-1' : '-translate-x-1'),
+              ? 'pointer-events-auto translate-x-0 scale-100 opacity-100 duration-200'
+              : cn('pointer-events-none scale-90 opacity-0 duration-100', align === 'end' ? 'translate-x-1' : '-translate-x-1'),
           )}
           style={{ transitionTimingFunction: 'var(--ease-spring)' }}
         >
@@ -766,7 +769,8 @@ export function BubbleChrome({
           <div
             aria-hidden={!barOpen}
             className={cn(
-              'absolute bottom-full z-30 mb-1.5 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale,translate] duration-200',
+              // Same close contract as the toolbar above: 200ms in, 100ms out.
+              'absolute bottom-full z-30 mb-1.5 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale,translate]',
               // ⛔ IT RISES FROM THE MARK AND MAY COVER THE BUBBLE — owner's call, 2026-08-16: "its
               // okay let it cover the bubble". Nested in the mark's anchor it is also a DOM
               // descendant of the control that opened it, so the pointer never leaves that subtree
@@ -776,8 +780,8 @@ export function BubbleChrome({
               // only here: hang off the outer edge and grow inward.
               align === 'end' ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left',
               barOpen
-                ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
-                : 'pointer-events-none translate-y-1 scale-90 opacity-0',
+                ? 'pointer-events-auto translate-y-0 scale-100 opacity-100 duration-200'
+                : 'pointer-events-none translate-y-1 scale-90 opacity-0 duration-100',
             )}
             style={{ transitionTimingFunction: 'var(--ease-spring)' }}
           >
@@ -817,12 +821,53 @@ export function BubbleChrome({
  */
 let pendingPress: { timer: number; x: number; y: number; el: HTMLElement; select: string; callout: string } | null = null
 
+/**
+ * ⚠️ A HELD BUBBLE SHOWS IT IS BEING HELD. Nothing moved for the 450ms before the long-press fired, so
+ * on a phone a hold was indistinguishable from a stuck touch. Slow where the person is deciding, fast
+ * where the system answers: the bubble eases to 0.97 over 330ms after a 120ms delay (so a scroll that
+ * starts on a bubble never flashes it), and springs back in 160ms on every exit — fire, move, lift or
+ * cancel all run through cancelPress(). `scale` is paint-only (no layout), inline styles are restored,
+ * and reduced motion skips it (the haptic still answers).
+ */
+const PRESS_DOWN = 'scale 330ms var(--ease-spring) 120ms'
+const PRESS_UP = 'scale 160ms var(--ease-spring-snappy)'
+/**
+ * The bubble's OWN inline scale/transition, saved once per element for the whole press → release
+ * cycle. A second press inside the 200ms release window reuses the saved originals (and cancels the
+ * pending restore) instead of saving PRESS_UP as if it were the bubble's own — which would have left
+ * it on the bubble for good. No string comparison of `style.transition` is involved.
+ */
+const pressStyles = new WeakMap<HTMLElement, { scale: string; transition: string; restore?: number }>()
+
+function pressDown(el: HTMLElement) {
+  if (prefersReducedMotion()) return
+  let saved = pressStyles.get(el)
+  if (saved) window.clearTimeout(saved.restore)
+  else pressStyles.set(el, (saved = { scale: el.style.scale, transition: el.style.transition }))
+  el.style.transition = PRESS_DOWN
+  el.style.scale = '0.97'
+}
+
+function pressUp(el: HTMLElement) {
+  const saved = pressStyles.get(el)
+  if (!saved) return
+  el.style.transition = PRESS_UP
+  el.style.scale = saved.scale
+  window.clearTimeout(saved.restore)
+  saved.restore = window.setTimeout(() => {
+    el.style.transition = saved.transition
+    pressStyles.delete(el)
+  }, 200)
+}
+
 function cancelPress() {
   if (pendingPress) {
     window.clearTimeout(pendingPress.timer)
-    pendingPress.el.style.userSelect = pendingPress.select
-    pendingPress.el.style.setProperty('-webkit-user-select', pendingPress.select)
-    pendingPress.el.style.setProperty('-webkit-touch-callout', pendingPress.callout)
+    const { el } = pendingPress
+    el.style.userSelect = pendingPress.select
+    el.style.setProperty('-webkit-user-select', pendingPress.select)
+    el.style.setProperty('-webkit-touch-callout', pendingPress.callout)
+    pressUp(el)
   }
   pendingPress = null
 }
@@ -873,6 +918,7 @@ export function longPressHandlers(onLongPress: () => void) {
       // would have been a fix that reads correctly and does nothing where it matters.
       el.style.setProperty('-webkit-user-select', 'none')
       el.style.setProperty('-webkit-touch-callout', 'none')
+      pressDown(el)
       pendingPress = {
         x: e.clientX,
         y: e.clientY,
