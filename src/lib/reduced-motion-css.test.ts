@@ -52,6 +52,11 @@ describe('globals.css reduced-motion block', () => {
       expect(block).toContain(v)
   })
 
+  it('the skeleton pulses instead of freezing', () => {
+    expect(block).toContain('.shimmer::after { animation: none !important; }')
+    expect(block).toMatch(/\.shimmer \{\s*animation: reduced-motion-pulse/)
+  })
+
   it('the scrim keeps its own opacity fade, exit timing included', () => {
     expect(block).toMatch(/\.overlay-scrim \{ transition: opacity 150ms ease-out !important; \}/)
     expect(block).toMatch(/\.overlay-scrim\[data-ending-style\] \{ transition: opacity var\(--scrim-exit, 150ms ease-out\) !important; \}/)

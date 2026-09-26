@@ -2383,7 +2383,7 @@ html.dark .leaflet-tile-pane {
   @media (hover: hover) {
     .icon-plate,
     .plate-host svg {
-      transition: background-color 200ms linear;
+      transition: background-color 200ms ease; /* a colour change: `ease`, not `linear` (motion) */
     }
     /* ⚠️ DESCENDANT, NOT CHILD, ON BOTH HOSTS. The first version used `a:hover > .icon-plate`,
        which silently skipped any glyph wrapped in a span inside a link — a reviewer caught the
@@ -2428,8 +2428,10 @@ html.dark .leaflet-tile-pane {
 .press {
   transition: scale 220ms var(--ease-spring-snappy),
               transform 220ms var(--ease-spring-snappy),
-              background-color 150ms linear, color 150ms linear,
-              opacity 150ms linear, box-shadow 150ms linear;
+              background-color 150ms ease, color 150ms ease,
+              opacity 150ms ease, box-shadow 150ms ease;
+  /* ⚠️ `ease`, not `linear`, on the colour/opacity legs: linear is for constant motion; a hover or
+     selected-state change is a colour change, and it read flat next to a plain <Button>'s spring. */
   touch-action: manipulation; /* also removes the legacy 300ms tap delay */
 }
 .press:active {
@@ -2784,6 +2786,16 @@ html:not(.native) #app-splash {
   #app-splash::after { display: none; }
 }
 
+/* ⚠️ A FASTER SPINNER READS AS A SHORTER WAIT. Tailwind's stock `spin 1s linear infinite` drove all
+   ~128 `animate-spin` sites (<Spinner> and every Loader2) while the app's own loaders already run
+   under a second per cycle (the shimmer, the flip tile). One token speeds them all. The reduced-motion
+   `.animate-spin` rule just below replaces `animation` outright (an opacity pulse, no rotation), so
+   those readers are unaffected. Its own block: the `@theme` further down mirrors tw-animate-css and
+   must differ from the package by its `filter` line only. */
+@theme {
+  --animate-spin: spin 0.75s linear infinite;
+}
+
 /* ============================================================
    ACCESSIBILITY — honor reduced-motion preference
    ============================================================ */
@@ -2849,6 +2861,16 @@ html:not(.native) #app-splash {
    * logo rather than as work in progress. Same trade: opacity over time, no transform at all.
    */
   .eno-flip {
+    animation: reduced-motion-pulse 1.6s ease-in-out infinite !important;
+  }
+  /**
+   * ⚠️ THE SKELETON SHIMMER TOO. The blanket rule parked its sheen at translateX(-100%), off-stage,
+   * so the feed's most common loading state became a static grey tile with no sign anything was
+   * still working — the same "a loader is not decoration" failure as the ring above. No travelling
+   * sheen for these readers; the tile itself pulses in opacity.
+   */
+  .shimmer::after { animation: none !important; }
+  .shimmer {
     animation: reduced-motion-pulse 1.6s ease-in-out infinite !important;
   }
   @keyframes reduced-motion-pulse {
@@ -3826,11 +3848,30 @@ html:not(.native) #app-splash {
    today and silently start animating the day that selector is narrowed. Written
    this way the animation cannot exist for a reader who asked for less motion,
    whatever else changes. The dot itself stays solid and visible either way. */
+/* ⚠️ THE RING IS A SCALED, FADING ::after — transform + opacity only. It used to animate `box-shadow`
+   (0 → 5px spread), which is not compositable: a main-thread repaint on every frame, forever, for as
+   long as the footer was on screen. A 6px dot's 5px ring is 16px across, so the pseudo grows to 2.7×
+   from 55% opacity to 0 — the same look, on the compositor. */
 @keyframes live-dot-ring {
-  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--success) 55%, transparent); }
-  70%  { box-shadow: 0 0 0 5px color-mix(in oklab, var(--success) 0%, transparent); }
-  100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--success) 0%, transparent); }
+  0%       { transform: scale(1);   opacity: 0.55; }
+  70%, 100% { transform: scale(2.7); opacity: 0; }
 }
-@media (prefers-reduced-motion: no-preference) {
-  .live-dot { animation: live-dot-ring 2.4s var(--ease-spring) infinite; }
+/* In @layer components so a utility on the dot itself (say `absolute -top-0.5 -right-0.5` on a future
+   presence dot) still wins: an unlayered `position: relative` here would beat every utility. The
+   positioning sits OUTSIDE the motion query, so the dot lays out the same whatever the reader's
+   motion setting; only the ring is opt-in. */
+@layer components {
+  .live-dot { position: relative; }
+  @media (prefers-reduced-motion: no-preference) {
+    .live-dot::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: var(--success);
+      opacity: 0;
+      pointer-events: none;
+      animation: live-dot-ring 2.4s var(--ease-spring) infinite;
+    }
+  }
 }
