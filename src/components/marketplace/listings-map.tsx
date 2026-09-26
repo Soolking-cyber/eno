@@ -1466,7 +1466,12 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                 L.DomEvent.disableClickPropagation?.(node)
               }
             }}
-            className="pointer-events-auto overflow-y-auto overscroll-contain duration-150 ease-out animate-in fade-in zoom-in-95"
+            // Grows FROM ITS PIN, like the listing card below (same cardPos logic): it zoomed from its
+            // own centre while anchored above/below the pin, so it seemed to grow out of empty map.
+            className={cn(
+              'pointer-events-auto overflow-y-auto overscroll-contain duration-150 ease-out animate-in fade-in zoom-in-95',
+              buildingCardPos.centered ? 'origin-center' : buildingCardPos.above ? 'origin-bottom' : 'origin-top',
+            )}
             /**
              * ⛔ PIXELS FROM THE LIVE MAP, NOT A PERCENTAGE. `calc(100% - 24px)` computed to `none`
              * and the card went on overflowing: the parent is absolutely positioned with no height of
