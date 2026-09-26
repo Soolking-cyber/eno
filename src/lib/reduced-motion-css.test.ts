@@ -12,7 +12,9 @@ import { describe, expect, it } from 'vitest'
  * and the overlay scrim's own opacity transition. jsdom evaluates no media queries, so this pins the
  * declarations; the behaviour was measured on the production preview with reducedMotion: 'reduce'.
  */
-const css = readFileSync(join(__dirname, 'globals.css'), 'utf8')
+// Lives in src/lib, not beside globals.css: src/app's root is reserved for routes and metadata
+// (lang-segment.guard.test.ts fails on any other entry there).
+const css = readFileSync(join(__dirname, '../app/globals.css'), 'utf8')
 const start = css.indexOf('ACCESSIBILITY — honor reduced-motion preference')
 // Declarations only: the block's own comments quote the rules they replaced.
 const block = css.slice(start, css.indexOf('View Transitions', start)).replace(/\/\*[\s\S]*?\*\//g, '')
