@@ -4,7 +4,7 @@ import { categoryFromPath, explorerMounted, explorerFallbackUrl } from '@/lib/ex
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { User, Search, MapPin, Map, Clock, X } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -194,6 +194,13 @@ export function Header() {
     searchVal,
     recentSearches.length > 0 || recentLocations.length > 0 || trending.length > 0,
   )
+  // The search window is ONE element for both panels (see its comment below), so it keeps its
+  // scrollTop across the switch — two separate mounts used to start each panel at the top. Reset it
+  // before paint when the contents switch, or the instant results open scrolled past their top rows.
+  const searchWindowRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (searchWindowRef.current) searchWindowRef.current.scrollTop = 0
+  }, [suggestOpen])
 
   // Instant matches (debounced typeahead) — brands + categories + listings, with the
   // 'Search for "{q}"' row ALWAYS first: Enter with no arrow-key selection submits the
@@ -650,10 +657,27 @@ export function Header() {
                 is up whenever they are, and a 70vh cap alone ran them under it (y60–551 for 'Quận 7'
                 against a keyboard top near 508 on a 390×844 phone). `--kb-h` is the app-wide
                 keyboard height (globals.css, KEYBOARD GEOMETRY; 0 when there is none), and 4.5rem is
-                the panel's 3.75rem top plus a 12px gap; the rest scrolls inside the panel. */}
-            {suggestOpen && (
-              <>
-                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-4.5rem-env(safe-area-inset-top)))] space-y-4 overflow-y-auto rounded-2xl bg-popover p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+                the panel's 3.75rem top plus a 12px gap; the rest scrolls inside the panel.
+                ⛔ ONE WINDOW FOR BOTH PANELS, NOT ONE EACH. It used to be two sibling elements, each with its
+                own entrance keyframe — so the 2nd typed character (or a backspace to 1) unmounted one and
+                mounted the other, and the whole window faded + slid in again MID-TYPING. A keystroke never
+                animates (Emil's rule; the blink search-panel.ts removed, back in 100ms form). The window
+                mounts once on `panelOpen` — the entrance plays for the tap that opens it — and only its
+                contents switch.
+                ⚠️ `transition-none` IS PART OF THE FIX. `duration-100` (there for the entrance) sets a
+                transition-duration, and with no transition-property named the initial `all` applies — so
+                the window's own padding change on that keystroke (p-4 → p-3) animated over 100ms,
+                measured as four padding transitions. The entrance is a keyframe; nothing here transitions. */}
+            {panelOpen && (
+              <div
+                ref={searchWindowRef}
+                className={cn(
+                  'fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-4.5rem-env(safe-area-inset-top)))] overflow-y-auto rounded-2xl bg-popover shadow-pop transition-none animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl',
+                  suggestOpen ? 'space-y-4 p-4' : 'p-3',
+                )}
+              >
+                {suggestOpen ? (
+                <>
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -708,22 +732,19 @@ export function Header() {
                     variant="header"
                     onPick={(term) => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
                   />
-                </div>
-              </>
-            )}
-
-            {/* Instant matches — live listings + categories as you type (≥2 chars) */}
-            {instantOpen && (
-              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-4.5rem-env(safe-area-inset-top)))] overflow-y-auto rounded-2xl bg-popover p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
-                <SearchSuggest
-                  items={suggestItems}
-                  loading={live.loading}
-                  query={searchVal}
-                  activeIndex={activeIdx}
-                  listboxId={SUGGEST_ID}
-                  onPick={pickSuggest}
-                  onSubmitQuery={() => { submitSearch(searchVal); setShowSuggestions(false) }}
-                />
+                </>
+                ) : (
+                  /* Instant matches — live listings + categories as you type (≥2 chars) */
+                  <SearchSuggest
+                    items={suggestItems}
+                    loading={live.loading}
+                    query={searchVal}
+                    activeIndex={activeIdx}
+                    listboxId={SUGGEST_ID}
+                    onPick={pickSuggest}
+                    onSubmitQuery={() => { submitSearch(searchVal); setShowSuggestions(false) }}
+                  />
+                )}
               </div>
             )}
             </div>
