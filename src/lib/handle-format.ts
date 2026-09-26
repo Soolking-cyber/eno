@@ -94,6 +94,8 @@ const RESERVED = new Set([
   // prod, 2026-09-25): 0 of 24 handles fold to `rentals` or start with `rental`.
   'rentals',
   'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'iphone-18-vietnam',
+  // The rent-index data page (2026-09-27). Its CSV sibling needs no entry: a handle cannot contain a dot.
+  'hcmc-rent-index',
   // ⚠️ THE PER-MODEL LANDING PAGES, ADDED 2026-09-19. A member holding @iphone-18-pro-vietnam
   // would shadow the route entirely — /[handle] renders the storefront in place, so the SEO page
   // simply stops existing with no error anywhere.

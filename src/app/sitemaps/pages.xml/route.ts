@@ -296,6 +296,14 @@ export async function GET() {
       // ⚠️ SERVICES EDITION ONLY. Two thirds of this page is e-visa and trip-planning copy, so on
       // the licensed marketplace it must not be submitted to Google — see the note below.
       ...(IS_SERVICES ? ['services-for-expats-vietnam'] : []),
+      /**
+       * ⚠️ THE RENT INDEX IS OUR OWN ANALYSIS, SO THE 2026-09-17 RULE DOES NOT KEEP IT OUT. That rule
+       * withholds IMPORTED LISTING URLs from the sitemap — pages that restate another site's advert.
+       * This page publishes statistics computed here that no source publishes, which is the kind of
+       * original content the rule was protecting the domain's standing for. MARKETPLACE ONLY: the
+       * route 404s on the services build (see its page.tsx), and a sitemap must not submit a 404.
+       */
+      ...(IS_SERVICES ? [] : ['hcmc-rent-index']),
     ]) {
       urls.push(`  <url><loc>${hostUrl}/${p}</loc>${lm(siteLastmod)}</url>\n`)
     }
