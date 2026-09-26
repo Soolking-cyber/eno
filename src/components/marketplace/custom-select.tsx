@@ -110,7 +110,8 @@ function triggerClassName(
 /** Row styling, shared by Select.Item and Combobox.Item so the two menus match. */
 function itemClassName(isActive: boolean) {
   return cn(
-    'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer active:scale-100 hover:bg-muted hover:text-accent-foreground data-highlighted:bg-muted data-highlighted:text-accent-foreground',
+    // No transition-colors: `data-highlighted` moves on arrow keys, and a keyboard-driven change never animates.
+    'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm cursor-pointer active:scale-100 hover:bg-muted hover:text-accent-foreground data-highlighted:bg-muted data-highlighted:text-accent-foreground',
     isActive ? 'font-semibold text-accent-foreground' : 'font-medium text-body',
   )
 }

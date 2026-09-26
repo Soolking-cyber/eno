@@ -353,7 +353,8 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
   ].filter((x): x is { recipientId: string; label: string } => x !== null).filter((x, i, a) => a.findIndex((y) => y.recipientId === x.recipientId) === i)
 
   return (
-    <Card onClick={onSelect} className={cn('cursor-pointer gap-0 border-l-[3px] px-4 shadow-pop transition-shadow', RAIL[c.bucket], selected && !readOnly && 'ring-2 ring-brand/40', readOnly && 'opacity-90')}>
+    // No transition-shadow: the selection ring follows the j/k hotkeys, which never animate.
+    <Card onClick={onSelect} className={cn('cursor-pointer gap-0 border-l-[3px] px-4 shadow-pop', RAIL[c.bucket], selected && !readOnly && 'ring-2 ring-brand/40', readOnly && 'opacity-90')}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {!readOnly && onCheck && <Checkbox checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5" aria-label="Select case" />}
@@ -491,7 +492,8 @@ function CaseRow({ c, active, checked, readOnly, onSelect, onCheck }: {
   // The old rounded border+bg-card box read as a stack of faint outlines once the fill collapsed into
   // the canvas; the container draws the divide-y between rows.
   return (
-    <button type="button" onClick={onSelect} className={cn('block w-full text-left cursor-pointer border-l-[3px] p-2.5 transition-colors', RAIL[c.bucket], active ? 'bg-tint' : 'hover:bg-muted/50')}> {/* design-lint-allow */}
+    // No transition-colors: the j/k hotkeys move `active`, and a keyboard-driven change never animates.
+    <button type="button" onClick={onSelect} className={cn('block w-full text-left cursor-pointer border-l-[3px] p-2.5', RAIL[c.bucket], active ? 'bg-tint' : 'hover:bg-muted/50')}> {/* design-lint-allow */}
       <div className="flex items-start gap-2">
         {!readOnly && onCheck && <Checkbox checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="mt-0.5 h-3.5 w-3.5" aria-label="Select case" />}
         {isListing && (

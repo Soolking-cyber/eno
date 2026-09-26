@@ -151,7 +151,8 @@ function ComboboxItem({ className, children, ...props }: ComboboxPrimitive.Item.
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
       className={cn(
-        "relative flex min-h-11 cursor-pointer items-center rounded-xl py-2.5 pr-10 pl-3 text-sm leading-5 outline-none transition-colors duration-100 select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
+        // No transition: the highlight moves on arrow keys, and a keyboard-driven change never animates.
+        "relative flex min-h-11 cursor-pointer items-center rounded-xl py-2.5 pr-10 pl-3 text-sm leading-5 outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
         className,
       )}
       {...props}

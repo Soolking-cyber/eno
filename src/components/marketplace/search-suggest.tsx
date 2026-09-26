@@ -114,7 +114,9 @@ export function SearchSuggest({
 
   const chipCls = (active: boolean) =>
     cn(
-      'rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
+      // `transition-[scale]` like the rows: `active` follows the arrow keys here too, so the chip's
+      // highlight must switch instantly while its press still eases.
+      'rounded-xl px-3.5 py-2 text-sm font-semibold transition-[scale] cursor-pointer',
       active ? 'bg-muted text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground',
     )
 
@@ -155,7 +157,9 @@ export function SearchSuggest({
           onMouseDown={pickDown(onSubmitQuery)}
           // py-2.5 (≈40px): the row Enter runs, and the one a thumb aims for first — it was 36px.
           className={cn(
-            'flex w-full items-center justify-start gap-2 whitespace-normal rounded-xl px-2 py-2.5 text-left text-sm font-semibold text-accent-foreground transition-colors cursor-pointer',
+            // `transition-[scale]`: the Button's press still eases, but the arrow-key highlight
+            // (`activeIndex`) switches instantly — a keyboard-driven change never animates.
+            'flex w-full items-center justify-start gap-2 whitespace-normal rounded-xl px-2 py-2.5 text-left text-sm font-semibold text-accent-foreground transition-[scale] cursor-pointer',
             activeIndex === 0 ? 'bg-muted' : 'hover:bg-muted',
           )}
         >
@@ -221,7 +225,7 @@ export function SearchSuggest({
                 {...optionProps(listingStart + i)}
                 onMouseDown={pickDown(() => onPick(it))}
                 className={cn(
-                  'group flex w-full items-center justify-start gap-3 rounded-xl px-2 py-1.5 text-left font-normal transition-colors cursor-pointer',
+                  'group flex w-full items-center justify-start gap-3 rounded-xl px-2 py-1.5 text-left font-normal transition-[scale] cursor-pointer',
                   activeIndex === listingStart + i ? 'bg-muted' : 'hover:bg-muted',
                 )}
               >
