@@ -69,7 +69,10 @@ export function NotificationBell() {
                 when unread is USER-state (§5) — something is yours/waiting. */}
             <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} strokeWidth={STROKE_NAV} />
             {user && unread > 0 && (
-              <Badge aria-hidden variant="counter" size="count" className="absolute right-1 top-1 animate-in zoom-in duration-200">
+              // `zoom-in-90`, never a bare `zoom-in`: in tw-animate that is --tw-enter-scale: 0, so the
+              // counter grew out of NOTHING on every page load. From 0.9 with a fade, on the snappy
+              // spring (a keyframe does not inherit the house default curve).
+              <Badge aria-hidden variant="counter" size="count" className="absolute right-1 top-1 animate-in fade-in zoom-in-90 duration-200 ease-[var(--ease-spring-snappy)]">
                 {unread > 9 ? '9+' : unread}
               </Badge>
             )}
