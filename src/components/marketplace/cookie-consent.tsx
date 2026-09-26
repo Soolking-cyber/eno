@@ -427,8 +427,8 @@ export function CookieConsent() {
       <DialogPrimitive.Portal>
         {/* ⛔ GEOMETRY ONLY — no background, no blur, and `pointer-events-none`, which is what keeps
             a wrapper this size from swallowing taps on the page (see the note above).
-            ⚠️ BOTTOM = THE TAB BAR (4.5rem, which must track <BottomNavSpacer/> and mobile-nav's
-            min-h) + the safe area + a 0.5rem breath. The `max(env(), var())` pair is the same one
+            ⚠️ BOTTOM = THE TAB BAR (4.5rem, its footprint — which must track <BottomNavSpacer/> and
+            the pill's height + gap in mobile-nav.tsx) + the safe area + a 0.5rem breath. The `max(env(), var())` pair is the same one
             back-to-top uses: Android WebView < 140 hands the inset over as a CSS variable instead
             of env(), and everywhere else the variable is unset and this equals plain env().
             ⚠️ IT DOES NOT FOLLOW THE TAB BAR WHEN THAT SCROLLS AWAY. A consent control that slides

@@ -44,6 +44,9 @@
      `.mobile-nav` name `ease-out` explicitly, so an explicit class beats this fallback and
      they keep their non-overshooting curve — see the boundary rule in the motion contract
      below. If you ever remove `ease-out` from those, you reintroduce the 0.7–0.8px gap.
+     (`.mobile-nav` has floated as a pill 12px+ off the edge since 2026-09-26, so an overshoot
+     there no longer opens a gap — it keeps `ease-out` because a bar that bobs at rest reads
+     as a wobble. The header is still flush.)
      ⚠️ THEY ARE EXAMPLES OF A CLASS, NOT THE WHOLE CLASS — a reviewer's phrasing, and it is
      the right way to hold this. ANY element whose transition rests exactly on a boundary
      (a docked bar, a drawer at its open position, a value clamped at 0 or 100%) needs an
@@ -574,6 +577,8 @@
      the 64px header and 0.80px on the 73px nav with `--ease-spring`, and 1.9–2.2px with
      snappy — 2 to 6 DEVICE pixels at dpr 2–3, along a colour boundary, on every scroll-up.
      Both bars therefore keep `ease-out` deliberately; that is not an oversight to "fix".
+     (The 73px nav in those numbers was the flush bar. Since 2026-09-26 it is a floating pill
+     resting 12px+ above the edge, so its overshoot would bob rather than gap — still `ease-out`.)
 
      ⚠️ A TRACK END IS A BOUNDARY TOO, AND `overflow-hidden` DOES NOT RESCUE IT. The card
      carousel was changed to a spring in the same commit that wrote this rule, on the
@@ -836,7 +841,8 @@
   /* The <html> background IS the canvas: it paints the whole viewport, including the strip a
      rubber-band overscroll exposes past either edge and the area below a page shorter than the
      screen. --card is right for the second case (an empty /saved sits on the card surface) and
-     for the BOTTOM edge (mobile-nav is bg-card). It is NOT the header colour — the header went
+     for the BOTTOM edge (the mobile-nav WAS a flush bg-card bar there; since 2026-09-26 it
+     floats as a pill and never touches the edge). It is NOT the header colour — the header went
      flat, bg-background, on 2026-07-17 — so `html.native-ios` further down repaints the canvas
      to match the header for the one context where the top edge is actually reachable. Read that
      rule before touching this one; they are a pair.
@@ -1379,9 +1385,14 @@ html[data-nav-pop] .route-fade,
        collapsed the flex-height chain and stranded the composer at the top).
    ============================================================ */
 
-/* Hide the fixed bottom-nav + its spacer while the keyboard is up. */
+/* Hide the fixed bottom-nav + its spacer while the keyboard is up. The nav FLOATS (a pill, max(12px,
+   safe area) off the bottom — mobile-nav.tsx), so `100%` alone would stop it that gap short of the
+   edge; the travel is its height plus that gap, the same calc as its scroll retract.
+   ⚠️ While the keyboard is up the nav's scroll-retract `translate` (mobile-nav.tsx: `off` includes the
+   keyboard) applies TOO, so the two stack to twice the travel. Harmless — it is off-screen at opacity 0 —
+   and do not "fix" it by dropping either: each covers a path into the hidden state the other misses. */
 html.kb-open .mobile-nav {
-  transform: translateY(100%);
+  transform: translateY(calc(100% + max(0.75rem, env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))));
   opacity: 0;
   pointer-events: none;
 }
@@ -1789,6 +1800,14 @@ summary:focus-visible,
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
+/* The floating tab pill (mobile-nav.tsx): its tabs fill it edge to edge, so the 2px offset above put
+   the ring 4px OUTSIDE the pill, top and bottom and past its rounded ends (measured). -4px draws it
+   inside the tab, hugging where the active capsule sits (`inset-1`). ⚠️ `!important` because the
+   guest Messages/Account tabs are <button>s carrying `tabindex`, and the `[tabindex]` branch above is
+   (0,6,0) — a scoped rule without it fixed the links and left those two at +2px. */
+.mobile-nav :is(a, button):focus-visible {
+  outline-offset: -4px !important;
+}
 
 /* a11y — guarantee a ≥44×44px TAP target on compact icon controls WITHOUT changing
    their visual size: an invisible centered hit area (::before) that overflows the
@@ -1949,7 +1968,9 @@ html.native-ios {
    it paints web content into the exact strip where UIKit reveals the native UIRefreshControl
    (MainViewController wires `wv.scrollView.refreshControl`), and whether the content layer lands
    above or below that control cannot be settled without a device. Losing the refresh spinner is a
-   worse regression than a rare bottom seam. Verify on a device first, then swap. */
+   worse regression than a rare bottom seam. Verify on a device first, then swap.
+   (Since 2026-09-26 the web tab bar is a floating pill that never touches the bottom edge, so the
+   bottom half of this seam has no bar to show against; the top edge is unchanged.) */
 html.native-ios {
   background-color: var(--background);
   /* ⛔ AND THE WASH IMAGE MUST BE KILLED HERE, OR THIS WHOLE RULE STOPS WORKING. The base `html` rule
@@ -2002,13 +2023,16 @@ html.native #app-header {
 html.native [data-app-download] {
   display: none !important;
 }
+/* The tab bar is a FLOATING PILL since 2026-09-26 (mobile-nav.tsx), so the inset LIFTS it rather than
+   padding it: this restates the utility's `bottom: max(0.75rem, env(), var())` (belt and braces — the
+   utility carries Capacitor's injected fallback too). It used to be `padding-bottom`, which on the pill would have made it 34px taller instead. */
 html.native .mobile-nav {
-  padding-bottom: max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
+  bottom: max(0.75rem, env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
 }
 html.native .bottom-nav-spacer {
-  /* ⚠️ 4.5rem must equal the bar's min-h in mobile-nav.tsx. They are two separate
-     declarations of ONE number: if this is smaller the bar covers the bottom of every
-     page, if larger a dead strip appears above it. */
+  /* ⚠️ 4.5rem is the tab bar's FOOTPRINT in mobile-nav.tsx: the 56px pill + its 12px gap, inside this
+     72px. Two separate declarations of ONE number: if this is smaller the pill covers the bottom of
+     every page; if the pill ever grows past it, the same. Larger only adds air above it. */
   height: calc(4.5rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)));
 }
 
@@ -2453,12 +2477,18 @@ html.dark .leaflet-tile-pane {
   }
 }
 
-/* 2 · The 2px location bar that comes with it — grows from the centre out. Not
+/* 2 · The location indicator that comes with it — grows from the centre out. Not
    a bounce: it is the same "you are here" statement as the wash, arriving in
-   the same 200ms window so the two read as ONE move. */
+   the same 200ms window so the two read as ONE move. Since 2026-09-26 it is the
+   tinted capsule behind the active glyph in the floating tab pill (it was a 2px
+   bar along the docked bar's top edge); the capsule rests 4px inside the pill,
+   so the snappy spring's overshoot has room and never opens a gap on an edge. */
+/* ⚠️ `clip-path`, not `scaleX`: scaling a 65×46 rounded-full box squashes its round ends into a vertical
+   lozenge for the first frames (the 2px bar hid that). An inset clip with `round` keeps a true capsule
+   while it widens from the centre; the spring's overshoot only pushes the clip past the box, invisibly. */
 @keyframes bar-in {
-  from { opacity: 0; transform: scaleX(0.25); }
-  to   { opacity: 1; transform: none; }
+  from { opacity: 0; clip-path: inset(0 37.5% round 9999px); }
+  to   { opacity: 1; clip-path: inset(0 round 9999px); }
 }
 .bar-in { animation: bar-in 200ms var(--ease-spring-snappy) both; }
 

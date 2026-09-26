@@ -864,8 +864,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // ⚠️ IF YOU CHANGE THE BAR'S CONTENTS, RE-MEASURE THIS. The two numbers are coupled with nothing
   // to enforce it: the bar grows, this does not, and the failure is silent — the last field simply
   // sits under the bar and the seller cannot reach it.
+  // `max(env(), var())` — the SAME inset the Publish bar clears (see the note on it below), so the two
+  // grow together on an Android WebView < 140, where env() is 0 and Capacitor injects the var.
   return (
-    <div className="pb-[calc(14rem+env(safe-area-inset-bottom))] lg:pb-0">
+    <div className="pb-[calc(14rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] lg:pb-0">
       {/* Exit is a <Link>, not an <a>: inside the Capacitor WebView a raw anchor is a fresh
           HTTP load of the live site — blank screen, full document teardown. The draft is
           already autosaved to localStorage, so a soft nav loses nothing. */}
@@ -1261,14 +1263,21 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           bottom-0 (so there's no gap when the nav auto-hides) while the button is
           padded up clear of the nav; the form root reserves matching space below so
           the last fields never hide behind it. */}
-      {/* ⚠️ `[html.kb-open_&]:pb-3` — THE 4.75rem IS THE BOTTOM NAV'S CLEARANCE, AND THE NAV HIDES WHILE
-          TYPING (globals.css `html.kb-open .mobile-nav`). Keeping it reserved 76px for chrome that was
+      {/* ⚠️ `[html.kb-open_&]:pb-3` — THE 5rem IS THE BOTTOM NAV'S CLEARANCE, AND THE NAV HIDES WHILE
+          TYPING (globals.css `html.kb-open .mobile-nav`). Keeping it reserved (then 76px) for chrome that was
           not there: at 390×508 (Android, keyboard up) the bar stood 183px tall — 36% of the viewport —
           and the focused description ran underneath it. Sliding the whole bar away while typing is a
           separate owner decision; this only stops reserving room for a nav that is gone.
           The safe-area inset goes too, on purpose: above a keyboard there is no home indicator to
           clear — the same "no stale home-indicator gap above the keyboard" rule as .kb-bottom. */}
-      <div data-fab-clear className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] [html.kb-open_&]:pb-3 material backdrop-blur lg:hidden">
+      {/* ⚠️ 5rem AND `px-3` SINCE THE TAB BAR BECAME A FLOATING PILL (2026-09-26): 12px from the sides and
+          12px off the bottom. At 4.75rem + px-4 the Publish button ended 8px above it with its edges 4px
+          inside the pill's — two near-misses in one stack. Now the gap over the pill equals the pill's own
+          gap below it, and the button lines up with both the pill and the page (/post's main is px-3).
+          The bar grew 4px: 14rem on the form root still clears it by ~24px (re-measured at 390×844).
+          `max(env(), var())`: the pill rests on Capacitor's injected `--safe-area-inset-bottom` on an Android
+          WebView < 140, where env() is 0 — clearing only env() let the pill ride up over the Publish button. */}
+      <div data-fab-clear className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-3 pt-3 pb-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] [html.kb-open_&]:pb-3 material backdrop-blur lg:hidden">
         <div className="mx-auto max-w-7xl space-y-2">
           {/* What's still missing — mobile parity with the desktop checklist */}
           {/* ⚠️ TAPPABLE CHIPS ON ONE SCROLLING ROW — was a `truncate`d sentence, and both halves

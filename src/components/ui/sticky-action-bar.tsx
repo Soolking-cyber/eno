@@ -33,10 +33,10 @@ import { cn } from '@/lib/utils'
  * ═══════════════════════════════════════════════════════════════════════════════════════
  *
  * ⚠️ THE BOTTOM EDGE IS ALREADY TAKEN ON MOBILE, AND THE OBVIOUS ANSWER IS THE ONE THE OWNER
- * ALREADY REJECTED. <MobileNav> is `fixed inset-x-0 bottom-0 z-40`, mounted unconditionally
- * from app/providers.tsx, and it is 72px tall (`min-h-[4.5rem]`; the file's own note records
- * it dropping 73→72 when the top border became a hairline pseudo-element). Three options
- * existed:
+ * ALREADY REJECTED. <MobileNav> is `fixed z-40`, mounted unconditionally from
+ * app/providers.tsx. It was a full-width 72px bar when this was written; since 2026-09-26 it is
+ * a floating 56px pill max(12px, safe area) off the bottom, and its FOOTPRINT is still the 4.5rem
+ * this file clears — so nothing below changed. Three options existed:
  *
  *   (a) REPLACE the tab bar on surfaces that use this one. THIS IS WHAT `PdpMobileBar` DID and
  *       it was deleted on 2026-07-18 (cd9127a7, "PDP mobile: restore the bottom tab-nav, drop

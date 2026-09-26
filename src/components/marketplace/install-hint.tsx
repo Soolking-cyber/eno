@@ -80,8 +80,18 @@ export function InstallHint() {
     <div
       role="dialog"
       aria-label={tr('Get the eno app', 'Tải ứng dụng eno')}
-      // 4.5rem tracks <BottomNavSpacer/> — the tab bar's real height. At the stale 4rem this
+      // 4.5rem tracks <BottomNavSpacer/> — the tab bar's footprint. At the stale 4rem this
       // sat half a rem too low and clipped behind the nav.
+      // ⚠️ + 0.5rem AND A FLOATING CARD SINCE THE TAB BAR BECAME A PILL (2026-09-26). This card used to
+      // dock flush on the full-width bar — square bottom corners, edge to edge — which read as one sheet
+      // with it. Above a 12px-inset pill that shape is a detached slab 4px over it, so it now floats the
+      // same way: 12px side gutters (`px-3`), all four corners rounded, the pill's own max-w-sm, and 5rem
+      // + inset — the same clearance as the back-to-top / rental-check cluster, i.e. 12px over the pill
+      // with no inset (with a home-indicator inset S > 12px the pill rests on S, so the gap is S).
+      // `bg-popover`, not `bg-card`: a floating card wears the floating tier (canon §3b) — the pill's own
+      // surface — where `--card` IS the canvas and left the card nothing but its shadow in dark mode.
+      // `border-foreground/10`: the same 1px edge as the pill, so the two floating surfaces stacked here
+      // read as one family — and the edge, not the shadow, is what separates either one on the canvas.
       /**
        * ⛔ `z-[70]` — ABOVE EVERY FLOATING CONTROL ON A PHONE (owner, 2026-09-18: "make the get eno
        * app popup above all other icons in mobile"). The mobile ladder documented in
@@ -94,9 +104,9 @@ export function InstallHint() {
        * that lives in the same band at `right-4`. Two reviewers caught it: raising a layer is a
        * paint change, but a full-bleed wrapper also moves the hit test. The CARD re-enables them.
        */
-      className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[70] lg:bottom-4 lg:px-4"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[70] px-3 lg:bottom-4 lg:px-4"
     >
-      <div className="pointer-events-auto mx-auto flex w-full max-w-md items-center gap-3 rounded-t-2xl bg-card p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 lg:rounded-2xl">
+      <div className="pointer-events-auto mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-foreground/10 bg-popover p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 lg:max-w-md">
         <Image src="/icon-192.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold leading-tight text-foreground">

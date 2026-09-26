@@ -48,7 +48,8 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
        * itself — `.wash-surface` — not with the flat token.
        */
       /**
-       * ⚠️ 4.5rem IS THE TAB BAR'S REAL HEIGHT (72px) — the same number <BottomNavSpacer/> and
+       * ⚠️ 4.5rem IS THE TAB BAR'S FOOTPRINT (72px: since 2026-09-26 a 56px floating pill + its
+       * 12px gap, 4px of air over it) — the same number <BottomNavSpacer/> and
        * account-panel-body.tsx reserve. It said 4rem, so the shell ran 8px UNDER the bar at 390×844
        * (shell bottom 780, nav top 772): the composer kept 4px of clearance and the last inbox row
        * never cleared the bar. Change the three together.

@@ -229,7 +229,9 @@ The two compose: an active Saved tab with saved items keeps the solid heart (the
 state fill wins over the location wash — the nav's selector excludes any icon that
 already carries a `fill-*` class).
 
-**DO** keep the top active-tab indicator bar (2px, `bg-accent-foreground`).
+**DO** mark the active tab with the tinted capsule (`bg-accent`, `inset-1`, `rounded-full`) behind
+the glyph. It replaced the 2px top indicator bar on 2026-09-26, when the tab bar became a floating
+pill with no edge to hang a bar on (see the §5 addendum below).
 **DON'T** solid-fill a tab just because it is active, and never use warning/red
 fills for counts — the counter Badge carries the number.
 
@@ -388,7 +390,7 @@ existing utility can say that (all three live in globals.css beside `.press`):
 | Utility | Moment | Shape |
 |---|---|---|
 | `.wash-in` | bottom-nav tab activation | the duotone interior fades up (`fill-opacity` 0→1, 180ms `--ease-spring`) behind an ink flip that is instant. **The wash ARRIVING, not a bounce** — the tab does not jump. Selector mirrors `WASH_ACTIVE` including `:not([class*='fill-'])`, so a user-state glyph never flashes |
-| `.bar-in` | the same tab's 2px indicator | `scaleX(0.25)→1` + fade, 200ms snappy, so bar and wash read as one move |
+| `.bar-in` | the same tab's location capsule (the 2px bar until 2026-09-26) | widens from the centre (`clip-path: inset(0 37.5% round …)→0`, so the round ends never squash) + fade, 200ms snappy, so capsule and wash read as one move. It also plays once when the active tab lights up after hydration on a cold load (a zero-duration boot window was tried and deleted — every review found a new hole in it) |
 | `.send-lift` | chat send tap | the plane leans into its travel and settles (220ms snappy). Keyed off the click and cleared on `animationend` — a thread you are only reading sits still |
 
 `fill-opacity` is the single non-compositor property in the set, and it is
@@ -403,9 +405,10 @@ one 28px glyph.
 
 - The CSS-ring `<Spinner>` vs `Loader2` split in ui/* is intentional — keep both.
 - Checkbox/OTP marks stay `STROKE_MARK` (3).
-- The mobile nav is PERMANENT (hides only for keyboard); STROKE_NAV on all five
-  tabs; the Post chip is a flat coin (`bg-brand-50 text-brand`) — no FAB, no
-  shadow, no solid fill.
+- The mobile nav is a floating, icon-only pill (2026-09-26) that retracts on
+  scroll-down and for the keyboard; STROKE_NAV on all five tabs; the Post chip is
+  a flat coin (`bg-cta-50 text-brand` at rest; the plate drops away when active,
+  since the solid glyph already says "you are here") — no FAB, no shadow.
 - Mascot + the eno seal (eno-seal.tsx, consumed by trust-score.tsx) are bespoke
   first-party art on the "one line + wash" language; do not lucide-ify them,
   and never fork the seal's paths (§0b).
@@ -488,6 +491,9 @@ An icon-only collapsed rail (72px dashboard/admin) marks location with a neutral
 rounded pill BEHIND the washed glyph — the wash + accent ink are TabBody's, the pill replaces the
 tab's 2px bar (there is no edge to hang a bar on in a centered rail slot). Tabs keep the bar;
 rails keep the pill; nothing else gets either.
+**Superseded for tabs on 2026-09-26:** the mobile tab bar became a floating pill, which has no
+edge for a bar either, so its tabs now use the same tinted capsule (`bg-accent`) as the rail. The
+2px bar is retired; rails and tabs share the pill, and nothing else gets it.
 
 ### §6 addendum — EmptyState glyphs are brand-toned by design (lead ruling, 2026-08-07)
 The EmptyState badge renders its glyph in text-brand on the brand-50 coin deliberately (the

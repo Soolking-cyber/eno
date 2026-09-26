@@ -110,12 +110,10 @@ const bridge = (): CapacitorBridge | undefined =>
  * smallest supported iPhone AND on iPad in portrait, landscape and Split View. Raising it is then
  * a ONE-CONSTANT change — this line — and nothing else.
  *
- * ⚠️ One known coupling for whoever raises it: `.bottom-nav-spacer` hard-codes `4.5rem` (in
- * bottom-nav-spacer.tsx and again in globals.css) to match the nav's own `min-h-[4.5rem]`. The nav
- * is free to grow when its micro-label wraps ("Đăng tin" at ~2× on a narrow phone); the spacer is
- * not. Past the point where the bar exceeds 4.5rem the bar starts covering the bottom of the page.
- * Nothing is CUT — the labels carry no overflow-hidden, by design — but the spacer has to learn to
- * track the bar before the ceiling goes higher.
+ * (The coupling that used to be named here is gone: the bottom nav's micro-labels could wrap at ~2×
+ * and grow the bar past the 4.5rem `.bottom-nav-spacer` reserves. Since 2026-09-26 the nav is an
+ * icon-only floating pill of a FIXED 56px inside that 4.5rem footprint — no text in it but the count
+ * badges, which are absolutely positioned — so text size can no longer make it outgrow the spacer.)
  */
 // ⛔ THE APP RENDERS AT ITS DESIGNED SIZE. Owner, 2026-09-06, after finding a two-column feed with
 // prices painted across each other and a category tile reading "Electroni / cs": *"can we enforce

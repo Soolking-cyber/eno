@@ -106,7 +106,17 @@ not a lighter rectangle — it is content on the same surface, separated by a ha
 
 **Elevation must mean something.** Surface + shadow survive ONLY where the element floats above
 the page and the boundary carries information: dialog, popover/menu, toast, sticky bar, media
-lightbox. Those use `popover`, not `card`. Everything in normal flow is flat.
+lightbox, the floating mobile tab bar. Those use `popover`, not `card`. Everything in normal flow is flat.
+
+- **The mobile tab bar is a floating, icon-only pill** (owner, 2026-09-26: *"minimal and sleek pill
+  shaped"*): `rounded-full`, inset 12px from the sides and `max(12px, safe area)` from the bottom,
+  `bg-popover/95` + `material` blur, `shadow-pop` and a 1px `border-foreground/10` edge. Labels are
+  visual only — each tab keeps its `aria-label`. Location = a tinted `bg-accent` capsule behind the
+  washed brand glyph (the Post coin instead goes solid, with no capsule). Its footprint stays
+  4.5rem + safe area, which every bottom-anchored surface clears.
+- ⚠️ **Edge a floating surface with `border`, not `ring-1`, when it also wears `shadow-pop`/
+  `shadow-overlay`.** Those are unlayered `box-shadow` rules and a Tailwind ring is a box-shadow,
+  so the ring is silently overwritten (measured on the tab bar: no line in either theme).
 
 **Structure has to be real, not painted.** Removing a fill removes a *visual* group, so the
 semantic one must exist: headings, `<section>`, list markup. Hairlines that identify a control

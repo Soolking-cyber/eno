@@ -67,11 +67,12 @@ const PATH_SEP = '\u203a'
  *     between them are hidden with no line yet; and the line is only ever visible mid-gesture.
  *     THE PRODUCTION SETTING IS `stickyTop` = the header's resolved height and `stickyZIndex`
  *     above 40. Both are props precisely so the integrator, who owns the header, sets them.
- *   · The bottom tab bar — `fixed bottom-0 z-40`, 72px measured (mobile-nav.tsx says 73→72 after
- *     the hairline moved to a pseudo-element), permanent except when the keyboard is up. This
+ *   · The bottom tab bar — `fixed z-40`, since 2026-09-26 a floating 56px pill max(12px, safe area)
+ *     off the bottom inside the same 4.5rem footprint; it retracts on scroll-down and for the keyboard. This
  *     component NEVER docks at the bottom, so it does not touch that bar, its `--nav-h` (4.5rem)
  *     contract or the `.kb-*` keyboard rules. The rows themselves are in normal flow.
- *   · the install hint (install-hint.tsx) — `fixed z-[70]`, a full-width card above the tab bar,
+ *   · the install hint (install-hint.tsx) — `fixed z-[70]`, a floating card above the tab bar
+ *     (max-w-sm, 12px gutters, like the pill),
  *     raised over the back-to-top cluster on 2026-09-18 because that 44px button was landing on it.
  *     Anything new that floats goes UNDER it.
  *   · back-to-top — `fixed z-[60]`, a 44px control at `right-4`, anchored to the BOTTOM
