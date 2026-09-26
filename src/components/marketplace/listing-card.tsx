@@ -843,9 +843,17 @@ function ListingCardImpl({
                 aria-label={tr('Make an offer', 'Trả giá')}
                 aria-pressed={quickOffer !== null}
                 onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
+                // ⛔ OFFER STAGGERS TOO, SO IT GETS THE LOCATE/EDIT TREATMENT BELOW: the 75ms delay rides
+                // `translate` and `opacity` only and the press (`scale`) starts at once — it was
+                // `transition-all` + `delay-75`, i.e. every click acknowledged 75ms late. Its colour,
+                // plate and ring (the pressed brand state) still fade, undelayed. Under keyboard focus
+                // there is NO transition: Tab must not land on a control that is still fading in from
+                // opacity 0, and a keyboard-driven change never animates (the same for Locate and Edit).
                 className={cn(
-                  'pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
-                  quickOffer === null && 'delay-75 group-hover:delay-75',
+                  'pointer-events-auto translate-x-3 opacity-0 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                  quickOffer === null
+                    ? '[transition:translate_200ms_var(--ease-spring-snappy)_75ms,opacity_200ms_var(--ease-spring-snappy)_75ms,scale_160ms_var(--ease-spring-snappy),background-color_150ms_ease,color_150ms_ease,box-shadow_150ms_ease]'
+                    : '[transition:translate_200ms_var(--ease-spring-snappy),opacity_200ms_var(--ease-spring-snappy),scale_160ms_var(--ease-spring-snappy),background-color_150ms_ease,color_150ms_ease,box-shadow_150ms_ease]',
                 )}
               >
                 {/* Pressed = brand fill, mirroring the heart's saved state (icon-language
@@ -865,7 +873,7 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={tr('Show on map', 'Xem trên bản đồ')}
                 onClick={(e) => { e.stopPropagation(); locate(listing) }}
-                className="pointer-events-auto translate-x-3 opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_150ms,opacity_200ms_var(--ease-spring-snappy)_150ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="pointer-events-auto translate-x-3 opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_150ms,opacity_200ms_var(--ease-spring-snappy)_150ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <MapPin className="h-5 w-5 fill-none" />
               </IconButton>
@@ -884,7 +892,7 @@ function ListingCardImpl({
             sellerId={listing.sellerId}
             compact
             dense
-            className="pointer-events-auto translate-x-3 opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_200ms,opacity_200ms_var(--ease-spring-snappy)_200ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="pointer-events-auto translate-x-3 opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_200ms,opacity_200ms_var(--ease-spring-snappy)_200ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           />
         </span>
 
