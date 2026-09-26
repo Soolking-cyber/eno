@@ -88,7 +88,8 @@ export const JOB_BOARDS = {
   rmit: { sellerId: 'rmit-edu-vn-import-seller-0001', name: 'RMIT University Vietnam', hosts: ['rmit.wd3.myworkdayjobs.com'], id: /^\/RMIT_Careers\/job\/[^/]+\/[^/]*_(JR\d{3,})$/ },
   tta: { sellerId: 'theteflacademy-com-import-seller-0001', name: 'The TEFL Academy', hosts: ['www.theteflacademy.com'], id: /^\/blog\/tefl-jobs\/([a-z0-9-]+)$/ },
   // Added 2026-09-27 after the source-discovery sweep: robots allows (and welcomes crawlers), no terms clause.
-  tesljobs: { sellerId: 'tesljobs-com-import-seller-0001', name: 'TeslJobs', hosts: ['tesljobs.com', 'www.tesljobs.com'], id: /^\/jobs\/[a-z0-9-]+-([A-Za-z0-9]{6,16})$/ },
+  tesljobs: { sellerId: 'tesljobs-com-import-seller-0001', name: 'TeslJobs', hosts: ['tesljobs.com', 'www.tesljobs.com'], id: /^\/jobs\/[a-z0-9-]*-vietnam-([A-Za-z0-9_-]{4,20})$/ },
+  // ⚠️ Anchored on "-vietnam-": the id itself can hold '_' and '-' ("…-vietnam-vietnam-U_yj-lBU3SJM", 2026-09-27).
   // ⚠️ PUBLISHED ON THE OWNER'S WORD (2026-09-25: "topcv and vietnamworks have permissions"). The site terms
   // alone forbid display (vietnamworks.com/thoa-thuan-su-dung); the permission is the owner's, not the terms'.
   // The id is the number before "-jv", not the title slug before it.

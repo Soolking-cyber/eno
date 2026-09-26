@@ -164,6 +164,7 @@ describe('ids and urls', () => {
     expect(id('tesljobs', 'https://www.tesljobs.com/jobs/foreign-teacher-positions-vietnam-CXxjWe/')).toBe('CXxjWe')
     expect(id('tesljobs', 'https://tesljobs.com.evil.example/jobs/foreign-teacher-vietnam-CXxjWe')).toBeNull()
     expect(id('tesljobs', 'https://tesljobs.com/teaching-jobs/vietnam')).toBeNull()
+    expect(id('tesljobs', 'https://tesljobs.com/jobs/esl-teachers-in-vietnam-vietnam-U_yj-lBU3SJM')).toBe('U_yj-lBU3SJM')
     expect(id('tta', 'https://www.theteflacademy.com/blog/tefl-jobs/ila-is-hiring-part-time-esl-teachers-in-ho-chi-minh-city/')).toBe('ila-is-hiring-part-time-esl-teachers-in-ho-chi-minh-city')
     expect(id('rmit', 'https://rmit.wd3.myworkdayjobs.com/RMIT_Careers/job/Ho-Chi-Minh-City/Lecturer--Management_JR46455')).toBe('JR46455')
     expect(id('rmit', 'https://rmit.wd3.myworkdayjobs.com/RMIT_Careers/job/Ho-Chi-Minh-City/Lecturer--Management-Renamed_JR46455')).toBe('JR46455')
