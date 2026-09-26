@@ -110,8 +110,12 @@ function triggerClassName(
 /** Row styling, shared by Select.Item and Combobox.Item so the two menus match. */
 function itemClassName(isActive: boolean) {
   return cn(
-    // No transition-colors: `data-highlighted` moves on arrow keys, and a keyboard-driven change never animates.
-    'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm cursor-pointer active:scale-100 hover:bg-muted hover:text-accent-foreground data-highlighted:bg-muted data-highlighted:text-accent-foreground',
+    // `data-highlighted` moves on arrow keys, and a keyboard-driven change never animates. ⚠️ Dropping
+    // `transition-colors` was NOT enough: these rows are ui/button, whose base list (colours, ring,
+    // outline, scale — 160ms) then shows through, so every arrow key still faded the highlight and
+    // now the focus ring too (measured on the preview). `transition-[scale]` replaces that list — the
+    // search-suggest recipe — and `active:scale-100` means nothing on the row animates at all.
+    'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm cursor-pointer transition-[scale] active:scale-100 hover:bg-muted hover:text-accent-foreground data-highlighted:bg-muted data-highlighted:text-accent-foreground',
     isActive ? 'font-semibold text-accent-foreground' : 'font-medium text-body',
   )
 }
