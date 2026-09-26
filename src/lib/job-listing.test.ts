@@ -90,6 +90,30 @@ describe('mapStagedJob — refusals', () => {
     expect(map({ title: 'English teacher, training fee required' })).toEqual({ ok: false, reason: 'fee' })
     expect(map({ title: 'English Teacher | Competitive Salary + Visa Support' })).toEqual({ ok: false, reason: 'visaMention' })
     expect(map({ title: 'ESL Teacher, work visas sponsored' })).toEqual({ ok: false, reason: 'visaMention' })
+    // A visa in the pay/benefits line drops that LINE, not the job.
+    const v = map({ title: 'Expat ESL Teachers Wanted in Vinh Long', employer: 'VUS The English Center', city: 'Vinh Long', salary: 'Starting from: 17$/hour to 20$/hour; Housing allowance; Comprehensive work permit and visa/TRC support' })
+    expect(v.ok).toBe(true)
+    if (v.ok) {
+      expect(v.job.attributes.salaryText).toBeUndefined()
+      expect(JSON.stringify(v.job)).not.toMatch(/visa/i)
+    }
+    // Past the 120-character cut, and as "eVisa", it still counts.
+    const long = map({ salary: `${'x'.repeat(130)} + eVisa support` })
+    expect(long.ok && long.job.attributes.salaryText).toBeUndefined()
+    expect(map({ title: 'ESL Teacher (eVisa provided)' })).toEqual({ ok: false, reason: 'visaMention' })
+    expect(map({ title: 'Giáo viên tiếng Anh, hỗ trợ THỊ THỰC' })).toEqual({ ok: false, reason: 'visaMention' })
+    expect(map({ title: 'Giáo viên tiếng Anh, hỗ trợ thị thực hiện tại' })).toEqual({ ok: false, reason: 'visaMention' })
+    expect(map({ title: 'Giáo viên tiếng Anh, hỗ trợ thị thực'.normalize('NFD') })).toEqual({ ok: false, reason: 'visaMention' })
+    expect(map({ title: 'Tuyen giao vien tieng Anh, ho tro thi  thuc' })).toEqual({ ok: false, reason: 'visaMention' })
+    expect(map({ title: 'Giáo viên, hỗ trợ thị-thực' })).toEqual({ ok: false, reason: 'visaMention' })
+    // Fail-closed: "thì thực hiện" folds like the visa word and is dropped too (see hasVisaWord).
+    expect(map({ title: 'Giáo viên tiếng Anh, thì thực hiện giảng dạy' })).toEqual({ ok: false, reason: 'visaMention' })
+    // Fail-closed substring match: glued, non-Latin and look-alike words all drop.
+    expect(map({ title: 'ESL Teacher #VisaSponsorship' })).toEqual({ ok: false, reason: 'visaMention' })
+    expect(map({ title: 'Korean Teacher (비자 지원)' })).toEqual({ ok: false, reason: 'visaMention' })
+    expect(map({ title: 'ESL teacher, revisa el horario' })).toEqual({ ok: false, reason: 'visaMention' })
+    // A fee demand in a dropped pay line still drops the job.
+    expect(map({ salary: '15,000,000 VND / month, visa support, training fee required' })).toEqual({ ok: false, reason: 'fee' })
     expect(map({ title: 'Giáo viên tiếng Anh, hỗ trợ thị thực' })).toEqual({ ok: false, reason: 'visaMention' })
     // A salary under a number is not an age limit.
     expect(map({ salary: 'under 20,000,000 VND / month' }).ok).toBe(true)

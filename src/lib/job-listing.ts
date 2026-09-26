@@ -312,6 +312,14 @@ export type MappedJob = {
 }
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+/**
+ * ONE visa test for every field — a SUBSTRING test, fail-closed. The text is folded (lower case, no accents) and
+ * stripped of everything but a–z/0–9, then any "visa" (visa, e-visa, #VisaSponsorship) or "thithuc" (thị thực,
+ * thi-thuc, "thi  thuc") drops it, as do the Korean/Chinese/Japanese/Russian words. ⛔ Word-boundary matching was
+ * tried and every review round found a new way past it (2026-09-27). A false match — "revisa", "siêu thị thực
+ * phẩm" — only drops a posting, which is the safe direction for a licensed edition that carries no visa wording.
+ */
+const hasVisaWord = (raw: string) => /visa|thithuc/.test(fold(raw).replace(/[^a-z0-9]+/g, '')) || /비자|签证|簽證|ビザ|виза/i.test(raw)
 /** Today's date in Vietnam, YYYY-MM-DD — every apply-by is a Vietnamese calendar day. */
 export const vnToday = (now: number) => new Date(now).toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' })
 const vnDay = (d: Date) => d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' })
@@ -359,7 +367,12 @@ export function mapStagedJob(j: StagedJob, now: number): { ok: true; job: Mapped
   const title0 = unshout(rawTitle)
   // Unique, informative titles: "<role> — <employer>" unless the title already names the employer.
   const title = (employer && !fold(title0).includes(fold(employer).slice(0, 12)) ? `${title0} — ${employer}` : title0).slice(0, 200)
-  const salaryText = j.salary ? j.salary.replace(/\s+/g, ' ').trim().slice(0, 120) : null
+  // ⚠️ A pay/benefits line that mentions a visa ("…; work permit and visa/TRC support") is DROPPED, not the job:
+  // eno.vn carries no visa wording, but the vacancy itself is fine (2026-09-27, VTJ/VUS postings). A title or
+  // employer that says visa still drops the job below — that text cannot be left out.
+  const salaryFull = j.salary ? j.salary.replace(/\s+/g, ' ').trim() : null
+  // Tested on the FULL line, before it is cut to 120 characters — a visa clause past the cut still counts.
+  const salaryText = salaryFull && !hasVisaWord(salaryFull) ? salaryFull.slice(0, 120) : null
   const type = jobType(j.employment, rawTitle)
 
   // ⛔ SCREEN THE SOURCE'S WORDS, not eno's own intro (which names the board's domain and would trip
@@ -370,11 +383,12 @@ export function mapStagedJob(j: StagedJob, now: number): { ok: true; job: Mapped
     if (e instanceof PublishBlockedError) return { ok: false, reason: e.code === 'banned_words' ? 'bannedWords' : 'contactInText' }
     throw e
   }
-  const folded = ` ${fold([rawTitle, employer, salaryText].filter(Boolean).join(' '))} `
+  // The FULL pay line is screened for fees/discrimination even when it is left off the listing for a visa word.
+  const folded = ` ${fold([rawTitle, employer, salaryFull].filter(Boolean).join(' '))} `
   // ⛔ eno.vn IS THE LICENSED EDITION: visa is "not even a mention" there (CLAUDE.md, owner 2026-07-31),
   // and src/lib/lang-segment.guard.test.ts holds the UI to it. An employer's "+ Visa Support" is not
   // eno offering visas, but the rule is literal, so such a posting is dropped rather than reworded.
-  if (/\b(visas?|thi thuc)\b/.test(folded)) return { ok: false, reason: 'visaMention' }
+  if (hasVisaWord([rawTitle, employer].filter(Boolean).join(' '))) return { ok: false, reason: 'visaMention' }
   for (const [re, why] of JOB_DENY) {
     if (re.test(folded)) return { ok: false, reason: why === 'adult-venue' ? 'adultVenue' : (why as JobDrop) }
   }
