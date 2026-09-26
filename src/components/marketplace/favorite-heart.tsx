@@ -30,7 +30,9 @@ export function FavoriteHeart({ id, className }: { id: string; className?: strin
       // A toggle's NAME stays put while `aria-pressed` carries the state — see the note on
       // listing-card.tsx's heart for why the flipping label was worse than redundant.
       aria-label={tr('Save listing', 'Lưu tin')}
-      className={cn('transition-colors hover:bg-accent', className)}
+      // `press`: with no hover on a phone and the tap highlight off (globals.css), a tap on this heart
+      // showed nothing at all — while the grid heart and the PDP heart both press.
+      className={cn('press hover:bg-accent', className)}
     >
       {/* The pop is driven by `burst` — no `key`, so nothing remounts (see the note on the flag).
           ⚠️ THE `animationName` CHECK IS NOT DEFENSIVE, IT IS THE DIFFERENCE BETWEEN A 0.42s POP AND

@@ -703,7 +703,9 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             data-lightbox-close
             // Safe-area term: the lightbox is a fullscreen overlay and the native WebView is
             // edge-to-edge, so a bare top-4 puts Close under the Dynamic Island. 0 on web.
-            className="absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] icon-shadow-brand"
+            // `press` on the lightbox controls (Close, Previous, Next): tapped constantly, and with
+            // no hover on a phone they otherwise showed nothing until the photo changed.
+            className="press absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] icon-shadow-brand"
           >
             {/* ⛔ 34px, AND 36 WAS STILL 2px TOO BIG BY MY OWN ARITHMETIC. `variant="overlay"`
                 paints a disc behind the glyph with 3px of `box-content` padding, so the plate is
@@ -946,7 +948,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               variant="overlay"
               onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
               aria-label={tr('Previous', 'Trước')}
-              className="absolute left-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
+              className="press absolute left-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
             >
               {/* Floating-chevron tier (§2): bare chevrons over content, same as back-to-top. */}
               <ChevronLeft className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
@@ -958,7 +960,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               variant="overlay"
               onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
               aria-label={tr('Next', 'Sau')}
-              className="absolute right-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
+              className="press absolute right-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
             >
               <ChevronRight className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
             </IconButton>
