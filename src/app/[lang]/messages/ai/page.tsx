@@ -68,12 +68,22 @@ export default function AiThreadPage() {
   // off-screen. Re-run when the keyboard opens: the list shrinks, so tall result cards must
   // re-anchor to the bottom instead of stranding at the top (short chats bottom-anchor via
   // the mt-auto wrapper). rAF lets the keyboard-open resize settle before we measure.
+  // ⚠️ THE FIRST PIN IS INSTANT. `messages` starts [] and the history is restored from localStorage
+  // in an effect, so this ran a second time with up to 30 turns in the pane — and SMOOTH-scrolled
+  // from the top through all of them, listing-card grids included, on every open. Opening a thread
+  // should land on its newest message the way the person-to-person thread does (scrollBottom(false)
+  // there); only what arrives after that follows smoothly.
+  const pinnedRef = useRef(false)
   useEffect(() => {
     const el = listRef.current
     if (!el) return
-    const toBottom = () => el.scrollTo({ top: el.scrollHeight, behavior: scrollBehavior() })
+    const behavior = pinnedRef.current ? scrollBehavior() : 'instant'
+    const toBottom = () => el.scrollTo({ top: el.scrollHeight, behavior })
     toBottom()
-    const r = requestAnimationFrame(toBottom)
+    const r = requestAnimationFrame(() => {
+      toBottom()
+      if (messages.length) pinnedRef.current = true
+    })
     return () => cancelAnimationFrame(r)
   }, [messages.length, loading, kbOpen])
 
