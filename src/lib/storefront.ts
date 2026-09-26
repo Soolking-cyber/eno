@@ -1,7 +1,8 @@
 import 'server-only'
 import { cache } from 'react'
 import { db } from '@/lib/db'
-import { storefrontBaseHost, storefrontHandleFromHost } from '@/lib/storefront-host'
+import { IS_SERVICES } from '@/lib/edition'
+import { storefrontBaseHost, storefrontHandleFromHost, storefrontUrl } from '@/lib/storefront-host'
 
 /**
  * WHOSE STOREFRONT A REQUEST IS FOR — the database half of `storefront-host.ts`.
@@ -133,4 +134,17 @@ export async function storefrontForHost(host: string | null | undefined): Promis
  */
 export function canonicalAppHost(): string {
   return storefrontBaseHost(process.env.NEXT_PUBLIC_APP_URL)
+}
+
+/**
+ * The address to hand out for a SHOP's handle: `alex.eno.vn` when the subdomain actually serves that
+ * shop (`storefrontByHandle` — and `storefrontUrl` for a handle that cannot be a host label), else
+ * `eno.vn/alex`. Owner, 2026-09-26: "when users copies this link give it in alex.eno.vn format".
+ * ⚠️ NEVER FOR A PERSONAL HANDLE — `<person>.eno.vn` is a 404 (only shops have storefronts), and
+ * sharing a subdomain that 404s is worse than the path. The origin falls back to THIS edition's own
+ * domain, so a forum build missing its env can never hand out an eno.vn address.
+ */
+export async function shopShareUrl(handle: string): Promise<string> {
+  const origin = process.env.NEXT_PUBLIC_APP_URL || (IS_SERVICES ? 'https://www.eno.forum' : 'https://eno.vn')
+  return (await storefrontByHandle(handle)) ? storefrontUrl(handle, origin) : `${origin.replace(/\/$/, '')}/${handle}`
 }

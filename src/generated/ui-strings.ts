@@ -2156,6 +2156,7 @@ export const UI_STRINGS: string[] = [
   "Your review (optional)",
   "Your selfie",
   "Your session may have expired. Sign in again, or try once more.",
+  "Your shop handle is your public link — copy it below and share it anywhere; people land straight on your shop.",
   "Your statement",
   "Your statement is in",
   "Your storefront:",

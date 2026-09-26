@@ -19,12 +19,17 @@ import { useLatestRequest } from '@/hooks/use-latest-request'
 // and the shop handle (business profile editor) via `target`. Live availability
 // check (debounced 400ms against /api/handle/check), save via POST /api/handle
 // (owner-scoped server-side — no ids travel from the client), and a copy chip for
-// the shareable {SITE_NAME}/name URL (clean, no "@").
+// the shareable URL (clean, no "@"): a shop's `shareUrl` from the server (`alex.eno.vn` —
+// owner, 2026-09-26), else {SITE_NAME}/name. A PERSON never gets the subdomain form:
+// `<person>.eno.vn` is a 404, only shops have storefronts.
 
-export function HandleEditor({ target, initial, label }: { target: 'profile' | 'seller'; initial: string | null; label?: string }) {
+export function HandleEditor({ target, initial, shareUrl, label }: { target: 'profile' | 'seller'; initial: string | null; shareUrl?: string | null; label?: string }) {
   const { tr } = useLanguage()
   const [current, setCurrent] = useState(initial)
   const [value, setValue] = useState(initial || '')
+  // ⚠️ THE SERVER DECIDES A SHOP'S LINK — a handle that names a brand keeps the path, and only the
+  // database knows the brand catalogue. So this is never derived here from `current`.
+  const [link, setLink] = useState<string | null>(shareUrl ?? null)
   const [state, setState] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'reserved'>('idle')
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -33,7 +38,7 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
   const latest = useLatestRequest()
 
   // Parent may hydrate `initial` late (cache-first dashboards).
-  useEffect(() => { setCurrent(initial); setValue(initial || '') }, [initial])
+  useEffect(() => { setCurrent(initial); setValue(initial || ''); setLink(shareUrl ?? null) }, [initial, shareUrl])
 
   const normalized = value.trim().toLowerCase().replace(/^@/, '')
   const dirty = normalized !== (current || '')
@@ -79,7 +84,8 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
         )
         return
       }
-      setCurrent(d.handle); setValue(d.handle); setState('idle')
+      // A shop's claim answers with its new link; a person's does not, and falls back to the path.
+      setCurrent(d.handle); setValue(d.handle); setLink(typeof d.url === 'string' ? d.url : null); setState('idle')
     } catch {
       setError(tr('Something went wrong — try again.', 'Có lỗi xảy ra — thử lại nhé.'))
     } finally {
@@ -87,9 +93,21 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
     }
   }
 
+  // What Copy hands out AND what the line under the field shows — one string, so the preview can
+  // never promise one address while the clipboard gets another.
+  const shareHref = !current ? null : link ?? `https://${SITE_NAME}/${current}`
+  const shown = shareHref ? shareHref.replace(/^https?:\/\//, '') : ''
+  // The handle is bolded by POSITION — the leading label of `alex.eno.vn`, the last segment of
+  // `eno.vn/alex` — never by searching for it: `eno.forum/forum` would bold the domain's "forum".
+  const at = !current ? -1
+    : shown.startsWith(`${current}.`) ? 0
+    : shown.endsWith(`/${current}`) ? shown.length - current.length
+    : -1
+
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(`https://${SITE_NAME}/${current}`)
+      if (!shareHref) return
+      await navigator.clipboard.writeText(shareHref)
       setCopied(true); setTimeout(() => setCopied(false), 1500)
     } catch {}
   }
@@ -177,7 +195,9 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
         {hint?.kind === 'ok' && <FieldDescription className="font-semibold text-success">{hint.text}</FieldDescription>}
       </div>
       {current && !dirty && (
-        <p className="text-xs text-muted-foreground">{SITE_NAME}/<span className="font-semibold text-body">{current}</span></p>
+        <p className="text-xs text-muted-foreground">
+          {at >= 0 ? <>{shown.slice(0, at)}<span className="font-semibold text-body">{current}</span>{shown.slice(at + current.length)}</> : shown}
+        </p>
       )}
       {/* Save failed — a verdict on the ATTEMPT (incl. rate limits), so it is announced, not described. */}
       {error && <p role="alert" className="mt-1 text-xs font-semibold text-destructive">{error}</p>}

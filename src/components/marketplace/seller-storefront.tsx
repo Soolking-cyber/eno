@@ -20,9 +20,7 @@ import { RichText } from '@/components/marketplace/listing-content'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
 import { ShareButton } from '@/components/marketplace/share-button'
-import { storefrontUrl } from '@/lib/storefront-host'
-import { storefrontByHandle } from '@/lib/storefront'
-import { IS_SERVICES } from '@/lib/edition'
+import { shopShareUrl } from '@/lib/storefront'
 import { Badge } from '@/components/ui/badge'
 import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
 import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
@@ -131,12 +129,9 @@ const loadReviews = cache(async (sellerId: string) => {
 
 export async function SellerStorefront({ id }: { id: string }) {
   // The share address: the subdomain where `/s/<handle>` will actually serve this shop, otherwise the
-  // path — this component is also the fallback for handles the subdomain rejects (brand-slug collisions),
-  // and sharing a subdomain that 404s would be worse than the path. The origin falls back to THIS
-  // edition's own domain, so a forum build missing its env can never hand out an eno.vn address.
-  const shareOrigin = process.env.NEXT_PUBLIC_APP_URL || (IS_SERVICES ? 'https://www.eno.forum' : 'https://eno.vn')
-  const shareUrlFor = async (handle: string | null | undefined) =>
-    !handle ? null : (await storefrontByHandle(handle)) ? storefrontUrl(handle, shareOrigin) : `${shareOrigin.replace(/\/$/, '')}/${handle}`
+  // path — this component is also the fallback for handles the subdomain rejects (brand-slug collisions).
+  // ONE rule, shared with the Settings "Copy link" chip: `shopShareUrl`.
+  const shareUrlFor = async (handle: string | null | undefined) => (!handle ? null : shopShareUrl(handle))
   // 90d conversation count → the responsiveness bucket's honesty gate (suppressed
   // below RESPONSE_MIN_CONVOS so a fresh seller never shows a fake "100%"). Same
   // window + query shape the trust engine uses; one cheap indexed count, batched.

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
+import { shopShareUrl } from '@/lib/storefront'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,6 +25,11 @@ export async function GET() {
   })
   const handle = handles.find((h) => h.profileId)?.handle ?? null
   const shopHandle = handles.find((h) => !h.profileId)?.handle ?? null
+  // The shop's shareable address (`alex.eno.vn`, or the path when the subdomain would not serve it) —
+  // resolved HERE because the brand half of that rule needs the database. Sellers only, so the
+  // signed-out and personal-account answers on this hot path cost nothing extra.
+  // ⚠️ `.catch` → null: a copy-link nicety must never take the session payload down with it.
+  const shopUrl = shopHandle ? await shopShareUrl(shopHandle).catch(() => null) : null
   return NextResponse.json({
     user: {
       /**
@@ -49,6 +55,7 @@ export async function GET() {
       businessName: profile.businessName ?? null,
       handle,
       shopHandle,
+      shopUrl,
       sellerId: seller?.id ?? null,
       // Storefront contact for "post as" prefill.
       seller: seller ? { name: seller.name, phone: seller.phone } : null,

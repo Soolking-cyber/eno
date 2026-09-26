@@ -84,6 +84,10 @@ vi.mock('@/lib/admin', () => ({
   },
 }))
 
+// The shop link rule (subdomain vs path, brand names) is shopShareUrl's own business; here it is
+// stubbed to a marker so the test proves the route passes ITS answer through, for shops only.
+vi.mock('@/lib/storefront', () => ({ shopShareUrl: async (handle: string) => `share-url:${handle}` }))
+
 vi.mock('@/lib/db', () => {
   const handle = {
     findUnique: async ({ where }: Row) => {
@@ -390,10 +394,10 @@ describe('POST /api/handle — target: seller', () => {
     expect(h.handles).toEqual([])
   })
 
-  it('with a storefront → claims for the SELLER row, 200 {"handle":"…"}', async () => {
+  it('with a storefront → claims for the SELLER row, 200 {"handle":"…","url":"…"}', async () => {
     h.sellerByOwner.set('user-1', 'shop-1')
     expect(await wire(await POST(post({ handle: 'apple_store', target: 'seller' })))).toEqual({
-      status: 200, body: '{"handle":"apple_store"}',
+      status: 200, body: '{"handle":"apple_store","url":"share-url:apple_store"}',
     })
     expect(h.handles).toEqual([{ handle: 'apple_store', profileId: null, sellerId: 'shop-1' }])
   })
@@ -448,7 +452,7 @@ describe('POST /api/handle — owner-scoped: no target id is EVER accepted from 
     h.sellerByOwner.set('user-1', 'shop-1')
     h.sellerByOwner.set('someone-else', 'shop-666') // a real, claimable victim storefront
     expect(await wire(await POST(post({ handle: 'apple_store', target: 'seller', ownerId: 'someone-else' })))).toEqual({
-      status: 200, body: '{"handle":"apple_store"}',
+      status: 200, body: '{"handle":"apple_store","url":"share-url:apple_store"}',
     })
     expect(h.sellerWhere).toEqual([{ ownerId: 'user-1' }]) // the caller, and only ever the caller
     expect(h.createData).toEqual([{ handle: 'apple_store', sellerId: 'shop-1' }])

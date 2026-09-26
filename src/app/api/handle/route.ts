@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { claimHandle } from '@/lib/handle'
+import { shopShareUrl } from '@/lib/storefront'
 import { ApiError, route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
@@ -35,7 +36,7 @@ export const dynamic = 'force-dynamic'
 // Branches held, all byte-identical: guest → 401 `auth_required` · over limit → 429 `rate_limited` ·
 // malformed / empty / non-string handle → 400 `invalid` · reserved name → 400 `reserved` ·
 // target:'seller' with no storefront → 400 `no_shop` · PK collision → 409 `taken` · any other
-// claimHandle throw → console.error + 500 `failed` · success → 200 `{"handle":"…"}`.
+// claimHandle throw → console.error + 500 `failed` · success → 200 `{"handle":"…"}` (a shop adds `"url"`).
 //
 // ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL: ANY unhandled throw in this handler used to reach Next's
 // default 500 HTML page, and route() now catches it, logs with an `op`, and returns
@@ -69,9 +70,9 @@ export const POST = route(
       owner = { profileId: profile.id }
     }
 
+    let claimed: string
     try {
-      const handle = await claimHandle(owner, raw)
-      return { handle }
+      claimed = await claimHandle(owner, raw)
     } catch (e) {
       const code = (e as Error).message
       if (code === 'taken') throw new ApiError('taken', 409)
@@ -87,5 +88,13 @@ export const POST = route(
       console.error('[handle] claim failed', code)
       throw new ApiError('failed', 500)
     }
+    // A SHOP answers with the link its Copy chip hands out (`alex.eno.vn`, or the path when the
+    // subdomain would not serve it — a brand name needs the database to tell). A person's link is
+    // always the path, which the editor already knows, so the profile wire stays `{"handle":"…"}`.
+    // ⚠️ OUTSIDE THE CLAIM'S try, AND IT MAY FAIL QUIETLY: the handle is already saved by now, so a
+    // failed link lookup must not turn that success into a 500 — the editor falls back to the path.
+    if (target !== 'seller') return { handle: claimed }
+    const url = await shopShareUrl(claimed).catch(() => null)
+    return url ? { handle: claimed, url } : { handle: claimed }
   },
 )
