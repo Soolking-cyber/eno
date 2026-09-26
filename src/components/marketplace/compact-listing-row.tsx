@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, MapPin, MessageCircle, Tag, Zap } from '@/components/ui/icons'
@@ -30,6 +30,9 @@ type Props = {
   onLocate: (id: string) => void
 }
 
+/** A floor under a navigation that never arrives — the same 4s as ListingCard's. */
+const PENDING_MAX_MS = 4000
+
 // Compact list row (bonbanh-style): thumbnail + title + price/location/trust meta
 // + locate/favorite actions. Memoized — compact is the default view mode, so every
 // row would otherwise re-render on any explorer state change (hover, page, filters).
@@ -51,12 +54,36 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
     else router.push(`/listings/${l.id}#contact`)
   }
 
+  /**
+   * ⛔ THE PRESS BELONGS TO WHAT WAS PRESSED, AND IT HOLDS UNTIL THE NEXT SCREEN PAINTS — ListingCard's
+   * two fixes, which this row never got (listing-card.tsx has the measurements):
+   * · `has-[button:active]:scale-100` — `:active` matches ANCESTORS, so tapping the heart, offer, chat
+   *   or map button (each stops propagation; none of them OPENS the listing — chat goes to the thread)
+   *   also shrank the whole row as if it were opening. Each now presses itself instead (`press`; they
+   *   anchor no popup, which is why IconButton leaves the press to the caller).
+   * · `pending` — `onOpen` is a router push and the PDP paints 0.5–2.3s after the tap, while `:active`
+   *   released at touchend; the row looked untouched and invited a second tap. It now stays pressed
+   *   until this row unmounts (a 4s floor frees it if the push never lands), and a second tap is a
+   *   no-op instead of a duplicate push.
+   */
+  const [pending, setPending] = useState(false)
+  const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (pendingTimer.current) clearTimeout(pendingTimer.current) }, [])
+  const open = () => {
+    if (pending) return
+    setPending(true)
+    if (pendingTimer.current) clearTimeout(pendingTimer.current)
+    pendingTimer.current = setTimeout(() => { pendingTimer.current = null; setPending(false) }, PENDING_MAX_MS)
+    onOpen(l)
+  }
+
   return (
     <div
-      onClick={() => onOpen(l)}
+      onClick={open}
       onMouseEnter={() => onPrefetch(l.id)}
       onTouchStart={() => onPrefetch(l.id)}
-      className="group flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-[background-color,scale] duration-100 hover:bg-muted active:scale-[0.99] cursor-pointer"
+      data-pending={pending || undefined}
+      className="group flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-[background-color,scale] duration-100 hover:bg-muted active:scale-[0.99] has-[button:active]:scale-100 data-pending:scale-[0.99] cursor-pointer"
     >
       {/* Thumbnail — SQUARE, small enough that the row reads as one line.
           ⚠️ IT WAS `h-14 w-16` — 64×56 — AND IT WAS THE ONLY NON-SQUARE PRODUCT PHOTO LEFT IN THE
@@ -246,7 +273,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               aria-label={tr('Make an offer', 'Trả giá')}
               aria-pressed={offer !== null}
               onClick={(e) => { e.stopPropagation(); setOffer(offer === null ? 10 : null) }}
-              className="hidden text-foreground transition-colors hover:bg-accent sm:flex"
+              className="press hidden text-foreground hover:bg-accent sm:flex"
             >
               {/* h-5 on ALL FOUR cluster glyphs (Tag/Chat/Pin/Heart) — the old 17/18px
                   mix is exactly the off-grid drift the icon ladder (§4) exists to kill.
@@ -273,7 +300,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             tapTarget={false}
             aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
             onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-            className={cn('text-foreground transition-colors hover:bg-accent', offer === null ? 'flex' : 'hidden')}
+            className={cn('press text-foreground hover:bg-accent', offer === null ? 'flex' : 'hidden')}
           >
             <MessageCircle className="h-5 w-5" />
           </IconButton>
@@ -284,7 +311,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           tapTarget={false}
           aria-label={tr('Show on map', 'Xem trên bản đồ')}
           onClick={(e) => { e.stopPropagation(); onLocate(l.id) }}
-          className={cn('text-foreground transition-colors hover:bg-accent', offer === null ? 'flex' : 'hidden')}
+          className={cn('press text-foreground hover:bg-accent', offer === null ? 'flex' : 'hidden')}
         >
           <MapPin className="h-5 w-5" />
         </IconButton>
