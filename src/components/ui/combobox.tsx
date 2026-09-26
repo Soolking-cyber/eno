@@ -46,11 +46,13 @@ function ComboboxInput({ className, ...props }: ComboboxPrimitive.Input.Props) {
 }
 
 function ComboboxClear({ className, children, ...props }: ComboboxPrimitive.Clear.Props) {
+  // Enters/leaves from scale-90, not 75: nothing should grow from further than the 0.9 floor, and
+  // this one appears and disappears as the person TYPES, so its travel stays small.
   return (
     <ComboboxPrimitive.Clear
       data-slot="combobox-clear"
       className={cn(
-        "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-body outline-none transition-[color,background-color,opacity,scale] duration-150 ease-out hover:bg-tint hover:text-foreground active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-ring/40 data-starting-style:scale-75 data-starting-style:opacity-0 data-ending-style:scale-75 data-ending-style:opacity-0",
+        "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-body outline-none transition-[color,background-color,opacity,scale] duration-150 ease-out hover:bg-tint hover:text-foreground active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-ring/40 data-starting-style:scale-90 data-starting-style:opacity-0 data-ending-style:scale-90 data-ending-style:opacity-0",
         className,
       )}
       {...props}

@@ -207,8 +207,10 @@ function SelectItem({
           <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center" />
         }
       >
-        {/* One-shot pop when the check appears on the selected item (compositor transform+opacity). */}
-        <CheckIcon className="pointer-events-none animate-in zoom-in-50 fade-in-0 duration-150 ease-out" />
+        {/* ⚠️ No entrance on the check. It popped in from HALF size (zoom-in-50 — far below the 0.9
+            floor anything should grow from) on every selection, keyboard selections included, which
+            never animate; and the list closes on select anyway, so the pop mostly played on the way out. */}
+        <CheckIcon className="pointer-events-none" />
       </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>
   )
