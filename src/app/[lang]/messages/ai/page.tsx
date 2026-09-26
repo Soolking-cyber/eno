@@ -51,11 +51,16 @@ export default function AiThreadPage() {
   }
 
   // Restore prior chat (this device); seed the greeting if empty.
+  // `restoredCount`: everything restored was already read, so only messages added AFTER it play the
+  // `.bubble-in` arrival — the last restored turn used to rise in on every open.
+  const restoredCount = useRef(0)
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null')
-      setMessages(Array.isArray(saved) && saved.length ? saved : [greeting])
-    } catch { setMessages([greeting]) }
+      const restored = Array.isArray(saved) && saved.length ? saved : [greeting]
+      restoredCount.current = restored.length
+      setMessages(restored)
+    } catch { restoredCount.current = 1; setMessages([greeting]) }
   }, [])
 
   // Persist (cap to the last 30 turns so storage stays small).
@@ -163,7 +168,7 @@ export default function AiThreadPage() {
             it's shorter than the list, and simply collapses (scrolls normally) once it fills. */}
         <div className="mt-auto space-y-3">
         {messages.map((m, i) => (
-          <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} ${i === messages.length - 1 ? 'bubble-in' : ''}`}>
+          <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} ${i === messages.length - 1 && i >= restoredCount.current ? 'bubble-in' : ''}`}>
             <MessageBubble mine={m.role === 'user'} className="max-w-[85%]">{m.content}</MessageBubble>
             {m.listings && m.listings.length > 0 && (
               <div className="mt-2 grid w-full grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">

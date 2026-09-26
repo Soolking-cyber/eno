@@ -992,6 +992,19 @@ export default function ThreadPage() {
    *  watched them arrive. Only ever holds the REAL id of a message that replaced one of my
    *  own optimistic bubbles — see the swap in send(). */
   const enteredIds = useRef(new Set<string>())
+  /**
+   * ⚠️ …AND THE MESSAGE THAT WAS ALREADY LAST WHEN THE THREAD OPENED. `.bubble-in` is bound to the
+   * last index, so opening or switching threads mounted that already-read message with the arrival
+   * entrance — tens of times a day, an old message rising in as if it had just landed. Seeded ONCE
+   * per thread id and only from THAT thread's own data (a stale thread from the previous id must not
+   * seed it); everything that arrives after this still animates.
+   */
+  const seededFor = useRef<string | null>(null)
+  if (thread && thread.id === id && seededFor.current !== id) {
+    seededFor.current = id
+    const openedLast = thread.messages[thread.messages.length - 1]
+    if (openedLast) enteredIds.current.add(openedLast.id)
+  }
   const send = async (override?: string, reuseClientId?: string, reuseReplyTo?: ReplyTarget | null) => {
     const body = (override ?? text).trim()
     if (!body) return
