@@ -1791,12 +1791,17 @@ input, select, textarea {
    The `tabindex="-1"` half of each exclusion is what keeps even THAT safe. Anything deliberately
    made operable carries tabindex="0" (it has to, to be reachable), so an interactive
    `<section tabindex="0">` — or any container someone later wires up with JS — still matches and
-   still gets its ring. Only the programmatically-focused, not-tab-reachable container is skipped. */
+   still gets its ring. Only the programmatically-focused, not-tab-reachable container is skipped.
+   ⚠️ The MENU container joined the list (2026-09-27): Base UI focuses the role="menu" popup itself on
+   a pointer open, so the Escape that closes it made the whole popup :focus-visible — a 2–3px ring
+   flashed round the menu and, through the popup's default `transition: all`, a 100ms outline
+   transition that Base UI waits for held the closing menu on screen (measured, Chromium and WebKit).
+   Its role="menuitem" rows are untouched and keep their rings. */
 a:focus-visible,
 button:focus-visible,
 [role="button"]:focus-visible,
 summary:focus-visible,
-[tabindex]:focus-visible:not([tabindex="-1"][role="dialog"]):not([tabindex="-1"][role="alertdialog"]) {
+[tabindex]:focus-visible:not([tabindex="-1"][role="dialog"]):not([tabindex="-1"][role="alertdialog"]):not([tabindex="-1"][role="menu"]) {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
