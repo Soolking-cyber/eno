@@ -56,7 +56,12 @@ export function RouteFade({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <div ref={ref} className="route-fade animate-in fade-in duration-150">
+    // ⚠️ FROM 75%, NOT FROM 0 (`fade-in-75`), in 100ms. This fade runs on EVERY push navigation —
+    // the most-repeated motion in the app — and from opacity 0 the new page spent its first frames
+    // nearly invisible over the canvas: a blank blink between two screens, 150ms, dozens of times a
+    // session. A frequent transition should be felt, not watched; from 75% the page arrives at once
+    // and only settles. The pop suppression above is unchanged.
+    <div ref={ref} className="route-fade animate-in fade-in-75 duration-100 ease-out">
       {children}
     </div>
   )

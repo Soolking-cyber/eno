@@ -1349,7 +1349,7 @@
 /* ============================================================
    ROUTE ENTER FADE — off for BACK/FORWARD (see src/app/route-fade.tsx)
    app/template.tsx re-mounts on every navigation and its div carries
-   `animate-in fade-in duration-150`, i.e. it starts at opacity 0. On a POP that is
+   `animate-in fade-in-75 duration-100`, i.e. it starts below full opacity. On a POP that is
    wrong: the iOS WebView already animated its own snapshot at full opacity, so the
    live DOM handed off underneath goes native-slide → blank → 150ms fade (and scroll
    restoration runs while the page is invisible). `data-nav-pop` is stamped on <html>
