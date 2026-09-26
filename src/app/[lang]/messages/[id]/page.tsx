@@ -2581,9 +2581,10 @@ export default function ThreadPage() {
               </div>
             )}
             <div ref={bottomRef} />
-            {/* Sticky inside the scroll pane so it floats over the last bubbles. */}
+            {/* Sticky inside the scroll pane so it floats over the last bubbles. `bubble-in` — the
+                house arrival (220ms rise + fade): it used to appear over the bubbles in one frame. */}
             {newBelow && (
-              <div className="sticky bottom-1 z-10 flex justify-center">
+              <div className="bubble-in sticky bottom-1 z-10 flex justify-center">
                 <Button
                   variant="cta"
                   size="none"
