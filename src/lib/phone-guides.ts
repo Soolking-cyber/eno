@@ -33,6 +33,18 @@ export type PhoneGuide = {
   label: string
   /** One line of what it answers — the link's whole reason to be clicked. */
   blurb: string
+  /**
+   * The `/c/<category>` pages this guide is written for, primary first. Optional because nearly
+   * every entry here is about a handset, so an entry without it is on `electronics` — see
+   * `phoneGuideCategories()`. Set it only where that default is wrong (eSIM: the listings are in
+   * `services`).
+   */
+  categories?: readonly string[]
+}
+
+/** Where a phone guide belongs: its own `categories`, else `electronics` — the handsets it is about. */
+export function phoneGuideCategories(g: PhoneGuide): readonly string[] {
+  return g.categories ?? ['electronics']
 }
 
 export const PHONE_GUIDES: readonly PhoneGuide[] = [
@@ -146,6 +158,8 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
     slug: 'esim-vietnam-guide',
     lang: 'en',
     pair: 'esim-viettel-vinaphone-mobifone',
+    // The eSIM plans are listed under services; the handset half of the guide still fits electronics.
+    categories: ['services', 'electronics'],
     label: 'eSIM in Vietnam: networks, phones and setup',
     blurb: 'Which networks issue eSIM, which handsets take it, and what a foreigner needs to register one.',
   },
@@ -153,6 +167,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
     slug: 'esim-viettel-vinaphone-mobifone',
     lang: 'vi',
     pair: 'esim-vietnam-guide',
+    categories: ['services', 'electronics'],
     label: 'eSIM Viettel, VinaPhone, MobiFone: lắp thế nào',
     blurb: 'Nhà mạng nào hỗ trợ eSIM, máy nào dùng được, và thủ tục đăng ký cần gì.',
   },

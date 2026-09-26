@@ -49,6 +49,16 @@ export type ExpatGuide = {
    * page file — a registry can be checked; two hand-written objects drift.
    */
   pair?: string
+  /**
+   * The `/c/<category>` pages this guide is written for, PRIMARY FIRST — the "Guides" block on a
+   * category page reads it through `guidesForCategory()` (src/lib/category-guides.ts), which ranks a
+   * guide higher on the category it names first. Optional: a guide that answers no category's
+   * question (posting for free) is simply on none.
+   *
+   * ⚠️ ONLY A CATEGORY WHOSE STOCK THE GUIDE ACTUALLY DESCRIBES. A guide that frames used goods as
+   * expats' moving sales must not sit on a category whose used stock is dealer-supplied.
+   */
+  categories?: readonly string[]
 }
 
 export const EXPAT_GUIDES: readonly ExpatGuide[] = [
@@ -84,12 +94,14 @@ export const EXPAT_GUIDES: readonly ExpatGuide[] = [
 export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   {
     slug: 'furnishing-a-home-in-vietnam',
+    categories: ['furniture-appliances', 'rentals'],
     label: 'Furnishing a home in Vietnam without overpaying',
     blurb:
       'What to buy new, what to buy used, what the landlord should already provide — and how to check a secondhand piece before money moves.',
   },
   {
     slug: 'selling-up-before-you-leave-vietnam',
+    categories: ['furniture-appliances'],
     label: 'Selling up before you leave Vietnam',
     blurb:
       'Start six weeks out, price against what is actually listed, and hand over in a way that does not cost you the deposit.',
@@ -111,6 +123,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
     slug: 'secondhand-furniture-ho-chi-minh-city',
     lang: 'en',
     pair: 'thanh-ly-do-gia-dung-cu-tphcm',
+    categories: ['furniture-appliances'],
     label: 'Buying secondhand furniture in Ho Chi Minh City',
     blurb:
       'What a used sofa, wardrobe or air conditioner actually costs here, and what to test before any money moves.',
@@ -119,6 +132,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
     slug: 'thanh-ly-do-gia-dung-cu-tphcm',
     lang: 'vi',
     pair: 'secondhand-furniture-ho-chi-minh-city',
+    categories: ['furniture-appliances'],
     label: 'Thanh lý đồ gia dụng cũ tại TP.HCM',
     blurb:
       'Khoảng giá thật theo từng món, cách kiểm tra máy lạnh và máy giặt cũ, và vì sao bán xô luôn mất giá.',
@@ -126,6 +140,9 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   {
     slug: 'do-cu-cua-nguoi-nuoc-ngoai',
     lang: 'vi',
+    // ⚠️ NO `categories`, deliberately: it is about foreigners' own used goods, and the used stock in
+    // furniture-appliances is dealer-supplied — linking it there would present that stock as expats'
+    // moving sales.
     label: 'Đồ cũ của người nước ngoài bán lại',
     blurb:
       'Vì sao đồ của người sắp về nước thường còn tốt mà rẻ, tìm ở đâu, và xem điểm uy tín người bán thế nào.',
@@ -133,6 +150,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   {
     slug: 'renting-an-apartment-vietnam-foreigner',
     lang: 'en',
+    categories: ['rentals'],
     label: 'Renting an apartment in Vietnam as a foreigner',
     blurb:
       'How viewings and leases actually work here, what the deposit covers, and the clauses worth negotiating.',
@@ -140,6 +158,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   {
     slug: 'rental-deposit-vietnam',
     lang: 'en',
+    categories: ['rentals'],
     label: 'Getting your rental deposit back in Vietnam',
     blurb:
       'What fair wear and tear means in practice, the handover photos that settle arguments, and how to escalate.',
@@ -147,6 +166,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   {
     slug: 'ban-do-cu-o-dau-duoc-gia',
     lang: 'vi',
+    categories: ['furniture-appliances'],
     label: 'Bán đồ cũ ở đâu được giá',
     blurb:
       'Khoảng giá thị trường theo từng loại món, và khi nào bán xô cho cửa hàng thu mua mới thực sự hợp lý.',

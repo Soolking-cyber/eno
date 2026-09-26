@@ -14,7 +14,7 @@ import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { seoLandingWhere } from '@/components/marketplace/seo-landing-where'
 import { LANDING_TARGET as JOBS_TARGET } from '@/app/[lang]/jobs-vietnam-expats/landing-target'
 import { LANDING_TARGET as MOTORBIKE_TARGET } from '@/app/[lang]/motorbikes-for-sale-vietnam/landing-target'
-import { slugify } from '@/lib/slug'
+import { districtLinkSlug } from '@/lib/district-canonical'
 import { submittedListingWhere, urlsetXml, xmlResponse, siteOrigin } from '@/lib/sitemap'
 import { NextResponse } from 'next/server'
 
@@ -165,11 +165,16 @@ export async function GET() {
      * are two groups but ONE URL; the merged lastmod is the later of the two, which is what the old
      * first-seen-in-updatedAt-desc walk produced. An empty slug is not a page (`/c/<cat>/`), so it is
      * skipped rather than submitted.
+     *
+     * ⚠️ THE SLUG IS THE CANONICAL ONE (district-canonical.ts), NOT `slugify(stored name)`. The
+     * district page now 308s every twin spelling (`quan-2`, `huyen-cu-chi`, `tp-thu-duc`) to its
+     * curated key, so a slugified stored name would submit a URL that redirects. Merging on the
+     * canonical slug also folds "Quận 2" and "District 2" into the one `d2` entry.
      */
     const comboMax = new Map<string, Date>()
     for (const g of byCombo) {
       const slug = slugById.get(g.categoryId)
-      const district = g.district ? slugify(g.district) : ''
+      const district = g.district ? districtLinkSlug(g.district) : ''
       if (!slug || !district) continue
       const key = `${slug}/${district}`
       const max = later(comboMax.get(key), g._max.updatedAt)

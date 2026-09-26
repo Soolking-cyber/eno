@@ -4,9 +4,11 @@ import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
-import { slugify } from '@/lib/slug'
-import { districtScopeForSlug, curatedDistrictName } from '@/lib/district-slug'
-import { notFound } from 'next/navigation'
+import { districtScopeForSlug } from '@/lib/district-slug'
+import { canonicalDistrictSlug, districtLabel, isCuratedDistrict, mergeDistrictGroups } from '@/lib/district-canonical'
+import { districtMetadata, linkedTier, pageLang } from '../category-copy'
+import { DistrictHeading, DistrictLede, PlaceName } from '../category-text'
+import { notFound, permanentRedirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
@@ -19,7 +21,7 @@ import { Tr } from '@/context/language-context'
 
 export const revalidate = 604800 // 7d — long-tail SEO combo (category×district = many pages); client fetches live, so weekly regen is plenty + far fewer ISR writes
 
-type Props = { params: Promise<{ category: string; district: string }> }
+type Props = { params: Promise<{ lang: string; category: string; district: string }> }
 
 // Render district pages on-demand (ISR), NOT at build. Prerendering all
 // district combos in parallel during the Vercel build bursts the pooled
@@ -93,36 +95,82 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
     take: DISTRICT_PAGE_SIZE,
   })
   if (rows.length === 0) return null
-  // Sibling chips come from one aggregate over the whole category.
-  const groups = await db.listing.groupBy({
-    by: ['district'],
-    // ⚠️ THIS one keeps the null exclusion: a chip needs a district name to be a chip.
-    where: { AND: [base, { NOT: { district: null } }] },
-    _count: { _all: true },
-    orderBy: { _count: { district: 'desc' } },
-  })
-  const districtName = curatedDistrictName(districtSlug) || (rows[0].district as string)
+  const [groups, linked] = await Promise.all([
+    // Sibling chips come from one aggregate over the whole category.
+    db.listing.groupBy({
+      by: ['district'],
+      // ⚠️ THIS one keeps the null exclusion: a chip needs a district name to be a chip.
+      where: { AND: [base, { NOT: { district: null } }] },
+      _count: { _all: true },
+      orderBy: { _count: { district: 'desc' } },
+    }),
+    /**
+     * ⚠️ HOW MUCH OF THIS SCOPE IS LINKED FROM ANOTHER PORTAL — it decides whether the page may keep
+     * its "each from a seller with a public trust score" sentence (category-copy.ts). Every rental in
+     * the 2026-09-27 supply sample (1,510 listings across categories) was an import, and a trust
+     * score says nothing about a listing copied from another portal.
+     */
+    // edition-lint-allow: `where` is `{ AND: [base, scope] }`, base = scopedListingWhere(...) above.
+    db.listing.count({ where: { AND: [where, { affiliateUrl: { not: null } }] } }),
+  ])
   /**
-   * ⚠️ DEDUPED BY SLUG, NOT BY NAME. Two stored spellings of one place ("Thao Dien" / "Thảo Điền")
-   * are two rows in the aggregate but ONE destination, so listing both drew two chips to the same
-   * URL. Keeps the first, which is the busiest because the aggregate is ordered by count.
+   * ⚠️ MERGED BY CANONICAL SLUG (district-canonical.ts). Two stored spellings of one place ("Quận Củ
+   * Chi" / "Huyện Củ Chi", "Thao Dien" / "Thảo Điền") are two rows in the aggregate but ONE
+   * destination; this used to dedupe by `slugify(name)`, which still drew both Củ Chi chips and
+   * linked every numbered district as `quan-N` beside its curated `dN`.
    */
-  const seenSlugs = new Set<string>()
-  const districts = groups
-    .map((g) => g.district)
-    .filter((d): d is string => !!d)
-    .filter((d) => { const k = slugify(d); if (seenSlugs.has(k)) return false; seenSlugs.add(k); return true })
-  return { cat, matched: rows, total, districtName, districts }
+  const districts = mergeDistrictGroups(groups.map((g) => ({ district: g.district, count: g._count._all })))
+  // A curated place is named from DISTRICTS; anything else from a stored spelling in scope.
+  const place = districtLabel(districtSlug, rows.find((r) => r.district)?.district ?? null)
+  return { cat, matched: rows, total, linked: linkedTier(linked, total), place, inHcmc: isCuratedDistrict(districtSlug), districts }
 })
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { category, district } = await params
-  const data = await load(category, district)
+/**
+ * THE ONE URL THIS PLACE LIVES AT, OR NO PAGE AT ALL — resolved before anything renders.
+ *
+ * ⛔ ONE PLACE HAD TWO OR THREE LIVE URLS. `/c/rentals/quan-2` and `/c/rentals/d2` both answered 200,
+ * self-canonical, with the same 3,741 listings; "Huyện Củ Chi" and "Quận Củ Chi" split one district
+ * into two pages; `/c/rentals/thao-dien`, `/phu-my-hung`, `/district-2` and `/thanh-pho-thu-duc`
+ * answered 200 + "Page not found" (measured 2026-09-27). Now the request is mapped to its canonical
+ * slug (district-canonical.ts); that slug's scope is counted IN THIS CATEGORY; empty is a real 404,
+ * and a twin that is not the canonical spelling is a 308 to it.
+ *
+ * ⚠️ THE COUNT HAPPENS BEFORE THE REDIRECT, on the canonical scope, so a 308 never lands on a 404:
+ * `/c/electronics/thao-dien` would map to `thu-duc`, which holds no electronics, so it 404s here
+ * instead of redirecting to an empty page. The canonical scope contains every row the old spelling
+ * showed (pinned per alias in district-canonical.test.ts), so a non-empty source always redirects.
+ *
+ * ⚠️ BOTH ANSWERS ARE REAL STATUSES ONLY BECAUSE NO `loading.tsx` SITS ABOVE THIS SEGMENT — the
+ * category skeleton lives in `../(index)/`. Guarded by district-status-contract.test.ts.
+ *
+ * ⚠️ THE QUERY STRING IS DROPPED ON THE 308. Reading `searchParams` would opt this ISR page into
+ * per-request rendering; a twin URL carrying one is not worth that.
+ */
+async function resolve(params: Props['params']) {
+  const { lang, category, district } = await params
+  let raw = district
+  try {
+    raw = decodeURIComponent(district)
+  } catch {
+    // A malformed escape is not a place; canonicalDistrictSlug slugifies what arrived.
+  }
+  const canonical = canonicalDistrictSlug(raw)
+  const data = canonical ? await load(category, canonical) : null
   // Real 404 (not soft-404) for an unknown category/district — before streaming.
   if (!data) notFound()
+  if (canonical !== district) permanentRedirect(`/c/${data.cat.slug}/${canonical}`)
+  return { lang: pageLang(lang), district: canonical, data }
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { lang, district, data } = await resolve(params)
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
-  const title = `${data.cat.name} in ${data.districtName} — Trusted | ${SITE_NAME}`
-  const description = `${data.cat.name} in ${data.districtName}. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`
+  // ⚠️ "— Trusted" IS GONE from the title: over linked stock it was a claim the page cannot make.
+  const { title, description } = districtMetadata(
+    { category: { slug: data.cat.slug, name: data.cat.name, nameVi: data.cat.nameVi }, place: data.place, inHcmc: data.inHcmc, total: data.total, linked: data.linked },
+    lang,
+    SITE_NAME,
+  )
   return {
     title,
     description,
@@ -134,11 +182,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function CategoryDistrictPage({ params }: Props) {
-  const { category, district } = await params
-  const data = await load(category, district)
-  if (!data) notFound()
-  const { cat, matched, total, districtName, districts } = data
-  const otherDistricts = districts.filter((d) => slugify(d) !== district).slice(0, SIBLING_DISTRICTS)
+  const { lang, district, data } = await resolve(params)
+  const { cat, matched, total, linked, place, districts } = data
+  const otherDistricts = districts.filter((d) => d.slug !== district).slice(0, SIBLING_DISTRICTS)
   // The explorer scoped to exactly this page — the API resolves a slugified district name the same
   // way this page does (src/lib/district-slug.ts), so leaving here keeps the district.
   const scopedExplorer = `/?category=${cat.slug}&district=${district}`
@@ -153,7 +199,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Home', item: hostUrl },
           { '@type': 'ListItem', position: 2, name: cat.name, item: `${hostUrl}/c/${cat.slug}` },
-          { '@type': 'ListItem', position: 3, name: districtName, item: `${hostUrl}/c/${cat.slug}/${district}` },
+          { '@type': 'ListItem', position: 3, name: place[lang], item: `${hostUrl}/c/${cat.slug}/${district}` },
         ],
       },
       {
@@ -184,26 +230,26 @@ export default async function CategoryDistrictPage({ params }: Props) {
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbPage className="font-medium"><Tr text={districtName} /></BreadcrumbPage>
+              <BreadcrumbPage className="font-medium"><PlaceName en={place.en} vi={place.vi} /></BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
 
-        <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in" /> <Tr text={districtName} /></h1>
+        {/* English place names on English pages: "Rentals in District 2", never "Rentals in Quận 2". */}
+        <h1 className="h-display text-foreground"><DistrictHeading name={cat.name} nameVi={cat.nameVi} place={place} /></h1>
         {/* Measured lede — 65ch, same as the category page. */}
         <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
           {/* ⚠️ THE SCOPE'S TRUE COUNT, NOT THE PAGE'S. This read `listings.length` — the survivors of
               a 600-row window — and announced them as the district's inventory. */}
-          {total} <Tr text={cat.name.toLowerCase()} /> {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="in" /> <Tr text={districtName} />,{' '}
-          <Tr text="each from a seller with a public trust score — fewer fakes, fewer bait prices." />
+          <DistrictLede total={total} name={cat.name} nameVi={cat.nameVi} categorySlug={cat.slug} place={place} linked={linked} />
         </p>
 
         {otherDistricts.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">
             <span className="self-center text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
             {otherDistricts.map((d) => (
-              <Badge key={d} size="md" interactive render={<Link href={`/c/${cat.slug}/${slugify(d)}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
-                <Tr text={d} />
+              <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+                <PlaceName en={d.label.en} vi={d.label.vi} />
               </Badge>
             ))}
           </div>

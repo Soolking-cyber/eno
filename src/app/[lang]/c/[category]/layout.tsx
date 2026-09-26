@@ -19,6 +19,10 @@ import { categoryExists } from './load-category'
  * payload carries `NEXT_HTTP_ERROR_FALLBACK;404` either way, so Next always threw correctly and
  * only the status had already gone out.
  *
+ * ⚠️ THE SKELETON NOW LIVES IN `(index)/loading.tsx` (2026-09-27), beside the category page, so it no
+ * longer wraps `[district]` as well — see the note at the top of `(index)/page.tsx`. This layout still
+ * sits above both and still guards both: an unknown category is a 404 under either URL shape.
+ *
  * ⚠️ EXISTENCE ONLY — the weaker guard, on purpose. `page.tsx` still owns the real policy,
  * including the auto-noindex when a category holds zero live listings. An EMPTY category is a
  * valid 200 page that de-indexes itself; it must not 404 here.

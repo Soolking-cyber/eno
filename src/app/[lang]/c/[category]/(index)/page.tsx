@@ -1,11 +1,14 @@
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { CategoryLede } from '@/components/marketplace/category-lede'
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { loadCategory } from './load-category'
+import { loadCategory } from '../load-category'
+import { loadDistrictChips, loadLinkedCount, loadRentalsFacts } from '../category-data'
+import { categoryMetadata, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
+import { CategoryGuides, PlaceName, RentalsDistricts, RentalsHeading, RentalsLede } from '../category-text'
+import { guidesForCategory } from '@/lib/category-guides'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
-import { slugify } from '@/lib/slug'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -23,7 +26,23 @@ import { Tr } from '@/context/language-context'
 
 export const revalidate = 21600 // 6h — client fetches live listings; ISR HTML is first-paint+SEO only
 
-type Props = { params: Promise<{ category: string }> }
+type Props = { params: Promise<{ lang: string; category: string }> }
+
+/** "By area" chips on the category page — every canonical place, busiest first. */
+const DISTRICT_CHIPS = 80
+
+/**
+ * ⛔ THIS PAGE LIVES IN THE `(index)` ROUTE GROUP, WITH ITS `loading.tsx`, SO THAT THE SKELETON DOES
+ * NOT WRAP `[district]`. A `loading.tsx` wraps its own segment's page AND every child segment in a
+ * Suspense boundary; at `c/[category]/loading.tsx` it sat above `/c/<cat>/<district>`, so every
+ * `notFound()` there went out as 200 + noindex (live 2026-09-27: /c/rentals/thao-dien, /tay-ho,
+ * /phu-my-hung, /district-2, /thanh-pho-thu-duc) and a 308 could never have been a 308. The group
+ * changes no URL; this page keeps its skeleton; `[district]` now renders with no boundary above it,
+ * so its 404 and 308 set the real status (guarded by district-status-contract.test.ts).
+ * ⚠️ THE GROUP IS IN THIS PAGE'S CACHE TAG (`_N_T_/[lang]/c/[category]/(index)/page`). Nothing purges
+ * it by pattern today; if something ever does, purge `'/c/[category]', 'layout'` — see the (pdp) note
+ * in listings/[id]/(pdp)/layout.tsx for the same trap.
+ */
 
 // Render on-demand (ISR), not at build — see the district page for why. Pages
 // cache via `revalidate` after first request and are listed in the sitemap.
@@ -38,10 +57,10 @@ export async function generateStaticParams() {
  * same idiom the sibling district page uses and for the same reason. Without it, adding the count
  * to the metadata would mean a second COUNT per render purely to decide a robots tag.
  */
-// The loader moved to ./load-category so `layout.tsx` shares the same cache() memo — see there.
+// The loader moved to ../load-category so `../layout.tsx` shares the same cache() memo — see there.
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { category } = await params
+  const { lang, category } = await params
   const loaded = await loadCategory(category)
   // ⚠️ THIS *IS* A REAL 404 AGAIN, SINCE 2026-09-07 — and this comment has now been wrong in both
   // directions, so trust the code and the test, not the prose. It first claimed a real 404 when the
@@ -52,15 +71,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // segment's `loading.tsx`, not Next 15.2+ metadata streaming — proven by moving the file out of
   // the tree and rebuilding (404), then putting it back (200). A loading boundary makes Next flush
   // the shell, status included, before this notFound() is reached.
-  // The fix is `./layout.tsx`: App Router nests layout → loading → page, so a guard in the layout
+  // The fix is `../layout.tsx`: App Router nests layout → loading → page, so a guard in the layout
   // runs above this segment's boundary while the status can still be set, and loading.tsx is left
   // untouched. Neither the CLS nor the ISR trade-off is taken. This notFound() stays as the
   // defence-in-depth copy — it is what still runs if the layout is ever removed.
   if (!loaded) notFound()
   const { cat, live } = loaded
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
-  const title = `${cat.name} in Vietnam — Trusted listings | ${SITE_NAME}`
-  const description = `Browse ${cat.name.toLowerCase()} for expats in Vietnam. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`
+  /**
+   * ⛔ RENTALS SAYS WHAT ITS STOCK IS, FROM THE STOCK. It was "Rentals in Vietnam — Trusted listings"
+   * over 25,502 rentals that were all in Ho Chi Minh City and all linked from other portals — no
+   * page answered "apartments for rent in Ho Chi Minh City" (~720 searches/month) while this one
+   * held the inventory for it. category-copy.ts words it from live counts; every other category
+   * keeps the generic copy (categoryMetadata) — with its "Trusted" claim only while nothing is linked.
+   */
+  const rentals = cat.slug === 'rentals' && live > 0 ? rentalsMetadata(await loadRentalsFacts(cat.id, live), pageLang(lang), SITE_NAME) : null
+  // Every other category keeps its old wording only while none of its stock is linked (category-copy.ts).
+  const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME)
   return {
     title,
     description,
@@ -80,7 +107,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function CategoryPage({ params }: Props) {
-  const { category } = await params
+  const { lang, category } = await params
   // Same cached loader generateMetadata used, so within this request the category lookup and the
   // live count are each done once — `total` below IS the number the robots decision was made on,
   // which is what stops the page claiming a count its own indexing directive disagrees with.
@@ -90,19 +117,16 @@ export default async function CategoryPage({ params }: Props) {
 
   // Cap the landing to a page of listings (was unbounded — fetched the entire
   // category each ISR render). Independent queries run in parallel; the
-  // distinct districts come from a light separate query so the "by area" chips
+  // districts come from a light separate aggregate so the "by area" chips
   // still reflect the whole category.
   const PAGE_SIZE = 48
-  const where = { categoryId: cat.id, verified: true, status: 'active' as const }
   /**
-   * ⚠️ SCOPED COPIES, NOT A MUTATED `where`. The district query below SPREADS this same const, and
-   * spreading an exclusion fragment beside other keys is exactly the collision trap
-   * edition-scope.ts exists to prevent. Hoisted out of the Promise.all so the grid and the district
-   * facet are built from predicates that cannot disagree.
+   * ⚠️ THE SAME PREDICATE AS load-category.ts AND category-data.ts (verified, active, this category),
+   * each scoped on its own rather than one mutated `where` spread with extra keys — spreading an
+   * exclusion fragment beside other keys is the collision trap edition-scope.ts exists to prevent.
    */
-  const scopedWhere = await scopedListingWhere(where)
-  const scopedDistrictWhere = await scopedListingWhere({ ...where, district: { not: null } })
-  const [raw, otherCats, districtRows] = await Promise.all([
+  const scopedWhere = await scopedListingWhere({ categoryId: cat.id, verified: true, status: 'active' })
+  const [raw, otherCats, chips, rentals, linkedCount] = await Promise.all([
     db.listing.findMany({
       where: scopedWhere,
       // Card projection: this page only renders <ListingCard> slots — the full row
@@ -112,10 +136,21 @@ export default async function CategoryPage({ params }: Props) {
       take: PAGE_SIZE,
     }),
     db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),
-    db.listing.findMany({ where: scopedDistrictWhere, select: { district: true }, distinct: ['district'], take: 80 }),
+    // ⚠️ CANONICAL CHIPS (category-data.ts): one per place, linking the one URL that place has — the
+    // stored spellings (`quan-2`, `huyen-cu-chi`) now 308 there instead of standing beside it.
+    loadDistrictChips(cat.id),
+    // The same cached call generateMetadata made — one set of counts per render.
+    cat.slug === 'rentals' && total > 0 ? loadRentalsFacts(cat.id, total) : null,
+    // The same cached count generateMetadata read: it decides whether CategoryLede keeps its trust claim.
+    cat.slug !== 'rentals' && total > 0 ? loadLinkedCount(cat.id) : 0,
   ])
   const listings = await localizeListingTitles(raw.map(serializeListingCard))
-  const districts = [...new Set(districtRows.map((r) => r.district).filter((d): d is string => !!d))]
+  const districts = chips.slice(0, DISTRICT_CHIPS)
+  // Registry-driven (src/lib/category-guides.ts) and only over real stock: a guide rail under an
+  // empty category is a signpost to nothing, which is why it lives in the non-empty branch below.
+  // ⚠️ MARKETPLACE ONLY: on eno.forum these links would promote its self-canonical COPIES of eno.vn's
+  // guides before the owner decides the cross-host canonicals — /llms.txt and the footer omit them there.
+  const guides = total > 0 && !IS_SERVICES ? guidesForCategory(cat.slug, pageLang(lang)) : []
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
   const jsonLd = {
@@ -157,13 +192,24 @@ export default async function CategoryPage({ params }: Props) {
           </BreadcrumbList>
         </Breadcrumb>
 
-        <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
+        <h1 className="h-display text-foreground">
+          {rentals ? <RentalsHeading allHcmc={rentals.allHcmc} kinds={rentals.kinds} /> : <><Tr text={cat.name} /> <Tr text="in Vietnam" /></>}
+        </h1>
         {/* Measured lede — max-w-prose (65ch) keeps the reading measure inside the craft floor's
-            65–75ch band; max-w-2xl ran ~80ch at text-base. */}
+            65–75ch band; max-w-2xl ran ~80ch at text-base.
+            ⚠️ Rentals replaces CategoryLede, whose "every listing comes from a seller with a public
+            trust score" is not true of stock linked from other portals; every other category passes
+            its linked tier, and CategoryLede keeps that sentence only where the tier is 'none'. */}
         <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
-          <CategoryLede name={cat.name} nameVi={cat.nameVi} slug={cat.slug} />
-          {/* "0 listings available." read broken on empty categories — only count when there ARE listings. */}
-          {total > 0 && <> {total} {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." /></>}
+          {rentals ? (
+            <RentalsLede total={rentals.total} allHcmc={rentals.allHcmc} kinds={rentals.kinds} linked={rentals.linked} />
+          ) : (
+            <>
+              <CategoryLede name={cat.name} nameVi={cat.nameVi} slug={cat.slug} linked={linkedTier(linkedCount, total)} />
+              {/* "0 listings available." read broken on empty categories — only count when there ARE listings. */}
+              {total > 0 && <> {total} {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." /></>}
+            </>
+          )}
         </p>
         {/* The availability check is invisible until something says it exists — one line, rentals only. */}
         {cat.slug === 'rentals' && <RentalCheckHint className="mt-2 max-w-prose" />}
@@ -172,8 +218,9 @@ export default async function CategoryPage({ params }: Props) {
           <div className="mt-6 flex flex-wrap gap-2">
             <span className="self-center text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
             {districts.map((d) => (
-              <Badge key={d} size="md" interactive render={<Link href={`/c/${cat.slug}/${slugify(d)}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
-                <Tr text={d} />
+              <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+                {/* English place names on English pages ("District 2", not "Quận 2"). */}
+                <PlaceName en={d.label.en} vi={d.label.vi} />
               </Badge>
             ))}
           </div>
@@ -215,6 +262,8 @@ export default async function CategoryPage({ params }: Props) {
                 </Link>
               </Button>
             </div>
+            {rentals && <RentalsDistricts allHcmc={rentals.allHcmc} top={rentals.top} />}
+            <CategoryGuides guides={guides} />
             <section className="mt-12 border-t border-border pt-8">
               <h2 className="h-section text-foreground"><Tr text="Other categories" /></h2>
               <div className="mt-4 flex flex-wrap gap-2">

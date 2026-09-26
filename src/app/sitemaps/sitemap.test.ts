@@ -206,18 +206,22 @@ describe('the pages child', () => {
     const xml = await (await pagesGET()).text()
     const urls = locs(xml)
     expect(xml).toMatch(/<urlset /)
-    expect(urls).toContain(`${HOST}/c/books-stationery/thao-dien`)
+    // ⚠️ THE CANONICAL SLUG (district-canonical.ts): "Thảo Điền" is a spelling of the curated Thủ Đức
+    // entry, and /c/<cat>/thao-dien now 308s to /c/<cat>/thu-duc — the sitemap submits where it lands.
+    expect(urls).toContain(`${HOST}/c/books-stationery/thu-duc`)
+    expect(urls).not.toContain(`${HOST}/c/books-stationery/thao-dien`)
     expect(urls).toContain(`${HOST}/oldshop`)
     expect(urls).toContain(`${HOST}/c/books-stationery`)
     // Imported stock still supports its category and storefront. Its LISTING URLs are withheld (not
     // in this file at all), and so is a category × district combo that ONLY imports reach.
     expect(urls).toContain(`${HOST}/c/rentals`)
     expect(urls).toContain(`${HOST}/sellers/import-seller`)
+    expect(urls).not.toContain(`${HOST}/c/rentals/d1`)
     expect(urls).not.toContain(`${HOST}/c/rentals/quan-1`)
     expect(urls.some((u) => u.includes('/listings/'))).toBe(false)
     // Two spellings of one place are one URL, carrying the later of their two dates.
-    expect(urls.filter((u) => u.endsWith('/c/books-stationery/thao-dien'))).toHaveLength(1)
-    expect(xml).toContain(`<loc>${HOST}/c/books-stationery/thao-dien</loc><lastmod>2025-07-01T00:00:00.000Z</lastmod>`)
+    expect(urls.filter((u) => u.endsWith('/c/books-stationery/thu-duc'))).toHaveLength(1)
+    expect(xml).toContain(`<loc>${HOST}/c/books-stationery/thu-duc</loc><lastmod>2025-07-01T00:00:00.000Z</lastmod>`)
     // The home page's lastmod is the freshest live row anywhere.
     expect(xml).toContain(`<loc>${HOST}</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
   }, 60_000)
@@ -241,8 +245,9 @@ describe('the pages child', () => {
     ]
     const xml = await (await pagesGET()).text()
     const urls = locs(xml)
-    expect(urls.filter((u) => u.startsWith(`${HOST}/c/rentals/`))).toEqual([`${HOST}/c/rentals/quan-3`])
-    expect(xml).toContain(`<loc>${HOST}/c/rentals/quan-3</loc><lastmod>${OLD.toISOString()}</lastmod>`)
+    // "Quận 3" is submitted as the curated `d3` — the slug the page lives at; `quan-3` 308s there.
+    expect(urls.filter((u) => u.startsWith(`${HOST}/c/rentals/`))).toEqual([`${HOST}/c/rentals/d3`])
+    expect(xml).toContain(`<loc>${HOST}/c/rentals/d3</loc><lastmod>${OLD.toISOString()}</lastmod>`)
     // The category page and the import seller's storefront still count imported stock.
     expect(xml).toContain(`<loc>${HOST}/c/rentals</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
     expect(urls).toContain(`${HOST}/sellers/import-seller`)
@@ -258,7 +263,7 @@ describe('the pages child', () => {
     expect(urls.some((u) => u.includes('/c/services/'))).toBe(false)
     expect(urls).not.toContain(`${HOST}/sellers/desk-seller`)
     expect(urls).not.toContain(`${HOST}/c/jobs`) // a category with no live listing serves noindex
-    expect(urls).toContain(`${HOST}/c/books-stationery/quan-3`)
+    expect(urls).toContain(`${HOST}/c/books-stationery/d3`)
     expect(urls).toContain(`${HOST}/sellers/own-seller`)
   })
 })

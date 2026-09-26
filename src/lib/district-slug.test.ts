@@ -113,3 +113,16 @@ describe('curated district scope — the "Quận 1 matches Quận 12" bug', () =
     expect(await districtScopeForSlug('')).toBeNull()
   })
 })
+
+/**
+ * ⚠️ THE PAGE URL MOVED; THE FEED FILTER DID NOT. `/c/<cat>/thao-dien` now 308s to the curated place
+ * (district-canonical.ts), but `/api/listings?district=thao-dien` is also what saved searches and
+ * shared explorer links carry, so it keeps resolving through the stored names exactly as before —
+ * choosing which URL a page lives at must not change what an existing filter returns.
+ */
+describe('legacy stored-name slugs still filter the feed', () => {
+  it('resolves a non-curated slug through the stored names, not through its canonical page', async () => {
+    expect(await districtScopeForSlug('thao-dien')).toEqual({ district: { in: ['Thao Dien', 'Thảo Điền'] } })
+    expect(await districtScopeForSlug('district-1')).toEqual({ district: { in: ['District 1'] } })
+  })
+})

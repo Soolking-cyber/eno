@@ -77,10 +77,26 @@ test.describe('marketplace, against known fixtures', () => {
       '/listings/no-such-listing-e2e',
       '/listings/00000000-0000-0000-0000-000000000000',
       '/c/no-such-category-e2e',
+      // The district page's own 404 — real only while no loading.tsx sits above [district]
+      // (district-status-contract.test.ts pins the file layout; this reads the status byte).
+      '/c/electronics/no-such-district-e2e',
     ]) {
       const res = await page.goto(path)
       expect(res?.status(), `${path} must answer a real 404, not a 200 carrying the not-found UI`).toBe(404)
     }
+  })
+
+  /**
+   * ⛔ ONE URL PER PLACE: a spelling that is not the canonical slug is a real 308 to it, not a 200
+   * twin and not a client-side redirect inside a 200 (which a loading.tsx above [district] would
+   * make it). Case is the spelling the fixture can exercise: `Thao-Dien-Fixture` slugifies to the
+   * fixture's own `thao-dien-fixture`. Not followed, so the status byte is what is asserted — the
+   * CI server is one origin on :3100, so there is no www/apex hop to trip over.
+   */
+  test('a non-canonical district spelling is a real 308 to the canonical URL', async ({ page }) => {
+    const res = await page.request.get('/c/electronics/Thao-Dien-Fixture', { maxRedirects: 0, failOnStatusCode: false })
+    expect(res.status()).toBe(308)
+    expect(res.headers()['location'] ?? '').toMatch(/\/c\/electronics\/thao-dien-fixture$/)
   })
 
   /**
