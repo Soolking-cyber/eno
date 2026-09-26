@@ -3099,6 +3099,18 @@ html:not(.native) #app-splash {
   }
 }
 
+/* ── DRAWER DRAG VARIABLES DO NOT INHERIT ────────────────────────────────────────────────────────
+   Base UI's Drawer rewrites --drawer-swipe-movement-x/-y and --drawer-swipe-progress on the POPUP (and
+   the progress on the backdrop) on EVERY drag frame. A custom property inherits by default, so each
+   write changed the computed style of every element inside the sheet and the browser re-resolved the
+   whole subtree per frame, for values only the popup's and backdrop's own declarations read
+   (ui/drawer.tsx: --translate-x/-y, --stack-progress, the scrim opacity — grepped, nothing inside the
+   sheet reads them). Registered non-inheriting, a drag frame restyles those two elements and stops
+   there. The initial values are the ones Base UI itself writes at rest ('0px', '0'). */
+@property --drawer-swipe-movement-x { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --drawer-swipe-movement-y { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --drawer-swipe-progress { syntax: '<number>'; inherits: false; initial-value: 0; }
+
 /* ── BADGE PLATES — the trust chip and the partner "P" ─────────────────────────────────────────
    Owner, 2026-09-14: "make sure the trust badges and partner badges have semitransparent plates
    similar to heart icons plate on product cards but with their respective subtle coloring. also

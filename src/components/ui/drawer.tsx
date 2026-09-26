@@ -70,10 +70,18 @@ function DrawerOverlay({
   ...props
 }: DrawerPrimitive.Backdrop.Props) {
   return (
+    // ⚠️ `data-swiping:duration-0!` — THE `!` IS THE FIX. The dimming follows the finger through
+    // --drawer-swipe-progress, set on this element every drag frame; the unlayered `.overlay-scrim`
+    // rule (globals.css) gives it a 150ms opacity transition, and an unlayered rule beats a layered
+    // utility outright, so the plain `data-swiping:duration-0` never applied and the scrim trailed the
+    // sheet by 150ms. An !important layered declaration beats a normal unlayered one.
+    // Base UI's DrawerViewport sets `data-swiping` on the BACKDROP (not in its documented attribute
+    // list) and clears it at the START of release, before it decides dismiss or snap-back — so a
+    // cancelled swipe still eases the scrim back, and the exit keeps its fade.
     <DrawerPrimitive.Backdrop
       data-slot="drawer-overlay"
       className={cn(
-        "overlay-scrim fixed inset-0 z-50 min-h-dvh opacity-[max(var(--drawer-overlay-min-opacity,0),calc(1-var(--drawer-swipe-progress)))] transition-opacity duration-450 ease-[cubic-bezier(0.32,0.72,0,1)] select-none data-ending-style:pointer-events-none data-ending-style:opacity-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-snap-points:[--drawer-overlay-min-opacity:0.5] data-starting-style:opacity-0 data-swiping:duration-0 supports-[-webkit-touch-callout:none]:absolute",
+        "overlay-scrim fixed inset-0 z-50 min-h-dvh opacity-[max(var(--drawer-overlay-min-opacity,0),calc(1-var(--drawer-swipe-progress)))] transition-opacity duration-450 ease-[cubic-bezier(0.32,0.72,0,1)] select-none data-ending-style:pointer-events-none data-ending-style:opacity-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-snap-points:[--drawer-overlay-min-opacity:0.5] data-starting-style:opacity-0 data-swiping:duration-0! supports-[-webkit-touch-callout:none]:absolute",
         className
       )}
       {...props}

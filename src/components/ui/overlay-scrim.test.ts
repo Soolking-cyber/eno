@@ -27,3 +27,25 @@ describe('overlay primitives: the scrim leaves with its 75ms popup', () => {
     for (const line of scrims) expect(line).toContain(SCRIM_EXIT)
   })
 })
+
+/**
+ * THE DRAWER'S SCRIM FOLLOWS THE FINGER. Its opacity is driven per drag frame by
+ * --drawer-swipe-progress, and the unlayered `.overlay-scrim` transition beats a layered utility —
+ * so the zero duration while swiping has to be !important (`duration-0!`) or the dimming trails the
+ * sheet by 150ms. And those per-frame variables are registered non-inheriting, so a drag frame does
+ * not restyle everything inside the sheet. jsdom evaluates neither; the cascade and the inheritance
+ * were measured on the built CSS.
+ */
+describe('drawer drag', () => {
+  it('zeroes the scrim transition while swiping, with the !important that beats the unlayered rule', () => {
+    const src = readFileSync(join(__dirname, 'drawer.tsx'), 'utf8')
+    const scrim = src.split('\n').find((line) => /["']overlay-scrim\b/.test(line))!
+    expect(scrim).toMatch(/\sdata-swiping:duration-0!\s/)
+  })
+
+  it('registers the per-frame drag variables as non-inheriting', () => {
+    const css = readFileSync(join(__dirname, '../../app/globals.css'), 'utf8')
+    for (const [name, syntax] of [['--drawer-swipe-movement-x', '<length>'], ['--drawer-swipe-movement-y', '<length>'], ['--drawer-swipe-progress', '<number>']])
+      expect(css).toMatch(new RegExp(`@property ${name} \\{ syntax: '${syntax}'; inherits: false;`))
+  })
+})
