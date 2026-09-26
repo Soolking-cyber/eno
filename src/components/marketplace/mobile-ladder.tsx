@@ -9,6 +9,9 @@ import { useLanguage } from '@/context/language-context'
 import { ScrollArrows, useScrollArrows } from '@/hooks/use-scroll-arrows'
 import type { DimensionCounts } from '@/lib/facet-counts'
 import { STROKE_UI } from '@/lib/icon-tokens'
+// The shared helper, not a local matchMedia copy: its reduced branch is 'instant' — the copy returned
+// 'auto', which defers to CSS scroll-behavior (see the note in lib/reduced-motion.ts).
+import { scrollBehavior } from '@/lib/reduced-motion'
 import { cn } from '@/lib/utils'
 import { formatCount, moneyLocale, type MoneyLocale } from '@/lib/vnd'
 
@@ -472,7 +475,7 @@ function LadderRail({ level }: { level: LadderLevel }) {
     if (delta === 0) return
     container.scrollTo({
       left: Math.max(0, container.scrollLeft + delta),
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      behavior: scrollBehavior(),
     })
     /**
      * ⚠️ `railSignature` IS A DEP, NOT JUST THE ARROWS' — the chip can leave the viewport without
@@ -644,14 +647,6 @@ export const STICKY_TOP_DEFAULT = 'var(--ladder-sticky-top, 0px)'
  */
 export const STICKY_Z_DEFAULT = 29
 export const STICKY_INSET_END_DEFAULT = 'var(--ladder-sticky-inset-end, 0px)'
-
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  )
-}
 
 export function MobileLadder({
   levels,
@@ -843,7 +838,7 @@ export function MobileLadder({
      */
     const r = barRef.current?.getBoundingClientRect()
     const restTo = r ? Math.max(0, r.top) : 0
-    window.scrollBy({ top: root.getBoundingClientRect().top - restTo, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+    window.scrollBy({ top: root.getBoundingClientRect().top - restTo, behavior: scrollBehavior() })
   }, [onReopen])
 
   // ⚠️ NO ROWS MEANS NO COMPONENT, INCLUDING NO STICKY LINE — a decision, not an oversight.

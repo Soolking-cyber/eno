@@ -852,7 +852,10 @@ export default function ThreadPage() {
   // "New messages" pill instead.
   const scrollBottom = useCallback((smooth: boolean) => {
     const el = listRef.current
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+    // ⚠️ `scrollBehavior()`, not a literal 'smooth': it asks prefers-reduced-motion at call time (the
+    // ternary slipped past design-lint's literal-only check). And 'instant', not 'auto' — 'auto' defers
+    // to the pane's computed scroll-behavior, so opening a thread would animate if it ever gained one.
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? scrollBehavior() : 'instant' })
   }, [])
   const distanceFromBottom = () => {
     const el = listRef.current
