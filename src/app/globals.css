@@ -2766,6 +2766,33 @@ html:not(.native) #app-splash {
   }
 
   /**
+   * ⛔ …BUT AN OVERLAY STILL FADES. Reduced motion means gentler, not none: the blanket rule above also
+   * removed every overlay's opacity fade, so for exactly these users every dialog, popover, menu,
+   * select, tooltip and its full-screen scrim popped in and out in ONE frame — and that fade is often
+   * the only signal that a layer opened or closed. A fade moves nothing across the retina.
+   * So two NARROW exceptions restore the fade and nothing else; every other transition and keyframe
+   * stays killed. (A first version narrowed `transition-property` on `*` instead; both reviewers
+   * refuted it — authored duration/delay lists cycle against a replaced property list and land on
+   * the wrong properties, and it forced fades back onto elements that say `transition-none`.)
+   *
+   * 1. tw-animate entrances/exits keep their authored duration — `var(--tw-animation-duration,
+   *    var(--tw-duration, …))` is the library's own expression, so each overlay fades at exactly its
+   *    75–150ms (measured on the preview) — with every zoom/slide/spin zeroed. WHOLE TOKENS only
+   *    (`~=`, plus the variant-prefixed `:animate-in` form): src has no other class containing
+   *    those words. Unlayered, so the custom properties beat the layered zoom-in-* / slide-in-*
+   *    utilities; the duration needs !important and the higher specificity to beat `*`.
+   */
+  [class~='animate-in'], [class~='animate-out'], [class*=':animate-in'], [class*=':animate-out'] {
+    animation-duration: var(--tw-animation-duration, var(--tw-duration, 150ms)) !important;
+    --tw-enter-scale: 1; --tw-enter-rotate: 0; --tw-enter-translate-x: 0; --tw-enter-translate-y: 0;
+    --tw-exit-scale: 1; --tw-exit-rotate: 0; --tw-exit-translate-x: 0; --tw-exit-translate-y: 0;
+  }
+  /* 2. The scrim's own opacity transition, re-declared as authored (see `.overlay-scrim`), including
+        the `--scrim-exit` its popup hands it — so it still lands with that popup instead of being cut. */
+  .overlay-scrim { transition: opacity 150ms ease-out !important; }
+  .overlay-scrim[data-ending-style] { transition: opacity var(--scrim-exit, 150ms ease-out) !important; }
+
+  /**
    * ⛔ A LOADER IS NOT DECORATION, AND THE BLANKET RULE ABOVE FREEZES IT. `iteration-count: 1` plus
    * `0.01ms` stops `animate-spin` dead at 0° — and `<Spinner>` is a ring with a transparent top
    * (ui/spinner.tsx), so a reduced-motion user sees a permanently BROKEN CIRCLE that never moves.
