@@ -110,8 +110,11 @@ const SIZES = {
 } as const
 
 // Hover/active affordance for a chip that is actually clickable. Off by default.
+// ⚠️ `press` IS THE "ACTIVE" HALF. This used to promise hover/active but carry hover only — and
+// phones never hover, so the PDP brand chip and the category/district chips gave no response to a
+// tap at all. `press` is the house press (its unlayered transition covers the colour fade too).
 const INTERACTIVE =
-  'cursor-pointer transition-colors hover:bg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50'
+  'press cursor-pointer hover:bg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50'
 
 export function Badge({
   variant = 'neutral',
