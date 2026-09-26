@@ -87,6 +87,8 @@ export const JOB_BOARDS = {
   // The requisition number, not the title slug Workday puts before it: an edited title must stay one row.
   rmit: { sellerId: 'rmit-edu-vn-import-seller-0001', name: 'RMIT University Vietnam', hosts: ['rmit.wd3.myworkdayjobs.com'], id: /^\/RMIT_Careers\/job\/[^/]+\/[^/]*_(JR\d{3,})$/ },
   tta: { sellerId: 'theteflacademy-com-import-seller-0001', name: 'The TEFL Academy', hosts: ['www.theteflacademy.com'], id: /^\/blog\/tefl-jobs\/([a-z0-9-]+)$/ },
+  // Added 2026-09-27 after the source-discovery sweep: robots allows (and welcomes crawlers), no terms clause.
+  tesljobs: { sellerId: 'tesljobs-com-import-seller-0001', name: 'TeslJobs', hosts: ['tesljobs.com', 'www.tesljobs.com'], id: /^\/jobs\/[a-z0-9-]+-([A-Za-z0-9]{6,16})$/ },
   // ⚠️ PUBLISHED ON THE OWNER'S WORD (2026-09-25: "topcv and vietnamworks have permissions"). The site terms
   // alone forbid display (vietnamworks.com/thoa-thuan-su-dung); the permission is the owner's, not the terms'.
   // The id is the number before "-jv", not the title slug before it.
@@ -101,7 +103,7 @@ export const JOB_SOURCES: Record<string, BoardKey> = {
   eslcafe: 'eslcafe', teast: 'teast', vtj: 'vtj', eslgorilla: 'eslgorilla', eslboards: 'eslboards',
   'tefl-org': 'teflorg', vas: 'vas', eiv: 'eiv', nordanglia: 'nordanglia', inspired: 'inspired',
   'vieclam24h-teach': 'vieclam24h', 'vieclam24h-english': 'vieclam24h', rmit: 'rmit', tta: 'tta',
-  vietnamworks: 'vietnamworks',
+  vietnamworks: 'vietnamworks', tesljobs: 'tesljobs',
 }
 
 export const JOB_SELLER_IDS: string[] = Object.values(JOB_BOARDS).map((b) => b.sellerId)
