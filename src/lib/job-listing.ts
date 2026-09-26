@@ -63,7 +63,13 @@ export type StagedJob = {
 export type GonePosting = { url: string; source: string; reason: string }
 export type JobStage = { stagedAt: string; days: number; jobs: StagedJob[]; gone?: GonePosting[] }
 
-type Board = { sellerId: string; name: string; hosts: readonly string[]; id: RegExp | null }
+type Board = {
+  sellerId: string; name: string; hosts: readonly string[]; id: RegExp | null
+  /** A board whose jobs have no page of their own, only an anchor on one listing page (WISHlistjobs:
+   *  /teaching-jobs-in-vietnam#job-post-N). The id comes from the anchor, the path is pinned by `id`, and the
+   *  anchor is KEPT in the Apply link — normaliseJobUrl drops it for every other board. */
+  hashId?: RegExp
+}
 
 /**
  * ⛔ THE BOARDS, CLOSED. Seller ids are literals so src/lib/import-sellers.test.ts can see them; the
@@ -87,6 +93,10 @@ export const JOB_BOARDS = {
   // The requisition number, not the title slug Workday puts before it: an edited title must stay one row.
   rmit: { sellerId: 'rmit-edu-vn-import-seller-0001', name: 'RMIT University Vietnam', hosts: ['rmit.wd3.myworkdayjobs.com'], id: /^\/RMIT_Careers\/job\/[^/]+\/[^/]*_(JR\d{3,})$/ },
   tta: { sellerId: 'theteflacademy-com-import-seller-0001', name: 'The TEFL Academy', hosts: ['www.theteflacademy.com'], id: /^\/blog\/tefl-jobs\/([a-z0-9-]+)$/ },
+  // ⚠️ PUBLISHED ON THE OWNER'S WORD (2026-09-27: "fpt green", "wish also green"). FPT's terms require written
+  // consent and WISHlistjobs' forbid republishing without explicit permission; the permission is the owner's.
+  fpt: { sellerId: 'fpt-edu-vn-import-seller-0001', name: 'FPT Education', hosts: ['career.fpt.edu.vn'], id: /^\/Job\/Detail\/(\d+)$/ },
+  wish: { sellerId: 'wishlistjobs-com-import-seller-0001', name: 'WISHlistjobs', hosts: ['www.wishlistjobs.com', 'wishlistjobs.com'], id: /^\/(teaching-jobs-in-vietnam)$/, hashId: /^#job-post-(\d+)$/ },
   // Added 2026-09-27 after the source-discovery sweep: robots allows (and welcomes crawlers), no terms clause.
   tesljobs: { sellerId: 'tesljobs-com-import-seller-0001', name: 'TeslJobs', hosts: ['tesljobs.com', 'www.tesljobs.com'], id: /^\/jobs\/[a-z0-9-]*-vietnam-([A-Za-z0-9_-]{4,20})$/ },
   // ⚠️ Anchored on "-vietnam-": the id itself can hold '_' and '-' ("…-vietnam-vietnam-U_yj-lBU3SJM", 2026-09-27).
@@ -104,7 +114,7 @@ export const JOB_SOURCES: Record<string, BoardKey> = {
   eslcafe: 'eslcafe', teast: 'teast', vtj: 'vtj', eslgorilla: 'eslgorilla', eslboards: 'eslboards',
   'tefl-org': 'teflorg', vas: 'vas', eiv: 'eiv', nordanglia: 'nordanglia', inspired: 'inspired',
   'vieclam24h-teach': 'vieclam24h', 'vieclam24h-english': 'vieclam24h', rmit: 'rmit', tta: 'tta',
-  vietnamworks: 'vietnamworks', tesljobs: 'tesljobs',
+  vietnamworks: 'vietnamworks', tesljobs: 'tesljobs', fpt: 'fpt', wish: 'wish',
 }
 
 export const JOB_SELLER_IDS: string[] = Object.values(JOB_BOARDS).map((b) => b.sellerId)
@@ -113,7 +123,7 @@ export const JOB_SELLER_IDS: string[] = Object.values(JOB_BOARDS).map((b) => b.s
 export function jobExternalId(source: string, url: string): { sellerId: string; externalId: string } | null {
   const board = JOB_SOURCES[source]
   const u = board ? normaliseJobUrl(url) : null
-  const id = board && u ? jobNativeId(board, u) : null
+  const id = board && u ? jobNativeId(board, u, hashOf(url)) : null
   return board && id ? { sellerId: JOB_BOARDS[board].sellerId, externalId: `${board}:${id}` } : null
 }
 
@@ -137,14 +147,17 @@ export function normaliseJobUrl(raw: string): URL | null {
   return u
 }
 
-/** The board's own id for a posting, from its normalised path. Null = refuse the row. */
-export function jobNativeId(board: BoardKey, u: URL): string | null {
+const hashOf = (raw: string) => { try { return new URL(raw).hash } catch { return '' } }
+
+/** The board's own id for a posting, from its normalised path (or its anchor, for a hashId board). Null = refuse the row. */
+export function jobNativeId(board: BoardKey, u: URL, hash = ''): string | null {
   const b: Board = JOB_BOARDS[board]
   if (!b.hosts.includes(u.hostname)) return null
   let path: string
   try { path = decodeURIComponent(u.pathname) } catch { return null }
   const m = b.id ? b.id.exec(path) : /\/([^/]+)$/.exec(path)
-  const id = m?.[1]
+  if (b.hashId && !m) return null
+  const id = b.hashId ? b.hashId.exec(hash)?.[1] : m?.[1]
   return id && id.length <= 120 && !/[\s/?#]/.test(id) ? id : null
 }
 
@@ -318,8 +331,10 @@ export function mapStagedJob(j: StagedJob, now: number): { ok: true; job: Mapped
   const b = JOB_BOARDS[board]
   const u = normaliseJobUrl(j.url)
   if (!u || !(b.hosts as readonly string[]).includes(u.hostname)) return { ok: false, reason: 'badUrl' }
-  const id = jobNativeId(board, u)
+  const hash = hashOf(j.url)
+  const id = jobNativeId(board, u, hash)
   if (!id) return { ok: false, reason: 'noJobId' }
+  const link = (b as Board).hashId ? `${u.toString()}#${/^#[\w-]+$/.test(hash) ? hash.slice(1) : ''}` : u.toString()
 
   // A parse that read page chrome instead of the job (the ESL Boards banner, a class attribute) —
   // the whole row is suspect, so it is dropped rather than patched.
@@ -391,7 +406,7 @@ export function mapStagedJob(j: StagedJob, now: number): { ok: true; job: Mapped
     job: {
       board, sellerId: b.sellerId, sellerName: b.name,
       externalId: `${board}:${id}`,
-      affiliateUrl: u.toString(),
+      affiliateUrl: link,
       title, description, descriptionVi,
       price: salary?.price ?? 0, priceUnit: salary?.priceUnit ?? 'VND/month', salaryM: salary?.salaryM ?? null,
       categorySlug: 'jobs',

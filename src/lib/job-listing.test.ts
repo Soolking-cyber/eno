@@ -165,6 +165,10 @@ describe('ids and urls', () => {
     expect(id('tesljobs', 'https://tesljobs.com.evil.example/jobs/foreign-teacher-vietnam-CXxjWe')).toBeNull()
     expect(id('tesljobs', 'https://tesljobs.com/teaching-jobs/vietnam')).toBeNull()
     expect(id('tesljobs', 'https://tesljobs.com/jobs/esl-teachers-in-vietnam-vietnam-U_yj-lBU3SJM')).toBe('U_yj-lBU3SJM')
+    expect(id('fpt', 'https://career.fpt.edu.vn/Job/Detail/79795')).toBe('79795')
+    expect(jobNativeId('wish', normaliseJobUrl('https://www.wishlistjobs.com/teaching-jobs-in-vietnam#job-post-25658')!, '#job-post-25658')).toBe('25658')
+    expect(jobNativeId('wish', normaliseJobUrl('https://www.wishlistjobs.com/teaching-jobs-in-vietnam')!, '')).toBeNull()
+    expect(jobNativeId('wish', normaliseJobUrl('https://www.wishlistjobs.com/teaching-jobs-in-thailand#job-post-1')!, '#job-post-1')).toBeNull()
     expect(id('tta', 'https://www.theteflacademy.com/blog/tefl-jobs/ila-is-hiring-part-time-esl-teachers-in-ho-chi-minh-city/')).toBe('ila-is-hiring-part-time-esl-teachers-in-ho-chi-minh-city')
     expect(id('rmit', 'https://rmit.wd3.myworkdayjobs.com/RMIT_Careers/job/Ho-Chi-Minh-City/Lecturer--Management_JR46455')).toBe('JR46455')
     expect(id('rmit', 'https://rmit.wd3.myworkdayjobs.com/RMIT_Careers/job/Ho-Chi-Minh-City/Lecturer--Management-Renamed_JR46455')).toBe('JR46455')
@@ -174,6 +178,13 @@ describe('ids and urls', () => {
     const a = map({ url: 'https://www.careerlink.vn/tim-viec-lam/giao-vien/3629784?source=site&utm_campaign=x' })
     const b = map({ url: 'https://WWW.careerlink.vn/tim-viec-lam/giao-vien/3629784/' })
     expect(a.ok && b.ok && a.job.externalId === b.job.externalId && a.job.affiliateUrl === b.job.affiliateUrl).toBe(true)
+  })
+})
+
+describe('anchor-only boards (WISHlistjobs)', () => {
+  it('keys on the anchor and keeps it in the Apply link', () => {
+    const r = map({ source: 'wish', url: 'https://www.wishlistjobs.com/teaching-jobs-in-vietnam#job-post-25658', title: 'Primary Class Teacher (Maternity cover)', employer: null, city: 'Ho Chi Minh City' })
+    expect(r.ok && [r.job.externalId, r.job.affiliateUrl, r.job.sellerId]).toEqual(['wish:25658', 'https://www.wishlistjobs.com/teaching-jobs-in-vietnam#job-post-25658', 'wishlistjobs-com-import-seller-0001'])
   })
 })
 
