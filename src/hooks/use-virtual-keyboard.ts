@@ -104,7 +104,13 @@ function syncVars() {
   if (!vv) return
   const root = document.documentElement
   const open = keyboardOpen(vv)
-  root.style.setProperty('--vvh', `${vv.height}px`)
+  // ⚠️ --vvh ONLY WHILE THE KEYBOARD IS UP. This runs on every visualViewport resize/scroll app-wide —
+  // including iOS Safari's toolbar collapse during ordinary scrolling — and a custom property changed
+  // on <html> invalidates style for the whole document. Its readers (the chat footer, ui/dialog,
+  // ui/drawer) are all gated on kb-open and fall back to 100dvh, so while closed it is removed once
+  // and stays gone. (--vvt / --kb-h below are written as unchanged 0px while closed.)
+  if (open) root.style.setProperty('--vvh', `${vv.height}px`)
+  else root.style.removeProperty('--vvh')
   // Only apply the scroll offset while the keyboard is up; on close snap back to 0 so a
   // stale offsetTop (iOS 26 regression, WebKit #297779) can't strand the shell.
   root.style.setProperty('--vvt', `${open ? vv.offsetTop : 0}px`)
