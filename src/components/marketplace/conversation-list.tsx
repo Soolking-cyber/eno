@@ -28,6 +28,25 @@ export function ConversationList() {
   const pathname = usePathname()
   const aiActive = pathname === '/messages/ai'
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  /**
+   * Rows on their way out. A confirmed delete used to remove the row in the same commit, so it
+   * vanished and every row below jumped up a slot. It now fades and collapses its height over 150ms
+   * (opacity + grid-rows 1fr→0fr — the list-removal pair), THEN is deleted. Exit only: a row
+   * restored by Undo reappears as it always did. Reduced motion collapses it at once (global guard).
+   * The confirm stays up while the row leaves (clearing it first flashed the trash icon back for
+   * the whole fade), and the leaving row is `inert`, so neither a second Enter nor a Tab can reach
+   * a thread that is being deleted. A list unmounted mid-fade still deletes: the user confirmed.
+   */
+  const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set())
+  const removeRow = (id: string) => {
+    if (leaving.has(id)) return
+    setLeaving((cur) => new Set(cur).add(id))
+    window.setTimeout(() => {
+      deleteConvo(id)
+      setConfirmId((cur) => (cur === id ? null : cur))
+      setLeaving((cur) => { const next = new Set(cur); next.delete(id); return next })
+    }, 150)
+  }
   const [query, setQuery] = useState('')
 
   useEffect(() => { if (user) refreshConvos() }, [user, refreshConvos])
@@ -104,6 +123,17 @@ export function ConversationList() {
             {(filtered ?? []).map((c) => (
               <div
                 key={c.id}
+                inert={leaving.has(c.id)}
+                className={cn(
+                  // `grid-cols-[minmax(0,1fr)]`: a bare `grid` gets one `auto` column that grows to
+                  // the row's min-content — a long one-line preview's full width — and the
+                  // `truncate` inside stops truncating. `mb-0` collapses the list's `space-y` gap
+                  // with the row, so nothing below snaps up by it when the row is finally removed.
+                  'grid grid-cols-[minmax(0,1fr)] transition-[grid-template-rows,opacity,margin] duration-150 ease-out',
+                  leaving.has(c.id) ? 'pointer-events-none mb-0 grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr]',
+                )}
+              >
+              <div
                 onMouseEnter={() => prefetchThread(c.id)}
                 onFocus={() => prefetchThread(c.id)}
                 onTouchStart={() => prefetchThread(c.id)}
@@ -132,7 +162,9 @@ export function ConversationList() {
                  * itself becomes the new last message with its own pending status if it is live.
                  */
                 className={cn(
-                  'group relative flex items-center gap-1 rounded-xl transition-colors',
+                  'group relative flex min-h-0 items-center gap-1 rounded-xl transition-colors',
+                  // Clipped only while collapsing, so focus rings are never cut at rest.
+                  leaving.has(c.id) && 'overflow-hidden',
                   // ⚠️ PENDING OUTRANKS ACTIVE, and that ordering is the owner's requirement, not a
                   // detail. Reviewer-caught: with `activeId` first, merely OPENING the thread
                   // replaced the tint with `bg-muted` — so the one state that is supposed to
@@ -222,7 +254,7 @@ export function ConversationList() {
                 </Link>
                 {confirmId === c.id ? (
                   <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
-                    <Button variant="destructive" size="none" onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold text-white active:scale-[0.96]">{tr('Delete', 'Xóa')}</Button>
+                    <Button variant="destructive" size="none" onClick={() => removeRow(c.id)} className="cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold text-white active:scale-[0.96]">{tr('Delete', 'Xóa')}</Button>
                     <IconButton size="xs" onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="text-ink-4 hover:text-foreground"><X className="h-[29px] w-[29px] shrink-0" /></IconButton>
                   </div>
                 ) : (
@@ -238,6 +270,7 @@ export function ConversationList() {
                     <Trash2 className="h-4 w-4" />
                   </IconButton>
                 )}
+              </div>
               </div>
             ))}
           </div>
