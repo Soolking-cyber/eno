@@ -140,18 +140,23 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   // row, driven by the SAME `isOn` that paints this pill.
   const navItem = (isOn: boolean) => cn(
     // `active:bg-secondary`: hover never fires on a phone, so a tap on a rail row showed nothing.
-    'flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors hover:bg-secondary/60 active:bg-secondary cursor-pointer',
-    expanded ? 'lg:justify-start lg:gap-3 lg:px-3.5' : 'lg:justify-center lg:gap-0 lg:px-0',
+    // ⚠️ ONE ROW SHAPE IN BOTH RAIL STATES (lg:px-3, left-aligned). It used to switch justify, gap and
+    // padding the instant the rail began to expand, so every icon hopped sideways before the width
+    // moved. 12px in a 48px row puts the 24px glyph dead centre of the collapsed 72px rail, and it
+    // stays exactly there when the rail opens; the label beyond it is clipped by the row until then.
+    'flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors hover:bg-secondary/60 active:bg-secondary cursor-pointer lg:overflow-hidden lg:px-3',
     isOn ? 'bg-secondary hover:bg-secondary text-accent-foreground' : 'text-foreground',
   )
-  // Label that reveals as the rail expands. FULL on mobile; on desktop it slides + fades between a
-  // 0-width collapsed state and a bounded expanded state. Only max-width + opacity animate (compositor
-  // -friendly; no layout reflow of the page since the panel is position:fixed). Under reduced-motion
-  // the global guard collapses the transition to instant.
+  // Label that reveals as the rail expands. FULL on mobile. On desktop the RAIL'S OWN WIDTH does the
+  // reveal: the label is a flex item with overflow-hidden, so it sizes to the room its row has and is
+  // clipped (never ellipsized) while the rail is narrow. The label itself animates only opacity and a
+  // 4px slide. ⚠️ It used to ALSO animate `max-width` 0 → 180px — a second layout animation running
+  // against the rail's — and the rows switched justify/padding on the first frame (see navItem).
+  // Asymmetric on purpose: it arrives a beat after the rail starts to open (50ms delay, 150ms) and
+  // leaves at once (100ms). Under reduced motion the global guard makes it instant (after the delay).
   const labelCls = cn(
-    'overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ease-out',
-    'max-w-[180px] opacity-100',
-    expanded ? 'lg:max-w-[180px] lg:opacity-100' : 'lg:max-w-0 lg:opacity-0',
+    'max-w-[180px] overflow-hidden whitespace-nowrap transition-[opacity,translate] ease-out',
+    expanded ? 'lg:translate-x-0 lg:opacity-100 lg:duration-150 lg:delay-50' : 'lg:-translate-x-1 lg:opacity-0 lg:duration-100',
   )
 
   // Plain render fn (NOT a nested component — that would remount the subtree each render). Reused
@@ -340,7 +345,12 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           // Centred in BOTH states (owner, 2026-08-03: "center the logo mark", then "also center
           // eno.vn"). Collapsed, the mark shares the vertical axis of every icon below it;
           // expanded, the wordmark sits centred in the 240px rail rather than hugging the left edge.
-          'hidden h-12 shrink-0 items-center justify-center px-3 lg:flex',
+          // ⚠️ EACH IMAGE IS PINNED AT ITS OWN FIXED X, so neither moves while the rail's width does:
+          // the mark on the icons' axis (36px = the centre of the collapsed 72px rail), the wordmark
+          // on the centre of the OPEN rail (--account-w-open / 2). Centring them in the live width
+          // made the mark slide sideways as it faded out. `overflow-hidden` clips the wordmark while
+          // the rail is narrow, so it cannot take clicks beside the collapsed rail.
+          'relative hidden h-12 shrink-0 overflow-hidden lg:block',
         )}
       >
         {/* ⚠️ THEY SWAP, THEY DO NOT STACK — and that is the whole fix (owner: "remove it when its
@@ -354,8 +364,9 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
             pretending to be one. Swapping keeps ONE brand object visible at a time and needs no new
             artwork.
 
-            Both are always mounted and cross-fade on the same 200ms as the nav labels, so the rail
-            never reflows mid-transition — only opacity and max-width animate. */}
+            Both are always mounted; opacity is the only thing that animates (they used to trade
+            max-width 0 ↔ 32/160px, a layout animation). STAGGERED so they never show together: the
+            outgoing one leaves in 100ms, the incoming one starts 75ms later. */}
         {/* `?v=` is a content stamp that earns this file `max-age=31536000, immutable`
             (next.config.ts gates the year on the query being present). It is repeated at four call
             sites and MUST be bumped at all four when the mark is redrawn — the full reasoning and
@@ -366,12 +377,14 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           aria-hidden
           width={1024}
           height={1024}
-          className={cn('h-8 w-8 shrink-0 transition-[max-width,opacity] duration-200 ease-out', expanded ? 'max-w-0 opacity-0' : 'max-w-8 opacity-100')}
+          className={cn('absolute top-1/2 left-5 h-8 w-8 -translate-y-1/2 transition-opacity ease-out', expanded ? 'opacity-0 duration-100' : 'opacity-100 duration-150 delay-75')}
         />
         <span
           className={cn(
-            'min-w-0 overflow-hidden transition-[max-width,opacity] duration-200 ease-out',
-            expanded ? 'max-w-[160px] opacity-100' : 'max-w-0 opacity-0',
+            // `w-max`: an absolute box with only `left` set shrinks to the room right of it (120px),
+            // narrower than the 127px wordmark, which would then centre 3.5px off.
+            'absolute top-1/2 left-[calc(var(--account-w-open)/2)] w-max -translate-x-1/2 -translate-y-1/2 transition-opacity ease-out',
+            expanded ? 'opacity-100 duration-150 delay-75' : 'opacity-0 duration-100',
           )}
         >
           <img
@@ -422,14 +435,16 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
               browsers silently un-nest, which would break BOTH targets. So the link is an
               absolutely-positioned overlay covering the row, and the trust badge is lifted
               above it with relative z-10 so it stays independently clickable. */}
-          <div className={cn('group relative flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-tint', expanded ? 'lg:justify-start lg:gap-3 lg:px-3' : 'lg:justify-center lg:gap-0 lg:px-0')}>
+          {/* Fixed shape like the nav rows: `lg:px-1.5` centres the 36px avatar in the collapsed 48px
+              row — on the same vertical axis as the icons above — and it stays put when the rail opens. */}
+          <div className="group relative flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-tint lg:px-1.5">
             <Link
               href="/dashboard/settings"
               aria-label={tr('Settings', 'Cài đặt')}
               className="absolute inset-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
             <Avatar url={dash?.profile.avatarUrl} name={displayName} color={dash?.profile.avatarColor} size="sm" />
-            <div className={cn('min-w-0 overflow-hidden transition-[max-width,opacity] duration-200 ease-out', 'max-w-[180px] flex-1 opacity-100', expanded ? 'lg:max-w-[180px] lg:flex-1 lg:opacity-100' : 'lg:max-w-0 lg:opacity-0')}>
+            <div className={cn('min-w-0 max-w-[180px] flex-1 overflow-hidden transition-[opacity,translate] ease-out', expanded ? 'lg:translate-x-0 lg:opacity-100 lg:duration-150 lg:delay-50' : 'lg:-translate-x-1 lg:opacity-0 lg:duration-100')}>
               <span className="flex items-center gap-1.5">
                 <p className="truncate text-sm font-bold text-foreground group-hover:text-accent-foreground">{displayName}</p>
                 {typeof dash?.profile.trustScore === 'number' && (
