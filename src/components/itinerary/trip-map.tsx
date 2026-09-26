@@ -684,8 +684,12 @@ export function TripMapDrawer(props: Props & { triggerClassName?: string }) {
             </IconButton>
           </DrawerHeader>
           {/* A definite height: Leaflet cannot size itself inside a flex child with no basis,
-              and a 0px map is the other classic way this component "silently breaks". */}
-          <div className="h-[70vh] p-3">
+              and a 0px map is the other classic way this component "silently breaks".
+              ⚠️ `data-base-ui-swipe-ignore`: a drag belongs to ONE owner. Base UI's drawer starts its
+              swipe-to-dismiss on any touch inside the popup, and Leaflet's pane is not a scroller it
+              recognises, so a downward map pan also dragged — and could close — the drawer. The attribute
+              is Base UI's documented opt-out for a descendant (Drawer docs, v1.6). */}
+          <div className="h-[70vh] p-3" data-base-ui-swipe-ignore>
             <TripMap {...mapProps} className="relative h-full w-full overflow-hidden rounded-xl" />
           </div>
         </DrawerContent>
