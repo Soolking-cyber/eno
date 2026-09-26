@@ -2146,10 +2146,12 @@ export default function ThreadPage() {
                     // generated chat UI; the reply ARROW says the same thing in this app's own icon
                     // language, and it is the same glyph the quick-action row uses for Reply — so
                     // the mark and the control that made it speak once.
-                    'mb-1 flex w-full items-start gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
+                    // `press` + an active tint: the jump to the quoted message is a real button, but
+                    // it only ever changed its hover colour — which a phone never shows.
+                    'press mb-1 flex w-full items-start gap-1.5 rounded-lg px-2 py-1 text-left',
                     // On a sent bubble the quote sits on brand blue, so it borrows white at reduced
                     // opacity; on a received one it sits on `tint` and uses the ordinary inks.
-                    quoteOnBrand ? 'bg-white/10 hover:bg-white/15' : 'bg-foreground/5 hover:bg-foreground/10',
+                    quoteOnBrand ? 'bg-white/10 hover:bg-white/15 active:bg-white/15' : 'bg-foreground/5 hover:bg-foreground/10 active:bg-foreground/10',
                   )}
                 >
                   <Undo2 className={cn('mt-0.5 h-3 w-3 shrink-0', quoteOnBrand ? 'text-white/70' : 'text-ink-4')} aria-hidden />
@@ -2532,7 +2534,7 @@ export default function ThreadPage() {
                   <button
                     type="button"
                     onClick={() => toggleOriginal(m.id)}
-                    className="mt-0.5 px-1 text-3xs font-semibold text-accent-foreground/80 hover:text-accent-foreground"
+                    className="press mt-0.5 px-1 text-3xs font-semibold text-accent-foreground/80 hover:text-accent-foreground"
                   >
                     {revealOriginal.has(m.id) ? tr('Show translation', 'Xem bản dịch') : tr('Show original', 'Xem bản gốc')}
                   </button>
