@@ -8,6 +8,7 @@ import { Heart, Info } from '@/components/ui/icons'
 import { TrustScore } from './trust-score'
 import { PartnerBadge } from './partner-badge'
 import { ImageMark } from './image-mark'
+import { RentalCheckToggle } from './rental-check-toggle'
 import { MapTravel, MapsDirectionsButton } from './map-travel'
 import type { LatLng } from '@/lib/travel'
 import type { SerializedListingCard, BuildingPin } from '@/lib/types'
@@ -1599,6 +1600,19 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     </div>
                   </div>
                 </Button>
+                {/* ⚠️ THE AVAILABILITY-CHECK CHIP, as on the grid card (owner, 2026-09-26: "add this to cards
+                    on map too"). A SIBLING of the open-listing button, never inside it — a <button> in a
+                    <button> is invalid and the click would open the listing too. The wrapper re-creates
+                    the photo's square so the chip's `bottom-[calc(7.9%+4px)]` (height-relative, sized to
+                    clear the eno.vn mark) resolves against the PHOTO and not the whole card.
+                    `pointer-events-none` lets a tap on the rest of the photo reach the button beneath;
+                    pointer-events inherits, so the chip opts back in. Absolute, so the popup's height
+                    sync never sees it. The component renders nothing on the viewer's own listing. */}
+                {card.category?.slug === 'rentals' && (
+                  <div className="pointer-events-none absolute inset-x-0 top-0 aspect-square">
+                    <RentalCheckToggle variant="card" listing={card} className="pointer-events-auto" />
+                  </div>
+                )}
                 {/* Travel estimate — separate tap target, below the open-listing button.
                     The Google Maps directions FAB floats in the card's bottom-right corner
                     (opposite the favorite heart), clear of the short estimate text. */}
