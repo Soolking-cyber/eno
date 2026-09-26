@@ -227,7 +227,10 @@ export function ConversationList() {
                     size="sm"
                     onClick={() => setConfirmId(c.id)}
                     aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
-                    className="mr-2 ml-1 text-ink-4 opacity-100 transition hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
+                    // Hidden-until-hover only where a fine pointer can hover it back (see the same
+                    // note in notification-bell.tsx): `sm:opacity-0` hid it on iPads and landscape
+                    // phones too, where the invisible 44px target still opened the delete confirm.
+                    className="mr-2 ml-1 text-ink-4 transition hover:bg-destructive/10 hover:text-destructive hover-pointer:pointer-events-none hover-pointer:opacity-0 hover-pointer:group-hover:pointer-events-auto hover-pointer:group-hover:opacity-100 hover-pointer:focus-visible:pointer-events-auto hover-pointer:focus-visible:opacity-100"
                   >
                     <Trash2 className="h-4 w-4" />
                   </IconButton>

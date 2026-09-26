@@ -182,12 +182,20 @@ export function NotificationBell() {
                       {n.body && <p className={cn('text-xs', n.type === 'system' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}><Tr text={n.body} /></p>}
                     </div>
                   </Link>
-                  {/* Delete — reveals on hover (desktop); always visible on touch */}
+                  {/* Delete — reveals on hover (desktop); always visible on touch.
+                      ⚠️ GATED ON THE POINTER, NOT THE SCREEN WIDTH. It was `opacity-0 … max-sm:opacity-100`,
+                      and `group-hover` only ever matches on a hover device — so on an iPad, or a phone
+                      in landscape (≥640px, no hover), the ✕ sat invisible over the row's right edge
+                      with its 44px hit area live, and a tap there deleted the notification with no
+                      undo. Now it hides only where a fine pointer can hover it back; every rule rides
+                      the same `hover-pointer:` prefix so keyboard focus still reveals it. And while
+                      hidden it is also UNPRESSABLE: a touchscreen laptop counts as a hover device,
+                      so a tap there could still land on the invisible ✕. */}
                   <IconButton
                     size="xs"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(n.id) }}
                     aria-label={tr('Delete notification', 'Xóa thông báo')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-4 opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100 focus:opacity-100 max-sm:opacity-100"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-4 transition-opacity hover:bg-accent hover:text-foreground hover-pointer:pointer-events-none hover-pointer:opacity-0 hover-pointer:group-hover:pointer-events-auto hover-pointer:group-hover:opacity-100 hover-pointer:focus-visible:pointer-events-auto hover-pointer:focus-visible:opacity-100"
                   >
                     <X className="h-[29px] w-[29px] shrink-0" />
                   </IconButton>
