@@ -2812,7 +2812,7 @@ html:not(.native) #app-splash {
    * removed every overlay's opacity fade, so for exactly these users every dialog, popover, menu,
    * select, tooltip and its full-screen scrim popped in and out in ONE frame — and that fade is often
    * the only signal that a layer opened or closed. A fade moves nothing across the retina.
-   * So two NARROW exceptions restore the fade and nothing else; every other transition and keyframe
+   * So NARROW exceptions restore the fade and nothing else; every other transition and keyframe
    * stays killed. (A first version narrowed `transition-property` on `*` instead; both reviewers
    * refuted it — authored duration/delay lists cycle against a replaced property list and land on
    * the wrong properties, and it forced fades back onto elements that say `transition-none`.)
@@ -2833,6 +2833,18 @@ html:not(.native) #app-splash {
         the `--scrim-exit` its popup hands it — so it still lands with that popup instead of being cut. */
   .overlay-scrim { transition: opacity 150ms ease-out !important; }
   .overlay-scrim[data-ending-style] { transition: opacity var(--scrim-exit, 150ms ease-out) !important; }
+  /* 3. The dialog and alert-dialog, which enter AND leave on transitions (ui/dialog explains why):
+        their fades as authored — 150ms in, 100ms out — and no zoom. A call site that opted out with
+        `transition-none` or `motion-reduce:transition-none` keeps its opt-out. */
+  [data-slot='dialog-content']:not(.motion-reduce\:transition-none, .transition-none),
+  [data-slot='alert-dialog-content']:not(.motion-reduce\:transition-none, .transition-none) {
+    transition: opacity 150ms var(--ease-out-strong) !important;
+    transform: none !important;
+  }
+  [data-slot='dialog-content'][data-ending-style]:not(.motion-reduce\:transition-none, .transition-none),
+  [data-slot='alert-dialog-content'][data-ending-style]:not(.motion-reduce\:transition-none, .transition-none) {
+    transition-duration: 100ms !important;
+  }
 
   /**
    * ⛔ A LOADER IS NOT DECORATION, AND THE BLANKET RULE ABOVE FREEZES IT. `iteration-count: 1` plus

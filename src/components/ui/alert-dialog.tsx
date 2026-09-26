@@ -66,7 +66,23 @@ function AlertDialogContent({
           // than its open — the same pair ui/dialog ships. The scrim behind it closes quicker still
           // (75ms), which is deliberate: the dimming gets out of the way first. That 25ms stagger is
           // HALF what this file had before (100 scrim / 150 content), not a new one.
-          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-150 ease-[var(--ease-out-strong)] data-closed:duration-100 data-closed:ease-[var(--ease-out-strong)] outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // ⚠️ ENTER AND EXIT ARE BOTH TRANSITIONS, so a dialog closed mid-open reverses from where it is.
+          // · The exit was a keyframe (`animate-out`), which always restarts from opacity 1: closing during
+          //   the entrance snapped the dialog back to full, then faded it (measured in WebKit: 0.88 → 1 → 0).
+          // · A keyframe ENTER cannot be kept beside a transition exit: Chromium starts no transition when
+          //   the running entrance keyframe is removed in the same frame (measured: no CSSTransition at all),
+          //   so an interrupted dialog vanished in one frame there. Transitions both ways retarget from the
+          //   live value in every engine — the sheet.tsx recipe.
+          // · The enter uses `starting:` (@starting-style), not only `data-starting-style:`: most dialogs here
+          //   mount lazily ALREADY open, and Base UI sets no data-starting-style on a Root that mounts open
+          //   (measured on the Notifications dialog). Both are declared; they agree. Safari < 17.5 has no
+          //   @starting-style. There (`not-supports-[transition-behavior:allow-discrete]`, which lands in the
+          //   same releases: Safari ≤ 17.3 — every iPhone 8/X is capped at iOS 16) the entrance falls back to
+          //   the keyframe; the exit stays a transition, and WebKit starts it from the keyframe's live value
+          //   (measured). Only Safari 17.4 exactly is left with no entrance fade.
+          // · `transform`, not `scale`: Tailwind's centring rides the separate `translate` property.
+          // Reduced motion keeps both fades and drops the zoom (globals.css, the reduced-motion block).
+          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-150 ease-[var(--ease-out-strong)] data-closed:duration-100 data-closed:ease-[var(--ease-out-strong)] outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm transition-[opacity,transform] starting:opacity-0 starting:[transform:scale(0.95)] data-starting-style:opacity-0 data-starting-style:[transform:scale(0.95)] data-ending-style:opacity-0 data-ending-style:[transform:scale(0.95)] not-supports-[transition-behavior:allow-discrete]:data-open:animate-in not-supports-[transition-behavior:allow-discrete]:data-open:fade-in-0 not-supports-[transition-behavior:allow-discrete]:data-open:zoom-in-95", // design-lint-allow: the -translate-*-1/2 here is static centring; what the exit moves is `transform` (the scale), and it is in the list
           className
         )}
         {...props}

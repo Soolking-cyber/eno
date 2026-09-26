@@ -32,7 +32,7 @@ describe('globals.css reduced-motion block', () => {
       else if (css[i] === '}' && --depth === 0) { end = i; break }
     }
     const inside = css.slice(open, end)
-    for (const rule of ["[class~='animate-in']", '.overlay-scrim { transition', '.overlay-scrim[data-ending-style] { transition'])
+    for (const rule of ["[class~='animate-in']", '.overlay-scrim { transition', '.overlay-scrim[data-ending-style] { transition', "[data-slot='dialog-content']:not(", "[data-slot='dialog-content'][data-ending-style]:not("])
       expect(inside).toContain(rule)
   })
 
@@ -55,6 +55,12 @@ describe('globals.css reduced-motion block', () => {
   it('the skeleton pulses instead of freezing', () => {
     expect(block).toContain('.shimmer::after { animation: none !important; }')
     expect(block).toMatch(/\.shimmer \{\s*animation: reduced-motion-pulse/)
+  })
+
+  it('the dialog — transitions both ways — keeps its fades and drops its zoom', () => {
+    // …except where a call site opted out with `transition-none` or `motion-reduce:transition-none` (protections-row).
+    expect(block).toMatch(/\[data-slot='dialog-content'\]:not\(\.motion-reduce\\:transition-none, \.transition-none\),\s*\[data-slot='alert-dialog-content'\]:not\(\.motion-reduce\\:transition-none, \.transition-none\) \{\s*transition: opacity 150ms var\(--ease-out-strong\) !important;\s*transform: none !important;/)
+    expect(block).toMatch(/\[data-slot='alert-dialog-content'\]\[data-ending-style\]:not\(\.motion-reduce\\:transition-none, \.transition-none\) \{\s*transition-duration: 100ms !important;/)
   })
 
   it('the scrim keeps its own opacity fade, exit timing included', () => {
