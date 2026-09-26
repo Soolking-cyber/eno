@@ -92,11 +92,15 @@ Disallow: /unsubscribe
 
 # AI-training + pure-scraper crawlers that ingest our content (incl. listing photos)
 # but send no traffic back — blocked entirely. AI *search / answer* crawlers
-# (OAI-SearchBot, ChatGPT-User, PerplexityBot, Google-Extended, Applebot, Bingbot,
-# and Meta/social link-preview bots) are intentionally NOT listed here, so they fall
-# under "User-agent: *" above and keep indexing public pages — ${SITE_NAME} stays
-# discoverable in search AND in AI answers, while Cloudflare's AI Labyrinth traps any
-# of these that ignore the rules below.
+# (OAI-SearchBot, ChatGPT-User, PerplexityBot, Applebot, Bingbot, and Meta/social
+# link-preview bots) are intentionally NOT listed here, so they fall under
+# "User-agent: *" above and keep indexing public pages — ${SITE_NAME} stays
+# discoverable in search AND in AI answers.
+# Google-Extended is not listed either, and it is not a search crawler: it is a
+# control token with no user agent of its own (Google fetches as Googlebot). Per
+# Google's documentation it governs Gemini model TRAINING as well as grounding in
+# Gemini Apps and Vertex AI, and does not affect inclusion in Google Search. Left
+# unlisted, both uses are allowed.
 User-agent: GPTBot
 User-agent: CCBot
 User-agent: ClaudeBot
@@ -109,18 +113,19 @@ User-agent: Omgilibot
 User-agent: Applebot-Extended
 Disallow: /
 
-# ⛔ NO 'Agentmap:' DIRECTIVE HERE. IT WAS ADDED 2026-08-23 AND REMOVED THE SAME DAY, BECAUSE IT
-# BREAKS THE WHOLE FILE FOR GOOGLE.
+# ⛔ NO 'Agentmap:' DIRECTIVE HERE. IT WAS ADDED 2026-08-23 AND REMOVED THE SAME DAY, BECAUSE
+# LIGHTHOUSE FAILS THE FILE ON IT.
 # The ARD spec (agenticresourcediscovery.org/spec, v0.9) lists four ways to advertise a catalogue:
 # the well-known URI, an HTML <link rel="ai-catalog">, a DNS SVCB record, and an 'Agentmap:' line
 # here. Adding the line looked free once this file became a route (an absolute URL is safe when
 # ${SITE_ORIGIN} is edition-derived). It is not free: Lighthouse SEO reported
 #   "robots.txt is not valid — 1 error found · line 94 · Agentmap: … · Unknown directive"
-# and dropped the SEO score to 92. robots.txt has no extension mechanism — an unknown directive is
-# a PARSE ERROR to Google, not an ignorable line, and it puts the validity of every Disallow below
-# it in question.
-# ⚠️ THE TRADE IS THE WHOLE LESSON: ~1.7 points of agent-readiness against the validity of the file
-# that governs how the entire site is crawled. The well-known URI at
+# and dropped the SEO score to 92. That is Lighthouse's validator, not Google's parser: Google's
+# robots.txt documentation says it ignores invalid lines and uses only the valid ones, so the
+# Disallow rules would have kept working. The line stays out because the validator flags it and
+# the catalogue is already discoverable without it — not because it would break crawling.
+# ⚠️ THE TRADE IS THE WHOLE LESSON: ~1.7 points of agent-readiness against a validator error on the
+# file that governs how the entire site is crawled. The well-known URI at
 # ${SITE_ORIGIN}/.well-known/ai-catalog.json is the primary mechanism, it already works, and every
 # ARD client checks it. Do not re-add this for a score.
 Sitemap: ${SITE_ORIGIN}/sitemap.xml

@@ -1,4 +1,5 @@
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { organizationId } from '@/lib/site-identity'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Header } from '@/components/marketplace/header'
@@ -85,6 +86,9 @@ export default async function HelpThreadPage({ params }: { params: Promise<{ id:
    * it is the honest thing to fall back on.
    */
   const origin = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`
+  // Marketplace only: the author/publisher IS the layout's Organization node, by @id (site-identity.ts).
+  // eno.forum's layout declares no @id — the two editions must not read as one entity.
+  const orgRef = IS_SERVICES ? {} : { '@id': organizationId(origin) }
   const helpJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -94,8 +98,8 @@ export default async function HelpThreadPage({ params }: { params: Promise<{ id:
     'dateModified': thread.post.updatedAt,
     'inLanguage': 'en',
     'mainEntityOfPage': { '@type': 'WebPage', '@id': `${origin}/help/${id}` },
-    'author': { '@type': 'Organization', 'name': SITE_NAME, 'url': origin },
-    'publisher': { '@type': 'Organization', 'name': SITE_NAME, 'url': origin },
+    'author': { '@type': 'Organization', ...orgRef, 'name': SITE_NAME, 'url': origin },
+    'publisher': { '@type': 'Organization', ...orgRef, 'name': SITE_NAME, 'url': origin },
   }
 
   return (

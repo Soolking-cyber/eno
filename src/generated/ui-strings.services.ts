@@ -212,7 +212,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Payment received",
   "Payment received — your application is now with eno for review.",
   "Payment received.",
-  "Payments",
   "Payments usually appear within a minute. You can close this page — we will match it automatically.",
   "Payout details belong to a shop. Post a listing first and this page will be here.",
   "Per traveler",

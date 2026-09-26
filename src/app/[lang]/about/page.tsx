@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
@@ -6,6 +7,9 @@ import { ContentPage, ContentSection } from '@/components/marketplace/content-pa
 import { AFFILIATION, COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import { PROVIDER_LICENCE_ON_FILE, PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { Bilingual } from '@/components/marketplace/bilingual'
+import { LANGUAGES } from '@/lib/i18n/langs'
+import { POSTING_IS_FREE, SHARE_CARD, aboutPageJsonLd, siteOrigin } from '@/lib/site-identity'
+import { inCity, loadSiteFacts, shareOf, type SiteFacts } from '@/lib/site-facts'
 
 /**
  * ABOUT — ONE FILE, TWO EDITIONS, AND THE PAGE WHERE THE AFFILIATION IS DISCLOSED.
@@ -41,7 +45,7 @@ import { Bilingual } from '@/components/marketplace/bilingual'
  *
  * ⚠️ 3. THE OUTBOUND LINKS ARE DELIBERATELY ONE-WAY. The services edition links INTO eno.vn's
  * marketplace landing pages (that is the point of the section: someone who has just arrived needs
- * housing, a bike and work). The marketplace edition names eno.forum in the affiliation paragraph
+ * housing, furniture and work). The marketplace edition names eno.forum in the affiliation paragraph
  * but does NOT link to it: eno.vn is registering as a licensed marketplace and may not advertise a
  * service it is not licensed for, and a hyperlink is a referral rather than a disclosure. Naming
  * the sister site is the honest disclosure; sending traffic to it is a different act. Do not
@@ -52,14 +56,50 @@ import { Bilingual } from '@/components/marketplace/bilingual'
 // than by naming it — on a marketplace build PROVIDER_OF_RECORD.shortEn is an empty string and this
 // branch is dead code anyway. `canonical: '/about'` is relative on purpose: it resolves against
 // each build's metadataBase, so eno.forum's About page canonicalises to eno.forum.
-const SERVICES_DESCRIPTION = `About eno.forum — services for travellers and newcomers to Vietnam. ${PROVIDER_OF_RECORD.shortEn} eno.vn, our sister marketplace, covers housing, jobs, motorbikes and secondhand once you are here.`
-const MARKETPLACE_DESCRIPTION =
-  'What eno.vn is and how it works: a classifieds marketplace for Vietnam — housing, jobs, motorbikes, services and secondhand — with public seller trust scores, automated checks on every post, and no payments on the platform.'
+const SERVICES_DESCRIPTION = `About eno.forum — services for travellers and newcomers to Vietnam. ${PROVIDER_OF_RECORD.shortEn} eno.vn, our sister marketplace, covers housing, jobs, furniture and electronics once you are here.`
 
+/**
+ * ⚠️ THE TITLE SAYS WHAT THE SITE IS, FOR WHOM AND WHERE — it used to be "About | eno.vn", which
+ * answers none of the three on the one page an assistant fetches to find out (ChatGPT-User was
+ * measured reading /about at answer time, 2026-09-26). "Free" rides on POSTING_IS_FREE, which cites
+ * the Terms and Regulations clauses it depends on; it disappears from here the day that flag flips.
+ * No motorbikes and no moving sales in either line: both were 0 live listings on 2026-09-27, and a
+ * description is a claim about the shelf.
+ */
+const MARKETPLACE_TITLE = `About ${SITE_NAME} — ${POSTING_IS_FREE ? 'free ' : ''}classifieds for expats and locals in Vietnam`
+const MARKETPLACE_DESCRIPTION = `What ${SITE_NAME} is: a ${POSTING_IS_FREE ? 'free ' : ''}classifieds marketplace for expats, internationals and locals in Vietnam — rentals, jobs, furniture, electronics and more — with a public trust score or partner badge on every seller who posts here, and no payments on the platform.`
+const SERVICES_TITLE = `About ${SITE_NAME} — services for travellers and newcomers to Vietnam`
+
+const TITLE = IS_SERVICES ? SERVICES_TITLE : MARKETPLACE_TITLE
+const DESCRIPTION = IS_SERVICES ? SERVICES_DESCRIPTION : MARKETPLACE_DESCRIPTION
+
+// Hourly, for the live "At a glance" facts below; the rest of the page is static copy.
+export const revalidate = 3600
+
+/**
+ * ⚠️ `openGraph` AND `twitter` ARE SET HERE IN FULL, IMAGE INCLUDED. Next replaces the layout's
+ * objects with a page's rather than merging them, so without these the About link previewed with the
+ * HOMEPAGE's title (measured: og:title "eno.vn - Trusted Expat Marketplace in Vietnam" on /about),
+ * and an override of title/description alone would have dropped the share card.
+ */
 export const metadata: Metadata = {
-  title: `About | ${SITE_NAME}`,
-  description: IS_SERVICES ? SERVICES_DESCRIPTION : MARKETPLACE_DESCRIPTION,
+  title: TITLE,
+  description: DESCRIPTION,
   alternates: { canonical: '/about' },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: '/about',
+    siteName: SITE_NAME,
+    type: 'website',
+    images: [{ ...SHARE_CARD, alt: `${SITE_NAME} — buy, sell, rent and connect in Vietnam` }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [SHARE_CARD.url],
+  },
 }
 
 const LINK = 'font-semibold text-accent-foreground hover:underline'
@@ -72,12 +112,25 @@ const MARKETPLACE_URL = 'https://eno.vn'
 // is plain on purpose: a reader deciding whether to trust a site should not have to parse a
 // contract, and every sentence here still has to be true.
 
+// ⚠️ NO MOTORBIKES AND NO "CHANGE HANDS EVERY TIME SOMEBODY MOVES" in the two lines below (2026-09-27):
+// motorbikes were 0 live listings, and the used furniture here is dealer-supplied — framing it as
+// expats' moving sales is the claim the guides were already corrected for.
+// ⚠️ "EVERY SELLER WHO POSTS HERE", NOT "EVERY SELLER": almost every live listing is linked from a
+// partner site (the At a glance block below counts it), and a trust score says nothing about those —
+// the same scoping the layout's Organization description uses.
 const MARKETPLACE_INTRO =
-  'eno.vn is a classifieds marketplace for expats, internationals and locals in Vietnam — housing, jobs, motorbikes, everyday services and secondhand. Every seller carries a public trust score, automated checks run on every post, and anyone can report a listing that is not what it claims to be.'
+  'eno.vn is a classifieds marketplace for expats, internationals and locals in Vietnam — housing, jobs, everyday services, furniture and electronics. Every seller who posts here carries a public trust score or, for an official partner, a partner badge, automated checks run on every post, and anyone can report a listing that is not what it claims to be.'
 
 const MARKETPLACE_WHAT = [
-  'People post what they are renting out, selling or hiring for: apartments and rooms, jobs, motorbikes and cars, services, and the furniture and appliances that change hands every time somebody moves.',
-  'The listings belong to the people who post them. eno.vn does not own or supply what you see, and it is not a party to the deal you make — there is no checkout, no escrow and no payment on the platform. You message a seller in the app, agree between yourselves, and settle directly.',
+  'People and businesses post what they are renting out, selling or hiring for: apartments and rooms, jobs, services, furniture, appliances and electronics.',
+  // ⚠️ "MESSAGE A SELLER IN THE APP" IS SCOPED TO LISTINGS POSTED HERE. Most live listings are linked
+  // from partner sites, with no chat on this site (see src/lib/site-facts.ts); the unscoped sentence
+  // was true of the product as designed and false of the shelf as measured.
+  // ⛔ AND IT SAYS WHERE A LINKED LISTING POINTS, NOT WHO HANDLES THE ENQUIRY: "you deal with the
+  // advertiser there" is the claim the owner removed from the importers on 2026-09-25
+  // (src/lib/import-viewing-disclaimer.ts) — the eno team checks availability on any rental, linked
+  // or not. A linked listing also has its own page here; only its button opens the source.
+  'The listings belong to the people who post them. eno.vn does not own or supply what you see, and it is not a party to the deal you make — there is no checkout, no escrow and no payment on the platform. For a listing posted here, you message the seller in the app, agree between yourselves, and settle directly; a listing linked from a partner site says where it is listed and links to the original posting.',
   'Prices are set in Vietnamese đồng, and the site reads in your own language: listings, chat and the interface are translated as you go.',
 ]
 
@@ -112,7 +165,7 @@ const SERVICES_PROVIDER_LICENCE =
   'We hold copies of that partner’s company registration and operating licence on file.'
 
 const SERVICES_MARKETPLACE_LEAD =
-  'is our sister marketplace: a classifieds site for people already living in Vietnam. It is where the practical side of arriving gets solved — somewhere to live, something to ride, work, and everything a departing expat is selling off.'
+  'is our sister marketplace: a classifieds site for people already living in Vietnam. It is where the practical side of arriving gets solved — somewhere to live, work, and what to furnish a flat with.'
 
 /**
  * The cross-domain links, as data.
@@ -133,11 +186,15 @@ const SERVICES_MARKETPLACE_LINKS = [
     label: 'housing and apartment rentals for expats',
     tail: '— studios in Thao Dien, apartments in Phu My Hung, family houses in District 2.',
   },
+  /* ⛔ NOT /motorbikes-for-sale-vietnam ANY MORE (2026-09-27): eno.vn held 0 motorbikes and that
+     landing is noindex, so the link promised a monthly rental nobody could find. The lead and the
+     description above dropped "something to ride" / "motorbikes" and "everything a departing expat is
+     selling off" (the used stock is dealer-supplied) for the same reason. */
   {
-    path: '/motorbikes-for-sale-vietnam',
-    lead: 'Then a way to get around:',
-    label: 'motorbikes for sale and rent in Vietnam',
-    tail: '— rent one by the month while you settle in, or buy a used bike outright.',
+    path: '/furnishing-a-home-in-vietnam',
+    lead: 'Then something to put in it:',
+    label: 'furnishing a home in Vietnam',
+    tail: '— what the landlord supplies, what is worth buying new, and what is better bought secondhand.',
   },
   {
     path: '/jobs-vietnam-expats',
@@ -196,12 +253,157 @@ const RAIL = IS_SERVICES
       { id: 'contact', label: 'Contact' },
     ]
   : [
+      { id: 'glance', label: 'At a glance' },
       { id: 'what', label: 'What eno.vn is' },
       { id: 'trust', label: 'How trust works' },
       { id: 'affiliation', label: 'How the two sites relate' },
       { id: 'operator', label: 'Who runs this site' },
       { id: 'contact', label: 'Contact' },
     ]
+
+/**
+ * AT A GLANCE — the facts an assistant or a first-time visitor needs in one place, before the prose.
+ *
+ * ⚠️ MARKETPLACE EDITION ONLY. Every row is a statement about eno.vn: free posting, no checkout, the
+ * operator's registration. On eno.forum at least two of those are false (services there are paid and
+ * its operator is not yet registered), so the block does not render there at all rather than
+ * rendering a variant.
+ *
+ * ⛔ NOTHING HERE IS TYPED THAT CAN GO STALE:
+ *   · Cost — POSTING_IS_FREE (src/lib/site-identity.ts), which cites Regulations Art. 8 and the Terms'
+ *     Fees section; the row disappears if the flag does.
+ *   · Where / Listings — computed from live counts at render (src/lib/site-facts.ts, hourly ISR). Each
+ *     sentence is one of a few FIXED strings chosen by `shareOf`, never a number inside a <Tr>: a
+ *     number in translatable text is a new string to machine-translate every hour. With no facts the
+ *     rows fall back to wording that is true whatever the shelf holds.
+ *   · Languages — the roster in src/lib/i18n/langs.ts, by native name (proper nouns, not translated).
+ *   · Operator — COMPANY, behind OPERATOR_REGISTERED; no name or number is typed in this file.
+ *
+ * ⚠️ THE COPY IS LITERAL `<Tr text="…">`, UNLIKE THE ARRAYS ABOVE, AND THAT IS RULE 1 APPLIED, NOT
+ * BROKEN: none of it is services copy, it renders on eno.vn, and literals are what the harvester
+ * collects into the core catalogue so the Vietnamese can be curated instead of machine-translated.
+ */
+const LANG_SEP = ', '
+const OPERATOR_NAMES = `${COMPANY.nameEn} (${COMPANY.name})`
+
+function GlanceRow({ term, children }: { term: ReactNode; children: ReactNode }) {
+  return (
+    <div className="grid gap-1 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6">
+      <dt className="text-sm font-bold text-foreground">{term}</dt>
+      <dd className="text-base leading-relaxed text-body">{children}</dd>
+    </div>
+  )
+}
+
+function WhereRow({ facts }: { facts: SiteFacts }) {
+  const overall = shareOf(inCity(facts, 'hcmc'), facts.live)
+  const rentals = facts.byCategory.rentals ?? 0
+  const rentalsShare = shareOf(inCity(facts, 'hcmc', 'rentals'), rentals)
+  const overallLine =
+    overall === 'all' ? <Tr text="Everything listed right now is in Ho Chi Minh City." />
+    : overall === 'almost' ? <Tr text="Almost everything listed is in Ho Chi Minh City." />
+    : overall === 'most' ? <Tr text="Most listings are in Ho Chi Minh City." />
+    : null
+  // Redundant once "everything" is in the city; otherwise the rental split is the fact renters want.
+  const rentalsLine =
+    overall === 'all' ? null
+    : rentalsShare === 'all' ? <Tr text="Every rental listed right now is in Ho Chi Minh City." />
+    : rentalsShare === 'almost' || rentalsShare === 'most' ? <Tr text="Most rental listings are in Ho Chi Minh City." />
+    : null
+  if (!overallLine && !rentalsLine) return null
+  return (
+    <GlanceRow term={<Tr text="Where" />}>
+      {overallLine}
+      {overallLine && rentalsLine && ' '}
+      {rentalsLine}
+      {rentals > 0 && (
+        <>
+          {' '}
+          <Link href="/c/rentals" className={LINK}>
+            <Tr text="Browse rentals" />
+          </Link>
+        </>
+      )}
+    </GlanceRow>
+  )
+}
+
+/**
+ * ⛔ WHERE A LINKED LISTING POINTS, NEVER WHO HANDLES IT. These rows used to end "…and you contact the
+ * advertiser there" — the "handled there, not by eno" claim the owner removed from the importers on
+ * 2026-09-25 (src/lib/import-viewing-disclaimer.ts), because the eno team checks availability on any
+ * rental, linked or not. They also said a linked listing "opens on the site it came from", which it
+ * does not: it has its own page here, and only its button opens the source.
+ * ⚠️ "POSTED HERE" IS NOT "SHOWS A TRUST SCORE": an official partner shows its partner badge instead
+ * (seller-card.tsx), and official partners post here too.
+ */
+function LinkedRow({ facts }: { facts: SiteFacts | null }) {
+  const share = facts ? shareOf(facts.linked, facts.live) : null
+  const posted = <Tr text="Listings posted directly on this site show the seller’s public trust score, or an official partner’s partner badge, and are answered in the in-app chat." />
+  return (
+    <GlanceRow term={<Tr text="Listings" />}>
+      {share === 'all' ? (
+        <Tr text="Every listing right now is linked from a partner site: each says where it is listed and links to the original posting." />
+      ) : share === 'almost' ? (
+        <>
+          <Tr text="Almost every listing is linked from a partner site: those say where they are listed and link to the original posting." /> {posted}
+        </>
+      ) : share === 'most' ? (
+        <>
+          <Tr text="Most listings are linked from partner sites: those say where they are listed and link to the original posting." /> {posted}
+        </>
+      ) : share === 'some' ? (
+        <>
+          <Tr text="Some listings are linked from partner sites: those say where they are listed and link to the original posting." /> {posted}
+        </>
+      ) : share === 'none' ? (
+        posted
+      ) : (
+        // No facts: say what is true of either kind of listing, and nothing about how many.
+        <Tr text="A listing linked from a partner site says where it is listed and links to the original posting; a listing posted directly here shows the seller’s public trust score, or an official partner’s partner badge, and is answered in the in-app chat." />
+      )}
+    </GlanceRow>
+  )
+}
+
+function AtAGlance({ facts }: { facts: SiteFacts | null }) {
+  return (
+    <dl className="space-y-4">
+      {POSTING_IS_FREE && (
+        <GlanceRow term={<Tr text="Cost" />}>
+          <Tr text="Browsing, posting and contacting sellers are currently free. If that changes, prices will be published in Vietnamese đồng at least 5 days before they apply." />
+        </GlanceRow>
+      )}
+      {facts && facts.live > 0 && <WhereRow facts={facts} />}
+      <LinkedRow facts={facts} />
+      <GlanceRow term={<Tr text="Payments" />}>
+        <Tr text="There is no checkout, no escrow and no buyer protection. The site holds no money: you pay the seller, or the partner site, directly." />
+      </GlanceRow>
+      <GlanceRow term={<Tr text="Languages" />}>
+        {LANGUAGES.map((l, i) => (
+          <span key={l.code} lang={l.code}>
+            {i > 0 && LANG_SEP}
+            {l.native}
+          </span>
+        ))}
+        {'. '}
+        <Tr text="Listings and chat are translated automatically." />
+      </GlanceRow>
+      <GlanceRow term={<Tr text="Operator" />}>
+        {OPERATOR_REGISTERED ? (
+          <>
+            {OPERATOR_NAMES}
+            <span className="block">
+              <Tr text="Business registration no." /> {COMPANY.erc}
+            </span>
+          </>
+        ) : (
+          <Tr text="A Vietnamese company still completing its business registration." />
+        )}
+      </GlanceRow>
+    </dl>
+  )
+}
 
 function Para({ text }: { text: string }) {
   return (
@@ -211,115 +413,136 @@ function Para({ text }: { text: string }) {
   )
 }
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  // Marketplace only: the services edition renders no facts block, so it reads no counts.
+  const facts = IS_SERVICES ? null : await loadSiteFacts()
   return (
-    <ContentPage
-      title={IS_SERVICES ? 'Before you arrive, and after you land.' : 'The trusted marketplace for Vietnam.'}
-      intro={<Tr text={IS_SERVICES ? SERVICES_INTRO : MARKETPLACE_INTRO} />}
-      sections={RAIL}
-    >
-      <ContentSection id="what" title={IS_SERVICES ? 'What eno.forum is' : 'What eno.vn is'}>
-        {(IS_SERVICES ? SERVICES_WHAT : MARKETPLACE_WHAT).map((p, i) => (
-          <Para key={i} text={p} />
-        ))}
-      </ContentSection>
+    <>
+      {/* AboutPage → the layout's Organization @id. Marketplace only, like the @id itself: eno.forum's
+          Organization node carries none, and a second inline Organization here would be the
+          one-entity signal the layout refuses to send. */}
+      {!IS_SERVICES && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(aboutPageJsonLd(siteOrigin(), { name: TITLE, description: DESCRIPTION })).replace(/</g, '\\u003c'),
+          }}
+        />
+      )}
+      <ContentPage
+        title={IS_SERVICES ? 'Before you arrive, and after you land.' : 'The trusted marketplace for Vietnam.'}
+        intro={<Tr text={IS_SERVICES ? SERVICES_INTRO : MARKETPLACE_INTRO} />}
+        sections={RAIL}
+      >
+        {!IS_SERVICES && (
+          <ContentSection id="glance" title="At a glance">
+            <AtAGlance facts={facts} />
+          </ContentSection>
+        )}
 
-      {IS_SERVICES && (
-        <ContentSection id="provider" title="Who provides the services listed here">
-          {/* The disclosure itself: authored in both languages, so it is rendered rather than
-              machine-translated. It names the partner, says the partner is the provider of record,
-              and says what eno.forum is and is not. */}
+        <ContentSection id="what" title={IS_SERVICES ? 'What eno.forum is' : 'What eno.vn is'}>
+          {(IS_SERVICES ? SERVICES_WHAT : MARKETPLACE_WHAT).map((p, i) => (
+            <Para key={i} text={p} />
+          ))}
+        </ContentSection>
+
+        {IS_SERVICES && (
+          <ContentSection id="provider" title="Who provides the services listed here">
+            {/* The disclosure itself: authored in both languages, so it is rendered rather than
+                machine-translated. It names the partner, says the partner is the provider of record,
+                and says what eno.forum is and is not. */}
+            <p className="text-base leading-relaxed text-body">
+              <Bilingual en={PROVIDER_OF_RECORD.en} vi={PROVIDER_OF_RECORD.vi} />
+            </p>
+            {PROVIDER_LICENCE_ON_FILE && <Para text={SERVICES_PROVIDER_LICENCE} />}
+            <p className="text-base leading-relaxed text-body">
+              <Tr text={SERVICES_PROVIDER_DATA} />{' '}
+              <Link href="/privacy" className={LINK}>
+                <Tr text="Privacy Policy" />
+              </Link>
+              .
+            </p>
+          </ContentSection>
+        )}
+
+        <ContentSection id="trust" title="How trust works" wide>
+          <div className="grid gap-x-8 gap-y-6 sm:grid-cols-3">
+            {STEPS.map((s, i) => (
+              <div key={i} className="flex gap-4">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-foreground">
+                    <Tr text={s.title} />
+                  </h3>
+                  <p className="mt-1 text-sm leading-relaxed text-body">
+                    <Tr text={s.text} />
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ContentSection>
+
+        {IS_SERVICES && (
+          // The cross-domain section. Plain <a>, no rel="nofollow" and no target: these are ordinary
+          // editorial links to the sister site, and they are the reason this section exists.
+          <ContentSection id="marketplace" title="eno.vn — for once you are here">
+            <p className="text-base leading-relaxed text-body">
+              <a href={MARKETPLACE_URL} className={LINK}>
+                eno.vn
+              </a>{' '}
+              <Tr text={SERVICES_MARKETPLACE_LEAD} />
+            </p>
+            {SERVICES_MARKETPLACE_LINKS.map((l) => (
+              <p key={l.path} className="text-base leading-relaxed text-body">
+                <Tr text={l.lead} />{' '}
+                <a href={`${MARKETPLACE_URL}${l.path}`} className={LINK}>
+                  <Tr text={l.label} />
+                </a>{' '}
+                <Tr text={l.tail} />
+              </p>
+            ))}
+            <Para text={SERVICES_MARKETPLACE_TAIL} />
+          </ContentSection>
+        )}
+
+        <ContentSection id="affiliation" title="How eno.vn and eno.forum relate">
+          {/* Disclosed affiliation, not independence — claiming the sites are unrelated would be
+              false, and a false disclosure is worse than none. Authored in both languages. */}
           <p className="text-base leading-relaxed text-body">
-            <Bilingual en={PROVIDER_OF_RECORD.en} vi={PROVIDER_OF_RECORD.vi} />
+            <Bilingual en={AFFILIATION.en} vi={AFFILIATION.vi} />
           </p>
-          {PROVIDER_LICENCE_ON_FILE && <Para text={SERVICES_PROVIDER_LICENCE} />}
+          <Para text={AFFILIATION_PLAIN} />
+        </ContentSection>
+
+        <ContentSection id="operator" title="Who runs this site">
+          <Para text={OPERATOR_LINE} />
           <p className="text-base leading-relaxed text-body">
-            <Tr text={SERVICES_PROVIDER_DATA} />{' '}
+            <Tr text="The rules for using the site, the operator notice Vietnamese law requires, and how your personal data is handled are set out on three pages:" />{' '}
+            <Link href="/terms" className={LINK}>
+              <Tr text="Terms of Service" />
+            </Link>
+            ,{' '}
+            <Link href="/regulations" className={LINK}>
+              <Tr text="Operating Regulations" />
+            </Link>{' '}
+            <Tr text="and" />{' '}
             <Link href="/privacy" className={LINK}>
               <Tr text="Privacy Policy" />
             </Link>
             .
           </p>
         </ContentSection>
-      )}
 
-      <ContentSection id="trust" title="How trust works" wide>
-        <div className="grid gap-x-8 gap-y-6 sm:grid-cols-3">
-          {STEPS.map((s, i) => (
-            <div key={i} className="flex gap-4">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-foreground">
-                  <Tr text={s.title} />
-                </h3>
-                <p className="mt-1 text-sm leading-relaxed text-body">
-                  <Tr text={s.text} />
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </ContentSection>
-
-      {IS_SERVICES && (
-        // The cross-domain section. Plain <a>, no rel="nofollow" and no target: these are ordinary
-        // editorial links to the sister site, and they are the reason this section exists.
-        <ContentSection id="marketplace" title="eno.vn — for once you are here">
-          <p className="text-base leading-relaxed text-body">
-            <a href={MARKETPLACE_URL} className={LINK}>
-              eno.vn
-            </a>{' '}
-            <Tr text={SERVICES_MARKETPLACE_LEAD} />
+        <ContentSection id="contact" title="Contact">
+          <p className="text-sm text-body">
+            <Tr text="Questions, problems or press:" />{' '}
+            <a href={`mailto:${COMPANY.email}`} className={LINK}>
+              {COMPANY.email}
+            </a>
           </p>
-          {SERVICES_MARKETPLACE_LINKS.map((l) => (
-            <p key={l.path} className="text-base leading-relaxed text-body">
-              <Tr text={l.lead} />{' '}
-              <a href={`${MARKETPLACE_URL}${l.path}`} className={LINK}>
-                <Tr text={l.label} />
-              </a>{' '}
-              <Tr text={l.tail} />
-            </p>
-          ))}
-          <Para text={SERVICES_MARKETPLACE_TAIL} />
         </ContentSection>
-      )}
-
-      <ContentSection id="affiliation" title="How eno.vn and eno.forum relate">
-        {/* Disclosed affiliation, not independence — claiming the sites are unrelated would be
-            false, and a false disclosure is worse than none. Authored in both languages. */}
-        <p className="text-base leading-relaxed text-body">
-          <Bilingual en={AFFILIATION.en} vi={AFFILIATION.vi} />
-        </p>
-        <Para text={AFFILIATION_PLAIN} />
-      </ContentSection>
-
-      <ContentSection id="operator" title="Who runs this site">
-        <Para text={OPERATOR_LINE} />
-        <p className="text-base leading-relaxed text-body">
-          <Tr text="The rules for using the site, the operator notice Vietnamese law requires, and how your personal data is handled are set out on three pages:" />{' '}
-          <Link href="/terms" className={LINK}>
-            <Tr text="Terms of Service" />
-          </Link>
-          ,{' '}
-          <Link href="/regulations" className={LINK}>
-            <Tr text="Operating Regulations" />
-          </Link>{' '}
-          <Tr text="and" />{' '}
-          <Link href="/privacy" className={LINK}>
-            <Tr text="Privacy Policy" />
-          </Link>
-          .
-        </p>
-      </ContentSection>
-
-      <ContentSection id="contact" title="Contact">
-        <p className="text-sm text-body">
-          <Tr text="Questions, problems or press:" />{' '}
-          <a href={`mailto:${COMPANY.email}`} className={LINK}>
-            {COMPANY.email}
-          </a>
-        </p>
-      </ContentSection>
-    </ContentPage>
+      </ContentPage>
+    </>
   )
 }

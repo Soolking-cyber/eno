@@ -8,6 +8,8 @@ import { notFound } from "next/navigation";
 import { LANG_VARIANTS, type LangVariant } from "@/lib/lang-variant";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
 import { COMPANY, OPERATOR_REGISTERED } from "@/lib/site-legal";
+// The Organization/WebSite JSON-LD's entity fields (@id, sameAs, legalName…) — see that block below.
+import { marketplaceOrganizationFields, organizationId, POSTING_IS_FREE, registeredOperatorFields, SHARE_CARD, websiteId } from "@/lib/site-identity";
 // The content-hashed sprite URL, from the generated shim — never a literal here, or a glyph edit
 // would preload a file that no longer exists while every icon silently fetched the new one.
 import { ICON_SPRITE_CORE } from "@/components/ui/icons";
@@ -178,7 +180,9 @@ const openRunde = localFont({
  * partner. Gate this on IS_SERVICES the day a forum-specific card exists; do not gate it on the
  * strength of that mismatch alone, because a motorbike photo served both worse.
  */
-const OG_IMAGE = { url: "/og/share-card.jpg", width: 1200, height: 630, alt: `${SITE_NAME} — buy, sell, rent and connect in Vietnam` };
+// The file and dimensions come from SHARE_CARD (src/lib/site-identity.ts), which the pages that set
+// their own `openGraph` (/about, the guides) also use — one literal, so the two cannot drift.
+const OG_IMAGE = { ...SHARE_CARD, alt: `${SITE_NAME} — buy, sell, rent and connect in Vietnam` };
 
 /**
  * THE SITEWIDE DESCRIPTION, PER EDITION.
@@ -189,14 +193,22 @@ const OG_IMAGE = { url: "/og/share-card.jpg", width: 1200, height: 630, alt: `${
  * and self-description were the snippet Google had for every services URL — including the e-visa
  * ones. Title, applicationName and appleWebApp were already edition-aware; this was not.
  */
+/*
+ * ⚠️ NO MOTORBIKES AND NO MOVING SALES ON THE MARKETPLACE (2026-09-27): both shelves held 0 live
+ * listings (/c/moving-sale and /motorbikes-for-sale-vietnam are noindex), and this sentence is the
+ * default meta description of every page that sets none. The category list is the one the
+ * Organization JSON-LD below uses — shelves with stock — and the trust clause is scoped to sellers who
+ * post here, because most of the shelf is linked from partner portals and shops. "Free" follows
+ * POSTING_IS_FREE (src/lib/site-identity.ts), which cites the legal clauses it rests on.
+ */
 const SITE_DESCRIPTION = IS_SERVICES
   ? SERVICES_SITE_DESCRIPTION
-  : "eno.vn is a trusted marketplace for expats and internationals in Vietnam. Find housing, jobs, motorbikes, services, moving sales, and more — sellers build public trust scores and the community keeps listings honest.";
+  : `${SITE_NAME} is a ${POSTING_IS_FREE ? "free " : ""}classifieds marketplace for expats, internationals and locals in Vietnam. Find rentals, jobs, furniture, electronics and more — sellers who post here build public trust scores and the community keeps listings honest.`;
 
 /** The short form, for the OG and Twitter cards. */
 const SITE_TAGLINE = IS_SERVICES
   ? SERVICES_SITE_TAGLINE
-  : "A trusted marketplace for expats and internationals in Vietnam. Housing, jobs, motorbikes, services and moving sales — sellers build trust scores and the community keeps listings honest.";
+  : `${POSTING_IS_FREE ? "Free classifieds" : "Classifieds"} for expats, internationals and locals in Vietnam. Rentals, jobs, furniture, electronics and more — sellers who post here build trust scores and the community keeps listings honest.`;
 
 // Both schemes are supported (real dark theme in globals.css `.dark`, toggled System/Light/Dark).
 // viewportFit:"cover" activates env(safe-area-inset-*) so the safe-area padding the header/nav/body
@@ -446,13 +458,27 @@ export default async function RootLayout({
             not, because it never read the environment at all.
 
             Everything now derives from SITE_ORIGIN (NEXT_PUBLIC_APP_URL, which next.config.ts
-            asserts matches the edition), so each deployment describes itself and only itself. */}
+            asserts matches the edition), so each deployment describes itself and only itself.
+
+            ⚠️ THE NODE HAS AN @id ON THE MARKETPLACE (`${SITE_ORIGIN}/#organization`), and pages
+            point at it rather than restating the entity: /about's AboutPage `mainEntity` and the
+            WebSite `publisher` below. The id, sameAs, areaServed and knowsLanguage come from
+            src/lib/site-identity.ts so a referring page cannot spell the id differently. */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "Organization",
+              /* ⚠️ MARKETPLACE ONLY, and deliberately so pending a decision that is not an
+                 engineer's to make. `@id`, `sameAs` (every src/lib/socials.ts profile marked
+                 `me: true` — seven, where three were hand-copied here), `areaServed` and
+                 `knowsLanguage` are the eno.vn brand's identity; asserting them from eno.forum would
+                 tell Google the two sites are one entity, which is the opposite of the separation
+                 this split exists to create. If eno.forum is a distinct registered business it needs
+                 its own profiles here; if it is the same business trading under two domains, counsel
+                 should say so before we re-link them. Omitting is the reversible choice. */
+              ...(IS_SERVICES ? {} : marketplaceOrganizationFields(SITE_ORIGIN)),
               name: SITE_NAME,
               alternateName: ["ENO"],
               url: SITE_ORIGIN,
@@ -467,23 +493,17 @@ export default async function RootLayout({
                  this JSON-LD copy was left behind. (2) STALE: it advertised trip planning, which
                  the owner dropped on 2026-08-01 — the constant's own header records that. One
                  source for the sitewide self-description means the next such change lands once. */
+              /* ⚠️ THE MARKETPLACE SENTENCE NO LONGER NAMES MOTORBIKES OR MOVING SALES: both were 0
+                 live listings on 2026-09-27 (and "trusted" over a shelf that is mostly linked from
+                 partner portals was a claim, not a description). What stays is category SCOPE that
+                 has stock, plus two facts that hold whatever the shelf holds. "Free" follows
+                 POSTING_IS_FREE, which cites the legal clauses it rests on. */
               description: IS_SERVICES
                 ? SERVICES_SITE_DESCRIPTION
-                : "eno.vn is a trusted marketplace for expats and internationals in Vietnam — housing, jobs, motorbikes, services and moving sales.",
-              /* ⚠️ MARKETPLACE ONLY, and deliberately so pending a decision that is not an
-                 engineer's to make. These accounts are the eno.vn brand's; asserting `sameAs` from
-                 eno.forum would tell Google the two sites are one entity, which is the opposite of
-                 the separation this split exists to create. If eno.forum is a distinct registered
-                 business it needs its own profiles here; if it is the same business trading under
-                 two domains, counsel should say so before we re-link them. Omitting is the
-                 reversible choice. */
-              ...(IS_SERVICES ? {} : {
-                sameAs: [
-                  "https://www.facebook.com/profile.php?id=61591370031264",
-                  "https://www.instagram.com/eno.vn/",
-                  "https://www.youtube.com/@enovietnam",
-                ],
-              }),
+                : `${SITE_NAME} is a classifieds marketplace for expats, internationals and locals in Vietnam — rentals, jobs, furniture, electronics and more.${POSTING_IS_FREE ? " Browsing and posting are currently free." : ""} Sellers who post here carry a public trust score or, for official partners, a partner badge, and there are no payments on the platform.`,
+              /* legalName + registration number: behind the operator's OWN `registered` flag, the same
+                 gate as the address below and for the same reason (site-identity.ts). */
+              ...registeredOperatorFields(COMPANY),
               /* ⛔ GATED ON OPERATOR_REGISTERED, AND THAT GATE IS THE WHOLE POINT. COMPANY is
                  OPERATORS[EDITION], so on a deployment whose operating entity is still being
                  registered these fields are the PENDING placeholder — emitting
@@ -525,6 +545,9 @@ export default async function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "WebSite",
+              /* The publisher is the Organization node above, by @id — marketplace only, because
+                 that is the only edition whose Organization carries one. */
+              ...(IS_SERVICES ? {} : { "@id": websiteId(SITE_ORIGIN), publisher: { "@id": organizationId(SITE_ORIGIN) } }),
               name: SITE_NAME,
               url: SITE_ORIGIN,
               potentialAction: {
