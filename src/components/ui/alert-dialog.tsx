@@ -31,7 +31,14 @@ function AlertDialogOverlay({
       data-slot="alert-dialog-overlay"
       className={cn(
         // `--scrim-exit`: see the same line in ui/dialog.tsx — the exit transition outranks the keyframe.
-        "overlay-scrim fixed inset-0 isolate z-50 duration-100 ease-[var(--ease-out-strong)] data-closed:ease-[var(--ease-out-strong)] data-closed:duration-75 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 [--scrim-exit:75ms_var(--ease-out-strong)]",
+        // ⚠️ THE SCRIM FADES ON `.overlay-scrim`'s OWN TRANSITION, both ways — `starting:opacity-0` for the
+        // enter (a dialog that MOUNTS already open gets no data-starting-style; one that opens after
+        // mounting gets it, and `.overlay-scrim[data-starting-style]` agrees), `[data-ending-style]` +
+        // `--scrim-exit` for the exit. It used to ALSO carry a fade-out keyframe with no `from`: the
+        // ending style's opacity 0 became that `from`, so in Chromium the dim and blur vanished on the
+        // first frame of every close (measured, dialog and alert-dialog). Safari ≤ 17.3 (no
+        // @starting-style) keeps the keyframe enter, as the popup does.
+        "overlay-scrim fixed inset-0 isolate z-50 duration-100 ease-[var(--ease-out-strong)] data-closed:ease-[var(--ease-out-strong)] data-closed:duration-75 starting:opacity-0 not-supports-[transition-behavior:allow-discrete]:data-open:animate-in not-supports-[transition-behavior:allow-discrete]:data-open:fade-in-0 [--scrim-exit:75ms_var(--ease-out-strong)]",
         className
       )}
       {...props}
