@@ -152,7 +152,7 @@ export function HelpThreadClient({ post, comments: initial }: { post: HelpPost; 
         {topic && (
           <Link
             href="/help"
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted"
+            className="press inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-semibold text-body hover:bg-muted"
           >
             {/* Same renderer as the /help chips (14px at chip scale) so the topic's
                 glyph is identical everywhere it appears.

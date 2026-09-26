@@ -132,7 +132,7 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
               <li key={c.id}>
                 <Link
                   href={`/disputes/${c.id}`}
-                  className="flex items-center gap-3 py-3 transition-colors hover:bg-muted"
+                  className="flex items-center gap-3 py-3 transition-colors hover:bg-muted active:bg-muted"
                 >
                   {c.listing?.image ? (
                     <Image src={c.listing.image} alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-xl object-cover" />

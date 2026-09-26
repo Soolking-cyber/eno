@@ -52,7 +52,7 @@ export function ContentPage({ title, meta, intro, sections, children }: {
               <div className="sticky top-24 space-y-0.5">
                 <p id="on-this-page" className="eyebrow mb-2 text-ink-4"><Tr text="On this page" /></p>
                 {sections!.map((s) => (
-                  <a key={s.id} href={`#${s.id}`} className="block rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                  <a key={s.id} href={`#${s.id}`} className="block rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:bg-muted">
                     <Tr text={s.label} />
                   </a>
                 ))}

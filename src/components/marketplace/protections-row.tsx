@@ -184,7 +184,7 @@ export function ProtectionsRow({ inline = false }: {
           <DialogClose nativeButton={false} render={
             <Link
               href="/safety"
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand px-5 py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-accent"
+              className="press flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand px-5 py-2.5 text-sm font-bold text-accent-foreground hover:bg-accent"
             />
           }>
               {tr('Read our safety guide', 'Xem hướng dẫn an toàn')}

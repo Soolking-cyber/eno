@@ -73,7 +73,7 @@ export function ConversationList() {
         <Link
           href="/messages/ai"
           scroll={false}
-          className={cn('mb-1 flex items-center gap-3 rounded-xl p-2.5 transition-colors', aiActive ? 'bg-muted text-accent-foreground' : 'hover:bg-muted')}
+          className={cn('mb-1 flex items-center gap-3 rounded-xl p-2.5 transition-colors active:bg-tint/60', aiActive ? 'bg-muted text-accent-foreground' : 'hover:bg-muted')}
         >
           {/* The chrome coin (icon-language §6), not a solid disc: fully-saturated brand is
               reserved for user-state (§5 — the unread rail/badge in the rows below), so the
@@ -157,7 +157,10 @@ export function ConversationList() {
                 {c.unread > 0 && activeId !== c.id && (
                   <span aria-hidden className="absolute inset-y-2 left-0 w-1 rounded-full bg-accent-foreground" />
                 )}
-                <Link href={`/messages/${c.id}`} scroll={false} className="flex min-w-0 flex-1 items-center gap-3 p-2.5">
+                {/* `active:` on the LINK, not the row: the row's hover tints never fire on a phone, so
+                    a tap showed nothing until the thread painted — and `:active` on the wrapper would
+                    also flash while pressing the delete button beside it. */}
+                <Link href={`/messages/${c.id}`} scroll={false} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-2.5 transition-colors active:bg-tint/60">
                   <Avatar name={c.counterpart.name} url={c.counterpart.avatarUrl} size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">

@@ -113,7 +113,7 @@ function ItemRow({ item }: { item: AvailabilityRequestItem }) {
     <li>
       <Link
         href={`/listings/${item.id}`}
-        className="flex items-center gap-3 rounded-xl py-2 transition-colors hover:bg-muted/60"
+        className="flex items-center gap-3 rounded-xl py-2 transition-colors hover:bg-muted/60 active:bg-muted"
       >
         <Thumb src={item.image} />
         <span className="min-w-0 flex-1">

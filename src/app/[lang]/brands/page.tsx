@@ -110,7 +110,7 @@ export default async function BrandsPage() {
               <Link
                 key={b.slug}
                 href={`/?brand=${encodeURIComponent(b.slug)}`}
-                className="flex flex-col items-center gap-3 rounded-2xl border border-border px-4 py-6 text-center transition-colors hover:border-line-strong hover:bg-muted"
+                className="flex flex-col items-center gap-3 rounded-2xl border border-border px-4 py-6 text-center transition-colors hover:border-line-strong hover:bg-muted active:bg-muted"
               >
                 <BrandLogo name={b.name} iconPath={b.iconUrl ? null : b.iconPath} iconUrl={b.iconUrl} size={44} />
                 <span className="line-clamp-1 text-sm font-semibold text-foreground">{b.name}</span>

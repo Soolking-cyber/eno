@@ -165,7 +165,7 @@ export function AppDownload() {
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => setOpen(false)}
-          className={cn(row, 'font-semibold text-foreground transition-colors hover:bg-accent cursor-pointer')}
+          className={cn(row, 'font-semibold text-foreground transition-colors hover:bg-accent active:bg-accent cursor-pointer')}
         >
           <Smartphone className="h-5 w-5 shrink-0 text-ink-4" strokeWidth={1.75} />
           {tr('Google Play', 'Google Play')}
@@ -176,7 +176,7 @@ export function AppDownload() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setOpen(false)}
-            className={cn(row, 'font-semibold text-foreground transition-colors hover:bg-accent cursor-pointer')}
+            className={cn(row, 'font-semibold text-foreground transition-colors hover:bg-accent active:bg-accent cursor-pointer')}
           >
             <Smartphone className="h-5 w-5 shrink-0 text-ink-4" strokeWidth={1.75} />
             {tr('App Store', 'App Store')}

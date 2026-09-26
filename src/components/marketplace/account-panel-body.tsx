@@ -139,7 +139,8 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   // filled"). The fill is now `<CategoryGlyphArt selected>` in renderNav: one rule, every
   // row, driven by the SAME `isOn` that paints this pill.
   const navItem = (isOn: boolean) => cn(
-    'flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors hover:bg-secondary/60 cursor-pointer',
+    // `active:bg-secondary`: hover never fires on a phone, so a tap on a rail row showed nothing.
+    'flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors hover:bg-secondary/60 active:bg-secondary cursor-pointer',
     expanded ? 'lg:justify-start lg:gap-3 lg:px-3.5' : 'lg:justify-center lg:gap-0 lg:px-0',
     isOn ? 'bg-secondary hover:bg-secondary text-accent-foreground' : 'text-foreground',
   )

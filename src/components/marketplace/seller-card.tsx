@@ -245,7 +245,7 @@ export function SellerCard({
           {variant === 'pdp' && storefrontHref && (
             <Link
               href={storefrontHref}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted"
+              className="press flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold text-foreground hover:bg-muted"
             >
               <Store className="h-4 w-4" /> {tr('View shop', 'Xem shop')}
             </Link>

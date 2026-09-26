@@ -228,7 +228,7 @@ export default function DisputeRoomPage() {
             <Scale className="mx-auto h-10 w-10 text-ink-4" strokeWidth={STROKE_DISPLAY} />
             <p className="mt-3 text-sm font-semibold text-foreground">{t('Case not found', 'Không tìm thấy hồ sơ')}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t('It may have been removed, or it belongs to another account.', 'Hồ sơ có thể đã bị xóa hoặc thuộc tài khoản khác.')}</p>
-            <Link href="/disputes" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted">{t('All disputes', 'Tất cả khiếu nại')}</Link>
+            <Link href="/disputes" className="press mt-4 inline-block rounded-xl px-4 py-2 text-sm font-bold text-accent-foreground hover:bg-muted">{t('All disputes', 'Tất cả khiếu nại')}</Link>
           </div>
         ) : !data ? (
           <div className="flex justify-center py-20"><EnoLoader /></div>
@@ -310,7 +310,7 @@ export default function DisputeRoomPage() {
             {(data.listing || data.conversationId) && (
               <div className="mt-4 flex items-center gap-3">
                 {data.listing && (
-                  <Link href={`/listings/${data.listing.id}`} className="flex min-w-0 items-center gap-2.5 -ml-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-muted">
+                  <Link href={`/listings/${data.listing.id}`} className="flex min-w-0 items-center gap-2.5 -ml-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-muted active:bg-muted">
                     {data.listing.image
                       ? <Image src={data.listing.image} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-lg object-cover" />
                       : <span className="h-9 w-9 shrink-0 rounded-lg bg-tint" />}
