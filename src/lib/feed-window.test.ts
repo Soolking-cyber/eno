@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { feedPagePlan } from './feed-window'
+import { feedPagePlan, seatOrder } from './feed-window'
 
 /**
  * ⛔ THESE TESTS EXIST BECAUSE FOUR REVIEWERS INDEPENDENTLY REFUTED THE FIRST CUT AND NOTHING IN
@@ -345,5 +345,35 @@ describe('diverseFeedWindow — shared seats', () => {
     const after = groupBy.mock.calls.length
     await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
     expect(groupBy.mock.calls.length).toBe(after + 1)
+  })
+})
+
+describe('seatOrder — the order inside the shared eSIM seat', () => {
+  it('leads with the free plan, then interleaves the rest by carrier (owner, 2026-09-27)', () => {
+    const rows = [
+      { id: 'fpt109', sellerId: 'fpt', price: 109000 },
+      { id: 'fpt69', sellerId: 'fpt', price: 69000 },
+      { id: 'vina99', sellerId: 'vina', price: 99000 },
+      { id: 'mobi159', sellerId: 'mobi', price: 159000 },
+      { id: 'mobiFree', sellerId: 'mobi', price: 0 },
+    ]
+    expect(seatOrder(rows).map((r) => r.id)).toEqual(['mobiFree', 'fpt109', 'vina99', 'mobi159', 'fpt69'])
+  })
+
+  it('keeps free plans inside the seller round-robin — one carrier cannot take the first turns', () => {
+    const rows = [
+      { id: 'fpt109', sellerId: 'fpt', price: 109000 },
+      { id: 'mobiFreeA', sellerId: 'mobi', price: 0 },
+      { id: 'mobiFreeB', sellerId: 'mobi', price: 0 },
+      { id: 'vina99', sellerId: 'vina', price: 99000 },
+    ]
+    expect(seatOrder(rows).map((r) => r.id)).toEqual(['mobiFreeA', 'fpt109', 'vina99', 'mobiFreeB'])
+  })
+
+  it('is plain seller round-robin when nothing is free, and never drops or repeats a row', () => {
+    const rows = [{ id: 'a1', sellerId: 'a', price: 1 }, { id: 'a2', sellerId: 'a', price: 2 }, { id: 'b1', sellerId: 'b', price: 3 }]
+    const out = seatOrder(rows)
+    expect(out.map((r) => r.id)).toEqual(['a1', 'b1', 'a2'])
+    expect(new Set(out).size).toBe(rows.length)
   })
 })

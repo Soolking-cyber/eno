@@ -337,14 +337,32 @@ async function catalogueGroup(
   // catalogue slice is fetched — bounded, card-sized rows, once per memoized window — so every seller
   // gets its turn inside the seat.
   const rows = await db.listing.findMany({ where, orderBy, take: CATALOGUE_FETCH, select })
-  const bySeller = new Map<string, typeof rows>()
+  return seatOrder(rows).slice(0, take)
+}
+
+/**
+ * The order INSIDE the shared seat: still one turn per seller, but a seller with a FREE plan takes its
+ * turn first and leads with that plan. ⛔ Owner, 2026-09-27: "remove sim fpt from homepage and show
+ * mobifone free 10gb instead" — the seat is the feed's first card whenever the catalogue holds the top
+ * rankScore, and nine carriers imported together tie on it, so card one went to whichever carrier's ids
+ * sorted first (SIM FPT). A free tourist eSIM is the most useful first card for this audience. Free rows
+ * stay inside the round-robin, so several free plans from one carrier cannot take the seat's first
+ * turns. Only the seat's INNER order changes: its place in the feed and every rankScore are untouched.
+ * `price` is a Float in the card select, so `=== 0` holds. Pure, so SSR and API agree.
+ */
+export function seatOrder<R extends { id: string; sellerId?: string | null; price?: number | null }>(rows: readonly R[]): R[] {
+  const isFree = (r: R) => r.price === 0
+  const bySeller = new Map<string, R[]>()
   for (const r of rows) {
-    const k = String((r as { sellerId?: string | null }).sellerId ?? (r as { id: string }).id)
+    const k = r.sellerId ?? r.id
     const b = bySeller.get(k)
     if (b) b.push(r)
     else bySeller.set(k, [r])
   }
-  return mergeRoundRobin([...bySeller.values()]).slice(0, take)
+  // Stable sorts: rank order survives among the free and among the rest.
+  const groups = [...bySeller.values()].map((g) => [...g.filter(isFree), ...g.filter((r) => !isFree(r))])
+  const withFree = groups.filter((g) => isFree(g[0]))
+  return mergeRoundRobin([...withFree, ...groups.filter((g) => !isFree(g[0]))])
 }
 
 /**
