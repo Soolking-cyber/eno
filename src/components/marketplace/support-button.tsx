@@ -218,7 +218,11 @@ export function SupportButton({ className, hidden = false, yielded = false }: { 
                ⚠️ `translate`, NOT `transform` — Tailwind v4 compiles `translate-*` to the standalone
                `translate` property, so naming `transform` subscribes to something nothing writes and
                the ride-down happens in a single frame. design-lint caught exactly that once. */
-            'max-lg:transition-[translate,opacity,--i-back-opacity] max-lg:duration-300 max-lg:ease-[var(--ease-spring)] motion-reduce:transition-none',
+            // ⚠️ THE NAV'S OWN TIMING (--duration-sticky = 250ms, ease-out), not 300ms on the spring. This
+            // rides DOWN WITH the tab bar on scroll, and motion that moves together must share duration
+            // and curve: on 300ms --ease-spring the mark had covered ~11% of its travel when the bar had
+            // covered ~58%, so on every scroll reversal it visibly detached and trailed the nav.
+            'max-lg:transition-[translate,opacity,--i-back-opacity] max-lg:duration-[var(--duration-sticky,250ms)] max-lg:ease-out motion-reduce:transition-none',
             scrolledAway && 'max-lg:pointer-events-none max-lg:translate-y-[calc(100%+1.25rem)] max-lg:opacity-0',
             className,
             // After `className`, so the cluster's `pointer-events-auto` cannot win over a yield.
