@@ -267,6 +267,29 @@ const buttonVariants = cva(
   }
 )
 
+/**
+ * ⛔ A CALLER'S `transition-colors` / `transition-opacity` / `transition-shadow` IS DROPPED BEFORE cn().
+ * All three are the same tailwind-merge group as the base's arbitrary transition list (the one that
+ * names scale), so passing
+ * one DELETED the base: `active:scale-[0.97]` then had nothing to tween and a full-width button jumped
+ * ~5px per side in one frame on touch, and again on release (measured on the feed's "Load more"). 90
+ * call sites did it (93 Buttons carry a transition class; the 3 bare `transition` ones include scale).
+ * ui/radio-group.tsx records the same bug and fixed it for itself only — this fixes it in the primitive,
+ * so the next call site cannot reintroduce it.
+ * Dropping them loses nothing a Button uses: each is covered by the base list, which already
+ * transitions colour, outline/decoration colour, fill, stroke, opacity and box-shadow at the same
+ * 160ms. (`transition-colors` also names the three gradient-stop variables the base does not — measured:
+ * none of the 90 Buttons animates a gradient.) A caller's duration/ease utilities still merge.
+ * EXACT TOKENS ONLY, so deliberate forms pass untouched: variant-prefixed (`hover:transition-colors`,
+ * 0 Buttons use one), important (`transition-colors!`), and any list naming something else
+ * (`transition-[scale]`, `transition-none`). Bare `transition` and `transition-transform` already name
+ * `scale` in Tailwind v4 (checked in the built CSS), so they never needed this.
+ * Non-string values pass through: an asChild child may carry a state-function className.
+ */
+const SUBSET_TRANSITIONS = new Set(['transition-colors', 'transition-opacity', 'transition-shadow'])
+const keepPressTransition = <T,>(value: T): T =>
+  (typeof value === 'string' ? value.split(/\s+/).filter((c) => !SUBSET_TRANSITIONS.has(c)).join(' ') : value) as T
+
 function Button({
   className,
   variant,
@@ -307,13 +330,16 @@ function Button({
     return React.cloneElement(child, {
       ...rest,
       'data-slot': 'button',
-      className: cn(buttonVariants({ variant, size, iconSize, className }), child.props.className as string | undefined),
+      className: cn(
+        buttonVariants({ variant, size, iconSize, className: keepPressTransition(className) }),
+        keepPressTransition(child.props.className as string | undefined),
+      ),
     })
   }
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, iconSize, className }))}
+      className={cn(buttonVariants({ variant, size, iconSize, className: keepPressTransition(className) }))}
       {...props}
     />
   )
