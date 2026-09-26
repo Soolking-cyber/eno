@@ -30,7 +30,8 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "overlay-scrim fixed inset-0 isolate z-50 duration-100 ease-[var(--ease-out-strong)] data-closed:ease-[var(--ease-out-strong)] data-closed:duration-75 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        // `--scrim-exit`: see the same line in ui/dialog.tsx — the exit transition outranks the keyframe.
+        "overlay-scrim fixed inset-0 isolate z-50 duration-100 ease-[var(--ease-out-strong)] data-closed:ease-[var(--ease-out-strong)] data-closed:duration-75 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 [--scrim-exit:75ms_var(--ease-out-strong)]",
         className
       )}
       {...props}

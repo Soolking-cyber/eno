@@ -121,7 +121,8 @@ function SelectContent({
           (ui/popover is deliberately NOT given this: its backdrop pre-dates this change and its
           own comment records that absorbing the dismissing tap is its whole job.)
           z-40: under the Positioner's own z-50 popup, above the sticky facet bar (z-30). */}
-      <SelectPrimitive.Backdrop className="overlay-scrim pointer-events-none fixed inset-0 z-40" />
+      {/* `--scrim-exit` = the list's 75ms exit, or the scrim is cut mid-fade when the popup unmounts it. */}
+      <SelectPrimitive.Backdrop className="overlay-scrim pointer-events-none fixed inset-0 z-40 [--scrim-exit:75ms_var(--ease-out-strong)]" />
       <SelectPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

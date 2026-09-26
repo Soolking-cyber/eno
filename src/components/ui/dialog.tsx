@@ -33,7 +33,11 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "overlay-scrim fixed inset-0 isolate z-50 duration-100 ease-[var(--ease-out-strong)] data-closed:ease-[var(--ease-out-strong)] data-closed:duration-75 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        // `--scrim-exit` (see `.overlay-scrim` in globals.css): the scrim's own exit TRANSITION outranks
+        // the fade-out keyframe in the cascade, so without it the scrim ran its default 150ms and was
+        // cut when the 100ms popup unmounted it. 75ms matches `data-closed:duration-75` here — the
+        // dimming leaves first, as intended.
+        "overlay-scrim fixed inset-0 isolate z-50 duration-100 ease-[var(--ease-out-strong)] data-closed:ease-[var(--ease-out-strong)] data-closed:duration-75 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 [--scrim-exit:75ms_var(--ease-out-strong)]",
         className
       )}
       {...props}

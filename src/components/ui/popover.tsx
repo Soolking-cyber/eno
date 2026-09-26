@@ -131,7 +131,9 @@ function PopoverContent({
     <PopoverPrimitive.Portal>
       {backdrop && (
         // z-40: above the sticky facet bar (z-30) and the grid, below the Positioner's popup (z-50).
-        <PopoverPrimitive.Backdrop className={cn("overlay-scrim fixed inset-0 z-40", backdropClassName)} />
+        // `--scrim-exit` = the popup's 75ms exit: Base UI unmounts the backdrop when the POPUP finishes,
+        // so the default 150ms scrim was cut mid-fade (0.38 opacity, measured) on every close.
+        <PopoverPrimitive.Backdrop className={cn("overlay-scrim fixed inset-0 z-40 [--scrim-exit:75ms_var(--ease-out-strong)]", backdropClassName)} />
       )}
       <PopoverPrimitive.Positioner
         align={align}

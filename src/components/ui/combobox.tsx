@@ -102,7 +102,8 @@ function ComboboxContent({
           (ui/popover is deliberately NOT given this: its backdrop pre-dates this change and its
           own comment records that absorbing the dismissing tap is its whole job.)
           z-40: under the Positioner's own z-50 popup, above the sticky facet bar (z-30). */}
-      <ComboboxPrimitive.Backdrop className="overlay-scrim pointer-events-none fixed inset-0 z-40" />
+      {/* `--scrim-exit` = the list's 75ms exit, or the scrim is cut mid-fade when the popup unmounts it. */}
+      <ComboboxPrimitive.Backdrop className="overlay-scrim pointer-events-none fixed inset-0 z-40 [--scrim-exit:75ms_var(--ease-out-strong)]" />
       <ComboboxPrimitive.Positioner side={side} sideOffset={sideOffset} align={align} className="isolate z-50">
         {/* `shadow-pop` — the ELEVATION TOKEN, not one of Tailwind's stock t-shirt shadow
             utilities (what this carried until 2026-08-11). The combobox list is the same kind of
