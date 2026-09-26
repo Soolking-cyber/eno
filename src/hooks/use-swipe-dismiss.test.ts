@@ -16,7 +16,7 @@
  */
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { releaseVelocity, useSwipeDismiss, type SwipeDirection } from './use-swipe-dismiss'
+import { releaseVelocity, rubberBand, type SwipeDirection, useSwipeDismiss } from './use-swipe-dismiss'
 
 type Pt = { x: number; y: number }
 
@@ -89,6 +89,18 @@ describe('releaseVelocity', () => {
   })
   it('reaches one sample back when the window holds a single point', () => {
     expect(releaseVelocity([{ t: 0, p: 0 }, { t: 150, p: 30 }, { t: 290, p: 90 }], 300)).toBeCloseTo(60 / 140, 5)
+  })
+})
+
+describe('rubberBand', () => {
+  it('tracks 1:1 inside the bound and gives only the friction fraction past it, on either side', () => {
+    expect(rubberBand(50, -100, 100)).toBe(50)
+    expect(rubberBand(200, -100, 100)).toBeCloseTo(100 + 100 * 0.2, 5)
+    expect(rubberBand(-150, -100, 100)).toBeCloseTo(-100 - 50 * 0.2, 5)
+  })
+  it('an infinite side never damps', () => {
+    expect(rubberBand(-500, -Infinity, 0)).toBe(-500)
+    expect(rubberBand(100, -Infinity, 0)).toBeCloseTo(20, 5)
   })
 })
 

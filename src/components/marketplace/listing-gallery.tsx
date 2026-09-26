@@ -13,6 +13,7 @@ import { Tr, useLanguage } from '@/context/language-context'
 import { pushBlackStatusBar } from '@/components/native/native-bootstrap'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { autoplayAllowed } from '@/lib/autoplay'
+import { releaseVelocity, rubberBand, SWIPE_FLICK_MIN_PX, SWIPE_FLICK_VELOCITY } from '@/hooks/use-swipe-dismiss'
 
 type Props = {
   /** 'mobile'/'desktop' render just that branch (dual-mount pages); 'auto' = both, CSS-split. */
@@ -337,10 +338,16 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
    * SWIPE DOWN (OR UP) TO CLOSE — the photo viewer gesture every native gallery has (owner, 2026-09-14: "make sure all
    * pages panels are closed on swipe action use mobile native swiping all across the app properly"). The vertical axis
    * was locked out and ignored before, so the lightbox could only be left by its X, a tap on the scrim or the back key.
-   * The photo follows the finger and fades; past 120px, or a flick (≥0.5 px/ms over ≥40px), it closes through the same
-   * `closeLightbox` the X uses. Never while zoomed (that drag pans) and never after a second finger joined (a pinch).
+   * The photo follows the finger and fades; past 120px, or a flick, it closes through the same `closeLightbox` the X
+   * uses. Never while zoomed (that drag pans) and never after a second finger joined (a pinch).
+   * ⚠️ THE FLICK IS THE RELEASE VELOCITY, the house swipe grammar (use-swipe-dismiss): moving away from the start at
+   * over SWIPE_FLICK_VELOCITY px/ms across the last 100ms, having travelled SWIPE_FLICK_MIN_PX. It was |dy| / the
+   * WHOLE gesture's duration ≥ 0.5 over ≥ 40px — the dwell before the finger moves counts against it, so an ordinary
+   * flick (0.16–0.18 px/ms averaged) snapped back and only a 120px drag closed the photo.
    */
   const [dragY, setDragY] = useState(0)
+  /** This gesture's vertical travel over time, for the release velocity. Reset on touchstart. */
+  const ySamples = useRef<Array<{ t: number; p: number }>>([])
   const pinched = useRef(false)
   // After a BROWSER pinch-zoom (the `pinch-zoom` touch-action hands two fingers to the browser) a later one-finger drag is
   // a pan around the zoomed view, not a dismissal — `pinched` only covers the gesture the second finger joined (opus).
@@ -480,11 +487,18 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
     const py = clientY - (rect.top + rect.height / 2)
     setZoom({ tx: px * (1 - ZOOM), ty: py * (1 - ZOOM) })
   }
-  const clampPan = (tx: number, ty: number) => {
+  const panBounds = () => {
     const rect = frameRef.current?.getBoundingClientRect()
-    const maxX = rect ? ((ZOOM - 1) * rect.width) / 2 : 0
-    const maxY = rect ? ((ZOOM - 1) * rect.height) / 2 : 0
+    return { maxX: rect ? ((ZOOM - 1) * rect.width) / 2 : 0, maxY: rect ? ((ZOOM - 1) * rect.height) / 2 : 0 }
+  }
+  const clampPan = (tx: number, ty: number) => {
+    const { maxX, maxY } = panBounds()
     return { tx: Math.max(-maxX, Math.min(maxX, tx)), ty: Math.max(-maxY, Math.min(maxY, ty)) }
+  }
+  /** Under the finger the zoomed photo's edge GIVES (rubber band) rather than stopping dead; release settles it to clampPan. */
+  const rubberPan = (tx: number, ty: number) => {
+    const { maxX, maxY } = panBounds()
+    return { tx: rubberBand(tx, -maxX, maxX), ty: rubberBand(ty, -maxY, maxY) }
   }
 
   return (
@@ -734,6 +748,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               startX.current = t.clientX
               startY.current = t.clientY
               startT.current = Date.now()
+              ySamples.current = [{ t: startT.current, p: 0 }]
               pinched.current = e.touches.length > 1
               if (zoom) { panStart.current = { x: t.clientX, y: t.clientY, tx: zoom.tx, ty: zoom.ty }; setPanning(true) }
             }}
@@ -742,7 +757,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               if (zoom) {
                 if (!panStart.current) return
                 const t = e.touches[0]
-                setZoom(clampPan(panStart.current.tx + (t.clientX - panStart.current.x), panStart.current.ty + (t.clientY - panStart.current.y)))
+                setZoom(rubberPan(panStart.current.tx + (t.clientX - panStart.current.x), panStart.current.ty + (t.clientY - panStart.current.y)))
                 return
               }
               /**
@@ -770,12 +785,14 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 dragAxis.current = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
               }
               if (dragAxis.current === 'y') {
-                if (!pinched.current && !browserZoomed()) { setPanning(true); setDragY(dy) }
+                if (!pinched.current && !browserZoomed()) { setPanning(true); setDragY(dy); ySamples.current.push({ t: Date.now(), p: dy }) }
                 return
               }
               if (dragAxis.current !== 'x') return
               setPanning(true)
-              setDragX(dx)
+              // Past the first or the last photo there is nowhere to page, so the photo gives under the finger (rubber
+              // band) instead of tracking it 1:1 as if it would page — and release eases it home as before.
+              setDragX(rubberBand(dx, idx === last ? 0 : -Infinity, idx === 0 ? 0 : Infinity))
             }}
             /**
              * ⛔ `touchcancel` MUST RESET THE GESTURE, and only `touchend` did. The OS takes a touch
@@ -789,6 +806,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               startY.current = null
               panStart.current = null
               dragAxis.current = null
+              if (zoom) setZoom((z) => (z ? clampPan(z.tx, z.ty) : z))
               setPanning(false)
               setDragX(0)
               setDragY(0)
@@ -833,8 +851,10 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               let dismissed = false
               if (!zoom && dragAxis.current === 'y' && !pinched.current && !browserZoomed() && startY.current != null) {
                 const dy = t.clientY - startY.current
-                const ms = Math.max(1, Date.now() - startT.current)
-                if (Math.abs(dy) > 120 || (Math.abs(dy) >= 40 && Math.abs(dy) / ms >= 0.5)) { dismissed = true; closeLightbox() }
+                const v = releaseVelocity(ySamples.current, Date.now())
+                // Signed: the release must be moving AWAY from the start, the way the photo already went.
+                const flick = Math.abs(dy) >= SWIPE_FLICK_MIN_PX && Math.sign(v) === Math.sign(dy) && Math.abs(v) > SWIPE_FLICK_VELOCITY
+                if (Math.abs(dy) > 120 || flick) { dismissed = true; closeLightbox() }
               }
               // A dismissal keeps the photo where the finger left it while the lightbox fades out.
               if (!dismissed) setDragY(0)
@@ -896,6 +916,8 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                * image rendering this file has accumulated several fixes around; this change is
                * scoped to the finding, which is that 200px of drag moved the photo 0px.
                */
+              // A zoomed pan released past its bound settles back under the transition (panning clears just below).
+              if (zoom) setZoom((z) => (z ? clampPan(z.tx, z.ty) : z))
               if (!committed) setPanning(false)
               setDragX(0)
               if (committed) requestAnimationFrame(() => setPanning(false))

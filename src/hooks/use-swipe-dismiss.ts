@@ -41,6 +41,17 @@ export const SWIPE_FLICK_MIN_PX = 24
 /** A wrong-way drag moves the panel this fraction of the finger's travel. */
 export const SWIPE_WRONG_WAY_FRICTION = 0.2
 
+/**
+ * The same friction past a BOUND: inside [min, max] the value follows the finger 1:1, past it only
+ * SWIPE_WRONG_WAY_FRICTION of the overshoot — an edge that gives under the finger instead of stopping
+ * it dead, which reads as a freeze. Pass ±Infinity for a side with no bound.
+ */
+export function rubberBand(v: number, min: number, max: number, friction = SWIPE_WRONG_WAY_FRICTION): number {
+  if (v < min) return min + (v - min) * friction
+  if (v > max) return max + (v - max) * friction
+  return v
+}
+
 type Sample = { t: number; p: number }
 
 /**
