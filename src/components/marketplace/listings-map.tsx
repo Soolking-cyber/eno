@@ -404,7 +404,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
    * mobile, while this one is opened by an explicit tap and dismissed explicitly.
    */
   const [buildingCard, setBuildingCard] = useState<BuildingPin | null>(null)
-  const [buildingCardPos, setBuildingCardPos] = useState<{ x: number; y: number; above: boolean; centered?: boolean } | null>(null)
+  const [buildingCardPos, setBuildingCardPos] = useState<{ x: number; y: number; above: boolean; centered?: boolean; ox?: number; oy?: number } | null>(null)
   // Card pops ABOVE the tapped pin (anchored to its screen position) — `above`
   // flips it below the pin when there isn't room near the top edge.
   const [cardPos, setCardPos] = useState<{ x: number; y: number; above: boolean; centered?: boolean } | null>(null)
@@ -609,7 +609,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
         const b = buildingCardRef.current
         const map = mapInstanceRef.current
         const el2 = mapRef.current
-        if (b && map && el2) setBuildingCardPos(buildingCardPlacement(map.latLngToContainerPoint([b.lat, b.lng]), el2))
+        if (b && map && el2) { const placed = buildingCardPlacement(map.latLngToContainerPoint([b.lat, b.lng]), el2); setBuildingCardPos((cur) => ({ ...placed, ox: cur?.ox, oy: cur?.oy })) }
       })
     })
     ro.observe(el)
@@ -728,7 +728,12 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
      * it goes ABOVE only when that much room genuinely exists above the pin, and its centre is
      * pulled back inside the container so a pin near either edge cannot push it out of view.
      */
-    setBuildingCardPos(buildingCardPlacement(pt, el))
+    // `ox`/`oy`: the TAPPED pin's offset from the card's centre — its transform-origin, so the
+    // centred card grows out of the pin that was tapped. Taken ONCE, here: the tap also flies the map
+    // to the tower, and the re-placements on every move (below, and the resize observer) keep this
+    // value rather than tracking the pin, or the origin would slide under the entrance zoom.
+    const placed = buildingCardPlacement(pt, el)
+    setBuildingCardPos({ ...placed, ox: pt.x - placed.x, oy: pt.y - placed.y })
   }
   /** The building whose card is open, for the map handlers captured once at init. */
   /** The rendered building card, so its placement clamps against the height it actually has. */
@@ -840,7 +845,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
         if (p2.x < -40 || p2.y < -40 || p2.x > el2.clientWidth + 40 || p2.y > el2.clientHeight + 40) {
           closeBuildingCardRef.current()
         } else {
-          setBuildingCardPos(buildingCardPlacement(p2, el2))
+          const placed = buildingCardPlacement(p2, el2)
+          setBuildingCardPos((cur) => ({ ...placed, ox: cur?.ox, oy: cur?.oy }))
         }
       }
     })
@@ -1466,8 +1472,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                 L.DomEvent.disableClickPropagation?.(node)
               }
             }}
-            // Grows FROM ITS PIN, like the listing card below (same cardPos logic): it zoomed from its
-            // own centre while anchored above/below the pin, so it seemed to grow out of empty map.
+            // Grows FROM ITS PIN. The card is centred on the map (owner, 2026-09-24), so `origin-center`
+            // grew it out of the middle of the map; the inline transform-origin below is the tapped
+            // pin's offset from the card's centre, which the 95% → 100% zoom visibly comes out of.
+            // (The anchored above/below branches are kept for the listing card's desktop placement.)
             className={cn(
               'pointer-events-auto overflow-y-auto overscroll-contain duration-150 ease-out animate-in fade-in zoom-in-95',
               buildingCardPos.centered ? 'origin-center' : buildingCardPos.above ? 'origin-bottom' : 'origin-top',
@@ -1481,7 +1489,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
              * it live; the ResizeObserver above re-places this card, so the value follows the iOS
              * toolbar rather than freezing at first paint.
              */
-            style={{ maxHeight: Math.max(200, (mapRef.current?.clientHeight ?? 0) - CARD_MARGIN * 2) }}
+            style={{
+              maxHeight: Math.max(200, (mapRef.current?.clientHeight ?? 0) - CARD_MARGIN * 2),
+              transformOrigin: buildingCardPos.ox != null ? `calc(50% + ${buildingCardPos.ox}px) calc(50% + ${buildingCardPos.oy ?? 0}px)` : undefined,
+            }}
           >
             <MapBuildingCard
               /**
