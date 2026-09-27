@@ -58,7 +58,6 @@ export function ReportButton({ listingId, sellerId, conversationId, className, o
   const [detail, setDetail] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
-  const [caseId, setCaseId] = useState<string | null>(null)
   const [error, setError] = useState('')
   // Distinguishes the reporter-ladder block from ordinary failures, so only that
   // message grows the Help link its own copy promises.
@@ -102,10 +101,23 @@ export function ReportButton({ listingId, sellerId, conversationId, className, o
         )
         return
       }
-      // The report opened (or re-surfaced) a dispute case — keep the id so the
-      // success state can route the reporter into their case room.
-      const d = (await res.json().catch(() => null)) as { id?: string } | null
-      setCaseId(d?.id ?? null)
+      // ⛔ THE SUCCESS BODY IS DELIBERATELY NOT READ. Every 2xx renders the same confirmation.
+      // The API answers ok on four paths and only one of them creates a case:
+      //   · a new case: 201 with its id;
+      //   · an open case this reporter already has on this surface (or a double tap that lost the
+      //     race to it): 200 with THAT case's id, api/report/route.ts:184 and :258;
+      //   · two SILENT accepts that create nothing, a listing already past the open-report cap and a
+      //     refile within 24h of a rejected report: 200 `{"ok":true}`, api/report/route.ts:149, :228.
+      // The silent two are silent on purpose, so a harasser cannot learn the rule or how long to wait.
+      // This dialog used to say "Dispute case opened" on all four and link the case only when an id
+      // came back, so the button's presence told which path was taken. Now nothing here depends on
+      // the body: the words are true on every path, and the link is the Disputes list, which shows
+      // the reporter's own cases (api/disputes/route.ts:26-43) and nothing more.
+      // ⚠️ WHAT THIS DOES AND DOES NOT HIDE. Whether a case exists stays visible to the reporter by
+      // design: their own list shows it, the created path alone rings their bell (route.ts:276), and
+      // the id is on the wire. None of that says WHICH rule held or for how long, and neither does
+      // this dialog. It only stops the dialog from asserting a case that may not exist.
+      // A new case's direct link still reaches the reporter, in that bell and push (dispute.ts:266,269).
       setDone(true)
     } catch {
       setError(t('Could not send. Try again.', 'Không gửi được. Thử lại.'))
@@ -114,7 +126,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className, o
     }
   }
 
-  const reset = () => { setReason(''); setDetail(''); setDone(false); setCaseId(null); setError('') }
+  const reset = () => { setReason(''); setDetail(''); setDone(false); setError('') }
 
   const isChat = !!conversationId
   const title = isChat
@@ -160,21 +172,25 @@ export function ReportButton({ listingId, sellerId, conversationId, className, o
                   1.5 thins it back to the illustration weight. text-success = the same
                   status ink the dispute room's resolved states speak. */}
               <CheckCircle2 className="mx-auto h-10 w-10 text-success" strokeWidth={STROKE_DISPLAY} />
-              <p className="mt-3 text-sm font-semibold text-foreground">{t('Dispute case opened', 'Đã mở hồ sơ khiếu nại')}</p>
+              {/* ⚠️ Nothing below may depend on WHICH success path answered (see submit). "Sent" is
+                  true on all four; "a case was opened" or "our team will review it" is not. */}
+              <p className="mt-3 text-sm font-semibold text-foreground">{t('Report sent', 'Đã gửi báo cáo')}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {t('You can add evidence and follow progress. The eno.vn team will review and decide.', 'Bạn có thể bổ sung bằng chứng và theo dõi tiến trình. Đội ngũ eno.vn sẽ xem xét và quyết định.')}
+                {t('You can follow your dispute cases in Disputes.', 'Bạn có thể theo dõi các hồ sơ khiếu nại của mình trong mục Khiếu nại.')}{' '}
+                {/* The evidence prompt, stated about ANY case so it is true on every path: the list's
+                    chip and the case room both count down the window (disputes-panel.tsx:72-74,
+                    disputes/[id]/page.tsx:280). No number: the deadline decision (P0-a) is open. */}
+                {t('Any case still in its evidence window shows how long is left to send a statement and photos.', 'Hồ sơ nào còn trong thời hạn nộp bằng chứng sẽ hiển thị thời gian còn lại để gửi phần trình bày và ảnh.')}
               </p>
-              {caseId ? (
-                <Button asChild variant="cta" size="none">
-                  <Link
-                    href={`/disputes/${caseId}`}
-                    onClick={() => { setOpen(false); reset() }}
-                    className="mt-4 w-full px-6 py-2.5 cursor-pointer"
-                  >
-                    {t('Add evidence & follow progress', 'Bổ sung bằng chứng & theo dõi')}
-                  </Link>
-                </Button>
-              ) : null}
+              <Button asChild variant="cta" size="none">
+                <Link
+                  href="/disputes"
+                  onClick={() => { setOpen(false); reset() }}
+                  className="mt-4 w-full px-6 py-2.5 cursor-pointer"
+                >
+                  {t('Open Disputes', 'Mở mục Khiếu nại')}
+                </Link>
+              </Button>
               <Button
                 type="button"
                 variant="soft"
