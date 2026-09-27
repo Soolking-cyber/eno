@@ -153,6 +153,24 @@ export function Header() {
 
   const searchFormRef = useRef<HTMLFormElement>(null)
 
+  /**
+   * ⛔ TEXT TYPED BEFORE HYDRATION USED TO BE WIPED ~40ms AFTER IT. React leaves a controlled input's
+   * DOM value alone while hydrating (react-dom initInput: `isHydrating || … element.value = value`),
+   * but every later render runs updateInput with `searchVal` and writes it over the field — and
+   * `searchVal` was '' (no onChange fires before React owns the input), then the URL-seeding effect
+   * below set it to '' again explicitly. So a query typed on a slow phone vanished, and Enter
+   * searched for nothing even though the 05b84816 submit fix reads the DOM: by then the DOM was ''.
+   * Found by CI 2026-09-27 (/c/vehicles: fill('bicycle') then Enter landed on /?category=vehicles
+   * with no q) and traced write-by-write on a fixture build. TWO halves, both needed: this layout
+   * effect adopts the typed text before the first re-render can overwrite it, and the seeding effect
+   * does not clobber it on its first run, whatever the URL's q. e2e/ci pins it deterministically
+   * by holding the JS chunks until the field is filled (fails 5/5 without, passes 25/25 with).
+   */
+  useLayoutEffect(() => {
+    const field = searchFormRef.current?.elements.namedItem('q')
+    if (field instanceof HTMLInputElement && field.value) setSearchVal(field.value)
+  }, [])
+
   // Read fresh on focus so it reflects searches/areas made elsewhere this session
   // (`?? []` because a re-read must also RESET state when history was cleared).
   const openSuggestions = () => {
@@ -232,9 +250,21 @@ export function Header() {
   }
 
   // Seed the search box from the URL so a revealed search reflects the active query.
+  const urlSeededRef = useRef(false)
   useEffect(() => {
     if (typeof window === 'undefined') return
-    setSearchVal(new URLSearchParams(window.location.search).get('q') || '')
+    const fromUrl = new URLSearchParams(window.location.search).get('q') || ''
+    // FIRST run only: text typed before hydration beats the URL (adopted above). The server always
+    // renders this box EMPTY (`searchVal` starts ''), so any text in it now was typed by the user —
+    // including over a results page's own ?q=, where re-seeding would undo their refinement (agy +
+    // opus review). Later runs are navigations, where the URL is the truth and the box follows it.
+    // One run is enough: reactStrictMode is false (next.config.ts), so effects do not replay.
+    if (!urlSeededRef.current) {
+      urlSeededRef.current = true
+      const field = searchFormRef.current?.elements.namedItem('q')
+      if (field instanceof HTMLInputElement && field.value) return
+    }
+    setSearchVal(fromUrl)
   }, [pathname])
 
   // The explorer filters in place (history.replaceState, which Next's router can't

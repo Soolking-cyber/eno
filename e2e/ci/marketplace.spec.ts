@@ -149,6 +149,54 @@ test.describe('marketplace, against known fixtures', () => {
     await expect(page.getByText('Fixture bicycle').first()).toBeVisible()
   })
 
+  // ⛔ THE RACE THE TEST ABOVE HIT BY CHANCE (CI, 2026-09-27), MADE DETERMINISTIC. Typed before
+  // hydration, submitted after: a re-render wrote `searchVal` ('') over the field and the search went
+  // out empty (header.tsx explains the two halves of the fix). Only the JS chunks are held — Turbopack
+  // serves CSS from the same folder and a held stylesheet blocks the parser, so domcontentloaded would
+  // never fire. No networkidle either: a fixture card's /_next/image?url=…camera.svg can hang with a
+  // browser Accept header, so the wait is on the root CurrencyProvider's mount fetch (/api/fx) — passive
+  // effects run child-first, so by then the header's mount effects, and any re-render they caused, ran.
+  test('text typed before the header hydrates survives hydration and is searched', async ({ page }) => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => { release = resolve })
+    await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => { await held; await route.continue() })
+    await page.goto('/c/vehicles', { waitUntil: 'domcontentloaded' })
+    const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
+    await box.fill('bicycle')
+    const fx = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/fx')
+    release()
+    await page.waitForFunction(() => {
+      const form = document.querySelector('form[role="search"]')
+      return !!form && Object.keys(form).some((k) => k.startsWith('__reactFiber'))
+    })
+    await fx
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+    await expect(box).toHaveValue('bicycle')
+    await box.press('Enter')
+    await expect(page).toHaveURL(/\/\?(?=.*\bcategory=vehicles\b)(?=.*\bq=bicycle\b)/)
+  })
+
+  // The same race on a page whose URL already carries a query: the server renders the box EMPTY, so
+  // what is in it at hydration was typed — it must win over the URL's own ?q=, or refining a search
+  // on a slow phone silently searches the old term again.
+  test('text typed before hydration also beats the URL query it is refining', async ({ page }) => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => { release = resolve })
+    await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => { await held; await route.continue() })
+    await page.goto('/c/vehicles?q=scooter', { waitUntil: 'domcontentloaded' })
+    const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
+    await box.fill('bicycle')
+    const fx = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/fx')
+    release()
+    await page.waitForFunction(() => {
+      const form = document.querySelector('form[role="search"]')
+      return !!form && Object.keys(form).some((k) => k.startsWith('__reactFiber'))
+    })
+    await fx
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+    await expect(box).toHaveValue('bicycle')
+  })
+
   // ⚠️ THE OWNER REPORTED THIS TWICE ("the text overlaps"), AND A UNIT TEST CANNOT SEE IT: the
   // price is an inline run, so its own scrollWidth/clientWidth are 0 — only its rect against the
   // CARD's rect shows the spill. Measured on prod before the fix: 8 of 8 service cards overflowed
