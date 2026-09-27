@@ -644,6 +644,7 @@ export const UI_STRINGS: string[] = [
   "E-ticket",
   "ENO on Facebook",
   "ENO on Instagram",
+  "ENO on LinkedIn",
   "ENO on Reddit",
   "ENO on Threads",
   "ENO on TikTok",

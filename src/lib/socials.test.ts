@@ -33,4 +33,13 @@ describe('SOCIALS', () => {
     expect(SOCIALS.find((s) => s.key === 'facebook-group')?.me).toBeUndefined()
     expect(SOCIALS.filter((s) => s.me).length).toBe(SOCIALS.length - 1)
   })
+
+  // Owner pasted it with `?viewAsMember=true` (the admin's view toggle). A query string on an identity
+  // URL would make sameAs consumers see a different address from the page's own canonical.
+  it('links the LinkedIn company page by its canonical URL, as an owned profile', () => {
+    const li = SOCIALS.find((s) => s.key === 'linkedin')
+    expect(li?.href).toBe('https://www.linkedin.com/company/eno-vn/')
+    expect(li?.me).toBe(true)
+    for (const s of SOCIALS) expect(s.href).not.toContain('?viewAsMember')
+  })
 })

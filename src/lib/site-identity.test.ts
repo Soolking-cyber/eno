@@ -16,10 +16,11 @@ import { OPERATORS } from './site-legal'
 afterEach(() => { vi.unstubAllEnvs() })
 
 describe('the Organization entity fields', () => {
-  it('sameAs is every profile eno OWNS — all seven, never the community group', () => {
+  it('sameAs is every profile eno OWNS — all eight, never the community group', () => {
     const f = marketplaceOrganizationFields('https://eno.vn')
     expect(f.sameAs).toEqual(SOCIALS.filter((s) => s.me).map((s) => s.href))
-    expect(f.sameAs).toHaveLength(7)
+    expect(f.sameAs).toHaveLength(8)
+    expect(f.sameAs).toContain('https://www.linkedin.com/company/eno-vn/')
     expect(f.sameAs.some((u) => u.includes('/groups/'))).toBe(false)
   })
 

@@ -115,6 +115,26 @@ describe('Footer links', () => {
     for (const s of FOOTER_HIDDEN_CATEGORIES) expect(slugs.has(s), s).toBe(true)
   })
 
+  // One anchor per SOCIALS entry, each with a mark and its own label — so a channel added to the list
+  // without a SOCIAL_ICON / socialAria entry fails here and not on a live page.
+  it('links every channel, rel="me" exactly where socials.ts claims the identity', async () => {
+    const { SOCIALS } = await import('@/lib/socials')
+    const { container } = await renderFooter('marketplace', 'en')
+    for (const s of SOCIALS) {
+      const a = container.querySelector(`a[href="${s.href}"]`)
+      expect(a, s.key).not.toBeNull()
+      expect(a?.querySelector('svg'), s.key).not.toBeNull()
+      expect(a?.getAttribute('aria-label'), s.key).toMatch(/^ENO on /)
+      expect(a?.getAttribute('rel')?.split(' ').includes('me'), s.key).toBe(s.me === true)
+    }
+    expect(container.querySelector('a[href="https://www.linkedin.com/company/eno-vn/"]')?.getAttribute('aria-label')).toBe('ENO on LinkedIn')
+  })
+
+  it('labels the LinkedIn mark in Vietnamese on a Vietnamese page', async () => {
+    const { container } = await renderFooter('marketplace', 'vi')
+    expect(container.querySelector('a[href="https://www.linkedin.com/company/eno-vn/"]')?.getAttribute('aria-label')).toBe('ENO trên LinkedIn')
+  })
+
   it('⛔ carries no services vocabulary on the marketplace edition, in either language', async () => {
     for (const lang of ['en', 'vi'] as const) {
       const { container, hrefs } = await renderFooter('marketplace', lang)

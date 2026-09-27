@@ -28,7 +28,7 @@
  * which is true of eno.vn, of eno.forum and of the profiles themselves.
  */
 export type Social = {
-  key: 'facebook' | 'facebook-group' | 'instagram' | 'threads' | 'reddit' | 'x' | 'youtube' | 'tiktok'
+  key: 'facebook' | 'facebook-group' | 'instagram' | 'threads' | 'reddit' | 'x' | 'linkedin' | 'youtube' | 'tiktok'
   /** Accessible name, as "ENO on <channel>" is built in the footer. */
   label: string
   labelVi: string
@@ -54,6 +54,10 @@ export const SOCIALS: Social[] = [
   { key: 'threads', label: 'Threads', labelVi: 'Threads', href: 'https://www.threads.com/@eno.vn', me: true },
   { key: 'reddit', label: 'Reddit', labelVi: 'Reddit', href: 'https://www.reddit.com/user/eno_vn/', me: true },
   { key: 'x', label: 'X', labelVi: 'X', href: 'https://x.com/enovietnam', me: true },
+  // Owner, 2026-09-27: created the LinkedIn company page. Pasted with `?viewAsMember=true`, which is the
+  // admin's own view toggle, not part of the address — stripped, so every visitor and sameAs consumer
+  // gets the canonical company URL.
+  { key: 'linkedin', label: 'LinkedIn', labelVi: 'LinkedIn', href: 'https://www.linkedin.com/company/eno-vn/', me: true },
   { key: 'youtube', label: 'YouTube', labelVi: 'YouTube', href: 'https://www.youtube.com/@enovietnam', me: true },
   // Owner, 2026-09-18: "no tiktok attached https://www.tiktok.com/@eno.vn".
   { key: 'tiktok', label: 'TikTok', labelVi: 'TikTok', href: 'https://www.tiktok.com/@eno.vn', me: true },

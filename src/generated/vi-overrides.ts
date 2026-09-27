@@ -546,6 +546,7 @@ export const VI_OVERRIDES: Record<string, string> = {
   "E-ticket": "Vé điện tử",
   "ENO on Facebook": "ENO trên Facebook",
   "ENO on Instagram": "ENO trên Instagram",
+  "ENO on LinkedIn": "ENO trên LinkedIn",
   "ENO on Reddit": "ENO trên Reddit",
   "ENO on Threads": "ENO trên Threads",
   "ENO on TikTok": "ENO trên TikTok",
