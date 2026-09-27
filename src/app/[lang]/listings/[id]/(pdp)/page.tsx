@@ -868,21 +868,22 @@ export default async function ListingPage({ params }: Props) {
                 )}
               </div>
 
-              {/* 9 — ONE trust block: the scam warning, with "ENO protects you" folded in as its
-                  second line (owner, 2026-08-11). The separate order-7 protections row is GONE —
+              {/* 9 — ONE trust block: the scam warning, with the reports-and-disputes row folded in
+                  as its second line (owner, 2026-08-11). The separate order-7 protections row is GONE —
                   the two were adjacent boxes circling the same subject, and the warning is the
                   half that can stop someone losing money, so it keeps the container and the ink.
                   See the notes in safety-strip.tsx and protections-row.tsx for why the merge went
                   in this direction rather than the other. */}
               <div className="order-9">
                 {/*
-                  * ⛔ NO "ENO PROTECTS YOU" ON A PARTNER LISTING. ProtectionsRow advertises eno
-                  * dispute handling and screening, and the default category line says "Meet,
-                  * inspect, then pay" — both describe a sale between an eno buyer and an eno
-                  * seller. Here the buyer pays the partner on the partner's site: eno holds no
-                  * money, runs no dispute and cannot refund. Leaving the promise up was live on
-                  * production for the seeded listings and is exactly the kind of claim that has to
-                  * be true. The Report affordance stays either way.
+                  * ⛔ NO REPORTS-AND-DISPUTES ROW ON A PARTNER LISTING. ProtectionsRow explains eno's
+                  * report process and tells the buyer to pay the seller directly after meeting, and
+                  * the default category line says "Meet, inspect, then pay" — both describe a sale
+                  * between an eno buyer and an eno seller. Here the buyer pays the partner on the
+                  * partner's site: eno holds no money, runs no dispute over that sale and cannot
+                  * refund. The row's old wording ("ENO protects you") was live on production for the
+                  * seeded listings, exactly the kind of claim that has to be true. The Report
+                  * affordance stays either way. Tests count `[data-protections-row]`, not its words.
                   */}
                 <SafetyStrip
                   categorySlug={rawListing.category.slug}

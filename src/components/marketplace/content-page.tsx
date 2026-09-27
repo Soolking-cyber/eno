@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Header } from './header'
 import { Footer } from './footer'
 import { Tr } from '@/context/language-context'
+import { Bilingual } from './bilingual'
 import { cn } from '@/lib/utils'
 
 // ── Content-page chunk system (help/safety/trust/privacy/terms/about/guide) ─────────
@@ -23,8 +24,8 @@ export function ContentPage({ title, meta, intro, sections, children }: {
   /** Small line under the title (e.g. "Last updated …"). */
   meta?: ReactNode
   intro?: ReactNode
-  /** lg+ left-rail anchors; omit for single-section pages. */
-  sections?: { id: string; label: string }[]
+  /** lg+ left-rail anchors; omit for single-section pages. `labelVi`: see ContentSection's `titleVi`. */
+  sections?: { id: string; label: string; labelVi?: string }[]
   children: ReactNode
 }) {
   const hasRail = !!sections?.length
@@ -53,7 +54,7 @@ export function ContentPage({ title, meta, intro, sections, children }: {
                 <p id="on-this-page" className="eyebrow mb-2 text-ink-4"><Tr text="On this page" /></p>
                 {sections!.map((s) => (
                   <a key={s.id} href={`#${s.id}`} className="block rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:bg-muted">
-                    <Tr text={s.label} />
+                    {s.labelVi ? <Bilingual en={s.label} vi={s.labelVi} /> : <Tr text={s.label} />}
                   </a>
                 ))}
               </div>
@@ -67,16 +68,23 @@ export function ContentPage({ title, meta, intro, sections, children }: {
   )
 }
 
-export function ContentSection({ id, title, wide = false, children }: {
+export function ContentSection({ id, title, titleVi, wide = false, children }: {
   id?: string
   title?: string
+  /**
+   * An AUTHORED Vietnamese heading, rendered as written through <Bilingual> instead of sending
+   * `title` to the translation layer. For a heading whose Vietnamese the owner approved on a copy
+   * sheet: `<Tr>` would machine-translate new English, and the curated dictionary it reads first
+   * (src/generated/vi-overrides.ts) is generated, never hand-edited.
+   */
+  titleVi?: string
   /** true → children (grids/tiles) span the full column; default caps text at 70ch. */
   wide?: boolean
   children: ReactNode
 }) {
   return (
     <section id={id} className="scroll-mt-24">
-      {title && <h2 className="h-section text-foreground"><Tr text={title} /></h2>}
+      {title && <h2 className="h-section text-foreground">{titleVi ? <Bilingual en={title} vi={titleVi} /> : <Tr text={title} />}</h2>}
       {/**
         * ⛔ THE CAP IS ON THE CHILDREN, NOT ON THIS WRAPPER, BECAUSE `ch` RESOLVES AGAINST THE
         * ELEMENT THAT DECLARES IT. On the wrapper it inherited 16px (1ch = 10px), so

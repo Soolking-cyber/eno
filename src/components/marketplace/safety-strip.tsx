@@ -9,13 +9,14 @@ import { cn } from '@/lib/utils'
 // #1 marketplace scam, so the warning must be read BEFORE the buyer contacts the
 // seller, not buried in the footer note. Copy is category-aware: vehicles get the
 // papers/chassis check, property & rentals get the visit-before-deposit rule.
-export function SafetyStrip({ categorySlug, action, protections, className, variant }: { categorySlug: string; action?: React.ReactNode; /** The "ENO protects you" trigger, folded in as the quiet second line — see the note at its render. */ protections?: React.ReactNode; className?: string; /**
+export function SafetyStrip({ categorySlug, action, protections, className, variant }: { categorySlug: string; action?: React.ReactNode; /** The reports-and-disputes row (ProtectionsRow), folded in as the quiet second line — see the note at its render. */ protections?: React.ReactNode; className?: string; /**
    * ⛔ A VARIANT, FOR LISTINGS WHERE THE CATEGORY COPY WOULD BE A FALSE PROMISE. The default advice
    * below is written for an eno seller you meet: "Meet, inspect, then pay". On a PARTNER affiliate
    * listing there is nobody to meet, eno holds no money and runs no dispute for it, so that line —
-   * and the "ENO protects you" second line beside it — would tell the buyer they have cover they do
-   * not have. The block is not suppressed, because the safety advice is the half that can stop
-   * someone losing money; the wording is replaced with one that is true here.
+   * and the reports-and-disputes second line beside it, which describes eno's own report process and
+   * paying an eno seller directly — would tell the buyer they have recourse they do not have. The
+   * block is not suppressed, because the safety advice is the half that can stop someone losing
+   * money; the wording is replaced with one that is true here.
    *
    * ⚠️ A VARIANT RATHER THAN A `line` STRING PROP, AND THAT IS THE POINT. This is a client component
    * that translates its own copy through tr(). A string handed in from the server page cannot be
@@ -65,9 +66,9 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
     // ⚠️ THE INK IS THE POINT — this strip carries the one sentence that can stop a buyer losing
     // money on a marketplace where deposit-link fraud is THE loss mode, and it once rendered as
     // decoration: at `bg-warning/10` with neutral `text-foreground` it read as a tinted note, and
-    // on the PDP it sits directly beneath the "ENO protects you" panel — same rounded shape, same
-    // padding, near-identical value — so the informational box and the scam warning formed one
-    // grey blob. A design review flagged it as carrying less visual weight than the price.
+    // on the PDP it sat directly beneath the protections panel (now the reports-and-disputes row) —
+    // same rounded shape, same padding, near-identical value — so the informational box and the scam
+    // warning formed one grey blob. A design review flagged it as carrying less visual weight than the price.
     //
     // ⚠️ IT USED TO ANSWER THAT WITH A LEFT RULE, AND THE RULE IS NOW GONE (owner, 2026-08-13:
     // "remove accent line on left, look all across the app if any section have it remove").
@@ -97,7 +98,7 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
         {/* `text-warning`, not `text-foreground` — see the note on the container. A warning
             printed in body ink is a sentence; printed in its own ink it is a warning. */}
         <p className="font-semibold text-warning">{line}</p>
-        {/* ⚠️ "ENO protects you" MOVED IN HERE, and the ORDER is the whole design (owner,
+        {/* ⚠️ The reports-and-disputes row MOVED IN HERE, and the ORDER is the whole design (owner,
             2026-08-11: combine these two). They were two adjacent blocks — a neutral
             protections panel at order-7 and this warning at order-9 — saying related things
             in two boxes. Merging them is right, but the direction matters: this strip carries
@@ -116,7 +117,7 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
             visible gap below the strip that looked like stray padding.
             ⚠️ `mt-0.5`, NOT THE `-mt-1` HALF OF THE OLD `-my-1`. Both controls on this row carry a
             44px hit area on a 20px line — 12px of overhang each way — and with the top pulled in,
-            that overhang covered the bottom ~5px of the "ENO protects you" row above (measured with
+            that overhang covered the bottom ~5px of the reports-and-disputes row above (measured with
             an elementFromPoint grid: its bottom band hit-tested to Guide and Report). 6px more room
             clears it, so each of the three controls owns its full 44px. */}
         <div className="-mb-1 mt-0.5 flex items-center justify-between gap-3">
