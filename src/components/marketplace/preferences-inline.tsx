@@ -54,7 +54,10 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         onChange={(next) => setTheme(next ? 'dark' : 'light')}
         label={tr('Dark mode', 'Chế độ tối')}
         title={isDark ? tr('Dark', 'Tối') : tr('Light', 'Sáng')}
-        className="relative h-9 w-[3.75rem] bg-muted data-checked:bg-muted tap-44"
+        // `icon-own-ink` on the switch root (role=switch, aria-checked): checked = dark mode, where the
+        // global accent recolour painted the Moon #74b3f2 on this white thumb — the 2.22:1 bug the
+        // thumb ink below was chosen to fix, back through the pressed-icon rule.
+        className="icon-own-ink relative h-9 w-[3.75rem] bg-muted data-checked:bg-muted tap-44"
         thumbClassName={cn(
           // NO bg override: ui/switch's own `bg-white` thumb is what makes this legible. The
           // `bg-card` that used to be here was the bug — against the bg-muted track it measured

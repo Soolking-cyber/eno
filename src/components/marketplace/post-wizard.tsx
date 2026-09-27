@@ -991,7 +991,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       onClick={() => chooseCategory(c.slug)}
                       // Same target recipe as <Chips> (post-wizard-parts): py-2.5 draws 40px, tap-44
                       // adds 2px each way — inside the row's 8px gap, so no chip reaches another.
-                      className={cn('relative gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors tap-44', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
+                      // `icon-own-ink`: the selected pill is a solid bg-primary, so its glyph takes the
+                      // label's white instead of the global accent recolour — accent on accent measured
+                      // rgb(10,102,194) on rgb(10,102,194), an invisible icon (owner, 2026-09-27).
+                      className={cn('icon-own-ink relative gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors tap-44', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
                     >
                       {/* ⚠️ FILL IS THE SELECTION CUE (owner, 2026-08-07: "use icons filling only
                           when selected, not as default"). `selected` is the SAME boolean that

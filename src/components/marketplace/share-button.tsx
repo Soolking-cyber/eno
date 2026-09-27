@@ -147,7 +147,10 @@ export function ShareButton({ url, title, price, currency, className, compact = 
               size="md"
               variant="overlay"
               aria-label={tr('Share', 'Chia sẻ')}
-              className={cn('transition-transform active:scale-[0.96]', className)}
+              // `icon-own-ink`: while the popover is open (aria-expanded) the global rule painted the
+              // glyph accent blue on the photo plate, ~1.7:1; it keeps the overlay's own white /
+              // neutral-900, like the compact Save heart beside it.
+              className={cn('icon-own-ink transition-transform active:scale-[0.96]', className)}
             >
               <Share2 className="h-5 w-5" />
             </IconButton>

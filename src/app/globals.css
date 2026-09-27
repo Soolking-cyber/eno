@@ -3275,13 +3275,31 @@ html:not(.native) #app-splash {
    a bare `.icon-own-ink .i-on` is (0,2,0) and would silently lose. Repeating the list and adding
    the class makes this (0,5,0), so it wins on weight rather than on source order.
    ⚠️ IT DOES NOT TOUCH THE WEIGHT SWAP — an opted-out icon still goes Bold when selected, which is
-   the grammar the owner asked for. Only the colour is handed back. */
+   the grammar the owner asked for. Only the colour is handed back.
+
+   ⛔ A CONTROL THAT FILLS SOLID WHEN SELECTED CARRIES `icon-own-ink` ITSELF (the second selector).
+   The fourth victim, and the one that made this a control-level opt-out (owner, 2026-09-27, the /post
+   category chips: "button is blue and icon is blue make sure its white when pressed"). Measured on
+   live /post: the selected chip painted rgb(10,102,194) and its icon's `.i-on` computed the SAME
+   rgb(10,102,194) — accent ink on an accent fill, i.e. no icon at all, while the label beside it
+   was white. The accent recolour is right on a pale or unfilled selected control, where it is the
+   only thing that says "selected"; on a solid fill the FILL says it, and the icon has to match the
+   label or it disappears. Any control whose selected state is a solid fill (bg-primary,
+   bg-foreground, …) with light text puts `icon-own-ink` on the element carrying the state, and
+   every icon inside it — sprite glyph or duotone category glyph — takes the control's own ink.
+   (0,5,0) as well, for the same specificity reason. */
 :is(button, a, label, summary, [role='button'], [role='tab'], [role='option'], [role='menuitem'],
     [role='switch'], [role='checkbox'], [role='radio'], [role='menuitemradio'], [role='menuitemcheckbox']):is(
     [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
     [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
     [data-active='true'], [aria-current]:not([aria-current='false'])
-  ) .icon-own-ink .i-on {
+  ) .icon-own-ink .i-on,
+:is(button, a, label, summary, [role='button'], [role='tab'], [role='option'], [role='menuitem'],
+    [role='switch'], [role='checkbox'], [role='radio'], [role='menuitemradio'], [role='menuitemcheckbox']):is(
+    [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
+    [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
+    [data-active='true'], [aria-current]:not([aria-current='false'])
+  ).icon-own-ink .i-on {
   color: inherit;
 }
 

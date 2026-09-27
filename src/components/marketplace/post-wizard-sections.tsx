@@ -462,7 +462,9 @@ export function PriceSection({
               // Block-level flex row, left-aligned, wrapping: `flex` (base is
               // inline-flex), `justify-start` (base centres), and
               // `whitespace-normal` (base nowrap inherits into the two-line hint).
-              'flex justify-start whitespace-normal gap-2 rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
+              // `icon-own-ink`: pressed is a solid bg-foreground, so the Zap takes text-background
+              // like the label, not the global accent blue (~3.1:1 light, ~2:1 dark on that fill).
+              'icon-own-ink flex justify-start whitespace-normal gap-2 rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
               // Urgent is NOT an error: it wears the same solid-ink tone the urgent
               // chip uses on cards (card-badges TONE.urgent), not the destructive red.
               // Red here would both conflate urgency with failure and fail AA in dark
