@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Sparkles, Loader2 } from '@/components/ui/icons'
@@ -78,8 +78,11 @@ export default function AiThreadPage() {
   // from the top through all of them, listing-card grids included, on every open. Opening a thread
   // should land on its newest message the way the person-to-person thread does (scrollBottom(false)
   // there); only what arrives after that follows smoothly.
+  // ⚠️ A LAYOUT effect, like the person-to-person thread's pin: a plain effect runs AFTER paint, so a
+  // hard load painted one frame at scrollTop 0 — the oldest restored turn at the top — before the
+  // instant pin jumped to the newest (measured on a phone). This runs before the browser paints.
   const pinnedRef = useRef(false)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = listRef.current
     if (!el) return
     const behavior = pinnedRef.current ? scrollBehavior() : 'instant'
