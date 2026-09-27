@@ -388,24 +388,36 @@ export default function ThreadPage() {
    */
   const [actionsFor, setActionsFor] = useState<string | null>(null)
 
-  const chromeCloseTimer = useRef<number | null>(null)
+  /**
+   * ⛔ ONE CLOSE TIMER PER MESSAGE. There used to be a single anonymous timer for the whole thread:
+   * leaving message A scheduled A's close, then crossing message B on the way out cancelled it (B's
+   * `onPointerOver`) and B's own leave scheduled a close that only cleared B — so A's toolbar or emoji
+   * bar stayed open over the thread until something else was hovered (measured: 1.2s later, still
+   * open). Keyed by message, crossing B neither rescues A's close nor cuts it short, and a quick
+   * A → B → A inside the 160ms grace still keeps A open.
+   */
+  const chromeCloseTimers = useRef(new Map<string, number>())
   /** Owner: "quick actions appear with same slight delay". Same 500ms the bar uses. */
   const actionsOpenTimer = useRef<number | null>(null)
-  const cancelChromeClose = useCallback(() => {
-    if (chromeCloseTimer.current !== null) { window.clearTimeout(chromeCloseTimer.current); chromeCloseTimer.current = null }
-  }, [])
   const cancelActionsOpen = useCallback(() => {
     if (actionsOpenTimer.current !== null) { window.clearTimeout(actionsOpenTimer.current); actionsOpenTimer.current = null }
   }, [])
+  /** No id = cancel every pending close (unmount). With an id, only that message's own. */
+  const cancelChromeClose = useCallback((messageId?: string) => {
+    const timers = chromeCloseTimers.current
+    if (messageId === undefined) { timers.forEach((t) => window.clearTimeout(t)); timers.clear(); return }
+    const t = timers.get(messageId)
+    if (t !== undefined) { window.clearTimeout(t); timers.delete(messageId) }
+  }, [])
   const scheduleChromeClose = useCallback((messageId: string) => {
-    cancelChromeClose()
+    cancelChromeClose(messageId)
     cancelActionsOpen()
     // 160ms: longer than the hand takes to cross the 8px gap, shorter than a deliberate move away.
-    chromeCloseTimer.current = window.setTimeout(() => {
-      chromeCloseTimer.current = null
+    chromeCloseTimers.current.set(messageId, window.setTimeout(() => {
+      chromeCloseTimers.current.delete(messageId)
       setPickerFor((cur) => (cur === messageId ? null : cur))
       setActionsFor((cur) => (cur === messageId ? null : cur))
-    }, 160)
+    }, 160))
   }, [cancelChromeClose, cancelActionsOpen])
   const scheduleActionsOpen = useCallback((messageId: string) => {
     cancelActionsOpen()
@@ -2264,7 +2276,7 @@ export default function ThreadPage() {
                    * pending close ran anyway. `over` bubbles, so touching ANY part of this message
                    * (bubble, bar, action row, glyph, hover bridge) reaches here and cancels.
                    */
-                  onPointerOver={(e) => { if (e.pointerType === 'mouse') cancelChromeClose() }}
+                  onPointerOver={(e) => { if (e.pointerType === 'mouse') cancelChromeClose(m.id) }}
                   onPointerLeave={(e) => {
                     /* ⚠️ NEVER WHILE THE "＋" GRID IS OPEN — it is a Popover rendered through a
                        PORTAL, i.e. NOT a descendant of this wrapper, so moving the cursor into it
@@ -2299,7 +2311,7 @@ export default function ThreadPage() {
                      unreachable-gap bug, because the pointer is already on its anchor. */
                   onPointerEnter={(e) => {
                     if (e.pointerType !== 'mouse') return
-                    cancelChromeClose()
+                    cancelChromeClose(m.id)
                     /* ⚠️ NOT WHILE THE EMOJI BAR IS UP FOR THIS MESSAGE. The bar covers the bubble
                        (owner's call), so a pointer inside it is over the bubble too — without this
                        guard, opening the reactions would arm the action row as a side effect. One
