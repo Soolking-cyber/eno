@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
@@ -226,7 +227,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbLink render={<Link href={`/c/${cat.slug}`} />} className="hover:text-accent-foreground"><Tr text={cat.name} /></BreadcrumbLink>
+              <BreadcrumbLink render={<Link href={`/c/${cat.slug}`} />} className="hover:text-accent-foreground"><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /></BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>
@@ -276,7 +277,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild variant="outline" size="none" className="border-line-strong font-bold hover:bg-muted hover:text-foreground">
             <Link href={`/c/${cat.slug}`} className="px-5 py-2.5 text-sm">
-              ← <Tr text="All" /> <Tr text={cat.name} />
+              ← <Tr text="All" /> <Bilingual en={cat.name} vi={cat.nameVi || cat.name} />
             </Link>
           </Button>
           <Button asChild variant="cta" size="none">

@@ -22,6 +22,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { Mascot } from '@/components/marketplace/mascot'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { RentalCheckHint } from '@/components/marketplace/rental-check-toggle'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import { Tr } from '@/context/language-context'
 
 export const revalidate = 21600 // 6h — client fetches live listings; ISR HTML is first-paint+SEO only
@@ -187,13 +188,13 @@ export default async function CategoryPage({ params }: Props) {
                 primitive's default is a chevron in text-muted-foreground. */}
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbPage className="font-medium"><Tr text={cat.name} /></BreadcrumbPage>
+              <BreadcrumbPage className="font-medium"><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /></BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
 
         <h1 className="h-display text-foreground">
-          {rentals ? <RentalsHeading allHcmc={rentals.allHcmc} kinds={rentals.kinds} /> : <><Tr text={cat.name} /> <Tr text="in Vietnam" /></>}
+          {rentals ? <RentalsHeading allHcmc={rentals.allHcmc} kinds={rentals.kinds} /> : <><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /> <Tr text="in Vietnam" /></>}
         </h1>
         {/* Measured lede — max-w-prose (65ch) keeps the reading measure inside the craft floor's
             65–75ch band; max-w-2xl ran ~80ch at text-base.
@@ -270,7 +271,7 @@ export default async function CategoryPage({ params }: Props) {
               <div className="mt-4 flex flex-wrap gap-2">
                 {otherCats.map((c) => (
                   <Badge key={c.slug} size="md" interactive render={<Link href={`/c/${c.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
-                    <Tr text={c.name} />
+                    <Bilingual en={c.name} vi={c.nameVi || c.name} />
                   </Badge>
                 ))}
               </div>
@@ -308,7 +309,7 @@ export default async function CategoryPage({ params }: Props) {
                     <div className="flex flex-wrap justify-center gap-2">
                       {otherCats.map((c) => (
                         <Badge key={c.slug} size="md" interactive render={<Link href={`/c/${c.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
-                          <Tr text={c.name} />
+                          <Bilingual en={c.name} vi={c.nameVi || c.name} />
                         </Badge>
                       ))}
                     </div>
