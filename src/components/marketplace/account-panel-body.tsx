@@ -443,12 +443,17 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
               aria-label={tr('Settings', 'Cài đặt')}
               className="absolute inset-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
-            <Avatar url={dash?.profile.avatarUrl} name={displayName} color={dash?.profile.avatarColor} size="sm" />
-            <div className={cn('min-w-0 max-w-[180px] flex-1 overflow-hidden transition-[opacity,translate] ease-out', expanded ? 'lg:translate-x-0 lg:opacity-100 lg:duration-150 lg:delay-50' : 'lg:-translate-x-1 lg:opacity-0 lg:duration-100')}>
+            {/* `pointer-events-none` on the avatar AND the text block: both paint ABOVE the stretched
+                Settings link — the avatar is positioned, and the text block's `translate` (the rail's
+                label slide) puts it in the same painting layer — so a click on the avatar or on the name
+                landed on them and did nothing (measured). The trust badge inside is the one deliberate
+                exception: `pointer-events-auto` + relative z-10, so it stays its own link. */}
+            <Avatar url={dash?.profile.avatarUrl} name={displayName} color={dash?.profile.avatarColor} size="sm" className="pointer-events-none" />
+            <div className={cn('pointer-events-none min-w-0 max-w-[180px] flex-1 overflow-hidden transition-[opacity,translate] ease-out', expanded ? 'lg:translate-x-0 lg:opacity-100 lg:duration-150 lg:delay-50' : 'lg:-translate-x-1 lg:opacity-0 lg:duration-100')}>
               <span className="flex items-center gap-1.5">
                 <p className="truncate text-sm font-bold text-foreground group-hover:text-accent-foreground">{displayName}</p>
                 {typeof dash?.profile.trustScore === 'number' && (
-                  <span className="relative z-10 inline-flex"><TrustScore score={dash.profile.trustScore} size="sm" href="/trust" /></span>
+                  <span className="pointer-events-auto relative z-10 inline-flex"><TrustScore score={dash.profile.trustScore} size="sm" href="/trust" /></span>
                 )}
               </span>
               {dash?.profile.email && <p className="truncate text-xs text-ink-4">{dash.profile.email}</p>}
