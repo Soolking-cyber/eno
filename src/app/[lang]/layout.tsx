@@ -263,6 +263,13 @@ const FACEBOOK_DOMAIN_VERIFICATION = IS_SERVICES
  */
 const MYLEAD_VERIFICATION = IS_SERVICES ? null : "0278b78162cad9a93d0071ce2c5cc83a";
 
+/**
+ * Pinterest "Claim your website" (owner, 2026-09-28 — Settings → Link to Pinterest → Websites, the
+ * HTML-tag option). ⛔ eno.vn ONLY, for the same per-site reason as the MyLead tag above: the claim
+ * was issued for https://eno.vn and a public ownership proof, not a secret.
+ */
+const PINTEREST_VERIFICATION = IS_SERVICES ? null : "eb401aba4319c3406a643d5aff061606";
+
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
   // Google Search Console / Merchant Center domain verification.
@@ -271,6 +278,7 @@ export const metadata: Metadata = {
     other: {
       "facebook-domain-verification": FACEBOOK_DOMAIN_VERIFICATION,
       ...(MYLEAD_VERIFICATION ? { "mylead-verification": MYLEAD_VERIFICATION } : {}),
+      ...(PINTEREST_VERIFICATION ? { "p:domain_verify": PINTEREST_VERIFICATION } : {}),
     },
   },
   title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
