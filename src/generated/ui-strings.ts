@@ -1117,7 +1117,6 @@ export const UI_STRINGS: string[] = [
   "Most listings are linked from partner sites: those say where they are listed and link to the original posting.",
   "Most listings here link to their original on a partner site.",
   "Most rental listings are in Ho Chi Minh City.",
-  "Most trades on eno go smoothly — accounts are verified, listings are screened, and higher-trust sellers rank first. But the deal closes between you and the other person, so the last few metres are up to you. These habits keep every one of them safe.",
   "Motorbike",
   "Move-in date, how long you’ll stay, pets, parking, budget…",
   "Moving",

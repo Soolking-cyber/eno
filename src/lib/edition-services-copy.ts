@@ -366,8 +366,13 @@ export const SERVICES_SAFETY: ServicesSafetyCopy = {
     // two spellings drifted). `?? ''` only for the stub's null; the page renders plain text rather
     // than an empty anchor if it is ever hit.
     href: MARKETPLACE_HOME?.href ?? '',
+    // ⛔ NOT "…and no visa services" (copy sheet CS-0b, 2026-09-28). eno.vn itself offers none, but a
+    // licensed partner sells e-visa listings there by the owner's decision (owner, 2026-08-13: visa
+    // "by vietkite in eno.vn"; recorded in edition-scope.ts above HIDDEN_DESK_OWNER_EMAILS), so a
+    // reader who took this sentence at its word would find it false one click later. This sentence
+    // only renders on eno.forum; it describes that decision and does not make it.
     after:
-      '— a related site in the same brand family, with its own operator details, its own terms and no visa services. Everything above about meeting in person and paying at handover applies there too.',
+      '— a related site in the same brand family, with its own operator details and its own terms. Everything above about meeting in person and paying at handover applies there too.',
   },
 }
 
