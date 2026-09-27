@@ -4,6 +4,7 @@ import { useLanguage, useTr } from '@/context/language-context'
 import { useCurrency, vndPerUsd } from '@/context/currency-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { formatMoney } from '@/lib/currencies'
+import { priceUnitSuffix } from '@/lib/price-unit'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -84,8 +85,9 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // service by definition — and it was the widest, least informative run on every visa and trip card.
   // DISPLAY ONLY: the stored `priceUnit` stays 'VND/service', which openers.ts's isRatePrice() still
   // reads to avoid "can I collect it today?" openers on a service. "/ month" stays; see `unit` above.
-  const unitStripped = !priceUnit || priceUnit === 'VND' ? null : priceUnit.replace(/^VND\/?/, '').trim() || null
-  const unitRaw = unitStripped === 'service' ? null : unitStripped
+  // The parse itself lives in `priceUnitSuffix` (lib/price-unit.ts), so nothing else that states a
+  // listing's unit reads the column a second way.
+  const unitRaw = priceUnitSuffix(priceUnit)
   const unit = useTr(unitRaw ?? '') // hook called unconditionally (no-op when empty)
   // VND-stored listings convert to the display currency; the rare non-VND listing
   // is shown in its own currency, unconverted.
