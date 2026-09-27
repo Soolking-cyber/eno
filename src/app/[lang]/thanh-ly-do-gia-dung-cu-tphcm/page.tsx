@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
 import { marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { LiveCounts } from '@/components/marketplace/live-count'
 
 /**
  * THANH LÝ ĐỒ GIA DỤNG CŨ TP.HCM — the Vietnamese half of the secondhand-furniture pair.
@@ -23,6 +24,12 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
  *
  * ⚠️ THE USED STOCK IS DEALER-SUPPLIED — 3 distinct sellers in a 40-item sample. It must never be
  * described as departing residents' moving sales, which is the flattering story and is false.
+ *
+ * ⛔ THE "HIỆN CÓ" COUNTS IN §nguon-hang-o-dau ARE COMPUTED (<LiveCounts>), NOT TYPED. That paragraph
+ * said "hiện có" (right now) over four figures measured on 2026-09-23 — 3.201, 98.754, 3.507 and
+ * 19.359 — and four days later three of them were wrong (rentals 25.502, all listings 103.969, used
+ * electronics 3.465). A sentence that says "right now" has to be read right now. The price bands
+ * elsewhere stay as measured, because the prose dates them and names the sample.
  */
 const SLUG = 'thanh-ly-do-gia-dung-cu-tphcm'
 
@@ -226,12 +233,42 @@ const CONTENT: ArticleContent = {
       body: (
         <>
           <P>
-            Trên sàn này hiện có 3.201 tin đồ gia dụng và nội thất cũ, trong tổng số 98.754 tin đang
-            hoạt động. Toàn bộ 100 tin trong mẫu kiểm tra đều ở TP.HCM, nên với người ở thành phố này
-            thì gần như mọi tin bạn thấy đều là hàng lấy được trong ngày. Điểm khởi đầu là danh mục{' '}
-            <HereLink href="/c/furniture-appliances">đồ gia dụng &amp; nội thất</HereLink>; đồ điện tử
-            cũ như TV, laptop, màn hình nằm ở nhóm riêng với 3.507 tin, và nếu bạn đang chuyển nhà thì{' '}
-            <HereLink href="/c/rentals">mục cho thuê</HereLink> có 19.359 tin, tất cả đều ở TP.HCM.
+            <LiveCounts
+              targets={{
+                used: { categorySlug: 'furniture-appliances', condition: 'used' },
+                all: {},
+                usedElectronics: { categorySlug: 'electronics', condition: 'used' },
+                rentals: { categorySlug: 'rentals', allIn: 'Ho Chi Minh' },
+              }}
+              lang="vi"
+            >
+              {({ used, all, usedElectronics, rentals }) => (
+                <>
+                  {used && all && (
+                    <>
+                      Trên sàn này hiện có {used.count} tin đồ gia dụng và nội thất cũ, trong tổng số{' '}
+                      {all.count} tin đang hoạt động.{' '}
+                    </>
+                  )}
+                  Trong một mẫu 100 tin chúng tôi kiểm tra, cả 100 đều ở TP.HCM, nên với người ở thành phố này thì
+                  gần như mọi tin bạn thấy đều là hàng lấy được trong ngày. Điểm khởi đầu là danh mục{' '}
+                  <HereLink href="/c/furniture-appliances">đồ gia dụng &amp; nội thất</HereLink>; đồ
+                  điện tử cũ như TV, laptop, màn hình nằm ở nhóm riêng
+                  {usedElectronics ? ` với ${usedElectronics.count} tin` : ''}, và nếu bạn đang chuyển
+                  nhà thì{' '}
+                  {rentals ? (
+                    <>
+                      <HereLink href="/c/rentals">mục cho thuê</HereLink> có {rentals.count} tin
+                      {rentals.allInside ? ', tất cả đều ở TP.HCM' : ''}.
+                    </>
+                  ) : (
+                    <>
+                      hãy xem thêm <HereLink href="/c/rentals">mục cho thuê</HereLink>.
+                    </>
+                  )}
+                </>
+              )}
+            </LiveCounts>
           </P>
           <P>
             Một điều nên biết về nguồn hàng, vì nó thay đổi cách bạn mặc cả: phần lớn hàng cũ đang rao
@@ -243,8 +280,9 @@ const CONTENT: ArticleContent = {
             và cách khai thác nó là rao dưới mốc p25 rồi nói rõ vì sao.
           </P>
           <P>
-            Mỗi người bán đều có điểm uy tín công khai, nên một tài khoản chưa có lịch sử nào sẽ hiện
-            ra đúng như vậy trước khi bạn chạy xe qua nửa thành phố. Muốn tự bán, hãy{' '}
+            Người bán đăng tin trên sàn đều có điểm uy tín công khai, nên một tài khoản chưa có lịch sử
+            nào sẽ hiện ra đúng như vậy trước khi bạn chạy xe qua nửa thành phố; đối tác chính thức thì
+            hiện huy hiệu đối tác thay cho điểm số. Muốn tự bán, hãy{' '}
             <HereLink href="/post">đăng tin</HereLink> kèm kích thước và ảnh chụp cả khuyết điểm; tin
             nào đủ thông tin thì phần mặc cả diễn ra qua tin nhắn chứ không diễn ra ở cửa nhà bạn.
           </P>

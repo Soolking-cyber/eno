@@ -147,8 +147,10 @@ const CONTENT: ArticleContent = {
             regret shipping is furniture. The international community here turns over constantly —
             contracts end, people move on — and what they leave behind is a steady supply of sofas,
             fridges, air conditioners and kitchen kit at a fraction of retail. It is worth looking at{' '}
-            <VnLink href={marketplaceHref('moving-sales')}>what people leaving Vietnam are selling</VnLink> before
+            <VnLink href={marketplaceHref('moving-sales')}>secondhand furniture and appliances for sale</VnLink> before
             you pay to move a wardrobe across an ocean.
+            {/* ⚠️ Not "what people leaving Vietnam are selling": the used stock on eno.vn is
+                dealer-supplied (2026-09-27), and this guide is now listed in eno.forum's /llms.txt. */}
           </P>
           <P>
             Mains power is 220V at 50Hz, with sockets that take flat two-pin, round two-pin and
@@ -204,8 +206,10 @@ const CONTENT: ArticleContent = {
           </P>
           <P>
             When you are ready to look, <VnLink href={marketplaceHref('housing')}>apartments and houses for rent
-            in Vietnam</VnLink> are listed by the people who own or manage them, so you can message
-            directly and arrange a viewing rather than working through a chain of agents.
+            in Ho Chi Minh City</VnLink> show the asking price, the district and photos, and many link to
+            the original posting on a partner property portal.
+            {/* ⚠️ It said they were "listed by the people who own or manage them, so you can message
+                directly": most are linked from partner portals, with no in-app chat (2026-09-27). */}
           </P>
           <P>
             One rule, and it is the one that saves money: never transfer a deposit for a place you
@@ -248,8 +252,10 @@ const CONTENT: ArticleContent = {
           <P>
             Getting around is the one worth not rushing. Ride-hailing covers the first fortnight
             cheaply, and renting a scooter monthly before you buy one tells you whether you actually
-            want to own it — <VnLink href={marketplaceHref('motorbikes')}>motorbikes for sale and for monthly
-            rent</VnLink> sit side by side, so the comparison is easy to make.
+            want to own it.
+            {/* ⛔ NO MOTORBIKE LINK (2026-09-27): it promised "motorbikes for sale and for monthly rent
+                side by side" on eno.vn, which held 0 motorbikes, and its landing is noindex. This guide
+                is now listed in eno.forum's /llms.txt, so the claim was being handed to agents. */}
           </P>
           <P>
             The arrival half of this guide is separate, because it is long:{' '}

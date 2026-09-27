@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
 import { marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { LiveCounts } from '@/components/marketplace/live-count'
 
 /**
  * ĐỒ CŨ CỦA NGƯỜI NƯỚC NGOÀI — the Vietnamese navigational page for "trang web thanh lý đồ cũ của
@@ -39,14 +40,25 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
  * /trust. The score is recomputed from source tables on events, so do not write "tính lại mỗi ngày".
  *
  * ⚠️ IN-BODY LINKS STAY IN VIETNAMESE. `/moving-sales-vietnam` was linked here from a Vietnamese
- * sentence and is an ENGLISH article; it is now `/c/moving-sale` (a category, language-neutral) plus
- * the Vietnamese sibling `/thanh-ly-do-gia-dung-cu-tphcm`. See the `related` note below — the block
- * itself still cannot honour that rule from this file.
+ * sentence and is an ENGLISH article; it became `/c/moving-sale` plus the Vietnamese sibling
+ * `/thanh-ly-do-gia-dung-cu-tphcm`.
  *
- * ⚠️ `related` USES marketplaceGuidesExcept() and that helper NEVER CROSSES LANGUAGES: it filters on
- * the guide's registered `lang`. Until this slug is wired into MARKETPLACE_GUIDES with `lang: 'vi'`
- * (done centrally, not from this file), it falls back to treating the caller as English and returns
- * the English siblings.
+ * ⛔ AND `/c/moving-sale` IS GONE TOO (2026-09-27). The category holds ZERO listings and its page serves
+ * `noindex, follow`, so the sentence "mục thanh lý dọn nhà gom riêng các đợt bán cả căn" pointed a
+ * reader at an empty grid and described a supply that does not exist here. The paragraph now names the
+ * two categories that DO hold the stock, plus the Vietnamese guide.
+ *
+ * ⚠️ THE RENTALS CLAUSE IS COMPUTED (<LiveCounts>). It said "19.359 tin … đều nằm trong các quận nội
+ * thành TP.HCM" — a count that was 25.502 four days later, and "nội thành" was never right (Củ Chi,
+ * Hóc Môn, Bình Chánh, Nhà Bè and Cần Giờ all have rentals). It now carries no number, because the
+ * paragraph around it is dated 23/09/2026 and a live figure inside a dated paragraph reads as dated;
+ * the one claim left — every rental is in TP.HCM — renders only while it is true.
+ *
+ * ⚠️ `related` USES marketplaceGuidesExcept(), WHICH NEVER CROSSES LANGUAGES. This slug is registered
+ * with `lang: 'vi'` in MARKETPLACE_GUIDES, so the block lists the Vietnamese siblings only.
+ *
+ * ⚠️ THE BRAND IS `SITE_NAME`, NEVER A LITERAL "eno.vn" — this page compiles on eno.forum too, where it
+ * used to say "đang đăng trên eno.vn" under a title ending "| eno.forum".
  */
 const SLUG = 'do-cu-cua-nguoi-nuoc-ngoai'
 
@@ -54,7 +66,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Cẩm nang mua sắm',
   h1: 'Thanh lý đồ cũ của người nước ngoài: mua ở đâu và trả bao nhiêu là đúng',
   intro:
-    'Đồ của người nước ngoài sắp rời Việt Nam nổi tiếng là mua được: dùng kỹ, còn tốt và bán gấp vì có ngày trả nhà. Bài này nói rõ vì sao nhóm đồ đó đáng mua, rồi nói thẳng một chuyện ít nơi nào chịu nói: phần lớn tin đồ gia dụng và nội thất cũ đang đăng trên eno.vn là của các nhà bán chuyên ở TP.HCM chứ không phải của chính chủ sắp bay, và cách phân biệt nằm ngay trên tin. Phần còn lại là giá thật của từng món theo chính các tin đang đăng, cách đọc điểm uy tín người bán, và cách hẹn xem rồi nhận hàng mà không mất tiền oan.',
+    `Đồ của người nước ngoài sắp rời Việt Nam nổi tiếng là mua được: dùng kỹ, còn tốt và bán gấp vì có ngày trả nhà. Bài này nói rõ vì sao nhóm đồ đó đáng mua, rồi nói thẳng một chuyện ít nơi nào chịu nói: phần lớn tin đồ gia dụng và nội thất cũ đang đăng trên ${SITE_NAME} là của các nhà bán chuyên ở TP.HCM chứ không phải của chính chủ sắp bay, và cách phân biệt nằm ngay trên tin. Phần còn lại là giá thật của từng món theo chính các tin đang đăng, cách đọc điểm uy tín người bán, và cách hẹn xem rồi nhận hàng mà không mất tiền oan.`,
   canonical: `/${SLUG}`,
   published: '2026-09-23',
   lang: 'vi',
@@ -105,25 +117,38 @@ const CONTENT: ArticleContent = {
     },
     {
       id: 'tim-o-dau-tren-eno',
-      title: 'Tìm ở đâu trên eno.vn — và ai thật sự đang bán',
+      title: `Tìm ở đâu trên ${SITE_NAME} — và ai thật sự đang bán`,
       body: (
         <>
           <P>
             Đo ngày 23/09/2026, sàn đang có 98.754 tin hiển thị. Phần liên quan đến bài này nằm gọn
-            trong ba mục. Mục{' '}
+            trong hai mục. Mục{' '}
             <HereLink href="/c/furniture-appliances">đồ gia dụng và nội thất</HereLink> có 3.201 tin
             hàng cũ, và trong 100 tin lấy mẫu thì cả 100 đều ở TP.HCM — nên nếu bạn ở tỉnh khác, hãy
             coi đây là hàng phải tự vào Sài Gòn lấy hoặc thuê xe gửi về. Mục{' '}
             <HereLink href="/c/electronics">đồ điện tử</HereLink> có 3.507 tin hàng cũ, là chỗ của
-            tivi, màn hình, loa và máy chơi game. Mục{' '}
-            <HereLink href="/c/moving-sale">thanh lý dọn nhà</HereLink> gom riêng các đợt bán cả căn,
-            còn nếu bạn chỉ quan tâm hàng gia dụng ở TP.HCM thì có bài{' '}
+            tivi, màn hình, loa và máy chơi game. Nếu bạn chỉ quan tâm hàng gia dụng ở TP.HCM thì có
+            bài{' '}
             <HereLink href="/thanh-ly-do-gia-dung-cu-tphcm">
               thanh lý đồ gia dụng cũ TP.HCM
             </HereLink>{' '}
-            đi sâu vào đúng nhóm đó. Nếu bạn vừa thuê được nhà trống, 19.359 tin ở mục{' '}
-            <HereLink href="/c/rentals">cho thuê</HereLink> đều nằm trong các quận nội thành TP.HCM,
-            tức nguồn đồ và nguồn nhà đang ở cùng một thành phố với nhau.
+            đi sâu vào đúng nhóm đó.{' '}
+            <LiveCounts targets={{ rentals: { categorySlug: 'rentals', allIn: 'Ho Chi Minh' } }} lang="vi">
+              {({ rentals }) =>
+                rentals?.allInside ? (
+                  <>
+                    Còn nếu bạn vừa thuê được nhà trống: mọi tin ở mục{' '}
+                    <HereLink href="/c/rentals">cho thuê</HereLink> hiện cũng đều nằm ở TP.HCM, tức
+                    nguồn đồ và nguồn nhà đang ở cùng một thành phố với nhau.
+                  </>
+                ) : (
+                  <>
+                    Còn nếu bạn đang tìm nhà, hãy xem thêm mục{' '}
+                    <HereLink href="/c/rentals">cho thuê</HereLink>.
+                  </>
+                )
+              }
+            </LiveCounts>
           </P>
           <P>
             Và đây là điều không trang nào khác nói thẳng: không phải mỗi tin ở đây là một gia đình
@@ -210,9 +235,9 @@ const CONTENT: ArticleContent = {
       body: (
         <>
           <P>
-            Mỗi tài khoản trên eno.vn có một điểm uy tín công khai, hiện ngay cạnh tên người bán và
-            được tính lại từ dữ liệu thật: giao dịch đã hoàn tất, đánh giá của người mua và báo cáo
-            vi phạm đã được xác nhận. Mọi tài khoản bắt đầu ở 60 — đó là trạng thái chưa có thành tích, không
+            Mỗi người bán trên {SITE_NAME} có một điểm uy tín công khai, hiện ngay cạnh tên (riêng đối
+            tác chính thức thì hiện huy hiệu đối tác thay cho điểm số), và điểm được tính lại từ dữ
+            liệu thật: giao dịch đã hoàn tất, đánh giá của người mua và báo cáo vi phạm đã được xác nhận. Mọi tài khoản bắt đầu ở 60 — đó là trạng thái chưa có thành tích, không
             phải cảnh báo. Từ 85 trở lên là tài khoản đã xác minh và đã có giao dịch hoàn tất, từ 110
             trở lên là người bán có lịch sử dài và trả lời nhanh đã được đo, còn dưới 60 nghĩa là đã
             có lỗi nghiêm trọng hoặc lặp lại được xác nhận. Cách đọc thực dụng: 60 không đáng sợ, dưới
@@ -293,7 +318,7 @@ const CONTENT: ArticleContent = {
       a: 'Rẻ hơn khi bạn mua đúng của chính chủ sắp dọn đi, vì người đó có hạn chót trả nhà nên định giá để bán hết chứ không phải để bán được giá. Nhưng phần lớn tin đồ gia dụng cũ trên sàn là của các nhà bán chuyên ở TP.HCM, mà kho thì không có ngày nào phải dọn sạch — giá ở đó đã là giá thị trường. Đổi lại, mua của chính chủ thì không bảo hành, không giao hàng và nhiều khi phải lấy cả lô: cộng tiền xe, tiền tháo lắp và những món bạn không dùng vào trước khi so sánh.',
     },
     {
-      q: 'Hàng trên eno.vn có đúng là của người nước ngoài không?',
+      q: `Hàng trên ${SITE_NAME} có đúng là của người nước ngoài không?`,
       a: 'Một phần. Đo ngày 23/09/2026: mục đồ gia dụng cũ có 3.201 tin, tất cả 100 tin lấy mẫu đều ở TP.HCM, nhưng trong 40 tin lấy mẫu chỉ có 3 người bán khác nhau — tức phần lớn do các nhà bán chuyên thanh lý đồ cũ ở TP.HCM đăng chứ không phải chính chủ. Bấm vào tên người bán để biết mình đang nói chuyện với ai: vài chục tin cùng phông nền là kho thanh lý, hai đến năm tin chụp trong căn hộ là chính chủ.',
     },
     {
@@ -316,7 +341,7 @@ export const revalidate = 3600
 export const metadata: Metadata = {
   title: `Thanh lý đồ cũ của người nước ngoài: mua ở đâu, giá bao nhiêu | ${SITE_NAME}`,
   description:
-    'Đồ gia dụng và nội thất cũ ở TP.HCM trên eno.vn: giá thật của máy lạnh, máy giặt, sofa và tủ theo chính các tin đang đăng, cách biết mình đang mua của nhà bán chuyên hay của chính chủ dọn nhà, cách đọc điểm uy tín người bán và cách nhận hàng an toàn.',
+    `Đồ gia dụng và nội thất cũ ở TP.HCM trên ${SITE_NAME}: giá thật của máy lạnh, máy giặt, sofa và tủ theo chính các tin đang đăng, cách biết mình đang mua của nhà bán chuyên hay của chính chủ dọn nhà, cách đọc điểm uy tín người bán và cách nhận hàng an toàn.`,
   alternates: { canonical: `/${SLUG}` },
   openGraph: {
     title: `Thanh lý đồ cũ của người nước ngoài: mua ở đâu, giá bao nhiêu | ${SITE_NAME}`,

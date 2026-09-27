@@ -6,7 +6,7 @@
  *   · BEHAVIOUR — nothing renders. The real component already returns null on the marketplace
  *     edition (its link data comes from cross-site-links, which is stubbed to empty), so this
  *     changes no output.
- *   · ARTIFACT — the copy is gone. "Already in Vietnam? Find housing, jobs and motorbikes on
+ *   · ARTIFACT — the copy is gone. "Already in Vietnam? Find housing, jobs and furniture on
  *     eno.vn" is a sentence eno.vn must not ship to a reader who is already on eno.vn, and a
  *     component that declines to render still puts its strings in the chunk. That is what the alias
  *     removes and a guard cannot.

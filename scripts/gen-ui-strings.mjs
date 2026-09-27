@@ -58,7 +58,7 @@ const SERVICES_SOURCES = [
    * ⚠️ THE CROSS-SITE PROMO IS SERVICES-ONLY EVEN THOUGH ITS PATH LOOKS SHARED, and this line is
    * the only thing that says so. Every other entry above is recognisably a visa/trip surface;
    * `src/components/marketplace/cross-site-promo.tsx` sits among the shared components and its
-   * copy — "Already in Vietnam? Find housing, jobs and motorbikes on eno.vn" — contains no
+   * copy — "Already in Vietnam? Find housing, jobs and furniture on eno.vn" — contains no
    * services vocabulary at all, so nothing about it looks like it belongs here.
    *
    * It belongs here because of WHERE it renders, not what it says. The component introduces eno.vn

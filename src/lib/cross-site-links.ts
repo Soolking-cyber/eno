@@ -26,11 +26,13 @@
  * one quietly.
  *
  * ⚠️ AND `/c/<slug>` CATEGORY PAGES ARE DELIBERATELY ABSENT even though the routes exist. An empty
- * category self-noindexes (`src/app/[lang]/c/[category]/page.tsx` sets robots from its live count, and 8 of
+ * category self-noindexes (`src/app/[lang]/c/[category]/(index)/page.tsx` sets robots from its live count, and 8 of
  * 15 categories currently hold zero listings), so a link there can point at a page that has removed
- * itself from the index — real, but worthless to link to. The four keyword landing pages below are
- * always indexable, are the pages built to rank, and each already funnels to its own category. Link
- * the page that can receive the equity.
+ * itself from the index — real, but worthless to link to. The keyword landing pages below are the
+ * pages built to rank, and each already funnels to its own category. They are NOT always indexable:
+ * a landing whose rail is empty noindexes itself too (seo-landing-robots.ts), which is why
+ * /motorbikes-for-sale-vietnam is no longer in the list (0 motorbikes, noindex, 2026-09-27). Link
+ * only a landing that has stock behind it — the page that can actually receive the equity.
  *
  * ⚠️ THIS MODULE IS ALIASED AWAY ON A MARKETPLACE BUILD (next.config.ts → cross-site-links.stub.ts).
  * On eno.vn every one of these is a self-link and every label is promotional copy about the site the
@@ -48,7 +50,7 @@ const MARKETPLACE_ORIGIN = 'https://eno.vn'
  * ⚠️ `nofollow` AND `sponsored` ARE BANNED HERE, AND THAT IS A DECISION, NOT AN OVERSIGHT. It is
  * the reflex to add one — "it's a link to another property of ours, be safe" — and it would forfeit
  * the entire point of this file. These are genuine editorial recommendations: eno.forum's readers
- * are people moving to Vietnam, and eno.vn is where the housing and the motorbikes are. Google's
+ * are people moving to Vietnam, and eno.vn is where the rentals and the jobs are. Google's
  * own guidance reserves `sponsored` for paid placements and `nofollow` for links you do not vouch
  * for; we are not paid and we do vouch. Marking them would tell a crawler to discount a link we
  * mean, on the one axis this whole surface exists to move.
@@ -94,17 +96,18 @@ export const MARKETPLACE_HOME: CrossSiteLink | null = {
   // what is on the other end. "Click here" and a bare URL are the two failure modes.
   labelEn: 'Browse the eno.vn marketplace',
   labelVi: 'Xem chợ eno.vn',
-  blurbEn:
-    'Classifieds for the international community: housing, jobs, vehicles, furniture and moving sales.',
-  blurbVi:
-    'Rao vặt cho cộng đồng quốc tế: nhà ở, việc làm, xe cộ, nội thất và thanh lý chuyển nhà.',
+  // ⚠️ ONLY WHAT IS ACTUALLY LISTED (measured 2026-09-27): rentals, jobs, furniture and electronics.
+  // It said "vehicles … and moving sales" — `vehicles` held 100 accessories and no vehicle, and
+  // `moving-sale` held 0; the used furniture is shop stock, not people moving out.
+  blurbEn: 'Classifieds for the international community: rentals, jobs, furniture and electronics.',
+  blurbVi: 'Rao vặt cho cộng đồng quốc tế: nhà cho thuê, việc làm, nội thất và đồ điện tử.',
 }
 
 /**
  * The destinations worth a link, most-useful-first.
  *
- * Order matters: the promo shows the first three (under MARKETPLACE_HOME) and the footer column
- * shows all four, so a re-ordering here is a product change. Keep the list SHORT. A block of a dozen outbound links
+ * Order matters: the promo shows the first three, in this order, under MARKETPLACE_HOME, so a
+ * re-ordering here is a product change. Keep the list SHORT. A block of a dozen outbound links
  * reads as a link farm to a reader and to a crawler, and the legal story ("we disclose a real
  * affiliation") is easier to tell about five deliberate links than about twenty.
  */
@@ -114,31 +117,31 @@ export const MARKETPLACE_LINKS: CrossSiteLink[] = [
     href: `${MARKETPLACE_ORIGIN}/housing-vietnam-expats`,
     labelEn: 'Housing and apartment rentals in Vietnam',
     labelVi: 'Thuê nhà và căn hộ tại Việt Nam',
-    blurbEn: 'Apartments, houses and serviced rentals — furnished, monthly or yearly.',
-    blurbVi: 'Căn hộ, nhà nguyên căn và căn hộ dịch vụ — có nội thất, thuê theo tháng hoặc theo năm.',
+    // Rentals by subcategory, 2026-09-27: apartments, houses, rooms and offices. Nothing here about
+    // furnishing or lease length, which the imported listings do not state consistently.
+    blurbEn: 'Apartments, houses and rooms for rent.',
+    blurbVi: 'Căn hộ, nhà nguyên căn và phòng cho thuê.',
   },
-  {
-    key: 'motorbikes',
-    href: `${MARKETPLACE_ORIGIN}/motorbikes-for-sale-vietnam`,
-    labelEn: 'Motorbikes for sale and rent',
-    labelVi: 'Mua bán và thuê xe máy',
-    blurbEn: 'Automatic scooters and manual bikes, used for sale or rented by the month.',
-    blurbVi: 'Xe tay ga và xe số, bán xe đã qua sử dụng hoặc cho thuê theo tháng.',
-  },
+  // ⛔ NO MOTORBIKES ENTRY (2026-09-27): eno.vn held 0 motorbikes and /motorbikes-for-sale-vietnam
+  // noindexes itself when empty, so the link promised stock that is not there. Re-add it only once
+  // that landing is indexable again (cross-site-links.test.ts pins the absence until then).
   {
     key: 'jobs',
     href: `${MARKETPLACE_ORIGIN}/jobs-vietnam-expats`,
     labelEn: 'Jobs in Vietnam for internationals',
     labelVi: 'Việc làm tại Việt Nam cho người nước ngoài',
-    blurbEn: 'Teaching, hospitality, marketing, design and tech roles where English is required.',
-    blurbVi: 'Giảng dạy, nhà hàng khách sạn, marketing, thiết kế và công nghệ — các vị trí cần tiếng Anh.',
+    // It listed "hospitality, marketing, design and tech": all 42 live jobs were teaching (2026-09-27).
+    blurbEn: 'Roles where English is required, mostly teaching.',
+    blurbVi: 'Các vị trí cần tiếng Anh, phần lớn là giảng dạy.',
   },
   {
     key: 'moving-sales',
     href: `${MARKETPLACE_ORIGIN}/moving-sales-vietnam`,
-    labelEn: 'Moving sales and secondhand furniture',
-    labelVi: 'Thanh lý chuyển nhà và nội thất cũ',
-    blurbEn: 'Furniture, appliances and home goods from people leaving Vietnam.',
-    blurbVi: 'Nội thất, đồ điện máy và đồ gia dụng từ những người sắp rời Việt Nam.',
+    // ⚠️ The KEY and the URL keep "moving-sales" (that landing's ranking slug); the words do not. The
+    // used stock is dealer-supplied — it is not "from people leaving Vietnam" (2026-09-27).
+    labelEn: 'Secondhand furniture and appliances',
+    labelVi: 'Nội thất và đồ điện máy cũ',
+    blurbEn: 'Used sofas, wardrobes, air conditioners and more, mostly from secondhand shops.',
+    blurbVi: 'Sofa, tủ quần áo, máy lạnh và nhiều món khác đã qua sử dụng, phần lớn từ các cửa hàng đồ cũ.',
   },
 ]

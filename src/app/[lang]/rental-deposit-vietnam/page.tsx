@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { LiveCounts } from '@/components/marketplace/live-count'
 
 /**
  * RENTAL DEPOSITS IN VIETNAM — the guide for "my landlord has not returned my deposit".
@@ -128,11 +129,26 @@ const CONTENT: ArticleContent = {
             City that number is public, which is the part most tenants do not realise they can use.
           </P>
           <P>
-            This marketplace currently carries 3,201 live secondhand furniture and appliance listings,
-            and every one of a 100-listing sample was posted by a Ho Chi Minh City seller. Across a
-            300-listing sample the middle of that market sits at 2.480.000 đ, with a quarter under
-            1.050.000 đ and a quarter above 4.100.000 đ. By item, the medians and the number of listings
-            each one rests on:
+            {/* ⚠️ THE COUNT IS COMPUTED (<LiveCounts>), THE PRICES ARE A DATED SAMPLE. "currently carries
+                3,201" was typed on 2026-09-23 with no date in the sentence; a count rendered hourly
+                cannot go stale, and "every one of them in Ho Chi Minh City" is printed only while
+                the province count equals the total. The price bands are a fixed 300-row sample, so the
+                sentence now says when it was taken. */}
+            <LiveCounts targets={{ used: { categorySlug: 'furniture-appliances', condition: 'used', allIn: 'Ho Chi Minh' } }} lang="en">
+              {({ used }) =>
+                used ? (
+                  <>
+                    This marketplace currently carries {used.count} live secondhand furniture and
+                    appliance listings{used.allInside ? ', every one of them in Ho Chi Minh City' : ''}.
+                  </>
+                ) : (
+                  <>This marketplace carries a live market of secondhand furniture and appliance listings.</>
+                )
+              }
+            </LiveCounts>{' '}
+            In a 300-listing sample taken on 23 September 2026, the middle of that market sat at
+            2.480.000 đ, with a quarter under 1.050.000 đ and a quarter above 4.100.000 đ. By item, the
+            medians and the number of listings each one rests on:
           </P>
           <Ul>
             <li>

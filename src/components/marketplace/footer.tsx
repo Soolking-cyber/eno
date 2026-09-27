@@ -75,6 +75,24 @@ function TiktokIcon(props: { className?: string }) {
   return (<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" /></svg>)
 }
 
+/**
+ * ⛔ CATEGORIES THE FOOTER'S "EXPLORE" GRID DOES NOT LINK: ones with nothing in them.
+ *
+ * Measured 2026-09-27 (`/api/listings?limit=1` → `facets.category`, and each `/c/<slug>`'s robots
+ * tag): `property`, `moving-sale` and `community-events` hold ZERO live listings, and their category
+ * pages therefore serve `noindex, follow`. The footer is on every page of both editions, so linking
+ * them sent the site's most-repeated internal links at three pages it had itself told Google to drop,
+ * and sent a reader to an empty grid. The categories still exist and still take new listings — they
+ * are only left out of this grid.
+ *
+ * ⚠️ A HAND-KEPT LIST, AND THAT IS ITS WEAKNESS. /c/[category] computes its own noindex and lifts it
+ * the moment a listing lands; this list does not, because the footer is a client component on ~30
+ * routes and must not query anything. When one of these fills, delete its slug here (re-measure with
+ * the curl above first). footer.test.tsx fails if a slug here stops existing in NAV_CATEGORIES, so a
+ * rename cannot leave dead entries behind.
+ */
+export const FOOTER_HIDDEN_CATEGORIES: ReadonlySet<string> = new Set(['property', 'moving-sale', 'community-events'])
+
 const SOCIAL_ICON: Record<Social['key'], (p: { className?: string }) => React.ReactElement> = {
   facebook: FacebookIcon,
   'facebook-group': FacebookIcon,
@@ -156,11 +174,40 @@ export function Footer() {
     {
       title: tr('Popular searches', 'Tìm kiếm phổ biến'),
       links: [
+        /* ⛔ EVERY LINK IN THIS COLUMN MUST LAND ON A PAGE WITH SOMETHING ON IT THAT GOOGLE MAY INDEX.
+           It is on every page of both editions, so a dead end here is a dead end ~250 times over.
+           `/motorbikes-for-sale-vietnam` sat here with ZERO motorbikes behind it and served
+           `noindex, follow` (measured 2026-09-27) — the site's most-repeated internal link pointed
+           at a page it had itself asked Google to drop. It is replaced by the rentals category
+           (25,502 live) and two guides backed by the two deepest shelves, rentals and electronics.
+           Re-check with `curl -s --compressed <url> | grep -o '<meta name="robots"[^>]*>'` before
+           adding a link here; the footer.test.tsx list is the other half of that check. */
         { label: tr('Housing in Vietnam for expats', 'Nhà ở cho người nước ngoài tại Việt Nam'), href: '/housing-vietnam-expats' },
+        /* ⚠️ THE THREE LINKS ADDED 2026-09-27 ARE MARKETPLACE ONLY. Every page.tsx also builds on
+           eno.forum with a self canonical, so there these would point eno.forum's sitewide footer —
+           with the exact "apartments for rent in Ho Chi Minh City" anchor — at eno.forum's COPY of
+           /c/rentals and of two guides, promoting duplicates that compete with eno.vn's pages before
+           the owner has decided the cross-host canonicals. /llms.txt omits the same forum copies for
+           the same reason. Omitting is the reversible choice. */
+        ...(IS_SERVICES ? [] : [{ label: tr('Apartments for rent in Ho Chi Minh City', 'Căn hộ cho thuê tại TP.HCM'), href: '/c/rentals' }]),
         { label: tr('Jobs in Vietnam for expats', 'Việc làm cho người nước ngoài'), href: '/jobs-vietnam-expats' },
-        { label: tr('Motorbikes for sale in Vietnam', 'Mua bán xe máy tại Việt Nam'), href: '/motorbikes-for-sale-vietnam' },
         { label: tr('Moving sales in Vietnam', 'Thanh lý chuyển nhà tại Việt Nam'), href: '/moving-sales-vietnam' },
         { label: tr('Wholesale green coffee', 'Cà phê nhân xanh bán sỉ'), href: '/wholesale-green-coffee-vietnam' },
+        ...(IS_SERVICES
+          ? []
+          : [
+              // English-only guide (no Vietnamese pair exists), so both renders link the same article —
+              // the same arrangement as the English landing pages above.
+              { label: tr('Renting an apartment as a foreigner', 'Kinh nghiệm thuê căn hộ cho người nước ngoài'), href: '/renting-an-apartment-vietnam-foreigner' },
+              // ⚠️ A BILINGUAL PAIR, SO THE HREF FOLLOWS THE LANGUAGE: a Vietnamese reader gets the
+              // Vietnamese article rather than a Vietnamese label on an English page. The slugs are the
+              // reciprocal pair in src/lib/phone-guides.ts — not imported, because this client component
+              // ships on every page and that registry is 17 guides × 2 of copy it would never render.
+              {
+                label: tr('Where to buy an iPhone in Vietnam', 'Mua iPhone ở đâu uy tín'),
+                href: lang === 'vi' ? '/mua-iphone-o-dau-uy-tin' : '/best-place-to-buy-iphone-vietnam',
+              },
+            ]),
         /* ⚠️ SERVICES EDITION ONLY. eno.vn is a licensed sàn TMĐT and may not advertise visa,
            itinerary or PayPal services. The footer is the highest-frequency leak in the repo:
            these are real crawlable <a href> anchors on ~250 routes in BOTH languages, baked
@@ -420,8 +467,9 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Explore — crawlable internal links to every /c/{slug} category landing
-              (SEO internal linking). Slugs and bilingual names come from NAV_CATEGORIES, a
+          {/* Explore — crawlable internal links to every /c/{slug} category landing that has
+              listings (SEO internal linking; the empty ones are FOOTER_HIDDEN_CATEGORIES, above).
+              Slugs and bilingual names come from NAV_CATEGORIES, a
               slug/name/nameVi projection of the canonical taxonomy.
               ⚠️ NOT `TAXONOMY` ITSELF. This is a client component rendered by 30 route files, so
               its imports ship with all of them — and taxonomy.ts is 70,775 bytes, almost all of it
@@ -435,7 +483,7 @@ export function Footer() {
                 class string is untouched precisely so this stays a semantics-only change. */}
             <h3 className="text-sm font-bold text-foreground">{tr('Explore', 'Khám phá')}</h3>
             <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
-              {NAV_CATEGORIES.map((cat) => (
+              {NAV_CATEGORIES.filter((cat) => !FOOTER_HIDDEN_CATEGORIES.has(cat.slug)).map((cat) => (
                 <li key={cat.slug}>
                   <a href={`/c/${cat.slug}`} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr(cat.name, cat.nameVi)}</a>
                 </li>

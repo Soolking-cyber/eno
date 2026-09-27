@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { seoBrowseHref } from '@/components/marketplace/seo-landing-href'
 
 /**
  * eSIM VIETTEL, VINAPHONE, MOBIFONE — the Vietnamese half.
@@ -13,8 +14,14 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
  * number at all; a Vietnamese reader already has one and is asking how to CONVERT a physical SIM to
  * eSIM, whether the number survives, and what happens when they change phones — which is where this
  * spends its length.
+ *
+ * ⚠️ THE LIVE PLANS ARE ONE LINK AWAY (services › esim, 63 listings from 9 networks, measured
+ * 2026-09-27) — same arrangement and same reasoning as the English page: the listings carry the
+ * tariffs and open the network's own page, so this guide never has to.
  */
 const SLUG = 'esim-viettel-vinaphone-mobifone'
+
+const ESIM_PLANS_HREF = seoBrowseHref({ categorySlug: 'services', subcategorySlug: 'esim' })
 
 const CONTENT: ArticleContent = {
   eyebrow: 'Hướng dẫn',
@@ -107,6 +114,13 @@ const CONTENT: ArticleContent = {
               cấp lại profile. Vì vậy thông tin thuê bao đứng đúng tên bạn là chuyện quan trọng.
             </li>
           </Ul>
+          <P>
+            Nếu đang so gói cước, các gói eSIM và gói data của Viettel, VinaPhone, MobiFone,
+            Vietnamobile và một số nhà mạng nhỏ hơn được đăng trên sàn ở mục{' '}
+            <HereLink href={ESIM_PLANS_HREF}>gói eSIM và data</HereLink>: mỗi gói ghi rõ dung lượng
+            và thời hạn, và nút trên tin mở trang của chính nhà mạng &mdash; nơi bạn mua và xem giá
+            hiện hành.
+          </P>
         </>
       ),
     },

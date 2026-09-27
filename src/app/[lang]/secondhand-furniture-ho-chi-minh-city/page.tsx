@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
 import { marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { LiveCounts } from '@/components/marketplace/live-count'
 
 /**
  * SECONDHAND FURNITURE IN HO CHI MINH CITY — the English half; Vietnamese half at
@@ -22,7 +23,13 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
  * ⚠️ AND THE SUPPLY IS DEALER SUPPLY. A 40-item sample held only THREE distinct sellers, so this page
  * must never describe the stock as departing residents' moving sales. It is secondhand trade stock
  * from HCMC sellers, the article says so out loud, and the reader is told what that means for the
- * negotiation. Whole-home clearances are a different supply and live on /moving-sales-vietnam.
+ * negotiation. Whole-home clearances are a different supply — and NOT one /moving-sales-vietnam holds:
+ * that landing rails this same dealer stock (used furniture-appliances), so this page no longer sends
+ * readers there for "household clearances" (2026-09-27). The selling side is /selling-up-before-you-leave-vietnam.
+ *
+ * ⚠️ THE RENTALS COUNT IN "Check the lease" IS COMPUTED (<LiveCounts>), not typed: the typed 19,359 was
+ * 25,502 four days later. And the brand is SITE_NAME, never a literal "eno.vn" (this compiles on
+ * eno.forum too).
  */
 const SLUG = 'secondhand-furniture-ho-chi-minh-city'
 
@@ -96,9 +103,25 @@ const CONTENT: ArticleContent = {
             conditioners are effectively universal and belong to the flat, not to you; a furnished
             apartment normally adds a bed, a wardrobe, a sofa, a dining set, a fridge and a washing
             machine. What is missing is usually the mattress you would actually sleep on, an oven,
-            a water filter and storage. With 19,359 rental listings live across the HCMC districts,
-            you can compare furnished against unfurnished at the same rent before committing to buy
-            a single thing.
+            a water filter and storage.{' '}
+            <LiveCounts targets={{ rentals: { categorySlug: 'rentals', allIn: 'Ho Chi Minh' } }} lang="en">
+              {({ rentals }) =>
+                rentals ? (
+                  <>
+                    With {rentals.count}{' '}
+                    <HereLink href="/c/rentals">rental listings</HereLink> live on this site
+                    {rentals.allInside ? ', all of them in Ho Chi Minh City' : ''}, you can compare
+                    furnished against unfurnished at the same rent before committing to buy a single
+                    thing.
+                  </>
+                ) : (
+                  <>
+                    Before committing to buy a single thing, compare furnished against unfurnished
+                    flats at the same rent in <HereLink href="/c/rentals">the rentals section</HereLink>.
+                  </>
+                )
+              }
+            </LiveCounts>
           </P>
           <P>
             So do it in that order: photograph the inventory at handover, ask in writing what the
@@ -244,12 +267,14 @@ const CONTENT: ArticleContent = {
             seller with a stock photo will change the subject.
           </P>
           <P>
-            If you want the other kind of supply — one household, everything at once, priced to clear
-            by a deadline — that is a different page:{' '}
-            <HereLink href="/moving-sales-vietnam">moving sales and household clearances</HereLink>.
-            The bargains are better and the window is shorter, and you generally take it as it stands.
-            Either way, every seller here carries a public trust score, so a listing with no history
-            reads as exactly that before you ride across town for it.
+            A household clearance — one family, everything at once, priced to clear by a deadline — is
+            a different kind of supply from the dealer stock above: the bargains are better, the window
+            is shorter, and you generally take it as it stands. If you are the one moving out, the
+            other side of that trade is in{' '}
+            <HereLink href="/selling-up-before-you-leave-vietnam">selling up before you leave Vietnam</HereLink>.
+            Either way, a seller who posts here carries a public trust score, so a listing with no
+            history reads as exactly that before you ride across town for it; an official partner
+            shows its partner badge in place of the score.
           </P>
         </>
       ),
@@ -266,8 +291,8 @@ const CONTENT: ArticleContent = {
       a: 'Usually yes, but the price is not the whole price. Used units cluster tightly between about 3.948.000 đ and 5.498.000 đ, and moving a split unit needs an installer, new pipe and often a gas top-up, all billed separately. Ask the year, ask whether removal and installation are included, and insist on seeing it blowing genuinely cold before you agree anything.',
     },
     {
-      q: 'Where does secondhand furniture on eno.vn come from?',
-      a: 'Almost all of it is trade stock from Ho Chi Minh City secondhand dealers — a 40-item sample held only three distinct sellers. That means depth, delivery and a seller who is still there next week, but it also means condition grades are sales language. Household clearances, where one family sells everything at once, are listed separately on the moving sales page.',
+      q: `Where does secondhand furniture on ${SITE_NAME} come from?`,
+      a: 'Almost all of it is trade stock from Ho Chi Minh City secondhand dealers — a 40-item sample held only three distinct sellers. That means depth, delivery and a seller who is still there next week, but it also means condition grades are sales language. A household clearance, where one family sells everything at once, is a different supply, priced by a moving-out deadline rather than by a shop.',
     },
     {
       q: 'Who pays for delivery, and how much is it?',

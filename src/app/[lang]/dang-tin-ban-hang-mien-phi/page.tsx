@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
 import { marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { LiveCounts } from '@/components/marketplace/live-count'
 
 /**
  * ĐĂNG TIN BÁN HÀNG MIỄN PHÍ — the marketplace's own seller-acquisition guide, in Vietnamese.
@@ -34,6 +35,12 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
  * ⛔ NO IDENTITY-VERIFICATION CLAIM. `identityGateEnforced()` is behind `IDENTITY_GATE_ENFORCED`
  * and defaults to OFF (src/lib/compliance/account-state.ts), so telling a seller they must verify
  * first would be false today. Add it here on the same day that switch is flipped, not before.
+ *
+ * ⛔ THE "HIỆN CÓ" / "HIỆN SÀN CÓ" COUNTS ARE COMPUTED (<LiveCounts>), NOT TYPED. They were four figures
+ * measured 2026-09-23 (98.754 · 3.201 · 3.507 · 19.359) sitting under the words "right now"; four days
+ * later three were wrong. The whole-site count also left the meta description, which cannot be
+ * computed without generateMetadata and did not need a number to say "free in every category". When a
+ * count cannot be read (a build with no database), the sentences fall back to wording with no number.
  */
 const SLUG = 'dang-tin-ban-hang-mien-phi'
 
@@ -59,8 +66,17 @@ const CONTENT: ArticleContent = {
           <P>
             Phần phí ngắn: không có phí nào cả. Không phí đăng, không phí theo tháng, không gói đẩy
             tin, không vị trí trả tiền, và điều đó đúng ở mọi danh mục &mdash; xe cộ, cho thuê, đồ
-            gia dụng như nhau. Hiện sàn có <strong>98.754 tin đang hoạt động</strong>. Giới hạn duy
-            nhất là hàng rào chống spam &mdash;{' '}
+            gia dụng như nhau.{' '}
+            <LiveCounts targets={{ all: {} }} lang="vi">
+              {({ all }) =>
+                all && (
+                  <>
+                    Hiện sàn có <strong>{all.count} tin đang hoạt động</strong>.{' '}
+                  </>
+                )
+              }
+            </LiveCounts>
+            Giới hạn duy nhất là hàng rào chống spam &mdash;{' '}
             <strong>15 tin mỗi giờ</strong> cho một tài khoản &mdash; và đó là hạn mức theo giờ để
             chặn máy đăng tự động, không phải hạn mức tháng: bán mười món trong một buổi tối là
             chuyện bình thường.
@@ -217,12 +233,36 @@ const CONTENT: ArticleContent = {
       body: (
         <>
           <P>
-            Đăng miễn phí chỉ có nghĩa nếu món của bạn nằm trong nhóm đang có người tìm. Trong{' '}
-            <strong>98.754 tin đang hoạt động</strong> hiện có,{' '}
-            <HereLink href="/c/furniture-appliances">đồ gia dụng và nội thất cũ</HereLink> có{' '}
-            <strong>3.201 tin</strong>, đồ điện tử cũ có <strong>3.507 tin</strong>, và{' '}
-            <HereLink href="/c/rentals">cho thuê</HereLink> có <strong>19.359 tin</strong> &mdash;
-            mảng cho thuê tập trung ở các quận TP.HCM.
+            Đăng miễn phí chỉ có nghĩa nếu món của bạn nằm trong nhóm đang có người tìm.{' '}
+            <LiveCounts
+              targets={{
+                all: {},
+                used: { categorySlug: 'furniture-appliances', condition: 'used' },
+                usedElectronics: { categorySlug: 'electronics', condition: 'used' },
+                rentals: { categorySlug: 'rentals', allIn: 'Ho Chi Minh' },
+              }}
+              lang="vi"
+            >
+              {({ all, used, usedElectronics, rentals }) =>
+                all && used && usedElectronics && rentals ? (
+                  <>
+                    Trong <strong>{all.count} tin đang hoạt động</strong> hiện có,{' '}
+                    <HereLink href="/c/furniture-appliances">đồ gia dụng và nội thất cũ</HereLink> có{' '}
+                    <strong>{used.count} tin</strong>, đồ điện tử cũ có{' '}
+                    <strong>{usedElectronics.count} tin</strong>, và{' '}
+                    <HereLink href="/c/rentals">cho thuê</HereLink> có <strong>{rentals.count} tin</strong>
+                    {rentals.allInside ? <> &mdash; toàn bộ mảng cho thuê đều ở TP.HCM.</> : '.'}
+                  </>
+                ) : (
+                  <>
+                    Trước khi đăng, hãy xem{' '}
+                    <HereLink href="/c/furniture-appliances">đồ gia dụng và nội thất cũ</HereLink>, đồ điện
+                    tử cũ và <HereLink href="/c/rentals">cho thuê</HereLink> đang có những tin gì và rao
+                    giá bao nhiêu.
+                  </>
+                )
+              }
+            </LiveCounts>
           </P>
           <P>
             Với đồ gia dụng và nội thất cũ, đây là mặt bằng giá đọc trực tiếp từ tin rao thật trên
@@ -312,7 +352,7 @@ export const revalidate = 3600
 export const metadata: Metadata = {
   title: `Đăng tin bán hàng miễn phí — điều kiện để tin được duyệt | ${SITE_NAME}`,
   description:
-    `Đăng tin miễn phí ở mọi danh mục trên sàn 98.754 tin. Tin cần tối thiểu 3 ảnh khác góc, không số điện thoại trong tiêu đề, và bộ lọc trùng tin chặn đăng lại — kèm công thức xếp hạng đầy đủ.`,
+    `Đăng tin miễn phí ở mọi danh mục. Tin cần tối thiểu 3 ảnh khác góc, không số điện thoại trong tiêu đề, và bộ lọc trùng tin chặn đăng lại — kèm công thức xếp hạng đầy đủ.`,
   alternates: { canonical: `/${SLUG}` },
   openGraph: {
     title: `Đăng tin bán hàng miễn phí — điều kiện để tin được duyệt | ${SITE_NAME}`,

@@ -22,6 +22,11 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
  * giấu nguồn số thì cũng chỉ là một trang thu mua khác. Nguồn hàng cũ trên sàn do NGƯỜI BÁN TẠI TP.HCM
  * đăng, phần lớn là cửa hàng chứ không phải người dọn nhà, nên không được mô tả nó là hàng thanh lý
  * của người nước ngoài sắp rời Việt Nam.
+ *
+ * ⚠️ 2026-09-27: "Trên ${SITE_NAME}" rendered as a literal "$eno.vn" — a template-literal `${…}` typed
+ * into JSX text, where it is not interpolation but a dollar sign followed by an expression. In JSX
+ * text the brand is `{SITE_NAME}`. The undated "đồ điện tử cũ … 3.507 tin" (3.465 four days later)
+ * became a link to the category instead of a number that could not stay true.
  */
 const SLUG = 'ban-do-cu-o-dau-duoc-gia'
 
@@ -62,7 +67,7 @@ const CONTENT: ArticleContent = {
             <li>
               <strong>Đăng tin bán thẳng cho người dùng cuối.</strong> Giá cao nhất, vì bạn đứng đúng
               vị trí mà cửa hàng thu mua đang đứng: bán lẻ. Đổi lại bạn phải trả lời tin nhắn, hẹn
-              người đến xem và tự chốt. Trên ${SITE_NAME}{' '}
+              người đến xem và tự chốt. Trên {SITE_NAME}{' '}
               <HereLink href="/post">đăng tin là miễn phí</HereLink>, nên phép thử rẻ nhất là đăng
               trước vài ngày rồi mới gọi thu mua nếu không ai hỏi.
             </li>
@@ -119,8 +124,8 @@ const CONTENT: ArticleContent = {
             Hai lưu ý để dùng đúng mấy con số này. Thứ nhất, đó là <strong>giá rao</strong>, không phải
             giá đã chốt; giá chốt thường thấp hơn một bậc thương lượng. Thứ hai, và đây mới là chỗ quan
             trọng: giá rao chính là giá mà người thu mua sẽ bán lại món đồ của bạn. Cho nên nó là cái
-            thước đúng để đặt cạnh con số họ đưa cho bạn. Đồ điện tử cũ là danh mục riêng với 3.507 tin,
-            còn{' '}
+            thước đúng để đặt cạnh con số họ đưa cho bạn. Đồ điện tử cũ nằm ở danh mục{' '}
+            <HereLink href="/c/electronics">đồ điện tử</HereLink>, còn{' '}
             <HereLink href="/c/furniture-appliances">danh mục đồ gia dụng và nội thất</HereLink> là nơi
             tra trực tiếp món giống món của bạn.
           </P>

@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { ArrowRight, ArrowUpRight, Info } from '@/components/ui/icons'
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { organizationId } from '@/lib/site-identity'
 import { AFFILIATION } from '@/lib/site-legal'
 import { CROSS_SITE_REL, MARKETPLACE_LINKS } from '@/lib/cross-site-links'
 import { Header } from './header'
 import { Footer } from './footer'
+import { keepReading } from './seo-article-related'
 /**
  * ⚠️ `@/components/marketplace/cross-site-promo`, NOT `./cross-site-promo`, AND THE DIFFERENCE IS
  * THE WHOLE STUB MECHANISM. next.config.ts aliases this module away on a marketplace build, and a
@@ -207,6 +209,10 @@ const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
 
 export function SeoArticle({ content }: { content: ArticleContent }) {
   const url = `${SITE_ORIGIN}${content.canonical}`
+  // ⚠️ CAPPED HERE, NOT AT EACH CALL SITE. The phone guides passed all sixteen same-language siblings
+  // and the block grew with every guide added; seo-article-related.ts picks at most six (the most
+  // related first, plus alphabetical neighbours so no sibling is left without an inbound card).
+  const related = keepReading(content.related, { canonical: content.canonical, h1: content.h1 })
 
   /**
    * ⚠️ THE PUBLISHER IS THIS DEPLOYMENT, DERIVED FROM ITS OWN ORIGIN. It is the same defect the
@@ -216,7 +222,12 @@ export function SeoArticle({ content }: { content: ArticleContent }) {
    *
    * `author` is the same organisation on purpose: these are house guides, not bylined pieces, and
    * inventing a human author would be a fabrication in structured data.
+   *
+   * ⚠️ ON THE MARKETPLACE BOTH CARRY THE LAYOUT'S Organization `@id` (src/lib/site-identity.ts), so the
+   * article's publisher IS that node rather than a second, unlinked one. eno.forum's layout declares
+   * no @id (the editions must not read as one entity), so there the inline node stays as it was.
    */
+  const orgRef = IS_SERVICES ? {} : { '@id': organizationId(SITE_ORIGIN) }
   const articleLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -226,8 +237,8 @@ export function SeoArticle({ content }: { content: ArticleContent }) {
     datePublished: content.published,
     dateModified: content.updated ?? content.published,
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
-    author: { '@type': 'Organization', name: SITE_NAME, url: SITE_ORIGIN },
-    publisher: { '@type': 'Organization', name: SITE_NAME, url: SITE_ORIGIN, logo: `${SITE_ORIGIN}/logo.svg` },
+    author: { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN },
+    publisher: { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN, logo: `${SITE_ORIGIN}/logo.svg` },
     isAccessibleForFree: true,
     ...(content.alternate ? { workTranslation: { '@type': 'Article', inLanguage: content.alternate.lang, url: `${SITE_ORIGIN}${content.alternate.href}` } } : {}),
   }
@@ -296,11 +307,11 @@ export function SeoArticle({ content }: { content: ArticleContent }) {
           ))}
         </div>
 
-        {content.related && content.related.length > 0 && (
+        {related.length > 0 && (
           <section className="mt-14 max-w-3xl">
             <h2 className="h-section mb-4 text-foreground">Keep reading</h2>
             <ul className="grid gap-3 sm:grid-cols-2">
-              {content.related.map((r) => (
+              {related.map((r) => (
                 <li key={r.href}>
                   <Link href={r.href} className="group flex flex-col rounded-xl border border-border p-4 hover:border-accent-foreground/40">
                     <span className="flex items-center gap-1 text-sm font-semibold text-foreground group-hover:text-accent-foreground">

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
 import { marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { LiveCounts } from '@/components/marketplace/live-count'
 
 /**
  * RENTING AN APARTMENT IN VIETNAM AS A FOREIGNER — the marketplace's own long-form guide.
@@ -27,9 +28,20 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
  * months, which had one site contradicting itself on the single fact both pages are read for. Summary
  * links to deep dive, one direction, and the number is stated the same way in both.
  *
- * ⚠️ COUNTS ARE ENGLISH-FORMATTED (3,201 · 19,359), MONEY IS VIETNAMESE-FORMATTED (2.480.000 đ), and both
+ * ⚠️ COUNTS ARE ENGLISH-FORMATTED (3,201), MONEY IS VIETNAMESE-FORMATTED (2.480.000 đ), and both
  * appear in the same sentence deliberately. The prose is English, so a count written "3.201" reads as
  * three-point-two — while đồng always takes dot separators, per src/lib/vnd.ts.
+ *
+ * ⛔ THE RENTALS COUNT IS COMPUTED, NOT TYPED. It said "19,359 rental listings … every one of them in a
+ * Ho Chi Minh City district" (measured 2026-09-23); four days later the live figure was 25,502 and
+ * the sentence was wrong on a page that re-renders hourly and never re-reads its own prose. It now
+ * comes from <LiveCounts> (src/components/marketplace/live-count.tsx): the number is read at render,
+ * "every one of them in Ho Chi Minh City" appears only while it is true, and a failed count falls back
+ * to a sentence with no number in it. The same paragraph now says that many listings are linked from
+ * partner portals — measured 2026-09-27, 100 of 100 sampled rentals carried a partner link to the
+ * source, which is what a reader needs to know before messaging anyone. It does NOT say the enquiry
+ * is handled there: the owner removed that line on 2026-09-25 (src/lib/import-viewing-disclaimer.ts)
+ * because the eno team checks availability on any rental.
  */
 const CONTENT: ArticleContent = {
   eyebrow: 'Guide',
@@ -62,10 +74,26 @@ const CONTENT: ArticleContent = {
             Go at the hour you would actually be home. Afternoon sun on a west-facing wall decides your
             electricity bill; the lane outside decides whether you sleep. Check mobile signal inside the
             flat, run a tap while another is running, and look at the ceiling corners of the bathroom for
-            the stains that say the unit above leaks. There are{' '}
-            <HereLink href="/c/rentals">19,359 rental listings</HereLink> live on this site, every one of
-            them in a Ho Chi Minh City district, so walking away from a flat with a bad tell costs you
-            nothing but the afternoon.
+            the stains that say the unit above leaks.{' '}
+            <LiveCounts targets={{ rentals: { categorySlug: 'rentals', allIn: 'Ho Chi Minh' } }} lang="en">
+              {({ rentals }) =>
+                rentals ? (
+                  <>
+                    There are <HereLink href="/c/rentals">{rentals.count} rental listings</HereLink> live
+                    on this site{rentals.allInside ? ', every one of them in Ho Chi Minh City' : ''}, so
+                    walking away from a flat with a bad tell costs you nothing but the afternoon.
+                  </>
+                ) : (
+                  <>
+                    Walking away from a flat with a bad tell costs you nothing but the afternoon; keep
+                    looking in <HereLink href="/c/rentals">the rentals section</HereLink>.
+                  </>
+                )
+              }
+            </LiveCounts>{' '}
+            Many rental listings here are linked from partner property portals: they say where they are
+            listed, and their button opens the original posting. On any rental here, the check button
+            asks the eno team to check availability for you, free.
           </P>
         </>
       ),

@@ -47,11 +47,11 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'Apply on the original posting',
-      body: 'Linked jobs open the employer’s or job board’s own posting, and your application goes to them — eno.vn does not handle applications or see your CV. Some employers post directly on eno.vn; those you can message in-app.',
+      body: `Linked jobs open the employer’s or job board’s own posting, and your application goes to them — ${SITE_NAME} does not handle applications or see your CV. Some employers post directly on ${SITE_NAME}; those you can message in-app.`,
     },
     {
       title: 'Never pay to get a job',
-      body: 'eno.vn has not vetted the employers behind linked postings. A real employer never asks for a fee, a deposit or payment for training before you start. Check the employer independently, and report a listing that looks wrong.',
+      body: `${SITE_NAME} has not vetted the employers behind linked postings. A real employer never asks for a fee, a deposit or payment for training before you start. Check the employer independently, and report a listing that looks wrong.`,
     },
   ],
   faqs: [
@@ -65,7 +65,7 @@ const CONTENT: SeoContent = {
     },
     {
       q: 'How do I apply?',
-      a: 'Open the job and tap its Apply button: it takes you to the original posting, where you apply to the employer. eno.vn does not take applications and never charges a fee.',
+      a: `Open the job and tap its Apply button: it takes you to the original posting, where you apply to the employer. ${SITE_NAME} does not take applications and never charges a fee.`,
     },
   ],
 }

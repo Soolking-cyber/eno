@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { marketplaceGuidesExcept } from '@/lib/expat-guides'
-import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
 /**
  * FURNISHING A HOME IN VIETNAM — the marketplace's own long-form guide.
@@ -131,14 +131,18 @@ const CONTENT: ArticleContent = {
             the short list above, and January and the weeks before Tết are when the discounts are real.
           </P>
           <P>
-            On this site, the two places to start are{' '}
+            {/* ⛔ NO LONGER SENDS READERS TO /moving-sales-vietnam FOR "WHOLE-HOME CLEARANCES": that
+                landing rails the same dealer stock as the category (2026-09-27: 100 of 100 sampled
+                used furniture listings from 3 shops, all linked). And the trust score is scoped to
+                sellers who post here — a linked listing opens on the shop's own page. */}
+            On this site, the place to start is{' '}
             <Link href="/c/furniture-appliances" className="font-semibold text-accent-foreground hover:underline">
               furniture &amp; appliances
-            </Link>{' '}
-            and the{' '}
-            <HereLink href="/moving-sales-vietnam">moving sales</HereLink> page, which collects whole-home
-            clearances. Every seller carries a public trust score, so a listing with no history reads as
-            exactly that before you travel across town for it.
+            </Link>
+            . Many listings there link out to the shop or site they came from, and you buy there — so
+            check that seller the way you would any shop. A seller who posts here directly carries a
+            public trust score (an official partner shows its partner badge instead), so a listing with
+            no history reads as exactly that before you travel across town for it.
           </P>
         </>
       ),

@@ -266,12 +266,16 @@ const CONTENT: ArticleContent = {
         <>
           <P>
             Almost everyone who applies for a 90-day visa is arriving with something else to arrange.
-            The two questions that follow immediately are where to stay and how to get around, and
-            both have better answers than a hotel and a taxi account:{' '}
-            <VnLink href={marketplaceHref('housing')}>apartments and houses for rent</VnLink> listed
-            by the people who own them, and{' '}
-            <VnLink href={marketplaceHref('motorbikes')}>motorbikes to rent monthly or buy
-            outright</VnLink> — renting first is the cheaper way to find out what you want.
+            The two questions that follow immediately are where to stay and how to get around. For
+            the first,{' '}
+            <VnLink href={marketplaceHref('housing')}>apartments and houses for rent in Ho Chi Minh
+            City</VnLink> show the asking price, the district and photos, and many link to the
+            original posting on a partner property portal. For the second, ride-hailing covers the
+            first weeks, and renting a scooter monthly before you buy one is the cheaper way to find
+            out what you want.
+            {/* ⛔ NO MOTORBIKE LINK, AND NOT "LISTED BY THE PEOPLE WHO OWN THEM" (2026-09-27): eno.vn
+                held 0 motorbikes (its landing is noindex, and the `motorbikes` key is gone from
+                cross-site-links.ts), and most rentals are linked from partner portals. */}
           </P>
           <P>
             If the move is longer term, the two guides worth reading before you fly are{' '}

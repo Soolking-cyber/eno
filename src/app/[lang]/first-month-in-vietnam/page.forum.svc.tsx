@@ -98,10 +98,10 @@ const CONTENT: ArticleContent = {
             Ride-hailing apps cover the first fortnight cheaply and let you learn the city before you
             commit. When you are ready for your own transport, rent monthly before you buy: a month
             on a scooter tells you whether you actually want to own one, what size suits the traffic
-            where you live, and whether you enjoy the rainy season on two wheels. Both options sit
-            side by side under{' '}
-            <VnLink href={marketplaceHref('motorbikes')}>motorbikes for sale and for monthly rent</VnLink>,
-            which makes the comparison easy to make honestly.
+            where you live, and whether you enjoy the rainy season on two wheels.
+            {/* ⛔ NO MOTORBIKE LINK (2026-09-27): "both options sit side by side under motorbikes for
+                sale and for monthly rent" pointed at eno.vn's motorbike landing, which held 0 listings
+                and is noindex — and this guide is now listed in eno.forum's /llms.txt. */}
           </P>
           <P>
             The licence question is not optional and is widely ignored: to ride legally you need a
@@ -159,8 +159,11 @@ const CONTENT: ArticleContent = {
           </Ul>
           <P>
             When you are ready to look,{' '}
-            <VnLink href={marketplaceHref('housing')}>apartments and houses listed by their owners
-            and managers</VnLink> let you message directly and arrange the viewing yourself.
+            <VnLink href={marketplaceHref('housing')}>apartments and houses for rent in Ho Chi Minh
+            City</VnLink> show the asking price, the district and photos, and many link to the original
+            posting on a partner property portal.
+            {/* ⚠️ It said they were "listed by their owners and managers" and "let you message
+                directly": most are linked from partner portals, with no in-app chat (2026-09-27). */}
           </P>
         </>
       ),
@@ -174,10 +177,12 @@ const CONTENT: ArticleContent = {
             Unfurnished in Vietnam usually means genuinely empty, and semi-furnished can mean a bed
             and an air conditioner. The good news is that the international community turns over
             constantly, so there is a permanent supply of sofas, fridges, washing machines, desks and
-            kitchen equipment from people whose contracts have ended —{' '}
-            <VnLink href={marketplaceHref('moving-sales')}>moving sales and secondhand
-            furniture</VnLink> is where most of it surfaces, usually at a fraction of shop prices and
-            often with the delivery already arranged because the seller wants it gone.
+            kitchen equipment from people whose contracts have ended.{' '}
+            <VnLink href={marketplaceHref('moving-sales')}>Moving sales and secondhand
+            furniture</VnLink> lists used furniture and appliances, most of it from secondhand shops
+            rather than departing residents, so compare a few before you buy.
+            {/* ⚠️ Not "where most of it surfaces … because the seller wants it gone": the used stock on
+                eno.vn is dealer-supplied (2026-09-27). */}
           </P>
           <P>
             Two rules for appliances: plug it in and run it before money changes hands, and never pay
@@ -281,7 +286,7 @@ const CONTENT: ArticleContent = {
     },
     {
       q: 'Should I buy or rent a motorbike?',
-      a: 'Rent monthly first. A month tells you whether you want to own one at all, and rental and sale listings sit side by side so the comparison is easy.',
+      a: 'Rent monthly first. A month tells you whether you want to own one at all.',
     },
     {
       q: 'What is the most common surprise in a Vietnamese lease?',

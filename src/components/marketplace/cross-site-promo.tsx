@@ -13,8 +13,8 @@ import { cn } from '@/lib/utils'
  * "ALREADY IN VIETNAM?" — the eno.vn introduction, shown on eno.forum only.
  *
  * A visa applicant is, almost by definition, about to arrive in Vietnam and about to need somewhere
- * to live and something to ride. Saying so once, at the bottom of the page they came to read, is
- * useful. Saying it in a banner on every surface is an ad unit, and this component is written to
+ * to live and something to furnish it with. Saying so once, at the bottom of the page they came to
+ * read, is useful. Saying it in a banner on every surface is an ad unit, and this component is written to
  * make the first easy and the second obviously wrong — see the placement note below.
  *
  * ⚠️ IT DISCLOSES THE RELATIONSHIP IN THE SAME BREATH AS THE PITCH. `AFFILIATION.short*` from
@@ -54,9 +54,9 @@ export function CrossSitePromo({ className }: { className?: string }) {
   // return below, which is why this sits above it.
   const titleId = useId()
 
-  // The home link leads the list, then the three most useful destinations for somebody who has just
-  // arrived. Three, not four: the fourth (moving sales) is the least likely thing a new arrival
-  // needs on day one and is still one click away in the footer column. The order lives in the lib.
+  // The home link leads the list, then at most three destinations, in the order the lib gives them
+  // (housing, jobs, secondhand furniture today). The cap keeps this a short recommendation if the
+  // lib grows; the order lives in the lib.
   const home = MARKETPLACE_HOME
   const links = home ? [home, ...MARKETPLACE_LINKS.slice(0, 3)] : []
 
@@ -72,15 +72,19 @@ export function CrossSitePromo({ className }: { className?: string }) {
     >
       <p className="eyebrow mb-2 text-accent-foreground">{tr('Also from eno', 'Cũng từ eno')}</p>
       <h2 id={titleId} className="h-section text-foreground">
+        {/* ⚠️ Names only what the links below lead to. It said "motorbikes" while eno.vn held 0
+            motorbikes and that landing was noindex (2026-09-27). */}
         {tr(
-          'Already in Vietnam? Find housing, jobs and motorbikes on eno.vn',
-          'Bạn đã ở Việt Nam? Tìm nhà ở, việc làm và xe máy trên eno.vn',
+          'Already in Vietnam? Find housing, jobs and furniture on eno.vn',
+          'Bạn đã ở Việt Nam? Tìm nhà ở, việc làm và nội thất trên eno.vn',
         )}
       </h2>
       <p className="mt-3 text-base leading-relaxed text-body">
+        {/* ⚠️ Not "listed by the people who own the things": most rentals, furniture and electronics
+            there are linked from partner portals and shops (2026-09-27). */}
         {tr(
-          'eno.vn is our marketplace for the international community in Vietnam, listed by the people who own the things. Free to browse, free to post.',
-          'eno.vn là chợ của chúng tôi dành cho cộng đồng quốc tế tại Việt Nam, do chính chủ đăng tin. Xem tin và đăng tin đều miễn phí.',
+          'eno.vn is our marketplace for the international community in Vietnam. Many of its listings come from partner sites and link to the original posting. Free to browse, free to post.',
+          'eno.vn là chợ của chúng tôi dành cho cộng đồng quốc tế tại Việt Nam. Nhiều tin đăng trên đó đến từ các trang đối tác và dẫn tới tin gốc. Xem tin và đăng tin đều miễn phí.',
         )}
       </p>
 

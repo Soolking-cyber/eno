@@ -71,6 +71,33 @@ describe('cross-site links', () => {
     expect(CROSS_SITE_REL).toBe('noopener')
   })
 
+  /**
+   * ⛔ THE PROMO MAY ONLY PROMISE WHAT eno.vn ACTUALLY HOLDS (measured 2026-09-27). It advertised
+   * "housing, jobs and motorbikes … listed by the people who own the things", linked a motorbike
+   * landing with 0 listings that noindexes itself, and called dealer-supplied used furniture
+   * "moving sales from people leaving Vietnam". Most rentals, furniture and electronics are linked
+   * from partner portals and shops. If motorbike stock appears and that landing is indexable again,
+   * re-adding it is a deliberate edit to this test — not something a copy tweak should slip past.
+   */
+  it('makes no claim the live stock cannot back (no motorbikes, no owner-listed, no moving sales)', () => {
+    const OVERCLAIM =
+      /motorbike|scooter|xe máy|xe cộ|vehicles|moving sale|thanh lý chuyển nhà|people leaving|sắp rời|who own|chính chủ/i
+    for (const l of ALL) {
+      expect(new URL(l.href).pathname, `${l.key} links the empty motorbike landing`).not.toBe('/motorbikes-for-sale-vietnam')
+      for (const field of ['labelEn', 'labelVi', 'blurbEn', 'blurbVi'] as const) {
+        expect(l[field], `${l.key}.${field}`).not.toMatch(OVERCLAIM)
+      }
+    }
+    // The promo's own heading and body are `tr()` literals, so read them from the source. Comments are
+    // stripped: they quote the old wording to explain why it went.
+    const promo = readFileSync('src/components/marketplace/cross-site-promo.tsx', 'utf8')
+      .replace(/\{?\/\*[\s\S]*?\*\/\}?/g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    const literals = [...promo.matchAll(/tr\(\s*'([^']*)',\s*'([^']*)'/g)].flatMap((m) => [m[1], m[2]])
+    expect(literals.length, 'no tr() literals found — this check has gone vacuous').toBeGreaterThanOrEqual(6)
+    for (const text of literals) expect(text).not.toMatch(OVERCLAIM)
+  })
+
   it.each([
     'src/lib/cross-site-links.ts',
     'src/lib/edition-services-copy.ts',

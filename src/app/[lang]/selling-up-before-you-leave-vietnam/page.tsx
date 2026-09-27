@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { marketplaceGuidesExcept } from '@/lib/expat-guides'
-import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
 /**
  * SELLING UP BEFORE YOU LEAVE — the departure half of the marketplace's guide pair.
@@ -105,12 +105,14 @@ const CONTENT: ArticleContent = {
             </li>
           </Ul>
           <P>
+            {/* ⛔ THE "WHOLE-FLAT CASE HAS ITS OWN PAGE — moving sales" LINK IS GONE: that landing
+                rails dealer stock (used furniture from 3 shops, 2026-09-27), not residents' clearances,
+                so it was no place to send someone emptying a flat. */}
             You can post from the app or the web in a couple of minutes:{' '}
             <Link href="/post" className="font-semibold text-accent-foreground hover:underline">
               post a listing
             </Link>
-            , and the whole-flat case has its own page —{' '}
-            <HereLink href="/moving-sales-vietnam">moving sales</HereLink>.
+            . A whole flat is the same job repeated: one listing per piece, with the bundles above.
           </P>
         </>
       ),
