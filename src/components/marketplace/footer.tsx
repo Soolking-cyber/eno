@@ -189,7 +189,13 @@ export function Footer() {
            /c/rentals and of two guides, promoting duplicates that compete with eno.vn's pages before
            the owner has decided the cross-host canonicals. /llms.txt omits the same forum copies for
            the same reason. Omitting is the reversible choice. */
-        ...(IS_SERVICES ? [] : [{ label: tr('Apartments for rent in Ho Chi Minh City', 'Căn hộ cho thuê tại TP.HCM'), href: '/c/rentals' }]),
+        // The rent index is a harder gate still: its page is notFound() on eno.forum, so there it is a 404.
+        ...(IS_SERVICES
+          ? []
+          : [
+              { label: tr('Apartments for rent in Ho Chi Minh City', 'Căn hộ cho thuê tại TP.HCM'), href: '/c/rentals' },
+              { label: tr('HCMC Rent Index', 'Chỉ số giá thuê nhà TP.HCM'), href: '/hcmc-rent-index' },
+            ]),
         { label: tr('Jobs in Vietnam for expats', 'Việc làm cho người nước ngoài'), href: '/jobs-vietnam-expats' },
         { label: tr('Moving sales in Vietnam', 'Thanh lý chuyển nhà tại Việt Nam'), href: '/moving-sales-vietnam' },
         { label: tr('Wholesale green coffee', 'Cà phê nhân xanh bán sỉ'), href: '/wholesale-green-coffee-vietnam' },

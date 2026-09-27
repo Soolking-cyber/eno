@@ -7,7 +7,7 @@ import { localizeListingTitles } from '@/lib/translate'
 import { districtScopeForSlug } from '@/lib/district-slug'
 import { canonicalDistrictSlug, districtLabel, isCuratedDistrict, mergeDistrictGroups } from '@/lib/district-canonical'
 import { districtMetadata, linkedTier, pageLang } from '../category-copy'
-import { DistrictHeading, DistrictLede, PlaceName } from '../category-text'
+import { DistrictHeading, DistrictLede, PlaceName, RentIndexLink } from '../category-text'
 import { notFound, permanentRedirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -243,6 +243,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
               a 600-row window — and announced them as the district's inventory. */}
           <DistrictLede total={total} name={cat.name} nameVi={cat.nameVi} categorySlug={cat.slug} place={place} linked={linked} />
         </p>
+        {/* Only for an HCMC district: the index covers Ho Chi Minh City and nothing else. */}
+        {cat.slug === 'rentals' && data.inHcmc && <RentIndexLink />}
 
         {otherDistricts.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">

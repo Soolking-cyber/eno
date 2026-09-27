@@ -70,6 +70,8 @@ describe('Footer links', () => {
       expect(hrefs).toContain('/c/rentals')
       expect(container.textContent).toContain(lang === 'vi' ? 'Căn hộ cho thuê tại TP.HCM' : 'Apartments for rent in Ho Chi Minh City')
       expect(hrefs).toContain('/renting-an-apartment-vietnam-foreigner')
+      expect(hrefs).toContain('/hcmc-rent-index')
+      expect(container.textContent).toContain(lang === 'vi' ? 'Chỉ số giá thuê nhà TP.HCM' : 'HCMC Rent Index')
       // A bilingual pair: the href follows the language.
       expect(hrefs).toContain(lang === 'vi' ? '/mua-iphone-o-dau-uy-tin' : '/best-place-to-buy-iphone-vietnam')
       expect(hrefs).not.toContain(lang === 'vi' ? '/best-place-to-buy-iphone-vietnam' : '/mua-iphone-o-dau-uy-tin')
@@ -83,6 +85,12 @@ describe('Footer links', () => {
       for (const href of ['/renting-an-apartment-vietnam-foreigner', '/best-place-to-buy-iphone-vietnam', '/mua-iphone-o-dau-uy-tin']) {
         expect(hrefs).not.toContain(href)
       }
+    })
+
+    // ⛔ Harder than the copies above: /hcmc-rent-index is notFound() on eno.forum, so this would be a 404.
+    it(`services/${lang}: never links the rent index, which 404s on eno.forum`, async () => {
+      const { hrefs } = await renderFooter('services', lang)
+      expect(hrefs.filter((h) => h.startsWith('/hcmc-rent-index'))).toEqual([])
     })
   }
 

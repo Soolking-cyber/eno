@@ -4,7 +4,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { loadCategory } from '../load-category'
 import { loadDistrictChips, loadLinkedCount, loadRentalsFacts } from '../category-data'
 import { categoryMetadata, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
-import { CategoryGuides, PlaceName, RentalsDistricts, RentalsHeading, RentalsLede } from '../category-text'
+import { CategoryGuides, PlaceName, RentIndexLink, RentalsDistricts, RentalsHeading, RentalsLede } from '../category-text'
 import { guidesForCategory } from '@/lib/category-guides'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -213,6 +213,7 @@ export default async function CategoryPage({ params }: Props) {
         </p>
         {/* The availability check is invisible until something says it exists — one line, rentals only. */}
         {cat.slug === 'rentals' && <RentalCheckHint className="mt-2 max-w-prose" />}
+        {cat.slug === 'rentals' && <RentIndexLink />}
 
         {districts.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">

@@ -849,6 +849,7 @@ export const UI_STRINGS: string[] = [
   "Gửi lại sau",
   "Gửi mã",
   "HCM",
+  "HCMC Rent Index",
   "Halal",
   "Handle",
   "Has a video",

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Tr, useLanguage } from '@/context/language-context'
 import { ArrowRight } from '@/components/ui/icons'
 import { Row, Rows } from '@/components/ui/rows'
+import { IS_SERVICES } from '@/lib/edition'
 import type { CategoryGuide } from '@/lib/category-guides'
 import {
   HCMC_NAME,
@@ -206,6 +207,27 @@ export function DistrictLede({
     <>
       {n} {what} {place.en}. {tail}
     </>
+  )
+}
+
+/**
+ * /c/rentals and /c/rentals/<district>, under the lede: one line pointing at /hcmc-rent-index.
+ *
+ * ⚠️ MARKETPLACE EDITION ONLY — the rent index page is `notFound()` on eno.forum, so there this would
+ * be a link to a 404. The gate lives here rather than at the two call sites so neither can forget it.
+ * ⚠️ NO ROW FRAGMENT on a district page: the index's table rows carry no ids, so a `#<slug>` would
+ * land at the top anyway.
+ */
+export function RentIndexLink() {
+  const { tr } = useLanguage()
+  if (IS_SERVICES) return null
+  return (
+    <p className="mt-2 max-w-prose text-sm text-body">
+      {tr('Median rent by district', 'Giá thuê trung vị theo quận')}:{' '}
+      <Link href="/hcmc-rent-index" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
+        {tr('HCMC Rent Index', 'Chỉ số giá thuê nhà TP.HCM')} <ArrowRight className="h-4 w-4 shrink-0" />
+      </Link>
+    </p>
   )
 }
 

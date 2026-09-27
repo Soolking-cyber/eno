@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import * as React from 'react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
 import { LanguageProvider } from '@/context/language-context'
@@ -220,5 +220,49 @@ describe('categoryMetadata — every non-rentals category', () => {
       title: 'Sports in Vietnam — Trusted listings | eno.vn',
       description: 'Browse sports for expats in Vietnam. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.',
     })
+  })
+})
+
+describe('RentIndexLink', () => {
+  /**
+   * ⚠️ THE EDITION IS READ ONCE AT IMPORT and vitest pins it to 'services', so the marketplace render
+   * re-imports the component and the language context together (same instance — see footer.test.tsx).
+   */
+  async function render(edition: 'marketplace' | 'services', lang: 'en' | 'vi') {
+    vi.resetModules()
+    vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', edition)
+    try {
+      const ctx = await import('@/context/language-context')
+      const { RentIndexLink } = await import('./category-text')
+      const out = renderToString(
+        <ctx.LanguageProvider initialLang={lang} initialViDict={{}}>
+          <RentIndexLink />
+        </ctx.LanguageProvider>,
+      )
+      const el = document.createElement('div')
+      el.innerHTML = out
+      return { el, text: (el.textContent ?? '').replace(/\s+/g, ' ').trim() }
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  }
+
+  it('links /hcmc-rent-index, with no fragment, in the page language', async () => {
+    for (const [lang, want] of [
+      ['en', 'Median rent by district: HCMC Rent Index'],
+      ['vi', 'Giá thuê trung vị theo quận: Chỉ số giá thuê nhà TP.HCM'],
+    ] as const) {
+      const { el, text: t } = await render('marketplace', lang)
+      expect(t).toBe(want)
+      expect([...el.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/hcmc-rent-index'])
+    }
+  })
+
+  it('renders nothing on eno.forum, where the rent index is a 404', async () => {
+    for (const lang of ['en', 'vi'] as const) {
+      const { el, text: t } = await render('services', lang)
+      expect(el.querySelector('a[href^="/hcmc-rent-index"]')).toBeNull()
+      expect(t).toBe('')
+    }
   })
 })
