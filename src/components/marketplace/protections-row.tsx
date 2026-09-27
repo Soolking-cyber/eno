@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { BadgeCheck, Scale, Flag, Wallet, ChevronRight, ShieldCheck } from '@/components/ui/icons'
+import { Flag, Images, UserRound, ListChecks, Wallet, ScanLine, Scale, ChevronRight } from '@/components/ui/icons'
 import { ICON_SIZE } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
@@ -16,19 +16,33 @@ import {
 } from '@/components/ui/dialog'
 
 /**
- * Slim, tappable trust-safety strip for the listing detail page. Opens a bottom
- * sheet (centered card on desktop) that lists ONLY what eno actually underwrites —
- * screened listings, the evidence-based Trust score, the 72h dispute center,
- * admin-reviewed reports, and safe-payment guidance. No escrow, no returns.
+ * The listing page's "Reports & disputes" row, and the sheet it opens (bottom sheet on a phone,
+ * centred card on desktop) explaining how a report becomes a case and what can come of it.
+ *
+ * ⛔ EVERY SENTENCE HERE IS A CLAIM ABOUT CODE, AND EACH ONE WAS CHECKED AGAINST THE LINE THAT MAKES
+ * IT TRUE (copy sheet CS-0, SEO wave B, 2026-09-28). The row this replaced said "ENO protects you —
+ * disputes handled in 72h · listings screened", and all three halves were false: 72 hours is only
+ * the evidence window (src/lib/dispute.ts, DISPUTE_WINDOW_MS), nothing in the code bounds how long a
+ * decision takes, and listings go live the moment they pass the automatic checks, with nobody
+ * reviewing them first (src/lib/core/listings.ts, `verified: true` on create). Before adding or
+ * editing a sentence, find the code that makes it true; if there is none, the sentence does not
+ * ship. In particular:
+ *  - NO DEADLINE NUMBER. The Operating Regulations publish 7 working days for a reply and 15 (up
+ *    to 30) for an answer; the code enforces 72 hours for the first and nothing for the second.
+ *    Until the owner reconciles them (plan decisions P0-a, P0-c), the sheet points to the
+ *    Regulations instead of quoting either.
+ *  - NO PROTECTION, GUARANTEE OR ESCROW WORDING, in either language. eno takes no payment, holds
+ *    no money and cannot refund (terms, "a platform, not a party to the deal").
+ *  - THE PHOTO LIMIT IS DISPUTE_IMAGES_MAX. `src/lib/dispute.ts` is server-only, so the number is
+ *    written here and protections-row.test.ts pins it to the constant, in both languages.
  */
 export function ProtectionsRow({ inline = false }: {
   /**
    * Render as the quiet second line INSIDE the safety strip rather than as a row of its own
    * (owner, 2026-08-11: combine the two PDP trust blocks).
    *
-   * ⚠️ `inline` DROPS THE SEAL AND THE HAIRLINE, and both are deliberate. The strip it now
-   * lives in already carries a seal, and two marks in one block devalues the signature — the
-   * icon language is explicit that one stamp per surface is what keeps it worth anything.
+   * ⚠️ `inline` DROPS THE MARK AND THE HAIRLINE, and both are deliberate. The strip it now lives in
+   * already carries a glyph, and two marks in one block devalue each other.
    * The hairline goes because it was separating this row from the block BELOW it, and that
    * block is now its own container.
    * It stays a real button opening the same dialog: what changes is its weight, not its job.
@@ -37,57 +51,62 @@ export function ProtectionsRow({ inline = false }: {
 } = {}) {
   const { tr } = useLanguage()
 
-  // Item leads are LINE-ONLY in surface ink (§6 — brand line is reserved for
-  // interactive affordances; a static list glyph fits no brand bucket). There is no wash in
-  // this sheet any more: the Trust-score item used to carry the eno seal with its brand-100
-  // chief as the one colour move, and the seal was replaced app-wide with Solar (owner,
-  // 2026-08-13). All five leads are now the same weight in the same ink.
-  const items: { icon: React.ReactNode; title: string; body: string }[] = [
-    {
-      icon: <BadgeCheck className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
-      title: tr('Screened listings', 'Tin đã kiểm duyệt'),
-      body: tr(
-        'New listings are reviewed before they go live, and we keep removing ones that break our rules.',
-        'Tin đăng được kiểm duyệt trước khi hiển thị, và chúng tôi liên tục gỡ những tin vi phạm.',
-      ),
-    },
-    {
-      // ⚠️ SOLAR, NOT THE eno SEAL (owner, 2026-08-13, pointing at this glyph on a PDP: "sill old
-      // icons … use solar"). This is one row of four topic icons — BadgeCheck, this, Scale, Lock —
-      // and the other three are Solar. A hand-drawn shield with a brand-100 chief sitting among
-      // them was the one glyph at a different weight and the only filled thing in the row, which
-      // reads as a rendering fault rather than as a signature. The seal stays where it is a CLAIM
-      // (the dialog's own header below, "Business verified", the trust chips); here it was
-      // labelling a paragraph about how the Trust score is computed.
-      icon: <ShieldCheck className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
-      title: tr('Evidence-based Trust score', 'Điểm uy tín dựa trên bằng chứng'),
-      body: tr(
-        "Every seller's Trust score is computed from real activity — verified reviews, response record and dispute history — not paid badges.",
-        'Điểm uy tín của mỗi người bán được tính từ hoạt động thật — đánh giá đã xác minh, lịch sử phản hồi và tranh chấp — không phải huy hiệu trả phí.',
-      ),
-    },
-    {
-      icon: <Scale className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
-      title: tr('Dispute center', 'Trung tâm tranh chấp'),
-      body: tr(
-        'If something goes wrong, open a dispute. Both sides get a 72-hour window to submit evidence, reviewed privately by our team.',
-        'Nếu có vấn đề, hãy mở tranh chấp. Hai bên có 72 giờ để nộp bằng chứng, được đội ngũ của chúng tôi xem xét riêng.',
-      ),
-    },
+  // Item leads are LINE-ONLY in surface ink (§6 — brand line is reserved for interactive
+  // affordances; a static list glyph fits no brand bucket). All six leads are the same weight in
+  // the same ink, and every glyph is one the sprite already draws.
+  const items: { icon: React.ReactNode; title: string; body: string; link?: { href: string; label: string } }[] = [
     {
       icon: <Flag className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
-      title: tr('Admin-reviewed reports', 'Báo cáo được quản trị viên xử lý'),
+      title: tr("Report from the listing, the seller's page or a chat", 'Báo cáo ngay trên tin đăng, trang người bán hoặc cuộc trò chuyện'),
       body: tr(
-        'Report any listing or chat. A real person reviews every report and acts on the ones that break our policies.',
-        'Báo cáo bất kỳ tin đăng hay cuộc trò chuyện nào. Người thật xem mọi báo cáo và xử lý những trường hợp vi phạm.',
+        "Tap Report (you'll need to sign in). A report opens a private case between you, the seller and our team, which you can follow under Disputes.",
+        'Bấm Báo cáo (cần đăng nhập). Báo cáo sẽ mở một hồ sơ riêng giữa bạn, người bán và đội ngũ của chúng tôi, và bạn theo dõi được trong mục Khiếu nại.',
+      ),
+    },
+    {
+      icon: <Images className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
+      title: tr('Both sides can send evidence', 'Hai bên đều được gửi bằng chứng'),
+      body: tr(
+        "You can send one statement with up to 6 photos before the deadline shown on the case. If the seller has an account, they're told about the case and can do the same, but we never tell them who reported it. If the seller doesn't respond before the deadline, the case is decided on what we have.",
+        'Bạn được gửi một lần trình bày, kèm tối đa 6 ảnh, trước hạn chót ghi trên hồ sơ. Nếu người bán có tài khoản, họ được thông báo về hồ sơ và cũng được gửi như vậy, nhưng chúng tôi không bao giờ cho họ biết ai đã báo cáo. Nếu người bán không phản hồi trước hạn chót, hồ sơ được quyết định dựa trên những gì đã có.',
+      ),
+    },
+    {
+      // A person, not a gavel: the sprite draws Gavel and Scale as the same Solar glyph
+      // (scripts/lucide-solar-map.mjs), and Scale is already the sheet's own mark. The sentence
+      // beside it says a person decides.
+      icon: <UserRound className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
+      title: tr('Our team decides', 'Đội ngũ của chúng tôi quyết định'),
+      body: tr(
+        'Decisions are made by a person on our team, not automatically. The deadlines for an answer are set out in our Operating Regulations.',
+        'Quyết định do một người trong đội ngũ của chúng tôi đưa ra, không phải tự động. Thời hạn trả lời được quy định trong Quy chế hoạt động.',
+      ),
+      // Article 12 of the Regulations is where the published deadlines live; its section id is
+      // `complaints` (regulations/page.tsx). The Regulations are the one place a number may appear.
+      link: { href: '/regulations#complaints', label: tr('Read the Operating Regulations', 'Xem Quy chế hoạt động') },
+    },
+    {
+      icon: <ListChecks className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
+      title: tr('What can happen', 'Kết quả có thể là gì'),
+      body: tr(
+        "If a report is upheld, we can take the listing down, lower the seller's Trust score, and warn, restrict or suspend their account. If it isn't, the case is closed with no action against the seller. If the seller has an account, they can appeal the decision with an explanation and any photos.",
+        'Nếu báo cáo có căn cứ, chúng tôi có thể gỡ tin đăng, trừ điểm uy tín của người bán, và cảnh cáo, hạn chế hoặc khoá tài khoản của họ. Nếu không, hồ sơ được đóng và người bán không bị xử lý. Nếu người bán có tài khoản, họ có thể khiếu nại lại quyết định, kèm lời giải thích và ảnh (nếu có).',
       ),
     },
     {
       icon: <Wallet className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
-      title: tr('Never pay in advance', 'Không trả trước'),
+      title: tr("We don't handle your money", 'Chúng tôi không giữ tiền của bạn'),
       body: tr(
-        "eno doesn't hold your money. Meet in a public place, check the item, and only pay once you're happy — never transfer a deposit to strangers.",
-        'eno không giữ tiền của bạn. Hãy gặp ở nơi công cộng, kiểm tra món hàng, và chỉ trả khi hài lòng — đừng chuyển cọc cho người lạ.',
+        "You pay the seller directly. We take no payment and hold no escrow, so we can't refund you or reverse a payment. Meet in a public place, check the item, and pay only when you're satisfied — never send a deposit to someone you haven't met. If money was lost, contact your bank and the police straight away.",
+        'Bạn trả tiền trực tiếp cho người bán. Chúng tôi không thu tiền và không giữ tiền ký quỹ, nên không thể hoàn tiền hay huỷ một khoản thanh toán. Hãy gặp ở nơi công cộng, kiểm tra món hàng và chỉ trả khi hài lòng — đừng chuyển cọc cho người bạn chưa gặp. Nếu đã mất tiền, hãy liên hệ ngân hàng và công an ngay.',
+      ),
+    },
+    {
+      icon: <ScanLine className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
+      title: tr('Automatic checks on new listings', 'Kiểm tra tự động tin mới'),
+      body: tr(
+        "Before a listing goes live, its text is checked for banned items and contact details, it must have enough photos, and it's compared with the seller's other live listings to catch duplicates. After it goes live, some listings are checked again and can be hidden for review. Checks can miss things, so judge each listing yourself.",
+        'Trước khi tin được đăng, nội dung được kiểm tra hàng cấm và thông tin liên hệ, tin phải có đủ ảnh, và được so với các tin đang đăng khác của người bán để phát hiện tin trùng. Sau khi đăng, một số tin được kiểm tra lại và có thể bị ẩn để xem xét. Việc kiểm tra có thể bỏ sót, nên hãy tự đánh giá từng tin.',
       ),
     },
   ]
@@ -103,19 +122,23 @@ export function ProtectionsRow({ inline = false }: {
           type="button"
           variant="bare"
           size="none"
+          // The stable hook for tests (e2e/guest/listing.spec.ts, e2e/ci/protections-row.spec.ts):
+          // they count this attribute rather than matching the words, so a copy change can never
+          // blind the "not on a partner listing" check again.
+          data-protections-row=""
           // ⚠️ A FLAT ROW, NOT A PANEL — IT WAS COMPETING WITH THE SCAM WARNING BELOW IT.
           // On the PDP this sits DIRECTLY above the deposit-fraud strip, and until now the two
           // were the same shape: identical rounded box, identical padding, near-identical tonal
           // value (bg-tint vs warning/10). An informational panel and the one sentence that can
           // stop a buyer losing money read as a single grey blob, and a design review put it
           // bluntly — the warning had less visual weight than the price.
-          // Nothing here is downgraded in FUNCTION: same trigger, same dialog, same copy, still a
+          // Nothing here is downgraded in FUNCTION: same trigger, same dialog, still a
           // full-width tap target. What goes is the box. Canon §3b says a thing in normal flow is
           // a row with a hairline, not a panel — and losing the box is what lets the warning's
           // tinted strip and left rule read as the only emphasised thing in the block, which is
           // the correct hierarchy when one of the two can cost someone money.
           className={cn(
-            // `min-h-11`: "ENO protects you" measured 312x37 — the one control in the safety block under
+            // `min-h-11`: this row measured 312x37 — the one control in the safety block under
             // the 44px floor. A min-height, so a line that wraps still grows the row naturally.
             'press min-h-11 whitespace-normal text-left font-normal transition-colors',
             inline
@@ -131,13 +154,15 @@ export function ProtectionsRow({ inline = false }: {
           )}
         />
       }>
-          {/* The block's mark. Suppressed when inline: the safety strip already stamps this
-              block once, and two shields in one box devalues both. */}
-          {!inline && <ShieldCheck className={ICON_SIZE.lg} />}
+          {/* The block's mark: Scale, the glyph the Disputes section wears in the dashboard nav
+              (dashboard-nav.tsx). Not the shield — a shield is a promise of cover, and this row
+              describes a process. Suppressed when inline: the safety strip already carries a
+              glyph, and two in one box devalue both. */}
+          {!inline && <Scale className={ICON_SIZE.lg} />}
           <span className={cn('min-w-0 text-xs leading-snug text-body', !inline && 'flex-1')}>
-            <span className="font-bold text-foreground">{tr('ENO protects you', 'ENO bảo vệ bạn')}</span>
+            <span className="font-bold text-foreground">{tr('Reports & disputes', 'Báo cáo & khiếu nại')}</span>
             {' — '}
-            {tr('disputes handled in 72h · listings screened', 'tranh chấp xử lý trong 72 giờ · tin đã kiểm duyệt')}
+            {tr('how they work', 'cách xử lý')}
           </span>
           <ChevronRight className={cn('shrink-0 text-muted-foreground', inline ? 'h-3.5 w-3.5' : 'h-4 w-4')} aria-hidden />
       </DialogTrigger>
@@ -156,15 +181,15 @@ export function ProtectionsRow({ inline = false }: {
       >
         <div className="px-5 pt-5 pb-4">
           <div className="flex items-center gap-2">
-            <ShieldCheck className={ICON_SIZE.lg} />
+            <Scale className={ICON_SIZE.lg} />
             <DialogTitle className="text-lg font-bold text-foreground">
-              {tr('How ENO protects you', 'ENO bảo vệ bạn thế nào')}
+              {tr('How reports and disputes work', 'Cách xử lý báo cáo và khiếu nại')}
             </DialogTitle>
           </div>
           <DialogDescription className="mt-1.5 text-sm leading-relaxed text-body">
             {tr(
-              'Here is exactly what we do — and what we don’t. eno is a marketplace, not an escrow service.',
-              'Đây là những gì chúng tôi làm — và không làm. eno là sàn giao dịch, không phải dịch vụ ký quỹ.',
+              "We're a marketplace, not a payment or escrow service: we don't hold your money, and we can't refund you or promise how a case ends.",
+              'Chúng tôi là sàn giao dịch, không phải dịch vụ thanh toán hay ký quỹ: chúng tôi không giữ tiền của bạn, không thể hoàn tiền và không cam kết kết quả của một khiếu nại.',
             )}
           </DialogDescription>
         </div>
@@ -176,6 +201,19 @@ export function ProtectionsRow({ inline = false }: {
               <div className="min-w-0">
                 <p className="text-sm font-bold text-foreground">{it.title}</p>
                 <p className="mt-0.5 text-sm leading-relaxed text-body">{it.body}</p>
+                {it.link && (
+                  // A DialogClose for the same reason as the safety-guide link below: the link IS
+                  // the close action, and without nativeButton={false} Base UI expects a <button>.
+                  <DialogClose nativeButton={false} render={
+                    <Link
+                      href={it.link.href}
+                      className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
+                    />
+                  }>
+                      {it.link.label}
+                      <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                  </DialogClose>
+                )}
               </div>
             </li>
           ))}

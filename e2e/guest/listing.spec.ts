@@ -75,10 +75,12 @@ async function assertPartnerBooking(page: Page, book: Locator) {
   // Report is a CLIENT control every PDP carries: once it is on screen the client tree has
   // mounted, and only then does "not present" mean "not rendered by this product".
   await expect(page.getByRole('button', { name: /^Report$/i })).toBeVisible({ timeout: 15000 })
-  // A chat gate would invite a guest to negotiate a price the partner sets at checkout, and
-  // "ENO protects you" would promise a dispute path for money eno never receives.
+  // A chat gate would invite a guest to negotiate a price the partner sets at checkout, and the
+  // reports-and-disputes row would tell them to pay the seller directly, for a sale eno never sees.
+  // ⚠️ COUNT THE ATTRIBUTE, NOT THE WORDS: this matched /ENO protects you/ until that copy was
+  // replaced, after which it would have passed whatever rendered.
   await expect(page.getByRole('button', { name: CHAT_CTA })).toHaveCount(0)
-  await expect(page.getByText(/ENO protects you/i)).toHaveCount(0)
+  await expect(page.locator('[data-protections-row]')).toHaveCount(0)
 }
 
 // Listing detail as a logged-out guest. READ-ONLY: we may click the contact gate /
@@ -302,7 +304,7 @@ test.describe('Guest · partner ticket (affiliate listing)', () => {
     // ⛔ CLASSIFY BY WHO SELLS IT, NEVER BY WHETHER THE BOOK CTA IS THERE. An earlier draft
     // walked the feed looking for a "Book on" link and skipped when it found none — which is
     // precisely the bug this spec exists to catch, because a partner ticket rendering the
-    // ORDINARY buy box (offer slider, chat gate, "ENO protects you") is the failure. Measured:
+    // ORDINARY buy box (offer slider, chat gate, the reports-and-disputes row) is the failure. Measured:
     // against a deploy without the partner code the CTA-driven version reported "1 skipped"
     // where it had to report red. The storefront link carries the seller's name whether or not
     // the affiliate UI works, so it can tell "no partner stock" from "partner stock, broken".

@@ -126,6 +126,14 @@ const protection: Tip[] = [
     `${SITE_NAME} is not an escrow service and does not hold payments between users: in a listing deal you pay the seller directly, in person. That’s exactly why the habits above matter — your inspection at handover is your protection.`],
 ]
 
+// The protection section's heading. It used to promise that eno protects the reader, which is cover
+// the platform cannot give: it takes no payment, holds no escrow and does not guarantee how a case ends
+// (terms, "a platform, not a party to the deal"). Renamed together with the listing page's
+// reports-and-disputes row (copy sheet CS-0, decision P0-b; see protections-row.tsx). The anchor id
+// stays `protection` so existing links keep landing here. The Vietnamese is authored, so it renders
+// through ContentSection's `titleVi` rather than the translation layer.
+const PROTECTION_HEADING = { en: 'What we do — and what we don’t', vi: 'Những gì chúng tôi làm — và không làm' }
+
 // If it goes wrong — ordered, do-this-now steps.
 const recovery: [title: string, body: string][] = [
   ['Stop contact and keep everything',
@@ -188,7 +196,7 @@ export default function SafetyPage() {
     // Gated AND aliased: the anchor id and the label are both services-only copy, so neither
     // string exists in a marketplace build.
     ...(IS_SERVICES && SERVICES_SAFETY.navId ? [{ id: SERVICES_SAFETY.navId, label: SERVICES_SAFETY.navLabel }] : []),
-    { id: 'protection', label: 'How eno protects you' },
+    { id: 'protection', label: PROTECTION_HEADING.en, labelVi: PROTECTION_HEADING.vi },
     { id: 'help', label: 'If something goes wrong' },
   ]
 
@@ -254,7 +262,7 @@ export default function SafetyPage() {
         </ContentSection>
       )}
 
-      <ContentSection id="protection" title={`How ${SITE_NAME} protects you`} wide>
+      <ContentSection id="protection" title={PROTECTION_HEADING.en} titleVi={PROTECTION_HEADING.vi} wide>
         <TipGrid tips={protection} />
       </ContentSection>
 
