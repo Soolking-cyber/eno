@@ -3080,8 +3080,11 @@ html:not(.native) #app-splash {
   background-color: rgb(0 0 0 / 0.10);
   /* ⚠️ ANIMATED, because these scrims are added to primitives that previously had none and would
      otherwise POP in while every dialog fades. Base UI sets data-starting-style/data-ending-style
-     on the backdrop, so one rule covers open and close for all five. */
-  transition: opacity 150ms ease-out;
+     on the backdrop, so one rule covers open and close for all five.
+     ⚠️ `--scrim-enter`, like `--scrim-exit` below: this rule is UNLAYERED, so it beats any duration or
+     easing utility on the element — the drawer's `duration-450` and swipe-strength exit silently ran
+     at this 150ms. A caller whose popup moves on other timing hands its scrim that timing here. */
+  transition: opacity var(--scrim-enter, 150ms ease-out);
 }
 .overlay-scrim[data-starting-style],
 .overlay-scrim[data-ending-style] { opacity: 0; }

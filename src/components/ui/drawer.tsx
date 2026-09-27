@@ -78,10 +78,17 @@ function DrawerOverlay({
     // Base UI's DrawerViewport sets `data-swiping` on the BACKDROP (not in its documented attribute
     // list) and clears it at the START of release, before it decides dismiss or snap-back — so a
     // cancelled swipe still eases the scrim back, and the exit keeps its fade.
+    // ⚠️ THE ENTER TIMING IS HANDED OVER AS `--scrim-enter`, not as duration utilities: `duration-450`
+    // lost to the same unlayered rule, so the dim finished at 150ms while the sheet took 450ms. The
+    // same token also eases the dim back after a cancelled swipe, on the sheet's own 450ms.
+    // ⛔ NO STRENGTH-SCALED EXIT. Base UI writes the real --drawer-swipe-strength on the POPUP only;
+    // the backdrop's copy is a constant '1' (DrawerBackdrop). A scrim exit of strength × 400ms is
+    // therefore a flat 400ms, and on a hard flick the popup leaves in ~140ms and the backdrop is
+    // unmounted mid-fade — the snap ui/overlay-scrim.test exists to stop. The generic 150ms exit stays.
     <DrawerPrimitive.Backdrop
       data-slot="drawer-overlay"
       className={cn(
-        "overlay-scrim fixed inset-0 z-50 min-h-dvh opacity-[max(var(--drawer-overlay-min-opacity,0),calc(1-var(--drawer-swipe-progress)))] transition-opacity duration-450 ease-[cubic-bezier(0.32,0.72,0,1)] select-none data-ending-style:pointer-events-none data-ending-style:opacity-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-snap-points:[--drawer-overlay-min-opacity:0.5] data-starting-style:opacity-0 data-swiping:duration-0! supports-[-webkit-touch-callout:none]:absolute",
+        "overlay-scrim fixed inset-0 z-50 min-h-dvh opacity-[max(var(--drawer-overlay-min-opacity,0),calc(1-var(--drawer-swipe-progress)))] [--scrim-enter:450ms_cubic-bezier(0.32,0.72,0,1)] select-none data-ending-style:pointer-events-none data-ending-style:opacity-0 data-snap-points:[--drawer-overlay-min-opacity:0.5] data-starting-style:opacity-0 data-swiping:duration-0! supports-[-webkit-touch-callout:none]:absolute",
         className
       )}
       {...props}
