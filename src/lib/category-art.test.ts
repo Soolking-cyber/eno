@@ -7,6 +7,7 @@ import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
 import {
   CATEGORY_ART_NON_TAXONOMY_SLUGS,
   CATEGORY_ART_SLUGS,
+  avifOf,
   categoryArtPath,
   hasCategoryArt,
 } from '@/lib/category-art'
@@ -197,5 +198,18 @@ describe('the artwork honours the monotone contract', () => {
         expect(svg, `${state}/${slug}`).not.toMatch(/url\s*\(/i)
       }
     }
+  })
+})
+
+describe('avifOf', () => {
+  it('swaps the extension and keeps a stamp; an unstamped path gets its twin too', () => {
+    expect(avifOf('/icons/categories/vehicles.webp?v=5a2a3d43')).toBe('/icons/categories/vehicles.avif?v=5a2a3d43')
+    expect(avifOf('/brand/app-icon-120.webp')).toBe('/brand/app-icon-120.avif')
+    expect(avifOf('/x.webp.webp?v=1')).toBe('/x.webp.avif?v=1')
+  })
+
+  it('the install hint icon exists as the pair the <picture> expects', () => {
+    for (const f of ['app-icon-120.webp', 'app-icon-120.avif'])
+      expect(existsSync(fileURLToPath(new URL(`../../public/brand/${f}`, import.meta.url))), f).toBe(true)
   })
 })

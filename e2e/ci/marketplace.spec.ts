@@ -1,3 +1,5 @@
+import net from 'node:net'
+import { readFileSync } from 'node:fs'
 import { test, expect } from '@playwright/test'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,6 +23,70 @@ import { test, expect } from '@playwright/test'
  */
 const ready = (page: import('@playwright/test').Page) =>
   expect(page.locator('[data-listings-ready="true"]').first()).toBeAttached()
+
+/**
+ * ⚠️ WAIT FOR THE STREAMED PAGE TO REPLACE ITS SKELETON — DOMContentLoaded DOES NOT MEAN IT HAS.
+ * /c/<category> has a loading.tsx, so its cached HTML carries that skeleton, WITH ITS OWN <Header />,
+ * and the real page in a hidden `<div id="S:0">` that React's inline `$RC` script swaps in. The swap
+ * is throttled: if a frame paints between the shell's `$RT` stamp and `$RC` (a slow runner), it waits
+ * on a timer up to 300ms, so it can land AFTER DOMContentLoaded. Text filled in that window goes into
+ * the SKELETON's box, which the swap then deletes — no JS runs, hydration never sees it. That was the
+ * one-off `Received: ""` in CI on 2026-09-27 (its video shows "bicycle" for ~200ms, then an empty box
+ * with no caret). Forcing the throttled path fails the old steps 5/5 and passes 5/5 with this wait.
+ * The swap is an inline script, so the JS chunks stay held and the text is still typed pre-hydration.
+ * ⚠️ THE SKELETON SWAP IS A REAL PRODUCT RACE, NOT A TEST ARTIFACT: a visitor who types into the
+ * skeleton's box in that window loses the text too (forced throttled path: 'the header search on a
+ * category landing page' lands on /?category=vehicles with no q, 6/6). It is left open and reported,
+ * and that test is deliberately NOT given this wait. The two hydration tests get it because what
+ * they assert — text typed before HYDRATION survives it — is a different mechanism, and correct.
+ */
+const streamed = (page: import('@playwright/test').Page) =>
+  page.waitForFunction(() => !document.querySelector('template[id^="B:"], div[hidden][id^="S:"]'))
+
+/** A browser's image Accept header, and the WebP-only one: the optimizer keys its cache on the format. */
+const accepts = ['image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8', 'image/webp,*/*']
+
+/**
+ * Widths and a quality the optimizer ACCEPTS, read from next.config.ts — the file this build was made
+ * from. It checks `url` before `w` and `q`, so an unlisted width would still get the url refusal
+ * below, and a control run against an unfixed build would then be refused on the width instead of
+ * reading — and never wedge. The quality is the listed one pages do NOT use (the loader's default is
+ * 60), so a regression here cannot wedge a variant the page tests above load.
+ */
+function optimizerParams() {
+  const cfg = readFileSync('next.config.ts', 'utf8')
+  const list = (key: string) =>
+    (new RegExp(`\\b${key}:\\s*\\[([^\\]]*)\\]`).exec(cfg)?.[1] ?? '').split(',').map((n) => Number(n.trim())).filter(Boolean)
+  const widths = [...list('deviceSizes'), ...list('imageSizes')]
+  const quality = list('qualities').find((q) => q !== 60)
+  if (widths.length < 2 || !quality) throw new Error(`images.deviceSizes/imageSizes/qualities not found in next.config.ts (${widths} / ${quality})`)
+  return { widths, quality }
+}
+
+/**
+ * What a browser does on navigation: the request goes out, then the socket does, before any answer.
+ * ⚠️ A DROP THAT NEVER REACHED THE SERVER MUST FAIL, NOT RESOLVE: the tests below then only re-request,
+ * which passes on an unfixed server too. So a base URL without a port uses 80 (it gave `Number('')`
+ * = port 0 and a quiet connection error), an https base is refused outright (these are raw-TCP
+ * writes; the ci-fixtures server is plain http), and a connection error rejects.
+ */
+function dropAll(baseURL: string, variants: { path: string; accept: string }[]) {
+  const { protocol, hostname, host, port } = new URL(baseURL)
+  if (protocol !== 'http:') throw new Error(`dropAll sends raw HTTP/1.1 over TCP; E2E_CI_BASE must be http://, got ${protocol}`)
+  const at = Number(port) || 80
+  return Promise.all(variants.map(({ path, accept }) => new Promise<void>((resolve, reject) => {
+    const s = net.connect(at, hostname, () => {
+      // Destroy in the write CALLBACK, i.e. once the request is flushed to the kernel — a destroy()
+      // right after write() usually still sends it, but only because libuv happens to write small
+      // buffers synchronously; the drop must never depend on that (agy review, 2026-09-27).
+      s.write(`GET ${path} HTTP/1.1\r\nHost: ${host}\r\nAccept: ${accept}\r\n\r\n`, () => {
+        s.destroy()
+        resolve()
+      })
+    })
+    s.on('error', (e) => reject(new Error(`drop of ${path} never reached ${hostname}:${at} — ${e.message}`)))
+  })))
+}
 
 const FIXTURES = ['Fixture laptop', 'Fixture phone', 'Fixture desk lamp', 'Fixture studio flat', 'Fixture city scooter', 'Fixture bicycle']
 
@@ -153,14 +219,16 @@ test.describe('marketplace, against known fixtures', () => {
   // hydration, submitted after: a re-render wrote `searchVal` ('') over the field and the search went
   // out empty (header.tsx explains the two halves of the fix). Only the JS chunks are held — Turbopack
   // serves CSS from the same folder and a held stylesheet blocks the parser, so domcontentloaded would
-  // never fire. No networkidle either: a fixture card's /_next/image?url=…camera.svg can hang with a
-  // browser Accept header, so the wait is on the root CurrencyProvider's mount fetch (/api/fx) — passive
-  // effects run child-first, so by then the header's mount effects, and any re-render they caused, ran.
+  // never fire. No networkidle either (a wedged /_next/image variant once kept it from ever arriving —
+  // see the image tests at the end of this file), so the wait is on the root CurrencyProvider's mount
+  // fetch (/api/fx) — passive effects run child-first, so by then the header's mount effects, and any
+  // re-render they caused, ran.
   test('text typed before the header hydrates survives hydration and is searched', async ({ page }) => {
     let release!: () => void
     const held = new Promise<void>((resolve) => { release = resolve })
     await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => { await held; await route.continue() })
     await page.goto('/c/vehicles', { waitUntil: 'domcontentloaded' })
+    await streamed(page)
     const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
     await box.fill('bicycle')
     const fx = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/fx')
@@ -184,6 +252,7 @@ test.describe('marketplace, against known fixtures', () => {
     const held = new Promise<void>((resolve) => { release = resolve })
     await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => { await held; await route.continue() })
     await page.goto('/c/vehicles?q=scooter', { waitUntil: 'domcontentloaded' })
+    await streamed(page)
     const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
     await box.fill('bicycle')
     const fx = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/fx')
@@ -316,5 +385,82 @@ test.describe('marketplace, against known fixtures', () => {
       return out
     })
     expect(spills, 'price runs must stay inside their card').toEqual([])
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  // ⛔ ONE DROPPED IMAGE REQUEST FAILED 13 OF 20 TESTS IN A SINGLE CI RUN (2026-09-27). For a LOCAL
+  // source, Next 16.3.x's optimizer reads the file through a fake response bound to the CLIENT's
+  // socket and awaits it with no timeout; when the browser has already dropped that request, the
+  // static file server sees a dead socket, never ends the fake response, and the per-variant dedupe
+  // entry never settles. Every later request for that variant (url × w × q × Accept) hangs until
+  // the server restarts — and so does `load` on every page that shows it. The fixture photo is a
+  // local SVG, so every card on `/` shared one wedged variant. Fixed in the PRODUCT, twice over:
+  // src/lib/image-loader.ts serves local image files as themselves and `images.localPatterns` admits
+  // only /listing-images, so the optimizer refuses a public/ file before it reads one; and
+  // scripts/patch-next-image-optimizer.mjs (run by `npm run build`) fixes the read itself, which is
+  // what protects the /_next/static/media/** files Next admits on its own.
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+
+  test('a card photo that is a local file loads as that file, not through the optimizer', async ({ page }) => {
+    await page.goto('/')
+    // The fixture photo (scripts/ci-fixtures.ts `IMAGE`). A positive check first, so a page whose
+    // cards fell back to their placeholder cannot pass the absence check below. Re-queried on every
+    // poll: the feed re-renders its cards after hydration, so a held element handle goes stale.
+    await expect.poll(() => page.evaluate(() => {
+      const img = document.querySelector<HTMLImageElement>('[data-card-root] img[src*="camera.svg"]')
+      if (!img) return 'no fixture photo on the page'
+      img.scrollIntoView({ block: 'center' }) // the card photo is lazy — bring it into range
+      return img.complete && img.naturalWidth > 0 ? 'loaded' : `not loaded: ${img.currentSrc || img.src}`
+    }), { message: 'the fixture photo must actually load' }).toBe('loaded')
+    const viaOptimizer = await page.evaluate(() => {
+      const urls: string[] = []
+      const add = (one: string | null, set: string | null) => {
+        if (one) urls.push(one)
+        for (const c of (set ?? '').split(',')) if (c.trim()) urls.push(c.trim().split(/\s+/)[0])
+      }
+      for (const el of document.querySelectorAll('img')) add(el.getAttribute('src'), el.getAttribute('srcset'))
+      for (const el of document.querySelectorAll('link[rel="preload"][as="image"]')) add(el.getAttribute('href'), el.getAttribute('imagesrcset'))
+      return urls.filter((u) => {
+        const x = new URL(u, location.href)
+        const inner = x.pathname === '/_next/image' ? x.searchParams.get('url') ?? '' : ''
+        return inner.startsWith('/') && !inner.startsWith('/listing-images?')
+      })
+    })
+    expect(viaOptimizer, 'a local file routed through /_next/image').toEqual([])
+  })
+
+  test('a dropped request for a local file cannot wedge the optimizer: it is refused before any read', async ({ request, baseURL }) => {
+    const { widths, quality } = optimizerParams()
+    const variants = accepts.flatMap((accept) => widths.flatMap((w) =>
+      ['/icons/ui/rest/camera.svg', '/icon-192.png', '/icon-192.png?v=2b609517'].map((src) =>
+        ({ path: `/_next/image?url=${encodeURIComponent(src)}&w=${w}&q=${quality}`, accept }))))
+    await dropAll(baseURL!, variants)
+    // Before the fix each of these hung forever. A short timeout is the assertion: an answer, now —
+    // and the REASON, so a 400 from anything else (a width or quality the config does not list, an
+    // SVG refused after it was read) cannot pass for the refusal that happens before any read.
+    for (const { path, accept } of variants) {
+      const res = await request.get(path, { headers: { accept }, timeout: 5_000, failOnStatusCode: false })
+      expect({ status: res.status(), body: await res.text() }, `${path} (${accept}) — the optimizer must never read a local file`)
+        .toEqual({ status: 400, body: '"url" parameter is not allowed' })
+    }
+  })
+
+  test('a dropped request for a build asset the optimizer DOES read still gets its answer (Next patched)', async ({ request, baseURL }) => {
+    // Next appends /_next/static/media/** to images.localPatterns itself, so these ARE read — through
+    // the same code that wedged. The fonts are the files the page itself names; a font is read in
+    // full and then refused as "not a valid image", which is exactly the read-then-answer path.
+    const html = await (await request.get('/')).text()
+    const media = [...new Set(html.match(/\/_next\/static\/media\/[A-Za-z0-9._-]+\.woff2/g) ?? [])]
+    expect(media.length, 'the home page no longer names a /_next/static/media font to probe with').toBeGreaterThan(0)
+    const { widths, quality } = optimizerParams()
+    const variants = accepts.flatMap((accept) => widths.flatMap((w) =>
+      media.map((src) => ({ path: `/_next/image?url=${encodeURIComponent(src)}&w=${w}&q=${quality}`, accept }))))
+    await dropAll(baseURL!, variants)
+    // Unpatched (16.3.x as shipped), a dropped read of these never settles and these requests hang.
+    for (const { path, accept } of variants) {
+      const res = await request.get(path, { headers: { accept }, timeout: 5_000, failOnStatusCode: false })
+      expect({ status: res.status(), body: await res.text() }, `${path} (${accept}) — read, then answered`)
+        .toEqual({ status: 400, body: "The requested resource isn't a valid image." })
+    }
   })
 })

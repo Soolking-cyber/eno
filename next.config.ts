@@ -321,8 +321,12 @@ const acceptsMarkdown = () => [
 // ⚠️ `icons/services/.*` IS LISTED TOO even though a marketplace image prunes those files: the rule
 // is shared by both editions, and eno.forum is where they ship and where the four-hour lane would
 // be paid. Listing a path here grants nothing on an edition that has no such file.
+// ⚠️ THE INSTALL-HINT ICON PAIR JOINED ON 2026-09-27, by exact name (not `brand/.*`: the rest of
+// public/brand/ is unstamped). It used to reach phones through /_next/image with the optimizer's
+// 30-day max-age; served as a file it got max-age=0 → Cloudflare's 4h floor. install-hint.tsx stamps
+// it and src/lib/asset-stamps.test.ts pins the stamp to both files' bytes.
 const STAMPABLE_STATIC =
-  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|icons/nav/.*|icons/ui/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png)";
+  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|icons/nav/.*|icons/ui/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png|brand/app-icon-120\\.avif|brand/app-icon-120\\.webp)";
 
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,
@@ -712,10 +716,18 @@ const nextConfig: NextConfig = {
       : {}),
   },
   images: {
-    localPatterns: [
-      { pathname: '**', search: '' }, // Preserve Next 16.3's query-free local-image default.
-      { pathname: '/listing-images' }, // Only this route validates its own one-key query.
-    ],
+    /**
+     * ⛔ THE OPTIMIZER READS NO LOCAL FILE — ONLY THE /listing-images ROUTE (which validates its
+     * own one-key query). This used to also allow `{ pathname: '**', search: '' }`, Next's default,
+     * and that is the code path that hung: a dropped request for a local file wedges its variant
+     * forever in Next 16.3.x (src/lib/image-loader.ts `servedAsIs` has the mechanism). The loader
+     * no longer sends local files here; this makes a hand-built `/_next/image?url=/<file>` a 400
+     * before any read, so nobody can wedge one from outside either. Next appends
+     * `/_next/static/media/**` to this list itself and no config removes it; those reads are made
+     * safe by patching Next at build time (scripts/patch-next-image-optimizer.mjs, upstream's fix).
+     * Keep this equal to the loader's OPTIMIZED_LOCAL_PATH — image-config.test.ts pins it.
+     */
+    localPatterns: [{ pathname: '/listing-images' }],
     formats: ["image/avif", "image/webp"],
     // Listing photos rarely change → cache optimized variants 30 days; one quality
     // tier + trimmed widths = fewer optimizer variants and smaller payloads.

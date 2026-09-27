@@ -84,6 +84,117 @@ describe('image loader', () => {
     expect(url).toContain(encodeURIComponent(INTERNAL + OBJ))
   })
 
+  /**
+   * ⛔ A LOCAL IMAGE FILE IS SERVED AS ITSELF, NEVER THROUGH /_next/image. Next 16.3.x reads a local
+   * source over the client's own socket with no timeout; one dropped request wedges that variant
+   * until restart and hangs `load` on every page that uses it (13/20 CI e2e failures, 2026-09-27).
+   * Checked with the internal origin both set and unset, because CI and dev run with it unset.
+   */
+  it('serves local image files as themselves, with or without the internal origin', async () => {
+    for (const env of [{ pub: PUBLIC, internal: INTERNAL }, { pub: PUBLIC, internal: undefined }, { pub: undefined, internal: undefined }]) {
+      const { default: loader } = await load(env)
+      for (const src of ['/icons/ui/rest/camera.svg', '/brand/app-icon-120.webp', '/job-covers/tt-123_ab.png', '/_next/static/media/apple-icon.2pzlgirmzi4m6.png', '/listing-images/x.png', '/listing-images-evil/x.JPG'])
+        for (const width of [64, 360, 1080])
+          expect(loader({ src, width, quality: 60 }), `${src} @${width}`).toBe(src)
+    }
+  })
+
+  /** The one local path that stays optimized — a route handler, immune to the hang above. */
+  it('keeps /listing-images on the optimizer', async () => {
+    const { default: loader, OPTIMIZED_LOCAL_PATH } = await load({ pub: PUBLIC, internal: INTERNAL })
+    expect(OPTIMIZED_LOCAL_PATH).toBe('/listing-images')
+    const src = '/listing-images?key=a%2Fb-c.webp'
+    expect(loader({ src, width: 420 })).toBe(`/_next/image?url=${encodeURIComponent(src)}&w=420&q=60`)
+  })
+
+  /**
+   * ⛔ ONLY A PLAIN IMAGE FILE IS HANDED TO THE BROWSER. A src served as-is is fetched by EVERY
+   * viewer's browser, same-origin, with their cookies — so a stored `/auth/confirm?token_hash=…`
+   * would sign each viewer into someone else's account, and `/\t/evil.test/x.png` becomes
+   * `//evil.test/x.png` once the browser strips the tab. Everything here must instead become a
+   * same-origin /_next/image URL carrying the src as data, where the optimizer reads it server-side
+   * without cookies — and refuses it, because localPatterns admits only /listing-images.
+   * The review that asked for this (2026-09-27) supplied the query, tab/CR/LF, `..` and /api cases.
+   */
+  it('sends anything that is not a plain image file to the optimizer, never to the browser', async () => {
+    const { default: loader, servedAsIs } = await load({ pub: PUBLIC, internal: INTERNAL })
+    const hostile = [
+      // a query or a fragment — a static file needs neither, a route with side effects may
+      '/icon-192.png?v=1', '/icons/categories/electronics.webp?v=5a2a3d43', '/logo-mark.svg#x', '/x.png#', '/x.png?',
+      '/auth/confirm?token_hash=abc&type=magiclink', '/en/auth/confirm?token_hash=abc&type=magiclink',
+      '/api/conversations/abc?peek=0',
+      // another origin: directly, or after the browser strips tab/CR/LF, or via a backslash
+      '//evil.test/x.png', '/\\evil.test/x.png', '/\t/evil.test/x.png', '/\n/evil.test/x.png', '/\r\\evil.test/x.png',
+      '/\t\\evil.test/x.png', '/icons\\x.png', ' /x.png', '/x.png ', '/x.png\u0000', '/x .png',
+      // dot segments and empty segments resolve somewhere other than they read
+      '/icons/../api/me.png', '/listing-images/../icon-192.png', '/./icon-192.png', '/icons/./x.png', '/icons//x.png',
+      '/.well-known/x.png', '/..png/../api/x.png',
+      // percent-encoding hides any of the above from a reader
+      '/%2e%2e/api/me.png', '/icons%2F..%2Fapi/x.png', '/%2F%2Fevil.test/x.png', '/icon-192%2Epng', '/%09/evil.test/x.png',
+      // API routes, whatever the extension or case
+      '/api/x.png', '/API/brand-logo/acme.svg', '/api/brand-logo/acme.svg',
+      // not an image file at all
+      '/', '', '/auth/confirm', '/sitemap.xml', '/listing-images', '/x.png/', '/icon-192.png.html', '/ảnh.png',
+    ]
+    for (const src of hostile) {
+      expect(servedAsIs(src), JSON.stringify(src)).toBe(false)
+      const out = new URL(loader({ src, width: 64 }), 'https://eno.vn/')
+      expect(out.origin + out.pathname, JSON.stringify(src)).toBe('https://eno.vn/_next/image')
+      expect(out.searchParams.get('url'), JSON.stringify(src)).toBe(src)
+    }
+    // Remote sources were never "local" and keep their optimizer URL (internalized where ours).
+    expect(servedAsIs(PUBLIC + OBJ)).toBe(false)
+    expect(servedAsIs('https://photo.rever.vn/v3/get/a.jpg')).toBe(false)
+  })
+
+  /**
+   * ⚠️ EVERY LOCAL SRC THE APP RENDERS THROUGH `<Image>` MUST PASS, AND MUST BE A VECTOR.
+   * Pass — or it silently becomes a 400 and a broken image. Vector — because a local file is now sent
+   * as itself at every width, so a raster reaches a phone at its original size (the install hint's
+   * 7.9 KB /icon-192.png, 2026-09-27); a raster belongs in a file sized for its box, drawn by
+   * `<ArtImage>`/`<picture>`. Covers the CI fixture photo and a src written as `"/…"`, `{'/…'}`,
+   * `{"/…"}`, `` {`/…`} `` or `{NAME}` for a `const NAME = '/…'` in the same file (none today). A src
+   * built at runtime or read from the database is out of a static test's reach: listing photos are
+   * validated where they are written (isListingImageUrl), and none renders a local path today.
+   */
+  it('still serves every local src the app renders through <Image>, and each is a vector', async () => {
+    const { servedAsIs } = await load({ pub: PUBLIC, internal: INTERNAL })
+    const { readFileSync, globSync } = await import('node:fs')
+    // `(?:[^>]|=>)` so an arrow function in an earlier prop does not end the tag.
+    const SRC = /<Image\b(?:[^>]|=>)*?\bsrc=(?:"([^"]*)"|\{\s*(?:(['"`])([^'"`]*)\2|([A-Za-z_$][\w$]*))\s*\})/g
+    const CONST = /\bconst\s+([A-Za-z_$][\w$]*)\s*(?::\s*string\s*)?=\s*(['"`])([^'"`]*)\2/g
+    const localSrcs = (text: string) => {
+      const consts = new Map([...text.matchAll(CONST)].map((m) => [m[1], m[3]] as const))
+      return [...text.matchAll(SRC)].map((m) => m[1] ?? m[3] ?? consts.get(m[4]) ?? '').filter((s) => s.startsWith('/') && !s.includes('${'))
+    }
+    expect(localSrcs(`const LOGO = '/c.png'
+      <Image alt="" src="/a/b.png" /> <Image onError={() => x} src={'/d.svg'} /> <Image src={\`/e.webp\`} />
+      <Image src={LOGO} /> <Image src={listing.images[0]} /> <Image src="https://x.test/y.png" />`), 'the scan pattern itself')
+      .toEqual(['/a/b.png', '/d.svg', '/e.webp', '/c.png'])
+    const files = (globSync as unknown as (p: string) => string[])('src/**/*.tsx').filter((f) => !f.includes('.test.'))
+    expect(files.length, 'glob matched nothing — this test would pass vacuously').toBeGreaterThan(50)
+    const literals = files.flatMap((f) => localSrcs(readFileSync(f, 'utf8')).map((src) => ({ where: f, src })))
+    const fixture = /const IMAGE = '([^']+)'/.exec(readFileSync('scripts/ci-fixtures.ts', 'utf8'))?.[1]
+    expect(fixture, 'scripts/ci-fixtures.ts IMAGE moved').toBeTruthy()
+    for (const { where, src } of [...literals, { where: 'scripts/ci-fixtures.ts', src: fixture! }]) {
+      expect(servedAsIs(src), `${where}: ${src}`).toBe(true)
+      expect(src, `${where}: ${src} is a raster sent at full size — size a file for it and draw it with <ArtImage>`).toMatch(/\.svg$/i)
+    }
+  })
+
+  /**
+   * The allowlist refuses only SPELLINGS, never a file: every image file in public/ passes, so a
+   * refused local src (a query, `%`, `..`, non-ASCII) cannot be naming a real public file. A new file
+   * whose name the rule would refuse fails here, not as a broken image.
+   */
+  it('passes every image file that exists in public/', async () => {
+    const { servedAsIs } = await load({ pub: PUBLIC, internal: INTERNAL })
+    const { globSync } = await import('node:fs')
+    const files = (globSync as unknown as (p: string) => string[])('public/**/*').filter((f) => /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i.test(f))
+    expect(files.length, 'glob matched nothing — this test would pass vacuously').toBeGreaterThan(100)
+    expect(files.map((f) => f.slice('public'.length).split('\\').join('/')).filter((p) => !servedAsIs(p))).toEqual([])
+  })
+
   it('honours an explicit quality', async () => {
     const { default: loader } = await load({ pub: PUBLIC, internal: INTERNAL })
     expect(loader({ src: PUBLIC + OBJ, width: 420, quality: 60 })).toContain('q=60')

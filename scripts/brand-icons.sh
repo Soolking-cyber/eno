@@ -55,6 +55,11 @@ for s in 180 512 1024; do magick "$TMP/s$s.png" -background '#0A66C2' -alpha rem
 magick "$TMP/r16.png" "$TMP/r32.png" "$TMP/r48.png" src/app/favicon.ico
 cp "$TMP/s180.png"  src/app/apple-icon.png
 cp "$TMP/r192.png"  public/icon-192.png
+# The install hint's app icon (install-hint.tsx draws it at 40px): 3x that, AVIF + a WebP twin for
+# Safari < 16.4, from the 192 render. It is served as-is — the optimizer no longer reads public/
+# files (src/lib/image-loader.ts `servedAsIs`) — so this is the only place it gets sized.
+# ⚠️ CHANGED BYTES → BUMP `?v=` IN install-hint.tsx (src/lib/asset-stamps.test.ts prints the value).
+node -e "const i=require('sharp')(process.argv[1]).resize(120,120,{kernel:'lanczos3'});Promise.all([i.clone().avif({quality:50,effort:9}).toFile('public/brand/app-icon-120.avif'),i.clone().webp({quality:60,effort:6,alphaQuality:100}).toFile('public/brand/app-icon-120.webp')]).catch(e=>{console.error(e);process.exit(1)})" "$TMP/r192.png"
 cp "$TMP/r512.png"  public/icon-512.png
 cp "$TMP/s512.png"  public/icon-maskable-512.png
 cp "$TMP/s1024.png" apps/ios/Eno/Assets.xcassets/AppIcon.appiconset/icon-1024.png

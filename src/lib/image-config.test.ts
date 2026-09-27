@@ -58,6 +58,27 @@ describe('image config couplings', () => {
     expect(internal).toContain('pathname: "/storage/v1/object/public/listings/**"')
   })
 
+  /**
+   * ⛔ THE OPTIMIZER READS NO LOCAL FILE, AND THE LOADER SENDS IT NONE — ONE FACT, TWO FILES.
+   * Next 16.3.x reads a local source over the client's own socket with no timeout, and one dropped
+   * request wedges that variant until restart (every later request, and `load` on every page using
+   * it, hangs). It cost 13/20 CI e2e tests on 2026-09-27. image-loader.ts serves local files as
+   * themselves; `localPatterns` refuses them at the optimizer, so a hand-built
+   * `/_next/image?url=/<file>` is a 400 before any read (Next re-adds `/_next/static/media/**` on
+   * its own; scripts/patch-next-image-optimizer.mjs makes those reads safe). Drift either way breaks
+   * something silently: widen `localPatterns` and public/ is readable by the optimizer again; narrow
+   * it without the loader and every local image the loader still optimizes 400s.
+   */
+  it('lets the optimizer read exactly one local path, the same one the loader optimizes', async () => {
+    const { OPTIMIZED_LOCAL_PATH } = await import('./image-loader')
+    const m = cfg.match(/localPatterns:\s*\[([^\]]*)\]/)
+    expect(m, 'images.localPatterns moved or went away — Next then allows every local file').not.toBeNull()
+    const entries = [...m![1].matchAll(/\{([^}]*)\}/g)].map((e) => e[1])
+    expect(entries, 'exactly one local pattern').toHaveLength(1)
+    expect(entries[0]).toMatch(new RegExp(`pathname:\\s*["']${OPTIMIZED_LOCAL_PATH}["']`))
+    expect(entries[0], 'a `**` or a second path lets the optimizer read local files again').not.toMatch(/\*/)
+  })
+
   it('still uses the custom loader, and never sets loader:"custom" beside it', () => {
     expect(cfg).toContain('loaderFile: "./src/lib/image-loader.ts"')
     // next-server.js render404s the whole optimizer whenever loader !== "default".

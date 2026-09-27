@@ -139,6 +139,14 @@ USER nextjs
 # its own reasons is worse than no guard: it cries wolf on a healthy image. It reports the format of
 # the bytes it produced instead, which is evidence libvips actually ran.
 RUN node -e "const m=require('sharp'); const s=m.default??m; s({create:{width:1,height:1,channels:3,background:'#000'}}).png().toBuffer().then(b=>console.log('sharp OK — encoded',b.length,'bytes, PNG magic',b.subarray(1,4).toString()),e=>{console.error('SHARP BROKEN IN IMAGE:',e.message);process.exit(1)})"
+# ⛔ THE IMAGE MUST SHIP THE PATCHED NEXT IMAGE OPTIMIZER (scripts/patch-next-image-optimizer.mjs).
+# Next 16.3.x hands the requester's socket to the mocked response it reads a local image through; one
+# dropped request then wedges that /_next/image variant until the container restarts, and anyone can
+# do it for the build's /_next/static/media files (vercel/next.js#98168, fixed in 16.4). The patch runs
+# at the start of `npm run build` in the builder stage; this checks the copy the SERVER will load — the
+# one traced into the standalone bundle — so a build that skipped it cannot become an image. It passes
+# on the patched 16.3.x file and on Next >= 16.4's own fix, and fails on 16.3.x as shipped.
+RUN node -e "const f='node_modules/next/dist/server/image-optimizer.js',s=require('fs').readFileSync(f,'utf8');if(/socket: _req\.socket,\s*maximumResponseBody/.test(s)||!/MockedResponse\(\{\s*maximumResponseBody\s*\}\)/.test(s)){console.error('UNPATCHED '+f+': a dropped request wedges its /_next/image variant until restart (vercel/next.js#98168). scripts/patch-next-image-optimizer.mjs must run in npm run build.');process.exit(1)}console.log('next image-optimizer OK: the response mock carries no socket')"
 EXPOSE 8080
 # Runtime env arrives as a Secret Manager volume mounted at /secrets/env (one
 # dotenv file per service — see gcloud run deploy --set-secrets). Sourcing it

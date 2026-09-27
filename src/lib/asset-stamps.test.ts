@@ -79,6 +79,19 @@ describe('content stamps on immutable static assets', () => {
     ).toBe(expected)
   })
 
+  it('/brand/app-icon-120.webp — the install-hint stamp is the hash of BOTH files of the pair', () => {
+    // ArtImage hands the browser `avifOf(src)` too, which keeps this same `?v=`, so one stamp covers
+    // the AVIF and the WebP and must change when either does. Recipe (sorted, AVIF first):
+    //   cat public/brand/app-icon-120.avif public/brand/app-icon-120.webp | shasum -a 256 | cut -c1-8
+    const expected = stamp(Buffer.concat(['avif', 'webp'].map(ext => readFileSync(`public/brand/app-icon-120.${ext}`))))
+    const hits = stampsFor('/brand/app-icon-120.webp')
+    expect(hits.length, 'install-hint.tsx lost its stamp — the icon falls back to the 4h lane').toBeGreaterThanOrEqual(1)
+    const wrong = hits.filter(h => h.stamp !== expected)
+    expect(wrong, `public/brand/app-icon-120.{avif,webp} now hash to ${expected}. Bump the stamp in: ${wrong.map(w => w.file).join(', ')}`).toEqual([])
+    // The year-long rule only reaches paths STAMPABLE_STATIC names.
+    expect(readFileSync('next.config.ts', 'utf8')).toMatch(/const STAMPABLE_STATIC =\s*"[^"]*\|brand\/app-icon-120\\\\\.avif\|brand\/app-icon-120\\\\\.webp[|)]/)
+  })
+
   it('the service worker stamps its notification icon like the in-app call sites do', () => {
     // sw.js is plain JS in public/ — it is served to browsers but no bundler touches it, so it is
     // the reference most likely to be forgotten. It was, once: the four TSX call sites were

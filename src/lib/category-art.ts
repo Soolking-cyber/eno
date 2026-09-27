@@ -162,7 +162,10 @@ export function uiArtPath(key: UiArtKey): string {
  * ⚠️ THE QUERY STAMP IS PRESERVED, which is the whole reason this is a function and not a template
  * at each call site: without `?v=` the file drops out of the `max-age=31536000, immutable` rule in
  * next.config.ts and quietly joins the short-cache lane.
+ * An UNSTAMPED path (`/brand/app-icon-120.webp`, install-hint.tsx) works too; it was simply never
+ * in the immutable lane. Before 2026-09-27 this matched only `.webp?`, so an unstamped path came
+ * back unchanged and the `<source type="image/avif">` pointed at the WebP.
  */
 export function avifOf(webpPath: string): string {
-  return webpPath.replace('.webp?', '.avif?')
+  return webpPath.replace(/\.webp(?=\?|$)/, '.avif')
 }
