@@ -175,8 +175,12 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile: reporter }
     where: { reporterProfileId: reporter.id, status: 'open', ...dupeWhere },
     select: { id: true },
   })
-  // Duplicate → hand back the EXISTING case so the client can still route the
-  // reporter into their open dispute room instead of silently swallowing the tap.
+  // Duplicate → hand back the EXISTING case id (the reporter's own open case), so the tap is
+  // accepted rather than swallowed.
+  // ⚠️ THE REPORT DIALOG DELIBERATELY IGNORES THE ID, on this path and every other. It used to link
+  // the case only when an id came back, which told the reporter which path answered, including the
+  // two silent ones below. Every 2xx now renders the same confirmation (report-button.tsx submit;
+  // pinned by report-paths.test.tsx).
   if (dupe) return { ok: true, id: dupe.id }
 
   // ⛔ THE DEDUPE ABOVE ONLY SEES `status: 'open'`, WHICH MAKES IT A HARASSMENT LOOP.
@@ -217,7 +221,10 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile: reporter }
     // long to wait, and an error would also surface as a retry loop in the client.
     // Nothing is created, so no bell and no push reach the respondent.
     // ⚠️ No `id` here, unlike the open-duplicate path: there is no case to route into.
-    // The client treats a missing id as "submitted", which is the intended outcome.
+    // ⛔ KEEP THIS BYTE-IDENTICAL TO THE CAP'S ANSWER ABOVE (200 `{"ok":true}`): the wire never says
+    // WHICH rule held (report-paths.test.tsx pins it). That no case was opened is not secret from
+    // the reporter, whose own Disputes list shows it; the rule and its window are. The dialog shows
+    // the same "Report sent" for every 2xx and never says a case was opened.
     return { ok: true }
   }
 
