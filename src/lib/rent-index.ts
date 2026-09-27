@@ -70,6 +70,18 @@ export const MONTHLY_BARE_VND_SELLERS: ReadonlySet<string> = new Set([
 /** The monthly unit `listingMoneyFor({ listingType: 'rent' })` writes for every rent listing. */
 export const MONTHLY_UNIT = 'VND/month'
 
+/**
+ * Whether a row's price is quoted per month: the explicit unit, or a bare 'VND' from one of the two
+ * sellers proven above to store monthly rent without the suffix. The UNIT rule only — the index
+ * still checks listing type and currency itself. A bare 'month', which `<Price>` does print as
+ * "/ month", is not accepted; production stores none (only the CI fixture `ci-l-4`, a sale).
+ * ⛔ THIS IS AN INDEX RULE, SO CHANGING IT BUMPS `RENT_INDEX_RULES_VERSION`. Exported so any other
+ * code asking "is this price per month?" imports the rule instead of restating the seller list.
+ */
+export function isMonthlyRent(priceUnit: string | null, sellerId: string): boolean {
+  return priceUnit === MONTHLY_UNIT || (priceUnit === 'VND' && MONTHLY_BARE_VND_SELLERS.has(sellerId))
+}
+
 export const RENT_TYPES = ['apartment', 'house', 'room'] as const
 export type RentType = (typeof RENT_TYPES)[number]
 
@@ -216,8 +228,7 @@ export function computeRentIndex(rows: RentRow[], now: Date = new Date()): RentI
     // 'wanted' posts sit in the same category with a BUDGET as their price — a renter's ceiling, not an asking rent.
     if (r.listingType !== 'rent') { excluded.notForRent++; continue }
     if (r.currency !== '₫') { excluded.currency++; continue }
-    const monthly = r.priceUnit === MONTHLY_UNIT || (r.priceUnit === 'VND' && MONTHLY_BARE_VND_SELLERS.has(r.sellerId))
-    if (!monthly) { excluded.unit++; continue }
+    if (!isMonthlyRent(r.priceUnit, r.sellerId)) { excluded.unit++; continue }
     const price = Number(r.price)
     if (!Number.isFinite(price) || price < MIN_MONTHLY_VND) { excluded.belowBand++; continue }
     if (price > MAX_MONTHLY_VND) { excluded.aboveBand++; continue }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  assignDistrict, computeRentIndex, quantile, rentIndexCsv, CSV_COLUMNS, MIN_CELL_N,
-  MAX_MONTHLY_VND, MIN_MONTHLY_VND, type RentRow,
+  assignDistrict, computeRentIndex, isMonthlyRent, quantile, rentIndexCsv, CSV_COLUMNS, MIN_CELL_N,
+  MAX_MONTHLY_VND, MIN_MONTHLY_VND, MONTHLY_BARE_VND_SELLERS, MONTHLY_UNIT, type RentRow,
 } from './rent-index'
 
 const BDS = 'bds-vn-import-seller-0001'
@@ -49,6 +49,32 @@ describe('assignDistrict', () => {
     expect(assignDistrict('Quận 1, TP. Thủ Đức')).toBeNull()
     expect(assignDistrict('Hà Nội')).toBeNull()
     expect(assignDistrict(null)).toBeNull()
+  })
+})
+
+describe('isMonthlyRent', () => {
+  /** computeRentIndex's inline test at rent-index.ts:219 (176c0d63), verbatim, over a row's two fields. */
+  const oldInline = (r: { priceUnit: string | null; sellerId: string }) =>
+    r.priceUnit === MONTHLY_UNIT || (r.priceUnit === 'VND' && MONTHLY_BARE_VND_SELLERS.has(r.sellerId))
+
+  const UNITS = [null, '', 'VND', 'VND/month', 'month', 'VND/day', 'VND/service', 'VND/kg', 'VND/hour', 'vnd', ' VND']
+  const SELLERS = [BDS, 'cmub0wead0000zrq418bqq27m', NHATOT, 'some-member', '']
+
+  it('answers exactly as the inline test it replaced, for every unit × seller', () => {
+    for (const priceUnit of UNITS) {
+      for (const sellerId of SELLERS) {
+        expect(isMonthlyRent(priceUnit, sellerId), `${priceUnit} × ${sellerId}`).toBe(oldInline({ priceUnit, sellerId }))
+      }
+    }
+  })
+
+  it('is the explicit monthly unit from anyone, or a bare VND from the two proven importers only', () => {
+    expect(isMonthlyRent('VND/month', 'some-member')).toBe(true)
+    expect(isMonthlyRent('VND', BDS)).toBe(true)
+    expect(isMonthlyRent('VND', 'cmub0wead0000zrq418bqq27m')).toBe(true)
+    expect(isMonthlyRent('VND', NHATOT)).toBe(false)
+    expect(isMonthlyRent('month', BDS)).toBe(false)
+    expect(isMonthlyRent(null, BDS)).toBe(false)
   })
 })
 
