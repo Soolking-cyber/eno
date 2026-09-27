@@ -113,8 +113,11 @@ const SIZES = {
 // ⚠️ `press` IS THE "ACTIVE" HALF. This used to promise hover/active but carry hover only — and
 // phones never hover, so the PDP brand chip and the category/district chips gave no response to a
 // tap at all. `press` is the house press (its unlayered transition covers the colour fade too).
+// ⚠️ `hover:bg-accent`, NOT `hover:bg-muted`: the neutral chip IS bg-tint, and --tint and --muted are
+// the same colour in BOTH themes (#f5f5f5 / #262626), so the hover changed nothing (measured on the
+// PDP brand chip). The brand tint is the hover every /c/ chip already added by hand.
 const INTERACTIVE =
-  'press cursor-pointer hover:bg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50'
+  'press cursor-pointer hover:bg-accent hover:text-accent-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50'
 
 export function Badge({
   variant = 'neutral',
