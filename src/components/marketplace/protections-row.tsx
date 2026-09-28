@@ -1,11 +1,12 @@
 'use client'
 
+import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { Flag, Images, UserRound, ListChecks, Wallet, ScanLine, Scale, ChevronRight } from '@/components/ui/icons'
 import { ICON_SIZE } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
-import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import {
   Dialog,
   DialogClose,
@@ -36,6 +37,30 @@ import {
  *  - THE PHOTO LIMIT IS DISPUTE_IMAGES_MAX. `src/lib/dispute.ts` is server-only, so the number is
  *    written here and protections-row.test.ts pins it to the constant, in both languages.
  */
+
+/**
+ * Where the row goes when it cannot open the dialog yet: the /safety section that covers the same
+ * ground (`<ContentSection id="protection">`, safety/page.tsx, whose id is kept so links keep landing
+ * there). See the note at the trigger.
+ */
+export const PROTECTIONS_FALLBACK_HREF = '/safety#protection'
+
+/** A store that never changes, read only to tell the server and hydration renders from the rest. */
+const subscribeNothing = () => () => {}
+
+/**
+ * Until hydration the row is a plain link, so the attributes Base UI gives a dialog trigger are
+ * withheld: nothing can open a popup yet, and `role="button"` or `aria-expanded` would announce one.
+ * Each key is present with the value `undefined` on purpose. The render element's props are merged
+ * last (Base UI mergeProps copies the key, value and all), and React then omits the attribute.
+ */
+const LINK_UNTIL_HYDRATED = {
+  role: undefined,
+  'aria-haspopup': undefined,
+  'aria-expanded': undefined,
+  'aria-controls': undefined,
+} as const
+
 export function ProtectionsRow({ inline = false }: {
   /**
    * Render as the quiet second line INSIDE the safety strip rather than as a row of its own
@@ -45,11 +70,13 @@ export function ProtectionsRow({ inline = false }: {
    * already carries a glyph, and two marks in one block devalue each other.
    * The hairline goes because it was separating this row from the block BELOW it, and that
    * block is now its own container.
-   * It stays a real button opening the same dialog: what changes is its weight, not its job.
+   * It opens the same dialog: what changes is its weight, not its job.
    */
   inline?: boolean
 } = {}) {
   const { tr } = useLanguage()
+  // false in the server render and in the hydration render, true in every render after those.
+  const hydrated = useSyncExternalStore(subscribeNothing, () => true, () => false)
 
   // Item leads are LINE-ONLY in surface ink (§6 — brand line is reserved for interactive
   // affordances; a static list glyph fits no brand bucket). All six leads are the same weight in
@@ -113,47 +140,82 @@ export function ProtectionsRow({ inline = false }: {
 
   return (
     <Dialog>
-      {/* `press`, not `active:scale-100`: a dialog trigger is not a floating-ui anchor (no rect
-          read mid-press), so it gets the standard press feel. `.press`'s transition is unlayered,
-          so the spring survives the `transition-colors` here; the Button base's active:scale-[0.97]
-          supplies the pressed value (utilities outrank the components layer). */}
-      <DialogTrigger render={
-        <Button
-          type="button"
-          variant="bare"
-          size="none"
-          // The stable hook for tests (e2e/guest/listing.spec.ts, e2e/ci/protections-row.spec.ts):
-          // they count this attribute rather than matching the words, so a copy change can never
-          // blind the "not on a partner listing" check again.
-          data-protections-row=""
-          // ⚠️ A FLAT ROW, NOT A PANEL — IT WAS COMPETING WITH THE SCAM WARNING BELOW IT.
-          // On the PDP this sits DIRECTLY above the deposit-fraud strip, and until now the two
-          // were the same shape: identical rounded box, identical padding, near-identical tonal
-          // value (bg-tint vs warning/10). An informational panel and the one sentence that can
-          // stop a buyer losing money read as a single grey blob, and a design review put it
-          // bluntly — the warning had less visual weight than the price.
-          // Nothing here is downgraded in FUNCTION: same trigger, same dialog, still a
-          // full-width tap target. What goes is the box. Canon §3b says a thing in normal flow is
-          // a row with a hairline, not a panel — and losing the box is what lets the warning's
-          // tinted strip and left rule read as the only emphasised thing in the block, which is
-          // the correct hierarchy when one of the two can cost someone money.
-          className={cn(
-            // `min-h-11`: this row measured 312x37 — the one control in the safety block under
-            // the 44px floor. A min-height, so a line that wraps still grows the row naturally.
-            'press min-h-11 whitespace-normal text-left font-normal transition-colors',
-            inline
-              // ⚠️ `inline-flex w-auto`, NOT `w-full justify-start`. As a full-width row the
-              // chevron was flung to the far right of the strip, four hundred-odd pixels from
-              // the words it points at — the exact defect fixed on /help, reintroduced here by
-              // reusing the row's layout inside a much wider container. Sized to its content,
-              // the glyph sits against the sentence and reads as one affordance.
-              // No tint hover either: the strip is already tinted, and a second wash on top of
-              // it looks like a rendering fault rather than a hover.
-              ? 'inline-flex w-auto items-center gap-1 py-0.5 hover:bg-transparent'
-              : 'flex w-full items-center justify-start gap-2.5 border-b border-border px-1 py-2.5 hover:bg-tint',
-          )}
-        />
-      }>
+      {/* ⛔ A LINK UNTIL HYDRATION, A BUTTON AFTER IT (SEO wave B, P0t). The row is in the server HTML,
+          so a slow phone shows it well before React attaches a handler. As a <button>, a tap in that
+          window did nothing and people had to tap twice (measured on a production build at 4× CPU;
+          the e2e spec had to click until the dialog opened). Now:
+          · Before hydration it is an <a href> to the /safety section that covers the same ground, so
+            that tap lands somewhere useful, and assistive tech hears a link, which is what it is.
+          · From hydration on, a click opens the dialog in place and preventDefault keeps the page.
+            The render after hydration adds role="button", aria-haspopup and aria-expanded: activating
+            it now opens a dialog and goes nowhere, and ARIA has to say what activation does. It is
+            the same DOM node throughout, so nothing moves and focus stays put.
+          · A click with ⌘, Ctrl or Shift stays a link, as a middle click already is, so opening the
+            section in a new tab or window still works; preventBaseUIHandler keeps the dialog shut for
+            it. Not Alt: on a link, Alt-click downloads the page (safety.html, measured in Chrome),
+            which nobody wants from a row that opens a dialog, so Alt-click opens the dialog.
+          · Keys: Enter on a link fires a click natively, which opens the dialog. Base UI opens it on
+            Space's keyup, but on an <a href> it leaves Space's keydown alone, and that scrolls the
+            page; onKeyDown stops the scroll.
+          · Base UI returns focus to this trigger when the dialog closes, as it did for the <button>.
+          · Hydration no longer scrolls the page out from under a finger on its way here: ScrollToTop
+            skips the page the browser loaded (scroll-to-top.tsx).
+          `buttonVariants` gives the classes <Button> rendered, minus `transition-colors`, which
+          <Button> dropped too (ui/button.tsx, keepPressTransition): it would knock out the base's
+          transition list and, with it, the tween on the press scale.
+          `press`, not `active:scale-100`: a dialog trigger is not a floating-ui anchor (no rect read
+          mid-press), so it gets the standard press feel; the base's active:scale-[0.97] supplies the
+          pressed value (utilities outrank the components layer). */}
+      <DialogTrigger
+        nativeButton={false}
+        onClick={(event) => {
+          if (event.metaKey || event.ctrlKey || event.shiftKey) {
+            event.preventBaseUIHandler()
+            return
+          }
+          event.preventDefault()
+        }}
+        onKeyDown={(event) => {
+          if (event.key === ' ') event.preventDefault()
+        }}
+        render={
+          <a
+            href={PROTECTIONS_FALLBACK_HREF}
+            {...(hydrated ? {} : LINK_UNTIL_HYDRATED)}
+            // The stable hook for tests (e2e/guest/listing.spec.ts, e2e/ci/protections-row.spec.ts):
+            // they count this attribute rather than matching the words, so a copy change can never
+            // blind the "not on a partner listing" check again.
+            data-protections-row=""
+            // ⚠️ A FLAT ROW, NOT A PANEL — IT WAS COMPETING WITH THE SCAM WARNING BELOW IT.
+            // On the PDP this sits DIRECTLY above the deposit-fraud strip, and until now the two
+            // were the same shape: identical rounded box, identical padding, near-identical tonal
+            // value (bg-tint vs warning/10). An informational panel and the one sentence that can
+            // stop a buyer losing money read as a single grey blob, and a design review put it
+            // bluntly — the warning had less visual weight than the price.
+            // Nothing here is downgraded in FUNCTION: same trigger, same dialog, still a
+            // full-width tap target. What goes is the box. Canon §3b says a thing in normal flow is
+            // a row with a hairline, not a panel — and losing the box is what lets the warning's
+            // tinted strip and left rule read as the only emphasised thing in the block, which is
+            // the correct hierarchy when one of the two can cost someone money.
+            className={cn(
+              buttonVariants({ variant: 'bare', size: 'none' }),
+              // `min-h-11`: this row measured 312x37 — the one control in the safety block under
+              // the 44px floor. A min-height, so a line that wraps still grows the row naturally.
+              'press min-h-11 whitespace-normal text-left font-normal',
+              inline
+                // ⚠️ `inline-flex w-auto`, NOT `w-full justify-start`. As a full-width row the
+                // chevron was flung to the far right of the strip, four hundred-odd pixels from
+                // the words it points at — the exact defect fixed on /help, reintroduced here by
+                // reusing the row's layout inside a much wider container. Sized to its content,
+                // the glyph sits against the sentence and reads as one affordance.
+                // No tint hover either: the strip is already tinted, and a second wash on top of
+                // it looks like a rendering fault rather than a hover.
+                ? 'inline-flex w-auto items-center gap-1 py-0.5 hover:bg-transparent'
+                : 'flex w-full items-center justify-start gap-2.5 border-b border-border px-1 py-2.5 hover:bg-tint',
+            )}
+          />
+        }
+      >
           {/* The block's mark: Scale, the glyph the Disputes section wears in the dashboard nav
               (dashboard-nav.tsx). Not the shield — a shield is a promise of cover, and this row
               describes a process. Suppressed when inline: the safety strip already carries a
