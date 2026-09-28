@@ -41,15 +41,15 @@ const text = (lang: 'en' | 'vi', node: React.ReactNode) => {
 const KINDS = rentalKinds({ 'apartment-rental': 14043, 'house-rental': 5331, 'room-rental': 3289, 'office-rental': 2270 })
 
 describe('RentalsHeading', () => {
-  const cases: [RentalsHeadline, boolean, ReturnType<typeof rentalKinds>][] = [
-    ['apartments-houses-hcmc', true, KINDS],
-    ['apartments-hcmc', true, rentalKinds({ 'apartment-rental': 1 })],
-    ['rentals-hcmc', true, rentalKinds({ 'room-rental': 1 })],
-    ['rentals-vietnam', false, KINDS],
-  ]
-  it.each(cases)('%s renders exactly RENTALS_H1 in both languages', (key, allHcmc, kinds) => {
+  /**
+   * It takes the variant, not the facts: `(index)/layout.tsx` renders it from the cached
+   * `loadRentalsHeadline`, and `rentalsMetadata` builds the title from the same value
+   * (category-copy.test.ts pins the title side), so the H1 and the title name one variant.
+   */
+  const cases: RentalsHeadline[] = ['apartments-houses-hcmc', 'apartments-hcmc', 'rentals-hcmc', 'rentals-vietnam']
+  it.each(cases)('%s renders exactly RENTALS_H1 in both languages', (key) => {
     for (const lang of ['en', 'vi'] as const) {
-      expect(text(lang, <RentalsHeading allHcmc={allHcmc} kinds={kinds} />)).toBe(RENTALS_H1[key][lang])
+      expect(text(lang, <RentalsHeading headline={key} />)).toBe(RENTALS_H1[key][lang])
     }
   })
 })

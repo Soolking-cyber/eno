@@ -9,7 +9,9 @@ import {
   rentalKinds,
   rentalsHeadline,
   rentalsMetadata,
+  type PageLang,
   type RentalsFacts,
+  type RentalsHeadline,
 } from './category-copy'
 
 /**
@@ -33,6 +35,8 @@ const LIVE: RentalsFacts = {
   kinds: rentalKinds({ 'apartment-rental': 14043, 'house-rental': 5331, 'room-rental': 3289, 'office-rental': 2270, 'hotel-short-stay': 0 }),
   top,
 }
+/** The page passes the cached variant; over one set of facts that is the variant those facts give. */
+const meta = (f: RentalsFacts, lang: PageLang, site: string) => rentalsMetadata(f, lang, site, rentalsHeadline(f))
 
 describe('linkedTier', () => {
   it('reads all / most / some / none off the two counts', () => {
@@ -69,7 +73,7 @@ describe('rentals headline — the HCMC wording only while the stock supports it
 
 describe('rentalsMetadata', () => {
   it('English: keyword title, live counts by kind, and what linked means', () => {
-    const m = rentalsMetadata(LIVE, 'en', 'eno.vn')
+    const m = meta(LIVE, 'en', 'eno.vn')
     expect(m.title).toBe('Apartments & Houses for Rent in Ho Chi Minh City | eno.vn')
     expect(m.description).toBe(
       '25,502 places for rent in Ho Chi Minh City, including 14,043 apartments, 5,331 houses, 3,289 rooms and 2,270 offices. ' +
@@ -78,7 +82,7 @@ describe('rentalsMetadata', () => {
   })
 
   it('Vietnamese: its own sentence, dot-grouped numbers, Vietnamese place names', () => {
-    const m = rentalsMetadata(LIVE, 'vi', 'eno.vn')
+    const m = meta(LIVE, 'vi', 'eno.vn')
     // "căn hộ, nhà ở" parsed as "apartments, housing" (nhà ở = dwelling); "và nhà tại" cannot.
     expect(m.title).toBe('Cho thuê căn hộ và nhà tại TP. Hồ Chí Minh | eno.vn')
     expect(m.description).toBe(
@@ -88,13 +92,13 @@ describe('rentalsMetadata', () => {
   })
 
   it('says "most" / "some" / nothing as the linked count falls', () => {
-    expect(rentalsMetadata({ ...LIVE, linked: 'most' }, 'en', 'x').description).toMatch(/Most listings link to their original/)
-    expect(rentalsMetadata({ ...LIVE, linked: 'some' }, 'en', 'x').description).toMatch(/Some listings link to their original/)
-    expect(rentalsMetadata({ ...LIVE, linked: 'none' }, 'en', 'x').description).not.toMatch(/partner/)
+    expect(meta({ ...LIVE, linked: 'most' }, 'en', 'x').description).toMatch(/Most listings link to their original/)
+    expect(meta({ ...LIVE, linked: 'some' }, 'en', 'x').description).toMatch(/Some listings link to their original/)
+    expect(meta({ ...LIVE, linked: 'none' }, 'en', 'x').description).not.toMatch(/partner/)
   })
 
   it('never says Ho Chi Minh City, and never "Trusted", once the stock leaves HCMC', () => {
-    const m = rentalsMetadata({ ...LIVE, allHcmc: false }, 'en', 'eno.vn')
+    const m = meta({ ...LIVE, allHcmc: false }, 'en', 'eno.vn')
     expect(m.title).toBe('Rentals in Vietnam | eno.vn')
     expect(m.description).toMatch(/^25,502 places for rent in Vietnam,/)
     expect(`${m.title} ${m.description}`).not.toMatch(/Ho Chi Minh|Trusted/)
@@ -102,8 +106,46 @@ describe('rentalsMetadata', () => {
 
   it('never makes a trust claim over this stock, in either language', () => {
     for (const lang of ['en', 'vi'] as const) {
-      const m = rentalsMetadata(LIVE, lang, 'eno.vn')
+      const m = meta(LIVE, lang, 'eno.vn')
       expect(`${m.title} ${m.description}`).not.toMatch(/trust|uy tín/i)
+    }
+  })
+})
+
+describe('rentalsMetadata takes the headline variant the H1 prints', () => {
+  const VARIANTS: RentalsHeadline[] = ['apartments-houses-hcmc', 'apartments-hcmc', 'rentals-hcmc', 'rentals-vietnam']
+
+  /**
+   * ⛔ THE H1 AND THE TITLE ARE BUILT FROM ONE CACHED VALUE (SEO wave B, H1b). The H1 renders in
+   * `(index)/layout.tsx` from `loadRentalsHeadline`, above the loading boundary, where it may not wait on
+   * the counts; the title takes the same value. Title Case in the title, sentence case in the H1 —
+   * otherwise the same words, in both languages (the H1 side: category-text.test.tsx).
+   */
+  it.each(VARIANTS)('%s: the title names exactly what RENTALS_H1 says', (v) => {
+    for (const lang of ['en', 'vi'] as const) {
+      const { title } = rentalsMetadata(LIVE, lang, 'eno.vn', v)
+      expect(title.replace(/ \| eno\.vn$/, '').toLowerCase()).toBe(RENTALS_H1[v][lang].toLowerCase())
+    }
+  })
+
+  it('the title follows the parameter, not the facts; the description follows the facts', () => {
+    const stale = rentalsMetadata({ ...LIVE, allHcmc: false }, 'en', 'eno.vn', 'apartments-houses-hcmc')
+    expect(stale.title).toBe('Apartments & Houses for Rent in Ho Chi Minh City | eno.vn')
+    expect(stale.description).toMatch(/^25,502 places for rent in Vietnam,/)
+  })
+
+  /**
+   * ⚠️ A CACHED VARIANT CAN OUTLIVE THE STOCK (category-data.ts, `loadRentalsHeadline`). If /c/rentals
+   * empties inside that window, generateMetadata still passes the variant, so the title keeps matching
+   * the H1, and the description is built from the empty facts `loadRentalsFacts(id, 0)` returns: it
+   * says 0 and claims nothing about links (`linkedTier(x, 0)` is 'none'). The page is noindexed at 0.
+   */
+  it('an emptied category under a cached variant: the title matches the H1, the description says 0 and claims nothing', () => {
+    const empty: RentalsFacts = { total: 0, allHcmc: false, linked: linkedTier(7, 0), kinds: rentalKinds({}), top: [] }
+    for (const lang of ['en', 'vi'] as const) {
+      const m = rentalsMetadata(empty, lang, 'eno.vn', 'apartments-houses-hcmc')
+      expect(m.title.replace(/ \| eno\.vn$/, '').toLowerCase()).toBe(RENTALS_H1['apartments-houses-hcmc'][lang].toLowerCase())
+      expect(m.description).toBe(lang === 'en' ? '0 places for rent in Vietnam.' : '0 tin cho thuê tại Việt Nam.')
     }
   })
 })
@@ -142,7 +184,7 @@ describe('districtMetadata', () => {
     }
     const elec = { ...base, category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }, total: 1, linked: 'none' as const }
     expect(districtMetadata(elec, 'en', 'eno.vn').description).toMatch(/^1 electronics listing in /)
-    const one = rentalsMetadata({ ...LIVE, total: 1, kinds: rentalKinds({ 'office-rental': 1 }) }, 'en', 'eno.vn')
+    const one = meta({ ...LIVE, total: 1, kinds: rentalKinds({ 'office-rental': 1 }) }, 'en', 'eno.vn')
     expect(one.description).toMatch(/^1 place for rent in Ho Chi Minh City, including 1 office\./)
   })
 

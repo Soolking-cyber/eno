@@ -23,14 +23,20 @@ import { categoryExists } from './load-category'
  * longer wraps `[district]` as well — see the note at the top of `(index)/page.tsx`. This layout still
  * sits above both and still guards both: an unknown category is a 404 under either URL shape.
  *
+ * ⛔ IT RENDERS NOTHING, AND THE CATEGORY PAGE'S HEADER AND H1 MUST NOT MOVE HERE. They moved out of
+ * the loading boundary into `(index)/layout.tsx` (SEO wave B, H1b), one level down, because this
+ * layout also wraps `[district]/page.tsx`, which renders its own Header, `<main>`, breadcrumb, H1 and
+ * Footer — anything here would be doubled on every district page (contract test).
+ *
  * ⚠️ EXISTENCE ONLY — the weaker guard, on purpose. `page.tsx` still owns the real policy,
  * including the auto-noindex when a category holds zero live listings. An EMPTY category is a
  * valid 200 page that de-indexes itself; it must not 404 here.
  *
  * ⚠️ AND IT DELIBERATELY DOES NOT CALL `loadCategory`. Everything a layout awaits delays the
- * skeleton below it, and `loadCategory` runs a COUNT across the category to decide the noindex tag.
- * `categoryExists` asks the one question that decides the status; the count stays below the
- * boundary where `loading.tsx` covers it.
+ * whole first chunk below it — the district page and the category page's header, H1 and skeleton —
+ * and `loadCategory` runs a COUNT across the category to decide the noindex tag. `categoryExists`
+ * asks the one question that decides the status, through the same `cache()`d row lookup
+ * `(index)/layout.tsx` reads (`getCategoryRow`), so the two layouts cost one `findUnique`.
  */
 export default async function CategoryLayout({
   children,

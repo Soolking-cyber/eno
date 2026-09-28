@@ -130,8 +130,20 @@ const RENTALS_LINKED_META: Record<Exclude<LinkedTier, 'none'>, Record<PageLang, 
   },
 }
 
-/** `<title>` + meta description for /c/rentals. */
-export function rentalsMetadata(f: RentalsFacts, lang: PageLang, siteName: string): { title: string; description: string } {
+/**
+ * `<title>` + meta description for /c/rentals.
+ *
+ * ⚠️ THE TITLE'S VARIANT IS A PARAMETER, NOT `rentalsHeadline(f)`. The H1 lives in `(index)/layout.tsx`,
+ * above the loading boundary, where it may not wait on these counts, so it prints the cached variant
+ * (`loadRentalsHeadline`, category-data.ts). The title takes that same value, so the two can never
+ * name different variants; the description still says what the live counts say.
+ */
+export function rentalsMetadata(
+  f: RentalsFacts,
+  lang: PageLang,
+  siteName: string,
+  headline: RentalsHeadline,
+): { title: string; description: string } {
   const place = f.allHcmc ? HCMC_NAME : VIETNAM_NAME
   const n = formatCountFull(f.total, lang)
   const kinds = f.kinds.map((k) => `${formatCountFull(k.count, lang)} ${rentalKindNoun(k.slug, k.count, lang)}`)
@@ -142,7 +154,7 @@ export function rentalsMetadata(f: RentalsFacts, lang: PageLang, siteName: strin
     lang === 'vi'
       ? `${n} tin cho thuê tại ${place.vi}${kinds.length ? `, gồm ${joinList(kinds, 'vi')}` : ''}.${linked}`
       : `${n} ${f.total === 1 ? 'place' : 'places'} for rent in ${place.en}${kinds.length ? `, including ${joinList(kinds, 'en')}` : ''}.${linked}`
-  return { title: `${HEADLINE_TITLE[rentalsHeadline(f)][lang]} | ${siteName}`, description }
+  return { title: `${HEADLINE_TITLE[headline][lang]} | ${siteName}`, description }
 }
 
 /**
