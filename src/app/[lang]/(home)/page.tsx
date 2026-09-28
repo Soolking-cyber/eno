@@ -9,9 +9,7 @@ import { getCategoriesByDemand } from '@/lib/categories'
 import { topBusinessListings } from '@/lib/core/business-rail'
 import { trendingRailListings } from '@/lib/core/trending-rail'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
-import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
-import { Footer } from '@/components/marketplace/footer'
 
 // ISR: near-static homepage data, refreshed at most once a minute (better LCP/TTFB).
 export const revalidate = 21600 // 6h — the client explorer fetches live listings via /api/listings, so the ISR HTML is just first-paint+SEO. Home is a HOT page that regenerates per edge region, so a 6h window (vs 1h) cuts ISR writes ~6× with zero UX/speed change
@@ -130,41 +128,23 @@ export default async function Home() {
    */
   const { categories, listings, total, businesses, trending } = await getData()
 
+  /**
+   * ⛔ THE WRAPPER, HEADER, `<main>`, H1 AND FOOTER ARE IN `(home)/layout.tsx` SINCE SEO WAVE B, H1c,
+   * above this route's loading boundary, where crawlers can read them. This page renders only the feed,
+   * which the skeleton stands in for. `siteHeading={false}` because the layout owns the one H1; the
+   * explorer's own copy is for `/s/[handle]`, which has none.
+   */
   return (
-    <div className="flex min-h-screen flex-col home-wash">
-      {/* ⛔ PULL-TO-REFRESH WAS REMOVED HERE ON 2026-09-19 — owner: "pull down to refresh is too
-          sensitive remove it for now". It fired on ordinary downward flicks near the top of the feed,
-          which on a browse surface costs a scroll every time it misreads one.
-          ⚠️ "FOR NOW". The whole thing is one commit in history (`src/lib/pull-to-refresh.ts`, its
-          test and `pull-to-refresh.tsx`) and comes back by reverting this. What to change before it
-          does: PULL_THRESHOLD was 64px of PULL — 128px of finger after the half-resistance — and the
-          gesture became live on the first downward pixel at scrollY 0. A slop distance before the
-          gesture engages at all, and a higher threshold, are the two dials; the arithmetic module
-          existed precisely so they could be tuned and tested without a touchscreen. */}
-      {/* NO hero-wordmark preload any more: the hero heading is sr-only on both editions as of
-          2026-08-02 (owner), so there is no hero image left to preload and <LogoWordmark> is gone.
-          The wordmark that remains is the HEADER's, which sits at the very top of the initial
-          markup — the preload scanner finds it immediately, and a <link rel=preload> would only
-          duplicate a request the parser is already about to make. Do not add one back.
-
-          The history is worth keeping because it cost real debugging: the preload used to live in
-          this Server Component, was hoisted to <head>, and was NOT cleaned up on soft navigation,
-          so it leaked onto every non-home route and warned "preloaded but not used". Moving it
-          into the client component fixed that; deleting the hero image removed the need entirely. */}
-      <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
-        <ListingsExplorer
-          categories={categories}
-          initialListings={listings}
-          initialTotal={total}
-          // Baked at ISR regeneration time — tells the client explorer the seed's TRUE age
-          // so a 6h-old snapshot revalidates in the background instead of posing as fresh.
-          initialFetchedAt={Date.now()}
-          initialBusinesses={businesses}
-          initialTrending={trending}
-        />
-      </main>
-      <Footer />
-    </div>
+    <ListingsExplorer
+      categories={categories}
+      initialListings={listings}
+      initialTotal={total}
+      // Baked at ISR regeneration time — tells the client explorer the seed's TRUE age
+      // so a 6h-old snapshot revalidates in the background instead of posing as fresh.
+      initialFetchedAt={Date.now()}
+      initialBusinesses={businesses}
+      initialTrending={trending}
+      siteHeading={false}
+    />
   )
 }
