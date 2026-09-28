@@ -4,9 +4,10 @@ import { listingIsViewable } from './get-listing'
 /**
  * ⛔ THIS IS THE RULE THAT WAS WRONG. The first cut of the soft-404 fix had `layout.tsx` 404 only
  * when the listing did not EXIST, which let a hidden / unverified / held row through to the page —
- * where the policy guard runs below the loading boundary and produces exactly the soft-404 (200 +
- * not-found UI) the fix was written to remove. Measured on production 2026-09-07: a hidden listing
- * answered 200. Three reviewers found it independently, from the diff alone.
+ * where the policy guard ran below the loading boundary (deleted since SEO wave B, H1a) and produced
+ * exactly the soft-404 (200 + not-found UI) the fix was written to remove. Measured on production
+ * 2026-09-07: a hidden listing answered 200. Three reviewers found it independently, from the diff
+ * alone.
  *
  * ⚠️ IT MUST STAY IN STEP WITH `page.tsx`'s GUARD, which is the authority. If that guard changes,
  * this fails, and that is the intended coupling — the two disagreeing is what the bug WAS.

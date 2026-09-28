@@ -19,14 +19,14 @@ import { scopedListingWhere } from '@/lib/edition-scope'
  *
  *   · It missed hidden, unverified and held listings entirely. `scopedListingWhere({ id })` does
  *     not filter on `status` or `verified`, so those rows come back non-null, the layout waved them
- *     through, and the page's own policy guard then ran BELOW the loading boundary — the exact
- *     soft-404 the fix exists to remove. Measured on production 2026-09-07: a hidden listing
- *     answered 200. Three reviewers found it independently.
- *   · It made the skeleton wait on the full seller+category+owner join. A layout renders above the
- *     loading boundary, which is what buys the correct status — but it also means everything the
- *     layout awaits delays the shell. Some wait is unavoidable (Next's own loading.md: "ensure the
- *     resource exists before the response body is streamed"); a three-column primary-key lookup is
- *     about as little of it as can be bought.
+ *     through, and the page's own policy guard then ran BELOW the loading boundary (deleted since
+ *     SEO wave B, H1a) — the exact soft-404 the fix exists to remove. Measured on production
+ *     2026-09-07: a hidden listing answered 200. Three reviewers found it independently.
+ *   · It made the skeleton wait on the full seller+category+owner join. A layout rendered above the
+ *     loading boundary, which is what bought the correct status — but it also meant everything the
+ *     layout awaited delayed the shell. The skeleton is gone since SEO wave B, H1a (see layout.tsx),
+ *     and the layout's wait now delays the page itself, so a three-column primary-key lookup is
+ *     still about as little of it as can be bought.
  *
  * ⚠️ THE RULE HERE MUST STAY IN STEP WITH `page.tsx`'s GUARD. `sold` is viewable on purpose — it
  * renders its own on-brand "this item has been sold" page rather than a 404 — so this must not

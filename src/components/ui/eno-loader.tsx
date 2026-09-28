@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
  * NOT for buttons: a 24px tile cannot carry a legible glyph, and a mutation already has its own
  * idiom (lucide `Loader2` inside the button, ~95 sites, deliberately left alone). Nor does it
  * replace a SKELETON: where the shape of what is coming is known, a skeleton says more than any
- * spinner can, which is why all seven `loading.tsx` files and the map placeholder use one.
+ * spinner can, which is why all six `loading.tsx` files and the map placeholder use one.
  *
  * ⚠️ THE GLYPH IS A HOLE, not white ink — see `.eno-flip` in globals.css. That is what makes it work
  * on a photo, a dialog and a dark surface rather than only on white.
