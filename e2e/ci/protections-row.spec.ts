@@ -68,15 +68,13 @@ async function openBeforeHydration(page: Page) {
  * The row after hydration, found by the role="button" that the render AFTER hydration gives it
  * (protections-row.tsx). Hydration attached the click handler first, so once the role is there one
  * click must work. This is a readiness check, not a retry: it never clicks.
- * ⚠️ BY THAT ROLE, NOT BY `[data-protections-row]` ALONE, and only then counted. The page body is
- * streamed into a hidden container that an inline script reveals. Measured on this build, 3 runs each,
- * no console error:
- *  - unthrottled, the server's copy is never revealed. A client-rendered row (a button from its first
- *    render) appears ~0.4s in while the server's copy is still in the hidden container, and the
- *    container is removed ~50ms later. In that window the bare attribute matches two rows and any
- *    strict locator throws.
- *  - at 6x CPU the server's copy is revealed (~1.2s) and hydrates in place (~2.7s). That gap is the
- *    window this change is about.
+ * ⚠️ BY THAT ROLE, NOT BY `[data-protections-row]` ALONE, and only then counted. Until SEO wave B,
+ * H1a the page body was streamed into a hidden container that an inline script revealed, and
+ * unthrottled, a client-rendered row appeared ~0.4s in while the server's copy was still hidden, so
+ * for ~50ms the bare attribute matched two rows and any strict locator threw (3 runs, no console
+ * error). H1a deleted the listing's `loading.tsx`: the server's row is now the only one, in place from
+ * the first byte, and it hydrates where it is. On a slow phone it is on screen well before it
+ * hydrates; that gap is the window this change is about.
  */
 async function hydratedRow(page: Page): Promise<Locator> {
   await page.goto(LISTING)

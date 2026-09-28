@@ -93,17 +93,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const listing = await getListing(id)
 
-  // ⚠️ THIS notFound() DOES NOT, BY ITSELF, PRODUCE A 404 — the comment here claimed it did, for
-  // months, while production answered 200. Corrected 2026-09-07 after measuring. generateMetadata
-  // renders as a SIBLING of the page element (next/dist/server/app-render/create-component-tree.js),
-  // so it lands INSIDE the Suspense boundary this segment's `loading.tsx` creates. React then routes
-  // the error to Fizz's `onError` rather than `onShellError`; only the latter rejects the render
-  // promise, and only a rejected render promise ever sets `res.statusCode`
-  // (app-render.js — `isHTTPAccessFallbackError` branch). The status stays 200, the ISR entry is
-  // stored with `status: undefined`, and the 200 is then re-served from cache for 30 days.
-  // ⛔ THE 404 COMES FROM `./layout.tsx`, which renders ABOVE that boundary. Next's own docs say so
-  // (loading.md: "Place notFound() before those boundaries"). This call stays as the second line of
-  // defence — it is what still runs if the layout is removed — and it remains the authority on the
+  // ⚠️ THIS notFound() NEVER PRODUCED A 404 BY ITSELF. The comment here once claimed it did, for
+  // months, while production answered 200 (measured 2026-09-07). generateMetadata renders as a
+  // SIBLING of the page element (next/dist/server/app-render/create-component-tree.js), so under the
+  // segment's old loading boundary it landed
+  // INSIDE that Suspense boundary: React routed the error to Fizz's `onError` rather than
+  // `onShellError`, only the latter rejects the render promise, and only a rejected render promise
+  // sets `res.statusCode` (app-render.js, the `isHTTPAccessFallbackError` branch). The 200 was then
+  // stored and re-served from cache for 30 days.
+  // ⛔ THE 404 COMES FROM `./layout.tsx`, which decides it first with the same rule in three columns,
+  // and since SEO wave B, H1a (2026-09-28) the page body's own guard is in the shell too: the segment
+  // has no `loading.tsx` (`src/app/[lang]/crawler-visible-html-contract.test.ts`). Do not rely on this
+  // call alone: metadata may still be streamed apart from the shell. It stays the authority on the
   // FULL policy below, which the layout deliberately does not duplicate.
   // SOLD is the ONE exception: it renders a dedicated "this item has been sold" page
   // (not a 404), so here we return noindex metadata for it rather than notFound() — a

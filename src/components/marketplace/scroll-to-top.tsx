@@ -21,10 +21,11 @@ const subscribeNothing = () => () => {}
  * screen (its top at 1058px in an 844px window), so the reader had to find it and tap again.
  * `useSyncExternalStore` is false only in the render that hydrates server HTML, so a soft navigation,
  * which mounts on the client, still resets, and so does a change of `id` after hydration.
- * ⚠️ A hard load can also mount this on the client: on a fast load React sometimes renders the listing
- * body on the client instead of revealing the streamed copy (4 of 6 runs at 1x CPU on production
- * builds; 0 of 12 at 2x-6x, where the server's copy is shown and then hydrates in place). It resets
- * there, ~0.4s in, before any of the page body had been on screen to scroll to.
+ * ⚠️ UNTIL SEO WAVE B, H1a (2026-09-28) A HARD LOAD COULD ALSO MOUNT THIS ON THE CLIENT: the listing
+ * body was streamed into a hidden container by the segment's `loading.tsx`, and on a fast load React
+ * sometimes rendered it on the client instead of revealing that copy (4 of 6 runs at 1x CPU; 0 of 12
+ * at 2x-6x). It reset there, ~0.4s in, before any of the body had been on screen. H1a deleted that
+ * file, so the body arrives in place in the server HTML and hydrates where it is, at every speed.
  */
 export function ScrollToTop({ id }: { id?: string } = {}) {
   const clientRender = useSyncExternalStore(subscribeNothing, () => true, () => false)
