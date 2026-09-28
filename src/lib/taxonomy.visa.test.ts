@@ -289,4 +289,18 @@ describe('listingMoneyFor — đồng, with no exceptions', () => {
     // An absent intent behaves like a plain sale (create resolves one before calling).
     expect(listingMoneyFor({ categorySlug: 'vehicles', subcategorySlug: 'car' }).priceUnit).toBe('VND')
   })
+
+  it('quotes a rent per the period the importer passes, monthly when it passes none', () => {
+    const rent = (rentalPeriod?: 'hourly' | 'daily' | 'weekly' | 'monthly' | null) =>
+      listingMoneyFor({ categorySlug: 'rentals', subcategorySlug: 'car-rental', listingType: 'rent', rentalPeriod }).priceUnit
+    expect(rent()).toBe('VND/month')
+    expect(rent(null)).toBe('VND/month')
+    expect(rent('daily')).toBe('VND/day')
+    expect(rent('hourly')).toBe('VND/hour')
+    expect(rent('weekly')).toBe('VND/week')
+    expect(rent('monthly')).toBe('VND/month')
+    // Not a rent → the period is ignored, whatever it says.
+    expect(listingMoneyFor({ categorySlug: 'jobs', listingType: 'job', rentalPeriod: 'daily' }).priceUnit).toBe('VND/month')
+    expect(listingMoneyFor({ categorySlug: 'vehicles', listingType: 'sell', rentalPeriod: 'daily' }).priceUnit).toBe('VND')
+  })
 })

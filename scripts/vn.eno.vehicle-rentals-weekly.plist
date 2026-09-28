@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Weekly eno.vn HCMC vehicle-rental refresh (scripts/vehicle-rentals-weekly.sh) — Mondays 05:00.
+  It runs the script from ~/eno.vn AS CHECKED OUT at 05:00 (like jobs-daily), so install only after the
+  branch is merged AND deployed, and keep ~/eno.vn on a clean main.
+  Install (owner):
+    mkdir -p ~/eno-import-journals/vehicles   # launchd will not start a job whose log dir is missing
+    cp ~/eno.vn/scripts/vn.eno.vehicle-rentals-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/vn.eno.vehicle-rentals-weekly.plist
+  Remove: launchctl unload ~/Library/LaunchAgents/vn.eno.vehicle-rentals-weekly.plist
+  A run missed while the Mac sleeps fires on wake. Scraping takes ~3 h (1 req/s per host).
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>vn.eno.vehicle-rentals-weekly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/mk1e3/eno.vn/scripts/vehicle-rentals-weekly.sh</string>
+    <string>--apply</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>0</integer></dict>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>WorkingDirectory</key><string>/Users/mk1e3/eno.vn</string>
+  <key>StandardOutPath</key><string>/Users/mk1e3/eno-import-journals/vehicles/weekly.log</string>
+  <key>StandardErrorPath</key><string>/Users/mk1e3/eno-import-journals/vehicles/weekly.log</string>
+</dict>
+</plist>

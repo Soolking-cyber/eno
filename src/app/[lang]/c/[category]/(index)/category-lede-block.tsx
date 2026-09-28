@@ -27,16 +27,16 @@ export async function CategoryLedeBlock({ slug }: { slug: string }) {
   // The layouts above have already answered 404 for an unknown slug; nothing to say here either way.
   if (!loaded) return null
   const { cat, live: total } = loaded
-  const [rentals, linkedCount] = await Promise.all([
-    cat.slug === 'rentals' && total > 0 ? loadRentalsFacts(cat.id, total) : null,
-    cat.slug !== 'rentals' && total > 0 ? loadLinkedCount(cat.id) : 0,
-  ])
+  const rentals = cat.slug === 'rentals' && total > 0 ? await loadRentalsFacts(cat.id, total) : null
+  // Also for rentals with no place live (facts null): the generic lede then speaks, and its trust
+  // claim must know the vehicle hire is all linked.
+  const linkedCount = !rentals && total > 0 ? await loadLinkedCount(cat.id) : 0
   // `data-category-lede` is how H2's crawler spec finds the lede, wherever it renders.
   return (
     <>
       <p data-category-lede="" className="mt-3 max-w-prose text-base leading-relaxed text-body">
         {rentals ? (
-          <RentalsLede total={rentals.total} allHcmc={rentals.allHcmc} kinds={rentals.kinds} linked={rentals.linked} />
+          <RentalsLede total={rentals.total} allHcmc={rentals.allHcmc} kinds={rentals.kinds} linked={rentals.linked} vehicles={rentals.vehicles} />
         ) : (
           <>
             <CategoryLede name={cat.name} nameVi={cat.nameVi} slug={cat.slug} linked={linkedTier(linkedCount, total)} />

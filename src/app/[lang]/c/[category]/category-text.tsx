@@ -63,7 +63,7 @@ export function RentalsHeading({ headline }: { headline: RentalsHeadline }) {
  * import-viewing-disclaimer.ts) because the free availability check covers these rentals too —
  * the RentalCheckHint right under this paragraph.
  */
-export function RentalsLede({ total, allHcmc, kinds, linked }: Pick<RentalsFacts, 'total' | 'allHcmc' | 'kinds' | 'linked'>) {
+export function RentalsLede({ total, allHcmc, kinds, linked, vehicles }: Pick<RentalsFacts, 'total' | 'allHcmc' | 'kinds' | 'linked' | 'vehicles'>) {
   const { lang, tr } = useLanguage()
   const n = formatCountFull(total, lang)
   if (lang === 'vi') {
@@ -74,7 +74,7 @@ export function RentalsLede({ total, allHcmc, kinds, linked }: Pick<RentalsFacts
       some: ' Một số tin được liên kết từ các trang bất động sản đối tác và dẫn tới tin gốc.',
       none: '',
     }[linked]
-    return <>{`${n} tin cho thuê tại ${allHcmc ? HCMC_NAME.vi : 'Việt Nam'}${list.length ? `, gồm ${joinList(list, 'vi')}` : ''}.${tail}`}</>
+    return <>{`${n} tin cho thuê tại ${allHcmc ? HCMC_NAME.vi : 'Việt Nam'}${list.length ? `, gồm ${joinList(list, 'vi')}` : ''}.${tail}`}<VehicleHire vehicles={vehicles} /></>
   }
   // Literal tr() per form so the harvester can pre-translate each; singular at exactly 1.
   const kindWord = (slug: string, one: boolean) =>
@@ -101,7 +101,31 @@ export function RentalsLede({ total, allHcmc, kinds, linked }: Pick<RentalsFacts
         </>
       )}
       .{linked !== 'none' && <> {linkedLede(linked, tr)}</>}
+      <VehicleHire vehicles={vehicles} />
     </>
+  )
+}
+
+/**
+ * The lede's last sentence: car and motorbike hire, which share the rentals category but are not
+ * "places" (category-copy.ts RentalsFacts.vehicles) and are not in the grid below — so each count
+ * links to the explorer view that lists them. Nothing when there are none; a zero kind is omitted.
+ */
+function VehicleHire({ vehicles }: Pick<RentalsFacts, 'vehicles'>) {
+  const { lang, tr } = useLanguage()
+  const cars = vehicles?.cars ?? 0
+  const bikes = vehicles?.motorbikes ?? 0
+  if (cars + bikes === 0) return null
+  const link = (sub: string, label: string) => (
+    <Link href={`/?category=rentals&subcategory=${sub}`} className="font-semibold text-accent-foreground hover:underline">{label}</Link>
+  )
+  // The sentence has the same shape in both languages ("Plus X and Y for hire." / "Ngoài ra còn X và
+  // Y cho thuê."), so it is one branch of paired tr() literals; Vietnamese nouns take no plural.
+  const carLabel = `${formatCountFull(cars, lang)} ${cars === 1 ? tr('car', 'xe ô tô') : tr('cars', 'xe ô tô')}`
+  const bikeLabel = `${formatCountFull(bikes, lang)} ${bikes === 1 ? tr('motorbike', 'xe máy') : tr('motorbikes', 'xe máy')}`
+  const parts = [cars > 0 ? link('car-rental', carLabel) : null, bikes > 0 ? link('motorbike-rental', bikeLabel) : null].filter(Boolean)
+  return (
+    <> {tr('Plus', 'Ngoài ra còn')} {parts[0]}{parts.length === 2 && <> {tr('and', 'và')} {parts[1]}</>} {tr('for hire.', 'cho thuê.')}</>
   )
 }
 

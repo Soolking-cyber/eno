@@ -71,6 +71,18 @@ describe('RentalsLede', () => {
     )
   })
 
+  it('names vehicle hire in its own sentence, never inside the "places" count', () => {
+    expect(text('en', <RentalsLede {...props} vehicles={{ cars: 5904, motorbikes: 245 }} />)).toBe(
+      '25,502 places for rent in Ho Chi Minh City, including 14,043 apartments, 5,331 houses, 3,289 rooms and 2,270 offices. ' +
+        'Every one is linked from a partner property portal and links to the original listing. Plus 5,904 cars and 245 motorbikes for hire.',
+    )
+    expect(text('vi', <RentalsLede {...props} vehicles={{ cars: 5904, motorbikes: 245 }} />)).toMatch(/ Ngoài ra còn 5\.904 xe ô tô và 245 xe máy cho thuê\.$/)
+    expect(text('en', <RentalsLede {...props} vehicles={{ cars: 0, motorbikes: 1 }} />)).toMatch(/\. Plus 1 motorbike for hire\.$/)
+    expect(text('en', <RentalsLede {...props} vehicles={{ cars: 1, motorbikes: 0 }} />)).toMatch(/\. Plus 1 car for hire\.$/)
+    expect(text('en', <RentalsLede {...props} vehicles={{ cars: 0, motorbikes: 0 }} />)).not.toMatch(/hire/)
+    expect(text('en', <RentalsLede {...props} />)).not.toMatch(/hire/)
+  })
+
   it('names no city and no kinds it cannot back, and says nothing about links it does not have', () => {
     const t = text('en', <RentalsLede total={7} allHcmc={false} kinds={[]} linked="none" />)
     expect(t).toBe('7 places for rent in Vietnam.')

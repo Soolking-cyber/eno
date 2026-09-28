@@ -19,6 +19,7 @@ import { hasPlainTextFallback, inferDistrictFromQuery, strippedUnderExplicitDist
 import { parseRadiusParams, radiusWhere } from '@/lib/geo-radius'
 import { conditionWhere } from '@/lib/listing-condition'
 import { provinceWhere, wardWhere } from '@/lib/province-match'
+import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 
 // Subcategory facet counts are expensive (one multi-LIKE COUNT per subcategory)
 // and change slowly. Memoize per filter-signature with a short TTL so the fan-out
@@ -390,6 +391,15 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
   if (subcategory && subcategory !== 'all') {
     subcategoryFilter = { subcategorySlug: subcategory }
     andFilters.push(subcategoryFilter)
+  }
+  /**
+   * `kind=places` — the rentals HUB pages' scope (src/lib/rental-places.ts): homes, not vehicle hire.
+   * /c/rentals/<district> counts places and sends this with its sort and Show-more, so page 2 comes
+   * from the set page 1 counted. Only on `category=rentals`; ignored anywhere else. It is a fixed
+   * clause (not a facet), so the facet counts keep it like any other scope filter.
+   */
+  if (category === 'rentals' && searchParams.get(PLACES_KIND_PARAM.key) === PLACES_KIND_PARAM.value) {
+    andFilters.push(RENTAL_PLACES)
   }
   const listingType = searchParams.get('type')?.trim()
   if (listingType && listingType !== 'all') {

@@ -81,6 +81,12 @@ export type RentalsFacts = {
   kinds: { slug: RentalKind; count: number }[]
   /** The busiest districts, canonical slugs, busiest first. */
   top: DistrictChip[]
+  /**
+   * Live car / motorbike / bicycle hire in the same category. NOT part of `total`: the lede counts
+   * "places for rent", and a car is not a place — but the grid under the lede shows both, so the lede
+   * names the vehicles in their own sentence rather than leaving its number short of the grid's.
+   */
+  vehicles?: { cars: number; motorbikes: number }
 }
 
 /** Only the kinds with live stock, in display order — a zero is never printed as "0 offices". */

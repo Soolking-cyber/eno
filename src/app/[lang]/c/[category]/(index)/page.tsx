@@ -1,5 +1,6 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { RENTAL_PLACES } from '@/lib/rental-places'
 import { loadCategory } from '../load-category'
 import { loadDistrictChips, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline } from '../category-data'
 import { categoryMetadata, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
@@ -89,7 +90,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // disagree; the description is built from this render's live counts. No variant = no live rental
   // when the cache was filled: then the H1 and the title both keep the generic wording.
   const headline = cat.slug === 'rentals' ? await loadRentalsHeadline(cat.id) : null
-  const rentals = headline ? rentalsMetadata(await loadRentalsFacts(cat.id, live), pageLang(lang), SITE_NAME, headline) : null
+  const facts = headline ? await loadRentalsFacts(cat.id, live) : null
+  const rentals = headline && facts ? rentalsMetadata(facts, pageLang(lang), SITE_NAME, headline) : null
   // Every other category keeps its old wording only while none of its stock is linked (category-copy.ts).
   const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME)
   return {
@@ -129,7 +131,18 @@ export default async function CategoryPage({ params }: Props) {
    * each scoped on its own rather than one mutated `where` spread with extra keys — spreading an
    * exclusion fragment beside other keys is the collision trap edition-scope.ts exists to prevent.
    */
-  const scopedWhere = await scopedListingWhere({ categoryId: cat.id, verified: true, status: 'active' })
+  const base = { categoryId: cat.id, verified: true, status: 'active' as const }
+  /**
+   * ⛔ /c/rentals SHOWS PLACES, NOT VEHICLE HIRE (src/lib/rental-places.ts). Its H1 answers "apartments
+   * for rent in …" and its lede counts places; ~6,400 imported cars and motorbikes share the category
+   * (scripts/import-vehicle-rentals.ts) and would otherwise fill its first 48 cards. The lede links
+   * them into the explorer's car / motorbike views instead; the sort links and "Refine in full
+   * search" still open the whole category. ONLY WHILE A PLACE IS LIVE — with none, the facts are
+   * null, the page keeps the generic copy and shows whatever rentals exist, never an empty grid.
+   * Wrapped in AND, never spread beside the scoped keys (edition-scope.ts's collision trap).
+   */
+  const rentalsFacts = cat.slug === 'rentals' && total > 0 ? await loadRentalsFacts(cat.id, total) : null
+  const scopedWhere = await scopedListingWhere(rentalsFacts ? { AND: [base, RENTAL_PLACES] } : base)
   const [raw, otherCats, chips, rentals] = await Promise.all([
     db.listing.findMany({
       where: scopedWhere,
@@ -142,10 +155,10 @@ export default async function CategoryPage({ params }: Props) {
     db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),
     // ⚠️ CANONICAL CHIPS (category-data.ts): one per place, linking the one URL that place has — the
     // stored spellings (`quan-2`, `huyen-cu-chi`) now 308 there instead of standing beside it.
-    loadDistrictChips(cat.id),
+    loadDistrictChips(cat.id, !!rentalsFacts), // places-only exactly when the grid is
     // The same cached call generateMetadata and the lede make — one set of counts per render. The
     // page reads only `top` from it (RentalsDistricts); the linked count is the lede's alone.
-    cat.slug === 'rentals' && total > 0 ? loadRentalsFacts(cat.id, total) : null,
+    rentalsFacts,
   ])
   const listings = await localizeListingTitles(raw.map(serializeListingCard))
   const districts = chips.slice(0, DISTRICT_CHIPS)
@@ -217,7 +230,7 @@ export default async function CategoryPage({ params }: Props) {
               listings={listings}
               sortable={total > 1}
               sortBase={`/?category=${encodeURIComponent(cat.slug)}`}
-              scope={{ shown: listings.length, total }}
+              scope={{ shown: listings.length, total: rentals?.total ?? total }}
             />
           </div>
           <div className="mt-8">

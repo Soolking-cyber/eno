@@ -313,3 +313,21 @@ describe('resolveFeedFilters — the plain words win when the district reading f
     expect(h.probes).toHaveLength(2)
   })
 })
+
+describe('kind=places — the rentals hub scope (src/lib/rental-places.ts)', () => {
+  const placesClause = async (qs: string) => {
+    const { andFilters } = await buildFeedFilters(new URLSearchParams(qs))
+    return andFilters.find((f: any) => JSON.stringify(f).includes('"notIn":["motorbike-rental"'))
+  }
+
+  it('narrows a rentals query to places, keeping rows with no subcategory', async () => {
+    const c: any = await placesClause('category=rentals&district=d7&kind=places')
+    expect(c).toEqual({ OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: ['motorbike-rental', 'car-rental', 'bicycle-rental', 'ebike-rental'] } }] })
+  })
+
+  it('is ignored outside rentals and without the param', async () => {
+    expect(await placesClause('category=vehicles&kind=places')).toBeUndefined()
+    expect(await placesClause('category=rentals')).toBeUndefined()
+    expect(await placesClause('category=rentals&kind=other')).toBeUndefined()
+  })
+})

@@ -7,6 +7,7 @@ import { mergeDistrictGroups, type DistrictChip } from '@/lib/district-canonical
 import { DISTRICTS_PROVINCE_CODE } from '@/components/marketplace/listings-explorer.constants'
 import vnUnits from '@/data/vn-units.json'
 import { linkedTier, rentalKinds, rentalsHeadline, type RentalsFacts, type RentalsHeadline } from './category-copy'
+import { RENTAL_PLACES } from '@/lib/rental-places'
 
 /**
  * The category page's live numbers beyond the headline count — shared by `generateMetadata` and the
@@ -26,10 +27,11 @@ const live = (categoryId: string) => ({ categoryId, verified: true, status: 'act
  * beside the curated `dN` the explorer uses — two indexable URLs per place. A GROUP BY with counts
  * also orders the chips by stock instead of by whatever `distinct` returned first.
  */
-export const loadDistrictChips = cache(async (categoryId: string): Promise<DistrictChip[]> => {
+export const loadDistrictChips = cache(async (categoryId: string, placesOnly = false): Promise<DistrictChip[]> => {
   const groups = await db.listing.groupBy({
     by: ['district'],
-    where: await scopedListingWhere({ ...live(categoryId), district: { not: null } }),
+    // `placesOnly` for rentals: the chips lead to /c/rentals/<district>, which counts places (rental-places.ts).
+    where: await scopedListingWhere({ AND: [{ ...live(categoryId), district: { not: null } }, placesOnly ? RENTAL_PLACES : {}] }),
     _count: { _all: true },
   })
   return mergeDistrictGroups(groups.map((g) => ({ district: g.district, count: g._count._all })))
@@ -66,19 +68,32 @@ export const loadLinkedCount = cache(async (categoryId: string): Promise<number>
   db.listing.count({ where: await scopedListingWhere({ ...live(categoryId), affiliateUrl: { not: null } }) }),
 )
 
-export const loadRentalsFacts = cache(async (categoryId: string, total: number): Promise<RentalsFacts> => {
-  const [chips, inHcmc, linked, kinds] = await Promise.all([
-    loadDistrictChips(categoryId),
-    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), provinceWhere(HCMC_PROVINCE)] }) }),
-    loadLinkedCount(categoryId),
+/**
+ * ⛔ EVERY RENTALS FACT HERE IS TAKEN OVER PLACES, NOT VEHICLE HIRE (src/lib/rental-places.ts): the
+ * lede counts "places for rent" and says how many are "linked from partner property portals", and a
+ * car-hire site is neither. Vehicle hire is named in its own sentence (`vehicles`). The chips (`top`)
+ * are places-only too. Null when no place is live: the page then keeps the generic category copy
+ * rather than printing "0 places for rent".
+ * @param _total the page's headline count, which includes vehicle hire. Kept in the signature so the
+ *   call sites keep sharing one `cache()` entry; the lede's own total is the places count below.
+ */
+export const loadRentalsFacts = cache(async (categoryId: string, _total: number): Promise<RentalsFacts | null> => {
+  const [chips, total, inHcmc, linked, kinds] = await Promise.all([
+    loadDistrictChips(categoryId, true),
+    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES] }) }),
+    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, provinceWhere(HCMC_PROVINCE)] }) }),
+    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, { affiliateUrl: { not: null } }] }) }),
     db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere(live(categoryId)), _count: { _all: true } }),
   ])
+  if (total === 0) return null
+  const bySub = Object.fromEntries(kinds.map((k) => [k.subcategorySlug ?? '', k._count._all]))
   return {
     total,
-    allHcmc: total > 0 && inHcmc >= total,
+    allHcmc: inHcmc >= total,
     linked: linkedTier(linked, total),
-    kinds: rentalKinds(Object.fromEntries(kinds.map((k) => [k.subcategorySlug ?? '', k._count._all]))),
+    kinds: rentalKinds(bySub),
     top: chips.slice(0, 5),
+    vehicles: { cars: bySub['car-rental'] ?? 0, motorbikes: bySub['motorbike-rental'] ?? 0 },
   }
 })
 
@@ -130,9 +145,11 @@ export const RENTALS_HEADLINE_TTL = 21600
  * A failed read throws and is never cached: the ISR regeneration fails and the last good page stays.
  */
 const computeRentalsHeadline = async (categoryId: string): Promise<RentalsHeadline | null> => {
+  // ⛔ PLACES ONLY, like loadRentalsFacts: the H1 and title must name the same set the lede counts.
+  // With no place live this is null and the page keeps the generic H1, as loadRentalsFacts does.
   const [inHcmc, kinds] = await Promise.all([
-    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), provinceWhere(HCMC_PROVINCE)] }) }),
-    db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere(live(categoryId)), _count: { _all: true } }),
+    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, provinceWhere(HCMC_PROVINCE)] }) }),
+    db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES] }), _count: { _all: true } }),
   ])
   const total = kinds.reduce((n, k) => n + k._count._all, 0)
   if (total === 0) return null

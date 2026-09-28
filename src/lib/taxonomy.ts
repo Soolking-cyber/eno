@@ -1444,6 +1444,16 @@ export function listingMoneyFor(input: {
   categorySlug: string
   subcategorySlug?: string | null
   listingType?: string | null
+  /**
+   * The period a RENT price is quoted per. Omitted means monthly — every human post and every
+   * property importer omits it, so their unit is unchanged. Only the vehicle-rental importer passes
+   * it (scripts/import-vehicle-rentals.ts): a self-drive car is priced per DAY, and storing that
+   * figure as 'VND/month' would print "850,000 đ / month" on a car that costs that per day.
+   * ⚠️ IGNORED for every listingType but 'rent' — a job's unit is its own business (job-listing.ts).
+   * ⚠️ THE EDIT PATH NEVER CALLS THIS (core/listings.ts writes no priceUnit on edit), so a stored
+   * 'VND/day' cannot be re-stamped to monthly by a later save. Keep it that way, or persist the period.
+   */
+  rentalPeriod?: RentalPeriod | null
 }): ListingMoney {
   const t = input.listingType
   return {
@@ -1451,9 +1461,18 @@ export function listingMoneyFor(input: {
     // A service price is the price OF that service, not a starting bid (owner, 2026-07-22:
     // "we dont need broad from, exact price"). "(from)" invited a haggle the seller never
     // offered and made every service card read as an estimate.
-    priceUnit: t === 'rent' || t === 'job' ? 'VND/month' : t === 'service' ? 'VND/service' : 'VND',
+    priceUnit: t === 'rent' ? `VND/${RENT_UNIT[input.rentalPeriod ?? 'monthly']}`
+      : t === 'job' ? 'VND/month' : t === 'service' ? 'VND/service' : 'VND',
     isoCode: 'VND',
   }
+}
+
+/** The `rentalPeriod` facet values a rent price can be quoted per (taxonomy: rentals › Rental period).
+ *  'long-term' is a chip, not a unit — a long-term rent is still quoted per month. */
+export type RentalPeriod = 'hourly' | 'daily' | 'weekly' | 'monthly'
+/** The <Price> suffix each period stores ('VND/day' renders "/ day", translated). */
+const RENT_UNIT: Record<RentalPeriod, 'hour' | 'day' | 'week' | 'month'> = {
+  hourly: 'hour', daily: 'day', weekly: 'week', monthly: 'month',
 }
 
 /**

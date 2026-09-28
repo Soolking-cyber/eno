@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -68,7 +69,16 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
    * out of this page's. The page then announced one total while the first sort showed a larger one
    * and Show-more paged over rows the page had never counted (external review).
    */
-  const base = await scopedListingWhere({ categoryId: cat.id, verified: true, status: 'active' })
+  /**
+   * ⛔ FOR RENTALS, PLACES ONLY (src/lib/rental-places.ts) — the lede says "N places for rent … every
+   * one links to its original listing on a partner property portal", which is untrue of a Mioto car.
+   * The same clause rides every sort and Show-more as `kind=places` (feed-query.ts), so the feed's
+   * predicate and this page's stay the same set.
+   */
+  const placesOnly = categorySlug === 'rentals'
+  const base = await scopedListingWhere(placesOnly
+    ? { AND: [{ categoryId: cat.id, verified: true, status: 'active' }, RENTAL_PLACES] }
+    : { categoryId: cat.id, verified: true, status: 'active' })
   /**
    * ⛔ THE SAME SCOPE THE FEED WILL USE, RESOLVED ONCE. This page used to select districts by exact
    * stored name while every sort and Show-more from it sent the slug to /api/listings, which
@@ -270,7 +280,10 @@ export default async function CategoryDistrictPage({ params }: Props) {
           <SellerListings
             listings={listings}
             sortable={total > 1}
-            serverScope={{ params: { category: cat.slug, district }, total, pageSize: DISTRICT_PAGE_SIZE }}
+            serverScope={{
+              params: { category: cat.slug, district, ...(cat.slug === 'rentals' ? { [PLACES_KIND_PARAM.key]: PLACES_KIND_PARAM.value } : {}) },
+              total, pageSize: DISTRICT_PAGE_SIZE,
+            }}
           />
         </div>
 
