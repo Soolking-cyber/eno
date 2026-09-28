@@ -39,6 +39,11 @@ const ready = (page: import('@playwright/test').Page) =>
  * category landing page' lands on /?category=vehicles with no q, 6/6). It is left open and reported,
  * and that test is deliberately NOT given this wait. The two hydration tests get it because what
  * they assert — text typed before HYDRATION survives it — is a different mechanism, and correct.
+ * ⚠️ SINCE SEO WAVE B, H1b, THE CATEGORY SKELETON HAS NO HEADER. The header, breadcrumb and H1 render
+ * above it in `c/[category]/(index)/layout.tsx`, so the cached HTML carries ONE header and one search
+ * box, outside the boundary, and the swap replaces only what sits under the H1. The paragraphs above
+ * describe the page before that. `streamed()` stays: the grid is still swapped in from `S:0`. H2 adds
+ * the pre-hydration search test that pins the race closed.
  */
 const streamed = (page: import('@playwright/test').Page) =>
   page.waitForFunction(() => !document.querySelector('template[id^="B:"], div[hidden][id^="S:"]'))

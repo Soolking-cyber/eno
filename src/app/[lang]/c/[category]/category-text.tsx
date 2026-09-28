@@ -12,9 +12,9 @@ import {
   formatCountFull,
   joinList,
   rentalKindNoun,
-  rentalsHeadline,
   type LinkedTier,
   type RentalsFacts,
+  type RentalsHeadline,
 } from './category-copy'
 
 /**
@@ -36,10 +36,14 @@ export function PlaceName({ en, vi }: { en: string; vi: string }) {
   return <>{lang === 'vi' ? vi : en}</>
 }
 
-/** /c/rentals H1 — the four strings category-copy.ts `RENTALS_H1` holds, as literals (tested equal). */
-export function RentalsHeading({ allHcmc, kinds }: Pick<RentalsFacts, 'allHcmc' | 'kinds'>) {
+/**
+ * /c/rentals H1 — the four strings category-copy.ts `RENTALS_H1` holds, as literals (tested equal).
+ * ⚠️ IT TAKES THE VARIANT, NOT THE FACTS: `(index)/layout.tsx` renders it above the loading boundary
+ * from the cached `loadRentalsHeadline`, the same value the `<title>` is built from.
+ */
+export function RentalsHeading({ headline }: { headline: RentalsHeadline }) {
   const { tr } = useLanguage()
-  switch (rentalsHeadline({ allHcmc, kinds })) {
+  switch (headline) {
     case 'apartments-houses-hcmc':
       return <>{tr('Apartments & houses for rent in Ho Chi Minh City', 'Cho thuê căn hộ và nhà tại TP. Hồ Chí Minh')}</>
     case 'apartments-hcmc':

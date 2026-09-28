@@ -71,10 +71,11 @@ describe('category names come from the category row', () => {
     expect(bad).toEqual([])
   })
 
-  // The seven sites of 2026-09-27: the category page (crumb and H1 on `cat`; the two "Other categories"
-  // rails on `c`), the district page (crumb, "All …" link) and the listing page's crumb.
+  // The seven sites of 2026-09-27: the category page (crumb and H1 on `cat`, in its (index) layout since
+  // SEO wave B, H1b; the two "Other categories" rails on `c`), the district page (crumb, "All …" link)
+  // and the listing page's crumb.
   it.each([
-    ['app/[lang]/c/[category]/(index)/page.tsx', 'cat'],
+    ['app/[lang]/c/[category]/(index)/layout.tsx', 'cat'],
     ['app/[lang]/c/[category]/(index)/page.tsx', 'c'],
     ['app/[lang]/c/[category]/[district]/page.tsx', 'cat'],
     ['app/[lang]/listings/[id]/(pdp)/page.tsx', 'listing.category'],

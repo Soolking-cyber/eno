@@ -75,3 +75,92 @@ describe('the listing page renders its content inline, visible to crawlers', () 
     expect(code(src).match(/\bSuspense\b/g)).toHaveLength(2)
   })
 })
+
+/**
+ * ⛔ THE CATEGORY PAGE KEEPS ITS SKELETON FOR THE GRID, SO ITS HEADER, BREADCRUMB AND H1 RENDER ABOVE IT
+ * (SEO wave B, H1b; the owner's hybrid). `(index)/loading.tsx` wraps only `(index)/page.tsx`, which React
+ * outlines into `<div hidden id="S:0">` by the rule above; `(index)/layout.tsx` sits above that boundary
+ * (a loading file never wraps the layout in its own folder), so what it renders is in place in the first
+ * chunk. Before H1b, the four crawlers got the category H1 under `[hidden]`, and the header and `<main>`
+ * twice. This block keeps the heading out of the boundary, keeps the skeleton from drawing a second
+ * header, and keeps the layout from waiting on a COUNT: whatever it awaits delays the whole first chunk
+ * and every category-to-category navigation (plan v4, round-2 review A4).
+ * ⚠️ `../layout.tsx` (c/[category]/layout.tsx) also wraps every district page, which renders its own
+ * header and H1, so the heading can only live one level down, in the `(index)` group.
+ */
+const IDX = 'c/[category]/(index)'
+const src = (file: string) => code(readFileSync(join(APP, file), 'utf8'))
+
+describe('the category page renders its header, breadcrumb and H1 above its loading boundary', () => {
+  /** From `src/app` down to the `(index)` layout: a `loading.*` here would wrap the heading too. */
+  it.each(['..', '', 'c', 'c/[category]'])('no loading boundary at src/app/[lang]/%s', (dir) => {
+    const found = readdirSync(join(APP, dir)).filter((f) => /^loading\./.test(f))
+    expect(found, `${dir}/${found[0]} would move the category H1 into <div hidden> for every crawler`).toEqual([])
+  })
+
+  it('the files are where they are asserted to be (a wrong path would pass vacuously)', () => {
+    for (const f of ['layout.tsx', 'page.tsx', 'loading.tsx', 'category-lede-block.tsx', 'lede-placement.ts']) {
+      expect(existsSync(join(APP, IDX, f)), f).toBe(true)
+    }
+  })
+
+  it('(index)/layout.tsx renders the header, <main id="main">, the breadcrumb, the H1 and the footer', () => {
+    const s = src(`${IDX}/layout.tsx`)
+    for (const re of [/<Header\b/, /<main\b[^>]*\bid="main"/, /<Breadcrumb\b/, /<h1\b/, /<Footer\b/]) expect(s).toMatch(re)
+    // `{children}` inside <main>, after the H1: the page's content continues the same column.
+    expect(s).toMatch(/<\/h1>[\s\S]*\{\s*children\s*\}[\s\S]*<\/main>/)
+  })
+
+  /**
+   * ⛔ ITS OWN CODE AWAITS THE PARAMS, THE CATEGORY ROW AND THE CACHED RENTALS HEADLINE, AND NOTHING ELSE.
+   * A COUNT belongs in `category-lede-block.tsx`. ⚠️ This reads the layout's own source, so it cannot see
+   * that child: under `LEDE_PLACEMENT = 'layout'` the shell DOES wait on the block's counts. That is
+   * decision H-c, measured by the H-gate (lede-placement.ts); 'page' takes them out of the shell again.
+   */
+  it("(index)/layout.tsx's own code awaits only the params, the category row and the cached rentals headline", () => {
+    const s = src(`${IDX}/layout.tsx`)
+    const awaited = [...s.matchAll(/\bawait\s+([\w$.]+)/g)].map((m) => m[1])
+    expect(awaited).toEqual(expect.arrayContaining(['params', 'getCategoryRow', 'loadRentalsHeadline']))
+    for (const a of awaited) expect(['params', 'getCategoryRow', 'loadRentalsHeadline'], `layout awaits ${a}`).toContain(a)
+    expect(s).not.toMatch(/\b(?:loadCategory|loadRentalsFacts|loadLinkedCount|loadDistrictChips)\s*\(|\.(?:count|groupBy|findMany|aggregate)\s*\(|\bdb\./)
+  })
+
+  /** The lede block is the one place the counts are read above the grid; it renders exactly once. */
+  it('the lede renders in the layout only under placement "layout", and in the page only under "page"', () => {
+    const at = (file: string) => src(file).match(/(?:LEDE_PLACEMENT === '(?:page|layout)' && )?<CategoryLedeBlock\b/g) ?? []
+    expect(at(`${IDX}/layout.tsx`)).toEqual(["LEDE_PLACEMENT === 'layout' && <CategoryLedeBlock"])
+    expect(at(`${IDX}/page.tsx`)).toEqual(["LEDE_PLACEMENT === 'page' && <CategoryLedeBlock"])
+    expect(src(`${IDX}/loading.tsx`)).toMatch(/LEDE_PLACEMENT === 'page' && \(/)
+    expect(src(`${IDX}/lede-placement.ts`)).toMatch(/^export const LEDE_PLACEMENT = '(?:page|layout)' as 'page' \| 'layout'$/m)
+  })
+
+  it.each([`${IDX}/page.tsx`, `${IDX}/loading.tsx`])('%s renders no second header, <main>, H1 or footer', (file) => {
+    const s = src(file)
+    for (const re of [/<Header\b/, /<Footer\b/, /<h1\b/, /<main\b/, /id="main"/]) expect(s).not.toMatch(re)
+  })
+
+  it('c/[category]/layout.tsx renders no header and no H1 (it also wraps the district pages)', () => {
+    const s = src('c/[category]/layout.tsx')
+    for (const re of [/<Header\b/, /<h1\b/, /<main\b/, /<Breadcrumb\b/]) expect(s).not.toMatch(re)
+  })
+
+  it.each([`${IDX}/layout.tsx`, `${IDX}/page.tsx`, `${IDX}/category-lede-block.tsx`, 'c/[category]/layout.tsx'])('%s uses no Suspense', (file) => {
+    expect(src(file)).not.toMatch(/\bSuspense\b/)
+  })
+
+  /**
+   * ⛔ THE HEADLINE CACHE MAY NOT BE SHORTER THAN THE PAGE'S OWN REVALIDATE. An `unstable_cache` read
+   * during an ISR render lowers that render's revalidate to the entry's when the entry's is shorter
+   * (next/dist/server/web/spec-extension/unstable-cache.js, the 'prerender-legacy' case), so a shorter
+   * entry would make /c/rentals regenerate, and advertise its `s-maxage`, on the entry's clock.
+   */
+  it('the rentals headline is cached at least as long as the page revalidates', () => {
+    const page = Number(src(`${IDX}/page.tsx`).match(/^export const revalidate = (\d+)/m)?.[1])
+    const data = src('c/[category]/category-data.ts')
+    const ttl = Number(data.match(/^export const RENTALS_HEADLINE_TTL = (\d+)/m)?.[1])
+    expect(page).toBeGreaterThan(0)
+    expect(ttl).toBeGreaterThanOrEqual(page)
+    expect(data).toMatch(/unstable_cache\(computeRentalsHeadline, \['rentals-headline'\], \{ revalidate: RENTALS_HEADLINE_TTL \}\)/)
+    expect(data).toMatch(/computeRentalsHeadline\.toString = \(\) => '[\w-]+'/)
+  })
+})

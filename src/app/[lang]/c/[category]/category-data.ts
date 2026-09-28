@@ -1,11 +1,12 @@
 import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { provinceWhere } from '@/lib/province-match'
 import { mergeDistrictGroups, type DistrictChip } from '@/lib/district-canonical'
 import { DISTRICTS_PROVINCE_CODE } from '@/components/marketplace/listings-explorer.constants'
 import vnUnits from '@/data/vn-units.json'
-import { linkedTier, rentalKinds, type RentalsFacts } from './category-copy'
+import { linkedTier, rentalKinds, rentalsHeadline, type RentalsFacts, type RentalsHeadline } from './category-copy'
 
 /**
  * The category page's live numbers beyond the headline count — shared by `generateMetadata` and the
@@ -80,3 +81,69 @@ export const loadRentalsFacts = cache(async (categoryId: string, total: number):
     top: chips.slice(0, 5),
   }
 })
+
+/**
+ * How long the /c/rentals headline variant is cached, in seconds.
+ *
+ * ⛔ NOT BELOW THE PAGE'S OWN `revalidate` (21,600 in `(index)/page.tsx`), AND THE PLAN'S HOUR WAS.
+ * An `unstable_cache` read during an ISR render lowers that render's revalidate to its own when its
+ * own is lower (`workUnitStore.revalidate = revalidate` in
+ * next/dist/server/web/spec-extension/unstable-cache.js, for the 'prerender-legacy' store every ISR
+ * render here uses, app-render.js), so an hourly entry would have made /c/rentals regenerate, and
+ * advertise `s-maxage`, hourly instead of every six hours. At this value the H1b build still sends
+ * `s-maxage=21600` on /c/rentals (measured). An ISR regeneration that meets a STALE entry waits for a
+ * fresh one (`isStaticGeneration`, the same file); one that meets a fresh entry keeps it (the lag,
+ * below).
+ * A contract test (crawler-visible-html-contract.test.ts) keeps this at or above the page's value.
+ */
+export const RENTALS_HEADLINE_TTL = 21600
+
+/**
+ * Which headline /c/rentals prints (`rentalsHeadline`), or null while the category holds no live
+ * rental — then the page keeps the generic "<name> in Vietnam" H1 and title.
+ *
+ * ⛔ CACHED ACROSS RENDERS BECAUSE `(index)/layout.tsx` AWAITS IT ABOVE THE LOADING BOUNDARY. The
+ * variant depends on the stock mix — every rental in HCMC? any apartments? any houses? — which
+ * `loadRentalsFacts` answers with three queries over the whole category; a layout that awaited those
+ * would hold the Header, the H1 and the skeleton on them (round-2 plan review, A4). The title
+ * (`rentalsMetadata`) takes the SAME value as a parameter, so the H1 and the `<title>` can never name
+ * different variants; the description and the lede keep their per-request counts.
+ * ⚠️ THE PRICE IS A LAG, AND IT IS UP TO TWO PERIODS, NOT ONE. A page regenerated just before this
+ * entry expires keeps the entry's variant for its own six hours, so the H1 and title can trail the
+ * stock mix by up to ~12 hours (null included: a category that refills keeps "Rentals in Vietnam" that
+ * long), while the lede and the description already say what the counts say. Accepted: the variant
+ * changes only when the mix crosses one of three lines (all in HCMC; any apartments; any houses), and
+ * the page's own revalidate cannot be shortened by this entry (RENTALS_HEADLINE_TTL, above). Of the
+ * three, only "all in HCMC" is near: 14,043 apartments and 5,331 houses (2026-09-28) will not run out,
+ * but ONE live rental placed outside HCMC, or with no place, flips it, and then the H1 and title say
+ * "Ho Chi Minh City" for up to that long.
+ * Nothing purges /c/* on demand today, so nothing else refreshes the entry.
+ *
+ * ⚠️ THE TOTAL IS THE SUM OF THE GROUP BY — every live row falls in exactly one `subcategorySlug`
+ * group, the null one included — over the same predicate as `loadCategory`'s COUNT, so it is that
+ * count without a third query. "All in HCMC" is the same two-count comparison as `loadRentalsFacts`.
+ *
+ * ⚠️ `toString` IS PINNED, as in hcmc-rent-index/load-rent-index.ts: `unstable_cache` keys an entry on
+ * `cb.toString()` plus the key parts, and the minifier spells this function differently in each bundle
+ * that compiles it. The key parts carry the name; the build id (cache-handler.cjs) keeps a new deploy
+ * from reading an old build's entry, so the cache is cold after each deploy and H4 warms /c/rentals.
+ * A failed read throws and is never cached: the ISR regeneration fails and the last good page stays.
+ */
+const computeRentalsHeadline = async (categoryId: string): Promise<RentalsHeadline | null> => {
+  const [inHcmc, kinds] = await Promise.all([
+    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), provinceWhere(HCMC_PROVINCE)] }) }),
+    db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere(live(categoryId)), _count: { _all: true } }),
+  ])
+  const total = kinds.reduce((n, k) => n + k._count._all, 0)
+  if (total === 0) return null
+  return rentalsHeadline({
+    allHcmc: inHcmc >= total,
+    kinds: rentalKinds(Object.fromEntries(kinds.map((k) => [k.subcategorySlug ?? '', k._count._all]))),
+  })
+}
+computeRentalsHeadline.toString = () => 'rentals-headline-variant'
+
+/** `cache()` on top, so the layout and generateMetadata share one read inside a render even on a miss. */
+export const loadRentalsHeadline = cache(
+  unstable_cache(computeRentalsHeadline, ['rentals-headline'], { revalidate: RENTALS_HEADLINE_TTL }),
+)
