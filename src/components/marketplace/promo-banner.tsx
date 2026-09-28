@@ -58,7 +58,8 @@ const SLIDES: PromoSlide[] = PROMO_SLIDES
  * ⚠️ `preload()` FROM react-dom DOES NOT FIX IT, and the reason is worth keeping. It was added on
  * the reasoning that a call inside this CLIENT component would live and die with the banner, which
  * only the landing page renders — unlike the Server Component version whose failure
- * `(home)/page.tsx` already documents. That reasoning is wrong: React hoists the <link> to <head>
+ * `(home)/layout.tsx` already documents (that note lived in `(home)/page.tsx` until SEO wave B, H1c).
+ * That reasoning is wrong: React hoists the <link> to <head>
  * and does NOT remove it on unmount. Verified rather than assumed, on a marketplace production
  * build: soft-navigated `/` → `/signin` and `link[rel=preload][href*="promo-1"]` was STILL in the
  * head. Same leak as before, moved one file.

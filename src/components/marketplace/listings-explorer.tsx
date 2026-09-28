@@ -321,6 +321,14 @@ type Props = {
   initialBusinesses?: SerializedListingCard[]
   initialTrending?: SerializedListingCard[]
   listingsRef?: React.RefObject<HTMLDivElement | null>
+  /**
+   * Whether this component renders the page's sr-only `<h1>{SITE_NAME}</h1>`. Default true.
+   * ⚠️ `false` ONLY WHERE A LAYOUT ALREADY OWNS THAT H1 — today `(home)/layout.tsx` (SEO wave B, H1c),
+   * which renders it above the home loading boundary so crawlers can read it; `(home)/page.tsx` passes
+   * `false` so the page does not get two once `S:0` is revealed. `/s/[handle]` leaves the default: it
+   * renders this explorer and has no H1 of its own.
+   */
+  siteHeading?: boolean
 }
 
 
@@ -334,6 +342,7 @@ export function ListingsExplorer({
   initialTrending,
   listingsRef,
   sellerId,
+  siteHeading = true,
 }: Props) {
   // Tell the header an explorer is here to receive its search/area/map events (explorer-presence.ts).
   useRegisterExplorer()
@@ -3239,8 +3248,13 @@ export function ListingsExplorer({
               used to carry a second sr-only <h1> ("Marketplace listings") because it was a
               separate tree that never coexisted with this one. One tree means one h1, and it has
               to be the SITE_NAME one — the whole Google brand-review record above hangs on it.
-              Outline stays sequential: h1 (site name) → h2 (results section) → h3 (cards). */}
-          <h1 className="sr-only">{SITE_NAME}</h1>
+              Outline stays sequential: h1 (site name) → h2 (results section) → h3 (cards).
+              ⚠️ ON THE HOME PAGE THIS ONE IS OFF (`siteHeading={false}`, SEO wave B, H1c): the same
+              sr-only SITE_NAME heading renders in `(home)/layout.tsx`, above the loading boundary,
+              because inside it React outlines the page into `<div hidden id="S:0">` and crawlers read
+              the H1 as hidden. It stays ON by default for `/s/[handle]`, which has no H1 of its own.
+              Text and sr-only are unchanged, so the brand-review record above still holds. */}
+          {siteHeading && <h1 className="sr-only">{SITE_NAME}</h1>}
           {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
               decoration, so anyone restoring copy to this hero should know what it was doing.
               Google's OAuth brand review rejected this page with "Your home page does not explain

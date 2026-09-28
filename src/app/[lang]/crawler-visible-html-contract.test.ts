@@ -164,3 +164,58 @@ describe('the category page renders its header, breadcrumb and H1 above its load
     expect(data).toMatch(/computeRentalsHeadline\.toString = \(\) => '[\w-]+'/)
   })
 })
+
+/**
+ * ⛔ THE HOME PAGE KEEPS ITS SKELETON FOR THE FEED, SO ITS HEADER, `<main>` AND H1 RENDER ABOVE IT (SEO
+ * wave B, H1c; the owner's hybrid). `(home)/loading.tsx` wraps only `(home)/page.tsx`, which React
+ * outlines into `<div hidden id="S:0">`; `(home)/layout.tsx` sits above that boundary. Before H1c the
+ * crawlers got the sr-only H1 under `[hidden]`, and the header, `<main>` and search box twice.
+ * ⚠️ THE EXPLORER STILL CARRIES THE SAME H1, ON BY DEFAULT: `/s/[handle]` renders it and has no H1 of its
+ * own. Home turns it off, or the revealed feed adds a second H1.
+ */
+const HOME = '(home)'
+
+describe('the home page renders its header, <main> and one H1 above its loading boundary', () => {
+  it.each(['..', ''])('no loading boundary at src/app/[lang]/%s', (dir) => {
+    const found = readdirSync(join(APP, dir)).filter((f) => /^loading\./.test(f))
+    expect(found, `${dir}/${found[0]} would move the home H1 into <div hidden> for every crawler`).toEqual([])
+  })
+
+  it('the files are where they are asserted to be (a wrong path would pass vacuously)', () => {
+    for (const f of ['layout.tsx', 'page.tsx', 'loading.tsx']) expect(existsSync(join(APP, HOME, f)), f).toBe(true)
+    expect(existsSync(join(APP, 's/[handle]/page.tsx'))).toBe(true)
+  })
+
+  it('(home)/layout.tsx renders the header, <main id="main">, the sr-only SITE_NAME H1 and the footer', () => {
+    const s = src(`${HOME}/layout.tsx`)
+    for (const re of [/<Header\b/, /<main\b[^>]*\bid="main"/, /<h1 className="sr-only">\{SITE_NAME\}<\/h1>/, /<Footer\b/]) expect(s).toMatch(re)
+    expect(s).toMatch(/<\/h1>[\s\S]*\{\s*children\s*\}[\s\S]*<\/main>/)
+  })
+
+  /** It needs no data, and whatever a layout awaits delays the whole first chunk. */
+  it('(home)/layout.tsx awaits nothing and reads no data', () => {
+    const s = src(`${HOME}/layout.tsx`)
+    expect(s).not.toMatch(/\bawait\b|\basync\b|\bdb\.|\bfetch\(/)
+  })
+
+  it('(home)/page.tsx renders no second header, <main>, H1 or footer, and turns the explorer H1 off', () => {
+    const s = src(`${HOME}/page.tsx`)
+    for (const re of [/<Header\b/, /<Footer\b/, /<h1\b/, /<main\b/, /id="main"/]) expect(s).not.toMatch(re)
+    // Up to the element's own `/>`, not the first `>`: a prop holding an arrow function contains one.
+    expect(s).toMatch(/<ListingsExplorer\b(?:(?!\/>)[\s\S])*\bsiteHeading=\{false\}/)
+  })
+
+  it('(home)/loading.tsx renders no header, <main>, H1 or footer', () => {
+    const s = src(`${HOME}/loading.tsx`)
+    for (const re of [/<Header\b/, /<Footer\b/, /<h1\b/, /<main\b/, /id="main"/]) expect(s).not.toMatch(re)
+  })
+
+  /** `/s/[handle]` has no H1 of its own; it keeps the explorer's (the prop's default). */
+  it('/s/[handle] leaves the explorer H1 on', () => {
+    expect(src('s/[handle]/page.tsx')).not.toMatch(/siteHeading/)
+  })
+
+  it.each([`${HOME}/layout.tsx`, `${HOME}/page.tsx`])('%s uses no Suspense', (file) => {
+    expect(src(file)).not.toMatch(/\bSuspense\b/)
+  })
+})
