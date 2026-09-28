@@ -51,6 +51,9 @@ esac; done
 say(){ printf '\n\033[1;36m== %s\033[0m\n' "$*"; }
 ok(){  printf '  \033[32m[ok]\033[0m %s\n' "$*"; }
 bad(){ printf '  \033[31m[XX]\033[0m %s\n' "$*"; }
+# ⚠️ FOR ADVISORY MISSES ONLY. `bad` counts nothing either (failures are counted by probe()'s and
+# purge_edge()'s return codes and by explicit `exit 1`), but it prints exactly like a real failure.
+warn(){ printf '  \033[33m[!!]\033[0m %s\n' "$*"; }
 
 # ⛔ ONE DEPLOY AT A TIME. Two concurrent runs share the :local and :prev tags and a
 # single checkout: they can build from a moving tree, overwrite each other's rollback
@@ -783,3 +786,28 @@ rm -f /opt/eno/deploy-incomplete
 
 say "10. state"
 docker ps --format '  {{.Names}}\t{{.Image}}\t{{.Status}}' | grep -E 'eno-(vn|forum)-app'
+
+say "11. warm the caches (advisory: nothing here can fail or roll back this deploy)"
+# ⛔ WARN-ONLY, AND THAT IS WHY IT RUNS HERE. The deploy is verified, recorded and unmarked above,
+# so nothing below can reach restore() or leave deploy-incomplete behind, and every miss is a
+# yellow `warn`, never a red `bad` that would read as a broken deploy.
+# ⚠️ WHAT IT DOES (infra/vn-node/eno-warmup.sh has the reasoning): the ISR cache is keyed by
+# BUILD_ID, so every deploy starts cold. It warms /hcmc-rent-index first and waits for a snapshot
+# computed by THIS build, then both sitemaps, then every URL they list in en and vi, so the cold
+# renders are paid here instead of by the first visitors and crawlers. Timings per request go to
+# /opt/eno/warmup/<sha>.tsv; `rent-index-cold` and the p50/p95/max summary print below.
+# ⛔ THE DEPLOY LOCK IS RELEASED FIRST. The deploy is finished, and holding the lock for the warm-up
+# would refuse a `--rollback` of a bad-but-healthy deploy for up to 15 minutes (opus, diff review).
+# A deploy that starts meanwhile STOPS it: the warm-up sends nothing once that deploy's step 7 has
+# touched /opt/eno/deploy-incomplete, so it never loads the new build's probe (eno-warmup.sh).
+# ⚠️ `timeout 900` IS THE BELT: the script sends nothing past 840 s and cuts every request to what
+# is left, so its summary prints first. `--foreground` keeps it in this terminal's process group,
+# so Ctrl-C stops it. ENO_WARMUP=0 skips the step.
+exec 9>&-
+if [ "${ENO_WARMUP:-1}" = 0 ]; then
+  warn "ENO_WARMUP=0: warm-up skipped; the first request to each page pays its cold render"
+else
+  WARM_SINCE=$(docker inspect -f '{{.State.StartedAt}}' eno-vn-app 2>/dev/null) || WARM_SINCE=
+  timeout --foreground 900 bash "$APP/infra/vn-node/eno-warmup.sh" --sha="$(git rev-parse --short HEAD)" --since="$WARM_SINCE" \
+    || warn "warm-up: exit $? (advisory; the deploy itself is complete, see /opt/eno/warmup/)"
+fi

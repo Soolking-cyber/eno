@@ -11,7 +11,7 @@ import { join } from 'node:path'
  * false rejections of a good forum image before the cause was found (2026-09-24).
  */
 const ROOT = join(__dirname, '..', '..')
-const SCRIPTS = ['infra/vn-node/eno-deploy.sh', 'infra/vn-node/eno-build.sh']
+const SCRIPTS = ['infra/vn-node/eno-deploy.sh', 'infra/vn-node/eno-build.sh', 'infra/vn-node/eno-warmup.sh']
 
 describe('deploy scripts never pipe a variable into grep -q under pipefail', () => {
   for (const rel of SCRIPTS) {
