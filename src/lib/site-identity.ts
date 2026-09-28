@@ -42,6 +42,17 @@ export const organizationId = (origin: string) => `${origin}/#organization`
 export const websiteId = (origin: string) => `${origin}/#website`
 
 /**
+ * Profiles eno OWNS that are not social channels, so they belong in `sameAs` but not in the footer
+ * row (src/lib/socials.ts renders every entry there). Owner, 2026-09-28: the Crunchbase company
+ * profile and the Pinterest business account (its website claim is the p:domain_verify tag in the
+ * layout). Directory listings and review pages eno does not control stay out.
+ */
+export const ENTITY_PROFILES: readonly string[] = [
+  'https://www.crunchbase.com/organization/eno-vn-9f19',
+  'https://www.pinterest.com/enovietnam/',
+]
+
+/**
  * The fields that make the Organization node an ENTITY rather than a name — @id, the owned social
  * profiles, where it operates and the languages its interface runs in.
  *
@@ -50,7 +61,8 @@ export const websiteId = (origin: string) => `${origin}/#website`
  * which is the opposite of what the edition split and the layout's own comment establish. Omitting is
  * the reversible choice until counsel says otherwise.
  *
- * `sameAs` is every SOCIALS entry marked `me: true` — the profiles eno OWNS. The community group is
+ * `sameAs` is every SOCIALS entry marked `me: true` plus ENTITY_PROFILES below — the profiles eno
+ * OWNS. The community group is
  * deliberately not one (a place members post, not an identity of eno; see src/lib/socials.ts).
  *
  * `knowsLanguage` is the interface roster in src/lib/i18n/langs.ts as BCP 47 codes. ⚠️ That is the
@@ -64,7 +76,7 @@ export const websiteId = (origin: string) => `${origin}/#website`
 export function marketplaceOrganizationFields(origin: string) {
   return {
     '@id': organizationId(origin),
-    sameAs: SOCIALS.filter((s) => s.me).map((s) => s.href),
+    sameAs: [...SOCIALS.filter((s) => s.me).map((s) => s.href), ...ENTITY_PROFILES],
     areaServed: { '@type': 'Country', name: 'Vietnam' },
     knowsLanguage: [...LANGS],
   }

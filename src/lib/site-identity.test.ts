@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   aboutPageJsonLd,
+  ENTITY_PROFILES,
   marketplaceOrganizationFields,
   organizationId,
   registeredOperatorFields,
@@ -16,10 +17,13 @@ import { OPERATORS } from './site-legal'
 afterEach(() => { vi.unstubAllEnvs() })
 
 describe('the Organization entity fields', () => {
-  it('sameAs is every profile eno OWNS — all eight, never the community group', () => {
+  it('sameAs is every profile eno OWNS — the eight socials plus the entity profiles, never the community group', () => {
     const f = marketplaceOrganizationFields('https://eno.vn')
-    expect(f.sameAs).toEqual(SOCIALS.filter((s) => s.me).map((s) => s.href))
-    expect(f.sameAs).toHaveLength(8)
+    expect(f.sameAs).toEqual([...SOCIALS.filter((s) => s.me).map((s) => s.href), ...ENTITY_PROFILES])
+    expect(f.sameAs).toHaveLength(10)
+    expect(f.sameAs).toContain('https://www.crunchbase.com/organization/eno-vn-9f19')
+    expect(f.sameAs).toContain('https://www.pinterest.com/enovietnam/')
+    expect(new Set(f.sameAs).size).toBe(f.sameAs.length)
     expect(f.sameAs).toContain('https://www.linkedin.com/company/eno-vn/')
     expect(f.sameAs.some((u) => u.includes('/groups/'))).toBe(false)
   })
