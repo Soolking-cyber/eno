@@ -323,7 +323,29 @@ async function importRows(rows: StagedVehicle[]) {
       }
     }
 
-    let created = 0, updated = 0
+    /**
+     * ⛔ AN UNCHANGED ROW IS NOT WRITTEN. `updatedAt` is `@updatedAt`, so every Prisma update stamps
+     * it — and the listing sitemaps publish it as `<lastmod>` (sitemaps/[file]/route.ts). The weekly
+     * job re-runs this stage over ~6,400 rows; writing them all would tell Google every vehicle page
+     * changed every Monday, and a site whose lastmod is always "now" gets its lastmod ignored for
+     * the pages that really did change. So: read the stored refreshable fields first, and update
+     * only a row where one of them differs. (USD-priced shop rows still move with the exchange
+     * rate — that is a real price change.)
+     */
+    const MUTABLE_KEYS = ['title', 'titleVi', 'description', 'descriptionVi', 'price', 'priceUnit', 'currency', 'negotiable',
+      'listingType', 'categoryId', 'subcategorySlug', 'sellerId', 'location', 'district', 'city', 'lat', 'lng',
+      'attributes', 'facetTokens', 'affiliateUrl', 'searchText'] as const
+    type Stored = Record<(typeof MUTABLE_KEYS)[number], unknown> & { externalId: string | null }
+    const stored = new Map<string, Stored>()
+    const sellerIds = used.map((s) => VEHICLE_SELLERS[s].id)
+    for (const r of await db.listing.findMany({
+      where: { sellerId: { in: sellerIds }, externalId: { not: null } },
+      select: { externalId: true, ...Object.fromEntries(MUTABLE_KEYS.map((k) => [k, true])) },
+    }) as unknown as Stored[]) {
+      stored.set(`${r.sellerId}|${r.externalId}`, r)
+    }
+
+    let created = 0, updated = 0, unchanged = 0
     for (const { row, images } of ready) {
       const sellerId = VEHICLE_SELLERS[row.seller].id
       /**
@@ -344,6 +366,12 @@ async function importRows(rows: StagedVehicle[]) {
         affiliateUrl: row.affiliateUrl,
         searchText: row.searchText,
       }
+      const prev = stored.get(`${sellerId}|${row.externalId}`)
+      if (prev && MUTABLE_KEYS.every((k) => Object.is(prev[k] ?? null, (mutable as Record<string, unknown>)[k] ?? null))) {
+        unchanged++
+        if ((created + updated + unchanged) % 250 === 0) console.log(`  ${created + updated + unchanged}/${ready.length}`)
+        continue
+      }
       const res = await db.listing.upsert({
         where: { sellerId_externalId: { sellerId, externalId: row.externalId } },
         // ⛔ verified:true IS THE PUBLICATION GATE, not a trust badge (import-rever-rentals.ts).
@@ -358,7 +386,7 @@ async function importRows(rows: StagedVehicle[]) {
         select: { createdAt: true, updatedAt: true },
       })
       if (res.createdAt.getTime() === res.updatedAt.getTime()) created++; else updated++
-      if ((created + updated) % 250 === 0) console.log(`  ${created + updated}/${ready.length}`)
+      if ((created + updated + unchanged) % 250 === 0) console.log(`  ${created + updated + unchanged}/${ready.length}`)
     }
 
     /**
@@ -376,7 +404,7 @@ async function importRows(rows: StagedVehicle[]) {
       })
       retired = res.count
     }
-    console.log(`\ncreated ${created}   updated ${updated}   retired ${retired}`)
+    console.log(`\ncreated ${created}   updated ${updated}   unchanged ${unchanged} (not written)   retired ${retired}`)
     console.log(`\nROLLBACK (soft, reversible — takes every row off every public surface):`)
     console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" IN (${used.map((s) => `'${VEHICLE_SELLERS[s].id}'`).join(', ')});`)
     console.log(`  -- hard DELETE is NOT paste-safe: Order is onDelete:Restrict and six relations Cascade.`)
