@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * ⛔ A BULK IMPORT MUST NOT PUSH ANYTHING OUT OF THE SITEMAP.
@@ -24,10 +24,19 @@ type Row = {
   updatedAt: Date
 }
 
-const h = vi.hoisted(() => ({ rows: [] as Row[], hubLive: { car: 1, motorbike: 1 } as Record<string, number> }))
+const h = vi.hoisted(() => ({ rows: [] as Row[], hubLive: { car: 1, motorbike: 1 } as Record<string, number>, lookups: 0 }))
 const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
   'cat-rentals': 'rentals', 'cat-books': 'books-stationery', 'cat-services': 'services', 'cat-empty': 'jobs',
 }))
+/**
+ * Seller id → handle. `old_shop` has an underscore, which cannot be a host label, so its canonical is
+ * the path (like production's `sdc_store`); `subshop` is served on its own subdomain; `apple` is a
+ * BRAND slug, which never gets a subdomain, so it keeps the path (src/lib/storefront.ts).
+ */
+const SELLER_HANDLES: Record<string, string> = vi.hoisted(() => ({
+  'old-shop': 'old_shop', 'sub-shop': 'subshop', 'brand-shop': 'apple',
+}))
+const BRAND_SLUGS = vi.hoisted(() => new Set(['apple']))
 
 type Where = Record<string, unknown>
 function matches(row: Record<string, unknown>, where: Where | undefined): boolean {
@@ -76,9 +85,28 @@ vi.mock('@/lib/db', () => ({
     },
     seller: {
       findMany: async ({ where }: { where?: Where } = {}) =>
-        ['import-seller', 'old-shop', 'desk-seller', 'own-seller']
-          .map((id) => ({ id, handle: id === 'old-shop' ? { handle: 'oldshop' } : null }))
+        ['import-seller', 'old-shop', 'sub-shop', 'brand-shop', 'desk-seller', 'own-seller']
+          .map((id) => ({ id, handle: SELLER_HANDLES[id] ? { handle: SELLER_HANDLES[id] } : null }))
           .filter((s) => matches(s, where)),
+    },
+    // What `storefrontByHandle` (one handle) and `storefrontCanonicals` (a set, pages.xml) read to
+    // decide whether the subdomain serves a handle. `h.lookups` counts the batched reads.
+    handle: {
+      findUnique: async ({ where }: { where: { handle: string } }) => {
+        const id = Object.keys(SELLER_HANDLES).find((k) => SELLER_HANDLES[k] === where.handle)
+        return id ? { handle: where.handle, seller: { id, name: id, bannerUrl: null, bannerMobileUrl: null } } : null
+      },
+      findMany: async ({ where }: { where: { handle: { in: string[] } } }) => {
+        h.lookups++
+        return Object.entries(SELLER_HANDLES).filter(([, hd]) => where.handle.in.includes(hd)).map(([id, hd]) => ({ handle: hd, sellerId: id }))
+      },
+    },
+    brand: {
+      findUnique: async ({ where }: { where: { slug: string } }) => (BRAND_SLUGS.has(where.slug) ? { slug: where.slug } : null),
+      findMany: async ({ where }: { where: { slug: { in: string[] } } }) => {
+        h.lookups++
+        return [...BRAND_SLUGS].filter((slug) => where.slug.in.includes(slug)).map((slug) => ({ slug }))
+      },
     },
     forumPost: { findMany: async () => [] },
   },
@@ -103,6 +131,7 @@ import { GET as pagesGET } from '@/app/sitemaps/pages.xml/route'
 import { GET as childGET } from '@/app/sitemaps/[file]/route'
 import { LISTINGS_PER_SITEMAP, listingSitemapCount, parseListingSitemapFile } from '@/lib/sitemap'
 import { MIN_INDEXABLE_LISTINGS } from '@/lib/index-floor'
+import { storefrontCanonical } from '@/lib/storefront'
 
 const HOST = 'https://eno.vn'
 const locs = (xml: string) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
@@ -122,7 +151,9 @@ beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_APP_URL', HOST)
   h.rows = []
   h.hubLive = { car: 1, motorbike: 1 }
+  h.lookups = 0
 })
+afterEach(() => { vi.unstubAllEnvs() })
 
 describe('the sitemap index', () => {
   it('is a <sitemapindex> naming the pages child and one listing child per 45,000 submitted listings', async () => {
@@ -259,12 +290,13 @@ describe('the pages child', () => {
     // entry, and /c/<cat>/thao-dien now 308s to /c/<cat>/thu-duc — the sitemap submits where it lands.
     expect(urls).toContain(`${HOST}/c/books-stationery/thu-duc`)
     expect(urls).not.toContain(`${HOST}/c/books-stationery/thao-dien`)
-    expect(urls).toContain(`${HOST}/oldshop`)
+    expect(urls).toContain(`${HOST}/old_shop`)
     expect(urls).toContain(`${HOST}/c/books-stationery`)
-    // Imported stock still supports its category and storefront. Its LISTING URLs are withheld (not
-    // in this file at all), and so is a category × district combo that ONLY imports reach.
+    // Imported stock still supports its CATEGORY. Its LISTING URLs are withheld (not in this file at
+    // all), and so are a category × district combo that ONLY imports reach and — since I2 — the
+    // storefront of a seller whose every listing is imported.
     expect(urls).toContain(`${HOST}/c/rentals`)
-    expect(urls).toContain(`${HOST}/sellers/import-seller`)
+    expect(urls).not.toContain(`${HOST}/sellers/import-seller`)
     expect(urls).not.toContain(`${HOST}/c/rentals/d1`)
     expect(urls).not.toContain(`${HOST}/c/rentals/quan-1`)
     expect(urls.some((u) => u.includes('/listings/'))).toBe(false)
@@ -311,9 +343,9 @@ describe('the pages child', () => {
     const xml = await (await pagesGET()).text()
     const urls = locs(xml)
     expect(urls.filter((u) => u.startsWith(`${HOST}/c/books-stationery/`))).toEqual([`${HOST}/c/books-stationery/d7`])
-    // The category page and the import seller's storefront still count imported stock.
+    // The category page still counts imported stock; the import seller's storefront does not (I2).
     expect(xml).toContain(`<loc>${HOST}/c/books-stationery</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
-    expect(urls).toContain(`${HOST}/sellers/import-seller`)
+    expect(urls).not.toContain(`${HOST}/sellers/import-seller`)
   })
 
   /**
@@ -348,5 +380,66 @@ describe('the pages child', () => {
     expect(urls).not.toContain(`${HOST}/c/jobs`) // a category with no live listing is never submitted
     expect(urls).toContain(`${HOST}/c/books-stationery/d3`)
     expect(urls).toContain(`${HOST}/sellers/own-seller`)
+  })
+
+  /**
+   * ⛔ STOREFRONTS (SEO wave B, I2): ONLY A SELLER WITH A LISTING OF ITS OWN, AT ITS PAGE'S OWN
+   * CANONICAL (`storefrontCanonical`, the value `/<handle>` puts in `<link rel="canonical">`), AND
+   * NOT AT ALL WHILE THAT CANONICAL IS A SUBDOMAIN (decision I-b, at its default). The loop used to
+   * submit `${host}/<handle>` for every seller with any live row, imports included, while the page
+   * canonicalised to `<handle>.eno.vn`.
+   */
+  it('submits a storefront at its own canonical: the path, never a subdomain', async () => {
+    h.rows = [
+      row({ id: 'own-1', sellerId: 'own-seller' }),
+      // Dated by its own listing, never by an import's fresher sync.
+      row({ id: 'old-1', sellerId: 'old-shop', updatedAt: OLD }),
+      row({ id: 'old-imp', sellerId: 'old-shop', affiliateUrl: 'https://tiki.vn/x', updatedAt: FRESH }),
+      row({ id: 'sub-1', sellerId: 'sub-shop' }),
+      row({ id: 'brand-1', sellerId: 'brand-shop' }),
+    ]
+    const xml = await (await pagesGET()).text()
+    const urls = locs(xml)
+    // Each submitted <loc> IS the page's canonical, from the one function the page calls.
+    expect(await storefrontCanonical('old_shop', HOST)).toBe(`${HOST}/old_shop`)
+    expect(await storefrontCanonical('apple', HOST)).toBe(`${HOST}/apple`)
+    expect(urls).toContain(`${HOST}/old_shop`)
+    expect(urls).toContain(`${HOST}/apple`)
+    expect(urls).toContain(`${HOST}/sellers/own-seller`)
+    expect(xml).toContain(`<loc>${HOST}/old_shop</loc><lastmod>${OLD.toISOString()}</lastmod>`)
+    // The subdomain shop: its page canonicalises to the subdomain, so neither that nor the path is submitted.
+    expect(await storefrontCanonical('subshop', HOST)).toBe('https://subshop.eno.vn')
+    expect(urls.filter((u) => /subshop|sub-shop/.test(u))).toEqual([])
+    expect(urls.every((u) => u.startsWith(HOST))).toBe(true)
+    // Three handle sellers, one batched handle read and one batched brand read — never two per seller.
+    expect(h.lookups).toBe(2)
+  })
+
+  it('leaves out a storefront with no listing of its own: all imported, or none live', async () => {
+    h.rows = [
+      row({ id: 'own-1', sellerId: 'own-seller' }),
+      ...many(20, 'imp', { sellerId: 'import-seller', affiliateUrl: 'https://muaban.net/x', updatedAt: FRESH }),
+      row({ id: 'old-imp', sellerId: 'old-shop', affiliateUrl: 'https://tiki.vn/x' }),
+      row({ id: 'old-hidden', sellerId: 'old-shop', status: 'hidden' }),
+      row({ id: 'old-unverified', sellerId: 'old-shop', verified: false }),
+      row({ id: 'brand-sold', sellerId: 'brand-shop', status: 'sold' }),
+      row({ id: 'desk-1', sellerId: 'desk-seller' }),
+    ]
+    const urls = locs(await (await pagesGET()).text())
+    expect(urls).toContain(`${HOST}/sellers/own-seller`)
+    for (const out of ['/sellers/import-seller', '/old_shop', '/sellers/old-shop', '/apple', '/sellers/brand-shop', '/sellers/desk-seller']) {
+      expect(urls, out).not.toContain(`${HOST}${out}`)
+    }
+  })
+
+  it('on eno.forum: the path canonical on www.eno.forum, and no subdomain shop', async () => {
+    const FORUM = 'https://www.eno.forum'
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', FORUM)
+    h.rows = [row({ id: 'old-1', sellerId: 'old-shop' }), row({ id: 'sub-1', sellerId: 'sub-shop' })]
+    const urls = locs(await (await pagesGET()).text())
+    expect(urls).toContain(`${FORUM}/old_shop`)
+    expect(await storefrontCanonical('subshop', FORUM)).toBe('https://subshop.eno.forum')
+    expect(urls.filter((u) => /subshop|sub-shop/.test(u))).toEqual([])
+    expect(urls.every((u) => u.startsWith(FORUM))).toBe(true)
   })
 })

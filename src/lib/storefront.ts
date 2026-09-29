@@ -137,14 +137,53 @@ export function canonicalAppHost(): string {
 }
 
 /**
- * The address to hand out for a SHOP's handle: `alex.eno.vn` when the subdomain actually serves that
- * shop (`storefrontByHandle` — and `storefrontUrl` for a handle that cannot be a host label), else
- * `eno.vn/alex`. Owner, 2026-09-26: "when users copies this link give it in alex.eno.vn format".
+ * THE CANONICAL URL OF A HANDLE'S STOREFRONT: `alex.eno.vn` when the subdomain actually serves that
+ * shop (`storefrontByHandle` — and `storefrontUrl` for a handle that cannot be a host label, such as
+ * `sdc_store`), else `eno.vn/alex`.
+ *
+ * ⛔ ONE ANSWER FOR EVERY PLACE THAT NAMES THE PAGE (SEO wave B, I2): `<link rel="canonical">` and
+ * `og:url` on `/<handle>`, the canonical `/sellers/<id>` points at, the Share and "Copy link" address
+ * (`shopShareUrl`), and the storefront `<loc>` in pages.xml. Measured before this: pages.xml submitted
+ * `eno.vn/eno-trading`, `eno.vn/gmbr` and `eno.vn/vinwonders` while each page canonicalised to its
+ * subdomain, so the sitemap asked Google for a URL the page itself disowned.
+ */
+export async function storefrontCanonical(handle: string, origin: string): Promise<string> {
+  return canonicalFor(handle, origin, !!(await storefrontByHandle(handle)))
+}
+
+/** The canonical, given whether the subdomain serves the shop (`storefrontByHandle` non-null). */
+function canonicalFor(handle: string, origin: string, served: boolean): string {
+  return served ? storefrontUrl(handle, origin) : `${origin.replace(/\/$/, '')}/${handle}`
+}
+
+/**
+ * `storefrontCanonical` for MANY handles in two queries, whatever their number — pages.xml's storefront
+ * block. One call per seller was two queries each, all at once (agy and opus, review of this change):
+ * harmless for today's handful of sellers with stock of their own, a pool-exhausting fan-out once every
+ * private seller qualifies, and one failed read fails the whole sitemap.
+ * ⚠️ THE SAME QUESTION `storefrontByHandle` ASKS — a handle held by a SELLER, and not a brand slug —
+ * asked of a set. storefront.test.ts pins the two to the same answer for every kind of handle, so the
+ * batch cannot drift from the page's own canonical.
+ */
+export async function storefrontCanonicals(handles: string[], origin: string): Promise<Map<string, string>> {
+  const unique = [...new Set(handles)]
+  if (!unique.length) return new Map()
+  const [rows, brands] = await Promise.all([
+    db.handle.findMany({ where: { handle: { in: unique } }, select: { handle: true, sellerId: true } }),
+    db.brand.findMany({ where: { slug: { in: unique } }, select: { slug: true } }),
+  ])
+  const shops = new Set(rows.filter((r) => r.sellerId).map((r) => r.handle))
+  const brandSlugs = new Set(brands.map((b) => b.slug))
+  return new Map(unique.map((h) => [h, canonicalFor(h, origin, shops.has(h) && !brandSlugs.has(h))]))
+}
+
+/**
+ * The address to hand out for a SHOP's handle — its canonical (above). Owner, 2026-09-26: "when users
+ * copies this link give it in alex.eno.vn format".
  * ⚠️ NEVER FOR A PERSONAL HANDLE — `<person>.eno.vn` is a 404 (only shops have storefronts), and
  * sharing a subdomain that 404s is worse than the path. The origin falls back to THIS edition's own
  * domain, so a forum build missing its env can never hand out an eno.vn address.
  */
 export async function shopShareUrl(handle: string): Promise<string> {
-  const origin = process.env.NEXT_PUBLIC_APP_URL || (IS_SERVICES ? 'https://www.eno.forum' : 'https://eno.vn')
-  return (await storefrontByHandle(handle)) ? storefrontUrl(handle, origin) : `${origin.replace(/\/$/, '')}/${handle}`
+  return storefrontCanonical(handle, process.env.NEXT_PUBLIC_APP_URL || (IS_SERVICES ? 'https://www.eno.forum' : 'https://eno.vn'))
 }

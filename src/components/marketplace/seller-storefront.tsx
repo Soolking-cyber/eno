@@ -29,6 +29,7 @@ import { getVisaShopSeller } from '@/lib/visa-shop'
 import { sellerMetrics } from '@/lib/seller-metrics'
 import { getEnforcement } from '@/lib/enforcement'
 import { isBusinessVerified } from '@/lib/business-verification'
+import { storefrontDescription } from '@/lib/storefront-description'
 
 // Shared storefront body — rendered by BOTH the canonical clean-handle URL
 // (src/app/[lang]/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
@@ -97,6 +98,43 @@ export const loadSeller = cache(async (id: string) => {
     },
   })
 })
+
+/**
+ * THE META DESCRIPTION BOTH STOREFRONT ROUTES PUBLISH (`/<handle>` and `/sellers/<id>`), composed by
+ * the one pure rule in src/lib/storefront-description.ts from the SAME cached `loadSeller` read the
+ * page renders, so the two routes cannot describe one shop two ways. Null when the seller is gone or
+ * hidden on this edition; the caller has already 404'd on that.
+ *
+ * ⚠️ `ownListing` IS ONE INDEXED EXISTENCE CHECK, not a scan of the 60 loaded rows: a seller whose
+ * newest 60 are imports can still hold an own listing at row 61. Its predicate is `_count`'s own
+ * (scoped, verified, active) plus `affiliateUrl: null`, written out rather than borrowed from
+ * `submittedListingWhere`: the linked wording is a public claim that every card links to another
+ * site, so it must mean exactly that even if the sitemap's rule later narrows for other reasons
+ * (opus, review of this change). Today the two predicates are the same, so a storefront reads as
+ * linked exactly when pages.xml leaves it out.
+ */
+export async function storefrontMetaDescription(id: string): Promise<string | null> {
+  const seller = await loadSeller(id)
+  if (!seller) return null
+  const total = seller._count.listings
+  const own = total > 0
+    ? await db.listing.findFirst({
+        where: await scopedListingWhere({ sellerId: id, verified: true, status: 'active', affiliateUrl: null }),
+        select: { id: true },
+      })
+    : null
+  return storefrontDescription({
+    name: seller.name,
+    total,
+    categories: seller.listings.map((l) => l.category.name),
+    location: seller.location,
+    trustTier: seller.trustTier,
+    reviewCount: seller.reviewCount,
+    rating: seller.rating,
+    ownListing: !!own,
+    siteName: SITE_NAME,
+  })
+}
 
 // Reviews are fetched with an EXPLICIT select (not include) so we can read the
 // verified-buyer provenance columns — and stay resilient before they exist: the

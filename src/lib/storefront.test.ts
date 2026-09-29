@@ -14,8 +14,15 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/lib/db', () => ({
   db: {
-    handle: { findUnique: async ({ where }: { where: { handle: string } }) => h.handles.get(where.handle) ?? null },
-    brand: { findUnique: async ({ where }: { where: { slug: string } }) => (h.brands.has(where.slug) ? { slug: where.slug } : null) },
+    handle: {
+      findUnique: async ({ where }: { where: { handle: string } }) => h.handles.get(where.handle) ?? null,
+      findMany: async ({ where }: { where: { handle: { in: string[] } } }) =>
+        where.handle.in.flatMap((k) => { const r = h.handles.get(k); return r ? [{ handle: r.handle, sellerId: r.seller?.id ?? null }] : [] }),
+    },
+    brand: {
+      findUnique: async ({ where }: { where: { slug: string } }) => (h.brands.has(where.slug) ? { slug: where.slug } : null),
+      findMany: async ({ where }: { where: { slug: { in: string[] } } }) => where.slug.in.filter((s) => h.brands.has(s)).map((slug) => ({ slug })),
+    },
   },
 }))
 
@@ -59,5 +66,41 @@ describe('shopShareUrl', () => {
     shop('alex')
     const { shopShareUrl } = await import('./storefront')
     expect(await shopShareUrl('alex')).toBe('https://alex.eno.forum')
+  })
+})
+
+/**
+ * `storefrontCanonical` — the one answer for `<link rel="canonical">` and `og:url` on `/<handle>`,
+ * the canonical `/sellers/<id>` points at, and the storefront `<loc>` in pages.xml (SEO wave B, I2).
+ * The share address IS the canonical, so the two cannot drift.
+ */
+describe('storefrontCanonical', () => {
+  it('is the address shopShareUrl hands out, for every kind of handle', async () => {
+    shop('alex'); shop('apple'); h.brands.add('apple'); person('eska'); shop('sdc_store')
+    const { shopShareUrl, storefrontCanonical } = await import('./storefront')
+    for (const handle of ['alex', 'apple', 'eska', 'sdc_store', 'nobody']) {
+      expect(await storefrontCanonical(handle, 'https://eno.vn'), handle).toBe(await shopShareUrl(handle))
+    }
+    expect(await storefrontCanonical('alex', 'https://eno.vn')).toBe('https://alex.eno.vn')
+    expect(await storefrontCanonical('sdc_store', 'https://eno.vn')).toBe('https://eno.vn/sdc_store')
+  })
+
+  it('storefrontCanonicals (the sitemap\'s batch) gives the per-handle answer for every kind of handle', async () => {
+    shop('alex'); shop('apple'); h.brands.add('apple'); person('eska'); shop('sdc_store'); shop('eno-trading')
+    const { storefrontCanonical, storefrontCanonicals } = await import('./storefront')
+    const handles = ['alex', 'apple', 'eska', 'sdc_store', 'eno-trading', 'nobody', 'alex']
+    for (const origin of ['https://eno.vn', 'https://www.eno.forum']) {
+      const batch = await storefrontCanonicals(handles, origin)
+      expect(batch.size).toBe(6)
+      for (const handle of handles) expect(batch.get(handle), `${handle} @ ${origin}`).toBe(await storefrontCanonical(handle, origin))
+    }
+    expect((await storefrontCanonicals([], 'https://eno.vn')).size).toBe(0)
+  })
+
+  it('takes the origin it is given, and a trailing slash does not double', async () => {
+    shop('alex'); shop('sdc_store')
+    const { storefrontCanonical } = await import('./storefront')
+    expect(await storefrontCanonical('alex', 'https://www.eno.forum')).toBe('https://alex.eno.forum')
+    expect(await storefrontCanonical('sdc_store', 'https://www.eno.forum/')).toBe('https://www.eno.forum/sdc_store')
   })
 })

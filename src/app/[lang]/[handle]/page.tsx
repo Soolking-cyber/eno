@@ -6,13 +6,12 @@ import { notFound, redirect } from 'next/navigation'
 import { CalendarDays } from '@/components/ui/icons'
 import { db } from '@/lib/db'
 import { HANDLE_RE } from '@/lib/handle'
-import { storefrontUrl } from '@/lib/storefront-host'
-import { storefrontByHandle } from '@/lib/storefront'
+import { storefrontByHandle, storefrontCanonical } from '@/lib/storefront'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { SellerStorefront, loadSeller } from '@/components/marketplace/seller-storefront'
+import { SellerStorefront, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
 import SubdomainStorefront from '@/app/[lang]/s/[handle]/page'
 import { isSellerHiddenHere } from '@/lib/edition-scope'
 import { Tr } from '@/context/language-context'
@@ -75,39 +74,35 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: 'Not found', robots: { index: false, follow: false } }
   }
   if (seller) {
-    // Compose a real description from the storefront data the page itself loads —
-    // loadSeller is React-cache()d, so this is the SAME DB read SellerStorefront
-    // makes for the render, not an extra query. Falls back to the bare name if the
-    // storefront row vanished between resolve() and here.
-    const shop = await loadSeller(seller.id)
-    const count = shop?.listings.length ?? 0
-    const cats = shop ? [...new Set(shop.listings.map((l) => l.category.name))].slice(0, 3) : []
-    const tierWord = shop?.trustTier === 'exceptional' ? 'Top-rated seller' : shop?.trustTier === 'trusted' ? 'Trusted seller' : ''
-    const bits = [
-      count > 0 ? `${count} listing${count === 1 ? '' : 's'}${cats.length ? ` in ${cats.join(', ')}` : ''}` : '',
-      shop?.location || '',
-      tierWord,
-    ].filter(Boolean)
-    const description = bits.length ? `${seller.name} — ${bits.join(' · ')} on eno.vn` : `${seller.name} on eno.vn`
+    // One composition for both storefront routes (src/lib/storefront-description.ts), built from the
+    // SAME cache()d loadSeller read SellerStorefront makes for the render. Falls back to the bare name
+    // if the storefront row vanished between resolve() and here.
+    const description = (await storefrontMetaDescription(seller.id)) ?? `${seller.name} on ${SITE_NAME}`
+    /**
+     * The shop's subdomain is its canonical address when the subdomain actually serves it (the same
+     * storefrontByHandle question /s/<handle> asks); a brand-slug handle it rejects keeps the path.
+     * ⚠️ `og:url` IS THE SAME URL. It said `${hostUrl}/<handle>` while the canonical named the subdomain,
+     * so a share card and the search result disagreed about which page this is. And pages.xml submits
+     * exactly this value (`storefrontCanonical`), so the sitemap can no longer list a URL the page disowns.
+     */
+    const canonical = await storefrontCanonical(row.handle, hostUrl)
     return {
       title: `${seller.name} | ${SITE_NAME}`,
       description,
-      // The shop's subdomain is its canonical address when the subdomain actually serves it (the same
-      // storefrontByHandle question /s/<handle> asks); a brand-slug handle it rejects keeps the path.
-      alternates: { canonical: (await storefrontByHandle(row.handle)) ? storefrontUrl(row.handle, hostUrl) : `${hostUrl}/${row.handle}` },
+      alternates: { canonical },
       openGraph: {
         title: `${seller.name} | ${SITE_NAME}`,
         description,
-        url: `${hostUrl}/${row.handle}`,
+        url: canonical,
       },
     }
   }
   return {
     title: `@${row.handle} | ${SITE_NAME}`,
-    description: `${row.profile?.displayName || `@${row.handle}`} on eno.vn`,
+    description: `${row.profile?.displayName || `@${row.handle}`} on ${SITE_NAME}`,
     openGraph: {
       title: `@${row.handle} | ${SITE_NAME}`,
-      description: `${row.profile?.displayName || `@${row.handle}`} on eno.vn`,
+      description: `${row.profile?.displayName || `@${row.handle}`} on ${SITE_NAME}`,
       url: `${hostUrl}/${row.handle}`,
     },
     // Member cards are not an SEO surface — people land here via shared links only.

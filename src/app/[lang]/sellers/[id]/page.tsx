@@ -1,7 +1,8 @@
 import { SITE_NAME } from '@/lib/edition'
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
-import { loadSeller, SellerStorefront } from '@/components/marketplace/seller-storefront'
+import { loadSeller, SellerStorefront, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
+import { storefrontCanonical } from '@/lib/storefront'
 
 // Per-request render, like the canonical [handle] storefront (which is force-dynamic
 // on purpose). Without this the page was STATICALLY cached — no dynamic API in scope,
@@ -22,16 +23,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   return {
     title: `${seller.name} | ${SITE_NAME}`,
-    description: `${seller.name} — ${seller.reviewCount} reviews · ${seller.rating.toFixed(1)}★`,
     /**
-     * The public @handle URL is canonical; the /sellers/<id> URL points at it.
+     * ⚠️ THE SAME COMPOSITION AS `/<handle>` (src/lib/storefront-description.ts). This used to be
+     * `${name} — ${reviewCount} reviews · ${rating}★`, and `Seller.rating` defaults to 5, so an
+     * importer nobody had reviewed was described as "Nhatot.com — 0 reviews · 5.0★".
+     */
+    description: (await storefrontMetaDescription(id)) ?? `${seller.name} on ${SITE_NAME}`,
+    /**
+     * The handle's canonical is this page's canonical — `storefrontCanonical`, the one answer the
+     * handle page, Share and pages.xml give (the subdomain when it serves the shop, else the path), so
+     * this is never a canonical that points at a page which canonicalises somewhere else.
      * ⚠️ AND A HANDLE-LESS SELLER SELF-CANONICALISES rather than declaring nothing. `undefined` left
      * this page with no canonical at all — and it is `force-dynamic`, reachable by id, and submitted
      * to the sitemap under exactly this shape, so the only signal Google had for which URL to keep was
      * its own guess (astra). Handle-less storefronts are the minority, but they are the ones with no
      * second URL to inherit a canonical from.
      */
-    alternates: { canonical: seller.handle ? `${hostUrl}/${seller.handle.handle}` : `${hostUrl}/sellers/${id}` },
+    alternates: { canonical: seller.handle ? await storefrontCanonical(seller.handle.handle, hostUrl) : `${hostUrl}/sellers/${id}` },
   }
 }
 

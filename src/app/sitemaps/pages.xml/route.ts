@@ -18,6 +18,7 @@ import { LANDING_TARGET as MOTORBIKE_TARGET } from '@/app/[lang]/motorbikes-for-
 import { districtLinkSlug } from '@/lib/district-canonical'
 import { isIndexableCount } from '@/lib/index-floor'
 import { submittedListingWhere, urlsetXml, xmlResponse, siteOrigin } from '@/lib/sitemap'
+import { storefrontCanonicals } from '@/lib/storefront'
 import { NextResponse } from 'next/server'
 
 /**
@@ -76,11 +77,11 @@ export async function GET() {
        * table and cannot be fooled by a cap; `_max.updatedAt` is exactly the "first row seen in
        * updatedAt-desc order" the old loop computed.
        *
-       * ⚠️ AND THE CATEGORY AND SELLER AGGREGATES STILL COUNT IMPORTED STOCK, DELIBERATELY. These
-       * rows answer "what is live here": a category with 9,726 live products is a real page, and a
-       * merchant's storefront is real because that stock sits behind it. The LISTING URLs and the
-       * category × district combos are narrowed to what is ours (`submittedListingWhere` in
-       * src/lib/sitemap.ts) — see the note on the combo aggregate.
+       * ⚠️ AND THE CATEGORY AGGREGATE STILL COUNTS IMPORTED STOCK, DELIBERATELY. It answers "what is
+       * live here": a category with 9,726 live products is a real page with its own copy and facets.
+       * The LISTING URLs, the category × district combos and — since SEO wave B, I2 — the storefront
+       * URLs are narrowed to what is ours (`submittedListingWhere` in src/lib/sitemap.ts): see the
+       * notes on the combo and seller aggregates.
        *
        * ⛔ WHICH CATEGORIES ACTUALLY HAVE A LIVE LISTING also comes from `byCategory`: presence of a
        * group IS "has a live listing", on the same predicate `/c/<slug>` uses to decide its own
@@ -119,9 +120,20 @@ export async function GET() {
         _max: { updatedAt: true },
         _count: { _all: true },
       }),
+      /**
+       * ⛔ A STOREFRONT IS SUBMITTED ONLY FOR A SELLER WITH AN OWN LISTING (SEO wave B, I2). This
+       * aggregate used to count imported stock like the category one, which submitted 59 storefronts
+       * of which only 4 held any listing of their own (measured 2026-09-27). The other 55 were 19
+       * importers (rental portals, job boards), 35 retailer and carrier feeds whose every card links
+       * out, and a partner whose tickets are booked on its own site. A storefront of borrowed stock is the listing rule's case one level up — a
+       * page that restates another site's catalogue — so it gets the listing rule: crawlable, linked,
+       * 200, and not asked for. Its lastmod is our own listing's, never an import's fresher sync.
+       */
+      // edition-lint-allow: `submittedListingWhere()` IS `scopedListingWhere(...)` AND-ed with the
+      // affiliate exclusion (src/lib/sitemap.ts) — the edition scope is inside the helper.
       db.listing.groupBy({
         by: ['sellerId'],
-        where: await scopedListingWhere({ verified: true, status: 'active' }),
+        where: await submittedListingWhere(),
         _max: { updatedAt: true },
       }),
       db.category.findMany({ select: { slug: true, id: true } }),
@@ -208,17 +220,38 @@ export async function GET() {
 
     // ⚠️ NO `verifiedSeller` FILTER. It used to be `where: { verifiedSeller: true }`, and NOT ONE
     // seller in the database has ever had that flag set — so this block emitted zero URLs and the
-    // sitemap contained no storefronts at all. The visible cost was concrete: /eno_visa, which
-    // holds 14 of the 34 live listings, was in no sitemap and (until the footer fix in this same
-    // change) behind no working link either. Found 2026-07-27.
+    // sitemap contained no storefronts at all. Found 2026-07-27.
     //
-    // The predicate is "has something to show": exactly the sellers `sellerMax` carries, which is
-    // built from the SAME scoped aggregate the category and combo blocks read. Reading only those
-    // ids (rather than every seller in the table, as it used to) is what keeps the two blocks from
-    // ever disagreeing about which storefronts are live.
+    // The predicate is "has a listing of its own": exactly the sellers `sellerMax` carries, which is
+    // built from the submitted-listing aggregate above (SEO wave B, I2). Reading only those ids
+    // (rather than every seller in the table, as it used to) is what keeps the query and the emit
+    // loop from ever disagreeing about which storefronts qualify.
     const sellers = sellerMax.size
       ? await db.seller.findMany({ where: { id: { in: [...sellerMax.keys()] } }, select: { id: true, handle: { select: { handle: true } } }, orderBy: { id: 'asc' } })
       : []
+    /**
+     * ⛔ EACH STOREFRONT'S <loc> IS ITS PAGE'S OWN CANONICAL — `storefrontCanonical`, the function
+     * `/<handle>` puts in `<link rel="canonical">` and `og:url`, and `/sellers/<id>` points at, asked
+     * here of every handle at once (`storefrontCanonicals`, the same rule in two queries).
+     * Before this the loop submitted `${host}/<handle>` while `eno.vn/eno-trading`, `/gmbr` and
+     * `/vinwonders` canonicalised to their subdomains, so the sitemap asked for URLs the pages
+     * themselves disowned (Search Console chose eno.vn/eno-trading anyway, 2026-09-28).
+     *
+     * ⛔ AND A STOREFRONT WHOSE CANONICAL IS A SUBDOMAIN IS LEFT OUT (decision I-b, at its default).
+     * A sitemap may list only URLs on its own host unless the Search Console property covers the
+     * whole domain, and which property type eno.vn has is unconfirmed. Such a shop stays linked,
+     * crawlable and canonical at its subdomain; it is only not asked for here. The path canonicals
+     * (`sdc_store`, whose underscore cannot be a host label; a brand-slug handle; `/sellers/<id>`
+     * for a seller with no handle) are submitted.
+     */
+    // Two queries for every handle at once (`storefrontCanonicals`), never two per seller.
+    const siteHost = new URL(hostUrl).host
+    const canonicals = await storefrontCanonicals(sellers.flatMap((s) => (s.handle ? [s.handle.handle] : [])), hostUrl)
+    const sellerLocs = new Map<string, string>()
+    for (const s of sellers) {
+      const loc = s.handle ? canonicals.get(s.handle.handle) : `${hostUrl}/sellers/${s.id}`
+      if (loc && new URL(loc).host === siteHost) sellerLocs.set(s.id, loc)
+    }
     const lm = (d?: Date) => (d ? `<lastmod>${iso(d)}</lastmod>` : '')
     const urls: string[] = []
 
@@ -405,9 +438,10 @@ export async function GET() {
     // noindex header in next.config.ts was removed the same day.
     // Faceted category pages (programmatic SEO entry points)
     //
-    // ⚠️ THE PREDICATE MIRRORS THE SELLER BLOCK BELOW, deliberately: a category with no live
-    // listing is a thin page (it serves `noindex` once it has been empty for 14 days — I1b), so it
-    // is not submitted, and the moment one listing lands it reappears on the next revalidate.
+    // ⚠️ PRESENCE OF ANY LIVE LISTING, imports included (unlike the seller block below, which counts
+    // only our own since I2): a category with no live listing is a thin page (it serves `noindex`
+    // once it has been empty for 14 days — I1b), so it is not submitted, and the moment one listing
+    // lands it reappears on the next revalidate.
     /**
      * ⚠️ PRESENCE, NOT A COUNT COMPARISON — `groupBy` never returns a zero-count group, so a
      * `_count._all > 0` filter would be dead code that reads like a real guard (opus).
@@ -432,16 +466,15 @@ export async function GET() {
       urls.push(`  <url><loc>${hostUrl}/c/${combo}</loc>${lm(max)}</url>\n`)
     }
 
-    // Seller profiles — the public @handle URL is canonical (sellers/[id] points its
-    // canonical at /{handle}), so submit that; fall back to /sellers/{id} only for
-    // handle-less sellers.
+    // Seller storefronts, each at its page's own canonical (`sellerLocs`, above): the handle's
+    // canonical, or /sellers/{id} for a handle-less seller.
     for (const s of sellers) {
-      // ⚠️ THE PREDICATE, and it is `sellerMax` rather than a flag. A storefront with no live
-      // listing is a thin page — a name and an empty grid — so it is not submitted; the moment that
-      // seller has one live listing, they appear here. The query above already reads only these ids;
+      // ⚠️ THE PREDICATE, and it is `sellerMax` rather than a flag. A storefront with no listing of its
+      // own is not submitted — an empty grid, or a grid of links out (I2); the moment that seller has
+      // one live listing of its own, they appear here. The query above already reads only these ids;
       // the check stays so the emit loop cannot drift from the map the lastmod comes from.
-      if (!sellerMax.has(s.id)) continue
-      const loc = s.handle ? `${hostUrl}/${s.handle.handle}` : `${hostUrl}/sellers/${s.id}`
+      const loc = sellerLocs.get(s.id)
+      if (!loc || !sellerMax.has(s.id)) continue
       urls.push(`  <url><loc>${loc}</loc>${lm(sellerMax.get(s.id))}</url>\n`)
     }
 
