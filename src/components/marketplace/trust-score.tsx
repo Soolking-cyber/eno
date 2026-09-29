@@ -63,10 +63,11 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   const { color, label, labelVi, band } = trustScoreColor(score)
   const n = Math.round(score)
   const title = `${tr('Trust score', 'Điểm uy tín')}: ${n} · ${lang === 'vi' ? labelVi : label}`
-  // The inner span carries a NATIVE title only when there is NO href — that is the unwrapped case
-  // where it's the sole hint. When href is set the badge is wrapped in a Base UI <Tooltip> below,
-  // which owns the hint; leaving the native title on too would fire BOTH bubbles (same text twice)
-  // on every card's mini badge.
+  // The 'shield' and 'number' spans carry a NATIVE title only when there is NO href — that is the
+  // unwrapped case where it's the sole hint. When href is set the badge is wrapped in a Base UI
+  // <Tooltip> below, which owns the hint; leaving the native title on too would fire BOTH bubbles
+  // (same text twice). The 'mini' chip never takes the native title: it gets the <Tooltip> with or
+  // without an href (see that branch).
   const nativeTitle = href ? undefined : title
   // Badge-as-link: tapping any trust badge explains the system.
   const wrap = (node: React.ReactNode) => href
@@ -77,17 +78,26 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
 
   if (variant === 'mini') {
     // Card-facing chip: shield + score ONLY (user decision 2026-07-13 — a tier
-    // word made cards too verbose; the `title` tooltip and every tap-through
-    // surface still name the tier).
+    // word made cards too verbose; the tooltip, the accessible name and every
+    // tap-through surface still name the tier).
     // ⚠️ EVERY TIER IS A TRANSLUCENT PLATE NOW, earned tiers included (owner, 2026-09-14:
     // "semitransparent plates similar to heart icons plate … with their respective subtle
     // coloring"). The glossy gradient fills are gone from the chip; `.badge-plate` in globals.css
     // carries the tint and the contrast measurements. Gold alone takes a darker ink token in light
     // mode, because yellow-700 on its own wash is 4.0:1.
     const plate = { '--plate-tint': color, '--plate-ink': band === 'exceptional' ? 'var(--trust-exceptional-ink)' : color } as React.CSSProperties
-    return wrap(
+    /* ⚠️ NO NATIVE `title` ON THE CHIP ANY MORE — a <Tooltip>, the same one PartnerBadge wears, so the
+       two chips that share one row on every card explain themselves the same way. `title=` has no
+       keyboard or touch reveal and shows a second, differently-styled bubble beside Base UI's.
+       ⚠️ `role="img"` + the full sentence as its name: without it assistive tech met a bare "100"
+       (the shield is aria-hidden), a number with no subject. ARIA does not allow naming a generic
+       span, hence the role — PartnerBadge's span branch does the same.
+       `data-trust-chip` is the stable hook tests and audits count chips by; the tooltip text is copy. */
+    const chip = (
       <span
-        title={nativeTitle}
+        role="img"
+        aria-label={title}
+        data-trust-chip=""
         className={cn(
           'badge-plate inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-bold leading-none tabular-nums',
           className,
@@ -114,8 +124,9 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
           ))}
         </svg>
         {n}
-      </span>,
+      </span>
     )
+    return href ? wrap(chip) : <Tooltip content={title} side="top">{chip}</Tooltip>
   }
 
   if (variant === 'number') {

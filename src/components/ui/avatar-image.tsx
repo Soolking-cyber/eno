@@ -43,6 +43,13 @@ export function AvatarImage({ src }: { src: string }) {
       // in with Google. Harmless for our own Supabase objects, which are public.
       referrerPolicy="no-referrer"
       decoding="async"
+      // ⚠️ `low` IS WHAT KEEPS THIS OUT OF THE <head>. React 19's server renderer emits a
+      // <link rel=preload as=image> for every SSR'd <img> that is not loading=lazy or
+      // fetchPriority=low (react-dom-server, the `case "img"` branch). On a partner listing page that
+      // hoisted the seller's avatar ABOVE the gallery photo — the page's LCP — in the preload list. An
+      // avatar is never the LCP. Not `loading="lazy"`: it would also defer avatars in the header and
+      // chat list that are on screen at load.
+      fetchPriority="low"
       // ⚠️ THE IMAGE IS OPAQUE, so a photo with transparency does not show the initials through
       // itself. The initials sit directly behind this element (that is the whole fallback), and
       // a transparent PNG — a storefront logo, most likely — would otherwise render letters

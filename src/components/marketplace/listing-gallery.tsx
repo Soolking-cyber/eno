@@ -183,7 +183,14 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
     <>
       {/* quality MUST be one of next.config `qualities: [60, 70]` — any other value (e.g. the
           old 40) makes the optimizer 400 and the blur backdrop silently vanish in prod. */}
-      <Image src={img} alt="" fill sizes="64px" quality={60} unoptimized={mock || undefined} aria-hidden className="scale-110 object-cover blur-2xl" />
+      {/* ⚠️ BOTH PHOTO LAYERS DIM 8% IN DARK MODE (category-art.tsx's precedent, and the feed card's):
+          a packshot lit for a white ground is the brightest thing on the dark canvas. The lightbox
+          below is NOT dimmed — it is the explicit full view, where colour judgement happens. */}
+      {/* ⚠️ EAGER ON THE LCP PHOTO (measured 2026-09-29, Lighthouse on a rental PDP): this scaled
+          backdrop is the LARGEST painted image, so Chrome reported IT as the LCP element — and it was
+          lazy, i.e. held until after hydration. It is a 64px source, so loading it eagerly costs ~1 KB
+          and does not compete with the sharp layer's fetchPriority=high. */}
+      <Image src={img} alt="" fill sizes="64px" quality={60} unoptimized={mock || undefined} aria-hidden loading={priority || eager ? 'eager' : undefined} className="scale-110 object-cover blur-2xl dark:brightness-[0.92]" />
       <span aria-hidden className="pointer-events-none absolute inset-0 bg-repeat opacity-70 [background-image:url('/watermark.svg')] [background-size:116px_80px] md:[background-size:248px_171px]" />
       <Image
         src={img}
@@ -206,8 +213,12 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
           quality={60}
         unoptimized={mock || undefined}
         priority={priority}
+        /* ⚠️ `priority` IN NEXT 16 IS THE PRELOAD ONLY; `fetchPriority` IS WHAT MAKES IT HIGH, on the
+           <link> and the <img> both (see the note on ListingCard's LCP photo). Only this sharp layer —
+           never the 64px backdrop above, which must not compete with it. */
+        fetchPriority={priority ? 'high' : undefined}
         loading={eager && !priority ? 'eager' : undefined}
-        className="object-contain"
+        className="object-contain dark:brightness-[0.92]"
         onError={() => setFailedSrc(img)}
       />
       {failedSrc !== img && <ImageMark src={img} fit="contain" />}

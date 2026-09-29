@@ -37,8 +37,15 @@ export function ListingCardSkeleton({ className }: { className?: string }) {
           line, one info line. Heights are the real line boxes — re-measure against the card if
           any of its type sizes change. */}
       <div className="flex flex-col gap-0.5 px-0.5 pt-2">
-        {/* PRICE — text-base/leading-tight below sm (20px), text-lg above (22.5px). No second
-            line reserved any more: the "≈ $…" slot that used to wrap is gone from cards. */}
+        {/* PRICE — text-base/leading-tight below sm (20px), text-lg above (22.5px): ONE line.
+            ⚠️ THE "≈ $…" IS NOT GONE, whatever this note used to say — the owner asked for it back
+            after the đồng price the day it was dropped (2026-09-13), and a goods price still fits one
+            line with it (48 of 48 on /c/electronics at 390px, 2026-09-29).
+            ⚠️ A PER-UNIT PRICE DOES NOT: "9,000,000 đ / month ≈ $351" wraps to two lines (40px) on
+            every rental card at 390px (48 of 48 on /c/rentals); from sm up it fits one. This bar
+            reserves one line anyway — a two-line rental reserve collides with the owner's "price 1
+            line" card spec (2026-09-13) and is held for the owner, so do not read the one line here
+            as a claim that rentals fit. */}
         <Skeleton className="h-[20px] w-1/2 sm:h-[23px]" />
         {/* TITLE — `truncate` text-sm/leading-snug, one 19px line. */}
         <Skeleton className="h-[19px] w-4/5" />

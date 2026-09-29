@@ -161,8 +161,11 @@ export function MapBuildingCard({
                           />
                         )}
                       </span>
-                      {/* Same order as <ListingCard>: price, then one line of title. */}
-                      <Price native price={u.price} currency={u.currency} priceUnit={u.priceUnit} className="mt-1 block text-xs leading-tight" />
+                      {/* Same order as <ListingCard>: price, then one line of title.
+                          `approxClassName="text-3xs"`: <Price>'s ≈ is a fixed 12px, the size of this
+                          tile's own figure — and text-xs's 16px line box is taller than this
+                          leading-tight line. 10px keeps the estimate a step below the price. */}
+                      <Price native price={u.price} currency={u.currency} priceUnit={u.priceUnit} className="mt-1 block text-xs leading-tight" approxClassName="text-3xs" />
                       <span className="block truncate text-2xs text-body">
                         <LocalizedText text={u.title} vi={u.titleVi} i18n={u.titleI18n} />
                       </span>

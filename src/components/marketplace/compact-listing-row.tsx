@@ -12,7 +12,8 @@ import { CategoryIcon } from './category-icons'
 import { FavoriteHeart } from './favorite-heart'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
-import type { SerializedListingCard } from '@/lib/types'
+import { timeAgo, type SerializedListingCard } from '@/lib/types'
+import { isImportSeller } from '@/lib/import-sellers'
 import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
@@ -121,7 +122,9 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             alt={displayTitle}
             fill
             sizes="56px"
-            className="object-cover transition-transform duration-200 ease-[var(--ease-spring-snappy)] group-hover:scale-105"
+            // ⚠️ THE PHOTO DOES NOT SCALE ON HOVER — the owner's rule for every listing photo (2026-08-05,
+            // written out on ListingCard's <Image>). This thumbnail was the one surface it never reached.
+            className="object-cover"
             loading={index < 6 ? 'eager' : 'lazy'}
 
           />
@@ -132,7 +135,8 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         )}
       </div>
 
-      {/* One-liner: title on top, price · location · trust score on a tight meta line */}
+      {/* Title (up to two lines) on top, then price · location · trust score on a tight meta line —
+          and on phones, where that line has room for the price alone, place · time under it. */}
       <div className="min-w-0 flex-1">
         {/* On a phone the trust badge rides the TITLE line, not the price line. The
             column is only ~162px on a 390pt device, and the badge cost ~40px of it —
@@ -141,8 +145,12 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             the badge yields and the price owns the whole line. At sm+ there is room,
             so it returns to the meta line and keeps the vertical badge column the
             owner picked on 2026-07-14. */}
-        <div className="flex min-w-0 items-center gap-x-2">
-          <h4 className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline">
+        {/* ⚠️ TWO LINES, NOT `truncate`. Measured at 390px (2026-09-29): 23 of 24 titles run past one
+            line even in today's wider 206px column, so a one-line row was cutting nearly every title
+            mid-phrase — usually before the district or the spec that tells two listings apart.
+            `items-start` pins the trust chip beside the FIRST line when the title wraps. */}
+        <div className="flex min-w-0 items-start gap-x-2">
+          <h4 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline">
             {displayTitle}
           </h4>
           {/* ⚠️ THE RING NEEDS A NAME, AND THIS ROW SHIPPED WITHOUT ONE. The gold ring on the
@@ -156,9 +164,12 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               existed only because the gold avatar ring carries no accessible name, and the badge
               now says the words on screen. An official partner shows no trust score anywhere —
               same rule in seller-card, pdp-shop-link and listing-card. */}
-          {l.isPartnerBooking && l.listingType === 'job' ? null /* a linked job: the board was never rated */ : l.seller.officialPartner ? (
+          {/* ⛔ …and NO TRUST CHIP ON A REFERENCE LISTING (a portal import or a linked job): eno.vn
+              never rated the source, and its storefront's 100 is a ranking default — ListingCard has
+              the full note. Partner first, exactly as there, so a partner reads the same in both views. */}
+          {l.seller.officialPartner ? (
             <PartnerBadge className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')} />
-          ) : (
+          ) : isImportSeller(l.sellerId) ? null : (
             <TrustScore
               score={l.seller.trustScore}
               variant="mini"
@@ -170,7 +181,8 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         {/* min-w-0 is load-bearing: without it this flex row can never shrink below
             its content, so a wide price (shrink-0, and it must stay shrink-0 — a
             truncated price is a wrong price) overflowed the column and painted
-            straight over the action icons to its right. */}
+            straight over the action icons to its right. (Below sm the price may
+            now WRAP instead — never truncate; see the note on it.) */}
         <div className="mt-0.5 flex min-w-0 items-center gap-x-2 overflow-hidden text-xs text-muted-foreground">
           {/* Same app-wide badges as the grid card (card-badges.tsx), inline form:
               urgent before the price, drop % after — the row is one line, so signals
@@ -192,7 +204,18 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               A container query on the text column is the correct tool if the size ever needs to
               scale here — `container-type: inline-size` plus `@sm:text-lg` — not a viewport
               breakpoint that cannot see the column it is sizing text for. */}
-          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} compact dual="sm" unit="sm" className="shrink-0 text-base" />
+          {/* ⛔ EXCEPT ON A RENTAL: "/ month" is what separates a rent from a sale price, so hiding it
+              below sm changed the meaning of the number (price.tsx's `unit` doc forbids exactly that
+              on cards). The row can afford it now that the map button yields its 36px on phones.
+              ⚠️ AND BELOW sm THE PRICE MAY WRAP, NOT CLIP — `shrink-0` only from sm up. With the unit
+              shown, a commercial rent outgrows a phone column: measured at 360px, "1,368,000,000 đ /
+              month" ran 20px past the 176px column (54–60px at 320) and `overflow-hidden` below cut
+              it to "/ mo…". Shrinkable, it breaks at <Price>'s own opportunities — before "/ month",
+              or between the digits and "đ" — so the whole figure stays readable on two lines. Below
+              sm nothing else on this line competes for the width (the place and the trust chip are
+              sm-only here), so an ordinary price never wraps; from sm up it stays one line, as the
+              note above requires. */}
+          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} compact dual="sm" unit={l.listingType === 'rent' ? true : 'sm'} className="text-base sm:shrink-0" />
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line
@@ -206,8 +229,8 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {l.prevPrice != null && dropPercent(l.prevPrice, l.price) && (
             <Badge kind="drop" variant="inline" className="shrink-0">{dropPercent(l.prevPrice, l.price)}</Badge>
           )}
-          {/* Address text is desktop-only (user-picked: it truncated uselessly on
-              phones — the map-pin action is the mobile location affordance). */}
+          {/* Address text on this line is desktop-only (user-picked: it truncated uselessly
+              beside the price on phones). Phones get it on its own line below instead. */}
           <span className="hidden h-3 w-px shrink-0 bg-border sm:block" />
           <span className="hidden truncate sm:inline"><Tr text={l.district || l.city} /></span>
           {/* Demand proof (≥3 contact reveals) — desktop only: the one-line meta row
@@ -217,12 +240,22 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               {tr(`${formatCount(l.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(l.contactCount, moneyLocale(lang))}`)}
             </span>
           )}
-          {l.isPartnerBooking && l.listingType === 'job' ? null : l.seller.officialPartner ? (
+          {l.seller.officialPartner ? (
             <PartnerBadge className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
-          ) : (
+          ) : isImportSeller(l.sellerId) ? null : (
             <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
           )}
         </div>
+        {/* PHONES: where and how fresh, on a line of its own — the facts the desktop meta line carries
+            beside the price, which a phone row has no width for there. It stands in for the map button
+            that yields below sm (the row's only location signal on a phone used to be that glyph).
+            ⚠️ `timeAgo` DIRECTLY, NOT <PostedAgo>: this row is `ssr: false` (listings-explorer.tsx), so
+            there is no server HTML to mismatch, and the mount-gated form would flash an ISO date for a
+            frame first. Same function, so the same string the card and the PDP print. */}
+        <p className="mt-0.5 truncate text-xs text-muted-foreground sm:hidden">
+          {l.district || l.city ? <><Tr text={l.district || l.city} />{' · '}</> : null}
+          {timeAgo(l.postedAt, lang)}
+        </p>
       </div>
 
       {/* Actions paired together (not stranded): offer + quick-chat + locate + favorite.
@@ -311,7 +344,9 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           tapTarget={false}
           aria-label={tr('Show on map', 'Xem trên bản đồ')}
           onClick={(e) => { e.stopPropagation(); onLocate(l.id) }}
-          className={cn('press text-foreground hover:bg-accent', offer === null ? 'flex' : 'hidden')}
+          // `sm:` only: on a phone its 36px is the room a rental's "/ month" and a two-line title need,
+          // and the place it pointed at is now written on the row itself (the line under the price).
+          className={cn('press text-foreground hover:bg-accent', offer === null ? 'hidden sm:flex' : 'hidden')}
         >
           <MapPin className="h-5 w-5" />
         </IconButton>
