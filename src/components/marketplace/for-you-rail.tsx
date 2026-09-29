@@ -16,8 +16,19 @@ const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district'
 /** "For You" — a horizontal rail at the very top of the home feed. Personalized from
  *  the user's own on-site signals when they've allowed it (consent 'all'); otherwise
  *  Trending. Only shows on the default home view — hides as soon as a filter/search is
- *  active (it would be redundant over filtered results). */
-export function ForYouRail({ initial }: { initial?: SerializedListingCard[] }) {
+ *  active (it would be redundant over filtered results) — except where the explorer places it
+ *  as the `recovery` rail under a sparse answer (see the prop). */
+export function ForYouRail({ initial, recovery = false }: {
+  initial?: SerializedListingCard[]
+  /**
+   * The explorer renders this rail a SECOND way: under a searched/filtered feed that came back with
+   * one to seven results (E-ZERO, 2026-09-29), as the thing to do next. The filtered-URL hide below
+   * exists for the home placement, where a trending rail over filtered results is redundant — under
+   * a sparse answer it is the point, so `recovery` switches that hide off. Default false: the home
+   * placement is unchanged.
+   */
+  recovery?: boolean
+}) {
   const { tr } = useLanguage()
   const router = useRouter()
   // Perf Phase 1: the home landing passes the SERVER-KNOWN "Trending now" seed, so the
@@ -85,7 +96,7 @@ export function ForYouRail({ initial }: { initial?: SerializedListingCard[] }) {
     return () => { window.removeEventListener('eno:query', check); window.removeEventListener('popstate', check) }
   }, [])
 
-  if (!active) return null
+  if (!active && !recovery) return null
   // Sparse-rail grace: below the floor a rail is two cards and a void — hide it and let
   // the feed grid (which shows everything) carry the page. `null` still means "loading".
   if (listings !== null && listings.length < MIN_RAIL_ITEMS) return null

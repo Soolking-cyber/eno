@@ -699,8 +699,8 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
 
       {filtered.length === 0 ? (
         showResolved
-          ? <EmptyState icon={ShieldQuestion} title="No resolved reports yet." />
-          : <EmptyState title="Nothing here. 🎉" />
+          ? <EmptyState tone="admin" icon={ShieldQuestion} title="No resolved reports yet." />
+          : <EmptyState tone="admin" title="Nothing here. 🎉" />
       ) : (
         <>
           {/* Narrow / non-desktop: original single-column full cards (each self-contained). */}
@@ -725,7 +725,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
             </div>
             <div className="sticky top-2">
               {selectedCase ? renderCard(selectedCase, sel) : (
-                <EmptyState title="Select a case to review." />
+                <EmptyState tone="admin" title="Select a case to review." />
               )}
             </div>
           </div>}

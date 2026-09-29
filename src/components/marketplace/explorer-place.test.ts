@@ -168,7 +168,12 @@ describe('listings-explorer.tsx wiring', () => {
     expect(visual).toContain('clearPlaceForTypedDistrict(q, {')
     // the header's area event, the pending area stash and the recent-location chips
     expect(src.match(/replaceDistrictRef\.current\('all'\)/g)).toHaveLength(3)
-    expect(src).toContain("setQuery(queryForExplicitDistrict(params.get('q') || '', params.get('district')))")
+    // The URL's words under an explicit district: read once, by the shared URL reader that both
+    // `applyParams` and a client-side mount's seed go through (src/lib/explorer-url.ts, E-BACK).
+    expect(between('const applyParams = useCallback', '}, [])')).toContain('setQuery(u.query)')
+    expect(src).toContain('const u = readExplorerUrl(raw)')
+    expect(readFileSync(join(__dirname, '../../lib/explorer-url.ts'), 'utf8'))
+      .toContain("queryForExplicitDistrict(params.get('q') || '', params.get('district'))")
   })
 
   it('a district picked on the map goes through the same replace rule', () => {

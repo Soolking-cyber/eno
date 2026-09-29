@@ -2,17 +2,23 @@ import type { IconComponent } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 
-// Shared centered empty / error placeholder: the dashed-border card (icon or media + title
-// + optional subtitle + optional action) that was hand-rolled in ~14 places — empty lists,
-// failed fetches (icon + message + retry button), and "nothing here yet" notices.
+// Shared centered empty / error placeholder (icon or media + title + optional subtitle +
+// optional action) that was hand-rolled in ~14 places — empty lists, failed fetches (icon +
+// message + retry button), and "nothing here yet" notices.
 // No 'use client' / no hooks → usable from server and client components alike.
 //
-//   tone: 'default' = dashed border (marketplace surfaces)
-//         'admin'   = solid border
-//         'bare'    = no border, no card — just the centered stack. This is what the
-//                     mascot-led empty states need: they were hand-rolled only because
-//                     this primitive could not take anything but a lucide icon, and
-//                     boxing them in the dashed card would be a visible change.
+//   tone: 'bare'    = no border, no card — just the centered stack. THE DEFAULT since
+//                     2026-09-29 (D-STATES): the flat canon (docs/design-language.md §3b —
+//                     "lines, not boxes", one canvas) has no place for a dashed card around
+//                     "nothing here", and ~13 marketplace empties were drawing one only
+//                     because it was the default.
+//         'dashed'  = the old default, kept for a surface that genuinely needs a drop-zone
+//                     look (rounded-2xl dashed line-strong). Opt in by name.
+//         'admin'   = solid border — the admin console's boxed tables. Admin call sites pass
+//                     it explicitly (they used to get the dashed default).
+//
+//   titleAs: the title's tag — 'p' by default. A page whose whole body IS this state (a route
+//            error screen) passes 'h1'/'h2' so the outline has its heading; same classes.
 //
 //   media: an arbitrary node rendered ABOVE the title, in place of the icon — e.g.
 //          <Mascot name="chat" className="h-40 w-40" />. When `media` is set, `icon` is
@@ -29,16 +35,18 @@ export function EmptyState({
   title,
   subtitle,
   action,
-  tone = 'default',
+  tone = 'bare',
   size = 'default',
   variant = 'empty',
+  titleAs: TitleTag = 'p',
   className,
 }: {
   media?: React.ReactNode
   title: React.ReactNode
   subtitle?: React.ReactNode
   action?: React.ReactNode
-  tone?: 'default' | 'admin' | 'bare'
+  tone?: 'bare' | 'dashed' | 'admin'
+  titleAs?: 'p' | 'h1' | 'h2'
   // 'lg' = statement tier for mascot-led, page-level empty states (guest gates, empty
   // categories): the title steps up a size so a 160px mascot doesn't dwarf its own caption.
   // Inline list/table empties stay on the default.
@@ -72,7 +80,7 @@ export function EmptyState({
         'flex flex-col items-center justify-center gap-4',
         tone !== 'bare' && 'rounded-2xl border',
         'px-6 py-14 text-center',
-        tone === 'admin' ? 'border-border' : tone === 'default' && 'border-dashed border-line-strong',
+        tone === 'admin' ? 'border-border' : tone === 'dashed' && 'border-dashed border-line-strong',
         className,
       )}
     >
@@ -112,7 +120,7 @@ export function EmptyState({
             </span>
           ))}
       <div className="space-y-1">
-        <p className={size === 'lg' ? 'text-base font-semibold text-foreground' : 'text-sm font-semibold text-body'}>{title}</p>
+        <TitleTag className={size === 'lg' ? 'text-base font-semibold text-foreground' : 'text-sm font-semibold text-body'}>{title}</TitleTag>
         {subtitle && <p className={cn('mx-auto max-w-sm text-muted-foreground', size === 'lg' ? 'text-sm' : 'text-xs')}>{subtitle}</p>}
       </div>
       {action}

@@ -129,11 +129,13 @@ test.describe('Guest · homepage', () => {
   })
 
   test('shows home rails', async ({ page }) => {
-    // ⚠️ "Latest listings" is an always-rendered sr-only <h2> (listings-explorer.tsx:1704),
-    // so heading-only assertions passed with EVERY rail removed — proven by deleting them
-    // and watching this test stay green. A rail is its CARDS; assert those.
+    // ⚠️ The feed's <h2> is always rendered (visible on the undirected home, sr-only once
+    // directed), so heading-only assertions passed with EVERY rail removed — proven by deleting
+    // them and watching this test stay green. A rail is its CARDS; assert those.
+    // Since E-SORT (2026-09-29) that heading names the sort: "Recommended" in the default
+    // (Relevance) order, "Latest listings" under Newest.
     const trending = page.getByRole('heading', { name: /Trending now/i })
-    const latest = page.getByRole('heading', { name: /Latest listings/i })
+    const latest = page.getByRole('heading', { name: /Recommended|Latest listings/i })
     await expect(trending.or(latest).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Save listing' }).first()).toBeVisible()
   })

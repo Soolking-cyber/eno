@@ -63,7 +63,7 @@ vi.mock('./business-rail', () => ({ BusinessRail: () => null }))
 vi.mock('./trending-searches', () => ({ TrendingSearches: () => null }))
 vi.mock('./ai-concierge', () => ({ AISearchButton: () => null }))
 
-import { ListingsExplorer } from './listings-explorer'
+import { ListingsExplorer, __resetExplorerCommittedForTests } from './listings-explorer'
 
 // ─── A fake /api/listings ────────────────────────────────────────────────────────────────────
 const row = (id: string, title: string, price: number): SerializedListingCard =>
@@ -211,6 +211,8 @@ async function deepFeedThenBack() {
 }
 
 beforeEach(() => {
+  // Every test is a fresh document: its first mount is the cold path, a re-mount in it is a Back.
+  __resetExplorerCommittedForTests()
   requests.length = 0
   held.clear()
   failing.clear()

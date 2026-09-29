@@ -70,6 +70,7 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
 
       {shown.length === 0 ? (
         <EmptyState
+          tone="admin"
           icon={MessageSquareText}
           title={filter === 'open' ? 'No open feedback — all caught up.' : 'No feedback yet.'}
         />
