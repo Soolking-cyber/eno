@@ -2,6 +2,7 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor, isVisaProductSlot } from '@/lib/taxonomy'
 import { plainSnippet } from '@/lib/strip-md'
 import { feedIdentifiers } from '@/lib/product-feed'
+import { listingJsonLd } from '@/lib/listing-jsonld'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { scopedListingWhere } from '@/lib/edition-scope'
@@ -411,106 +412,65 @@ export default async function ListingPage({ params }: Props) {
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const canonicalUrl = `${hostUrl}/listings/${listing.id}`
 
-  // Determine standard schema condition
-  let schemaCondition = 'https://schema.org/UsedCondition'
-  if (listing.condition === 'new' || listing.condition?.toLowerCase().includes('mới')) {
-    schemaCondition = 'https://schema.org/NewCondition'
-  }
-
   // Structured data for Google rich results. Indexable listings only (verified +
   // active); sold/hidden never get rich-snippeted.
   const indexable = listing.verified && listing.status === 'active'
-  const availability = listing.status === 'sold' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock'
 
-  // One currency expression shared by the offer and its shippingDetails — a USD
-  // listing must not advertise a VND shipping rate.
-  const offerCurrency = listing.currency === '₫' ? 'VND' : 'USD'
-
-  // One derivation, shared with the Google/Meta feed rows — see the note on the fields below.
+  /**
+   * ⛔ THE SAME IDENTIFIERS THE MERCHANT FEED SUBMITS, DERIVED BY THE SAME FUNCTION. Google reads
+   * the feed row and then crawls this page to check it; when the two disagree about a GTIN or an
+   * MPN, it is the disagreement itself that disapproves the item. Two independent expressions of
+   * "what identifies this product" is how that disagreement gets written, so there is one.
+   */
   const productIds = feedIdentifiers({
     model: listing.model, attributes: listing.attributes,
     brandSlug: listing.brandSlug, condition: listing.condition,
   })
 
-  const productLd = {
-    '@context': 'https://schema.org/',
-    '@type': 'Product',
-    'name': displayTitle,
-    'image': listing.images,
-    'description': plainSnippet(displayDesc),
-    'sku': listing.id,
-    // Real product brand (drives Google free product listings + matching). Only
-    // emitted when the listing carries a canonical brand.
-    ...(brand ? { 'brand': { '@type': 'Brand', 'name': brand.name } } : {}),
-    /**
-     * ⛔ THE SAME IDENTIFIERS THE MERCHANT FEED SUBMITS, DERIVED BY THE SAME FUNCTION. Google reads
-     * the feed row and then crawls this page to check it; when the two disagree about a GTIN or an
-     * MPN, it is the disagreement itself that disapproves the item. Two independent expressions of
-     * "what identifies this product" is how that disagreement gets written, so there is one.
-     *
-     * ⚠️ NO `aggregateRating`, DELIBERATELY. The only ratings this page has are the SELLER's
-     * (`topSellerReviews`, `listing.seller.rating`), and Google's structured-data policy is explicit
-     * that seller ratings are not product ratings — publishing one as the other is exactly the
-     * misrepresentation the rich-result guidelines name. A product rating needs product reviews,
-     * which this marketplace does not collect.
-     */
-    ...(productIds.gtin ? { 'gtin': productIds.gtin } : {}),
-    ...(productIds.mpn ? { 'mpn': productIds.mpn } : {}),
-    'category': listing.category.name,
-    'offers': {
-      '@type': 'Offer',
-      'url': canonicalUrl,
-      'priceCurrency': offerCurrency,
-      'price': listing.price,
-      'priceValidUntil': new Date(new Date(listing.postedAt).getTime() + 1000 * 60 * 60 * 24 * 90).toISOString().split('T')[0], // postedAt + 90d — deterministic across ISR regens (Date.now() made every regen unique, defeating Vercel's unchanged-output write dedup)
-      /**
-       * A partner TICKET is issued fresh at checkout — the used/refurbished vocabulary the rest of
-       * the marketplace uses does not apply, and an unset condition suppresses the rich result.
-       *
-       * ⛔ BUT THAT IS TRUE OF TICKETS, NOT OF EVERY AFFILIATE LISTING. This read `affiliateUrl ?
-       * NewCondition : …` from the days when the only partner was VinWonders. The CellphoneS import
-       * then added 9,726 physical products, of which **1,009 carry `condition: 'used'`** — second-hand
-       * iPhones and laptops the merchant openly describes as scratched — and every one of them was
-       * being published to Google as NewCondition. That is a false statement about goods, in
-       * structured data a licensed sàn TMĐT serves to Merchant Center unattended, and it would have
-       * become plainly visible the moment the descriptions said "used condition with scratches".
-       * A boxed thing has a condition; a date on a calendar does not.
-       */
-      'itemCondition': affiliateUrl && isBooking ? 'https://schema.org/NewCondition' : schemaCondition,
-      'availability': availability,
-      'seller': { '@type': 'Organization', 'name': listing.seller.name },
-      /**
-       * ⛔ RETURN AND SHIPPING TERMS ARE OMITTED ON A PARTNER LISTING, DELIBERATELY. Both blocks
-       * below describe how *eno* fulfils a sale: meet locally, inspect, no returns, no shipping
-       * fee. None of that is true of an attraction ticket bought on the partner's own site under
-       * the partner's own refund rules — publishing "returns not permitted" for a product we do
-       * not sell is a claim we have no standing to make, and Google reads structured data as the
-       * merchant's own statement of terms. Absent is correct; wrong is not.
-       */
-      ...(affiliateUrl ? {} : {
-        // Return policy — eno is a meet-and-inspect-before-paying marketplace for
-        // (mostly used) goods, so sales are final / no returns. Satisfies Google
-        // Merchant "Improve item appearance" (hasMerchantReturnPolicy).
-        'hasMerchantReturnPolicy': {
-          '@type': 'MerchantReturnPolicy',
-          'applicableCountry': 'VN',
-          'returnPolicyCategory': 'https://schema.org/MerchantReturnNotPermitted',
-        },
-        // Fulfillment — buyer and seller meet locally, so there's no shipping fee
-        // (free local handover). Satisfies the shippingDetails recommendation.
-        'shippingDetails': {
-          '@type': 'OfferShippingDetails',
-          'shippingRate': { '@type': 'MonetaryAmount', 'value': '0', 'currency': offerCurrency },
-          'shippingDestination': { '@type': 'DefinedRegion', 'addressCountry': 'VN' },
-          'deliveryTime': {
-            '@type': 'ShippingDeliveryTime',
-            'handlingTime': { '@type': 'QuantitativeValue', 'minValue': 0, 'maxValue': 1, 'unitCode': 'DAY' },
-            'transitTime': { '@type': 'QuantitativeValue', 'minValue': 0, 'maxValue': 2, 'unitCode': 'DAY' },
-          },
-        },
-      }),
-    },
-  }
+  /**
+   * THE ONE ITEM THIS PAGE PUBLISHES, BY KIND (src/lib/listing-jsonld.ts, SEO wave B, S3): a Product
+   * for goods, a RealEstateListing for a rental, a Service for a service, and nothing for a job, a
+   * wanted post, an event, a short stay or vehicle hire. It replaced one Product+Offer on every
+   * listing but a job, which said rentals were for sale, services were used products, an unset
+   * condition was "used", every price expired after 90 days, and own listings shipped free with no
+   * returns. The builder is pure; this page only hands it the row's fields.
+   */
+  const itemLd = indexable
+    ? listingJsonLd({
+        id: listing.id,
+        url: canonicalUrl,
+        title: displayTitle,
+        description: displayDesc,
+        images: listing.images,
+        price: listing.price,
+        currency: currencyCode(listing.currency),
+        priceUnit: listing.priceUnit,
+        listingType: listing.listingType,
+        categorySlug: rawListing.category.slug,
+        categoryName: listing.category.name,
+        subcategorySlug: rawListing.subcategorySlug,
+        condition: listing.condition,
+        status: listing.status,
+        sellerId: listing.sellerId,
+        sellerName: listing.seller.name,
+        sellerHasOwner: rawListing.seller.ownerId != null,
+        sellerIsBusiness: listing.seller.isBusiness,
+        sellerOfficialPartner: listing.seller.officialPartner,
+        // The STORED column, not the checked link: a row an importer wrote is an import even if its
+        // link fails safeAffiliateUrl, and its "Posted" date is still the day eno imported it.
+        imported: !!listing.affiliateUrl,
+        // The same condition that prints "from" beside the price.
+        isBooking: !!affiliateUrl && isBooking,
+        brandName: brand?.name ?? null,
+        gtin: productIds.gtin,
+        mpn: productIds.mpn,
+        areaM2: rawListing.areaM2,
+        attributes: listing.attributes,
+        district: listing.district,
+        city: listing.city,
+        postedAt: listing.postedAt,
+      })
+    : null
 
   // Breadcrumb rich result: Home › Category › Listing.
   const breadcrumbLd = {
@@ -590,11 +550,11 @@ export default async function ListingPage({ params }: Props) {
       {/* JSON-LD — indexable listings only (no rich snippets for hidden/sold/pending) */}
       {indexable && (
         <>
-          {/* ⛔ NO Product/Offer ON A JOB: a salary is not a price and a job is not a product — Google
-              reads that as a structured-data misrepresentation. The breadcrumb stays. */}
-          {/* No Product/Offer data for ANY job — an employer's own post included: a job is not a product, and
-              Google treats Product markup on one as misrepresentation. */}
-          {listing.listingType !== 'job' && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(productLd) }} />}
+          {/* ⛔ NO ITEM ON A JOB — an employer's own post included: a salary is not a price and a job is
+              not a product, and Google reads Product markup on one as misrepresentation. The same
+              holds for a wanted post, an event, a short stay and vehicle hire: listingJsonLd returns
+              null for each, and the breadcrumb stays. */}
+          {itemLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(itemLd) }} />}
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(breadcrumbLd) }} />
         </>
       )}

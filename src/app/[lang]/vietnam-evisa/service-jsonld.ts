@@ -32,8 +32,9 @@ import { PROVIDER_OF_RECORD, VISA_PROVIDER } from '@/lib/visa-provider'
  *
  * ⚠️ NO `offers`/`price`. Prices live on `Listing.price` and change; a figure baked into ISR HTML
  * goes stale silently, which is the same reasoning that keeps prices out of the e-visa prose (see
- * the note at the head of multiple-entry-cost/page.svc.tsx). The Product JSON-LD on each listing
- * page already carries the real number.
+ * the note at the head of multiple-entry-cost/page.svc.tsx). Each listing page's own Service node
+ * already carries the real number in its Offer (src/lib/listing-jsonld.ts; a Product until SEO
+ * wave B, S3).
  *
  * ⚠️ THIS MODULE IS NEVER COMPILED ON A MARKETPLACE BUILD, and that is by placement rather than by
  * luck: nothing outside `page.svc.tsx` files imports it, and those do not exist on eno.vn. It also

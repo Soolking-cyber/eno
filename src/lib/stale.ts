@@ -22,8 +22,10 @@ export function isStale(confirmedAt: string | Date | null | undefined, postedAt:
 }
 
 /**
- * WHEN A LISTING APPEARED ON ENO — which is what the UI means by "Posted", and what an offer's
- * validity is anchored to. It is `postedAt` for every listing a person posts (a "still available"
+ * WHEN A LISTING APPEARED ON ENO — which is what the UI means by "Posted", and what an own rental's
+ * structured data states as its `datePosted` (src/lib/listing-jsonld.ts). It was also what an
+ * offer's `priceValidUntil` was anchored to, until SEO wave B, S3 dropped that date from every
+ * listing page. It is `postedAt` for every listing a person posts (a "still available"
  * bump moves `postedAt` forward, past `createdAt`), so for them this changes nothing.
  *
  * ⛔ IT EXISTS BECAUSE `postedAt` NOW CARRIES A MERCHANT'S PUBLISH DATE FOR IMPORTED CATALOGUES
