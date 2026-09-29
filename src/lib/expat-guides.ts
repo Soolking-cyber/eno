@@ -171,6 +171,42 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
     blurb:
       'Khoảng giá thị trường theo từng loại món, và khi nào bán xô cho cửa hàng thu mua mới thực sự hợp lý.',
   },
+  /* ── HCMC vehicle hire, 2026-09-29 ──────────────────────────────────────────────────────────
+   * Hubs rather than articles (src/components/marketplace/vehicle-hub.tsx): a live grid, counts and
+   * a price summary with its method printed, over the car and motorbike hire imported with the
+   * sources' permission on 2026-09-29 (~6,100 cars, ~230 bikes). Registered here so the sitemap,
+   * the reserved handles and the hreflang pair see them.
+   * ⚠️ NO `categories`: /c/rentals is homes-only and its Guides block is about homes; that page links
+   * the hubs from its "Plus N cars and N motorbikes for hire" line instead (category-text.tsx).
+   */
+  {
+    slug: 'car-rental-ho-chi-minh-city',
+    lang: 'en',
+    pair: 'thue-xe-tu-lai-tphcm',
+    label: 'Car rental in Ho Chi Minh City',
+    blurb: 'Self-drive cars on one page, what a day costs by car size, and how booking with the source works.',
+  },
+  {
+    slug: 'thue-xe-tu-lai-tphcm',
+    lang: 'vi',
+    pair: 'car-rental-ho-chi-minh-city',
+    label: 'Thuê xe tự lái TP.HCM',
+    blurb: 'Xe tự lái gom về một trang, giá thuê một ngày theo loại xe, và cách đặt xe với nguồn.',
+  },
+  {
+    slug: 'motorbike-rental-ho-chi-minh-city',
+    lang: 'en',
+    pair: 'thue-xe-may-tphcm',
+    label: 'Motorbike rental in Ho Chi Minh City',
+    blurb: 'Scooters and manual bikes from local shops, day and month prices kept apart, and how booking with the shop works.',
+  },
+  {
+    slug: 'thue-xe-may-tphcm',
+    lang: 'vi',
+    pair: 'motorbike-rental-ho-chi-minh-city',
+    label: 'Thuê xe máy TP.HCM',
+    blurb: 'Xe ga và xe số từ các cửa hàng cho thuê, giá theo ngày và theo tháng tính riêng, và cách đặt xe với cửa hàng.',
+  },
   {
     slug: 'dang-tin-ban-hang-mien-phi',
     lang: 'vi',

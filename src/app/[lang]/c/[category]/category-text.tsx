@@ -116,8 +116,22 @@ function VehicleHire({ vehicles }: Pick<RentalsFacts, 'vehicles'>) {
   const cars = vehicles?.cars ?? 0
   const bikes = vehicles?.motorbikes ?? 0
   if (cars + bikes === 0) return null
+  /**
+   * On eno.vn each count links to its HCMC hub (src/components/marketplace/vehicle-hub.tsx), in the
+   * reader's language; on eno.forum to the explorer view instead — the hubs build there too, but a
+   * forum surface must not promote its self-canonical COPY of an eno.vn page (the footer's rule).
+   */
+  const HUB: Record<string, { en: string; vi: string }> = {
+    'car-rental': { en: '/car-rental-ho-chi-minh-city', vi: '/thue-xe-tu-lai-tphcm' },
+    'motorbike-rental': { en: '/motorbike-rental-ho-chi-minh-city', vi: '/thue-xe-may-tphcm' },
+  }
   const link = (sub: string, label: string) => (
-    <Link href={`/?category=rentals&subcategory=${sub}`} className="font-semibold text-accent-foreground hover:underline">{label}</Link>
+    <Link
+      href={IS_SERVICES ? `/?category=rentals&subcategory=${sub}` : HUB[sub][lang === 'vi' ? 'vi' : 'en']}
+      className="font-semibold text-accent-foreground hover:underline"
+    >
+      {label}
+    </Link>
   )
   // The sentence has the same shape in both languages ("Plus X and Y for hire." / "Ngoài ra còn X và
   // Y cho thuê."), so it is one branch of paired tr() literals; Vietnamese nouns take no plural.

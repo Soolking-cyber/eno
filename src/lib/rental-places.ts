@@ -25,3 +25,21 @@ export const RENTAL_PLACES: Prisma.ListingWhereInput = {
 /** The /api/listings param a places-only hub sends with its sort and Show-more requests, so page 2
  *  comes from the same set the hub counted (feed-query.ts). */
 export const PLACES_KIND_PARAM = { key: 'kind', value: 'places' } as const
+
+/**
+ * ⛔ AN IMPORTED VEHICLE-HIRE LISTING IS BROWSABLE BUT NOT INDEXABLE.
+ *
+ * ~6,400 HCMC cars and motorbikes are reference listings copied (with permission) from Mioto,
+ * BonbonCar and rental shops, each linking out to book (scripts/import-vehicle-rentals.ts). As pages
+ * they add nothing over the source's own, and Google's scaled-content guidance names exactly this
+ * shape — thousands of feed pages republished. So the PDP serves them `noindex, follow`, and the
+ * indexable value lives on the four hubs (src/components/marketplace/vehicle-hub.tsx). They were
+ * never in a sitemap: `submittedListingWhere` (src/lib/sitemap.ts) excludes every `affiliateUrl` row.
+ *
+ * ⚠️ THE RULE IS THE SHAPE, NOT THE SELLER IDS: an outbound booking link on a vehicle-hire row.
+ * A car a real person posts on eno.vn has no `affiliateUrl` and stays indexable; Rever and the
+ * other imported homes are not vehicle hire and keep whatever indexing they had.
+ */
+export function isVehicleHireReference(l: { affiliateUrl: string | null; subcategorySlug: string | null; categorySlug: string }): boolean {
+  return !!l.affiliateUrl && l.categorySlug === 'rentals' && !!l.subcategorySlug && VEHICLE_RENTAL_SUBCATS.includes(l.subcategorySlug)
+}

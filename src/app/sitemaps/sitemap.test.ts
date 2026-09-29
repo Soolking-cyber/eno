@@ -24,7 +24,7 @@ type Row = {
   updatedAt: Date
 }
 
-const h = vi.hoisted(() => ({ rows: [] as Row[] }))
+const h = vi.hoisted(() => ({ rows: [] as Row[], hubLive: { car: 1, motorbike: 1 } as Record<string, number> }))
 const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
   'cat-rentals': 'rentals', 'cat-books': 'books-stationery', 'cat-services': 'services', 'cat-empty': 'jobs',
 }))
@@ -82,6 +82,15 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
+/** The vehicle-hire hubs' live counts (their predicate joins Category, which the fake db does not model). */
+vi.mock('@/lib/vehicle-hubs', () => ({
+  vehicleHubLiveCount: async (kind: string) => h.hubLive[kind] ?? 0,
+  VEHICLE_HUB_KIND_BY_SLUG: {
+    'car-rental-ho-chi-minh-city': 'car', 'thue-xe-tu-lai-tphcm': 'car',
+    'motorbike-rental-ho-chi-minh-city': 'motorbike', 'thue-xe-may-tphcm': 'motorbike',
+  },
+}))
+
 /** The licensed-marketplace scope, emulated: the desk seller's rows are invisible to every read. */
 vi.mock('@/lib/edition-scope', () => ({
   scopedListingWhere: async (w: object) => ({ AND: [w, { sellerId: { notIn: ['desk-seller'] } }] }),
@@ -109,6 +118,7 @@ const FRESH = new Date('2026-09-24T00:00:00Z')
 beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_APP_URL', HOST)
   h.rows = []
+  h.hubLive = { car: 1, motorbike: 1 }
 })
 
 describe('the sitemap index', () => {
@@ -166,6 +176,20 @@ describe('the listing children', () => {
     expect(xml).toContain('<lastmod>2026-01-01T00:00:00.000Z</lastmod>')
   })
 
+  /**
+   * The HCMC vehicle-hire import (scripts/import-vehicle-rentals.ts, ~6,400 rows) is reference stock:
+   * browsable, `noindex` on the PDP (src/lib/rental-places.ts), and never submitted. Pinned here so a
+   * change to the affiliate rule cannot quietly push thousands of copied car pages into the sitemap.
+   */
+  it('never submits an imported vehicle-hire listing, and still submits a car a real seller posted', async () => {
+    h.rows = [
+      row({ id: 'car-imported', affiliateUrl: 'https://www.mioto.vn/car/vinfast-vf5-2026/KJJRTU', sellerId: 'import-seller' }),
+      row({ id: 'bike-imported', affiliateUrl: 'https://janmotorbike.com/product/airblade/', sellerId: 'import-seller' }),
+      row({ id: 'car-own' }),
+    ]
+    expect(locs(await (await child('listings-0.xml')).text())).toEqual([`${HOST}/listings/car-own`])
+  })
+
   it('404 anything that is not a bounded listings-<k>.xml, and answer an empty urlset past the end', async () => {
     for (const bad of ['listings.xml', 'listings-01.xml', 'listings--1.xml', 'listings-200.xml', 'foo.xml', 'pages.txt']) {
       expect((await child(bad)).status, bad).toBe(404)
@@ -185,6 +209,21 @@ describe('the listing children', () => {
     expect(listingSitemapCount(LISTINGS_PER_SITEMAP)).toBe(1)
     expect(listingSitemapCount(LISTINGS_PER_SITEMAP + 1)).toBe(2)
     expect(listingSitemapCount(Number.NaN)).toBe(0)
+  })
+})
+
+describe('the vehicle-hire hubs in the pages child', () => {
+  const pagesLocs = async () => locs(await (await pagesGET()).text())
+  it('submits each hub pair while it has live stock, and drops a pair the moment it has none (it serves noindex then)', async () => {
+    expect(await pagesLocs()).toEqual(expect.arrayContaining([
+      `${HOST}/car-rental-ho-chi-minh-city`, `${HOST}/thue-xe-tu-lai-tphcm`,
+      `${HOST}/motorbike-rental-ho-chi-minh-city`, `${HOST}/thue-xe-may-tphcm`,
+    ]))
+    h.hubLive = { car: 5, motorbike: 0 }
+    const out = await pagesLocs()
+    expect(out).toContain(`${HOST}/car-rental-ho-chi-minh-city`)
+    expect(out).not.toContain(`${HOST}/motorbike-rental-ho-chi-minh-city`)
+    expect(out).not.toContain(`${HOST}/thue-xe-may-tphcm`)
   })
 })
 

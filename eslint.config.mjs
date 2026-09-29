@@ -234,6 +234,10 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "src/app/\\[lang\\]/rental-deposit-vietnam/page.tsx",
     "src/app/\\[lang\\]/dang-tin-ban-hang-mien-phi/page.tsx",
     "src/app/\\[lang\\]/ban-do-cu-o-dau-duoc-gia/page.tsx",
+    // The HCMC vehicle-hire hubs (2026-09-29): four fixed-language pages — two English, two Vietnamese
+    // — rendered by ONE component, so the prose lives in the component, not the page files. Exempt for
+    // both reasons above at once: each branch is one page's own language, never a tr() pair.
+    "src/components/marketplace/vehicle-hub.tsx",
     // THE PHONE-BUYING CLUSTER (src/lib/phone-guides.ts) — sixteen articles, eight topics, each
     // topic written twice: once in English for English queries, once in Vietnamese for Vietnamese
     // ones.

@@ -53,6 +53,7 @@ import { AffiliateBooking } from '@/components/marketplace/affiliate-booking'
 import { JobApplyGuard } from '@/components/marketplace/job-apply-guard'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { isBookingCategory } from '@/lib/affiliate-kind'
+import { isVehicleHireReference } from '@/lib/rental-places'
 import { VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
 import { isVisaShopListing } from '@/lib/visa-shop'
 // The one switch that means "this deployment runs the visa chat" — see the gate on isVisaProduct.
@@ -154,8 +155,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: priceLabel ? `${displayTitle} — ${priceLabel} | ${SITE_NAME}` : `${displayTitle} | ${SITE_NAME}`,
     description: desc,
     // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
+    // ⛔ An imported vehicle-hire reference is live but noindex — src/lib/rental-places.ts says why.
     robots: listing.verified && listing.status === 'active'
-      ? (jobApplyByMeta ? { index: true, follow: true, unavailable_after: `${jobApplyByMeta}T23:59:59+07:00` } : undefined)
+      ? (isVehicleHireReference({ affiliateUrl: listing.affiliateUrl, subcategorySlug: listing.subcategorySlug, categorySlug: listing.category.slug })
+        ? { index: false, follow: true }
+        : jobApplyByMeta ? { index: true, follow: true, unavailable_after: `${jobApplyByMeta}T23:59:59+07:00` } : undefined)
       : { index: false, follow: true },
     alternates: {
       canonical: `${hostUrl}/listings/${id}`,

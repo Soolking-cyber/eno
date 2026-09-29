@@ -203,6 +203,16 @@ export function Footer() {
           : [
               { label: tr('Apartments for rent in Ho Chi Minh City', 'Căn hộ cho thuê tại TP.HCM'), href: '/c/rentals' },
               { label: tr('HCMC Rent Index', 'Chỉ số giá thuê nhà TP.HCM'), href: '/hcmc-rent-index' },
+              // The HCMC vehicle-hire hubs (vehicle-hub.tsx): a bilingual pair each, so the href follows
+              // the language like the iPhone guide below. Marketplace only, for the same reason as above.
+              {
+                label: tr('Motorbike rental in Ho Chi Minh City', 'Thuê xe máy TP.HCM'),
+                href: lang === 'vi' ? '/thue-xe-may-tphcm' : '/motorbike-rental-ho-chi-minh-city',
+              },
+              {
+                label: tr('Car rental in Ho Chi Minh City', 'Thuê xe tự lái TP.HCM'),
+                href: lang === 'vi' ? '/thue-xe-tu-lai-tphcm' : '/car-rental-ho-chi-minh-city',
+              },
             ]),
         { label: tr('Jobs in Vietnam for expats', 'Việc làm cho người nước ngoài'), href: '/jobs-vietnam-expats' },
         { label: tr('Moving sales in Vietnam', 'Thanh lý chuyển nhà tại Việt Nam'), href: '/moving-sales-vietnam' },

@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 // import is severed there. See the note on SERVICES_SITEMAP_PATHS in that module.
 import { SERVICES_SITEMAP_PATHS } from '@/lib/edition-services-copy'
 import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS } from '@/lib/expat-guides'
+import { vehicleHubLiveCount, VEHICLE_HUB_KIND_BY_SLUG } from '@/lib/vehicle-hubs'
 import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { seoLandingWhere } from '@/components/marketplace/seo-landing-where'
@@ -353,7 +354,15 @@ export async function GET() {
     // `page.tsx` routes that exist on BOTH editions, so both submit them from their own host — the same
     // arrangement the five keyword landings already have. No lastmod, for the reason just above: they
     // are static editorial with no data behind them.
+    // ⚠️ EXCEPT A VEHICLE-HIRE HUB WITH NOTHING LIVE: it serves `noindex` then, and submitting a noindex
+    // URL is a Search Console error. One count per kind; the hubs' own predicate (src/lib/vehicle-hubs.ts).
+    const hubLive = new Map<string, number>()
+    // ⚠️ FAIL OPEN: a failed count submits the hub rather than 500ing the whole pages sitemap — the same
+    // trade seoLandingRobots makes (an outage must never silently drop every page URL).
+    for (const kind of ['car', 'motorbike'] as const) hubLive.set(kind, await vehicleHubLiveCount(kind).catch(() => 1))
     for (const path of MARKETPLACE_GUIDE_PATHS) {
+      const hubKind = VEHICLE_HUB_KIND_BY_SLUG[path.slice(1)]
+      if (hubKind && !hubLive.get(hubKind)) continue
       urls.push(`  <url><loc>${hostUrl}${path}</loc></url>\n`)
     }
 
