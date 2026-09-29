@@ -23,6 +23,7 @@ import { PublishBlockedError, assertCleanTexts, minPhotosFor } from './publish-g
 import { formatMoneyFull } from './vnd'
 import { browseRankScore } from './ranking-formula'
 import { dropNearDuplicates, galleryPlan, type ImageSizeFloor, type PhotoOutcome } from './import-photo-check'
+import { coverByMark, type CoverMove } from './import-photo-mark'
 import { localizeImportText, type MissingSegment } from './import-i18n'
 
 /**
@@ -646,19 +647,25 @@ export function nhatotStartingRank(postedAt: Date, sellerTrustScore: number, now
  *  - a fetch/decode failure fails the row ('photoFailed' — all-or-nothing, the next run retries it);
  *  - a text card, a logo or a too-small image is left out, so it can never be the cover;
  *  - the same shot twice counts once (the publish gate counts DISTINCT angles);
- *  - fewer than `minPhotos` real, distinct photos left → 'tooFewRealPhotos': the row is not created.
+ *  - fewer than `minPhotos` real, distinct photos left → 'tooFewRealPhotos': the row is not created;
+ *  - with `mark` scores (only under --cover-by-mark), the kept photo among the first three that shows
+ *    Chợ Tốt's burned-in stamp clearly least becomes the cover (import-photo-mark.ts coverByMark);
+ *    `cover` says which moved. Without scores the source's order stands, exactly as before.
  */
 export type NhatotPhotoPlan = {
   decision: 'create' | 'photoFailed' | 'tooFewRealPhotos'
   keep: number[]
   refused: Partial<Record<'placeholder' | 'tooSmall', number>>
   duplicates: number
+  cover: CoverMove | null
 }
-export function nhatotPhotoPlan(judged: { outcome: PhotoOutcome; hash?: string | null }[], minPhotos = NHATOT_MIN_PHOTOS): NhatotPhotoPlan {
+export function nhatotPhotoPlan(judged: { outcome: PhotoOutcome; hash?: string | null; mark?: number | null }[], minPhotos = NHATOT_MIN_PHOTOS): NhatotPhotoPlan {
   const g = galleryPlan(judged.map((j) => j.outcome))
-  if (g.failed) return { decision: 'photoFailed', keep: [], refused: g.refused, duplicates: 0 }
+  if (g.failed) return { decision: 'photoFailed', keep: [], refused: g.refused, duplicates: 0, cover: null }
   const d = dropNearDuplicates(g.keep, judged.map((j) => j.hash ?? null))
-  return { decision: d.keep.length >= minPhotos ? 'create' : 'tooFewRealPhotos', keep: d.keep, refused: g.refused, duplicates: d.duplicates }
+  /** After the duplicates go, so the cover is picked among the photos that will actually be stored. */
+  const c = coverByMark(d.keep, judged.map((j) => j.mark))
+  return { decision: d.keep.length >= minPhotos ? 'create' : 'tooFewRealPhotos', keep: c.keep, refused: g.refused, duplicates: d.duplicates, cover: c.moved }
 }
 
 /**

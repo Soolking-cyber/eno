@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { IMPORT_SELLERS, isImportSeller } from './import-sellers'
+import { IMPORT_SELLERS, RENTAL_IMPORT_SELLERS, isImportSeller } from './import-sellers'
 
 /**
  * ⛔ AN IMPORTER WHOSE SELLER IS NOT IN IMPORT_SELLERS IS INVISIBLE TO EVERY "ALL IMPORTS" SCRIPT.
@@ -58,6 +58,12 @@ describe('IMPORT_SELLERS', () => {
     expect(IMPORT_SELLERS).toContain('bds-vn-import-seller-0001')
     expect(IMPORT_SELLERS).toContain('cmub0wead0000zrq418bqq27m') // Rever
     expect(new Set(IMPORT_SELLERS).size).toBe(IMPORT_SELLERS.length)
+  })
+
+  it('RENTAL_IMPORT_SELLERS is a subset of it, with no job boards and no duplicates', () => {
+    for (const id of RENTAL_IMPORT_SELLERS) expect(isImportSeller(id), id).toBe(true)
+    expect(RENTAL_IMPORT_SELLERS.filter((id) => /careerlink|esl|tefl|teach|jobs|edu/.test(id))).toEqual([])
+    expect(new Set(RENTAL_IMPORT_SELLERS).size).toBe(RENTAL_IMPORT_SELLERS.length)
   })
 
   it('is the list hide-imageless-imports.ts uses — no private copy left behind to drift', () => {

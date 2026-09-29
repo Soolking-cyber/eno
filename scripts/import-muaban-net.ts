@@ -6,8 +6,8 @@
  *   set -a; . ./.env; set +a; npx tsx scripts/import-muaban-net.ts \
  *     [--city hcm,hn,dn] [--types apartment,house,room,office] [--cap hcm=3000,hn=1000,dn=1000] \
  *     [--limit N] [--stage <out.jsonl>] [--probe-images] [--list-only] [--max-pages 100] [--delay-ms 1500]
- * Re-map a reviewed stage offline:   ... --src <staged.jsonl> [--limit N] [--probe-images]
- * Write (ONLY from a reviewed stage): ... --src <staged.jsonl> --journal <durable dir> --apply
+ * Re-map a reviewed stage offline:   ... --src <staged.jsonl> [--limit N] [--probe-images] [--cover-by-mark]
+ * Write (ONLY from a reviewed stage): ... --src <staged.jsonl> --journal <durable dir> --apply [--cover-by-mark]
  * Liveness (dry):                    ... --retire [--limit N]
  * Liveness (write, hides only):      ... --retire --journal <durable dir> --apply
  *
@@ -37,6 +37,10 @@
  * ⚠️ PHOTOS CARRY MUABAN'S OWN WATERMARK. The `thumb-detail` size (the largest the pages reference)
  * has a faint, centred "muaban.net" mark burned in. The owner accepted burned-in source marks
  * (2026-09-24, same rule as Batdongsan); eno's own mark is drawn on top by the overlay URL.
+ * `--cover-by-mark` (OFF by default; with --probe-images or --apply) leads with the kept photo among
+ * the first three where that stamp shows clearly least — src/lib/import-photo-mark.ts, which also
+ * says why it is opt-in. The stamp is learnt from eno's OWN stored copies of this seller's newest
+ * rows (never a request to muaban.net); a run that cannot learn it keeps the source's order.
  *
  * ⚠️ "NEWEST" IS MUABAN'S OWN ORDER. Each city × type list is read with `sort=1` ("Mới nhất",
  * publish_at descending — muaban re-publishes renewed ads, so this is "most recently live", not
@@ -56,7 +60,8 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { makeImageHost } from '../src/lib/host-product-image'
 import { isOverlayImageUrl } from '../src/lib/image-mark-url'
-import { measureImage } from '../src/lib/import-photo-check'
+import { HOST_EDGE, measureImage } from '../src/lib/import-photo-check'
+import { MARK_SEED_ROWS, coverByMark, fetchStoredImage, markScore, markSeedUrls, markTemplateFromUrls, type MarkTemplate } from '../src/lib/import-photo-mark'
 import { untranslatedSummary } from '../src/lib/import-i18n'
 import {
   ALLOWED_HOSTS, CITIES, EXTERNAL_PREFIX, MAX_STAGE_AGE_HOURS, PLACEHOLDER_ENTROPY, PLACEHOLDER_FLAT, PROPERTY_TYPES,
@@ -70,6 +75,11 @@ import {
 } from './muaban-net-map'
 
 const A = parseRunArgs(process.argv)
+/**
+ * Parsed by parseRunArgs (scripts/muaban-net-map.ts) like every other flag; modeRefusal (below, before
+ * anything runs) refuses it where it would silently do nothing — --retire, or a run that judges no photo.
+ */
+const COVER_BY_MARK = A.coverByMark
 const { apply: APPLY, retire: RETIRE, src: SRC, stage: STAGE, journalDir: JOURNAL_DIR, cities: CITY_KEYS, types: TYPES } = A
 const { caps: CAPS, limit: LIMIT, maxPages: MAX_PAGES, delayMs: DELAY_MS, probeImages: PROBE_IMAGES, listOnly: LIST_ONLY } = A
 /**
@@ -254,9 +264,25 @@ type Measured = ImageMeasure & { verdict: ImageVerdict }
 /** Decode + judge with the SHARED rule (src/lib/import-photo-check.ts): a null measure — bytes sharp
  *  cannot decode — is 'undecodable', which fails the row closed. */
 async function decodeVerdict(buf: Buffer): Promise<Measured> {
-  const m = await measureImage(buf)
+  const m = await measureImage(buf, { markWindow: COVER_BY_MARK })
   return { ...(m ?? {}), verdict: imageVerdict(m) }
 }
+
+/**
+ * --cover-by-mark: muaban.net's stamp, learnt from eno's OWN stored copies (listings/affiliate/m/) of
+ * this seller's newest rows — a GET to our storage, never a request to muaban.net. null = source order.
+ */
+async function learnMark(db: PrismaClient): Promise<MarkTemplate | null> {
+  const rows = await db.listing.findMany({
+    where: { sellerId: SELLER_ID, status: 'active' }, orderBy: { createdAt: 'desc' }, take: MARK_SEED_ROWS, select: { images: true },
+  })
+  const got = await markTemplateFromUrls(markSeedUrls(rows.map((r) => r.images), isOverlayImageUrl), fetchStoredImage, HOST_EDGE)
+  console.log(got.template
+    ? `cover by mark     ON — stamp learnt from ${got.fetched} stored photos of ${rows.length} rows (${got.template.strokes} px, ${got.template.strokeWidth} px wide, snr ${got.snr.toFixed(1)})`
+    : `cover by mark     OFF for this run — ${got.why} (${got.fetched} stored photos read, ${got.failed} failed${got.snr !== null ? `, snr ${got.snr.toFixed(1)}` : ''}); covers keep the source order`)
+  return got.template
+}
+const scoreOf = (mark: MarkTemplate | null, m: Measured | null) => (mark ? markScore(m?.markWindow, mark) : null)
 
 /** Fetch + judge one source photo. Never uploads. */
 async function judgePhoto(u: string): Promise<{ outcome: PhotoOutcome; body: Buffer | null; m: Measured | null }> {
@@ -511,7 +537,8 @@ async function main() {
         /** EVERY photo of each would-be row: fetched, decoded, judged by galleryPlan — the same rule
          *  --apply uses — and never uploaded. Prints what --apply would actually create. */
         const verdicts: Record<string, number> = {}
-        const outcome = { create: 0, noRealPhoto: 0, photoFailed: 0, coverReplaced: 0 }
+        const outcome = { create: 0, noRealPhoto: 0, photoFailed: 0, coverReplaced: 0, coverByMark: 0 }
+        const mark = COVER_BY_MARK ? await learnMark(db) : null
         const lines: string[] = []
         const measures: { entropy: number; flat: number; v: string }[] = []
         try {
@@ -525,13 +552,16 @@ async function main() {
               if (j.outcome === 'fetchFailed' || j.outcome === 'undecodable') break
             }
             const p = galleryPlan(got.map((g) => g.outcome))
+            const marks = got.map((g) => scoreOf(mark, g.m))
+            const c = coverByMark(p.keep, marks)
             const fate = p.failed ? 'SKIP (photo fetch/decode failed — retried next run)'
               : !p.keep.length ? 'SKIP (no real photo)'
-                : p.keep[0] !== 0 ? `create, cover = photo ${p.keep[0] + 1} (earlier refused)` : 'create'
+                : c.moved ? `create, cover = photo ${c.moved.from + 1} (stamp ${c.moved.was.toFixed(1)} → ${c.moved.now.toFixed(1)})`
+                  : p.keep[0] !== 0 ? `create, cover = photo ${p.keep[0] + 1} (earlier refused)` : 'create'
             if (p.failed) outcome.photoFailed++
             else if (!p.keep.length) outcome.noRealPhoto++
-            else { outcome.create++; if (p.keep[0] !== 0) outcome.coverReplaced++ }
-            lines.push(`  ${r.externalId.padEnd(16)} ${got.map((g) => `${g.outcome}${g.m?.entropy !== undefined ? `(e${g.m.entropy.toFixed(1)} f${g.m.flat?.toFixed(2)})` : ''}`).join(' ')}  → ${fate}`)
+            else { outcome.create++; if (p.keep[0] !== 0) outcome.coverReplaced++; if (c.moved) outcome.coverByMark++ }
+            lines.push(`  ${r.externalId.padEnd(16)} ${got.map((g, i) => `${g.outcome}${g.m?.entropy !== undefined ? `(e${g.m.entropy.toFixed(1)} f${g.m.flat?.toFixed(2)}${marks[i] !== null ? ` m${marks[i]!.toFixed(1)}` : ''})` : ''}`).join(' ')}  → ${fate}`)
           }
         } catch (e) {
           if (!(e instanceof Infeasible)) throw e
@@ -542,7 +572,7 @@ async function main() {
         const ok = measures.filter((x) => x.v === 'ok'), ph = measures.filter((x) => x.v === 'placeholder')
         const range = (xs: number[]) => xs.length ? `${Math.min(...xs).toFixed(2)}–${Math.max(...xs).toFixed(2)}` : 'n/a'
         console.log(`measured          ok: entropy ${range(ok.map((x) => x.entropy))}, flat ${range(ok.map((x) => x.flat))}   placeholder: entropy ${range(ph.map((x) => x.entropy))}, flat ${range(ph.map((x) => x.flat))}`)
-        console.log(`AFTER PHOTO CHECK would create ${outcome.create} (cover replaced on ${outcome.coverReplaced}), skip ${outcome.noRealPhoto} with no real photo, skip ${outcome.photoFailed} on a failed fetch`)
+        console.log(`AFTER PHOTO CHECK would create ${outcome.create} (cover replaced on ${outcome.coverReplaced}${mark ? `, led by the photo the stamp shows least on ${outcome.coverByMark}` : ''}), skip ${outcome.noRealPhoto} with no real photo, skip ${outcome.photoFailed} on a failed fetch`)
         console.log(`requests          ${[...requestCount].map(([h, n]) => `${h} ${n}`).join(', ')} (incl. probe)`)
       }
       for (const r of batch.slice(0, 3)) {
@@ -578,7 +608,9 @@ async function main() {
     console.log(`upload manifest   ${UPLOADED}\ncreated journal   ${CREATED}`)
 
     const trust = seller?.trustScore ?? 100
-    const stat = { created: 0, updated: 0, unchanged: 0, noRealPhotos: 0, photoFailed: 0, uploadFailed: 0, errored: 0, coverReplaced: 0, imagesRefused: {} as Record<string, number> }
+    /** Learnt BEFORE the first row, once — every row this run is judged against the same stamp. */
+    const mark = COVER_BY_MARK ? await learnMark(db) : null
+    const stat = { created: 0, updated: 0, unchanged: 0, noRealPhotos: 0, photoFailed: 0, uploadFailed: 0, errored: 0, coverReplaced: 0, coverByMark: 0, imagesRefused: {} as Record<string, number> }
     let stopped: string | null = null
     for (const r of batch) {
       try {
@@ -599,7 +631,7 @@ async function main() {
          * run), a text card or tiny image is left out (so it can never be the cover), and only when
          * every KEPT photo uploaded is the row created.
          */
-        const judged: { outcome: PhotoOutcome; body: Buffer | null }[] = []
+        const judged: { outcome: PhotoOutcome; body: Buffer | null; m: Measured | null }[] = []
         for (const u of r.imageSources) {
           const j = await judgePhoto(u)
           judged.push(j)
@@ -610,8 +642,10 @@ async function main() {
         if (p.failed) { stat.photoFailed++; continue }
         if (!p.keep.length) { stat.noRealPhotos++; continue }
         if (p.keep[0] !== 0) stat.coverReplaced++
+        /** Unscored (flag off, or no stamp learnt) = the gallery's own order, exactly as before. */
+        const c = coverByMark(p.keep, judged.map((j) => scoreOf(mark, j.m)))
         const urls: string[] = []
-        for (const i of p.keep) {
+        for (const i of c.keep) {
           const url = await host.fromBuffer(judged[i].body!, r.externalId.replace(/[^a-z0-9]/gi, '-'))
           if (!url) break
           recordDurably(UPLOADED, url)
@@ -619,7 +653,7 @@ async function main() {
           if (!isOverlayImageUrl(url)) throw new Error(`hosted URL is not an overlay URL: ${url}`)
           urls.push(url)
         }
-        if (urls.length !== p.keep.length) { stat.uploadFailed++; continue }
+        if (urls.length !== c.keep.length) { stat.uploadFailed++; continue }
         const res = await db.listing.upsert({
           where,
           /** ⛔ status/verified/images/postedAt/rankScore CREATE-ONLY. `verified` is the PUBLICATION
@@ -636,6 +670,7 @@ async function main() {
         if (res.createdAt.getTime() !== res.updatedAt.getTime()) { stat.updated++; continue }
         recordDurably(CREATED, JSON.stringify({ id: res.id, externalId: r.externalId }))
         stat.created++
+        if (c.moved) stat.coverByMark++
         if (stat.created % 100 === 0) console.log(`  ${stat.created} created`)
       } catch (e) {
         if (e instanceof Infeasible) { stopped = e.message; break }

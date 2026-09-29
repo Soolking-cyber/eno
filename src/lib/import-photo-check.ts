@@ -6,6 +6,9 @@
  * 2026-09-24) so a second importer applies the SAME text-card and logo test instead of a copy that
  * drifts. Everything but `measureImage` is pure; `measureImage` loads sharp lazily, inside the call,
  * so importing this file costs nothing and a unit test of the verdicts needs no native module.
+ * `measureImage` also keeps each photo's centre window, so the cover can be the photo where the
+ * portal's burned-in mark shows least (import-photo-mark.ts) — that changes the ORDER of the kept
+ * photos, never which are kept.
  *
  * ⚠️ 'placeholder' IS A MEASURED HEURISTIC, STATED AS SUCH. Some ads upload a text card ("CHO THUÊ",
  * "CHO THUÊ NHÀ") or a logo instead of a photo, and one was the COVER of a row the first muaban cut
@@ -21,6 +24,7 @@
  * is 'undecodable' — never assumed fine.
  */
 import { hammingHex, SAME_ANGLE_THRESHOLD } from './image-hash-url'
+import { markWindowOf, PHOTO_INPUT_PIXELS, type MarkWindow } from './import-photo-mark'
 
 export type ImageVerdict = 'ok' | 'placeholder' | 'tooSmall' | 'undecodable'
 /**
@@ -33,8 +37,11 @@ export const MIN_IMAGE_LONG_EDGE = 300
 export const PLACEHOLDER_ENTROPY = 5.0
 export const PLACEHOLDER_FLAT = 0.7
 /** `hash`: the 16-hex dHash of the upright, white-flattened photo — the same algorithm the image
- *  host writes into the stored filename, so near-duplicates can be dropped BEFORE anything uploads. */
-export type ImageMeasure = { width?: number; height?: number; entropy?: number; flat?: number; hash?: string | null }
+ *  host writes into the stored filename, so near-duplicates can be dropped BEFORE anything uploads.
+ *  `markWindow`: the photo's centre as the host stores it, for markScore (import-photo-mark.ts);
+ *  null when it could not be cut, absent unless `measureImage` was asked for it (`markWindow: true`) —
+ *  either way the photo is then unscored, never refused. */
+export type ImageMeasure = { width?: number; height?: number; entropy?: number; flat?: number; hash?: string | null; markWindow?: MarkWindow | null }
 export type ImageSizeFloor = { minLongEdge?: number; minShortEdge?: number }
 
 const inRange = (n: unknown, lo: number, hi: number): n is number =>
@@ -131,7 +138,7 @@ export const HOST_EDGE = 1600
  * against the real makeImageHost.
  */
 async function hostDHash(sharp: typeof import('sharp').default, buf: Buffer, edge: number): Promise<string | null> {
-  const img = sharp(buf, { limitInputPixels: 50_000_000 }).rotate()
+  const img = sharp(buf, { limitInputPixels: PHOTO_INPUT_PIXELS }).rotate()
   const meta = await img.metadata()
   const swapped = (meta.orientation ?? 1) >= 5
   const srcW = (swapped ? meta.height : meta.width) ?? edge
@@ -151,25 +158,28 @@ async function hostDHash(sharp: typeof import('sharp').default, buf: Buffer, edg
  * raw output is sRGB unless told otherwise, measured 2026-09-24 and pinned in the test — so
  * flatnessOf never sees fewer than three from a decodable image.)
  */
-export async function measureImage(buf: Buffer, opts: { hostEdge?: number } = {}): Promise<ImageMeasure | null> {
+export async function measureImage(buf: Buffer, opts: { hostEdge?: number; markWindow?: boolean } = {}): Promise<ImageMeasure | null> {
   try {
     const sharp = (await import('sharp')).default
-    const lim = { limitInputPixels: 50_000_000 }
+    const lim = { limitInputPixels: PHOTO_INPUT_PIXELS }
     // ⚠️ A TRANSPARENT IMAGE IS CAUGHT BY `flat`, NOT BY `entropy` (measured 2026-09-24): sharp's
     // resize premultiplies alpha, so hidden pixels come out black in the 64x64 thumbnail whatever RGB
     // they hold, and a logo on a transparent ground reads ~0.98 flat. `stats()` ignores pipeline ops
     // (a `.flatten()` before it does not change the entropy), so flattening here would buy nothing.
-    const [meta, stats, small, hash] = await Promise.all([
+    const [meta, stats, small, hash, markWindow] = await Promise.all([
       sharp(buf, lim).metadata(),
       sharp(buf, lim).stats(),
       sharp(buf, lim).resize(64, 64, { fit: 'fill' }).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
       hostDHash(sharp, buf, opts.hostEdge ?? HOST_EDGE),
+      /** ⚠️ ONLY WHEN ASKED (`--cover-by-mark`): it is one more full decode per photo, so a run without
+       *  the flag costs exactly what it did before the cover rule existed. */
+      opts.markWindow ? markWindowOf(buf, opts.hostEdge ?? HOST_EDGE) : Promise.resolve(undefined),
     ])
     // Upright dimensions, as the host stores the photo (it `.rotate()`s first). The size floors read
     // only the long and short edge, so this changes no verdict; it keeps the printed sizes true.
     const swapped = (meta.orientation ?? 1) >= 5
     const width = swapped ? meta.height : meta.width, height = swapped ? meta.width : meta.height
-    return { width, height, entropy: stats.entropy, flat: flatnessOf(small.data, small.info.channels), hash }
+    return { width, height, entropy: stats.entropy, flat: flatnessOf(small.data, small.info.channels), hash, markWindow }
   } catch {
     return null
   }

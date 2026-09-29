@@ -50,6 +50,20 @@ export const IMPORT_SELLERS = [
 
 export type ImportSellerId = (typeof IMPORT_SELLERS)[number]
 
+/**
+ * The RENTAL importers among them — the rows /c/rentals leads with, and the default scope of
+ * scripts/reorder-import-covers.ts. Each seller's own stored photos then decide whether it carries a
+ * centred stamp at all (src/lib/import-photo-mark.ts): a seller whose marks sit elsewhere, or who has
+ * none, learns no stamp and none of its rows move.
+ */
+export const RENTAL_IMPORT_SELLERS = [
+  'bds-vn-import-seller-0001',
+  'cmub0wead0000zrq418bqq27m', // Rever.vn
+  'nhatot-import-seller-0001',
+  'muaban-net-import-seller-0001',
+  'honeycomb-import-seller-0001',
+] as const satisfies readonly ImportSellerId[]
+
 export function isImportSeller(id: string): id is ImportSellerId {
   return (IMPORT_SELLERS as readonly string[]).includes(id)
 }

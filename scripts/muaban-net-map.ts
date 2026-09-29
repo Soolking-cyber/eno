@@ -184,6 +184,8 @@ export type RunArgs = {
   maxPages: number
   delayMs: number
   probeImages: boolean
+  /** --cover-by-mark: lead with the kept photo where muaban's stamp shows least (src/lib/import-photo-mark.ts). */
+  coverByMark: boolean
   listOnly: boolean
   forceMassRetire: boolean
 }
@@ -220,6 +222,7 @@ export function parseRunArgs(argv: string[]): RunArgs {
     maxPages: numArg(arg('--max-pages'), DEFAULT_MAX_PAGES, { min: 1, max: 1000, integer: true }),
     delayMs: numArg(arg('--delay-ms'), DEFAULT_DELAY_MS, { min: MIN_DELAY_MS, max: 60_000 }),
     probeImages: flag('--probe-images'),
+    coverByMark: flag('--cover-by-mark'),
     listOnly: flag('--list-only'),
     forceMassRetire: flag('--force-mass-retire'),
   }
@@ -230,6 +233,10 @@ export function parseRunArgs(argv: string[]): RunArgs {
  * BEFORE it touches the network, the database or the journal dir.
  */
 export function modeRefusal(a: RunArgs): string | null {
+  /** ⛔ Refused rather than ignored: the retire pass never judges a photo, and neither does a dry run
+   *  without --probe-images, so the flag would do nothing and say nothing. */
+  if (a.coverByMark && a.retire) return '--cover-by-mark is not a --retire option: the retire pass never judges photos (drop one)'
+  if (a.coverByMark && !a.probeImages && !a.apply) return '--cover-by-mark changes which photo leads when photos are judged: pass it with --probe-images (to see the covers) or --apply'
   if (a.retire && (a.src || a.stage)) return '--retire is its own pass: it reads the live rows of this seller, not a stage (drop --src/--stage)'
   if (a.apply && !a.retire && !a.src) return '--apply only imports a REVIEWED stage: run a dry run with --stage <file>, read it, then --src <file> --journal <dir> --apply'
   if (a.apply && a.stage) return '--stage is for live dry runs; --apply reads --src'

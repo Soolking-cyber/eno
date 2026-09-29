@@ -510,7 +510,7 @@ describe('photos — the real-photo check and the publish floor (review round 2)
   it('⛔ nhatotPhotoPlan: cards, logos and thumbnails are left out; fewer than 3 real, distinct photos = no row', () => {
     const ok = (hash: string) => ({ outcome: 'ok' as const, hash })
     const H = ['0000000000000000', 'ffffffffffffffff', '0f0f0f0f0f0f0f0f', 'f0f0f0f0f0f0f0f0']
-    expect(nhatotPhotoPlan([ok(H[0]), ok(H[1]), ok(H[2])])).toEqual({ decision: 'create', keep: [0, 1, 2], refused: {}, duplicates: 0 })
+    expect(nhatotPhotoPlan([ok(H[0]), ok(H[1]), ok(H[2])])).toEqual({ decision: 'create', keep: [0, 1, 2], refused: {}, duplicates: 0, cover: null })
     /** A text-card cover: left out, and the cover passes to the first real photo. */
     expect(nhatotPhotoPlan([{ outcome: 'placeholder' }, ok(H[0]), ok(H[1]), ok(H[2])])).toMatchObject({ decision: 'create', keep: [1, 2, 3], refused: { placeholder: 1 } })
     /** Only two real photos left → not created, however many candidates there were. */
@@ -520,6 +520,19 @@ describe('photos — the real-photo check and the publish floor (review round 2)
     /** A fetch or decode failure fails the row (all-or-nothing; the next run retries it). */
     expect(nhatotPhotoPlan([ok(H[0]), ok(H[1]), ok(H[2]), { outcome: 'fetchFailed' }]).decision).toBe('photoFailed')
     expect(nhatotPhotoPlan([ok(H[0]), ok(H[1]), ok(H[2]), { outcome: 'undecodable' }]).decision).toBe('photoFailed')
+  })
+
+  it('--cover-by-mark: the kept photo that shows the burned-in stamp least becomes the cover (after refusals and duplicates)', () => {
+    const ok = (hash: string, mark: number | null) => ({ outcome: 'ok' as const, hash, mark })
+    const H = ['0000000000000000', 'ffffffffffffffff', '0f0f0f0f0f0f0f0f', 'f0f0f0f0f0f0f0f0']
+    /** Photo 2 shows the stamp least: it leads, the rest keep the source's order. */
+    expect(nhatotPhotoPlan([ok(H[0], 2.6), ok(H[1], 1.4), ok(H[2], 0.9), ok(H[3], 0.2)]))
+      .toMatchObject({ decision: 'create', keep: [2, 0, 1, 3], cover: { from: 2, was: 2.6, now: 0.9 } })
+    /** A refused text card is not a candidate, and a duplicate of the cover is dropped first. */
+    expect(nhatotPhotoPlan([{ outcome: 'placeholder', mark: 0 }, ok(H[0], 3), ok(H[0], 0.1), ok(H[1], 2.9), ok(H[2], 1)]))
+      .toMatchObject({ keep: [4, 1, 3], duplicates: 1, cover: { from: 4 } })
+    /** No scores (the flag is off, or no template was learnt): the source's order, as before. */
+    expect(nhatotPhotoPlan([ok(H[0], null), ok(H[1], null), ok(H[2], null)])).toMatchObject({ keep: [0, 1, 2], cover: null })
   })
 
   it('the size floor refuses slivers and avatar crops the default (muaban) floor would pass — and keeps small real photos', () => {

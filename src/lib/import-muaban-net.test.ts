@@ -593,6 +593,20 @@ describe('arguments — ⛔ a typo never switches the rate limit off', () => {
     expect(p('--src', 's.jsonl', '--stage', 't.jsonl')).toMatch(/already is a staged file/)
   })
 
+  it('--cover-by-mark: accepted by the parser, and refused where it would silently do nothing', () => {
+    const base = ['node', 'x']
+    expect(parseRunArgs([...base, '--src', 's.jsonl', '--probe-images', '--cover-by-mark']).coverByMark).toBe(true)
+    expect(parseRunArgs([...base, '--src', 's.jsonl', '--probe-images']).coverByMark).toBe(false)
+    const p = (...a: string[]) => modeRefusal(parseRunArgs([...base, ...a]))
+    expect(p('--src', 's.jsonl', '--probe-images', '--cover-by-mark')).toBeNull()
+    expect(p('--src', 's.jsonl', '--journal', '/Users/x/j', '--apply', '--cover-by-mark')).toBeNull()
+    // ⛔ the retire pass never judges photos — a clear error, not a silent no-op (dry and write).
+    expect(p('--retire', '--cover-by-mark')).toMatch(/not a --retire option/)
+    expect(p('--retire', '--journal', '/Users/x/j', '--apply', '--cover-by-mark')).toMatch(/not a --retire option/)
+    // …nor a dry run that judges no photo.
+    expect(p('--src', 's.jsonl', '--cover-by-mark')).toMatch(/--probe-images/)
+  })
+
   it('journalDirProblem: a temp root the OS clears is refused, a lookalike prefix is not', () => {
     const roots = ['/tmp', '/private/tmp', '/var/folders']
     expect(journalDirProblem('/private/tmp/claude/j', roots)).toMatch(/clears/)

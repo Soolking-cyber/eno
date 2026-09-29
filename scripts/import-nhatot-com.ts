@@ -6,6 +6,7 @@
  *     set -a; . ./.env; set +a; npx tsx scripts/import-nhatot-com.ts [--limit 30 | --cap hcm=3000,hn=1500,dn=1500]
  *         [--city hcm,hn,dn] [--cg 1010,1020,1030,1050] [--save <staged.json>] [--max-photos 6] [--max-age-days 30]
  *         [--probe-photos]   (dry run only: fetch + judge every candidate photo of the batch, upload nothing)
+ *         [--cover-by-mark]  (with --probe-photos or --apply: lead with the photo Chợ Tốt's stamp shows least — 4-bis)
  *   Write (only from a STAGED, reviewed file — never straight off the network):
  *     … scripts/import-nhatot-com.ts --src <staged.json> --journal-dir <durable dir> --apply
  *
@@ -48,6 +49,13 @@
  * The photos carry Chợ Tốt's burned-in "choTOT" mark and often the uploader's own (sometimes a
  * phone number). The OWNER ACCEPTED burned-in source watermarks on 2026-09-24 (same rule as
  * Batdongsan); that covers pixels only, which is why the TEXT screen in (3) still runs.
+ * ⚠️ 4-bis. --cover-by-mark (OFF by default). The stamp sits at the centre of EVERY photo, so no photo
+ * is clean; with the flag, the kept photo among the first three where it shows clearly least becomes
+ * the cover (src/lib/import-photo-mark.ts, which also says why it is opt-in: measured on 36 live rows,
+ * no moved cover was a clearly better card by eye). The stamp's shape is learnt from eno's OWN stored
+ * copies of this seller's newest rows — never a request to Chợ Tốt — and a run that cannot learn it
+ * keeps the source's order and says so. The probe and --apply share nhatotPhotoPlan, so the probe
+ * prints the covers --apply would pick.
  *
  * ⛔ 4b. postedAt IS THE SOURCE'S OWN POST DATE (`list_time`, clamped to now), and the starting
  * rankScore is computed from it with the same browseRankScore every create uses — never "now", which
@@ -80,7 +88,8 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { makeImageHost } from '../src/lib/host-product-image'
 import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { countDistinctAngles } from '../src/lib/image-hash-url'
-import { imageVerdict, measureImage, MIN_IMAGE_LONG_EDGE, PLACEHOLDER_ENTROPY, PLACEHOLDER_FLAT, type ImageMeasure, type PhotoOutcome } from '../src/lib/import-photo-check'
+import { HOST_EDGE, imageVerdict, measureImage, MIN_IMAGE_LONG_EDGE, PLACEHOLDER_ENTROPY, PLACEHOLDER_FLAT, type ImageMeasure, type PhotoOutcome } from '../src/lib/import-photo-check'
+import { MARK_SEED_ROWS, fetchStoredImage, markScore, markSeedUrls, markTemplateFromUrls, type MarkTemplate } from '../src/lib/import-photo-mark'
 import { formatMoneyFull } from '../src/lib/vnd'
 import { untranslatedSummary } from '../src/lib/import-i18n'
 import {
@@ -96,7 +105,7 @@ import {
 
 const argv = process.argv.slice(2)
 /** ⛔ AN UNKNOWN FLAG IS AN ERROR. `--limt 30` silently meaning "no limit" is how a sample becomes a full crawl. */
-const FLAGS = new Set(['--apply', '--retire', '--no-probe', '--probe-photos'])
+const FLAGS = new Set(['--apply', '--retire', '--no-probe', '--probe-photos', '--cover-by-mark'])
 const VALUED = new Set(['--limit', '--max-photos', '--max-age-days', '--gap-ms', '--src', '--save', '--journal-dir', '--city', '--cg', '--cap', '--ids'])
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
@@ -114,6 +123,9 @@ const RETIRE = argv.includes('--retire')
 const NO_PROBE = argv.includes('--no-probe')
 const PROBE_PHOTOS = argv.includes('--probe-photos')
 if (PROBE_PHOTOS && (APPLY || RETIRE || NO_PROBE)) throw new Error('--probe-photos is a DRY-RUN import option (it fetches every candidate photo); not with --apply, --retire or --no-probe')
+/** Acts only where photos are judged (--probe-photos, --apply); refused where it would silently do nothing. */
+const COVER_BY_MARK = argv.includes('--cover-by-mark')
+if (COVER_BY_MARK && (RETIRE || (!PROBE_PHOTOS && !APPLY))) throw new Error('--cover-by-mark changes which photo leads when photos are judged: pass it with --probe-photos (to see the covers) or --apply, never --retire')
 const str = (k: string, d: string | null = null) => {
   const i = argv.indexOf(k)
   return i > -1 && argv[i + 1] !== undefined && !argv[i + 1].startsWith('--') ? argv[i + 1] : d
@@ -469,7 +481,7 @@ async function judgePhoto(src: string): Promise<Judged> {
   try { buf = Buffer.from(await res.arrayBuffer()) } catch { return failed('body read failed') }
   /** ⚠️ An empty body passes `res.ok`; say why here rather than as a decode failure. */
   if (!buf.length) return failed('empty body')
-  const m = await measureImage(buf)
+  const m = await measureImage(buf, { markWindow: COVER_BY_MARK })
   return { outcome: imageVerdict(m, NHATOT_PHOTO_FLOOR), body: buf, m }
 }
 /**
@@ -477,14 +489,31 @@ async function judgePhoto(src: string): Promise<Judged> {
  * both the dry-run probe and --apply act on. Stops at the first fetch/decode failure: the row is
  * skipped anyway, so the rest would be requests for nothing.
  */
-async function judgeRow(row: NhatotMapped): Promise<{ judged: Judged[]; plan: NhatotPhotoPlan }> {
+async function judgeRow(row: NhatotMapped, mark: MarkTemplate | null): Promise<{ judged: Judged[]; marks: (number | null)[]; plan: NhatotPhotoPlan }> {
   const judged: Judged[] = []
   for (const src of row.images) {
     const j = await judgePhoto(src)
     judged.push(j)
     if (j.outcome === 'fetchFailed' || j.outcome === 'undecodable') break
   }
-  return { judged, plan: nhatotPhotoPlan(judged.map((j) => ({ outcome: j.outcome, hash: j.m?.hash ?? null }))) }
+  /** null everywhere unless --cover-by-mark learnt the stamp — nhatotPhotoPlan then keeps the source order. */
+  const marks = judged.map((j) => (mark ? markScore(j.m?.markWindow, mark) : null))
+  return { judged, marks, plan: nhatotPhotoPlan(judged.map((j, i) => ({ outcome: j.outcome, hash: j.m?.hash ?? null, mark: marks[i] }))) }
+}
+
+/**
+ * --cover-by-mark: Chợ Tốt's stamp, learnt from eno's OWN stored copies (listings/affiliate/m/) of this
+ * seller's newest rows — a GET to our storage, never a request to Chợ Tốt. null = the source's order.
+ */
+async function learnMark(db: ReturnType<typeof openDb>): Promise<MarkTemplate | null> {
+  const rows = await db.listing.findMany({
+    where: { sellerId: NHATOT_SELLER_ID, status: 'active' }, orderBy: { createdAt: 'desc' }, take: MARK_SEED_ROWS, select: { images: true },
+  })
+  const got = await markTemplateFromUrls(markSeedUrls(rows.map((r) => r.images), isOverlayImageUrl), fetchStoredImage, HOST_EDGE)
+  console.log(got.template
+    ? `cover by mark     ON — stamp learnt from ${got.fetched} stored photos of ${rows.length} rows (${got.template.strokes} px, ${got.template.strokeWidth} px wide, snr ${got.snr.toFixed(1)})`
+    : `cover by mark     OFF for this run — ${got.why} (${got.fetched} stored photos read, ${got.failed} failed${got.snr !== null ? `, snr ${got.snr.toFixed(1)}` : ''}); covers keep the source order`)
+  return got.template
 }
 
 const slugOf = (r: NhatotMapped) => r.externalId.replace(/[^a-z0-9]/gi, '-')
@@ -494,31 +523,33 @@ const slugOf = (r: NhatotMapped) => r.externalId.replace(/[^a-z0-9]/gi, '-')
  * would CREATE is fetched and judged by judgeRow — the function --apply calls — and nothing is
  * uploaded. Each row's verdicts are printed with their measures so the thresholds stay reviewable.
  */
-async function probePhotos(rows: NhatotMapped[]) {
+async function probePhotos(rows: NhatotMapped[], mark: MarkTemplate | null) {
   const decisions: Record<string, number> = {}
   const verdicts: Record<string, number> = {}
   const measured: { v: PhotoOutcome; short: number; long: number; e: number; f: number }[] = []
   const lines: string[] = []
-  let stopped: string | null = null, duplicates = 0, judgedRows = 0
+  let stopped: string | null = null, duplicates = 0, judgedRows = 0, covers = 0
   for (const r of rows) {
     let got: Awaited<ReturnType<typeof judgeRow>>
-    try { got = await judgeRow(r) } catch (e) {
+    try { got = await judgeRow(r, mark) } catch (e) {
       if (!(e instanceof StopRead)) throw e
       stopped = e.message; break
     }
     judgedRows++
     decisions[got.plan.decision] = (decisions[got.plan.decision] ?? 0) + 1
     duplicates += got.plan.duplicates
-    const cells = got.judged.map((j) => {
+    const cells = got.judged.map((j, i) => {
       verdicts[j.outcome] = (verdicts[j.outcome] ?? 0) + 1
       const m = j.m
       if (m?.width && m.height && m.entropy !== undefined && m.flat !== undefined) {
         measured.push({ v: j.outcome, short: Math.min(m.width, m.height), long: Math.max(m.width, m.height), e: m.entropy, f: m.flat })
-        return `${j.outcome}(${m.width}x${m.height} e${m.entropy.toFixed(1)} f${m.flat.toFixed(2)})`
+        return `${j.outcome}(${m.width}x${m.height} e${m.entropy.toFixed(1)} f${m.flat.toFixed(2)}${got.marks[i] !== null ? ` m${got.marks[i]!.toFixed(1)}` : ''})`
       }
       return j.why ? `${j.outcome}(${j.why})` : j.outcome
     })
-    lines.push(`  ${r.externalId.padEnd(18)} ${cells.join(' ')}  → ${got.plan.decision} (keep ${got.plan.keep.length}${got.plan.duplicates ? `, ${got.plan.duplicates} duplicate` : ''})`)
+    const cover = got.plan.cover
+    if (cover && got.plan.decision === 'create') covers++
+    lines.push(`  ${r.externalId.padEnd(18)} ${cells.join(' ')}  → ${got.plan.decision} (keep ${got.plan.keep.length}${got.plan.duplicates ? `, ${got.plan.duplicates} duplicate` : ''}${cover ? `, cover = photo ${cover.from + 1}: stamp ${cover.was.toFixed(1)} → ${cover.now.toFixed(1)}` : ''})`)
   }
   const range = (xs: number[], d = 1) => xs.length ? `${Math.min(...xs).toFixed(d)}–${Math.max(...xs).toFixed(d)}` : '-'
   const of = (v: PhotoOutcome) => measured.filter((x) => x.v === v)
@@ -527,6 +558,7 @@ async function probePhotos(rows: NhatotMapped[]) {
   for (const l of lines) console.log(l)
   console.log(`row decisions     ${JSON.stringify(decisions)}   (only 'create' rows would be written)`)
   console.log(`photo verdicts    ${JSON.stringify(verdicts)}   near-duplicates dropped ${duplicates}`)
+  if (mark) console.log(`cover by mark     ${covers} of ${decisions.create ?? 0} created rows would lead with a different photo (m = how much Chợ Tốt's stamp shows)`)
   for (const v of ['ok', 'placeholder', 'tooSmall'] as const) {
     const xs = of(v)
     if (xs.length) console.log(`  ${v.padEnd(12)}    ${String(xs.length).padStart(4)} · short edge ${range(xs.map((x) => x.short), 0)} px · long ${range(xs.map((x) => x.long), 0)} px · entropy ${range(xs.map((x) => x.e))} · flat ${range(xs.map((x) => x.f), 2)}`)
@@ -714,7 +746,7 @@ async function importMain() {
         console.log(`  ${r.externalId.padEnd(18)} ${formatMoneyFull(r.mutable.price, '₫', 'vi').padStart(14)}/tháng · ${r.mutable.subcategorySlug ?? '-'} · ${r.mutable.city} · ${r.mutable.location} · ${r.mutable.title}`)
       }
     }
-    if (PROBE_PHOTOS && batch.length) await probePhotos(newRows)
+    if (PROBE_PHOTOS && batch.length) await probePhotos(newRows, COVER_BY_MARK ? await learnMark(db) : null)
     console.log('\nDRY RUN — nothing written, nothing uploaded. Stage with --save, review, then --src <file> --journal-dir <durable dir> --apply.')
     await db.$disconnect(); return
   }
@@ -742,9 +774,11 @@ async function importMain() {
     })
   }
 
+  /** Learnt BEFORE the first row, once — every row this run is judged against the same stamp. */
+  const mark = COVER_BY_MARK ? await learnMark(db) : null
   const stat = {
     created: 0, refreshed: 0, unchanged: 0, photoFailed: 0, tooFewRealPhotos: 0, uploadFailed: 0, raced: 0, errored: 0, uploaded: 0,
-    duplicatePhotos: 0, imagesRefused: {} as Record<string, number>,
+    duplicatePhotos: 0, coverByMark: 0, imagesRefused: {} as Record<string, number>,
   }
   let stopped: string | null = null
   for (const r of batch) {
@@ -770,7 +804,7 @@ async function importMain() {
         continue
       }
       /** ⛔ Judged BEFORE anything uploads, by the same plan the dry-run probe prints. */
-      const { judged, plan } = await judgeRow(r)
+      const { judged, plan } = await judgeRow(r, mark)
       for (const [k, n] of Object.entries(plan.refused)) stat.imagesRefused[k] = (stat.imagesRefused[k] ?? 0) + (n ?? 0)
       stat.duplicatePhotos += plan.duplicates
       if (plan.decision === 'photoFailed') { stat.photoFailed++; continue }
@@ -803,6 +837,7 @@ async function importMain() {
       })
       recordDurably(CREATED, JSON.stringify({ id: made.id, externalId: r.externalId, at: new Date().toISOString() }))
       stat.created++
+      if (plan.cover) stat.coverByMark++
     } catch (e) {
       if (e instanceof StopRead) { stopped = e.message; break }
       if ((e as { code?: string }).code === 'P2002') stat.raced++
