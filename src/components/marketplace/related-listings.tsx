@@ -13,8 +13,17 @@ import type { SerializedListingCard } from '@/lib/types'
  *  (IO-gated) so this below-fold call never competes with the gallery LCP image for bandwidth.
  *  Uses the STANDARD grid-matched card size (2/3/4 per view, like the home rails +
  *  "Recently viewed") so all rails read as one family. */
-export function RelatedListings({ listingId, categorySlug, subcategorySlug, brandSlug }: {
+export function RelatedListings({ listingId, categorySlug, subcategorySlug, brandSlug, excludeSellerId, variant = 'pdp' }: {
   listingId: string; categorySlug: string; subcategorySlug?: string | null; brandSlug?: string | null
+  /**
+   * ⚠️ SET ONLY WHEN THE "More from this seller" RAIL IS ACTUALLY ON THE PAGE (it renders nothing under
+   * two listings). A single-seller shelf — every tickets-travel row is VinWonders — otherwise drew the
+   * same twelve cards twice, one rail under the other. Leaving the seller's rows out of THIS rail keeps
+   * the two disjoint; if that empties it, it renders nothing, which is the point.
+   */
+  excludeSellerId?: string | null
+  /** 'sold': the shelf on the sold page, where the item itself is gone — hence its own title. */
+  variant?: 'pdp' | 'sold'
 }) {
   const router = useRouter()
   const { tr } = useLanguage()
@@ -56,14 +65,14 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
           const r = await fetch(`/api/listings?${scope}&limit=12&sort=newest`)
           const d = await r.json()
           for (const l of (d.listings || []) as SerializedListingCard[]) {
-            if (l.id !== listingId && !seen.has(l.id)) seen.set(l.id, l)
+            if (l.id !== listingId && (!excludeSellerId || l.sellerId !== excludeSellerId) && !seen.has(l.id)) seen.set(l.id, l)
           }
         } catch { /* a failed pass just means the next, wider one fills the rail */ }
       }
       if (!off) setItems([...seen.values()].slice(0, 10))
     })()
     return () => { off = true }
-  }, [near, categorySlug, subcategorySlug, brandSlug, listingId])
+  }, [near, categorySlug, subcategorySlug, brandSlug, listingId, excludeSellerId])
 
   // Sentinel: the observer needs a node in the layout before there is data. Out of flow
   // (absolute, zero-size) so it can never earn spacing from a space-y/gap parent; IO still
@@ -74,7 +83,7 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
     // Shelf's SECTION_TITLE already carries the app-wide text-lg font-semibold header tier;
     // the See-all into the category page gives every PDP shelf the same header + See-all shape.
     <Shelf
-      title={tr('More like this', 'Tin tương tự')}
+      title={variant === 'sold' ? tr('Similar items still available', 'Tin tương tự vẫn còn bán') : tr('More like this', 'Tin tương tự')}
       seeAllHref={`/c/${categorySlug}`}
       sectionClassName="mt-12"
       watch={items.length}

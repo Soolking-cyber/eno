@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Eye, MessageSquare, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check, MoreHorizontal, Link2 } from '@/components/ui/icons'
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { copyText } from '@/lib/copy-text'
+import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 
 // One row in the seller dashboard's listings table. Lifecycle actions are
@@ -30,6 +32,13 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   const title = lang === 'vi' ? (listing.titleVi || listing.title) : listing.title
   const img = listing.images[0] || null
+  // Thumbnails go through the image optimizer, never the stored original — an 80px row was downloading
+  // the full-size upload, once per listing in the seller's table. The row's box is FIXED, so it takes
+  // width/height rather than `fill`: that emits a 1x/2x srcset (128/256) instead of every configured
+  // width up to 1080, so no screen density can pull more than 256px for an 80px square.
+  // `unoptimized` only where the optimizer would refuse the source (anything outside our listings
+  // bucket 400s against remotePatterns) and for mock/seed CDN images, which are already sized.
+  const imgUnoptimized = !!img && (!isListingImageUrl(img) || isMockImageUrl(img))
 
   if (gone) return null
 
@@ -186,7 +195,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       <div className={cn('flex flex-col rounded-2xl border bg-card transition-colors', selected ? 'border-brand ring-1 ring-brand' : 'border-border/70 hover:border-line-strong')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
         <button onClick={open} className="relative aspect-square w-full overflow-hidden rounded-t-2xl bg-tint cursor-pointer" aria-label={title}>
           {img && (
-            <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
+            <Image src={img} alt="" fill sizes="(min-width: 640px) 25vw, 50vw" quality={60} unoptimized={imgUnoptimized} className="object-cover" />
           )}
           {selectable && <span className="absolute right-2 top-2">{checkbox}</span>}
           <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-2xs font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
@@ -208,7 +217,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       {selectable && <span className="self-center">{checkbox}</span>}
       <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint" aria-label={title}>
         {img && (
-          <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
+          <Image src={img} alt="" width={80} height={80} quality={60} unoptimized={imgUnoptimized} className="h-full w-full object-cover" />
         )}
       </Button>
 

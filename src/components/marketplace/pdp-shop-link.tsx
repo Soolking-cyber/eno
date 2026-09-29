@@ -20,7 +20,7 @@ import type { SellerMetrics } from '@/lib/seller-metrics'
  *  reviews) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
  *  buy box is gone (its "Chat now" lives on in the ContactComposer). The whole strip is a div (not
  *  one anchor) so the trust chip and the Shop link can each be their own real link. */
-export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linkedPosting = false }: {
+export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linked = null }: {
   name: string
   avatarColor?: string | null
   avatarUrl?: string | null
@@ -31,12 +31,18 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
   metrics: SellerMetrics
   className?: string
   /**
-   * A LINKED JOB POSTING (scripts/import-jobs.ts): the "seller" is the job board the posting lives on,
-   * which eno.vn never rated — a TrustScore chip beside its name reads as eno vouching for employers
-   * it has not vetted, on the most scam-prone vertical. Shows a plain note instead, and drops the
-   * seller-activity strip (response time, last seen), which describes nobody.
+   * A REFERENCE LISTING whose "seller" is an import storefront (src/lib/import-sellers.ts), which
+   * eno.vn never rated:
+   * - 'job' — a LINKED JOB POSTING (scripts/import-jobs.ts): the storefront is the job board the
+   *   posting lives on, not the employer. A TrustScore chip beside its name reads as eno vouching for
+   *   employers it has not vetted, on the most scam-prone vertical.
+   * - 'listing' — any other imported reference row (the rental portals: Chợ Tốt, Rever, …). Their
+   *   storefronts sit at the default trustScore 100, which is a RANKING default kept for fairness,
+   *   not the /trust "Trusted" tier the chip would announce.
+   * Either way it shows a plain note instead of the chip, and drops the seller-activity strip
+   * (response time, last seen, joined, reviews), which describes nobody.
    */
-  linkedPosting?: boolean
+  linked?: 'job' | 'listing' | null
 }) {
   const { tr } = useLanguage()
   const { responseBucket, lastSeenDay, memberSinceYear, reviewCount, rating, trustScore } = metrics
@@ -53,11 +59,12 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
 
   // Honest metrics strip — only signals that exist (never zero-filled), joined with middots.
   const strip: React.ReactNode[] = []
-  if (linkedPosting) strip.push(tr('Linked job posting — not vetted by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa kiểm duyệt'))
+  if (linked === 'job') strip.push(tr('Linked job posting — not vetted by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa kiểm duyệt'))
+  else if (linked === 'listing') strip.push(tr('Linked listing — not vetted by eno.vn', 'Tin đăng dẫn link — eno.vn chưa kiểm duyệt'))
   else if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
-  if (!linkedPosting && lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
-  if (!linkedPosting) strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
-  if (!linkedPosting && reviewCount > 0) {
+  if (!linked && lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
+  if (!linked) strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
+  if (!linked && reviewCount > 0) {
     strip.push(
       // lucide Star (rating fill), NOT the '★' text glyph — same rating mark as the
       // shared SellerCard strip and the storefront review rows (icon-language §1).
@@ -119,7 +126,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
               pdp-shop-link and compact-listing-row, so a partner reads identically everywhere. */}
           {officialPartner
             ? <PartnerBadge />
-            : linkedPosting ? null : <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />}
+            : linked ? null : <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />}
         </div>
         {strip.length > 0 && (
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
@@ -134,13 +141,15 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
       </div>
       <Link
         href={href}
-        aria-label={tr('Visit shop', 'Vào gian hàng')}
+        // A job board is not a shop: on a linked job the storefront is the BOARD's other postings
+        // (import-jobs.ts), never the employer's, so the label says what the link actually opens.
+        aria-label={linked === 'job' ? tr('More jobs from this board', 'Việc làm khác từ trang tuyển dụng này') : tr('Visit shop', 'Vào gian hàng')}
         // `relative tap-44`: 64x28 → a 44px-tall hit area around the same pill. `active:bg-secondary`
         // is the press — the hover wash, shown on touch too, in 60ms; the release eases back at the
         // transition's normal 150ms, so the press reads instantly and the let-go does not flash.
         className="group relative tap-44 flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-secondary active:bg-secondary active:duration-[60ms]"
       >
-        {tr('Shop', 'Gian hàng')}
+        {linked === 'job' ? tr('More jobs', 'Việc làm khác') : tr('Shop', 'Gian hàng')}
         {/* `motion-reduce:group-hover:translate-x-0` is NOT redundant beside
             `motion-reduce:transition-none`: killing the transition removes only the TWEEN,
             leaving the 2px displacement to happen instantly — the jump a reduced-motion

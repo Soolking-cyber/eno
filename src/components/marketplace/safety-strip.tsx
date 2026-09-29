@@ -22,7 +22,7 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
    * that translates its own copy through tr(). A string handed in from the server page cannot be
    * translated — the first draft did exactly that and Vietnamese readers would have got the English
    * sentence, on the one line of the page that exists to prevent someone losing money.
-   */ variant?: 'affiliate' | 'affiliate-purchase' | 'affiliate-job' }) {
+   */ variant?: 'affiliate' | 'affiliate-purchase' | 'affiliate-rental' | 'affiliate-job' }) {
   const { tr } = useLanguage()
 
   // ⚠️ "partner tickets" IS WRONG ON A PHONE. The affiliate line was written for VinWonders and
@@ -35,6 +35,14 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
     ? tr(
         "Apply only on the original posting — eno.vn doesn't handle applications and never charges a fee. Never pay money to get a job.",
         'Chỉ ứng tuyển trên tin tuyển dụng gốc — eno.vn không xử lý hồ sơ và không bao giờ thu phí. Đừng bao giờ trả tiền để có việc làm.',
+      )
+    // A PARTNER RENTAL (an imported portal listing) is neither a purchase nor a ticket: "Buy only on
+    // the shop's own website" told a tenant they were buying the flat. Same split as the CTA's
+    // "Rent on …" (affiliate-booking.tsx). True as written: eno holds no money for any listing.
+    : variant === 'affiliate-rental'
+    ? tr(
+        "Rent only through the partner's own website — eno.vn never takes rent or a deposit for these listings, and cannot refund one.",
+        'Chỉ thuê qua website chính thức của đối tác — eno.vn không bao giờ nhận tiền thuê hay tiền cọc cho các tin này, và không thể hoàn tiền.',
       )
     : variant === 'affiliate-purchase'
     ? tr(

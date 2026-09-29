@@ -5,6 +5,7 @@ import { affiliateQrSvg, safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { AffiliateCodeCopy } from './affiliate-code-copy'
 import { AffiliateProductStep } from './affiliate-product-step'
+import { JobApplyBy } from './job-apply-guard'
 
 /**
  * THE BUY BOX FOR A LISTING WHOSE CHECKOUT HAPPENS ON A PARTNER'S SITE.
@@ -31,6 +32,7 @@ export function AffiliateBooking({
   booking,
   rental = false,
   job = false,
+  applyBy = null,
 }: {
   url: string
   partnerName: string
@@ -56,6 +58,8 @@ export function AffiliateBooking({
    * checkout wording apply to it.
    */
   job?: boolean
+  /** A job's apply-by date ('YYYY-MM-DD'), printed directly under the Apply button — see JobApplyBy. */
+  applyBy?: string | null
 }) {
   // ⛔ https ONLY — see safeAffiliateUrl. A stored `javascript:` value would otherwise be a
   // stored-XSS sink, and this link leads to a payment page so `http:` is refused as well.
@@ -63,7 +67,7 @@ export function AffiliateBooking({
   const safeUrl = safeAffiliateUrl(url)
   if (!safeUrl) return null
 
-  const qr = affiliateQrSvg(safeUrl, { title: job ? `QR code to open the job posting on ${partnerName}` : `QR code to book on ${partnerName}` })
+  const qr = affiliateQrSvg(safeUrl, { title: job ? `QR code to open the job posting on ${partnerName}` : rental ? `QR code to open the rental on ${partnerName}` : `QR code to book on ${partnerName}` })
   // The product this link was minted for, when the campaign is one measured not to deep-link.
   const productStep = embeddedProductUrl(safeUrl)
 
@@ -124,6 +128,10 @@ export function AffiliateBooking({
         </a>
       </Button>
 
+      {/* The deadline belongs to the button it limits, so it sits right under it (8px: `-mt-2` against
+          this column's 16px gap) — not below the QR row, where it would read as a caption of the code. */}
+      {job && applyBy ? <JobApplyBy applyBy={applyBy} className="-mt-2" /> : null}
+
       {/* ⚠️ ONLY WHERE THE AFFILIATE LINK CANNOT REACH THE PRODUCT, and only after the button above
           has been used. `embeddedProductUrl` returns null for every campaign that deep-links
           properly, so this is absent from CellphoneS listings and from every ordinary partner —
@@ -148,19 +156,26 @@ export function AffiliateBooking({
         </div>
       ) : null}
 
+      {/* ⚠️ A DESKTOP-TO-PHONE HANDOFF, SO IT EXISTS ONLY ON A DESKTOP-CLASS DEVICE. It rendered
+          everywhere as a 130px bordered card directly under the CTA — on a phone, a code telling you
+          to scan it with the phone you are holding. `pc:` is the house device variant (a ≥64rem window
+          AND a fine pointer — globals.css), not a width alone, so a touch tablet in landscape does not
+          get it either. And a hairline row, not a box: in-flow content is flat (design-language §3b).
+          ⚠️ The visibility lives on this plain div, never on a Button/asChild child, where a class is
+          concatenated rather than merged. */}
       {qr ? (
-        <div className="flex items-center gap-4 rounded-xl border border-border/70 p-4">
+        <div className="hidden items-center gap-4 border-t border-border pt-4 pc:flex">
           {/*
             * Inline SVG rather than an <img>: the CSP pins img-src to our own origin, so a QR
             * service URL would be blocked, and a data: URI costs a base64 round-trip for no gain.
             */}
-          <div className="shrink-0 [&>svg]:size-24 [&>svg]:rounded-lg" dangerouslySetInnerHTML={{ __html: qr }} />
+          <div className="shrink-0 [&>svg]:size-20 [&>svg]:rounded-lg" dangerouslySetInnerHTML={{ __html: qr }} />
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">
-              {job ? <Tr text="Scan to open the job posting on your phone" /> : booking ? <Tr text="Scan to book on your phone" /> : <Tr text="Scan to open on your phone" />}
+              {job ? <Tr text="Scan to open the job posting on your phone" /> : booking ? <Tr text="Scan to book on your phone" /> : rental ? <Tr text="Scan to open this rental on your phone" /> : <Tr text="Scan to open on your phone" />}
             </p>
             <p className="mt-1 text-xs text-body">
-              {job ? <Tr text="Opens the same job posting, where you apply." /> : booking ? <Tr text="Opens the same booking page, with the discount code ready to enter." /> : <Tr text="Opens the same product page on the shop's website." />}
+              {job ? <Tr text="Opens the same job posting, where you apply." /> : booking ? <Tr text="Opens the same booking page, with the discount code ready to enter." /> : rental ? <Tr text="Opens the same listing on the partner's website." /> : <Tr text="Opens the same product page on the shop's website." />}
             </p>
           </div>
         </div>
