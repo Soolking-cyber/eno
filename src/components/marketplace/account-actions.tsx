@@ -8,12 +8,13 @@ import { Button } from '@/components/ui/button'
 /** Signed-out state for gated pages — a button that opens the sign-in dialog.
  *  Canonical example of the shared <Button variant="cta"> (h-auto + px/py keep the
  *  exact original padding). New primary CTAs should adopt this instead of re-coding
- *  bg-primary/hover:bg-brand-dark by hand. */
-export function SignInPrompt() {
+ *  bg-primary/hover:bg-brand-dark by hand.
+ *  `note` is the dialog's context line (SignInContext.note) — what signing in unlocks HERE. */
+export function SignInPrompt({ note }: { note?: string } = {}) {
   const { openSignIn } = useAuth()
   const { tr } = useLanguage()
   return (
-    <Button variant="cta" onClick={() => openSignIn()} className="h-auto rounded-xl px-6 py-2.5 cursor-pointer">
+    <Button variant="cta" onClick={() => openSignIn(note ? { note } : undefined)} className="h-auto rounded-xl px-6 py-2.5 cursor-pointer">
       <LogIn className="h-4 w-4" /> {tr('Sign in', 'Đăng nhập')}
     </Button>
   )

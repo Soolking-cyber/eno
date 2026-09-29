@@ -127,3 +127,30 @@ describe('identity is known only for the user it was fetched for', () => {
     expect(shouldShowAccountTypeChooser(notReset)).toBe(true)
   })
 })
+
+/**
+ * ⛔ THE GUEST HALF — AND IT MUST NOT WAIT FOR IDENTITY (found on prod 2026-09-29: a guest on /onboard
+ * sat on the loader for 8s+ and never left). `identityLoaded` can only ever be true for a USER
+ * (identityIsCurrent needs a userId), so an effect that returned early on `!identityLoaded` before
+ * testing `!user` had no path out for a guest. The rule the effect now encodes, in this order: the
+ * session's own `loading` is the only thing a guest waits for.
+ */
+export function guestShouldLeave(s: { loading: boolean; user: unknown | null }): boolean {
+  return !s.loading && !s.user
+}
+
+describe('a guest on /onboard is sent on, without waiting for an identity that never comes', () => {
+  it('THE REGRESSION: loading false, identity never loaded, no user → leaves', () => {
+    expect(guestShouldLeave({ loading: false, user: null })).toBe(true)
+    // …while the chooser stays hidden for the same state, so the loader shows during the redirect.
+    expect(shouldShowAccountTypeChooser({ loading: false, identityLoaded: false, user: null, accountType: null })).toBe(false)
+  })
+
+  it('does not leave while the session is still resolving — a signed-in user may be about to appear', () => {
+    expect(guestShouldLeave({ loading: true, user: null })).toBe(false)
+  })
+
+  it('never sends a signed-in user away, whatever identity says', () => {
+    expect(guestShouldLeave({ loading: false, user: USER })).toBe(false)
+  })
+})

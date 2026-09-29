@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useAuth } from '@/context/auth-context'
+import { useLanguage } from '@/context/language-context'
 
 /**
  * First-save sign-in prompt — a guest's first "save" tap is the moment an account explains itself,
@@ -14,16 +15,21 @@ import { useAuth } from '@/context/auth-context'
  * and was then shown the real popup asking the same question again. A second surface that only
  * forwards to the first is worse than no surface: it costs a tap, teaches a wrong mental model of
  * where accounts are made, and is one more place for the auth design to drift.
- * ⚠️ The framing is what was lost, and that is the accepted trade (owner, 2026-08-28: "only 1 popup
- * dont use other than this anywhere"). If the "you just saved something" context is wanted back, it
- * belongs INSIDE the card as a variant — `SignInCard` already takes listing context for exactly
- * this reason — never as another sheet in front of it.
+ * ⚠️ The framing was what that consolidation lost (owner, 2026-08-28: "only 1 popup dont use other
+ * than this anywhere"), and it now comes back the way this note said it had to: INSIDE the card, as
+ * its context line (`openSignIn({ note })` → SignInCard's [data-sign-in-note]), never as another
+ * sheet in front of it.
+ * ⛔ THE NOTE MAY ONLY PROMISE WHAT SIGNING IN ACTUALLY DOES. Saves are device-local for EVERY user
+ * (favorites-context.tsx; there is no server Favorite model, and price-drop.ts notifies buyers who
+ * messaged, not savers), so "keep your saves on all devices" or "price-drop alerts on saved items"
+ * would be false. What an account does unlock is messaging sellers and saved-search alerts.
  *
  * ⚠️ THE COMPONENT RENDERS NOTHING and is still mounted in providers.tsx on purpose: it is a
  * listener, not a UI. Deleting it would silently drop the first-save prompt altogether.
  */
 export function SaveSignupSheet() {
   const { user, openSignIn } = useAuth()
+  const { tr } = useLanguage()
 
   useEffect(() => {
     const onFirstSave = () => {
@@ -32,11 +38,11 @@ export function SaveSignupSheet() {
         if (localStorage.getItem('eno:save-sheet-done')) return
         localStorage.setItem('eno:save-sheet-done', '1')
       } catch { /* private mode — show it anyway, once per session */ }
-      openSignIn()
+      openSignIn({ note: tr('Saved on this device. Sign in to message sellers and get alerts for new listings.', 'Đã lưu trên thiết bị này. Đăng nhập để nhắn tin với người bán và nhận thông báo tin mới.') })
     }
     window.addEventListener('eno:first-save', onFirstSave)
     return () => window.removeEventListener('eno:first-save', onFirstSave)
-  }, [user, openSignIn])
+  }, [user, openSignIn, tr])
 
   return null
 }

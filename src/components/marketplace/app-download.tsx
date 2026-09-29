@@ -8,6 +8,7 @@ import { Download, Smartphone, Clock } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
 import { isNativeShell } from '@/lib/native-browser'
+import { isIOS } from '@/lib/in-app-browser'
 import { cn } from '@/lib/utils'
 
 /**
@@ -57,7 +58,12 @@ export function AppDownload() {
   const [qrFailed, setQrFailed] = useState(false)
 
   useEffect(() => {
-    setInApp(isNativeShell())
+    // ⚠️ ALSO GONE ON iOS AND IN AN INSTALLED PWA WHILE THERE IS NO APP STORE LINK (owner-approved O-04,
+    // 2026-09-29): there the control's only destination was a "the iOS app is not out yet" page. The
+    // pre-paint `no-app-download` class (layout.tsx) hides it from the first frame; this is the belt to
+    // that CSS's braces, exactly as for the native shell. Setting NEXT_PUBLIC_IOS_APP_URL restores it.
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches ?? false
+    setInApp(isNativeShell() || (!IOS_APP_URL && (isIOS() || standalone)))
     setFine(window.matchMedia?.('(pointer: fine)').matches ?? false)
   }, [])
 

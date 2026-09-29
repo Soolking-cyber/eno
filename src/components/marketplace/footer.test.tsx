@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import * as React from 'react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
@@ -30,11 +32,16 @@ async function renderFooter(edition: Edition, lang: 'en' | 'vi') {
     get length() { return store.size },
   })
   const { LanguageProvider } = await import('@/context/language-context')
+  // The footer's language + currency control (footer-preferences.tsx) reads the currency context, as
+  // it does under the app's providers.tsx.
+  const { CurrencyProvider } = await import('@/context/currency-context')
   const { Footer } = await import('./footer')
   // `initialViDict` so a Vietnamese render does not suspend on the dictionary fetch.
   const { container } = render(
     <LanguageProvider initialLang={lang} initialViDict={{}}>
-      <Footer />
+      <CurrencyProvider>
+        <Footer />
+      </CurrencyProvider>
     </LanguageProvider>,
   )
   return { container, hrefs: [...container.querySelectorAll('a')].map((a) => a.getAttribute('href') ?? '') }
@@ -140,6 +147,72 @@ describe('Footer links', () => {
       const { container, hrefs } = await renderFooter('marketplace', lang)
       const text = `${container.textContent} ${hrefs.join(' ')}`
       expect(text).not.toMatch(/visa|passport|VietKite|PayPal|itinerar|thị thực|hộ chiếu|lịch trình|xuất nhập cảnh/i)
+      cleanup()
+    }
+  })
+
+  // ⚠️ THE CONTACT PAGE, NOT A mailto: (C-CONTACT, 2026-09-29) — /contact existed and nothing linked it.
+  it('"Contact us" goes to /contact on both editions', async () => {
+    for (const edition of EDITIONS) {
+      const { container } = await renderFooter(edition, 'en')
+      const contact = [...container.querySelectorAll('a')].find((a) => a.textContent === 'Contact us')
+      expect(contact?.getAttribute('href'), edition).toBe('/contact')
+      cleanup()
+    }
+  })
+
+  /**
+   * ⛔ THE PHONE ACCORDION IS LOAD-BEARING ON BASE UI'S data-slot NAMES. globals.css hides
+   * `#app-footer [data-slot=accordion-header]` and forces every `[data-slot=accordion-panel]` open from
+   * 40rem; if either name changed, the desktop footer would collapse into five closed groups. And the
+   * closed panels must still hold every link (hiddenUntilFound), or the crawl paths go with them.
+   */
+  it('renders each link group as an accordion item whose closed panel still holds its links', async () => {
+    const { container, hrefs } = await renderFooter('marketplace', 'en')
+    const headers = container.querySelectorAll('#app-footer [data-slot=accordion-header]')
+    const panels = container.querySelectorAll('#app-footer [data-slot=accordion-panel]')
+    expect(headers.length).toBe(5) // Explore + the four columns (Community is empty on both editions)
+    expect(panels.length).toBe(5)
+    // Each group keeps a static h3 for sm+, and the accordion header is itself an h3.
+    expect([...headers].every((h) => h.tagName === 'H3')).toBe(true)
+    for (const href of ['/c/rentals', '/help', '/about', '/post', '/hcmc-rent-index']) expect(hrefs).toContain(href)
+    for (const p of panels) expect(p.querySelectorAll('a').length, p.textContent ?? '').toBeGreaterThan(0)
+  })
+
+  /**
+   * ⛔ THE DESKTOP OVERRIDE HAS TO WIN BEFORE HYDRATION, NOT ONLY AFTER. React SSRs a closed panel as a
+   * plain `hidden=""` (it only knows the boolean); Base UI writes `until-found` in a client layout
+   * effect. Until then Tailwind preflight's `[hidden]:where(:not([hidden='until-found']))` hides it with
+   * a LAYERED !important, which beats any normal declaration and any unlayered !important. Measured at
+   * 1280 with the JS chunks blocked, an unlayered `display: block` left all five lists display:none,
+   * with the footer at 711px, then 1,048px after hydration. Only a same-layer !important with the higher
+   * (id) specificity outranks it.
+   */
+  it('forces the desktop panels open in @layer base with !important, so they show before hydration', () => {
+    const css = readFileSync(join(__dirname, '../../app/globals.css'), 'utf8')
+    expect(css).toMatch(
+      /@layer base \{\s*@media \(min-width: 40rem\) \{\s*#app-footer \[data-slot=accordion-panel\] \{ display: block !important; \}/,
+    )
+  })
+
+  // ⛔ O-04 (owner-approved 2026-09-29): no dashed "App Store · coming soon" chip while there is no link.
+  it('shows a store only when it has a link — no "coming soon" chip', async () => {
+    for (const lang of ['en', 'vi'] as const) {
+      const { container, hrefs } = await renderFooter('marketplace', lang)
+      expect(container.textContent).not.toMatch(/coming soon|sắp có/)
+      expect(hrefs.some((h) => h.startsWith('https://play.google.com/'))).toBe(true)
+      cleanup()
+    }
+  })
+
+  // G-LANG: a guest's only way to change language or currency. Both editions, both languages.
+  it('offers a language and a currency control to every visitor', async () => {
+    for (const edition of EDITIONS) {
+      const { container } = await renderFooter(edition, 'en')
+      const group = container.querySelector('#app-footer [role=group][aria-label="Language and currency"]')
+      expect(group, edition).not.toBeNull()
+      expect(group?.textContent).toContain('English')
+      expect(group?.textContent).toContain('₫')
       cleanup()
     }
   })

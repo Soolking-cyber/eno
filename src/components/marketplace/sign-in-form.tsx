@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Mail, Phone, Loader2, ExternalLink } from '@/components/ui/icons'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { Mail, Phone, Loader2, ExternalLink, Eye, EyeOff } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
@@ -188,6 +188,10 @@ export function SignInForm({ className }: { className?: string }) {
   // it a third tab would have put a credential most accounts do NOT have on equal footing
   // with the two that always work.
   const [password, setPassword] = useState('')
+  // Show-password in the password stage. Top-level, not inside the stage branch (rules of hooks), and
+  // reset to hidden on every way in or out of the stage — and on submit, so the field is type=password
+  // when the browser offers to save the credential.
+  const [reveal, setReveal] = useState(false)
   const [stage, setStage] = useState<'input' | 'code' | 'sent' | 'password'>('input')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<SignInError>(null)
@@ -738,7 +742,7 @@ export function SignInForm({ className }: { className?: string }) {
   // different number legitimately starts back at 60s.
   // Both ladders reset: the server keys its cooldowns per channel, so leaving an armed
   // phone countdown behind would disable the email tab's resend for no reason.
-  const reset = () => { setStage('input'); setCode(''); setPassword(''); setError(null); lastSubmitted.current = ''; smsSends.current = 0; emailSends.current = 0; setCountdown(0) }
+  const reset = () => { setStage('input'); setCode(''); setPassword(''); setReveal(false); setError(null); lastSubmitted.current = ''; smsSends.current = 0; emailSends.current = 0; setCountdown(0) }
 
   /**
    * Password sign-in — posts to OUR route, never supabase.auth.signInWithPassword().
@@ -759,6 +763,7 @@ export function SignInForm({ className }: { className?: string }) {
    * rest exactly as it does for OTP.
    */
   const signInWithPassword = async () => {
+    setReveal(false)
     // ⚠️ DISARM FIRST. A manual retry must cancel any pending resume, or a visitor who presses
     // Sign in again while the challenge is still up gets TWO submissions racing — one with the
     // token they just solved and one from the resume — and the loser burns a lockout attempt.
@@ -877,9 +882,24 @@ export function SignInForm({ className }: { className?: string }) {
     const identifier = tab === 'email' ? email : phone
     return (
       <div className={cn(className, 'space-y-2')}>
-        <p className="text-sm text-muted-foreground">
-          {t('Signing in as', 'Đăng nhập với')} <span className="font-semibold text-foreground">{identifier}</span>
-        </p>
+        {/* ⚠️ "Change" BESIDE THE IDENTIFIER. The only way back used to be the "Forgot it?" link at the
+            bottom — which reads as a password-recovery action, not "I typed the wrong email". The
+            identifier is kept (the input stage still holds it), exactly as Forgot does. `relative` is
+            REQUIRED for tap-44: its ::before covers the nearest positioned ancestor otherwise
+            (globals.css, the tap-target trap). */}
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 truncate text-sm text-muted-foreground">
+            {t('Signing in as', 'Đăng nhập với')} <span className="font-semibold text-foreground">{identifier}</span>
+          </p>
+          <Button
+            variant="bare"
+            size="none"
+            onClick={() => { retryOnCaptchaSolvedRef.current = null; setStage('input'); setPassword(''); setError(null); setReveal(false) }}
+            className="relative shrink-0 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer tap-44"
+          >
+            {t('Change', 'Đổi')}
+          </Button>
+        </div>
         {/* ⚠️ THE HIDDEN USERNAME FIELD IS REQUIRED, NOT BELT-AND-BRACES. A reviewer caught
             that rendering the identifier as static text leaves a password input with no
             username anywhere in the form, and every password manager — 1Password, Chrome,
@@ -901,16 +921,36 @@ export function SignInForm({ className }: { className?: string }) {
         />
         {/* autoComplete="current-password" (not new-password) so a password manager offers the
             SAVED credential here rather than proposing a fresh one. */}
-        <Input
-          type="password"
-          autoComplete="current-password"
-          enterKeyHint="go"
-          aria-label={t('Password', 'Mật khẩu')}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !loading && password) void signInWithPassword() }}
-          placeholder={t('Password', 'Mật khẩu')}
-        />
+        {/* ⚠️ SHOW PASSWORD — the house reveal (set-password-form.tsx), one difference on purpose: the
+            toggle STAYS in the tab order, because this is a single field and there is no second one for
+            Tab to reach first. The label is constant and `aria-pressed` carries the state (the app's
+            toggle convention), so a screen reader hears "Show password, toggle button, pressed".
+            onMouseDown+preventDefault keeps the field focused (and the keyboard up) through the tap. */}
+        <div className="relative">
+          <Input
+            type={reveal ? 'text' : 'password'}
+            autoComplete="current-password"
+            enterKeyHint="go"
+            aria-label={t('Password', 'Mật khẩu')}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !loading && password) void signInWithPassword() }}
+            placeholder={t('Password', 'Mật khẩu')}
+            className="pr-11"
+          />
+          <Button
+            type="button"
+            variant="bare"
+            size="none"
+            aria-label={t('Show password', 'Hiện mật khẩu')}
+            aria-pressed={reveal}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setReveal((v) => !v)}
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            {reveal ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+          </Button>
+        </div>
         <Button
           variant="cta"
           size="none"
@@ -920,7 +960,7 @@ export function SignInForm({ className }: { className?: string }) {
           // and onClick fed React's MouseEvent straight into it as the captcha token.
           onClick={() => signInWithPassword()}
           disabled={loading || !password}
-          className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Sign in', 'Đăng nhập')}
         </Button>
@@ -942,7 +982,7 @@ export function SignInForm({ className }: { className?: string }) {
         <Button
           variant="bare"
           size="none"
-          onClick={() => { retryOnCaptchaSolvedRef.current = null; setStage('input'); setPassword(''); setError(null) }}
+          onClick={() => { retryOnCaptchaSolvedRef.current = null; setStage('input'); setPassword(''); setError(null); setReveal(false) }}
           className="w-full pt-1 text-center text-sm font-semibold text-accent-foreground hover:underline cursor-pointer"
         >
           {tab === 'email'
@@ -1003,8 +1043,16 @@ export function SignInForm({ className }: { className?: string }) {
               Google Identity Services got the NAME right but rendered a cross-origin iframe we
               could not style, and refused to accept a click while hidden. See
               src/lib/auth/google-oauth.ts for the whole history. */}
-          <Button variant="ghost" size="none" disabled={loading} onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
-            {googleBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
+          {/* ⚠️ A REAL BUTTON, NOT A GHOST TEXT ROW. It rendered with no fill and no border (measured on
+              /signin at 390: 342x40, background transparent, border 0) — the one sign-in method most
+              visitors reach for read LESS like a button than the disabled email CTA beneath it.
+              Google's own branding asks for exactly this: a neutral fill, a 1px stroke and the
+              full-colour G. 44px tall (min-h-11) like every CTA in this form.
+              `variant="bare"`, NOT ghost/outline: both force `hover:text-accent-foreground`, which
+              would turn the label brand-blue on hover. The G is `size-5` (20px) — ui/button's base
+              clamps any svg WITHOUT a `size-` class to 16px, so h-5/w-5 would silently lose. */}
+          <Button variant="bare" size="none" disabled={loading} onClick={() => oauth('google')} className="flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer">
+            {googleBusy ? <Loader2 className="size-5 animate-spin" /> : <GoogleIcon />}
             {googleBusy
               ? t('Signing you in…', 'Đang đăng nhập…')
               : oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
@@ -1104,7 +1152,7 @@ export function SignInForm({ className }: { className?: string }) {
                   onboarding included), NOT the base's opacity fade: cta's white-on-brand at 40%
                   opacity was white on ~brand-200 — far below AA and still reading as tappable.
                   A flat gray field is unmistakably inert; disabled:opacity-100 cancels the base. */}
-              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {emailCode ? t('Send code', 'Gửi mã') : t('Send magic link', 'Gửi liên kết đăng nhập')}
               </Button>
               {/* DELIVERY TOGGLE — link vs code, chosen by the visitor.
@@ -1113,47 +1161,56 @@ export function SignInForm({ className }: { className?: string }) {
                   precisely so the sender and the screen can never disagree: a server that sniffed
                   the UA and chose differently would show a code box to someone holding only a link,
                   which is a dead end with no way back.
-                  ⚠️ HIDDEN WHEN THE AUTO-DETECT FORCED CODE, because for that cohort — in-app
+                  ⚠️ LEFT OUT WHEN THE AUTO-DETECT FORCED CODE, because for that cohort — in-app
                   browsers, native, iOS PWA — the link genuinely does not work: it opens in the
                   system browser and signs in a window they have already left. A toggle offering it
                   would be offering the broken path. Everyone else gets it in both directions.
                   ⚠️ Codes are the WEAKER credential today (six digits, and /auth/v1/verify is
                   outside our Postgres rate limiter), which is why this is opt-in rather than the
                   new default — see EMAIL_OTP_LEN for the expiry question that governs that. */}
-              {/* ⛔ RENDERED ALWAYS, HIDDEN WHEN IT DOES NOT APPLY — and I tried the other way first.
-                  Conditionally rendering it (`{!autoCode && …}`) removes the reserved 22px row for
-                  the forced-code cohort, which a reviewer asked for and which looks strictly better.
-                  It is not: `autoCode` is false until the mount effect runs, so the toggle renders
-                  on first paint and then UNMOUNTS at hydration. Measured on an in-app UA at 390px —
-                  the CTA jumps 546px -> 541px, CLS 0.0068 — which is the tap-target-moves-under-a-
-                  travelling-thumb failure this component reserves space to prevent, landing on the
-                  exact cohort the removal was meant to help. A stable gap beats a moving button. */}
-              <SecondarySwitch
-                show={email.includes('@') && !autoCode}
-                  /* ⛔ `disabled={loading}`, AND IT IS NOT COSMETIC. The CTA beside it already had
-                     this; the toggle did not, so a tap during the in-flight send flipped `emailCode`
-                     between the request leaving and `sendEmail` reading it back — the request went
-                     with deliver=link and the resolve then rendered the CODE box. That is precisely
-                     the "code box with only a link in the inbox" dead end the comment above claims
-                     this design prevents. Found in review; the comment was true of the server
-                     contract and false of my own switch. */
-                disabled={loading}
-                onClick={() => { setEmailCode((v) => !v); setError(null) }}
-                  /* ⚠️ "Use a … instead", matching the password switch, NOT "Send …". The Vietnamese
-                     for "Send a magic link instead" is `Gửi liên kết đăng nhập` — character for
-                     character the CTA's own label — so in Vietnamese the two read as two send
-                     buttons stacked. English hid it; only the vi pair showed it. */
-                label={emailCode ? t('Use a magic link instead', 'Dùng liên kết đăng nhập') : t('Use a code instead', 'Dùng mã qua email')}
-              />
-              {/* Secondary by construction: a text button under the CTA, shown only once the
-                  field holds something that could BE an account. Password is opt-in from
-                  Settings, so most visitors have none — leading with it, or making it a third
-                  tab, would put a credential most accounts lack beside the two that always
-                  work. Enabled state mirrors the CTA's so it cannot advance on an empty box. */}
-              <SecondarySwitch
+              {/* ⛔ ONE ROW, RENDERED ALWAYS, INVISIBLE UNTIL THERE IS AN "@" — and the reserve is ONE
+                  line now, not two. The delivery toggle and "Use a password" used to be two stacked
+                  SecondarySwitch rows, each reserving its line while hidden, so the dialog carried ~84px
+                  of blank space between the CTA and the legal line (measured on prod). Side by side,
+                  with the short labels, they fit ONE line in both languages at ≥360px — so typing the
+                  "@" still moves nothing (the tap-target-under-a-travelling-thumb failure this reserve
+                  exists to prevent), at half the cost.
+                  ⚠️ THE autoCode ITEM IS DROPPED FROM THE ROW, NOT MADE INVISIBLE — and the old reason
+                  for keeping it rendered no longer applies. `autoCode` flips in the mount effect, and
+                  when the toggle was its own row that flip unmounted a line and moved the CTA (measured
+                  on an in-app UA at 390: 546px → 541px, CLS 0.0068). Inside one row it only shortens
+                  that row, which stays one line either way, so nothing below it moves. */}
+              <SecondarySwitchRow
                 show={email.includes('@')}
-                onClick={() => { setStage('password'); setPassword(''); setError(null) }}
-                label={t('Use a password instead', 'Dùng mật khẩu')}
+                items={[
+                  {
+                    key: 'deliver',
+                    hidden: autoCode,
+                    /* ⛔ `disabled: loading`, AND IT IS NOT COSMETIC. The CTA beside it already had
+                       this; the toggle did not, so a tap during the in-flight send flipped `emailCode`
+                       between the request leaving and `sendEmail` reading it back — the request went
+                       with deliver=link and the resolve then rendered the CODE box. That is precisely
+                       the "code box with only a link in the inbox" dead end the comment above claims
+                       this design prevents. Found in review; the comment was true of the server
+                       contract and false of my own switch. */
+                    disabled: loading,
+                    onClick: () => { setEmailCode((v) => !v); setError(null) },
+                    /* ⚠️ "Use a …", matching the password switch, NOT "Send …". The Vietnamese for "Send
+                       a magic link instead" is `Gửi liên kết đăng nhập` — character for character the
+                       CTA's own label — so in Vietnamese the two read as two send buttons stacked.
+                       `Dùng liên kết` stays distinct from the CTA in both languages. */
+                    label: emailCode ? t('Use a link', 'Dùng liên kết') : t('Use a code', 'Dùng mã qua email'),
+                  },
+                  /* Secondary by construction: a text button beside the delivery toggle, shown only
+                     once the field holds something that could BE an account. Password is opt-in from
+                     Settings, so most visitors have none — leading with it, or making it a third tab,
+                     would put a credential most accounts lack beside the two that always work. */
+                  {
+                    key: 'password',
+                    onClick: () => { setStage('password'); setPassword(''); setError(null) },
+                    label: t('Use a password', 'Dùng mật khẩu'),
+                  },
+                ]}
               />
             </>
           )}
@@ -1187,7 +1244,7 @@ export function SignInForm({ className }: { className?: string }) {
                   ))}
                 </InputOTPGroup>
               </InputOTP>
-              <Button variant="cta" size="none" onClick={() => verifyEmailCode()} disabled={loading || code.length < EMAIL_OTP_LEN} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onClick={() => verifyEmailCode()} disabled={loading || code.length < EMAIL_OTP_LEN} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
               </Button>
               <div className="flex items-center justify-between px-1 text-xs">
@@ -1214,7 +1271,7 @@ export function SignInForm({ className }: { className?: string }) {
                   across the handoff. NEVER onPointerDown — that fires before focus and does not
                   hold it. Click is unaffected (preventDefault on mousedown does not cancel it),
                   and keyboard activation goes through keydown, so Tab+Enter is untouched. */}
-              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send code', 'Gửi mã')}
               </Button>
               {/* ⚠️ SET EXPECTATIONS BEFORE THE SEND — THERE IS NO SMS FALLBACK ANY MORE.
@@ -1233,7 +1290,7 @@ export function SignInForm({ className }: { className?: string }) {
               <SecondarySwitch
                 show={phone.replace(/\D/g, '').length >= 9}
                 onClick={() => { setStage('password'); setPassword(''); setError(null) }}
-                label={t('Use a password instead', 'Dùng mật khẩu')}
+                label={t('Use a password', 'Dùng mật khẩu')}
               />
             </div>
           )}
@@ -1284,7 +1341,7 @@ export function SignInForm({ className }: { className?: string }) {
                   ))}
                 </InputOTPGroup>
               </InputOTP>
-              <Button variant="cta" size="none" onClick={() => verifyPhone()} disabled={loading || code.length < PHONE_OTP_LEN} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onClick={() => verifyPhone()} disabled={loading || code.length < PHONE_OTP_LEN} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
               </Button>
               <div className="flex items-center justify-between px-1 text-xs">
@@ -1349,8 +1406,39 @@ function SecondarySwitch({ show, onClick, label, disabled }: { show: boolean; on
   )
 }
 
+/**
+ * Several secondary switches on ONE line — the email tab's delivery toggle and "Use a password". Same
+ * reserve-when-hidden contract as SecondarySwitch above (invisible + no pointer + tabIndex -1 +
+ * aria-hidden while `show` is false), so the form never grows when an "@" is typed; one row is simply
+ * half the reserved space of two. A `hidden` item is left out rather than made invisible — the row is
+ * one line either way, so leaving an item out moves nothing (see the call site).
+ */
+function SecondarySwitchRow({ show, items }: { show: boolean; items: { key: string; label: string; onClick: () => void; disabled?: boolean; hidden?: boolean }[] }) {
+  return (
+    <div className={cn('flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pt-0.5 text-center', !show && 'invisible pointer-events-none')} aria-hidden={!show}>
+      {items.filter((i) => !i.hidden).map((i, idx) => (
+        <Fragment key={i.key}>
+          {idx > 0 && <span aria-hidden className="text-xs text-ink-4">·</span>}
+          <Button
+            variant="bare"
+            size="none"
+            disabled={i.disabled}
+            tabIndex={show && !i.disabled ? undefined : -1}
+            // The focus-hold: a tap must not blur the email field and drop the keyboard.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={i.onClick}
+            className="text-xs font-semibold text-muted-foreground hover:text-accent-foreground hover:underline cursor-pointer"
+          >
+            {i.label}
+          </Button>
+        </Fragment>
+      ))}
+    </div>
+  )
+}
+
 function GoogleIcon() {
   return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.23 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52Z"/></svg>
+    <svg className="size-5" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.23 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52Z"/></svg>
   )
 }

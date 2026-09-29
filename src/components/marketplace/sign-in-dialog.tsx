@@ -30,7 +30,12 @@ type Props = {
 export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName, note }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl shadow-overlay w-full max-w-sm sm:max-w-sm p-6 gap-0">
+      {/* ⚠️ THE PHONE GUTTER IS IN THE max-w, AND A PLAIN `max-w-sm` DELETED IT. ui/dialog's base carries
+          `max-w-[calc(100%-2rem)]` as its small-screen guard; tailwind-merge drops it the moment a
+          caller passes any other max-w, so this card rendered 384px wide on a 390px phone — 3px from
+          each edge (measured on prod). min(24rem, 100% − 1.5rem) keeps the 384px card everywhere it
+          fits and the canonical 12px phone gutter (px-3) below 408px. */}
+      <DialogContent className="rounded-2xl shadow-overlay w-full max-w-[min(24rem,calc(100%-1.5rem))] sm:max-w-sm p-6 gap-0">
         {/*
           ⚠️ NO `DialogHeader` WRAPPER. It is a `flex flex-col gap-2` box meant for a title and a
           description, and `SignInCard` is title AND the whole form — so wrapping it put the email

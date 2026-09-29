@@ -124,7 +124,7 @@ export function useSaveSearch(filters: {
     }
     try {
       const res = await fetch('/api/saved-searches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ params }) })
-      if (res.status === 401) { openSignIn(); return }
+      if (res.status === 401) { openSignIn({ note: tr('Sign in to get alerts when new listings match this search.', 'Đăng nhập để nhận thông báo khi có tin mới khớp với tìm kiếm này.') }); return }
       if (res.status === 409) { toast.error(tr("You've reached the saved-search limit", 'Bạn đã đạt giới hạn tìm kiếm đã lưu')); return }
       if (!res.ok) throw new Error()
       toast.success(tr("Saved — we'll alert you on new matches", 'Đã lưu — sẽ báo khi có tin mới phù hợp'))

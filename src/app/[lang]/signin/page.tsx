@@ -44,7 +44,11 @@ function SignInPageInner() {
      * this layout has no Footer — dropping it with the brand panel would have been a silent
      * compliance regression, since nothing renders it here but this file.
      */
-    <div className="flex min-h-screen w-full flex-col items-center justify-center px-6 py-12">
+    /* ⚠️ TOP-ANCHORED, NOT CENTRED. The card changes height between stages (email → password adds a
+       field and a reveal toggle), and a vertically centred column re-centres on every change, so the
+       logo and the h1 jumped ~95px when the visitor chose "Use a password" (measured at 390x844). A top
+       anchor keeps everything above the form still; `max(3rem, 10dvh)` keeps the plain, airy frame. */
+    <div className="flex min-h-screen w-full flex-col items-center justify-start px-6 pb-12 pt-[max(3rem,10dvh)]">
       <div className="w-full max-w-sm">
         <Link href="/" className="mb-8 flex justify-center">
           {/* `?v=` is a content stamp that earns this file `max-age=31536000, immutable`

@@ -519,6 +519,13 @@ describe('the pages child', () => {
     expect(urls.filter((u) => /subshop|sub-shop|sub_shop/.test(u))).toEqual([])
     expect(urls.every((u) => u.startsWith(FORUM))).toBe(true)
   })
+
+  // ⚠️ Live, self-canonical, indexable on both editions — and absent from the sitemap until 2026-09-29.
+  it('submits the contact, partners and ranking-disclosure pages', async () => {
+    h.rows = []
+    const urls = locs(await (await pagesGET()).text())
+    for (const p of ['contact', 'partners', 'legal/ranking']) expect(urls).toContain(`${HOST}/${p}`)
+  })
 })
 
 /**

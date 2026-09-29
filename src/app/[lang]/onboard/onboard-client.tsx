@@ -58,13 +58,20 @@ export function OnboardClient() {
 
   // Not signed in → nothing to onboard. Already chose → skip straight through.
   //
-  // ⚠️ WAITS FOR `identityLoaded`, NOT JUST `loading`. `loading` is the SESSION's flag; it goes
-  // false as soon as Supabase resolves, while `/api/me` — the only thing that knows accountType —
-  // is still in flight. In that window `accountType` is null for an ONBOARDED user, so bouncing on
-  // `loading` alone both failed to redirect them and (below) rendered the chooser at them.
+  // ⚠️ WAITS FOR `identityLoaded`, NOT JUST `loading` — for a SIGNED-IN user. `loading` is the SESSION's
+  // flag; it goes false as soon as Supabase resolves, while `/api/me` — the only thing that knows
+  // accountType — is still in flight. In that window `accountType` is null for an ONBOARDED user, so
+  // bouncing on `loading` alone both failed to redirect them and (below) rendered the chooser at them.
+  // ⛔ BUT THE GUEST CHECK COMES FIRST, AND ITS ORDER WAS THE BUG: `identityLoaded` can only be true for
+  // a user (auth-identity.ts: identityIsCurrent needs a userId), so behind the identity gate a guest
+  // never reached `!user` and sat on the loader forever (prod, 8s+ on /onboard). A guest here is almost
+  // always a sign-in that did not stick, so they go to /signin — carrying `next`, already sanitised by
+  // safeNextPath, so signing in lands where they were headed (and the global gate brings a
+  // not-yet-onboarded account back here).
   useEffect(() => {
-    if (loading || !identityLoaded) return
-    if (!user) { router.replace('/'); return }
+    if (loading) return
+    if (!user) { router.replace(`/signin?next=${encodeURIComponent(computeNext())}`); return }
+    if (!identityLoaded) return
     if (accountType) router.replace(computeNext())
   }, [loading, identityLoaded, user, accountType, rawNext, router])
 

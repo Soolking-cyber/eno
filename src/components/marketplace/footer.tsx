@@ -1,16 +1,18 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
 import { useLanguage } from '@/context/language-context'
 // ⚠️ FORUM_URL IS GONE FROM THIS FILE, goToForum IS NOT. No footer link crosses origin any more,
 // but the `forumPath` machinery below stays: it is the guard that stops a FUTURE cross-origin link
 // silently becoming a hard exit out of the native shell.
 import { goToForum } from '@/lib/forum-nav'
 import { handleExternalClick } from '@/lib/native-browser'
-import { COMPANY } from '@/lib/site-legal'
+import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
 import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
 import { FooterStats } from '@/components/marketplace/footer-stats'
+import { FooterPreferences } from '@/components/marketplace/footer-preferences'
 import { SOCIALS, formatFollowers, type Social } from '@/lib/socials'
 import { SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
 import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
@@ -142,12 +144,12 @@ export function Footer() {
         // column). It is the disclosure a buyer goes looking for at the worst possible moment, so
         // burying it was the wrong default; /disputes has been live and returning 200 throughout.
         { label: tr('Dispute resolution', 'Giải quyết tranh chấp'), href: '/disputes' },
-        // ⚠️ COMPANY.email, NOT A LITERAL. This said `mailto:support@eno.vn` on both editions, so
-        // eno.forum's own "Contact us" handed the reader the marketplace's mailbox on the
-        // marketplace's domain. The address is per-edition in src/lib/site-legal.ts, which is also
-        // where the footer's legal Email row already read it from — the two rows had simply drifted
-        // apart, one constant and one hardcoded.
-        { label: tr('Contact us', 'Liên hệ'), href: `mailto:${COMPANY.email}` },
+        // ⚠️ THE CONTACT PAGE, NOT A mailto:. /contact exists on both editions (who runs the site,
+        // the per-edition mailbox, the phone once the operator is registered, and which route answers
+        // fastest), and nothing in the app linked to it but the 404 page. A mailto: here opened a mail
+        // client on a phone that often has none set up. The address itself stays one tap away: it is
+        // the first link on /contact, and the legal Email row below still carries COMPANY.email.
+        { label: tr('Contact us', 'Liên hệ'), href: '/contact' },
       ],
     },
     {
@@ -358,7 +360,7 @@ export function Footer() {
         {/* Symmetric rows on md+: row 1 = brand (2 tracks) + Explore (2 tracks); row 2 = the
             four link columns, one track each. The previous md:col-span-1 brand left row 2 with
             a dangling empty fourth track — three columns and a hole. */}
-        <div className="grid grid-cols-2 gap-8 border-t border-border/60 pt-12 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-8 border-t border-border/60 pt-12 md:grid-cols-4 max-sm:gap-y-5 max-sm:pt-8">
           {/* Brand column */}
           <div className="col-span-2 space-y-3">
             {/* alt + tagline are PER-EDITION. Both said "eno.vn" unconditionally, so eno.forum's
@@ -425,10 +427,11 @@ export function Footer() {
                 the user has left eno for another app. handleExternalClick keeps them in an in-app
                 browser tab presented over the app instead (no-op on web: href/target/rel below
                 still do all the work there, modifier-clicks included). */}
-            {/* p-2 per anchor grows each ~20px icon into a ~36px target; the -mx-2 keeps the
-                first icon optically flush with the tagline's left edge. */}
+            {/* p-2 per anchor grows each ~20px icon into a ~36px target — p-3 (44px) on a touch or
+                narrow screen, see below; the matching -mx keeps the first icon optically flush with
+                the tagline's left edge at either size. */}
             {/* Mono single-path marks (see the components above) — filled silhouettes on the
-                footer's muted ink, matching share-button's set; h-5 keeps the ~36px targets. */}
+                footer's muted ink, matching share-button's set. */}
             {/* ⚠️ THE BRAND NAMES THE ACCOUNTS, NOT THE SITE — AND THAT IS A CORRECTION, NOT A
                 SHORTCUT. These said "eno.vn on Facebook" on both editions, so a screen-reader user
                 on eno.forum was told the row belonged to the other site. The obvious fix was a
@@ -448,8 +451,12 @@ export function Footer() {
                 Re-measured 2026-09-27 with LinkedIn added (nine marks + tag), headless at 320 and 390:
                 two lines at both widths, document scrollWidth == viewport, so no overflow. At 390 the
                 row used to fit on one line and TikTok now wraps alone — cosmetic, and shrinking the
-                36px targets to avoid it would cost tap-target size. */}
-            <div className="-mx-2 flex flex-wrap items-center gap-1 pt-1">
+                36px targets to avoid it would cost tap-target size.
+                ⚠️ 44px ON A TOUCH SCREEN (`mobile:p-3`, owner-approved D-TAP 2026-09-29) — so the row is
+                TWO lines on every phone now, deliberately: nine 44px targets are 396px before the
+                "Group" tag, wider than any phone's row, and a one-line row would have meant 36px
+                targets under a thumb. A mouse (`pc`) keeps the 36px row, which fits its column. */}
+            <div className="-mx-2 mobile:-mx-3 flex flex-wrap items-center gap-1 pt-1">
               {/* ⛔ ONE LIST, NOT SEVEN HAND-WRITTEN ANCHORS (src/lib/socials.ts). The row carried three
                   channels and the owner asked for all of them plus the community group; a data list is
                   what stops the next addition from being another copy-pasted anchor with a different
@@ -470,7 +477,7 @@ export function Footer() {
                     /* ⛔ NO `title`. It carried the same string as `aria-label`, which some
                        screen-reader/browser pairs announce twice, and the visible "Group" tag below
                        already does the job it was added for (both reviewers, in the same round). */
-                    className="inline-flex items-center gap-1 rounded-full p-2 text-muted-foreground transition-colors hover:text-accent-foreground"
+                    className="inline-flex items-center gap-1 rounded-full p-2 mobile:p-3 text-muted-foreground transition-colors hover:text-accent-foreground"
                   >
                     <Icon className="h-5 w-5" />
                     {/* ⚠️ A VISIBLE TAG, BECAUSE THE PAGE AND THE GROUP WEAR THE SAME FACEBOOK MARK
@@ -496,67 +503,97 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Explore — crawlable internal links to every /c/{slug} category landing that has
-              listings (SEO internal linking; the empty ones are FOOTER_HIDDEN_CATEGORIES, above).
-              Slugs and bilingual names come from NAV_CATEGORIES, a
-              slug/name/nameVi projection of the canonical taxonomy.
-              ⚠️ NOT `TAXONOMY` ITSELF. This is a client component rendered by 30 route files, so
-              its imports ship with all of them — and taxonomy.ts is 70,775 bytes, almost all of it
-              subcategory icons and search-synonym keyword arrays these fifteen links never read.
-              src/lib/taxonomy-nav.test.ts asserts the projection still matches, so it cannot
-              drift. */}
-          <div className="col-span-2 space-y-3">
-            {/* ⚠️ h3, NOT h2 — SAME CLASSES, SAME PIXELS. See the tagline <h2> above: a link group
-                inside the footer is a CHILD of the footer, not a peer of the page's own sections,
-                and five sibling h2s with nothing above them is what made the outline flat. The
-                class string is untouched precisely so this stays a semantics-only change. */}
-            <h3 className="text-sm font-bold text-foreground">{tr('Explore', 'Khám phá')}</h3>
-            <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
-              {NAV_CATEGORIES.filter((cat) => !FOOTER_HIDDEN_CATEGORIES.has(cat.slug)).map((cat) => (
-                <li key={cat.slug}>
-                  <a href={`/c/${cat.slug}`} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr(cat.name, cat.nameVi)}</a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {/* ⚠️ THE LINK GROUPS ARE ONE ACCORDION ON A PHONE, AND THE SAME GRID AS BEFORE FROM sm UP.
+              Measured on prod at 390: the footer was 1,748px — five fully expanded groups stacked above
+              the legal block, 53 small links a thumb had to scroll past on every page. ui/accordion is
+              `hiddenUntilFound`, so a closed group's links stay in the SSR HTML (the crawl paths this
+              footer exists for are untouched) and the browser's find-in-page opens the group that holds
+              a match. From 40rem the root is `display: contents`, so each item is a direct grid child
+              exactly where its <div> used to be, and globals.css (#app-footer) hides the accordion
+              headers and forces every panel open. That holds before hydration too: the server renders
+              a closed panel as a plain `hidden`, which Tailwind preflight hides with an @layer base
+              !important. So the panel's `display` override lives in @layer base with !important. It is
+              measured with the JS chunks blocked: desktop is unchanged, pixel for pixel, with no shift
+              at hydration.
+              Each group keeps its static <h3> for sm+; on a phone the accordion's own header is the h3
+              (Base UI renders one), so the outline stays h2 → h3 at every width.
+              ⚠️ The phone hairlines are the ITEM's own `border-b` (the primitive's, last one dropped),
+              not `divide-y` on the root: the item's `sm:border-b-0` would otherwise have to be a bare
+              `border-b-0`, and a plain utility outranks divide-y's `:where()` rule, so the lines vanish. */}
+          <Accordion multiple className="col-span-2 sm:contents">
+            {/* Explore — crawlable internal links to every /c/{slug} category landing that has
+                listings (SEO internal linking; the empty ones are FOOTER_HIDDEN_CATEGORIES, above).
+                Slugs and bilingual names come from NAV_CATEGORIES, a
+                slug/name/nameVi projection of the canonical taxonomy.
+                ⚠️ NOT `TAXONOMY` ITSELF. This is a client component rendered by 30 route files, so
+                its imports ship with all of them — and taxonomy.ts is 70,775 bytes, almost all of it
+                subcategory icons and search-synonym keyword arrays these fifteen links never read.
+                src/lib/taxonomy-nav.test.ts asserts the projection still matches, so it cannot
+                drift. */}
+            <AccordionItem value="explore" className="border-border/60 sm:col-span-2 sm:space-y-3 sm:border-b-0">
+              {/* ⚠️ h3, NOT h2 — SAME CLASSES, SAME PIXELS. See the tagline <h2> above: a link group
+                  inside the footer is a CHILD of the footer, not a peer of the page's own sections,
+                  and five sibling h2s with nothing above them is what made the outline flat. The
+                  class string is untouched precisely so this stays a semantics-only change.
+                  (`hidden … sm:block`: below sm the accordion header right after it is the heading.) */}
+              <h3 className="hidden text-sm font-bold text-foreground sm:block">{tr('Explore', 'Khám phá')}</h3>
+              <AccordionTrigger className="min-h-11 items-center py-3 text-sm">{tr('Explore', 'Khám phá')}</AccordionTrigger>
+              {/* `text-base leading-normal` restores the 16/24 the list inherited from <body> before it
+                  sat in a panel (the primitive's text-sm/leading-relaxed would grow every desktop row). */}
+              <AccordionPanel className="pb-3 text-base leading-normal sm:pb-0">
+                <ul className="grid grid-cols-2 gap-x-6 sm:gap-y-2">
+                  {NAV_CATEGORIES.filter((cat) => !FOOTER_HIDDEN_CATEGORIES.has(cat.slug)).map((cat) => (
+                    <li key={cat.slug}>
+                      {/* max-sm: a 44px row per link (D-TAP) with no gap between rows, so no row's hit
+                          area can overlap its neighbour's — the tap-44 trap, avoided by real height. */}
+                      <a href={`/c/${cat.slug}`} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center max-sm:text-sm">{tr(cat.name, cat.nameVi)}</a>
+                    </li>
+                  ))}
+                </ul>
+              </AccordionPanel>
+            </AccordionItem>
 
-          {/* Link columns */}
-          {columns.map((col) => (
-            <div key={col.title} className="space-y-3">
-              {/* h3 for the same reason as "Explore" above — one tier below the footer's tagline
-                  heading, so the document outline reads h1 → h2 → h3 with no skipped level. */}
-              <h3 className="text-sm font-bold text-foreground">{col.title}</h3>
-              <ul className="space-y-2">
-                {col.links.map((link) => (
-                  <li key={link.label}>
-                    {/* href stays a REAL url for a11y / middle-click / cmd-click; a plain
-                        left-click on a forum link is intercepted so the native app takes
-                        the single-use SSO handoff instead of arriving signed out. Every
-                        other link gets handleExternalClick, which is a no-op unless the
-                        href is genuinely third-party AND we're in the native shell — so
-                        the internal routes and the mailto: below behave exactly as before,
-                        and a future off-site link here can't silently become a hard exit. */}
-                    {/* ⚠️ `rel` IS ONLY EVER `noopener` HERE, NEVER `nofollow`. It is carried on
-                        the link object (undefined for every same-origin row) so that the eno.vn
-                        column's dofollow decision is made once, in src/lib/cross-site-links.ts,
-                        rather than being re-litigated in the footer markup. */}
-                    <a
-                      href={link.href}
-                      rel={link.rel}
-                      onClick={link.forumPath
-                        ? (e) => {
-                            if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-                            e.preventDefault()
-                            goToForum(link.forumPath!)
-                          }
-                        : handleExternalClick}
-                      className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground"
-                    >{link.label}</a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            {/* Link columns */}
+            {columns.map((col) => (
+              <AccordionItem key={col.title} value={col.title} className="border-border/60 sm:space-y-3 sm:border-b-0">
+                {/* h3 for the same reason as "Explore" above — one tier below the footer's tagline
+                    heading, so the document outline reads h1 → h2 → h3 with no skipped level. */}
+                <h3 className="hidden text-sm font-bold text-foreground sm:block">{col.title}</h3>
+                <AccordionTrigger className="min-h-11 items-center py-3 text-sm">{col.title}</AccordionTrigger>
+                <AccordionPanel className="pb-3 text-base leading-normal sm:pb-0">
+                  <ul className="sm:space-y-2">
+                    {col.links.map((link) => (
+                      <li key={link.label}>
+                        {/* href stays a REAL url for a11y / middle-click / cmd-click; a plain
+                            left-click on a forum link is intercepted so the native app takes
+                            the single-use SSO handoff instead of arriving signed out. Every
+                            other link gets handleExternalClick, which is a no-op unless the
+                            href is genuinely third-party AND we're in the native shell — so
+                            the internal routes behave exactly as before, and a future off-site
+                            link here can't silently become a hard exit. */}
+                        {/* ⚠️ `rel` IS ONLY EVER `noopener` HERE, NEVER `nofollow`. It is carried on
+                            the link object (undefined for every same-origin row) so that the eno.vn
+                            column's dofollow decision is made once, in src/lib/cross-site-links.ts,
+                            rather than being re-litigated in the footer markup. */}
+                        <a
+                          href={link.href}
+                          rel={link.rel}
+                          onClick={link.forumPath
+                            ? (e) => {
+                                if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+                                e.preventDefault()
+                                goToForum(link.forumPath!)
+                              }
+                            : handleExternalClick}
+                          className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center max-sm:text-sm"
+                        >{link.label}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </AccordionPanel>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
 
         {/* Legal identity of the operator — Decree 52/2013 Đ.36/Đ.29 requires the
@@ -579,7 +616,7 @@ export function Footer() {
             entity is incorporated, the fix is to fill in `OPERATORS.services` and drop this gate —
             not to leave the forum with no operator notice indefinitely. */}
         {IS_MARKETPLACE && (
-        <div className="mt-12 space-y-1 border-t border-border/60 pt-6 text-2xs leading-relaxed text-body">
+        <div className="mt-12 space-y-1 border-t border-border/60 pt-6 text-2xs leading-relaxed text-body max-sm:mt-8">
           <p className="font-semibold text-muted-foreground">{COMPANY.name}</p>
           <p>{tr('Head office', 'Trụ sở')}: {COMPANY.address}</p>
           {/* ⚠️ THE TWO NEW LINES HERE ARE MOCKS AWAITING REAL VALUES (owner, 2026-08-02: "place
@@ -601,7 +638,15 @@ export function Footer() {
             {' · '}{tr('on', 'cấp ngày')}: {COMPANY.ercIssued}
           </p>
           <p>{tr('Responsible for content', 'Chịu trách nhiệm nội dung')}: {COMPANY.contentManager}</p>
-          <p>{tr('Email', 'Email')}: <a href={`mailto:${COMPANY.email}`} className="transition-colors hover:text-accent-foreground">{COMPANY.email}</a> · {tr('Phone', 'Điện thoại')}: {COMPANY.phone}</p>
+          {/* The phone is a tel: link only once the operator is registered — the same gate /contact
+              uses. Until then COMPANY.phone is the PENDING placeholder, and a tel: link to "đang cập
+              nhật" would dial nothing. */}
+          <p>
+            {tr('Email', 'Email')}: <a href={`mailto:${COMPANY.email}`} className="transition-colors hover:text-accent-foreground">{COMPANY.email}</a> · {tr('Phone', 'Điện thoại')}:{' '}
+            {OPERATOR_REGISTERED
+              ? <a href={`tel:${COMPANY.phone.replace(/[^\d+]/g, '')}`} className="transition-colors hover:text-accent-foreground">{COMPANY.phone}</a>
+              : COMPANY.phone}
+          </p>
           <p className="text-ink-4">{tr('E-commerce platform registration with the Ministry of Industry and Trade: in progress.', 'Đăng ký sàn giao dịch TMĐT với Bộ Công Thương: đang thực hiện.')}</p>
           {/* ⛔ THE STORE LINKS COME FROM src/lib/app-store-links.ts, THE ONE MODULE THE HEADER'S "Get the
               app" CONTROL ALREADY READS. This slot used to read its own pair of empty constants in
@@ -609,31 +654,27 @@ export function Footer() {
               the footer still said "Google Play · coming soon" on every page (owner, 2026-09-17: "add
               google app link") — two sources for one fact, drifting exactly as that module's header
               says it exists to prevent. Those constants are deleted, not left beside this.
-              ⚠️ A store with no URL still renders as a labelled chip with no href: a badge that 404s
-              costs more trust than "coming soon", which is still the truth for iOS. */}
+              ⚠️ A STORE WITH NO URL IS LEFT OUT, NOT SHOWN AS A DASHED "coming soon" CHIP (owner-approved
+              O-04, 2026-09-29) — the same call as the header control, which now stands down on iOS until
+              the listing exists. The row still renders its Google Play link, and NEXT_PUBLIC_IOS_APP_URL
+              brings the App Store badge back as a real link with no code change. */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="text-ink-4">{tr('Get the app', 'Tải ứng dụng')}:</span>
             {[
               { name: 'App Store', href: IOS_APP_URL },
               { name: 'Google Play', href: ANDROID_APP_URL },
-            ].map((store) =>
-              store.href ? (
-                <a
-                  key={store.name}
-                  href={store.href}
-                  onClick={handleExternalClick}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-full border border-border/60 px-3 py-1 transition-colors hover:text-accent-foreground"
-                >
-                  {store.name}
-                </a>
-              ) : (
-                <span key={store.name} className="rounded-full border border-dashed border-border/60 px-3 py-1 text-ink-4">
-                  {store.name} · {tr('coming soon', 'sắp có')}
-                </span>
-              ),
-            )}
+            ].filter((store): store is { name: string; href: string } => !!store.href).map((store) => (
+              <a
+                key={store.name}
+                href={store.href}
+                onClick={handleExternalClick}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-full border border-border/60 px-3 py-1 transition-colors hover:text-accent-foreground"
+              >
+                {store.name}
+              </a>
+            ))}
           </div>
         </div>
         )}
@@ -669,6 +710,10 @@ export function Footer() {
               scoped per site (one database, two sites) while members and sellers are the community
               as a whole. */}
           <FooterStats />
+          {/* Language + currency for every visitor, guests included — the only other control is in the
+              signed-in account panel. Third in the row: right-aligned by `justify-between` on desktop,
+              centred in the stack on a phone. Why it is not PreferencesInline: footer-preferences.tsx. */}
+          <FooterPreferences />
         </div>
 
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 lg:justify-end">
