@@ -9,7 +9,7 @@ import { LANG_VARIANTS, type LangVariant } from "@/lib/lang-variant";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
 import { COMPANY, OPERATOR_REGISTERED } from "@/lib/site-legal";
 // The Organization/WebSite JSON-LD's entity fields (@id, sameAs, legalName…) — see that block below.
-import { marketplaceOrganizationFields, organizationId, POSTING_IS_FREE, registeredOperatorFields, SHARE_CARD, websiteId } from "@/lib/site-identity";
+import { marketplaceOrganizationFields, ORGANIZATION_TYPE, organizationId, POSTING_IS_FREE, registeredOperatorFields, SHARE_CARD, toE164VN, websiteId } from "@/lib/site-identity";
 // The content-hashed sprite URL, from the generated shim — never a literal here, or a glyph edit
 // would preload a file that no longer exists while every icon silently fetched the new one.
 import { ICON_SPRITE_CORE } from "@/components/ui/icons";
@@ -35,6 +35,9 @@ import {
  * transitional single-deployment build, where no edition is declared.
  */
 const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
+
+/** The operator's phone as the Organization JSON-LD states it: E.164, or null (see toE164VN). */
+const ORG_TELEPHONE = toE164VN(COMPANY.phone);
 
 /**
  * ⚠️ THE VARIABLE CLASS GOES ON <html>, NOT <body>. THIS IS THE WHOLE BUG THAT USED TO BE HERE.
@@ -477,7 +480,10 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
-              "@type": "Organization",
+              /* OnlineBusiness on the marketplace, the most specific subtype that is true (a classifieds
+                 site that sells nothing itself); plain Organization on eno.forum. Why, and why not
+                 OnlineStore: ORGANIZATION_TYPE in src/lib/site-identity.ts. */
+              "@type": IS_SERVICES ? "Organization" : ORGANIZATION_TYPE,
               /* ⚠️ MARKETPLACE ONLY, and deliberately so pending a decision that is not an
                  engineer's to make. `@id`, `sameAs` (every src/lib/socials.ts profile marked
                  `me: true` — seven, where three were hand-copied here), `areaServed` and
@@ -525,8 +531,14 @@ export default async function RootLayout({
                  Việt Nam"). Splitting it into streetAddress/addressLocality here would mean
                  parsing it, and a parser that silently mis-splits when the constant is edited
                  produces a subtly wrong address rather than an obviously missing one. Redundant
-                 beats parsed for a field this consequential. */
+                 beats parsed for a field this consequential.
+
+                 The phone is E.164 (+84…), which Google asks for, at the top level and on the
+                 contactPoint; COMPANY.phone keeps the certificate's local form. Dropped, not
+                 guessed, when it is not a Vietnamese number (toE164VN). No taxID until the owner
+                 confirms the MST number; `identifier` carries the registration number. */
               ...(OPERATOR_REGISTERED ? {
+                ...(ORG_TELEPHONE ? { telephone: ORG_TELEPHONE } : {}),
                 address: {
                   "@type": "PostalAddress",
                   streetAddress: COMPANY.address,
@@ -536,7 +548,7 @@ export default async function RootLayout({
                   "@type": "ContactPoint",
                   contactType: "customer support",
                   email: COMPANY.email,
-                  telephone: COMPANY.phone,
+                  ...(ORG_TELEPHONE ? { telephone: ORG_TELEPHONE } : {}),
                   areaServed: "VN",
                   availableLanguage: ["vi", "en"],
                 }],

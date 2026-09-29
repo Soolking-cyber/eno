@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import { LANGS } from '@/lib/i18n/langs'
+import { normalizePhone } from '@/lib/phone'
 import { SOCIALS } from '@/lib/socials'
 import type { LegalOperator } from '@/lib/site-legal'
 
@@ -40,6 +41,42 @@ export function siteOrigin(): string {
  */
 export const organizationId = (origin: string) => `${origin}/#organization`
 export const websiteId = (origin: string) => `${origin}/#website`
+
+/**
+ * The marketplace Organization node's `@type`: the most specific schema.org subtype that is TRUE.
+ *
+ * Google asks for "the most specific schema.org subtype of Organization" and gives OnlineStore as the
+ * e-commerce example. eno is not one: it sells nothing itself, takes no payment and ships nothing
+ * (the layout's own description says there are no payments on the platform), so OnlineStore would
+ * claim a checkout that does not exist. OnlineBusiness, "a particular online business, either
+ * standalone or the online part of a broader organization", is what a classifieds site is. Not a
+ * LocalBusiness either: the head office is a registered address, not a place customers visit.
+ *
+ * ⚠️ MARKETPLACE ONLY. The layout keeps plain `Organization` on eno.forum, whose operator is not yet
+ * incorporated (src/lib/site-legal.ts); the node there carries no entity fields to type more
+ * precisely. The pages that REFER to the node by @id (help articles, guides) keep
+ * `"@type": "Organization"` on the reference: OnlineBusiness is its subtype, so the two agree.
+ */
+export const ORGANIZATION_TYPE = 'OnlineBusiness'
+
+/**
+ * A Vietnamese number in E.164 ("+84772007921") for structured data, or null when it is not one.
+ *
+ * Google's Organization docs: telephone must "include the country code". site-legal.ts transcribes
+ * the local form the certificate prints ("0772007921") and must keep doing so, so the conversion
+ * happens here, at the machine-facing edge. It rides normalizePhone (src/lib/phone.ts), the repo's
+ * one Vietnamese normaliser (the stored Seller.phone key and every tel: link), rather than a second
+ * copy of its rules, and only adds a shape check on the result.
+ *
+ * ⛔ NULL, NEVER A GUESS. The pending operator's phone is the "đang cập nhật" placeholder (no digits),
+ * and a foreign or malformed number would normalise to something that is not a Vietnamese number:
+ * both come back null and the caller drops the field. +84 plus 9 digits is a mobile, plus 10 a
+ * landline (two-digit area code since the 2017 renumbering).
+ */
+export function toE164VN(phone: string | null | undefined): string | null {
+  const e164 = normalizePhone(phone ?? '')
+  return /^\+84\d{9,10}$/.test(e164) ? e164 : null
+}
 
 /**
  * Profiles eno OWNS that are not social channels, so they belong in `sameAs` but not in the footer
