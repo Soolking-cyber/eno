@@ -102,7 +102,13 @@ describe('the feed’s district filter', () => {
  */
 describe('a district typed into the query', () => {
   const build = (qs: string) => buildFeedFilters(new URLSearchParams(qs))
-  const tokens = (f: any) => (f ? (f.AND ?? f.OR ?? [f]).map((c: any) => c.searchText.contains) : null)
+  /**
+   * The text filter's units (src/lib/search-match.ts), each read back as the words the reader typed: a
+   * 4+ character token is `{ searchText: { contains } }`, a shorter one a word start (an AND led by its
+   * plain `contains`), and a synonym unit ("căn hộ" = apartment) an OR of its terms, the typed one first.
+   */
+  const termOf = (c: any): string => c.searchText?.contains ?? c.searchText?.startsWith ?? termOf((c.AND ?? c.OR)[0])
+  const tokens = (f: any) => (f ? (f.AND ?? f.OR ?? [f]).map(termOf) : null)
 
   it('"Quận 7" narrows to exactly the d7 scope, with no text filter left', async () => {
     const r = await build(`q=${encodeURIComponent('Quận 7')}`)
@@ -116,7 +122,9 @@ describe('a district typed into the query', () => {
   it('"căn hộ quận 7" keeps "can ho" as text AND applies d7', async () => {
     const r = await build(`q=${encodeURIComponent('căn hộ quận 7')}`)
     expect(r.andFilters).toContainEqual(await districtScopeForSlug('d7'))
-    expect(tokens(r.pgTextFilter)).toEqual(['can', 'ho'])
+    // ONE unit since S-RECALL (2026-09-29): "căn hộ" is a synonym phrase (apartment, chung cư, condo),
+    // not the tokens `can` AND `ho`, which matched inside any word.
+    expect(tokens(r.pgTextFilter)).toEqual(['can ho'])
     expect(r.q).toBe('căn hộ')
   })
 
@@ -166,7 +174,7 @@ describe('a district typed into the query', () => {
   it('under an explicit district only the words beside a typed one are searched — agreeing or not', async () => {
     const other = await build(`district=d1&q=${encodeURIComponent('căn hộ quận 7')}`)
     expect(other.andFilters).toContainEqual(await districtScopeForSlug('d1'))
-    expect(tokens(other.pgTextFilter)).toEqual(['can', 'ho'])
+    expect(tokens(other.pgTextFilter)).toEqual(['can ho'])
     const same = await build(`district=d7&q=${encodeURIComponent('quận 7')}`)
     expect(same.pgTextFilter).toBeNull()
     expect(same.inferredDistrict).toBeNull() // the district applied is the explicit one
@@ -238,7 +246,13 @@ describe('the orders the paginating surfaces depend on', () => {
  */
 describe('resolveFeedFilters — the plain words win when the district reading finds nothing', () => {
   const resolve = (qs: string) => resolveFeedFilters(new URLSearchParams(qs))
-  const tokens = (f: any) => (f ? (f.AND ?? f.OR ?? [f]).map((c: any) => c.searchText.contains) : null)
+  /**
+   * The text filter's units (src/lib/search-match.ts), each read back as the words the reader typed: a
+   * 4+ character token is `{ searchText: { contains } }`, a shorter one a word start (an AND led by its
+   * plain `contains`), and a synonym unit ("căn hộ" = apartment) an OR of its terms, the typed one first.
+   */
+  const termOf = (c: any): string => c.searchText?.contains ?? c.searchText?.startsWith ?? termOf((c.AND ?? c.OR)[0])
+  const tokens = (f: any) => (f ? (f.AND ?? f.OR ?? [f]).map(termOf) : null)
   const hasDistrictScope = (w: unknown) => JSON.stringify(w).includes('Phu Nhuan')
 
   it('serves the plain words, with no district, when the reading finds 0 and they find some', async () => {

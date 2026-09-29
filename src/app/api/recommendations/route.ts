@@ -1,16 +1,17 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { serializeListing } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { Prisma } from '@/generated/prisma/client'
 import { fold } from '@/lib/fold'
 import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
+import { diverseRailListings, trendingRailListings } from '@/lib/core/trending-rail'
 
 export const dynamic = 'force-dynamic'
 
 const LIMIT = 16
+/** The personalized rail chooses its LIMIT from this many (diversifyRail, via diverseRailListings). */
+const PERSONAL_POOL = 48
 const RANK: Prisma.ListingOrderByWithRelationInput = { rankScore: 'desc' }
 const split = (v: string | null, n: number) =>
   (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []).slice(0, n)
@@ -59,35 +60,23 @@ export async function GET(req: NextRequest) {
   }
 
   const personalized = or.length > 0
-  const where: Prisma.ListingWhereInput = personalized ? { AND: [base, { OR: or }] } : base
 
-  // Thin-catalog guard: the non-personalized ("Trending now") rail is just the top of the
-  // same pool the feed below already shows. When the whole active catalog is smaller than
-  // ~2 feed pages, the rail mirrors the grid card-for-card — repetition makes a thin
-  // catalog look thinner. Return [] (rails self-hide on empty); self-reverses as supply grows.
-  if (!personalized) {
-    const pool = await db.listing.count({ where: base })
-    if (pool < 24) {
-      return NextResponse.json(
-        { listings: [], personalized },
-        { headers: { 'Cache-Control': 'private, max-age=30' } },
-      )
-    }
-  }
-  // Balanced rankScore blend for both modes — same hierarchy as the rest of the app:
-  // trusted-and-fresh sellers lead, then popularity (views). (Personalization/trending only
-  // changes the WHERE, not the ranking — a low-trust listing never tops the rail.)
-  const orderBy: Prisma.ListingOrderByWithRelationInput[] = [RANK, { views: 'desc' }, { id: 'desc' }]
-
-  const rows = await db.listing.findMany({
-    where,
-    orderBy,
-    take: LIMIT,
-    include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
-  })
+  /**
+   * ⛔ NO SIGNALS → THE SAME TRENDING RAIL THE HOME PAGE SEEDS (trendingRailListings), not a second
+   * copy of it. The two used to be separate queries that merely looked alike; now the seed and this
+   * fetch cannot disagree, and both are chosen by diversifyRail (one card per seller/model, no
+   * repeated cover). Its thin-catalog guard is the one this branch had: under ~2 feed pages the rail
+   * would mirror the grid card-for-card, so it answers [] (rails self-hide on empty) until supply grows.
+   */
+  const rows = personalized
+    // Balanced rankScore blend — same hierarchy as the rest of the app: trusted-and-fresh sellers
+    // lead, then popularity (views). Personalization only changes the WHERE, not the ranking — a
+    // low-trust listing never tops the rail. Chosen from the top PERSONAL_POOL like the trending rail.
+    ? await diverseRailListings({ AND: [base, { OR: or }] }, [RANK, { views: 'desc' }, { id: 'desc' }], { pool: PERSONAL_POOL, take: LIMIT })
+    : await trendingRailListings()
 
   return NextResponse.json(
-    { listings: await localizeListingTitles(rows.map(serializeListing), req.cookies.get('lang')?.value), personalized },
+    { listings: await localizeListingTitles(rows, req.cookies.get('lang')?.value), personalized },
     { headers: { 'Cache-Control': 'private, max-age=30' } },
   )
 }

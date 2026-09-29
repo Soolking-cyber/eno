@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mergeRoundRobin, diversifyBySeller, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW, seatKey, sharedSeatsFor } from './feed-diversity'
+import { mergeRoundRobin, diversifyBySeller, diversifyRail, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW, seatKey, sharedSeatsFor } from './feed-diversity'
+import { JOB_SELLER_IDS } from './job-listing'
 
 /**
  * ⚠️ THE FIXTURE IS THE REAL PRODUCTION SHAPE, MEASURED 2026-08-13: 35 active listings, of which 14
@@ -271,5 +272,97 @@ describe('a catalogue sold by many storefronts shares one seat', () => {
     expect(seatKey({ id: 'a', sellerId: 's', subcategorySlug: 'esim' }, { sharedSeats: true })).toBe('__catalogue__esim')
     expect(seatKey({ id: 'a', sellerId: 's', subcategorySlug: 'visa-legal' }, { sharedSeats: true })).toBe('s')
     expect(seatKey({ id: 'a', sellerId: null }, { sharedSeats: true })).toBe('__no-seller__a')
+  })
+})
+
+/**
+ * ⛔ K-JOBS (2026-09-29): 7 of the first 12 home cards were linked jobs, one per board storefront.
+ * The boards share ONE seat — keyed by SELLER, so a member's own job post keeps its own.
+ */
+describe('the job boards share one seat', () => {
+  it('seats every board as one catalogue, only when the rule is on', () => {
+    for (const id of JOB_SELLER_IDS) {
+      expect(seatKey({ id: 'x', sellerId: id, subcategorySlug: 'teaching' }, { sharedSeats: true })).toBe('__catalogue__job-boards')
+      expect(seatKey({ id: 'x', sellerId: id, subcategorySlug: 'teaching' })).toBe(id)
+    }
+    // A member's own teaching post is not a board: its seller is its seat.
+    expect(seatKey({ id: 'x', sellerId: 'member-1', subcategorySlug: 'teaching' }, { sharedSeats: true })).toBe('member-1')
+  })
+
+  it('12 job rows from 6 boards plus 6 other sellers → at most one job in the first 7', () => {
+    const boards = JOB_SELLER_IDS.slice(0, 6)
+    const jobs = boards.flatMap((b) => [row(`${b}-0`, b), row(`${b}-1`, b)])
+    const others = Array.from({ length: 6 }, (_, i) => row(`o${i}`, `seller-${i}`))
+    const out = diversifyBySeller([...jobs, ...others], { sharedSeats: true })
+    expect(out.slice(0, 7).filter((r) => JOB_SELLER_IDS.includes(r.sellerId!))).toHaveLength(1)
+    expect(out).toHaveLength(18) // a round-robin, not a cap: every row is still in the feed
+  })
+
+  it('is off inside Jobs (the boards ARE the variety there) and inside any subcategory', () => {
+    expect(sharedSeatsFor(null, 'jobs')).toBe(false)
+    expect(sharedSeatsFor(null, null)).toBe(true)
+    expect(sharedSeatsFor(null, 'services')).toBe(true)
+    expect(sharedSeatsFor('esim', null)).toBe(false)
+  })
+})
+
+/**
+ * ⛔ K-VARIANTS (2026-09-29): the electronics rail was eight variants of one iPhone from one seller
+ * under one cover photo. diversifyRail may DROP rows (a rail is a sample), unlike the feed.
+ */
+describe('diversifyRail', () => {
+  /** A cover whose dHash is one hex digit repeated: any two different digits differ in ≥16 bits. */
+  const H = (n: number) => `https://x.supabase.co/l/${n}-h${(n % 16).toString(16).repeat(16)}.webp`
+  const SAME = 'https://x.supabase.co/l/a-hd8d6d6f4d6d6d6d4.webp'
+  const rail = (id: string, sellerId: string, cover: string, model: string | null = null) =>
+    ({ id, sellerId, images: [cover], brandSlug: model ? 'apple' : null, model })
+
+  it('8 same-cover iPhones plus 4 others → one iPhone, first', () => {
+    const phones = Array.from({ length: 8 }, (_, i) => rail(`p${i}`, 'shop', SAME, `iPhone 18 Pro ${i}`))
+    const others = [rail('o1', 's1', H(1)), rail('o2', 's2', H(2)), rail('o3', 's3', H(3)), rail('o4', 's4', H(4))]
+    const out = diversifyRail([...phones, ...others], { take: 8 })
+    expect(out[0].id).toBe('p0')
+    expect(out.filter((r) => r.id.startsWith('p'))).toHaveLength(1)
+    expect(out).toHaveLength(5)
+  })
+
+  it('a one-seller rail of distinct covers stays full (no per-seat cap under three seats)', () => {
+    const rows = Array.from({ length: 10 }, (_, i) => rail(`r${i}`, 'only', H(i)))
+    expect(diversifyRail(rows, { take: 8 })).toHaveLength(8)
+  })
+
+  it('one card per (seller, model), at most two per seller once three sellers are in reach', () => {
+    const rows = [
+      rail('a1', 'a', H(1), 'Galaxy S25'), rail('a2', 'a', H(2), 'Galaxy S25'), rail('a3', 'a', H(3), 'Galaxy S24'),
+      rail('a4', 'a', H(4), 'Galaxy S23'), rail('b1', 'b', H(5), null), rail('c1', 'c', H(6), null),
+    ]
+    const out = diversifyRail(rows, { take: 8 }).map((r) => r.id)
+    expect(out).not.toContain('a2') // same seller, same model as a1
+    expect(out.filter((id) => id.startsWith('a'))).toHaveLength(2)
+  })
+
+  it('modelScope "global" dedupes a model across sellers; interleave off keeps the given order', () => {
+    const rows = [rail('x', 's1', H(1), 'iPhone 17'), rail('y', 's2', H(2), 'iPhone 17'), rail('z', 's1', H(3), 'iPhone 16')]
+    expect(diversifyRail(rows, { take: 6, modelScope: 'global', interleave: false, perSeat: Infinity }).map((r) => r.id)).toEqual(['x', 'z'])
+  })
+
+  it('same input, same output', () => {
+    const rows = Array.from({ length: 20 }, (_, i) => rail(`r${i}`, `s${i % 4}`, H(i), i % 3 ? `M${i % 5}` : null))
+    expect(diversifyRail(rows, { take: 8 })).toEqual(diversifyRail(rows, { take: 8 }))
+  })
+
+  it('⛔ `min` is a floor: a pool that is one photo throughout keeps its rail, distinct rows first', () => {
+    // One importer, one cover, one model: the rules alone keep a single card, and the home client
+    // hides a rail under MIN_RAIL_ITEMS (3) — the category rail used to show eight.
+    const same = Array.from({ length: 12 }, (_, i) => rail(`p${i}`, 'shop', SAME, 'iPhone 18 Pro'))
+    expect(diversifyRail(same, { take: 8 })).toHaveLength(1)
+    expect(diversifyRail(same, { take: 8, min: 4 }).map((r) => r.id)).toEqual(['p0', 'p1', 'p2', 'p3'])
+    // The distinct rows lead and the repeats fill behind them, in rail order.
+    const mixed = [...same.slice(0, 5), rail('o1', 'shop', H(1))]
+    expect(diversifyRail(mixed, { take: 8, min: 4 }).map((r) => r.id)).toEqual(['p0', 'o1', 'p1', 'p2'])
+    // A floor never overrides a rail that already clears it, and never exceeds `take`.
+    const distinct = Array.from({ length: 10 }, (_, i) => rail(`r${i}`, 'only', H(i)))
+    expect(diversifyRail(distinct, { take: 8, min: 4 })).toEqual(diversifyRail(distinct, { take: 8 }))
+    expect(diversifyRail(same, { take: 2, min: 4 })).toHaveLength(2)
   })
 })

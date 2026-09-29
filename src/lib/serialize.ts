@@ -1,5 +1,6 @@
 import type { Listing, Category, Seller, Prisma } from '@/generated/prisma/client'
 import { listedAt } from './stale'
+import { displayPriceUnit } from './price-unit'
 import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
@@ -41,7 +42,8 @@ export function serializeListing(
     descriptionVi: (l as { descriptionVi?: string | null }).descriptionVi ?? null,
     description: l.description,
     price: l.price,
-    priceUnit: l.priceUnit,
+    // ⚠️ THE DISPLAY UNIT (price-unit.ts): Batdongsan/Rever's bare 'VND' reads 'VND/month'.
+    priceUnit: displayPriceUnit(l.priceUnit, l.sellerId),
     isPartnerBooking: Boolean(l.affiliateUrl),
     currency: l.currency,
     negotiable: l.negotiable,
@@ -207,7 +209,8 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     title: l.title,
     titleVi: l.titleVi,
     price: l.price,
-    priceUnit: l.priceUnit,
+    // ⚠️ THE DISPLAY UNIT (price-unit.ts): Batdongsan/Rever's bare 'VND' reads 'VND/month'.
+    priceUnit: displayPriceUnit(l.priceUnit, l.sellerId),
     isPartnerBooking: Boolean(l.affiliateUrl),
     listingType: l.listingType,
     currency: l.currency,

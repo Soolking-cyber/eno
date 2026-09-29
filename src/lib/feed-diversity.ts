@@ -1,3 +1,6 @@
+import { JOB_SELLER_IDS } from './job-listing'
+import { hammingHex, hashFromUrl } from './image-hash-url'
+
 /**
  * SELLER DIVERSITY FOR THE DEFAULT BROWSE FEED — so the first screen of a marketplace looks like a
  * marketplace and not like one seller's catalogue.
@@ -65,27 +68,49 @@ type Diversifiable = { id: string; sellerId?: string | null; subcategorySlug?: s
  */
 export const SHARED_SEAT_SUBCATEGORIES: readonly string[] = ['esim']
 
+/**
+ * SELLER SETS THAT SHARE ONE SEAT IN THE DEFAULT FEED — the same failure as the carriers, through a
+ * different catalogue. Measured on eno.vn at 390px, 2026-09-29: 7 of the first 12 home cards were
+ * linked jobs, from seven different boards, because scripts/import-jobs.ts creates one ownerless
+ * storefront per board (job-listing.ts JOB_BOARDS, 18 of them) and fresh boards take the fan-out's
+ * seller seats one each. memory eno-esim-carriers anticipated it: any importer that creates many
+ * storefronts at once needs a shared seat.
+ * ⚠️ KEYED BY SELLER, NOT BY SUBCATEGORY: 'teaching' and 'job-other' also hold members' own job
+ * posts, and a member's post keeps its own seat like any other listing.
+ */
+export const SHARED_SEAT_SELLERS: Readonly<Record<string, readonly string[]>> = { 'job-boards': JOB_SELLER_IDS }
+
+/** sellerId → its shared seat's key, for seatKey's hot loop. */
+const SELLER_SEAT = new Map<string, string>(
+  Object.entries(SHARED_SEAT_SELLERS).flatMap(([k, ids]) => ids.map((id) => [id, `__catalogue__${k}`] as const)),
+)
+
 /** Options for the seat rule. Off unless a caller asks — every pre-existing caller is unchanged. */
 export type SeatOptions = { sharedSeats?: boolean }
 
 /**
- * Whether a feed filtered to `subcategory` should collapse the shared seats: only when NO subcategory
- * is chosen. Inside the shared aisle every row is the catalogue and the useful variety is between its
- * sellers; inside any other subcategory there are no catalogue rows, so the rule could only cost a
- * query. One function so the API route and the home page cannot disagree about it.
+ * Whether a feed filtered to `subcategory` (and `category`) should collapse the shared seats: only
+ * when NO subcategory is chosen, and not inside Jobs. Inside a shared aisle every row is the catalogue
+ * and the useful variety is between its sellers — the carriers inside eSIM, the boards inside Jobs;
+ * inside any other subcategory there are no catalogue rows, so the rule could only cost a query. One
+ * function so the API route and the home page cannot disagree about it.
  * ⚠️ WHAT IT DOES NOT DO: past FEED_DIVERSITY_WINDOW the feed is plain rank order (the module's
  * documented limit), so a tied catalogue's rows beyond its window share arrive together there — on
  * 2026-09-25, rows ~60-115 of the home feed — until their recency component decays. The first screen
  * is the failure this prevents; "a monopolised page six" is the accepted cost, as above.
  */
-export function sharedSeatsFor(subcategory: string | null | undefined): boolean {
-  return !subcategory
+export function sharedSeatsFor(subcategory: string | null | undefined, category?: string | null): boolean {
+  return !subcategory && category !== 'jobs'
 }
 
 /** The seat a row competes for: its seller's, or its catalogue's when the shared-seat rule is on. */
 export function seatKey(row: Diversifiable, opts?: SeatOptions): string {
   if (opts?.sharedSeats && row.subcategorySlug && SHARED_SEAT_SUBCATEGORIES.includes(row.subcategorySlug)) {
     return `__catalogue__${row.subcategorySlug}`
+  }
+  if (opts?.sharedSeats && row.sellerId) {
+    const shared = SELLER_SEAT.get(row.sellerId)
+    if (shared) return shared
   }
   // `?? row.id` gives an unattributed row its own bucket; see diversifyBySeller.
   return row.sellerId ?? `__no-seller__${row.id}`
@@ -184,5 +209,72 @@ export function mergeRoundRobin<T>(groups: readonly (readonly T[])[]): T[] {
   const out: T[] = []
   const depth = Math.max(0, ...groups.map((g) => g.length))
   for (let i = 0; i < depth; i++) for (const g of groups) if (i < g.length) out.push(g[i])
+  return out
+}
+
+/** What a rail row needs beyond a seat: its cover (for the hash in its URL) and, when known, its model. */
+type RailRow = Diversifiable & { images?: readonly string[] | null; brandSlug?: string | null; model?: string | null }
+
+/**
+ * A SHORT RAIL THAT SHOWS DIFFERENT THINGS — Trending, the home category rails, "For you", the
+ * typeahead. Measured 2026-09-29 on /api/category-rails: the electronics rail was eight iPhone 18 Pro
+ * variants from one seller, all one cover image; sports, kids, vehicles and travel were each 8 of 8
+ * from one seller. A rail is a sample, so unlike the feed it may DROP rows:
+ *   · the seller round-robin first (`interleave`, the feed's own rule and seats — off for a list that
+ *     is already in relevance order, like the typeahead's);
+ *   · a row whose cover is the same photo as a kept one (dHash in the URL within Hamming 6 — a
+ *     re-encode, not a different shot; image-hash-url.ts) is skipped;
+ *   · a row repeating a kept model is skipped — per seller (`modelScope: 'seller'`, two shops' same
+ *     phone are two offers) or across the rail (`'global'`);
+ *   · each seat keeps at most `perSeat` rows — but only when the rail HAS three or more seats, so a
+ *     category one seller fills still gets a full rail.
+ * Stops at `take`. ⚠️ Never touches rankScore (memory eno-esim-carriers): it only chooses among the
+ * rows the caller ranked. Pure and deterministic, like everything else here.
+ * ⛔ `min` IS A FLOOR THE RULES MAY NOT DIG UNDER. A pool that is one photo or one model throughout
+ * (a single importer's variants) keeps ONE card under the rules above, and a rail that short is
+ * hidden by its client (MIN_RAIL_ITEMS) — where it used to show eight. Below `min`, the skipped
+ * rows come back in rail order, after the distinct ones: repetition beats a category vanishing.
+ */
+export function diversifyRail<T extends RailRow>(
+  rows: readonly T[],
+  { take, min = 0, perSeat = 2, modelScope = 'seller', sharedSeats = true, interleave = true }: {
+    take: number
+    min?: number
+    perSeat?: number
+    modelScope?: 'seller' | 'global'
+    sharedSeats?: boolean
+    interleave?: boolean
+  },
+): T[] {
+  const opts: SeatOptions = { sharedSeats }
+  const ordered = interleave ? diversifyBySeller(rows, opts) : [...rows]
+  const cap = new Set(ordered.map((r) => seatKey(r, opts))).size >= 3 ? perSeat : Infinity
+  const covers: string[] = []
+  const models = new Set<string>()
+  const perSeatCount = new Map<string, number>()
+  const out: T[] = []
+  for (const r of ordered) {
+    if (out.length >= take) break
+    const cover = r.images?.[0] ? hashFromUrl(r.images[0]) : null
+    if (cover && covers.some((c) => hammingHex(c, cover) <= 6)) continue
+    const modelKey = r.model
+      ? `${modelScope === 'seller' ? `${r.sellerId ?? r.id}|` : ''}${r.brandSlug ?? ''}|${r.model.toLowerCase()}`
+      : null
+    if (modelKey && models.has(modelKey)) continue
+    const seat = seatKey(r, opts)
+    const n = perSeatCount.get(seat) ?? 0
+    if (n >= cap) continue
+    out.push(r)
+    perSeatCount.set(seat, n + 1)
+    if (cover) covers.push(cover)
+    if (modelKey) models.add(modelKey)
+  }
+  if (out.length < Math.min(min, take)) {
+    const kept = new Set(out)
+    for (const r of ordered) {
+      if (out.length >= Math.min(min, take)) break
+      if (!kept.has(r)) out.push(r)
+    }
+  }
   return out
 }

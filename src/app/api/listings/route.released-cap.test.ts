@@ -35,6 +35,8 @@ vi.mock('@/lib/serialize', () => ({}))
 vi.mock('@/lib/translate', () => ({}))
 vi.mock('@/lib/facet-counts', () => ({}))
 vi.mock('./semantic-rank', () => ({}))
+vi.mock('./keyword-rank', () => ({}))
+vi.mock('@/lib/spell-correct', () => ({}))
 vi.mock('@/lib/price-histogram', () => ({}))
 
 import { NextRequest } from 'next/server'

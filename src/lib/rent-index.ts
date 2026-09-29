@@ -1,5 +1,6 @@
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { districtTextMatches } from '@/lib/district-match'
+import { MONTHLY_BARE_VND_SELLERS, MONTHLY_UNIT } from '@/lib/price-unit'
 
 /**
  * THE HCMC RENT INDEX — median asking rent by district × property type, computed from the rentals
@@ -47,18 +48,12 @@ export const MIN_VND_PER_M2 = 10_000
 export const MAX_VND_PER_M2 = 2_000_000
 
 /**
- * ⛔ A BARE "VND" UNIT IS A MONTHLY RENT ONLY FROM THESE TWO SELLERS, AND THAT WAS READ, NOT ASSUMED.
- * scripts/import-batdongsan-rentals.ts keeps `price_type === 'lump_sum'` only, drops any `price_raw`
- * containing `/m` (a per-m² quote), and writes `Rent: <price>/month` into the description;
- * scripts/import-rever-rentals.ts takes the live price of a still-unrented rental and writes the same.
- * Both simply store `priceUnit: 'VND'` without the suffix. Anywhere else a bare 'VND' in rentals could
- * be a nightly or a one-off price, so it is excluded rather than guessed at. Ids, never names —
- * `Seller.name` is user-settable (src/lib/import-sellers.ts).
+ * ⛔ A BARE "VND" UNIT IS A MONTHLY RENT ONLY FROM TWO SELLERS — the set and its evidence now live in
+ * src/lib/price-unit.ts (MONTHLY_BARE_VND_SELLERS), where the card's DISPLAY rule reads the same one
+ * (displayPriceUnit). Re-exported here unchanged: the rule did not change, only where it is written,
+ * so RENT_INDEX_RULES_VERSION does not move.
  */
-export const MONTHLY_BARE_VND_SELLERS: ReadonlySet<string> = new Set([
-  'bds-vn-import-seller-0001', // Batdongsan.com.vn
-  'cmub0wead0000zrq418bqq27m', // Rever.vn
-])
+export { MONTHLY_BARE_VND_SELLERS, MONTHLY_UNIT }
 
 /**
  * ⛔ NO PER-SOURCE NUMBERS ARE PUBLISHED (owner, 2026-09-27). The page names the sources in aggregate
@@ -67,12 +62,9 @@ export const MONTHLY_BARE_VND_SELLERS: ReadonlySet<string> = new Set([
  * rule below.
  */
 
-/** The monthly unit `listingMoneyFor({ listingType: 'rent' })` writes for every rent listing. */
-export const MONTHLY_UNIT = 'VND/month'
-
 /**
  * Whether a row's price is quoted per month: the explicit unit, or a bare 'VND' from one of the two
- * sellers proven above to store monthly rent without the suffix. The UNIT rule only — the index
+ * sellers proven (price-unit.ts) to store monthly rent without the suffix. The UNIT rule only — the index
  * still checks listing type and currency itself. A bare 'month', which `<Price>` does print as
  * "/ month", is not accepted; production stores none (only the CI fixture `ci-l-4`, a sale).
  * ⛔ THIS IS AN INDEX RULE, SO CHANGING IT BUMPS `RENT_INDEX_RULES_VERSION`. Exported so any other

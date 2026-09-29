@@ -20,6 +20,10 @@ import { idsFastPath, buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, ge
 import { computeFacetCounts, releasedParams, subcategoryDimension, subcategoryDropPlan, type FacetCounts } from '@/lib/facet-counts'
 import { PROVINCE_NAMES_EN } from '@/lib/province-match'
 import { semanticRank } from './semantic-rank'
+import { keywordRank } from './keyword-rank'
+import { correctQuery } from '@/lib/spell-correct'
+import { fold } from '@/lib/fold'
+import { inferDistrictFromQuery } from '@/lib/district-query'
 import { resolveSellerForPost } from './resolve-seller'
 import { publishOutcome, recordPublishOutcome } from '@/lib/publish-funnel'
 import { buildHistogram } from '@/lib/price-histogram'
@@ -42,6 +46,51 @@ export async function GET(req: NextRequest) {
   const fastPath = await idsFastPath(searchParams)
   if (fastPath) return fastPath
 
+  let payload = await buildFeedPayload(searchParams)
+  /**
+   * ⛔ A SEARCH THAT FINDS NOTHING IS ANSWERED FOR ITS LIKELY SPELLING — "iphnoe" found 0 while "iphone"
+   * found 3,439 (production, 2026-09-29). Vertex was the typo-tolerant path and it is off in
+   * production; src/lib/spell-correct.ts is the stand-in. ONLY on zero results (a query that finds
+   * anything is never second-guessed), and never for a query that names a district (district-query.ts
+   * owns those words, and "quan" must not be "corrected" into a product). The corrected set is served
+   * only if it finds something, and the feed's `correctedQuery` says so — null on every other feed
+   * response. Load-more pages repeat it deterministically; the zero they re-check is the memoized count.
+   * ⛔ THE HISTOGRAM (`histogram=1`) IS NEVER CORRECTED HERE — the client asks it for the word the
+   * feed answered (`correctedQuery`). Its zero is not the feed's zero: it drops priceMin/priceMax
+   * (price-histogram.ts) and never takes the semantic path, so deciding from it let the slider
+   * describe a different word than the grid (review, 2026-09-29: feed literal at 73 on the semantic
+   * path, histogram "corrected" to 3,433). One decision, the feed's.
+   * ⛔ OPT-IN: ONLY A REQUEST THAT SENDS `spell=1` IS CORRECTED. Another word's results are only honest
+   * beside "Showing results for … · Search instead for …", and a client that cannot draw that line —
+   * today's explorer, until its banner lands (W2), and any bundle cached from before it — must get
+   * the literal zero rather than a silent swap (review, 2026-09-29). A client that draws the line
+   * sends `spell=1` with the feed, and drops it for "Search instead for …".
+   */
+  let correctedQuery: string | null = null
+  const rawQ = searchParams.get('q')?.trim()
+  if (!payload.histogram && payload.body.total === 0 && rawQ && searchParams.get('spell') === '1' && !inferDistrictFromQuery(rawQ)) {
+    const fixed = await correctQuery(rawQ)
+    if (fixed && fixed !== fold(rawQ)) {
+      const corrected = new URLSearchParams(searchParams)
+      corrected.set('q', fixed)
+      const retry = await buildFeedPayload(corrected)
+      if (retry.body.total > 0) {
+        payload = retry
+        correctedQuery = fixed
+      }
+    }
+  }
+  // The feed says whether it was corrected; the histogram's wire shape stays exactly the price panel's.
+  const body = payload.histogram ? payload.body : { ...payload.body, correctedQuery }
+  return NextResponse.json(body, { headers: { 'Cache-Control': payload.cacheControl } })
+}
+
+/**
+ * The feed (or, with `histogram=1`, its price distribution) for one set of params, as a body plus
+ * the Cache-Control it is served with. Split out of GET so a zero-result search can be asked again
+ * with its corrected spelling (above) through exactly the same code.
+ */
+async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: { total: number } & Record<string, unknown>; cacheControl: string; histogram: boolean }> {
   // ⚠️ RESOLVED, not merely built: a district read out of `q` that would find nothing where the plain
   // words find something is dropped here (resolveFeedFilters), and every figure below — rows, total,
   // histogram, facet counts — follows that one decision.
@@ -71,13 +120,14 @@ export async function GET(req: NextRequest) {
    */
   if (histogram) {
     const groups = await db.listing.groupBy({ by: ['price'], where, _count: { _all: true } })
-    return NextResponse.json(
-      buildHistogram(groups.map((g) => ({ price: g.price, count: g._count._all }))),
+    return {
+      body: buildHistogram(groups.map((g) => ({ price: g.price, count: g._count._all }))),
       // s-maxage = the CDN (Cloudflare) edge TTL, separate from the browser max-age;
       // stale-while-revalidate lets the edge serve instantly while refreshing in the
       // background → hot price-histogram queries are served from Vietnam, not origin.
-      { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=120, stale-while-revalidate=300' } },
-    )
+      cacheControl: 'public, max-age=30, s-maxage=120, stale-while-revalidate=300',
+      histogram: true,
+    }
   }
 
   /**
@@ -145,14 +195,14 @@ export async function GET(req: NextRequest) {
   // were ignored. Counts now match what the click returns.
   const facetBaseFilters = andFilters.filter((f) => f !== subcategoryFilter && f !== pgTextFilter)
   /**
-   * A catalogue sold by many storefronts (Services › eSIM: nine carriers) shares ONE seat in the
-   * default feed — except inside that aisle, where the carriers are the variety (feed-diversity.ts).
+   * A catalogue sold by many storefronts (Services › eSIM: nine carriers; the job boards) shares ONE
+   * seat in the default feed — except inside its aisle, where they are the variety (feed-diversity.ts).
    * ⚠️ The home page and the storefront rails pass the same rule for an unfiltered feed; the SSR head
    * and this API's head must agree or the feed reshuffles on hydration.
    */
-  // The migrated request parameter, not a cast into the Prisma filter: the rule must follow the
-  // subcategory the reader chose, whatever shape the filter that implements it takes.
-  const sharedSeats = sharedSeatsFor(searchParams.get('subcategory'))
+  // The migrated request parameters, not a cast into the Prisma filter: the rule must follow the
+  // subcategory (and category) the reader chose, whatever shape the filter that implements it takes.
+  const sharedSeats = sharedSeatsFor(searchParams.get('subcategory'), searchParams.get('category'))
 
   /**
    * ⛔ A SUBCATEGORY-SCOPED FILTER IS COUNTED THE WAY EACH SIBLING'S TAP APPLIES IT. `facetBaseFilters`
@@ -204,6 +254,18 @@ export async function GET(req: NextRequest) {
     semanticListings
       ? Promise.resolve(semanticListings)
       /**
+       * ⛔ A TEXT QUERY'S ORDER IS THE RELEVANCE ANSWER ON BOTH PATHS — Vertex's above, the lexical
+       * ranker's here (keyword-rank.ts), which answers every default-sort search the semantic path
+       * does not. The seller round-robin below is a BROWSE rule, and on a search it was lifting one
+       * description-only match per seller to the top: measured 2026-09-29, q=iphone gave a Viettel
+       * eSIM at #1 and an Under Armour tote bag at #2. keywordRank answers null — and the feed below
+       * runs exactly as before — for browse, an explicit sort, `match=any` and featured-only, and
+       * when its own read fails. The row set is the same `where` either way, so `total` is unchanged.
+       * ⚠️ Created here, inside the array the Promise.all below joins, with no await in between — the
+       * unhandled-rejection note on `facetsPromise` applies to any promise left unwatched.
+       */
+      : keywordRank({ q, looseMatch, featuredOnly, sort, offset, limit, where, orderBy }).then(({ keywordListings }) => keywordListings ?? (
+      /**
        * ⚠️ INSIDE THE DIVERSITY WINDOW THE PAGE IS SLICED FROM A REORDERED WINDOW, NOT FROM SQL.
        * One seller's fourteen near-identical e-visa SKUs held positions 0-13 of this feed on
        * production, so the entire first screen was one catalogue (see src/lib/feed-diversity.ts).
@@ -235,7 +297,7 @@ export async function GET(req: NextRequest) {
        * own EVERY offset once diversityAppliesTo(sort) is true, so the same `notIn head` applies
        * all the way down.
        */
-      : diversityAppliesTo(sort)
+      diversityAppliesTo(sort)
         ? diverseFeedWindow(where, orderBy, LISTING_CARD_SELECT, { sharedSeats })
             /**
              * ⛔ ROWS PAST THE WINDOW MUST EXCLUDE WHAT THE WINDOW ALREADY SERVED. The window no
@@ -274,7 +336,7 @@ export async function GET(req: NextRequest) {
             take: limit,
             skip: offset,
             select: LISTING_CARD_SELECT,
-          }),
+          }))),
     semanticListings ? Promise.resolve(semanticTotal) : countListingsCached(where),
     undefined
   ]
@@ -340,8 +402,8 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  return NextResponse.json(
-    {
+  return {
+    body: {
       // lang comes from the QUERY (the client sends it only for non-en/vi) so the CDN cache
       // key varies with the payload — the cookie-read variant poisoned the shared edge
       // entry with whichever language hit first (audit P2).
@@ -363,15 +425,12 @@ export async function GET(req: NextRequest) {
        */
       inferredDistrict,
     },
-    {
-      headers: {
-        // s-maxage = Cloudflare edge TTL (the browser keeps the shorter max-age);
-        // stale-while-revalidate serves the cached feed instantly from the VN edge
-        // while it refreshes behind the scenes, so cache-hits never touch Cloud Run.
-        'Cache-Control': 'public, max-age=15, s-maxage=60, stale-while-revalidate=300',
-      },
-    }
-  )
+    // s-maxage = Cloudflare edge TTL (the browser keeps the shorter max-age);
+    // stale-while-revalidate serves the cached feed instantly from the VN edge
+    // while it refreshes behind the scenes, so cache-hits never touch Cloud Run.
+    cacheControl: 'public, max-age=15, s-maxage=60, stale-while-revalidate=300',
+    histogram: false,
+  }
 }
 
 // Create a listing from the post wizard. No auth yet → identify the seller by

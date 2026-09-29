@@ -16,6 +16,7 @@ const NUMERIC_SPEC_KEYS = new Set(['ram', 'storage', 'caseSize', 'screenSize', '
 import { conciergeSearch, vertexConfigured } from '@/lib/vertex-search'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { matchBrand } from '@/lib/brand'
+import { WORD_BOUNDARY } from '@/lib/search-match'
 import type { Prisma } from '@/generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -344,7 +345,8 @@ async function fallbackSearch(
   // pen 2→1, scooter 50→100, art 144→28). Prisma has no regex filter, and widening the
   // shared fold() would ripple into phone/banned-word detection — so we enumerate here.
   // (Vertex semantic search is the primary path; this is the free Postgres fallback.)
-  const BOUNDARY = [' ', '-', '/', '(', ',', '.', '&']
+  // The set now lives in src/lib/search-match.ts, where the feed and the typeahead share it (2026-09-29).
+  const BOUNDARY = WORD_BOUNDARY
   const wordMatch = (t: string): Prisma.ListingWhereInput => ({
     OR: [
       { searchText: { startsWith: t } },

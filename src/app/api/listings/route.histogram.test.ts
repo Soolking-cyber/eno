@@ -53,6 +53,8 @@ vi.mock('@/lib/ratelimit', () => ({}))
 vi.mock('@/lib/core/listings', () => ({}))
 vi.mock('@/lib/facet-counts', () => ({}))
 vi.mock('./semantic-rank', () => ({}))
+vi.mock('./keyword-rank', () => ({}))
+vi.mock('@/lib/spell-correct', () => ({ correctQuery: async () => null }))
 vi.mock('./resolve-seller', () => ({}))
 vi.mock('@/lib/publish-funnel', () => ({}))
 

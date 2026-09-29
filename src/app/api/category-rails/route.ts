@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { route } from '@/lib/api/handler'
+import { diversifyRail } from '@/lib/feed-diversity'
 
 export const runtime = 'nodejs'
 
@@ -14,6 +15,18 @@ export const runtime = 'nodejs'
 const PER_RAIL = 8 // listings per category rail (kept lean; rail scrolls for more)
 const MAX_RAILS = 10 // cap the page length
 const MIN_LISTINGS = 4 // skip near-empty rails (can't fill a desktop row)
+/**
+ * Rows each rail CHOOSES its PER_RAIL from (diversifyRail, feed-diversity.ts). Measured 2026-09-29:
+ * the electronics rail was eight variants of one iPhone from one seller under one cover photo, and
+ * sports, kids, vehicles and travel were each 8 of 8 from one seller — a plain `take: 8` by rankScore
+ * cannot do better, because the variants ARE the top eight. From 40, the rail takes each seller's
+ * best in turn, one card per (seller, model), never the same photo twice, and at most two per seller
+ * once three or more sellers are in reach (a one-seller category keeps a full rail).
+ * ⚠️ NEVER BELOW MIN_LISTINGS. The groupBy admitted the category on its COUNT; the rules above could
+ * then leave one card (a pool that is one photo throughout), and the client hides a rail under
+ * MIN_RAIL_ITEMS. `min` back-fills the repeats instead, so an admitted category keeps its rail.
+ */
+const RAIL_POOL = 40
 
 // ⚠️ WS6 MIGRATION. `auth: 'public'` — the home page calls this logged-out; there was never an auth
 // preamble and adding one would 401 every guest. No rate limit and no body were added either: this
@@ -60,7 +73,7 @@ export const GET = route({ auth: 'public' }, async () => {
       const slug = slugById.get(r.categoryId)
       if (!slug) return null
       const listings = await db.listing.findMany({
-        // ⚠️ FILL — the read that actually PRINTS the cards. take: PER_RAIL applies after the
+        // ⚠️ FILL — the read that actually PRINTS the cards. The take applies after the
         // exclusion, so the rail refills from real marketplace supply rather than shrinking.
         where: await scopedListingWhere({ verified: true, status: 'active', categoryId: r.categoryId }),
         // Balanced rankScore blend, then most-viewed — matches the main feed's order.
@@ -69,10 +82,10 @@ export const GET = route({ auth: 'public' }, async () => {
           { views: 'desc' },
           { id: 'desc' },
         ],
-        take: PER_RAIL,
+        take: RAIL_POOL,
         select: LISTING_CARD_SELECT,
       })
-      return { slug, listings: listings.map(serializeListingCard) }
+      return { slug, listings: diversifyRail(listings.map(serializeListingCard), { take: PER_RAIL, min: MIN_LISTINGS }) }
     }),
   )
 

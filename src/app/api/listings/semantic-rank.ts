@@ -1,13 +1,12 @@
 // GET /api/listings semantic-search machinery: the Vertex ranked-ID cache, the global
 // daily budget, and the semantic ranking + pagination path. Extracted verbatim from
 // route.ts — the rankCache singleton lives here (exactly one module instance).
-import { scopedListingWhere } from '@/lib/edition-scope'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
-import { LISTING_CARD_SELECT } from '@/lib/serialize'
 import { rateLimit } from '@/lib/ratelimit'
 import { vertexSearchListingIds, vertexConfigured } from '@/lib/vertex-search'
 import { searchScore, relevanceFromPosition } from '@/lib/ranking'
+import { pageRankedThenTail, RANKED_SET_TTL } from './ranked-page'
 
 // Vertex ranked-ID cache (keyed by the exact Vertex args: q + category + price band).
 // Pagination MUST use one ranked set across pages — re-querying Vertex per page can
@@ -15,7 +14,9 @@ import { searchScore, relevanceFromPosition } from '@/lib/ranking'
 // AND spends the credit on every page. 15 min TTL: search result order for a given query
 // doesn't need sub-minute freshness, and every cache miss is REAL MONEY once the Vertex
 // credit exhausts (~$1.50/1k queries) — this is a paid-API cache, not a UX cache.
-const RANK_TTL = 15 * 60_000
+// ⚠️ ONE NUMBER FOR BOTH RANKERS (ranked-page.ts): the keyword ranker caches its ranked set for the
+// same window, because it also has to outlive the edge's stale-while-revalidate.
+const RANK_TTL = RANKED_SET_TTL
 const RANK_CACHE_MAX = 200
 const rankCache = new Map<string, { at: number; ids: string[] }>()
 // Global daily ceiling on ACTUAL Vertex calls (cache hits are free and don't count).
@@ -107,32 +108,14 @@ export async function semanticRank(args: {
       // ranked. So deep pages of a popular query (>120 matches) keep loading instead of
       // capping at 120, and the displayed result count is honest. `total` always equals
       // the paginable count, so the client's load-more (listings.length < total) terminates.
-      const tailWhere: Prisma.ListingWhereInput = { AND: [...andFilters, { id: { notIn: rankedIds } }] }
-      // Fetch card rows for THIS page's ranked slice only, restoring rank order.
-      const pageIds = ranked.slice(offset, offset + limit).map((r) => r.id)
-      const [tailTotal, pageRows] = await Promise.all([
-        db.listing.count({ where: tailWhere }),
-        pageIds.length
-          ? db.listing.findMany({ where: await scopedListingWhere({ id: { in: pageIds } }), select: LISTING_CARD_SELECT })
-          : [],
+      // This page's ranked slice, then — once the page reaches past the ranked set — the
+      // rankScore-ordered keyword matches that are not ranked (ranked-page.ts).
+      const [tailTotal, page] = await Promise.all([
+        db.listing.count({ where: { AND: [...andFilters, { id: { notIn: rankedIds } }] } }),
+        pageRankedThenTail({ rankedIds, tailWhere: { AND: andFilters }, orderBy, offset, limit }),
       ])
       semanticTotal = R + tailTotal
-      const pageById = new Map(pageRows.map((r) => [r.id, r] as const))
-      const aPart = pageIds.map((id) => pageById.get(id)).filter((r): r is (typeof pageRows)[number] => !!r)
-      if (aPart.length < limit && offset + limit > R && tailTotal > 0) {
-        // This page reaches past the ranked set — fill the remainder from rankScore-ordered
-        // results (the same blend), excluding the ids already shown in the ranked portion.
-        const tailRows = await db.listing.findMany({
-          where: tailWhere,
-          orderBy,
-          skip: Math.max(0, offset - R),
-          take: limit - aPart.length,
-          select: LISTING_CARD_SELECT,
-        })
-        semanticListings = [...aPart, ...tailRows]
-      } else {
-        semanticListings = aPart
-      }
+      semanticListings = page
     }
   }
   return { semanticListings, semanticTotal }

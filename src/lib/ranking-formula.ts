@@ -41,6 +41,8 @@ export const RANK = {
   // browse is already 0.60 trust-majority). At 0.50/0.40, an exact match still wins,
   // while a Trusted-vs-Building gap (~0.36 of the trust scale post-recalibration)
   // reorders everything that isn't a clearly-better match: behave → get the deal.
+  // Relevance comes from Vertex's rank position (relevanceFromPosition) OR, on the keyword path —
+  // the only one production runs — from the lexical scoreRow (src/lib/text-relevance.ts).
   SEARCH_REL_W: 0.5,
   SEARCH_TRUST_W: 0.4,
   SEARCH_RECENCY_W: 0.1,

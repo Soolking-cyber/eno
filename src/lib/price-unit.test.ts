@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { priceUnitSuffix, UNIT_CODES } from './price-unit'
+import { displayPriceUnit, priceUnitSuffix, UNIT_CODES } from './price-unit'
+import { serializeListingCard } from './serialize'
 
 /** `<Price>`'s inline parse at price.tsx:87-88 (176c0d63), verbatim: the expression the helper replaced. */
 function oldInline(priceUnit: string) {
@@ -50,5 +51,39 @@ describe('UNIT_CODES', () => {
     expect(UNIT_CODES.get('service')).toBeUndefined()
     expect(UNIT_CODES.get('toString')).toBeUndefined()
     expect(UNIT_CODES.get('fortnight')).toBeUndefined()
+  })
+})
+
+/**
+ * K-RENT-UNIT (2026-09-29): Batdongsan and Rever store monthly rent as a bare 'VND' (~19,400 active
+ * rentals), so their cards printed no "/ month". The DISPLAY rule reads the two proven sellers; the
+ * column and every other seller are untouched — Nhatot stores bare 'VND' too and is NOT monthly-proven
+ * (rent-index.test.ts pins that).
+ */
+describe('displayPriceUnit', () => {
+  it('reads a Batdongsan or Rever bare VND as monthly', () => {
+    expect(displayPriceUnit('VND', 'bds-vn-import-seller-0001')).toBe('VND/month')
+    expect(displayPriceUnit('VND', 'cmub0wead0000zrq418bqq27m')).toBe('VND/month')
+  })
+
+  it('leaves every other seller, and every other unit, exactly as stored', () => {
+    expect(displayPriceUnit('VND', 'nhatot-import-seller-0001')).toBe('VND')
+    expect(displayPriceUnit('VND', null)).toBe('VND')
+    expect(displayPriceUnit('VND/month', 'cmub0wead0000zrq418bqq27m')).toBe('VND/month')
+    expect(displayPriceUnit('', 'bds-vn-import-seller-0001')).toBe('')
+    expect(displayPriceUnit('VND/service', 'anyone')).toBe('VND/service')
+  })
+
+  it('a Rever card row serializes the monthly unit, so <Price> prints "/ month"', () => {
+    const card = serializeListingCard({
+      sellerId: 'cmub0wead0000zrq418bqq27m', id: 'l1', title: 'Căn hộ 2PN', titleVi: null, price: 5_000_000, priceUnit: 'VND',
+      currency: 'VND', negotiable: false, location: 'Q7', district: null, city: 'HCMC', previousPrice: null, priceDropAt: null,
+      urgentUntil: null, lat: null, lng: null, images: '[]', video: null, brandSlug: null, model: null, condition: null,
+      marketPosition: null, verified: true, postedAt: new Date(), createdAt: new Date(), savedCount: 0, contactCount: 0,
+      affiliateUrl: null, category: { id: 'c', name: 'Rentals', nameVi: 'Cho thuê', slug: 'rentals', icon: 'Home', color: 'sky' },
+      seller: { trustScore: 100, officialPartner: false },
+    })
+    expect(card.priceUnit).toBe('VND/month')
+    expect(priceUnitSuffix(card.priceUnit)).toBe('month')
   })
 })

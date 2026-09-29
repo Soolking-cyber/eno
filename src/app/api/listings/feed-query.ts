@@ -9,6 +9,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { isRangeColumn } from '@/lib/taxonomy'
 import { attrFiltersFrom, attrWhere } from '@/lib/attr-match'
 import { fold } from '@/lib/fold'
+import { textPredicate } from '@/lib/search-match'
 import { aliasesFor } from '@/generated/model-lineage'
 import { localizeListingTitles } from '@/lib/translate'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
@@ -375,12 +376,14 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
   if (textQ) {
     // Accent-insensitive + cross-language: match the folded query against the
     // pre-folded searchText blob (covers EN title + VI titleVi + desc + location).
-    // AND each ≥2-char token so multi-word queries NARROW: "honda red" must match a
-    // row containing both tokens (any order/field), not the literal substring.
-    const qTokens = fold(textQ).split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
-    const tokenClauses = qTokens.map((t) => ({ searchText: { contains: t } }))
-    pgTextFilter = qTokens.length ? (looseMatch ? { OR: tokenClauses } : { AND: tokenClauses }) : { searchText: { contains: fold(textQ) } }
-    andFilters.push(pgTextFilter)
+    // AND each unit so multi-word queries NARROW: "honda red" must match a row
+    // containing both (any order/field), not the literal substring.
+    // ⛔ THE PREDICATE IS src/lib/search-match.ts, SHARED WITH THE TYPEAHEAD AND THE TRENDING
+    // CHIPS: 2-3 character tokens match at a WORD START ("xe" no longer matches "flexes"), and a
+    // synonym phrase is one unit ("xe máy" = motorbike, scooter, …). Everything built on
+    // `andFilters` — total, histogram, facet counts, buildings — moves with it.
+    pgTextFilter = textPredicate(fold(textQ), { loose: looseMatch })
+    if (pgTextFilter) andFilters.push(pgTextFilter)
   }
 
   // Subcategory + intent (listingType) filter on dedicated columns now —

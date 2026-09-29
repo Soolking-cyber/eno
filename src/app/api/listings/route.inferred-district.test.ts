@@ -45,6 +45,8 @@ vi.mock('@/lib/facet-counts', () => ({
   subcategoryDimension: () => ({}),
 }))
 vi.mock('./semantic-rank', () => ({ semanticRank: async () => ({ semanticListings: null, semanticTotal: 0 }) }))
+vi.mock('./keyword-rank', () => ({ keywordRank: async () => ({ keywordListings: null }) }))
+vi.mock('@/lib/spell-correct', () => ({ correctQuery: async () => null }))
 vi.mock('./resolve-seller', () => ({}))
 vi.mock('@/lib/publish-funnel', () => ({}))
 

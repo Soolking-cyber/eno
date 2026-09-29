@@ -1,0 +1,17 @@
+{
+  "_readme": "Search synonym groups, read by src/lib/search-synonyms.ts. Every term in a group finds every other: a query that names one of them matches listings that use any of them. Terms are folded at load (accents and case do not matter here) and the order inside a group does not matter. Add a group only for words that ALWAYS mean the same thing to a buyer; an ambiguous word ('flat', 'notebook') would widen unrelated searches. NO visa or itinerary terms, ever: eno.vn is a licensed marketplace and may not offer those services (CLAUDE.md, the edition split).",
+  "groups": [
+    { "terms": ["motorbike", "motorcycle", "xe máy", "xe tay ga", "xe ga", "xe số"], "note": "Two-wheelers. 'motorbike' alone found 3 rows on production (2026-09-29). NOT 'scooter': measured the same day, it also names kick scooters (Airwalk stunt scooters in Sports, Spartan 3-wheel scooters in Toys), which then led the 'xe máy' and 'motorbike' results; the Honda scooters it was meant to reach say 'Xe máy' in their Vietnamese titles anyway." },
+    { "terms": ["phone", "smartphone", "điện thoại"], "note": "Mobile phones." },
+    { "terms": ["apartment", "căn hộ", "chung cư", "condo"], "note": "Homes to rent or buy. 'condo' found 7 rows, all books (2026-09-29)." },
+    { "terms": ["sofa", "couch", "ghế sofa"], "note": "Seating." },
+    { "terms": ["fridge", "refrigerator", "tủ lạnh"], "note": "'fridge' found 3 rows (2026-09-29)." },
+    { "terms": ["washing machine", "máy giặt"], "note": "Laundry." },
+    { "terms": ["air conditioner", "aircon", "máy lạnh", "điều hòa"], "note": "Cooling." },
+    { "terms": ["laptop", "máy tính xách tay"], "note": "Portable computers. Not 'notebook': it is also paper." },
+    { "terms": ["tv", "television", "tivi"], "note": "Televisions." },
+    { "terms": ["bicycle", "xe đạp"], "note": "Pedal bikes." },
+    { "terms": ["helmet", "mũ bảo hiểm", "nón bảo hiểm"], "note": "Motorbike helmets." },
+    { "terms": ["stroller", "xe đẩy"], "note": "Baby strollers." }
+  ]
+}

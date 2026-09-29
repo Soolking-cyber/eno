@@ -1,7 +1,7 @@
 import 'server-only'
 import { db } from './db'
 import { Prisma } from '@/generated/prisma/client'
-import { FEED_DIVERSITY_WINDOW, SHARED_SEAT_SUBCATEGORIES, mergeRoundRobin, type SeatOptions } from './feed-diversity'
+import { FEED_DIVERSITY_WINDOW, SHARED_SEAT_SELLERS, SHARED_SEAT_SUBCATEGORIES, mergeRoundRobin, type SeatOptions } from './feed-diversity'
 import { scopedListingWhere } from './edition-scope'
 
 /**
@@ -194,15 +194,29 @@ async function buildWindow(
   if (!ranksByRankScoreDesc(orderBy)) return single()
 
   /**
-   * SHARED SEATS (feed-diversity.ts, SHARED_SEAT_SUBCATEGORIES): the catalogue's rows never take a
-   * SELLER seat — nine carriers would otherwise take nine of the twelve — and come back below as ONE
-   * group. ⚠️ `subcategorySlug: null` is named explicitly: SQL `NULL NOT IN ('esim')` is NULL, so a
-   * bare `notIn` would silently drop every listing that has no subcategory from the fan-out.
-   * With the rule off, `sellerScope` IS `scoped`, and every query below is exactly what it was.
+   * SHARED SEATS (feed-diversity.ts, SHARED_SEAT_SUBCATEGORIES and SHARED_SEAT_SELLERS): a shared
+   * catalogue's rows never take a SELLER seat — nine carriers, or eighteen job boards, would otherwise
+   * take most of the twelve — and each catalogue comes back below as ONE group. ⚠️ `subcategorySlug:
+   * null` is named explicitly: SQL `NULL NOT IN ('esim')` is NULL, so a bare `notIn` would silently
+   * drop every listing that has no subcategory from the fan-out. (`sellerId` is never null.)
+   * With the rule off, `sellerScope` IS `scoped`, `seatDefs` is empty, and every query below is
+   * exactly what it was.
    */
+  const sharedSellerIds = Object.values(SHARED_SEAT_SELLERS).flat()
   const sellerScope: Prisma.ListingWhereInput = sharedSeats
-    ? { AND: [scoped, { OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: [...SHARED_SEAT_SUBCATEGORIES] } }] }] }
+    ? { AND: [scoped, { OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: [...SHARED_SEAT_SUBCATEGORIES] } }] }, { sellerId: { notIn: sharedSellerIds } }] }
     : scoped
+  /**
+   * One definition per shared seat: the eSIM aisle, then each seller set. `freeFirst` is the eSIM
+   * seat's inner order (seatOrder: the free tourist plan leads, owner 2026-09-27); on a job a price of
+   * 0 means "Salary: see details", not free, so the boards take plain turns.
+   */
+  const seatDefs: { where: Prisma.ListingWhereInput; freeFirst: boolean }[] = sharedSeats
+    ? [
+        { where: { subcategorySlug: { in: [...SHARED_SEAT_SUBCATEGORIES] } }, freeFirst: true },
+        ...Object.values(SHARED_SEAT_SELLERS).map((ids) => ({ where: { sellerId: { in: [...ids] } }, freeFirst: false })),
+      ]
+    : []
 
   /**
    * ⛔ THE DATABASE PICKS AND ORDERS THE SELLERS — the first cut asked for every seller unordered
@@ -238,18 +252,18 @@ async function buildWindow(
   // A groupBy failure must not take the home page down — fall back to the behaviour that shipped.
   if (!sellers) return single()
 
-  // The catalogue seat, when the rule is on: its best rank (to place it among the sellers) and its rows.
-  const catalogueWhere: Prisma.ListingWhereInput = { AND: [scoped, { subcategorySlug: { in: [...SHARED_SEAT_SUBCATEGORIES] } }] }
-  const catalogueBest = sharedSeats
-    ? await db.listing.aggregate({ where: catalogueWhere, _max: { rankScore: true } })
-        .then((a) => a._max.rankScore, (e: unknown) => {
-          console.error('[feed-window] catalogue aggregate failed — serving the undiversified window', e)
-          return undefined
-        })
-    : null
-  // `undefined` = the read FAILED (fall back, like a failed fan-out); `null` = no catalogue rows.
-  if (catalogueBest === undefined) return single()
-  const seats = sellers.length + (catalogueBest != null ? 1 : 0)
+  // Each shared seat, when the rule is on: its best rank (to place it among the sellers) and its rows.
+  // edition-lint-allow: `scoped` AND-ed with the seat's own clause — narrowing only.
+  const seatBests = await Promise.all(seatDefs.map((def) =>
+    db.listing.aggregate({ where: { AND: [scoped, def.where] }, _max: { rankScore: true } })
+      .then((a) => a._max.rankScore, (e: unknown) => {
+        console.error('[feed-window] catalogue aggregate failed — serving the undiversified window', e)
+        return undefined
+      })))
+  // `undefined` = the read FAILED (fall back, like a failed fan-out); `null` = no rows in that seat.
+  if (seatBests.some((b) => b === undefined)) return single()
+  const liveSeats = seatDefs.flatMap((def, i) => (seatBests[i] != null ? [{ ...def, best: seatBests[i] as number }] : []))
+  const seats = sellers.length + liveSeats.length
   if (seats < 2) return single()
 
   const perSeller = Math.max(1, Math.ceil(size / seats) + 2)
@@ -263,22 +277,23 @@ async function buildWindow(
   const candidates = await Promise.all([
     ...sellers.map((s) =>
       db.listing.findMany({ where: { AND: [sellerScope, { sellerId: s.sellerId }] }, orderBy, take: perSeller, select })),
-    ...(catalogueBest != null ? [catalogueGroup(catalogueWhere, orderBy, select, perSeller)] : []),
+    ...liveSeats.map((seat) => catalogueGroup({ AND: [scoped, seat.where] }, orderBy, select, perSeller, seat.freeFirst)),
   ]).catch((e: unknown) => {
     console.error('[feed-window] seller fan-out failed — serving the undiversified window', e)
     return null
   })
   if (!candidates) return single()
 
-  // Groups keep the order the database ranked their sellers in — see the groupBy note above. The
-  // catalogue group (last in `candidates`) is slotted in before the first seller whose best row ranks
-  // BELOW the catalogue's best, so it leads exactly when its best listing would have led.
-  const sellerGroups = candidates.slice(0, sellers.length)
-  const ordered = [...sellerGroups]
-  if (catalogueBest != null) {
-    const at = sellers.findIndex((s) => (s._max.rankScore ?? -Infinity) < catalogueBest)
-    ordered.splice(at === -1 ? ordered.length : at, 0, candidates[sellers.length])
-  }
+  // Groups keep the order the database ranked their sellers in — see the groupBy note above. Each
+  // shared seat is placed by its best row among them: a STABLE sort by best rank, sellers first on a
+  // tie, seats in definition order — so a seat leads exactly when its best listing would have led, and
+  // with one seat this is the splice it replaced (before the first seller whose best ranks BELOW it).
+  const ordered = liveSeats.length
+    ? [
+        ...sellers.map((s, i) => ({ best: s._max.rankScore ?? -Infinity, rows: candidates[i] })),
+        ...liveSeats.map((seat, i) => ({ best: seat.best, rows: candidates[sellers.length + i] })),
+      ].sort((a, b) => (a.best === b.best ? 0 : b.best > a.best ? 1 : -1)).map((g) => g.rows)
+    : candidates
   const groups = ordered.filter((g) => g.length > 0)
   const merged = mergeRoundRobin(groups)
   /**
@@ -321,7 +336,7 @@ async function buildWindow(
  * the same). Fetches the catalogue (up to CATALOGUE_FETCH), interleaves it, keeps one seat's worth.
  * Deterministic: same rows in, same order out, on the SSR render and the API call.
  */
-/** Upper bound on the rows the shared seat interleaves (the eSIM catalogue is 63 today). */
+/** Upper bound on the rows ONE shared seat interleaves (the eSIM catalogue is 63 today). */
 const CATALOGUE_FETCH = 240
 
 async function catalogueGroup(
@@ -329,15 +344,16 @@ async function catalogueGroup(
   orderBy: Prisma.ListingOrderByWithRelationInput[],
   select: Prisma.ListingSelect,
   take: number,
+  freeFirst = true,
 ) {
-  // edition-lint-allow: `where` is catalogueWhere — `scoped` AND-ed with the shared subcategories.
+  // edition-lint-allow: `where` is `scoped` AND-ed with one shared seat's clause (buildWindow).
   // ⛔ NOT `take * 4`. Rows imported together tie on rankScore and then sort by id, i.e. in CLUSTERS
   // of one seller: with 9 carriers x 7 plans, the first 28 rows were the four most recently imported
   // carriers, and the other five could never reach the window (a reviewer's catch). The whole
   // catalogue slice is fetched — bounded, card-sized rows, once per memoized window — so every seller
   // gets its turn inside the seat.
   const rows = await db.listing.findMany({ where, orderBy, take: CATALOGUE_FETCH, select })
-  return seatOrder(rows).slice(0, take)
+  return seatOrder(rows, { freeFirst }).slice(0, take)
 }
 
 /**
@@ -350,8 +366,11 @@ async function catalogueGroup(
  * turns. Only the seat's INNER order changes: its place in the feed and every rankScore are untouched.
  * `price` is a Float in the card select, so `=== 0` holds. Pure, so SSR and API agree.
  */
-export function seatOrder<R extends { id: string; sellerId?: string | null; price?: number | null }>(rows: readonly R[]): R[] {
-  const isFree = (r: R) => r.price === 0
+export function seatOrder<R extends { id: string; sellerId?: string | null; price?: number | null }>(
+  rows: readonly R[],
+  { freeFirst = true }: { freeFirst?: boolean } = {},
+): R[] {
+  const isFree = (r: R) => freeFirst && r.price === 0
   const bySeller = new Map<string, R[]>()
   for (const r of rows) {
     const k = r.sellerId ?? r.id

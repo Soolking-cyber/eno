@@ -11,10 +11,39 @@
  *
  * ⚠️ A BARE 'VND' HAS NO SUFFIX, EVEN WHERE IT IS A MONTHLY RENT. Batdongsan and Rever store it on
  * about 19,400 active rentals that are in fact monthly. Their importers write "Rent: <price>/month"
- * into the description, so those pages state the month in the text, never after the price. This
- * function reads the column alone and so gives them no suffix; `isMonthlyRent` (rent-index.ts) is
- * the rule that knows those two sellers.
+ * into the description, so those pages used to state the month in the text, never after the price.
+ * `priceUnitSuffix` still reads the column alone; the serializers now hand it `displayPriceUnit`'s
+ * answer, which knows those two sellers (below) — the same set `isMonthlyRent` (rent-index.ts) uses.
  */
+
+/** The monthly unit `listingMoneyFor({ listingType: 'rent' })` writes for every rent listing. */
+export const MONTHLY_UNIT = 'VND/month'
+
+/**
+ * ⛔ A BARE "VND" UNIT IS A MONTHLY RENT ONLY FROM THESE TWO SELLERS, AND THAT WAS READ, NOT ASSUMED.
+ * scripts/import-batdongsan-rentals.ts keeps `price_type === 'lump_sum'` only, drops any `price_raw`
+ * containing `/m` (a per-m² quote), and writes `Rent: <price>/month` into the description;
+ * scripts/import-rever-rentals.ts takes the live price of a still-unrented rental and writes the same.
+ * Both simply store `priceUnit: 'VND'` without the suffix. Anywhere else a bare 'VND' in rentals could
+ * be a nightly or a one-off price, so it is excluded rather than guessed at — Nhatot stores bare
+ * 'VND' too and is NOT on this list (rent-index.test.ts pins that). Ids, never names — `Seller.name`
+ * is user-settable (src/lib/import-sellers.ts). Moved here from rent-index.ts, unchanged, so the
+ * display rule and the index rule read one set.
+ */
+export const MONTHLY_BARE_VND_SELLERS: ReadonlySet<string> = new Set([
+  'bds-vn-import-seller-0001', // Batdongsan.com.vn
+  'cmub0wead0000zrq418bqq27m', // Rever.vn
+])
+
+/**
+ * DISPLAY rule: a bare 'VND' from a seller proven to store monthly rent without the suffix reads
+ * 'VND/month', so its card and its page say "/ month" after the price (measured 2026-09-29: the home
+ * feed's Rever card read "5,000,000 đ ≈ $195" with no unit). The COLUMN is untouched — the importers
+ * and a data fix own that; everything else passes through unchanged.
+ */
+export function displayPriceUnit(priceUnit: string, sellerId: string | null | undefined): string {
+  return priceUnit === 'VND' && !!sellerId && MONTHLY_BARE_VND_SELLERS.has(sellerId) ? MONTHLY_UNIT : priceUnit
+}
 
 /**
  * The unit a price is quoted per, as `<Price>` prints it after the slash: 'month', 'kg', 'hour'.
