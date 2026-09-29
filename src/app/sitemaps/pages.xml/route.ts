@@ -8,13 +8,19 @@ import { db } from '@/lib/db'
 // strings. `@/lib/edition-services-copy` is aliased to an empty stub on a marketplace build, so the
 // import is severed there. See the note on SERVICES_SITEMAP_PATHS in that module.
 import { SERVICES_SITEMAP_PATHS } from '@/lib/edition-services-copy'
-import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS } from '@/lib/expat-guides'
+import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS, guideDates } from '@/lib/expat-guides'
 import { vehicleHubLiveCount, VEHICLE_HUB_KIND_BY_SLUG } from '@/lib/vehicle-hubs'
 import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
-import { seoLandingWhere } from '@/components/marketplace/seo-landing-where'
+import { seoLandingWhere, type SeoLandingTarget } from '@/components/marketplace/seo-landing-where'
 import { LANDING_TARGET as JOBS_TARGET } from '@/app/[lang]/jobs-vietnam-expats/landing-target'
 import { LANDING_TARGET as MOTORBIKE_TARGET } from '@/app/[lang]/motorbikes-for-sale-vietnam/landing-target'
+import { LANDING_TARGET as HOUSING_TARGET } from '@/app/[lang]/housing-vietnam-expats/landing-target'
+import { LANDING_TARGET as MOVING_SALES_TARGET } from '@/app/[lang]/moving-sales-vietnam/landing-target'
+import { LANDING_TARGET as COFFEE_TARGET } from '@/app/[lang]/wholesale-green-coffee-vietnam/landing-target'
+// Read only: the model lists the iPhone pages price, so the sitemap dates the rows those pages show.
+import { IPHONE_18_MODELS, IPHONE_DUO_MODEL } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
+import { loadRentIndex } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
 import { districtLinkSlug } from '@/lib/district-canonical'
 import { isIndexableCount } from '@/lib/index-floor'
 import { submittedListingWhere, urlsetXml, xmlResponse, siteOrigin } from '@/lib/sitemap'
@@ -53,6 +59,18 @@ export const revalidate = 86400
 // it ignores both; they were pure bytes, and the priority values here were also mutually
 // inconsistent (static info pages at 0.4 while empty category pages claimed 0.7).
 
+/** `iPhone 18 Pro` → `iphone-18-pro-vietnam`: each model page is named after the model it prices. */
+const iphoneModelPath = (model: string) => `${model.toLowerCase().replace(/\s+/g, '-')}-vietnam`
+
+/**
+ * A guide's `<lastmod>` is the date its page prints as `dateModified` (seo-article.tsx: `updated ??
+ * published`), from the same registry entry the page spreads (`guideDates`, SEO wave B, I3b/I3c).
+ */
+const guideLastmod = (slug: string) => {
+  const d = guideDates(slug)
+  return d.updated ?? d.published
+}
+
 export async function GET() {
   try {
     const [byCategory, byCombo, bySeller, categories, helpArticles] = await Promise.all([
@@ -74,8 +92,20 @@ export async function GET() {
        * property import, an affiliate sync) filled it with its own rows: every district that only
        * older stock covers lost its combo URL and every seller whose rows were all older left the
        * storefront block — silently, with the set changing on every sync. A GROUP BY counts the whole
-       * table and cannot be fooled by a cap; `_max.updatedAt` is exactly the "first row seen in
-       * updatedAt-desc order" the old loop computed.
+       * table and cannot be fooled by a cap.
+       *
+       * ⛔ `_max.postedAt`, NOT `updatedAt` (SEO wave B, I3c): EACH LASTMOD IS THE DATE OF WHAT THE PAGE
+       * SHOWS. The home feed, a category and a district page rank by `rankScore`, whose recency term
+       * is `postedAt` (src/lib/ranking-formula.ts; "confirm availability" bumps it too), so a new posting in
+       * scope is what puts a new card on the page, and the newest `postedAt` is that day. `updatedAt`
+       * also moves on writes no visitor sees — an import re-sync of an unchanged row, a moderation
+       * flag, and until I3a every view, save and contact reveal — and dated every page by the last
+       * write rather than by its content.
+       *
+       * ⚠️ THE KNOWN COST: IT UNDER-REPORTS SOME REAL CHANGES. A price edit or new photos on a card
+       * already shown, or a card leaving (sold, expired, removed), changes the page without moving any
+       * `postedAt` in scope, so the lastmod stays at the last new posting. Accepted: an early date the
+       * crawler corrects by revisiting costs less than a date it can prove false.
        *
        * ⚠️ AND THE CATEGORY AGGREGATE STILL COUNTS IMPORTED STOCK, DELIBERATELY. It answers "what is
        * live here": a category with 9,726 live products is a real page with its own copy and facets.
@@ -91,7 +121,7 @@ export async function GET() {
       db.listing.groupBy({
         by: ['categoryId'],
         where: await scopedListingWhere({ verified: true, status: 'active' }),
-        _max: { updatedAt: true },
+        _max: { postedAt: true },
       }),
       /**
        * ⛔ THE ONE AGGREGATE THAT DOES NOT COUNT IMPORTED STOCK (lead, 2026-09-24). A category ×
@@ -117,7 +147,7 @@ export async function GET() {
       db.listing.groupBy({
         by: ['categoryId', 'district'],
         where: await submittedListingWhere({ district: { not: null } }),
-        _max: { updatedAt: true },
+        _max: { postedAt: true },
         _count: { _all: true },
       }),
       /**
@@ -134,7 +164,7 @@ export async function GET() {
       db.listing.groupBy({
         by: ['sellerId'],
         where: await submittedListingWhere(),
-        _max: { updatedAt: true },
+        _max: { postedAt: true },
       }),
       db.category.findMany({ select: { slug: true, id: true } }),
       // The 40 help answers are the largest body of original prose on the site — more URLs than
@@ -165,13 +195,13 @@ export async function GET() {
        */
       db.forumPost.findMany({
         where: { status: 'published', communitySlug: { in: HELP_TOPIC_SLUGS } },
-        select: { id: true, updatedAt: true },
+        select: { id: true, editedAt: true, createdAt: true },
       }),
     ])
 
     const hostUrl = siteOrigin()
 
-    // Freshest content date overall + per facet — the `_max.updatedAt` of each aggregate group.
+    // Freshest content date overall + per facet — the `_max.postedAt` of each aggregate group.
     const iso = (d: Date) => d.toISOString()
     const later = (a: Date | undefined, b: Date | null | undefined) => (b && (!a || b > a) ? b : a)
     const slugById = new Map(categories.map((c) => [c.id, c.slug]))
@@ -179,15 +209,14 @@ export async function GET() {
     let siteLastmod: Date | undefined
     for (const g of byCategory) {
       const slug = slugById.get(g.categoryId)
-      const max = g._max.updatedAt ?? undefined
+      const max = g._max.postedAt ?? undefined
       siteLastmod = later(siteLastmod, max)
       if (slug && max) catMax.set(slug, max)
     }
     /**
      * ⚠️ MERGED BY SLUG, NOT BY STORED NAME. Two spellings of one place ("Thao Dien" / "Thảo Điền")
-     * are two groups but ONE URL; the merged lastmod is the later of the two, which is what the old
-     * first-seen-in-updatedAt-desc walk produced. An empty slug is not a page (`/c/<cat>/`), so it is
-     * skipped rather than submitted.
+     * are two groups but ONE URL; the merged lastmod is the later of the two. An empty slug is not a
+     * page (`/c/<cat>/`), so it is skipped rather than submitted.
      *
      * ⚠️ THE SLUG IS THE CANONICAL ONE (district-canonical.ts), NOT `slugify(stored name)`. The
      * district page now 308s every twin spelling (`quan-2`, `huyen-cu-chi`, `tp-thu-duc`) to its
@@ -213,10 +242,10 @@ export async function GET() {
       if (!slug || !district || slug === 'rentals') continue
       const key = `${slug}/${district}`
       const cur = combos.get(key)
-      combos.set(key, { max: later(cur?.max, g._max.updatedAt), n: (cur?.n ?? 0) + g._count._all })
+      combos.set(key, { max: later(cur?.max, g._max.postedAt), n: (cur?.n ?? 0) + g._count._all })
     }
     const sellerMax = new Map<string, Date>()
-    for (const g of bySeller) if (g._max.updatedAt) sellerMax.set(g.sellerId, g._max.updatedAt)
+    for (const g of bySeller) if (g._max.postedAt) sellerMax.set(g.sellerId, g._max.postedAt)
 
     // ⚠️ NO `verifiedSeller` FILTER. It used to be `where: { verifiedSeller: true }`, and NOT ONE
     // seller in the database has ever had that flag set — so this block emitted zero URLs and the
@@ -254,7 +283,8 @@ export async function GET() {
       const loc = s.handle ? canonicals.get(s.handle.handle) : `${hostUrl}/sellers/${s.id}`
       if (loc && new URL(loc).host === siteHost) sellerLocs.set(s.id, loc)
     }
-    const lm = (d?: Date) => (d ? `<lastmod>${iso(d)}</lastmod>` : '')
+    // A Date, or a string that already IS a W3C date (a guide's `2026-09-27`, the rent index's ISO stamp).
+    const lm = (d?: Date | string) => (d ? `<lastmod>${typeof d === 'string' ? d : iso(d)}</lastmod>` : '')
     const urls: string[] = []
 
     // Main landing page
@@ -276,10 +306,18 @@ export async function GET() {
       urls.push(`  <url><loc>${hostUrl}/${p}</loc></url>\n`)
     }
 
-    // Help answers. Their own block rather than joining the static list: these have a REAL
-    // updatedAt, so unlike /terms they can honestly claim one.
+    /**
+     * Help answers. Their own block rather than joining the static list: these have a REAL date, so
+     * unlike /terms they can honestly claim one.
+     *
+     * ⛔ `editedAt ?? createdAt`, NOT `updatedAt` (SEO wave B, I3c) — the date /help/[id] prints as
+     * `dateModified` (help-center-data.ts, `modifiedAt`). `updatedAt` moves on every write to the row:
+     * a vote's score, a comment count, a view, a re-run of the help-center sync. `editedAt` is set
+     * only when the answer itself changes (the edit route, and scripts/sync-help-center.ts since I3b);
+     * an answer never edited since it was seeded falls back to its `createdAt`.
+     */
     for (const article of helpArticles) {
-      urls.push(`  <url><loc>${hostUrl}/help/${article.id}</loc>${lm(article.updatedAt)}</url>\n`)
+      urls.push(`  <url><loc>${hostUrl}/help/${article.id}</loc>${lm(article.editedAt ?? article.createdAt)}</url>\n`)
     }
 
     // The Trip service's landing page. Its own entry rather than joining either group above: it is
@@ -290,80 +328,89 @@ export async function GET() {
     if (IS_SERVICES) urls.push(`  <url><loc>${hostUrl}/itinerary</loc></url>\n`)
 
     /**
-     * WHICH KEYWORD LANDINGS CURRENTLY HAVE NOTHING TO SHOW.
+     * THE KEYWORD LANDINGS, EACH DATED BY WHAT IT SHOWS (SEO wave B, I3c) — one aggregate per page.
      *
-     * ⚠️ IT MIRRORS EACH PAGE'S OWN `robots` DECISION rather than re-deriving one — the same
-     * narrowing, through `seoLandingWhere`, so the two cannot disagree about WHICH listings count.
+     * ⛔ THEY USED TO SHARE `siteLastmod`, THE HOME PAGE'S DATE. A fresh row in ANY category dated all
+     * nine landings, so the wholesale-coffee page "changed" whenever someone posted a sofa — the same
+     * fabricated date the note at the top of this file removed from the static pages, nine times
+     * over. Each landing is now dated by the newest row of its OWN rail, read with the rail's own
+     * predicate (`seoLandingWhere`, the function `<SeoLanding>` selects with). The iPhone pages are
+     * price tables, so theirs is the last write to a row they price (`updatedAt`); I3a stopped views,
+     * saves and contact reveals from moving that, so a page view no longer "changes" a price page.
      *
-     * ⛔ THEY SHARE THE PREDICATE, NOT THE CLOCK, AND AN EARLIER DRAFT OF THIS COMMENT CLAIMED
-     * OTHERWISE. This sitemap is rebuilt on its own `revalidate`; each page bakes its `robots` tag
-     * into ISR HTML with `revalidate = 3600`. So when the first motorbike is posted the sitemap can
-     * start submitting the URL while the cached page still answers `noindex` for up to an hour —
-     * the "Submitted URL marked noindex" warning, briefly and self-correcting, in the ONE direction
-     * where the alternative (never submitting) is worse. Both reviewers caught the overclaim.
+     * ⛔ THE TARGETS ARE IMPORTED FROM THE PAGES, NOT RETYPED HERE. Hand-copying shares the FUNCTION
+     * but not the VALUE: a typo ('motorbikes' for 'motorbike') counts zero, drops the URL from the
+     * sitemap permanently, and fails no test. Caught in review. The iPhone scope is the model list
+     * lowest-prices.ts prices (a superset of the table and the rail: every live row of those models).
      *
-     * ⚠️ A FAILED COUNT SUBMITS THE PAGE. `Promise.allSettled` and the `?? 1` below mean a database
-     * hiccup leaves the URL in the sitemap, which is the pre-existing behaviour; treating "could not
-     * look" as "empty" would silently drop real pages out of the index on one bad build.
+     * ⚠️ `gated`: THE TWO PAGES THAT ANSWER `noindex` WHEN EMPTY ARE SUBMITTED ONLY WHILE THEY HAVE
+     * INVENTORY. Each computes `robots: { index: false }` when its rail is empty
+     * (seo-landing-robots.ts), and submitting a URL that answers `noindex` is the "Submitted URL marked
+     * noindex" error. They share the predicate, not the clock: the sitemap rebuilds on its own
+     * `revalidate` and each page bakes `robots` into ISR HTML for an hour, so the first posting can be
+     * submitted up to an hour before the cached page stops saying `noindex` — briefly and
+     * self-correcting, in the one direction where never submitting is worse.
+     *
+     * ⚠️ A FAILED READ KEEPS THE URL, WITHOUT A DATE. `Promise.allSettled` means a database hiccup
+     * neither drops a real page (treating "could not look" as "empty") nor invents a date for it.
      */
-    const GATED_LANDINGS = [
-      // ⛔ THE TARGETS ARE IMPORTED FROM THE PAGES, NOT RETYPED HERE. Hand-copying shares the
-      // FUNCTION but not the VALUE: a typo ('motorbikes' for 'motorbike') counts zero, drops the
-      // URL from the sitemap permanently, and fails no test. Caught in review.
-      { path: 'jobs-vietnam-expats', target: JOBS_TARGET },
-      { path: 'motorbikes-for-sale-vietnam', target: MOTORBIKE_TARGET },
+    type Landing = { path: string; where: object; by: 'postedAt' | 'updatedAt'; gated?: boolean }
+    const railLanding = (path: string, target: SeoLandingTarget, gated = false): Landing =>
+      ({ path, where: seoLandingWhere(target), by: 'postedAt', gated })
+    const priceLanding = (path: string, models: readonly string[]): Landing =>
+      ({ path, where: { verified: true, status: 'active', model: { in: [...models] } }, by: 'updatedAt' })
+    const LANDINGS: Landing[] = [
+      railLanding('housing-vietnam-expats', HOUSING_TARGET),
+      // Product pages, not category funnels — they rank for "iPhone 18 price Vietnam" and link into
+      // the phone listings. Both editions: marketplace commerce copy, like the coffee page below and
+      // unlike anything licensed. The hub prices both Pro models and the Duo.
+      priceLanding('iphone-18-vietnam', [...IPHONE_18_MODELS, IPHONE_DUO_MODEL]),
+      // One page per model so each ranks for its own query; the path is the model's own name
+      // (`iPhone 18 Pro` → /iphone-18-pro-vietnam), and sitemap.test.ts pins that each page prices it.
+      ...[...IPHONE_18_MODELS, IPHONE_DUO_MODEL].map((m) => priceLanding(iphoneModelPath(m), [m])),
+      railLanding('jobs-vietnam-expats', JOBS_TARGET, true),
+      railLanding('motorbikes-for-sale-vietnam', MOTORBIKE_TARGET, true),
+      railLanding('moving-sales-vietnam', MOVING_SALES_TARGET),
+      // Marketplace commerce copy, not a licensed service — both editions, no IS_SERVICES gate.
+      railLanding('wholesale-green-coffee-vietnam', COFFEE_TARGET),
     ]
-    const landingCounts = await Promise.allSettled(
-      GATED_LANDINGS.map(async (l) =>
-        db.listing.count({ where: await scopedListingWhere(seoLandingWhere(l.target)) }),
+    const [landingReads, rentIndex] = await Promise.all([
+      Promise.allSettled(
+        LANDINGS.map(async (l) =>
+          db.listing.aggregate({ where: await scopedListingWhere(l.where), _max: { postedAt: true, updatedAt: true }, _count: { _all: true } }),
+        ),
       ),
-    )
-    const emptyLandings = new Set(
-      GATED_LANDINGS.filter((l, i) => {
-        const r = landingCounts[i]
-        return (r.status === 'fulfilled' ? r.value : 1) === 0
-      }).map((l) => l.path),
-    )
-
-    // SEO keyword landing pages (funnel to categories → track the site's freshest content)
-    for (const p of [
-      'housing-vietnam-expats',
-      // A product page, not a category funnel — it ranks for "iPhone 18 price Vietnam" and links
-      // into the phone listings. Both editions: it is marketplace commerce copy, like the coffee
-      // page below and unlike anything licensed.
-      'iphone-18-vietnam',
-      // Per-model siblings of the page above — same reasoning, one page per variant so each ranks
-      // for its own query rather than three of them competing inside one document.
-      'iphone-18-pro-vietnam',
-      'iphone-18-pro-max-vietnam',
-      'iphone-duo-vietnam',
       /**
-       * ⛔ THESE TWO ARE SUBMITTED ONLY WHILE THEY HAVE INVENTORY — see `emptyLandings` above.
-       * Each computes `robots: { index: false }` when its rail is empty (seo-landing-robots.ts), and
-       * submitting a URL that answers `noindex` is the "Submitted URL marked noindex" error this
-       * same file just stopped producing for empty CATEGORIES. Measured 2026-09-23: `jobs` holds 0
-       * listings and `vehicles/motorbike` holds 0, so both are suppressed today and both return the
-       * moment somebody posts.
+       * ⚠️ THE RENT INDEX IS DATED BY ITS OWN SNAPSHOT (`computedAt`), the date the page prints and
+       * its Dataset's `dateModified` — never a listing's. MARKETPLACE ONLY, for the reason the
+       * `hcmc-rent-index` entry below gives: on the services build the route 404s, so the snapshot is
+       * not even read there (order rule 4). An unknown snapshot, or a loader that throws, leaves the
+       * URL undated rather than failing the whole sitemap.
        */
-      ...(emptyLandings.has('jobs-vietnam-expats') ? [] : ['jobs-vietnam-expats']),
-      ...(emptyLandings.has('motorbikes-for-sale-vietnam') ? [] : ['motorbikes-for-sale-vietnam']),
-      'moving-sales-vietnam',
-      // Marketplace commerce copy, not a licensed service — it ships on BOTH editions like any
-      // other listing surface, so no IS_SERVICES gate here.
-      'wholesale-green-coffee-vietnam',
-      // ⚠️ SERVICES EDITION ONLY. Two thirds of this page is e-visa and trip-planning copy, so on
-      // the licensed marketplace it must not be submitted to Google — see the note below.
-      ...(IS_SERVICES ? ['services-for-expats-vietnam'] : []),
-      /**
-       * ⚠️ THE RENT INDEX IS OUR OWN ANALYSIS, SO THE 2026-09-17 RULE DOES NOT KEEP IT OUT. That rule
-       * withholds IMPORTED LISTING URLs from the sitemap — pages that restate another site's advert.
-       * This page publishes statistics computed here that no source publishes, which is the kind of
-       * original content the rule was protecting the domain's standing for. MARKETPLACE ONLY: the
-       * route 404s on the services build (see its page.tsx), and a sitemap must not submit a 404.
-       */
-      ...(IS_SERVICES ? [] : ['hcmc-rent-index']),
-    ]) {
-      urls.push(`  <url><loc>${hostUrl}/${p}</loc>${lm(siteLastmod)}</url>\n`)
+      IS_SERVICES ? null : loadRentIndex().catch(() => null),
+    ])
+    for (const [i, l] of LANDINGS.entries()) {
+      const r = landingReads[i]
+      if (r.status === 'fulfilled') {
+        if (l.gated && r.value._count._all === 0) continue
+        urls.push(`  <url><loc>${hostUrl}/${l.path}</loc>${lm(r.value._max[l.by] ?? undefined)}</url>\n`)
+      } else {
+        urls.push(`  <url><loc>${hostUrl}/${l.path}</loc></url>\n`)
+      }
+    }
+    // ⚠️ SERVICES EDITION ONLY. Two thirds of this page is e-visa and trip-planning copy, so on the
+    // licensed marketplace it must not be submitted to Google — see the note below. No date: its
+    // copy is static and its rails span every desk the edition sells.
+    if (IS_SERVICES) urls.push(`  <url><loc>${hostUrl}/services-for-expats-vietnam</loc></url>\n`)
+    /**
+     * ⚠️ THE RENT INDEX IS OUR OWN ANALYSIS, SO THE 2026-09-17 RULE DOES NOT KEEP IT OUT. That rule
+     * withholds IMPORTED LISTING URLs from the sitemap — pages that restate another site's advert.
+     * This page publishes statistics computed here that no source publishes, which is the kind of
+     * original content the rule was protecting the domain's standing for. MARKETPLACE ONLY: the
+     * route 404s on the services build (see its page.tsx), and a sitemap must not submit a 404.
+     */
+    if (!IS_SERVICES) {
+      urls.push(`  <url><loc>${hostUrl}/hcmc-rent-index</loc>${rentIndex?.known ? lm(rentIndex.index.computedAt) : ''}</url>\n`)
     }
 
     // The e-visa cluster: the /vietnam-evisa hub and its long-tail children.
@@ -371,8 +418,9 @@ export async function GET() {
     // ⚠️ IMPORTED, NOT RETYPED. The list above is hard-coded, which is exactly how a landing page
     // ships and is then never submitted — the route exists, the sitemap does not know, and nothing
     // fails. `SERVICES_SITEMAP_PATHS` re-exports the list derived from the same EVISA_CHILDREN array the hub renders
-    // its links from, so adding a child adds it here too. The paths carry `siteLastmod` for the
-    // same reason the block above does: their listing rails track the site's freshest content.
+    // its links from, so adding a child adds it here too. The paths still carry `siteLastmod`, the
+    // home page's date: the keyword landings above moved to their own rail's date in SEO wave B
+    // (I3c), and these services-only pages have not had that change yet.
     /**
      * ⚠️ THREE SEPARATE EMISSIONS HAD TO BE GATED, NOT ONE, AND THIS IS THE ONLY OBVIOUS ONE.
      * The /itinerary line above and 'services-for-expats-vietnam' in the static array are the other
@@ -397,20 +445,21 @@ export async function GET() {
     // deliberately free of services vocabulary so this shared file can import it without an alias;
     // src/lib/expat-guides.ts explains the constraint that puts on what may be written there.
     //
-    // ⚠️ NO `siteLastmod` HERE, unlike the e-visa paths. Those carry it because their listing rails
-    // track the site's freshest content; these are static editorial with no data behind them, so
-    // claiming they changed whenever any listing did would be the same fabricated date the note at
-    // the top of this file removed from the static pages.
+    // ⚠️ NEVER `siteLastmod` HERE. These are static editorial with no data behind them, so claiming
+    // they changed whenever any listing did would be the same fabricated date the note at the top of
+    // this file removed from the static pages. Since SEO wave B (I3c) each guide carries the date its
+    // own page prints (`guideLastmod`: the registry's `updated ?? published`), and so do the two
+    // blocks below.
     if (IS_SERVICES) {
       for (const path of EXPAT_GUIDE_PATHS) {
-        urls.push(`  <url><loc>${hostUrl}${path}</loc></url>\n`)
+        urls.push(`  <url><loc>${hostUrl}${path}</loc>${lm(guideLastmod(path.slice(1)))}</url>\n`)
       }
     }
 
     // The MARKETPLACE guides, and note the missing gate: unlike the block above, these are ordinary
     // `page.tsx` routes that exist on BOTH editions, so both submit them from their own host — the same
-    // arrangement the five keyword landings already have. No lastmod, for the reason just above: they
-    // are static editorial with no data behind them.
+    // arrangement the keyword landings already have. Each is dated by its own page's printed
+    // `dateModified` (`guideLastmod`), never by the listings, for the reason just above.
     // ⚠️ EXCEPT A VEHICLE-HIRE HUB WITH NOTHING LIVE: it serves `noindex` then, and submitting a noindex
     // URL is a Search Console error. One count per kind; the hubs' own predicate (src/lib/vehicle-hubs.ts).
     const hubLive = new Map<string, number>()
@@ -420,7 +469,8 @@ export async function GET() {
     for (const path of MARKETPLACE_GUIDE_PATHS) {
       const hubKind = VEHICLE_HUB_KIND_BY_SLUG[path.slice(1)]
       if (hubKind && !hubLive.get(hubKind)) continue
-      urls.push(`  <url><loc>${hostUrl}${path}</loc></url>\n`)
+      // A hub prints its newest listing change as dateModified, which only its own load knows: no lastmod.
+      urls.push(`  <url><loc>${hostUrl}${path}</loc>${hubKind ? '' : lm(guideLastmod(path.slice(1)))}</url>\n`)
     }
 
     /**
@@ -432,7 +482,7 @@ export async function GET() {
      * thirty-two chances to forget one. Adding an entry to PHONE_GUIDES adds it to both.
      */
     for (const path of PHONE_GUIDE_PATHS) {
-      urls.push(`  <url><loc>${hostUrl}/${path}</loc></url>\n`)
+      urls.push(`  <url><loc>${hostUrl}/${path}</loc>${lm(guideLastmod(path))}</url>\n`)
     }
 
     // Indexing decoupled from PRELAUNCH (owner, 2026-07-18): the full data-driven

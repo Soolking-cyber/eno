@@ -61,6 +61,8 @@ function postSelect(viewerId: string) {
     viewCount: true,
     createdAt: true,
     updatedAt: true,
+    // For /help/[id]'s `dateModified` only (`modifiedAt` below) — the serializer does not carry it.
+    editedAt: true,
     media: {
       select: { storagePath: true, mimeType: true, width: true, height: true, altText: true, position: true },
       orderBy: { position: 'asc' },
@@ -186,5 +188,14 @@ export async function loadHelpThread(id: string) {
     },
   })
 
-  return { post: serializeForumPost(post), comments }
+  /**
+   * ⛔ `modifiedAt` IS `editedAt ?? createdAt`, NEVER `updatedAt` (SEO wave B, I3c). It is the page's
+   * `dateModified` and the sitemap's `<lastmod>` for the same URL (sitemaps/pages.xml), so the two
+   * agree. `updatedAt` moves on every write to the row — a vote's score, a comment count, a view, a
+   * re-run of the help-center sync — none of which changes the answer a reader sees. `editedAt` is
+   * set by a real edit (the forum edit route; scripts/sync-help-center.ts since I3b), and an answer
+   * never edited since it was seeded has none, so it falls back to its `createdAt`.
+   */
+  const modifiedAt = (post.editedAt ?? post.createdAt).toISOString()
+  return { post: serializeForumPost(post), modifiedAt, comments }
 }

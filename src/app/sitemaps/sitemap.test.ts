@@ -22,11 +22,29 @@ type Row = {
   verified: boolean
   status: string
   updatedAt: Date
+  /** What every page's lastmod reads since I3c. Defaults to `updatedAt` (see `row`). */
+  postedAt: Date
+  subcategorySlug?: string | null
+  listingType?: string | null
+  condition?: string | null
+  model?: string | null
 }
 
-const h = vi.hoisted(() => ({ rows: [] as Row[], hubLive: { car: 1, motorbike: 1 } as Record<string, number>, lookups: 0 }))
+type HelpRow = { id: string; editedAt: Date | null; createdAt: Date; updatedAt: Date }
+type RentLookup = { known: true; index: { computedAt: string } } | { known: false }
+const h = vi.hoisted(() => ({
+  rows: [] as Row[],
+  hubLive: { car: 1, motorbike: 1 } as Record<string, number>,
+  lookups: 0,
+  help: [] as HelpRow[],
+  rent: { known: false } as RentLookup,
+  rentReads: 0,
+  failAggregate: false,
+  services: false,
+}))
 const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
   'cat-rentals': 'rentals', 'cat-books': 'books-stationery', 'cat-services': 'services', 'cat-empty': 'jobs',
+  'cat-furniture': 'furniture-appliances', 'cat-food': 'food-drink', 'cat-electronics': 'electronics', 'cat-vehicles': 'vehicles',
 }))
 /**
  * Seller id → handle. `sub_shop` is served on its own subdomain, `subshop.eno.vn` (a subdomain is the
@@ -46,12 +64,17 @@ function matches(row: Record<string, unknown>, where: Where | undefined): boolea
   if (!where) return true
   return Object.entries(where).every(([key, cond]) => {
     if (key === 'AND') return (cond as Where[]).every((w) => matches(row, w))
-    const value = row[key]
+    if (key === 'OR') return (cond as Where[]).some((w) => matches(row, w))
+    if (key === 'NOT') return !matches(row, cond as Where)
+    // The landing pages narrow by `category: { slug }` (seo-landing-where.ts).
+    if (key === 'category') return CATEGORY_SLUGS[row.categoryId as string] === (cond as { slug: string }).slug
+    const value = row[key] ?? null
     if (cond !== null && typeof cond === 'object' && !(cond instanceof Date)) {
-      const c = cond as { in?: unknown[]; notIn?: unknown[]; not?: unknown }
+      const c = cond as { in?: unknown[]; notIn?: unknown[]; not?: unknown; contains?: string }
       if ('in' in c) return c.in!.includes(value)
       if ('notIn' in c) return !c.notIn!.includes(value)
       if ('not' in c) return value !== c.not
+      if ('contains' in c) return typeof value === 'string' && value.toLowerCase().includes(c.contains!.toLowerCase())
       throw new Error(`fake db: unsupported condition on ${key}: ${JSON.stringify(cond)}`)
     }
     return value === cond
@@ -70,17 +93,24 @@ vi.mock('@/lib/db', () => ({
         // `category.slug` rides along for the same reason: the old query selected it.
         return out.slice(skip, take === undefined ? undefined : skip + take).map((r) => ({ ...r, category: { slug: CATEGORY_SLUGS[r.categoryId] } }))
       },
-      groupBy: async ({ by, where }: { by: (keyof Row)[]; where?: Where }) => {
+      // `_max` fills only the fields asked for, as Prisma does — so a route still reading
+      // `_max.updatedAt` after asking for `postedAt` gets undefined, not a plausible date.
+      groupBy: async ({ by, where, _max = {} }: { by: (keyof Row)[]; where?: Where; _max?: Partial<Record<keyof Row, true>> }) => {
         // `_count._all` is always filled: a query that did not ask for it never reads it.
-        const groups = new Map<string, Record<string, unknown> & { _max: { updatedAt: Date | null }; _count: { _all: number } }>()
+        const groups = new Map<string, Record<string, unknown> & { _max: Record<string, Date | null>; _count: { _all: number } }>()
         for (const r of h.rows.filter((x) => matches(x, where))) {
           const key = JSON.stringify(by.map((k) => r[k]))
-          const g = groups.get(key) ?? { ...Object.fromEntries(by.map((k) => [k, r[k]])), _max: { updatedAt: null }, _count: { _all: 0 } }
-          if (!g._max.updatedAt || r.updatedAt > g._max.updatedAt) g._max.updatedAt = r.updatedAt
+          const g = groups.get(key) ?? { ...Object.fromEntries(by.map((k) => [k, r[k]])), _max: maxOf([], _max), _count: { _all: 0 } }
+          g._max = maxOf([r], _max, g._max)
           g._count._all++
           groups.set(key, g)
         }
         return [...groups.values()]
+      },
+      aggregate: async ({ where, _max = {} }: { where?: Where; _max?: Partial<Record<keyof Row, true>> }) => {
+        if (h.failAggregate) throw new Error('fake db: aggregate unavailable')
+        const rows = h.rows.filter((r) => matches(r, where))
+        return { _max: maxOf(rows, _max), _count: { _all: rows.length } }
       },
     },
     category: {
@@ -119,7 +149,7 @@ vi.mock('@/lib/db', () => ({
         return [...BRAND_SLUGS].filter((slug) => where.slug.in.includes(slug)).map((slug) => ({ slug }))
       },
     },
-    forumPost: { findMany: async () => [] },
+    forumPost: { findMany: async () => h.help },
   },
 }))
 
@@ -130,6 +160,30 @@ vi.mock('@/lib/vehicle-hubs', () => ({
     'car-rental-ho-chi-minh-city': 'car', 'thue-xe-tu-lai-tphcm': 'car',
     'motorbike-rental-ho-chi-minh-city': 'motorbike', 'thue-xe-may-tphcm': 'motorbike',
   },
+}))
+
+/** The newest value of each asked-for date field over `rows`, folded into `acc`. */
+function maxOf(rows: Row[], fields: Partial<Record<keyof Row, true>>, acc: Record<string, Date | null> = {}) {
+  const out: Record<string, Date | null> = {}
+  for (const f of Object.keys(fields) as (keyof Row)[]) {
+    out[f] = acc[f] ?? null
+    for (const r of rows) {
+      const d = r[f] as Date
+      if (!out[f] || d > out[f]!) out[f] = d
+    }
+  }
+  return out
+}
+
+/** The rent index's snapshot, as the page reads it. `rentReads` pins that eno.forum never asks. */
+vi.mock('@/app/[lang]/hcmc-rent-index/load-rent-index', () => ({
+  loadRentIndex: async () => { h.rentReads++; return h.rent },
+}))
+
+/** The edition, switchable per test: a getter, so the route reads it on every request. */
+vi.mock('@/lib/edition', async (orig) => ({
+  ...(await orig<typeof import('@/lib/edition')>()),
+  get IS_SERVICES() { return h.services },
 }))
 
 /** The licensed-marketplace scope, emulated: the desk seller's rows are invisible to every read. */
@@ -143,15 +197,21 @@ import { GET as childGET } from '@/app/sitemaps/[file]/route'
 import { LISTINGS_PER_SITEMAP, listingSitemapCount, parseListingSitemapFile } from '@/lib/sitemap'
 import { MIN_INDEXABLE_LISTINGS } from '@/lib/index-floor'
 import { storefrontCanonical } from '@/lib/storefront'
+import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS, guideDates } from '@/lib/expat-guides'
+import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
+import { IPHONE_18_MODELS, IPHONE_DUO_MODEL } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 const HOST = 'https://eno.vn'
 const locs = (xml: string) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
 const child = async (file: string) => childGET(new Request(`${HOST}/sitemaps/${file}`), { params: Promise.resolve({ file }) })
 
 function row(over: Partial<Row> & Pick<Row, 'id'>): Row {
+  const updatedAt = over.updatedAt ?? new Date('2026-01-01T00:00:00Z')
   return {
     sellerId: 'own-seller', categoryId: 'cat-books', district: null, affiliateUrl: null,
-    verified: true, status: 'active', updatedAt: new Date('2026-01-01T00:00:00Z'), ...over,
+    verified: true, status: 'active', updatedAt, postedAt: updatedAt, ...over,
   }
 }
 
@@ -163,6 +223,11 @@ beforeEach(() => {
   h.rows = []
   h.hubLive = { car: 1, motorbike: 1 }
   h.lookups = 0
+  h.help = []
+  h.rent = { known: false }
+  h.rentReads = 0
+  h.failAggregate = false
+  h.services = false
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -453,5 +518,157 @@ describe('the pages child', () => {
     expect(await storefrontCanonical('sub_shop', FORUM)).toBe('https://subshop.eno.forum')
     expect(urls.filter((u) => /subshop|sub-shop|sub_shop/.test(u))).toEqual([])
     expect(urls.every((u) => u.startsWith(FORUM))).toBe(true)
+  })
+})
+
+/**
+ * ⛔ EVERY <lastmod> IS THE DATE OF WHAT ITS PAGE SHOWS (SEO wave B, I3c). Before: the listing
+ * surfaces were dated by `updatedAt` (a re-sync, a view — anything), the nine keyword landings all
+ * shared the home page's date, the help answers carried a date a vote could move, and the guides and
+ * the rent index carried none.
+ */
+describe('the pages child: lastmod from what each page shows', () => {
+  const lastmodOf = (xml: string, loc: string) => {
+    const m = xml.match(new RegExp(`<loc>${loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</loc>(?:<lastmod>([^<]+)</lastmod>)?</url>`))
+    if (!m) throw new Error(`${loc} is not in the sitemap`)
+    return m[1]
+  }
+  const many = (n: number, prefix: string, over: Partial<Row>) => Array.from({ length: n }, (_, i) => row({ id: `${prefix}-${i}`, ...over }))
+  const POSTED = new Date('2026-03-01T00:00:00Z')
+  const SYNCED = new Date('2026-09-28T00:00:00Z')
+
+  it('dates the home page, categories, districts and storefronts by postedAt, never by a later write', async () => {
+    // Every row was re-written on SYNCED (an import re-sync, a flag) but posted on POSTED.
+    h.rows = many(MIN_INDEXABLE_LISTINGS, 'own', { sellerId: 'old-shop', district: 'Quận 5', postedAt: POSTED, updatedAt: SYNCED })
+    const xml = await (await pagesGET()).text()
+    expect(lastmodOf(xml, HOST)).toBe(POSTED.toISOString())
+    expect(lastmodOf(xml, `${HOST}/c/books-stationery`)).toBe(POSTED.toISOString())
+    expect(lastmodOf(xml, `${HOST}/c/books-stationery/d5`)).toBe(POSTED.toISOString())
+    expect(lastmodOf(xml, `${HOST}/old_shop`)).toBe(POSTED.toISOString())
+    expect(xml).not.toContain(SYNCED.toISOString())
+  })
+
+  it('dates each keyword landing by its own rail, so none shares the home date', async () => {
+    const d = (day: number) => new Date(Date.UTC(2026, 8, day))
+    h.rent = { known: true, index: { computedAt: '2026-09-29T01:00:00.000Z' } }
+    h.rows = [
+      row({ id: 'rent', categoryId: 'cat-rentals', postedAt: d(2) }),
+      row({ id: 'sofa-used', categoryId: 'cat-furniture', condition: 'Đã qua sử dụng', postedAt: d(3) }),
+      // A NEW sofa is not on the "secondhand" rail, so it must not date it.
+      row({ id: 'sofa-new', categoryId: 'cat-furniture', condition: 'Mới 100%', postedAt: d(20) }),
+      row({ id: 'coffee', categoryId: 'cat-food', subcategorySlug: 'coffee-tea', listingType: 'wholesale', postedAt: d(4) }),
+      row({ id: 'coffee-retail', categoryId: 'cat-food', subcategorySlug: 'coffee-tea', listingType: 'sell', postedAt: d(21) }),
+      // The price pages read the last write to a row they price: posted early, re-priced on the 5th.
+      row({ id: 'pro', categoryId: 'cat-electronics', model: 'iPhone 18 Pro', postedAt: d(1), updatedAt: d(5) }),
+      row({ id: 'duo', categoryId: 'cat-electronics', model: 'iPhone Duo', postedAt: d(1), updatedAt: d(6) }),
+      // The freshest row on the site, in a category no landing rails.
+      row({ id: 'book', categoryId: 'cat-books', postedAt: d(25) }),
+    ]
+    const xml = await (await pagesGET()).text()
+    const home = lastmodOf(xml, HOST)
+    expect(home).toBe(d(25).toISOString())
+    const landings = {
+      'housing-vietnam-expats': d(2).toISOString(),
+      'moving-sales-vietnam': d(3).toISOString(),
+      'wholesale-green-coffee-vietnam': d(4).toISOString(),
+      'iphone-18-pro-vietnam': d(5).toISOString(),
+      'iphone-duo-vietnam': d(6).toISOString(),
+      // The hub prices both Pro models and the Duo.
+      'iphone-18-vietnam': d(6).toISOString(),
+      // No row of the model: listed, undated.
+      'iphone-18-pro-max-vietnam': undefined,
+      'hcmc-rent-index': '2026-09-29T01:00:00.000Z',
+    }
+    for (const [path, want] of Object.entries(landings)) expect(lastmodOf(xml, `${HOST}/${path}`), path).toBe(want)
+    for (const path of Object.keys(landings)) expect(lastmodOf(xml, `${HOST}/${path}`), path).not.toBe(home)
+    // Empty jobs and motorbike rails: not submitted at all (they answer noindex).
+    expect(locs(xml)).not.toContain(`${HOST}/jobs-vietnam-expats`)
+    expect(locs(xml)).not.toContain(`${HOST}/motorbikes-for-sale-vietnam`)
+  })
+
+  it('submits a gated landing once it has a listing, dated by it', async () => {
+    h.rows = [
+      row({ id: 'job', categoryId: 'cat-empty', postedAt: new Date('2026-09-10T00:00:00Z') }),
+      row({ id: 'bike', categoryId: 'cat-vehicles', subcategorySlug: 'motorbike', postedAt: new Date('2026-09-11T00:00:00Z') }),
+      row({ id: 'car', categoryId: 'cat-vehicles', subcategorySlug: 'car', postedAt: new Date('2026-09-12T00:00:00Z') }),
+    ]
+    const xml = await (await pagesGET()).text()
+    expect(lastmodOf(xml, `${HOST}/jobs-vietnam-expats`)).toBe('2026-09-10T00:00:00.000Z')
+    expect(lastmodOf(xml, `${HOST}/motorbikes-for-sale-vietnam`)).toBe('2026-09-11T00:00:00.000Z')
+  })
+
+  it('keeps every landing, undated, when its read fails — and the rent index undated when unknown', async () => {
+    h.failAggregate = true
+    h.rows = [row({ id: 'book' })]
+    const xml = await (await pagesGET()).text()
+    for (const path of [
+      'housing-vietnam-expats', 'iphone-18-vietnam', 'iphone-18-pro-vietnam', 'iphone-18-pro-max-vietnam', 'iphone-duo-vietnam',
+      'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam', 'wholesale-green-coffee-vietnam', 'hcmc-rent-index',
+    ]) {
+      expect(lastmodOf(xml, `${HOST}/${path}`), path).toBeUndefined()
+    }
+  })
+
+  it('never reads the rent index on eno.forum, where the page 404s, and does not submit it there', async () => {
+    h.services = true
+    h.rent = { known: true, index: { computedAt: '2026-09-29T01:00:00.000Z' } }
+    h.rows = [row({ id: 'book' })]
+    const urls = locs(await (await pagesGET()).text())
+    expect(h.rentReads).toBe(0)
+    expect(urls).not.toContain(`${HOST}/hcmc-rent-index`)
+    h.services = false
+    await pagesGET()
+    expect(h.rentReads).toBe(1)
+  })
+
+  it('dates a help answer by editedAt, else createdAt — never by updatedAt, which a vote moves', async () => {
+    const created = new Date('2026-07-21T00:03:00Z')
+    const voted = new Date('2026-09-29T00:00:00Z')
+    h.help = [
+      { id: 'never-edited', editedAt: null, createdAt: created, updatedAt: voted },
+      { id: 'edited', editedAt: new Date('2026-09-27T10:00:00Z'), createdAt: created, updatedAt: voted },
+    ]
+    const xml = await (await pagesGET()).text()
+    expect(lastmodOf(xml, `${HOST}/help/never-edited`)).toBe(created.toISOString())
+    expect(lastmodOf(xml, `${HOST}/help/edited`)).toBe('2026-09-27T10:00:00.000Z')
+    expect(xml).not.toContain(voted.toISOString())
+  })
+
+  it('dates every guide by the date its page prints: the registry’s updated ?? published', async () => {
+    const xml = await (await pagesGET()).text()
+    const guides = [...MARKETPLACE_GUIDE_PATHS.map((p) => p.slice(1)), ...PHONE_GUIDE_PATHS]
+    expect(guides.length).toBeGreaterThan(40)
+    const HUBS = ['car-rental-ho-chi-minh-city', 'thue-xe-tu-lai-tphcm', 'motorbike-rental-ho-chi-minh-city', 'thue-xe-may-tphcm']
+    for (const slug of guides) {
+      const d = guideDates(slug)
+      // A vehicle-hire hub prints its newest listing change as dateModified (vehicleHubContent), which
+      // only its own load knows, so it is submitted with no lastmod rather than the registry's date.
+      expect(lastmodOf(xml, `${HOST}/${slug}`), slug).toBe(HUBS.includes(slug) ? undefined : d.updated ?? d.published)
+    }
+    for (const slug of HUBS) expect(xml, slug).toContain(`<loc>${HOST}/${slug}</loc>`)
+    expect(lastmodOf(xml, `${HOST}/renting-an-apartment-vietnam-foreigner`)).toBe('2026-09-27')
+    // The services-only arrival guides, on eno.forum.
+    h.services = true
+    const forum = await (await pagesGET()).text()
+    for (const p of EXPAT_GUIDE_PATHS) {
+      const d = guideDates(p.slice(1))
+      expect(lastmodOf(forum, `${HOST}${p}`), p).toBe(d.updated ?? d.published)
+    }
+  })
+
+  /**
+   * The sitemap names each iPhone model page after the model it prices (`iPhone 18 Pro` →
+   * /iphone-18-pro-vietnam) instead of importing the page, which would drag React into the route.
+   * This pins that each such page exists and prices exactly that model.
+   */
+  it('names each iPhone model page after a model lowest-prices.ts prices, and each page prices it', () => {
+    const models = [...IPHONE_18_MODELS, IPHONE_DUO_MODEL]
+    for (const m of models) {
+      const dir = `${m.toLowerCase().replace(/\s+/g, '-')}-vietnam`
+      const src = readFileSync(join(process.cwd(), 'src/app/[lang]', dir, 'page.tsx'), 'utf8')
+      const literal = src.match(/\bmodel:\s*'([^']+)'/)?.[1]
+      const named = /\bmodel:\s*IPHONE_DUO_MODEL\b/.test(src) ? IPHONE_DUO_MODEL : literal
+      expect(named, dir).toBe(m)
+    }
   })
 })

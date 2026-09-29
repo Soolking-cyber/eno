@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
-import { marketplaceGuideAlternates } from '@/lib/expat-guides'
+import { guideDates, marketplaceGuideAlternates } from '@/lib/expat-guides'
 import { VehicleHub, VEHICLE_HUB_SLUGS } from '@/components/marketplace/vehicle-hub'
 import { loadVehicleHub } from '@/lib/vehicle-hubs'
 
@@ -26,5 +26,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  return <VehicleHub data={await loadVehicleHub('car')} lang="en" published="2026-09-29" />
+  return <VehicleHub data={await loadVehicleHub('car')} lang="en" {...guideDates('car-rental-ho-chi-minh-city')} />
 }

@@ -212,7 +212,8 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
    * Hubs rather than articles (src/components/marketplace/vehicle-hub.tsx): a live grid, counts and
    * a price summary with its method printed, over the car and motorbike hire imported with the
    * sources' permission on 2026-09-29 (~6,100 cars, ~230 bikes). Registered here so the sitemap,
-   * the reserved handles and the hreflang pair see them.
+   * the reserved handles and the hreflang pair see them. `published` is the hubs' launch day (6b3a2c75);
+   * there is no `updated`: a hub's dateModified is its newest listing change (vehicleHubContent), not an edit.
    * ⚠️ NO `categories`: /c/rentals is homes-only and its Guides block is about homes; that page links
    * the hubs from its "Plus N cars and N motorbikes for hire" line instead (category-text.tsx).
    */
@@ -222,6 +223,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
     pair: 'thue-xe-tu-lai-tphcm',
     label: 'Car rental in Ho Chi Minh City',
     blurb: 'Self-drive cars on one page, what a day costs by car size, and how booking with the source works.',
+    published: '2026-09-29',
   },
   {
     slug: 'thue-xe-tu-lai-tphcm',
@@ -229,6 +231,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
     pair: 'car-rental-ho-chi-minh-city',
     label: 'Thuê xe tự lái TP.HCM',
     blurb: 'Xe tự lái gom về một trang, giá thuê một ngày theo loại xe, và cách đặt xe với nguồn.',
+    published: '2026-09-29',
   },
   {
     slug: 'motorbike-rental-ho-chi-minh-city',
@@ -236,6 +239,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
     pair: 'thue-xe-may-tphcm',
     label: 'Motorbike rental in Ho Chi Minh City',
     blurb: 'Scooters and manual bikes from local shops, day and month prices kept apart, and how booking with the shop works.',
+    published: '2026-09-29',
   },
   {
     slug: 'thue-xe-may-tphcm',
@@ -243,6 +247,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
     pair: 'motorbike-rental-ho-chi-minh-city',
     label: 'Thuê xe máy TP.HCM',
     blurb: 'Xe ga và xe số từ các cửa hàng cho thuê, giá theo ngày và theo tháng tính riêng, và cách đặt xe với cửa hàng.',
+    published: '2026-09-29',
   },
   {
     slug: 'dang-tin-ban-hang-mien-phi',

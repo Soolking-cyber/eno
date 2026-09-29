@@ -75,8 +75,9 @@ export default async function HelpThreadPage({ params }: { params: Promise<{ id:
    * Google has restricted its rich result to a handful of authoritative sites anyway.
    * Article is what this actually is — an editorial answer with a title, a body, a date and a
    * publisher — and it is the type that stays true the day someone does reply.
-   * `dateModified` comes from the row's own updatedAt (the serializer carries it, and the sitemap already
-   * submits it as this URL's lastmod) — so the two agree rather than telling Google different stories.
+   * `dateModified` is `thread.modifiedAt` — the answer's `editedAt ?? createdAt`, never the row's
+   * `updatedAt`, which a vote or a view also moves (help-center-data.ts) — and the sitemap submits the
+   * same value as this URL's lastmod, so the two agree rather than telling Google different stories.
    */
   /**
    * ⚠️ THE EDITION'S OWN ORIGIN, AND THE FALLBACK IS THE POINT OF THE COMMENT. Both editions serve
@@ -95,7 +96,7 @@ export default async function HelpThreadPage({ params }: { params: Promise<{ id:
     'headline': thread.post.title,
     'articleBody': thread.post.body,
     'datePublished': thread.post.createdAt,
-    'dateModified': thread.post.updatedAt,
+    'dateModified': thread.modifiedAt,
     'inLanguage': 'en',
     'mainEntityOfPage': { '@type': 'WebPage', '@id': `${origin}/help/${id}` },
     'author': { '@type': 'Organization', ...orgRef, 'name': SITE_NAME, 'url': origin },
