@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Tr } from '@/context/language-context'
 import { ArrowRight } from '@/components/ui/icons'
 import { formatMoneyFull, groupVnd, type MoneyLocale } from '@/lib/vnd'
+import { isIndexableCount } from '@/lib/index-floor'
 import {
   MAX_AREA_M2, MAX_MONTHLY_VND, MAX_VND_PER_M2, MIN_AREA_M2, MIN_CELL_N, MIN_MONTHLY_VND, MIN_VND_PER_M2,
   RENT_TYPES, type ExclusionReason, type RentIndex, type RentType, type Stats,
@@ -131,12 +132,24 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
               <tr key={d.slug} className="border-t border-border">
                 <th scope="row" className="min-w-[9rem] py-2 pr-4 text-left align-top font-semibold text-foreground">
                   {/* ⚠️ EVERY ROW HERE HAS ≥ 1 LISTING, AND /c/rentals/<slug> MATCHES A SUPERSET OF
-                      THEM (the same curated spellings on `district` OR `location`), so the link can
-                      never land on that page's 404. Its count is larger than this row's n for the same
-                      reason — the methodology says so. */}
-                  <Link href={`/c/rentals/${d.slug}`} className="text-accent-foreground hover:underline">
-                    {lang === 'vi' ? d.name : d.nameEn}
-                  </Link>
+                      THEM (the same curated spellings on `district` OR `location`; apartments, houses
+                      and rooms are all places), so the link can never land on that page's 404. Its
+                      count is larger than this row's n for the same reason — the methodology says so.
+                      ⛔ AND A ROW IS LINKED ONLY AT THE INDEXING FLOOR (SEO wave B, I1): below 10
+                      listings that page answers `noindex, follow`, and a followed link to it from our
+                      own analysis is the wrong signal. The superset makes `d.total` a safe test: a
+                      row at the floor links a page at the floor. Below it, the name is plain text.
+                      ⚠️ AS OF THE SNAPSHOT (up to a day old, load-rent-index.ts), while the page counts
+                      live: the same bounded lag as D3's sitemap rule. It is a margin, not a knife edge:
+                      the smallest linked row held 44 homes, on a page of at least 161 places (hoc-mon,
+                      2026-09-29). */}
+                  {isIndexableCount(d.total) ? (
+                    <Link href={`/c/rentals/${d.slug}`} className="text-accent-foreground hover:underline">
+                      {lang === 'vi' ? d.name : d.nameEn}
+                    </Link>
+                  ) : (
+                    lang === 'vi' ? d.name : d.nameEn
+                  )}
                   {d.slug === 'thu-duc' && (
                     <span className="block text-2xs font-normal text-muted-foreground"><Tr text="All of Thu Duc City, including listings still labelled District 2 or 9" /></span>
                   )}

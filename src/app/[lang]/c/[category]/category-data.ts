@@ -8,6 +8,7 @@ import { DISTRICTS_PROVINCE_CODE } from '@/components/marketplace/listings-explo
 import vnUnits from '@/data/vn-units.json'
 import { linkedTier, rentalKinds, rentalsHeadline, type RentalsFacts, type RentalsHeadline } from './category-copy'
 import { RENTAL_PLACES } from '@/lib/rental-places'
+import { isIndexableCount } from '@/lib/index-floor'
 
 /**
  * The category page's live numbers beyond the headline count — shared by `generateMetadata` and the
@@ -26,6 +27,13 @@ const live = (categoryId: string) => ({ categoryId, verified: true, status: 'act
  * /c/rentals carried both `huyen-cu-chi` and `quan-cu-chi`, and every numbered district as `quan-N`
  * beside the curated `dN` the explorer uses — two indexable URLs per place. A GROUP BY with counts
  * also orders the chips by stock instead of by whatever `distinct` returned first.
+ *
+ * ⛔ ONLY PLACES AT THE INDEXING FLOOR (SEO wave B, I1; src/lib/index-floor.ts). A district page under
+ * 10 listings answers `noindex, follow`, and a chip is a followed link: /c/rentals linked
+ * `/c/rentals/can-gio` (one rental) from its "By area" row. Both readers — the category page's chips
+ * and /c/rentals' busiest districts (`loadRentalsFacts().top`) — get the floor here, once. The count
+ * is merged across spellings first (6 + 4 is a page of 10), and it is the stored-name tally, which
+ * the linked page's scope contains (see the sibling chips in `[district]/page.tsx` for the one gap).
  */
 export const loadDistrictChips = cache(async (categoryId: string, placesOnly = false): Promise<DistrictChip[]> => {
   const groups = await db.listing.groupBy({
@@ -34,7 +42,7 @@ export const loadDistrictChips = cache(async (categoryId: string, placesOnly = f
     where: await scopedListingWhere({ AND: [{ ...live(categoryId), district: { not: null } }, placesOnly ? RENTAL_PLACES : {}] }),
     _count: { _all: true },
   })
-  return mergeDistrictGroups(groups.map((g) => ({ district: g.district, count: g._count._all })))
+  return mergeDistrictGroups(groups.map((g) => ({ district: g.district, count: g._count._all }))).filter((c) => isIndexableCount(c.count))
 })
 
 /**

@@ -135,9 +135,10 @@ export type DistrictChip = { slug: string; label: { en: string; vi: string }; co
  * `groupBy(['district'])` rows → one chip per canonical place, busiest first.
  *
  * ⚠️ MERGED BY CANONICAL SLUG, which is what removes the twin chips: "Quận Củ Chi" (84) and
- * "Huyện Củ Chi" (6) are one `cu-chi` chip, and its count is the sum. The count only ORDERS the
- * chips — it is the stored-name tally, not the page's scope (which also matches `location`), so it
- * is never printed. A non-curated place is labelled from its busiest stored spelling.
+ * "Huyện Củ Chi" (6) are one `cu-chi` chip, and its count is the sum. The count ORDERS the chips and
+ * gates them at the indexing floor (src/lib/index-floor.ts, SEO wave B I1) — it is the stored-name
+ * tally, not the page's scope (which also matches `location`), so it is never printed. A non-curated
+ * place is labelled from its busiest stored spelling.
  */
 export function mergeDistrictGroups(groups: readonly { district: string | null; count: number }[]): DistrictChip[] {
   const bySlug = new Map<string, { count: number; top: string; topCount: number }>()

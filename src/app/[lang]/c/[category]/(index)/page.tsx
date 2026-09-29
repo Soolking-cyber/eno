@@ -27,7 +27,7 @@ export const revalidate = 21600 // 6h — client fetches live listings; ISR HTML
 
 type Props = { params: Promise<{ lang: string; category: string }> }
 
-/** "By area" chips on the category page — every canonical place, busiest first. */
+/** "By area" chips on the category page — every canonical place at the indexing floor, busiest first. */
 const DISTRICT_CHIPS = 80
 
 /**
@@ -154,8 +154,12 @@ export default async function CategoryPage({ params }: Props) {
     }),
     db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),
     // ⚠️ CANONICAL CHIPS (category-data.ts): one per place, linking the one URL that place has — the
-    // stored spellings (`quan-2`, `huyen-cu-chi`) now 308 there instead of standing beside it.
-    loadDistrictChips(cat.id, !!rentalsFacts), // places-only exactly when the grid is
+    // stored spellings (`quan-2`, `huyen-cu-chi`) now 308 there instead of standing beside it — and
+    // only places at the indexing floor (SEO wave B, I1), so no chip links a `noindex` page.
+    // ⚠️ PLACES-ONLY ON RENTALS ALWAYS, not only while the grid is: /c/rentals/<district> counts places
+    // whatever this page shows, so a chip tallied over vehicle hire (the no-place fallback) would link
+    // a 404. Same arguments as loadRentalsFacts' call, so the two share one cache() entry.
+    loadDistrictChips(cat.id, cat.slug === 'rentals'),
     // The same cached call generateMetadata and the lede make — one set of counts per render. The
     // page reads only `top` from it (RentalsDistricts); the linked count is the lede's alone.
     rentalsFacts,

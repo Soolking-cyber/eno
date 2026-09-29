@@ -7,6 +7,7 @@ import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { districtScopeForSlug } from '@/lib/district-slug'
 import { canonicalDistrictSlug, districtLabel, isCuratedDistrict, mergeDistrictGroups } from '@/lib/district-canonical'
+import { isIndexableCount } from '@/lib/index-floor'
 import { districtMetadata, linkedTier, pageLang } from '../category-copy'
 import { DistrictHeading, DistrictLede, PlaceName, RentIndexLink } from '../category-text'
 import { notFound, permanentRedirect } from 'next/navigation'
@@ -21,7 +22,13 @@ import { Button } from '@/components/ui/button'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Tr } from '@/context/language-context'
 
-export const revalidate = 604800 // 7d — long-tail SEO combo (category×district = many pages); client fetches live, so weekly regen is plenty + far fewer ISR writes
+/**
+ * 1 day. It was 7 days ("long-tail combo, client fetches live, weekly regen is plenty") until the page's
+ * ROBOTS tag started to depend on its count (SEO wave B, I1): a district that crosses the indexing
+ * floor (src/lib/index-floor.ts) in either direction must say so within the sitemap's own daily
+ * revalidate, not a week after the sitemap has started or stopped submitting it.
+ */
+export const revalidate = 86400
 
 type Props = { params: Promise<{ lang: string; category: string; district: string }> }
 
@@ -186,6 +193,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: `${hostUrl}/c/${data.cat.slug}/${district}` },
+    /**
+     * ⛔ BELOW THE FLOOR, `noindex, follow` (SEO wave B, I1; src/lib/index-floor.ts). A district page of
+     * one to nine cards is thin — `/c/rentals/can-gio` held one rental — and it answered 200 with no
+     * robots directive at all. `data.total` is the page's full count (imports included, places only on
+     * rentals), the number its own lede prints. `follow` keeps its cards and chips crawlable. No
+     * chip, sibling chip or rent-index row links a page under the floor, so it is reachable only by
+     * its URL.
+     */
+    ...(isIndexableCount(data.total) ? {} : { robots: { index: false, follow: true } }),
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
     openGraph: { title, description, url: `${hostUrl}/c/${data.cat.slug}/${district}` },
@@ -195,7 +211,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CategoryDistrictPage({ params }: Props) {
   const { lang, district, data } = await resolve(params)
   const { cat, matched, total, linked, place, districts } = data
-  const otherDistricts = districts.filter((d) => d.slug !== district).slice(0, SIBLING_DISTRICTS)
+  // ⚠️ ONLY SIBLINGS AT THE FLOOR (src/lib/index-floor.ts): a chip to a `noindex` page is a followed
+  // link to a page we asked Google to drop. The count is the stored-name tally (district-canonical.ts),
+  // and the linked page's scope matches every spelling it merges — except one that differs from a
+  // curated spelling only in case or diacritics ("Quan 1"), which district-match.ts's exact LIKE
+  // misses. So a chip that passes lands on a page that passes unless such rows make the difference.
+  const otherDistricts = districts.filter((d) => d.slug !== district && isIndexableCount(d.count)).slice(0, SIBLING_DISTRICTS)
   // The explorer scoped to exactly this page — the API resolves a slugified district name the same
   // way this page does (src/lib/district-slug.ts), so leaving here keeps the district.
   const scopedExplorer = `/?category=${cat.slug}&district=${district}`

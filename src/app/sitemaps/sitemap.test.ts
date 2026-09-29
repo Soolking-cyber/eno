@@ -59,11 +59,13 @@ vi.mock('@/lib/db', () => ({
         return out.slice(skip, take === undefined ? undefined : skip + take).map((r) => ({ ...r, category: { slug: CATEGORY_SLUGS[r.categoryId] } }))
       },
       groupBy: async ({ by, where }: { by: (keyof Row)[]; where?: Where }) => {
-        const groups = new Map<string, Record<string, unknown> & { _max: { updatedAt: Date | null } }>()
+        // `_count._all` is always filled: a query that did not ask for it never reads it.
+        const groups = new Map<string, Record<string, unknown> & { _max: { updatedAt: Date | null }; _count: { _all: number } }>()
         for (const r of h.rows.filter((x) => matches(x, where))) {
           const key = JSON.stringify(by.map((k) => r[k]))
-          const g = groups.get(key) ?? { ...Object.fromEntries(by.map((k) => [k, r[k]])), _max: { updatedAt: null } }
+          const g = groups.get(key) ?? { ...Object.fromEntries(by.map((k) => [k, r[k]])), _max: { updatedAt: null }, _count: { _all: 0 } }
           if (!g._max.updatedAt || r.updatedAt > g._max.updatedAt) g._max.updatedAt = r.updatedAt
+          g._count._all++
           groups.set(key, g)
         }
         return [...groups.values()]
@@ -100,6 +102,7 @@ import { GET as indexGET } from '@/app/sitemap.xml/route'
 import { GET as pagesGET } from '@/app/sitemaps/pages.xml/route'
 import { GET as childGET } from '@/app/sitemaps/[file]/route'
 import { LISTINGS_PER_SITEMAP, listingSitemapCount, parseListingSitemapFile } from '@/lib/sitemap'
+import { MIN_INDEXABLE_LISTINGS } from '@/lib/index-floor'
 
 const HOST = 'https://eno.vn'
 const locs = (xml: string) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
@@ -228,19 +231,26 @@ describe('the vehicle-hire hubs in the pages child', () => {
 })
 
 describe('the pages child', () => {
+  /** `n` rows of one kind, ids `${prefix}-0…`, for the floor cases. */
+  const many = (n: number, prefix: string, over: Partial<Row>) => Array.from({ length: n }, (_, i) => row({ id: `${prefix}-${i}`, ...over }))
+
   /**
    * ⛔ THE STARVATION, REPRODUCED. 45,001 FRESH imported rows (the size of a full nhatot run) sit in
    * one district under one seller; the only rows in /c/books-stationery/thao-dien and the only rows
    * of the "oldshop" storefront are older. The old derivation read the newest 45,000 rows, so both
    * URLs vanished. The aggregates see the whole table.
+   *
+   * ⚠️ TEN OLD ROWS, NOT TWO (SEO wave B, I1): a district page is submitted only at the floor of
+   * MIN_INDEXABLE_LISTINGS own listings, so the old stock has to be a page's worth — split 6 + 4
+   * across two spellings, which also pins that the floor is applied to the MERGED count.
    */
   it('keeps combos and storefronts that only OLDER rows support, however large the fresh import', async () => {
     h.rows = [
       ...Array.from({ length: LISTINGS_PER_SITEMAP + 1 }, (_, i) =>
         row({ id: `imp-${i}`, sellerId: 'import-seller', categoryId: 'cat-rentals', district: 'Quận 1', affiliateUrl: 'https://nhatot.com/x', updatedAt: FRESH }),
       ),
-      row({ id: 'old-1', sellerId: 'old-shop', categoryId: 'cat-books', district: 'Thảo Điền', updatedAt: OLD }),
-      row({ id: 'old-2', sellerId: 'old-shop', categoryId: 'cat-books', district: 'Thao Dien', updatedAt: new Date('2025-07-01T00:00:00Z') }),
+      ...many(6, 'old-a', { sellerId: 'old-shop', categoryId: 'cat-books', district: 'Thảo Điền', updatedAt: OLD }),
+      ...many(4, 'old-b', { sellerId: 'old-shop', categoryId: 'cat-books', district: 'Thao Dien', updatedAt: new Date('2025-07-01T00:00:00Z') }),
     ]
     const xml = await (await pagesGET()).text()
     const urls = locs(xml)
@@ -266,36 +276,70 @@ describe('the pages child', () => {
   }, 60_000)
 
   /**
-   * ⛔ A DISTRICT PAGE BACKED ONLY BY BORROWED LISTINGS IS NOT SUBMITTED (lead, 2026-09-24, under the
-   * owner's 2026-09-17 rule). The combo aggregate counts what `submittedListingWhere` counts:
-   * verified, active, in scope and `affiliateUrl: null`. A district with one listing of our own is
-   * submitted, dated by THAT listing — an import's fresher sync must not move its lastmod.
+   * ⛔ RULE A (SEO wave B, I1; decision I-a): A CATEGORY × DISTRICT PAGE IS SUBMITTED ONLY WITH AT
+   * LEAST MIN_INDEXABLE_LISTINGS OF OUR OWN VERIFIED, ACTIVE LISTINGS, AND NEVER FOR RENTALS BY THAT
+   * COUNT. Below the floor the page is `noindex, follow` or thin; an import is someone else's
+   * catalogue (lead, 2026-09-24, under the owner's 2026-09-17 rule), so it never counts toward it.
    */
-  it('submits a category × district combo only for our OWN verified, active listings', async () => {
+  it('submits a district page at N own listings and not at N - 1', async () => {
     h.rows = [
-      // Hà Nội district reached only by imports → not submitted.
-      row({ id: 'imp-hn', sellerId: 'import-seller', categoryId: 'cat-rentals', district: 'Quận Cầu Giấy', affiliateUrl: 'https://www.nhatot.com/1.htm', updatedAt: FRESH }),
-      // Our own rows that are not live do not qualify either.
-      row({ id: 'own-hidden', categoryId: 'cat-rentals', district: 'Quận Hải Châu', status: 'hidden' }),
-      row({ id: 'own-unverified', categoryId: 'cat-rentals', district: 'Quận Sơn Trà', verified: false }),
-      // A district with one own listing AND a fresher import → submitted, with the OWN row's date.
-      row({ id: 'own-q3', categoryId: 'cat-rentals', district: 'Quận 3', updatedAt: OLD }),
-      row({ id: 'imp-q3', sellerId: 'import-seller', categoryId: 'cat-rentals', district: 'Quận 3', affiliateUrl: 'https://muaban.net/x', updatedAt: FRESH }),
+      ...many(MIN_INDEXABLE_LISTINGS, 'own-q5', { district: 'Quận 5' }),
+      ...many(MIN_INDEXABLE_LISTINGS - 1, 'own-q3', { district: 'Quận 3' }),
+    ]
+    const urls = locs(await (await pagesGET()).text())
+    expect(urls).toContain(`${HOST}/c/books-stationery/d5`)
+    expect(urls).not.toContain(`${HOST}/c/books-stationery/d3`)
+  })
+
+  it('adds up the spellings of one place before the floor, and counts no import, hidden or unverified row', async () => {
+    const half = MIN_INDEXABLE_LISTINGS / 2
+    h.rows = [
+      // 5 + 5 across "Quận 7" / "District 7" is one `d7` page of 10 → submitted.
+      ...many(half, 'own-q7', { district: 'Quận 7' }),
+      ...many(half, 'own-d7', { district: 'District 7' }),
+      // 5 + 4 is one page of 9 → not.
+      ...many(half, 'own-q8', { district: 'Quận 8' }),
+      ...many(half - 1, 'own-d8', { district: 'District 8' }),
+      // N - 1 own live rows, plus imports, a hidden and an unverified own row: still N - 1 that count.
+      ...many(MIN_INDEXABLE_LISTINGS - 1, 'own-q3', { district: 'Quận 3', updatedAt: OLD }),
+      ...many(30, 'imp-q3', { sellerId: 'import-seller', district: 'Quận 3', affiliateUrl: 'https://muaban.net/x', updatedAt: FRESH }),
+      row({ id: 'own-q3-hidden', district: 'Quận 3', status: 'hidden' }),
+      row({ id: 'own-q3-unverified', district: 'Quận 3', verified: false }),
+      // A Hà Nội district that only imports reach → never.
+      ...many(MIN_INDEXABLE_LISTINGS, 'imp-hn', { sellerId: 'import-seller', district: 'Quận Cầu Giấy', affiliateUrl: 'https://www.nhatot.com/1.htm' }),
     ]
     const xml = await (await pagesGET()).text()
     const urls = locs(xml)
-    // "Quận 3" is submitted as the curated `d3` — the slug the page lives at; `quan-3` 308s there.
-    expect(urls.filter((u) => u.startsWith(`${HOST}/c/rentals/`))).toEqual([`${HOST}/c/rentals/d3`])
-    expect(xml).toContain(`<loc>${HOST}/c/rentals/d3</loc><lastmod>${OLD.toISOString()}</lastmod>`)
+    expect(urls.filter((u) => u.startsWith(`${HOST}/c/books-stationery/`))).toEqual([`${HOST}/c/books-stationery/d7`])
     // The category page and the import seller's storefront still count imported stock.
-    expect(xml).toContain(`<loc>${HOST}/c/rentals</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
+    expect(xml).toContain(`<loc>${HOST}/c/books-stationery</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
     expect(urls).toContain(`${HOST}/sellers/import-seller`)
+  })
+
+  /**
+   * ⛔ OWN COUNTS NEVER QUALIFY A RENTALS DISTRICT PAGE (rule A). This test used to pin the opposite —
+   * one own rental in `d3` submitted `/c/rentals/d3` — which held only because no own rental existed.
+   * Rentals district pages enter the sitemap through the rent index's rule (SEO wave B, D3), never by
+   * their own count; the lastmod rule for the pages that ARE submitted is unchanged (own row's date).
+   */
+  it('never submits a rentals district page by its own count, however many', async () => {
+    h.rows = [
+      ...many(MIN_INDEXABLE_LISTINGS * 3, 'own-rent-q3', { categoryId: 'cat-rentals', district: 'Quận 3', updatedAt: OLD }),
+      ...many(MIN_INDEXABLE_LISTINGS, 'own-books-q3', { district: 'Quận 3', updatedAt: OLD }),
+      row({ id: 'imp-books-q3', sellerId: 'import-seller', district: 'Quận 3', affiliateUrl: 'https://muaban.net/x', updatedAt: FRESH }),
+    ]
+    const xml = await (await pagesGET()).text()
+    const urls = locs(xml)
+    expect(urls.some((u) => u.startsWith(`${HOST}/c/rentals/`))).toBe(false)
+    expect(urls).toContain(`${HOST}/c/rentals`)
+    // A district page that does qualify is dated by OUR newest row, never by an import's fresher sync.
+    expect(xml).toContain(`<loc>${HOST}/c/books-stationery/d3</loc><lastmod>${OLD.toISOString()}</lastmod>`)
   })
 
   it('keeps the edition boundary and the empty-category rule', async () => {
     h.rows = [
-      row({ id: 'own-1', categoryId: 'cat-books', district: 'Quận 3' }),
-      row({ id: 'desk-1', sellerId: 'desk-seller', categoryId: 'cat-services', district: 'Quận 1' }),
+      ...many(MIN_INDEXABLE_LISTINGS, 'own', { categoryId: 'cat-books', district: 'Quận 3' }),
+      ...many(MIN_INDEXABLE_LISTINGS, 'desk', { sellerId: 'desk-seller', categoryId: 'cat-services', district: 'Quận 1' }),
     ]
     const urls = locs(await (await pagesGET()).text())
     expect(urls).not.toContain(`${HOST}/c/services`)

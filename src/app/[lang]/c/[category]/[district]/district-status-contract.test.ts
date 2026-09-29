@@ -44,4 +44,19 @@ describe('/c/<category>/<district> status contract', () => {
     expect(src).toMatch(/generateMetadata\(\{ params \}: Props\)[^{]*\{\s*const \{[^}]*\} = await resolve\(params\)/)
     expect(src).toMatch(/CategoryDistrictPage\(\{ params \}: Props\)[^{]*\{\s*const \{[^}]*\} = await resolve\(params\)/)
   })
+
+  /**
+   * ⛔ THE INDEXING FLOOR (SEO wave B, I1; src/lib/index-floor.ts). Below 10 listings the page answers
+   * `noindex, follow`, decided in generateMetadata from the page's own full count — the number its
+   * lede prints — and the ISR copy that carries that tag is at most a day old, the sitemap's own
+   * revalidate, so the page never trails the sitemap by a week when it crosses the floor.
+   */
+  it('applies the indexing floor to its own count, in generateMetadata, and regenerates at least daily', () => {
+    const src = readFileSync(join(APP, 'c/[category]/[district]/page.tsx'), 'utf8')
+    const meta = src.slice(src.indexOf('export async function generateMetadata('), src.indexOf('export default async function'))
+    expect(meta).toMatch(/\.\.\.\(isIndexableCount\(data\.total\) \? \{\} : \{ robots: \{ index: false, follow: true \} \}\)/)
+    const revalidate = Number(/^export const revalidate = (\d+)\b/m.exec(src)?.[1])
+    expect(revalidate).toBeGreaterThan(0)
+    expect(revalidate).toBeLessThanOrEqual(86400)
+  })
 })

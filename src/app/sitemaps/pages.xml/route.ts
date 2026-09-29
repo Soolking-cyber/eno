@@ -16,6 +16,7 @@ import { seoLandingWhere } from '@/components/marketplace/seo-landing-where'
 import { LANDING_TARGET as JOBS_TARGET } from '@/app/[lang]/jobs-vietnam-expats/landing-target'
 import { LANDING_TARGET as MOTORBIKE_TARGET } from '@/app/[lang]/motorbikes-for-sale-vietnam/landing-target'
 import { districtLinkSlug } from '@/lib/district-canonical'
+import { isIndexableCount } from '@/lib/index-floor'
 import { submittedListingWhere, urlsetXml, xmlResponse, siteOrigin } from '@/lib/sitemap'
 import { NextResponse } from 'next/server'
 
@@ -98,9 +99,17 @@ export async function GET() {
        * district that only nhatot/muaban rows reach), submitting it is asking Google to index a
        * page of someone else's catalogue: the thing the owner's 2026-09-17 rule stopped for listing
        * URLs. So it is the SUBMITTED-listing predicate, district-narrowed: verified, active, in
-       * edition scope and `affiliateUrl: null`. The page itself still answers 200 and stays
-       * crawlable; it returns here the day one listing of our own lands in that district, and its
-       * lastmod is that listing's, never an import's fresher sync.
+       * edition scope and `affiliateUrl: null`. Its lastmod is our own listing's, never an import's
+       * fresher sync.
+       *
+       * ⛔ RULE A, THE ONE SITEMAP RULE FOR DISTRICT PAGES (SEO wave B, I1; decision I-a): a
+       * category × district page is submitted only with at least MIN_INDEXABLE_LISTINGS (10) of our
+       * OWN listings, summed across every stored spelling of the place, and NEVER for `rentals` by
+       * that count. One own listing used to be enough, which submitted pages of one to nine cards
+       * (`/c/services/an-khanh`: "Crawled - currently not indexed"). `_count` is the tally; the
+       * floor is applied after the spellings are merged, in the combo loop below. A page under the
+       * floor still answers 200 — as `noindex, follow` below 10 listings of ANY kind, indexable but
+       * unsubmitted between (the page counts imports too, src/lib/index-floor.ts).
        */
       // edition-lint-allow: `submittedListingWhere()` IS `scopedListingWhere(...)` AND-ed with the
       // affiliate exclusion (src/lib/sitemap.ts) — the edition scope is inside the helper.
@@ -108,6 +117,7 @@ export async function GET() {
         by: ['categoryId', 'district'],
         where: await submittedListingWhere({ district: { not: null } }),
         _max: { updatedAt: true },
+        _count: { _all: true },
       }),
       db.listing.groupBy({
         by: ['sellerId'],
@@ -171,15 +181,27 @@ export async function GET() {
      * district page now 308s every twin spelling (`quan-2`, `huyen-cu-chi`, `tp-thu-duc`) to its
      * curated key, so a slugified stored name would submit a URL that redirects. Merging on the
      * canonical slug also folds "Quận 2" and "District 2" into the one `d2` entry.
+     *
+     * ⚠️ THE COUNTS ARE MERGED THE SAME WAY, BEFORE THE FLOOR (rule A, above): 6 "Thảo Điền" + 4 "Thao
+     * Dien" is one page of 10, not two pages of 6 and 4. Our own rows are a subset of the page's count
+     * (`data.total`), so a submitted page is an indexable one — with the one gap the chips share: a
+     * stored spelling that differs from a curated one only in case or diacritics ("Quan 1") is merged
+     * here by its slug but missed by the page's exact LIKE (district-match.ts). Measured 2026-09-29:
+     * no live stored spelling that maps to a curated slug is missed by that slug's scope.
+     *
+     * ⛔ RENTALS NEVER QUALIFY BY THEIR OWN COUNT (rule A). No live rental with a district is our own
+     * (measured 2026-09-29: every one carries an `affiliateUrl`), so none was ever submitted; the rule
+     * makes that explicit rather than an accident of the data, before the first own rentals in one
+     * district would submit a page the rent index's rule (SEO wave B, D3) is meant to decide.
      */
-    const comboMax = new Map<string, Date>()
+    const combos = new Map<string, { max?: Date; n: number }>()
     for (const g of byCombo) {
       const slug = slugById.get(g.categoryId)
       const district = g.district ? districtLinkSlug(g.district) : ''
-      if (!slug || !district) continue
+      if (!slug || !district || slug === 'rentals') continue
       const key = `${slug}/${district}`
-      const max = later(comboMax.get(key), g._max.updatedAt)
-      if (max) comboMax.set(key, max)
+      const cur = combos.get(key)
+      combos.set(key, { max: later(cur?.max, g._max.updatedAt), n: (cur?.n ?? 0) + g._count._all })
     }
     const sellerMax = new Map<string, Date>()
     for (const g of bySeller) if (g._max.updatedAt) sellerMax.set(g.sellerId, g._max.updatedAt)
@@ -403,8 +425,9 @@ export async function GET() {
       urls.push(`  <url><loc>${hostUrl}/c/${c.slug}</loc>${lm(catMax.get(c.slug))}</url>\n`)
     }
 
-    // Faceted category × district pages
-    for (const [combo, max] of comboMax) {
+    // Faceted category × district pages — only at the floor of own listings (rule A, above).
+    for (const [combo, { max, n }] of combos) {
+      if (!isIndexableCount(n)) continue
       urls.push(`  <url><loc>${hostUrl}/c/${combo}</loc>${lm(max)}</url>\n`)
     }
 
