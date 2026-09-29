@@ -428,6 +428,7 @@ export type NicheApiErrorCode =
   | 'transcode_failed'
   | 'translate_timeout'
   | 'translate_unavailable'
+  | 'trial_address_not_allowed'          // weekly-digest ?trial= to an address outside ADMIN_EMAILS
   | 'unauthorized'
   | 'Unauthorized'
   | 'under_review'
@@ -689,6 +690,7 @@ const ALL = [
   'transcode_failed',
   'translate_timeout',
   'translate_unavailable',
+  'trial_address_not_allowed',
   'unauthorized',
   'under_review',
   'unknown',

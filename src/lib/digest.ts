@@ -1,11 +1,18 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { dropPercent } from '@/lib/vnd'
+import { districtLabel, districtLinkSlug, isCuratedDistrict, mergeDistrictGroups } from '@/lib/district-canonical'
 
-// Content for the weekly digest email — "top products" (the trust⊕recency blend, same
-// order as the Recommended feed) + "moving sales" (a recent real price drop OR an
-// active "Bán gấp" urgent flag). Computed ONCE per cron run and shared across all
-// recipients (the digest is not personalised in v1).
+// Content for the weekly digest email. Computed ONCE per cron run and shared across all recipients
+// (not personalised: browsing-based personalisation needs consent eno does not collect yet).
+//
+// ⛔ RENTAL HOMES LEAD, BECAUSE THAT IS WHAT THE SITE IS NOW. Until 2026-09-29 the email led with
+// "top picks" = the best rankScore among ALL listings created that week, and in the week it was
+// fixed that meant six SIM/eSIM plans — while 4,815 homes for rent went live the same week and the
+// site's one conversion is the free rental availability check. The digest now opens on those homes
+// (`homes`, `homeCounts`, `districts`); what used to be "top picks" survives as a short "also new"
+// list of everything else (`others`), and "moving sales" (a recent real price drop OR an active
+// "Bán gấp" urgent flag) still appears when there is one.
 
 export type DigestItem = {
   id: string
@@ -42,7 +49,50 @@ const DROP_BADGE_MS = 3 * 24 * 60 * 60 * 1000
  * going out empty while the catalogue is still small.
  */
 const TOP_WINDOWS_MS = [7, 14, 30, 90].map((d) => d * 24 * 60 * 60 * 1000)
-const TOP_COUNT = 6
+/** "Also new" is a footnote under the homes now, not the lead — three rows. */
+const TOP_COUNT = 3
+
+/**
+ * Homes, not every rental: vehicle hire (rental-places.ts) and offices share the `rentals` category
+ * but are not what "a home for rent" means to the person reading this email.
+ */
+const HOME_SUBCATS = ['apartment-rental', 'house-rental', 'room-rental'] as const
+const HOME_COUNT = 6
+/** Home windows widen like the "also new" ones, but stop at 30 days: a month-old rental is not news. */
+const HOME_WINDOWS_MS = [7, 14, 30].map((d) => d * 24 * 60 * 60 * 1000)
+/**
+ * The card band, in VND per month. Imported rows carry the portals' own mistakes — a ₫1,200 room, a
+ * ₫106,000,000 warehouse filed as a house — and one of those in a six-card email is a sixth of it.
+ * Measured 2026-09-29 on the week's new apartments: p10 4.5M, p50 8M, p90 23M.
+ * ⚠️ ONLY THE CARDS ARE BANDED. `homeCounts` counts every home added, because it says "added this
+ * week", which is true of all of them.
+ */
+const HOME_PRICE_MIN = 2_000_000
+const HOME_PRICE_MAX = 80_000_000
+/** Over-fetch so one busy district cannot fill every card (max one card per district). */
+const HOME_FETCH = 120
+const DISTRICT_CHIPS = 6
+
+export type DigestHome = {
+  id: string
+  /** "Apartment · 2 bed · 1 bath · 64 m²" — the importer's English title up to " for rent". */
+  heading: string
+  price: number
+  currency: string
+  image: string
+  /** English district label ("Binh Thanh District"), or null when the row has none. */
+  area: string | null
+}
+
+export type DigestContent = {
+  homes: DigestHome[]
+  homeCounts: { apartments: number; houses: number; rooms: number; total: number }
+  /** Busiest curated districts among this week's homes — each one a live /c/rentals/<slug> page. */
+  districts: { slug: string; label: string }[]
+  /** "Also new": the best of the week's other listings (not rentals, not jobs). */
+  others: DigestItem[]
+  sales: DigestItem[]
+}
 
 type Row = {
   id: string
@@ -100,24 +150,139 @@ function toItem(l: Row): DigestItem {
   }
 }
 
-export async function getDigestContent(): Promise<{ top: DigestItem[]; sales: DigestItem[] }> {
+/** "Apartment · 1 bed · 1 bath · 28 m² for rent — Tân Bình Ward…" → "Apartment · 1 bed · 1 bath · 28 m²". */
+export function homeHeading(title: string): string {
+  const cut = title.split(/\s+for rent\b/i)[0]?.trim()
+  const h = cut && cut.length >= 3 ? cut : title.trim()
+  return h.length > 70 ? `${h.slice(0, 67).trimEnd()}…` : h
+}
+
+type HomeRow = {
+  id: string
+  title: string
+  price: number
+  currency: string
+  images: string
+  district: string | null
+  subcategorySlug?: string | null
+  areaM2?: number | null
+  attributes?: string | null
+}
+
+function bedroomsOf(attributes: string | null | undefined): number | null {
+  if (!attributes) return null
+  try {
+    const n = Number((JSON.parse(attributes) as { bedrooms?: unknown }).bedrooms)
+    return Number.isFinite(n) && n > 0 ? n : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A card must not be a portal typo. Measured in the first live render (2026-09-29): "House · 3 bed ·
+ * 2 bath · 16.5 m²" at 16,000,000 đ — the importer carried the plot WIDTH or a single room's size as
+ * the floor area. A home under 12 m², or under 15 m² per bedroom, is left off the cards (it still
+ * counts in `homeCounts` and still exists on the site).
+ */
+export function plausibleHome(r: Pick<HomeRow, 'areaM2' | 'attributes'>): boolean {
+  if (r.areaM2 == null) return true
+  if (r.areaM2 < 12) return false
+  const beds = bedroomsOf(r.attributes)
+  return beds == null || r.areaM2 >= 15 * beds
+}
+
+/**
+ * Six homes from the week, AT MOST ONE PER DISTRICT, best rankScore first. Without the district cap
+ * the busiest importer district (Gò Vấp had 579 of the week's homes) takes every card, and six
+ * near-identical studios in one district read as a feed dump rather than a pick.
+ *
+ * ⚠️ APARTMENTS AND HOUSES FIRST, ROOMS ONLY TO FILL. The people this email is for search "apartment
+ * for rent" (eno's /c/rentals is built for that query); the first live render gave two of six cards
+ * to 15–30 m² rooms because rooms rank as fresh as anything else. Rooms still count and still fill a
+ * quiet week.
+ */
+export function pickHomes(rows: readonly HomeRow[], count = HOME_COUNT): DigestHome[] {
+  const seen = new Set<string>()
+  const out: DigestHome[] = []
+  const take = (r: HomeRow) => {
+    const image = firstImage(r.images)
+    if (!image || !plausibleHome(r)) return
+    const slug = r.district?.trim() ? districtLinkSlug(r.district) : ''
+    // A row with no district still gets a card, but only one such card.
+    const key = slug || '(none)'
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push({
+      id: r.id,
+      heading: homeHeading(r.title),
+      price: r.price,
+      currency: r.currency,
+      image,
+      area: slug ? districtLabel(slug, r.district).en : null,
+    })
+  }
+  const isRoom = (r: HomeRow) => r.subcategorySlug === 'room-rental'
+  for (const r of rows) { if (out.length < count && !isRoom(r)) take(r) }
+  for (const r of rows) { if (out.length < count && isRoom(r)) take(r) }
+  return out
+}
+
+export async function getDigestContent(): Promise<DigestContent> {
   const dropCutoff = new Date(Date.now() - DROP_WINDOW_MS)
   const now = new Date()
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-  // Hoisted: both queries below build ONE email, so they must share a predicate. An await inside a
-  // Promise.all element would also serialise the pair.
-  const liveWhere = await scopedListingWhere({ verified: true, status: 'active' })
-  const [topRows, saleRows] = await Promise.all([
-    // Top products — THE BEST OF WHAT IS NEW, not the best of all time. The window is the filter and
+  // The week's homes, for the counts and the district chips — wrapped whole (see the sales query).
+  const homesThisWeek = await scopedListingWhere({
+    verified: true,
+    status: 'active',
+    category: { slug: 'rentals' },
+    subcategorySlug: { in: [...HOME_SUBCATS] },
+    createdAt: { gte: weekAgo },
+  })
+  const [homeRows, countRows, districtRows, topRows, saleRows] = await Promise.all([
+    // Homes — the same "best of what is new" rule as below, widened only as far as needed.
+    (async () => {
+      let rows: HomeRow[] = []
+      for (const windowMs of HOME_WINDOWS_MS) {
+        rows = await db.listing.findMany({
+          where: await scopedListingWhere({
+            verified: true,
+            status: 'active',
+            category: { slug: 'rentals' },
+            subcategorySlug: { in: [...HOME_SUBCATS] },
+            price: { gte: HOME_PRICE_MIN, lte: HOME_PRICE_MAX },
+            createdAt: { gte: new Date(Date.now() - windowMs) },
+          }),
+          orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
+          take: HOME_FETCH,
+          select: { id: true, title: true, price: true, currency: true, images: true, district: true, subcategorySlug: true, areaM2: true, attributes: true },
+        })
+        if (pickHomes(rows).length >= HOME_COUNT) break
+      }
+      return rows
+    })(),
+    db.listing.groupBy({ by: ['subcategorySlug'], where: homesThisWeek, _count: { _all: true } }),
+    db.listing.groupBy({ by: ['district'], where: homesThisWeek, _count: { _all: true } }),
+    // "Also new" — THE BEST OF WHAT IS NEW, not the best of all time. The window is the filter and
     // rankScore only orders within it (see TOP_WINDOWS_MS). Widen only as far as needed: a busy week
     // never leaves the 7-day window, and a quiet one still prefers the most recent listings rather
     // than falling back to the same all-time winners the old query kept re-sending.
     (async () => {
       for (const windowMs of TOP_WINDOWS_MS) {
         const rows = await db.listing.findMany({
-          // Not a job: the digest prints "— <price>" and says "message the seller", neither true of a
-          // linked job posting at price 0 (scripts/import-jobs.ts).
-          where: { ...liveWhere, listingType: { not: 'job' }, createdAt: { gte: new Date(Date.now() - windowMs) } },
+          // Not a job: the digest prints "— <price>", not true of a linked job posting at price 0
+          // (scripts/import-jobs.ts). Not a rental: the homes section above owns those.
+          // Wrapped whole, like every other query here: spreading a scoped fragment beside new keys
+          // is the collision trap the sales query below describes.
+          where: await scopedListingWhere({
+            verified: true,
+            status: 'active',
+            listingType: { not: 'job' },
+            category: { slug: { not: 'rentals' } },
+            createdAt: { gte: new Date(Date.now() - windowMs) },
+          }),
           orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
           take: TOP_COUNT,
           select: SELECT,
@@ -146,13 +311,33 @@ export async function getDigestContent(): Promise<{ top: DigestItem[]; sales: Di
     }),
   ])
 
-  const top = topRows.map(toItem)
-  const topIds = new Set(top.map((t) => t.id))
-  // Keep only genuine sales (a real drop or currently urgent), never duplicate a top pick.
+  const others = topRows.map(toItem)
+  const homes = pickHomes(homeRows)
+  const shownIds = new Set([...others, ...homes].map((t) => t.id))
+  // Keep only genuine sales (a real drop or currently urgent), never duplicate a card above.
   const sales = saleRows
     .map(toItem)
-    .filter((s) => (s.drop || s.urgent) && !topIds.has(s.id))
+    .filter((s) => (s.drop || s.urgent) && !shownIds.has(s.id))
     .slice(0, 4)
 
-  return { top, sales }
+  const count = (slug: string) => countRows.find((r) => r.subcategorySlug === slug)?._count._all ?? 0
+  const apartments = count('apartment-rental')
+  const houses = count('house-rental')
+  const rooms = count('room-rental')
+
+  // ⚠️ CURATED DISTRICTS ONLY: every chip is a link, and only a curated district is guaranteed a live
+  // /c/rentals/<slug> page (the rest can 404 since the 2026-09-27 real-404 work). The count only
+  // ORDERS the chips and is never printed — it is a stored-name tally, not the page's scope.
+  const districts = mergeDistrictGroups(districtRows.map((g) => ({ district: g.district, count: g._count._all })))
+    .filter((c) => isCuratedDistrict(c.slug))
+    .slice(0, DISTRICT_CHIPS)
+    .map((c) => ({ slug: c.slug, label: c.label.en }))
+
+  return {
+    homes,
+    homeCounts: { apartments, houses, rooms, total: apartments + houses + rooms },
+    districts,
+    others,
+    sales,
+  }
 }

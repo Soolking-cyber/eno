@@ -70,6 +70,67 @@ function maskEmail(address: string): string {
   return head + domain
 }
 
+/**
+ * One Resend batch request, up to 100 messages — the broadcast path (the weekly digest).
+ *
+ * ⛔ WHY A BATCH AND NOT sendMail() IN A LOOP. Resend allows 10 requests per second per team. The
+ * digest fired 20 sendMail() calls at once, and on 2026-09-24 exactly 10 were accepted and 11 were
+ * refused with 429 (the 21st went out in the same second). A batch is ONE request for up to 100
+ * recipients, so a list this size never touches the limit, and the sign-in mail sharing the key
+ * keeps its headroom.
+ *
+ * ⚠️ `idempotencyKey` MAKES A RETRY SAFE. Resend keeps it for 24 h: re-posting the same key and the
+ * same payload returns the first answer instead of sending again, so a request that timed out
+ * after Resend had accepted it can be retried without emailing anyone twice.
+ *
+ * ⚠️ PERMISSIVE VALIDATION: one malformed address fails only its own row (`ok[i] === false`), not
+ * the other 99. A whole-request failure returns every row false, plus `retryable` when trying again
+ * can help (429, 5xx, a network error) and `retryAfterMs` when Resend said how long to wait.
+ *
+ * Never throws. Attachments are not supported by Resend's batch API and are not accepted here.
+ */
+export type BatchResult = {
+  ok: boolean[]
+  retryable: boolean
+  retryAfterMs: number | null
+  error: string | null
+}
+
+const RETRYABLE_ERRORS = new Set(['rate_limit_exceeded', 'internal_server_error', 'application_error', 'concurrent_idempotent_requests'])
+
+export async function sendMailBatch(
+  msgs: Omit<MailMessage, 'attachments'>[],
+  opts: { idempotencyKey: string },
+): Promise<BatchResult> {
+  const none = (error: string, retryable: boolean, retryAfterMs: number | null = null): BatchResult =>
+    ({ ok: msgs.map(() => false), retryable, retryAfterMs, error })
+  if (!resend) {
+    console.warn('[mail] RESEND_API_KEY not set — batch of', msgs.length, 'skipped')
+    return none('disabled', false)
+  }
+  if (msgs.length === 0) return { ok: [], retryable: false, retryAfterMs: null, error: null }
+  if (msgs.length > 100) return none('batch_too_large', false)
+  try {
+    const res = await resend.batch.send(
+      msgs.map((m) => ({ from: FROM, to: m.to, subject: m.subject, html: m.html, text: m.text, headers: m.headers })),
+      { idempotencyKey: opts.idempotencyKey, batchValidation: 'permissive' },
+    )
+    if (res.error) {
+      const status = res.error.statusCode
+      const retryable = status == null || status === 429 || status >= 500 || RETRYABLE_ERRORS.has(res.error.name)
+      const after = Number(res.headers?.['retry-after'])
+      console.error('[mail] batch failed', msgs.length, res.error.name, status)
+      return none(res.error.name, retryable, Number.isFinite(after) && after > 0 ? after * 1000 : null)
+    }
+    const failed = new Set((res.data?.errors ?? []).map((e) => e.index))
+    for (const e of res.data?.errors ?? []) console.error('[mail] batch row refused', maskEmail(msgs[e.index]?.to ?? ''), e.message)
+    return { ok: msgs.map((_, i) => !failed.has(i)), retryable: false, retryAfterMs: null, error: failed.size ? 'rows_refused' : null }
+  } catch (e) {
+    console.error('[mail] batch threw', msgs.length, e)
+    return none('network', true)
+  }
+}
+
 /** Send one email. Returns true on success; never throws (logs + returns false). */
 export async function sendMail(msg: MailMessage): Promise<boolean> {
   const who = maskEmail(msg.to)
