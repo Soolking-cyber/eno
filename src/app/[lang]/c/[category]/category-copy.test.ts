@@ -138,7 +138,7 @@ describe('rentalsMetadata takes the headline variant the H1 prints', () => {
    * ⚠️ A CACHED VARIANT CAN OUTLIVE THE STOCK (category-data.ts, `loadRentalsHeadline`). If /c/rentals
    * empties inside that window, generateMetadata still passes the variant, so the title keeps matching
    * the H1, and the description is built from the empty facts `loadRentalsFacts(id, 0)` returns: it
-   * says 0 and claims nothing about links (`linkedTier(x, 0)` is 'none'). The page is noindexed at 0.
+   * says 0 and claims nothing about links (`linkedTier(x, 0)` is 'none'). Noindexed once 14 days at 0.
    */
   it('an emptied category under a cached variant: the title matches the H1, the description says 0 and claims nothing', () => {
     const empty: RentalsFacts = { total: 0, allHcmc: false, linked: linkedTier(7, 0), kinds: rentalKinds({}), top: [] }

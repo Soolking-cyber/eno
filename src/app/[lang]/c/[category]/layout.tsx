@@ -29,8 +29,8 @@ import { categoryExists } from './load-category'
  * Footer — anything here would be doubled on every district page (contract test).
  *
  * ⚠️ EXISTENCE ONLY — the weaker guard, on purpose. `page.tsx` still owns the real policy,
- * including the auto-noindex when a category holds zero live listings. An EMPTY category is a
- * valid 200 page that de-indexes itself; it must not 404 here.
+ * including the auto-noindex when a category has held zero live listings for 14 days (I1b). An
+ * EMPTY category is a valid 200 page that de-indexes itself; it must not 404 here.
  *
  * ⚠️ AND IT DELIBERATELY DOES NOT CALL `loadCategory`. Everything a layout awaits delays the
  * whole first chunk below it — the district page and the category page's header, H1 and skeleton —

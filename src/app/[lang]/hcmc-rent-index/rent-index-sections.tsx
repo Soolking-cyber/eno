@@ -136,7 +136,7 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
                       and rooms are all places), so the link can never land on that page's 404. Its
                       count is larger than this row's n for the same reason — the methodology says so.
                       ⛔ AND A ROW IS LINKED ONLY AT THE INDEXING FLOOR (SEO wave B, I1): below 10
-                      listings that page answers `noindex, follow`, and a followed link to it from our
+                      listings that page can answer `noindex, follow`, and a followed link to it from our
                       own analysis is the wrong signal. The superset makes `d.total` a safe test: a
                       row at the floor links a page at the floor. Below it, the name is plain text.
                       ⚠️ AS OF THE SNAPSHOT (up to a day old, load-rent-index.ts), while the page counts

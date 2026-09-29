@@ -7,7 +7,8 @@ import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { districtScopeForSlug } from '@/lib/district-slug'
 import { canonicalDistrictSlug, districtLabel, isCuratedDistrict, mergeDistrictGroups } from '@/lib/district-canonical'
-import { isIndexableCount } from '@/lib/index-floor'
+import { MIN_INDEXABLE_LISTINGS, isIndexableCount } from '@/lib/index-floor'
+import { staleBelowFloor } from '@/lib/stale-noindex'
 import { districtMetadata, linkedTier, pageLang } from '../category-copy'
 import { DistrictHeading, DistrictLede, PlaceName, RentIndexLink } from '../category-text'
 import { notFound, permanentRedirect } from 'next/navigation'
@@ -113,7 +114,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
     take: DISTRICT_PAGE_SIZE,
   })
   if (rows.length === 0) return null
-  const [groups, linked] = await Promise.all([
+  const [groups, linked, noindex] = await Promise.all([
     // Sibling chips come from one aggregate over the whole category.
     db.listing.groupBy({
       by: ['district'],
@@ -130,6 +131,17 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
      */
     // edition-lint-allow: `where` is `{ AND: [base, scope] }`, base = scopedListingWhere(...) above.
     db.listing.count({ where: { AND: [where, { affiliateUrl: { not: null } }] } }),
+    /**
+     * ⛔ `noindex` ONLY AFTER 14 DAYS UNDER THE FLOOR (SEO wave B, I1b; decision I-g;
+     * src/lib/stale-noindex.ts). The scope is this page's without its liveness clause — the same
+     * category, places-only on rentals, the same place — so a listing that left inside the window
+     * is counted toward what the page may have held. At or over the floor it runs no query.
+     */
+    staleBelowFloor({
+      where: { AND: [placesOnly ? { AND: [{ categoryId: cat.id }, RENTAL_PLACES] } : { categoryId: cat.id }, scope] },
+      live: total,
+      floor: MIN_INDEXABLE_LISTINGS,
+    }),
   ])
   /**
    * ⚠️ MERGED BY CANONICAL SLUG (district-canonical.ts). Two stored spellings of one place ("Quận Củ
@@ -140,7 +152,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   const districts = mergeDistrictGroups(groups.map((g) => ({ district: g.district, count: g._count._all })))
   // A curated place is named from DISTRICTS; anything else from a stored spelling in scope.
   const place = districtLabel(districtSlug, rows.find((r) => r.district)?.district ?? null)
-  return { cat, matched: rows, total, linked: linkedTier(linked, total), place, inHcmc: isCuratedDistrict(districtSlug), districts }
+  return { cat, matched: rows, total, linked: linkedTier(linked, total), place, inHcmc: isCuratedDistrict(districtSlug), districts, noindex }
 })
 
 /**
@@ -200,8 +212,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
      * rentals), the number its own lede prints. `follow` keeps its cards and chips crawlable. No
      * chip, sibling chip or rent-index row links a page under the floor, so it is reachable only by
      * its URL.
+     * ⛔ AND ONLY ONCE IT HAS BEEN UNDER THE FLOOR FOR 14 DAYS (I1b, decision I-g): `data.noindex`,
+     * computed in load(). A dip of days stays indexable, unlinked and unsubmitted.
      */
-    ...(isIndexableCount(data.total) ? {} : { robots: { index: false, follow: true } }),
+    ...(data.noindex ? { robots: { index: false, follow: true } } : {}),
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
     openGraph: { title, description, url: `${hostUrl}/c/${data.cat.slug}/${district}` },

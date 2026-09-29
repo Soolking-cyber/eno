@@ -108,8 +108,8 @@ export async function GET() {
        * that count. One own listing used to be enough, which submitted pages of one to nine cards
        * (`/c/services/an-khanh`: "Crawled - currently not indexed"). `_count` is the tally; the
        * floor is applied after the spellings are merged, in the combo loop below. A page under the
-       * floor still answers 200 — as `noindex, follow` below 10 listings of ANY kind, indexable but
-       * unsubmitted between (the page counts imports too, src/lib/index-floor.ts).
+       * floor still answers 200 — as `noindex, follow` after 14 days below 10 listings of ANY kind,
+       * indexable but unsubmitted otherwise (the page counts imports too, src/lib/index-floor.ts).
        */
       // edition-lint-allow: `submittedListingWhere()` IS `scopedListingWhere(...)` AND-ed with the
       // affiliate exclusion (src/lib/sitemap.ts) — the edition scope is inside the helper.
@@ -406,17 +406,18 @@ export async function GET() {
     // Faceted category pages (programmatic SEO entry points)
     //
     // ⚠️ THE PREDICATE MIRRORS THE SELLER BLOCK BELOW, deliberately: a category with no live
-    // listing is a thin page that serves `noindex`, so it is not submitted, and the moment one
-    // listing lands it reappears on the next revalidate. Same shape, same reasoning.
+    // listing is a thin page (it serves `noindex` once it has been empty for 14 days — I1b), so it
+    // is not submitted, and the moment one listing lands it reappears on the next revalidate.
     /**
      * ⚠️ PRESENCE, NOT A COUNT COMPARISON — `groupBy` never returns a zero-count group, so a
      * `_count._all > 0` filter would be dead code that reads like a real guard (opus).
      *
      * ⚠️ AND THE PREDICATE IS THE PAGE'S OWN, VERIFIED RATHER THAN ASSUMED. `/c/<slug>` decides
-     * `robots: { index: false }` from `load-category.ts:37` —
-     * `count({ scopedListingWhere({ categoryId, verified: true, status: 'active' }) }) === 0`.
-     * `byCategory` above is that same predicate grouped instead of counted per category, so the
-     * sitemap and the page cannot disagree about which categories are indexable. A stricter
+     * `robots: { index: false }` from `loadCategory`'s
+     * `count({ scopedListingWhere({ categoryId, verified: true, status: 'active' }) })` being 0 (for
+     * 14 days since I1b, src/lib/stale-noindex.ts). `byCategory` above is that same predicate grouped
+     * instead of counted per category, so a submitted category always has a live listing and is
+     * never `noindex`; an empty one inside the 14 days is indexable but unsubmitted. A stricter
      * predicate here would drop good pages; a looser one would keep submitting the dead ends.
      */
     const liveCategoryIds = new Set(byCategory.map((g) => g.categoryId))

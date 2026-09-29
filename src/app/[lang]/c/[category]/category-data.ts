@@ -29,7 +29,7 @@ const live = (categoryId: string) => ({ categoryId, verified: true, status: 'act
  * also orders the chips by stock instead of by whatever `distinct` returned first.
  *
  * ⛔ ONLY PLACES AT THE INDEXING FLOOR (SEO wave B, I1; src/lib/index-floor.ts). A district page under
- * 10 listings answers `noindex, follow`, and a chip is a followed link: /c/rentals linked
+ * 10 listings can answer `noindex, follow` (I1b), and a chip is a followed link: /c/rentals linked
  * `/c/rentals/can-gio` (one rental) from its "By area" row. Both readers — the category page's chips
  * and /c/rentals' busiest districts (`loadRentalsFacts().top`) — get the floor here, once. The count
  * is merged across spellings first (6 + 4 is a page of 10), and it is the stored-name tally, which

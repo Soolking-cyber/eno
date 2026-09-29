@@ -8,6 +8,8 @@ import { CategoryGuides, PlaceName, RentalsDistricts } from '../category-text'
 import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { guidesForCategory } from '@/lib/category-guides'
+import { MIN_CATEGORY_LISTINGS } from '@/lib/index-floor'
+import { staleBelowFloor } from '@/lib/stale-noindex'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
@@ -94,6 +96,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const rentals = headline && facts ? rentalsMetadata(facts, pageLang(lang), SITE_NAME, headline) : null
   // Every other category keeps its old wording only while none of its stock is linked (category-copy.ts).
   const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME)
+  // Empty, and empty for the whole window (src/lib/stale-noindex.ts). Queries only when `live` is 0.
+  const emptyForTheWindow = await staleBelowFloor({ where: { categoryId: cat.id }, live, floor: MIN_CATEGORY_LISTINGS })
   return {
     title,
     description,
@@ -105,7 +109,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // those crawled. It lifts ITSELF the moment somebody posts, with no list to maintain, which is
     // why this is computed rather than hard-coded — a hard-coded list would go stale silently and
     // keep suppressing a category that had filled up.
-    ...(live === 0 ? { robots: { index: false, follow: true } } : {}),
+    // ⛔ BUT ONLY ONCE IT HAS BEEN EMPTY FOR 14 DAYS (SEO wave B, I1b; decision I-g). It used to be
+    // `live === 0`: Google crawled these while they were empty and kept the tag for weeks after
+    // they filled — /c/vehicles, /c/baby-kids, /c/hobbies-sports, /c/pets and /c/food-drink (URL
+    // Inspection, 2026-09-28), as /c/rentals before them. Inside the window an empty category stays indexable
+    // and is simply out of the sitemap (pages.xml submits only categories with a live listing).
+    ...(emptyForTheWindow ? { robots: { index: false, follow: true } } : {}),
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
     openGraph: { title, description, url: `${hostUrl}/c/${cat.slug}` },

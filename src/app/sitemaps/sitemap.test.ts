@@ -345,7 +345,7 @@ describe('the pages child', () => {
     expect(urls).not.toContain(`${HOST}/c/services`)
     expect(urls.some((u) => u.includes('/c/services/'))).toBe(false)
     expect(urls).not.toContain(`${HOST}/sellers/desk-seller`)
-    expect(urls).not.toContain(`${HOST}/c/jobs`) // a category with no live listing serves noindex
+    expect(urls).not.toContain(`${HOST}/c/jobs`) // a category with no live listing is never submitted
     expect(urls).toContain(`${HOST}/c/books-stationery/d3`)
     expect(urls).toContain(`${HOST}/sellers/own-seller`)
   })

@@ -34,9 +34,10 @@ export const categoryExists = cache(async (slug: string) => !!(await getCategory
  * import from, since Next treats `page.tsx` as a route entry rather than a module.
  *
  * ⚠️ THE COUNT IS PART OF THE MEMO ON PURPOSE. `generateMetadata` decides the auto-noindex from
- * `live === 0` and the page renders that same number, so they cannot disagree about how full the
+ * this `live` and the page renders that same number, so they cannot disagree about how full the
  * category is. Splitting the count out would mean a second COUNT per render purely to decide a
- * robots tag.
+ * robots tag. (Since SEO wave B, I1b, an EMPTY category also asks how long it has been empty —
+ * src/lib/stale-noindex.ts — a second query that only a `live` of 0 ever runs.)
  *
  * ⛔ NOT FROM A LAYOUT: the COUNT runs over the whole category (25,502 rows on /c/rentals). No layout
  * calls this; `CategoryLedeBlock` does, and where that block renders is decision H-c (see there).
