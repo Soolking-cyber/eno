@@ -20,9 +20,10 @@ import { liveCountFacts, liveCountWhere, type LiveCountFacts, type LiveCountTarg
  * into strings rather than passed as the target object (a fresh object literal per call site would
  * never hit). Two sentences on one page asking for the rentals count make one query.
  */
-const countLive = cache(async (categorySlug: string, condition: string, province: string): Promise<number | null> => {
+const countLive = cache(async (categorySlug: string, condition: string, subcategories: string, province: string): Promise<number | null> => {
+  // `subcategories` travels comma-joined for the same reason (a primitive key); '' is "no narrowing".
   const target = (categorySlug
-    ? { categorySlug, condition: condition || undefined }
+    ? { categorySlug, condition: condition || undefined, subcategoryIn: subcategories ? subcategories.split(',') : undefined }
     : {}) as LiveCountTarget
   try {
     return await db.listing.count({ where: await scopedListingWhere(liveCountWhere(target, province || undefined)) })
@@ -35,9 +36,10 @@ const countLive = cache(async (categorySlug: string, condition: string, province
 async function factsFor(target: LiveCountTarget, lang: 'en' | 'vi'): Promise<LiveCountFacts | null> {
   const cat = target.categorySlug ?? ''
   const cond = target.condition ?? ''
-  const total = await countLive(cat, cond, '')
+  const subs = target.subcategoryIn?.join(',') ?? ''
+  const total = await countLive(cat, cond, subs, '')
   // The province question is only worth a query when there is a total to compare it with.
-  const inside = target.allIn && total ? await countLive(cat, cond, target.allIn) : null
+  const inside = target.allIn && total ? await countLive(cat, cond, subs, target.allIn) : null
   return liveCountFacts(total, inside, lang)
 }
 

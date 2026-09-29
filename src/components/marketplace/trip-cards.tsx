@@ -1294,7 +1294,7 @@ export function TripRequestCard({ requestId }: { requestId: string }) {
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-ink-1">{it.title}</p>
+          <p className="text-sm font-semibold text-foreground">{it.title}</p>
           <p className="text-xs text-ink-3">
             {it.days} {tr('days', 'ngày')} · {pick(it.destination, it.destinationVi)}
             {it.airports.length > 0 && ` · ${it.airports.join(' / ')}`}
@@ -1315,7 +1315,7 @@ export function TripRequestCard({ requestId }: { requestId: string }) {
                 <ol className="flex flex-col gap-2.5">
                   {it.dayPlans.map((d) => (
                     <li key={d.dayNumber} className="rounded-lg bg-muted/60 p-2.5">
-                      <p className="text-xs font-bold text-ink-1">
+                      <p className="text-xs font-bold text-foreground">
                         {tr('Day', 'Ngày')} {d.dayNumber} · {pick(d.area, d.areaVi)}
                       </p>
                       <p className="text-xs font-semibold text-ink-2">{pick(d.title, d.titleVi)}</p>

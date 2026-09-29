@@ -471,7 +471,7 @@ export function WalletClient({ embedded = false }: { embedded?: boolean } = {}) 
                 ⛔ REAL MONEY, AND IT SITS ABOVE THE TEST FAUCET SO THE TWO ARE NEVER CONFUSED. The
                 faucet below is dashed-bordered and labelled "Test environment" for the same reason.
               */}
-              <div className="rounded-xl border border-line p-3">
+              <div className="rounded-xl border border-border p-3">
                 <p className="text-sm font-medium">{tr('Add money', 'Nạp tiền')}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {tr(
@@ -523,7 +523,7 @@ export function WalletClient({ embedded = false }: { embedded?: boolean } = {}) 
                       src={topup.checkoutUrl}
                       title={tr('Card payment', 'Thanh toán thẻ')}
                       allow="payment"
-                      className="h-[32rem] w-full rounded-lg border border-line bg-surface"
+                      className="h-[32rem] w-full rounded-lg border border-border"
                     />
                     <div className="mt-2 flex items-center gap-2">
                       <Loader2 className="size-3 animate-spin text-muted-foreground" aria-hidden="true" />

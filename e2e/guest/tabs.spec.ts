@@ -7,13 +7,14 @@ import { test, expect } from '../helpers'
 // nothing else in the suite would notice. Every assertion below is a property a <button> strip
 // CANNOT satisfy.
 //
-// ⚠️ THE SURFACE MOVED ON 2026-09-05, AND THE TABLIST DID NOT DISAPPEAR — IT SPLIT IN TWO.
-// This file used to load /c/electronics. That page is a PREVIEW: 48 of a category that can hold
-// thousands, and review U01 found that sorting those 48 in memory reordered the same 48 ids while
-// the heading announced the full count. So a preview's sort strip is now a row of LINKS into the
-// explorer's full paginated query (`?category=…&sort=…`), and the in-page TABLIST lives where
-// sorting is genuinely in-page — the explorer results view. Both are asserted below: the tabs
-// where they belong, and the links where the tabs used to be.
+// ⚠️ THE SURFACE MOVED ON 2026-09-05, AND AGAIN ON 2026-09-29 — THE TABLIST IS ON BOTH PAGES NOW.
+// This file used to load /c/electronics. From 2026-09-05 that page was a PREVIEW (48 of thousands;
+// review U01 found that sorting those 48 in memory reordered the same 48 ids while the heading
+// announced the full count), so its strip became a row of LINKS into the explorer — and a sort LEFT
+// the page, into a URL canonicalised to /. C1-DEADEND (2026-09-29) made every sort and Show-more on
+// /c/<category> a scoped /api/listings query over the WHOLE category, in place, so the page holds a
+// real tablist again and the links are gone. Both surfaces are asserted below: the category page's
+// in-place tabs, and the explorer results view's.
 // The strip only renders in RESULTS mode, not on the bare homepage — hence ?category=.
 //
 // ⚠️ Activation is MANUAL (Base UI's activateOnFocus defaults to false): arrows move focus,
@@ -21,16 +22,30 @@ import { test, expect } from '../helpers'
 // activation would fire a product query on every keypress. Focus and selection are deliberately
 // two different things here, and the test says so.
 test.describe('Guest · sort tabs — a11y semantics', () => {
-  // The other half of the split: a category PREVIEW offers the same four orders as real links, so
-  // choosing one searches the whole category instead of reshuffling the visible window. If these
-  // ever become buttons again, the page is back to sorting 48 rows and lying about it.
-  test('a category preview offers its sorts as links into the full query', async ({ page }) => {
+  // ⛔ A CATEGORY SORT IS A QUERY IN PLACE, NOT A WAY OUT (C1-DEADEND). If these become links again,
+  // the reader is thrown into the explorer at `/?category=…` and loses the page; if the tabs sort the
+  // rows already on screen instead of asking the server, "Price" reorders 48 of thousands and lies.
+  // So: one tablist, exactly one price tab, no `?sort=` links anywhere, and choosing Price asks
+  // /api/listings for this category's cheapest while the pathname stays put.
+  test('a category page sorts the whole category in place', async ({ page }) => {
     await page.goto('/c/electronics')
-    const nav = page.getByRole('navigation', { name: /sort|sắp xếp/i }).first()
-    await expect(nav).toBeVisible()
-    const links = nav.getByRole('link')
-    expect(await links.count(), 'newest, most contacted, price up, price down').toBeGreaterThanOrEqual(4)
-    await expect(links.first()).toHaveAttribute('href', /[?&]sort=/)
+    // The strip is server-rendered and inert until React hydrates — a tap before then is swallowed
+    // (seller-listings.tsx `data-listings-ready`). On a Pixel 5 that window was long enough to lose it.
+    await expect(page.locator('[data-listings-ready="true"]').first()).toBeAttached()
+    const tablist = page.getByRole('tablist').first()
+    await expect(tablist).toBeVisible()
+    await expect(page.getByRole('tablist')).toHaveCount(1)
+    await expect(tablist.getByRole('tab', { name: /price|giá/i })).toHaveCount(1)
+    await expect(page.locator('a[href*="sort="]')).toHaveCount(0)
+
+    const sorted = page.waitForRequest((r) => {
+      const u = new URL(r.url())
+      return u.pathname === '/api/listings' && u.searchParams.get('category') === 'electronics' && u.searchParams.get('sort') === 'price-low'
+    })
+    await tablist.getByRole('tab', { name: /price|giá/i }).click()
+    await sorted
+    await expect(tablist.getByRole('tab', { name: /price|giá/i })).toHaveAttribute('aria-selected', 'true')
+    expect(new URL(page.url()).pathname).toBe('/c/electronics')
   })
 
   test('the sort strip is a real tablist, not a row of buttons', async ({ page }) => {

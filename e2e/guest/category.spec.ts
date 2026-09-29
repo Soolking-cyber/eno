@@ -13,12 +13,20 @@ test.describe('Guest · category (/c/electronics)', () => {
   })
 
   test('exposes district facets', async ({ page }) => {
-    // District chips link to /c/electronics/<district-slug>. The slug depends on the real
+    // District chips link to /c/<category>/<district-slug>. The slug depends on the real
     // district/ward name (e.g. "Phường An Khánh" → phuong-an-khanh), NOT a seed-era
-    // "district-N" pattern — so match any category sub-page link. They render whenever the
-    // category has listings carrying a district; if a thin catalog has none, skip rather than
-    // fail (the mechanism, not seed density, is what's under test).
-    const chips = page.locator('a[href^="/c/electronics/"]')
+    // "district-N" pattern — so match any category sub-page link. If a thin catalog has none,
+    // skip rather than fail (the mechanism, not seed density, is what's under test).
+    // ⚠️ ON /c/rentals, NOT /c/electronics (2026-09-29): "By area" now renders only where three or
+    // more places hold five or more listings (category-copy.ts `byAreaChips`, C1-LEDE), and
+    // electronics — almost all linked stock without a district — printed one chip for one listing.
+    // Left on electronics this test would skip forever; rentals is where the row earns its place.
+    await page.goto('/c/rentals')
+    const chips = page.locator('a[href^="/c/rentals/"]')
+    // ⚠️ WAIT FOR THE PAGE BODY BEFORE DECIDING THERE ARE NONE. The h1 is the LAYOUT's and paints
+    // above the loading boundary, while the chips stream in with the page — a count taken in that
+    // window read 0 and skipped a live 29-chip row (twice in six runs against a dev server).
+    await chips.first().waitFor({ state: 'attached', timeout: 15_000 }).catch(() => {})
     if ((await chips.count()) === 0) test.skip(true, 'no district inventory in this category yet')
     await expect(chips.first()).toBeVisible()
   })

@@ -1,4 +1,5 @@
 import type { DistrictChip } from '@/lib/district-canonical'
+import { formatInteger } from '@/lib/vnd'
 
 /**
  * THE WORDS /c/<category> AND /c/<category>/<district> SAY ABOUT THEIR OWN STOCK — pure, so every
@@ -21,16 +22,13 @@ export type PageLang = 'en' | 'vi'
 /** The `[lang]` segment is a render variant ('en' | 'vi'); anything else renders as English. */
 export const pageLang = (lang: string | null | undefined): PageLang => (lang === 'vi' ? 'vi' : 'en')
 
-const EN = new Intl.NumberFormat('en-US')
-const VI = new Intl.NumberFormat('vi-VN')
-
 /**
- * A full, grouped count for prose — en "25,502", vi "25.502".
- * ⚠️ NOT `formatCount` from src/lib/vnd.ts: that is the COMPACT chip label ("25.5k"). The separators
- * are the ones vnd.ts uses for money, so one page never groups two numbers two ways.
+ * A full, grouped count for prose — en "25,502", vi "25.502" — through vnd.ts's `formatInteger`, the
+ * one integer grouping the app has (L-NUMBERS).
+ * ⚠️ NOT `formatCount` from src/lib/vnd.ts: that is the COMPACT chip label ("25.5k").
  */
 export function formatCountFull(n: number, lang: string): string {
-  return (lang === 'vi' ? VI : EN).format(n)
+  return formatInteger(n, lang === 'vi' ? 'vi' : 'en')
 }
 
 export type LinkedTier = 'all' | 'most' | 'some' | 'none'
@@ -273,4 +271,41 @@ export function districtMetadata(f: DistrictFacts, lang: PageLang, siteName: str
     title: `${f.category.name} in ${f.place.en}${city} | ${siteName}`,
     description: `${n} ${what} in ${f.place.en}${city}. ${tail}`,
   }
+}
+
+/**
+ * The "By area" chips a category page may show: every place, busiest first (capped at `max`) — but
+ * ONLY where there are areas to browse, i.e. three or more places holding five or more listings each.
+ * ⚠️ One own-stock listing was enough to print a one-chip row: /c/electronics showed "By area: Cau
+ * Giay" and /c/vehicles "Binh Trung" (2026-09-29, C1-LEDE) — a signpost to a page of one card.
+ */
+export function byAreaChips<T extends { count: number }>(chips: T[], max: number): T[] {
+  return chips.filter((d) => d.count >= 5).length >= 3 ? chips.slice(0, max) : []
+}
+
+export type TopSubcategory = { name: string; nameVi: string; count: number }
+
+/**
+ * The busiest named subcategories for the lede's "including …" (C1-LEDE), busiest first, at most `max`.
+ * From per-slug counts over the SAME predicate as the page total, named from the taxonomy only.
+ * Left out:
+ * - a slug the taxonomy no longer defines (no name to print);
+ * - a subcategory holding the WHOLE category ("including Phones (63,730)" of 63,730 says nothing);
+ * - the catch-alls — "Other", "Other accessories", "Other books" (misc, vehicle-other, …): "including
+ *   Other (412)" names no kind of thing, and a buyer cannot browse towards it.
+ */
+export function topSubcategories(
+  groups: { slug: string | null; count: number }[],
+  defs: { slug: string; name: string; nameVi: string }[],
+  total: number,
+  max = 3,
+): TopSubcategory[] {
+  const named = new Map(defs.map((d) => [d.slug, d]))
+  return groups
+    .flatMap((g) => {
+      const def = g.slug ? named.get(g.slug) : undefined
+      return def && !/^other\b/i.test(def.name) && g.count < total ? [{ name: def.name, nameVi: def.nameVi, count: g.count }] : []
+    })
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, max)
 }

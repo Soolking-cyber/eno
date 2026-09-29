@@ -7,6 +7,7 @@ import { useLanguage } from '@/context/language-context'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -161,18 +162,22 @@ export function DevelopersPanel() {
 
       {/* List */}
       <div className="space-y-2">
+        {/* The shared states (D-STATES, 2026-09-29): a failed load wears the FAULT coin, an empty list
+            the chrome one, both flat (§3b) — these were dashed boxes, one of them with no icon at all.
+            `py-6` keeps them at this panel's density; the primitive's py-14 is a page-level empty. */}
         {loadError ? (
-          <div className="rounded-2xl border border-dashed border-border p-6 text-center">
-            <p className="text-sm text-muted-foreground">{tr('Could not load your API keys.', 'Không tải được khóa API của bạn.')}</p>
-            <Button variant="bare" size="none" onClick={load} className="mt-2 cursor-pointer text-sm font-semibold text-accent-foreground hover:underline">{tr('Try again', 'Thử lại')}</Button>
-          </div>
+          <EmptyState
+            tone="bare"
+            variant="fault"
+            icon={AlertTriangle}
+            className="py-6"
+            title={<span role="alert">{tr('Could not load your API keys.', 'Không tải được khóa API của bạn.')}</span>}
+            action={<Button variant="outline" onClick={load}>{tr('Try again', 'Thử lại')}</Button>}
+          />
         ) : keys === null ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {tr('Loading…', 'Đang tải…')}</p>
         ) : active.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-6 text-center">
-            <KeyRound className="mx-auto h-6 w-6 text-ink-4" />
-            <p className="mt-2 text-sm text-muted-foreground">{tr('No API keys yet.', 'Chưa có khóa API nào.')}</p>
-          </div>
+          <EmptyState tone="bare" icon={KeyRound} className="py-6" title={tr('No API keys yet.', 'Chưa có khóa API nào.')} />
         ) : (
           // Flat (§3b): one ui/rows divided list, not a stack of per-item outline cards.
           <Rows>{active.map((k) => (
@@ -356,17 +361,18 @@ function WebhooksSection() {
       {/* List */}
       <div className="space-y-2">
         {loadError ? (
-          <div className="rounded-2xl border border-dashed border-border p-6 text-center">
-            <p className="text-sm text-muted-foreground">{tr('Could not load your webhooks.', 'Không tải được webhook của bạn.')}</p>
-            <Button variant="bare" size="none" onClick={load} className="mt-2 cursor-pointer text-sm font-semibold text-accent-foreground hover:underline">{tr('Try again', 'Thử lại')}</Button>
-          </div>
+          <EmptyState
+            tone="bare"
+            variant="fault"
+            icon={AlertTriangle}
+            className="py-6"
+            title={<span role="alert">{tr('Could not load your webhooks.', 'Không tải được webhook của bạn.')}</span>}
+            action={<Button variant="outline" onClick={load}>{tr('Try again', 'Thử lại')}</Button>}
+          />
         ) : hooks === null ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {tr('Loading…', 'Đang tải…')}</p>
         ) : hooks.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-6 text-center">
-            <Webhook className="mx-auto h-6 w-6 text-ink-4" />
-            <p className="mt-2 text-sm text-muted-foreground">{tr('No webhooks yet.', 'Chưa có webhook nào.')}</p>
-          </div>
+          <EmptyState tone="bare" icon={Webhook} className="py-6" title={tr('No webhooks yet.', 'Chưa có webhook nào.')} />
         ) : (
           // Flat (§3b): one ui/rows divided list, not a stack of per-item outline cards.
           <Rows>{hooks.map((h) => (

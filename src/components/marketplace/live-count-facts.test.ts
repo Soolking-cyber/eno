@@ -46,3 +46,22 @@ describe('liveCountWhere — the rows a live count selects', () => {
     expect(JSON.stringify(w.AND[1])).toContain('Ho Chi Minh')
   })
 })
+
+describe('subcategoryIn — a landing narrowed to several kinds (C1-HOUSING)', () => {
+  const HOMES = ['apartment-rental', 'house-rental', 'room-rental'] as const
+
+  it('selects exactly those kinds, and the live count selects the same rows as the rail', () => {
+    const rail = seoLandingWhere({ categorySlug: 'rentals', subcategoryIn: HOMES }) as { subcategorySlug?: unknown }
+    expect(rail.subcategorySlug).toEqual({ in: [...HOMES] })
+    expect(liveCountWhere({ categorySlug: 'rentals', subcategoryIn: HOMES })).toEqual(rail)
+  })
+
+  it('never overrides an explicit subcategorySlug — the single subcategory is the narrower claim', () => {
+    const w = seoLandingWhere({ categorySlug: 'rentals', subcategorySlug: 'room-rental', subcategoryIn: HOMES }) as { subcategorySlug?: unknown }
+    expect(w.subcategorySlug).toBe('room-rental')
+  })
+
+  it('an empty set narrows nothing', () => {
+    expect(seoLandingWhere({ categorySlug: 'rentals', subcategoryIn: [] })).toEqual(seoLandingWhere({ categorySlug: 'rentals' }))
+  })
+})

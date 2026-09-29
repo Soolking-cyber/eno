@@ -27,9 +27,16 @@ import { seoLandingWhere } from './seo-landing-where'
  * not, without anyone re-measuring anything.
  */
 export type LiveCountTarget =
-  | { categorySlug: string; condition?: ListingCondition; allIn?: string }
+  | {
+      categorySlug: string
+      condition?: ListingCondition
+      /** Several subcategories at once (seoLandingWhere's `subcategoryIn`) — e.g. only the kinds of
+       *  rental that are a home (src/lib/rental-homes.ts), so a page's count is its rail's set. */
+      subcategoryIn?: readonly string[]
+      allIn?: string
+    }
   /** Every public listing on the site, no category. Condition needs a category, so it is not offered. */
-  | { categorySlug?: undefined; condition?: undefined; allIn?: string }
+  | { categorySlug?: undefined; condition?: undefined; subcategoryIn?: undefined; allIn?: string }
 
 /** A count the page may print, already formatted for the prose it sits in. */
 export type LiveCountFacts = {
@@ -54,7 +61,7 @@ export type LiveCountFacts = {
  */
 export function liveCountWhere(target: LiveCountTarget, province?: string) {
   const base = target.categorySlug
-    ? seoLandingWhere({ categorySlug: target.categorySlug, condition: target.condition })
+    ? seoLandingWhere({ categorySlug: target.categorySlug, condition: target.condition, subcategoryIn: target.subcategoryIn })
     : { verified: true, status: 'active' }
   // ⚠️ AN `AND` ARRAY, NOT A SPREAD. seoLandingWhere may already carry its own `AND` (the condition
   // narrowing); spreading the province predicate beside it would silently overwrite one of the two.

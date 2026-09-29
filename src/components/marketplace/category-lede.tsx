@@ -2,9 +2,17 @@
 
 import { Tr, useLanguage } from '@/context/language-context'
 import { SITE_NAME } from '@/lib/edition'
+import { Bilingual } from './bilingual'
+import { formatCountFull, joinList } from '@/app/[lang]/c/[category]/category-copy'
 
 /**
- * The category page's one-sentence lede, per language.
+ * The category page's lede, per language: what the category holds, then where it comes from.
+ *
+ * ⚠️ THE COUNT SENTENCE OPENS IT (C1-LEDE, 2026-09-29): "63,730 listings in Electronics, including
+ * Phones (…), Laptops (…) and TVs (…)." For a linked tier the lede used to BE the provenance sentence,
+ * with the count trailing it as a raw "63730 listings available." — ungrouped, and the reader learned
+ * where the stock came from before what it was. Every number is a live count (`total`, and the
+ * busiest subcategories from loadTopSubcategories), so it claims only what the counts support.
  *
  * ⛔ A CLIENT COMPONENT SO IT CANNOT END UP IN THE OTHER LANGUAGE FROM THE REST OF THE PAGE. The
  * Vietnamese sentence cannot be built from the three `<Tr>` fragments the English one uses — "Every"
@@ -21,13 +29,68 @@ export function CategoryLede({
   nameVi,
   slug,
   linked = 'none',
+  total = 0,
+  top = [],
 }: {
   name: string
   nameVi: string
   slug?: string
   /** How much of the category links out (c/[category]/category-copy.ts `linkedTier`); default: none. */
   linked?: 'all' | 'most' | 'some' | 'none'
+  /** The category's live count; 0 (an empty category) prints no count sentence at all. */
+  total?: number
+  /** Its busiest subcategories, busiest first (category-data.ts `loadTopSubcategories`). */
+  top?: { name: string; nameVi: string; count: number }[]
 }) {
+  return (
+    <>
+      {total > 0 && (
+        <>
+          <CountSentence name={name} nameVi={nameVi} total={total} top={top} />{' '}
+        </>
+      )}
+      <Provenance name={name} nameVi={nameVi} slug={slug} linked={linked} />
+    </>
+  )
+}
+
+/**
+ * "63,730 listings in Electronics, including Phones (41,002), Laptops (9,114) and TVs (3,508)." /
+ * "63.730 tin đăng điện tử, gồm Điện thoại (41.002), Laptop (9.114) và Tivi (3.508)."
+ * ⚠️ ENGLISH IN LITERAL `tr()` FRAGMENTS, VIETNAMESE WHOLE — category-text.tsx's rule: the nine
+ * machine-translated languages render from the English variant, and Vietnamese word order is not
+ * English's. Singular at exactly 1. "0 listings" is never printed (the caller passes no sentence).
+ */
+function CountSentence({ name, nameVi, total, top }: { name: string; nameVi: string; total: number; top: { name: string; nameVi: string; count: number }[] }) {
+  const { lang, tr } = useLanguage()
+  const n = (v: number) => formatCountFull(v, lang)
+  if (lang === 'vi') {
+    const parts = top.map((t) => `${t.nameVi} (${n(t.count)})`)
+    // The category lower-cased mid-sentence, as the trust sentence below and districtMetadata write it
+    // ("tin đăng điện tử"); the subcategories keep their label case (acronyms: "SIM", "TV").
+    return <>{`${n(total)} tin đăng ${nameVi.toLowerCase()}${parts.length ? `, gồm ${joinList(parts, 'vi')}` : ''}.`}</>
+  }
+  return (
+    <>
+      {n(total)} {total === 1 ? tr('listing in') : tr('listings in')} <Bilingual en={name} vi={nameVi || name} />
+      {top.length > 0 && (
+        <>
+          , {tr('including')}{' '}
+          {top.map((t, i) => (
+            <span key={t.name}>
+              {i > 0 && (i === top.length - 1 ? <> {tr('and')} </> : <>, </>)}
+              <Bilingual en={t.name} vi={t.nameVi || t.name} /> ({n(t.count)})
+            </span>
+          ))}
+        </>
+      )}
+      .
+    </>
+  )
+}
+
+/** The second sentence: where the stock comes from, or — only where none of it is linked — the trust claim. */
+function Provenance({ name, nameVi, slug, linked }: { name: string; nameVi: string; slug?: string; linked: 'all' | 'most' | 'some' | 'none' }) {
   const { lang, tr } = useLanguage()
   /**
    * ⛔ NOT THE TRUST CLAIM ON JOBS. Most jobs are LINKED postings (scripts/import-jobs.ts) whose "seller"

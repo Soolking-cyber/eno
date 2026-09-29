@@ -9,8 +9,13 @@ skip or pass on this edition. **So the new rule is the simple one: any failure i
 Two specs were repaired on the way to that, and both were real drift rather than flakes:
 - `tabs.spec.ts` asserted an in-page tablist on `/c/electronics`. Review U01 turned a category
   PREVIEW's sort strip into LINKS into the full query (sorting 48 of thousands in memory was the
-  bug), so the tablist moved to the explorer results view. The spec now asserts the tabs at
+  bug), so the tablist moved to the explorer results view. The spec then asserted the tabs at
   `/?category=electronics` AND the links on the preview — both halves of the split.
+  ⚠️ **SUPERSEDED 2026-09-29 (C1-DEADEND):** the category page sorts in place again, as scoped
+  `/api/listings` queries over the WHOLE category (`serverScope`), so the preview and its links are
+  gone. The spec now asserts ONE tablist on `/c/electronics` with exactly one Price tab, no `?sort=`
+  links, and a Price click that queries `category=electronics&sort=price-low` without leaving the
+  pathname — plus the explorer's tabs as before.
 - `category.spec.ts` clicked a card photo by coordinate without scrolling it into view. On a
   Pixel 5 the first card's photo CENTRE sits under the fixed bottom navigation, so the click went
   to `/saved` and the test read as a routing regression. It scrolls first now.

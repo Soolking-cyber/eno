@@ -117,6 +117,13 @@ export function formatCount(n: number, locale: MoneyLocale = 'en'): string {
   return group(n, locale)
 }
 
+/** A full, grouped integer for prose and counts: en "63,730", vi "63.730". Not money (no mark) and
+ *  never compact — that is `formatCount`'s "63.7k" chip label. The separators are money's, so one
+ *  page never groups two numbers two ways (docs/design-language.md §7). */
+export function formatInteger(n: number, locale: MoneyLocale = 'en'): string {
+  return group(Math.round(n), locale)
+}
+
 /** Average-rating label, always one decimal: 4.8 → "4.8" (en) / "4,8" (vi). */
 export function formatRating(n: number, locale: MoneyLocale = 'en'): string {
   const s = n.toFixed(1)

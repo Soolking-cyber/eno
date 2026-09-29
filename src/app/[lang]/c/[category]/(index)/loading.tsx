@@ -1,5 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton'
 import { ListingCardSkeleton } from '@/components/marketplace/listing-card-skeleton'
+import { LISTING_GRID } from '@/components/marketplace/listing-grid'
 import { LEDE_PLACEMENT } from './lede-placement'
 
 /**
@@ -15,21 +16,25 @@ import { LEDE_PLACEMENT } from './lede-placement'
  * in the page ('page'), it is under this boundary and these bars stand in for it; under 'layout' it is
  * already on screen above this skeleton, so they are not drawn.
  *
- * ⚠️ The lede is `text-base leading-relaxed` — a 26px line box, not 16px. Measured on
- * /c/electronics it runs FOUR lines on a phone and two at max-w-prose, which is what the
- * bars below reserve; two `h-4` bars ran the block ~66px short on mobile. Reserve LINE BOXES,
- * never bars-plus-gaps — see the note on the block itself.
+ * ⚠️ The lede is `text-base leading-relaxed` — a 26px line box, not 16px. On a phone it is clamped
+ * to TWO lines with a "Show more" button under it (clamped-lede.tsx, C1-FOLD); from sm it is whole,
+ * four lines at sm/md and two at max-w-prose from lg. Reserve LINE BOXES, never bars-plus-gaps — see
+ * the note on the block itself.
  *
- * The sort strip is the full-bleed <Tabs> row from seller-listings.tsx
- * (`-mx-3 border-b px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8`, 42px incl. its hairline), not
- * a floating 40px pill.
+ * The sort strip is the <Tabs> row from seller-listings.tsx (`border-b`, 42px incl. its hairline, on
+ * the content box since C1-HAIRLINE), with the "Filters" link at its end — not a floating 40px pill.
+ * ⚠️ THE GEOMETRY ABOVE THE GRID IS THE PAGE'S, CLASS FOR CLASS (C1-FOLD, 2026-09-29): one chip row
+ * that scrolls on a phone, the hairline at mt-4/sm:mt-8, the grid at mt-4/sm:mt-6. Change one, change
+ * both, or the swap from this skeleton to the page moves the grid.
  *
  * ⚠️ THE "Other categories" HEADING BAR TRACKS THE `h-section` TOKEN (× 1.3 line height), not a fixed
  * height: the heading type is fluid, so a fixed bar is wrong at one viewport or the other.
  *
  * ⚠️ THREE BLOCKS HERE ARE CONDITIONAL ON THE REAL PAGE and are drawn unconditionally
- * because a route skeleton cannot know the data: the "By area" row is hidden when
- * `districts.length === 0`, the sort strip only renders when `listings.length > 1`, and an
+ * because a route skeleton cannot know the data: the "By area" row is hidden unless three places
+ * hold five or more listings each (C1-LEDE — on 2026-09-29 that is /c/rentals and few others; the
+ * row is drawn for rentals, the page this family's traffic lands on), the sort strip only renders
+ * when `listings.length > 1`, and an
  * EMPTY category drops the refine CTA + "Other categories" for a supply-side zero-state.
  * The happy path is the overwhelming majority; recorded so the residual shift is a known
  * cost rather than a surprise.
@@ -47,37 +52,41 @@ export default function CategoryLoading() {
         <div className="mt-3 max-w-prose">
           <div className="flex h-[26px] items-center"><Skeleton className="h-[22px] w-full" /></div>
           <div className="flex h-[26px] items-center"><Skeleton className="h-[22px] w-full" /></div>
-          <div className="flex h-[26px] items-center lg:hidden"><Skeleton className="h-[22px] w-11/12" /></div>
-          <div className="flex h-[26px] items-center lg:hidden"><Skeleton className="h-[22px] w-2/3" /></div>
+          <div className="hidden h-[26px] items-center sm:flex lg:hidden"><Skeleton className="h-[22px] w-11/12" /></div>
+          <div className="hidden h-[26px] items-center sm:flex lg:hidden"><Skeleton className="h-[22px] w-2/3" /></div>
+          {/* The phone's "Show more" (mt-1 + a 20px line) — clamped-lede.tsx. */}
+          <div className="h-6 sm:hidden" />
         </div>
       )}
 
-      {/* "By area:" label + district chips (rounded-full px-3.5 py-1.5 text-xs → 28px) */}
-      <div className="mt-6 flex flex-wrap gap-2">
-        <Skeleton className="h-4 w-12 self-center" />
+      {/* "By area:" label + district chips (rounded-full px-3.5 py-1.5 text-xs → 28px), in the
+          page's own box: one 36px row on a phone (py-1 around 28px chips), wrapping from sm. */}
+      <div className="mt-3 flex flex-nowrap items-center gap-2 overflow-hidden py-1 sm:mt-6 sm:flex-wrap sm:py-0">
+        <Skeleton className="h-4 w-12 shrink-0" />
         {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-7 w-20 rounded-full" />
+          <Skeleton key={i} className="h-7 w-20 shrink-0 rounded-full" />
         ))}
       </div>
 
-      {/* Masthead hairline — same full-bleed coupling as the page */}
-      <div aria-hidden className="mt-8 -mx-3 border-t border-border sm:-mx-6 lg:-mx-8" />
+      {/* Masthead hairline — on the content box, like the page's */}
+      <div aria-hidden className="mt-4 border-t border-border sm:mt-8" />
 
-      <div className="mt-6">
+      <div className="mt-4 sm:mt-6">
         <div className="space-y-4">
-          {/* Sort tab strip — full-bleed, hairline-bottomed (42px) */}
-          <div className="-mx-3 border-b border-border px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-            <div className="flex items-center gap-1">
+          {/* Sort tab strip — hairline-bottomed (42px), the Filters link at its end */}
+          <div className="flex items-center border-b border-border">
+            <div className="flex min-w-0 items-center gap-1 overflow-hidden">
               {['w-16', 'w-14', 'w-28', 'w-10'].map((w, i) => (
-                <div key={i} className="px-3 py-2.5">
+                <div key={i} className="shrink-0 px-3 py-2.5">
                   <Skeleton className={`h-5 ${w}`} />
                 </div>
               ))}
             </div>
+            <Skeleton className="ml-auto h-5 w-20 shrink-0" />
           </div>
 
           {/* Listings grid — mirrors SellerListings exactly */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className={LISTING_GRID}>
             {Array.from({ length: 8 }).map((_, i) => (
               <ListingCardSkeleton key={i} />
             ))}

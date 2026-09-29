@@ -16,6 +16,9 @@
  *     partner whose tickets are booked on its own site) carried "Trusted seller" — a trust claim about
  *     stock eno does not hold. That shape gets the linked wording, and the tier word now needs at
  *     least one live listing of the seller's own.
+ *   · (ST-META, UX program 2026-09-29) The seller's free-text `location` was printed verbatim, so a
+ *     shop whose address line starts with a house number put its street in the search snippet. The
+ *     location now goes through `storefrontPlace`: district and city, never a street.
  */
 
 export type StorefrontDescriptionInput = {
@@ -24,6 +27,7 @@ export type StorefrontDescriptionInput = {
   total: number
   /** Category names of the listings shown, most relevant first; the first three are used. */
   categories: string[]
+  /** The seller's free-text location; only its district and city are printed (`storefrontPlace`). */
   location?: string | null
   /** `Seller.trustTier`: restricted | standard | trusted | exceptional. */
   trustTier?: string | null
@@ -39,6 +43,20 @@ export type StorefrontDescriptionInput = {
   ownListing: boolean
   /** `SITE_NAME` of the edition rendering the page. */
   siteName: string
+}
+
+/**
+ * The last two comma-separated parts of a seller's free-text location — "District 1, Ho Chi Minh City"
+ * out of "12 Nguyen Hue, District 1, Ho Chi Minh City". ⚠️ NEVER THE STREET: a shop's address line is
+ * not something a search snippet should repeat, and the district and city are what a reader filters by.
+ */
+export function storefrontPlace(location: string | null | undefined): string | null {
+  // ⛔ NEVER A STREET (codex, gate 2026-09-29): a two-part "12 Nguyen Hue, Ho Chi Minh City" used to print the
+  // street verbatim. Any part carrying a digit (house number, lane, "Số 5", "Hẻm 12") is dropped before the
+  // last two — district and city names in VN carry numbers only as "District 1"/"Quận 1", which are kept.
+  const parts = (location ?? '').split(',').map((p) => p.trim()).filter(Boolean)
+    .filter((p) => !/\d/.test(p) || /^(district|quận|q\.?)\s*\d+$/i.test(p))
+  return parts.length ? parts.slice(-2).join(', ') : null
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -61,6 +79,6 @@ export function storefrontDescription(input: StorefrontDescriptionInput): string
   }
 
   const tier = !input.ownListing ? '' : input.trustTier === 'exceptional' ? 'Top-rated seller' : input.trustTier === 'trusted' ? 'Trusted seller' : ''
-  const bits = [count, input.location || '', tier, rating].filter(Boolean)
+  const bits = [count, storefrontPlace(input.location) || '', tier, rating].filter(Boolean)
   return bits.length ? `${name} — ${bits.join(' · ')} on ${siteName}` : `${name} on ${siteName}`
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ratingPhrase, storefrontDescription, type StorefrontDescriptionInput } from './storefront-description'
+import { ratingPhrase, storefrontDescription, storefrontPlace, type StorefrontDescriptionInput } from './storefront-description'
 
 /**
  * The storefront meta description (SEO wave B, I2). Each case is a defect measured on production
@@ -71,5 +71,28 @@ describe('storefrontDescription', () => {
       const d = storefrontDescription({ ...base, name: 'Nhatot.com', total: 0, categories: [], location: null, trustTier, ownListing: false })
       expect(d).toBe('Nhatot.com on eno.vn')
     }
+  })
+})
+
+/** ST-META (UX program, 2026-09-29): the snippet names a district and a city, never a street. */
+describe('storefrontPlace', () => {
+  it('keeps the district and the city, never the street', () => {
+    expect(storefrontPlace('12 Nguyen Hue, District 1, Ho Chi Minh City')).toBe('District 1, Ho Chi Minh City')
+    expect(storefrontPlace('Hanoi')).toBe('Hanoi')
+    expect(storefrontPlace('  ')).toBeNull()
+    expect(storefrontPlace(null)).toBeNull()
+  })
+
+  it('drops parts with a house number, keeps "District 1" (codex, 2026-09-29)', () => {
+    expect(storefrontPlace('12 Nguyen Hue, Ho Chi Minh City')).toBe('Ho Chi Minh City')
+    expect(storefrontPlace('Số 5 Hẻm 12, Quận 1, TP. Hồ Chí Minh')).toBe('Quận 1, TP. Hồ Chí Minh')
+    expect(storefrontPlace('District 1, Ho Chi Minh City')).toBe('District 1, Ho Chi Minh City')
+  })
+
+  it('is what storefrontDescription prints for the location', () => {
+    const d = storefrontDescription({ ...base, location: '12 Nguyen Hue, District 1, Ho Chi Minh City' })
+    expect(d).toBe('SDC Store — 47 listings in Electronics, Fashion & Beauty · District 1, Ho Chi Minh City on eno.vn')
+    expect(d).not.toContain('Nguyen Hue')
+    expect(storefrontDescription({ ...base, location: '12 Nguyen Hue' })).toBe('SDC Store — 47 listings in Electronics, Fashion & Beauty on eno.vn')
   })
 })

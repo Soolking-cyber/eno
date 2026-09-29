@@ -81,8 +81,8 @@ export default async function BrandsPage() {
           <Tr text="Jump straight to listings from the brands people search for most." />
         </p>
 
-        {/* Masthead boundary — full-bleed hairline, coupled to the page frame's paddings. */}
-        <div aria-hidden className="mt-8 -mx-3 border-t border-border sm:-mx-6 lg:-mx-8" />
+        {/* Masthead boundary — on the content box, like the tiles under it (C1-HAIRLINE). */}
+        <div aria-hidden className="mt-8 border-t border-border" />
 
         {items.length === 0 ? (
           <EmptyState

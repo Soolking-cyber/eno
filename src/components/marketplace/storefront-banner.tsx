@@ -26,8 +26,12 @@ export function StorefrontBanner({
     <BannerImage
       url={url}
       mobileUrl={mobileUrl}
-      /* ⚠️ EMPTY ALT. The shop's name is the <h1> immediately below this, so naming the cover too
-         makes a screen reader say it twice; a decorative cover adds nothing the heading has not. */
+      /* ⚠️ EMPTY ALT. The shop's name is the <h1> immediately below this — SellerCard's, on BOTH
+         storefronts since 2026-09-29 (the subdomain one used to have only the explorer's sr-only
+         site name, so this note was false there) — and naming the cover too makes a screen reader
+         say it twice. A cover with words baked into the art (VietKite's "VIEW E-VISA OPTIONS") is
+         still decorative: that text is a picture of a button that does nothing, and the fix is a
+         clean creative (scripts/set-storefront-banner), not alt text reading it out. */
       alt=""
       /* Above the fold and the likely LCP element on a storefront that has one. */
       priority

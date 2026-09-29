@@ -1,6 +1,8 @@
 import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
+import { subcategoriesFor } from '@/lib/taxonomy'
+import { topSubcategories, type TopSubcategory } from './category-copy'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { provinceWhere } from '@/lib/province-match'
 import { mergeDistrictGroups, type DistrictChip } from '@/lib/district-canonical'
@@ -171,4 +173,26 @@ computeRentalsHeadline.toString = () => 'rentals-headline-variant'
 /** `cache()` on top, so the layout and generateMetadata share one read inside a render even on a miss. */
 export const loadRentalsHeadline = cache(
   unstable_cache(computeRentalsHeadline, ['rentals-headline'], { revalidate: RENTALS_HEADLINE_TTL }),
+)
+
+/**
+ * The category's biggest subcategories, busiest first, for the lede's opening sentence (C1-LEDE):
+ * "63,730 listings in Electronics, including Phones (41,002), Laptops (9,114) and Audio (3,508)."
+ *
+ * ⚠️ THE SAME PREDICATE AS EVERY COUNT ON THIS PAGE (`live`, scoped), so the parts never add up to
+ * more than the total printed beside them. Which groups may be NAMED — taxonomy-known, not the whole
+ * category, not a catch-all "Other" — is `topSubcategories` (category-copy.ts), pure and tested.
+ * `[]` without a query for /c/rentals (RentalsLede counts its own kinds) and /c/jobs (its lede is
+ * the safety sentence), and for an empty category. Not caught, like every read here.
+ */
+export const loadTopSubcategories = cache(
+  async (categoryId: string, slug: string, total: number): Promise<TopSubcategory[]> => {
+    if (total <= 0 || slug === 'rentals' || slug === 'jobs') return []
+    const groups = await db.listing.groupBy({
+      by: ['subcategorySlug'],
+      where: await scopedListingWhere({ ...live(categoryId), subcategorySlug: { not: null } }),
+      _count: { _all: true },
+    })
+    return topSubcategories(groups.map((g) => ({ slug: g.subcategorySlug, count: g._count._all })), subcategoriesFor(slug), total)
+  },
 )

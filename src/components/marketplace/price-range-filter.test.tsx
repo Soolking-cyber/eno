@@ -70,21 +70,21 @@ describe('PriceRangeFilter — binned histogram', () => {
     const user = userEvent.setup()
     renderFilter()
     await open(user)
-    expect(await screen.findByText('12000 available')).toBeDefined()
+    expect(await screen.findByText('12,000 available')).toBeDefined()
   })
 
   it('with "Near you" or a text search the grid is not the counted set, so even a stop count shows "≈"', async () => {
     const user = userEvent.setup()
     renderFilter('all', true)
     await open(user)
-    expect(await screen.findByText('≈12000 available')).toBeDefined()
+    expect(await screen.findByText('≈12,000 available')).toBeDefined()
   })
 
   it('a typed max above the data is committed as typed, not clamped to "no max"', async () => {
     const user = userEvent.setup()
     const onChange = renderFilter()
     const dialog = await open(user)
-    await screen.findByText('12000 available')
+    await screen.findByText('12,000 available')
     const [, max] = dialog.querySelectorAll('input[inputmode="numeric"]')
     await user.type(max as HTMLInputElement, '2000000000')
     await user.tab()
@@ -95,22 +95,22 @@ describe('PriceRangeFilter — binned histogram', () => {
     const user = userEvent.setup()
     renderFilter()
     const dialog = await open(user)
-    await screen.findByText('12000 available')
+    await screen.findByText('12,000 available')
     const [min] = dialog.querySelectorAll('input[inputmode="numeric"]')
     // 450,000 sits inside the 400k–500k bin, which holds nothing: still exact.
     await user.type(min as HTMLInputElement, '450000')
-    expect(screen.getByText('5998 available')).toBeDefined()
+    expect(screen.getByText('5,998 available')).toBeDefined()
     // 20,000 cuts the 20k–25k bin that holds the 24k listings: an estimate.
     await user.clear(min as HTMLInputElement)
     await user.type(min as HTMLInputElement, '21000')
-    expect(screen.getByText(/^≈\d+ available$/)).toBeDefined()
+    expect(screen.getByText(/^≈[\d,]+ available$/)).toBeDefined()
   })
 
   it('a URL-restored range outside the data is shown verbatim, not rewritten', async () => {
     const user = userEvent.setup()
     const onChange = renderFilter('5-3000000000')
     const dialog = await open(user)
-    await screen.findByText('11998 available')
+    await screen.findByText('11,998 available')
     const [min, max] = dialog.querySelectorAll('input[inputmode="numeric"]')
     expect((min as HTMLInputElement).value).toBe('5')
     expect((max as HTMLInputElement).value).toBe('3,000,000,000')
@@ -134,7 +134,7 @@ describe('PriceRangeFilter — binned histogram', () => {
     const user = userEvent.setup()
     const onChange = renderFilter()
     await open(user)
-    await screen.findByText('12000 available')
+    await screen.findByText('12,000 available')
     // jsdom has no layout, so Base UI keeps the thumbs `visibility: hidden` and they have no
     // accessible role here — reach the thumb's range input directly.
     const hiThumb = document.querySelector('input[aria-label="Maximum price"]') as HTMLInputElement
@@ -146,7 +146,7 @@ describe('PriceRangeFilter — binned histogram', () => {
     // Announced from the value the step produced, not one stop behind it.
     expect(hiThumb.getAttribute('aria-valuetext')).toBe('1,200,000,000 ₫')
     // Exact at a stop: everything but the one 1.45B listing.
-    expect(screen.getByText('11999 available')).toBeDefined()
+    expect(screen.getByText('11,999 available')).toBeDefined()
     await user.keyboard('{ArrowRight}')
     expect(onChange).toHaveBeenLastCalledWith('all')
   })
@@ -261,7 +261,7 @@ describe('PriceRangeFilter — binned histogram', () => {
     const user = userEvent.setup()
     renderFilter()
     const dialog = await open(user)
-    await screen.findByText('12000 available')
+    await screen.findByText('12,000 available')
     const [min] = dialog.querySelectorAll('input[inputmode="numeric"]')
     await user.type(min as HTMLInputElement, '1450000000')
     expect(screen.getByText('1 available')).toBeDefined()
@@ -314,7 +314,7 @@ describe('PriceRangeFilter — binned histogram', () => {
     const user = userEvent.setup()
     renderFilter('abc-')
     const dialog = await open(user)
-    expect(await screen.findByText('12000 available')).toBeDefined()
+    expect(await screen.findByText('12,000 available')).toBeDefined()
     const [min] = dialog.querySelectorAll('input[inputmode="numeric"]')
     expect((min as HTMLInputElement).value).toBe('')
     expect(dialog.textContent).not.toContain('NaN')

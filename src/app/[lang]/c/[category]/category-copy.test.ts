@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   RENTALS_H1,
+  byAreaChips,
+  topSubcategories,
   districtMetadata,
   formatCountFull,
   joinList,
@@ -229,5 +231,49 @@ describe('helpers', () => {
     expect(pageLang('vi')).toBe('vi')
     expect(pageLang('en')).toBe('en')
     expect(pageLang(undefined)).toBe('en')
+  })
+})
+
+describe('byAreaChips — "By area" only where there are areas to browse (C1-LEDE)', () => {
+  const chip = (slug: string, count: number) => ({ slug, count })
+
+  it('shows no row while fewer than three places hold five or more listings', () => {
+    // /c/electronics on 2026-09-29: one own-stock listing in one ward printed "By area: Cau Giay".
+    expect(byAreaChips([chip('cau-giay', 1)], 80)).toEqual([])
+    expect(byAreaChips([chip('a', 50), chip('b', 9), chip('c', 4), chip('d', 4)], 80)).toEqual([])
+  })
+
+  it('shows every place, busiest first as given, once three clear the bar — small ones included', () => {
+    const chips = [chip('d2', 3741), chip('d7', 2655), chip('binh-thanh', 2476), chip('can-gio', 1)]
+    expect(byAreaChips(chips, 80)).toEqual(chips)
+    expect(byAreaChips(chips, 2)).toEqual(chips.slice(0, 2))
+  })
+})
+
+describe('topSubcategories — what the lede may name after "including" (C1-LEDE)', () => {
+  const defs = [
+    { slug: 'phones', name: 'Phones', nameVi: 'Điện thoại' },
+    { slug: 'laptops', name: 'Laptops', nameVi: 'Laptop' },
+    { slug: 'audio', name: 'Audio', nameVi: 'Âm thanh' },
+    { slug: 'tvs', name: 'TVs', nameVi: 'Tivi' },
+    { slug: 'accessories', name: 'Other accessories', nameVi: 'Phụ kiện khác' },
+    { slug: 'misc', name: 'Other', nameVi: 'Khác' },
+  ]
+
+  it('names the three busiest, busiest first, skipping slugs the taxonomy no longer defines', () => {
+    const groups = [
+      { slug: 'audio', count: 3508 }, { slug: 'phones', count: 41002 }, { slug: 'gone-slug', count: 50000 },
+      { slug: 'tvs', count: 120 }, { slug: 'laptops', count: 9114 }, { slug: null, count: 7 },
+    ]
+    expect(topSubcategories(groups, defs, 63730).map((t) => t.name)).toEqual(['Phones', 'Laptops', 'Audio'])
+  })
+
+  it('never names a catch-all — "including Other (412)" names no kind of thing', () => {
+    const groups = [{ slug: 'misc', count: 900 }, { slug: 'accessories', count: 800 }, { slug: 'phones', count: 10 }]
+    expect(topSubcategories(groups, defs, 2000)).toEqual([{ name: 'Phones', nameVi: 'Điện thoại', count: 10 }])
+  })
+
+  it('names nothing that holds the whole category', () => {
+    expect(topSubcategories([{ slug: 'phones', count: 40 }], defs, 40)).toEqual([])
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatRating, groupVnd } from './vnd'
+import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatInteger, formatRating, groupVnd } from './vnd'
 
 // Money is always displayed grouped + suffixed "đ"; parseVnd is the inverse used
 // on every price input. They must round-trip.
@@ -58,6 +58,13 @@ describe('formatCount / formatRating / groupVnd', () => {
     expect(formatCount(1200)).toBe('1.2k')
     expect(formatCount(1200, 'vi')).toBe('1,2k')
     expect(formatCount(950)).toBe('950')
+  })
+
+  it('formatInteger groups a count in full, per locale — never compact, never a currency', () => {
+    expect(formatInteger(63730)).toBe('63,730')
+    expect(formatInteger(63730, 'vi')).toBe('63.730')
+    expect(formatInteger(950, 'vi')).toBe('950')
+    expect(formatInteger(1234.6)).toBe('1,235')
   })
 
   it('ratings use comma decimal for vi', () => {

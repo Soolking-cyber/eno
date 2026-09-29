@@ -20,8 +20,8 @@ export default function BrandsLoading() {
           <Skeleton className="h-[22px] w-full" />
           <Skeleton className="h-[22px] w-2/3" />
         </div>
-        {/* Masthead hairline — same full-bleed coupling as the page */}
-        <div aria-hidden className="mt-8 -mx-3 border-t border-border sm:-mx-6 lg:-mx-8" />
+        {/* Masthead hairline — on the content box, like the page's */}
+        <div aria-hidden className="mt-8 border-t border-border" />
         <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
           {Array.from({ length: 15 }).map((_, i) => (
             <div key={i} className="flex flex-col items-center gap-3 rounded-2xl border border-border px-4 py-6">

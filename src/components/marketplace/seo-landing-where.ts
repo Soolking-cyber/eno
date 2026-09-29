@@ -36,6 +36,8 @@ import { conditionWhere } from '@/lib/listing-condition'
 export type SeoLandingTarget = {
   categorySlug: string
   subcategorySlug?: string
+  /** Several subcategories at once — see SeoContent.subcategoryIn. Ignored when `subcategorySlug` is set. */
+  subcategoryIn?: readonly string[]
   listingType?: string
   condition?: string
   brandSlug?: string
@@ -64,6 +66,9 @@ export function seoLandingWhere(content: SeoLandingTarget) {
     status: 'active',
     category: { slug: content.categorySlug },
     ...(content.subcategorySlug ? { subcategorySlug: content.subcategorySlug } : {}),
+    // ⚠️ NEVER BESIDE `subcategorySlug`: one key, so a page naming both would have one silently
+    // overwrite the other. The single subcategory is the narrower claim, and it wins.
+    ...(!content.subcategorySlug && content.subcategoryIn?.length ? { subcategorySlug: { in: [...content.subcategoryIn] } } : {}),
     ...(content.listingType ? { listingType: content.listingType } : {}),
     ...(content.brandSlug ? { brandSlug: content.brandSlug } : {}),
     ...(content.models?.length ? { model: { in: content.models } } : {}),

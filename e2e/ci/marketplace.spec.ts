@@ -346,6 +346,34 @@ test.describe('marketplace, against known fixtures', () => {
     await expect(page.getByText('Bulk bargain 000').first()).toBeVisible()
   })
 
+  // ⛔ A CATEGORY SORT USED TO LEAVE THE PAGE (C1-DEADEND, 2026-09-29): the strip was links into the
+  // explorer at a URL canonicalised to /. It is a scoped query in place now, so the cheapest row in
+  // the category — last by rank, off the first page — is reachable without the pathname changing.
+  test('a category sort reaches the cheapest listing in the category', async ({ page }) => {
+    await page.goto('/c/electronics')
+    await ready(page)
+    await expect(page.getByText('Bulk bargain 000')).toHaveCount(0)
+    await page.getByRole('tab', { name: /price/i }).click()
+    await expect(page.getByText('Bulk bargain 000').first()).toBeVisible()
+    expect(new URL(page.url()).pathname).toBe('/c/electronics')
+  })
+
+  // ⛔ THE FIRST PAGE AND THE API MUST BE ONE SEQUENCE. The page used to render plain rank order while
+  // Show-more asked the API, which interleaves by seller — so page 2 continued a DIFFERENT list, rows
+  // repeated (and were deduped away) and rows never appeared. The Bulk Warehouse owns 700 of these
+  // rows, which is exactly the shape the seller interleave reorders.
+  test('Show more on /c/electronics continues without repeats', async ({ page }) => {
+    await page.goto('/c/electronics')
+    await ready(page)
+    const cards = page.locator('[data-card-root]')
+    await expect(cards.first()).toBeVisible()
+    // Scoped to the grid: on a phone the lede has its own "Show more" (clamped-lede.tsx).
+    await page.locator('[data-listings-ready="true"]').getByRole('button', { name: 'Show more' }).click()
+    await expect.poll(async () => cards.count(), { timeout: 15_000 }).toBe(96)
+    const hrefs = await page.locator('[data-card-root] a[href^="/listings/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')))
+    expect(new Set(hrefs).size).toBe(96)
+  })
+
   // ⛔ THE DISTRICT USED TO BE DROPPED ON THE WAY OUT. "Refine in full search" linked to
   // `/?category=<slug>`, so one click after choosing a district the reader was in the whole
   // category — and the API could not have honoured the district anyway, because this slug is not

@@ -2,6 +2,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ListingCardSkeleton, SAVED_SKELETON_COUNT } from '@/components/marketplace/listing-card-skeleton'
+import { LISTING_GRID } from '@/components/marketplace/listing-grid'
 
 // Skeleton for the saved-listings page during the route transition. Mirrors the
 // real page: h-title heading, count line, then the same card grid the page shows
@@ -19,7 +20,7 @@ export default function SavedLoading() {
             24px (this said 28), the count paragraph is 20px. */}
         <Skeleton className="mb-1 h-6 w-40" />
         <Skeleton className="mb-6 h-5 w-28" />
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className={LISTING_GRID}>
           {Array.from({ length: SAVED_SKELETON_COUNT }).map((_, i) => (
             <ListingCardSkeleton key={i} />
           ))}

@@ -51,6 +51,16 @@ type Props = {
    *  ⚠️ For a ₫ listing this can never render a foreign-only figure (ND 340/2025). */
   native?: boolean
   className?: string
+  /** Classes for the "≈" approximation slot only, merged AFTER its own 12px `text-xs` default (so a
+   *  size here wins) and BEFORE the reserve/'sm' hiding (so nothing here can un-hide it). The slot used
+   *  to be `0.8em` of the price, which put it off the type scale at every size: 12.8px on a card,
+   *  14.4px at `sm:text-lg`, and 24px under the PDP's 30px headline. A fixed step is the canon; a
+   *  surface whose price is far larger or smaller than a card's says so here — the PDP headline
+   *  passes 16px (`text-base`, under its 30px figure), and every price at
+   *  12px or below keeps its ≈ smaller than the figure it follows (`text-3xs`): the card's 11px struck
+   *  "was" price, the map building card's unit tiles, and the search suggestions' rows (which inherit
+   *  12px from their row — check the INHERITED size, not just the className, when adding a caller). */
+  approxClassName?: string
 }
 
 /**
@@ -69,7 +79,7 @@ type Props = {
  *  number of digits wide. */
 const FX_RESERVE_RATES = { USD: 1 / 26_000 }
 
-export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, native = false, className, listingType }: Props) {
+export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType }: Props) {
   void compact // amounts are always shown in full now
   const { lang, tr } = useLanguage()
   const { currency: displayCur, rates, ratesPending, format } = useCurrency()
@@ -92,8 +102,17 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // VND-stored listings convert to the display currency; the rare non-VND listing
   // is shown in its own currency, unconverted.
   const isFree = price === 0
+  // ⚠️ A PRICE-0 JOB CARRIES NO FIGURE, SO IT DOES NOT WEAR THE PRICE INK. "Salary: see details" is a
+  // pointer to the posting, not an amount — and docs/design-language.md §3 is explicit that prices,
+  // and ONLY prices, wear `text-price`. Rendered in the root span below, it came out in the commerce
+  // orange at full price weight, the loudest words on the card for the one line that states nothing.
+  // Body ink instead, at the semibold tier — which this family renders at 700 (globals.css retargets
+  // 600 onto the one bold cut it ships), so the colour is what sets it apart, and the price row keeps
+  // its weight. Size stays the caller's (tailwind-merge keeps it), so the line box, and with it every
+  // card skeleton, is unchanged. "Free" keeps the price ink: it IS the price.
+  const noFigure = isFree && listingType === 'job'
   const amount = isFree
-    ? (listingType === 'job' ? tr('Salary: see details', 'Lương: xem chi tiết') : tr('Free', 'Miễn phí'))
+    ? (noFigure ? tr('Salary: see details', 'Lương: xem chi tiết') : tr('Free', 'Miễn phí'))
     : currency === '₫' && !native ? format(price, locale) : formatMoneyFull(price, currency, locale)
   // ⚠️ NO LEADING SPACE — the space that separates the suffix from the amount is rendered as its
   // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the
@@ -221,7 +240,7 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
  *   wrapper — that is the case that would flip red silently, so re-run the grep before adding a
  *   twelfth.
  */
-    <span className={cn('tabular-nums font-bold text-price', className)}>
+    <span className={cn('tabular-nums font-bold text-price', noFigure && 'font-semibold text-body', className)}>
       {/**
         * ⛔ THE AMOUNT AND ITS UNIT ARE ONE UNBREAKABLE RUN. Without this the price broke between
         * the number and the currency word on EVERY phone width — measured on the home feed, 12 of
@@ -373,7 +392,10 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
            *  reason about. */
           style={approxReserved ? { visibility: 'hidden' } : undefined}
           className={cn(
-            'ml-1.5 whitespace-nowrap text-[0.8em] font-medium text-muted-foreground',
+            // 12px (`text-xs`), a step on the canon scale — see `approxClassName` for why it is no
+            // longer `0.8em` of the price and which surfaces size it themselves.
+            'ml-1.5 whitespace-nowrap text-xs font-medium text-muted-foreground',
+            approxClassName,
             approxReserved && 'invisible',
             // ⛔ `approxIsEstimate` GUARDS THE HIDE, AND THE UNGUARDED VERSION WAS A LIVE LEGAL
             // BUG ON THE DEFAULT FEED. `dual="sm"` is passed by the compact row — the default
