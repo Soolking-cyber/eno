@@ -1,13 +1,14 @@
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { categoryFor, subcategoryFor, withoutGiftClause } from '@/lib/feed-taxonomy'
+import { safeParse } from '@/lib/serialize'
 
 /**
  * The live floor price for each iPhone 18 variant sold on this marketplace.
  *
- * ⚠️ THE PAGE AND ITS STRUCTURED DATA READ THE SAME ROWS. An ItemList assembled from a second query
- * can disagree with the table a human sees — different sort, different moment, different answer —
- * and the disagreement is invisible until a rich result quotes a price the page does not show.
+ * ⚠️ THE PAGE AND ITS STRUCTURED DATA READ THE SAME ROWS. Markup assembled from a second query can
+ * disagree with the table a human sees — different sort, different moment, different answer — and
+ * the disagreement is invisible until a rich result quotes a price the page does not show.
  */
 
 /**
@@ -39,6 +40,18 @@ export type PriceRow = {
   seller: string
   /** How many live listings offer this exact variant. */
   offers: number
+  /**
+   * The first photo of `listingId` — the same listing the price links to, so the model page's
+   * Product image is a photo of a unit this table is actually quoting. Null when it has none.
+   */
+  image: string | null
+}
+
+/** The first stored photo URL, or null. `Listing.images` is a JSON string column. */
+function firstImage(images: string): string | null {
+  const parsed = safeParse<unknown>(images, [])
+  const first = Array.isArray(parsed) ? parsed.find((u): u is string => typeof u === 'string' && u.length > 0) : undefined
+  return first ?? null
 }
 
 /**
@@ -107,7 +120,7 @@ export type PriceLookup = { rows: PriceRow[]; known: boolean }
 export async function lowestPrices(models: string[] = IPHONE_18_MODELS): Promise<PriceLookup> {
   let rows: {
     id: string; title: string; titleVi: string | null; price: number; currency: string
-    model: string | null; affiliateUrl: string | null; seller: { name: string } | null
+    model: string | null; affiliateUrl: string | null; images: string; seller: { name: string } | null
   }[] = []
   try {
     rows = await db.listing.findMany({
@@ -135,7 +148,7 @@ export async function lowestPrices(models: string[] = IPHONE_18_MODELS): Promise
       }),
       select: {
         id: true, title: true, titleVi: true, price: true, currency: true, model: true,
-        affiliateUrl: true, seller: { select: { name: true } },
+        affiliateUrl: true, images: true, seller: { select: { name: true } },
       },
     })
   } catch {
@@ -157,6 +170,7 @@ export async function lowestPrices(models: string[] = IPHONE_18_MODELS): Promise
     const candidate = {
       model: r.model, storage, storageGb, price: Number(r.price), currency: r.currency,
       listingId: r.id, seller: r.seller?.name ?? '', offers: (current?.offers ?? 0) + 1, tracked,
+      image: firstImage(r.images),
     }
     if (!current) { best.set(key, candidate); continue }
     const cheaper = candidate.price < current.price

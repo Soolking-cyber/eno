@@ -57,22 +57,7 @@ const floorFor = (rows: PriceRow[], model: string) =>
  */
 const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
-/**
- * When each model actually reaches buyers in Vietnam. Before its date, a listing for it is a
- * PRE-ORDER, whatever the retailer's page says.
- *
- * ⚠️ THE PRO MODELS NEEDED THIS TOO, AND ONLY THE FOLDABLE HAD IT. agy caught the asymmetry: the
- * page's own intro says the Pro line "reach buyers on 18 September" — so on 17 September the JSON-LD
- * was publishing InStock for eight phones nobody could take home yet, which is the availability
- * mismatch that costs the rich result outright.
- */
-const SHIP_DATES: Record<string, number> = {
-  'iPhone 18 Pro': Date.UTC(2026, 8, 18),
-  'iPhone 18 Pro Max': Date.UTC(2026, 8, 18),
-  [IPHONE_DUO_MODEL]: Date.UTC(2026, 9, 23),
-}
-
-function content(rows: PriceRow[], duoRows: PriceRow[]): SeoContent {
+function content(rows: PriceRow[]): SeoContent {
   const proFloor = floorFor(rows, 'iPhone 18 Pro')
   const maxFloor = floorFor(rows, 'iPhone 18 Pro Max')
   /**
@@ -107,7 +92,18 @@ function content(rows: PriceRow[], duoRows: PriceRow[]): SeoContent {
     brandSlug: 'apple',
     models: IPHONE_18_MODELS,
     browseQuery: 'iPhone 18',
-    cta: 'Browse every iPhone 18',
+    /**
+     * ⛔ THE HUB'S CTAs GO TO ITS CHILDREN, NOT TO THE EXPLORER. "Browse every iPhone 18" linked
+     * `/?category=electronics&…&q=iPhone+18`, which canonicalises to `/` — three followed links (the
+     * hero, the price table and the rail) into a URL Google folds into the home page, while the hub
+     * linked neither model page, each of which carries every storage tier and a rail of its own
+     * (crawl review, 2026-09-28). Both targets are self-canonical, indexable 200s. The empty state
+     * still points at the explorer: the alert its sentence promises lives only there.
+     */
+    browseLinks: [
+      { href: '/iphone-18-pro-vietnam', label: 'iPhone 18 Pro price' },
+      { href: '/iphone-18-pro-max-vietnam', label: 'iPhone 18 Pro Max price' },
+    ],
     sections: [
       {
         title: 'What Apple actually released in 2026',
@@ -176,9 +172,12 @@ function content(rows: PriceRow[], duoRows: PriceRow[]): SeoContent {
       },
     ],
     /**
-     * ⚠️ THE ItemList IS BUILT FROM THE SAME ROWS THE TABLE RENDERS. `SeoLanding` emits its own
-     * FAQPage; what it cannot know is that this page's substance is a price list, which is the one
-     * thing worth handing a search engine in structured form.
+     * ⛔ NO Product AND NO Offer ON THE HUB — BREADCRUMB ONLY (`SeoLanding` adds the FAQPage). This
+     * page prices three different phones, and Google's product rich results "only support pages
+     * that focus on a single product (or multiple variants of the same product)". The ItemList of
+     * twelve Products it used to publish failed Search Console's merchant listings on every one
+     * (missing image, 2026-09-28). Each model page publishes its own single Product instead — see
+     * model-product-ld.ts.
      */
     jsonLd: [
       {
@@ -189,50 +188,7 @@ function content(rows: PriceRow[], duoRows: PriceRow[]): SeoContent {
           { '@type': 'ListItem', position: 2, name: 'iPhone 18 price in Vietnam', item: `${ORIGIN}/iphone-18-vietnam` },
         ],
       },
-      // ⚠️ GATED ON EVERYTHING THE PAGE PRINTS, not on the iPhone 18 rows alone — the list was fed
-      // both tables while being gated on one of them, so a page showing only Duo prices would have
-      // published none of them as structured data.
-      ...(rows.length + duoRows.length > 0 ? [buildItemList([...rows, ...duoRows])] : []),
     ],
-  }
-}
-
-/**
- * ⚠️ THE LIST DESCRIBES EVERY PRICE THE PAGE PRINTS, which now includes the foldable's own table —
- * a structured-data list that omits half the visible prices is a quieter kind of mismatch than one
- * that invents them, and just as wrong.
- */
-function buildItemList(rows: PriceRow[]): Record<string, unknown> {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'ItemList',
-    name: 'iPhone 18 prices in Vietnam',
-    numberOfItems: rows.length,
-    itemListElement: rows.map((r, i) => ({
-      '@type': 'ListItem',
-      position: i + 1,
-      item: {
-        '@type': 'Product',
-        name: `${r.model} ${r.storage}`,
-        brand: { '@type': 'Brand', name: 'Apple' },
-        offers: {
-          '@type': 'Offer',
-          price: r.price,
-          priceCurrency: 'VND',
-          /**
-           * ⚠️ A PRE-ORDER IS NOT IN STOCK, and the page's own copy says so. Google treats an
-           * InStock offer for something that cannot ship as a mismatch and can drop the item (opus,
-           * then agy on the half that was missed). Each flag flips by itself on that model's ship
-           * date rather than waiting for somebody to remember.
-           */
-          availability: Date.now() < (SHIP_DATES[r.model] ?? 0)
-            ? 'https://schema.org/PreOrder'
-            : 'https://schema.org/InStock',
-          url: `${ORIGIN}/listings/${r.listingId}`,
-          seller: { '@type': 'Organization', name: r.seller },
-        },
-      },
-    })),
   }
 }
 
@@ -248,10 +204,10 @@ export default async function IPhone18VietnamPage() {
   const updated = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   return (
     <SeoLanding
-      content={content(rows, duoRows)}
+      content={content(rows)}
       lede={
         <>
-          <PriceTable rows={rows} known={phones.known} updated={updated} />
+          <PriceTable rows={rows} known={phones.known} updated={updated} seeAll={false} />
           <DuoCard rows={duoRows} known={duo.known} checked={updated} />
           {rows.length + duoRows.length > 0 && <AffiliateNote />}
         </>

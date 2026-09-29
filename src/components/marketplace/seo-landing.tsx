@@ -27,7 +27,7 @@ import { categoryFor, subcategoryFor } from '@/lib/feed-taxonomy'
 /** Shelves whose products are made FOR a device. A model page's rail must never show one. */
 const ACCESSORY_SHELVES = new Set(['phone-cases', 'screen-protectors', 'cables-chargers', 'power-banks', 'accessories'])
 
-export type SeoContent = {
+type SeoContentFields = {
   eyebrow: string
   h1: string
   intro: string
@@ -97,16 +97,14 @@ export type SeoContent = {
    *
    * ⛔ A PRODUCT PAGE IS NOT A CATEGORY PAGE, AND WITHOUT THIS IT SILENTLY WAS ONE. The rail below
    * filters on category+subcategory, so an "iPhone 18" page narrowed only that far would rail eight
-   * arbitrary phones — a Samsung, a Xiaomi — under a headline about one Apple product, and the
-   * ItemList JSON-LD would say the same to Google. `models` takes the whole family ("iPhone 18 Pro",
-   * "iPhone 18 Pro Max") because `Listing.model` is exact free text, not a prefix.
+   * arbitrary phones — a Samsung, a Xiaomi — under a headline about one Apple product, and a CTA
+   * built from the same fields would browse them too. `models` takes the whole family ("iPhone 18
+   * Pro", "iPhone 18 Pro Max") because `Listing.model` is exact free text, not a prefix.
    */
   brandSlug?: string
   models?: string[]
   /** The search term the CTA browses with when `models` names more than one line. */
   browseQuery?: string
-  /** CTA label, e.g. "Browse verified housing". */
-  cta: string
   sections: { title: string; body: string }[]
   /**
    * Crawlable sibling/child links — how a hub page reaches its long-tail children and how each
@@ -128,6 +126,31 @@ export type SeoContent = {
    */
   jsonLd?: Record<string, unknown>[]
 }
+
+/** One page a hub's CTA leads to — see `browseLinks`. */
+export type SeoBrowseLink = { href: string; label: string }
+
+/**
+ * The CTA: one label over the browse link `seoBrowseHref` builds, or a hub's list of child pages.
+ *
+ * ⛔ `browseLinks` EXISTS BECAUSE THE BROWSE LINK OF A NARROWED PAGE IS A QUERY STRING ON `/`, AND
+ * THE HOME PAGE IS SELF-CANONICAL — every `/?category=…` URL canonicalises to `/`. A hub whose
+ * children are real, indexable pages (the iPhone 18 hub and its model pages) links those instead,
+ * and never links the explorer from its CTAs. The empty-inventory branch still does: the alert its
+ * sentence promises exists only there.
+ *
+ * ⚠️ A UNION, NOT TWO OPTIONAL FIELDS: a page sets exactly one of them, so a CTA can be neither
+ * missing nor ambiguous.
+ */
+type SeoCta =
+  | {
+      /** CTA label, e.g. "Browse verified housing". */
+      cta: string
+      browseLinks?: undefined
+    }
+  | { cta?: undefined; browseLinks: SeoBrowseLink[] }
+
+export type SeoContent = SeoContentFields & SeoCta
 
 /** Keyword landing page (server-rendered, ISR). Pulls real verified listings for
  *  the target category (optionally narrowed to a subcategory + attributes) so the page is
@@ -312,6 +335,16 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
               </Link>
             </div>
           </>
+        ) : content.browseLinks ? (
+          <div className="mt-6 flex flex-wrap gap-3">
+            {content.browseLinks.map((b) => (
+              <Button key={b.href} asChild variant="cta" size="none" className="gap-1.5 font-semibold">
+                <Link href={b.href} className="px-5 py-2.5 text-sm">
+                  {b.label} <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            ))}
+          </div>
         ) : (
           <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
             <Link
@@ -363,12 +396,26 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
                 </Link>
               ))}
             </div>
-            <Link
-              href={browseHref}
-              className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
-            >
-              {content.cta} <ArrowRight className="h-4 w-4" />
-            </Link>
+            {content.browseLinks ? (
+              <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
+                {content.browseLinks.map((b) => (
+                  <Link
+                    key={b.href}
+                    href={b.href}
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
+                  >
+                    {b.label} <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <Link
+                href={browseHref}
+                className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
+              >
+                {content.cta} <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
           </section>
         )}
 

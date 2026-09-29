@@ -3,6 +3,7 @@ import { formatMoneyFull } from '@/lib/vnd'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { lowestPrices, type PriceRow } from './lowest-prices'
 import { AffiliateNote, PriceTable } from './price-table'
+import { modelProductLd } from './model-product-ld'
 
 /**
  * ONE MODEL, ONE PAGE — the machinery the per-variant landing pages share.
@@ -66,6 +67,7 @@ const floorOf = (rows: PriceRow[]) => [...rows].sort((a, b) => a.price - b.price
 
 export function modelContent(cfg: ModelPageConfig, rows: PriceRow[]): SeoContent {
   const floor = floorOf(rows)
+  const product = modelProductLd(cfg, rows)
   /**
    * ⚠️ THE CLAUSE MOVES, NOT THE PARAGRAPH. Interpolating a `null` floor as "from 0 ₫" on the page
    * that exists to answer "how much" is the failure worth guarding, and the intro has to read
@@ -110,46 +112,13 @@ export function modelContent(cfg: ModelPageConfig, rows: PriceRow[]): SeoContent
           { '@type': 'ListItem', position: 3, name: cfg.h1, item: `${ORIGIN}/${cfg.slug}` },
         ],
       },
-      ...(rows.length > 0 ? [itemList(cfg, rows)] : []),
+      /**
+       * ⚠️ BUILT FROM THE SAME ROWS THE TABLE RENDERS. Markup assembled from a second query can
+       * disagree with what a human sees — different sort, different moment, different answer — and
+       * the disagreement is invisible until a rich result quotes a price the page does not show.
+       */
+      ...(product ? [product] : []),
     ],
-  }
-}
-
-/**
- * ⚠️ BUILT FROM THE SAME ROWS THE TABLE RENDERS. An ItemList assembled from a second query can
- * disagree with what a human sees — different sort, different moment, different answer — and the
- * disagreement is invisible until a rich result quotes a price the page does not show.
- */
-function itemList(cfg: ModelPageConfig, rows: PriceRow[]): Record<string, unknown> {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'ItemList',
-    name: `${cfg.model} prices in Vietnam`,
-    numberOfItems: rows.length,
-    itemListElement: rows.map((r, i) => ({
-      '@type': 'ListItem',
-      position: i + 1,
-      item: {
-        '@type': 'Product',
-        name: `${r.model} ${r.storage}`,
-        brand: { '@type': 'Brand', name: 'Apple' },
-        offers: {
-          '@type': 'Offer',
-          price: r.price,
-          priceCurrency: 'VND',
-          /**
-           * ⚠️ A PRE-ORDER IS NOT IN STOCK, and each page's own copy says so. Google treats an
-           * InStock offer for something that cannot ship as a mismatch and can drop the item. The
-           * flag flips by itself on the ship date rather than waiting for somebody to remember.
-           */
-          availability: Date.now() < cfg.shipDate
-            ? 'https://schema.org/PreOrder'
-            : 'https://schema.org/InStock',
-          url: `${ORIGIN}/listings/${r.listingId}`,
-          seller: { '@type': 'Organization', name: r.seller },
-        },
-      },
-    })),
   }
 }
 

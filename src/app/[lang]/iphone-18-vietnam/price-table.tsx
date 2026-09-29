@@ -12,7 +12,15 @@ import type { PriceRow } from './lowest-prices'
  * claim; one that can is the marketplace's own inventory, which is also what makes this page
  * something other than a scrape of retail prices (both plan reviewers flagged the difference).
  */
-export function PriceTable({ rows, known, updated }: { rows: PriceRow[]; known: boolean; updated: string }) {
+export function PriceTable({ rows, known, updated, seeAll = true }: {
+  rows: PriceRow[]; known: boolean; updated: string
+  /**
+   * false on the hub, whose CTAs above the table already lead to each model's page. The link below
+   * goes to the explorer's search URL, which canonicalises to `/` — the one place the hub no longer
+   * links (see `browseLinks` in iphone-18-vietnam/page.tsx).
+   */
+  seeAll?: boolean
+}) {
   /**
    * ⚠️ RENDERING NOTHING IS ONLY HONEST WHEN THE CATALOGUE WAS ACTUALLY READ. The intro two lines
    * above promises "every price below comes from a live listing"; on a build where the database was
@@ -75,12 +83,14 @@ export function PriceTable({ rows, known, updated }: { rows: PriceRow[]; known: 
           </div>
         ))}
       </div>
-      <Link
-        href="/?category=electronics&subcategory=phones-tablets&brand=apple&q=iPhone+18"
-        className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
-      >
-        <Tr text="See every iPhone 18 listing" /> <ArrowRight className="h-4 w-4" />
-      </Link>
+      {seeAll && (
+        <Link
+          href="/?category=electronics&subcategory=phones-tablets&brand=apple&q=iPhone+18"
+          className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
+        >
+          <Tr text="See every iPhone 18 listing" /> <ArrowRight className="h-4 w-4" />
+        </Link>
+      )}
     </section>
   )
 }
