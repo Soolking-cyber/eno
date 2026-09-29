@@ -4,9 +4,11 @@
 // <style>), absolute prod URLs, and the palette mirrors the app canon — single
 // blue #0A66C2 on a white rounded-2xl card over the #f5f6f8 canvas.
 //
-// The logo is the raster wordmark public/logo.png (1600×400 → 112×28 here):
-// email clients can't render SVG, and Gmail proxies images, so it must be a
-// plain absolute https URL on the prod origin.
+// The header is THE SITE'S OWN WORDMARK — "eno.vn" on the marketplace, "eno.forum" on services
+// (owner, 2026-09-29: "top of email use eno.vn wordmark"; it was the bare "eno" of public/logo.png).
+// Rasters of public/logo-dotvn.svg / logo-dotforum.svg at 3× (84 px tall, shown at 28): email
+// clients can't render SVG, and Gmail proxies images, so it must be a plain absolute https URL on
+// the prod origin. Regenerate with sharp from the SVGs if the wordmark changes.
 //
 // ⚠️ THE ALT TEXT IS PER-EDITION (SITE_NAME), NOT A LITERAL. Gmail and Outlook show alt text
 // whenever images are blocked — which is the DEFAULT for a first email from an unknown sender — so
@@ -15,6 +17,11 @@
 
 import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { COMPANY } from '@/lib/site-legal'
+
+/** Per edition, never shared: the forum must not open its emails with the marketplace's name. */
+const WORDMARK = IS_MARKETPLACE
+  ? { path: '/brand/wordmark-eno-vn.png', width: 127, height: 28 }
+  : { path: '/brand/wordmark-eno-forum.png', width: 141, height: 28 }
 
 export const EMAIL = {
   BLUE: '#0A66C2',
@@ -90,7 +97,7 @@ export function renderBrandEmail(opts: {
       <!-- header: the real wordmark, linked home -->
       <tr><td style="padding:22px 24px 6px;">
         <a href="${esc(origin)}" style="text-decoration:none;">
-          <img src="${esc(origin)}/logo.png" width="112" height="28" alt="${esc(SITE_NAME)}" style="display:block;width:112px;height:28px;border:0;" />
+          <img src="${esc(origin)}${WORDMARK.path}" width="${WORDMARK.width}" height="${WORDMARK.height}" alt="${esc(SITE_NAME)}" style="display:block;width:${WORDMARK.width}px;height:${WORDMARK.height}px;border:0;" />
         </a>
       </td></tr>
       <!-- body -->

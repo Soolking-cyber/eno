@@ -121,7 +121,7 @@ describe('visa result email · the owner’s ask', () => {
 
   it('renders inside the brand shell rather than a hand-rolled layout', () => {
     const { html } = renderVisaResultEmail({ givenName: 'Minh', reference: REFERENCE, origin: ORIGIN, locale: 'en' })
-    expect(html).toContain('https://www.eno.forum/logo.png') // the shared header wordmark
+    expect(html).toContain('https://www.eno.forum/brand/wordmark-eno-forum.png') // the shared header — the forum's own wordmark
     expect(html).toContain('eno.forum · support@eno.forum') // the shared footer — the forum's own
     expect(html).not.toContain('Công ty TNHH ENO') // never the licensed marketplace's operator block
     expect(html).toContain('#0A66C2') // the one brand blue

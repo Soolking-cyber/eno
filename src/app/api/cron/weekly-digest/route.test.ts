@@ -28,7 +28,7 @@ vi.mock('@/lib/digest', () => ({
       homes: [{ id: 'h1', heading: 'Apartment · 1 bed', price: 9_000_000, currency: '₫', image: 'https://sb.eno.vn/i.webp', area: 'District 1' }],
       homeCounts: { apartments: 1, houses: 0, rooms: 0, total: 1 },
       districts: [{ slug: 'd1', label: 'District 1' }],
-      others: [],
+      picks: [],
       sales: [],
     }
   },

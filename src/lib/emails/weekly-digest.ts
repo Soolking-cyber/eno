@@ -8,8 +8,10 @@ import { renderBrandEmail, emailCta, esc, EMAIL } from './layout'
 // legal footer, unsubscribe) comes from ./layout — this file renders only the digest's
 // own content rows.
 //
-// ⛔ ONE JOB PER EMAIL: GET A RENTER TO THE FREE AVAILABILITY CHECK. Every home card, the district
-// chips and the one CTA lead there; the "also new" list and the seller line are deliberately small.
+// ⛔ LEAD JOB: GET A RENTER TO THE FREE AVAILABILITY CHECK. The home cards, the district chips and
+// the one CTA lead there. Below it, "More on <site>" shows one listing from each of up to six other
+// categories (owner, 2026-09-29: "make sure it shows variety of listings not only 1 category"), and
+// the seller line closes.
 // The previous version was a grid of "top picks" (six SIM plans the week it was fixed) with a
 // "message the seller to arrange" line that is not how a rental on eno.vn works at all.
 //
@@ -46,15 +48,20 @@ const word = (k: number) => WORDS[k] ?? n(k)
  * first render put a 768×1024 portrait photo beside a 1024×768 landscape one, so one card was twice
  * the height of its neighbour; Outlook on Windows does not display WebP at all; and each original
  * is ~190 KB against ~50 KB for this. `object-fit` would fix only the first, and Gmail ignores it.
- * ⚠️ 400×300, NOT LARGER: the renderer never enlarges, so a request wider than the source comes back
+ * ⚠️ 300×225, NOT LARGER: the renderer never enlarges, so a request wider than the source comes back
  * at the source's width and the wrong aspect (a 459-px-wide portal photo returned 459×390 for a
- * 520×390 ask and stood taller than its neighbour). 400 px still covers the 260-px card at 1.5×.
+ * 520×390 ask; a 300×300 product photo stood taller than its neighbour at 400×300). The smallest
+ * catalogue photos are 300 px wide, and 300 px still covers the 260-px card.
  * Any URL that is not a public Storage object is returned unchanged.
  */
 export function emailThumb(url: string): string {
   const m = url.match(/^(https:\/\/[^/]+)\/storage\/v1\/object\/public\/([^?#]+)$/)
-  return m ? `${m[1]}/storage/v1/render/image/public/${m[2]}?width=400&height=300&resize=cover&quality=75` : url
+  return m ? `${m[1]}/storage/v1/render/image/public/${m[2]}?width=300&height=225&resize=cover&quality=80` : url
 }
+
+/** Imported product titles run to 150 characters; a card shows the first line or two. */
+// By code point, not UTF-16 unit: a cut through an emoji would leave a lone surrogate ("�").
+const shortTitle = (t: string) => { const c = Array.from(t); return c.length > 70 ? `${c.slice(0, 67).join('').trimEnd()}…` : t }
 
 /** A free partner product (an eSIM at 0 đ) reads "Free", never "0 đ". */
 const priceLabel = (price: number, currency: string) => (price > 0 ? formatMoneyFull(price, currency, 'en') : 'Free')
@@ -77,6 +84,8 @@ function homeCard(h: DigestHome, i: number, origin: string): string {
 function itemCard(item: DigestItem, i: number, origin: string, slot: string): string {
   const url = track(`${origin}/listings/${item.id}`, `${slot}-${i + 1}`)
   const price = priceLabel(item.price, item.currency)
+  // Only a pick is labelled with its category — that label is what makes the variety visible.
+  const label = slot === 'pick' ? item.category : null
   const badge = item.drop
     ? `<span style="display:inline-block;background:${RED};color:#ffffff;font-size:11px;font-weight:700;padding:1px 6px;border-radius:9999px;vertical-align:middle;">${esc(item.drop)}</span>`
     : item.urgent
@@ -89,9 +98,10 @@ function itemCard(item: DigestItem, i: number, origin: string, slot: string): st
       <td width="50%" valign="top" style="padding:8px;">
         <a href="${esc(url)}" style="text-decoration:none;color:${INK};display:block;">
           ${img}
-          <div style="margin-top:8px;font-size:14px;font-weight:600;color:${INK};line-height:1.35;">${esc(item.title)}</div>
+          ${label ? `<div style="margin-top:8px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${MUTED};">${esc(label)}</div>` : ''}
+          <div style="margin-top:${label ? '2px' : '8px'};font-size:14px;font-weight:600;color:${INK};line-height:1.35;">${esc(shortTitle(item.title))}</div>
           <div style="margin-top:4px;font-size:16px;font-weight:700;color:${BLUE};">${esc(price)}${badge ? ' ' + badge : ''}</div>
-          ${item.district ? `<div style="margin-top:2px;font-size:12px;color:${MUTED};">${esc(item.district)}</div>` : ''}
+          ${item.district && slot !== 'pick' ? `<div style="margin-top:2px;font-size:12px;color:${MUTED};">${esc(item.district)}</div>` : ''}
         </a>
       </td>`
 }
@@ -136,15 +146,13 @@ function howItWorks(origin: string, siteName: string): string {
       </td></tr>`
 }
 
-function othersList(items: DigestItem[], origin: string, siteName: string): string {
+function picksGrid(items: DigestItem[], origin: string, siteName: string): string {
   if (!items.length) return ''
-  const rows = items
-    .map((it, i) => `<tr><td style="padding:8px 0;border-top:1px solid ${BORDER};"><a href="${esc(track(`${origin}/listings/${it.id}`, `also-${i + 1}`))}" style="color:${INK};text-decoration:none;font-size:14px;font-weight:600;">${esc(it.title)}</a></td><td align="right" style="padding:8px 0 8px 12px;border-top:1px solid ${BORDER};font-size:14px;font-weight:700;color:${BLUE};white-space:nowrap;">${esc(priceLabel(it.price, it.currency))}</td></tr>`)
-    .join('')
   return `
-      <tr><td style="padding:0 24px;">
-        ${sectionHeading(`Also new on ${siteName}`)}
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:6px;">${rows}</table>
+      <tr><td style="padding:0 16px;">
+        ${sectionHeading(`More on ${siteName}`)}
+        <p style="margin:0 8px;font-size:14px;color:${MUTED};line-height:1.5;">One pick from each corner of the marketplace.</p>
+        ${grid(items.map((it, i) => itemCard(it, i, origin, 'pick')))}
       </td></tr>`
 }
 
@@ -170,8 +178,9 @@ function textVersion(c: DigestContent, origin: string, unsubscribeUrl: string, s
       track(`${origin}/c/rentals`, 'cta-check'),
     )
   }
-  const line = (i: DigestItem, k: number, slot: string) => `• ${i.title} — ${priceLabel(i.price, i.currency)}${i.drop ? ` (${i.drop})` : i.urgent ? ' (Urgent)' : ''}\n  ${track(`${origin}/listings/${i.id}`, `${slot}-${k + 1}`)}`
-  if (c.others.length) parts.push('', `ALSO NEW ON ${site.toUpperCase()}`, ...c.others.map((it, k) => line(it, k, 'also')))
+  const line = (i: DigestItem, k: number, slot: string) => `• ${shortTitle(i.title)} — ${priceLabel(i.price, i.currency)}${i.drop ? ` (${i.drop})` : i.urgent ? ' (Urgent)' : ''}\n  ${track(`${origin}/listings/${i.id}`, `${slot}-${k + 1}`)}`
+  const pickLine = (i: DigestItem, k: number) => `• ${i.category ? `[${i.category}] ` : ''}${shortTitle(i.title)} — ${priceLabel(i.price, i.currency)}${i.drop ? ` (${i.drop})` : i.urgent ? ' (Urgent)' : ''}\n  ${track(`${origin}/listings/${i.id}`, `pick-${k + 1}`)}`
+  if (c.picks.length) parts.push('', `MORE ON ${site.toUpperCase()}`, ...c.picks.map(pickLine))
   if (c.sales.length) parts.push('', 'MOVING SALES', ...c.sales.map((it, k) => line(it, k, 'sale')))
   parts.push('', `Moving out? Selling your things on ${site} is free: ${track(`${origin}/post`, 'sell')}`, '', `Unsubscribe: ${unsubscribeUrl}`)
   return parts.join('\n')
@@ -244,7 +253,7 @@ export function renderWeeklyDigest(opts: {
         <p style="margin:0;font-size:14px;color:${INK};line-height:1.5;"><b>Moving out?</b> Sell your furniture and appliances on ${esc(siteName)} — posting is free. <a href="${esc(track(`${origin}/post`, 'sell'))}" style="color:${BLUE};font-weight:700;text-decoration:none;">Post a listing →</a></p>
       </td></tr>`
 
-  const bodyHtml = `${homesHtml}${othersList(c.others, origin, siteName)}${salesHtml}${sellHtml}`
+  const bodyHtml = `${homesHtml}${picksGrid(c.picks, origin, siteName)}${salesHtml}${sellHtml}`
 
   const html = renderBrandEmail({
     preheader,

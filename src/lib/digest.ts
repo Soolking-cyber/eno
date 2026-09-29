@@ -10,9 +10,10 @@ import { districtLabel, districtLinkSlug, isCuratedDistrict, mergeDistrictGroups
 // "top picks" = the best rankScore among ALL listings created that week, and in the week it was
 // fixed that meant six SIM/eSIM plans — while 4,815 homes for rent went live the same week and the
 // site's one conversion is the free rental availability check. The digest now opens on those homes
-// (`homes`, `homeCounts`, `districts`); what used to be "top picks" survives as a short "also new"
-// list of everything else (`others`), and "moving sales" (a recent real price drop OR an active
-// "Bán gấp" urgent flag) still appears when there is one.
+// (`homes`, `homeCounts`, `districts`); what used to be "top picks" became `picks` — ONE listing from
+// each of up to six other categories (owner, 2026-09-29: "make sure it shows variety of listings not
+// only 1 category") — and "moving sales" (a recent real price drop OR an active "Bán gấp" urgent
+// flag) still appears when there is one.
 
 export type DigestItem = {
   id: string
@@ -24,6 +25,8 @@ export type DigestItem = {
   drop: string | null // "−20%" when an active drop, else null
   urgent: boolean
   trustScore: number
+  /** The category's display name ("Home", "Electronics") — the picks grid labels each card with it. */
+  category: string | null
 }
 
 // Only surface drops from the last two weeks so the "sales" stay genuinely fresh.
@@ -34,30 +37,38 @@ const DROP_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
 const DROP_BADGE_MS = 3 * 24 * 60 * 60 * 1000
 
 /**
- * How far back "new this week" reaches for the top picks, and the widening fallback.
+ * How far back the picks reach, and the widening fallback.
  *
  * ⚠️ THE DIGEST USED TO SEND THE SAME SIX LISTINGS EVERY WEEK. `top` ordered by rankScore across
  * every active listing with no recency bound at all — and rankScore is a deliberately slow-moving
- * trust⊕recency blend, so the same winners held the top six indefinitely and a subscriber got an
- * identical email week after week. A weekly digest whose content does not change is unsubscribe
- * bait, and it also buries exactly what the email exists to surface: what is NEW.
- *
- * So the window is the primary filter and rankScore only ORDERS WITHIN it — subscribers get the
- * best of the new, not the best of all time. The fallback widens rather than dropping the window,
- * because on a quiet week the right answer is "the last fortnight's best" and never "the same six
- * again": each step still prefers recent listings, and the final 90-day step keeps the email from
- * going out empty while the catalogue is still small.
+ * trust⊕recency blend, so the same winners held the top six indefinitely. The window is the filter
+ * and rankScore only ORDERS WITHIN it: the best of the new, never the best of all time. A category
+ * with nothing new in 14 days is looked for again at 30 and 90, so a quiet category can still appear
+ * with its freshest listing rather than drop out of an email whose point is variety.
  */
-const TOP_WINDOWS_MS = [7, 14, 30, 90].map((d) => d * 24 * 60 * 60 * 1000)
-/** "Also new" is a footnote under the homes now, not the lead — three rows. */
-const TOP_COUNT = 3
+const PICK_WINDOWS_MS = [7, 14, 30, 90].map((d) => d * 24 * 60 * 60 * 1000)
+const PICK_COUNT = 6
+/**
+ * ⛔ ONE LISTING PER CATEGORY, BECAUSE ONE CATEGORY ALWAYS WINS A RANKING. Measured 2026-09-29: the
+ * only non-rental listings created that week were 63 SIM/eSIM plans, so "the week's best" was three
+ * SIM plans; over 30 days Electronics alone had 57,098 new rows against Fashion's 874. Ranking across
+ * categories can only ever show the busiest importer. So each category gets its own pick, in the
+ * order a renter moving in cares about; any live category not named here follows them.
+ * Rentals are the homes section's; jobs are linked postings at price 0 and never picks.
+ */
+const PICK_ORDER = [
+  'furniture-appliances', 'electronics', 'vehicles', 'fashion-beauty', 'baby-kids', 'sports',
+  'services', 'books-stationery', 'hobbies-sports', 'food-drink', 'tickets-travel', 'pets',
+]
+const NEVER_PICKED = ['rentals', 'jobs']
 
 /**
  * Homes, not every rental: vehicle hire (rental-places.ts) and offices share the `rentals` category
  * but are not what "a home for rent" means to the person reading this email.
  */
 const HOME_SUBCATS = ['apartment-rental', 'house-rental', 'room-rental'] as const
-const HOME_COUNT = 6
+/** Four, not six: the homes lead, but the picks below must not be pushed out of the first screens. */
+const HOME_COUNT = 4
 /** Home windows widen like the "also new" ones, but stop at 30 days: a month-old rental is not news. */
 const HOME_WINDOWS_MS = [7, 14, 30].map((d) => d * 24 * 60 * 60 * 1000)
 /**
@@ -89,8 +100,8 @@ export type DigestContent = {
   homeCounts: { apartments: number; houses: number; rooms: number; total: number }
   /** Busiest curated districts among this week's homes — each one a live /c/rentals/<slug> page. */
   districts: { slug: string; label: string }[]
-  /** "Also new": the best of the week's other listings (not rentals, not jobs). */
-  others: DigestItem[]
+  /** One listing from each of up to six other categories — the email's variety. */
+  picks: DigestItem[]
   sales: DigestItem[]
 }
 
@@ -106,12 +117,14 @@ type Row = {
   priceDropAt: Date | null
   urgentUntil: Date | null
   seller: { trustScore: number }
+  category?: { name: string } | null
 }
 
 const SELECT = {
   id: true, title: true, price: true, currency: true, images: true, district: true, city: true,
   previousPrice: true, priceDropAt: true, urgentUntil: true,
   seller: { select: { trustScore: true } },
+  category: { select: { name: true } },
 } as const
 
 function firstImage(images: string): string | null {
@@ -147,7 +160,66 @@ function toItem(l: Row): DigestItem {
     drop: hasDrop ? dropPercent(l.previousPrice as number, l.price) : null,
     urgent: !!l.urgentUntil && l.urgentUntil.getTime() > Date.now(),
     trustScore: l.seller?.trustScore ?? 100,
+    category: l.category?.name ?? null,
   }
+}
+
+/**
+ * Up to PICK_COUNT listings, each from a DIFFERENT category: categories in PICK_ORDER first, each
+ * represented by its best-ranked listing from the TIGHTEST window that has one. A photo is required:
+ * the picks are an image grid, and a grey box sells nothing.
+ *
+ * ⚠️ CATEGORY FIRST, WINDOW SECOND. The first version filled all six slots from the 14-day window
+ * before looking any wider, so on 2026-09-29 Home — first in PICK_ORDER, but with its newest listing
+ * 16 days old — lost its place to five busier categories. The order decides WHICH categories appear;
+ * the windows only decide which listing speaks for each.
+ */
+/** Whole weeks since the epoch — changes once a week, the same for every recipient of one run. */
+/** A category found only at 30 or 90 days is quiet: rotate. Found within 14 days: show its best. */
+const QUIET_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+const weekIndex = () => Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000))
+
+async function pickAcrossCategories(): Promise<Row[]> {
+  const base = (windowMs: number) => ({
+    verified: true,
+    status: 'active',
+    listingType: { not: 'job' },
+    category: { slug: { notIn: NEVER_PICKED } },
+    images: { not: '[]' },
+    createdAt: { gte: new Date(Date.now() - windowMs) },
+  })
+  const widest = PICK_WINDOWS_MS[PICK_WINDOWS_MS.length - 1]
+  const groups = await db.listing.groupBy({ by: ['categoryId'], where: await scopedListingWhere(base(widest)), _count: { _all: true } })
+  const cats = await db.category.findMany({ where: { id: { in: groups.map((g) => g.categoryId) } }, select: { id: true, slug: true } })
+  const rank = (slug: string) => { const i = PICK_ORDER.indexOf(slug); return i === -1 ? PICK_ORDER.length : i }
+  const busy = new Map(groups.map((g) => [g.categoryId, g._count._all]))
+  const ordered = [...cats].sort((a, b) => rank(a.slug) - rank(b.slug) || (busy.get(b.id) ?? 0) - (busy.get(a.id) ?? 0))
+
+  const picked: Row[] = []
+  for (const c of ordered) {
+    if (picked.length >= PICK_COUNT) break
+    for (const windowMs of PICK_WINDOWS_MS) {
+      // A few, not one: a top-ranked row whose `images` is not '[]' but still unusable ('[""]',
+      // bad JSON) must not cost its whole category — the next one with a real photo speaks for it.
+      const rows = await db.listing.findMany({
+        where: await scopedListingWhere({ ...base(windowMs), categoryId: c.id }),
+        orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
+        take: 5,
+        select: SELECT,
+      })
+      // ⚠️ ROTATE, DON'T REPEAT. rankScore moves slowly, so a quiet category's best row inside a
+      // 90-day window is the same row for weeks — the "same email every week" failure this file
+      // exists to prevent. The week number picks among the top few with a photo, so a quiet
+      // category shows a different listing each week; a busy one still shows its best new one.
+      const withPhoto = rows.filter((r) => firstImage(r.images))
+      const row = withPhoto.length ? withPhoto[windowMs < QUIET_WINDOW_MS ? 0 : weekIndex() % withPhoto.length] : undefined
+      if (row) {
+        picked.push(row)
+        break
+      }
+    }
+  }
+  return picked
 }
 
 /** "Apartment · 1 bed · 1 bath · 28 m² for rent — Tân Bình Ward…" → "Apartment · 1 bed · 1 bath · 28 m²". */
@@ -241,7 +313,7 @@ export async function getDigestContent(): Promise<DigestContent> {
     subcategorySlug: { in: [...HOME_SUBCATS] },
     createdAt: { gte: weekAgo },
   })
-  const [homeRows, countRows, districtRows, topRows, saleRows] = await Promise.all([
+  const [homeRows, countRows, districtRows, pickRows, saleRows] = await Promise.all([
     // Homes — the same "best of what is new" rule as below, widened only as far as needed.
     (async () => {
       let rows: HomeRow[] = []
@@ -265,33 +337,7 @@ export async function getDigestContent(): Promise<DigestContent> {
     })(),
     db.listing.groupBy({ by: ['subcategorySlug'], where: homesThisWeek, _count: { _all: true } }),
     db.listing.groupBy({ by: ['district'], where: homesThisWeek, _count: { _all: true } }),
-    // "Also new" — THE BEST OF WHAT IS NEW, not the best of all time. The window is the filter and
-    // rankScore only orders within it (see TOP_WINDOWS_MS). Widen only as far as needed: a busy week
-    // never leaves the 7-day window, and a quiet one still prefers the most recent listings rather
-    // than falling back to the same all-time winners the old query kept re-sending.
-    (async () => {
-      for (const windowMs of TOP_WINDOWS_MS) {
-        const rows = await db.listing.findMany({
-          // Not a job: the digest prints "— <price>", not true of a linked job posting at price 0
-          // (scripts/import-jobs.ts). Not a rental: the homes section above owns those.
-          // Wrapped whole, like every other query here: spreading a scoped fragment beside new keys
-          // is the collision trap the sales query below describes.
-          where: await scopedListingWhere({
-            verified: true,
-            status: 'active',
-            listingType: { not: 'job' },
-            category: { slug: { not: 'rentals' } },
-            createdAt: { gte: new Date(Date.now() - windowMs) },
-          }),
-          orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
-          take: TOP_COUNT,
-          select: SELECT,
-        })
-        // Only the LAST window may return a short list; earlier ones widen instead of settling.
-        if (rows.length >= TOP_COUNT || windowMs === TOP_WINDOWS_MS[TOP_WINDOWS_MS.length - 1]) return rows
-      }
-      return []
-    })(),
+    pickAcrossCategories(),
     // Moving sales — a recent real drop (priceDropAt within the window) OR still urgent.
     // Over-fetch, then post-filter the previousPrice>price compare Prisma can't express.
     db.listing.findMany({
@@ -311,9 +357,9 @@ export async function getDigestContent(): Promise<DigestContent> {
     }),
   ])
 
-  const others = topRows.map(toItem)
+  const picks = pickRows.map(toItem)
   const homes = pickHomes(homeRows)
-  const shownIds = new Set([...others, ...homes].map((t) => t.id))
+  const shownIds = new Set([...picks, ...homes].map((t) => t.id))
   // Keep only genuine sales (a real drop or currently urgent), never duplicate a card above.
   const sales = saleRows
     .map(toItem)
@@ -337,7 +383,7 @@ export async function getDigestContent(): Promise<DigestContent> {
     homes,
     homeCounts: { apartments, houses, rooms, total: apartments + houses + rooms },
     districts,
-    others,
+    picks,
     sales,
   }
 }

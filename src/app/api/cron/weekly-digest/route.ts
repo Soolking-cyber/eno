@@ -98,10 +98,10 @@ export const GET = route({ auth: 'cron' }, async ({ req }) => {
   }
 
   const content = await getDigestContent()
-  const counts = { homes: content.homes.length, others: content.others.length, sales: content.sales.length }
+  const counts = { homes: content.homes.length, picks: content.picks.length, sales: content.sales.length }
   // Nothing worth sending (e.g. an empty catalogue) — skip the whole run. A week of moving sales
   // alone is still worth an email.
-  if (content.homes.length === 0 && content.others.length === 0 && content.sales.length === 0) {
+  if (content.homes.length === 0 && content.picks.length === 0 && content.sales.length === 0) {
     return { ok: true, skipped: 'no_content', ...counts }
   }
   // Key not set yet → don't loop recipients; report the no-op so a manual hit is legible.

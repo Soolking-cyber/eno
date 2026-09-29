@@ -18,8 +18,10 @@ const h = vi.hoisted(() => ({ rows: [] as R[], calls: [] as R[] }))
 const DAY = 24 * 60 * 60 * 1000
 const isHome = (r: R) => r.kind === 'home'
 const gteOf = (where: R) => (where?.createdAt as { gte?: Date } | undefined)?.gte
-/** The "also new" query is the one that EXCLUDES rentals: `category: { slug: { not: 'rentals' } }`. */
-const isOthersCall = (c: R) => typeof ((c.where as R).category as { slug?: unknown } | undefined)?.slug === 'object'
+const byRank = (a: R, b: R) => (b.rankScore as number) - (a.rankScore as number)
+/** What the picks query can see: not a home, not a job, a photo, new enough. categoryId doubles as the slug. */
+const pickable = (gte: Date) =>
+  h.rows.filter((r) => !isHome(r) && !r.isSale && r.categoryId !== 'jobs' && r.categoryId !== 'rentals' && r.images !== '[]' && (r.createdAt as Date) >= gte)
 
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: object) => ({ ...w }) }))
 vi.mock('@/lib/db', () => ({
@@ -29,35 +31,41 @@ vi.mock('@/lib/db', () => ({
         h.calls.push(args)
         const where = args.where as R
         const gte = gteOf(where)
-        const byRank = (a: R, b: R) => (b.rankScore as number) - (a.rankScore as number)
         // The sales query is the only one with an OR.
         if (where.OR) return Promise.resolve(h.rows.filter((r) => r.isSale))
-        const cat = (where.category as { slug?: unknown } | undefined)?.slug
-        if (cat === 'rentals') {
-          const price = where.price as { gte: number; lte: number }
-          return Promise.resolve(
-            h.rows
-              .filter((r) => isHome(r) && (r.createdAt as Date) >= (gte as Date))
-              .filter((r) => (r.price as number) >= price.gte && (r.price as number) <= price.lte)
-              .sort(byRank)
-              .slice(0, args.take as number),
-          )
+        // A picks query names its category.
+        if (where.categoryId) {
+          return Promise.resolve(pickable(gte as Date).filter((r) => r.categoryId === where.categoryId).sort(byRank).slice(0, args.take as number))
         }
+        // Otherwise it is the homes query (category.slug === 'rentals').
+        const price = where.price as { gte: number; lte: number }
         return Promise.resolve(
           h.rows
-            .filter((r) => !r.isSale && !isHome(r) && (r.createdAt as Date) >= (gte as Date))
+            .filter((r) => isHome(r) && (r.createdAt as Date) >= (gte as Date))
+            .filter((r) => (r.price as number) >= price.gte && (r.price as number) <= price.lte)
             .sort(byRank)
             .slice(0, args.take as number),
         )
       },
+      findFirst: (args: R) => {
+        h.calls.push(args)
+        const where = args.where as R
+        const gte = gteOf(where) as Date
+        return Promise.resolve(pickable(gte).filter((r) => r.categoryId === where.categoryId).sort(byRank)[0] ?? null)
+      },
       groupBy: (args: R) => {
         const key = (args.by as string[])[0]
         const gte = gteOf(args.where as R) as Date
+        const pool = key === 'categoryId' ? pickable(gte) : h.rows.filter((x) => isHome(x) && (x.createdAt as Date) >= gte)
         const tally = new Map<unknown, number>()
-        for (const r of h.rows.filter((x) => isHome(x) && (x.createdAt as Date) >= gte)) {
-          tally.set(r[key], (tally.get(r[key]) ?? 0) + 1)
-        }
+        for (const r of pool) tally.set(r[key], (tally.get(r[key]) ?? 0) + 1)
         return Promise.resolve([...tally].map(([k, c]) => ({ [key]: k, _count: { _all: c } })))
+      },
+    },
+    category: {
+      findMany: (args: R) => {
+        const ids = ((args.where as R).id as { in: string[] }).in
+        return Promise.resolve(ids.map((id) => ({ id, slug: id })))
       },
     },
   },
@@ -68,7 +76,7 @@ import { getDigestContent, homeHeading, pickHomes } from './digest'
 const row = (id: string, o: R = {}) => ({
   id, title: id, price: 1_000_000, currency: '₫', images: '["https://x/i.jpg"]',
   district: 'D1', city: 'HCMC', previousPrice: null, priceDropAt: null, urgentUntil: null,
-  seller: { trustScore: 100 }, rankScore: 1, createdAt: new Date(), ...o,
+  seller: { trustScore: 100 }, rankScore: 1, createdAt: new Date(), categoryId: 'electronics', category: { name: 'Electronics' }, ...o,
 })
 const home = (id: string, o: R = {}) =>
   row(id, { kind: 'home', subcategorySlug: 'apartment-rental', price: 9_000_000, district: `Quận ${id}`, title: `Apartment · 1 bed · 1 bath · 30 m² for rent — ${id}`, ...o })
@@ -76,14 +84,14 @@ const home = (id: string, o: R = {}) =>
 beforeEach(() => { h.rows = []; h.calls = [] })
 
 describe('the digest leads with the week’s rental homes', () => {
-  it('puts a new home in `homes` and a same-week SIM plan only in `others`', async () => {
+  it('puts a new home in `homes` and a same-week SIM plan only in `picks`', async () => {
     h.rows = [
-      row('esim-plan', { rankScore: 99 }),
+      row('esim-plan', { rankScore: 99, categoryId: 'services', category: { name: 'Services' } }),
       home('1', { rankScore: 1 }),
     ]
     const c = await getDigestContent()
     expect(c.homes.map((x) => x.id)).toEqual(['1'])
-    expect(c.others.map((x) => x.id)).toEqual(['esim-plan'])
+    expect(c.picks.map((x) => x.id)).toEqual(['esim-plan'])
   })
 
   it('shows at most one home per district, best rankScore first', async () => {
@@ -158,33 +166,105 @@ describe('the digest leads with the week’s rental homes', () => {
   })
 })
 
-describe('"also new" sends the LATEST listings, not the same winners forever', () => {
-  it('prefers a NEW listing over an older one with a much higher rankScore', async () => {
+describe('the picks show VARIETY: one listing per category, never one category', () => {
+  const cat = (slug: string, name: string) => ({ categoryId: slug, category: { name } })
+
+  it('takes one listing from each category, however many one category has', async () => {
     h.rows = [
-      row('ancient-champion', { rankScore: 9999, createdAt: new Date(Date.now() - 200 * DAY) }),
+      ...Array.from({ length: 10 }, (_, i) => row(`phone-${i}`, { rankScore: 100 - i, ...cat('electronics', 'Electronics') })),
+      row('sofa', { rankScore: 1, ...cat('furniture-appliances', 'Home') }),
+      row('dress', { rankScore: 2, ...cat('fashion-beauty', 'Fashion') }),
+    ]
+    const { picks } = await getDigestContent()
+    expect(picks.map((p) => p.id).sort()).toEqual(['dress', 'phone-0', 'sofa'])
+    expect(new Set(picks.map((p) => p.category)).size).toBe(picks.length)
+  })
+
+  it('orders categories for a renter moving in: Home before Electronics, whatever their ranks', async () => {
+    h.rows = [
+      row('phone', { rankScore: 999, ...cat('electronics', 'Electronics') }),
+      row('bike', { rankScore: 500, ...cat('vehicles', 'Vehicles') }),
+      row('sofa', { rankScore: 1, ...cat('furniture-appliances', 'Home') }),
+    ]
+    const { picks } = await getDigestContent()
+    expect(picks.map((p) => p.id)).toEqual(['sofa', 'phone', 'bike'])
+  })
+
+  it('stops at six categories', async () => {
+    const slugs = ['furniture-appliances', 'electronics', 'vehicles', 'fashion-beauty', 'baby-kids', 'sports', 'services', 'books-stationery']
+    h.rows = slugs.map((s) => row(`x-${s}`, cat(s, s)))
+    const { picks } = await getDigestContent()
+    expect(picks).toHaveLength(6)
+    expect(picks.map((p) => p.id)).toEqual(slugs.slice(0, 6).map((s) => `x-${s}`))
+  })
+
+  it('reaches back for a quiet category rather than dropping it: 60 days old still counts', async () => {
+    h.rows = [
+      row('phone', cat('electronics', 'Electronics')),
+      row('old-book', { createdAt: new Date(Date.now() - 60 * DAY), ...cat('books-stationery', 'Books') }),
+    ]
+    const { picks } = await getDigestContent()
+    expect(picks.map((p) => p.id)).toEqual(['phone', 'old-book'])
+  })
+
+  it('keeps Home first even when its newest listing is older than six busier categories’ (the 2026-09-29 miss)', async () => {
+    const fresh = ['electronics', 'vehicles', 'fashion-beauty', 'baby-kids', 'sports', 'services']
+    h.rows = [
+      ...fresh.map((s) => row(`new-${s}`, { rankScore: 50, ...cat(s, s) })),
+      row('sofa-16-days', { rankScore: 1, createdAt: new Date(Date.now() - 16 * DAY), ...cat('furniture-appliances', 'Home') }),
+    ]
+    const { picks } = await getDigestContent()
+    expect(picks[0].id).toBe('sofa-16-days')
+    expect(picks).toHaveLength(6)
+  })
+
+  it('a top row with an unusable photo does not cost its category — the next one with a photo speaks for it', async () => {
+    h.rows = [
+      row('broken-photo', { rankScore: 99, images: '[""]', ...cat('fashion-beauty', 'Fashion') }),
+      row('good-photo', { rankScore: 1, ...cat('fashion-beauty', 'Fashion') }),
+    ]
+    const { picks } = await getDigestContent()
+    expect(picks.map((p) => p.id)).toEqual(['good-photo'])
+  })
+
+  it('prefers the NEW over an old champion inside a category (champion inside the 90-day window)', async () => {
+    h.rows = [
+      row('champion-40-days', { rankScore: 9999, createdAt: new Date(Date.now() - 40 * DAY) }),
       row('posted-yesterday', { rankScore: 1, createdAt: new Date(Date.now() - 1 * DAY) }),
     ]
-    const { others } = await getDigestContent()
-    // The old query returned ancient-champion first, every single week.
-    expect(others.map((t) => t.id)).toEqual(['posted-yesterday'])
+    const { picks } = await getDigestContent()
+    expect(picks.map((p) => p.id)).toEqual(['posted-yesterday'])
   })
 
-  it('widens the window rather than falling back to all-time when a week is quiet', async () => {
-    h.rows = [row('from-three-weeks-ago', { createdAt: new Date(Date.now() - 21 * DAY) })]
-    const { others } = await getDigestContent()
-    expect(others.map((t) => t.id)).toEqual(['from-three-weeks-ago'])
-    // It must have TRIED the tighter windows first — otherwise "latest" means nothing.
-    const windows = h.calls.filter(isOthersCall).map((c) => gteOf(c.where as R)) as Date[]
-    expect(windows.length).toBeGreaterThan(1)
-    expect(windows[0].getTime()).toBeGreaterThan(windows[1].getTime()) // 7d before 14d
+  it('shows a 14-day category its BEST listing — no rotation', async () => {
+    h.rows = ['a', 'b', 'c'].map((id, i) => row(`fresh-${id}`, { rankScore: 10 - i, createdAt: new Date(Date.now() - 10 * DAY) }))
+    expect((await getDigestContent()).picks[0].id).toBe('fresh-a')
   })
 
-  it('stops widening as soon as a window is full', async () => {
-    h.rows = Array.from({ length: 3 }, (_, i) => row(`fresh-${i}`, { rankScore: 10 - i }))
-    const { others } = await getDigestContent()
-    expect(others).toHaveLength(3)
-    const windowed = h.calls.filter(isOthersCall)
-    expect(windowed).toHaveLength(1) // the 7-day window satisfied it; no widening
+  it('rotates a quiet category week to week instead of repeating its best old listing', async () => {
+    h.rows = ['a', 'b', 'c'].map((id, i) => row(`old-${id}`, { rankScore: 10 - i, createdAt: new Date(Date.now() - 50 * DAY) }))
+    const seen = new Set<string>()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      for (let w = 0; w < 3; w++) {
+        vi.setSystemTime(new Date(Date.UTC(2026, 9, 1) + w * 7 * DAY))
+        h.rows = ['a', 'b', 'c'].map((id, i) => row(`old-${id}`, { rankScore: 10 - i, createdAt: new Date(Date.now() - 50 * DAY) }))
+        seen.add((await getDigestContent()).picks[0].id)
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(seen.size).toBe(3)
+  })
+
+  it('never picks a job, and never a listing without a photo', async () => {
+    h.rows = [
+      row('job', cat('jobs', 'Jobs')),
+      row('no-photo', { images: '[]', ...cat('pets', 'Pets') }),
+      row('ok', cat('sports', 'Sports')),
+    ]
+    const { picks } = await getDigestContent()
+    expect(picks.map((p) => p.id)).toEqual(['ok'])
   })
 })
 
@@ -194,8 +274,8 @@ describe('the digest never advertises a discount the site has retired', () => {
       previousPrice: 2_000_000, price: 1_500_000,
       priceDropAt: new Date(Date.now() - 5 * DAY), // badge expired 2 days ago
     })]
-    const { others } = await getDigestContent()
-    expect(others[0].drop).toBeNull()
+    const { picks } = await getDigestContent()
+    expect(picks[0].drop).toBeNull()
   })
 
   it('still shows a pill for a drop inside the window', async () => {
@@ -203,14 +283,14 @@ describe('the digest never advertises a discount the site has retired', () => {
       previousPrice: 2_000_000, price: 1_500_000,
       priceDropAt: new Date(Date.now() - 1 * DAY),
     })]
-    const { others } = await getDigestContent()
-    expect(others[0].drop).toBeTruthy()
+    const { picks } = await getDigestContent()
+    expect(picks[0].drop).toBeTruthy()
   })
 
   it('shows no pill when previousPrice lingers with no priceDropAt at all', async () => {
     // previousPrice is cleared only on a RAISE, so a legacy row can carry it with a null timestamp.
     h.rows = [row('no-timestamp', { previousPrice: 2_000_000, price: 1_500_000, priceDropAt: null })]
-    const { others } = await getDigestContent()
-    expect(others[0].drop).toBeNull()
+    const { picks } = await getDigestContent()
+    expect(picks[0].drop).toBeNull()
   })
 })
