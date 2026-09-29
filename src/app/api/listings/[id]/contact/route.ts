@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { phoneForSeller, telHref, zaloHref } from '@/lib/contact'
 import { rateLimit } from '@/lib/ratelimit'
+import { bumpListingCounter } from '@/lib/listing-counters'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 
 export const runtime = 'nodejs'
@@ -177,7 +178,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       db.contactReveal.create({
         data: { listingId: listing.id, viewerId: user.id, ipHash: hashIp(ip) },
       }),
-      db.listing.update({ where: { id: listing.id }, data: { contactCount: { increment: 1 } } }),
+      // Raw (listing-counters.ts): a reveal is not an edit, so it must not restamp updatedAt (I3a).
+      bumpListingCounter(listing.id, 'contactCount'),
     ])
     // New buyer lead → Meta CAPI Contact (server-side, after response flushes — zero
     // client cost; no-ops until CAPI env is set). Only on a NEW reveal (this try block).

@@ -33,6 +33,8 @@ const h = vi.hoisted(() => ({
   messages: [] as Row[],
   rateOk: true,
   reveals: [] as Row[],
+  /** Raw counter statements, as { sql, values } — contactCount moves by raw SQL since I3a. */
+  raw: [] as { sql: string; values: unknown[] }[],
 }))
 
 vi.mock('next/server', async (orig) => {
@@ -58,7 +60,9 @@ vi.mock('@/lib/contact', () => ({
 vi.mock('@/lib/meta-capi', () => ({ sendMetaCapiEvent: async () => {}, metaUserDataFromHeaders: () => ({}) }))
 vi.mock('@/lib/db', () => ({
   db: {
-    listing: { findFirst: async () => h.listing, update: async () => ({}) },
+    listing: { findFirst: async () => h.listing },
+    // contactCount moves by raw SQL (listing-counters.ts, I3a), so a reveal does not restamp updatedAt.
+    $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => { h.raw.push({ sql: strings.join('$'), values }); return 1 },
     // ⚠️ HONOURS ITS `where`, because a mock that ignores it cannot fail. The real lookup is by the
     // composite unique { listingId, buyerProfileId }; if the route regressed to "this caller has
     // ANY conversation", an always-return mock would stay green while phone numbers leaked across
@@ -101,6 +105,7 @@ beforeEach(() => {
   h.messages = [{ senderProfileId: SELLER }] // the seller has replied
   h.rateOk = true
   h.reveals = []
+  h.raw = []
   vi.clearAllMocks()
 })
 
@@ -220,6 +225,17 @@ describe('what the reveal records', () => {
     await call()
     expect(h.reveals).toHaveLength(1)
     expect(h.reveals[0]).toMatchObject({ listingId: LISTING_ID, viewerId: BUYER })
+  })
+
+  it('bumps contactCount once, by raw SQL that leaves updatedAt alone (I3a)', async () => {
+    await call()
+    expect(h.raw).toEqual([{ sql: 'UPDATE "Listing" SET "contactCount" = "contactCount" + 1 WHERE "id" = $', values: [LISTING_ID] }])
+  })
+
+  it('a refused reveal moves no counter', async () => {
+    h.messages = []
+    await call()
+    expect(h.raw).toEqual([])
   })
 
   it('stores ipHash NULL while CONTACT_IP_SALT is unset, rather than a guessable digest', async () => {

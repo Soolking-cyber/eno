@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/ratelimit'
+import { bumpListingCounter, dropListingSave } from '@/lib/listing-counters'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -55,12 +56,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ ok: true, counted: false })
   }
 
-  if (saved) {
-    await db.listing.update({ where: { id }, data: { savedCount: { increment: 1 } } })
-  } else {
-    // GREATEST clamps at 0 so a decrement can't underflow (a reseed/reset could otherwise
-    // push a real save-count negative). Prisma has no atomic clamped-decrement, so raw.
-    await db.$executeRaw`UPDATE "Listing" SET "savedCount" = GREATEST("savedCount" - 1, 0) WHERE "id" = ${id}`
-  }
-  return NextResponse.json({ ok: true, counted: true })
+  // Both directions raw (listing-counters.ts): a save is not an edit, so it must not restamp
+  // updatedAt (I3a); the unsave clamps at 0.
+  // `counted` is the row count: 0 when the listing was deleted since the read above.
+  const moved = await (saved ? bumpListingCounter(id, 'savedCount') : dropListingSave(id))
+  return NextResponse.json({ ok: true, counted: moved > 0 })
 }

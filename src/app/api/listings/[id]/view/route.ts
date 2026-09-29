@@ -3,6 +3,7 @@ import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/ratelimit'
 import { getCurrentProfileId } from '@/lib/admin'
+import { bumpListingCounter } from '@/lib/listing-counters'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -69,6 +70,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ ok: true, counted: false })
   }
 
-  await db.listing.update({ where: { id }, data: { views: { increment: 1 } } })
-  return NextResponse.json({ ok: true, counted: true })
+  // Raw, not db.listing.update: a view is not an edit, so it must not restamp updatedAt (I3a).
+  // `counted` is the row count: a listing deleted since the read above updates 0 rows (the Prisma
+  // update threw P2025 there), and that view was not counted.
+  const moved = await bumpListingCounter(id, 'views')
+  return NextResponse.json({ ok: true, counted: moved > 0 })
 }
