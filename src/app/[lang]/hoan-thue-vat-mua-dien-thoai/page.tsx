@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -33,7 +34,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Cụm từ “hoàn thuế VAT mua điện thoại” thực ra trỏ tới hai chuyện khác hẳn nhau: hoàn thuế tại sân bay cho người mang hộ chiếu nước ngoài khi xuất cảnh, và khấu trừ thuế GTGT đầu vào cho doanh nghiệp trong nước. Người Việt mang hộ chiếu Việt Nam không thuộc diện thứ nhất. Bài này nói rõ ai được hoàn, hóa đơn phải đứng tên ai nếu bạn mua hộ người thân sắp bay, và khi nào tấm hóa đơn đỏ mới thực sự có giá trị với chính bạn.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/vat-refund-phone-vietnam' },
   sections: [

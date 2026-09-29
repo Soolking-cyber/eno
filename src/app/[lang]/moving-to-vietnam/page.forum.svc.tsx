@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
 import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
-import { expatGuidesExcept } from '@/lib/expat-guides'
+import { expatGuidesExcept, guideDates } from '@/lib/expat-guides'
 import { EVISA_HUB_PATH, evisaChildPath } from '@/app/[lang]/vietnam-evisa/links'
 import {
   HereLink,
@@ -51,7 +51,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Most of what makes the first month in Vietnam easy or miserable is decided before you get on the plane — which visa you travel on, which documents you had certified at home while it was still possible, and how much you shipped that you could have bought here for a tenth of the price. This is the pre-departure half of the job, in the order the decisions actually come.',
   canonical: '/moving-to-vietnam',
-  published: '2026-08-01',
+  ...guideDates('moving-to-vietnam'),
   disclosure: PROVIDER_OF_RECORD.en,
   crossSitePromo: true,
   sections: [

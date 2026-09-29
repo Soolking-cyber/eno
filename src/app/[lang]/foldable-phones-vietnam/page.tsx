@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -20,7 +21,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Apple’s folding iPhone Duo goes on sale in Vietnam on 23 October 2026, arriving in a category Samsung has been iterating on since 2019. This guide covers what folding phones actually cost here, what fails on them, what a repair costs when it does, and the specific reasons to wait for a second generation rather than buy a first.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/dien-thoai-gap-nen-mua-loai-nao' },
   sections: [

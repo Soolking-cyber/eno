@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
-import { marketplaceGuidesExcept } from '@/lib/expat-guides'
+import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
 /**
@@ -23,7 +23,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Most rentals here arrive with more furniture than newcomers expect and fewer of the things they actually need. This guide covers what a landlord normally supplies, what is worth buying new, what is far better bought secondhand, and how to check a used piece before any money moves.',
   canonical: '/furnishing-a-home-in-vietnam',
-  published: '2026-09-16',
+  ...guideDates('furnishing-a-home-in-vietnam'),
   sections: [
     {
       id: 'what-the-landlord-supplies',

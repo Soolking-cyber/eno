@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -31,7 +32,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Samsung sells four separate phone lines here and the letter in front of the number tells you more than the number does. This guide explains what S, A, M and Z actually are, why a Galaxy loses value faster in Vietnam than an iPhone does, and which line fits which kind of buyer — including what changes if you are only here for a year.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/mua-samsung-galaxy-dong-nao' },
   sections: [

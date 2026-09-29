@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -29,7 +30,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Máy tầm trung ở Việt Nam không phải là flagship bị cắt bớt — đây là phân khúc các hãng cạnh tranh gắt nhất, và với phần lớn người dùng thì nó là lựa chọn đúng. Bài này nói về chỗ máy tầm trung thật sự hơn flagship, ba thông số xuống cấp nhanh nhất quyết định cảm giác dùng máy ở năm thứ ba, và khi nào flagship đời trước đáng tiền hơn cả hai.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/best-value-phones-vietnam' },
   sections: [

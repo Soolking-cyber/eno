@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { seoBrowseHref } from '@/components/marketplace/seo-landing-href'
@@ -29,7 +30,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Cả bốn nhà mạng trong nước đều đã hỗ trợ eSIM, và việc chuyển từ SIM vật lý sang eSIM giữ nguyên số cũ. Bài này nói về thủ tục chuyển đổi, máy nào dùng được, chuyện gì xảy ra khi bạn đổi điện thoại, và vài điểm cần biết trước khi tháo SIM cũ ra.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/esim-vietnam-guide' },
   sections: [

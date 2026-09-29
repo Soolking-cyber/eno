@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -28,7 +29,7 @@ const CONTENT: ArticleContent = {
   intro:
     '5G has fallen a long way down the price list in Vietnam, and the entry ticket now costs a fraction of a flagship. What has not fallen is the amount of coverage, which is concentrated in a handful of places. This guide covers where Vietnamese 5G is genuinely usable, which bands your handset needs to reach it, and which specs at the bottom of the range decide whether the phone is still worth carrying in three years.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/dien-thoai-5g-gia-re' },
   sections: [

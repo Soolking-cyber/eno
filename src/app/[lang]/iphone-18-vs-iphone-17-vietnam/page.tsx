@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -20,7 +21,7 @@ const CONTENT: ArticleContent = {
   intro:
     'The honest answer for most people holding a 17 Pro is no, and the interesting question is what to do instead. Vietnam has an unusually deep second-hand market, which changes the maths: the cost of upgrading is not the new phone’s price, it is the gap between that and what your current handset will fetch this month.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/co-nen-len-doi-iphone-18' },
   sections: [

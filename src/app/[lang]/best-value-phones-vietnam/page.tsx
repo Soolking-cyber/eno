@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -29,7 +30,7 @@ const CONTENT: ArticleContent = {
   intro:
     'A mid-range phone in Vietnam is not a compromised flagship — in this market it is the segment the brands fight hardest over, and for most people it is the better buy. This guide explains where the mid-range genuinely wins, the three specifications that decide how a phone feels in its third year, and the one situation where last year’s flagship beats both.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/dien-thoai-tam-trung-dang-mua' },
   sections: [

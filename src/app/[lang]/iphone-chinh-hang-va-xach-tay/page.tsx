@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -20,7 +21,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Cùng một model, cùng dung lượng, chênh nhau vài triệu đồng. Phần cứng giống hệt nhau — thứ khác biệt là ai có nghĩa vụ sửa khi máy hỏng, và bao nhiêu trong khoản chênh đó lấy lại được khi bán lại. Bài này giải thích các đuôi mã máy, giá trị thật của bảo hành cửa hàng, và trường hợp nào nên chọn xách tay.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/chinh-hang-vs-xach-tay-vietnam' },
   sections: [

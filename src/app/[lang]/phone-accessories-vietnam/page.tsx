@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -31,7 +32,7 @@ const CONTENT: ArticleContent = {
   intro:
     'A phone survives Vietnam easily. The accessories bolted to it do not: clear cases yellow, leather grows mould, adhesive peels, and a cheap charger is the one component with a real failure mode. This guide covers what the heat and humidity here actually demand from a case, a screen protector, a charger and a cable — and which accessories sold on every corner do nothing at all.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/phu-kien-dien-thoai-nen-mua' },
   sections: [

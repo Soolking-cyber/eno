@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -19,7 +20,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Thị trường iPhone cũ ở Việt Nam rất lớn và phần lớn người bán làm ăn đàng hoàng. Rủi ro tập trung vào vài lỗi cụ thể — máy dính iCloud, màn hình đã thay, pin đã bị can thiệp — và tất cả đều phát hiện được trong khoảng mười phút khi cầm máy trên tay. Đây là quy trình kiểm tra đó, xếp theo mức thiệt hại nếu bỏ qua.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/buying-a-used-iphone-vietnam' },
   sections: [

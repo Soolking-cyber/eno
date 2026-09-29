@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -29,7 +30,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Ba bên khác nhau có thể đứng ra bảo hành chiếc máy bạn đang cầm, và chỉ một trong ba là hãng. Bài này phân biệt ba loại bảo hành đó, giải thích từ vựng linh kiện mà mọi báo giá đều dùng — ép kính, màn zin bóc máy, màn lô, pin zin — những trường hợp bị từ chối bảo hành, và sáu thứ phải kiểm tra trước khi rời cửa hàng.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/phone-warranty-repair-vietnam' },
   sections: [

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
-import { marketplaceGuidesExcept } from '@/lib/expat-guides'
+import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
 /**
@@ -20,7 +20,7 @@ const CONTENT: ArticleContent = {
   intro:
     'A flat takes longer to empty than anyone plans for. Six weeks out you can price properly and sell piece by piece; six days out you are giving things away and paying someone to remove the rest. This is the order that works, and the handover details that decide whether you keep your deposit.',
   canonical: '/selling-up-before-you-leave-vietnam',
-  published: '2026-09-16',
+  ...guideDates('selling-up-before-you-leave-vietnam'),
   sections: [
     {
       id: 'timeline',

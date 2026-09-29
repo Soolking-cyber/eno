@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -28,7 +29,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Thay pin là việc sửa iPhone phổ biến nhất và cũng là chỗ linh kiện chênh lệch nhiều nhất. Bài này nói rõ khi nào con số phần trăm mới thực sự là lúc phải thay, ba loại pin đang bán trên thị trường khác nhau ở đâu, máy báo gì khi lắp pin không được ghép, và những bước kiểm tra để không bị tráo pin ngay tại quầy.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/iphone-battery-replacement-vietnam' },
   sections: [

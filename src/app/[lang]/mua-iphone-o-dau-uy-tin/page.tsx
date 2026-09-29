@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -24,7 +25,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Giá rẻ nhất trên kết quả tìm kiếm gần như không bao giờ đến từ nơi an toàn nhất để mua. Bài này phân biệt năm kiểu cửa hàng đang bán iPhone tại Việt Nam, khoản chênh lệch giá thực sự mua được gì, và cách kiểm tra một chiếc máy ngay tại quầy trước khi trả tiền.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/best-place-to-buy-iphone-vietnam' },
   sections: [

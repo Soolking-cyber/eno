@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -30,7 +31,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Điện thoại chịu được khí hậu ở đây, phụ kiện thì không: ốp trong ố vàng sau vài tháng, ốp da mốc vào mùa nồm, keo dán bong, và củ sạc trôi nổi là món duy nhất trong túi bạn có rủi ro thật sự. Bài này nói về ốp lưng, cường lực, củ sạc, cáp và sạc dự phòng — chọn theo cái gì, hỏi gì khi dán ở shop, và những món chỉ là tiền oan.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/phone-accessories-vietnam' },
   sections: [

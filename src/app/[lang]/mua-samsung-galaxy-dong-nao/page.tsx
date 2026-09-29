@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -30,7 +31,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Chữ cái đứng trước con số mới là thứ quyết định chiếc máy, không phải con số. Bài này phân biệt bốn dòng S, A, M và Z, giải thích vì sao giá Samsung tại Việt Nam giảm sâu hơn giá iPhone, trả lời câu hỏi kinh điển “S đời cũ hay A đời mới”, và chỉ cách kiểm tra máy ngay tại quầy.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/samsung-galaxy-buying-guide-vietnam' },
   sections: [

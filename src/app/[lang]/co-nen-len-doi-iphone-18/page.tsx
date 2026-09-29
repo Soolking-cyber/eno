@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -22,7 +23,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Với phần lớn người đang dùng iPhone 17 Pro, câu trả lời là chưa cần. Câu hỏi đáng quan tâm hơn là nên làm gì thay vào đó. Thị trường máy cũ trong nước rất sâu, nên chi phí thật của việc lên đời không phải giá máy mới, mà là khoản chênh giữa giá máy mới và số tiền bán được máy đang dùng trong tháng này.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/iphone-18-vs-iphone-17-vietnam' },
   sections: [

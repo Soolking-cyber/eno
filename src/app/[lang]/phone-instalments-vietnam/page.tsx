@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -20,7 +21,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Almost every phone shop in Vietnam advertises trả góp 0% — 0% instalments. Some of it genuinely is; much of it carries fees that put the real cost somewhere quite different. This guide explains the two mechanisms behind the sign, what paperwork each needs, the fees that do the damage, and the single question that makes two offers comparable.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/mua-dien-thoai-tra-gop' },
   sections: [

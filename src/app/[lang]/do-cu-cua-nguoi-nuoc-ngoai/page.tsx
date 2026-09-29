@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
-import { marketplaceGuidesExcept } from '@/lib/expat-guides'
+import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
 
@@ -68,7 +68,7 @@ const CONTENT: ArticleContent = {
   intro:
     `Đồ của người nước ngoài sắp rời Việt Nam nổi tiếng là mua được: dùng kỹ, còn tốt và bán gấp vì có ngày trả nhà. Bài này nói rõ vì sao nhóm đồ đó đáng mua, rồi nói thẳng một chuyện ít nơi nào chịu nói: phần lớn tin đồ gia dụng và nội thất cũ đang đăng trên ${SITE_NAME} là của các nhà bán chuyên ở TP.HCM chứ không phải của chính chủ sắp bay, và cách phân biệt nằm ngay trên tin. Phần còn lại là giá thật của từng món theo chính các tin đang đăng, cách đọc điểm uy tín người bán, và cách hẹn xem rồi nhận hàng mà không mất tiền oan.`,
   canonical: `/${SLUG}`,
-  published: '2026-09-23',
+  ...guideDates(SLUG),
   lang: 'vi',
   sections: [
     {

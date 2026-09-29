@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -27,7 +28,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Vietnam resells phones at a scale that surprises people arriving from markets where an old handset goes in a drawer. Three routes will take yours off your hands and they pay very differently — and most of the gap between the best and worst outcome is not negotiation, it is which route you pick, what state the phone is in, and the week you decide to sell.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/ban-dien-thoai-cu-duoc-gia' },
   sections: [

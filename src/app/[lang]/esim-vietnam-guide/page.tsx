@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { seoBrowseHref } from '@/components/marketplace/seo-landing-href'
@@ -35,7 +36,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Every Vietnamese network issues eSIM, which makes an eSIM-capable phone genuinely useful here: you can keep your home number live on the physical SIM or a second profile and run a local number for banking, delivery and ride-hailing apps that will not accept a foreign number. This guide covers which networks and handsets support it, what registration requires, and the traps worth knowing before you switch.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/esim-viettel-vinaphone-mobifone' },
   sections: [

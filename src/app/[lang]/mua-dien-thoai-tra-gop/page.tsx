@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -23,7 +24,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Gần như cửa hàng nào cũng treo biển trả góp 0%. Có nơi đúng là 0%, có nơi chi phí nằm ở phí chuyển đổi, phí hồ sơ và bảo hiểm khoản vay. Bài này phân biệt hai hình thức trả góp, giấy tờ mỗi bên cần, các khoản phí thường bị bỏ qua, và một câu hỏi duy nhất giúp so sánh mọi gói với nhau.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/phone-instalments-vietnam' },
   sections: [

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -30,7 +31,7 @@ const CONTENT: ArticleContent = {
   intro:
     'iPad khó chọn không phải vì nhiều dòng, mà vì tên gọi không cho biết máy hợp với việc gì. Bài này đi qua bốn dòng đang bán — bản thường, Air, mini và Pro — theo đúng cách người Việt dùng máy: học, vẽ, xem phim, ghi chú, làm việc nhẹ. Kèm theo là ba quyết định tốn tiền nhất mà ai cũng phải chốt: bản Wi-Fi hay bản 4G, dung lượng bao nhiêu, và bút với bàn phím có cần mua ngay không.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/ipad-buying-guide-vietnam' },
   sections: [

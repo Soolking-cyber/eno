@@ -1,3 +1,5 @@
+import { PHONE_GUIDES } from './phone-guides'
+
 /**
  * THE LONG-FORM ARRIVAL GUIDES — one registry, so a new one cannot be built and then forgotten.
  *
@@ -25,6 +27,21 @@
 export type ExpatGuide = {
   /** Top-level route segment. */
   slug: string
+  /**
+   * ISO date (YYYY-MM-DD) the guide first went live — `datePublished` in its Article JSON-LD.
+   *
+   * ⛔ THE DATES LIVE HERE, NOT IN THE PAGE FILE. Each page spreads `...guideDates(SLUG)` into its
+   * content (seo-article.tsx turns `updated ?? published` into `dateModified`), and a registry entry
+   * is something the sitemap can import for the guide's `<lastmod>` — which a date typed into a page
+   * file never was. One copy means the page and the sitemap cannot tell Google different dates.
+   */
+  published: string
+  /**
+   * ISO date of the last edit a READER would notice — new or rewritten prose, a changed link. Not a
+   * comment, not a refactor, not a regenerated string. Omitted until the first such edit, and then
+   * `dateModified` falls back to `published`, which is the truth for an untouched guide.
+   */
+  updated?: string
   /** Link text used by sibling guides. */
   label: string
   /** One line of what the guide answers — the link's whole reason to be clicked. */
@@ -64,12 +81,16 @@ export type ExpatGuide = {
 export const EXPAT_GUIDES: readonly ExpatGuide[] = [
   {
     slug: 'moving-to-vietnam',
+    published: '2026-08-01',
+    updated: '2026-09-27',
     label: 'Moving to Vietnam: what to arrange before you fly',
     blurb:
       'The paperwork that has to be done at home, what to ship and what to buy secondhand, and how much cash the first month really takes.',
   },
   {
     slug: 'first-month-in-vietnam',
+    published: '2026-08-01',
+    updated: '2026-09-27',
     label: 'Your first month in Vietnam: the checklist',
     blurb:
       'Registering your stay, a phone number that works with banking apps, reading a lease, and the deadlines that have real consequences.',
@@ -94,6 +115,8 @@ export const EXPAT_GUIDES: readonly ExpatGuide[] = [
 export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   {
     slug: 'furnishing-a-home-in-vietnam',
+    published: '2026-09-16',
+    updated: '2026-09-27',
     categories: ['furniture-appliances', 'rentals'],
     label: 'Furnishing a home in Vietnam without overpaying',
     blurb:
@@ -101,6 +124,8 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   },
   {
     slug: 'selling-up-before-you-leave-vietnam',
+    published: '2026-09-16',
+    updated: '2026-09-27',
     categories: ['furniture-appliances'],
     label: 'Selling up before you leave Vietnam',
     blurb:
@@ -121,6 +146,8 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
    */
   {
     slug: 'secondhand-furniture-ho-chi-minh-city',
+    published: '2026-09-23',
+    updated: '2026-09-27',
     lang: 'en',
     pair: 'thanh-ly-do-gia-dung-cu-tphcm',
     categories: ['furniture-appliances'],
@@ -130,6 +157,8 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   },
   {
     slug: 'thanh-ly-do-gia-dung-cu-tphcm',
+    published: '2026-09-23',
+    updated: '2026-09-27',
     lang: 'vi',
     pair: 'secondhand-furniture-ho-chi-minh-city',
     categories: ['furniture-appliances'],
@@ -139,6 +168,8 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   },
   {
     slug: 'do-cu-cua-nguoi-nuoc-ngoai',
+    published: '2026-09-23',
+    updated: '2026-09-27',
     lang: 'vi',
     // ⚠️ NO `categories`, deliberately: it is about foreigners' own used goods, and the used stock in
     // furniture-appliances is dealer-supplied — linking it there would present that stock as expats'
@@ -149,6 +180,8 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   },
   {
     slug: 'renting-an-apartment-vietnam-foreigner',
+    published: '2026-09-23',
+    updated: '2026-09-27',
     lang: 'en',
     categories: ['rentals'],
     label: 'Renting an apartment in Vietnam as a foreigner',
@@ -157,6 +190,8 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   },
   {
     slug: 'rental-deposit-vietnam',
+    published: '2026-09-23',
+    updated: '2026-09-27',
     lang: 'en',
     categories: ['rentals'],
     label: 'Getting your rental deposit back in Vietnam',
@@ -165,6 +200,8 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   },
   {
     slug: 'ban-do-cu-o-dau-duoc-gia',
+    published: '2026-09-23',
+    updated: '2026-09-27',
     lang: 'vi',
     categories: ['furniture-appliances'],
     label: 'Bán đồ cũ ở đâu được giá',
@@ -209,6 +246,8 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
   },
   {
     slug: 'dang-tin-ban-hang-mien-phi',
+    published: '2026-09-23',
+    updated: '2026-09-27',
     lang: 'vi',
     label: 'Đăng tin bán hàng miễn phí',
     blurb:
@@ -314,4 +353,17 @@ export function marketplaceGuidesExcept(slug?: string) {
     label: g.label,
     blurb: g.blurb,
   }))
+}
+
+/**
+ * A guide's `published` and (when it has one) `updated` date, from its registry entry — for the
+ * page to spread into its `ArticleContent`. Single-sourced across all three guide lists.
+ *
+ * ⚠️ THROWS ON AN UNKNOWN SLUG. Every caller passes a literal, so a typo fails the build of that
+ * page instead of shipping an Article with no `datePublished`.
+ */
+export function guideDates(slug: string): { published: string; updated?: string } {
+  const guide = [...EXPAT_GUIDES, ...MARKETPLACE_GUIDES, ...PHONE_GUIDES].find((g) => g.slug === slug)
+  if (!guide) throw new Error(`guideDates: "${slug}" is in no guide registry`)
+  return guide.updated ? { published: guide.published, updated: guide.updated } : { published: guide.published }
 }

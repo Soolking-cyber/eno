@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
-import { marketplaceGuidesExcept } from '@/lib/expat-guides'
+import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
 
@@ -31,7 +31,7 @@ const CONTENT: ArticleContent = {
   intro:
     'A rental deposit here is normally one month of rent, handed over at signing and returned within days of a clean handover. When it is not returned, the argument is almost never about the law — it is about who has the photographs, who has the keys, and what a scratched wardrobe is actually worth. This guide covers what a deposit may legitimately cover, where the wear-and-tear line sits in this climate, the handover routine that ends the argument before it starts, and the escalation path when the money does not come back.',
   canonical: '/rental-deposit-vietnam',
-  published: '2026-09-23',
+  ...guideDates('rental-deposit-vietnam'),
   sections: [
     {
       id: 'what-the-deposit-is-for',

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { EXPAT_GUIDES, EXPAT_GUIDE_PATHS, expatGuidesExcept, marketplaceGuideAlternates, MARKETPLACE_GUIDES, marketplaceGuidesExcept } from './expat-guides'
+import { EXPAT_GUIDES, EXPAT_GUIDE_PATHS, expatGuidesExcept, guideDates, marketplaceGuideAlternates, MARKETPLACE_GUIDES, marketplaceGuidesExcept } from './expat-guides'
+import { PHONE_GUIDES } from './phone-guides'
 
 /**
  * THE ARRIVAL GUIDES — two guarantees that nothing else in the toolchain can check.
@@ -133,5 +134,59 @@ describe('marketplace guide hreflang', () => {
         expect(target.lang ?? 'en', `${g.slug} links to ${target.slug} across languages`).toBe(lang)
       }
     }
+  })
+})
+
+/**
+ * ⛔ GUIDE DATES LIVE IN THE REGISTRY, AND THE PAGE READS THEM. Until 2026-09-29 every page typed its
+ * own `published:` and none had an `updated:`, so thirteen guides rewritten on 2026-09-27 still told
+ * Google `dateModified` = the day they first went up. A date in the registry is one the sitemap can
+ * read too; a date in a page file is a second copy.
+ */
+describe('guide dates', () => {
+  const ISO = /^\d{4}-\d{2}-\d{2}$/
+  // ⚠️ "Today" in Vietnam (UTC+7), where the dates are written: a guide stamped with the local date
+  // between 00:00 and 07:00 would otherwise read as a day in the future against UTC.
+  const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10)
+  const ALL = [
+    ...EXPAT_GUIDES.map((g) => ({ g, file: `src/app/[lang]/${g.slug}/page.forum.svc.tsx` })),
+    ...MARKETPLACE_GUIDES.map((g) => ({ g, file: `src/app/[lang]/${g.slug}/page.tsx` })),
+    ...PHONE_GUIDES.map((g) => ({ g, file: `src/app/[lang]/${g.slug}/page.tsx` })),
+  ]
+
+  it('every slug is in exactly one registry, so guideDates() cannot pick the wrong entry', () => {
+    const slugs = ALL.map(({ g }) => g.slug)
+    expect(new Set(slugs).size).toBe(slugs.length)
+  })
+
+  it.each(ALL.map(({ g }) => [g.slug, g]))('%s: ISO dates, updated on or after published, none in the future', (_s, guide) => {
+    const g = guide as (typeof ALL)[number]['g']
+    expect(g.published).toMatch(ISO)
+    expect(g.published <= today, `${g.slug} published ${g.published} is after today`).toBe(true)
+    if (g.updated !== undefined) {
+      expect(g.updated).toMatch(ISO)
+      expect(g.updated >= g.published, `${g.slug} updated before it was published`).toBe(true)
+      expect(g.updated <= today, `${g.slug} updated ${g.updated} is after today`).toBe(true)
+    }
+  })
+
+  it.each(ALL.map(({ g, file }) => [g.slug, file]))('%s: the page reads its dates through guideDates(), never a typed date', (slug, file) => {
+    const src = readFileSync(file, 'utf8')
+    const call = src.match(/\.\.\.guideDates\((SLUG|'([a-z0-9-]+)')\)/)
+    expect(call, `${file} does not spread guideDates(…) into its content`).not.toBeNull()
+    // The argument must be THIS page's slug — a copied page that kept its source's slug would
+    // otherwise publish the source's dates, and nothing else would notice.
+    const arg = call![1] === 'SLUG' ? src.match(/^const SLUG = '([a-z0-9-]+)'/m)?.[1] : call![2]
+    expect(arg).toBe(slug)
+    expect(decomment(src), `${file} still types a date of its own`).not.toMatch(/\b(published|updated):\s*'/)
+  })
+
+  it('guideDates() returns the registry values, omits `updated` when there is none, and throws on an unknown slug', () => {
+    const edited = ALL.find(({ g }) => g.updated)!.g
+    expect(guideDates(edited.slug)).toEqual({ published: edited.published, updated: edited.updated })
+    const untouched = ALL.find(({ g }) => !g.updated)!.g
+    expect(guideDates(untouched.slug)).toEqual({ published: untouched.published })
+    expect('updated' in guideDates(untouched.slug)).toBe(false)
+    expect(() => guideDates('no-such-guide')).toThrow(/no guide registry/)
   })
 })

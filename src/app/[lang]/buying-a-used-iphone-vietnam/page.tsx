@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -19,7 +20,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Vietnam has one of the deepest second-hand iPhone markets anywhere, and most of it is honest. The risk is concentrated in a few specific failures — an activation-locked handset, a swapped screen, a tired battery sold as new — and every one of them is detectable in about ten minutes with the phone in your hand. This is that inspection, in the order that matters.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/kinh-nghiem-mua-iphone-cu' },
   sections: [

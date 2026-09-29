@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -31,7 +32,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Battery replacement is the most common iPhone repair in Vietnam and the one where the parts vary most. This guide explains when the health percentage actually means replace, what you give up by going to an independent shop instead of an authorised one, exactly how a non-genuine cell announces itself in Settings, and the checks that stop a good battery being swapped for a worse one.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/thay-pin-iphone-o-dau' },
   sections: [

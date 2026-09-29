@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -19,7 +20,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Two identical phones sit on the same shelf in Vietnam with a few million đồng between them. The hardware is the same; what differs is who is obliged to fix it. This guide explains the model-number suffixes, who honours which warranty, how to verify a claim in ten seconds, and the cases where the cheaper imported unit is genuinely the better buy.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/iphone-chinh-hang-va-xach-tay' },
   sections: [

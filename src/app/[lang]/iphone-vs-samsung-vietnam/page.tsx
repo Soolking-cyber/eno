@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -20,7 +21,7 @@ const CONTENT: ArticleContent = {
   intro:
     'The spec comparison is the same in every country and is not why this is a hard choice. What differs in Vietnam is resale value, where you can get the phone repaired, and how much each brand actually costs here — including the fact that Samsung builds a large share of its phones in this country. Those three settle it for most buyers.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/nen-mua-iphone-hay-samsung' },
   sections: [

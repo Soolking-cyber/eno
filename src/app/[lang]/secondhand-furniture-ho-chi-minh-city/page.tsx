@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
-import { marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
+import { guideDates, marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
 
@@ -39,7 +39,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Used furniture in Saigon is cheap and plentiful, and almost nobody publishes what it actually sells for — so most people negotiate blind. This guide is built from 3,201 used furniture and appliance listings live in Ho Chi Minh City: the real price band for each kind of item, what to test on a used air conditioner, washing machine or sofa before money moves, what delivery up a stairwell really costs, and who is on the other side of the chat.',
   canonical: `/${SLUG}`,
-  published: '2026-09-23',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/thanh-ly-do-gia-dung-cu-tphcm' },
   sections: [

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -32,7 +33,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Three different organisations can put a warranty on the phone in your pocket, and only one of them is the manufacturer. This guide explains which warranty you are actually holding, who is allowed to open the device without ending it, how long each kind of repair realistically takes, and the checks that tell you whether the part a shop fitted is genuine.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/bao-hanh-sua-chua-dien-thoai' },
   sections: [

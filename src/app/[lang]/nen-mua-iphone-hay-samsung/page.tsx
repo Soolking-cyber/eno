@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -20,7 +21,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Bảng thông số thì ở nước nào cũng như nhau và không phải lý do khiến lựa chọn này khó. Thứ khác biệt tại Việt Nam là giá bán lại, khả năng sửa chữa ở nơi bạn sống, và giá thực tế của từng hãng — trong đó Samsung có lợi thế của một nhà sản xuất đặt nhà máy ngay trong nước. Ba yếu tố này quyết định phần lớn các trường hợp.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/iphone-vs-samsung-vietnam' },
   sections: [

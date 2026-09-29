@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -29,7 +30,7 @@ const CONTENT: ArticleContent = {
   intro:
     'This is the most contested budget in the Vietnamese phone market, and it splits cleanly in two: a brand-new mid-range Android with a warranty and a full battery, or a flagship from two to four years ago that somebody else has already used. They are different phones with different failure modes, and which one is better depends far more on how you use a phone than on any spec sheet.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/dien-thoai-duoi-10-trieu' },
   sections: [

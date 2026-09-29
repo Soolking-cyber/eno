@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -26,7 +27,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Cùng một chiếc máy, bốn kênh bán cho ra bốn con số khác hẳn nhau — và phần lớn khoảng chênh đó không đến từ tài trả giá, mà từ việc bạn chọn kênh nào, máy còn zin đến đâu, xóa tài khoản có đúng cách không, và bán vào tuần nào. Bài này đi qua đủ bốn thứ đó.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/selling-your-phone-vietnam' },
   sections: [

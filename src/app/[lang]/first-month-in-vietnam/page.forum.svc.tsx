@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
 import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
-import { expatGuidesExcept } from '@/lib/expat-guides'
+import { expatGuidesExcept, guideDates } from '@/lib/expat-guides'
 import { evisaChildPath } from '@/app/[lang]/vietnam-evisa/links'
 import {
   HereLink,
@@ -45,7 +45,7 @@ const CONTENT: ArticleContent = {
   intro:
     'The first month is mostly admin, and the order matters more than the length of the list — a few of these unlock the others, and two of them have deadlines with real consequences. This is what to do in roughly what order, from the day you land to the day you stop feeling like a visitor.',
   canonical: '/first-month-in-vietnam',
-  published: '2026-08-01',
+  ...guideDates('first-month-in-vietnam'),
   disclosure: PROVIDER_OF_RECORD.en,
   crossSitePromo: true,
   sections: [

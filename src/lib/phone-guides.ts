@@ -25,6 +25,10 @@
 export type PhoneGuide = {
   /** Top-level route segment, unaccented ASCII. */
   slug: string
+  /** ISO date the article went live. Read through `guideDates()` (src/lib/expat-guides.ts) — see there. */
+  published: string
+  /** ISO date of the last edit a reader would notice; omitted until there is one. */
+  updated?: string
   /** The language the article is WRITTEN in — drives `inLanguage` and the hreflang pair. */
   lang: 'en' | 'vi'
   /** The same subject in the other language. Reciprocal: if A names B, B must name A. */
@@ -51,6 +55,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 1 ── where to buy ─────────────────────────────────────────────────────────
   {
     slug: 'best-place-to-buy-iphone-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'mua-iphone-o-dau-uy-tin',
     label: 'Where to buy an iPhone in Vietnam',
@@ -58,6 +63,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'mua-iphone-o-dau-uy-tin',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'best-place-to-buy-iphone-vietnam',
     label: 'Mua iPhone ở đâu uy tín',
@@ -66,6 +72,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 2 ── genuine vs grey import ───────────────────────────────────────────────
   {
     slug: 'chinh-hang-vs-xach-tay-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'iphone-chinh-hang-va-xach-tay',
     label: 'Chính hãng VN/A vs xách tay, explained',
@@ -73,6 +80,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'iphone-chinh-hang-va-xach-tay',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'chinh-hang-vs-xach-tay-vietnam',
     label: 'iPhone chính hãng và xách tay khác nhau thế nào',
@@ -81,6 +89,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 3 ── buying used ──────────────────────────────────────────────────────────
   {
     slug: 'buying-a-used-iphone-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'kinh-nghiem-mua-iphone-cu',
     label: 'Buying a used iPhone in Vietnam',
@@ -88,6 +97,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'kinh-nghiem-mua-iphone-cu',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'buying-a-used-iphone-vietnam',
     label: 'Kinh nghiệm mua iPhone cũ',
@@ -96,6 +106,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 4 ── instalments ──────────────────────────────────────────────────────────
   {
     slug: 'phone-instalments-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'mua-dien-thoai-tra-gop',
     label: 'Phone instalments in Vietnam, and the 0% that is not 0%',
@@ -103,6 +114,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'mua-dien-thoai-tra-gop',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'phone-instalments-vietnam',
     label: 'Mua điện thoại trả góp 0% có thật sự 0%',
@@ -111,6 +123,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 5 ── upgrade or not ───────────────────────────────────────────────────────
   {
     slug: 'iphone-18-vs-iphone-17-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'co-nen-len-doi-iphone-18',
     label: 'iPhone 18 vs iPhone 17: worth the upgrade?',
@@ -118,6 +131,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'co-nen-len-doi-iphone-18',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'iphone-18-vs-iphone-17-vietnam',
     label: 'Có nên lên đời iPhone 18',
@@ -126,6 +140,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 6 ── iPhone or Samsung ────────────────────────────────────────────────────
   {
     slug: 'iphone-vs-samsung-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'nen-mua-iphone-hay-samsung',
     label: 'iPhone or Samsung in Vietnam',
@@ -133,6 +148,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'nen-mua-iphone-hay-samsung',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'iphone-vs-samsung-vietnam',
     label: 'Nên mua iPhone hay Samsung',
@@ -141,6 +157,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 7 ── foldables ────────────────────────────────────────────────────────────
   {
     slug: 'foldable-phones-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'dien-thoai-gap-nen-mua-loai-nao',
     label: 'Foldable phones in Vietnam',
@@ -148,6 +165,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'dien-thoai-gap-nen-mua-loai-nao',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'foldable-phones-vietnam',
     label: 'Điện thoại gập nên mua loại nào',
@@ -156,6 +174,8 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 8 ── eSIM ─────────────────────────────────────────────────────────────────
   {
     slug: 'esim-vietnam-guide',
+    published: '2026-09-19',
+    updated: '2026-09-27',
     lang: 'en',
     pair: 'esim-viettel-vinaphone-mobifone',
     // The eSIM plans are listed under services; the handset half of the guide still fits electronics.
@@ -165,6 +185,8 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'esim-viettel-vinaphone-mobifone',
+    published: '2026-09-19',
+    updated: '2026-09-27',
     lang: 'vi',
     pair: 'esim-vietnam-guide',
     categories: ['services', 'electronics'],
@@ -174,6 +196,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 9 ── claiming the vat refund on a phone ─────────────────────────────────────────────
   {
     slug: 'vat-refund-phone-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'hoan-thue-vat-mua-dien-thoai',
     label: 'Claiming the VAT refund on a phone',
@@ -181,6 +204,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'hoan-thue-vat-mua-dien-thoai',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'vat-refund-phone-vietnam',
     label: 'Hoàn thuế VAT khi mua điện thoại',
@@ -189,6 +213,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 10 ── which ipad to buy in vietnam ─────────────────────────────────────────────
   {
     slug: 'ipad-buying-guide-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'mua-ipad-loai-nao-tot',
     label: 'Which iPad to buy in Vietnam',
@@ -196,6 +221,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'mua-ipad-loai-nao-tot',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'ipad-buying-guide-vietnam',
     label: 'Mua iPad loại nào tốt',
@@ -204,6 +230,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 11 ── cheap 5g phones in vietnam ─────────────────────────────────────────────
   {
     slug: 'budget-5g-phones-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'dien-thoai-5g-gia-re',
     label: 'Cheap 5G phones in Vietnam',
@@ -211,6 +238,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'dien-thoai-5g-gia-re',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'budget-5g-phones-vietnam',
     label: 'Điện thoại 5G giá rẻ',
@@ -219,6 +247,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 12 ── phone warranty and repair in vietnam ─────────────────────────────────────────────
   {
     slug: 'phone-warranty-repair-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'bao-hanh-sua-chua-dien-thoai',
     label: 'Phone warranty and repair in Vietnam',
@@ -226,6 +255,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'bao-hanh-sua-chua-dien-thoai',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'phone-warranty-repair-vietnam',
     label: 'Bảo hành và sửa chữa điện thoại',
@@ -234,6 +264,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 13 ── selling your phone in vietnam ─────────────────────────────────────────────
   {
     slug: 'selling-your-phone-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'ban-dien-thoai-cu-duoc-gia',
     label: 'Selling your phone in Vietnam',
@@ -241,6 +272,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'ban-dien-thoai-cu-duoc-gia',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'selling-your-phone-vietnam',
     label: 'Bán điện thoại cũ được giá',
@@ -249,6 +281,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 14 ── the best-value phones in vietnam ─────────────────────────────────────────────
   {
     slug: 'best-value-phones-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'dien-thoai-tam-trung-dang-mua',
     label: 'The best-value phones in Vietnam',
@@ -256,6 +289,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'dien-thoai-tam-trung-dang-mua',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'best-value-phones-vietnam',
     label: 'Điện thoại tầm trung đáng mua',
@@ -264,6 +298,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 15 ── which samsung galaxy to buy in vietnam ─────────────────────────────────────────────
   {
     slug: 'samsung-galaxy-buying-guide-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'mua-samsung-galaxy-dong-nao',
     label: 'Which Samsung Galaxy to buy in Vietnam',
@@ -271,6 +306,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'mua-samsung-galaxy-dong-nao',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'samsung-galaxy-buying-guide-vietnam',
     label: 'Mua Samsung Galaxy dòng nào',
@@ -279,6 +315,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 16 ── iphone battery replacement in vietnam ─────────────────────────────────────────────
   {
     slug: 'iphone-battery-replacement-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'thay-pin-iphone-o-dau',
     label: 'iPhone battery replacement in Vietnam',
@@ -286,6 +323,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'thay-pin-iphone-o-dau',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'iphone-battery-replacement-vietnam',
     label: 'Thay pin iPhone ở đâu',
@@ -294,6 +332,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 17 ── the best phones under 10 million đồng ─────────────────────────────────────────────
   {
     slug: 'phones-under-10-million-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'dien-thoai-duoi-10-trieu',
     label: 'The best phones under 10 million đồng',
@@ -301,6 +340,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'dien-thoai-duoi-10-trieu',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'phones-under-10-million-vietnam',
     label: 'Điện thoại dưới 10 triệu',
@@ -309,6 +349,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   // 18 ── phone accessories worth buying in vietnam ─────────────────────────────────────────────
   {
     slug: 'phone-accessories-vietnam',
+    published: '2026-09-19',
     lang: 'en',
     pair: 'phu-kien-dien-thoai-nen-mua',
     label: 'Phone accessories worth buying in Vietnam',
@@ -316,6 +357,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   },
   {
     slug: 'phu-kien-dien-thoai-nen-mua',
+    published: '2026-09-19',
     lang: 'vi',
     pair: 'phone-accessories-vietnam',
     label: 'Phụ kiện điện thoại nên mua',

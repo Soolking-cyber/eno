@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
-import { marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
+import { guideDates, marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
 
@@ -39,7 +39,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Riêng ở TP.HCM, sàn này đang có 3.201 tin bán đồ gia dụng và nội thất cũ, nên việc khó không phải là tìm hàng mà là biết món đó đáng bao nhiêu và có còn chạy được không. Bài này đưa ra khoảng giá lấy từ các tin đang rao tại TP.HCM, cách kiểm tra máy lạnh, máy giặt, sofa và tủ trong vài phút, cách thanh lý gọn khi chuyển nhà, và lý do một cửa hàng thu mua sẽ không bao giờ trả bạn đúng mức giá mà chính họ rao lại.',
   canonical: `/${SLUG}`,
-  published: '2026-09-23',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/secondhand-furniture-ho-chi-minh-city' },
   sections: [

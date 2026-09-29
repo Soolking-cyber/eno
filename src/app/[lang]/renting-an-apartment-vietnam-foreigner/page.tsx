@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
-import { marketplaceGuidesExcept } from '@/lib/expat-guides'
+import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
 
@@ -49,7 +49,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Almost everything written about renting here is written by someone who earns a commission when you sign. This guide is the other half: how listings and viewings actually work in Ho Chi Minh City, what a normal lease says, what the deposit is for and how it comes back, who has to declare your residence at the address, which bills sit outside the rent, and the clauses that are genuinely negotiable.',
   canonical: '/renting-an-apartment-vietnam-foreigner',
-  published: '2026-09-23',
+  ...guideDates('renting-an-apartment-vietnam-foreigner'),
   sections: [
     {
       id: 'how-listings-work',

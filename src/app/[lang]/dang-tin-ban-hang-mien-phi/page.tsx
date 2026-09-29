@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
-import { marketplaceGuidesExcept } from '@/lib/expat-guides'
+import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
 
@@ -50,7 +50,7 @@ const CONTENT: ArticleContent = {
   intro:
     `Trên ${SITE_NAME}, đăng tin miễn phí ở mọi danh mục: không phí đăng, không phí theo tháng, không gói đẩy tin, không vị trí trả tiền. Nhưng miễn phí không đồng nghĩa với đăng gì cũng được. Bài này nói rõ tin phải đạt những gì mới lên sàn, bộ lọc trùng tin chạy theo tiêu chí nào, thứ hạng được tính bằng công thức ra sao, và mặt bằng giá đọc từ chính tin rao đang chạy trên sàn.`,
   canonical: `/${SLUG}`,
-  published: '2026-09-23',
+  ...guideDates(SLUG),
   lang: 'vi',
   sections: [
     {

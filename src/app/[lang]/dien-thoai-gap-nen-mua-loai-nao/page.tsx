@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -20,7 +21,7 @@ const CONTENT: ArticleContent = {
   intro:
     'iPhone Duo — máy gập đầu tiên của Apple — mở bán tại Việt Nam từ 23 tháng 10 năm 2026, bước vào phân khúc mà Samsung đã làm từ 2019. Bài này nói về giá thực tế của máy gập trong nước, những bộ phận thường hỏng, chi phí thay màn khi hết bảo hành, và vì sao đời đầu thường nên chờ.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/foldable-phones-vietnam' },
   sections: [

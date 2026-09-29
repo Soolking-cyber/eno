@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
-import { marketplaceGuidesExcept } from '@/lib/expat-guides'
+import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
 /**
@@ -36,7 +36,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Cùng một cái máy lạnh, một bộ sofa hay một cái tủ quần áo, bốn kênh bán cho ra bốn con số khác hẳn nhau. Phần lớn khoảng chênh đó không đến từ tài trả giá mà từ chỗ bạn bán ở đâu, bạn có biết món của mình đang được rao bao nhiêu hay không, và bạn còn bao nhiêu ngày. Bài này đưa ra khoảng giá thật đang niêm yết trên sàn, giải thích vì sao bán xô cho cửa hàng thu mua luôn thấp hơn, và nói thẳng cả những lúc bán xô mới là lựa chọn đúng.',
   canonical: `/${SLUG}`,
-  published: '2026-09-23',
+  ...guideDates(SLUG),
   lang: 'vi',
   sections: [
     {

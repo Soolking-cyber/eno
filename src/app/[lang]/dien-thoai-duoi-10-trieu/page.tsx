@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -29,7 +30,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Đây là tầm giá đông người mua nhất và cũng là tầm giá phải cân nhắc nhiều nhất, vì cùng số tiền đó bạn đứng trước hai loại máy khác hẳn nhau: một chiếc Android tầm trung mới nguyên seal, bảo hành đầy đủ, pin mới; hoặc một chiếc flagship đời trước đã qua tay người khác. Bài này nói rõ mỗi bên cho gì, cắt gì, hợp với ai, và những thông số nghe kêu nhưng không có nhiều giá trị thực tế ở phân khúc này.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/phones-under-10-million-vietnam' },
   sections: [

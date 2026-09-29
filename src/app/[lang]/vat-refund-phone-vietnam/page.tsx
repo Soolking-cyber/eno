@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -34,7 +35,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Vietnam refunds most of the 10% VAT on goods a foreign passport holder carries out of the country, and a phone is one of the easiest things to claim on — high value, a serial number on the invoice, small enough for hand luggage. The scheme works. It is also narrower than people assume, and both of the usual reasons a claim fails happen long before the airport.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/hoan-thue-vat-mua-dien-thoai' },
   sections: [

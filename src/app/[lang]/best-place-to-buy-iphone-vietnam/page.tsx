@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -23,7 +24,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Vietnam has five distinct kinds of iPhone shop, and the cheapest price in a search result almost never comes from the same kind as the safest purchase. This guide explains what each kind is, what the price difference actually buys, and the one question that settles whether a shop is selling you what you think it is.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/mua-iphone-o-dau-uy-tin' },
   sections: [

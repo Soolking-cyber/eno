@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -29,7 +30,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Four iPad lines, names that describe price tiers rather than jobs, and a set of accessories that can cost more than the tablet they attach to. This guide works through which line genuinely suits which kind of use, whether a cellular model earns its premium in a country where mobile data is cheap and Wi-Fi is everywhere, which storage tier you will regret, and what the keyboard and the Pencil add to the bill.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/mua-ipad-loai-nao-tot' },
   sections: [

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
@@ -29,7 +30,7 @@ const CONTENT: ArticleContent = {
   intro:
     'Chữ 5G đã rơi xuống tận phân khúc phổ thông, nhưng vùng phủ sóng thì chưa theo kịp. Bài này nói rõ 5G ở Việt Nam hiện dùng được ở đâu, SIM đang dùng có cần đổi không, bốn thông số quyết định máy giá rẻ trụ được mấy năm, và những dòng ghi trên tờ thông số chỉ để cho dài.',
   canonical: `/${SLUG}`,
-  published: '2026-09-19',
+  ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/budget-5g-phones-vietnam' },
   sections: [

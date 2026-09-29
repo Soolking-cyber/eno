@@ -9,9 +9,10 @@ import { PrismaPg } from '@prisma/adapter-pg'
 // the seed depend on whichever env happened to be loaded — and the "retired" sweep below
 // HIDES posts, so a scoped list there would silently stop maintaining a whole topic.
 import { ALL_HELP_TOPICS, ALL_HELP_TOPIC_SLUGS } from '../src/lib/help-center'
+import { diffSeedAnswer } from '../src/lib/help-seed-diff'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SYNC HELP CENTER — non-destructive, idempotent. Upserts:
+// SYNC HELP CENTER — non-destructive, idempotent, and it writes only what differs:
 //   1. the Help Center topics (src/lib/help-center.ts) as ForumCommunity rows
 //   2. the seeded official answers (scripts/help-center-seed.json) as ForumPost rows
 //   3. the CURATED Vietnamese for every seeded title/body into the Translation cache
@@ -56,12 +57,34 @@ type SeedPost = {
 
 const sha1 = (text: string) => createHash('sha1').update(text).digest('hex')
 
-/** Mirror one EN→VI pair into the translation cache the whole app already reads. */
-async function cacheVi(source: string, vietnamese: string) {
+/**
+ * The curated Vietnamese to store for `source`, or null when there is nothing to store.
+ * An empty or identical "translation" is worse than none: it would cache a miss
+ * permanently and block the real translator from ever filling it in.
+ */
+function curatedVi(source: string, vietnamese: string): string | null {
   const clean = vietnamese.trim()
-  // An empty or identical "translation" is worse than none: it would cache a miss
-  // permanently and block the real translator from ever filling it in.
-  if (!clean || clean === source.trim()) return
+  return !clean || clean === source.trim() ? null : clean
+}
+
+/** Whether the cache holds something other than the curated Vietnamese for `source` (read-only). */
+async function viDiffers(source: string, vietnamese: string): Promise<boolean> {
+  const clean = curatedVi(source, vietnamese)
+  if (clean === null) return false
+  const row = await db.translation.findUnique({
+    where: { hash_target: { hash: sha1(source), target: 'vi' } },
+    select: { value: true },
+  })
+  return row?.value !== clean
+}
+
+/**
+ * Mirror one EN→VI pair into the translation cache the whole app already reads.
+ * Read first, write only on a difference — same rule as the answers below.
+ */
+async function cacheVi(source: string, vietnamese: string) {
+  const clean = curatedVi(source, vietnamese)
+  if (clean === null || !(await viDiffers(source, vietnamese))) return
   await db.translation.upsert({
     where: { hash_target: { hash: sha1(source), target: 'vi' } },
     create: { hash: sha1(source), target: 'vi', value: clean },
@@ -127,8 +150,30 @@ async function main() {
     process.exit(1)
   }
 
-  const existingPosts = new Set(
-    (await db.forumPost.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((p) => p.id),
+  // ⛔ READ EVERY ROW FIRST, WRITE ONLY WHAT DIFFERS. `ForumPost.updatedAt` is `@updatedAt`,
+  // so an update that changes nothing still restamps it, and blindly upserting all answers
+  // made every run look like an edit of every answer. `editedAt` is set only when the answer
+  // a reader sees changed (src/lib/help-seed-diff.ts says what counts, and why `updatedAt`
+  // is not an edit date anyway); a reorder or a pin is written without it.
+  const existingPosts = new Map(
+    (
+      await db.forumPost.findMany({
+        where: { id: { in: ids } },
+        select: {
+          id: true,
+          communitySlug: true,
+          kind: true,
+          flair: true,
+          flairVi: true,
+          title: true,
+          body: true,
+          pinned: true,
+          official: true,
+          status: true,
+          createdAt: true,
+        },
+      })
+    ).map(({ id, ...row }) => [id, row]),
   )
 
   console.log(`\nAnswers (${seeds.length})`)
@@ -136,50 +181,53 @@ async function main() {
   // /help falls back to createdAt when scores tie, so the curated order is what a brand-new
   // reader sees — and upvotes are free to reorder it from there, which is the point.
   const base = Date.UTC(2026, 6, 21, 0, 0, 0)
+  const tally = { created: 0, edited: 0, written: 0, unchanged: 0 }
   for (const [index, seed] of seeds.entries()) {
     const id = `help-${seed.slugHint}`
     const createdAt = new Date(base + index * 60_000)
+    const row = existingPosts.get(id) ?? null
+    const viChanged = (await viDiffers(seed.title, seed.titleVi)) || (await viDiffers(seed.body, seed.bodyVi))
+    const { write, edited } = diffSeedAnswer(seed, createdAt, row, viChanged)
+    const verdict = !row ? 'CREATED' : edited ? 'edited' : write ? 'written' : 'unchanged'
+    tally[verdict === 'CREATED' ? 'created' : verdict]++
+    if (!dryRun && write) {
+      // Copy only. score/commentCount/viewCount/hotScore are engagement and are never
+      // reset by a content edit.
+      const copy = {
+        communitySlug: seed.community,
+        kind: seed.kind,
+        flair: seed.flair,
+        flairVi: seed.flairVi,
+        title: seed.title,
+        body: seed.body,
+        pinned: seed.pinned,
+        official: true,
+        // Re-publish a seed that a previous run retired (see the reconciliation below);
+        // restoring a slug should bring its post back, not leave it hidden forever.
+        status: 'published',
+        // createdAt is the curated-order key, so it must be re-applied on UPDATE too.
+        // Setting it only on create meant reordering this JSON changed nothing on the
+        // page — the copy moved, the order did not. It stays idempotent because the
+        // value is derived from a fixed base date plus the item's index, not from now().
+        createdAt,
+      }
+      if (row) {
+        await db.forumPost.update({ where: { id }, data: { ...copy, ...(edited ? { editedAt: new Date() } : {}) } })
+      } else {
+        await db.forumPost.create({
+          data: {
+            id,
+            ...copy,
+            authorProfileId: null,
+            authorName: 'eno team',
+            authorRole: 'Community team',
+            location: 'all',
+            editedAt: new Date(),
+          },
+        })
+      }
+    }
     if (!dryRun) {
-      await db.forumPost.upsert({
-        where: { id },
-        // Copy only. score/commentCount/viewCount/hotScore are engagement and are never
-        // reset by a content edit.
-        update: {
-          communitySlug: seed.community,
-          kind: seed.kind,
-          flair: seed.flair,
-          flairVi: seed.flairVi,
-          title: seed.title,
-          body: seed.body,
-          pinned: seed.pinned,
-          official: true,
-          status: 'published',
-          // createdAt is the curated-order key, so it must be re-applied on UPDATE too.
-          // Setting it only on create meant reordering this JSON changed nothing on the
-          // page — the copy moved, the order did not. It stays idempotent because the
-          // value is derived from a fixed base date plus the item's index, not from now().
-          createdAt,
-          // Re-publish a seed that a previous run retired (see the reconciliation below);
-          // restoring a slug should bring its post back, not leave it hidden forever.
-        },
-        create: {
-          id,
-          communitySlug: seed.community,
-          kind: seed.kind,
-          flair: seed.flair,
-          flairVi: seed.flairVi,
-          title: seed.title,
-          body: seed.body,
-          authorProfileId: null,
-          authorName: 'eno team',
-          authorRole: 'Community team',
-          location: 'all',
-          pinned: seed.pinned,
-          official: true,
-          status: 'published',
-          createdAt,
-        },
-      })
       await cacheVi(seed.title, seed.titleVi)
       await cacheVi(seed.body, seed.bodyVi)
       // NOT the flair. The Translation cache is keyed on sha1(source) with NO namespace,
@@ -189,8 +237,11 @@ async function main() {
       // different Vietnamese would silently overwrite each other. Long, unique title and
       // body text carries no such collision risk.
     }
-    console.log(`  ${existingPosts.has(id) ? 'updated' : 'CREATED'}  ${seed.community.padEnd(24)} ${seed.title.slice(0, 58)}`)
+    console.log(`  ${verdict.padEnd(9)} ${seed.community.padEnd(24)} ${seed.title.slice(0, 58)}`)
   }
+  console.log(
+    `  → ${tally.created} created, ${tally.edited} edited, ${tally.written} written without an edit, ${tally.unchanged} unchanged`,
+  )
 
   // ── 3. Retire seeds that are no longer in the JSON ─────────────────────────
   // The id is derived from slugHint, so RENAMING a slug (or deleting an entry) does not
