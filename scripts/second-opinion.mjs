@@ -72,12 +72,16 @@ const RECEIPTS = join(ROOT, '.second-opinion')
  * from either heavily, and go and measure rather than out-voting it.
  */
 /**
- * ⏸ codex PAUSED 2026-09-25 — owner: "drop codex till available". Its OpenAI quota ran out ("usage limit …
+ * (HISTORY — codex is BACK since 2026-09-29, see below.) codex PAUSED 2026-09-25 — owner: "drop codex till available". Its OpenAI quota ran out ("usage limit …
  * try again at 2:18 PM") and two build agents SLEPT waiting for it instead of committing on agy + opus.
- * ⛔ TO RESTORE when the quota is back: put 'codex' back in this array AND uncomment its seat in REVIEWERS
+ * (HISTORY) To restore it then: put 'codex' back in this array AND uncomment its seat in REVIEWERS
  * below. BOTH — the two lists drifting apart is what silently jammed this gate on 2026-09-16..20.
  */
-const REVIEWER_NAMES = ['agy', 'opus']
+// ⏸ agy SKIPPED 2026-09-29 — owner: "skip agy" (Google quota: "Individual quota reached … Resets in
+// 14h54m"). codex's OpenAI quota was measured back the same hour, so the panel is codex + opus — two
+// labs, codex the independent vote. To restore agy: add 'agy' here; its seat below is only skipped
+// (dispatch runs only the seats named here; a name with no seat is refused below, never dropped).
+const REVIEWER_NAMES = ['codex', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -471,15 +475,14 @@ const REVIEWERS = [
   //  * a slip — do not "correct" it upward. It is also the FASTER end, so the note on the opus seat
   //  * about no seat being slower than the 420s bound is unaffected by this one.
   //  */
-  // ⏸ PAUSED 2026-09-25 (owner: "drop codex till available") — see REVIEWER_NAMES. To restore, uncomment
-  // this seat AND add 'codex' back to REVIEWER_NAMES:
-  // {
-  //   name: 'codex',
-  //   lab: 'openai',
-  //   cmd: 'codex',
-  //   args: ['exec', '-m', 'gpt-5.6-sol', '-c', 'model_reasoning_effort=medium', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'],
-  //   stdin: true,
-  // },
+  // ✅ LIVE again 2026-09-29 (owner: "skip agy"; quota measured back). Paused 2026-09-25..29.
+  {
+    name: 'codex',
+    lab: 'openai',
+    cmd: 'codex',
+    args: ['exec', '-m', 'gpt-5.6-sol', '-c', 'model_reasoning_effort=medium', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'],
+    stdin: true,
+  },
   {
     name: 'opus',
     lab: 'anthropic',
@@ -589,8 +592,16 @@ const run = (r) =>
     p.stdin.on('error', () => {}) // a reviewer that dies mid-write must not crash the gate with EPIPE
   })
 
-console.log(`Reviewing staged diff ${hash} (${diff.split('\n').length} lines) with ${REVIEWERS.length} families…`)
-const results = await Promise.all(REVIEWERS.map(run))
+// Only seats named in REVIEWER_NAMES are dispatched, so a paused seat keeps its definition. ⛔ A name
+// with no seat is REFUSED, never silently dropped: a typo ('agi') must not shrink the panel.
+const ACTIVE = REVIEWERS.filter((r) => REVIEWER_NAMES.includes(r.name))
+const unseated = REVIEWER_NAMES.filter((n) => !REVIEWERS.some((r) => r.name === n))
+if (unseated.length) {
+  console.error(`⛔ REVIEWER_NAMES lists ${unseated.join(', ')} with no seat in REVIEWERS — refusing rather than running a smaller panel.`)
+  process.exit(1)
+}
+console.log(`Reviewing staged diff ${hash} (${diff.split('\n').length} lines) with ${ACTIVE.length} seat(s): ${ACTIVE.map((r) => r.name).join(' + ')}…`)
+const results = await Promise.all(ACTIVE.map(run))
 
 for (const r of results) {
   const mark = r.verdict === 'no-answer' ? '✗ NO ANSWER' : r.verdict
@@ -621,7 +632,7 @@ const counted = answered.filter((r) => !r.truncated)
  */
 const labsAnswered = new Set(answered.map((r) => r.lab)).size
 const labsCounted = new Set(counted.map((r) => r.lab)).size
-console.log(`\n${answered.length}/${REVIEWERS.length} seats answered across ${labsAnswered} lab(s) — ${counted.length} seat(s) / ${labsCounted} lab(s) saw the full diff.`)
+console.log(`\n${answered.length}/${ACTIVE.length} seats answered across ${labsAnswered} lab(s) — ${counted.length} seat(s) / ${labsCounted} lab(s) saw the full diff.`)
 // ⛔ opus IS THE SAME MODEL THAT WRITES MOST OF THESE DIFFS. A CONFIRMED from opus beside a REFUTED from agy is
 // an independent reviewer objecting — weight it that way.
 /**
