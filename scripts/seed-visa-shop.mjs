@@ -759,7 +759,11 @@ try {
     console.log(`  reused   handle @${handleRow.handle}`)
   } else if (/^[a-z][a-z0-9_]{2,29}$/.test(SHOP_HANDLE)) {
     const res = await db.query(
-      `INSERT INTO "Handle" (handle, "sellerId") VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING handle`,
+      // ⚠️ NOT WHEN ANOTHER HANDLE HAS ITS SUBDOMAIN KEY (the handle without underscores, I2b):
+      // `eno_visa` and `enovisa` would both be `enovisa.eno.vn` — claimHandle's rule, in SQL.
+      `INSERT INTO "Handle" (handle, "sellerId") SELECT $1::text, $2::text
+         WHERE NOT EXISTS (SELECT 1 FROM "Handle" WHERE replace(handle, '_', '') = replace($1::text, '_', ''))
+       ON CONFLICT DO NOTHING RETURNING handle`,
       [SHOP_HANDLE, seller.id],
     )
     if (res.rowCount) console.log(`  CREATED  handle @${SHOP_HANDLE}`)

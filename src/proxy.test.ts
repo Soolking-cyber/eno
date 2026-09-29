@@ -171,3 +171,81 @@ describe('language rewrite into the hidden [lang] segment', () => {
     expect((await run('/s/apple', { headers: { 'accept-language': 'en' } })).rewrite).toBe('/en/~/not-found')
   })
 })
+
+/**
+ * ⛔ AN UNDERSCORE HOST IS NEVER THE SITE (SEO wave B, I2b). Measured live 2026-09-29: https://sdc_store.eno.vn/
+ * and its /llms.txt answered 200 with the whole marketplace (canonical eno.vn, no noindex) — a duplicate host
+ * Search Console had crawled. Owner, 2026-09-28: a storefront's subdomain is its handle without underscores.
+ */
+describe('underscore hosts', () => {
+  const run = async (host: string, path = '/', init: { method?: string; headers?: Record<string, string>; app?: string } = {}) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', init.app ?? 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const res = proxy(new NextRequest(`https://eno.vn${path}`, { method: init.method ?? 'GET', headers: { host, 'accept-language': 'vi', ...(init.headers ?? {}) } }))
+    const target = res.headers.get('x-middleware-rewrite')
+    return { status: res.status, location: res.headers.get('location'), rewrite: target ? new URL(target).pathname : null, robots: res.headers.get('x-robots-tag') }
+  }
+
+  it('308s to the underscore-free storefront host, path and query kept', async () => {
+    expect(await run('sdc_store.eno.vn')).toMatchObject({ status: 308, location: 'https://sdcstore.eno.vn/' })
+    expect((await run('sdc_store.eno.vn', '/llms.txt')).location).toBe('https://sdcstore.eno.vn/llms.txt')
+    expect((await run('sdc_store.eno.vn', '/c/rentals?sort=newest&page=2')).location).toBe('https://sdcstore.eno.vn/c/rentals?sort=newest&page=2')
+    expect((await run('sdc_store.eno.vn', '/api/listings')).location).toBe('https://sdcstore.eno.vn/api/listings')
+  })
+
+  it('multiple underscores, a hyphen kept, any case, a port, a punycode label', async () => {
+    expect((await run('a_b_c_d.eno.vn')).location).toBe('https://abcd.eno.vn/')
+    expect((await run('my_shop-two.eno.vn')).location).toBe('https://myshop-two.eno.vn/')
+    expect((await run('SDC_Store.ENO.VN')).location).toBe('https://sdcstore.eno.vn/')
+    expect((await run('sdc_store.eno.vn:443')).location).toBe('https://sdcstore.eno.vn/')
+    expect((await run('xn--_bcher-kva.eno.vn')).location).toBe('https://xn--bcher-kva.eno.vn/')
+  })
+
+  it('stays on this edition\'s own zone: eno.forum subdomains go to eno.forum, never www', async () => {
+    const r = await run('sdc_store.eno.forum', '/c/rentals', { app: 'https://www.eno.forum' })
+    expect(r).toMatchObject({ status: 308, location: 'https://sdcstore.eno.forum/c/rentals' })
+  })
+
+  it('every method moves (308 keeps it), and a write from a foreign page is still refused first', async () => {
+    expect(await run('sdc_store.eno.vn', '/listings/abc', { method: 'POST' })).toMatchObject({ status: 308, location: 'https://sdcstore.eno.vn/listings/abc' })
+    expect((await run('sdc_store.eno.vn', '/listings/abc', { method: 'POST', headers: { origin: 'https://sdc_store.eno.vn' } })).status).toBe(403)
+  })
+
+  it('⛔ a path that looks like another host stays a path on ours — never an open redirect', async () => {
+    for (const path of ['//evil.example/x', '/\\evil.example/x', '/%2F%2Fevil.example']) {
+      const loc = (await run('sdc_store.eno.vn', path)).location!
+      expect(new URL(loc).host, path).toBe('sdcstore.eno.vn')
+    }
+  })
+
+  it('⛔ an underscore host that can be no storefront is a 404, noindex — like random-test-xyz.eno.vn', async () => {
+    for (const host of ['x_y.eno.vn', 'w_w_w.eno.vn', 's_b.eno.vn', 'sign_in.eno.vn', 'a.b_c.eno.vn', 'sdc_store.eno.forum']) {
+      const r = await run(host, '/')
+      expect(r, host).toMatchObject({ location: null, rewrite: '/vi/~/not-found', robots: 'noindex' })
+    }
+    // Not a page request: a plain 404, still noindex.
+    expect(await run('x_y.eno.vn', '/api/listings')).toMatchObject({ status: 404, rewrite: null, robots: 'noindex' })
+    // An unconfigured build has no zone to send it to.
+    expect(await run('sdc_store.eno.vn', '/', { app: '' })).toMatchObject({ location: null, rewrite: '/vi/~/not-found', robots: 'noindex' })
+  })
+
+  it('leaves every host without an underscore exactly as it was: apex, www, storefront, random, punycode', async () => {
+    expect(await run('eno.vn')).toMatchObject({ location: null, rewrite: '/vi', robots: null })
+    expect(await run('www.eno.vn')).toMatchObject({ location: null, rewrite: '/vi', robots: null })
+    expect(await run('sdcstore.eno.vn')).toMatchObject({ location: null, rewrite: '/vi/s/sdcstore', robots: null })
+    expect(await run('random-test-xyz.eno.vn')).toMatchObject({ location: null, rewrite: '/vi/s/random-test-xyz' })
+    expect(await run('xn--bcher-kva.eno.vn')).toMatchObject({ location: null, rewrite: '/vi/s/xn--bcher-kva' })
+    expect(await run('sdcstore.eno.vn', '/c/rentals')).toMatchObject({ location: null, rewrite: '/vi/c/rentals' })
+  })
+
+  it('the matcher sends EVERY path of an underscore host here, dotted ones included', async () => {
+    const { config } = await import('./proxy')
+    const entry = config.matcher.find((m) => typeof m === 'object') as { source: string; has: { type: string; value: string }[] }
+    expect(entry.source).toBe('/:path*')
+    const re = new RegExp(`^${entry.has[0].value}$`)
+    expect(entry.has[0].type).toBe('host')
+    for (const host of ['sdc_store.eno.vn', 'a_b.eno.forum', '_x.eno.vn']) expect(re.test(host), host).toBe(true)
+    for (const host of ['eno.vn', 'www.eno.forum', 'sdcstore.eno.vn', 'random-test-xyz.eno.vn']) expect(re.test(host), host).toBe(false)
+  })
+})

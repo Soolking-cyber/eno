@@ -1,8 +1,9 @@
 import 'server-only'
 import { cache } from 'react'
+import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { IS_SERVICES } from '@/lib/edition'
-import { storefrontBaseHost, storefrontHandleFromHost, storefrontUrl } from '@/lib/storefront-host'
+import { storefrontBaseHost, storefrontHandleFromHost, storefrontLabelUrl, storefrontSubdomainLabel, subdomainKey } from '@/lib/storefront-host'
 
 /**
  * WHOSE STOREFRONT A REQUEST IS FOR — the database half of `storefront-host.ts`.
@@ -113,6 +114,36 @@ export const storefrontByHandle = cache(async (handle: string): Promise<Storefro
 })
 
 /**
+ * THE SHOP A SUBDOMAIN LABEL SERVES — owner, 2026-09-28: a subdomain is the handle with its
+ * underscores removed (`sdcstore.eno.vn` is `sdc_store`'s). Null when it serves none.
+ *
+ * - **The exact handle first.** A handle equal to the label decides it, whoever holds it: a shop gets
+ *   the subdomain, and a person or a brand-slug handle gets nobody (the same 404 as ever). Otherwise
+ *   the owner of `sdcstore` could lose its own name the day somebody claimed `sdc_store`.
+ * - **Else the ONE handle that strips to it.** Two (`ab_cd` and `abc_d`) serve nobody: a 404, exactly
+ *   like an unknown label, rather than one shop picked by an order nobody chose. `claimHandle` refuses
+ *   such a pair from 2026-09-28 on, so only an older pair can reach this.
+ * - **A brand never gets a subdomain, in either spelling**: `app_le` keeps `eno.vn/app_le` and never
+ *   gets `apple.eno.vn` (see the brand note at the top of this file).
+ *
+ * ⚠️ ALSO CALLED WITH A HANDLE, NOT A LABEL: `eno.vn/<handle>` renders the same component in place
+ * (`[handle]/page.tsx`), with `row.handle`. That handle exists, so the exact branch answers it, and
+ * an underscore handle can never be mistaken for a label (no label has one).
+ * ⚠️ `cache()`-WRAPPED like `storefrontByHandle`: per request, never across requests.
+ */
+export const storefrontByLabel = cache(async (label: string): Promise<Storefront | null> => {
+  const rows = await db.$queryRaw<{ handle: string }[]>(
+    Prisma.sql`SELECT "handle" FROM "Handle" WHERE "handle" = ${label} OR replace("handle", '_', '') = ${label}`,
+  )
+  if (rows.some((r) => r.handle === label)) return storefrontByHandle(label)
+  if (rows.length !== 1) return null
+  const [{ handle }] = rows
+  if (storefrontSubdomainLabel(handle) !== label) return null
+  if (await db.brand.findUnique({ where: { slug: label }, select: { slug: true } })) return null
+  return storefrontByHandle(handle)
+})
+
+/**
  * The storefront a Host header addresses, or null for the ordinary site.
  *
  * ⚠️ `appHost` COMES FROM THE BUILD, NOT THE REQUEST. `NEXT_PUBLIC_APP_URL` is baked per edition
@@ -123,9 +154,9 @@ export const storefrontByHandle = cache(async (handle: string): Promise<Storefro
 export async function storefrontForHost(host: string | null | undefined): Promise<Storefront | null> {
   const appHost = canonicalAppHost()
   if (!appHost) return null
-  const handle = storefrontHandleFromHost(host, appHost)
-  if (!handle) return null
-  return storefrontByHandle(handle)
+  const label = storefrontHandleFromHost(host, appHost)
+  if (!label) return null
+  return storefrontByLabel(label)
 }
 
 /**
@@ -137,23 +168,29 @@ export function canonicalAppHost(): string {
 }
 
 /**
- * THE CANONICAL URL OF A HANDLE'S STOREFRONT: `alex.eno.vn` when the subdomain actually serves that
- * shop (`storefrontByHandle` — and `storefrontUrl` for a handle that cannot be a host label, such as
- * `sdc_store`), else `eno.vn/alex`.
+ * THE CANONICAL URL OF A HANDLE'S STOREFRONT: its subdomain when that host actually serves THIS shop
+ * (`storefrontByLabel` of its label resolves back to it — `alex.eno.vn`, and since 2026-09-28
+ * `sdcstore.eno.vn` for `sdc_store`), else the path, `eno.vn/<handle>`.
  *
  * ⛔ ONE ANSWER FOR EVERY PLACE THAT NAMES THE PAGE (SEO wave B, I2): `<link rel="canonical">` and
- * `og:url` on `/<handle>`, the canonical `/sellers/<id>` points at, the Share and "Copy link" address
- * (`shopShareUrl`), and the storefront `<loc>` in pages.xml. Measured before this: pages.xml submitted
- * `eno.vn/eno-trading`, `eno.vn/gmbr` and `eno.vn/vinwonders` while each page canonicalised to its
- * subdomain, so the sitemap asked Google for a URL the page itself disowned.
+ * `og:url` on `/<handle>` and on the subdomain page, the canonical `/sellers/<id>` points at, the Share
+ * and "Copy link" address (`shopShareUrl`), the storefront's `Store.url`, and the storefront `<loc>` in
+ * pages.xml. Measured before this: pages.xml submitted `eno.vn/eno-trading`, `eno.vn/gmbr` and
+ * `eno.vn/vinwonders` while each page canonicalised to its subdomain, so the sitemap asked Google for a
+ * URL the page itself disowned.
+ * ⚠️ "RESOLVES BACK TO IT", NOT "HAS A LABEL": `sdc_store` and an older `sdcstore` share one label, and
+ * the host serves `sdcstore` (the exact handle), so `sdc_store`'s canonical stays its path. Naming the
+ * label unconditionally would hand out a link to somebody else's shop.
  */
 export async function storefrontCanonical(handle: string, origin: string): Promise<string> {
-  return canonicalFor(handle, origin, !!(await storefrontByHandle(handle)))
+  const label = storefrontSubdomainLabel(handle)
+  const served = !!label && (await storefrontByLabel(label))?.handle === handle
+  return canonicalFor(handle, label, origin, served)
 }
 
-/** The canonical, given whether the subdomain serves the shop (`storefrontByHandle` non-null). */
-function canonicalFor(handle: string, origin: string, served: boolean): string {
-  return served ? storefrontUrl(handle, origin) : `${origin.replace(/\/$/, '')}/${handle}`
+/** The canonical, given whether the subdomain serves this handle's shop. */
+function canonicalFor(handle: string, label: string | null, origin: string, served: boolean): string {
+  return served && label ? storefrontLabelUrl(label, origin) : `${origin.replace(/\/$/, '')}/${handle}`
 }
 
 /**
@@ -161,20 +198,38 @@ function canonicalFor(handle: string, origin: string, served: boolean): string {
  * block. One call per seller was two queries each, all at once (agy and opus, review of this change):
  * harmless for today's handful of sellers with stock of their own, a pool-exhausting fan-out once every
  * private seller qualifies, and one failed read fails the whole sitemap.
- * ⚠️ THE SAME QUESTION `storefrontByHandle` ASKS — a handle held by a SELLER, and not a brand slug —
- * asked of a set. storefront.test.ts pins the two to the same answer for every kind of handle, so the
- * batch cannot drift from the page's own canonical.
+ * ⚠️ THE SAME QUESTION `storefrontByLabel` ASKS — the exact handle first, else the one handle that
+ * strips to the label, held by a SELLER, and not a brand slug in either spelling — asked of a set.
+ * storefront.test.ts pins the two to the same answer for every kind of handle, so the batch cannot drift
+ * from the page's own canonical. One read covers both branches: a label has no underscore, so the exact
+ * holder of a label also "strips" to it.
  */
 export async function storefrontCanonicals(handles: string[], origin: string): Promise<Map<string, string>> {
   const unique = [...new Set(handles)]
   if (!unique.length) return new Map()
+  const labelOf = new Map(unique.map((h) => [h, storefrontSubdomainLabel(h)]))
+  const labels = [...new Set([...labelOf.values()].filter((l): l is string => !!l))]
   const [rows, brands] = await Promise.all([
-    db.handle.findMany({ where: { handle: { in: unique } }, select: { handle: true, sellerId: true } }),
-    db.brand.findMany({ where: { slug: { in: unique } }, select: { slug: true } }),
+    labels.length
+      ? db.$queryRaw<{ handle: string; sellerId: string | null }[]>(
+        Prisma.sql`SELECT "handle", "sellerId" FROM "Handle" WHERE replace("handle", '_', '') IN (${Prisma.join(labels)})`,
+      )
+      : Promise.resolve([]),
+    db.brand.findMany({ where: { slug: { in: [...new Set([...unique, ...labels])] } }, select: { slug: true } }),
   ])
-  const shops = new Set(rows.filter((r) => r.sellerId).map((r) => r.handle))
   const brandSlugs = new Set(brands.map((b) => b.slug))
-  return new Map(unique.map((h) => [h, canonicalFor(h, origin, shops.has(h) && !brandSlugs.has(h))]))
+  /** The handle row a label serves, by `storefrontByLabel`'s rule; undefined when it serves none. */
+  const servedBy = (label: string) => {
+    const exact = rows.find((r) => r.handle === label)
+    if (exact) return exact
+    const stripped = rows.filter((r) => subdomainKey(r.handle) === label)
+    return stripped.length === 1 && !brandSlugs.has(label) ? stripped[0] : undefined
+  }
+  return new Map(unique.map((h) => {
+    const label = labelOf.get(h) ?? null
+    const row = label ? servedBy(label) : undefined
+    return [h, canonicalFor(h, label, origin, !!row && row.handle === h && !!row.sellerId && !brandSlugs.has(h))]
+  }))
 }
 
 /**

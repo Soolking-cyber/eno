@@ -39,8 +39,9 @@ export function HandleSettings() {
         {/* ⚠️ INTERPOLATED, NOT TYPED OUT — this sentence named eno.vn to every eno.forum seller.
             See the note on the SITE_NAME import in handle-editor.tsx. */}
         {/* ⚠️ NO ADDRESS SHAPE IN THE SHOP SENTENCE: most shops get `yourshop.eno.vn`, but a brand-name
-            or underscore handle keeps the path, so promising either would be wrong for someone. The
-            editor below shows (and copies) the shop's real link. */}
+            handle keeps the path and an underscore handle's host drops the underscores (`sdcstore.eno.vn`
+            for `sdc_store`), so promising either would be wrong for someone. The editor below shows (and
+            copies) the shop's real link. */}
         {isBusiness
           ? tr(
             'Your shop handle is your public link — copy it below and share it anywhere; people land straight on your shop.',

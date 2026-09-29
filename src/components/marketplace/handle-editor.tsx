@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Field, FieldControl, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { HANDLE_RE } from '@/lib/handle-format'
+import { storefrontSubdomainLabel } from '@/lib/storefront-host'
 // ⚠️ THE HOST IS PER-EDITION AND MUST NEVER BE TYPED OUT. One codebase is deployed twice, so a
 // literal 'eno.vn' here told every eno.forum seller their public link was on the OTHER site
 // (owner, 2026-08-17, screenshot). SITE_NAME is inlined at build from NEXT_PUBLIC_ENO_EDITION,
@@ -55,7 +56,7 @@ export function HandleEditor({ target, initial, shareUrl, label }: { target: 'pr
     const req = latest.begin()
     timer.current = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/handle/check?h=${encodeURIComponent(normalized)}`, { signal: req.signal })
+        const r = await fetch(`/api/handle/check?h=${encodeURIComponent(normalized)}&target=${target}`, { signal: req.signal })
         const d = await r.json().catch(() => ({}))
         if (!req.isCurrent()) return
         if (!r.ok) { setState('idle'); return }
@@ -63,7 +64,7 @@ export function HandleEditor({ target, initial, shareUrl, label }: { target: 'pr
       } catch { if (req.isCurrent()) setState('idle') }
     }, 400)
     return () => { if (timer.current) clearTimeout(timer.current) }
-  }, [normalized, dirty])
+  }, [normalized, dirty, target])
 
   const save = async () => {
     setSaving(true); setError('')
@@ -99,10 +100,13 @@ export function HandleEditor({ target, initial, shareUrl, label }: { target: 'pr
   const shown = shareHref ? shareHref.replace(/^https?:\/\//, '') : ''
   // The handle is bolded by POSITION — the leading label of `alex.eno.vn`, the last segment of
   // `eno.vn/alex` — never by searching for it: `eno.forum/forum` would bold the domain's "forum".
-  const at = !current ? -1
-    : shown.startsWith(`${current}.`) ? 0
-    : shown.endsWith(`/${current}`) ? shown.length - current.length
-    : -1
+  // ⚠️ THE LEADING LABEL IS THE HANDLE WITHOUT UNDERSCORES (`sdcstore.eno.vn` for `sdc_store`, owner
+  // 2026-09-28), so it is matched through the same `storefrontSubdomainLabel` the server built it with.
+  const hostLabel = current ? storefrontSubdomainLabel(current) : null
+  const [at, bold]: [number, string] = !current ? [-1, '']
+    : hostLabel && shown.startsWith(`${hostLabel}.`) ? [0, hostLabel]
+    : shown.endsWith(`/${current}`) ? [shown.length - current.length, current]
+    : [-1, '']
 
   const copy = async () => {
     try {
@@ -196,7 +200,7 @@ export function HandleEditor({ target, initial, shareUrl, label }: { target: 'pr
       </div>
       {current && !dirty && (
         <p className="text-xs text-muted-foreground">
-          {at >= 0 ? <>{shown.slice(0, at)}<span className="font-semibold text-body">{current}</span>{shown.slice(at + current.length)}</> : shown}
+          {at >= 0 ? <>{shown.slice(0, at)}<span className="font-semibold text-body">{bold}</span>{shown.slice(at + bold.length)}</> : shown}
         </p>
       )}
       {/* Save failed — a verdict on the ATTEMPT (incl. rate limits), so it is announced, not described. */}

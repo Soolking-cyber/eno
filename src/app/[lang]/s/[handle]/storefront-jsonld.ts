@@ -31,7 +31,7 @@ export type StorefrontLdInput = {
   name: string
   /** The edition's own name — `SITE_NAME`. Never a literal; see the note above. */
   siteName: string
-  /** The page's own canonical — `storefrontUrl(handle, origin)`, already resolved. */
+  /** The page's own canonical — `storefrontCanonical(handle, origin)`, already resolved. */
   url: string
   /** This edition's origin (`https://eno.vn` / `https://www.eno.forum`). */
   origin: string

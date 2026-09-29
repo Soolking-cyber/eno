@@ -122,15 +122,26 @@ vi.mock('@/lib/db', () => {
       return row
     },
   }
+  /**
+   * `claimHandle`'s SUBDOMAIN-KEY read (I2b): the distinct underscore-free forms, among the handles
+   * held, that are in the list. It arrives as a `Prisma.sql` object (`.values`), never as a template
+   * call, which is how it is told apart from the limiter's read below.
+   */
+  const subdomainKeys = (q: { values: unknown[] }) => {
+    const want = new Set(q.values as string[])
+    return [...new Set(h.handles.map((r) => r.handle.replace(/_/g, '')))].filter((k) => want.has(k)).map((key) => ({ key }))
+  }
   return {
     db: {
       // The real `@/lib/ratelimit` runs on top of this: `select ... from rl_check($1,$2,$3,$4)`.
-      $queryRaw: async (_strings: TemplateStringsArray, ...values: unknown[]) => {
+      $queryRaw: async (strings: TemplateStringsArray | { values: unknown[] }, ...values: unknown[]) => {
+        if (!Array.isArray(strings)) return subdomainKeys(strings as { values: unknown[] })
         h.rlCalls.push(values)
         if (h.rlDown) throw new Error('rl_check unavailable')
         return [{ success: h.rlAllow, remaining: 0 }]
       },
-      $transaction: async (fn: (tx: { handle: typeof handle }) => Promise<unknown>) => fn({ handle }),
+      $transaction: async (fn: (tx: { handle: typeof handle; $queryRaw: (q: { values: unknown[] }) => Promise<{ key: string }[]> }) => Promise<unknown>) =>
+        fn({ handle, $queryRaw: async (q: { values: unknown[] }) => subdomainKeys(q) }),
       seller: {
         findUnique: async ({ where }: Row) => {
           h.sellerWhere.push(where)
@@ -505,5 +516,33 @@ describe('POST /api/handle — claim outcomes', () => {
       status: 200, body: '{"handle":"alex"}',
     })
     expect(h.handles).toEqual([{ handle: 'alex', profileId: 'user-1', sellerId: null }])
+  })
+
+  /**
+   * ⛔ ONE SUBDOMAIN, ONE HANDLE (SEO wave B, I2b). A shop's subdomain is its handle without the
+   * underscores (owner, 2026-09-28: `sdc_store` → `sdcstore.eno.vn`), so a new name whose
+   * underscore-free form another handle already has would be a second claim on the same host.
+   */
+  it('a name that strips to another holder\'s subdomain → 409 {"error":"taken"}, in every spelling', async () => {
+    for (const [held, wanted] of [['sdc_store', 'sdcstore'], ['sdcstore', 'sdc_store'], ['sdc_store', 'sd_cstore'], ['a_b_cd', 'abc_d']]) {
+      h.handles = [{ handle: held, profileId: 'other', sellerId: null }]
+      h.createData = []
+      expect(await wire(await POST(post({ handle: wanted }))), `${held} held, ${wanted} wanted`).toEqual({
+        status: 409, body: '{"error":"taken"}',
+      })
+      expect(h.handles, wanted).toEqual([{ handle: held, profileId: 'other', sellerId: null }])
+      expect(h.createData, wanted).toEqual([]) // refused before the write, not by the primary key
+    }
+  })
+
+  it('a hyphen is a different host, so it is a different name', async () => {
+    h.handles = [{ handle: 'sdc_store', profileId: 'other', sellerId: null }]
+    expect(await wire(await POST(post({ handle: 'sdc-store' })))).toEqual({ status: 200, body: '{"handle":"sdc-store"}' })
+  })
+
+  it('re-spelling your OWN name onto its subdomain form is a rename, not a clash', async () => {
+    h.handles = [{ handle: 'sdc_store', profileId: 'user-1', sellerId: null }]
+    expect(await wire(await POST(post({ handle: 'sdcstore' })))).toEqual({ status: 200, body: '{"handle":"sdcstore"}' })
+    expect(h.handles).toEqual([{ handle: 'sdcstore', profileId: 'user-1', sellerId: null }])
   })
 })

@@ -1,6 +1,8 @@
 import 'server-only'
+import { Prisma } from '@/generated/prisma/client'
 import { db } from './db'
 import { HANDLE_RE, validateHandle, slugifyHandle } from './handle-format'
+import { subdomainKey } from './storefront-host'
 import { logError } from '@/lib/log'
 
 // ── Public @handles (Telegram-style) ─────────────────────────────────────────────
@@ -11,24 +13,58 @@ import { logError } from '@/lib/log'
 
 export { HANDLE_RE, validateHandle, slugifyHandle, isReservedHandle } from './handle-format'
 
+/**
+ * ⛔ TWO HANDLES MAY NOT SHARE A SUBDOMAIN KEY — the handle without its underscores (SEO wave B, I2b).
+ * Owner, 2026-09-28: a shop's subdomain is its handle with the underscores removed, so `sdc_store`
+ * answers at `sdcstore.eno.vn`. Then `sdc_store` and `sdcstore` (or `ab_cd` and `abc_d`) would be two
+ * names for one host, and the primary key cannot see it. This read is what does.
+ * ⚠️ EVERY handle, a person's too: a person's handle moves onto their shop in place
+ * (`consolidateSellerHandle`), so a person holding `sdcstore` today is a shop claiming it tomorrow.
+ * ⚠️ NOT RACE-PROOF. Two claims of `sdcstore` and `sdc_store` in the same instant both pass; a unique
+ * index on `replace(handle, '_', '')` would close that, and needs the existing pairs gone first (the
+ * owner's read-only query in the I2b commit). A pair that slips through costs the subdomain, never the
+ * wrong shop: `storefrontByLabel` serves nobody on a label two handles share, unless one IS the label.
+ * ⚠️ A HYPHEN IS KEPT: `sdc-store` is a different host from `sdcstore`, so it is a different key.
+ */
+async function subdomainKeysTaken(client: Pick<typeof db, '$queryRaw'>, keys: string[]): Promise<Set<string>> {
+  if (!keys.length) return new Set()
+  const rows = await client.$queryRaw<{ key: string }[]>(
+    Prisma.sql`SELECT DISTINCT replace("handle", '_', '') AS "key" FROM "Handle" WHERE replace("handle", '_', '') IN (${Prisma.join(keys)})`,
+  )
+  return new Set(rows.map((r) => r.key))
+}
+
 /** First free variant of `base`: base, base1 … base98, then base_<4 random digits>
- *  ("alex" taken → "alex1"). One indexed IN-query instead of N lookups; the caller's
- *  CREATE is still the only authority (a concurrent claim just makes it retry). */
+ *  ("alex" taken → "alex1"). One IN-query instead of N lookups; `claimHandle` is still the only
+ *  authority (its subdomain-key check + CREATE; a concurrent claim or a taken fallback just makes the
+ *  caller retry — `autoClaimHandle`, the one caller, regenerates once on 'taken').
+ *  ⚠️ "Free" is by SUBDOMAIN KEY, not by exact name (see `subdomainKeysTaken`): with `bob_store` held,
+ *  `bobstore` is taken, and offering it would only make `claimHandle` refuse it. */
 export async function generateUniqueHandle(base: string): Promise<string> {
   const b = slugifyHandle(base)
   const candidates = [b, ...Array.from({ length: 98 }, (_, i) => `${b.slice(0, 28)}${i + 1}`)]
     .filter((c) => validateHandle(c) === null)
-  const taken = new Set(
-    (await db.handle.findMany({ where: { handle: { in: candidates } }, select: { handle: true } })).map((r) => r.handle),
-  )
-  for (const c of candidates) if (!taken.has(c)) return c
+  const taken = await subdomainKeysTaken(db, [...new Set(candidates.map(subdomainKey))])
+  for (const c of candidates) if (!taken.has(subdomainKey(c))) return c
   return `${b.slice(0, 25)}_${Math.floor(1000 + Math.random() * 9000)}`
+}
+
+/**
+ * Every handle sharing `h`'s subdomain key, `h` itself included when held. For the editor's live
+ * check (`/api/handle/check`), so it says "taken" for what `claimHandle` will refuse; the route decides
+ * which holders are the caller's own (re-saving or re-spelling your own name is not a clash).
+ */
+export async function subdomainKeyHolders(h: string): Promise<{ handle: string; profileId: string | null; sellerId: string | null }[]> {
+  return db.$queryRaw<{ handle: string; profileId: string | null; sellerId: string | null }[]>(
+    Prisma.sql`SELECT "handle", "profileId"::text AS "profileId", "sellerId" FROM "Handle" WHERE replace("handle", '_', '') = ${subdomainKey(h)}`,
+  )
 }
 
 export type HandleOwner = { profileId: string } | { sellerId: string }
 
 /** Claim (or change to) `handle` for exactly one owner. Frees the owner's previous
- *  name in the same transaction. Throws 'taken' | 'invalid' | 'reserved'. */
+ *  name in the same transaction. Throws 'taken' | 'invalid' | 'reserved'.
+ *  ⚠️ 'taken' also means another handle has its SUBDOMAIN KEY (`subdomainKeysTaken`). */
 export async function claimHandle(owner: HandleOwner, rawHandle: string): Promise<string> {
   const h = rawHandle.trim().toLowerCase().replace(/^@/, '')
   const err = validateHandle(h)
@@ -39,6 +75,8 @@ export async function claimHandle(owner: HandleOwner, rawHandle: string): Promis
       const existing = await tx.handle.findUnique({ where: 'profileId' in owner ? { profileId: owner.profileId } : { sellerId: owner.sellerId } })
       if (existing?.handle === h) return
       if (existing) await tx.handle.delete({ where: { handle: existing.handle } })
+      // After the delete, so renaming your own `sdc_store` to `sdcstore` is not a clash with itself.
+      if ((await subdomainKeysTaken(tx, [subdomainKey(h)])).size) throw new Error('taken')
       await tx.handle.create({ data: { handle: h, ...owner } })
     })
   } catch (e) {

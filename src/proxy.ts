@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { storefrontBaseHost, storefrontHandleFromHost } from '@/lib/storefront-host'
+import { storefrontBaseHost, storefrontHandleFromHost, storefrontLabelUrl, underscoreHost } from '@/lib/storefront-host'
 import { LANG_COOKIE, langVariantFor, type LangVariant } from '@/lib/lang-variant'
 
 // Edge-ingress guard. When EDGE_SECRET is set, every /api/* request (except crons,
@@ -264,6 +264,31 @@ export function proxy(req: NextRequest) {
   // ⚠️ READS ONLY. A rewrite changes which route handles a request, so applying it to a POST would
   // hand a storefront's Server Action to a page that never expects one.
   const lang = isApi(req.nextUrl.pathname) ? null : langVariantFor(req.cookies.get(LANG_COOKIE)?.value, req.headers.get('accept-language'))
+
+  /**
+   * ⛔ AN UNDERSCORE HOST IS NEVER THE SITE (SEO wave B, I2b). `sdc_store.eno.vn` served the whole
+   * marketplace with 200, `/llms.txt` included, and Search Console had crawled it — a second copy of
+   * eno.vn on a name no host may carry (see `underscoreHost`). Owner, 2026-09-28: a storefront's
+   * subdomain is its handle without underscores, so that host 308s to `sdcstore.eno.vn` on the SAME
+   * zone, path and query kept, every method; any other underscore host is a 404, noindex — what
+   * `random-test-xyz.eno.vn` already answers.
+   * ⚠️ EVERY PATH, DOTTED ONES TOO: the last `config.matcher` entry sends any underscore host here,
+   * because the page matcher skips `/llms.txt`, `/robots.txt` and `/_next/`. That is why this sits
+   * before every other branch but the write guard.
+   * ⚠️ THE TARGET IS CONCATENATED, NEVER `new URL(path, base)`: a path of `//evil.example/x` resolved
+   * against a base is a redirect OFF our domain; appended to the origin it is just a path.
+   */
+  const underscore = underscoreHost(req.headers.get('host'), canonicalHost())
+  if (underscore) {
+    if (underscore.label && process.env.NEXT_PUBLIC_APP_URL) {
+      const to = `${storefrontLabelUrl(underscore.label, process.env.NEXT_PUBLIC_APP_URL)}${req.nextUrl.pathname}${req.nextUrl.search}`
+      return withCors(NextResponse.redirect(to, 308), origin)
+    }
+    const res = lang ? rewriteToLang(req, lang, NOT_FOUND_PATH) : withCors(new NextResponse('Not Found', { status: 404 }), origin)
+    res.headers.set('X-Robots-Tag', 'noindex')
+    return res
+  }
+
   if (handle && lang && req.nextUrl.pathname === '/' && (req.method === 'GET' || req.method === 'HEAD')) {
     return rewriteToLang(req, lang, `/s/${handle}`)
   }
@@ -351,5 +376,9 @@ export const config = {
     // is listed so the bare directory path is not rewritten into a `[lang]` page that 404s; the
     // handle is reserved in handle-format.ts for the same reason `listing-images` is.
     '/((?!_next/|api(?:/|$)|md(?:/|$)|app$|listing-images(?:/|$)|sitemaps(?:/|$)|.*\\.).*)',
+    // ⛔ EVERY path on an underscore host (I2b): the entry above skips `/llms.txt` and the other dotted
+    // files, and `sdc_store.eno.vn/llms.txt` is the URL Search Console had crawled. Next anchors the
+    // value (`^…$`) against the Host header's lowercased hostname, port removed.
+    { source: '/:path*', has: [{ type: 'host', value: '.*_.*' }] },
   ],
 }

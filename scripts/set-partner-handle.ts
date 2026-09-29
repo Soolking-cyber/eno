@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { db } from '../src/lib/db'
 import { validateHandle } from '../src/lib/handle-format'
+import { subdomainKey } from '../src/lib/storefront-host'
 
 async function main() {
   const apply = process.argv.includes('--apply')
@@ -43,8 +44,10 @@ async function main() {
   if (seller.name !== name) { console.error(`storefront behind the affiliate listings is "${seller.name}", not "${name}" — refusing`); process.exit(1) }
   if (seller.handle) { console.log(`already has /${seller.handle.handle} — nothing to do`); await db.$disconnect(); return }
 
-  const taken = await db.handle.findUnique({ where: { handle }, select: { handle: true } })
-  if (taken) { console.error(`/${handle} is already taken — refusing to move it`); process.exit(1) }
+  // ⚠️ BY SUBDOMAIN KEY, the handle without underscores (I2b): `vin_wonders` held would take
+  // `vinwonders.eno.vn` too, so a plain primary-key lookup is not enough (claimHandle's own rule).
+  const taken = await db.$queryRaw<{ handle: string }[]>`SELECT "handle" FROM "Handle" WHERE replace("handle", '_', '') = ${subdomainKey(handle)}`
+  if (taken.length) { console.error(`/${handle} is already taken (by /${taken[0].handle}) — refusing to move it`); process.exit(1) }
 
   console.log(`${seller.name} (${seller.id}) -> /${handle}`)
   if (!apply) { console.log('\nDRY RUN — re-run with --apply.'); await db.$disconnect(); return }

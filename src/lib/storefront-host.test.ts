@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isHostnameLabel, isInfraSubdomain, storefrontBaseHost, storefrontHandleFromHost, storefrontUrl } from './storefront-host'
+import { isHostnameLabel, isInfraSubdomain, storefrontBaseHost, storefrontHandleFromHost, storefrontSubdomainLabel, storefrontUrl, subdomainKey, underscoreHost } from './storefront-host'
 
 // The Host header is client-supplied and everything downstream keys off this parse, so the tests
 // that matter most are the ones asserting what does NOT resolve.
@@ -41,15 +41,16 @@ describe('hyphens resolve, because a handle is now also a hostname', () => {
 
 describe('⛔ underscore handles are not hostnames', () => {
   // The handle grammar allows `_` and rejects `-`; DNS and TLS do the exact opposite. Real shops
-  // on this marketplace hold underscore handles today (sdc_store, eno_visa), so this is the
-  // difference between withholding a subdomain and publishing an address nobody can reach.
+  // on this marketplace hold underscore handles today (sdc_store, eno_visa). Owner, 2026-09-28: their
+  // subdomain is the handle WITHOUT the underscores — never a host that carries one.
   it('never resolves a host containing an underscore', () => {
     expect(storefrontHandleFromHost('sdc_store.eno.vn', 'eno.vn')).toBeNull()
     expect(storefrontHandleFromHost('apple_store.eno.vn', 'eno.vn')).toBeNull()
   })
 
-  it('falls back to the path form rather than publishing an illegal name', () => {
-    expect(storefrontUrl('sdc_store', 'https://eno.vn')).toBe('https://eno.vn/sdc_store')
+  it('publishes the underscore-free host, never the illegal name (2026-09-28)', () => {
+    expect(storefrontUrl('sdc_store', 'https://eno.vn')).toBe('https://sdcstore.eno.vn')
+    expect(storefrontUrl('sdc_store', 'https://www.eno.forum')).toBe('https://sdcstore.eno.forum')
   })
 
   it('knows which characters a hostname label allows', () => {
@@ -167,5 +168,89 @@ describe('storefrontUrl', () => {
     expect(storefrontUrl('www', 'https://eno.vn')).toBe('https://eno.vn/www')
     expect(storefrontUrl('sb', 'https://eno.vn')).toBe('https://eno.vn/sb')
     expect(storefrontUrl('admin', 'https://eno.vn')).toBe('https://eno.vn/admin')
+  })
+})
+
+/**
+ * ⛔ A STOREFRONT'S SUBDOMAIN IS ITS HANDLE WITHOUT UNDERSCORES (SEO wave B, I2b) — owner, 2026-09-28:
+ * "remove underscore in subdomains only together". `sdc_store` → `sdcstore.eno.vn`.
+ */
+describe('storefrontSubdomainLabel', () => {
+  it('drops every underscore and keeps the rest, hyphens included', () => {
+    expect(storefrontSubdomainLabel('sdc_store')).toBe('sdcstore')
+    expect(storefrontSubdomainLabel('a_b_c_d')).toBe('abcd')
+    expect(storefrontSubdomainLabel('my-shop_two')).toBe('my-shoptwo')
+    expect(storefrontSubdomainLabel('eno-trading')).toBe('eno-trading')
+    expect(storefrontSubdomainLabel('alex')).toBe('alex')
+  })
+
+  it('is case-insensitive, like the host it names', () => {
+    expect(storefrontSubdomainLabel('SDC_Store')).toBe('sdcstore')
+  })
+
+  it('⛔ is null when the stripped label cannot be a storefront host', () => {
+    expect(storefrontSubdomainLabel('s_b')).toBeNull() // `sb` is the Supabase gateway
+    expect(storefrontSubdomainLabel('w_w_w')).toBeNull() // `www` is the site itself
+    expect(storefrontSubdomainLabel('a_b')).toBeNull() // `ab` is under the 3-character grammar
+    expect(storefrontSubdomainLabel('sign_in')).toBeNull() // reserved in any spelling
+    expect(storefrontSubdomainLabel('e_n_o')).toBeNull() // `eno` is reserved
+    expect(storefrontSubdomainLabel('admin')).toBeNull()
+    expect(storefrontSubdomainLabel('1shop')).toBeNull() // not a handle at all
+  })
+
+  it('⛔ never names a host the proxy would refuse: label → host → the same label', () => {
+    const handles = ['sdc_store', 'a_b_c_d', 'my-shop_two', 'eno-trading', 'alex', 's_b', 'w_w_w', 'a_b', 'sign_in',
+      'e_n_o', 'x_-y', 'ab_-_cd', 'xn--bcher-kva', 'xn_-_-abc', 'q'.repeat(29) + '_z', 'shop_1']
+    for (const h of handles) {
+      const label = storefrontSubdomainLabel(h)
+      if (label) {
+        expect(storefrontHandleFromHost(`${label}.eno.vn`, 'eno.vn'), h).toBe(label)
+        expect(storefrontUrl(h, 'https://eno.vn'), h).toBe(`https://${label}.eno.vn`)
+      } else {
+        expect(storefrontUrl(h, 'https://eno.vn'), h).toBe(`https://eno.vn/${h}`)
+      }
+    }
+  })
+
+  it('subdomainKey is the same stripping, for handles that can never be hosts too', () => {
+    expect(subdomainKey('sdc_store')).toBe('sdcstore')
+    expect(subdomainKey('s_b')).toBe('sb')
+    expect(subdomainKey('Sdc-Store')).toBe('sdc-store')
+  })
+})
+
+/**
+ * ⛔ WHAT A HOST WITH AN UNDERSCORE IS (SEO wave B, I2b). Measured live 2026-09-29:
+ * `https://sdc_store.eno.vn/` and its `/llms.txt` answered 200 with the whole marketplace.
+ */
+describe('underscoreHost', () => {
+  it('is not its business when the host has no underscore: apex, www, a storefront, a random label', () => {
+    for (const host of ['eno.vn', 'www.eno.vn', 'sdcstore.eno.vn', 'random-test-xyz.eno.vn', 'xn--bcher-kva.eno.vn', 'eno-trading.eno.vn:443']) {
+      expect(underscoreHost(host, 'eno.vn'), host).toBeNull()
+    }
+    expect(underscoreHost(null, 'eno.vn')).toBeNull()
+    expect(underscoreHost('', 'eno.vn')).toBeNull()
+  })
+
+  it('names the storefront host an underscore label should have been', () => {
+    expect(underscoreHost('sdc_store.eno.vn', 'eno.vn')).toEqual({ label: 'sdcstore' })
+    expect(underscoreHost('a_b_c_d.eno.vn', 'eno.vn')).toEqual({ label: 'abcd' }) // multiple
+    expect(underscoreHost('my_shop-two.eno.vn', 'eno.vn')).toEqual({ label: 'myshop-two' }) // hyphen kept
+    expect(underscoreHost('SDC_Store.ENO.vn:443', 'eno.VN')).toEqual({ label: 'sdcstore' }) // case, port
+    expect(underscoreHost('xn--_bcher-kva.eno.vn', 'eno.vn')).toEqual({ label: 'xn--bcher-kva' }) // punycode
+    expect(underscoreHost('sdc_store.eno.forum', storefrontBaseHost('https://www.eno.forum'))).toEqual({ label: 'sdcstore' })
+    expect(underscoreHost('sdc_store.localhost:3270', 'localhost:3000')).toEqual({ label: 'sdcstore' })
+  })
+
+  it('⛔ is nobody\'s host when the stripped label could not be a storefront, or it is not ours', () => {
+    expect(underscoreHost('x_y.eno.vn', 'eno.vn')).toEqual({ label: null }) // `xy`: too short
+    expect(underscoreHost('w_w_w.eno.vn', 'eno.vn')).toEqual({ label: null }) // `www`
+    expect(underscoreHost('s_b.eno.vn', 'eno.vn')).toEqual({ label: null }) // `sb`
+    expect(underscoreHost('sign_in.eno.vn', 'eno.vn')).toEqual({ label: null }) // reserved
+    expect(underscoreHost('a.b_c.eno.vn', 'eno.vn')).toEqual({ label: null }) // two labels deep
+    expect(underscoreHost('_.eno.vn', 'eno.vn')).toEqual({ label: null })
+    expect(underscoreHost('sdc_store.eno.forum', 'eno.vn')).toEqual({ label: null }) // the other zone
+    expect(underscoreHost('sdc_store.evil.example', 'eno.vn')).toEqual({ label: null })
+    expect(underscoreHost('sdc_store.eno.vn', '')).toEqual({ label: null }) // unconfigured build
   })
 })

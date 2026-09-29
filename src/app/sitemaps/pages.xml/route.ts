@@ -241,8 +241,10 @@ export async function GET() {
      * A sitemap may list only URLs on its own host unless the Search Console property covers the
      * whole domain, and which property type eno.vn has is unconfirmed. Such a shop stays linked,
      * crawlable and canonical at its subdomain; it is only not asked for here. The path canonicals
-     * (`sdc_store`, whose underscore cannot be a host label; a brand-slug handle; `/sellers/<id>`
-     * for a seller with no handle) are submitted.
+     * (a brand-slug handle; a handle whose label another handle holds; `/sellers/<id>` for a seller
+     * with no handle) are submitted. ⚠️ `sdc_store` WAS ONE UNTIL I2b: its subdomain is now
+     * `sdcstore.eno.vn` (owner, 2026-09-28: the handle without underscores), so it leaves this file
+     * with the other subdomain shops until I-b is answered.
      */
     // Two queries for every handle at once (`storefrontCanonicals`), never two per seller.
     const siteHost = new URL(hostUrl).host

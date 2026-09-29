@@ -29,9 +29,10 @@ import { fold } from './fold'
  * being true the fix is a migration, not a loosening of the anchor — a trailing separator cannot
  * be a host label.
  * The rest of the guarantee is unchanged — `sdc_store` is still `sdc_store` and still resolves at
- * `eno.vn/sdc_store`. It simply has no subdomain, which is what `isHostnameLabel` in
- * storefront-host.ts already decides. Rewriting existing handles would break links people have
- * shared and free names for squatters; only NEW auto-claims take the hyphen.
+ * `eno.vn/sdc_store`. Its SUBDOMAIN drops the underscores (`sdcstore.eno.vn`, owner 2026-09-28,
+ * `storefrontSubdomainLabel` in storefront-host.ts); the handle itself is never rewritten, since that
+ * would break links people have shared and free names for squatters. Only NEW auto-claims take the
+ * hyphen, and `claimHandle` refuses a name whose underscore-free form another handle already has.
  *
  * ⛔ THE END ANCHOR IS PART OF THE GRAMMAR, NOT LEFT TO `slugifyHandle`. The first version was
  * `[a-z][a-z0-9_-]{2,29}` and its own comment claimed the ends were alphanumeric; three reviewers

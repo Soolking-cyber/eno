@@ -107,7 +107,81 @@ export function isInfraSubdomain(label: string): boolean {
 }
 
 /**
- * The shop handle a Host header addresses, or null for the ordinary site.
+ * Can a storefront answer on this host label at all — shape and reservations only, no database.
+ * ⚠️ THE ONE TEST BOTH DIRECTIONS USE: `storefrontHandleFromHost` (host → label) and
+ * `storefrontSubdomainLabel` (handle → label). If they disagreed, a canonical or a Copy link could
+ * name a host the proxy then refuses to route (it would serve the ordinary site, or a 404).
+ */
+function isStorefrontLabel(label: string): boolean {
+  // The handle namespace's own shape and reservations. A reserved handle cannot be claimed, so it
+  // cannot be a shop — but checking it here means an entry added to that list stops resolving as a
+  // host immediately, without a second edit.
+  return !isInfraSubdomain(label) && HANDLE_RE.test(label) && !isReservedHandle(label) && isHostnameLabel(label)
+}
+
+/**
+ * ⛔ A STOREFRONT'S SUBDOMAIN LABEL IS ITS HANDLE WITH THE UNDERSCORES REMOVED — owner, 2026-09-28:
+ * "remove underscore in subdomains only together". `sdc_store` → `sdcstore.eno.vn`, `a_b_c` → `abc`;
+ * a hyphen is a legal host character and stays (`eno-trading.eno.vn`). Null when the handle has no
+ * subdomain at all: a label that is an infra host (`s_b` → `sb`), too short (`a_b` → `ab`, under the
+ * 3-character grammar), or reserved — the caller then uses the path, `eno.vn/<handle>`.
+ *
+ * ⚠️ SHAPE ONLY, AND THAT IS NOT THE WHOLE ANSWER. Two handles can share a label (`sdc_store` and
+ * `sdcstore`, `ab_cd` and `abc_d`); which of them the host serves — if either — is a database question,
+ * `storefrontByLabel` in storefront.ts: the exact handle first, else the ONE handle that strips to it,
+ * and nobody when two do. So "is this shop's subdomain its canonical" is `storefrontCanonical`, never
+ * this function alone. `claimHandle` refuses a new handle whose label is already taken, so a collision
+ * can only be one that predates 2026-09-28.
+ */
+export function storefrontSubdomainLabel(handle: string): string | null {
+  const h = handle.toLowerCase()
+  if (!HANDLE_RE.test(h) || isReservedHandle(h)) return null
+  const label = subdomainKey(h)
+  return isStorefrontLabel(label) ? label : null
+}
+
+/**
+ * The underscore-stripped form: the key two handles must not share (`claimHandle`), and the label a
+ * handle's subdomain would have. Kept apart from `storefrontSubdomainLabel` because the uniqueness
+ * rule applies to EVERY handle, including one whose label can never be a host.
+ */
+export function subdomainKey(handle: string): string {
+  return handle.toLowerCase().replace(/_/g, '')
+}
+
+/**
+ * WHAT A HOST WITH AN UNDERSCORE IS. Null when the host has none (the ordinary rules apply); otherwise
+ * `{ label }` — the storefront host it should have been, `sdc_store.eno.vn` → `sdcstore` — or
+ * `{ label: null }` when it names nothing a storefront could answer on.
+ *
+ * ⛔ THE BUG THIS CLOSES, MEASURED LIVE 2026-09-29: `https://sdc_store.eno.vn/` answered 200 with the
+ * WHOLE marketplace (canonical `https://eno.vn`, no noindex), and so did its `/llms.txt`, which Search
+ * Console lists as crawled. The wildcard DNS and certificate cover the name, Cloudflare and nginx pass
+ * it on, and `storefrontHandleFromHost` returned null for it (an underscore is not a host label), and
+ * null meant "the ordinary site". `sdc_store.eno.forum` did the same on the forum.
+ * ⚠️ ANY UNDERSCORE, ANYWHERE IN THE HOST, and never a legitimate one: RFC 1123 has no underscore in
+ * a host name, so no real visitor, link or service of ours can be using one. The proxy 308s the first
+ * kind to the storefront host on this edition's own zone and 404s (noindex) the second, the same
+ * answer an unknown storefront host gets.
+ */
+export function underscoreHost(host: string | null | undefined, appHost: string): { label: string | null } | null {
+  if (!host) return null
+  const h = stripPort(host).toLowerCase()
+  if (!h.includes('_')) return null
+  const base = stripPort(appHost).toLowerCase()
+  if (!base || !h.endsWith('.' + base)) return { label: null }
+  const label = h.slice(0, -(base.length + 1))
+  // One label deep, like a storefront host (see storefrontHandleFromHost on why).
+  if (!label || label.includes('.')) return { label: null }
+  const stripped = subdomainKey(label)
+  return { label: isStorefrontLabel(stripped) ? stripped : null }
+}
+
+/**
+ * The storefront LABEL a Host header addresses, or null for the ordinary site.
+ * ⚠️ A LABEL, NOT YET A HANDLE (2026-09-28): `sdcstore.eno.vn` gives `sdcstore`, which is the
+ * subdomain of the handle `sdc_store`. Turning the label into the shop is the database's job
+ * (`storefrontByLabel`); this stays shape-only because the proxy that calls it has no database.
  *
  * `appHost` is the canonical host of THIS edition — `eno.vn` on the marketplace, `eno.forum` on
  * services — so a storefront on one edition can never be resolved from the other's traffic. Pass
@@ -133,14 +207,7 @@ export function storefrontHandleFromHost(host: string | null | undefined, appHos
   const label = h.slice(0, -(base.length + 1))
   // Exactly one label: no dots left over once the base is removed.
   if (!label || label.includes('.')) return null
-  if (isInfraSubdomain(label)) return null
-  // The handle namespace's own shape and reservations. A reserved handle cannot be claimed, so it
-  // cannot be a shop — but checking it here means an entry added to that list stops resolving as a
-  // host immediately, without a second edit.
-  if (!HANDLE_RE.test(label)) return null
-  if (isReservedHandle(label)) return null
-  if (!isHostnameLabel(label)) return null
-  return label
+  return isStorefrontLabel(label) ? label : null
 }
 
 /**
@@ -157,10 +224,13 @@ export function storefrontHandleFromHost(host: string | null | undefined, appHos
  * the internet, so the feature would have published unreachable addresses as shops' canonical URLs
  * — the one part of this that a shop hands out on a business card.
  *
- * ⚠️ THE ANSWER IS TO WITHHOLD THE SUBDOMAIN, NOT TO REWRITE THE HANDLE. Mapping `_`→`-` would
- * make `a_b` and `a-b` the same host while the handle namespace treats them as different names,
- * which is a collision between two shops rather than a formatting fix. A handle that cannot be a
- * host keeps `eno.vn/<handle>`, which is what `storefrontUrl` already falls back to.
+ * ⛔ REVERSED 2026-09-28: THE HANDLE IS NOW REWRITTEN, BY DROPPING THE UNDERSCORES — owner: "remove
+ * underscore in subdomains only together", so `sdc_store` answers at `sdcstore.eno.vn`
+ * (`storefrontSubdomainLabel`). This note used to say the answer was to withhold the subdomain,
+ * because mapping `_`→`-` would make `a_b` and `a-b` one host while the handle namespace calls them two
+ * names. Dropping `_` keeps that objection alive in another spelling (`a_b` and `ab`), and it is met
+ * where it has to be: `claimHandle` refuses a handle whose stripped form another handle already has,
+ * and `storefrontByLabel` serves nobody on a label two old handles share. `-` still maps to itself.
  */
 export function isHostnameLabel(label: string): boolean {
   // RFC 1123: letters, digits and hyphen; never leading or trailing hyphen; 63 octets max.
@@ -185,17 +255,21 @@ function stripPort(host: string): string {
  * The public URL of a shop's storefront.
  *
  * ⚠️ RETURNS THE PATH FORM WHEN THE HANDLE CANNOT BE A HOST. Every shop has `eno.vn/<handle>`;
- * only some have `<handle>.eno.vn`. A caller that linked to the subdomain unconditionally would
+ * only some have `<label>.eno.vn`. A caller that linked to the subdomain unconditionally would
  * produce a dead link for any shop holding an infra label — so the fallback is the path that
  * always works, and the caller does not have to know the rule.
+ * ⚠️ THE SUBDOMAIN IS THE HANDLE'S LABEL (`storefrontSubdomainLabel`, underscores removed), and this
+ * is shape only: whether that host serves THIS shop is `storefrontCanonical` in storefront.ts. Use
+ * that wherever the database is at hand; this is for client code and static pages.
  */
 export function storefrontUrl(handle: string, appOrigin: string): string {
-  const url = new URL(appOrigin)
-  const label = handle.toLowerCase()
-  if (isInfraSubdomain(label) || !HANDLE_RE.test(label) || isReservedHandle(label) || !isHostnameLabel(label)) {
-    return `${url.origin}/${label}`
-  }
+  const label = storefrontSubdomainLabel(handle)
+  return label ? storefrontLabelUrl(label, appOrigin) : `${new URL(appOrigin).origin}/${handle.toLowerCase()}`
+}
+
+/** `https://<label>.<zone>` on this edition's zone — the one place a storefront host is spelled. */
+export function storefrontLabelUrl(label: string, appOrigin: string): string {
   // ⚠️ THE STRIPPED BASE, NOT `url.host` — otherwise a services canonical of `www.eno.forum`
   // published `shop.www.eno.forum` as a shop's own address, which no certificate covers.
-  return `${url.protocol}//${label}.${storefrontBaseHost(appOrigin)}`
+  return `${new URL(appOrigin).protocol}//${label}.${storefrontBaseHost(appOrigin)}`
 }

@@ -29,13 +29,16 @@ const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
   'cat-rentals': 'rentals', 'cat-books': 'books-stationery', 'cat-services': 'services', 'cat-empty': 'jobs',
 }))
 /**
- * Seller id → handle. `old_shop` has an underscore, which cannot be a host label, so its canonical is
- * the path (like production's `sdc_store`); `subshop` is served on its own subdomain; `apple` is a
- * BRAND slug, which never gets a subdomain, so it keeps the path (src/lib/storefront.ts).
+ * Seller id → handle. `sub_shop` is served on its own subdomain, `subshop.eno.vn` (a subdomain is the
+ * handle without underscores, owner 2026-09-28 — like production's `sdc_store` → `sdcstore.eno.vn`);
+ * `old_shop` would be `oldshop.eno.vn`, but a PERSON holds `oldshop`, and the exact handle decides a
+ * label, so its canonical stays the path; `apple` is a BRAND slug, which never gets a subdomain, so it
+ * keeps the path too (src/lib/storefront.ts).
  */
 const SELLER_HANDLES: Record<string, string> = vi.hoisted(() => ({
-  'old-shop': 'old_shop', 'sub-shop': 'subshop', 'brand-shop': 'apple',
+  'old-shop': 'old_shop', 'sub-shop': 'sub_shop', 'brand-shop': 'apple',
 }))
+const PERSON_HANDLES = vi.hoisted(() => new Set(['oldshop']))
 const BRAND_SLUGS = vi.hoisted(() => new Set(['apple']))
 
 type Where = Record<string, unknown>
@@ -89,16 +92,24 @@ vi.mock('@/lib/db', () => ({
           .map((id) => ({ id, handle: SELLER_HANDLES[id] ? { handle: SELLER_HANDLES[id] } : null }))
           .filter((s) => matches(s, where)),
     },
-    // What `storefrontByHandle` (one handle) and `storefrontCanonicals` (a set, pages.xml) read to
-    // decide whether the subdomain serves a handle. `h.lookups` counts the batched reads.
+    // What `storefrontByLabel` / `storefrontByHandle` (one label) and `storefrontCanonicals` (a set,
+    // pages.xml) read to decide whether the subdomain serves a handle. `h.lookups` counts the batch's
+    // reads. The label reads are `Prisma.sql` objects: every handle whose own spelling or
+    // underscore-free form is among the values.
+    $queryRaw: async (q: { values: unknown[] }) => {
+      h.lookups++
+      const want = new Set(q.values as string[])
+      const rows = [
+        ...Object.entries(SELLER_HANDLES).map(([id, handle]) => ({ handle, sellerId: id as string | null })),
+        ...[...PERSON_HANDLES].map((handle) => ({ handle, sellerId: null })),
+      ]
+      return rows.filter((r) => want.has(r.handle) || want.has(r.handle.replace(/_/g, '')))
+    },
     handle: {
       findUnique: async ({ where }: { where: { handle: string } }) => {
+        if (PERSON_HANDLES.has(where.handle)) return { handle: where.handle, seller: null }
         const id = Object.keys(SELLER_HANDLES).find((k) => SELLER_HANDLES[k] === where.handle)
         return id ? { handle: where.handle, seller: { id, name: id, bannerUrl: null, bannerMobileUrl: null } } : null
-      },
-      findMany: async ({ where }: { where: { handle: { in: string[] } } }) => {
-        h.lookups++
-        return Object.entries(SELLER_HANDLES).filter(([, hd]) => where.handle.in.includes(hd)).map(([id, hd]) => ({ handle: hd, sellerId: id }))
       },
     },
     brand: {
@@ -400,6 +411,9 @@ describe('the pages child', () => {
     ]
     const xml = await (await pagesGET()).text()
     const urls = locs(xml)
+    // Three handle sellers, one batched handle read and one batched brand read — never two per seller.
+    // Read before the per-handle calls below, which make reads of their own.
+    expect(h.lookups).toBe(2)
     // Each submitted <loc> IS the page's canonical, from the one function the page calls.
     expect(await storefrontCanonical('old_shop', HOST)).toBe(`${HOST}/old_shop`)
     expect(await storefrontCanonical('apple', HOST)).toBe(`${HOST}/apple`)
@@ -408,11 +422,9 @@ describe('the pages child', () => {
     expect(urls).toContain(`${HOST}/sellers/own-seller`)
     expect(xml).toContain(`<loc>${HOST}/old_shop</loc><lastmod>${OLD.toISOString()}</lastmod>`)
     // The subdomain shop: its page canonicalises to the subdomain, so neither that nor the path is submitted.
-    expect(await storefrontCanonical('subshop', HOST)).toBe('https://subshop.eno.vn')
-    expect(urls.filter((u) => /subshop|sub-shop/.test(u))).toEqual([])
+    expect(await storefrontCanonical('sub_shop', HOST)).toBe('https://subshop.eno.vn')
+    expect(urls.filter((u) => /subshop|sub-shop|sub_shop/.test(u))).toEqual([])
     expect(urls.every((u) => u.startsWith(HOST))).toBe(true)
-    // Three handle sellers, one batched handle read and one batched brand read — never two per seller.
-    expect(h.lookups).toBe(2)
   })
 
   it('leaves out a storefront with no listing of its own: all imported, or none live', async () => {
@@ -438,8 +450,8 @@ describe('the pages child', () => {
     h.rows = [row({ id: 'old-1', sellerId: 'old-shop' }), row({ id: 'sub-1', sellerId: 'sub-shop' })]
     const urls = locs(await (await pagesGET()).text())
     expect(urls).toContain(`${FORUM}/old_shop`)
-    expect(await storefrontCanonical('subshop', FORUM)).toBe('https://subshop.eno.forum')
-    expect(urls.filter((u) => /subshop|sub-shop/.test(u))).toEqual([])
+    expect(await storefrontCanonical('sub_shop', FORUM)).toBe('https://subshop.eno.forum')
+    expect(urls.filter((u) => /subshop|sub-shop|sub_shop/.test(u))).toEqual([])
     expect(urls.every((u) => u.startsWith(FORUM))).toBe(true)
   })
 })

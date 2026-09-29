@@ -21,8 +21,7 @@ import { diversifyBySeller } from '@/lib/feed-diversity'
 import { OTHER_LISTINGS } from '@/components/marketplace/seller-storefront'
 import Link from 'next/link'
 import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
-import { storefrontByHandle } from '@/lib/storefront'
-import { storefrontUrl } from '@/lib/storefront-host'
+import { storefrontByLabel, storefrontCanonical } from '@/lib/storefront'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { SITE_NAME } from '@/lib/edition'
 import { storefrontJsonLd, type StorefrontLdListing } from './storefront-jsonld'
@@ -64,7 +63,9 @@ type Props = { params: Promise<{ handle: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle } = await params
-  const shop = await storefrontByHandle(handle)
+  // ⚠️ A LABEL ON THE SUBDOMAIN (`sdcstore` for `sdc_store`, 2026-09-28), the handle itself when
+  // `eno.vn/<handle>` renders this in place — `storefrontByLabel` answers both, exact handle first.
+  const shop = await storefrontByLabel(handle)
   // ⚠️ THE SAME GATE AS THE PAGE. generateMetadata runs independently of the body, so without this
   // a hidden seller's NAME still reached the <title> and the OG tags of a page that 404s.
   if (!shop || await isSellerHiddenHere(shop.sellerId)) return { title: 'Not found', robots: { index: false, follow: false } }
@@ -76,10 +77,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
      * ⚠️ ABSOLUTE, AND POINTING AT THE SUBDOMAIN. Everywhere else in this app a canonical is the
      * relative `'/'` because there is one host; here the page answers on `apple.eno.vn` while
      * living at `/s/apple`, so a relative canonical would resolve against whichever host served it
-     * and hand the shop's ranking to an internal path. `storefrontUrl` also knows the fallback for
-     * a handle that cannot be a host.
+     * and hand the shop's ranking to an internal path. `storefrontCanonical` also knows the fallback
+     * for a handle that cannot be a host, and which of two handles sharing a label the host serves.
      */
-    alternates: { canonical: storefrontUrl(shop.handle, origin) },
+    alternates: { canonical: await storefrontCanonical(shop.handle, origin) },
   }
 }
 
@@ -230,7 +231,7 @@ async function getData(sellerId: string): Promise<{
 
 export default async function Storefront({ params }: Props) {
   const { handle } = await params
-  const shop = await storefrontByHandle(handle)
+  const shop = await storefrontByLabel(handle)
   /**
    * ⛔ THE SELLER-LEVEL EDITION GATE, WHICH THIS ROUTE DID NOT HAVE — measured against production
    * 2026-09-07: `eno.vn/enoforum` correctly 404s while `enoforum.eno.vn` answered 200. The listings
@@ -239,14 +240,15 @@ export default async function Storefront({ params }: Props) {
    * this edition refuses to show at one URL must not resolve at the other, and an empty storefront
    * under a shop's own subdomain is a poor answer besides.
    *
-   * ⚠️ AFTER `storefrontByHandle`, not before: the hidden test needs a seller id, and this is the
+   * ⚠️ AFTER `storefrontByLabel`, not before: the hidden test needs a seller id, and this is the
    * one call that turns a handle into one. Same `notFound()` as an unheld handle, deliberately —
    * see the note below on not confirming which handles exist.
    */
   if (shop && await isSellerHiddenHere(shop.sellerId)) notFound()
   /**
-   * ⛔ 404 RATHER THAN A REDIRECT. `storefrontByHandle` returns null when nobody holds the handle,
-   * when the holder is a person rather than a shop, and when the handle is a BRAND slug.
+   * ⛔ 404 RATHER THAN A REDIRECT. `storefrontByLabel` returns null when nobody holds the handle,
+   * when the holder is a person rather than a shop, when the handle is a BRAND slug, and when two
+   * old handles strip to the same label (`ab_cd`, `abc_d`) and neither is the label itself.
    * ⚠️ NOT "and when the holder is not verified TODAY", which this said until 2026-09-07 and which
    * sent a reviewer down the wrong path. That gate was reversed on 2026-08-30 — storefront.ts says
    * so in its own words: "ANY SHOP WITH A HANDLE GETS ONE — VERIFICATION IS NOT THE GATE", because
@@ -260,17 +262,18 @@ export default async function Storefront({ params }: Props) {
   const { categories, listings, ldListings, total, otherListings, otherTotal } = await getData(shop.sellerId)
 
   /**
-   * ⚠️ THE SAME `storefrontUrl(...)` CALL `generateMetadata` MAKES, so the `Store.url` and the
-   * `<link rel="canonical">` cannot disagree. Two different answers for "what is this page's URL"
-   * is the exact shape that splits a shop's ranking between two hosts.
+   * ⚠️ THE SAME `storefrontCanonical(...)` CALL `generateMetadata` MAKES, so the `Store.url`, the Share
+   * button and the `<link rel="canonical">` cannot disagree. Two different answers for "what is this
+   * page's URL" is the exact shape that splits a shop's ranking between two hosts.
    */
   const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  const canonical = await storefrontCanonical(shop.handle, origin)
   const ld = storefrontJsonLd({
     name: shop.name,
     // ⛔ `SITE_NAME`, NEVER THE LITERAL 'eno.vn'. This file compiles on both editions; a hardcoded
     // name would have the services build publishing an organization called eno.vn at eno.forum.
     siteName: SITE_NAME,
-    url: storefrontUrl(shop.handle, origin),
+    url: canonical,
     origin,
     bannerUrl: shop.bannerUrl,
     listings: ldListings,
@@ -309,7 +312,7 @@ export default async function Storefront({ params }: Props) {
             shop was opened at the subdomain or in place at eno.vn/<handle>. */}
         <div className="flex items-center justify-between gap-3 pb-2 pt-3">
           <p className="min-w-0 truncate text-lg font-bold text-foreground">{shop.name}</p>
-          <ShareButton url={storefrontUrl(shop.handle, origin)} title={shop.name} compact />
+          <ShareButton url={canonical} title={shop.name} compact />
         </div>
         {total === 0 ? (
           /**

@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { validateHandle } from '@/lib/handle'
+import { subdomainKeyHolders, validateHandle } from '@/lib/handle'
 import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
@@ -29,14 +29,30 @@ export const GET = route(
     const err = validateHandle(h)
     if (err) return { handle: h, valid: false, available: false, reason: err }
 
-    const row = await db.handle.findUnique({ where: { handle: h }, select: { profileId: true, sellerId: true } })
-    // "Available" includes "it's already yours" (either your user or your shop handle)
-    // so re-saving the current name doesn't read as taken in the editor.
-    if (!row) return { handle: h, valid: true, available: true }
-    const mine =
-      row.profileId === userId ||
-      (row.sellerId !== null &&
-        (await db.seller.count({ where: { id: row.sellerId, ownerId: userId } })) > 0)
+    // ⚠️ EVERY HOLDER OF `h`'s SUBDOMAIN KEY, not just of `h` (SEO wave B, I2b): with `sdc_store`
+    // held, `sdcstore` is taken too, because both would be `sdcstore.eno.vn` — and `claimHandle`
+    // refuses it, so an editor that said "available" would only fail on Save.
+    // ⚠️ "MINE" MEANS THE ROW `claimHandle` WILL FREE, i.e. THE EDITOR'S OWN TARGET (review of I2b):
+    // it deletes only that owner's current handle before the subdomain-key check, so your PROFILE's
+    // `sdcstore` still blocks your SHOP claiming `sdc_store`. Counting any of your rows as yours said
+    // "available" and Save then answered 409. Without `target` (an older client) the old answer —
+    // either of your rows — stands.
+    const target = new URL(req.url).searchParams.get('target')
+    const rows = await subdomainKeyHolders(h)
+    // "Available" includes "it's already yours" so re-saving the current name — or re-spelling it —
+    // doesn't read as taken in the editor.
+    if (!rows.length) return { handle: h, valid: true, available: true }
+    const isMine = async (row: { profileId: string | null; sellerId: string | null }) => {
+      if (target !== 'seller' && row.profileId === userId) return true
+      if (target === 'profile' || row.sellerId === null) return false
+      return (await db.seller.count({ where: { id: row.sellerId, ownerId: userId } })) > 0
+    }
+    let mine = true
+    for (const row of rows) {
+      if (await isMine(row)) continue
+      mine = false
+      break
+    }
     return { handle: h, valid: true, available: mine, reason: mine ? undefined : 'taken' }
   },
 )
