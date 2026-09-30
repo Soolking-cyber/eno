@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link, { useLinkStatus } from 'next/link'
+import dynamic from 'next/dynamic'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { preloadSignIn, useAuth } from '@/context/auth-context'
@@ -19,6 +20,14 @@ import { STROKE_NAV } from '@/lib/icon-tokens'
 // drags its 99-icon map into this route's chunk (see category-glyph.tsx's header).
 import { CategoryGlyphArt } from './category-glyph'
 import { scrollBehavior } from '@/lib/reduced-motion'
+
+/**
+ * The guest Account sheet (O-09) — loaded on demand: only a signed-out visitor who touches the Account
+ * tab ever needs it, and the tab bar is on every page. The chunk starts on the finger's DOWN
+ * (`onGuestIntent`), the same ~100ms head start preloadSignIn gives the sign-in card.
+ */
+const GuestAccountSheet = dynamic(() => import('./guest-account-sheet').then((m) => m.GuestAccountSheet), { ssr: false })
+const preloadGuestSheet = () => { void import('./guest-account-sheet') }
 
 /**
  * ⛔ SOLAR v2 GLYPHS AGAIN, NOT THE 3D ART — owner, 2026-09-14: "on mobile bottom navbar icons move back to solar v2
@@ -151,7 +160,12 @@ function TabBody({ active, ...face }: { active: boolean; icon: TabIcon; capsule?
  *  to a page that would gate inconsistently — so every gated action on mobile
  *  meets the SAME card. While auth is still resolving (or signed in) it's a normal
  *  Link, so a logged-in user is never wrongly shown the modal. */
-function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, stack, signInNote }: { href: string; active: boolean; onHref?: boolean; icon: TabIcon; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false; stack?: string; /** The sign-in card's context line — what this tab is FOR (SignInContext.note). */ signInNote?: string }) {
+function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, stack, signInNote, onGuest, onGuestIntent }: { href: string; active: boolean; onHref?: boolean; icon: TabIcon; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false; stack?: string; /** The sign-in card's context line — what this tab is FOR (SignInContext.note). */ signInNote?: string;
+  /** What a GUEST's tap does instead of opening the sign-in card — the Account tab's sheet (O-09). Used
+   *  for the resolved-guest tap AND for a boot-window tap replayed once auth says "guest". */
+  onGuest?: () => void
+  /** The finger's DOWN on the guest tab — warm whatever `onGuest` will open. */
+  onGuestIntent?: () => void }) {
   const { openSignIn, user, loading } = useAuth()
   const router = useRouter()
   // ⚠️ THE BOOT WINDOW WAS A DOUBLE REDIRECT TO A SECOND LOGIN PAGE (owner, 2026-08-03: "mobile
@@ -181,8 +195,9 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
     if (deferred.path !== pathname) return          // they moved on — the intent is stale
     if (Date.now() - deferred.at > 10_000) return   // too old to still be what they meant
     if (user) router.push(href)
+    else if (onGuest) onGuest()
     else openSignIn(signInNote ? { note: signInNote } : undefined)
-  }, [deferred, loading, user, href, router, openSignIn, pathname, signInNote])
+  }, [deferred, loading, user, href, router, openSignIn, pathname, signInNote, onGuest])
   if (gate) {
     return (
       // onPointerDown={preloadSignIn}: the dialog's chunk starts downloading on the finger's
@@ -192,7 +207,7 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
       // ⚠️ IT STILL SHOWS LOCATION. A guest can stand on /messages (the page renders its own sign-in
       // prompt), and with no labels in the bar an idle glyph there left nothing saying where they
       // were. The capsule + brand ink + `aria-current` come back; the tap still opens the card.
-      <Button type="button" variant="bare" size="none" onPointerDown={preloadSignIn} onClick={() => openSignIn(signInNote ? { note: signInNote } : undefined)} aria-label={label} aria-current={active ? 'page' : undefined} className={cn(TAB, 'focus-visible:ring-0')}>
+      <Button type="button" variant="bare" size="none" onPointerDown={() => { preloadSignIn(); onGuestIntent?.() }} onClick={() => (onGuest ? onGuest() : openSignIn(signInNote ? { note: signInNote } : undefined))} aria-haspopup={onGuest ? 'dialog' : undefined} aria-label={label} aria-current={active ? 'page' : undefined} className={cn(TAB, 'focus-visible:ring-0')}>
         <TabFace on={active} icon={icon} stack={stack} />
       </Button>
     )
@@ -249,6 +264,15 @@ export function MobileNav() {
   // keeps them identical; the active tab lights up a frame later (imperceptible).
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  // ⛔ THE GUEST ACCOUNT TAB OPENS A SHEET, NOT THE SIGN-IN CARD (owner, O-09 "Guest chrome"): Sign in on
+  // top, then Language, Currency, Help, Safety — see guest-account-sheet.tsx. `guestSheet` mounts the
+  // (lazy) sheet on the first touch and keeps it mounted, so its close animation always has a tree to
+  // run in; `guestSheetOpen` is the drawer's own open state.
+  const [guestSheet, setGuestSheet] = useState(false)
+  const [guestSheetOpen, setGuestSheetOpen] = useState(false)
+  const warmGuestSheet = () => { preloadGuestSheet(); setGuestSheet(true) }
+  const openGuestSheet = () => { setGuestSheet(true); setGuestSheetOpen(true) }
 
   // ⚠️ NO MORE OVERLAY STATE. The Account tab used to open a full-screen rail that never
   // changed the route, so this component had to track that surface through a CustomEvent pair
@@ -400,8 +424,10 @@ export function MobileNav() {
               {/* `ring-(--tab-surface)` — a 2px cut-out in the colour of whatever is directly under the badge: the
                   pill (set on the <nav>), or the capsule while this tab is active (set by TabFace). A fixed
                   `ring-popover` drew a pill-coloured halo on the tinted capsule — a white hole in light mode. */}
+              {/* ⛔ GREY, NOT RED (owner, O-08 G-SAVED-BADGE): the Saved count is a tally of a list the visitor
+                  built, not news — `counter-neutral`. Red stays for the one count that IS news, Messages. */}
               {count > 0 && (
-                <Badge variant="counter" size="count" className="absolute -right-2 -top-1 ring-2 ring-(--tab-surface)">
+                <Badge variant="counter-neutral" size="count" className="absolute -right-2 -top-1 ring-2 ring-(--tab-surface)">
                   {count}
                 </Badge>
               )}
@@ -527,9 +553,20 @@ export function MobileNav() {
         onClick={(e) => onTabClick(e, accountActive)}
         label={tr('Account', 'Tài khoản')}
         signInNote={tr('Sign in to manage your listings, messages and alerts.', 'Đăng nhập để quản lý tin đăng, tin nhắn và thông báo của bạn.')}
+        onGuest={openGuestSheet}
+        onGuestIntent={warmGuestSheet}
         icon={<User className="h-7 w-7" strokeWidth={STROKE} />}
       />
       </div>
+      {/* Portaled by ui/drawer, so its place inside the <nav> costs it nothing — and it does not inherit
+          the nav's `inert` (a portal is not a DOM descendant). Only ever mounted for a guest. */}
+      {guestSheet && !user && (
+        <GuestAccountSheet
+          open={guestSheetOpen}
+          onOpenChange={setGuestSheetOpen}
+          signInNote={tr('Sign in to manage your listings, messages and alerts.', 'Đăng nhập để quản lý tin đăng, tin nhắn và thông báo của bạn.')}
+        />
+      )}
     </nav>
   )
 }

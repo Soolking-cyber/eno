@@ -12,7 +12,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
  *   · as a resolved guest, Post is a link to /post that navigates, and sign-in is NOT opened;
  *   · while auth is still resolving, the tap is NOT swallowed and replayed as a sign-in (the trap in
  *     `gate={false}`: GatedTab's boot deferral replays a guest's tap as openSignIn());
- *   · Messages and Account keep their gate — only Post changed.
+ *   · Messages keeps its gate; Account (a guest's) opens the guest sheet instead of the card (O-09).
  *
  * ⚠️ EXPLICIT CLEANUP — no vitest `globals`, so Testing Library registers no afterEach of its own.
  */
@@ -44,6 +44,13 @@ vi.mock('@/hooks/use-virtual-keyboard', () => ({ useVirtualKeyboard: () => ({ op
 vi.mock('@/hooks/use-hide-on-scroll', () => ({ useHideOnScroll: () => false }))
 vi.mock('@/lib/haptics', () => ({ hapticTap: vi.fn() }))
 vi.mock('./category-glyph', () => ({ CategoryGlyphArt: () => null }))
+// The guest Account sheet (O-09) is a next/dynamic chunk; a stub that reports whether it is open is all
+// these tests need from it (its own contents are guest-account-sheet's business). The module mock covers
+// the tab's pointer-down preload, which imports the chunk directly.
+vi.mock('next/dynamic', () => ({
+  default: () => function GuestSheetProbe({ open }: { open: boolean }) { return <div data-testid="guest-sheet" data-open={String(open)} /> },
+}))
+vi.mock('./guest-account-sheet', () => ({ GuestAccountSheet: () => null }))
 
 import { MobileNav } from './mobile-nav'
 
@@ -83,14 +90,23 @@ describe('a signed-out visitor', () => {
     expect(auth.openSignIn).not.toHaveBeenCalled()
   })
 
-  it('Messages and Account still meet the sign-in card — only Post changed', () => {
+  it('Messages still meets the sign-in card — only Post changed', () => {
     render(<MobileNav />)
-    for (const name of ['Messages', 'Account']) {
-      const el = byName(name)
-      expect(el.tagName).toBe('BUTTON')
-      fireEvent.click(el)
-    }
-    expect(auth.openSignIn).toHaveBeenCalledTimes(2)
+    const el = byName('Messages')
+    expect(el.tagName).toBe('BUTTON')
+    fireEvent.click(el)
+    expect(auth.openSignIn).toHaveBeenCalledTimes(1)
+  })
+
+  it('O-09: Account opens the guest sheet (Sign in, Language, Currency, Help, Safety), not the sign-in card', async () => {
+    render(<MobileNav />)
+    const el = byName('Account')
+    expect(el.tagName).toBe('BUTTON')
+    expect(el.getAttribute('aria-haspopup')).toBe('dialog')
+    fireEvent.pointerDown(el)
+    fireEvent.click(el)
+    expect(auth.openSignIn).not.toHaveBeenCalled()
+    expect((await screen.findByTestId('guest-sheet')).getAttribute('data-open')).toBe('true')
   })
 })
 
@@ -105,6 +121,17 @@ describe('while auth is still resolving (most first taps land here)', () => {
     act(() => { rerender(<MobileNav />) })
     expect(auth.openSignIn).not.toHaveBeenCalled()
     expect(nav.push).not.toHaveBeenCalled()
+  })
+
+  it('O-09: an Account tap in that window replays as the guest SHEET once auth says guest — never the bare sign-in card', async () => {
+    auth.loading = true
+    const { rerender } = render(<MobileNav />)
+    fireEvent.click(byName('Account'))
+    expect(nav.push).not.toHaveBeenCalled()
+    auth.loading = false
+    act(() => { rerender(<MobileNav />) })
+    expect(auth.openSignIn).not.toHaveBeenCalled()
+    expect((await screen.findByTestId('guest-sheet')).getAttribute('data-open')).toBe('true')
   })
 
   it('does not prefetch /post during that window (the cold load stays as light as before; after it, auto prefetch like Explore/Saved)', () => {

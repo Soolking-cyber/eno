@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { SupportButton } from '@/components/marketplace/support-button'
+import { isPostFlowPath } from '@/lib/post-flow-path'
 import { RentalCheckPill } from '@/components/marketplace/rental-check-pill'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
@@ -452,7 +453,14 @@ export function BackToTop() {
             sorts after this plain utility, and `inert` removes it regardless. `hidden` is decided
             HERE (the tab bar's scroll signal, phones only, or the cluster standing down) because this
             cluster has to know what is visible to keep it off the page's controls. */}
-        <SupportButton className="pointer-events-auto" hidden={supportAway} yielded={supportYields} />
+        {/* ⛔ NOT ON THE POST FLOW (/post, /listings/[id]/edit) — owner, O-30 W-CHROME: "hide both [the support FAB
+            and the footer] on /post and keep the tab bar". Below lg the wizard's sticky Publish bar owns the
+            bottom of the screen, and the mark rode above it on the `data-fab-clear` lift, over the form's
+            last fields; help on that page is the wizard's own guidance. From the pathname, like the header's
+            Post button (lib/post-flow-path.ts) — and this cluster only mounts after hydration anyway, so
+            there is no server HTML to disagree with. The chevron stays: it is not chrome that competes
+            with Publish, and a long form is exactly where "back to top" earns its slot. */}
+        {!isPostFlowPath(pathname) && <SupportButton className="pointer-events-auto" hidden={supportAway} yielded={supportYields} />}
 
       </div>
 

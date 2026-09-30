@@ -166,6 +166,10 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
     const Icon = it.icon
     const isOn = active(it.href, it.exact)
     const badgeLabel = it.badge && it.badge > 0 ? (it.badge > 9 ? '9+' : String(it.badge)) : null
+    // ⛔ Saved is GREY (`counter-neutral`, a tally), Messages stays RED (`counter`, news) — owner, O-08
+    // G-SAVED-BADGE, the same split the mobile tab bar makes. The tone comes from the resolver, so the
+    // rail and the config cannot disagree about which count is which.
+    const badgeVariant = it.badgeTone === 'neutral' ? 'counter-neutral' : 'counter'
     // aria-label REPLACES the element's content for AT, which silenced the badge count — fold it in.
     const accessibleName = badgeLabel ? tr(`${it.label}, ${badgeLabel} new`, `${it.label}, ${badgeLabel} mới`) : it.label
     const inner = (
@@ -190,8 +194,9 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           {/* Collapsed desktop rail (icon-only): the count overlaps the icon's corner like the bottom
               nav — so Messages/Saved counters stay visible without expanding. Hidden on mobile + when
               expanded, where the inline pill below shows instead.
-              ⚠️ RED, VIA THE PRIMITIVE — owner, 2026-08-13: "make the saved and message counters red
-              on desktop dashboard". These two bubbles were the ONE place in the app that hand-rolled
+              ⚠️ VIA THE PRIMITIVE — owner, 2026-08-13: "make the saved and message counters red
+              on desktop dashboard"; SAVED THEN WENT GREY (O-08, 2026-09-30 — `badgeVariant` above),
+              Messages stays red. These two bubbles were the ONE place in the app that hand-rolled
               a counter in `bg-primary` blue; the mobile bottom nav (mobile-nav.tsx) and the header
               bell already render `variant="counter"`, which is the destructive token. So this closes
               a divergence rather than expressing a colour preference — and it goes through ui/badge
@@ -199,7 +204,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
               `hidden`/`lg:flex` ride on className: Badge's base is inline-flex and its own cn() puts
               the caller's className last, so the display toggle merges cleanly. */}
           {badgeLabel && (
-            <Badge aria-hidden variant="counter" size="count" className={cn('pointer-events-none absolute -right-1.5 -top-1.5 hidden', expanded ? 'lg:hidden' : 'lg:flex')}>{badgeLabel}</Badge>
+            <Badge aria-hidden variant={badgeVariant} size="count" className={cn('pointer-events-none absolute -right-1.5 -top-1.5 hidden', expanded ? 'lg:hidden' : 'lg:flex')}>{badgeLabel}</Badge>
           )}
         </span>
         <span className={labelCls}>{it.label}</span>
@@ -208,7 +213,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
             bigger bubble pass a hard height"), so the geometry is unchanged from the span this
             replaces — only the tone moves from brand blue to the destructive token. */}
         {badgeLabel && (
-          <Badge aria-hidden variant="counter" size="count" className={cn('ml-auto h-5 min-w-5 px-1.5 text-2xs', expanded ? 'lg:flex' : 'lg:hidden')}>{badgeLabel}</Badge>
+          <Badge aria-hidden variant={badgeVariant} size="count" className={cn('ml-auto h-5 min-w-5 px-1.5 text-2xs', expanded ? 'lg:flex' : 'lg:hidden')}>{badgeLabel}</Badge>
         )}
       </>
     )

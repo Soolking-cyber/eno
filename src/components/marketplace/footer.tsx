@@ -2,7 +2,9 @@
 
 import { Button } from '@/components/ui/button'
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
+import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
+import { isPostFlowPath } from '@/lib/post-flow-path'
 // ⚠️ FORUM_URL IS GONE FROM THIS FILE, goToForum IS NOT. No footer link crosses origin any more,
 // but the `forumPath` machinery below stays: it is the guard that stops a FUTURE cross-origin link
 // silently becoming a hard exit out of the native shell.
@@ -113,7 +115,23 @@ const SOCIAL_ICON: Record<Social['key'], (p: { className?: string }) => React.Re
   tiktok: TiktokIcon,
 }
 
+/**
+ * ⛔ NO FOOTER ON THE POST FLOW (/post, /listings/[id]/edit) — owner, O-30 W-CHROME ("hide both on /post
+ * and keep the tab bar"). The wizard ends in its own Publish bar; a full site footer under a form is a
+ * second page of exits below the one action the page exists for.
+ * ⚠️ DECIDED FROM THE PATHNAME AT RENDER TIME, like the header's Post button: isPostFlowPath answers the
+ * same for the server's internal `/en/post` and the browser's `/post`, so the server HTML already omits
+ * it — no hydration mismatch, and no footer that paints and then vanishes (a layout jump at the bottom
+ * of a page whose sticky bar is measured against it). A wrapper, so the body's hooks never run
+ * conditionally.
+ */
 export function Footer() {
+  const pathname = usePathname()
+  if (isPostFlowPath(pathname)) return null
+  return <FooterBody />
+}
+
+function FooterBody() {
   const { tr, lang } = useLanguage()
   /**
    * ⚠️ LITERAL `tr()` PAIRS, NOT A TEMPLATE. scripts/gen-ui-strings.mjs harvests `tr('…', '…')` by

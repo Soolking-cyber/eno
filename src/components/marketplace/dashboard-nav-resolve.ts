@@ -16,6 +16,12 @@ export type ResolvedNavItem = {
   exact?: boolean
   external?: boolean
   badge?: number
+  /**
+   * The count bubble's tone: `alert` (red, ui/badge `counter`) for news — unread messages; `neutral`
+   * (grey, `counter-neutral`) for a tally — the Saved count (owner, O-08 G-SAVED-BADGE). Set only
+   * where `badge` is.
+   */
+  badgeTone?: 'alert' | 'neutral'
 }
 
 export type ResolvedNavGroup = { caption: string; items: ResolvedNavItem[] }
@@ -71,6 +77,7 @@ const toRail = (it: NavItem, ctx: NavResolveCtx): ResolvedNavItem | null => {
     exact: it.exact,
     external: it.external,
     badge: it.badge === 'unread' ? ctx.counters.unread : it.badge === 'saved' ? ctx.counters.saved : undefined,
+    badgeTone: it.badge === 'unread' ? 'alert' : it.badge === 'saved' ? 'neutral' : undefined,
   }
 }
 

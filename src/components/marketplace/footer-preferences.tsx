@@ -37,33 +37,53 @@ import { CustomSelect } from './custom-select'
  */
 const TRIGGER = 'min-h-11 text-body hover:bg-muted pc:min-h-0 pc:rounded-lg pc:px-2 pc:py-1 pc:text-xs'
 
-export function FooterPreferences() {
+/**
+ * The two pickers, exported one by one so the phone's guest Account sheet (guest-account-sheet.tsx,
+ * O-09) shows the SAME controls the footer does — one place decides what a language or currency
+ * option is called and what choosing it does. `className` is the trigger's box; the footer passes
+ * TRIGGER, the sheet its own full-width row.
+ */
+export function LanguageSelect({ className = TRIGGER, wrapperClassName = 'shrink-0' }: { className?: string; wrapperClassName?: string }) {
   const { tr, lang, setLang } = useLanguage()
+  return (
+    <CustomSelect
+      value={lang}
+      onChange={(v) => setLang(v as typeof lang)}
+      options={LANGUAGES.map((l) => ({ value: l.code, label: l.native }))}
+      label={tr('Language', 'Ngôn ngữ')}
+      wrapperClassName={wrapperClassName}
+      className={className}
+      activeClassName={className}
+    />
+  )
+}
+
+export function CurrencySelect({ className = TRIGGER, wrapperClassName = 'shrink-0' }: { className?: string; wrapperClassName?: string }) {
+  const { tr } = useLanguage()
   const { currency, setCurrency } = useCurrency()
+  return (
+    <CustomSelect
+      value={currency}
+      onChange={setCurrency}
+      options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol}  ${c.label}` }))}
+      label={tr('Display currency', 'Tiền tệ hiển thị')}
+      wrapperClassName={wrapperClassName}
+      className={className}
+      activeClassName={className}
+    />
+  )
+}
+
+export function FooterPreferences() {
+  const { tr } = useLanguage()
   return (
     <div
       role="group"
       aria-label={tr('Language and currency', 'Ngôn ngữ và tiền tệ')}
       className="flex flex-wrap items-center justify-center gap-2 lg:justify-end"
     >
-      <CustomSelect
-        value={lang}
-        onChange={(v) => setLang(v as typeof lang)}
-        options={LANGUAGES.map((l) => ({ value: l.code, label: l.native }))}
-        label={tr('Language', 'Ngôn ngữ')}
-        wrapperClassName="shrink-0"
-        className={TRIGGER}
-        activeClassName={TRIGGER}
-      />
-      <CustomSelect
-        value={currency}
-        onChange={setCurrency}
-        options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol}  ${c.label}` }))}
-        label={tr('Display currency', 'Tiền tệ hiển thị')}
-        wrapperClassName="shrink-0"
-        className={TRIGGER}
-        activeClassName={TRIGGER}
-      />
+      <LanguageSelect />
+      <CurrencySelect />
     </div>
   )
 }

@@ -107,6 +107,12 @@ describe('resolveNavGroups binding', () => {
     expect(byHref).toEqual({ '/dashboard': undefined, '/messages': 7, '/saved': 3 })
   })
 
+  it('O-08: Messages is an ALERT (red) count, Saved a NEUTRAL (grey) tally, everything else has no tone', () => {
+    const groups = resolveNavGroups(FIXTURE, ctx({ counters: { unread: 7, saved: 3 } }))
+    const tone = Object.fromEntries(groups[0].items.map((i) => [i.href, i.badgeTone]))
+    expect(tone).toEqual({ '/dashboard': undefined, '/messages': 'alert', '/saved': 'neutral' })
+  })
+
   it('belt-and-braces: a dynamic storefront row without a seller never renders its placeholder href', () => {
     const leaky: NavGroup[] = [{ en: 'G', role: 'all', items: [{ href: '/sellers', en: 'Storefront', icon, dynamic: 'storefront' }] }]
     expect(resolveNavGroups(leaky, ctx())[0].items).toEqual([])

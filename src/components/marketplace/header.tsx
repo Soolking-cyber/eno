@@ -5,11 +5,13 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { User, Search, MapPin, Map, Clock, X, ChevronLeftIcon, LayoutGrid } from '@/components/ui/icons'
+import { User, Search, MapPin, Map, Clock, X, ChevronLeftIcon, LayoutGrid, Sparkles } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { preloadSignIn, useAuth } from '@/context/auth-context'
 import { useSafeBack } from '@/lib/safe-back'
 import { LANG_VARIANTS } from '@/lib/lang-variant'
+import { isPostFlowPath } from '@/lib/post-flow-path'
+import { useIsPhone } from '@/hooks/use-is-phone'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -76,13 +78,12 @@ const noopSubscribe = () => () => {}
 const HOME_PATHS = new Set(['/', ...LANG_VARIANTS.map((v) => `/${v}`)])
 
 /**
- * THE POST FLOW'S OWN PAGES — /post and /listings/<id>/edit, where the PostWizard is the page. Like
- * HOME_PATHS, a test that agrees on both sides of the proxy's rewrite: the server may render the
- * internal `/en/post`, the browser reads the public `/post`, and the optional variant prefix makes
- * both answer the same, so the header can decide at RENDER time with no hydration gate.
+ * THE POST FLOW'S OWN PAGES — /post and /listings/<id>/edit. Like HOME_PATHS, a test that agrees on
+ * both sides of the proxy's rewrite, so the header decides at RENDER time with no hydration gate.
+ * It lives in lib/post-flow-path.ts now (the footer and the support FAB ask the same question, O-30);
+ * re-exported here for the callers that already import it from the header.
  */
-const POST_FLOW = new RegExp(`^(?:/(?:${LANG_VARIANTS.join('|')}))?/(?:post|listings/[^/]+/edit)/?$`)
-export const isPostFlowPath = (pathname: string | null | undefined) => !!pathname && POST_FLOW.test(pathname)
+export { isPostFlowPath }
 
 export function Header() {
   const { t, tr, lang } = useLanguage()
@@ -292,12 +293,26 @@ export function Header() {
    */
   // Trending terms AND the category shortcuts — one fetch, one memo (use-trending-searches.ts).
   const { items: trending, categories: shortcutCategories } = useTrendingPanel(trendingEnabled(showSuggestions, searchVal))
+  /**
+   * ⛔ BELOW 640px ✨ AND MAP LIVE IN THE FOCUS PANEL, NOT IN THE PILL (owner, O-03 G-SEARCH Option A,
+   * 2026-09-30 — reverses the 2026-08-03 "add mapview back to searchbar" mandate ON PHONES ONLY; desktop
+   * and tablets are unchanged). In the pill they cost the field 104px, which left a phone's idle box
+   * 30–82px of text room (Android, "Get the app" shown) — "Find pr…" on every phone. Out of the pill,
+   * the box reads as a search box, and the two actions become the panel's first two rows the moment the
+   * field is touched, which is also the moment someone is deciding HOW to look.
+   * ⚠️ THE PILL SIDE IS CSS (`hidden sm:flex` on both buttons), so the server HTML is already right on a
+   * phone — no paint-then-hide. Only the PANEL side asks JS, and only after a focus, which is always
+   * after hydration: `isPhone` is false on the server snapshot and the panel is never in the SSR HTML.
+   * ⚠️ `isPhone` COUNTS AS CONTENT for the history panel, so on a phone the panel opens on the first
+   * tap even for a first visit with no history and trending not yet landed — the rows ARE its content.
+   */
+  const isPhone = useIsPhone()
   const { suggestOpen, instantOpen, panelOpen } = searchPanels(
     showSuggestions,
     searchVal,
     // ⚠️ The category shortcuts count: they are what a FIRST visit sees — no history, and trending
     // needs three distinct searchers before it shows a term at all.
-    recentSearches.length > 0 || recentLocations.length > 0 || trending.length > 0 || shortcutCategories.length > 0,
+    recentSearches.length > 0 || recentLocations.length > 0 || trending.length > 0 || shortcutCategories.length > 0 || isPhone,
   )
   // The search window is ONE element for both panels (see its comment below), so it keeps its
   // scrollTop across the switch — two separate mounts used to start each panel at the top. Reset it
@@ -425,6 +440,15 @@ export function Header() {
       router.push(explorerFallbackUrl(pathname, { q, match: 'any', ...(r.category ? { category: r.category } : {}) }))
     }
   }
+
+  // The map view — the pill's Map button (sm+) and the phone panel's Map row (O-03) run the same action.
+  const openMap = () => {
+    setShowSuggestions(false)
+    if (onExplorer()) window.dispatchEvent(new CustomEvent('eno:view-map'))
+    else router.push(explorerFallbackUrl(pathname, { view: 'map' }))
+  }
+  // The AI concierge — likewise the pill's ✨ (sm+) and the phone panel's first row.
+  const openAi = () => { router.push('/messages/ai'); setShowSuggestions(false) }
 
   const applyArea = ({ province: p, ward: w, nearby: nb }: { province: Geo | null; ward: Geo | null; nearby: Nearby | null }) => {
     if (onExplorer()) {
@@ -725,9 +749,14 @@ export function Header() {
                 // that the rule for every engine, not a behaviour we happened to measure).
                 className="peer w-full min-w-0 bg-transparent py-3 pl-2 pr-2 text-base text-ellipsis text-foreground outline-none placeholder:text-transparent placeholder:forced-color-adjust-none"
               />
-              {/* ⛔ THE PLACEHOLDER NEVER TRUNCATES (G-SEARCH-lite, main thread 2026-09-29; the owner's
-                  G-SEARCH decision — moving ✨ and Map out of the pill on phones — is HELD, so they stay).
-                  Measured on the integrated build at every phone width, guest, en and vi: the idle
+              {/* ⛔ THE PLACEHOLDER NEVER TRUNCATES (G-SEARCH-lite, main thread 2026-09-29).
+                  ⚠️ SINCE O-03 (2026-09-30) ✨ AND MAP ARE OUT OF THE PILL BELOW 640px, so the numbers in the
+                  next paragraph are the BEFORE state. Re-measured after (dev build, guest, en + vi): the idle
+                  field is 110 / 150 / 165 / 180px at 320 / 360 / 375 / 390 on Android ("Get the app" shown)
+                  and 154 / 194 / 209 / 224px on iOS — so every phone from 360 up now shows the LONG copy
+                  ("Find products…" / "Tìm sản phẩm…"), and only a 320px Android falls to the one word.
+                  The ladder stays: it is what keeps that 320px case and the MT languages honest.
+                  BEFORE O-03 — measured on the integrated build at every phone width, guest, en and vi: the idle
                   field's text room is 0 / 30 / 45 / 60 / 82px at 320 / 360 / 375 / 390 / 412 on Android
                   (the "Get the app" control is shown) and 34 / 74 / 89 / 104 / 126px on iOS (it is
                   hidden, G-APPSTORE). "Find products…" needs 117px and "Tìm sản phẩm…" 119px, so on
@@ -756,7 +785,9 @@ export function Header() {
                 <span data-rung="short" className={cn('min-w-0 truncate', placeholderFit.short)}>{tr('Search', 'Tìm kiếm')}</span>
               </span>
               </div>
-              {/* De-crowd rule — keyed on ENGAGEMENT (suggest panel open), never on text
+              {/* ⚠️ From sm up only — below 640px ✨ and Map are the focus panel's first rows (O-03), so on a
+                  phone this branch renders two `hidden` buttons and the idle pill is field-only.
+                  De-crowd rule — keyed on ENGAGEMENT (suggest panel open), never on text
                   presence. searchVal persists after submit, so a value-based swap would hide
                   Map + AI on every results page — regressing the owner's 2026-08-03 mandate
                   ("add mapview back to searchbar in top navbar"); all three diff reviewers
@@ -801,9 +832,10 @@ export function Header() {
                 <>
                   {/* AI shopping concierge — pressable: press to enter AI mode (duotone), press
                       again for normal search. Sits left of the map in every search bar. */}
+                  {/* ⛔ `hidden sm:flex` — PHONES GET THIS AS THE PANEL'S FIRST ROW INSTEAD (O-03, see `isPhone`). */}
                   <AISearchButton
                     active={pathname === '/messages/ai'}
-                    onClick={() => { router.push('/messages/ai'); setShowSuggestions(false) }}
+                    onClick={openAi}
                     /* relative + tap-48 → a 48px hit area around the 40px visual (invisible ::before).
                        ⛔ mr-2, NOT mr-0.5, AND THE ARITHMETIC IS THE POINT: a 40px visual plus a 2px
                        margin is a 42px PITCH carrying a 48px hit area, so consecutive buttons'
@@ -815,7 +847,7 @@ export function Header() {
                        still overhung the search input on the left, which owns those pixels, so this
                        button measured 38px — under the 44px minimum. Margin on both sides gives the
                        hit area room in both directions. */
-                    className="relative ml-2 mr-2 h-10 w-10 tap-48"
+                    className="relative ml-2 mr-2 hidden h-10 w-10 tap-48 sm:flex"
                   />
                   {/* ⚠️ MAP VIEW, BACK IN THE BAR (owner, 2026-08-03: "add mapview back to searchbar in
                       top navbar, inside to the right of ai search icon"). It lived in the hero search
@@ -836,14 +868,11 @@ export function Header() {
                     type="button"
                     variant="bare"
                     size="none"
-                    onClick={() => {
-                      setShowSuggestions(false)
-                      if (onExplorer()) window.dispatchEvent(new CustomEvent('eno:view-map'))
-                      else router.push(explorerFallbackUrl(pathname, { view: 'map' }))
-                    }}
+                    onClick={openMap}
                     aria-label={tr('Map', 'Bản đồ')}
                     title={tr('Map', 'Bản đồ')}
-                    className="relative mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 ease-[var(--ease-spring-snappy)] hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
+                    // `hidden sm:flex` — the phone reaches the map from the focus panel's second row (O-03).
+                    className="relative mr-2 hidden h-10 w-10 sm:flex shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 ease-[var(--ease-spring-snappy)] hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
                   >
                     <Map className="h-6 w-6" strokeWidth={STROKE} />
                   </Button>
@@ -880,6 +909,44 @@ export function Header() {
               >
                 {suggestOpen ? (
                 <>
+                  {/* ⛔ PHONES ONLY: ✨ AND MAP AS THE PANEL'S FIRST TWO ROWS (owner, O-03 G-SEARCH Option A). They
+                      left the idle pill below 640px (see `isPhone`), so this is where a phone finds them — above
+                      history, because they are ways to search, not things searched. `sm:hidden` rather than an
+                      `isPhone &&`, so a desktop window dragged narrow and back never shows a stale pair; `isPhone`
+                      only decides whether the panel OPENS with nothing else in it.
+                      Same row geometry as the recent-search rows below (44px, `-mx-2` so the icons line up under
+                      the eyebrows' glyphs), and both hold focus in the field on press like those rows do, so the
+                      keyboard does not drop and shift the panel under the finger before the click lands.
+                      ⚠️ The AI row keeps the pill button's `aria-current` on /messages/ai. */}
+                  <ul aria-label={tr('Other ways to search', 'Cách tìm khác')} className="-mx-2 sm:hidden">
+                    <li>
+                      <Button
+                        variant="bare"
+                        size="none"
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={openAi}
+                        aria-current={pathname === '/messages/ai' ? 'page' : undefined}
+                        className="flex w-full items-center justify-start gap-2.5 rounded-xl px-2 py-3 text-left text-sm font-semibold text-body hover:bg-muted cursor-pointer"
+                      >
+                        <Sparkles className="h-5 w-5 shrink-0 text-accent-foreground" />
+                        <span className="min-w-0 truncate">{tr('Ask eno AI', 'Hỏi eno AI')}</span>
+                      </Button>
+                    </li>
+                    <li>
+                      <Button
+                        variant="bare"
+                        size="none"
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={openMap}
+                        className="flex w-full items-center justify-start gap-2.5 rounded-xl px-2 py-3 text-left text-sm font-semibold text-body hover:bg-muted cursor-pointer"
+                      >
+                        <Map className="h-5 w-5 shrink-0 text-accent-foreground" />
+                        <span className="min-w-0 truncate">{tr('Browse on the map', 'Xem tin trên bản đồ')}</span>
+                      </Button>
+                    </li>
+                  </ul>
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">

@@ -19,8 +19,9 @@ import { IconButton } from './icon-button'
 //    than clips when text scales); the VARIANT picks its tone.
 //    `variant="counter"` = the ALERT count (destructive token). `variant="counter-brand"`
 //    = the INFORMATIONAL count (primary token) — unread messages, active-filter counts:
-//    a number that is waiting for you, not warning you. Both are on tokens, so both
-//    adapt in dark mode. POSITIONING stays on the caller (the primitive owns no
+//    a number that is waiting for you, not warning you. `variant="counter-neutral"` = a
+//    TALLY (grey ink-4) — the Saved count: how many, with nothing new and nothing wrong.
+//    All three are on tokens, so all three adapt in dark mode. POSITIONING stays on the caller (the primitive owns no
 //    `absolute`). Wider non-bubble pills (the PDP price-drop chips) are the same
 //    variants at `size="sm"`.
 //    Still hand-rolled and due to migrate:
@@ -65,6 +66,16 @@ const VARIANTS = {
   // for one and wrong for the other; the tokens are right by construction for both.
   counter: 'bg-destructive text-destructive-foreground',
   'counter-brand': 'bg-primary text-primary-foreground',
+  //   counter-neutral — A TALLY. Nothing is new and nothing is wrong: it only says how many (the
+  //                   Saved count — owner, O-08 G-SAVED-BADGE: "grey counter-neutral on mobile and
+  //                   desktop; red stays for messages"). A red bubble on a list the visitor built
+  //                   themselves read as an alert they had to clear, and it competed with the one
+  //                   red that IS news (unread messages) in the same bar.
+  //                   `bg-ink-4` + `text-background`, measured on the rendered tab bar: #f8fbfe on
+  //                   #616161 = 6.0:1 in light, #1c1d1f on #a0a0a0 = 6.5:1 in dark — the bubble's 10px
+  //                   bold digits need 4.5:1 and get it in both themes, and the disc itself clears 3:1 against the tab pill
+  //                   and the rail (WCAG 1.4.11). Both halves are tokens, so the pair flips together.
+  'counter-neutral': 'bg-ink-4 text-background',
   // Official partner — the ONLY inverted chip in the set: gold foil on a dark ground.
   // Every other variant tints a light surface, which is precisely why this one does not;
   // see the --partner block in globals.css for why the badge must not read as a second
