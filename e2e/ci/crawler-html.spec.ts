@@ -66,18 +66,29 @@ async function crawl(browser: Browser, userAgent: string, path: string): Promise
 const underHidden = (page: Page, selector: string) =>
   page.locator(selector).first().evaluate((el) => !!el.closest('[hidden]'))
 
-/** Words in text under `[hidden]`, leaving out script, style, template and noscript (not page text). */
+/**
+ * The footer's link groups (footer.tsx, ui/accordion with hiddenUntilFound). React SSRs each closed
+ * panel as a plain `hidden=""`, and Base UI switches it to `until-found` only after hydration, so with
+ * JavaScript off the footer's link text sits under [hidden]. That is the footer's own contract, not
+ * the page's (globals.css forces the panels open from 40rem, and the links stay in the HTML), so it is
+ * pinned separately below and left out of the page's hidden-word count.
+ */
+const FOOTER_PANEL = '#app-footer [data-slot="accordion-panel"]'
+
+/** Words in text under `[hidden]`, leaving out script, style, template and noscript (not page text) and the footer panels' link text. */
 const hiddenWords = (page: Page) =>
-  page.evaluate(() => {
+  page.evaluate((footerPanel) => {
     let n = 0
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
     for (let t = walk.nextNode(); t; t = walk.nextNode()) {
       const el = t.parentElement
       if (!el || el.closest('script, style, template, noscript') || !el.closest('[hidden]')) continue
+      // Only a footer panel's LINK text is exempt: any other text put in a panel still counts.
+      if (el.closest(footerPanel) && el.closest('a[href]')) continue
       n += (t.textContent ?? '').split(/\s+/).filter(Boolean).length
     }
     return n
-  })
+  }, FOOTER_PANEL)
 
 test.describe('crawler-visible HTML, JavaScript off', () => {
   for (const [bot, userAgent] of CRAWLERS) {
@@ -99,6 +110,12 @@ test.describe('crawler-visible HTML, JavaScript off', () => {
       await expect(page.locator(OUTLINED)).toHaveCount(0)
       await expect(page.locator(PLACEHOLDER)).toHaveCount(0)
       expect(await hiddenWords(page)).toBe(0)
+      // The footer's links are still in the HTML a crawler reads, each an <a href> (followable), and
+      // from 40rem up the panels holding them display (globals.css), so a desktop crawler sees them.
+      expect(await page.locator(`${FOOTER_PANEL} a[href]`).count()).toBeGreaterThan(0)
+      await page.setViewportSize({ width: 1280, height: 900 })
+      const shown = await page.locator(FOOTER_PANEL).evaluateAll((els) => els.every((el) => getComputedStyle(el).display !== 'none'))
+      expect(shown, 'from 40rem every footer link panel must display with JavaScript off').toBe(true)
       await page.context().close()
     })
 

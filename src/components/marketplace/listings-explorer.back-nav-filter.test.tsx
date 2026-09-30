@@ -20,10 +20,16 @@
  * react-query key and the sync effect — is the real one.
  */
 import React from 'react'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, configure, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedListingCard } from '@/lib/types'
+
+// ⚠️ TIMING, NOT BEHAVIOUR: the explorer's render got heavier with the UX program (3c28bd85), and under
+// CI or a loaded machine one waitFor in this file ran past testing-library's 1,000 ms default on a
+// different case each run (CI 36666973345 and 36668180434). The assertions are unchanged; they get time.
+configure({ asyncUtilTimeout: 5_000 })
+vi.setConfig({ testTimeout: 30_000 })
 
 const h = vi.hoisted(() => {
   const router = { push: () => {}, prefetch: () => {}, replace: () => {}, refresh: () => {}, back: () => {} }
