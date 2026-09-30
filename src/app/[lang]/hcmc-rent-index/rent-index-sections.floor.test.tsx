@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { renderToString } from 'react-dom/server'
 import { LanguageProvider } from '@/context/language-context'
 import { MIN_INDEXABLE_LISTINGS } from '@/lib/index-floor'
-import { RENT_TYPES, type DistrictRow, type RentIndex, type Stats } from '@/lib/rent-index'
+import { APARTMENT_BANDS, RENT_TYPES, type DistrictRow, type RentIndex, type Stats } from '@/lib/rent-index'
 import { DistrictTable } from './rent-index-sections'
 
 /**
@@ -19,14 +19,16 @@ const empty: Stats = { n: 0, median: null, p25: null, p75: null, nArea: 0, media
 const district = (slug: string, name: string, nameEn: string, total: number): DistrictRow => ({
   slug, name, nameEn, partOf: null, total,
   cells: Object.fromEntries(RENT_TYPES.map((t) => [t, { ...empty, n: t === 'house' ? total : 0 }])) as DistrictRow['cells'],
+  bands: Object.fromEntries(APARTMENT_BANDS.map((b) => [b, empty])) as DistrictRow['bands'],
 })
 const index: RentIndex = {
-  rulesVersion: 2,
+  rulesVersion: 3,
   computedAt: '2026-09-29T00:00:00.000Z',
   read: 0,
   used: 0,
-  excluded: { notResidential: 0, notForRent: 0, currency: 0, unit: 0, belowBand: 0, aboveBand: 0, crossPosted: 0 },
+  excluded: { notResidential: 0, notForRent: 0, currency: 0, unit: 0, belowBand: 0, aboveBand: 0, commercial: 0, crossPosted: 0 },
   cityWide: Object.fromEntries(RENT_TYPES.map((t) => [t, empty])) as RentIndex['cityWide'],
+  cityBands: Object.fromEntries(APARTMENT_BANDS.map((b) => [b, empty])) as RentIndex['cityBands'],
   districts: [
     district('cu-chi', 'Củ Chi', 'Cu Chi District', MIN_INDEXABLE_LISTINGS - 1),
     district('can-gio', 'Cần Giờ', 'Can Gio District', 1),

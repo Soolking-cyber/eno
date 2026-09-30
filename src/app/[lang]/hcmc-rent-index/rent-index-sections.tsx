@@ -5,7 +5,7 @@ import { formatMoneyFull, groupVnd, type MoneyLocale } from '@/lib/vnd'
 import { isIndexableCount } from '@/lib/index-floor'
 import {
   MAX_AREA_M2, MAX_MONTHLY_VND, MAX_VND_PER_M2, MIN_AREA_M2, MIN_CELL_N, MIN_MONTHLY_VND, MIN_VND_PER_M2,
-  RENT_TYPES, type ExclusionReason, type RentIndex, type RentType, type Stats,
+  RENT_TYPES, roundForDisplay, type ExclusionReason, type RentIndex, type RentType, type Stats,
 } from '@/lib/rent-index'
 
 /**
@@ -38,10 +38,11 @@ const count = (n: number, locale: MoneyLocale) => groupVnd(String(n), locale)
 const money = (n: number, locale: MoneyLocale) => formatMoneyFull(n, '₫', locale)
 
 /**
- * ⚠️ ROUNDED FOR READING, EXACT IN THE CSV. A median of 15,437,500 ₫ claims a precision asking prices
- * do not have; the page shows 100,000 ₫ steps and the downloadable file keeps the computed integer.
+ * ⚠️ ROUNDED FOR READING, FINER IN THE CSV. The page shows 100,000 ₫ steps (`roundForDisplay`, beside
+ * the rules in src/lib/rent-index.ts so every surface printing an index figure rounds it one way);
+ * the downloadable file keeps the 1,000 ₫ figure.
  */
-const shown = (n: number, locale: MoneyLocale) => money(Math.round(n / 100_000) * 100_000, locale)
+const shown = (n: number, locale: MoneyLocale) => money(roundForDisplay(n), locale)
 
 /** The figures could not be read — say so, and never say there is no data. */
 export function Unavailable() {
@@ -192,9 +193,13 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
   )
 }
 
-/** Literal `<Tr>`s, not a lookup table, so scripts/gen-ui-strings.mjs harvests them for the MT languages. */
-const EXCLUSIONS: ExclusionReason[] = ['notResidential', 'notForRent', 'currency', 'unit', 'belowBand', 'aboveBand', 'crossPosted']
-function ExclusionLabel({ k }: { k: ExclusionReason }) {
+/**
+ * Literal `<Tr>`s, not a lookup table, so scripts/gen-ui-strings.mjs harvests them for the MT languages.
+ * ⚠️ `commercial` (rules v3, R-a) IS NOT LISTED YET: its label is new copy and ships with R2 from the
+ * approved CS-2 sheet, in the same deploy (closure {R1, R2}). Until then only the snapshot holds it.
+ */
+const EXCLUSIONS: Exclude<ExclusionReason, 'commercial'>[] = ['notResidential', 'notForRent', 'currency', 'unit', 'belowBand', 'aboveBand', 'crossPosted']
+function ExclusionLabel({ k }: { k: Exclude<ExclusionReason, 'commercial'> }) {
   if (k === 'notResidential') return <Tr text="Not an apartment, house or room (offices, vehicles, nightly stays)" />
   if (k === 'notForRent') return <Tr text="A renter looking for a place, not a place for rent" />
   if (k === 'currency') return <Tr text="Priced in a currency other than đồng" />
