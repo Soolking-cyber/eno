@@ -84,7 +84,7 @@ const CONTENT: SeoContent = {
   // Rentals (not `property`) is right per the taxonomy split: rentals owns ALL rent intent,
   // property is buy-sell only, and an expat looking for somewhere to live is renting.
   categorySlug: 'rentals',
-  // ⛔ HOMES ONLY — apartments, houses, rooms (src/lib/rental-homes.ts). `rentals` also holds offices
+  // ⛔ HOMES ONLY — apartments, houses, rooms, serviced apartments (src/lib/rental-homes.ts, O-45). `rentals` also holds offices
   // and shopfronts, and measured 2026-09-29 four of this rail's eight cards were Office/shopfront (a
   // 1,400m² unit among them) under a page about where an expat lives. The live count below is the
   // same set, so the number and the rail agree (C1-HOUSING).
@@ -139,7 +139,7 @@ export default function Page() {
             {({ rentals }) =>
               rentals && (
                 <p className="mt-4 max-w-prose text-sm leading-relaxed text-body">
-                  {/* "homes", not "rentals": the count is the rail's set (apartments, houses, rooms), and
+                  {/* "homes", not "rentals": the count is the rail's set (apartments, houses, rooms, serviced flats), and
                       "N rentals" would read as the whole category that /c/rentals counts larger. */}
                   {rentals.allInside
                     ? `${rentals.count} homes are listed for rent right now, every one of them in Ho Chi Minh City.`

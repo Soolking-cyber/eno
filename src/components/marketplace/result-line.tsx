@@ -75,6 +75,19 @@ export type ResultLineProps = {
    *  `null` = there is no answer to count (the request for these filters failed): the line prints
    *  no number rather than the previous filters' one, and keeps its node (live region, focus target). */
   count: number | null
+  /**
+   * The words the count answers, when the feed is a search ("honda"). With it the count reads as the
+   * results header — "1,204 results for “honda”" / "1.204 kết quả cho “honda”" (E-RESULTS, owner O-13,
+   * 2026-09-30) — instead of a bare "1,204 listings" that does not say what it counts. Omit on a feed
+   * with no words (the undirected home, a category browse): the count keeps its plain form there.
+   */
+  term?: string
+  /**
+   * How many filters are APPLIED, when that is more than the chips drawn — the explorer drops a chip
+   * whose value a facet pill already shows (E-ACTIVE, O-14), but "Clear all" still clears those. Only the
+   * "Clear all" threshold reads it; the chips are always exactly `filters`. Defaults to `filters.length`.
+   */
+  appliedCount?: number
   /** The ladder, root first. Omit/empty for an unfiltered feed. */
   crumbs?: ResultCrumb[]
   /** Active filters IN PICK ORDER. See ResultFilter. */
@@ -172,6 +185,20 @@ export function resultCountLabel(count: number, lang: string, tr: TrFn): string 
 }
 
 /**
+ * The results header for a search: "1,204 results for “honda”" / "1.204 kết quả cho “honda”" (E-RESULTS,
+ * O-13). Same grouping as `resultCountLabel`; the words are data and are spliced in after tr(), for the
+ * harvester reason given on `removeFilterLabel` below. A blank term falls back to the plain count.
+ */
+export function resultsForLabel(count: number, term: string, lang: string, tr: TrFn): string {
+  const words = term.trim()
+  if (!words) return resultCountLabel(count, lang, tr)
+  const safe = Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : 0
+  const n = groupVnd(String(safe), moneyLocale(lang))
+  const phrase = safe === 1 ? tr('{n} result for {q}', '{n} kết quả cho {q}') : tr('{n} results for {q}', '{n} kết quả cho {q}')
+  return phrase.replace('{n}', n).replace('{q}', `“${words}”`)
+}
+
+/**
  * Accessible name for a chip's ✕: "Remove Thảo Điền" / "Bỏ Thảo Điền".
  *
  * The verb is a catalogue string, the value is data, and they are joined here rather than
@@ -201,6 +228,8 @@ export function ResultLine({
   onClearAll,
   splitOnMobile = false,
   className,
+  term,
+  appliedCount,
 }: ResultLineProps) {
   const { lang, tr } = useLanguage()
   const ladder = crumbs ?? []
@@ -210,7 +239,7 @@ export function ResultLine({
   // leave the rule as a suggestion, and `filters={[]} showSaveSearch` would render an offer to
   // save nothing. One filter is browsing; two is an intent worth keeping.
   const saveSearch = showSaveSearch && !!onSaveSearch && shouldOfferSaveSearch(filters.length)
-  const clearAll = !!onClearAll && filters.length > 1
+  const clearAll = !!onClearAll && Math.max(filters.length, appliedCount ?? 0) > 1
 
   // ONE identity for a chip, used for the React key AND for knowing when its removal has landed.
   // id ALONE is not enough: a multi-select facet ("district" twice) is a perfectly reasonable
@@ -412,7 +441,7 @@ export function ResultLine({
             `tabIndex={-1}` makes it a programmatic focus destination only (never in the tab
             order) for the last-chip-removed case above. */}
         <p ref={countRef} tabIndex={-1} aria-live="polite" className="text-xs font-bold text-ink sm:text-sm">
-          {count === null ? null : resultCountLabel(count, lang, tr)}
+          {count === null ? null : term?.trim() ? resultsForLabel(count, term, lang, tr) : resultCountLabel(count, lang, tr)}
         </p>
 
         {ladder.length > 0 && (

@@ -380,6 +380,13 @@ export function CategoryRail({
    * desktop keeps 44px at every position because its tiles are 73px.
    * ⚠️ MEASURED, NOT GUESSED: 64 + the 6px gap + a two-line 28px label + 8px of padding is 106px
    * inside a 130px tile. A bigger mark would start clipping the second label line.
+   * ⛔ 72 → 60 BOX, 64 → 52 MARK (E-FOLD option A, owner O-10, 2026-09-30). The opening glyphs were the
+   * heaviest thing above the feed on a phone. ⚠️ MEASURED 2026-09-30 AT 390×844, AND SAY IT PLAINLY: this
+   * does NOT move the first card. The six unit rows are sized by the SWIPED pages' small tiles (48px box
+   * + gap + label + padding = 77px over two rows → 36.5px a row), so the opening tiles were already
+   * taller than their content (118px holding 101px) and the rail stayed 247px tall before and after. The
+   * fold gain of E-FOLD came from option C (the count on the heading row, listings-explorer.tsx); this
+   * is the lighter look the owner approved alongside it.
    */
   /**
    * ⚠️ THE PRESSED TILE GETS A TINTED DISC, because colour stopped being the selection cue when the
@@ -392,13 +399,13 @@ export function CategoryRail({
       /* ⚠️ `p-1` SO THE DISC IS BIGGER THAN THE ART IT SITS BEHIND. The first version sized the box
          to exactly the glyph, which painted the tint underneath 64px of opaque artwork — an
          invisible selection cue, as a reviewer pointed out. The padding gives it a 4px rim, which is
-         all a tint needs, and the tile still fits: 72 + 6 gap + a two-line 28px label + 8 padding is
-         114px inside a 130px tile. */
+         all a tint needs, and the tile still fits: 60 + 6 gap + a two-line 28px label + 8 padding is
+         102px inside the opening tile (118px measured at 390, 2026-09-30). */
       'flex items-center justify-center rounded-2xl p-1 transition-colors duration-200',
-      big ? 'h-[72px] w-[72px] md:h-12 md:w-12' : 'h-12 w-12',
+      big ? 'h-15 w-15 md:h-12 md:w-12' : 'h-12 w-12',
       on && 'bg-brand-50',
     )
-  const glyphSize = (big: boolean) => (big ? 'h-16 w-16 md:h-11 md:w-11' : '')
+  const glyphSize = (big: boolean) => (big ? 'h-13 w-13 md:h-11 md:w-11' : '')
   /**
    * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
    * one navigates away, so it is never "on" while this rail is showing.

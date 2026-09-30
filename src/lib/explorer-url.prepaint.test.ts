@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MASK_KEYS, PREPAINT_SCRIPT, explorerUrlMasks, readExplorerUrl } from './explorer-url'
+import { MASK_KEYS, PREPAINT_SCRIPT, RECENTS_ATTR, explorerUrlMasks, readExplorerUrl, recentSearchTerms } from './explorer-url'
+import { RECENT_SEARCHES_KEY } from './reco-signals'
 
 /**
  * E-SSR phase 1 (2026-09-29): the home layout's pre-paint script and the TypeScript predicate are the
@@ -79,5 +80,51 @@ describe('the pre-paint mask rule', () => {
   it('is ES5 syntax — no arrow functions, let/const, template literals or spread', () => {
     const body = PREPAINT_SCRIPT.replace(JSON.stringify(MASK_KEYS), '[]')
     expect(body).not.toMatch(/=>|\blet\b|\bconst\b|`|\.\.\./)
+  })
+})
+
+/** The same script, with a fake localStorage holding `stored` under the recent-searches key. */
+function runWithRecents(search: string, stored: string | null) {
+  const attrs = new Map<string, string>()
+  const document = { documentElement: { setAttribute: (k: string, v: string) => { attrs.set(k, v) }, removeAttribute: (k: string) => { attrs.delete(k) } } }
+  const localStorage = { getItem: (k: string) => (k === RECENT_SEARCHES_KEY ? stored : null) }
+  new Function('location', 'document', 'setTimeout', 'localStorage', PREPAINT_SCRIPT)({ search }, document, () => 0, localStorage)
+  return { recents: attrs.has(RECENTS_ATTR), masked: attrs.has('data-explorer-directed') }
+}
+
+describe('the returning-visitor recents reservation (E-RETURNING, O-16)', () => {
+  it('reserves the row on the undirected home when a recent search is stored', () => {
+    expect(runWithRecents('', JSON.stringify(['honda']))).toEqual({ recents: true, masked: false })
+    expect(runWithRecents('?utm_source=zalo', JSON.stringify(['sofa', 'fridge']))).toEqual({ recents: true, masked: false })
+  })
+
+  it('never on a directed URL — the row is an undirected-home affordance, and the mask still applies', () => {
+    expect(runWithRecents('?q=honda', JSON.stringify(['honda']))).toEqual({ recents: false, masked: true })
+  })
+
+  it('nothing on a first visit, and nothing for a list the row would not fill', () => {
+    for (const stored of [null, '[]', '["  "]', '[1,2]', '"honda"', '{"0":"honda","length":1}', 'not json']) {
+      expect(runWithRecents('', stored).recents, String(stored)).toBe(false)
+    }
+  })
+
+  it('the script and the row read the same list (recentSearchTerms)', () => {
+    for (const stored of ['["honda"]', '[" sofa ",""]', '[]', '["  "]', '[1,"x"]', '"honda"']) {
+      const parsed = JSON.parse(stored)
+      expect(runWithRecents('', stored).recents, stored).toBe(recentSearchTerms(parsed).length > 0)
+    }
+    expect(recentSearchTerms([' sofa ', '', 3, 'honda'])).toEqual(['sofa', 'honda'])
+  })
+
+  it('a storage that throws costs the row, never the page', () => {
+    const document = { documentElement: { setAttribute: () => {}, removeAttribute: () => {} } }
+    const localStorage = { getItem: () => { throw new Error('blocked') } }
+    expect(() => new Function('location', 'document', 'setTimeout', 'localStorage', PREPAINT_SCRIPT)({ search: '' }, document, () => 0, localStorage)).not.toThrow()
+  })
+})
+
+describe('recentSearchTerms — no duplicate chips (gate 2026-09-30)', () => {
+  it('dedupes case-insensitively after trimming, first wins', () => {
+    expect(recentSearchTerms(['sofa', 'sofa ', 'Sofa', 'honda'])).toEqual(['sofa', 'honda'])
   })
 })

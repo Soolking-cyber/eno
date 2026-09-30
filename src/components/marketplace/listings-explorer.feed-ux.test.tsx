@@ -320,8 +320,11 @@ describe('a district typed into search is the Area pill\'s district, and the chi
   async function searchQuan7() {
     mount(newClient())
     act(() => { window.dispatchEvent(new CustomEvent('eno:search', { detail: { query: 'Quận 7' } })) })
-    // The server has answered the words with its district reading.
-    await waitFor(() => expect(chips()).toEqual(['Remove District 7 (Phu My Hung)']))
+    // The server has answered the words with its district reading: the Area pill names it, and — since
+    // E-ACTIVE (owner O-14, 2026-09-30) — the result line draws NO chip for it, because the pill already
+    // shows that value. Neither a district chip nor a `"Quận 7"` words chip may sit beside the pill.
+    await waitFor(() => expect(facet().district).toBe('d7'))
+    expect(chips()).toEqual([])
   }
 
   it('the Area pill names the district the server read out of the words (it read "Area")', async () => {
@@ -329,11 +332,12 @@ describe('a district typed into search is the Area pill\'s district, and the chi
     expect(facet().district).toBe('d7')
   })
 
-  it('picking that district in the Area panel shows ONE chip in the same frame — never the old words beside it', async () => {
+  it('picking that district in the Area panel never shows the old words beside it, in the same frame', async () => {
     await searchQuan7()
     act(() => { facet().setDistrict('d7') }) // the panel's pick: sets ?district=d7, strips "Quận 7" from the box
     // Same commit, inside the 150ms search debounce: production showed `"Quận 7"` AND "District 7" here.
-    expect(chips()).toEqual(['Remove District 7 (Phu My Hung)'])
+    // The district itself is on the Area pill (no chip for it since O-14), so the line holds nothing.
+    expect(chips()).toEqual([])
     expect(facet().district).toBe('d7')
     // …and the feed asks exactly that, from its first request: the district, without the words it
     // replaced (production also sent one request pairing the new district with the old words).
@@ -342,7 +346,8 @@ describe('a district typed into search is the Area pill\'s district, and the chi
     const picked = listingsRequests().filter((u) => u.searchParams.get('district') === 'd7')
     expect(picked.length).toBeGreaterThan(0)
     expect(picked.every((u) => !u.searchParams.has('q'))).toBe(true)
-    expect(chips()).toEqual(['Remove District 7 (Phu My Hung)'])
+    expect(chips()).toEqual([])
+    expect(facet().district).toBe('d7')
   })
 
   it('dropping it in the panel drops the typed district with it, as the chip\'s ✕ does', async () => {

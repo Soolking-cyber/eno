@@ -1,5 +1,6 @@
 import { migrateLegacyCategoryParams, rangeFacetsFor, facetsFor } from '@/lib/taxonomy'
 import { queryForExplicitDistrict } from '@/components/marketplace/explorer-place'
+import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 
 /**
  * WHAT THE EXPLORER'S URL SAYS, READ IN ONE PURE PASS — the single reader behind both of the
@@ -179,4 +180,35 @@ export function explorerUrlMasks(search: string | URLSearchParams): boolean {
  * ⚠️ 15s SAFETY NET: if the explorer never hydrates (no JS, a failed chunk), the attribute removes
  * itself and the page shows exactly what it showed before this existed — never a page of grey boxes.
  */
-export const PREPAINT_SCRIPT = `(function(){try{var K=${JSON.stringify(MASK_KEYS)};var m=false;new URLSearchParams(location.search).forEach(function(v,k){if(m||!v)return;if(k==='view'){if(v!=='grid')m=true;return}if(K.indexOf(k)>-1||k.indexOf('attr_')===0||k.indexOf('range_')===0)m=true});if(!m)return;var d=document.documentElement;d.setAttribute('data-explorer-directed','');setTimeout(function(){d.removeAttribute('data-explorer-directed')},15000)}catch(e){}})();`
+/**
+ * ⛔ AND IT RESERVES THE RETURNING VISITOR'S RECENTS ROW (E-RETURNING option 1, owner O-16, 2026-09-30).
+ * On the UNDIRECTED home, a visitor with at least one recent search (the header's own history,
+ * `eno:recent_searches` — src/lib/reco-signals.ts) gets one 44px row of those searches between the
+ * category grid and the toolbar. The list lives in localStorage, which the server cannot read, so
+ * without this the row could only appear after hydration and push the toolbar and the feed down by
+ * 60px — a layout shift on every returning cold load. Setting `html[data-has-recents]` here, before the
+ * first paint, lets globals.css hold the row open from the first frame; the explorer fills it once it
+ * hydrates and keeps the attribute in step afterwards (listings-explorer.tsx, `recentTerms`).
+ * ⚠️ THE SAME TEST AS THE ROW: an array holding at least one non-blank string (`recentSearchTerms`).
+ * A reservation the row then does not fill would be the shift this exists to prevent.
+ * ⚠️ A directed URL returns before it: the row is an undirected-home affordance only.
+ */
+export const RECENTS_ATTR = 'data-has-recents'
+
+/** The recent searches the returning-visitor row shows: the non-blank strings, trimmed, newest first. */
+export function recentSearchTerms(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  // De-duplicated case-insensitively, first occurrence wins: the chips are keyed by term (gate 2026-09-30).
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const x of raw) {
+    if (typeof x !== 'string' || !x.trim()) continue
+    const t = x.trim()
+    const k = t.toLowerCase()
+    if (seen.has(k)) continue
+    seen.add(k); out.push(t)
+  }
+  return out
+}
+
+export const PREPAINT_SCRIPT = `(function(){try{var K=${JSON.stringify(MASK_KEYS)};var m=false;new URLSearchParams(location.search).forEach(function(v,k){if(m||!v)return;if(k==='view'){if(v!=='grid')m=true;return}if(K.indexOf(k)>-1||k.indexOf('attr_')===0||k.indexOf('range_')===0)m=true});if(!m){try{var r=JSON.parse(localStorage.getItem(${JSON.stringify(RECENT_SEARCHES_KEY)})||'[]');if(Array.isArray(r))for(var i=0;i<r.length;i++){if(typeof r[i]==='string'&&r[i].trim()){document.documentElement.setAttribute(${JSON.stringify(RECENTS_ATTR)},'');break}}}catch(e){}return}var d=document.documentElement;d.setAttribute('data-explorer-directed','');setTimeout(function(){d.removeAttribute('data-explorer-directed')},15000)}catch(e){}})();`

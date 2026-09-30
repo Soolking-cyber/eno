@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { Children, useEffect, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
 import { ChevronRight } from '@/components/ui/icons'
 import type { IconComponent } from '@/components/ui/icons'
@@ -32,7 +32,11 @@ export const RAIL_SKELETON_COUNT = 4
  *  import the same strings instead of re-typing them — that re-typing is how the
  *  headers drifted apart in the first place. mb-3, not mb-2.5: the 8pt rhythm steps. */
 export const SECTION_HEADER_ROW = 'mb-3 flex items-center justify-between gap-2'
-export const SECTION_TITLE = 'text-lg font-semibold text-foreground'
+//  ⚠️ ALWAYS ONE STEP ABOVE THE CARD PRICE (D-TYPE, owner 2026-09-30): the card's <Price> is
+//  text-base → sm:text-lg, so a text-lg title TIED it from sm up and the shelf read as a list of
+//  prices with a caption. text-lg → sm:text-xl keeps 18>16 and 20>18; both have a 28px line box, so
+//  the loading.tsx skeleton (h-7) still matches. Raise the price, raise this.
+export const SECTION_TITLE = 'text-lg font-semibold text-foreground sm:text-xl'
 // `relative tap-44 active:opacity-60`: See all was 63x20 and answered a press with nothing on a Link
 // (the Button call sites get ui/button's scale on top). The 44px area is a ::before, so it needs the
 // `relative` beside it — see the tap-44 note in globals.css.
@@ -114,10 +118,36 @@ export const RAIL_SCROLLER = 'flex gap-2 overflow-x-auto overscroll-x-contain sc
  * not, and it should not: being positional is the point. Anything that moved the rail off its
  * start — finger, arrow button, restored history — means the reader is past needing the hint.
  */
-export function RailBeam({ scrollerRef, canRight }: {
+/**
+ * ⛔ THE BEAM IS SEEDED IN THE SERVER HTML (K-RAIL-PEEK option B, owner O-18, 2026-09-30). `canRight` is
+ * measured in an effect, so until hydration every rail's beam was dark — on a phone cold load that is
+ * the whole first seconds, exactly when a first-time reader is deciding whether the rail scrolls. The
+ * caller passes how many items the rail holds, and from that alone (no measurement, so the server and
+ * the hydration render agree) the beam states where the row MUST overflow: a card is one feed column
+ * (RAIL_CARD_W — two to a phone row, three from `sm`, four from `lg`), so more items than columns
+ * cannot fit. `data-swipe-seed` names the breakpoint the seed stops at and globals.css turns the light
+ * off from there (`sm`, `lg`); `all` overflows everywhere.
+ * ⚠️ THE SEED ONLY RULES UNTIL THE FIRST MEASUREMENT. The mount effect drops it, and from then on
+ * `canRight` + the scroll latch decide exactly as before — so a seed that guessed wrong (a narrow
+ * desktop window, OS text scaling) fades out through the same 220ms opacity transition instead of
+ * popping. No card peek: the option chosen was the beam alone.
+ */
+export function railSwipeSeed(items: number | undefined): 'sm' | 'lg' | 'all' | undefined {
+  if (items == null || items <= 2) return undefined
+  if (items === 3) return 'sm'
+  if (items === 4) return 'lg'
+  return 'all'
+}
+
+export function RailBeam({ scrollerRef, canRight, seedItems }: {
   scrollerRef: RefObject<HTMLDivElement | null>
   canRight: boolean
+  /** The rail's item count, for the pre-hydration seed (see `railSwipeSeed`). Omit for no seed. */
+  seedItems?: number
 }) {
+  // False on the server and in the hydration render, true from the first effect — see railSwipeSeed.
+  const [measured, setMeasured] = useState(false)
+  useEffect(() => { setMeasured(true) }, [])
   /** ⚠️ PER MOUNT, NOT PER PERSON — deliberately `useState`. The owner asked for a beam above every
    *  carousel; remembering it forever in storage would quietly delete a thing that was asked for.
    *  What the latch buys is that it stops competing with the reader the moment they are already
@@ -144,7 +174,14 @@ export function RailBeam({ scrollerRef, canRight }: {
   // `pointer-events-none`: a decorative 2px line, but `position:relative` and later in the DOM than the
   // header row, so it sat ON TOP of See all's 44px hit area and took the bottom 3px of it (measured
   // with elementFromPoint: 42px instead of 44). A mark that means "this scrolls" must not take taps.
-  return <div className="rail-beam pointer-events-none" data-swipeable={canRight && !everScrolled ? '' : undefined} aria-hidden="true" />
+  return (
+    <div
+      className="rail-beam pointer-events-none"
+      data-swipeable={canRight && !everScrolled ? '' : undefined}
+      data-swipe-seed={measured ? undefined : railSwipeSeed(seedItems)}
+      aria-hidden="true"
+    />
+  )
 }
 
 export function Shelf({
@@ -200,7 +237,7 @@ export function Shelf({
         </div>
         {seeAll}
       </div>
-      <RailBeam scrollerRef={scrollerRef} canRight={canRight} />
+      <RailBeam scrollerRef={scrollerRef} canRight={canRight} seedItems={Children.count(children)} />
       <div className="relative">
         <div ref={scrollerRef} className={RAIL_SCROLLER}>{children}</div>
         <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />

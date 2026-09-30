@@ -508,10 +508,15 @@
   --input: #e5e5e5;
   --ring: #0a66c2;
 
-  /* Ink scale */
+  /* Ink scale — ⚠️ MONOTONIC IN LIGHTNESS, IN BOTH THEMES (D-GREYS, owner 2026-09-30: "do what's
+     recommended"). One order, darkest ink first: ink > ink-2 > ink-3 > body > ink-4 >
+     muted-foreground (Tailwind neutral 900/800/700/600/~550/500). ink-3 was #737373 — LIGHTER
+     than ink-4 and identical to muted-foreground — and only 4.35:1 on --tint, where it sits as an
+     icon ink (mark-sold-sheet, trip-map close). #404040: canvas 9.98, white 10.37, tint 9.51,
+     secondary 8.23. Keep the order when a stop moves; docs/design-language.md §3 has the table. */
   --ink: #171717;
   --ink-2: #262626;
-  --ink-3: #737373;
+  --ink-3: #404040;
   --ink-4: #616161;        /* neutral-gray ~5.6:1 on tint / 6:1 on white — AA for placeholder/meta/chevrons/small icons on BOTH white and bg-tint (was #6b7280 gray-500, 4.1:1 on tint → failed AA on the tinted search pill) */
   --body: #525252;        /* neutral-600 */
   --tint: #f5f5f5;        /* neutral-100 */
@@ -849,10 +854,16 @@
   --input: #3b3b3b;
   --ring: #4f97ee;
 
-  /* Ink ramp inverted (light → dark text), brightened for contrast */
+  /* Ink ramp inverted (light → dark text), brightened for contrast.
+     ⚠️ SAME ORDER AS LIGHT, BY CONTRAST (D-GREYS, 2026-09-30): ink > ink-2 > ink-3 > body > ink-4.
+     ink-3 was #b8b8b8 — BELOW body (#cccccc) here while light put it above, so one token swapped
+     places with the theme. ink-2 #e0e0e0 (canvas 12.78 · tint 11.46 · popover 10.87) and ink-3
+     #d4d4d4 (11.38 · 10.21 · 9.68) open room above body (10.50 · 9.42 · 8.94).
+     ⚠️ muted-foreground (#b8b8b8) still sits ABOVE ink-4 (#a0a0a0) in dark, the reverse of light;
+     left as-is (418 call sites, semantic token) and recorded in the canon. */
   --ink: #f0f0f0;
-  --ink-2: #d6d6d6;
-  --ink-3: #b8b8b8;
+  --ink-2: #e0e0e0;
+  --ink-3: #d4d4d4;
   --ink-4: #a0a0a0;        /* ~5.9:1 on canvas / AA on the dark bg-tint too (was #8995a6, ~4.4:1 on dark tint) */
   --body: #cccccc;         /* ~8.8:1 on card — comfortable body text */
   --tint: #262626;
@@ -3674,7 +3685,22 @@ html:not(.native) #app-splash {
     inset 0 0 0 1px color-mix(in oklab, var(--color-cta-ink) 12%, transparent),
     inset 0 0 14px 3px color-mix(in oklab, var(--color-cta-ink) 15%, transparent);
   pointer-events: none;
-  animation: search-beam-pulse 3.2s ease-in-out infinite;
+  /* ⛔ THREE BREATHS, THEN REST — NOT `infinite` (owner, O-06 G-BEAM, 2026-09-30: "play 3 times, then
+     rest", strict WCAG 2.2.2). 2.2.2 lets motion that auto-starts run past 5s only with a way to stop
+     it; reduced motion is that way for people who set it, but everyone else got a bar that breathed
+     for as long as the tab was open. 3 × 3.2s = 9.6s says "this is the thing to use" and then stops.
+     ⚠️ TWO ANIMATIONS, AND THE SECOND IS WHY THE REST IS BARE TINT: the pulse's last frame is its
+     0.22 trough, and `forwards` on it would leave a STATIC ring — the one state the note above rules
+     out ("do not leave a static border behind"). `search-beam-rest` starts exactly when the third
+     breath ends, fades that trough to 0 over 600ms and HOLDS 0 (`forwards`). It is later in the
+     list, so while it is filling it wins over the finished pulse.
+     ⚠️ IT REPLAYS WHEN THE BAR RETURNS TO IDLE, and that is fine: `search-beam` is on the idle
+     branch only (header.tsx), so closing the panel re-adds the class and the three breaths run
+     again. That is a response to the reader's own action, which 2.2.2 does not govern; the
+     auto-start on page load is what it does, and that one now ends. */
+  animation:
+    search-beam-pulse 3.2s ease-in-out 3,
+    search-beam-rest 600ms ease-out 9.6s forwards;
 }
 
 /**
@@ -3695,10 +3721,18 @@ html:not(.native) #app-splash {
   50%      { opacity: 1; }
 }
 
-/* ⚠️ WCAG 2.2.2 ASKS FOR A WAY OUT OF MOTION THAT AUTO-STARTS AND RUNS PAST FIVE SECONDS, and this
-   does run indefinitely while the bar is idle. `prefers-reduced-motion` IS that way out, and it is
-   the mechanism the guideline's own techniques name for decorative motion — there is no second
-   control because the effect carries no information, so pausing it costs the reader nothing.
+/* The rest after the third breath: from the pulse's trough to nothing. `from` is spelled out rather
+   than left to the underlying value, so no engine has to decide what "underneath" a finished
+   animation means. */
+@keyframes search-beam-rest {
+  from { opacity: 0.22; }
+  to   { opacity: 0; }
+}
+
+/* ⚠️ WCAG 2.2.2 ASKS FOR A WAY OUT OF MOTION THAT AUTO-STARTS AND RUNS PAST FIVE SECONDS. Since
+   O-06 the pulse no longer runs indefinitely — it stops by itself after three breaths (9.6s) — and
+   `prefers-reduced-motion` still removes it outright for anyone who asked for less motion. There is
+   no pause control because the effect carries no information, so stopping it costs the reader nothing.
    ⚠️ If this ever becomes something the reader must watch to understand, it needs a real pause.
    ⚠️ Removed entirely, not frozen: a stopped pulse is a static ring on a bar whose whole design is
    not having one. Someone asking for less motion gets the bar as it was. */
@@ -3740,6 +3774,43 @@ html:not(.native) #app-splash {
 
 @media (prefers-reduced-motion: reduce) {
   [data-tour-active] { animation: none; }
+}
+
+/* ── THE HOME RESULTS ROW ON A PHONE: COUNT UNDER THE TITLE (E-FOLD option C, O-10, 2026-09-30) ─────
+   listings-explorer.tsx marks the results header row `data-home-row` on the undirected home. Below `sm`
+   it becomes a two-column grid: the title (row 1) and the count (row 2, auto-placed into the one free
+   cell) on the left, the view toggles centred across both rows on the right — 44px instead of the 62px
+   of a title row plus a count row. ⚠️ `html:not([data-explorer-directed])`: the ISR HTML is always the
+   undirected home, so on a cold directed deep link this row would paint as the grid and grow into the
+   flex split after hydration (measured 18px shift). The pre-paint mask keeps it flex from the first
+   frame there. The id selector outranks the row's own `flex` utilities. */
+@media (width < 40rem) {
+  html:not([data-explorer-directed]) #results[data-home-row] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0;
+  }
+  html:not([data-explorer-directed]) #results[data-home-row] > [data-feed-heading] {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  html:not([data-explorer-directed]) #results[data-home-row] > [data-view-cluster] {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+/* ── THE RETURNING VISITOR'S RECENTS ROW (E-RETURNING option 1, O-16, 2026-09-30) ────────────────────
+   listings-explorer.tsx renders the slot on every undirected home; it is SHOWN only while
+   `html[data-has-recents]`, which the home layout's pre-paint script sets from localStorage before the
+   first paint (PREPAINT_SCRIPT, src/lib/explorer-url.ts) and the explorer keeps in step afterwards. So
+   a returning visitor's 44px are reserved from the first frame (no shift when the chips arrive) and a
+   first visit gets no row at all — `display: none` also takes it out of the `space-y` rhythm. */
+.recents-row {
+  display: none;
+}
+html[data-has-recents] .recents-row {
+  display: flex;
 }
 
 /* ── THE RAIL SWIPE BEAM ───────────────────────────────────────────────────────────────────────
@@ -3805,7 +3876,16 @@ html:not(.native) #app-splash {
     transparent
   );
   /* 250% → -100% of its OWN width: fully off the right edge to fully off the left. */
-  animation: rail-beam-sweep 3.2s linear infinite;
+  /* ⛔ THREE SWEEPS, THEN REST — NOT `infinite` (owner, O-06 G-BEAM: "infinite pulse and sweep — play 3
+     times, then rest", strict WCAG 2.2.2). The hint has taught the gesture by the third pass; a light
+     still crossing every rail after the reader has scrolled past ten of them is motion they cannot
+     stop. `forwards` holds the LAST frame, which is -100% — fully off the left edge — so the rest is
+     invisible by construction, with no pop: the same off-stage property that makes the loop seamless.
+     ⚠️ The count runs from when the rail MOUNTS, not from when `data-swipeable` turns the light up —
+     the animation always runs and only the opacity follows the attribute (see the note below). A rail
+     that only becomes scrollable after 9.6s (a very late fetch) shows no sweep; O-18 (seed the beam
+     in SSR) is the row that moves that moment earlier. */
+  animation: rail-beam-sweep 3.2s linear 3 forwards;
   /* ⛔ FADED, NOT SWITCHED OFF. Gating the whole `::after` on the attribute made the light vanish
      wherever it happened to be the instant the reader scrolled — the mid-bar pop `translateX` was
      chosen to avoid, arriving through the other door. Opacity lets it leave gracefully, and the
@@ -3819,12 +3899,23 @@ html:not(.native) #app-splash {
    stop the transform was chosen to avoid. The animation is a compositor transform on a fully
    transparent pseudo-element, which browsers throttle heavily and which costs approximately
    nothing next to the rail's own scrolling.
-   ⚠️ SAID EXACTLY: the ANIMATION does not stop, only the opacity retires — an earlier version of
-   this comment claimed the sweep "retires for good" and it does not. If a future measurement on a
-   low-end Android says these idle animations cost something real, the fix is to drop the
-   `animation` shorthand once the latch flips, and to accept the pop that reintroduces. */
-.rail-beam:not([data-swipeable])::after {
+   ⚠️ SAID EXACTLY: the latch does not stop the ANIMATION, only the opacity retires — an earlier
+   version of this comment claimed the sweep "retires for good" and it did not. What does stop it now
+   is the iteration count above (O-06): three sweeps, then it rests off-stage whatever the latch says. */
+.rail-beam:not([data-swipeable]):not([data-swipe-seed])::after {
   opacity: 0;
+}
+
+/* ⛔ THE SERVER-SEEDED BEAM (K-RAIL-PEEK option B, O-18, 2026-09-30). Before hydration nothing has
+   measured the rail, so shelf.tsx's `railSwipeSeed` states from the ITEM COUNT alone where the row must
+   overflow — a card is one feed column: two to a phone row, three from `sm`, four from `lg`. `sm` / `lg`
+   name the breakpoint where that stops being certain, and the light goes out from there. The attribute
+   is dropped by the first effect, after which the rule above (the measured `canRight`) is the only one. */
+@media (min-width: 40rem) {
+  .rail-beam[data-swipe-seed='sm']:not([data-swipeable])::after { opacity: 0; }
+}
+@media (min-width: 64rem) {
+  .rail-beam[data-swipe-seed='lg']:not([data-swipeable])::after { opacity: 0; }
 }
 
 /**

@@ -34,7 +34,7 @@ import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
-import { isSeededFeed, readExplorerUrl, type ExplorerSort, type ExplorerView } from '@/lib/explorer-url'
+import { isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView } from '@/lib/explorer-url'
 import { publicPathname } from '@/lib/lang-variant'
 import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
 import { useDropStaleDistrict } from './use-drop-stale-district'
@@ -49,13 +49,14 @@ import { useRegisterExplorer } from '@/lib/explorer-presence'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Chip } from '@/components/ui/chip'
 import { IconButton } from '@/components/ui/icon-button'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Bilingual } from './bilingual'
 import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { offeredKeys } from './count-chip'
-import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, categoryHasBrand, facetsFor } from '@/lib/taxonomy'
+import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, CONDITION_FACET, categoryHasBrand, facetsFor, typesFor } from '@/lib/taxonomy'
 import { hashKey, useQuery, useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
@@ -3118,6 +3119,25 @@ export function ListingsExplorer({
   const resultsTerm = correctedQuery ?? debouncedQuery.trim()
 
   /**
+   * The returning-visitor recents row (E-RETURNING, O-16) — see the row's own note in the render. At
+   * most eight: one swipe of chips, not the history page.
+   * ⚠️ THE ATTRIBUTE IS KEPT IN STEP FROM STORAGE AS WELL AS STATE. `useSearchHistory` loads the list in
+   * its own mount effect, so on a cold load this effect first runs with an EMPTY `recentSearches`;
+   * dropping the pre-paint reservation then would collapse the row and shift the feed, only to reopen
+   * it a render later. Storage is the list the pre-paint script read, so it is the tie-breaker.
+   */
+  const recentTerms = useMemo(() => recentSearchTerms(recentSearches).slice(0, 8), [recentSearches])
+  const showRecentsRow = showDiscovery && !sellerId
+  useEffect(() => {
+    if (!showRecentsRow) return
+    let stored: string[] = []
+    try { stored = recentSearchTerms(JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]')) } catch { /* blocked or corrupt: no row */ }
+    const root = document.documentElement
+    if (recentTerms.length > 0 || stored.length > 0) root.setAttribute(RECENTS_ATTR, '')
+    else root.removeAttribute(RECENTS_ATTR)
+  }, [showRecentsRow, recentTerms])
+
+  /**
    * ⛔ THE TAB SAYS WHAT THE FEED IS (E-TITLE, 2026-09-29). Home is one 6h-ISR document with one static
    * title, so /?q=honda, /?category=rentals and the bare home all read "eno.vn - Trusted Expat
    * Marketplace in Vietnam" in the tab, the history list and a shared bookmark. A directed feed now
@@ -3166,8 +3186,38 @@ export function ListingsExplorer({
    */
   // Active applied-filter chips — shared by the persistent results bar AND the
   // empty state so the two never drift. Brand+model collapse into one chip.
-  const getActiveChips = (): { label: string; onClear: () => void }[] => {
-    const chips: { label: string; onClear: () => void }[] = []
+  /**
+   * ⛔ WHAT THE FACET PILLS ALREADY SAY (E-ACTIVE, owner O-14, 2026-09-30). The Area, Price, Condition
+   * and Type pills print their applied value in the sticky bar ("Quận 7", "1.5M–3.9M ₫", "Used", "For
+   * rent"), so a chip for the same value on the result line was the same fact twice, one row apart. A
+   * chip is `pill: true` exactly when its pill shows its value — mirrored from facet-bar.tsx's own
+   * rules, which is why each line below names the rule it copies — and <ResultLine> draws only the
+   * rest. `getActiveChips()` itself still returns EVERY applied filter: the empty state's relax list,
+   * "Clear all" and the save-search threshold count what is applied, not what is drawn.
+   * ⚠️ A FILTER WHOSE PILL CANNOT SHOW IT KEEPS ITS CHIP — a listing type the category's Type pill does
+   * not offer (the pill then reads its placeholder), a condition value outside the category's facet,
+   * and every area chip other than the ONE place the Area pill names (ward, else radius, else district,
+   * else province). A chip is only dropped when the value is on screen elsewhere.
+   */
+  const pillTypeValues = activeCategory === 'all' ? LISTING_TYPES.map((t) => t.value as string) : (typesFor(activeCategory) as string[])
+  const typePillShows = listingType !== 'all' && pillTypeValues.length > 1 && pillTypeValues.includes(listingType)
+  const pillConditionFacet = activeCategory === 'all'
+    ? CONDITION_FACET
+    : facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory).find((f) => f.key === 'condition') ?? CONDITION_FACET
+  const conditionPillShows = conditionFilter !== 'all' && pillConditionFacet.options.some((o) => o.value === conditionFilter)
+  // facet-bar.tsx `areaLabel`, with the district it is handed (`district=` on <FacetBar> below).
+  const pillDistrict = activeDistrict !== 'all' ? activeDistrict : (serverInferredDistrict ?? 'all')
+  const areaPillLabel = activeWard
+    ? (lang === 'vi' ? activeWard.name : activeWard.nameEn)
+    : nearby
+    ? tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`)
+    : pillDistrict !== 'all'
+    ? districtSlugLabel(pillDistrict, lang)
+    : activeProvince
+    ? (lang === 'vi' ? activeProvince.name : activeProvince.nameEn)
+    : null
+  const getActiveChips = (): { label: string; onClear: () => void; pill?: boolean }[] => {
+    const chips: { label: string; onClear: () => void; pill?: boolean }[] = []
     /**
      * ⚠️ A DISTRICT READ OUT OF THE QUERY GETS ITS OWN CHIP — WHEN THE SERVER SAYS IT APPLIED ONE.
      * The server turns "căn hộ quận 7" into the d7 scope plus the text "căn hộ" (src/lib/
@@ -3181,7 +3231,7 @@ export function ListingsExplorer({
       if (c.kind === 'text') chips.push({ label: `"${c.text}"`, onClear: () => setQuery(c.clearTo) })
       else {
         const d = DISTRICTS.find((x) => x.slug === c.slug)
-        if (d) chips.push({ label: lang === 'vi' ? d.name : d.nameEn, onClear: () => setQuery(c.clearTo) })
+        if (d) { const label = lang === 'vi' ? d.name : d.nameEn; chips.push({ label, onClear: () => setQuery(c.clearTo), pill: label === areaPillLabel }) }
       }
     }
     if (activeSubcategory !== 'all') {
@@ -3200,25 +3250,30 @@ export function ListingsExplorer({
       // place rather than as a URL fragment, so an unknown slug is de-slugified for display — the
       // filter itself is the server's answer, not this label (districtSlugLabel, shared with the
       // facet bar's Area pill).
-      chips.push({ label: districtSlugLabel(activeDistrict, lang), onClear: () => setActiveDistrict('all') })
+      const label = districtSlugLabel(activeDistrict, lang)
+      chips.push({ label, onClear: () => setActiveDistrict('all'), pill: label === areaPillLabel })
     }
     // Area / location (new province→ward model + "near you" radius) — so the saved
     // search + alert clearly include where the user is looking.
     if (nearby) {
-      chips.push({ label: tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`), onClear: () => { setNearby(null); setActiveProvince(null); setActiveWard(null) } })
+      const label = tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`)
+      chips.push({ label, onClear: () => { setNearby(null); setActiveProvince(null); setActiveWard(null) }, pill: label === areaPillLabel })
     } else if (activeWard) {
-      chips.push({ label: lang === 'vi' ? activeWard.name : activeWard.nameEn, onClear: () => setActiveWard(null) })
+      const label = lang === 'vi' ? activeWard.name : activeWard.nameEn
+      chips.push({ label, onClear: () => setActiveWard(null), pill: label === areaPillLabel })
     } else if (activeProvince) {
-      chips.push({ label: lang === 'vi' ? activeProvince.name : activeProvince.nameEn, onClear: () => { setActiveProvince(null); setActiveWard(null) } })
+      const label = lang === 'vi' ? activeProvince.name : activeProvince.nameEn
+      chips.push({ label, onClear: () => { setActiveProvince(null); setActiveWard(null) }, pill: label === areaPillLabel })
     }
-    if (priceRange !== 'all') chips.push({ label: tr('Price range', 'Khoảng giá'), onClear: () => setPriceRange('all') })
-    if (conditionFilter !== 'all') chips.push({ label: conditionFilter === 'new' ? tr('New', 'Mới') : tr('Used', 'Đã dùng'), onClear: () => setConditionFilter('all') })
+    // The Price pill is always drawn and prints the applied range (price-range-filter.tsx `triggerText`).
+    if (priceRange !== 'all') chips.push({ label: tr('Price range', 'Khoảng giá'), onClear: () => setPriceRange('all'), pill: true })
+    if (conditionFilter !== 'all') chips.push({ label: conditionFilter === 'new' ? tr('New', 'Mới') : tr('Used', 'Đã dùng'), onClear: () => setConditionFilter('all'), pill: conditionPillShows })
     // A chip as well as the pressed toggle: the chip row is what the empty state and "Clear all"
     // read, and a filter with no chip would leave "No listings found" with nothing to remove.
     if (goodPriceOnly) chips.push({ label: tr('Good price', 'Giá tốt'), onClear: () => setGoodPriceOnly(false) })
     if (listingType !== 'all') {
       const lt = LISTING_TYPES.find((t) => t.value === listingType)
-      chips.push({ label: lt ? (lang === 'vi' ? lt.labelVi : lt.label) : listingType, onClear: () => setListingType('all') })
+      chips.push({ label: lt ? (lang === 'vi' ? lt.labelVi : lt.label) : listingType, onClear: () => setListingType('all'), pill: typePillShows })
     }
     // ⛔ NAMED BY THE TAXONOMY, NOT BY THE STATE KEY (E-ACTIVE, 2026-09-29): "bedrooms: 2" and
     // "areaM2: 30-80" read as debug output on the one line that says what is narrowing the feed.
@@ -3239,10 +3294,10 @@ export function ListingsExplorer({
     [ladderCrumbs],
   )
 
-  const resultFilters = useMemo(
-    () => getActiveChips()
-      .filter((c) => !ladderChipLabels.has(c.label))
-      .map((c) => ({ id: c.label, label: c.label, onRemove: c.onClear })),
+  // Every applied filter the breadcrumb does not already name — what "Clear all" and the save-search
+  // threshold count. `resultFilters` below is the subset the line DRAWS (no pill duplicates, O-14).
+  const appliedChips = useMemo(
+    () => getActiveChips().filter((c) => !ladderChipLabels.has(c.label)),
     // ⚠️ `activeLine` BELONGS HERE: the chip row is what tells a user a filter is applied, and a
     // cascade line selection is a filter. The eslint-disable that used to sit on this line is gone
     // because it was reported UNUSED once the array was complete — a stale suppression is worse
@@ -3250,6 +3305,10 @@ export function ListingsExplorer({
     // `serverInferredDistrict` too: the district chip is the server's answer and arrives after the words.
     // `activeCategory` + `tr`: the custom-filter chips are named from the category's facets (E-ACTIVE).
     [debouncedQuery, serverInferredDistrict, activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, priceRange, customFilters, verifiedOnly, nearby, lang, tr],
+  )
+  const resultFilters = useMemo(
+    () => appliedChips.filter((c) => !c.pill).map((c) => ({ id: c.label, label: c.label, onRemove: c.onClear })),
+    [appliedChips],
   )
 
 
@@ -3923,6 +3982,34 @@ export function ListingsExplorer({
           )}
           </LadderSlot>
 
+          {/* ⛔ THE RETURNING VISITOR'S RECENT SEARCHES (E-RETURNING option 1, owner O-16, 2026-09-30).
+              One 44px row, undirected home only, and only for someone who has searched before — a
+              first visit renders the slot and shows NOTHING (globals.css keeps `.recents-row` at
+              display:none unless `html[data-has-recents]`).
+              ⚠️ THE ROW IS HELD OPEN BEFORE IT HAS CONTENT, ON PURPOSE. The list is in localStorage,
+              so the server cannot know it; the home layout's pre-paint script (PREPAINT_SCRIPT,
+              explorer-url.ts) sets the attribute from the same list before the first paint, the
+              44px are there from the first frame, and the chips land inside them after hydration —
+              no shift of the toolbar or the feed. The effect beside `recentTerms` keeps the
+              attribute in step afterwards (a first search in this session, a client-side mount).
+              ⚠️ Chips run the search through `handleLandingSearch`, the same path as the header's
+              box, so a tap is a search — never a navigation. */}
+          {showRecentsRow && (
+            <div
+              data-recent-searches=""
+              role="group"
+              aria-label={tr('Recent searches', 'Tìm kiếm gần đây')}
+              className="recents-row h-11 items-center gap-2 overflow-x-auto overscroll-x-contain scrollbar-none"
+            >
+              <Clock className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
+              {recentTerms.map((term) => (
+                <Chip key={term} size="sm" tone="neutral" onClick={() => handleLandingSearch(term)} className="relative tap-44 max-w-[14rem]">
+                  <span className="truncate">{term}</span>
+                </Chip>
+              ))}
+            </div>
+          )}
+
           {/* Category-aware facet bar (replaces the old sidebar). Now on the HOME view too —
               area, price, condition and intent are what "home is also a search page" means in
               practice, and they were previously unreachable without first leaving the landing.
@@ -4093,7 +4180,26 @@ export function ListingsExplorer({
               NOT `#listings` — that section opens with the category rail and the toolbar, the ~30 Tab
               stops the skip exists to pass; from here the next stops are this row's own controls and
               then the first card. `scroll-mt-*` lands it below the sticky header + toolbar. */}
-          <div id="results" tabIndex={-1} className={cn(SECTION_HEADER_ROW, 'scroll-mt-40 select-none max-sm:flex-wrap max-sm:gap-y-1.5 sm:scroll-mt-32')}>
+          {/* ⛔ ON THE UNDIRECTED HOME THE COUNT SITS ON THE HEADING ROW AGAIN, UNDER THE TITLE (E-FOLD
+              option C, owner O-10, 2026-09-30). The phone split above gave the count a whole 22px row
+              of its own to keep it from being clipped beside a 132px title and 172px of view toggles
+              (46px left for a 91px string, measured at 390). It is not squeezed back in beside them:
+              under `sm` this row becomes a two-column GRID — the title and, beneath it, the count in
+              the left column, the view toggles centred in the right column across both — so the row
+              is the title's 28px + the count's 16px, 44px, against 62px for the two rows (measured:
+              the first card 535 → 517 at 390×844). The count keeps its full width and its whole
+              string; nothing truncates.
+              ⚠️ ONLY WHILE `showDiscovery`: the home has no chips and no crumbs, so the dissolved
+              ResultLine contributes exactly one grid item (the count half) and auto-placement drops
+              it into the one free cell, under the title. A directed feed keeps the flex split above
+              unchanged — its chips half needs the wrapping line.
+              ⛔ THE GRID LIVES IN globals.css (`#results[data-home-row]`), NOT IN max-sm: CLASSES, AND
+              THAT IS A MEASURED FIX. The ISR HTML is always the undirected home, so a cold /?q= deep
+              link painted the 44px grid row, then hydration flipped `showDiscovery` off and the row
+              grew to 62px — an 18px shift of the whole grid (CLS 0.018 at 390×844, 2026-09-30). The
+              CSS rule is also gated on `html:not([data-explorer-directed])`, the pre-paint mask
+              (E-SSR), so a directed URL paints the flex row from its first frame and never moves. */}
+          <div id="results" tabIndex={-1} data-home-row={showDiscovery ? '' : undefined} className={cn(SECTION_HEADER_ROW, 'scroll-mt-40 select-none max-sm:flex-wrap max-sm:gap-y-1.5 sm:scroll-mt-32')}>
             {/* ⚠️ THE HEADING NO LONGER WRAPS <ResultLine>, WHICH IS WHAT LETS IT MOVE. They were
                 nested — heading and line inside one `flex-1` box — and a nested child cannot
                 reorder past its parent's SIBLING, so the line could never get below the toggles.
@@ -4154,7 +4260,13 @@ export function ListingsExplorer({
               count={resultLineCount}
               crumbs={ladderCrumbs}
               filters={resultFilters}
-              onClearAll={resultFilters.length > 1 ? clearAllFilters : undefined}
+              appliedCount={appliedChips.length}
+              onClearAll={appliedChips.length > 1 ? clearAllFilters : undefined}
+              // The results header on a search (E-RESULTS, O-13): "N results for “q”". Not on the
+              // undirected home, where there are no words to answer, and not while the grid still holds
+              // the PREVIOUS words' rows (placeholderData): their count beside the new words would be a
+              // number that answers a different question — the plain "N listings" stands until it lands.
+              term={showDiscovery || queryShowingStaleSet ? undefined : resultsTerm}
               // Turns on the two-row phone layout; `max-sm:contents` below is what lets the halves
               // reach past this row's other children. Both are needed — see the prop's own note.
               splitOnMobile
@@ -4187,7 +4299,7 @@ export function ListingsExplorer({
                 item and packs to the START, i.e. hard left under the chips, which reads as a
                 different control group rather than the same one displaced. `ml-auto` pins it to
                 the right edge on that line and changes nothing on a line it shares. */}
-            <div className="order-3 flex shrink-0 items-center gap-1 max-sm:ml-auto">
+            <div data-view-cluster="" className="order-3 flex shrink-0 items-center gap-1 max-sm:ml-auto">
               {/* ⚠️ THE LADDER COUNTS AS FILTERS HERE, AND LEAVING IT OUT HID THIS BUTTON ON THE
                   SEARCHES MOST WORTH SAVING. `resultFilters` deliberately EXCLUDES the ladder
                   levels because the breadcrumb beside it already names them — printing "Honda"
@@ -4197,7 +4309,7 @@ export function ListingsExplorer({
                   Honda › Vision — four taps deep, and exactly the search in the owner's wireframe
                   — counted as ZERO and offered no save. Raised by two reviewers; confirmed on the
                   page by drilling category + brand and watching the button never appear. */}
-              {shouldOfferSaveSearch(resultFilters.length + ladderCrumbs.length) && (
+              {shouldOfferSaveSearch(appliedChips.length + ladderCrumbs.length) && (
                 <Button
                   onClick={saveSearch}
                   variant="bare"
