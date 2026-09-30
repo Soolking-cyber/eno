@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { hammingHex } from './image-hash-url'
 import { HOME_RENTAL_SUBCATS } from './rental-homes'
-import {
+import { NOT_INDEXED_HOMES,
   apartmentBand, assignDistrict, bedroomCount, computeRentIndex, dedupeCandidateIds, distinctShots, isMonthlyRent,
   quantile, sameUnitByPhotos, shotDistance,
   rentIndexCsv, roundForDisplay, BAND_CSV_TYPE, CSV_COLUMNS, MIN_CELL_N, MAX_MONTHLY_VND, MIN_MONTHLY_VND,
@@ -364,8 +364,11 @@ describe('the rules fingerprint', () => {
     expect({ version: RENT_INDEX_RULES_VERSION, fingerprint }).toEqual({ version: 3, fingerprint: '63023d4c6c71ba50' })
   })
 
-  it('types exactly the shared list of home subcategories', () => {
-    expect(Object.keys(RENT_INDEX_RULE_INPUTS.types).sort()).toEqual([...HOME_RENTAL_SUBCATS].sort())
+  it('types exactly the shared list of home subcategories, less the ones named as not indexed', () => {
+    const indexed = HOME_RENTAL_SUBCATS.filter((s) => !(NOT_INDEXED_HOMES as readonly string[]).includes(s))
+    expect(Object.keys(RENT_INDEX_RULE_INPUTS.types).sort()).toEqual([...indexed].sort())
+    // Serviced apartments are homes on the pages (owner O-45) but stay out of the v3 figures.
+    expect(NOT_INDEXED_HOMES).toEqual(['homestay-serviced'])
   })
 
   it('covers the curated spellings, Thảo Điền in d2 among them', () => {

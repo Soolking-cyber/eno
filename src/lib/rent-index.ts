@@ -102,15 +102,22 @@ export type RentType = (typeof RENT_TYPES)[number]
  * three shelves here as on every page that says "homes"; a subcategory added there fails to compile
  * here until it is given a type.
  */
-const TYPE_OF: Record<(typeof HOME_RENTAL_SUBCATS)[number], RentType> = {
+/**
+ * ⚠️ SERVICED APARTMENTS ARE A HOME ON THE PAGES BUT NOT IN THE INDEX. Owner decision O-45 (2026-09-30)
+ * put `homestay-serviced` into HOME_RENTAL_SUBCATS, so the housing pages count and list it. Its prices
+ * mix nightly and monthly rates and usually bundle cleaning and bills, so folding it into "apartment"
+ * would move the v3 medians the owner approved (R1, 2026-09-30) and needs its own rules version. Until
+ * then it is named here, out of the index, so a NEW home subcategory still fails to compile below.
+ */
+export const NOT_INDEXED_HOMES = ['homestay-serviced'] as const
+type IndexedHome = Exclude<(typeof HOME_RENTAL_SUBCATS)[number], (typeof NOT_INDEXED_HOMES)[number]>
+const TYPE_OF: Record<IndexedHome, RentType> = {
   'apartment-rental': 'apartment',
   'house-rental': 'house',
   'room-rental': 'room',
 }
 const typeOf = (subcategorySlug: string | null): RentType | undefined =>
-  subcategorySlug && (HOME_RENTAL_SUBCATS as readonly string[]).includes(subcategorySlug)
-    ? TYPE_OF[subcategorySlug as (typeof HOME_RENTAL_SUBCATS)[number]]
-    : undefined
+  subcategorySlug && Object.hasOwn(TYPE_OF, subcategorySlug) ? TYPE_OF[subcategorySlug as IndexedHome] : undefined
 
 /**
  * ⛔ APARTMENT BEDROOM BANDS: 1, 2 AND 3+ (R-d). An all-sizes apartment median mostly measures the
