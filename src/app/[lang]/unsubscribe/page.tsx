@@ -20,14 +20,17 @@ export default function UnsubscribePage() {
 
 function UnsubscribeInner() {
   const { tr } = useLanguage()
-  const token = useSearchParams().get('token') ?? ''
+  const params = useSearchParams()
+  const token = params.get('token') ?? ''
+  // The teacher job-match emails are their own list (see /api/unsubscribe).
+  const list = params.get('list') === 'teacher-matches' ? '&list=teacher-matches' : ''
   const [state, setState] = useState<'idle' | 'saving' | 'unsubscribed' | 'resubscribed' | 'error'>('idle')
 
   const set = async (optIn: boolean) => {
     if (!token) { setState('error'); return }
     setState('saving')
     try {
-      const res = await fetch(`/api/unsubscribe?token=${encodeURIComponent(token)}`, {
+      const res = await fetch(`/api/unsubscribe?token=${encodeURIComponent(token)}${list}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ optIn }),

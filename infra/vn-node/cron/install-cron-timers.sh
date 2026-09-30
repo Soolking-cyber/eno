@@ -33,6 +33,9 @@ declare -A SCHED=(
   [daily-reminders]="*-*-* 02:00:00 UTC"
   [saved-search-alerts]="*-*-* 05:00:00 UTC"
   [weekly-digest]="Thu *-*-* 02:00:00 UTC"
+  # Teacher job-match emails (2026-09-30). 03:30 UTC = 10:30 ICT: after the LOCAL matcher has run
+  # (~08:00 ICT on the owner's Mac) and imported its matches. Paced ~7/s, one email per teacher per 3 days.
+  [teacher-match-emails]="*-*-* 03:30:00 UTC"
   # Merchant price refresh for the imported affiliate catalogue. 20:00 UTC = 03:00 ICT, after
   # CellphoneS's own overnight repricing and well outside VN shopping hours — a ~50-page datafeed
   # walk plus a few thousand row updates should not compete with real traffic.
@@ -66,7 +69,7 @@ declare -A SCHED=(
 # the unit then shows in `systemctl --failed` until the hold re-baselines or someone runs ?rebaseline=1.
 SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow)
 # Installed, NOT enabled: these send email to real people.
-EMAIL=(daily-reminders saved-search-alerts weekly-digest)
+EMAIL=(daily-reminders saved-search-alerts weekly-digest teacher-match-emails)
 # Installed, NOT enabled: the FIRST run acts on a policy nobody has acted on yet — every decided
 # business-verification case older than 30 days loses its registration scans, approved sellers
 # included (VERIFICATION_DOC_RETENTION_MS). Enable it once that retention is confirmed:

@@ -48,6 +48,16 @@ export async function POST(req: NextRequest) {
   // column could not work: the digest rebuilds the link from that column on every send.
   const signedProfileId = verifyUnsubscribeToken(token)
 
+  // `list=teacher-matches` (2026-09-30): the teacher job-match emails, a SEPARATE list — unsubscribing
+  // from them must not touch the weekly digest, and vice versa. Signed tokens only (no legacy cuid:
+  // these emails never carried one).
+  if (new URL(req.url).searchParams.get('list') === 'teacher-matches') {
+    if (!signedProfileId) return NextResponse.json({ error: 'invalid_token' }, { status: 404 })
+    const r = await db.teacherProfile.updateMany({ where: { profileId: signedProfileId }, data: { matchEmailOptIn: optIn } })
+    if (r.count === 0) return NextResponse.json({ error: 'invalid_token' }, { status: 404 })
+    return NextResponse.json({ ok: true, optIn })
+  }
+
   const res = signedProfileId
     ? await db.profile.updateMany({ where: { id: signedProfileId }, data: { weeklyDigestOptIn: optIn } })
     // ⚠️ LEGACY FALLBACK, DELIBERATELY KEPT AND DELIBERATELY TEMPORARY. Emails already
@@ -62,6 +72,8 @@ export async function POST(req: NextRequest) {
 }
 
 export function GET(req: NextRequest) {
-  const token = new URL(req.url).searchParams.get('token') ?? ''
-  return NextResponse.redirect(`${ORIGIN}/unsubscribe?token=${encodeURIComponent(token)}`)
+  const q = new URL(req.url).searchParams
+  const token = q.get('token') ?? ''
+  const list = q.get('list') === 'teacher-matches' ? '&list=teacher-matches' : ''
+  return NextResponse.redirect(`${ORIGIN}/unsubscribe?token=${encodeURIComponent(token)}${list}`)
 }
