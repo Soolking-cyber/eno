@@ -1,4 +1,9 @@
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { loadRentIndex, type RentIndexLookup } from '../../../hcmc-rent-index/load-rent-index'
+import { publishableCells, type RentCell } from '@/lib/district-rent-cells'
+import { rentIndexRetrySoon } from '@/lib/rent-index-retry'
+import { formatCalendarDay } from '@/lib/calendar-day'
+import { DistrictRent } from './district-rent'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
@@ -263,6 +268,37 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
+/** How long the page body waits for the rent index before rendering the plain link instead (D2). */
+const RENT_INDEX_WAIT_MS = 10_000
+
+/**
+ * THE RENT BLOCK'S DATA, OR NULL FOR THE PLAIN LINK (SEO wave B, D2) — rentals, in HCMC, on the
+ * marketplace only (the index is eno.vn's and HCMC's).
+ * ⛔ NEVER THROWS, AND A MISS RETRIES IN MINUTES. The snapshot is raced against 10 s; the loader keeps
+ * running and fills the shared cache (its single-flight is per bundle). When the snapshot is not
+ * known or the race is lost, `rentIndexRetrySoon()` lowers this ISR render's revalidate to 300 s, so
+ * the fallback lasts minutes, not the page's day. A district row with no publishable cell simply has
+ * no block — that is not a failure, so it keeps the day.
+ * The date is the snapshot's, formatted here in Ho Chi Minh City time, so the client block has no clock.
+ */
+async function districtRent(slug: string): Promise<{ cells: RentCell[]; asOf: { en: string; vi: string } } | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), RENT_INDEX_WAIT_MS) })
+  // loadRentIndex() already turns a failed read into `known: false`; the catch is the second belt
+  // (review): nothing on this path may turn a rentals page into an error page.
+  const lookup: RentIndexLookup | null = await Promise.race([loadRentIndex(), timeout]).catch(() => null)
+  clearTimeout(timer)
+  if (!lookup || !lookup.known) {
+    await rentIndexRetrySoon().catch(() => {})
+    return null
+  }
+  const row = lookup.index.districts.find((d) => d.slug === slug)
+  const cells = row ? publishableCells(row) : []
+  if (cells.length === 0) return null
+  const at = lookup.index.computedAt
+  return { cells, asOf: { en: formatCalendarDay(at, 'en'), vi: formatCalendarDay(at, 'vi') } }
+}
+
 export default async function CategoryDistrictPage({ params }: Props) {
   const { lang, district, data } = await resolve(params)
   const { cat, matched, total, linked, place, districts, homes, homesLinked, searchPlace } = data
@@ -279,7 +315,11 @@ export default async function CategoryDistrictPage({ params }: Props) {
   // The explorer scoped to exactly this page — the API resolves a slugified district name the same
   // way this page does (src/lib/district-slug.ts), so leaving here keeps the district.
   const scopedExplorer = `/?category=${cat.slug}&district=${district}`
+  // The rent block (D2): rentals, in HCMC, on the marketplace. Otherwise, or on a miss, the plain link.
+  // Started before the title localisation so a cold snapshot read overlaps it (review).
+  const rentP = rentals && data.inHcmc && !IS_SERVICES ? districtRent(district) : Promise.resolve(null)
   const listings = await localizeListingTitles(matched.map(serializeListingCard))
+  const rent = await rentP
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
   const jsonLd = {
@@ -344,8 +384,10 @@ export default async function CategoryDistrictPage({ params }: Props) {
             availability for free" is in the meta description, so the hint that says how is here, in the
             HTML with JavaScript off — rentals pages only, as on /c/rentals. */}
         {rentals && <RentalCheckHint className="mt-2 max-w-prose" />}
-        {/* Only for an HCMC district: the index covers Ho Chi Minh City and nothing else. */}
-        {rentals && data.inHcmc && <RentIndexLink />}
+        {/* Only for an HCMC district: the index covers Ho Chi Minh City and nothing else. The block when
+            the snapshot has a figure for this district; the plain link otherwise (and on eno.forum,
+            where RentIndexLink renders nothing). */}
+        {rentals && data.inHcmc && (rent ? <DistrictRent place={place} slug={district} cells={rent.cells} asOf={rent.asOf} /> : <RentIndexLink />)}
 
         {otherDistricts.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">

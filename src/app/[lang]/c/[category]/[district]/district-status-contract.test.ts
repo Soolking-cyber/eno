@@ -62,4 +62,22 @@ describe('/c/<category>/<district> status contract', () => {
     expect(revalidate).toBeGreaterThan(0)
     expect(revalidate).toBeLessThanOrEqual(86400)
   })
+
+  /**
+   * ⛔ THE RENT BLOCK (SEO wave B, D2): rentals, in HCMC, on the marketplace only; a miss never throws
+   * and retries within minutes (src/lib/rent-index-retry.ts); the cells are `publishableCells`, the
+   * list D3's sitemap rule reads.
+   */
+  it('renders the rent block under its three conditions, and a miss retries instead of throwing', () => {
+    const src = readFileSync(join(APP, 'c/[category]/[district]/page.tsx'), 'utf8')
+    expect(src).toMatch(/const rentP = rentals && data\.inHcmc && !IS_SERVICES \? districtRent\(district\) : Promise\.resolve\(null\)/)
+    const fn = src.slice(src.indexOf('async function districtRent('), src.indexOf('export default async function'))
+    expect(fn).toMatch(/Promise\.race\(\[loadRentIndex\(\), timeout\]\)\.catch\(\(\) => null\)/)
+    expect(fn).toMatch(/if \(!lookup \|\| !lookup\.known\) \{\s*await rentIndexRetrySoon\(\)\.catch\(\(\) => \{\}\)\s*return null/)
+    expect(fn).toMatch(/publishableCells\(row\)/)
+    expect(fn).not.toMatch(/\bthrow\b/)
+    const retry = readFileSync(join(process.cwd(), 'src/lib/rent-index-retry.ts'), 'utf8')
+    expect(retry).toMatch(/revalidate: 300, tags: \['hcmc-rent-index'\]/)
+    expect(retry).not.toMatch(/revalidateTag\(/)
+  })
 })
