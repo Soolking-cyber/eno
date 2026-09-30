@@ -230,7 +230,8 @@ export async function deleteTeacherProfile(profileId: string): Promise<boolean> 
   if (tp.listingId) await deleteListingCore(tp.listingId)
   await db.$transaction(async (tx) => {
     if (tp.private?.cvPath) await writeTombstones(tx, [{ bucket: TEACHER_CVS_BUCKET, path: tp.private.cvPath }], 'teacher_profile_deleted')
-    await tx.teacherProfile.delete({ where: { id: tp.id } })
+    // deleteMany: deleteListingCore above already removes the profile with its listing.
+    await tx.teacherProfile.deleteMany({ where: { id: tp.id } })
   })
   revalidatePublicPath(`/c/${TEACHERS_CATEGORY_SLUG}`)
   return true

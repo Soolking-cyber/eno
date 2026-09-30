@@ -1,5 +1,8 @@
 import 'server-only'
 import { after } from 'next/server'
+import { writeTombstones } from '@/lib/core/storage-tombstones'
+import { TEACHER_CVS_BUCKET } from '@/lib/supabase-admin'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { reindexListing, removeFromIndex } from '@/lib/listing-index'
@@ -235,6 +238,7 @@ export async function setStatusCore(
   opts?: { publishDecision?: SellerPublishDecision },
 ): Promise<{ ok: true; status: string } | { ok: false; code: number; error: ListingStatusErrorCode }> {
   if (!LISTING_STATUSES.has(status)) return { ok: false, code: 400, error: 'invalid_status' }
+  let listingType: string | null | undefined
   // Only 'active' can publish; sold/hidden are never gated — taking a listing DOWN is always allowed,
   // held or not. Both refusals below apply only to a TRANSITION into active (sold/hidden → active): a
   // row already active stays where it is (a held seller's active rows are the ones the hold pulled).
@@ -243,8 +247,9 @@ export async function setStatusCore(
     // the owner id, which the identity gate would otherwise read a second time).
     const row = await db.listing.findUnique({
       where: { id: listingId },
-      select: { status: true, sellerId: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } } },
+      select: { status: true, sellerId: true, listingType: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } } },
     })
+    listingType = row?.listingType
     if (row && row.status !== 'active') {
       // ⛔ The hold leak (enforcementBlockForRevive) — checked FIRST: a held seller is refused whatever
       // the identity gate would say, and the refusal names the hold rather than a verification step.
@@ -267,8 +272,11 @@ export async function setStatusCore(
   // and a generic re-send that changes nothing is not written at all (the write alone restamps
   // updatedAt). Relisting (→ active) clears soldAt, so a genuine resale still stamps a new time.
   const prior = status === 'sold' || status === 'hidden'
-    ? await db.listing.findUnique({ where: { id: listingId }, select: { status: true, soldAt: true, updatedAt: true } })
+    ? await db.listing.findUnique({ where: { id: listingId }, select: { status: true, soldAt: true, updatedAt: true, listingType: true } })
     : null
+  if (prior) listingType = prior.listingType
+  // A person is never "sold": a teacher listing can only be shown or hidden (dashboard, API, MCP alike).
+  if (status === 'sold' && listingType === TEACHER_LISTING_TYPE) return { ok: false, code: 400, error: 'invalid_status' }
   const wasSold = prior?.status === 'sold' ? prior : null
   if (status === 'sold' && wasSold && soldMeta === undefined) {
     // Nothing to write — but a re-send is also how a caller repairs a sold row whose earlier purge
@@ -319,6 +327,11 @@ export async function setStatusCore(
   after(() => reindexListing(listingId)) // active → (re)index for AI search; sold/hidden → remove
   if (status === 'active') after(() => recomputeRankScoreForListing(listingId)) // re-decay on re-activation
   after(() => dispatchListingEvent('listing.status_changed', listingId, undefined, { status })) // notify the shop's partner webhooks
+  // ⛔ A teacher's listing IS their profile (2026-09-30): a hide/relist from the dashboard keeps the
+  // TeacherProfile in step, or /teachers/edit would say "live" for a hidden card (and vice versa).
+  if (listingType === TEACHER_LISTING_TYPE && status !== 'sold') {
+    await db.teacherProfile.updateMany({ where: { listingId, status: { in: ['live', 'hidden'] } }, data: { status: status === 'active' ? 'live' : 'hidden' } })
+  }
   return { ok: true, status }
 }
 
@@ -1200,7 +1213,11 @@ class DeleteRaced extends Error {}
 export async function deleteListingCore(listingId: string): Promise<DeleteListingResult> {
   const gone = await db.listing.findUnique({
     where: { id: listingId },
-    select: { brandSlug: true, sellerId: true, video: true, status: true, seller: { select: { ownerId: true } } },
+    select: {
+      brandSlug: true, sellerId: true, video: true, status: true, seller: { select: { ownerId: true } },
+      // A teacher's listing IS their profile — deleting it deletes the profile too (below).
+      teacherProfile: { select: { id: true } },
+    },
   })
   // Vanished between the caller's ownership check and here (concurrent delete) — a typed not-found;
   // callers that ignore it treat it as an idempotent no-op.
@@ -1216,6 +1233,16 @@ export async function deleteListingCore(listingId: string): Promise<DeleteListin
       // ⚠️ THROW, DO NOT RETURN (agy, plan review): a zero-row delete must also undo the detach above,
       // or a report race would leave the listing standing with its resolved reports cut loose.
       if (count === 0) throw new DeleteRaced()
+      // ⛔ A TEACHER'S LISTING IS THEIR PROFILE (2026-09-30). The dashboard's generic delete used to
+      // remove only the listing, and the FK nulled TeacherProfile.listingId — a "live" profile nobody
+      // could see (found on prod the first evening). The profile, its private row and its matches go
+      // with it, and the CV is tombstoned for the sweeper, exactly as the teacher's own delete does.
+      if (gone.teacherProfile) {
+        // Re-read INSIDE the transaction: a CV replaced after the read above would otherwise escape.
+        const cv = (await tx.teacherPrivate.findUnique({ where: { teacherProfileId: gone.teacherProfile.id }, select: { cvPath: true } }))?.cvPath
+        if (cv) await writeTombstones(tx, [{ bucket: TEACHER_CVS_BUCKET, path: cv }], 'teacher_profile_deleted')
+        await tx.teacherProfile.deleteMany({ where: { id: gone.teacherProfile.id } })
+      }
     })
   } catch (e) {
     if (!(e instanceof DeleteRaced)) throw e

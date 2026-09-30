@@ -126,6 +126,9 @@ const MAP = {
   // and 21 were copied into the pack folder under these names the same day, so a plain run against
   // the pack reproduces every committed file byte for byte (measured: stamp 33e47fbb either way).
   '21_Sports.png': 'sports',
+  // Owner, 2026-09-30 ("icon for teachers category"): a mortarboard-books-apple render, 1254px, the
+  // same 3D style as the pack; copied into the pack folder as 22_Teachers.png.
+  '22_Teachers.png': 'teachers',
 }
 
 /**
