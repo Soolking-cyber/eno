@@ -1,18 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Search, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/ui/icons'
+import { Search, ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { ListingCardSkeleton } from './listing-card-skeleton'
+import { LISTING_GRID } from './listing-grid'
+import { sortTabClass } from './sort-tab-class'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { fold } from '@/lib/fold'
 import { hapticSelection } from '@/lib/haptics'
-import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 
 /**
@@ -22,39 +23,24 @@ import { useLanguage } from '@/context/language-context'
  */
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
 
-// The four learned sorts, applied in-memory to the already-loaded page of listings.
-// The server hands them over in the rankScore blend, which IS "relevance" — so that
-// tab is a no-op passthrough and costs nothing. On the /c/* SEO landing pages this
-// gives the same sort strip as the explorer without turning those ISR pages dynamic.
+// The four learned sorts. Without `serverScope` they are applied in memory to the rows handed in
+// (a seller who owns every row); with it, each is a scoped /api/listings query. The server hands
+// the first page over in the rankScore blend, which IS "relevance" — so that tab costs nothing, and
+// the ISR pages that render this (/c/*, storefronts) stay static: sorting is a client fetch.
 type SortKey = 'relevance' | 'recent' | 'popular' | 'price-low' | 'price-high'
 
 export function SellerListings({
   listings,
   searchable = false,
   sortable = false,
-  sortBase,
-  scope,
   serverScope,
   initialSort = 'relevance',
+  stripEnd,
+  priceLabel = 'price',
 }: {
   listings: SerializedListingCard[]
   searchable?: boolean
   sortable?: boolean
-  /**
-   * ⛔ WHEN THE PAGE HOLDS ONLY A PREVIEW, A SORT MUST LEAVE THE PAGE. The /c/* landing pages fetch
-   * the top 48 of a category by relevance and used to sort THOSE 48 in memory while the heading
-   * announced thousands — "Price ↑" reordered the same 48 ids and no cheaper item outside the
-   * window could ever appear (2026-09-05 review, U01). With `sortBase` set (the explorer URL for
-   * this scope, e.g. `/?category=xe-may`), the strip is a row of real LINKS — `${sortBase}&sort=…`
-   * into the explorer's full, server-backed, paginated query — not ARIA tabs that navigate: a link
-   * can be middle-clicked, prefetched and read by a screen reader as what it is. A string, not a
-   * function, because this crosses the Server → Client Component boundary (a function prop there
-   * is a render-time crash). A seller storefront, which holds ALL of its listings, leaves it
-   * undefined and sorts in place.
-   */
-  sortBase?: string
-  /** What the visible set is a preview OF — rendered as one localised sentence under the strip. */
-  scope?: { shown: number; total: number }
   /**
    * ⛔ MAKES SEARCH, SORT AND LOAD-MORE REAL DATABASE QUERIES OVER THE WHOLE SCOPE. Without it this
    * component searches and sorts the array it was handed — which is correct only when that array IS
@@ -71,6 +57,17 @@ export function SellerListings({
   serverScope?: { params: Record<string, string>; total: number; pageSize?: number }
   /** The order `listings` is already in, so the strip opens on the truth. */
   initialSort?: SortKey
+  /**
+   * A control that rides the END of the sort strip, outside the tablist (a tablist may hold only
+   * tabs) — /c/[category]'s "Filters" link into the explorer. The strip is its row, so the two share
+   * one hairline instead of stacking a second bar above the grid.
+   */
+  stripEnd?: React.ReactNode
+  /**
+   * What the price sort is called. Jobs sort by the SALARY in their price column (price.tsx renders
+   * it as pay), and a "Price" tab over job cards reads as a fee (K-ORANGE, 2026-09-29).
+   */
+  priceLabel?: 'price' | 'salary'
 }) {
   const router = useRouter()
   const { tr, lang } = useLanguage()
@@ -227,49 +224,41 @@ export function SellerListings({
     setSort(next as SortKey)
   }
 
-  const sortTab = (selected: boolean) =>
-    cn(
-      // ui/tabs' TabsTrigger ships a shadcn pill/underline look we do NOT want, so this
-      // className is half box, half neutraliser. It all goes through the primitive's OWN
-      // cn(), so it tailwind-MERGES (a class on a `render` child would only concatenate):
-      //   flex/h-auto/flex-none  ← kill flex-1 + h-[calc(100%-1px)] (they'd stretch the tabs)
-      //   rounded-none           ← base is rounded-xl-ish; it would round the underline's ends
-      //   border-0 border-b-2    ← base `border` is 1px on ALL sides (transparent, but it
-      //                            still shifts the label); .border-b-2 is emitted after
-      //                            .border-0 in the built CSS, so the 2px underline survives
-      //   after:hidden           ← base paints a second underline via ::after
-      //   data-active:bg-*, shadow-none ← base fills + shadows the ACTIVE tab
-      //   focus-visible:outline-0 ← base adds a 1px outline on top of ui/button's ring
-      //   active:scale-[0.97], duration-100, cursor-pointer ← what ui/button used to give us
-      // dark:* is restated on both branches because the base hard-codes dark colours that
-      // out-specify our theme tokens (dark:text-muted-foreground, dark:data-active:*).
-      '-mb-px flex h-auto flex-none cursor-pointer items-center gap-1 rounded-none border-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors duration-100 after:hidden focus-visible:outline-0 active:scale-[0.97] data-active:bg-transparent dark:data-active:bg-transparent group-data-[variant=default]/tabs-list:data-active:shadow-none',
-      selected
-        ? 'border-brand text-accent-foreground hover:text-accent-foreground data-active:text-accent-foreground dark:border-brand dark:text-accent-foreground dark:hover:text-accent-foreground dark:data-active:border-brand dark:data-active:text-accent-foreground'
-        : 'border-transparent text-body hover:text-foreground dark:text-body',
-    )
+  const salary = priceLabel === 'salary'
   // Same tab visuals as the explorer's results strip (kept in sync deliberately),
   // minus the sticky/header-hide coupling — this landing page is short.
+  // ⚠️ THE HAIRLINE SITS ON THE CONTENT BOX, like the home toolbar's and the canon's (§4: no doubled
+  // frame). It used to bleed to the page frame with `-mx-3 px-3 sm:-mx-6 …`, 32px wider than the grid
+  // under it at 1440 (C1-HAIRLINE). Tab label x positions are unchanged: the bleed's padding undid it.
+  // `data-horizontal:flex-row` restates the base's `data-horizontal:flex-col` with its own modifier so
+  // tailwind-merge drops it; the base's gap-2 is what separates `stripEnd` from the last tab.
   const sortStrip = (
     <Tabs
       value={tabValue}
       onValueChange={(v) => onTabValueChange(String(v))}
-      className="-mx-3 block border-b border-border px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+      className="flex items-center border-b border-border data-horizontal:flex-row"
     >
       {/* activateOnFocus=false = MANUAL activation: arrows move focus, Enter/Space commits.
           Auto-activation would double-fire Price — focus activates it (asc), then the same
-          click's onClick sees it active and cycles straight on to desc. */}
+          click's onClick sees it active and cycles straight on to desc.
+          `min-w-0 flex-1`, not `w-full`: the list is the scroller and must leave `stripEnd` its
+          width, or a phone pushes the Filters link off the row.
+          ⚠️ `variant="line"` + `-mb-px overflow-y-hidden` ON THE LIST, the explorer strip's own shape
+          (sortTabClass is shared, E-SORT): the -1px that lays the underline over the root's hairline
+          used to sit on every TAB, which made this scroller 1px taller inside than out — a live
+          vertical scroller under the thumb (explorer-toolbar.tsx measured that trap). */}
       <TabsList
+        variant="line"
         activateOnFocus={false}
-        className="scrollbar-none flex w-full flex-nowrap items-center justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0 group-data-horizontal/tabs:h-auto"
+        className="scrollbar-none -mb-px flex min-w-0 flex-1 flex-nowrap items-center justify-start gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-none bg-transparent p-0 group-data-horizontal/tabs:h-auto"
       >
-        <TabsTrigger value="relevance" className={sortTab(sort === 'relevance')}>
+        <TabsTrigger value="relevance" className={sortTabClass(sort === 'relevance')}>
           {tr('Relevance', 'Liên quan')}
         </TabsTrigger>
-        <TabsTrigger value="recent" className={sortTab(sort === 'recent')}>
+        <TabsTrigger value="recent" className={sortTabClass(sort === 'recent')}>
           {tr('Newest', 'Mới nhất')}
         </TabsTrigger>
-        <TabsTrigger value="popular" className={sortTab(sort === 'popular')}>
+        <TabsTrigger value="popular" className={sortTabClass(sort === 'popular')}>
           {tr('Most contacted', 'Được quan tâm')}
         </TabsTrigger>
         <TabsTrigger
@@ -279,10 +268,10 @@ export function SellerListings({
             // tab), so the tick has to be fired here or the second Price press feels dead.
             if (priceSortActive) { hapticSelection(); setSort(sort === 'price-low' ? 'price-high' : 'price-low') }
           }}
-          aria-label={tr('Sort by price', 'Sắp xếp theo giá')}
-          className={sortTab(priceSortActive)}
+          aria-label={salary ? tr('Sort by salary', 'Sắp xếp theo lương') : tr('Sort by price', 'Sắp xếp theo giá')}
+          className={sortTabClass(priceSortActive)}
         >
-          {tr('Price', 'Giá')}
+          {salary ? tr('Salary', 'Lương') : tr('Price', 'Giá')}
           {sort === 'price-low' ? (
             <ArrowUp className="size-3.5" />
           ) : sort === 'price-high' ? (
@@ -292,57 +281,17 @@ export function SellerListings({
           )}
         </TabsTrigger>
       </TabsList>
+      {/* A short rule between the reel and `stripEnd`, on a phone only: at 390px the tabs overflow
+          and scroll under it, and without an edge "Most contacted" read as cut off by the link
+          rather than passing behind a separate control. From sm the row fits and the link sits at
+          the far end on its own. */}
+      {stripEnd && (
+        <div className="flex shrink-0 items-center gap-3">
+          <span aria-hidden className="h-5 w-px bg-border sm:hidden" />
+          {stripEnd}
+        </div>
+      )}
     </Tabs>
-  )
-
-  // The preview page's strip: the SAME visuals, but every entry is a link into the explorer, and the
-  // current order (relevance — what this page IS) is a plain selected label, not a tab.
-  // ⚠️ ONLY WHEN THE PAGE IS A PREVIEW. A category whose whole catalogue fits on the page
-  // (`total <= shown`) has nothing beyond the window to reach, so sorting in place is right there —
-  // sending that visitor to the explorer would be a navigation for nothing.
-  // `prefetch={false}`: four distinct explorer URLs per category page would otherwise each render
-  // the full explorer on hover/viewport — four DB-backed requests to show one category.
-  // ⚠️ SERVER MODE OUTRANKS PREVIEW MODE. The link strip exists because sorting in place could not
-  // reach past the page; when every sort IS a full query there is nothing to send the reader away
-  // for, and doing so would drop them out of the scope they are standing in.
-  const previewOnly = !serverMode && !!sortBase && !!scope && scope.total > scope.shown
-  const sortLinks = previewOnly && (
-    <nav
-      aria-label={tr('Sort', 'Sắp xếp')}
-      className="-mx-3 block border-b border-border px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
-    >
-      <ul className="scrollbar-none flex w-full flex-nowrap items-center justify-start gap-1 overflow-x-auto">
-        {/* Relevance is the order this page already IS — shown selected and announced as the current
-            item of the set (`aria-current="true"`: any element of a set may carry it; "page" is for a
-            link to the page you are on, which this is not). */}
-        <li><span aria-current="true" className={sortTab(true)}>{tr('Relevance', 'Liên quan')}</span></li>
-        {([
-          ['recent', tr('Newest', 'Mới nhất'), null],
-          ['popular', tr('Most contacted', 'Được quan tâm'), null],
-          ['price-low', tr('Price', 'Giá'), <ArrowUp key="up" className="size-3.5" aria-hidden />],
-          ['price-high', tr('Price', 'Giá'), <ArrowDown key="down" className="size-3.5" aria-hidden />],
-        ] as const).map(([key, label, icon]) => (
-          <li key={key}>
-            <Link
-              href={`${sortBase}${sortBase.includes('?') ? '&' : '?'}sort=${key}`}
-              prefetch={false}
-              className={sortTab(false)}
-              aria-label={key === 'price-low' ? tr('Price, low to high', 'Giá, thấp đến cao') : key === 'price-high' ? tr('Price, high to low', 'Giá, cao đến thấp') : undefined}
-            >
-              {label}
-              {icon}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  )
-  const scopeNote = previewOnly && scope && (
-    <p className="text-xs text-muted-foreground">
-      {tr('Showing the top {shown} of {total} by relevance — choosing a sort searches all of them.', 'Đang hiển thị {shown} tin liên quan nhất trong {total} tin — chọn cách sắp xếp để tìm trong tất cả.')
-        .replace('{shown}', scope.shown.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US'))
-        .replace('{total}', scope.total.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US'))}
-    </p>
   )
 
   /** Server mode's own note: what is on screen, out of the scope's true size. */
@@ -356,7 +305,9 @@ export function SellerListings({
    * the surface says it is loading, and skeletons stand in for the cards (external review).
    */
   const awaitingFirstRows = serverMode && loading && shown.length === 0
-  const serverNote = serverMode && (
+  // Not over a failed query either: "Showing 0 of 63,652" above "Couldn't load listings." reported
+  // the failure as an empty answer.
+  const serverNote = serverMode && !loadError && (
     <p className="text-xs text-muted-foreground" aria-live="polite">
       {awaitingFirstRows
         ? tr('Searching all listings…', 'Đang tìm trong tất cả tin đăng…')
@@ -369,10 +320,10 @@ export function SellerListings({
   )
 
   const grid = (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+    <div className={LISTING_GRID}>
       {shown.map((l, i) => (
         <div key={l.id} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
-          <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(`/?focus=${l.id}`)} priority={i < 4} />
+          <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(`/?focus=${l.id}`)} priority={i < 4} lcp={i === 0 && !remote} />
         </div>
       ))}
     </div>
@@ -389,8 +340,7 @@ export function SellerListings({
 
   return (
     <div className="space-y-4" data-listings-ready={ready ? 'true' : undefined}>
-      {sortable && (previewOnly ? sortLinks : sortStrip)}
-      {sortable && scopeNote}
+      {sortable && sortStrip}
       {serverNote}
       {searchable && (
         /* Just a search within this seller's catalog — no category/type filters. */
@@ -408,29 +358,39 @@ export function SellerListings({
       )}
 
       {/* ⛔ A FAILED QUERY SAYS SO. Falling back to the page's own rows would present the newest 60
-          as though they were the cheapest in the shop — a wrong answer that looks like a right one. */}
+          as though they were the cheapest in the shop — a wrong answer that looks like a right one.
+          ⚠️ THE FAULT COIN, NOT A HAND-ROLLED ROW (D-STATES): the row it replaces painted `bg-surface`,
+          a colour no token defines, so it drew nothing, and it was the one failure in the app not on
+          EmptyState's 'fault' variant. A whole block is right here: on error `shown` is [] (see
+          `shown`), so it hides no cards. `tone="bare"` is explicit — the flat canon (§3b), not the
+          primitive's dashed default. The alert role rides the title so the message is announced. */}
       {loadError ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
-          <p className="text-sm text-muted-foreground">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
-          <Button
-            variant="cta"
-            size="none"
-            onClick={() => { setLoadError(false); setRemote(null); setRefreshTick((t) => t + 1) }}
-            className="ml-auto rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
-          >
-            {tr('Try again', 'Thử lại')}
-          </Button>
-        </div>
+        <EmptyState
+          tone="bare"
+          variant="fault"
+          icon={AlertTriangle}
+          title={<span role="alert">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</span>}
+          action={
+            <Button variant="cta" onClick={() => { setLoadError(false); setRemote(null); setRefreshTick((t) => t + 1) }}>
+              {tr('Try again', 'Thử lại')}
+            </Button>
+          }
+        />
       ) : null}
 
       {awaitingFirstRows ? (
         // Placeholders at the page size, so the grid keeps its height and nothing jumps when the
         // real cards land.
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-hidden="true">
+        <div className={LISTING_GRID} aria-hidden="true">
           {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <ListingCardSkeleton key={i} />)}
         </div>
       ) : shown.length === 0 && !loading && !loadError ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">{tr('No listings match.', 'Không có tin nào khớp.')}</p>
+        // A search that matched nothing names the way out: the one control that caused it.
+        <EmptyState
+          tone="bare"
+          title={tr('No listings match', 'Không có tin nào khớp')}
+          action={q ? <Button variant="outline" onClick={() => setQ('')}>{tr('Clear search', 'Xóa tìm kiếm')}</Button> : undefined}
+        />
       ) : (
         <div className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'} aria-busy={loading || undefined}>
           {grid}

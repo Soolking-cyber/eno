@@ -1,13 +1,14 @@
 'use client'
 
-import { Fragment, useEffect, type CSSProperties } from 'react'
-import { useLanguage, Tr, useTr } from '@/context/language-context'
+import { Fragment, useEffect, type CSSProperties, type MouseEvent } from 'react'
+import Link from 'next/link'
+import { useLanguage } from '@/context/language-context'
+import { Bilingual } from './bilingual'
 import { detectContentLang } from '@/lib/detect-lang'
 import { CategoryIcon } from './category-icons'
 import { ChevronRight } from '@/components/ui/icons'
 import { CategoryTileGlyph } from './category-art'
-import { SUBCATEGORIES } from '@/lib/subcategories'
-import { CountChip, offeredKeys, optionCount, railDimension } from './count-chip'
+import { CountChip, offeredCategories, offeredIntents, offeredSubcategories, subcategoryCountFor } from './count-chip'
 import { Button } from '@/components/ui/button'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
@@ -45,10 +46,16 @@ import { scrollBehavior } from '@/lib/reduced-motion'
  *
  * The `lang` wrapper mirrors `Tr` (WCAG 3.1.2) — an untranslated Vietnamese label on an English
  * page still gets voiced correctly.
+ *
+ * ⛔ BOTH NAMES, THROUGH tr(en, vi) — as <Bilingual> renders them (./bilingual.tsx). This took ONE
+ * string, `lang === 'vi' ? nameVi : name`, and ran the Vietnamese through useTr, whose dictionary is
+ * keyed by ENGLISH: so "Cho thuê" and "Sách" were posted to /api/translate on every vi home view, to
+ * come back unchanged (2026-09-29). The row's own Vietnamese is the answer for a Vietnamese reader;
+ * the other nine languages still get the cached translation of the English.
  */
-function TileLabel({ text }: { text?: string | null }) {
-  const { lang } = useLanguage()
-  const out = useTr(text).replace(/-/g, '\u2011')
+function TileLabel({ en, vi }: { en: string; vi?: string | null }) {
+  const { lang, tr } = useLanguage()
+  const out = tr(en, vi || en).replace(/-/g, '\u2011')
   const cl = detectContentLang(out)
   return cl && cl !== lang ? <span lang={cl}>{out}</span> : <>{out}</>
 }
@@ -75,6 +82,7 @@ export function CategoryRail({
   onIntent,
   shortcuts,
   onShortcut,
+  hrefFor,
 }: {
   categories: SerializedCategory[]
   activeCategory: string
@@ -141,6 +149,14 @@ export function CategoryRail({
   intents?: { type: string; name: string; nameVi: string; icon: string }[]
   activeType?: string
   onIntent?: (type: string) => void
+  /**
+   * The URL a category or intent tile LINKS to — `null` = the unfiltered feed (tapping the active tile
+   * clears it). Given, the tiles are real `<a href>`s (E-TILES): a ctrl/cmd/middle-click opens the
+   * category in a new tab and a crawler can follow it, while a plain click still filters in place
+   * through `onCategory`/`onIntent` with no navigation. Omitted, they stay buttons.
+   * The explorer builds it from the CURRENT path, so a storefront's tiles stay on the storefront.
+   */
+  hrefFor?: (param: { category?: string; type?: string } | null) => string
 }) {
   const { lang, tr } = useLanguage()
   /**
@@ -154,19 +170,14 @@ export function CategoryRail({
    * so the server-rendered strip already omits the empty ones and nothing shifts on hydration.
    * ⚠️ THE ACTIVE CATEGORY ALWAYS STAYS, so a deep link into an empty one can still be read and left.
    */
-  const catDim = railDimension(facets?.category, allCategories.map((c) => c.slug))
-  const categories = allCategories.filter((c) => {
-    if (c.slug === activeCategory) return true
-    const n = catDim ? optionCount(catDim, c.slug) : c.verifiedCount
-    return !(typeof n === 'number' && Number.isSafeInteger(n) && n === 0)
-  })
+  // (The rule lives in count-chip.tsx since E-TILES, shared with the phone's compact ladder row.)
+  const categories = offeredCategories(allCategories, facets, activeCategory)
   /**
    * The intent tiles (Free & Giveaways, Wanted, Wholesale) are listing-type filters, read off the
    * `type` rail the same way: measured 2026-09-25, Free and Wanted returned 0 on every browse state.
    * The active one stays; with no counts every tile stays.
    */
-  const intents = allIntents?.filter((it) =>
-    offeredKeys(railDimension(facets?.type, allIntents.map((x) => x.type)), [it.type], activeType).length > 0)
+  const intents = offeredIntents(allIntents, facets, activeType)
   // Desktop ← / → arrows, same pair the home rails use (owner, 2026-07-22: "similar to
   // homepage category arrows"). This strip carries ~18 categories plus an expanded
   // subcategory grid, so it overflows at every desktop width — a mouse wheel only scrolls
@@ -289,7 +300,7 @@ export function CategoryRail({
    * one. If a future taxonomy edit reuses a slug across two categories, this fallback starts
    * printing the other category's number on a chip during that beat.
    */
-  const subDim = railDimension(facets?.subcategory, (SUBCATEGORIES[activeCategory] ?? []).map((s) => s.slug))
+  const { subDim, subs: offeredSubs } = offeredSubcategories(activeCategory, facets, subcategoryCounts, activeSubcategory)
   // ⚠️ BOTH LOOKUPS GO THROUGH `Object.hasOwn`, NOT A BARE INDEX. The first version wrote
   // `subDim.values[slug] ?? 0` here while the sibling helper in count-chip.tsx was being hardened
   // against exactly that — two reviewers caught the inconsistency inside one diff. Neither record
@@ -298,9 +309,7 @@ export function CategoryRail({
   // FUNCTION, which `??` does not catch. `subCount` clamps that to undefined rather than printing
   // a function into a chip. (It also fed a comparator until 2026-09-18, where a NaN would have made
   // the sort order implementation-defined; the sort is gone, the hardening stays.)
-  const legacySubCount = (slug: string): number | undefined =>
-    Object.hasOwn(subcategoryCounts, slug) ? subcategoryCounts[slug] : undefined
-  const subCount = (slug: string): number | undefined => optionCount(subDim, slug) ?? legacySubCount(slug)
+  const subCount = (slug: string): number | undefined => subcategoryCountFor(subDim, subcategoryCounts, slug)
 
   /**
    * ⛔ THE CHIPS ARE IN TAXONOMY ORDER, WHICH IS WHERE THE HIERARCHY LIVES (owner, 2026-09-18: "make
@@ -448,9 +457,7 @@ export function CategoryRail({
    * sibling with only the filters its tap keeps (subcategoryDropPlan), so "Office" under
    * Apartment › 2 BR is its 2,270 offices, not a 0 that would have hidden it.
    */
-  const subs = categories.some((c) => c.slug === activeCategory)
-    ? (SUBCATEGORIES[activeCategory] ?? []).filter((sc) => sc.slug === activeSubcategory || subCount(sc.slug) !== 0)
-    : []
+  const subs = categories.some((c) => c.slug === activeCategory) ? offeredSubs : []
 
 
   /**
@@ -506,6 +513,55 @@ export function CategoryRail({
   })()
   const spanClasses = layout.spans
   const bigTile = layout.big
+
+  // ⚠️ NOTHING TO OFFER, NO RAIL — not an empty scroller holding its height. A one-category shop's
+  // storefront passes no categories (s/[handle]/page.tsx, ST-HEADER, 2026-09-29) and gets no
+  // shortcuts or intents, and the empty strip left a ~75px hole between the shop's header and its
+  // filters. After every hook, so the hook order never changes between renders.
+  if (allCategories.length === 0 && !shortcuts?.length && !allIntents?.length) return null
+
+  /**
+   * ⛔ A TILE IS A LINK WHEN THE PAGE CAN SAY WHERE IT GOES (E-TILES, 2026-09-29). The tiles were toggle
+   * BUTTONS, so "open Rentals in a new tab" did nothing and no crawler could follow the home page into
+   * a category. With `hrefFor` they are `<a href>`s: a modified or middle click keeps the browser's
+   * default (a new tab, the URL left as it was), and a plain primary click is taken over — prevented
+   * and applied in place through the same handler the button called, so filtering never navigates.
+   * `prefetch={false}`: a viewport prefetch of every tile would render the whole explorer per tile.
+   * `draggable={false}`: a mouse drag across the rail must not start dragging a URL out of it.
+   * ⚠️ `aria-current`, NOT `aria-pressed`: a link has no pressed state. The active tile is the
+   * "current" one, and its href is the unfiltered feed (tapping it clears, as it always did).
+   * ⚠️ THE LOOK IS UNCHANGED: `Button asChild` puts the same base + className onto the anchor (the
+   * base's `inline-flex`/`gap-2`/`whitespace-nowrap` lose to the tile's own classes through cn()).
+   */
+  const tile = (props: {
+    key: string
+    className: string
+    href: string | null
+    onSelect: () => void
+    data: Record<string, string>
+    pressed?: boolean
+    children: React.ReactNode
+  }) => {
+    if (props.href == null) {
+      return (
+        <Button key={props.key} variant="bare" size="none" {...props.data} aria-pressed={props.pressed} onClick={props.onSelect} className={props.className}>
+          {props.children}
+        </Button>
+      )
+    }
+    const onClick = (e: MouseEvent<HTMLAnchorElement>) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      e.preventDefault()
+      props.onSelect()
+    }
+    return (
+      <Button key={props.key} asChild variant="bare" size="none" className={props.className}>
+        <Link href={props.href} prefetch={false} scroll={false} draggable={false} {...props.data} aria-current={props.pressed ? 'true' : undefined} onClick={onClick}>
+          {props.children}
+        </Link>
+      </Button>
+    )
+  }
 
   return (
     // `relative` anchors the arrows, which sit OUTSIDE the scroller's edges (-left-8).
@@ -567,7 +623,7 @@ export function CategoryRail({
             )}
           </span>
           <span className="flex w-full flex-col items-center gap-0.5">
-            <span className={nameCls(false)}><TileLabel text={lang === 'vi' ? sc.nameVi : sc.name} /></span>
+            <span className={nameCls(false)}><TileLabel en={sc.name} vi={sc.nameVi} /></span>
           </span>
         </Button>
       ))}
@@ -577,12 +633,22 @@ export function CategoryRail({
         const at = shortcutCount + ci
         return (
           <Fragment key={cat.id}>
-            <Button variant="bare" size="none" data-cat={cat.slug} aria-pressed={isActive} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls, spanClasses[at])}>
-              <span className={glyphBox(bigTile[at], isActive)}>
-                <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={cn(iconCls(isActive), glyphSize(bigTile[at]))} selected={isActive} />
-              </span>
-              <span className={nameCls(isActive)}><TileLabel text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
-            </Button>
+            {tile({
+              key: `tile-${cat.slug}`,
+              className: cn('whitespace-normal', tileCls, spanClasses[at]),
+              href: hrefFor ? hrefFor(isActive ? null : { category: cat.slug }) : null,
+              onSelect: () => onCategory(isActive ? 'all' : cat.slug),
+              data: { 'data-cat': cat.slug },
+              pressed: isActive,
+              children: (
+                <>
+                  <span className={glyphBox(bigTile[at], isActive)}>
+                    <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={cn(iconCls(isActive), glyphSize(bigTile[at]))} selected={isActive} />
+                  </span>
+                  <span className={nameCls(isActive)}><TileLabel en={cat.name} vi={cat.nameVi} /></span>
+                </>
+              ),
+            })}
             {/**
               * ⛔ THE SUBCATEGORIES SIT NEXT TO THEIR CATEGORY, FULL HEIGHT, INSIDE THE SAME SCROLLER
               * (owner, 2026-09-18: "subcategories will pop next to like brand subbrand but will take
@@ -635,7 +701,7 @@ export function CategoryRail({
                         {/* At 14px the baked display stroke goes wispy — re-tier the ink line to the
                             UI weight (icon-language §2). */}
                         <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
-                        <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
+                        <Bilingual en={sub.name} vi={sub.nameVi || sub.name} />
                         <CountChip pending={countsPending} count={subCount(sub.slug)} className="ml-1" />
                       </Button>
                     )
@@ -657,14 +723,27 @@ export function CategoryRail({
           {intents.map((s, i) => {
             const active = activeType === s.type
             return (
-              <Button key={s.type} variant="bare" size="none" data-intent={s.type} onClick={() => onIntent?.(s.type)} className={cn('whitespace-normal', tileCls, spanClasses[shortcutCount + categories.length + i])}>
-                {/* Sized by ITS OWN index like every other tile, never a hardcoded box — an intent
-                    tile on the first screen is as big as a category tile there. */}
-                <span className={glyphBox(bigTile[shortcutCount + categories.length + i], active)}>
-                  <CategoryTileGlyph slug={s.type} icon={s.icon} className={cn(iconCls(active), glyphSize(bigTile[shortcutCount + categories.length + i]))} selected={active} />
-                </span>
-                <span className={nameCls(active)}><TileLabel text={lang === 'vi' ? s.nameVi : s.name} /></span>
-              </Button>
+              tile({
+                key: s.type,
+                className: cn('whitespace-normal', tileCls, spanClasses[shortcutCount + categories.length + i]),
+                // The intent is a toggle too (onIntent clears the active one), so its href follows it.
+                href: hrefFor ? hrefFor(active ? null : { type: s.type }) : null,
+                onSelect: () => onIntent?.(s.type),
+                data: { 'data-intent': s.type },
+                // ⚠️ `pressed` only reaches a LINK's aria-current: the button form never carried
+                // aria-pressed on an intent tile, and still does not.
+                pressed: hrefFor ? active : undefined,
+                children: (
+                  <>
+                    {/* Sized by ITS OWN index like every other tile, never a hardcoded box — an intent
+                        tile on the first screen is as big as a category tile there. */}
+                    <span className={glyphBox(bigTile[shortcutCount + categories.length + i], active)}>
+                      <CategoryTileGlyph slug={s.type} icon={s.icon} className={cn(iconCls(active), glyphSize(bigTile[shortcutCount + categories.length + i]))} selected={active} />
+                    </span>
+                    <span className={nameCls(active)}><TileLabel en={s.name} vi={s.nameVi} /></span>
+                  </>
+                ),
+              })
             )
           })}
         </>

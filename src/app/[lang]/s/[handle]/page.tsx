@@ -18,7 +18,9 @@ import { Tr } from '@/context/language-context'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { diverseFeedWindow } from '@/lib/feed-window'
 import { diversifyBySeller } from '@/lib/feed-diversity'
-import { OTHER_LISTINGS } from '@/components/marketplace/seller-storefront'
+import { loadSeller, OTHER_LISTINGS, storefrontCard, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
+import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import Link from 'next/link'
 import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
 import { storefrontByLabel, storefrontCanonical } from '@/lib/storefront'
@@ -59,7 +61,7 @@ import { storefrontJsonLd, type StorefrontLdListing } from './storefront-jsonld'
  */
 export const dynamic = 'force-dynamic'
 
-type Props = { params: Promise<{ handle: string }> }
+type Props = { params: Promise<{ lang?: string; handle: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle } = await params
@@ -70,9 +72,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // a hidden seller's NAME still reached the <title> and the OG tags of a page that 404s.
   if (!shop || await isSellerHiddenHere(shop.sellerId)) return { title: 'Not found', robots: { index: false, follow: false } }
   const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  // The same verifiable-facts description as eno.vn/<handle> (ST-META): this subdomain is the shop's
+  // CANONICAL address, so it is the snippet search actually shows. `loadSeller` is cache()d — the
+  // page body makes the same call for its header.
   return {
     title: `${shop.name} — ${SITE_NAME}`,
-    description: `Browse everything ${shop.name} has for sale on ${SITE_NAME}.`,
+    description: (await storefrontMetaDescription(shop.sellerId)) ?? `Browse everything ${shop.name} has for sale on ${SITE_NAME}.`,
     /**
      * ⚠️ ABSOLUTE, AND POINTING AT THE SUBDOMAIN. Everywhere else in this app a canonical is the
      * relative `'/'` because there is one host; here the page answers on `apple.eno.vn` while
@@ -259,7 +264,24 @@ export default async function Storefront({ params }: Props) {
    * stopped being theirs to control.
    */
   if (!shop) notFound()
-  const { categories, listings, ldListings, total, otherListings, otherTotal } = await getData(shop.sellerId)
+  /**
+   * THE SHOP'S IDENTITY, NOT JUST ITS NAME (ST-HEADER, 2026-09-29): the same SellerCard header the
+   * path storefront has — avatar, the shop name at the title tier, the partner badge and the honest
+   * metrics strip. This page printed the name as an 18px <p> with nothing else.
+   * ⛔ AND ITS NAME IS THE PAGE'S ONE <h1>, with or without stock. The explorer below draws no site-name
+   * H1 when it is seller-scoped — its `siteHeading` defaults to `!sellerId` (ST-HEADER), so this page
+   * passes nothing and crawler-visible-html-contract.test.ts pins that it does not. Until that default,
+   * the explorer's sr-only "eno.vn" H1 was the title of VietKite's shop.
+   * `loadSeller` is cache()d and [handle]'s generateMetadata already made the same call; the 90-day
+   * conversation count is the one the path storefront runs for the response bucket.
+   */
+  const [{ categories, listings, ldListings, total, otherListings, otherTotal }, seller, convoCount] = await Promise.all([
+    getData(shop.sellerId),
+    loadSeller(shop.sellerId),
+    db.conversation.count({ where: { sellerId: shop.sellerId, createdAt: { gte: new Date(Date.now() - 90 * 86400000) } } }),
+  ])
+  if (!seller) notFound()
+  const card = storefrontCard(seller, convoCount)
 
   /**
    * ⚠️ THE SAME `storefrontCanonical(...)` CALL `generateMetadata` MAKES, so the `Store.url`, the Share
@@ -310,8 +332,13 @@ export default async function Storefront({ params }: Props) {
         {/* Share hands out the shop's SUBDOMAIN on this edition's domain (owner, 2026-09-13: "when user
             selects to share storefront use slug like vietkite.eno.vn or vietkite.eno.forum"), whether the
             shop was opened at the subdomain or in place at eno.vn/<handle>. */}
-        <div className="flex items-center justify-between gap-3 pb-2 pt-3">
-          <p className="min-w-0 truncate text-lg font-bold text-foreground">{shop.name}</p>
+        {/* ⛔ NO CHAT BUTTON HERE (`chatListingId={null}`): the session cookie is scoped to eno.vn, so
+            on <handle>.eno.vn there is no session to chat from, and affiliate partners take no chat
+            at all (owner, 2026-08-24). The count is the shop's whole scoped stock, as in the grid. */}
+        <div className="flex items-start justify-between gap-3 pb-4 pt-3">
+          <div className="min-w-0 max-w-md flex-1">
+            <StorefrontSellerCard seller={card.cardSeller} metrics={card.metrics} chatListingId={null} listingCount={total} />
+          </div>
           <ShareButton url={canonical} title={shop.name} compact />
         </div>
         {total === 0 ? (
@@ -360,7 +387,9 @@ export default async function Storefront({ params }: Props) {
           </div>
         ) : (
         <ListingsExplorer
-          categories={categories}
+          /* ⚠️ A ONE-CATEGORY SHOP GETS NO CATEGORY RAIL (ST-HEADER): a single tile beside "All" is
+             a choice between the same two feeds. Two or more, and the rail is the shop's own. */
+          categories={categories.length > 1 ? categories : []}
           initialListings={listings}
           initialTotal={total}
           initialFetchedAt={Date.now()}
@@ -383,9 +412,12 @@ export default async function Storefront({ params }: Props) {
             in getData). A separate section keeps "whose product is this" answerable.
             ⚠️ RENDERS NOTHING WHEN EMPTY, which is the correct state on an edition whose hide-list
             leaves no other seller visible. */}
+        {/* ⚠️ NO SECOND PAGE FRAME: <main> above already is `max-w-7xl px-3 sm:px-6 lg:px-8`, and this
+            section restating it indented the heading 12–32px past the shop's name (C1-HAIRLINE). The
+            hairline and the heading say the seller changed (ST-HEADER), as on the path storefront. */}
         {otherTotal > 0 && (
-          <section className="mx-auto w-full max-w-7xl px-3 pb-10 sm:px-6 lg:px-8">
-            <h2 className="h-section mb-4 text-foreground"><Tr text="More on" /> {SITE_NAME}</h2>
+          <section className="mt-12 space-y-4 border-t border-border pb-10 pt-8">
+            <h2 className="h-section text-foreground"><Bilingual en="More from other sellers" vi="Tin từ người bán khác" /></h2>
             <SellerListings
               listings={otherListings}
               /* ⛔ NO SEARCH BOX AND NO SORT TABS ON THIS GRID. The shop's own grid above already has both,

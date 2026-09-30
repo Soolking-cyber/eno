@@ -64,6 +64,21 @@ export function langVariantFor(cookie: string | null | undefined, acceptLanguage
   return 'en'
 }
 
+/**
+ * ⛔ THE PUBLIC PATH, WHICHEVER SIDE OF THE REWRITE READ IT. src/proxy.ts serves the public `/` from
+ * `/<variant>` and every other public path P from `/<variant>P`, so a prerendered or ISR render (no
+ * request, so no public URL) sees `usePathname() === '/en'` while the browser sees `/`. An href built
+ * from the raw value ships `/en?category=…` in the cached HTML, React does not patch an attribute on
+ * hydration, and the proxy 404s every public `/en…` (measured 2026-09-29: the home build's en.html
+ * carried `href="/en?category=jobs"`). Stripping the variant gives both sides the same public path —
+ * header.tsx's `hydrated` note is the same trap. A public `/en…` never renders a page that links: it
+ * is the 404.
+ */
+const VARIANT_PREFIX = new RegExp(`^/(?:${LANG_VARIANTS.join('|')})(?=/|$)`)
+export function publicPathname(pathname: string): string {
+  return pathname.replace(VARIANT_PREFIX, '') || '/'
+}
+
 /** The server variant a client-side language maps to — used to decide whether a switch needs a reload. */
 export function variantOfLanguage(lang: Language): LangVariant {
   return lang === 'vi' ? 'vi' : 'en'

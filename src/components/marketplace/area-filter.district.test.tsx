@@ -185,12 +185,12 @@ describe('the Area panel’s district list', () => {
 
 function bar(over: Partial<FacetBarProps> = {}): FacetBarProps {
   return {
-    activeCategory: 'rentals', activeSubcategory: 'all', setActiveSubcategory: vi.fn(),
+    activeCategory: 'rentals', activeSubcategory: 'all',
     province: null, setProvince: vi.fn(), ward: null, setWard: vi.fn(), nearby: null, setNearby: vi.fn(),
     district: 'all', setDistrict: vi.fn(),
     priceRange: 'all', setPriceRange: vi.fn(), conditionFilter: 'all', setConditionFilter: vi.fn(),
     listingType: 'all', setListingType: vi.fn(), customFilters: {}, setCustomFilters: vi.fn(),
-    verifiedOnly: true, setVerifiedOnly: vi.fn(), histogramQuery: 'category=rentals', ...over,
+    histogramQuery: 'category=rentals', ...over,
   }
 }
 
@@ -269,15 +269,13 @@ describe('FacetBar — the district from the Area panel', () => {
     expect(p.setDistrict).toHaveBeenCalledWith('all')
   }, 20_000)
 
-  it('"Delete filter" and the bar’s "Clear" drop the district with the rest of the place', async () => {
+  /** The bar's own "Clear" is gone (E-ACTIVE); the Area panel's reset — "Clear" since E-FILTER-SHEET, was "Delete filter" — still drops the district. */
+  it('the Area panel\'s "Clear" drops the district with the rest of the place', async () => {
     const p = bar({ district: 'd7' })
     const user = userEvent.setup()
     renderIn('en', <FacetBar {...p} />)
-    await user.click(screen.getByRole('button', { name: 'Clear' }))
-    expect(p.setDistrict).toHaveBeenCalledWith('all')
-    ;(p.setDistrict as ReturnType<typeof vi.fn>).mockClear()
     await user.click(screen.getByRole('button', { name: /District 7/ }))
-    await user.click(await screen.findByRole('button', { name: 'Delete filter' }))
+    await user.click(await screen.findByRole('button', { name: 'Clear' }))
     expect(p.setDistrict).toHaveBeenCalledWith('all')
   })
 })

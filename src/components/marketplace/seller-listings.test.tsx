@@ -188,6 +188,60 @@ describe('SellerListings in server-scoped mode', () => {
   })
 })
 
+/**
+ * ⛔ /c/<category> USED TO SORT BY LEAVING. Its strip was a row of links into the explorer (a URL
+ * canonicalised to /) under "Showing the top 48 of …", because its grid was a window a sort could not
+ * see past. It is a server-scoped grid now (C1-DEADEND, 2026-09-29): the sort stays on the page, and
+ * the one way out — the explorer's filters — rides the end of the strip, outside the tablist.
+ */
+describe('SellerListings on a category page', () => {
+  function renderCategory() {
+    return render(
+      <SellerListings
+        listings={PAGE}
+        sortable
+        serverScope={{ params: { category: 'electronics' }, total: 63730, pageSize: 48 }}
+        stripEnd={<a href="/?category=electronics" rel="nofollow" aria-label="Filters" />}
+      />,
+    )
+  }
+
+  it('renders stripEnd in the strip, beside the tablist and not inside it', () => {
+    renderCategory()
+    const filters = screen.getByRole('link', { name: 'Filters' })
+    const list = screen.getByRole('tablist')
+    expect(list.contains(filters)).toBe(false)
+    // One row: the tablist and the link share the strip's parent (the Tabs root).
+    expect(filters.closest('[data-slot="tabs"]')).toBe(list.closest('[data-slot="tabs"]'))
+  })
+
+  it('sorts in place: no sort link, no "Showing the top", one Price tab', async () => {
+    const urls = stubFetch(() => ({ listings: [CHEAPEST], total: 63730 }))
+    renderCategory()
+    expect(screen.queryByText(/Showing the top/)).toBeNull()
+    // The only link on the strip is the Filters link; every sort is a tab.
+    expect(screen.getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['/?category=electronics'])
+    expect(screen.getAllByRole('tab', { name: /price/i })).toHaveLength(1)
+    await userEvent.click(screen.getByRole('tab', { name: /price/i }))
+    await waitFor(() => expect(screen.getByText('The cheapest phone')).toBeTruthy())
+    expect(urls[0].searchParams.get('category')).toBe('electronics')
+    expect(urls[0].searchParams.get('sort')).toBe('price-low')
+  })
+
+  it('calls the price sort "Salary" over jobs', () => {
+    render(<SellerListings listings={PAGE} sortable priceLabel="salary" serverScope={{ params: { category: 'jobs' }, total: 900 }} />)
+    expect(screen.getByRole('tab', { name: 'Sort by salary' }).textContent).toContain('Salary')
+  })
+
+  it('a search that matches nothing says so and offers the way back', async () => {
+    render(<SellerListings listings={[card('a', 1, 'Lamp')]} searchable />)
+    await userEvent.type(screen.getByLabelText('Search this seller'), 'zzz')
+    expect(screen.getByText('No listings match')).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+    expect(screen.getAllByTestId('card')).toHaveLength(1)
+  })
+})
+
 describe('SellerListings as a paged continuation with no controls', () => {
   // The "More on eno.vn" grid under a storefront opts out of search and sort. Before the fix the
   // no-controls shortcut returned a bare grid and silently dropped Show-more, capping it at page one.

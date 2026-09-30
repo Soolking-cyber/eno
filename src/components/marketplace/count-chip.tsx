@@ -3,7 +3,8 @@
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { groupVnd, moneyLocale } from '@/lib/vnd'
-import type { DimensionCounts } from '@/lib/facet-counts'
+import { SUBCATEGORIES } from '@/lib/subcategories'
+import type { DimensionCounts, FacetCounts } from '@/lib/facet-counts'
 import type { TrFn } from './result-line'
 
 /**
@@ -218,6 +219,66 @@ export function offeredKeys(
     if (n === 0) return false
     return !(opts.hideNoOp && all !== null && n >= all)
   })
+}
+
+/* ── THE LADDER'S OFFER RULES, ONE COPY (E-TILES, 2026-09-29) ──────────────────────────────────────
+ * Which categories, subcategories and intent tiles a ladder DRAWS. They lived inline in CategoryRail,
+ * and the phone's compact row (LadderCompactRow) listed everything unfiltered — eleven Rentals subtypes
+ * on a phone beside four on the desktop plate, most of them empty. Both ladders read these now, so the
+ * two can never offer different sets for the same feed. The reasoning for each rule is on the function.
+ * ────────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * ⛔ A CATEGORY WITH NOTHING IN IT IS NOT A TILE (owner, 2026-09-25: "show only available filter
+ * options"). The count is the `category` rail (every other filter applied, the category's cascade
+ * released — exactly what a tap clears). Before the first counts arrive (the ISR HTML) the category's
+ * own live total, `verifiedCount`, decides — the same "has public rows" test, so the server-rendered
+ * strip already omits the empty ones and nothing shifts on hydration.
+ * ⚠️ THE ACTIVE CATEGORY ALWAYS STAYS, so a deep link into an empty one can still be read and left.
+ */
+export function offeredCategories<C extends { slug: string; verifiedCount: number }>(all: C[], facets: FacetCounts | undefined, activeCategory: string): C[] {
+  const catDim = railDimension(facets?.category, all.map((c) => c.slug))
+  return all.filter((c) => {
+    if (c.slug === activeCategory) return true
+    const n = catDim ? optionCount(catDim, c.slug) : c.verifiedCount
+    return !(typeof n === 'number' && Number.isSafeInteger(n) && n === 0)
+  })
+}
+
+/**
+ * The intent tiles (Free & Giveaways, Wanted, Wholesale) are listing-type filters, read off the `type`
+ * rail the same way: measured 2026-09-25, Free and Wanted returned 0 on every browse state. The active
+ * one stays; with no counts every tile stays.
+ */
+export function offeredIntents<I extends { type: string }>(all: I[] | undefined, facets: FacetCounts | undefined, activeType: string | undefined): I[] | undefined {
+  if (!all) return all
+  const dim = railDimension(facets?.type, all.map((x) => x.type))
+  return all.filter((it) => offeredKeys(dim, [it.type], activeType).length > 0)
+}
+
+/**
+ * One subcategory's count: `facets.subcategory` first (zero-seeded, so a 0 there is an honest 0), the
+ * legacy `subcategoryCounts` map as the fallback — see CategoryRail's note on why that order.
+ * `Object.hasOwn`, not a bare index: both records carry Object.prototype.
+ */
+export function subcategoryCountFor(subDim: DimensionCounts | undefined, subcategoryCounts: Record<string, number>, slug: string): number | undefined {
+  return optionCount(subDim, slug) ?? (Object.hasOwn(subcategoryCounts, slug) ? subcategoryCounts[slug] : undefined)
+}
+
+/**
+ * ⛔ AN EMPTY SUBCATEGORY IS NOT A CHIP EITHER (owner, 2026-09-25): 65 of 130 subcategory chips read
+ * "0" on production that day. A chip is dropped only on an honest, zero-seeded 0 (`facets.subcategory`
+ * — the legacy map has no zero keys, so with no fresh payload every chip stays). The active one stays.
+ * `subDim` is `railDimension`-guarded against a payload held over from ANOTHER category, whose slugs
+ * would all read as a confident 0.
+ */
+export function offeredSubcategories(categorySlug: string, facets: FacetCounts | undefined, subcategoryCounts: Record<string, number>, activeSubcategory: string) {
+  const subs = SUBCATEGORIES[categorySlug] ?? []
+  const subDim = railDimension(facets?.subcategory, subs.map((s) => s.slug))
+  return {
+    subDim,
+    subs: subs.filter((sc) => sc.slug === activeSubcategory || subcategoryCountFor(subDim, subcategoryCounts, sc.slug) !== 0),
+  }
 }
 
 /**

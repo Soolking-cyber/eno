@@ -131,15 +131,22 @@ export function SellerCard({
             separate this gold from grey. The tooltip is the cheapest way to make the mark
             self-explaining without reinstating the chip the owner removed. */}
         <span title={seller.officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined} className="flex shrink-0">
-          <Avatar name={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg"  />
+          {/* 64px on the storefront, where this card IS the page's identity block; 48px beside a
+              listing, where it is one fact among many (ST-HEADER, 2026-09-29). */}
+          <Avatar name={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg" className={variant === 'storefront' ? 'h-16 w-16 text-lg' : undefined} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {/* On the storefront this IS the page's main heading (the listing title owns
                 the PDP's <h1>), so it must be an <h1> and read as a title, not 14px body —
                 a real SEO/a11y heading on the public /{handle} shop page. */}
+            {/* ⚠️ THE TITLE TIER, NOT 18px: at `text-lg` the shop's <h1> was the same size as the
+                page's h2 section heads ("Reviews", "Listings by …"), so the page had no top. */}
+            {/* ⚠️ ALWAYS THE <h1> ON A STOREFRONT, `<handle>.eno.vn` included: the explorer under it no
+                longer draws a site-name H1 when it is seller-scoped (ST-HEADER, 2026-09-29), so there
+                is exactly one — this one. */}
             {variant === 'storefront' ? (
-              <h1 className="truncate text-lg font-bold text-foreground">{seller.name}</h1>
+              <h1 className="h-title truncate text-foreground">{seller.name}</h1>
             ) : (
               <span className="truncate text-sm font-bold text-foreground">{seller.name}</span>
             )}

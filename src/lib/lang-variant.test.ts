@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { acceptLanguageOrder, langVariantFor, matchSupportedLanguage, variantOfLanguage } from './lang-variant'
+import { acceptLanguageOrder, langVariantFor, matchSupportedLanguage, publicPathname, variantOfLanguage } from './lang-variant'
 
 describe('langVariantFor', () => {
   it('serves Vietnamese to a Vietnamese browser with no cookie', () => {
@@ -55,5 +55,21 @@ describe('helpers', () => {
     expect(variantOfLanguage('vi')).toBe('vi')
     expect(variantOfLanguage('en')).toBe('en')
     expect(variantOfLanguage('ja')).toBe('en')
+  })
+})
+
+describe('publicPathname', () => {
+  it('maps the internal variant path back to the public one the proxy serves it at', () => {
+    expect(publicPathname('/en')).toBe('/')
+    expect(publicPathname('/vi')).toBe('/')
+    expect(publicPathname('/en/about')).toBe('/about')
+    expect(publicPathname('/vi/c/rentals')).toBe('/c/rentals')
+  })
+
+  it('leaves a public path alone, including one that merely starts with the letters', () => {
+    expect(publicPathname('/')).toBe('/')
+    expect(publicPathname('/c/rentals')).toBe('/c/rentals')
+    expect(publicPathname('/envy')).toBe('/envy')
+    expect(publicPathname('/vintage-shop')).toBe('/vintage-shop')
   })
 })

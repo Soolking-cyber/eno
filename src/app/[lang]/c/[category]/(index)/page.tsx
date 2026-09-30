@@ -1,20 +1,24 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { RENTAL_PLACES } from '@/lib/rental-places'
+import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 import { loadCategory } from '../load-category'
 import { loadDistrictChips, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline } from '../category-data'
-import { categoryMetadata, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
+import { byAreaChips, categoryMetadata, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
 import { CategoryGuides, PlaceName, RentalsDistricts } from '../category-text'
+import { CategoryFiltersLink } from '../category-filters-link'
 import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { guidesForCategory } from '@/lib/category-guides'
 import { MIN_CATEGORY_LISTINGS } from '@/lib/index-floor'
 import { staleBelowFloor } from '@/lib/stale-noindex'
 import { db } from '@/lib/db'
+import { diverseFeedWindow } from '@/lib/feed-window'
+import { diversifyBySeller, sharedSeatsFor } from '@/lib/feed-diversity'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { ArrowRight } from '@/components/ui/icons'
 import { Badge } from '@/components/ui/badge'
@@ -117,7 +121,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ...(emptyForTheWindow ? { robots: { index: false, follow: true } } : {}),
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
-    openGraph: { title, description, url: `${hostUrl}/c/${cat.slug}` },
+    ...pageShare({ title, description, url: `${hostUrl}/c/${cat.slug}` }),
   }
 }
 
@@ -136,6 +140,15 @@ export default async function CategoryPage({ params }: Props) {
   // still reflect the whole category.
   const PAGE_SIZE = 48
   /**
+   * ⛔ THE FIRST PAGE IS /api/listings AT offset 0, NOT A PLAIN RANK ORDER. Sort and Show-more are
+   * scoped API queries now (`serverScope` below), and under DEFAULT_FEED_SORT the API serves
+   * `diverseFeedWindow` + `diversifyBySeller` (route.ts) — so a plain `rankScore` page 1 made the first
+   * Show-more continue a DIFFERENT sequence: rows repeated (deduped away) and rows never appeared. The
+   * same window, the same seat rule (`sharedSeatsFor`, as the API reads it for `?category=` alone) and
+   * the same reorder-then-slice as seller-storefront.tsx and the home page.
+   */
+  const sharedSeats = sharedSeatsFor(null, cat.slug)
+  /**
    * ⚠️ THE SAME PREDICATE AS load-category.ts AND category-data.ts (verified, active, this category),
    * each scoped on its own rather than one mutated `where` spread with extra keys — spreading an
    * exclusion fragment beside other keys is the collision trap edition-scope.ts exists to prevent.
@@ -145,22 +158,19 @@ export default async function CategoryPage({ params }: Props) {
    * ⛔ /c/rentals SHOWS PLACES, NOT VEHICLE HIRE (src/lib/rental-places.ts). Its H1 answers "apartments
    * for rent in …" and its lede counts places; ~6,400 imported cars and motorbikes share the category
    * (scripts/import-vehicle-rentals.ts) and would otherwise fill its first 48 cards. The lede links
-   * them into the explorer's car / motorbike views instead; the sort links and "Refine in full
-   * search" still open the whole category. ONLY WHILE A PLACE IS LIVE — with none, the facts are
-   * null, the page keeps the generic copy and shows whatever rentals exist, never an empty grid.
+   * them into the explorer's car / motorbike views instead; the strip's Filters link and "Refine in
+   * full search" still open the whole category there. Sort and Show-more stay on this page since
+   * C1-DEADEND, so they page over PLACES too (`kind=places` in `serverScope` below — one scope).
+   * ONLY WHILE A PLACE IS LIVE — with none, the facts are null, the page keeps the generic copy and
+   * shows whatever rentals exist, never an empty grid.
    * Wrapped in AND, never spread beside the scoped keys (edition-scope.ts's collision trap).
    */
   const rentalsFacts = cat.slug === 'rentals' && total > 0 ? await loadRentalsFacts(cat.id, total) : null
   const scopedWhere = await scopedListingWhere(rentalsFacts ? { AND: [base, RENTAL_PLACES] } : base)
   const [raw, otherCats, chips, rentals] = await Promise.all([
-    db.listing.findMany({
-      where: scopedWhere,
-      // Card projection: this page only renders <ListingCard> slots — the full row
-      // (description, attributes, searchText, whole Seller) tripled the ISR payload.
-      select: LISTING_CARD_SELECT,
-      orderBy: [{ rankScore: 'desc' }, { id: 'desc' }], // balanced blend — matches /api/listings so the explorer doesn't reshuffle on hydrate
-      take: PAGE_SIZE,
-    }),
+    // Card projection: this page only renders <ListingCard> slots — the full row (description,
+    // attributes, searchText, whole Seller) tripled the ISR payload. The order is buildFeedOrderBy('newest').
+    diverseFeedWindow(scopedWhere, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats }),
     db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),
     // ⚠️ CANONICAL CHIPS (category-data.ts): one per place, linking the one URL that place has — the
     // stored spellings (`quan-2`, `huyen-cu-chi`) now 308 there instead of standing beside it — and
@@ -173,8 +183,10 @@ export default async function CategoryPage({ params }: Props) {
     // page reads only `top` from it (RentalsDistricts); the linked count is the lede's alone.
     rentalsFacts,
   ])
-  const listings = await localizeListingTitles(raw.map(serializeListingCard))
-  const districts = chips.slice(0, DISTRICT_CHIPS)
+  // Reorder THEN slice (the window's fallback paths hand back a plain top-N nobody interleaved).
+  const listings = await localizeListingTitles(diversifyBySeller(raw, { sharedSeats }).slice(0, PAGE_SIZE).map(serializeListingCard))
+  // ⚠️ "BY AREA" ONLY WHERE THERE ARE AREAS TO BROWSE (byAreaChips: three places with five or more).
+  const districts = byAreaChips(chips, DISTRICT_CHIPS)
   // Registry-driven (src/lib/category-guides.ts) and only over real stock: a guide rail under an
   // empty category is a signpost to nothing, which is why it lives in the non-empty branch below.
   // ⚠️ MARKETPLACE ONLY: on eno.forum these links would promote its self-canonical COPIES of eno.vn's
@@ -208,11 +220,17 @@ export default async function CategoryPage({ params }: Props) {
       {LEDE_PLACEMENT === 'page' && <CategoryLedeBlock slug={cat.slug} />}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
 
+      {/* ⚠️ ONE SWIPE ROW ON A PHONE, WRAPPING FROM sm (C1-FOLD, 2026-09-29). Every canonical place is
+          a chip, and at 390px the 29 on /c/rentals wrapped into ~9 rows that pushed the first card to
+          1018px. Every chip stays a server-rendered <a> — nothing is hidden from a crawler or put
+          behind a drawer. `py-1` is room for the chips' 3px focus ring inside the scroller, which
+          clips at its padding box; `overflow-y-hidden` keeps it a one-axis scroller, so a vertical
+          drag that starts on a chip still scrolls the page (explorer-toolbar.tsx measured that trap). */}
       {districts.length > 0 && (
-        <div className="mt-6 flex flex-wrap gap-2">
-          <span className="self-center text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
+        <div className="scrollbar-none mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1 sm:mt-6 sm:flex-wrap sm:overflow-visible sm:py-0">
+          <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
           {districts.map((d) => (
-            <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+            <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
               {/* English place names on English pages ("District 2", not "Quận 2"). */}
               <PlaceName en={d.label.en} vi={d.label.vi} />
             </Badge>
@@ -220,38 +238,51 @@ export default async function CategoryPage({ params }: Props) {
         </div>
       )}
 
-      {/* Masthead boundary — full-bleed to the page frame's px-3/6/8 (the same negative-margin
-          coupling the sort strip below uses), so the two hairlines framing the toolbar align. */}
-      <div aria-hidden className="mt-8 -mx-3 border-t border-border sm:-mx-6 lg:-mx-8" />
+      {/* Masthead boundary — on the content box, like the sort strip's own hairline below and the
+          home toolbar's (C1-HAIRLINE); it used to bleed to the page frame with negative margins.
+          Tighter on a phone, where the fold is the budget (C1-FOLD). */}
+      <div aria-hidden className="mt-4 border-t border-border sm:mt-8" />
 
       {listings.length > 0 ? (
         <>
-          <div className="mt-6">
+          <div className="mt-4 sm:mt-6">
             {/* sr-only h2: the card titles below are h3s, and without this the outline
                 jumps h1 → h3 (detector-confirmed skip; same fix as the home feed header). */}
             <h2 className="sr-only"><Tr text="Listings" /></h2>
             {/* A sort strip over a single card reads absurd — the tablist earns its row
                 only once there is something to reorder. */}
-            {/* ⛔ A SORT LEAVES THIS PAGE. These are the top 48 by relevance of a category that may
-                hold thousands; sorting them in memory (the previous behaviour) reordered the same
-                48 ids and could never surface a cheaper or newer item outside the window. Each
-                sort is a LINK into the explorer's full, paginated query for this category with
-                the sort in the URL (`sortBase` is a string: this is a Server → Client boundary),
-                and the strip says what the 48 are. `sortable` keys off `total`, not the preview:
-                one card shown of two hundred still needs the links to reach the other 199. */}
+            {/* ⛔ SORT AND SHOW-MORE ARE SCOPED QUERIES OVER THE WHOLE CATEGORY, IN PLACE (C1-DEADEND,
+                2026-09-29). This strip used to be links into the explorer — a sort LEFT the page, into
+                a URL canonicalised to / — because the page held a 48-card preview and sorting it in
+                memory could never reach a cheaper item outside it. `serverScope` makes every sort and
+                page a /api/listings query with the category in `params`, as the district pages and
+                storefronts already do; the first page above is that query's own offset 0. The
+                explorer's facets are one tap away in the strip (`stripEnd`). `sortable` keys off
+                `total`, not the page: one card shown of two hundred still needs a sort.
+                ⛔ `serverScope.params` AND `scopedWhere` ARE ONE SCOPE, CHANGED TOGETHER OR NOT AT ALL
+                (scope-parity-contract.test.ts): while /c/rentals narrows to places (`rentalsFacts` →
+                `RENTAL_PLACES`), the params carry `kind=places` under the SAME condition and the total
+                is the places total (`rentals` IS `rentalsFacts`); when wave-B D1b lands, `homes=1`. */}
             <SellerListings
               listings={listings}
+              serverScope={{
+                params: { category: cat.slug, ...(rentalsFacts ? { [PLACES_KIND_PARAM.key]: PLACES_KIND_PARAM.value } : {}) },
+                total: rentals?.total ?? total,
+                pageSize: PAGE_SIZE,
+              }}
+              stripEnd={<CategoryFiltersLink slug={cat.slug} />}
+              priceLabel={cat.slug === 'jobs' ? 'salary' : 'price'}
               sortable={total > 1}
-              sortBase={`/?category=${encodeURIComponent(cat.slug)}`}
-              scope={{ shown: listings.length, total: rentals?.total ?? total }}
             />
           </div>
           <div className="mt-8">
             {/* Real ArrowRight at h-4, not a literal '→' — the SEO-landing CTAs already
                 use the lucide arrow, and one page family should speak one arrow language.
                 gap-1.5 on the BUTTON (asChild concatenates the child's className). */}
+            {/* nofollow + no prefetch: /?category= is canonicalised to /, and a prefetch would render
+                the full explorer for everyone who scrolls this far (as the strip's Filters link). */}
             <Button asChild variant="cta" size="none" className="gap-1.5">
-              <Link href={`/?category=${cat.slug}`} className="px-5 py-2.5">
+              <Link href={`/?category=${cat.slug}`} rel="nofollow" prefetch={false} className="px-5 py-2.5">
                 <Tr text="Refine in full search" /> <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -291,7 +322,7 @@ export default async function CategoryPage({ params }: Props) {
                 </Button>
                 {/* The anchor names what the LINK does (browse) and only promises the alert as
                     a step there — same honest-anchor rule as the SEO landings. */}
-                <Link href={`/?category=${cat.slug}`} className="text-sm font-semibold text-accent-foreground hover:underline">
+                <Link href={`/?category=${cat.slug}`} rel="nofollow" prefetch={false} className="text-sm font-semibold text-accent-foreground hover:underline">
                   <Tr text="Or browse the category — you can set an alert there" />
                 </Link>
               </div>

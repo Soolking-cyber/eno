@@ -515,7 +515,10 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'long-term', label: 'Long term', labelVi: 'Dài hạn' },
       ] },
       // batdongsan/nhatot rank Diện tích right after price on rent panels too.
-      { key: 'areaM2', label: 'Area', labelVi: 'Diện tích', kind: 'range', options: [],
+      // ⚠️ "Size", NOT "Area" (E-FILTER-SHEET, 2026-09-29): the toolbar's LOCATION pill is "Area" /
+      // "Khu vực", so the Filter panel offered two different "Area"s in English. Vietnamese already
+      // told them apart (Diện tích vs Khu vực). The PDP spec row and the post form read this label too.
+      { key: 'areaM2', label: 'Size', labelVi: 'Diện tích', kind: 'range', options: [],
         subcats: ['apartment-rental', 'house-rental', 'room-rental', 'office-rental'],
         range: { min: 0, max: 500, step: 5, unit: 'm²', column: 'areaM2' } },
       { key: 'furnishing', label: 'Furnishing', labelVi: 'Nội thất', kind: 'toggle',
@@ -579,7 +582,7 @@ export const TAXONOMY: CategoryDef[] = [
     ],
     facets: [
       // batdongsan ranks Diện tích co-equal with price — a true from–to range.
-      { key: 'areaM2', label: 'Area', labelVi: 'Diện tích', kind: 'range', options: [],
+      { key: 'areaM2', label: 'Size', labelVi: 'Diện tích', kind: 'range', options: [],
         range: { min: 0, max: 2000, step: 10, unit: 'm²', column: 'areaM2' } },
       { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', kind: 'toggle',
         subcats: ['apartment', 'house'], options: [

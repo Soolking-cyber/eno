@@ -117,17 +117,22 @@ describe('applied-filter chip ✕', () => {
 })
 
 describe('the controls that commit or undo a filter are ≥ the size of what they act on', () => {
-  it('facet bar "Clear" is 48px, like the pills it clears (was 39×16)', () => {
+  /**
+   * The bar's own "Clear" is GONE (E-ACTIVE, 2026-09-29): it was a third reset on one screen beside the
+   * result line's "Clear all" and the Filter panel's. What stays true is that nothing in the row is
+   * smaller than the pills — so this now pins the absence, and the pills' 48px.
+   */
+  it('facet bar carries no "Clear" of its own, and its pills stay 48px', () => {
     const props: FacetBarProps = {
-      activeCategory: 'electronics', activeSubcategory: 'all', setActiveSubcategory: vi.fn(),
+      activeCategory: 'electronics', activeSubcategory: 'all',
       province: null, setProvince: vi.fn(), ward: null, setWard: vi.fn(), nearby: null, setNearby: vi.fn(),
       priceRange: 'all', setPriceRange: vi.fn(), conditionFilter: 'new', setConditionFilter: vi.fn(),
       listingType: 'all', setListingType: vi.fn(), customFilters: {}, setCustomFilters: vi.fn(),
-      verifiedOnly: true, setVerifiedOnly: vi.fn(), histogramQuery: 'category=electronics',
+      histogramQuery: 'category=electronics',
     }
     wrap(<FacetBar {...props} />)
-    const clear = screen.getByRole('button', { name: 'Clear' })
-    expect(tokens(clear)).toEqual(expect.arrayContaining(['min-h-12', 'px-3', 'text-sm']))
+    expect(screen.queryByRole('button', { name: /^(Clear|Xóa lọc)$/ })).toBeNull()
+    expect(tokens(screen.getByRole('button', { name: /^Area/ }))).toEqual(expect.arrayContaining(['min-h-12']))
   })
 
   it('price panel Reset and Done are 44px (were 34×16 and 63×28)', async () => {

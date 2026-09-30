@@ -23,12 +23,14 @@ const h = vi.hoisted(() => {
   const auth = { user: null, profile: null, loading: false, openSignIn: () => {} }
   /** The props the explorer last handed <FacetBar> (a `next/dynamic` chunk, stubbed below). */
   const facet: { props: Record<string, unknown> | null } = { props: null }
-  return { router, language, auth, facet }
+  /** What `usePathname()` answers — the PUBLIC path in a browser, the INTERNAL `/en…` in a prerender. */
+  const nav = { pathname: '/' }
+  return { router, language, auth, facet, nav }
 })
 
 vi.mock('next/navigation', () => ({
   useRouter: () => h.router,
-  usePathname: () => '/',
+  usePathname: () => h.nav.pathname,
   useSearchParams: () => new URLSearchParams(window.location.search),
 }))
 // Every code-split chunk renders nothing — except that the FacetBar's props are RECORDED, because the
@@ -57,14 +59,30 @@ vi.mock('./listing-card', () => ({
 vi.mock('./capture-card', () => ({ CaptureCard: () => null }))
 // The two rails are markers: the phone ladder contract is about WHETHER they are on the page.
 vi.mock('./brand-rail', () => ({ BrandRail: () => <div data-testid="brand-rail" /> }))
-vi.mock('./category-rail', () => ({ CategoryRail: () => <div data-testid="category-rail" /> }))
-vi.mock('./for-you-rail', () => ({ ForYouRail: () => null }))
+// The category rail is a marker too, carrying three sample tiles built from the explorer's own
+// `hrefFor` — the E-TILES href contract is the explorer's, not the rail's.
+vi.mock('./category-rail', () => ({
+  CategoryRail: ({ hrefFor }: { hrefFor?: (p: { category?: string; type?: string } | null) => string }) => (
+    <div data-testid="category-rail">
+      {hrefFor ? (
+        <>
+          <a data-testid="tile-category" href={hrefFor({ category: 'rentals' })} />
+          <a data-testid="tile-intent" href={hrefFor({ type: 'free' })} />
+          <a data-testid="tile-clear" href={hrefFor(null)} />
+        </>
+      ) : null}
+    </div>
+  ),
+}))
+// The home placement renders nothing (as before); the sparse-results RECOVERY placement is a marker.
+vi.mock('./for-you-rail', () => ({ ForYouRail: ({ recovery }: { recovery?: boolean }) => (recovery ? <div data-testid="for-you-recovery" /> : null) }))
 vi.mock('./recently-viewed-rail', () => ({ RecentlyViewedRail: () => null }))
 vi.mock('./business-rail', () => ({ BusinessRail: () => null }))
 vi.mock('./trending-searches', () => ({ TrendingSearches: () => null }))
 vi.mock('./ai-concierge', () => ({ AISearchButton: () => null }))
 
-import { ListingsExplorer } from './listings-explorer'
+import { ListingsExplorer, __resetExplorerCommittedForTests } from './listings-explorer'
+import { SITE_NAME } from '@/lib/edition'
 
 // ─── A fake /api/listings ────────────────────────────────────────────────────────────────────
 const row = (id: string): SerializedListingCard =>
@@ -94,18 +112,26 @@ function answer(url: URL) {
   const offset = Number(url.searchParams.get('offset') ?? 0)
   const limit = Number(url.searchParams.get('limit') ?? 12)
   const from = repeatFirstPage ? 0 : offset
+  // "iphnoe" finds nothing as typed; asked with the spelling opt-in the server answers for "iphone"
+  // and says so (src/app/api/listings/route.ts) — the only shape the explorer reads.
+  if (url.searchParams.get('q') === 'iphnoe' && url.searchParams.get('spell') !== '1') {
+    return { listings: [], total: 0, offset, limit, subcategoryCounts: {}, categoryTotal: 0, facets: {}, inferredDistrict, correctedQuery: null }
+  }
   return {
     listings: catalogue.slice(from, from + limit), total: catalogue.length, offset, limit,
     subcategoryCounts: {}, categoryTotal: catalogue.length, facets: {}, inferredDistrict,
+    correctedQuery: url.searchParams.get('q') === 'iphnoe' ? 'iphone' : null,
   }
 }
+/** What /api/search/trending answers: one is the typo itself, in another case. */
+const TRENDING = ['iphone', 'Iphnoe', 'honda']
 
 function stubFetch() {
   vi.stubGlobal('fetch', vi.fn(async (u: string) => {
     const url = new URL(u, 'https://eno.vn')
     requests.push(url)
     if (gate && url.pathname === '/api/listings') await gate
-    const body = url.pathname === '/api/listings' ? answer(url) : {}
+    const body = url.pathname === '/api/listings' ? answer(url) : url.pathname === '/api/search/trending' ? { trending: TRENDING } : {}
     return { ok: true, status: 200, json: async () => body } as Response
   }))
 }
@@ -163,11 +189,14 @@ function mount(client: QueryClient, props: Partial<React.ComponentProps<typeof L
 }
 
 beforeEach(() => {
+  // Every test is a fresh document: its first mount is the cold path, a re-mount in it is a Back.
+  __resetExplorerCommittedForTests()
   requests.length = 0
   gate = null
   repeatFirstPage = false
   viewport.desktop = false
   h.facet.props = null
+  h.nav.pathname = '/'
   catalogue = Array.from({ length: 30 }, (_, i) => row(`r${i}`))
   sessionStorage.clear()
   installDomStubs()
@@ -396,9 +425,19 @@ describe('on a phone, a directed feed folds its category ladder into one compact
 
     act(() => { scopeButton().click() })
     expect(scopeButton().getAttribute('aria-expanded')).toBe('true')
-    expect(rails()).toEqual({ category: true, brand: true })
+    // The category rail opens; the brand rail does NOT come with it on a free-text search over "All"
+    // (E-RESULTS): there it is the most-listed-overall directory, which does not read the words.
+    expect(rails()).toEqual({ category: true, brand: false })
     act(() => { scopeButton().click() })
     expect(rails()).toEqual({ category: false, brand: false })
+  })
+
+  it('in a brand category the opened ladder carries the brand rail too', async () => {
+    mountAt('/?q=phone&category=electronics')
+    await waitFor(() => expect(compactRow()).not.toBeNull())
+    expect(rails()).toEqual({ category: false, brand: false })
+    act(() => { scopeButton().click() })
+    expect(rails()).toEqual({ category: true, brand: true })
   })
 
   it('in a category, the row names it and offers its subcategories; a chip narrows like the rail\'s', async () => {
@@ -442,9 +481,440 @@ describe('on a phone, a directed feed folds its category ladder into one compact
 
   it('desktop keeps the full rails when directed', async () => {
     viewport.desktop = true
-    mountAt('/?q=phone')
+    mountAt('/?category=electronics')
     await waitFor(() => expect(rails().brand).toBe(true))
     expect(rails().category).toBe(true)
     expect(compactRow()).toBeNull()
+  })
+
+  it('a free-text search on "All" draws no brand directory, on desktop too (E-RESULTS)', async () => {
+    viewport.desktop = true
+    mountAt('/?q=honda')
+    await waitFor(() => expect(rails().category).toBe(true))
+    expect(rails().brand).toBe(false)
+    expect(compactRow()).toBeNull()
+  })
+})
+
+describe('a client-side mount starts where the URL is (E-BACK)', () => {
+  it('never renders the ISR seed under a directed URL — skeleton, then the answer', async () => {
+    // The reader was on the feed before (an explorer committed in this document), left it, and came
+    // back to a directed URL: the client-side mount the seed is for (see `explorerCommitted`).
+    mount(newClient()).unmount()
+    const seed = Array.from({ length: 12 }, (_, i) => row(`seed${i}`))
+    window.history.replaceState({}, '', '/?q=phone')
+    const seen = new Set<string>()
+    const record = () => cardIds().forEach((id) => id && seen.add(id))
+    const observer = new MutationObserver(record)
+    observer.observe(document.body, { childList: true, subtree: true })
+    const release = holdAll()
+    mount(newClient(), { initialListings: seed, initialTotal: 999 })
+    record()
+    // Before the answer: no rows at all, twelve placeholders, and no count (not the seed's 999, not 0).
+    expect(cardIds()).toHaveLength(0)
+    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
+    expect(document.querySelector('[data-slot="result-line"] p[aria-live="polite"]')?.textContent ?? '').not.toMatch(/\d/)
+    // The first request already carries the URL's words (no request for the unfiltered feed).
+    await waitFor(() => expect(listingsRequests().length).toBeGreaterThan(0))
+    expect(listingsRequests()[0].searchParams.get('q')).toBe('phone')
+    release()
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    observer.disconnect()
+    expect([...seen].some((id) => id.startsWith('seed'))).toBe(false)
+  })
+
+  it('a mount from router.push does not read the page being LEFT (history is written after render)', async () => {
+    // Review, 2026-09-29: Next writes history in its router's useInsertionEffect, AFTER the render that
+    // runs useState initialisers — so a pushed mount rendered while `location` was still the previous
+    // page, and a storefront's `?q=` seeded (and fetched) the home. This stands in for Next's
+    // HistoryUpdater: the target URL lands in the commit, before any layout or passive effect.
+    mount(newClient()).unmount()
+    window.history.replaceState({}, '', '/s/some-shop?q=foo')
+    h.nav.pathname = '/' // the router's target, as usePathname() reads it during the pushed render
+    function HistoryUpdater() {
+      React.useInsertionEffect(() => { window.history.pushState({}, '', '/?category=rentals') }, [])
+      return null
+    }
+    render(
+      <QueryClientProvider client={newClient()}>
+        <HistoryUpdater />
+        <ListingsExplorer categories={[]} initialListings={[]} initialTotal={0} />
+      </QueryClientProvider>,
+    )
+    await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('category') === 'rentals')).toBe(true))
+    expect(listingsRequests().filter((u) => u.searchParams.get('q') === 'foo')).toEqual([])
+  })
+
+  it('the document\'s FIRST explorer, client-rendered (hydration recovery), is not seeded from the URL', async () => {
+    // No explorer has committed yet (reset per test), so this plain render stands for React's
+    // recovery render of a failed hydration: it must start where the server HTML did — on the seed —
+    // and take the URL after mount, exactly like the cold path (the seeded variant measured CLS 1.1).
+    const seed = Array.from({ length: 12 }, (_, i) => row(`seed${i}`))
+    window.history.replaceState({}, '', '/?q=phone')
+    const release = holdAll()
+    mount(newClient(), { initialListings: seed, initialTotal: 999 })
+    expect(cardIds()).toHaveLength(12)
+    expect(cardIds().every((id) => id?.startsWith('seed'))).toBe(true)
+    // …and the URL still reaches the fetcher once mounted.
+    await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('q') === 'phone')).toBe(true))
+    release()
+  })
+
+  it('a cold load (hydration) still renders the seed and takes the URL after mount', async () => {
+    window.history.replaceState({}, '', '/?q=phone')
+    const seed = catalogue.slice(0, 12)
+    const el = (
+      <QueryClientProvider client={newClient()}>
+        <ListingsExplorer categories={[]} initialListings={seed} initialTotal={catalogue.length} />
+      </QueryClientProvider>
+    )
+    const container = document.body.appendChild(document.createElement('div'))
+    container.innerHTML = renderToString(el)
+    // The server HTML is the unfiltered seed — hydrating it must not mismatch.
+    expect(container.querySelectorAll('[data-testid="card"]')).toHaveLength(12)
+    const errors: unknown[] = []
+    let root: Root | null = null
+    await act(async () => { root = hydrateRoot(container, el, { onRecoverableError: (e) => errors.push(e) }) })
+    try {
+      expect(errors).toEqual([])
+      await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('q') === 'phone')).toBe(true))
+    } finally {
+      act(() => root?.unmount())
+      container.remove()
+    }
+  })
+})
+
+describe('the tab and the outline name a directed feed (E-TITLE)', () => {
+  it('titles a search with its words and count, and hands the base title back on the logo reset', async () => {
+    document.title = `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(document.title).toBe(`“phone” · 30 listings | ${SITE_NAME}`))
+    expect(screen.getByRole('heading', { level: 2, name: 'Results for “phone”' })).toBeTruthy()
+    act(() => { window.dispatchEvent(new Event('eno:reset-home')) })
+    await waitFor(() => expect(document.title).toBe(`${SITE_NAME} - Trusted Expat Marketplace in Vietnam`))
+  })
+
+  it('never overwrites a title it did not write (the next page\'s, on the way out)', async () => {
+    document.title = `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`
+    window.history.replaceState({}, '', '/?q=phone')
+    const view = mount(newClient())
+    await waitFor(() => expect(document.title).toBe(`“phone” · 30 listings | ${SITE_NAME}`))
+    document.title = `Some listing | ${SITE_NAME}` // Next titled the destination before our cleanup ran
+    view.unmount()
+    expect(document.title).toBe(`Some listing | ${SITE_NAME}`)
+  })
+})
+
+describe('the home heading names the order the feed is in (E-SORT)', () => {
+  it('reads "Recommended" in the default order and "Latest listings" under Newest', async () => {
+    mount(newClient(), { initialListings: catalogue.slice(0, 12), initialTotal: catalogue.length })
+    expect(screen.getByRole('heading', { level: 2, name: 'Recommended' })).toBeTruthy()
+    act(() => { screen.getByRole('tab', { name: 'Newest' }).click() })
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Latest listings' })).toBeTruthy())
+  })
+})
+
+describe('a zero-result search is answered for its likely spelling, and says so (S-RECALL)', () => {
+  it('opts in with spell=1, shows "Showing results for", and "Search instead" asks the typed words', async () => {
+    window.history.replaceState({}, '', '/?q=iphnoe')
+    mount(newClient())
+    // The live region is on the page BEFORE the answer, empty: a region inserted already holding its
+    // text is not announced on several screen-reader/browser pairs.
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe('')
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    expect(listingsRequests().every((u) => u.searchParams.get('spell') === '1')).toBe(true)
+    expect(screen.getByRole('status')).toBe(status) // the same node: its content changed, it was not re-mounted
+    expect(status.textContent).toContain('Showing results for iphone')
+    // The outline and the tab name the words the grid answers.
+    expect(screen.getByRole('heading', { level: 2, name: 'Results for “iphone”' })).toBeTruthy()
+
+    act(() => { screen.getByRole('button', { name: 'Search instead for “iphnoe”' }).click() })
+    await waitFor(() => expect(screen.getByText('No results for “iphnoe”')).toBeTruthy())
+    expect(listingsRequests().at(-1)!.searchParams.has('spell')).toBe(false)
+    expect(status.isConnected).toBe(true)
+    expect(status.textContent).toBe('')
+    // Popular searches rescue it — without the typo itself, whatever its case.
+    await waitFor(() => expect(screen.getByText('Popular searches')).toBeTruthy())
+    expect(screen.getByRole('button', { name: 'iphone' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'honda' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Iphnoe' })).toBeNull()
+  })
+
+  it('the line arrives in the SAME commit as the corrected rows — never rows without it', async () => {
+    // A regression guard, not a fix for a seen defect: the line's effect runs in the same flush as the
+    // rows' sync effect, so they commit together (and the grid's deferred copy lands after both).
+    // Proven able to fail: moving the line one extra effect later makes this red (2026-09-29).
+    window.history.replaceState({}, '', '/?q=iphnoe')
+    const torn: number[] = []
+    const observer = new MutationObserver(() => {
+      const said = document.querySelector('[data-slot="spell-correction"]')?.textContent ?? ''
+      if (cardIds().length > 0 && !said.includes('Showing results for')) torn.push(cardIds().length)
+    })
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Showing results for iphone'))
+    observer.disconnect()
+    expect(torn).toEqual([])
+  })
+
+  it('"Search instead" keeps the line while the corrected cards are still on screen — it leaves WITH them', async () => {
+    // Review, 2026-09-29: the line was gated on the REQUEST (`spellOn`), so the tap dropped it while
+    // `placeholderData` kept the corrected cards on screen for the whole literal round trip.
+    window.history.replaceState({}, '', '/?q=iphnoe')
+    mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Showing results for iphone'))
+    // Every frame on the way: corrected cards never without the line, and the line never over the
+    // literal empty state.
+    const torn: string[] = []
+    const observer = new MutationObserver(() => {
+      const said = (document.querySelector('[data-slot="spell-correction"]')?.textContent ?? '').includes('Showing results for iphone')
+      if (cardIds().length > 0 && !said) torn.push(`${cardIds().length} cards, no line`)
+      if (said && screen.queryByText('No results for “iphnoe”')) torn.push('line over the empty state')
+    })
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    const release = holdAll()
+    act(() => { screen.getByRole('button', { name: 'Search instead for “iphnoe”' }).click() })
+    await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('q') === 'iphnoe' && !u.searchParams.has('spell'))).toBe(true))
+    // The literal answer is in flight: the corrected cards are still drawn, so the sentence is too.
+    expect(cardIds()).toHaveLength(12)
+    expect(screen.getByRole('status').textContent).toContain('Showing results for iphone')
+    release()
+    await waitFor(() => expect(screen.getByText('No results for “iphnoe”')).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe(''))
+    observer.disconnect()
+    expect(torn).toEqual([])
+  })
+
+  it('the price histogram asks for the word the FEED answered — never a spelling decision of its own', async () => {
+    // Review, 2026-09-29: the histogram sent `spell=1` and was corrected from its own zero, which drops
+    // the price band and the semantic set — so the slider could describe another word than the grid.
+    window.history.replaceState({}, '', '/?q=iphnoe')
+    mount(newClient())
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Showing results for iphone'))
+    const corrected = new URLSearchParams(h.facet.props?.histogramQuery as string)
+    expect(corrected.get('q')).toBe('iphone')
+    expect(corrected.has('spell')).toBe(false)
+    expect(corrected.get('histogram')).toBe('1')
+    act(() => { screen.getByRole('button', { name: 'Search instead for “iphnoe”' }).click() })
+    await waitFor(() => expect(screen.getByText('No results for “iphnoe”')).toBeTruthy())
+    await waitFor(() => expect(new URLSearchParams(h.facet.props?.histogramQuery as string).get('q')).toBe('iphnoe'))
+    expect(new URLSearchParams(h.facet.props?.histogramQuery as string).has('spell')).toBe(false)
+  })
+
+  it('the literal answer and the corrected one are two cache entries', async () => {
+    const client = newClient()
+    window.history.replaceState({}, '', '/?q=iphnoe')
+    mount(client)
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    act(() => { screen.getByRole('button', { name: 'Search instead for “iphnoe”' }).click() })
+    await waitFor(() => expect(screen.getByText('No results for “iphnoe”')).toBeTruthy())
+    const spells = client.getQueryCache().findAll({ queryKey: ['listings'] }).map((q) => (q.queryKey[1] as { spell: boolean }).spell)
+    expect(spells).toEqual(expect.arrayContaining([true, false]))
+  })
+})
+
+describe('a short, complete answer ends on a recovery rail (E-ZERO)', () => {
+  it('1–7 results: the trending rail follows the grid', async () => {
+    catalogue = catalogue.slice(0, 3)
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(3))
+    expect(screen.getByTestId('for-you-recovery')).toBeTruthy()
+  })
+
+  it('8 or more results, or a storefront: no recovery rail', async () => {
+    window.history.replaceState({}, '', '/?q=phone')
+    const view = mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    expect(screen.queryByTestId('for-you-recovery')).toBeNull()
+    view.unmount()
+
+    catalogue = catalogue.slice(0, 3)
+    mount(newClient(), { sellerId: 'shop-1' })
+    await waitFor(() => expect(cardIds()).toHaveLength(3))
+    expect(screen.queryByTestId('for-you-recovery')).toBeNull()
+  })
+})
+
+/**
+ * E-SSR phase 1 (2026-09-29): a cold deep link's ISR seed is masked by `html[data-explorer-directed]`
+ * (set by the home layout's pre-paint script) until the grid draws the URL's own answer — and while it
+ * is, the count announces nothing and the masked cards take no taps.
+ */
+describe('a cold directed deep link waits for its own answer behind the mask (E-SSR)', () => {
+  async function hydrateAt(search: string, masked: boolean) {
+    window.history.replaceState({}, '', search)
+    if (masked) document.documentElement.setAttribute('data-explorer-directed', '')
+    const seed = Array.from({ length: 12 }, (_, i) => row(`seed${i}`))
+    const el = (
+      <QueryClientProvider client={newClient()}>
+        <ListingsExplorer categories={[]} initialListings={seed} initialTotal={999} />
+      </QueryClientProvider>
+    )
+    const container = document.body.appendChild(document.createElement('div'))
+    container.innerHTML = renderToString(el)
+    const errors: unknown[] = []
+    let root: Root | null = null
+    await act(async () => { root = hydrateRoot(container, el, { onRecoverableError: (e) => errors.push(e) }) })
+    return { container, errors, unmount: () => { act(() => root?.unmount()); container.remove() } }
+  }
+  const count = (c: Element) => c.querySelector('[data-slot="result-line"] p[aria-live="polite"]')?.textContent ?? ''
+  afterEach(() => { document.documentElement.removeAttribute('data-explorer-directed') })
+
+  it('holds the mask and blocks taps on the seed until the answer lands', async () => {
+    const release = holdAll()
+    const v = await hydrateAt('/?q=phone', true)
+    try {
+      expect(v.errors).toEqual([])
+      await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('q') === 'phone')).toBe(true))
+      expect(document.documentElement.hasAttribute('data-explorer-directed')).toBe(true)
+      // The seed's count stays in place (so its row keeps its height) — the mask's `visibility: hidden`
+      // is what takes it off the screen and out of the accessibility tree.
+      expect(count(v.container)).toMatch(/999/)
+      const grid = v.container.querySelector('.feed-grid')!.parentElement!.parentElement!
+      expect(grid.hasAttribute('inert')).toBe(true)
+      // The URL's words skipped the 150ms debounce: no request for anything but "phone" was needed.
+      expect(listingsRequests().every((u) => u.searchParams.get('q') === 'phone')).toBe(true)
+      release()
+      await waitFor(() => expect(document.documentElement.hasAttribute('data-explorer-directed')).toBe(false))
+      expect(count(v.container)).toMatch(/^30\b/)
+      expect(v.container.querySelector('.feed-grid')!.parentElement!.parentElement!.hasAttribute('inert')).toBe(false)
+    } finally {
+      v.unmount()
+    }
+  })
+
+  it('an unmarked cold load is untouched: the count is the seed\'s until its own answer', async () => {
+    const v = await hydrateAt('/', false)
+    try {
+      expect(count(v.container)).toMatch(/999/)
+      expect(document.documentElement.hasAttribute('data-explorer-directed')).toBe(false)
+    } finally {
+      v.unmount()
+    }
+  })
+})
+
+describe('the view is URL state (E-VIEWS)', () => {
+  it('List view writes ?view=compact; Grid, the default, removes it', async () => {
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    act(() => { screen.getByRole('button', { name: 'List view' }).click() })
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('compact'))
+    act(() => { screen.getByRole('button', { name: 'Grid view' }).click() })
+    await waitFor(() => expect(new URLSearchParams(window.location.search).has('view')).toBe(false))
+    expect(new URLSearchParams(window.location.search).get('q')).toBe('phone')
+  })
+
+  it('asks for videos in the feed on screen, not the whole site', async () => {
+    window.history.replaceState({}, '', '/?category=rentals')
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mount(newClient())
+      await act(async () => { vi.advanceTimersByTime(11_000) })
+    } finally {
+      vi.useRealTimers()
+    }
+    await waitFor(() => expect(requests.some((u) => u.searchParams.has('hasVideo'))).toBe(true))
+    const probe = requests.find((u) => u.searchParams.has('hasVideo'))!
+    expect(probe.searchParams.get('category')).toBe('rentals')
+    expect(probe.searchParams.get('facets')).toBe('0')
+    // A FIXED plain sort (review, 2026-09-29): with none the route took its default, and a worded feed
+    // then ran the relevance ranker's 900-row candidate read to answer limit=1. 'recent' is an ORDER BY.
+    expect(probe.searchParams.get('sort')).toBe('recent')
+  })
+})
+
+describe('an applied custom filter reads as the taxonomy names it (E-ACTIVE)', () => {
+  it('"2 BR" and "Size 30–80 m²", never the state keys', async () => {
+    window.history.replaceState({}, '', '/?category=rentals&subcategory=apartment-rental&attr_bedrooms=2&range_areaM2=30-80')
+    mount(newClient())
+    await waitFor(() => expect(cardIds().length).toBeGreaterThan(0))
+    const line = document.querySelector('[data-slot="result-line"]')!
+    await waitFor(() => expect(line.textContent).toContain('Size 30–80 m²'))
+    expect(line.textContent).toContain('2 BR')
+    expect(line.textContent).not.toMatch(/bedrooms:|areaM2/)
+  })
+})
+
+describe('the facet bar is handed the feed\'s count and a panel signal (E-FILTER-SHEET)', () => {
+  it('passes the deferred result count and a stable onPanelOpenChange', async () => {
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(h.facet.props?.resultCount).toBe(30))
+    expect(typeof h.facet.props?.onPanelOpenChange).toBe('function')
+    expect(h.facet.props).not.toHaveProperty('setActiveSubcategory')
+  })
+})
+
+describe('the storefront\'s H1 is the shop\'s, and "Skip to listings" has somewhere to land (ST-HEADER, D-KEYBOARD)', () => {
+  it('draws the site-name H1 only when not seller-scoped', async () => {
+    const a = mount(newClient())
+    expect(document.querySelectorAll('h1')).toHaveLength(1)
+    a.unmount()
+    mount(newClient(), { sellerId: 'shop-1' })
+    expect(document.querySelectorAll('h1')).toHaveLength(0)
+  })
+
+  it('the results row is a focus target', () => {
+    mount(newClient())
+    const target = document.getElementById('results')!
+    expect(target.getAttribute('tabindex')).toBe('-1')
+    expect(target.closest('#listings')).not.toBeNull()
+  })
+})
+
+describe('a tile links to the PUBLIC page on both sides of the lang rewrite (E-TILES)', () => {
+  /**
+   * The home is ISR-prerendered as `/en` / `/vi` and served at `/` (src/proxy.ts), so the build render's
+   * `usePathname()` is the internal path while the browser's is public. React keeps a server attribute
+   * through hydration, so whatever href the SERVER wrote is the one a ctrl-click or a crawler follows —
+   * and the proxy 404s every public `/en…`. Rendered here exactly like that: server string under the
+   * internal path, hydrated under the public one.
+   */
+  async function prerenderThenHydrate(internal: string, publicPath: string) {
+    window.history.replaceState({}, '', publicPath)
+    const el = (
+      <QueryClientProvider client={newClient()}>
+        <ListingsExplorer categories={[]} initialListings={[]} initialTotal={0} />
+      </QueryClientProvider>
+    )
+    h.nav.pathname = internal
+    const html = renderToString(el)
+    h.nav.pathname = publicPath
+    const container = document.body.appendChild(document.createElement('div'))
+    container.innerHTML = html
+    let root: Root | null = null
+    await act(async () => { root = hydrateRoot(container, el, { onRecoverableError: () => {} }) })
+    const href = (id: string) => container.querySelector(`[data-testid="${id}"]`)!.getAttribute('href')
+    return { html, href, unmount: () => { act(() => root?.unmount()); container.remove() } }
+  }
+
+  it.each(['/en', '/vi'])('the home prerendered as %s writes /?category=…, never the internal path', async (internal) => {
+    const v = await prerenderThenHydrate(internal, '/')
+    try {
+      expect(v.html).not.toMatch(/href="\/(en|vi)[?/"]/)
+      expect(v.href('tile-category')).toBe('/?category=rentals')
+      expect(v.href('tile-intent')).toBe('/?type=free')
+      expect(v.href('tile-clear')).toBe('/')
+    } finally {
+      v.unmount()
+    }
+  })
+
+  it('a per-request render (the storefront, served at / on its own host) already reads / — and still writes /?…', async () => {
+    const v = await prerenderThenHydrate('/', '/')
+    try {
+      expect(v.href('tile-category')).toBe('/?category=rentals')
+      expect(v.href('tile-clear')).toBe('/')
+    } finally {
+      v.unmount()
+    }
   })
 })

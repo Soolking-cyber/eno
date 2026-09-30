@@ -11,7 +11,10 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
 import { Label } from '@/components/ui/label'
+import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
+import { useIsPhone } from '@/hooks/use-is-phone'
 import { offeredKeys, railDimension } from './count-chip'
 import type { DimensionCounts } from '@/lib/facet-counts'
 
@@ -120,6 +123,7 @@ export function AreaFilter({
   provinceCounts?: DimensionCounts
 }) {
   const { lang, tr } = useLanguage()
+  const isPhone = useIsPhone()
   const [provinces, setProvinces] = useState<Unit[]>([])
   const [wards, setWards] = useState<Unit[]>([])
   const [loadingWards, setLoadingWards] = useState(false)
@@ -282,6 +286,236 @@ export function AreaFilter({
       ? (anchorRef.current.getBoundingClientRect().left + anchorRef.current.getBoundingClientRect().width / 2 > window.innerWidth / 2 ? 'end' : 'start')
       : 'start'
 
+  /** The panel's body — ONE copy for the anchored popover and the phone sheet (E-FILTER-SHEET). */
+  const content = (
+    <div className="space-y-4">
+      {/* Province/City + Ward side-by-side (user decision 2026-07-13): one row,
+          two dropdowns. Vietnam's 2025 two-tier model has no district level —
+          city → ward IS the full official hierarchy. */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="min-w-0 space-y-1.5">
+          <Label className="text-xs font-bold text-foreground leading-normal">{tr('Province / City', 'Tỉnh / Thành phố')}</Label>
+          <CustomSelect
+            value={provCode}
+            onChange={(c) => { setProvCode(c); setWardCode('') }}
+            options={shownProvinces.map((p) => ({ value: p.code, label: label(p) }))}
+            label={tr('Province / City', 'Tỉnh / Thành phố')}
+            // "Choose…", not "Select Province/City": the label above already names the field,
+            // and the 19-character placeholder truncated in its half-width cell (W-LOCATION).
+            placeholder={tr('Choose…', 'Chọn…')}
+            className={FIELD}
+            activeClassName={FIELD}
+          />
+        </div>
+        <div className="min-w-0 space-y-1.5">
+          <Label className="text-xs font-bold text-foreground leading-normal">{tr('Ward / Commune', 'Phường / Xã')}</Label>
+          {loadingWards ? (
+            <DisabledField label={tr('Loading wards…', 'Đang tải phường/xã…')} />
+          ) : wards.length ? (
+            <CustomSelect
+              value={wardCode}
+              onChange={setWardCode}
+              options={wards.map((w) => ({ value: w.code, label: label(w) }))}
+              label={tr('Ward / Commune', 'Phường / Xã')}
+              placeholder={tr('Choose…', 'Chọn…')}
+              className={FIELD}
+              activeClassName={FIELD}
+            />
+          ) : (
+            <DisabledField label={tr('Select a province first', 'Hãy chọn tỉnh/thành trước')} />
+          )}
+        </div>
+      </div>
+
+      {/**
+        * ⛔ DISTRICT IS AN HCMC CONVENIENCE, NOT THE OFFICIAL HIERARCHY — and the note above
+        * this block is still true: Vietnam's 2025 two-tier model has no district level, so
+        * city → ward IS the official path and that is why these two lead.
+        *
+        * But the LISTINGS still speak in districts: sellers write "Quận 1", "Bình Thạnh",
+        * the curated list is matched against the stored `district`/`location` text, and the
+        * outline the map draws for a district comes back from OSM as a `historic` boundary
+        * under exactly those names. Owner, 2026-09-24: "still cant search by district" — the
+        * only other district control, in the filters drawer, had no way to be opened.
+        *
+        * ⛔ ONE TAP APPLIES AND CLOSES, like a chip, not a draft value waiting for Apply. The
+        * earlier select here was a draft committed together with the province/ward/radius
+        * above it, so "Quận 7" + a ward in Quận 1 went out as one AND — an empty feed from a
+        * single Apply. A district is its own place: picking one REPLACES the ward and the
+        * radius (the parent clears them), and applying a ward or a radius replaces it.
+        *
+        * ⚠️ TOGGLE BUTTONS (aria-pressed), NOT A RADIO GROUP. Base UI radios select on focus
+        * (RadioGroup.js marks any arrow key as touched → RadioRoot's onFocus clicks), and a
+        * pick here APPLIES AND CLOSES the panel — a keyboard user arrowing through the list
+        * would apply the first district they passed. Same reasoning, and the same chip, as
+        * facet-bar's segmented facets: pressing the picked district again drops it.
+        *
+        * ⚠️ HCMC ONLY, because DISTRICTS is a hand-curated HCMC list (districtOptionsFor).
+        * The draft province defaults to HCMC, so with no province applied the list shows.
+        * ⚠️ NO "ALL" CHIP. It would be pressed — a filled chip — whenever nothing is picked, and
+        * its label would have to name a province: the APPLIED one ("All of Ha Noi") can differ
+        * from the draft one this list is drawn under (opus, agy, codex). Dropping a district is
+        * pressing it again, the panel's "Clear", or the applied chip's ×.
+        */}
+      {mode === 'search' && onPickDistrict && provCode === HCMC && districtChips.length > 0 && (
+        <div className="min-w-0 space-y-1.5">
+          <Label id={districtLabelId} className="text-xs font-bold text-foreground leading-normal">{tr('District (Quận/Huyện)', 'Quận / Huyện')}</Label>
+          <div role="group" aria-labelledby={districtLabelId} className="flex flex-wrap gap-1.5">
+            {districtChips.map((d) => {
+              const picked = district === d.slug
+              return (
+                <Button
+                  key={d.slug}
+                  variant="bare"
+                  size="none"
+                  type="button"
+                  aria-pressed={picked}
+                  onClick={() => { onPickDistrict(picked ? 'all' : d.slug); onClose() }}
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-sm font-semibold whitespace-normal transition-colors cursor-pointer',
+                    picked ? 'border-brand bg-primary text-white' : 'border-line-strong text-body hover:bg-muted',
+                  )}
+                >
+                  {districtOptionLabel(d, lang, null, tr)}
+                </Button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Near you / use your location — the action button below is self-explanatory,
+          so no heading. Hidden when the parent provides its own geolocate button. */}
+      {!hideLocate && (
+      <div className="pt-1">
+        {mode === 'search' ? (
+          // SEARCH: the radius is ALWAYS visible + adjustable; "use my location" is a
+          // compact icon to its right — set the range any time, geolocate on demand
+          // (no need to commit to the geolocation prompt before seeing the radius).
+          <div className="mt-2 space-y-2">
+            <div className="flex items-end gap-3">
+              {/* `data-base-ui-swipe-ignore`: on a phone this panel is a bottom sheet, and a thumb drag
+                  on the slider that dips downward must move it, not start dismissing the sheet
+                  (Base UI Drawer's documented opt-out; trip-map.tsx uses it for the same reason). */}
+              <div className="min-w-0 flex-1" data-base-ui-swipe-ignore>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  {/* ⚠️ NOT "bán kính" — that word means RADIUS, and the search is a BOX of
+                      this half-width (the map draws it). Only the aria-label was corrected
+                      at first, which left a sighted Vietnamese reader promised a shape the
+                      query does not apply. */}
+                  <span className="text-muted-foreground">{tr('Search area', 'Vùng tìm kiếm')}</span>
+                  <span className="font-bold text-foreground">{radiusKm} km</span>
+                </div>
+                {/* ⚠️ "AREA", NOT "RADIUS". The database filters a lat/lng BOX of this
+                    half-width (src/lib/geo-radius.ts explains why a circle does not scale),
+                    and the map draws that box — so a control promising a radius would be
+                    promising a shape the search does not apply. The number still means
+                    kilometres; it is the half-width rather than a radius. */}
+                <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search area size in km', 'Kích thước vùng tìm theo km')} />
+                <div className="flex justify-between text-3xs text-ink-4"><span>1 km</span><span>20 km</span></div>
+              </div>
+              <IconButton
+                size="lg"
+                onClick={locate}
+                disabled={locating}
+                aria-label={tr('Use my current location', 'Dùng vị trí hiện tại')}
+                title={tr('Use my current location', 'Dùng vị trí hiện tại')}
+                className={cn(
+                  'mb-3.5 rounded-xl border transition-colors active:scale-[0.96] disabled:opacity-60',
+                  loc ? 'border-brand bg-tint text-accent-foreground' : 'border-line-strong text-accent-foreground hover:bg-muted',
+                )}
+              >
+                {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+              </IconButton>
+            </div>
+            {loc && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-xs text-body">
+                  {resolving ? tr('Finding your address…', 'Đang tìm địa chỉ…') : address || tr('Using your location', 'Dùng vị trí của bạn')}
+                </span>
+                <Button variant="bare" size="none" onClick={() => { setLoc(null); setAddress(null) }} className="shrink-0 text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</Button>
+              </div>
+            )}
+          </div>
+        ) : loc ? (
+          // PICK (post wizard): located → show the resolved address + remove, no radius.
+          <div className="mt-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-accent-foreground"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
+              <Button variant="bare" size="none" onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</Button>
+            </div>
+            {resolving ? (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> {tr('Finding your address…', 'Đang tìm địa chỉ…')}</p>
+            ) : address ? (
+              <p className="text-xs leading-relaxed text-body">{address}</p>
+            ) : null}
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="none"
+            onClick={locate}
+            disabled={locating}
+            className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted hover:text-accent-foreground active:scale-[0.99] disabled:opacity-60"
+          >
+            {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+            {tr('Use my current location', 'Dùng vị trí hiện tại')}
+          </Button>
+        )}
+      </div>
+      )}
+    </div>
+  )
+  /** "Clear" (was "Delete filter" — the one reset in the app named differently, E-ACTIVE) and "Apply". */
+  const actions = (
+    <>
+      <Button variant="ghost" size="none" onClick={reset} className="flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted hover:text-body">{tr('Clear', 'Xóa')}</Button>
+      <Button variant="cta" size="none" onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-colors"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</Button>
+    </>
+  )
+  const footer = (
+    <>
+      {/* ⚠️ THE PANEL'S MAIN ACTION STAYS ON SCREEN. The panel scrolls inside its own
+          `--available-height` cap, and this row sat at the END of that scroll: opened from the
+          home header, Apply measured 274px below the panel's visible bottom, and in Vietnamese
+          it was cut by the panel edge. Sticky to the scrollport's bottom, bleeding over the
+          popup's side padding (-mx-4) on its own opaque plate so the content scrolls UNDER it.
+          ⚠️ THE POPUP HAS NO BOTTOM PADDING — this row carries it (`pb-…`). A sticky box stops
+          at the scroll container's PADDING edge, not its border: with the popup's p-4 the row
+          parked 16px above the panel's bottom and the district chips scrolled visibly through
+          that strip beneath it (measured and screenshotted). No bottom padding, no strip. */}
+      <div className="sticky bottom-0 -mx-4 mt-4 flex gap-3 border-t border-border bg-popover px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {actions}
+      </div>
+    </>
+  )
+
+  /**
+   * ⛔ ON A PHONE THE EXPLORER'S AREA PANEL IS A BOTTOM SHEET (E-FILTER-SHEET, 2026-09-29; canon §5
+   * "mobile filters → ui/drawer"). Anchored under its pill at 390px it was a 360px card whose Apply sat
+   * at the end of an inner scroll, and it hung where the pill had been once a pick folded the ladder.
+   * The sheet keeps the same body — the side-by-side province/ward selects (owner, 2026-07-13) and the
+   * Clear/Apply pair, now its footer — so nothing about HOW an area is picked changed.
+   * ⚠️ SEARCH MODE ONLY. The post wizard (`mode: 'pick'`) keeps its popover: that flow and its e2e
+   * spec (post-location.spec.ts) belong to the wizard, and W-LOCATION's redesign of it is the owner's.
+   */
+  if (mode === 'search' && isPhone) {
+    return (
+      <Drawer open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+        {/* Named by its DrawerTitle (Base UI wires aria-labelledby), which outranks any aria-label. */}
+        <DrawerContent finalFocus={anchorRef}>
+          <DrawerHeader className="flex-row items-center justify-between gap-3 pb-1 text-left">
+            <DrawerTitle className="text-base font-bold">{tr('Area', 'Khu vực')}</DrawerTitle>
+            {/* The 24px box the header row was laid out for — CloseButton's `2xs` (D-CLOSE). */}
+            <CloseButton size="2xs" onClick={onClose} className="-mr-1 hover:bg-muted" />
+          </DrawerHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 scroll-thin">{content}</div>
+          <DrawerFooter className="flex-row gap-3 border-t border-border pt-3">{actions}</DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
   return (
     // Controlled + non-modal. onOpenChange only ever fires with `false` here (no Base UI
     // trigger to open it) — Escape / outside-press / backdrop-tap → onClose(). The dark
@@ -320,192 +554,9 @@ export function AreaFilter({
             aria-label={tr('Choose area', 'Chọn khu vực')}
             className="w-90 max-h-[min(72vh,var(--available-height,72vh))] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-border bg-popover px-4 pt-4 shadow-pop scroll-thin origin-(--transform-origin) duration-100 ease-[var(--ease-out-strong)] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=top]:data-closed:slide-out-to-bottom-2 data-closed:duration-75"
           >
-            <div className="space-y-4">
-              {/* Province/City + Ward side-by-side (user decision 2026-07-13): one row,
-                  two dropdowns. Vietnam's 2025 two-tier model has no district level —
-                  city → ward IS the full official hierarchy. */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="min-w-0 space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground leading-normal">{tr('Province / City', 'Tỉnh / Thành phố')}</Label>
-                  <CustomSelect
-                    value={provCode}
-                    onChange={(c) => { setProvCode(c); setWardCode('') }}
-                    options={shownProvinces.map((p) => ({ value: p.code, label: label(p) }))}
-                    label={tr('Province / City', 'Tỉnh / Thành phố')}
-                    placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
-                    className={FIELD}
-                    activeClassName={FIELD}
-                  />
-                </div>
-                <div className="min-w-0 space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground leading-normal">{tr('Ward / Commune', 'Phường / Xã')}</Label>
-                  {loadingWards ? (
-                    <DisabledField label={tr('Loading wards…', 'Đang tải phường/xã…')} />
-                  ) : wards.length ? (
-                    <CustomSelect
-                      value={wardCode}
-                      onChange={setWardCode}
-                      options={wards.map((w) => ({ value: w.code, label: label(w) }))}
-                      label={tr('Ward / Commune', 'Phường / Xã')}
-                      placeholder={tr('Select Ward/Commune', 'Chọn Phường/Xã')}
-                      className={FIELD}
-                      activeClassName={FIELD}
-                    />
-                  ) : (
-                    <DisabledField label={tr('Select a province first', 'Hãy chọn tỉnh/thành trước')} />
-                  )}
-                </div>
-              </div>
+            {content}
 
-              {/**
-                * ⛔ DISTRICT IS AN HCMC CONVENIENCE, NOT THE OFFICIAL HIERARCHY — and the note above
-                * this block is still true: Vietnam's 2025 two-tier model has no district level, so
-                * city → ward IS the official path and that is why these two lead.
-                *
-                * But the LISTINGS still speak in districts: sellers write "Quận 1", "Bình Thạnh",
-                * the curated list is matched against the stored `district`/`location` text, and the
-                * outline the map draws for a district comes back from OSM as a `historic` boundary
-                * under exactly those names. Owner, 2026-09-24: "still cant search by district" — the
-                * only other district control, in the filters drawer, had no way to be opened.
-                *
-                * ⛔ ONE TAP APPLIES AND CLOSES, like a chip, not a draft value waiting for Apply. The
-                * earlier select here was a draft committed together with the province/ward/radius
-                * above it, so "Quận 7" + a ward in Quận 1 went out as one AND — an empty feed from a
-                * single Apply. A district is its own place: picking one REPLACES the ward and the
-                * radius (the parent clears them), and applying a ward or a radius replaces it.
-                *
-                * ⚠️ TOGGLE BUTTONS (aria-pressed), NOT A RADIO GROUP. Base UI radios select on focus
-                * (RadioGroup.js marks any arrow key as touched → RadioRoot's onFocus clicks), and a
-                * pick here APPLIES AND CLOSES the panel — a keyboard user arrowing through the list
-                * would apply the first district they passed. Same reasoning, and the same chip, as
-                * facet-bar's segmented facets: pressing the picked district again drops it.
-                *
-                * ⚠️ HCMC ONLY, because DISTRICTS is a hand-curated HCMC list (districtOptionsFor).
-                * The draft province defaults to HCMC, so with no province applied the list shows.
-                * ⚠️ NO "ALL" CHIP. It would be pressed — a filled chip — whenever nothing is picked, and
-                * its label would have to name a province: the APPLIED one ("All of Ha Noi") can differ
-                * from the draft one this list is drawn under (opus, agy, codex). Dropping a district is
-                * pressing it again, the panel's "Delete filter", or the applied chip's ×.
-                */}
-              {mode === 'search' && onPickDistrict && provCode === HCMC && districtChips.length > 0 && (
-                <div className="min-w-0 space-y-1.5">
-                  <Label id={districtLabelId} className="text-xs font-bold text-foreground leading-normal">{tr('District (Quận/Huyện)', 'Quận / Huyện')}</Label>
-                  <div role="group" aria-labelledby={districtLabelId} className="flex flex-wrap gap-1.5">
-                    {districtChips.map((d) => {
-                      const picked = district === d.slug
-                      return (
-                        <Button
-                          key={d.slug}
-                          variant="bare"
-                          size="none"
-                          type="button"
-                          aria-pressed={picked}
-                          onClick={() => { onPickDistrict(picked ? 'all' : d.slug); onClose() }}
-                          className={cn(
-                            'rounded-lg border px-3 py-2 text-sm font-semibold whitespace-normal transition-colors cursor-pointer',
-                            picked ? 'border-brand bg-primary text-white' : 'border-line-strong text-body hover:bg-muted',
-                          )}
-                        >
-                          {districtOptionLabel(d, lang, null, tr)}
-                        </Button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Near you / use your location — the action button below is self-explanatory,
-                  so no heading. Hidden when the parent provides its own geolocate button. */}
-              {!hideLocate && (
-              <div className="pt-1">
-                {mode === 'search' ? (
-                  // SEARCH: the radius is ALWAYS visible + adjustable; "use my location" is a
-                  // compact icon to its right — set the range any time, geolocate on demand
-                  // (no need to commit to the geolocation prompt before seeing the radius).
-                  <div className="mt-2 space-y-2">
-                    <div className="flex items-end gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-center justify-between text-xs">
-                          {/* ⚠️ NOT "bán kính" — that word means RADIUS, and the search is a BOX of
-                              this half-width (the map draws it). Only the aria-label was corrected
-                              at first, which left a sighted Vietnamese reader promised a shape the
-                              query does not apply. */}
-                          <span className="text-muted-foreground">{tr('Search area', 'Vùng tìm kiếm')}</span>
-                          <span className="font-bold text-foreground">{radiusKm} km</span>
-                        </div>
-                        {/* ⚠️ "AREA", NOT "RADIUS". The database filters a lat/lng BOX of this
-                            half-width (src/lib/geo-radius.ts explains why a circle does not scale),
-                            and the map draws that box — so a control promising a radius would be
-                            promising a shape the search does not apply. The number still means
-                            kilometres; it is the half-width rather than a radius. */}
-                        <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search area size in km', 'Kích thước vùng tìm theo km')} />
-                        <div className="flex justify-between text-3xs text-ink-4"><span>1 km</span><span>20 km</span></div>
-                      </div>
-                      <IconButton
-                        size="lg"
-                        onClick={locate}
-                        disabled={locating}
-                        aria-label={tr('Use my current location', 'Dùng vị trí hiện tại')}
-                        title={tr('Use my current location', 'Dùng vị trí hiện tại')}
-                        className={cn(
-                          'mb-3.5 rounded-xl border transition-colors active:scale-[0.96] disabled:opacity-60',
-                          loc ? 'border-brand bg-tint text-accent-foreground' : 'border-line-strong text-accent-foreground hover:bg-muted',
-                        )}
-                      >
-                        {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-                      </IconButton>
-                    </div>
-                    {loc && (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="min-w-0 truncate text-xs text-body">
-                          {resolving ? tr('Finding your address…', 'Đang tìm địa chỉ…') : address || tr('Using your location', 'Dùng vị trí của bạn')}
-                        </span>
-                        <Button variant="bare" size="none" onClick={() => { setLoc(null); setAddress(null) }} className="shrink-0 text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</Button>
-                      </div>
-                    )}
-                  </div>
-                ) : loc ? (
-                  // PICK (post wizard): located → show the resolved address + remove, no radius.
-                  <div className="mt-3 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-sm font-semibold text-accent-foreground"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
-                      <Button variant="bare" size="none" onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</Button>
-                    </div>
-                    {resolving ? (
-                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> {tr('Finding your address…', 'Đang tìm địa chỉ…')}</p>
-                    ) : address ? (
-                      <p className="text-xs leading-relaxed text-body">{address}</p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="none"
-                    onClick={locate}
-                    disabled={locating}
-                    className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted hover:text-accent-foreground active:scale-[0.99] disabled:opacity-60"
-                  >
-                    {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-                    {tr('Use my current location', 'Dùng vị trí hiện tại')}
-                  </Button>
-                )}
-              </div>
-              )}
-            </div>
-
-            {/* ⚠️ THE PANEL'S MAIN ACTION STAYS ON SCREEN. The panel scrolls inside its own
-                `--available-height` cap, and this row sat at the END of that scroll: opened from the
-                home header, Apply measured 274px below the panel's visible bottom, and in Vietnamese
-                it was cut by the panel edge. Sticky to the scrollport's bottom, bleeding over the
-                popup's side padding (-mx-4) on its own opaque plate so the content scrolls UNDER it.
-                ⚠️ THE POPUP HAS NO BOTTOM PADDING — this row carries it (`pb-…`). A sticky box stops
-                at the scroll container's PADDING edge, not its border: with the popup's p-4 the row
-                parked 16px above the panel's bottom and the district chips scrolled visibly through
-                that strip beneath it (measured and screenshotted). No bottom padding, no strip. */}
-            <div className="sticky bottom-0 -mx-4 mt-4 flex gap-3 border-t border-border bg-popover px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-              <Button variant="ghost" size="none" onClick={reset} className="flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted hover:text-body">{mode === 'pick' ? tr('Clear', 'Xóa') : tr('Delete filter', 'Xóa lọc')}</Button>
-              <Button variant="cta" size="none" onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-colors"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</Button>
-            </div>
+            {footer}
           </PopoverPrimitive.Popup>
         </PopoverPrimitive.Positioner>
       </PopoverPrimitive.Portal>

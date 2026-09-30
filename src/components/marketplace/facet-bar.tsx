@@ -10,12 +10,15 @@ import { DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
+import { useIsPhone } from '@/hooks/use-is-phone'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useLanguage } from '@/context/language-context'
 import { CONDITION_FACET, facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
-import { formatCount, moneyLocale } from '@/lib/vnd'
+import { formatCount, formatInteger, moneyLocale } from '@/lib/vnd'
 // The chip counter's SPOKEN form. Reused rather than re-worded: this helper already groups per
 // language and already knows Vietnamese has no plural -s, and it is unit-tested for both.
 import { resultCountLabel } from './result-line'
@@ -175,10 +178,6 @@ export type FacetBarProps = {
   openFilterSignal?: number
   activeCategory: string
   activeSubcategory: string // drives subcategory-specific facets (e.g. cc vs L engine)
-  /** ⚠️ NO LONGER A PICKER — the panel's subcategory chips were removed on 2026-08-12 (see
-   *  `hasAdvanced`). The one caller left is the bar's own "Clear" reset; `activeSubcategory`
-   *  above is still read, because it decides which advanced facets the panel offers. */
-  setActiveSubcategory: Dispatch<SetStateAction<string>>
   province: Geo | null
   setProvince: Dispatch<SetStateAction<Geo | null>>
   ward: Geo | null
@@ -200,8 +199,6 @@ export type FacetBarProps = {
   setListingType: Dispatch<SetStateAction<string>>
   customFilters: Record<string, string>
   setCustomFilters: Dispatch<SetStateAction<Record<string, string>>>
-  verifiedOnly: boolean
-  setVerifiedOnly: Dispatch<SetStateAction<boolean>>
   histogramQuery: string // active filters (sans price/pagination) for the price histogram
   histogramApproximate?: boolean // the grid's set differs from what the histogram can count (nearby / text search)
   trailing?: ReactNode // extra control at the end of the chip row (e.g. the mobile sort chip)
@@ -228,6 +225,18 @@ export type FacetBarProps = {
    * not band chips. Every one of them now also decides which options are DRAWN (offeredKeys).
    */
   facetCounts?: FacetCounts
+  /**
+   * The feed's current result count, for the phone Filter sheet's "Show {n} results" button — the
+   * sheet covers the grid, so this is the one place the reader sees what the panel has done. `null`
+   * or omitted = no answer yet, and the button says "Show results" without a number.
+   */
+  resultCount?: number | null
+  /**
+   * Told when ANY of this bar's panels (Filter, Price, Area) opens or closes. The explorer holds its
+   * phone ladder still while one is open (E-FILTER-SHEET): a preset that directs the feed folds the
+   * ladder, and a fold behind an open panel moved the page ~220px under the reader's finger.
+   */
+  onPanelOpenChange?: (open: boolean) => void
 }
 
 // Compact, category-aware facet bar (faceted-search pattern) — all facets come
@@ -246,7 +255,6 @@ export function FacetBar({
   openFilterSignal,
   activeCategory,
   activeSubcategory,
-  setActiveSubcategory,
   province,
   setProvince,
   ward,
@@ -263,16 +271,24 @@ export function FacetBar({
   setListingType,
   customFilters,
   setCustomFilters,
-  verifiedOnly,
-  setVerifiedOnly,
   histogramQuery,
   histogramApproximate,
   trailing,
   facetCounts = {},
+  resultCount,
+  onPanelOpenChange,
 }: FacetBarProps) {
   const { lang, tr } = useLanguage()
+  const isPhone = useIsPhone()
   const [areaOpen, setAreaOpen] = useState(false)
   const [advOpen, setAdvOpen] = useState(false) // advanced per-category filter panel
+  const [priceOpen, setPriceOpen] = useState(false)
+  // One signal for the three panels (see `onPanelOpenChange`). Through a ref so a parent that passes a
+  // fresh closure every render does not re-fire it; only a real open/close change reaches the parent.
+  const panelOpen = areaOpen || advOpen || priceOpen
+  const onPanelOpenChangeRef = useRef(onPanelOpenChange)
+  useEffect(() => { onPanelOpenChangeRef.current = onPanelOpenChange }, [onPanelOpenChange])
+  useEffect(() => { onPanelOpenChangeRef.current?.(panelOpen) }, [panelOpen])
   // Per-facet label ids so each toggle group can be NAMED — those <label>s dangle
   // otherwise, naming nothing.
   const uid = useId()
@@ -352,6 +368,8 @@ export function FacetBar({
         // `selectedOption.label ?? placeholder` when `listingType` is a value this category does
         // not offer — identical to the behaviour before counts.
         triggerLabel={typeLabels.find(([v]) => v === listingType)?.[1]}
+        // ⌄, like Price and Area beside it — ⇅ is the Price SORT tab's glyph on the row below (E-TOOLBAR).
+        indicator="down"
         className={cls}
         activeClassName={active}
         wrapperClassName={wrap}
@@ -366,6 +384,7 @@ export function FacetBar({
       onChange={setPriceRange}
       query={histogramQuery}
       countsApproximate={histogramApproximate}
+      onOpenChange={setPriceOpen}
       className="text-body hover:bg-muted"
       activeClassName={active}
       wrapperClassName={wrap}
@@ -448,6 +467,7 @@ export function FacetBar({
         label={tr('Condition', 'Tình trạng')}
         placeholder={tr('Condition', 'Tình trạng')}
         triggerLabel={conditionLabels.find(([v]) => v === conditionFilter)?.[1]}
+        indicator="down"
         className={cls}
         activeClassName={active}
         wrapperClassName={wrap}
@@ -549,10 +569,6 @@ export function FacetBar({
     (conditionFilter !== 'all' ? 1 : 0) +
     advFacets.filter((f) => f.key !== 'condition' && customFilters[f.key]).length
 
-  const hasActive =
-    !!province || !!ward || !!nearby || districtPicked || conditionFilter !== 'all' || priceRange !== 'all' ||
-    listingType !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
-
   // A segmented toggle button (selected = filled blue; same height either way).
   // Fed to <Button variant="bare" size="none">: `bare` paints nothing, so both
   // branches below stay fully in charge of the border/background/label colour.
@@ -570,6 +586,165 @@ export function FacetBar({
   const facetValue = (f: FacetDef) => (f.key === 'condition' ? conditionFilter : customFilters[f.key] || 'all')
   const setFacetValue = (f: FacetDef, v: string) => { if (f.key === 'condition') setConditionFilter(v); else setFacet(f.key, v) }
 
+  // The Filter pill. One element for both containers, so the trigger never differs between them.
+  const filterTrigger = (
+    <Button
+      variant="bare"
+      size="none"
+      type="button"
+      className={cn(
+        // h-12 (48px) to match the Area pill — flat, borderless.
+        'flex min-h-12 shrink-0 items-center justify-start gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
+        advOpen || activeAdvCount > 0 ? active : 'text-body hover:bg-muted',
+      )}
+    >
+      <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
+      <span>{tr('Filter', 'Bộ lọc')}</span>
+      {activeAdvCount > 0 && (
+        <Badge variant="counter-brand" size="count" className="ml-0.5">{activeAdvCount}</Badge>
+      )}
+      <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', advOpen && 'rotate-180')} />
+    </Button>
+  )
+  const panelBody = (
+    <div className="space-y-3.5">
+      {/* ⛔ NO SUBCATEGORY GROUP HERE — see the note on `hasAdvanced` above for why it
+          was removed and what the rail now owns. The `facetCounts.subcategory`
+          dimension it read is still produced by the route and still consumed by the
+          CategoryRail; nothing about the payload changed. */}
+      {shownAdvFacets.map(({ f, offered }) => {
+        const value = facetValue(f)
+        const dim = facetDimension(f)
+        const opts = f.options.filter((o) => offered.includes(o.value)).map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
+        return (
+          <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+            <label id={`${uid}-${f.key}-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
+            {f.kind === 'range' && f.range ? (
+              <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacetValue(f, v)} />
+            ) : f.kind === 'toggle' ? (
+              // ⚠️ NO "All" CHIP HERE, AND NO COUNT FOR ONE — that is not an omission.
+              // These are aria-PRESSED toggles: the released state is reached by
+              // re-tapping the selected chip (see segBtn), so the group has no "All"
+              // element to hang `dim.all` on. Growing one only for the facets that
+              // happen to have counts would make the panel's shape depend on the
+              // payload, which is exactly what the degradation rule forbids.
+              <div role="group" aria-labelledby={`${uid}-${f.key}-label`} className="flex flex-1 flex-wrap gap-1.5">
+                {opts.map((o) => (
+                  <Button key={o.value} variant="bare" size="none" type="button" aria-pressed={value === o.value} onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>
+                    {o.label}
+                    <ChipCount n={chipCount(dim, o.value)} selected={value === o.value} />
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              <div className="min-w-0 flex-1">
+                <CustomSelect
+                  value={value}
+                  onChange={(v) => setFacetValue(f, v)}
+                  // Same split as the listing-type pill: counts on the OPTIONS, and the
+                  // trigger keeps the plain label so a panel field cannot reflow when a
+                  // count arrives.
+                  options={[
+                    { value: 'all', label: labelWithCount(tr('All', 'Tất cả'), allCount(dim), lang) },
+                    ...opts.map((o) => ({ value: o.value, label: labelWithCount(o.label, chipCount(dim, o.value), lang) })),
+                  ]}
+                  triggerLabel={value === 'all' ? tr('All', 'Tất cả') : opts.find((o) => o.value === value)?.label}
+                  label={tr(f.label, f.labelVi)}
+                  placeholder={tr(f.label, f.labelVi)}
+                  indicator="down"
+                  activeClassName="text-accent-foreground border-accent-foreground/35"
+                />
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+  // ⛔ NO `setActiveSubcategory('all')` — this clears THIS PANEL, and the subcategory is not in it any
+  // more (see `hasAdvanced`). Resetting a rail selection from a panel that never showed it would look
+  // like the category ladder collapsing on its own; the rail's own "All" chip is the way back.
+  const clearPanel = () => { setConditionFilter('all'); setCustomFilters({}) }
+  /** The phone sheet's closing action: "Show 1,204 results" — the answer the panel has produced. */
+  const showLabel = typeof resultCount !== 'number'
+    ? tr('Show results', 'Xem kết quả')
+    : (resultCount === 1 ? tr('Show {n} result', 'Xem {n} kết quả') : tr('Show {n} results', 'Xem {n} kết quả'))
+      .replace('{n}', formatInteger(resultCount, moneyLocale(lang)))
+  /**
+   * ⛔ A BOTTOM SHEET ON A PHONE (E-FILTER-SHEET, 2026-09-29; canon §5 "mobile filters → ui/drawer").
+   * The 416px popover was capped at the viewport and anchored to a pill that could move under it,
+   * and it ended on "Clear all" with nothing saying what the filters had done to the feed. The sheet
+   * spans the screen, sits over the tab bar, scrolls its own body, and ends on "Show {n} results".
+   * Filters still APPLY AS THEY ARE TAPPED (the grid under the sheet updates live); the button only
+   * closes — which is why its number is the feed's own count, not a preview.
+   */
+  const filterPanel = isPhone ? (
+    <Drawer open={advOpen} onOpenChange={setAdvOpen}>
+      <DrawerTrigger render={filterTrigger} />
+      <DrawerContent>
+        <DrawerHeader className="flex-row items-center justify-between gap-3 pb-1 text-left">
+          <DrawerTitle className="text-base font-bold">{tr('Filters', 'Bộ lọc')}</DrawerTitle>
+          {/* The 24px box the header row was laid out for — CloseButton's `2xs` (D-CLOSE). */}
+          <CloseButton size="2xs" onClick={() => setAdvOpen(false)} className="-mr-1 hover:bg-muted" />
+        </DrawerHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 scroll-thin">{panelBody}</div>
+        <DrawerFooter className="flex-row gap-3 border-t border-border pt-3">
+          {activeAdvCount > 0 && (
+            <Button
+              variant="ghost"
+              size="none"
+              type="button"
+              onClick={clearPanel}
+              className="min-h-11 flex-1 rounded-xl text-sm font-bold text-body hover:bg-muted hover:text-body"
+            >
+              {tr('Clear all', 'Xóa tất cả')}
+            </Button>
+          )}
+          <Button variant="cta" size="none" type="button" onClick={() => setAdvOpen(false)} className="min-h-11 flex-[2] rounded-xl px-4 text-sm">
+            {showLabel}
+          </Button>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
+  ) : (
+    // Advanced per-category filter panel. Base UI Popover now supplies the whole
+    // disclosure contract that used to be hand-rolled: aria-expanded/haspopup/controls on
+    // the trigger, Escape, focus move-and-return on open/close, and anchoring + portaling.
+    <Popover open={advOpen} onOpenChange={setAdvOpen}>
+      <PopoverTrigger render={filterTrigger} />
+      {/* Base UI portals this itself, so sitting inside the swipable facet row is fine.
+          `backdrop` absorbs the outside dismiss-tap so it can't fall through to a listing
+          card. `block` overrides the primitive's base flex-col so the panel's own spacing
+          (mb-3 header, space-y-3.5 body) is preserved. */}
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={6}
+        backdrop
+        aria-label={tr('Filters', 'Bộ lọc')}
+        className="block w-[416px] max-w-[calc(100vw-1.5rem)] max-h-[70vh] overflow-y-auto scroll-thin p-4 shadow-pop ring-0"
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-sm font-bold text-foreground">{tr('Filters', 'Bộ lọc')}</span>
+          <IconButton size="xs" onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="h-6 w-6 text-ink-4 hover:bg-muted hover:text-foreground">
+            <X className="h-[29px] w-[29px] shrink-0" />
+          </IconButton>
+        </div>
+        {panelBody}
+        {activeAdvCount > 0 && (
+          <Button
+            variant="bare"
+            size="none"
+            onClick={clearPanel}
+            className="mt-3.5 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
+          >
+            {tr('Clear all', 'Xóa tất cả')}
+          </Button>
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+
   return (
     <div className="relative" ref={barRef}>
       {/* Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps. */}
@@ -577,144 +752,16 @@ export function FacetBar({
           either end of this strip chains to an ancestor, or to the iOS swipe-back gesture. It only
           applies while the strip is a scroller; from `lg` it wraps and the property is inert. */}
       <div className="flex items-center gap-2 flex-nowrap overflow-x-auto overscroll-x-contain scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
-        {/* Advanced per-category filter form — leftmost. Only when the category has facets. */}
-        {hasAdvanced && (
-          // Advanced per-category filter panel. Base UI Popover now supplies the whole
-          // disclosure contract that used to be hand-rolled: aria-expanded/haspopup/controls on
-          // the trigger, Escape, focus move-and-return on open/close, and anchoring + portaling.
-          <Popover open={advOpen} onOpenChange={setAdvOpen}>
-            <PopoverTrigger
-              render={
-                <Button
-                  variant="bare"
-                  size="none"
-                  type="button"
-                  className={cn(
-                    // h-12 (48px) to match the Area pill — flat, borderless.
-                    'flex min-h-12 shrink-0 items-center justify-start gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
-                    advOpen || activeAdvCount > 0 ? active : 'text-body hover:bg-muted',
-                  )}
-                >
-                  <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
-                  <span>{tr('Filter', 'Bộ lọc')}</span>
-                  {activeAdvCount > 0 && (
-                    <Badge variant="counter-brand" size="count" className="ml-0.5">{activeAdvCount}</Badge>
-                  )}
-                  <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', advOpen && 'rotate-180')} />
-                </Button>
-              }
-            />
-            {/* Base UI portals this itself, so sitting inside the swipable facet row is fine.
-                `backdrop` absorbs the outside dismiss-tap so it can't fall through to a listing
-                card. `block` overrides the primitive's base flex-col so the panel's own spacing
-                (mb-3 header, space-y-3.5 body) is preserved. */}
-            <PopoverContent
-              align="start"
-              side="bottom"
-              sideOffset={6}
-              backdrop
-              aria-label={tr('Filters', 'Bộ lọc')}
-              className="block w-[416px] max-w-[calc(100vw-1.5rem)] max-h-[70vh] overflow-y-auto scroll-thin p-4 shadow-pop ring-0"
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm font-bold text-foreground">{tr('Filters', 'Bộ lọc')}</span>
-                <IconButton size="xs" onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="h-6 w-6 text-ink-4 hover:bg-muted hover:text-foreground">
-                  <X className="h-[29px] w-[29px] shrink-0" />
-                </IconButton>
-              </div>
-              <div className="space-y-3.5">
-                {/* ⛔ NO SUBCATEGORY GROUP HERE — see the note on `hasAdvanced` above for why it
-                    was removed and what the rail now owns. The `facetCounts.subcategory`
-                    dimension it read is still produced by the route and still consumed by the
-                    CategoryRail; nothing about the payload changed. */}
-                {shownAdvFacets.map(({ f, offered }) => {
-                  const value = facetValue(f)
-                  const dim = facetDimension(f)
-                  const opts = f.options.filter((o) => offered.includes(o.value)).map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
-                  return (
-                    <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-                      <label id={`${uid}-${f.key}-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
-                      {f.kind === 'range' && f.range ? (
-                        <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacetValue(f, v)} />
-                      ) : f.kind === 'toggle' ? (
-                        // ⚠️ NO "All" CHIP HERE, AND NO COUNT FOR ONE — that is not an omission.
-                        // These are aria-PRESSED toggles: the released state is reached by
-                        // re-tapping the selected chip (see segBtn), so the group has no "All"
-                        // element to hang `dim.all` on. Growing one only for the facets that
-                        // happen to have counts would make the panel's shape depend on the
-                        // payload, which is exactly what the degradation rule forbids.
-                        <div role="group" aria-labelledby={`${uid}-${f.key}-label`} className="flex flex-1 flex-wrap gap-1.5">
-                          {opts.map((o) => (
-                            <Button key={o.value} variant="bare" size="none" type="button" aria-pressed={value === o.value} onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>
-                              {o.label}
-                              <ChipCount n={chipCount(dim, o.value)} selected={value === o.value} />
-                            </Button>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="min-w-0 flex-1">
-                          <CustomSelect
-                            value={value}
-                            onChange={(v) => setFacetValue(f, v)}
-                            // Same split as the listing-type pill: counts on the OPTIONS, and the
-                            // trigger keeps the plain label so a panel field cannot reflow when a
-                            // count arrives.
-                            options={[
-                              { value: 'all', label: labelWithCount(tr('All', 'Tất cả'), allCount(dim), lang) },
-                              ...opts.map((o) => ({ value: o.value, label: labelWithCount(o.label, chipCount(dim, o.value), lang) })),
-                            ]}
-                            triggerLabel={value === 'all' ? tr('All', 'Tất cả') : opts.find((o) => o.value === value)?.label}
-                            label={tr(f.label, f.labelVi)}
-                            placeholder={tr(f.label, f.labelVi)}
-                            activeClassName="text-accent-foreground border-accent-foreground/35"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-              {activeAdvCount > 0 && (
-                <Button
-                  variant="bare"
-                  size="none"
-                  // ⛔ NO `setActiveSubcategory('all')` — this button clears THIS PANEL, and the
-                  // subcategory is not in it any more (see `hasAdvanced`). Resetting a rail
-                  // selection from a panel that never showed it would look like the category
-                  // ladder collapsing on its own; the rail's own "All" chip is the way back.
-                  onClick={() => { setConditionFilter('all'); setCustomFilters({}) }}
-                  className="mt-3.5 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
-                >
-                  {tr('Clear all', 'Xóa tất cả')}
-                </Button>
-              )}
-            </PopoverContent>
-          </Popover>
-        )}
+        {/* Advanced per-category filter form — leftmost. Only when the category has facets.
+            A Base UI Popover from `sm` up and a bottom sheet (ui/drawer) on a phone — see `filterPanel`. */}
+        {hasAdvanced && filterPanel}
         {facets}
-        {hasActive && (
-          <Button
-            variant="bare"
-            size="none"
-            onClick={() => {
-              setProvince(null)
-              setWard(null)
-              setNearby(null)
-              if (districtPicked) setDistrict?.('all')
-              setConditionFilter('all')
-              setPriceRange('all')
-              setListingType('all')
-              setActiveSubcategory('all')
-              setCustomFilters({})
-              setVerifiedOnly(true)
-            }}
-            // min-h-12 px-3 text-sm — the SAME 48px as the pills it clears. It was 39×16 of 12px
-            // text: the one control that undoes every filter was the hardest thing in the row to hit.
-            className="shrink-0 min-h-12 px-3 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer"
-          >
-            {tr('Clear', 'Xóa lọc')}
-          </Button>
-        )}
+        {/* ⛔ NO "CLEAR" OF THE BAR'S OWN (E-ACTIVE, 2026-09-29). It was the third reset on one screen —
+            this row's "Clear", the result line's "Clear all" and the Filter panel's "Clear all" — and
+            it cleared a different set from each of them. Every way back is still one tap: a chip's ✕,
+            the result line's "Clear all" (from two chips), the panel's own "Clear all", and every
+            pill's "Any …" / Reset. The explorer's un-latch effect returns to undirected browse from
+            any of them. */}
         {trailing}
 
         <AreaFilter

@@ -90,8 +90,15 @@ export function RangeFacetControl({
     setHi(n); commit(lo, n); setHiText(n >= max ? '' : fmt(n))
   }
 
+  // The unit rides the PLACEHOLDER ("Min m²"): the boxes are empty until typed in, and an empty "Min"
+  // beside a slider said nothing about whether it meant square metres, years or kilometres.
+  const minPh = unit ? `${tr('Min', 'Tối thiểu')} ${unit}` : tr('Min', 'Tối thiểu')
+  const maxPh = unit ? `${tr('Max', 'Tối đa')} ${unit}` : tr('Max', 'Tối đa')
+
   return (
-    <div className="min-w-0 flex-1">
+    // `data-base-ui-swipe-ignore`: on a phone the Filter panel is a bottom sheet, and a thumb drag on
+    // this slider that dips downward must move it, not start dismissing the sheet (Base UI's opt-out).
+    <div className="min-w-0 flex-1" data-base-ui-swipe-ignore>
       {/* Dual-thumb track — Base UI Slider inside the primitive. Track-press moves the
           nearest thumb and the thumbs cannot cross; nothing to re-implement here. */}
       <RangeSlider
@@ -100,31 +107,33 @@ export function RangeFacetControl({
         onChange={([a, b]) => { setLo(a); setHi(b) }}
         onCommit={([a, b]) => commit(a, b)}
       />
+      {/* The two boxes SHARE the row (`flex-1`), not a fixed w-16 each: "Tối thiểu m²" is ~80px of
+          placeholder, which a 64px box clipped — and on a phone the panel is a full-width sheet. */}
       <div className="mt-2 flex items-center gap-2">
-        <span className="flex items-center gap-1 rounded-lg bg-tint px-2.5 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring/30">
+        <span className="flex min-w-0 flex-1 items-center gap-1 rounded-lg bg-tint px-2.5 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring/30">
           <Input
             variant="unstyled"
             type="text" inputMode={decimals > 0 ? 'decimal' : 'numeric'}
-            value={loText} placeholder={tr('Min', 'Tối thiểu')}
+            value={loText} placeholder={minPh}
             aria-label={unit ? `${tr('Minimum', 'Tối thiểu')} (${unit})` : tr('Minimum', 'Tối thiểu')}
             onFocus={() => { loFoc.current = true }}
             onChange={(e) => setLoText(digits(e.target.value))}
             onBlur={blurLo}
-            className="w-16"
+            className="w-full min-w-0"
           />
           {unit && loText !== '' && <span className="text-ink-4">{unit}</span>}
         </span>
         <span className="text-ink-4">–</span>
-        <span className="flex items-center gap-1 rounded-lg bg-tint px-2.5 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring/30">
+        <span className="flex min-w-0 flex-1 items-center gap-1 rounded-lg bg-tint px-2.5 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring/30">
           <Input
             variant="unstyled"
             type="text" inputMode={decimals > 0 ? 'decimal' : 'numeric'}
-            value={hiText} placeholder={tr('Max', 'Tối đa')}
+            value={hiText} placeholder={maxPh}
             aria-label={unit ? `${tr('Maximum', 'Tối đa')} (${unit})` : tr('Maximum', 'Tối đa')}
             onFocus={() => { hiFoc.current = true }}
             onChange={(e) => setHiText(digits(e.target.value))}
             onBlur={blurHi}
-            className="w-16"
+            className="w-full min-w-0"
           />
           {unit && hiText !== '' && <span className="text-ink-4">{unit}</span>}
         </span>

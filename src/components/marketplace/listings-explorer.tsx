@@ -22,6 +22,9 @@ import { CaptureCard } from './capture-card'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
+import { customFilterChipLabel } from './facet-chip-label'
+import { FacetBarFallback } from './facet-bar-fallback'
+import { LISTING_GRID } from './listing-grid'
 import { LadderCompactRow, LadderSlot, useMdUp } from './ladder-compact-row'
 import { ForYouRail } from './for-you-rail'
 import { RecentlyViewedRail } from './recently-viewed-rail'
@@ -30,13 +33,15 @@ import { BusinessRail } from './business-rail'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
-import { clearPlaceForTypedDistrict, queryAfterAreaPick, queryForExplicitDistrict } from './explorer-place'
+import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
+import { isSeededFeed, readExplorerUrl, type ExplorerSort, type ExplorerView } from '@/lib/explorer-url'
+import { publicPathname } from '@/lib/lang-variant'
 import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
 import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
 import { ViewToggles, SortStrip } from './explorer-toolbar'
-import { ResultLine, shouldOfferSaveSearch } from './result-line'
+import { ResultLine, resultCountLabel, shouldOfferSaveSearch } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { histogramQueryFrom } from '@/lib/price-histogram'
@@ -46,21 +51,22 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { useLanguage, Tr } from '@/context/language-context'
+import { Bilingual } from './bilingual'
 import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { offeredKeys } from './count-chip'
-import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor, migrateLegacyCategoryParams } from '@/lib/taxonomy'
+import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, categoryHasBrand, facetsFor } from '@/lib/taxonomy'
 import { hashKey, useQuery, useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Mascot } from './mascot'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
-import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
+import { SearchSuggest, buildSuggestItems, type AnySuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
 import { useTrendingSearches } from '@/hooks/use-trending-searches'
 import { AISearchButton } from './ai-concierge'
@@ -83,24 +89,8 @@ function applyFilterParams(p: URLSearchParams, customFilters: Record<string, str
     else p.set(`attr_${key}`, val)
   })
 }
-function parseFilterParams(p: URLSearchParams, categorySlug: string, subcategorySlug: string): Record<string, string> {
-  const sub = subcategorySlug === 'all' ? null : subcategorySlug
-  const rf = rangeFacetsFor(categorySlug, sub)
-  // ⛔ ONLY A FACET THIS VIEW OFFERS. `?category=rentals&attr_bedrooms=2` (no subcategory — bedrooms
-  // is an apartment/house/room facet) used to land in state, draw a "bedrooms: 2" chip, and then be
-  // dropped from the request by applyFilterParams: a chip that filtered nothing (audit 2026-09-25).
-  const chipKeys = new Set(facetsFor(categorySlug, sub).filter((f) => f.kind !== 'range').map((f) => f.key))
-  const out: Record<string, string> = {}
-  p.forEach((value, key) => {
-    if (key.startsWith('attr_')) { if (chipKeys.has(key.replace('attr_', ''))) out[key.replace('attr_', '')] = value }
-    else if (key.startsWith('range_')) {
-      const col = key.replace('range_', '')
-      const f = rf.find((x) => x.range.column === col)
-      if (f) out[f.key] = value
-    }
-  })
-  return out
-}
+// `parseFilterParams` (the URL → customFilters half) moved to src/lib/explorer-url.ts with the rest of
+// the URL reader; `applyParams` below reaches it through `readExplorerUrl`.
 
 /**
  * WHICH ANSWER A FEED PAGE BELONGS TO: its react-query key with the page taken out, and the language
@@ -145,6 +135,26 @@ function feedSnapshotPending(): boolean {
 }
 /** A store that never changes — read through useSyncExternalStore only to tell the hydration render apart. */
 const subscribeNothing = () => () => {}
+/**
+ * Has an explorer COMMITTED in this document yet? Set by the first explorer's mount effect, never
+ * unset (a module of the client bundle lives exactly as long as the document).
+ * ⛔ WHY `urlInit` NEEDS IT AND NOT ONLY `hydrating` (measured on the dev build, 2026-09-29): React
+ * recovers a failed hydration by CLIENT-RENDERING the nearest Suspense boundary, and that render is
+ * not a hydration render — `hydrating` reads false in it exactly as in a Back. Seeding from the URL
+ * there dropped the server's seed rows under a /?q= deep link and collapsed the feed (load CLS 1.1
+ * at 390×844, against 0.001 without the seed). A document's FIRST explorer is either the hydrated one
+ * or that recovery render; only a LATER mount — the reader coming back to the feed within the app —
+ * is the client-side mount the seed is for.
+ */
+let explorerCommitted = false
+/**
+ * Tests only: a fresh "document" (no explorer committed yet). A test file is ONE module instance, so
+ * without this every mount after the file's first one would take the client-side-mount path and the
+ * cold path would be exercised by whichever test happened to run first.
+ */
+export function __resetExplorerCommittedForTests(): void {
+  explorerCommitted = false
+}
 
 function releaseFeedEntry() {
   // Asked now AND again if the release has to wait for `load` — a card tapped in between holds anew.
@@ -194,7 +204,14 @@ function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>
   if (!(armed && near)) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
   return <CategoryRails {...props} />
 }
-const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { ssr: false })
+/**
+ * ⛔ `loading` IS THE SERVER'S FACET ROW (E-TOOLBAR, 2026-09-29). Without it the ISR HTML carried only
+ * Next's bail-out template inside the toolbar's `min-h-12` slot — a blank 48px band where the filters
+ * go, for the whole of hydration (4s on a phone cold load). <FacetBarFallback> is the undirected row at
+ * the real pills' exact geometry, so the band reads as filters from the first paint and nothing moves
+ * when the chunk lands. It is also what shows between hydration and the chunk arriving.
+ */
+const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { ssr: false, loading: () => <FacetBarFallback /> })
 
 /** Rows in one page of results. ONE constant, because the results skeleton is a promise
  *  about this number: it drew six placeholders against a twelve-row answer, so the column
@@ -278,8 +295,9 @@ function prettyBrand(slug: string): string {
 // 'newest' is the legacy param name for the DEFAULT relevance blend (rankScore —
 // the API's default case AND its semantic-search gate both key on it), shown as
 // "Liên quan". TRUE recency is the separate 'recent' value.
-type SortKey = 'newest' | 'recent' | 'price-low' | 'price-high' | 'popular'
-type ViewMode = 'compact' | 'grid' | 'map' | 'video'
+// Both unions live with the URL reader (src/lib/explorer-url.ts), which has to produce them.
+type SortKey = ExplorerSort
+type ViewMode = ExplorerView
 
 /** The view this surface opens in, and the one a "go home" reset returns to.
  *  ⚠️ It became load-bearing on 2026-08-11, when the landing branch and the results branch
@@ -322,11 +340,15 @@ type Props = {
   initialTrending?: SerializedListingCard[]
   listingsRef?: React.RefObject<HTMLDivElement | null>
   /**
-   * Whether this component renders the page's sr-only `<h1>{SITE_NAME}</h1>`. Default true.
-   * ⚠️ `false` ONLY WHERE A LAYOUT ALREADY OWNS THAT H1 — today `(home)/layout.tsx` (SEO wave B, H1c),
-   * which renders it above the home loading boundary so crawlers can read it; `(home)/page.tsx` passes
-   * `false` so the page does not get two once `S:0` is revealed. `/s/[handle]` leaves the default: it
-   * renders this explorer and has no H1 of its own.
+   * Whether this component renders the page's sr-only `<h1>{SITE_NAME}</h1>`. Default: ON for the
+   * marketplace explorer, OFF when seller-scoped (`!sellerId`).
+   * ⚠️ `false` WHERE SOMETHING ELSE OWNS THE H1 — `(home)/layout.tsx` (SEO wave B, H1c) renders it above
+   * the home loading boundary so crawlers can read it, and `(home)/page.tsx` passes `false` so the page
+   * does not get two once `S:0` is revealed.
+   * ⛔ A STOREFRONT'S H1 IS THE SHOP'S NAME, NOT THE SITE'S (ST-HEADER, 2026-09-29). `/s/[handle]` renders
+   * this explorer under its own SellerCard header, whose name is the page's one <h1>; the site name
+   * heading there read "eno.vn" as the title of VietKite's shop. So the default follows the scope, and
+   * that page passes nothing (crawler-visible-html-contract.test.ts pins that it does not).
    */
   siteHeading?: boolean
 }
@@ -342,7 +364,7 @@ export function ListingsExplorer({
   initialTrending,
   listingsRef,
   sellerId,
-  siteHeading = true,
+  siteHeading = !sellerId,
 }: Props) {
   // Tell the header an explorer is here to receive its search/area/map events (explorer-presence.ts).
   useRegisterExplorer()
@@ -350,14 +372,53 @@ export function ListingsExplorer({
   const { openSignIn } = useAuth()
   // Desktop ← / → arrows for the horizontally-scrollable category grid (same primitive as the rails).
   const { scrollerRef: catScrollerRef, canLeft: catCanLeft, canRight: catCanRight, page: catPage } = useScrollArrows()
-  const [activeCategory, setActiveCategory] = useState('all')
-  const [query, setQuery] = useState('')
+  /**
+   * `hydrating` is true only in the server render and the hydration render (useSyncExternalStore's
+   * server snapshot) — so it tells a COLD load (server HTML to agree with) from a CLIENT-SIDE mount
+   * (Back from a listing, an in-app link: no server HTML at all). Hoisted to the top for `urlInit`;
+   * `coldLoad` below records the same thing for the ladder fold.
+   *
+   * ⛔ A CLIENT-SIDE MOUNT STARTS AS THE URL SAYS (E-BACK, 2026-09-29). Every axis below used to start
+   * at its default and take the URL from the mount effect (`applyParams`) — a PASSIVE effect, i.e.
+   * after paint — and a search's words reached the fetcher 150ms later still (the debounce). The
+   * back-nav restore can only fire once the feed's signature equals the snapshot's, so Back painted
+   * the top of the unfiltered feed for 500ms (browse) to 750ms (search) and only then jumped to where
+   * the reader had been. Seeded here, the signature matches in the FIRST render, the restore runs in
+   * the first layout effect, and the first frame is already the reader's place.
+   * ⚠️ NEVER ON A COLD LOAD: the server rendered the unfiltered home, so starting anywhere else would
+   * be a hydration mismatch. Cold loads keep the effect path exactly as before (`urlInit` is null and
+   * every initial value below is the one it always was) — and so does the FIRST explorer of a
+   * document even when it is client-rendered (hydration-failure recovery), see `explorerCommitted`.
+   * ⚠️ `applyParams` still runs on mount and sets the same values again — a no-op by value, which is
+   * what keeps popstate and `eno:apply-url` on one reader (src/lib/explorer-url.ts).
+   * ⛔ ONLY WHEN THE ADDRESS BAR IS ALREADY THIS PAGE'S (review, 2026-09-29). On Back/Forward the browser
+   * moves `location` before popstate, so this render reads the target. On a `router.push` (an in-app
+   * link, a header search from a listing page) Next writes history in its router's
+   * `useInsertionEffect` — AFTER this render (node_modules/next/dist/client/components/app-router.js,
+   * `HistoryUpdater`) — so `location` is still the page being LEFT: a storefront's `?q=` seeded the
+   * home, subscribed and fetched a key nobody asked for, and set `startedOffSeed` for the wrong feed.
+   * The router's own pathname (`usePathname()`, the target during this render) is the witness: a
+   * mismatch means the URL cannot be read yet, and the mount takes the cold path's effect reader
+   * (`applyParams`, which runs after the history write). A push inside the same page never remounts
+   * this component (the layout router keys the page without its search params), so a matching
+   * pathname is the Back case.
+   */
+  const hydrating = useSyncExternalStore(subscribeNothing, () => false, () => true)
+  const pathname = publicPathname(usePathname() || '/')
+  const [urlInit] = useState(() => (
+    !hydrating && explorerCommitted && typeof window !== 'undefined' && publicPathname(window.location.pathname) === pathname
+      ? readExplorerUrl(window.location.search)
+      : null
+  ))
+  useEffect(() => { explorerCommitted = true }, [])
+  const [activeCategory, setActiveCategory] = useState(urlInit?.category ?? 'all')
+  const [query, setQuery] = useState(urlInit?.query ?? '')
   // Loose (any-word) text match — set by visual search so a photo-derived phrase
   // surfaces the closest items instead of needing an exact multi-word match.
-  const [looseMatch, setLooseMatch] = useState(false)
-  const [sort, setSort] = useState<SortKey>('newest')
+  const [looseMatch, setLooseMatch] = useState(urlInit?.looseMatch ?? false)
+  const [sort, setSort] = useState<SortKey>(urlInit?.sort ?? 'newest')
   const [verifiedOnly, setVerifiedOnly] = useState(true)
-  const [activeDistrict, setActiveDistrict] = useState('all')
+  const [activeDistrict, setActiveDistrict] = useState(urlInit?.district ?? 'all')
   // New area model (Vietnam 2025: province → ward), driven by the AreaFilter.
   const [activeProvince, setActiveProvince] = useState<Geo | null>(null)
   // ⛔ An HCMC district pick resets when the province leaves HCMC (Hà Nội AND District 1 is an empty
@@ -365,7 +426,7 @@ export function ListingsExplorer({
   useDropStaleDistrict(activeProvince?.code ?? null, setActiveDistrict)
   const [activeWard, setActiveWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null) // {lat,lng,radiusKm} when "search near you" is on
-  const [conditionFilter, setConditionFilter] = useState('all') // 'all' | 'new' | 'used'
+  const [conditionFilter, setConditionFilter] = useState(urlInit?.condition ?? 'all') // 'all' | 'new' | 'used'
   /**
    * "Good price" — a FILTER (URL/API `deal=good`), not a sort, so it narrows the result set, its count
    * and its facet counts, and combines with the sort the visitor chose (Good price + Price ↑ = the
@@ -374,11 +435,11 @@ export function ListingsExplorer({
    * prefetch key, the ISR-seed gate, the histogram params and the result chips. Miss one and that
    * surface shows the unfiltered feed under a pressed "Good price" button.
    */
-  const [goodPriceOnly, setGoodPriceOnly] = useState(false)
-  const [listingType, setListingType] = useState('all') // intent axis: all | sell | rent | wanted | free | service | job | event
-  const [priceRange, setPriceRange] = useState('all') // 'all' | 'min-max' (VND, empty max = open)
-  const [customFilters, setCustomFilters] = useState<Record<string, string>>({})
-  const [activeSubcategory, setActiveSubcategory] = useState('all')
+  const [goodPriceOnly, setGoodPriceOnly] = useState(urlInit?.goodPrice ?? false)
+  const [listingType, setListingType] = useState(urlInit?.listingType ?? 'all') // intent axis: all | sell | rent | wanted | free | service | job | event
+  const [priceRange, setPriceRange] = useState(urlInit?.priceRange ?? 'all') // 'all' | 'min-max' (VND, empty max = open)
+  const [customFilters, setCustomFilters] = useState<Record<string, string>>(urlInit?.customFilters ?? {})
+  const [activeSubcategory, setActiveSubcategory] = useState(urlInit?.subcategory ?? 'all')
   /**
    * ⛔ A FILTER THE NEW VIEW DOES NOT OFFER IS DROPPED FROM STATE, NOT KEPT AS A CHIP THAT FILTERS
    * NOTHING. Measured on production 2026-09-25: Rentals › Apartment › 2 BR, then tap Office — the
@@ -401,15 +462,15 @@ export function ListingsExplorer({
       return next
     })
   }, [activeCategory, activeSubcategory])
-  const [activeBrand, setActiveBrand] = useState('all') // canonical brand slug, or 'all'
-  const [activeModel, setActiveModel] = useState('all') // model display string, or 'all'
+  const [activeBrand, setActiveBrand] = useState(urlInit?.brand ?? 'all') // canonical brand slug, or 'all'
+  const [activeModel, setActiveModel] = useState(urlInit?.model ?? 'all') // model display string, or 'all'
   /**
    * `?line=` — a model PREFIX from the brand cascade ("iPhone", "iPhone 17"), covering a whole
    * line or generation. ⚠️ DELIBERATELY SEPARATE FROM `activeModel`, which stays an EXACT string:
    * `?model=` is in shared links, the sitemap and indexed URLs, and teaching it to mean a prefix
    * would change what every one of those already returns. Empty string = not set.
    */
-  const [activeLine, setActiveLine] = useState('')
+  const [activeLine, setActiveLine] = useState(urlInit?.line ?? '')
   /**
    * ⚠️ `useCallback` IS LOAD-BEARING HERE. `ModelCascade` lists this in a `useEffect` dependency
    * array (its stale-selection guard), so a fresh identity each render would re-run that effect
@@ -423,7 +484,7 @@ export function ListingsExplorer({
   }, [])
   // See DEFAULT_VIEW for why this is 'grid' and not 'compact'. The compact row is one tap away
   // on the view toggles, and ?view=compact still deep-links straight to it.
-  const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_VIEW)
+  const [viewMode, setViewMode] = useState<ViewMode>(urlInit?.view ?? DEFAULT_VIEW)
   // The full-screen Video view remembers the view to fall back to on close (so exiting the
   // takeover lands the user back where they were, not always on the grid).
   const prevViewRef = useRef<ViewMode>(DEFAULT_VIEW)
@@ -462,6 +523,24 @@ export function ListingsExplorer({
   // card outside the feed — e.g. the For You rail — asks to be located).
   const [focusListing, setFocusListing] = useState<SerializedListingCard | null>(null)
   const router = useRouter()
+  /**
+   * Where a category or intent tile LINKS (E-TILES): the page it is on — `/`, both for the marketplace
+   * and for a storefront (served at `/` on the shop's own host) — with just that one filter, or bare to
+   * clear it.
+   * ⛔ PUBLIC PATH, NOT THE RAW `usePathname()`: the home is ISR-prerendered as `/en` / `/vi` and served
+   * at `/`, so the raw value put `href="/en?category=…"` — a proxy 404 — into the cached HTML, and React
+   * does not patch attributes on hydration. `publicPathname` strips the variant, so the build render and
+   * the browser agree (lang-variant.ts; header.tsx's `hydrated` note is the same trap). The storefront
+   * is force-dynamic, and a per-request render already reads the public `/` (src/proxy.ts).
+   * (`pathname` itself is declared at the top, beside `urlInit`, which reads it too.)
+   */
+  const tileHref = useCallback((param: { category?: string; type?: string } | null) => {
+    if (!param) return pathname
+    const q = new URLSearchParams()
+    if (param.category) q.set('category', param.category)
+    if (param.type) q.set('type', param.type)
+    return `${pathname}?${q.toString()}`
+  }, [pathname])
   // ⛔ NO FILTERS DRAWER ANY MORE, AND NO 'open-mobile-filters' LISTENER. The bottom drawer
   // (explorer-filters.tsx) could only be opened by that window event, and nothing had dispatched it
   // since the header's events moved to the `eno:*` names — so its "Quận / Huyện" picker was the one
@@ -470,12 +549,21 @@ export function ListingsExplorer({
   // province, ward and "near you", on every screen size; the drawer's other groups already had live
   // homes in the facet bar. Deleted rather than re-wired: a second place to pick the same district
   // is a second place for the two to disagree.
-  const [showExplorer, setShowExplorer] = useState(false)
+  const [showExplorer, setShowExplorer] = useState(urlInit?.directed ?? false)
   // The sticky sort strip tracks the auto-hiding header (same hook): header shown →
   // pinned just below it; header rolled away → pinned at the viewport top.
   const headerHidden = useHideOnScroll()
 
-  const [listings, setListings] = useState<SerializedListingCard[]>(initialListings)
+  /**
+   * ⚠️ A CLIENT-SIDE MOUNT OF ANY OTHER FEED STARTS WITH NO ROWS, NOT THE ISR SEED (E-BACK). The seed
+   * is page one of the unfiltered home; under `?q=honda` it is twelve unrelated cards and a count that
+   * contradicts the chip. With nothing to show the grid draws its first-page skeleton, and the rows
+   * arrive from the snapshot restore (a layout effect, before paint), the react-query cache (adopted
+   * in the first render, below the seed adoption) or the request — whichever the reader has.
+   * `startedOffSeed` is false on every cold load and on a client mount of the seeded view itself.
+   */
+  const [startedOffSeed] = useState(() => urlInit !== null && !isSeededFeed(urlInit))
+  const [listings, setListings] = useState<SerializedListingCard[]>(startedOffSeed ? [] : initialListings)
   // Freshness anchor for the SSR seed: the SERVER render timestamp baked into the ISR
   // HTML (initialFetchedAt). The homepage snapshot can be up to 6h old — stamping it
   // with client Date.now() (the previous behavior) told React Query hours-old rows were
@@ -516,6 +604,25 @@ export function ListingsExplorer({
   // control's new state immediately and the (heavier) grid reconciliation runs as a
   // non-urgent update — keeps INP low on mid-range Android.
   const deferredListings = useDeferredValue(shownListings)
+  /**
+   * ⛔ WHILE A BACK-NAV RESTORE PUTS THE READER BACK, THE GRID RENDERS THE ROWS, NOT THE DEFERRED COPY
+   * (E-BACK, 2026-09-29). The restore sets the snapshot's rows in a layout effect, so its re-render is
+   * urgent — and an urgent render hands `useDeferredValue` the OLD value and schedules the new one for
+   * later. The tapped card therefore entered the DOM a deferred render after the restore went looking
+   * for it, and the reader watched the top of the feed until it did. `restoring` makes the grid read
+   * `shownListings` for exactly that window, so the card is there in the commit the restore aligns.
+   * ⚠️ IT ENDS ONLY ONCE THE DEFERRED COPY HAS CAUGHT UP, NOT WHEN THE RESTORE LOOP ENDS. `runRestore`
+   * can settle in two frames while a long deferred render is still time-sliced on a slow phone; handing
+   * the grid back to `deferredListings` at that moment would render the PRE-restore rows (an urgent
+   * render again gets the old value) — the grid collapses under the reader and the scroll clamps.
+   * `restoreSettled` is the loop's half; the render-phase check below adds the other.
+   */
+  const [restoring, setRestoring] = useState(false)
+  const [restoreSettled, setRestoreSettled] = useState(false)
+  if (restoring && restoreSettled && deferredListings === shownListings) {
+    setRestoring(false)
+    setRestoreSettled(false)
+  }
   const [, startFilterTransition] = useTransition()
   // ⚠️ SEEDED FROM THE ISR HTML, NOT 0, AND THE MERGE IS WHY. The result count is now rendered
   // on the undirected home view as well (the results header serves both states), so whatever
@@ -533,7 +640,21 @@ export function ListingsExplorer({
   // initialListings, so a no-JS visitor to /?q=x sees the unfiltered TWELVE CARDS and the
   // unfiltered COUNT — wrong about the query, but internally consistent, and identical to what
   // that visitor got before this line existed. The count never disagrees with the cards beside it.
-  const [totalCount, setTotalCount] = useState(initialTotal ?? 0)
+  const [totalCount, setTotalCount] = useState(startedOffSeed ? 0 : (initialTotal ?? 0))
+  /**
+   * What the grid and list views actually render — see `restoring`. ⚠️ AND NEVER AN EMPTY DEFERRED COPY
+   * BESIDE ROWS: going from no rows (a zero-result answer, a skeleton-first mount) to some, the urgent
+   * render hands `useDeferredValue` the old `[]`, and the grid rendered EMPTY for that render — no cards
+   * and, the skeleton being gone, no height: the page collapsed ~3,000px and came back (measured). With
+   * nothing on screen to keep responsive there is nothing to defer, so the rows render at once —
+   * once their COUNT has landed with them (`totalCount` covers them). The seed-reference adoption
+   * (`adoptedCacheRef`, further down) sets rows a render before the sync effect sets the count; drawing twelve cards over "0 listings"
+   * for that render would trade one wrong frame for another, so that render keeps the old behaviour.
+   */
+  const gridListings =
+    restoring || (deferredListings.length === 0 && shownListings.length > 0 && totalCount >= shownListings.length)
+      ? shownListings
+      : deferredListings
   const [page, setPage] = useState(1)
   /**
    * The BUILDING (project) the map has drilled into, or null for the normal feed.
@@ -584,8 +705,9 @@ export function ListingsExplorer({
    */
   const rowsSigRef = useRef<string | undefined>(undefined)
   // The back-nav snapshot, read once on mount and applied when the feed's filters
-  // settle to the same signature (filters hydrate from the URL in an effect, so the
-  // match can't be made synchronously at mount).
+  // settle to the same signature. On a COLD load the filters hydrate from the URL in an
+  // effect, so the match can't be made synchronously at mount; a client-side mount (the
+  // normal Back) seeds them from `urlInit`, so there it matches in the first layout effect.
   const pendingSnapRef = useRef<{ sig: string; rowsSig?: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number; unlocked?: boolean; ceiling?: number; anchorId?: string | null; anchorTop?: number | null } | null>(null)
   const snapReadRef = useRef(false)
   const [subcategoryCounts, setSubcategoryCounts] = useState<Record<string, number>>({})
@@ -609,6 +731,25 @@ export function ListingsExplorer({
   const [facetCounts, setFacetCounts] = useState<FacetCounts>({})
   const [categoryTotal, setCategoryTotal] = useState(0)
   const [debouncedQuery, setDebouncedQuery] = useState(query)
+  /**
+   * ⛔ A SEARCH THAT FINDS NOTHING IS ASKED FOR ITS LIKELY SPELLING — AND SAYS SO (S-RECALL, 2026-09-29:
+   * "iphnoe" found 0 while "iphone" found 3,439). The feed corrects only a request that opts in with
+   * `spell=1` (src/app/api/listings/route.ts), because another word's results are honest only beside
+   * "Showing results for iphone · Search instead for “iphnoe”" — which this component draws (see
+   * `correctedQuery`). So every page of a worded feed opts in (the price histogram asks for the word
+   * the feed answered — see `histogramQuery`); "Search
+   * instead" records the words it was pressed for in `literalFor`, and those words are then asked
+   * literally. New words drop it (below), so the next search is corrected again.
+   * ⚠️ `spell` IS PART OF THE REQUEST, SO IT IS PART OF THE KEY (`feedKeyFields`): the literal zero and
+   * the corrected set are two different answers to the same words, and one cache entry for both would
+   * hand "Search instead" the corrected rows back.
+   * ⚠️ NOT sent to the Video feed, the map's building pins or anything else that cannot draw the line —
+   * the route's rule is that a client which cannot say "Showing results for…" gets the literal zero.
+   */
+  const [literalFor, setLiteralFor] = useState<string | null>(null)
+  const spellTerm = debouncedQuery.trim()
+  if (literalFor !== null && literalFor !== spellTerm) setLiteralFor(null)
+  const spellOn = spellTerm !== '' && literalFor !== spellTerm
 
   const [showSuggestions, setShowSuggestions] = useState(false)
   // Recent searches + areas (localStorage), extracted. saveSearchToHistory is consumed by the
@@ -706,12 +847,36 @@ export function ListingsExplorer({
    * brand-heal fetch giving a bare `?brand=` deep link its category is the one path found. That folds
    * once, late, on a rare link; the alternative (arming from raw input events) risks folding the rail
    * between a pointerdown and its click, i.e. under a tap on its way to a card.
-   * `hydrating` is true only in the server render and the hydration render (useSyncExternalStore's
-   * server snapshot), so `coldLoad` records how THIS mount began.
+   * `hydrating` (declared at the top, for `urlInit`) is true only in the server render and the
+   * hydration render, so `coldLoad` records how THIS mount began. A client mount has read its URL
+   * already (`urlInit`), so it starts applied.
    */
-  const hydrating = useSyncExternalStore(subscribeNothing, () => false, () => true)
   const [coldLoad] = useState(hydrating)
-  const [urlApplied, setUrlApplied] = useState(false)
+  /**
+   * ⛔ A COLD DIRECTED DEEP LINK WAITS FOR ITS OWN ANSWER BEHIND A MASK (E-SSR phase 1, 2026-09-29).
+   * The home route is one 6h-ISR document for every query string, so /?q=honda paints the UNFILTERED
+   * seed — twelve unrelated cards under "Recommended" and the whole catalogue's count — and keeps it on
+   * screen through hydration (≈4s on a phone), the 150ms debounce and the request. A pre-paint script
+   * in (home)/layout.tsx sets `html[data-explorer-directed]` from the URL before the first paint, and
+   * globals.css turns the seed's cards, count and heading into same-size placeholders while it is set
+   * (geometry untouched, so lifting it moves nothing). This flag is the explorer's half: true from the
+   * mount that applies such a URL until the first page of ITS answer is in hand. The attribute itself is
+   * lifted only once the grid actually DRAWS that answer (see the effect beside `failedWithoutAnswer`);
+   * until then the masked cards take no taps and nothing auto-pages (`seedMasked`), and the count — kept
+   * in place so its row keeps its height — is `visibility: hidden`, i.e. off the screen and out of the
+   * accessibility tree, so its live region cannot announce the seed's total.
+   * ⚠️ Cold loads only — a client-side mount seeds its state from the URL (E-BACK) and never sees the
+   * seed, and the script does not run on a client navigation (React never executes a script it
+   * renders), so there is nothing to mask there.
+   */
+  const [awaitingUrlAnswer, setAwaitingUrlAnswer] = useState(false)
+  /**
+   * Is the mask still up? It outlives `awaitingUrlAnswer` by the deferred render that DRAWS the answer
+   * (see the effect beside `failedWithoutAnswer`), and everything that must not act on the seed — taps
+   * on the masked cards, auto-paging — reads this rather than the answer flag.
+   */
+  const [seedMasked, setSeedMasked] = useState(false)
+  const [urlApplied, setUrlApplied] = useState(urlInit !== null)
   const ladderSig = JSON.stringify([
     activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince?.code ?? null,
     activeWard?.code ?? null, nearby ? 1 : 0, conditionFilter, goodPriceOnly, listingType, query, priceRange, customFilters, viewMode,
@@ -722,7 +887,23 @@ export function ListingsExplorer({
     if (urlLadderSig === null) setUrlLadderSig(ladderSig)
     else if (urlLadderSig !== ladderSig) setFoldArmed(true)
   }
-  const collapseLadder = !showDiscovery && !mdUp && foldArmed
+  const liveCollapse = !showDiscovery && !mdUp && foldArmed
+  /**
+   * ⛔ THE LADDER HOLDS STILL WHILE A FILTER PANEL IS OPEN (E-FILTER-SHEET, 2026-09-29). A price preset
+   * or an area pick directs the feed, which folds the phone ladder (above) — and a fold behind an open
+   * panel moved the whole page ~220px under it: an anchored popover was left hanging below a pill that
+   * had jumped, and a sheet closed onto a page that was no longer where the reader left it. The value
+   * is frozen when a panel opens and released when the last one closes, so the fold happens on the
+   * close tap, inside that input's window.
+   * `null` = no panel open, follow the live value.
+   */
+  const [panelFreeze, setPanelFreeze] = useState<boolean | null>(null)
+  const collapseLadder = panelFreeze ?? liveCollapse
+  const liveCollapseRef = useRef(liveCollapse)
+  useEffect(() => { liveCollapseRef.current = liveCollapse }, [liveCollapse])
+  const onFacetPanelOpenChange = useCallback((open: boolean) => {
+    setPanelFreeze(open ? liveCollapseRef.current : null)
+  }, [])
   const [ladderOpen, setLadderOpen] = useState(false)
   // Folded again for the next search once the feed is back to undirected — or once the screen is wide
   // enough to show the whole ladder anyway (a rotated tablet), so narrowing it back starts folded.
@@ -755,15 +936,22 @@ export function ListingsExplorer({
   // of those DOES leave undirected browse. `sort` is in neither that effect nor isLandingMode,
   // deliberately (it is not a filter: it reorders the same set), and until the merge that was
   // invisible because the strip only existed in the results branch. It is on the home page now,
-  // so a visitor can reorder the home feed by price while a heading says "Latest listings".
+  // so a visitor can reorder the home feed by price while a heading names another order.
   // The FEED is fine either way; the CLAIM is what breaks, so this fixes the claim rather than
   // flipping the whole page out of discovery for a reorder — a sort tap is not a search, and
   // tearing the banner, tiles and shelves off the page for one would be the "hop" this wave
   // exists to remove.
-  // ⚠️ Also: 'newest' is the legacy param name for the DEFAULT RELEVANCE blend, not recency (see
-  // SortKey) — so this reads "the feed is in the order the home page always showed it in", which
-  // is exactly the claim the heading makes.
-  const feedInDefaultOrder = showDiscovery && sort === 'newest'
+  // ⛔ THE HEADING NOW NAMES THE ORDER, SO IT NEVER HAS TO HIDE (E-SORT, 2026-09-29). It used to be
+  // "Latest listings", shown only in the default order and swapped for an sr-only heading on any
+  // other sort — and "Latest" was wrong even then: 'newest' is the legacy param name for the DEFAULT
+  // RELEVANCE blend (rankScore, see SortKey), shown on the strip as "Relevance". True recency is
+  // 'recent' ("Newest"). So the undirected feed's visible <h2> follows the strip: Recommended ·
+  // Latest listings · Most contacted · By price. The clock glyph belongs to recency alone.
+  const homeFeedHeading =
+    sort === 'recent' ? tr('Latest listings', 'Tin đăng mới nhất')
+      : sort === 'popular' ? tr('Most contacted', 'Được quan tâm')
+        : sort === 'price-low' || sort === 'price-high' ? tr('By price', 'Theo giá')
+          : tr('Recommended', 'Đề xuất')
 
   const resetToLandingPage = useCallback(() => {
     setQuery('')
@@ -875,7 +1063,7 @@ export function ListingsExplorer({
   //
   // ⚠️ IT HAS TO LIVE HERE, NOT ON THE CONTROLS. Three external review rounds walked a different
   // route into that state each time — the chip's ✕, "Clear all filters", the FacetBar's own
-  // "Clear", emptying the header search — and patching each one is how the next route gets
+  // "Clear" (since removed, E-ACTIVE), emptying the header search — and patching each one is how the next route gets
   // missed. This is the invariant instead: nothing applied and no takeover view means undirected
   // browse, whoever cleared the last thing and whichever control they used.
   //
@@ -891,8 +1079,8 @@ export function ListingsExplorer({
   // Three reviewers found the asymmetry. The rule is symmetry: this test mirrors the latch's axis
   // list plus the area axes (which the header sets alongside showExplorer directly).
   // Not reachable today either way — the only caller of setVerifiedOnly left in the app is
-  // FacetBar's "Clear", which sets it TRUE (the unreachable filters drawer that also held a
-  // switch for it was deleted 2026-09-24).
+  // clearAllFilters, which sets it TRUE (the FacetBar's own "Clear" did the same until E-ACTIVE
+  // removed it, 2026-09-29; the filters drawer that held a switch for it was deleted 2026-09-24).
   //
   // ⚠️ THE MAP AND VIDEO VIEWS ARE EXEMPT ON PURPOSE. They are directed surfaces whether or not a
   // filter is set — the footer's Map link opens an unfiltered map deliberately — and they carry
@@ -946,7 +1134,7 @@ export function ListingsExplorer({
   // with the header search via the same hook + panel so both bars behave
   // identically (was a client-side filter over only the SSR-seeded listings).
   const heroSuggest = useSearchSuggest(landingQuery, showSuggestions)
-  const heroSuggestItems = buildSuggestItems(landingQuery, heroSuggest.brands, heroSuggest.categories, heroSuggest.listings)
+  const heroSuggestItems = buildSuggestItems(landingQuery, heroSuggest.brands, heroSuggest.categories, heroSuggest.listings, heroSuggest.lines, heroSuggest.scope)
   // Arrow-key virtual focus for the hero typeahead — shared hook with the header bar
   // (state + clamps + query-edit reset; see use-search-box.ts).
   const { activeIdx: heroActiveIdx, moveDown: heroMoveDown, moveUp: heroMoveUp } = useSuggestKeyboardNav(landingQuery)
@@ -958,11 +1146,26 @@ export function ListingsExplorer({
   // One pick handler for the hero dropdown (mouse + keyboard): the query row runs
   // the raw search; a brand opens its facets (dominant category resolves via the
   // brand-heal effect below); categories/listings navigate.
-  const pickHeroSuggest = (it: SuggestItem) => {
+  const pickHeroSuggest = (it: AnySuggestItem) => {
     setShowSuggestions(false)
     if (it.type === 'query') { handleLandingSearch(landingQuery); return }
     if (it.type === 'brand') { setLandingQuery(''); applyResolved({ brand: it.slug }); return }
     if (it.type === 'category') { handleCategorySelect(it.slug); setLandingQuery(''); return }
+    /**
+     * A product line and a scoped search (S-TYPEAHEAD) — the SAME urls header.tsx's pickSuggest builds,
+     * applied in place through `applyUrl`, the reader behind `eno:apply-url`. ⚠️ Not `applyResolved`:
+     * it has no `line`, so a line pick would silently widen to the whole brand.
+     */
+    if (it.type === 'line') {
+      setLandingQuery('')
+      applyUrl(`/?category=${encodeURIComponent(it.category)}&brand=${encodeURIComponent(it.brand)}&line=${encodeURIComponent(it.line)}`)
+      return
+    }
+    if (it.type === 'scope') {
+      applyUrl(`/?q=${encodeURIComponent(landingQuery.trim())}&category=${encodeURIComponent(it.category)}&subcategory=${encodeURIComponent(it.subcategory)}`)
+      setLandingQuery('')
+      return
+    }
     router.push(`/listings/${it.listing.id}`)
   }
 
@@ -1145,30 +1348,34 @@ export function ListingsExplorer({
 
   // Parse a query-string into the explorer's filter state. Shared by the mount/popstate
   // reader and the notification deep-link handler below.
+  // ⚠️ THE READING IS `readExplorerUrl` (src/lib/explorer-url.ts) — the same function a client-side
+  // mount seeds its initial state from, so the two can never read one URL two ways. This only sets
+  // what it returns; the per-axis rules (district-stripped words, `match=any`, the `deal=good`
+  // allowlist, the sort allowlist, the offered-facets-only custom filters) live and are tested there.
+  // The view is deliberately not applied here: `?view=` has its own mount reader (it also restores
+  // the Video feed), exactly as before.
   const applyParams = useCallback((raw: URLSearchParams) => {
-    const params = migrateLegacyCategoryParams(raw)
-    // ⚠️ With an explicit `?district=` the server strips a district phrase from `q`, so the box shows
-    // the words it actually searches (explorer-place.ts) rather than a phrase it ignores.
-    setQuery(queryForExplicitDistrict(params.get('q') || '', params.get('district')))
-    setLooseMatch(params.get('match') === 'any') // visual search lands with ?match=any
-    setActiveCategory(params.get('category') || 'all')
-    setActiveDistrict(params.get('district') || 'all')
-    setActiveSubcategory(params.get('subcategory') || 'all')
-    setActiveBrand(params.get('brand') || 'all')
-    setActiveModel(params.get('model') || 'all')
-    setActiveLine(params.get('line') || '')
-    setListingType(params.get('type') || 'all')
-    setConditionFilter(params.get('condition') || 'all')
-    // Only the literal 'good' — the same allowlist the server applies.
-    setGoodPriceOnly(params.get('deal') === 'good')
-    // Sort is shareable/back-button state like any filter; unknown/absent → the
-    // default relevance blend ('newest' — legacy param name, see SortKey).
-    const sortParam = params.get('sort')
-    setSort(sortParam === 'recent' || sortParam === 'price-low' || sortParam === 'price-high' || sortParam === 'popular' ? sortParam : 'newest')
-    const pmin = params.get('priceMin'), pmax = params.get('priceMax')
-    setPriceRange(pmin || pmax ? `${pmin || ''}-${pmax || ''}` : 'all')
-    // Parse custom filters (attr_* + range_* → keyed back by facet key).
-    setCustomFilters(parseFilterParams(params, params.get('category') || 'all', params.get('subcategory') || 'all'))
+    const u = readExplorerUrl(raw)
+    setQuery(u.query)
+    // ⛔ A URL'S WORDS SKIP THE DEBOUNCE (E-SSR, 2026-09-29). The 150ms exists for TYPING; a URL is a
+    // discrete commit (a deep link, Back/Forward, a notification), exactly like an area pick
+    // (pickDistrictFromArea). Without this a cold /?q= deep link sent its first request a further
+    // 150ms after hydration — with the unfiltered seed still on screen for all of it.
+    setDebouncedQuery(u.query)
+    setLooseMatch(u.looseMatch)
+    setActiveCategory(u.category)
+    setActiveDistrict(u.district)
+    setActiveSubcategory(u.subcategory)
+    setActiveBrand(u.brand)
+    setActiveModel(u.model)
+    setActiveLine(u.line)
+    setListingType(u.listingType)
+    setConditionFilter(u.condition)
+    setGoodPriceOnly(u.goodPrice)
+    // Sort is shareable/back-button state like any filter (see SortKey).
+    setSort(u.sort)
+    setPriceRange(u.priceRange)
+    setCustomFilters(u.customFilters)
   }, [])
 
   // URL state synchronization: Read from URL on mount and on popstate
@@ -1176,9 +1383,14 @@ export function ListingsExplorer({
     const handleUrlChange = () => applyParams(new URLSearchParams(window.location.search))
     handleUrlChange() // Initial check
     setUrlApplied(true) // batched with the params above: the render that applies them knows it (see `foldArmed`)
+    // E-SSR: the pre-paint script marked a directed URL — hold the mask until this URL's answer lands.
+    // Anything else (a client mount, or no mark) must not leave one behind.
+    const root = document.documentElement
+    if (coldLoad && root.hasAttribute('data-explorer-directed')) { setAwaitingUrlAnswer(true); setSeedMasked(true) }
+    else root.removeAttribute('data-explorer-directed')
     window.addEventListener('popstate', handleUrlChange)
     return () => window.removeEventListener('popstate', handleUrlChange)
-  }, [applyParams])
+  }, [applyParams, coldLoad])
 
   // A notification / deep-link (e.g. a saved-search alert) routes to `/?<filters>`. When
   // we're ALREADY on the home route that's a soft <Link> nav the reader above can't see
@@ -1284,6 +1496,15 @@ export function ListingsExplorer({
     if (sort !== 'newest') params.set('sort', sort)
     else params.delete('sort')
 
+    /**
+     * ⛔ THE VIEW IS URL STATE TOO (E-VIEWS, 2026-09-29). `?view=` was READ on mount (the footer's Map
+     * link) and never written: List view did not survive a reload or a shared link, and a stale
+     * `?view=map` rode along after switching back to the grid. The default (grid) stays out of the
+     * URL, like the default sort.
+     */
+    if (viewMode !== DEFAULT_VIEW) params.set('view', viewMode)
+    else params.delete('view')
+
     params.delete('priceMin'); params.delete('priceMax')
     if (priceRange !== 'all') {
       const [mn, mx] = priceRange.split('-')
@@ -1311,7 +1532,7 @@ export function ListingsExplorer({
       ? [prettyBrand(activeBrand), activeModel !== 'all' ? activeModel : null].filter(Boolean).join(' ')
       : ''
     window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() || brandLabel } }))
-  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange, sort, looseMatch])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange, sort, looseMatch, viewMode])
 
   // Debounce search query input to avoid making API requests on every keystroke
   useEffect(() => {
@@ -1332,11 +1553,13 @@ export function ListingsExplorer({
   // `looseMatch`, `answerLang` and the shop are in the signature because they are in the request
   // and the query key: a request that changes without resetting the page is exactly the bug this
   // block prevents (see `answerLang` for why en↔vi does not count; the shop changes when a
-  // storefront-to-storefront navigation keeps this component mounted).
+  // storefront-to-storefront navigation keeps this component mounted). `spellOn` joins them for the
+  // same reason: "Search instead for …" asks the typed words from the top, not at the corrected
+  // feed's depth.
   const filterSig = JSON.stringify([
     activeCategory, debouncedQuery, activeDistrict, conditionFilter, goodPriceOnly, listingType, verifiedOnly,
     sort, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, priceRange, nearby,
-    activeProvince?.code ?? null, activeWard?.code ?? null, selectedBuilding, looseMatch, answerLang(lang), sellerId ?? null,
+    activeProvince?.code ?? null, activeWard?.code ?? null, selectedBuilding, looseMatch, answerLang(lang), sellerId ?? null, spellOn,
   ])
   const prevFilterSigRef = useRef(filterSig)
   if (prevFilterSigRef.current !== filterSig) {
@@ -1478,6 +1701,8 @@ export function ListingsExplorer({
       deal: goodPriceOnly ? 'good' : 'all',
       type: listingType,
       q: debouncedQuery,
+      // The spelling opt-in (see `literalFor`): the corrected set and the literal answer are two keys.
+      spell: spellOn,
       match: looseMatch ? 'any' : 'all',
       sort,
       verified: verifiedOnly ? 'true' : 'all',
@@ -1495,7 +1720,7 @@ export function ListingsExplorer({
   ), [
     sellerId, activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict,
     activeProvince?.code, activeWard?.code, nearby, conditionFilter, goodPriceOnly, listingType, debouncedQuery,
-    looseMatch, sort, verifiedOnly, priceRange, selectedBuilding, customFilters, lang,
+    spellOn, looseMatch, sort, verifiedOnly, priceRange, selectedBuilding, customFilters, lang,
   ])
   const feedKey = useCallback((p: number) => ['listings', { ...feedKeyFields, page: p }] as const, [feedKeyFields])
   // The feed query's key, named so `resultSetSig` can read the same object the query is keyed on.
@@ -1530,6 +1755,9 @@ export function ListingsExplorer({
       // has always done this; the two feed fetches — the ones every visitor pays on every page —
       // did not.
       params.set('lang', lang)
+      // A worded feed opts in to the zero-result spelling correction on EVERY page (see `literalFor`):
+      // the route repeats its decision per page, so page 2 of "iphnoe" is page 2 of "iphone".
+      if (spellOn) params.set('spell', '1')
         /**
          * Drill-in to one BUILDING. Applied server-side by `buildFeedFilters`, the same builder
          * /api/listings/buildings uses for its counts — so the pin that says 157 and the list it
@@ -1561,7 +1789,7 @@ export function ListingsExplorer({
        * back-nav snapshot — see `rowsSigRef`. It comes from THIS request's own key.
        */
       return { ...(await res.json()), fetchedFor: { category: activeCategory, subcategory: activeSubcategory, sig: resultSetSig(queryKey) } }
-  }, [baseParamsString, lang, selectedBuilding, activeCategory, activeSubcategory])
+  }, [baseParamsString, lang, spellOn, selectedBuilding, activeCategory, activeSubcategory])
   /** The result set the CURRENT key asks for — the provenance of any non-placeholder answer. */
   const liveSig = resultSetSig(listingsQueryKey)
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isPlaceholderData: queryShowingStaleSet, isError: queryError, refetch: refetchListings } = useQuery({
@@ -1600,6 +1828,26 @@ export function ListingsExplorer({
     adoptedCacheRef.current = true
     setListings(listingsData.listings)
   }
+  /**
+   * THE SAME ADOPTION FOR A MOUNT THAT DID NOT START ON THE SEED (`startedOffSeed`, E-BACK) — the check
+   * above keys on the seed's reference, which such a mount never holds. Its rows start EMPTY, so
+   * without this a react-query cache that already answers the URL (Back, with no snapshot to restore —
+   * a card opened from a rail) would paint "No listings match these filters." for the one frame before
+   * the sync effect adopts the rows. Only a real page-1 answer to the CURRENT key is taken, and the
+   * count comes with it, for the same reason the sync effect never splits the two.
+   * ⚠️ One-shot, like the check above: it fires at most once, in the first render that holds an answer
+   * while the rows are still empty (a restored snapshot is never empty, so it never fires over one).
+   * After that the sync effect owns `listings`, and its page-1 updater re-adopts the same array.
+   */
+  const adoptedOffSeedRef = useRef(false)
+  if (
+    startedOffSeed && !adoptedOffSeedRef.current && listingsData && !queryShowingStaleSet && page === 1 &&
+    listings.length === 0 && (listingsData.offset ?? 0) === 0 && listingsData.listings.length > 0
+  ) {
+    adoptedOffSeedRef.current = true
+    setListings(listingsData.listings)
+    setTotalCount(listingsData.total)
+  }
 
   /**
    * ⛔ THE DISTRICT THE SERVER READ OUT OF THE WORDS, AS THE SERVER SAID IT — never re-derived here.
@@ -1622,6 +1870,39 @@ export function ListingsExplorer({
   }, [listingsData, queryShowingStaleSet, debouncedQuery, districtParamSent])
   const serverInferredDistrict =
     serverDistrict && serverDistrict.q === debouncedQuery.trim() && serverDistrict.sent === districtParamSent ? serverDistrict.slug : null
+
+  /**
+   * THE SPELLING THE SERVER ANSWERED FOR, AS THE SERVER SAID IT (`correctedQuery`, folded — "iphone") —
+   * read exactly like `inferredDistrict` above, for the same reasons: remembered with the words and the
+   * opt-in it answered, never while `placeholderData` (another key's payload) is showing, and held
+   * across a load-more so the line does not flicker while the next page arrives. `null` = the words
+   * were searched as typed.
+   * ⛔ THE CORRECTED ROWS NEVER PAINT WITHOUT THIS LINE, AND READING IT IN RENDER DOES NOT CHANGE THAT
+   * (review claim, MEASURED AND REFUTED 2026-09-29). This effect runs in the same passive flush as the
+   * rows sync effect, so the line commits WITH the rows state — and the grid draws a
+   * `useDeferredValue` copy of those rows, so the line is on screen a commit BEFORE the corrected cards,
+   * never after. Per-frame trace (mocked /api/listings, typed "sofaa" over a "honda" feed, 1440 and
+   * 390): `line | old cards` → `line | corrected cards`, never `no line | corrected cards`. Reading
+   * `listingsData` in render was tried and measured identical (same frames, CLS 0.0129 at 1440 and
+   * 0.028 at 390, both ways), while showing the line one commit earlier over the old cards — so it
+   * was removed. That CLS is the cost of inserting a 20px line + the column gap above the results,
+   * which no ordering removes; it is paid only on a corrected search.
+   * ⛔ AND IT DOES NOT LEAVE BEFORE THEM EITHER (review, 2026-09-29 — the reviewer's per-frame trace on :3300, 300ms stub).
+   * This used to be gated on `spellOn` too, so "Search instead for …" dropped the line in the tap's
+   * own render while `placeholderData` kept the corrected cards and "499 listings" on screen, dimmed
+   * and unexplained, for the whole literal round trip. `spellOn` is the REQUEST; what the rows on
+   * screen are is `serverCorrection`, which only an answer rewrites — so the line stays until the
+   * literal answer replaces them, and it leaves in the same flush as the rows (the literal answer is
+   * zero, and the grid is unmounted on `shownListings`, not its deferred copy, so no card outlives it).
+   */
+  const [serverCorrection, setServerCorrection] = useState<{ q: string; spell: boolean; to: string | null } | null>(null)
+  useEffect(() => {
+    if (!listingsData || queryShowingStaleSet) return
+    const to = (listingsData as { correctedQuery?: string | null }).correctedQuery ?? null
+    setServerCorrection({ q: spellTerm, spell: spellOn, to })
+  }, [listingsData, queryShowingStaleSet, spellTerm, spellOn])
+  const correctedQuery =
+    serverCorrection && serverCorrection.spell && serverCorrection.q === spellTerm ? serverCorrection.to : null
 
   /**
    * The Area panel's district pick (and every area pick that REPLACES the district — the facet bar
@@ -1649,9 +1930,9 @@ export function ListingsExplorer({
   const replaceDistrictRef = useRef(pickDistrictFromArea)
   useEffect(() => { replaceDistrictRef.current = pickDistrictFromArea }, [pickDistrictFromArea])
 
-  // Does the catalog have ANY video listings? Gates the ▷ Video view toggle — with zero
+  // Does the feed on screen have ANY video listings? Gates the ▷ Video view toggle — with zero
   // videos the takeover is a guaranteed dead end, so the tab stays hidden until at least
-  // one exists. Site-wide (not filter-scoped) + long staleTime: one cheap query per session.
+  // one exists (filter-scoped since E-VIEWS — see the query below).
   // Perf Phase 1: this probe is display-only (shows the ▷ toggle) — keep it out of
   // the critical cold path; run it in the first post-load idle slot instead.
   const [videoProbeReady, setVideoProbeReady] = useState(false)
@@ -1896,6 +2177,40 @@ export function ListingsExplorer({
     if (!buildingsData.buildings.some((b) => b.key === selectedBuilding)) setSelectedBuilding(null)
   }, [buildingsData, selectedBuilding])
 
+  // The map view's result list. ⚠️ It is NOT a scroll box any more (E-MAP, 2026-09-29): it used to
+  // scroll inside its own column on desktop, which is why its sentinel lived in the column and was
+  // observed against it. The window scrolls it now, like every other view.
+  const mapListRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * The sticky toolbar's height, for the desktop map's `--map-top` (it pins under the header AND this
+   * bar, which hide together). ~49px at desktop, but it can wrap, so it is measured — only while the
+   * map is on screen, which is the only reader.
+   */
+  const [toolbarH, setToolbarH] = useState(49)
+  useEffect(() => {
+    if (viewMode !== 'map' || typeof ResizeObserver === 'undefined') return
+    const bar = document.getElementById('explorer-toolbar')
+    if (!bar) return
+    const read = () => setToolbarH(bar.offsetHeight)
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(bar)
+    return () => ro.disconnect()
+  }, [viewMode])
+  /**
+   * Back to the top of the map's list after it is REPLACED (a building drill-in or out). It used to
+   * reset the list's own scroll box; the window scrolls it now, so this brings the list's top back
+   * under the pinned chrome — but only when the reader has scrolled past it, and only on desktop,
+   * where the list sits beside the map (on a phone it is below the map, and jumping there would drag
+   * the page off the map — the 2026-07-14 decision the pin handler below also keeps).
+   */
+  const scrollMapListToTop = useCallback(() => {
+    const list = mapListRef.current
+    if (!list || !window.matchMedia('(min-width: 1024px)').matches) return
+    const chrome = pinnedChromeBottom(document)
+    const top = list.getBoundingClientRect().top
+    if (top < chrome) window.scrollTo({ top: top + window.scrollY - chrome - 8, behavior: scrollBehavior() })
+  }, [])
   /** Stable identity for the map's click handler — see the ref note in listings-map.tsx. */
   const handleSelectBuilding = useCallback((key: string | null) => {
     setSelectedBuilding(key)
@@ -1904,22 +2219,47 @@ export function ListingsExplorer({
      * the column keeps its scrollTop — so drilling in from halfway down the feed lands you at
      * unit 14 of 157 with no indication why.
      */
-    mapListRef.current?.scrollTo({ top: 0 })
-  }, [])
+    scrollMapListToTop()
+  }, [scrollMapListToTop])
 
+  /**
+   * ⛔ ASKED OF THE FEED ON SCREEN, NOT OF THE WHOLE SITE (E-VIEWS, 2026-09-29). The probe used to ask
+   * "does ANY listing have a clip" once per session, so Rentals — no videos at all — still offered a
+   * Video view that could only open onto nothing. It now carries the feed's own filters (with a fixed
+   * sort, which cannot change a count — see below) and the shop, so the tab is offered exactly where it has
+   * something to play. `placeholderData` keeps the previous answer during a filter change, so the tab
+   * does not blink out and back on every tap; one limit=1, facet-free request per filter change, edge-
+   * cached like the feed.
+   * ⛔ `sort=recent`, NOT NO SORT (review, 2026-09-29). With the sort dropped the route took its default
+   * ('newest'), and on that sort a worded feed goes through the relevance ranker (keyword-rank.ts): a
+   * separate 600+300-row candidate read and scoring — cached per `where`, and `hasVideo` makes it a
+   * different `where` — to answer limit=1 (measured: cold /?q=iphnoe fired it right after the feed).
+   * A browse feed paid the diversity window the same way. 'recent' is a plain ORDER BY that no ranker,
+   * window or Vertex call applies to, so the probe is one LIMIT 1 read and the memoized count; the sort
+   * changes no `total`, and one fixed value keeps a single edge entry per filter set.
+   * ⚠️ On a Vertex-configured server the count is then the keyword matches only (the semantic ids are
+   * a default-sort path) — the tab can stay hidden for a semantic-only video match. Display-only, and
+   * Vertex is off in production.
+   */
+  const videoProbeParams = useMemo(() => {
+    const p = new URLSearchParams(baseParamsString)
+    p.set('sort', 'recent')
+    return p.toString()
+  }, [baseParamsString])
   const { data: videoAvail } = useQuery({
-    // ⚠️ THE SHOP IS IN THE KEY, NOT ONLY IN THE URL. Without it two storefronts share one cached
-    // answer and a shop with no clips inherits its neighbour's Video tab.
-    queryKey: ['video-availability', sellerId ?? null],
+    // The params carry the shop (`scopedParams`), so two storefronts can no longer share an answer.
+    queryKey: ['video-availability', videoProbeParams],
     enabled: videoProbeReady,
     queryFn: async () => {
-      const res = await fetch(`/api/listings?hasVideo=1&limit=1${sellerId ? `&seller=${encodeURIComponent(sellerId)}` : ''}`)
+      const res = await fetch(`/api/listings?${videoProbeParams}&hasVideo=1&limit=1&facets=0`)
       if (!res.ok) return { total: 0 }
       return res.json() as Promise<{ total: number }>
     },
+    placeholderData: (prev) => prev,
     staleTime: 5 * 60_000,
   })
-  const showVideoView = (videoAvail?.total ?? 0) > 0
+  // An open Video view keeps its own tab, whatever the probe says about the next filter.
+  const showVideoView = viewMode === 'video' || (videoAvail?.total ?? 0) > 0
 
   /**
    * The price-histogram request: the FEED'S OWN params (plus the building drill-in the live query
@@ -1928,12 +2268,20 @@ export function ListingsExplorer({
    * drifted twice: with a brand picked it dropped `subcategory` (the 2026-08-25 phone-cases fix
    * reached `baseParamsString` and not here) and it never sent `match=any`, so the panel counted
    * a different set than the grid beneath it. `histogramQueryFrom` explains what it strips.
+   * ⛔ THE WORD THE FEED ANSWERED, NEVER A SPELLING DECISION OF ITS OWN (review, 2026-09-29). This sent
+   * `spell=1` and the route corrected the histogram from ITS zero — but its zero is not the feed's:
+   * it drops the price band (a word whose literal matches all sit outside the chosen range is zero in
+   * the feed and non-zero here) and never takes the semantic path. The reviewer measured it on :3300: the feed stayed
+   * literal (73, semantic) while the histogram switched to "iphone" (3,433), so the slider described
+   * another word than the grid. It now asks for `correctedQuery` — what the feed's answer says it
+   * searched — and otherwise the typed words, literally.
    */
   const histogramQuery = useMemo(() => {
     const p = new URLSearchParams(baseParamsString)
     if (selectedBuilding) p.set('building', selectedBuilding)
+    if (correctedQuery) p.set('q', correctedQuery)
     return histogramQueryFrom(p)
-  }, [baseParamsString, selectedBuilding])
+  }, [baseParamsString, selectedBuilding, correctedQuery])
 
   // Identity of the current feed (every filter that defines "this result set"), used
   // to key the back-nav snapshot so it only restores onto the exact same feed.
@@ -2061,6 +2409,9 @@ export function ListingsExplorer({
         anchorTop: typeof snap.anchorTop === 'number' ? snap.anchorTop : 0,
       }
       setListings(snap.listings)
+      // The grid renders these rows in THIS commit, not a deferred one later — see `restoring`.
+      setRestoring(true)
+      setRestoreSettled(false)
       rowsSigRef.current = snap.rowsSig // === liveSig, checked above
       seenIdsRef.current = new Set(snap.listings.map((l: SerializedListingCard) => l.id))
       maxOffsetRef.current = (snap.page - 1) * 12 // deepest offset already loaded (feed page size)
@@ -2101,7 +2452,9 @@ export function ListingsExplorer({
   // A single scrollTo in the commit that restored them is not enough: the grid renders off
   // a useDeferredValue copy (so the urgent commit can still be painting the SHORT list, and
   // scrollTo would clamp against a document that is not tall enough yet), and on the landing
-  // feed the rails above the grid mount lazily. Aligning the tapped CARD (rather than an
+  // feed the rails above the grid mount lazily. (Since E-BACK the grid renders the restored rows
+  // directly while `restoring` holds, so the FIRST step usually lands before paint; the loop is
+  // still what absorbs everything that grows above the card afterwards.) Aligning the tapped CARD (rather than an
   // absolute offset) is what makes this correct when the content above the feed has a
   // different height than it did when we left. Any real user scroll input aborts it: we never
   // fight a finger.
@@ -2139,6 +2492,7 @@ export function ListingsExplorer({
       caf: (id) => cancelAnimationFrame(id),
     }, () => {
       finished = true
+      setRestoreSettled(true) // the grid returns to the deferred copy once it has caught up (`restoring`)
       window.removeEventListener('touchmove', abort)
       window.removeEventListener('wheel', abort)
       window.removeEventListener('keydown', abort)
@@ -2311,6 +2665,65 @@ export function ListingsExplorer({
    */
   const failedWithoutAnswer = queryError && page === 1 && listingsData === undefined
 
+  /**
+   * E-SSR (see `awaitingUrlAnswer`): the URL's answer is in hand once page 1 of the CURRENT key has
+   * landed (not a placeholder, the words settled) — or the request failed, which must not keep a mask
+   * over the error state. A 12s ceiling lifts it whatever happens (the script's own 15s is the no-JS
+   * net), so a stuck request degrades to today's behaviour, never to a page of grey boxes.
+   */
+  useEffect(() => {
+    if (!awaitingUrlAnswer) return
+    if (queryError || (listingsData && !queryShowingStaleSet && page === 1 && query.trim() === debouncedQuery.trim())) {
+      setAwaitingUrlAnswer(false)
+    }
+  }, [awaitingUrlAnswer, queryError, listingsData, queryShowingStaleSet, page, query, debouncedQuery])
+  useEffect(() => {
+    if (!awaitingUrlAnswer) return
+    const t = setTimeout(() => setAwaitingUrlAnswer(false), 12_000)
+    return () => clearTimeout(t)
+  }, [awaitingUrlAnswer])
+  /**
+   * ⛔ THE MASK LIFTS WHEN THE GRID DRAWS THE ANSWER, NOT WHEN THE ANSWER ARRIVES. The grid renders a
+   * `useDeferredValue` copy of the rows, so the commit that adopts the answer still DRAWS the seed; lifting
+   * the mask there flashed the twelve unrelated cards for one deferred render. `gridListings === shownListings`
+   * is "the deferred copy has caught up" — the count below is deferred alongside it (`shownTotal`), so the
+   * cards and their number unmask in the same frame.
+   */
+  // ⚠️ `urlApplied` FIRST: on a cold load this effect also runs in the hydration commit, AFTER the mount
+  // effect has asked for `awaitingUrlAnswer` but BEFORE that state exists (this closure still reads the
+  // initial false) — so without the gate it lifted the mask in the very commit that armed it (measured:
+  // the seed and its count on screen from hydration to the answer). `urlApplied` is set in that same
+  // mount effect, so the first render that can see it can also see the decision.
+  useEffect(() => {
+    // Nothing to lift once it is down — this runs on every grid change, so it must cost nothing then.
+    if (!seedMasked || !urlApplied || awaitingUrlAnswer || gridListings !== shownListings) return
+    document.documentElement.removeAttribute('data-explorer-directed')
+    setSeedMasked(false)
+  }, [seedMasked, urlApplied, awaitingUrlAnswer, gridListings, shownListings])
+  /**
+   * ⛔ THE COUNT COMMITS WITH THE CARDS (E-SSR, 2026-09-29). The grid draws a deferred copy of the rows
+   * (see `deferredListings`) while this line drew `totalCount` directly, so a new answer's number landed
+   * one render BEFORE its cards — "3 listings" over the previous feed's cards, for a frame. Deferring the
+   * count with the same hook puts both in the same deferred render.
+   */
+  const liveTotal = nearby ? shownListings.length : totalCount
+  const deferredTotal = useDeferredValue(liveTotal)
+  // ⚠️ THE COUNT FOLLOWS WHATEVER THE GRID DRAWS, INCLUDING ITS BYPASSES: the grid reads the rows
+  // directly while a back-nav restore aligns and when rows arrive over an empty grid (`gridListings`),
+  // and a deferred count there printed "0 listings" over three cards. Same rows, same number.
+  const shownTotal = gridListings === shownListings ? liveTotal : deferredTotal
+  // `null` while the current filters' page 1 FAILED (the held count is the previous filters' answer),
+  // and while the first page is a skeleton with no rows at all (a client-side mount that did not start
+  // on the seed): there is no answer yet in either.
+  // ⚠️ NOT nulled while a cold deep link's seed is masked (E-SSR): the mask's `visibility: hidden` already
+  // takes the seed's count off the screen AND out of the accessibility tree, so its live region cannot
+  // announce it — and emptying the line instead collapsed the phone's count row, which moved the grid
+  // up and back down again (measured: two 0.0069 shifts at 390×844 on /?q=iphone).
+  const resultLineCount = failedWithoutAnswer || (isLoading && listings.length === 0) ? null : shownTotal
+  // The zero-result state's "Popular searches" (E-ZERO) — fetched only once a worded search has come
+  // back empty; the hook memoises the list for the session, shared with the search panels.
+  const zeroTrending = useTrendingSearches(!isLoading && !queryError && shownListings.length === 0 && debouncedQuery.trim() !== '')
+
   // Count helper for subcategory items
   const getSubcategoryCount = useCallback(
     (subcatSlug: string) => {
@@ -2367,11 +2780,6 @@ export function ListingsExplorer({
    */
   const [autoLoadCeiling, setAutoLoadCeiling] = useState(AUTO_LOAD_CAP)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
-  // Map view's result list scrolls inside its own column on desktop, so the
-  // infinite-scroll sentinel must live INSIDE that column and observe it as the
-  // root — otherwise a window-level sentinel sits permanently in view (appending
-  // rows never moves it) and fires page after page (the "jerky, again and again").
-  const mapListRef = useRef<HTMLDivElement | null>(null)
   // Map viewport centre (moveend) — anchors the nearest-first list sort.
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null)
   // Map-view list ranking (user decision 2026-07-14): nearest first with the
@@ -2437,7 +2845,9 @@ export function ListingsExplorer({
   const loadedIds = useMemo(() => new Set(listings.map((l) => l.id)), [listings])
   const pendingRows = (() => {
     if ((viewMode !== 'grid' && viewMode !== 'compact') || page <= 1 || failedWithoutAnswer) return 0
-    const lag = shownListings.length - deferredListings.length
+    // Against what the grid RENDERS (`gridListings`): while a restore renders the rows directly there
+    // is no lag, and counting the deferred copy's would draw skeleton cells under rows already shown.
+    const lag = shownListings.length - gridListings.length
     if (lag > 0) return lag
     if (!hasMore || queryError) return 0
     const next = Math.min(FIRST_PAGE_SIZE, totalCount - listings.length)
@@ -2472,9 +2882,12 @@ export function ListingsExplorer({
     // whether or not the state is seeded, so the observer armed one commit later without this
     // guard — but seeding totalCount widened it, and an external reviewer was right to say so.
     if (query.trim() !== debouncedQuery.trim()) return
+    // Nor while a cold deep link's seed is still masked (E-SSR): those rows are not this URL's answer.
+    if (seedMasked) return
     const isMap = viewMode === 'map'
-    // Desktop map view → the left column is the scroll container (Tailwind lg = 1024px).
-    const columnScroll = isMap && typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+    // ⚠️ THE WINDOW IS THE ROOT IN EVERY VIEW NOW (E-MAP, 2026-09-29). The desktop map list used to be
+    // its own scroll box and this observed against it; the list scrolls with the page since, so its
+    // sentinel is simply the one at the bottom of the list column.
     const el = isMap ? mapSentinelRef.current : loadMoreRef.current
     if (!el) return
     const io = new IntersectionObserver(
@@ -2484,11 +2897,11 @@ export function ListingsExplorer({
           setPage((p) => p + 1)
         }
       },
-      { root: columnScroll ? mapListRef.current : null, rootMargin: isMap ? '300px 0px' : '600px 0px' },
+      { root: null, rootMargin: '600px 0px' },
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasMore, queryFetching, prefetchNextPage, viewMode, showDiscovery, feedUnlocked, query, debouncedQuery, listings.length, autoLoadCeiling])
+  }, [hasMore, queryFetching, prefetchNextPage, viewMode, showDiscovery, feedUnlocked, query, debouncedQuery, listings.length, autoLoadCeiling, seedMasked])
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
@@ -2620,8 +3033,14 @@ export function ListingsExplorer({
   // (It was hoisted here to clear the old isLandingMode early return's TDZ. That return is
   // gone as of 2026-08-11 — there is one tree now — so the position is no longer load-bearing;
   // it is left where it is because moving it would be churn for nothing.)
+  // ⛔ THE FAULT COIN, NOT THE BRAND ONE (D-STATES, 2026-09-29). This rendered a failure on the warm
+  // `bg-brand-50` "nothing here yet" disc — EmptyState's `variant="fault"` exists for exactly this
+  // (neutral disc, destructive ink; see ui/empty-state.tsx) and had no call site. `tone="bare"`: flat
+  // canon §3b, no box on the canvas. The retry is the primitive CTA at its own size, not a hand-sized one.
   const renderErrorState = (className?: string) => (
     <EmptyState
+      variant="fault"
+      tone="bare"
       icon={AlertTriangle}
       // `role="alert"` on the text itself: when a filter change fails, the result line's live count
       // goes blank (see `failedWithoutAnswer`), so without this a screen-reader user would hear the
@@ -2629,10 +3048,7 @@ export function ListingsExplorer({
       title={<span role="alert">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</span>}
       className={className}
       action={
-        <Button variant="cta" size="none"
-          onClick={() => refetchListings()}
-          className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
-        >
+        <Button variant="cta" onClick={() => refetchListings()}>
           {tr('Try again', 'Thử lại')}
         </Button>
       }
@@ -2698,6 +3114,49 @@ export function ListingsExplorer({
     return crumbs
   }, [activeCategory, activeSubcategory, activeBrand, activeModel, categories, lang])
 
+  /** The words the grid answers: the server's corrected spelling when it corrected them, else the typed ones. */
+  const resultsTerm = correctedQuery ?? debouncedQuery.trim()
+
+  /**
+   * ⛔ THE TAB SAYS WHAT THE FEED IS (E-TITLE, 2026-09-29). Home is one 6h-ISR document with one static
+   * title, so /?q=honda, /?category=rentals and the bare home all read "eno.vn - Trusted Expat
+   * Marketplace in Vietnam" in the tab, the history list and a shared bookmark. A directed feed now
+   * titles itself `“honda” · 1,204 listings | eno.vn` (the deepest ladder rung stands in for the words:
+   * `Rentals · 5,432 listings | eno.vn`), and undirected browse hands the page's own title back.
+   * ⚠️ ONLY FROM AN ANSWER TO THE CURRENT QUESTION. Not while `placeholderData` (the previous key's rows)
+   * is showing, not over a failed page 1, and only once the count on screen IS that answer's
+   * (`totalCount` is adopted by the passive sync effect, a render after the payload lands — naming the
+   * new words beside the old number for that render is the "3 listings over 39 cards" class again).
+   * ⚠️ IT NEVER OVERWRITES A TITLE IT DID NOT WRITE. Next owns <title> and re-renders it on navigation,
+   * and this effect's cleanup runs AFTER that commit — so the base is re-read whenever the tab no
+   * longer shows ours, and it is only restored while the tab still shows ours. Otherwise leaving for a
+   * listing would put the home title on the listing's tab.
+   * ⚠️ Storefronts (`sellerId`) own their title and are left alone.
+   */
+  const titleRef = useRef<{ base: string; mine: string } | null>(null)
+  useEffect(() => {
+    if (sellerId) return
+    const held = titleRef.current
+    const handBack = () => {
+      if (held && document.title === held.mine) document.title = held.base
+      titleRef.current = null
+    }
+    if (showDiscovery || failedWithoutAnswer) { handBack(); return }
+    if (!listingsData || queryShowingStaleSet) return
+    const count = nearby ? shownListings.length : totalCount
+    if (!nearby && count !== listingsData.total) return
+    const lead = resultsTerm ? `“${resultsTerm}”` : ladderCrumbs[ladderCrumbs.length - 1]?.label
+    const next = `${[lead, resultCountLabel(count, lang, tr)].filter(Boolean).join(' · ')} | ${SITE_NAME}`
+    const base = held && document.title === held.mine ? held.base : document.title
+    if (document.title !== next) document.title = next
+    titleRef.current = { base, mine: next }
+  }, [sellerId, showDiscovery, failedWithoutAnswer, listingsData, queryShowingStaleSet, nearby, shownListings, totalCount, resultsTerm, ladderCrumbs, lang, tr])
+  // Leaving the page hands the tab back — unless the next page has already titled it (see above).
+  useEffect(() => () => {
+    const held = titleRef.current
+    if (held && document.title === held.mine) document.title = held.base
+  }, [])
+
   /**
    * The applied chips in the shape <ResultLine> takes. The ladder levels are dropped because the
    * BREADCRUMB above already names them — the subcategory and the brand+model chips would
@@ -2761,8 +3220,14 @@ export function ListingsExplorer({
       const lt = LISTING_TYPES.find((t) => t.value === listingType)
       chips.push({ label: lt ? (lang === 'vi' ? lt.labelVi : lt.label) : listingType, onClear: () => setListingType('all') })
     }
+    // ⛔ NAMED BY THE TAXONOMY, NOT BY THE STATE KEY (E-ACTIVE, 2026-09-29): "bedrooms: 2" and
+    // "areaM2: 30-80" read as debug output on the one line that says what is narrowing the feed.
+    const facetDefs = facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory)
     Object.entries(customFilters).forEach(([k, v]) =>
-      chips.push({ label: `${k}: ${v}`, onClear: () => setCustomFilters((prev) => { const n = { ...prev }; delete n[k]; return n }) }),
+      chips.push({
+        label: customFilterChipLabel(facetDefs.find((f) => f.key === k), k, v, lang, tr),
+        onClear: () => setCustomFilters((prev) => { const n = { ...prev }; delete n[k]; return n }),
+      }),
     )
     return chips
   }
@@ -2783,7 +3248,8 @@ export function ListingsExplorer({
     // because it was reported UNUSED once the array was complete — a stale suppression is worse
     // than none, since it hides the next omission too.
     // `serverInferredDistrict` too: the district chip is the server's answer and arrives after the words.
-    [debouncedQuery, serverInferredDistrict, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, priceRange, customFilters, verifiedOnly, nearby, lang],
+    // `activeCategory` + `tr`: the custom-filter chips are named from the category's facets (E-ACTIVE).
+    [debouncedQuery, serverInferredDistrict, activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, priceRange, customFilters, verifiedOnly, nearby, lang, tr],
   )
 
 
@@ -2947,10 +3413,12 @@ export function ListingsExplorer({
     // category: the chips row is also the SAVED-SEARCH receipt and the applied-filter bar, so
     // adding one there changes surfaces this wave does not own. The recovery path below covers
     // the case that matters.
+    // ⚠️ `tone="bare"` ON BOTH BRANCHES, AND NO `bg-card/60` (E-ZERO, 2026-09-29): the dashed card on a
+    // tinted fill predates the flat canon (docs/design-language.md §3b — lines, not boxes).
     if (chips.length === 0 && activeCategory === 'all') {
       return (
         <EmptyState
-          className="bg-card/60"
+          tone="bare"
           title={
             <>
               <Mascot name="search" className="mx-auto mb-3 h-32 w-32" />
@@ -2978,10 +3446,20 @@ export function ListingsExplorer({
       )
     }
 
+    // ⛔ "NO LISTINGS MATCH THESE FILTERS" WAS FALSE WHEN THE ONLY THING APPLIED IS THE WORDS (S-RECALL,
+    // 2026-09-29: /?q=iphnoe). A search is not a filter the reader thinks of as one; name the words.
+    const term = debouncedQuery.trim()
+    const onlyTheWords = term !== '' && chips.length === 1 && activeCategory === 'all'
+    // Popular searches: other words people found things with. The current one is excluded — it just
+    // found nothing — and so is anything that differs from it only in case or spacing.
+    const popular = term ? zeroTrending.filter((t) => t.trim().toLowerCase() !== term.toLowerCase()).slice(0, 6) : []
     return (
       <EmptyState
+        tone="bare"
         icon={Inbox}
-        title={tr('No listings match these filters.', 'Không có tin nào khớp với bộ lọc này.')}
+        title={onlyTheWords
+          ? <>{tr('No results for', 'Không có kết quả cho')} “{term}”</>
+          : tr('No listings match these filters.', 'Không có tin nào khớp với bộ lọc này.')}
         action={
           <div className="flex flex-col items-center gap-4">
             {chips.length > 0 && (
@@ -3050,6 +3528,29 @@ export function ListingsExplorer({
               </Button>
             </div>
 
+            {/* ⛔ POPULAR SEARCHES (E-ZERO, 2026-09-29): a search that found nothing is best rescued by
+                another search, so the words people are finding things with come before the category
+                jump. Same chip as "Or browse" below; no uppercase eyebrow (the owner retired kicker
+                eyebrows). Edition-scoped by the trending endpoint itself (src/lib/trending.ts). */}
+            {popular.length > 0 && (
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-xs text-ink-4">{tr('Popular searches', 'Tìm kiếm phổ biến')}</p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {popular.map((t) => (
+                    <Button
+                      key={t}
+                      variant="bare"
+                      size="none"
+                      onClick={() => handleLandingSearch(t)}
+                      className="inline-flex items-center rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                    >
+                      {t}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* A dead end orients nobody — offer a one-tap jump to popular categories. */}
             {categories.length > 0 && (
               <div className="flex flex-col items-center gap-2">
@@ -3063,7 +3564,7 @@ export function ListingsExplorer({
                       onClick={() => handleCategorySelect(c.slug)}
                       className="inline-flex items-center rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
                     >
-                      <Tr text={lang === 'vi' ? c.nameVi : c.name} />
+                      <Bilingual en={c.name} vi={c.nameVi || c.name} />
                     </Button>
                   ))}
                 </div>
@@ -3252,7 +3753,8 @@ export function ListingsExplorer({
               ⚠️ ON THE HOME PAGE THIS ONE IS OFF (`siteHeading={false}`, SEO wave B, H1c): the same
               sr-only SITE_NAME heading renders in `(home)/layout.tsx`, above the loading boundary,
               because inside it React outlines the page into `<div hidden id="S:0">` and crawlers read
-              the H1 as hidden. It stays ON by default for `/s/[handle]`, which has no H1 of its own.
+              the H1 as hidden. It is OFF on a storefront too (the default follows `sellerId`,
+              ST-HEADER): there the shop's name in its SellerCard is the H1.
               Text and sr-only are unchanged, so the brand-review record above still holds. */}
           {siteHeading && <h1 className="sr-only">{SITE_NAME}</h1>}
           {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
@@ -3345,6 +3847,9 @@ export function ListingsExplorer({
                 activeType={listingType}
                 onIntent={(type) => setListingType(listingType === type ? 'all' : type)}
                 expanded={ladderOpen}
+                // The same counts the full rail reads, so the phone row offers the same chips (E-TILES).
+                facets={facetCounts}
+                subcategoryCounts={subcategoryCounts}
               />
             }
           >
@@ -3378,6 +3883,8 @@ export function ListingsExplorer({
             intents={sellerId ? undefined : INTENT_SHORTCUTS}
             activeType={listingType}
             onIntent={(type) => setListingType(listingType === type ? 'all' : type)}
+            // Tiles are links (E-TILES): new-tab and crawlable, filtering in place on a plain click.
+            hrefFor={tileHref}
           />
 
           {/* Brand rail — brands present in this category + subcategory (logo +
@@ -3387,8 +3894,17 @@ export function ListingsExplorer({
               ⚠️ `!showDiscovery` GUARDS THE HOME COLD PATH. This rail fetches /api/brands on
               mount and it accepts category=all, so without the guard every anonymous home load
               — the most-served request on the site — would fire a brand-directory query before
-              the visitor has expressed any interest in a brand. It appears the moment they do. */}
-          {!showDiscovery && (activeCategory === 'all' || categoryHasBrand(activeCategory)) && (
+              the visitor has expressed any interest in a brand. It appears the moment they do.
+              ⛔ …BUT NOT OVER A FREE-TEXT SEARCH ON "ALL" (E-RESULTS, 2026-09-29). There the rail is
+              the most-listed-overall directory — /api/brands does not read `q`, and outside a brand
+              category the feed sends no brand facet to narrow it — so /?q=honda showed Apple,
+              Samsung, Xiaomi… (no Honda) and pushed the first result from y≈407 to y=519 at 1440×900.
+              A brand category, a brand pick and undirected browse are unchanged.
+              ⚠️ BOTH HALVES OF THE WORDS, like the un-latch: `debouncedQuery` alone trails a URL's
+              words by 150ms, so a cold /?q= load drew the directory for that window and then pulled
+              it — a 112px drop-and-return of every result under it (measured, CLS +0.11 at 390). */}
+          {!showDiscovery && (activeCategory === 'all' || categoryHasBrand(activeCategory))
+            && !(activeCategory === 'all' && activeBrand === 'all' && (query.trim() !== '' || debouncedQuery.trim() !== '')) && (
             <BrandRail
               category={activeCategory}
               subcategory={activeSubcategory}
@@ -3448,6 +3964,7 @@ export function ListingsExplorer({
           <SortStrip
             sort={sort}
             onPickSort={pickSort}
+            priceLabel={activeCategory === 'jobs' ? 'salary' : 'price'}
             goodPrice={goodPriceOnly}
             onGoodPrice={(on) => startFilterTransition(() => setGoodPriceOnly(on))}
             // Drawn only while it would narrow the feed (facets.deal — the same rule as every rail).
@@ -3460,7 +3977,6 @@ export function ListingsExplorer({
                   facetCounts={facetCounts}
                   activeCategory={activeCategory}
                   activeSubcategory={activeSubcategory}
-                  setActiveSubcategory={setActiveSubcategory}
                   province={activeProvince}
                   setProvince={setActiveProvince}
                   ward={activeWard}
@@ -3487,10 +4003,13 @@ export function ListingsExplorer({
                   setListingType={setListingType}
                   customFilters={customFilters}
                   setCustomFilters={setCustomFilters}
-                  verifiedOnly={verifiedOnly}
-                  setVerifiedOnly={setVerifiedOnly}
                   histogramQuery={histogramQuery}
                   histogramApproximate={!!nearby || debouncedQuery.trim().length > 0}
+                  // The phone Filter sheet's "Show {n} results" — the same deferred figure as the
+                  // result line, so the button and the count behind the sheet never disagree. Not the
+                  // masked seed's (E-SSR): the sheet is not under the mask, so it says no number yet.
+                  resultCount={seedMasked ? null : resultLineCount}
+                  onPanelOpenChange={onFacetPanelOpenChange}
                 />
               </div>
             }
@@ -3535,7 +4054,46 @@ export function ListingsExplorer({
               before this change too, invisibly, because the half is an `overflow-x-auto` scroller
               and a scroller does not look broken, it just shows less. A legible count is worth
               22px, and one rule that always holds is worth more than two that each hold sometimes. */}
-          <div className={cn(SECTION_HEADER_ROW, 'select-none max-sm:flex-wrap max-sm:gap-y-1.5')}>
+          {/* ⛔ "SHOWING RESULTS FOR iphone · SEARCH INSTEAD FOR “iphnoe”" (S-RECALL, 2026-09-29). The
+              server answered a zero-result search for its likely spelling (see `literalFor`), and
+              another word's results are honest only with this line above them — the header box
+              still holds what was typed. The button asks the typed words literally (0 results, and
+              the empty state names them).
+              ⚠️ `role="status"`: the count's own live region announces only the number, so without
+              this a screen-reader user would hear "3,439 listings" for "iphnoe" and never learn the
+              words were changed.
+              ⛔ THE REGION IS ALWAYS MOUNTED; ONLY THE SENTENCE COMES AND GOES (review, 2026-09-29). A
+              live region announces CHANGES to itself — one inserted already holding its text is
+              silent on several screen-reader/browser pairs, which is what the first draft did. Empty,
+              the wrapper is a zero-height block in this `space-y-4` column, so its margins collapse
+              into its neighbours' and it adds no gap (measured: the results header does not move).
+              ⚠️ The link colour is `accent-foreground`, not `ui/button`'s `link` variant: that one is
+              `text-primary`, which stays #0a66c2 in dark mode (a button FILL colour) and fails AA as
+              text on the dark canvas. Underlined at rest because colour alone must not carry "this is
+              a control" inside a sentence (WCAG 1.4.1); `tap-44` + `relative` give the inline control a
+              44px hit area without changing the line (see globals.css). */}
+          <div role="status" data-slot="spell-correction">
+            {correctedQuery && !failedWithoutAnswer && (
+              <p className="text-sm text-body">
+                {tr('Showing results for', 'Đang hiển thị kết quả cho')}{' '}
+                <strong className="font-semibold text-foreground">{correctedQuery}</strong>.{' '}
+                <Button
+                  type="button"
+                  variant="bare"
+                  size="none"
+                  onClick={() => setLiteralFor(spellTerm)}
+                  className="tap-44 relative inline-block whitespace-normal text-left align-baseline text-sm font-semibold text-accent-foreground underline decoration-1 underline-offset-4 hover:decoration-2"
+                >
+                  {tr('Search instead for', 'Tìm chính xác')} “{spellTerm}”
+                </Button>
+              </p>
+            )}
+          </div>
+          {/* `id="results"` + `tabIndex={-1}`: the target of "Skip to listings" (skip-link.tsx, D-KEYBOARD).
+              NOT `#listings` — that section opens with the category rail and the toolbar, the ~30 Tab
+              stops the skip exists to pass; from here the next stops are this row's own controls and
+              then the first card. `scroll-mt-*` lands it below the sticky header + toolbar. */}
+          <div id="results" tabIndex={-1} className={cn(SECTION_HEADER_ROW, 'scroll-mt-40 select-none max-sm:flex-wrap max-sm:gap-y-1.5 sm:scroll-mt-32')}>
             {/* ⚠️ THE HEADING NO LONGER WRAPS <ResultLine>, WHICH IS WHAT LETS IT MOVE. They were
                 nested — heading and line inside one `flex-1` box — and a nested child cannot
                 reorder past its parent's SIBLING, so the line could never get below the toggles.
@@ -3544,21 +4102,32 @@ export function ListingsExplorer({
                 MAKES THE HALVES MEAN ANYTHING. Without it the line is content-sized — measured at
                 203px on a 1440px viewport — so its two `basis-1/2` halves split 203px and the row
                 shows a cramped left cluster with ~900px of dead space before "Save search". This
-                box now takes its content width instead: "Latest listings" on the undirected feed,
-                and zero on a directed one where the heading is sr-only. */}
-            <div className="order-1 flex min-w-0 shrink-0 items-center gap-2">
-              {feedInDefaultOrder ? (
+                box now takes its content width instead: the order-named heading ("Recommended",
+                "Latest listings", …) on the undirected feed, and zero on a directed one where the
+                heading is sr-only. */}
+            {/* `data-feed-heading`: masked with the seed on a cold deep link (E-SSR, globals.css) — the
+                ISR copy says "Recommended" over a feed the URL has directed elsewhere. */}
+            <div data-feed-heading="" className="order-1 flex min-w-0 shrink-0 items-center gap-2">
+              {showDiscovery ? (
                 <>
-                  <Clock className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
-                  <h2 className={SECTION_TITLE}>{tr('Latest listings', 'Tin đăng mới nhất')}</h2>
+                  {sort === 'recent' && <Clock className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />}
+                  <h2 className={SECTION_TITLE}>{homeFeedHeading}</h2>
                 </>
               ) : (
-                /* ⚠️ THE HEADING GOES SR-ONLY RATHER THAN AWAY, and it carries the string the
-                   deleted second <h1> used to. The results need A heading for the outline to stay
-                   sequential (h1 site name → h2 here → h3 cards), but a big painted "Marketplace
-                   listings" over a result set the visitor defined themselves is noise, and beside
-                   "Found 32 listings" it says the same word twice. */
-                <h2 className="sr-only">{tr('Marketplace listings', 'Tin đăng')}</h2>
+                /* ⚠️ THE HEADING GOES SR-ONLY RATHER THAN AWAY. The results need A heading for the
+                   outline to stay sequential (h1 site name → h2 here → h3 cards), but a big painted
+                   heading over a result set the visitor defined themselves is noise, and beside the
+                   count it says the same thing twice.
+                   ⛔ IT NAMES THE RESULTS (E-TITLE, 2026-09-29): "Results for “honda”" (the words the
+                   grid answers — the corrected spelling when the server corrected them), else the
+                   deepest ladder rung ("Rentals"), else the old generic "Marketplace listings". A
+                   heading list that reads "Marketplace listings" on every search tells a screen-reader
+                   user nothing about where they are. */
+                <h2 className="sr-only">
+                  {resultsTerm
+                    ? tr('Results for {q}', 'Kết quả cho {q}').replace('{q}', `“${resultsTerm}”`)
+                    : ladderCrumbs[ladderCrumbs.length - 1]?.label ?? tr('Marketplace listings', 'Tin đăng')}
+                </h2>
               )}
             </div>
 
@@ -3580,9 +4149,9 @@ export function ListingsExplorer({
                   is handed only the crumbs and the chips. Two elements announcing the same figure
                   is how a live region becomes noise. */}
             <ResultLine
-              // `null` while the current filters' page 1 FAILED: the held count is the previous
-              // filters' answer, and it would sit above the error as if it were this one's.
-              count={failedWithoutAnswer ? null : nearby ? shownListings.length : totalCount}
+              // See `resultLineCount`: null while there is no answer to state (a failed page 1, a cold
+              // deep link still on the seed, a skeleton-first client mount), else the deferred count.
+              count={resultLineCount}
               crumbs={ladderCrumbs}
               filters={resultFilters}
               onClearAll={resultFilters.length > 1 ? clearAllFilters : undefined}
@@ -3667,7 +4236,7 @@ export function ListingsExplorer({
               (initialData below), so `isLoading` is false and the real cards paint first. */}
           {viewMode !== 'video' && isLoading && listings.length === 0 && (
             viewMode === 'grid' ? (
-              <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              <div className={LISTING_GRID}>
                 {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
                   <ListingCardSkeleton key={i} />
                 ))}
@@ -3682,7 +4251,7 @@ export function ListingsExplorer({
           )}
 
           {viewMode !== 'video' && !isLoading && (shownListings.length === 0 || failedWithoutAnswer) && (
-            queryError ? renderErrorState(showDiscovery ? 'gap-3 bg-card/60 py-16' : undefined) : renderEmptyState()
+            queryError ? renderErrorState(showDiscovery ? 'gap-3 py-16' : undefined) : renderEmptyState()
           )}
 
           {/* ⚠️ THE TRANSITION LIVES OUTSIDE THE CONDITIONAL, AND THE PREDICATE IS `queryFetching`.
@@ -3747,12 +4316,15 @@ export function ListingsExplorer({
                  grid for every reader in the normal case. `undefined` is unambiguous everywhere
                  and costs nothing. A reviewer raised this against pre-19 React; we are on 19, but
                  the failure it describes is bad enough to be worth insuring against. */
-              inert={staleFromOtherCategory || undefined}
-              aria-busy={staleFromOtherCategory || undefined}
+              // ⚠️ AND WHILE A COLD DEEP LINK'S SEED IS MASKED (E-SSR): those placeholders are twelve
+              // unrelated listings underneath — a tap on one would open a card the reader never saw.
+              // Not dimmed on top of the mask, though: the placeholders are already the loading state.
+              inert={staleFromOtherCategory || seedMasked || undefined}
+              aria-busy={staleFromOtherCategory || seedMasked || undefined}
               className={cn(
                 'transition-opacity duration-200',
-                ((queryShowingStaleSet && page === 1) || staleFromOtherCategory) && 'opacity-70',
-                staleFromOtherCategory && 'pointer-events-none',
+                (((queryShowingStaleSet && page === 1) && !seedMasked) || staleFromOtherCategory) && 'opacity-70',
+                (staleFromOtherCategory || seedMasked) && 'pointer-events-none',
               )}
             >
               {/* ⚠️ NO `key` AND NO ENTRANCE. The key was
@@ -3771,13 +4343,12 @@ export function ListingsExplorer({
               <div>
               {viewMode === 'grid' && (
                 /* Grid Mode (Standard Cards) — the home feed's presentation, and now the DEFAULT
-                   everywhere (see the viewMode useState). */
-                <div className="feed-grid grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                  {deferredListings.map((l, index) => (
+                   everywhere (see the viewMode useState).
+                   `data-feed-restoring`: every restored card renders at its REAL size while the
+                   back-nav restore aligns — see the rule beside `[data-feed-card]` in globals.css. */
+                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', LISTING_GRID)}>
+                  {gridListings.map((l, index) => (
                     <Fragment key={l.id}>
-                      {/* Guest capture (5a #7): one signup card at the point of interest,
-                          after the 8th listing. Renders null once signed in. */}
-                      {index === 8 && <CaptureCard />}
                       {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed
                           effect realigns this exact element, which is what makes "put me
                           back where I was" survive a page whose height changed while we
@@ -3841,6 +4412,17 @@ export function ListingsExplorer({
                             first card still skips lazy-loading — it just stops claiming the preload. */}
                         <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} onLocate={locateListing} />
                       </div>
+                      {/* Guest capture (5a #7): one full-width signup ROW after the first page.
+                          Renders null once signed in (and while auth is still loading).
+                          ⛔ AFTER THE 12TH, NOT THE 8TH, AND FULL WIDTH (E-ORPHAN, 2026-09-29). It was
+                          one CELL inserted after the 8th listing, which made page one 13 cells — a
+                          multiple of nothing — so every breakpoint ended on an orphan (desktop rows
+                          4·4·4·1, phone 2·2·2·2·2·2·1). `FIRST_PAGE_SIZE` divides 2, 3 and 4 columns,
+                          and the row spans the grid (`col-span-full`), so every listing row stays full:
+                          on the undirected home it sits directly above "Browse everything", on a
+                          search between page one and page two, and a feed shorter than a page has
+                          none. */}
+                      {index === FIRST_PAGE_SIZE - 1 && <CaptureCard />}
                     </Fragment>
                   ))}
                   {/* The next page's reserved cells — see `pendingRows`. Decorative: the rows
@@ -3854,14 +4436,24 @@ export function ListingsExplorer({
               )}
 
               {viewMode === 'map' && (
-                /* Airbnb-style split: scrollable list (left) + sticky map (right) */
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                  {/* Left: narrow single-column result list (its own scroll container on desktop) */}
-                  <div ref={mapListRef} className="min-w-0 lg:col-span-4 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 grid grid-cols-1 gap-4 scroll-thin order-2 lg:order-1">
+                /* Airbnb-style split: the list scrolls WITH THE PAGE (left) beside a sticky map (right).
+                   ⛔ ONE SCROLLER, THE WINDOW (E-MAP, 2026-09-29). The list used to be its own
+                   `100dvh-8rem` scroll box beside a map of the same height in a grid row of exactly that
+                   height — so the map's `sticky` could never stick, page scroll moved BOTH, and at
+                   1440×900 the map's bottom sat at y=1179, under the fold. Now the grid is as tall as the
+                   list, the map pins under the chrome (`--map-top`, set here so the building header in
+                   the list can pin to the same line) and ends 1rem above the fold. Phone: unchanged —
+                   the 60dvh inset with the list below is a recorded decision (2026-07-14, see below). */
+                <div
+                  className="grid grid-cols-1 lg:grid-cols-12 lg:items-start gap-4"
+                  style={{ '--map-top': headerHidden ? '1rem' : `calc(4rem + max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px)) + ${toolbarH}px + 1rem)` } as CSSProperties}
+                >
+                  {/* Left: the result list — one column at lg, two from xl, in the page's own scroll. */}
+                  <div ref={mapListRef} className="min-w-0 lg:col-span-5 xl:col-span-6 grid grid-cols-1 xl:grid-cols-2 gap-4 content-start order-2 lg:order-1">
                     {/*
                       * THE DRILLED-IN BUILDING: what you are looking at, how big it is, and the way
-                      * out. Sticky because this column scrolls independently — otherwise the header
-                      * leaves the viewport on the second card and a reader 40 units deep has no
+                      * out. Sticky (under the pinned chrome, at the map's own top line) — otherwise the
+                      * header leaves the viewport on the second card and a reader 40 units deep has no
                       * reminder they are inside one tower rather than the whole city.
                       * ⚠️ The count is the SERVER's, across the whole filtered set — not
                       * `mapSortedListings.length`, which is only the pages loaded so far and would
@@ -3921,7 +4513,10 @@ export function ListingsExplorer({
                         corner. (This comment sits OUTSIDE the `&&` — a JSX comment in expression
                         position is a syntax error, per CLAUDE.md's landmine list.) */}
                     {activeBuilding && (
-                      <div className="material sticky top-0 z-10 -mx-1 mb-1 flex items-center gap-3 rounded-xl border border-border/70 bg-card/70 p-2 pr-8 backdrop-blur">
+                      // `col-span-full`: the list is two columns from xl; the header spans both. It pins
+                      // to the map's own top line on desktop (the window scrolls now, E-MAP), and at the
+                      // viewport top on a phone, as before.
+                      <div className="material sticky top-0 z-10 -mx-1 mb-1 col-span-full flex items-center gap-3 rounded-xl border border-border/70 bg-card/70 p-2 pr-8 backdrop-blur lg:top-[var(--map-top)] lg:transition-[top] lg:duration-[var(--duration-sticky,250ms)] motion-reduce:transition-none">
                         {activeBuilding.hero && (
                           <Image
                             src={activeBuilding.hero}
@@ -3942,7 +4537,7 @@ export function ListingsExplorer({
                           variant="ghost"
                           size="sm"
                           className="shrink-0"
-                          onClick={() => { setSelectedBuilding(null); mapListRef.current?.scrollTo({ top: 0 }) }}
+                          onClick={() => { setSelectedBuilding(null); scrollMapListToTop() }}
                         >
                           {tr('All buildings', 'Tất cả')}
                         </Button>
@@ -3961,7 +4556,7 @@ export function ListingsExplorer({
                           */}
                         <IconButton
                           size="xs"
-                          onClick={() => { setSelectedBuilding(null); mapListRef.current?.scrollTo({ top: 0 }) }}
+                          onClick={() => { setSelectedBuilding(null); scrollMapListToTop() }}
                           aria-label={tr('Close building', 'Đóng toà nhà')}
                           className="absolute right-1.5 top-1.5 h-6 w-6 text-ink-4 hover:bg-muted hover:text-foreground"
                         >
@@ -3976,7 +4571,9 @@ export function ListingsExplorer({
                         onMouseEnter={() => setHoveredId(l.id)}
                         onMouseLeave={() => setHoveredId(null)}
                         className={cn(
-                          'rounded-xl',
+                          // The pin handler scrolls the WINDOW to this card now (E-MAP): land it
+                          // below the pinned header + toolbar, where the map's own top line is.
+                          'rounded-xl lg:scroll-mt-[var(--map-top)]',
                           // Highlight the IMAGE only (user-picked 2026-07-14):
                           // ringing the whole card incl. the text block read badly.
                           hoveredId === l.id && '[&_[data-protected]]:ring-2 [&_[data-protected]]:ring-inset [&_[data-protected]]:ring-brand/40',
@@ -3985,9 +4582,10 @@ export function ListingsExplorer({
                         <ListingCard listing={l} onOpen={handleOpen} onLocate={locateListing} />
                       </div>
                     ))}
-                    {/* In-column infinite-scroll sentinel (observed against this column) */}
+                    {/* The list's infinite-scroll sentinel — observed against the WINDOW since E-MAP (the
+                        list no longer scrolls on its own). ⚠️ Never `hidden` (the landmine rule). */}
                     {!nearby && (
-                      <div ref={mapSentinelRef} className="select-none py-2">
+                      <div ref={mapSentinelRef} className="col-span-full select-none py-2">
                         {queryFetching && hasMore && (
                           <div className="flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
                             <Spinner size="sm" className="border-border border-t-brand" />
@@ -4029,9 +4627,13 @@ export function ListingsExplorer({
                       so the listings peek below it stays a thumb-scrollable strip (a
                       full-bleed map would swallow every touch as pan/zoom). scroll-mt
                       clears the sticky header so locate lands ON the map. */}
+                  {/* ⚠️ `self-start` + the grid's `items-start`: a stretched grid item is as tall as the row,
+                      and a sticky box as tall as its container has nowhere to stick — the old bug. The
+                      height follows `--map-top` so the map always ends 1rem above the fold; listings-map
+                      re-measures itself when its box resizes (its ResizeObserver). */}
                   <div
                     ref={mapWrapRef}
-                    className="min-w-0 lg:col-span-8 h-[60dvh] lg:h-[calc(100dvh-8rem)] scroll-mt-[calc(4rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
+                    className="min-w-0 h-[60dvh] rounded-2xl overflow-hidden order-1 lg:order-2 lg:col-span-7 xl:col-span-6 scroll-mt-[calc(4rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:self-start lg:top-[var(--map-top)] lg:h-[calc(100dvh-var(--map-top)-1rem)] lg:transition-[top,height] lg:duration-[var(--duration-sticky,250ms)] lg:ease-out motion-reduce:transition-none">
                     <ListingsMap
                       listings={mapListings}
                       buildings={buildingPins}
@@ -4047,10 +4649,12 @@ export function ListingsExplorer({
                       onHover={setHoveredId}
                       onPinOpen={(id) => {
                         // Surface the listing's card in the list. WHEN this fires is the
-                        // map's call: desktop = on pin open (the list is a side column, so
-                        // scrolling it is free); touch = only on the first tap of the popup
-                        // card (on mobile the list is BELOW the map, so scrolling on a pin
-                        // tap would drag the page off the map — user decision 2026-07-14).
+                        // map's call: desktop = on pin open (the list is a side column beside
+                        // a STICKY map, so scrolling the page to it moves nothing on the map —
+                        // and the card's scroll margin keeps it clear of the pinned chrome);
+                        // touch = only on the first tap of the popup card (on mobile the list
+                        // is BELOW the map, so scrolling on a pin tap would drag the page off
+                        // the map — user decision 2026-07-14).
                         mapListRef.current?.querySelector(`[data-lid="${id}"]`)?.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' })
                       }}
                       onMove={setMapCenter}
@@ -4070,8 +4674,8 @@ export function ListingsExplorer({
                    <CompactListingRow> is a `ssr:false` dynamic with a geometry-matched
                    skeleton (compact-listing-row-skeleton.tsx) — a replacement needs the same
                    pair or the column collapses and rebounds while the chunk arrives. */
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5">
-                  {deferredListings.map((l, index) => (
+                <div data-feed-restoring={restoring || undefined} className={COMPACT_LIST_GRID}>
+                  {gridListings.map((l, index) => (
                     /* data-feed-card = the back-nav restore anchor (see the grid above). */
                     <div key={l.id} data-feed-card={l.id}>
                       <CompactListingRow
@@ -4196,6 +4800,26 @@ export function ListingsExplorer({
             everything scrolls past them, and burying merchandising shelves under the thing they
             asked for is the right answer. If that ever stops being true, the fix is the footer's
             fix too (a page cap or a "back to top" jump), not moving these back above the grid. */}
+        {/* ⛔ A SEARCH THAT FOUND ONE TO SEVEN THINGS ENDS ON SOMETHING TO DO NEXT (E-ZERO, 2026-09-29).
+            The discovery shelves are undirected-browse only, so a 1-result search ended in blank
+            space under a single card. The owner's rule for sparse results is "add recovery, never
+            hide", so the trending rail follows a short, complete answer — same spacing as the shelf
+            band below, and it self-hides under MIN_RAIL_ITEMS like every rail.
+            ⚠️ `recovery` lifts the rail's own "hide when the URL is filtered" rule, which exists for
+            its home placement (above-the-fold redundancy) and is exactly wrong here.
+            ⛔ NEVER ON A STOREFRONT: it is marketplace-wide merchandising, and a shop's page shows
+            what the shop has (owner, 2026-08-30 — the same reason the promo slot is not there).
+            ⚠️ ONLY ONCE THE GRID SHOWS THE ANSWER (`gridListings === shownListings`). The grid renders a
+            deferred copy, so for a render it still held the twelve previous cards while this rail —
+            not deferred — mounted under them, then rose ~1,500px when the grid caught up (measured:
+            CLS 0.26 on a cold /?q=kindel at 390). Gated on the grid, both land in one commit. */}
+        {!showDiscovery && !sellerId && viewMode === 'grid' && !isLoading && !queryError && !failedWithoutAnswer
+          && shownListings.length > 0 && gridListings === shownListings && totalCount > 0 && totalCount < 8 && !hasMore && (
+          <div className="mt-8 sm:mt-12 lg:mt-8">
+            <ForYouRail initial={initialTrending} recovery />
+          </div>
+        )}
+
         {showDiscovery && (
           <div className="mt-8 space-y-8 sm:mt-12 sm:space-y-12 lg:mt-8 lg:space-y-8">
             {/* Recently viewed — the returning buyer's own trail. Self-hides for new visitors. */}

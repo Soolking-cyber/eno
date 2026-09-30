@@ -3,7 +3,7 @@
 import { useId, useState } from 'react'
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox'
-import { ChevronsUpDown, Check, Search } from '@/components/ui/icons'
+import { ChevronsUpDown, ChevronDown, Check, Search } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -75,6 +75,21 @@ interface CustomSelectProps {
    *  Set it `false` for a list that is long but ORDERED (price bands, years), where
    *  filtering by label is useless and the scroll is the point. */
   searchable?: boolean
+  /**
+   * The trigger's glyph. `'updown'` (default) is the stacked ⇅ value-picker mark every form and admin
+   * picker has always worn. `'down'` is the facet pills' ⌄ (E-TOOLBAR, 2026-09-29): in the explorer's
+   * toolbar "Any type" and "Any condition" wore ⇅ beside Price's and Area's ⌄ and the Price SORT tab's
+   * own ⇅, so one row mixed two disclosure marks and borrowed the sort's. It turns with the menu.
+   */
+  indicator?: 'updown' | 'down'
+}
+
+/** The trigger's disclosure glyph — see `indicator`. Same 14px box either way, so no pill reflows. */
+function TriggerGlyph({ indicator = 'updown', open }: { indicator?: 'updown' | 'down'; open: boolean }) {
+  if (indicator === 'down') {
+    return <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4 transition-transform', open && 'rotate-180')} />
+  }
+  return <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4" />
 }
 
 /** The trigger's box. Shared verbatim by both variants so the searchable picker is
@@ -195,7 +210,7 @@ export function CustomSelect(props: CustomSelectProps) {
  *  Base UI recognises natively — it filters on `label` and needs no itemToStringLabel.
  */
 function SearchableSelect({
-  value, onChange, options, label, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel,
+  value, onChange, options, label, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel, indicator,
 }: CustomSelectProps) {
   const uid = useId()
   const { tr } = useLanguage()
@@ -240,7 +255,7 @@ function SearchableSelect({
             {icon}
             <span className={cn('truncate', labelClassName)}>{triggerLabel ?? (selectedOption ? selectedOption.label : placeholder)}</span>
           </span>
-          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4" />
+          <TriggerGlyph indicator={indicator} open={open} />
         </ComboboxPrimitive.Trigger>
 
         <ComboboxPrimitive.Portal>
@@ -259,7 +274,7 @@ function SearchableSelect({
               {/* The search field. min-w-44 on the card would squeeze this on a narrow
                   facet pill, so the popup widens to 15rem here — a filter you cannot read
                   while typing is worse than a slightly wider card. */}
-              <div className="flex items-center gap-2 border-b border-line px-3 py-2.5">
+              <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
                 <Search className="h-4 w-4 shrink-0 text-ink-4" aria-hidden="true" />
                 <ComboboxPrimitive.Input
                   placeholder={tr('Search', 'Tìm kiếm')}
@@ -309,7 +324,7 @@ function SearchableSelect({
 }
 
 function PlainSelect({
-  value, onChange, options, label, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel,
+  value, onChange, options, label, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel, indicator,
 }: CustomSelectProps) {
   const uid = useId()
   // `open` is held in React rather than read off the trigger's data-popup-open, because the
@@ -379,8 +394,9 @@ function PlainSelect({
             {icon}
             <span className={cn('truncate', labelClassName)}>{triggerLabel ?? (selectedOption ? selectedOption.label : placeholder)}</span>
           </span>
-          {/* Select-trigger convention (shadcn/macOS): stacked chevrons = value picker. */}
-          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4" />
+          {/* Select-trigger convention (shadcn/macOS): stacked chevrons = value picker — unless the
+              caller asked for the facet pills' ⌄ (`indicator`). */}
+          <TriggerGlyph indicator={indicator} open={open} />
         </SelectPrimitive.Trigger>
 
       <SelectPrimitive.Portal>

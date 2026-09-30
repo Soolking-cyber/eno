@@ -1,5 +1,5 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 
 /**
  * Is a <ListingsExplorer> mounted on this page right now?
@@ -15,6 +15,9 @@ import { useEffect } from 'react'
  * double effects) must not report "absent" while another instance is still mounted.
  */
 let mounted = 0
+/** Who re-renders when the answer changes — the skip link's "Skip to listings" (D-KEYBOARD). */
+const listeners = new Set<() => void>()
+const emit = () => { for (const l of listeners) l() }
 
 export function explorerMounted(): boolean {
   return mounted > 0
@@ -24,10 +27,26 @@ export function explorerMounted(): boolean {
 export function useRegisterExplorer(): void {
   useEffect(() => {
     mounted++
+    emit()
     return () => {
       mounted = Math.max(0, mounted - 1)
+      emit()
     }
   }, [])
+}
+
+function subscribe(cb: () => void): () => void {
+  listeners.add(cb)
+  return () => { listeners.delete(cb) }
+}
+
+/**
+ * The same answer as `explorerMounted()`, as state a component can RENDER from. False on the server
+ * and while hydrating (the explorer registers in an effect, so nothing is mounted before the first
+ * client commit either way) — markup that depends on it cannot mismatch.
+ */
+export function useExplorerMounted(): boolean {
+  return useSyncExternalStore(subscribe, explorerMounted, () => false)
 }
 
 /**

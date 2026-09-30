@@ -1,6 +1,7 @@
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SITE_NAME } from '@/lib/edition'
+import { PREPAINT_SCRIPT } from '@/lib/explorer-url'
 
 /**
  * ⛔ THE HOME PAGE'S HEADER, `<main>` AND H1 RENDER HERE, ABOVE `(home)/loading.tsx`, SO THAT CRAWLERS
@@ -15,10 +16,17 @@ import { SITE_NAME } from '@/lib/edition'
  *
  * ⛔ NO DATA. The H1 is the constant `SITE_NAME`, sr-only as it has been since 2026-08-02 (owner), and
  * nothing here awaits anything: whatever a layout awaits delays the whole first chunk.
- * ⚠️ THE ONE H1 IS THIS ONE. `<ListingsExplorer>` renders the same sr-only heading by default, because
- * `/s/[handle]` renders the explorer too and has no H1 of its own; `(home)/page.tsx` turns it off with
- * `siteHeading={false}`. Both at once is two H1s once `S:0` is revealed.
+ * ⚠️ THE ONE H1 IS THIS ONE. `<ListingsExplorer>` renders the same sr-only heading by default when it is
+ * not seller-scoped; `(home)/page.tsx` turns it off with `siteHeading={false}`. Both at once is two H1s
+ * once `S:0` is revealed. (On `/s/[handle]` the explorer's default is off: the shop's name is the H1.)
  * ⚠️ NO `<Suspense>` in this file (contract test): around `{children}` it would hide the page again.
+ *
+ * ⛔ THE ONE SCRIPT HERE IS STATIC, AND THIS IS THE ONLY PLACE IT WORKS (E-SSR phase 1, 2026-09-29).
+ * `PREPAINT_SCRIPT` (src/lib/explorer-url.ts) marks `<html>` when the URL directs the feed, so the ISR
+ * seed — the unfiltered home, served for every query string — is masked from the first paint instead of
+ * posing as the answer to /?q=honda for the seconds hydration takes. It must run BEFORE the seed can
+ * paint, i.e. in the first chunk: in the page it would sit inside `S:0`, parsed after the skeleton has
+ * already been shown. It is a constant string — no data, no await — so the first-chunk rules above hold.
  */
 export default function HomeLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -46,6 +54,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         <h1 className="sr-only">{SITE_NAME}</h1>
+        <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />
         {children}
       </main>
       <Footer />

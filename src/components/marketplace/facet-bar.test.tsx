@@ -87,7 +87,7 @@ function props(over: Partial<FacetBarProps> = {}): FacetBarProps {
   return {
     activeCategory: 'electronics',
     activeSubcategory: 'all',
-    setActiveSubcategory: vi.fn(),
+   
     province: null,
     setProvince: vi.fn(),
     ward: null,
@@ -102,8 +102,6 @@ function props(over: Partial<FacetBarProps> = {}): FacetBarProps {
     setListingType: vi.fn(),
     customFilters: {},
     setCustomFilters: vi.fn(),
-    verifiedOnly: true,
-    setVerifiedOnly: vi.fn(),
     histogramQuery: 'category=electronics',
     ...over,
   }
@@ -564,8 +562,9 @@ describe('<FacetBar> — only options that narrow are drawn', () => {
     // Bathrooms: "1" is every row in view (50 of 50) — a tap narrows nothing — and the rest are 0.
     expect(within(panel).queryByRole('group', { name: 'Bathrooms' })).toBeNull()
     expect(within(panel).queryByRole('group', { name: 'Rental period' })).toBeNull()
-    // A slider over a column no row in view fills can only empty the feed.
-    expect(within(panel).queryByText('Area')).toBeNull()
+    // A slider over a column no row in view fills can only empty the feed. (The size facet reads "Size"
+    // since E-FILTER-SHEET — "Area" is the location pill's word.)
+    expect(within(panel).queryByText('Size')).toBeNull()
   })
 
   it('keeps a SELECTED option even at 0, so it can be cleared', async () => {
@@ -582,7 +581,10 @@ describe('<FacetBar> — only options that narrow are drawn', () => {
     const panel = await openPanel(user)
     const beds = within(panel).getByRole('group', { name: 'Bedrooms' })
     expect(within(beds).getAllByRole('button').map((b) => b.textContent)).toEqual(['Studio', '1 BR', '2 BR', '3 BR', '4 BR', '5 BR', '6+ BR'])
-    expect(within(panel).getByText('Area')).toBeTruthy()
+    expect(within(panel).getByText('Size')).toBeTruthy()
+    // The unit rides the empty boxes' placeholders (E-FILTER-SHEET).
+    expect(within(panel).getByPlaceholderText('Min m²')).toBeTruthy()
+    expect(within(panel).getByPlaceholderText('Max m²')).toBeTruthy()
   })
 
   it('draws no intent menu when every intent is either empty or all of the rows', () => {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { useCurrency } from '@/context/currency-context'
-import { compactPrice, moneyLocale } from '@/lib/vnd'
+import { compactPrice, formatInteger, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { barInRange, countInRange, histogramBars, parseHistogram, positionOf, type PriceHistogram } from '@/lib/price-histogram'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,9 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RangeSlider } from '@/components/ui/range-slider'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
+import { CloseButton } from '@/components/ui/close-button'
+import { useIsPhone } from '@/hooks/use-is-phone'
 import { PricePresetChips } from './price-preset-chips'
 
 /** One side of the committed "min-max" string. Empty or malformed (`?priceMin=abc`) is an open end
@@ -28,9 +31,10 @@ function parseBound(s: string | undefined): number | null {
  * exactly where their budget sits in what's available. Values are VND internally;
  * labels/inputs render in the viewer's display currency. Emits the "min-max" VND
  * string the explorer understands ('all' when the full range is selected). The
- * panel is a Base UI Popover (Trigger + Portal + Positioner + Popup): it portals to
- * <body> so the facet row's horizontal scroll can't clip it, and brings the
- * disclosure roles, Escape, focus move + return and anchoring for free.
+ * panel is a Base UI Popover (Trigger + Portal + Positioner + Popup) from `sm` up and a
+ * ui/drawer bottom sheet below it (see the phone branch of the render): both portal to
+ * <body> so the facet row's horizontal scroll can't clip them, and bring the
+ * disclosure roles, Escape, focus move + return (and, for the popover, anchoring) for free.
  *
  * ⚠️ THE HISTOGRAM IS BINS, NOT PRICES (src/lib/price-histogram.ts explains why: the old endpoint
  * shipped only the 5,000 CHEAPEST prices and this panel read them as the whole range). Three
@@ -48,7 +52,7 @@ function parseBound(s: string | undefined): number | null {
  *     stop is "no max"; neither writes a bound into the URL.
  */
 export function PriceRangeFilter({
-  value, onChange, query, countsApproximate = false, className, activeClassName, wrapperClassName,
+  value, onChange, query, countsApproximate = false, className, activeClassName, wrapperClassName, onOpenChange,
 }: {
   value: string
   onChange: (v: string) => void
@@ -63,12 +67,16 @@ export function PriceRangeFilter({
   className?: string
   activeClassName?: string
   wrapperClassName?: string
+  /** Told whenever the panel opens or closes — the explorer holds its phone ladder still meanwhile. */
+  onOpenChange?: (open: boolean) => void
 }) {
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // labels/inputs follow the viewer's language
   const { currency, rates } = useCurrency()
   const rate = currency === 'VND' || currency === '₫' ? 1 : rates[currency] || 0
   const [open, setOpen] = useState(false)
+  const changeOpen = (next: boolean) => { setOpen(next); onOpenChange?.(next) }
+  const isPhone = useIsPhone()
   // `null` = no histogram (failed fetch, or an OLD cached `{ prices }` body) — the panel still offers
   // the presets and the typed inputs, it just has no bars or slider to draw.
   const [hist, setHist] = useState<PriceHistogram | null>(null)
@@ -183,28 +191,203 @@ export function PriceRangeFilter({
     return tr('Price', 'Giá')
   })()
 
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <div className={cn('relative', wrapperClassName)}>
-        <PopoverTrigger
-          render={
+  // The count the panel states: "{n} available" in the header, and on a phone the footer button's
+  // "Show {n} results". ⚠️ `null` until a histogram is in hand — a button promising a number it does
+  // not have would be the one lie on this panel.
+  const approx = !inRange.exact || countsApproximate
+  const shownCount = loaded && hasBins ? inRange.count : null
+  const countLabel = shownCount == null
+    ? ''
+    : (approx ? tr('≈{n} available', '≈{n} món') : tr('{n} available', '{n} món')).replace('{n}', formatInteger(shownCount, locale))
+  const showLabel = shownCount == null
+    ? tr('Show results', 'Xem kết quả')
+    : (shownCount === 1 ? tr('Show {n} result', 'Xem {n} kết quả') : tr('Show {n} results', 'Xem {n} kết quả'))
+      .replace('{n}', `${approx ? '≈' : ''}${formatInteger(shownCount, locale)}`)
+
+  const trigger = (
+    <Button
+      variant="bare"
+      size="none"
+      type="button"
+      className={cn(
+        // active:scale-100 is load-bearing: this button is the popover anchor and
+        // floating-ui reads its rect — a press transform would move the panel off it.
+        // h-12 (48px) to match the other facet pills — flat, borderless.
+        'flex min-h-12 w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-4 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer',
+        open ? 'text-foreground' : active ? activeClassName : className,
+      )}
+    >
+      <span className="truncate">{triggerText}</span>
+      <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', open && 'rotate-180')} />
+    </Button>
+  )
+
+  /** Everything between the panel's title and its actions — ONE body for both containers. */
+  const body = (
+    <>
+      {!loaded ? (
+        <Skeleton className="mt-6 h-24 rounded-xl" />
+      ) : hist && hist.total === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">{tr('No listings match these filters yet.', 'Chưa có tin phù hợp với bộ lọc.')}</p>
+      ) : (
+        <>
+          {/* No histogram (a failed fetch, or an old cached response without `edges`) draws no
+              bars and no slider, but the presets and the typed fields still work. */}
+          {/* `data-base-ui-swipe-ignore`: on a phone this panel is a bottom sheet, and a thumb drag
+              that dips downward must move the slider, not start dismissing the sheet — Base UI's touch
+              path opts out only on this attribute (its range-input exemption covers a native
+              `<input type=range>`, not the Slider's thumbs). Same opt-out as the Area and Filter panels. */}
+          {hasBins && (
+            <div className="mt-4" data-base-ui-swipe-ignore>
+              {/* One bar per bin (merged only past ~60 bins). `flexGrow: span` keeps a merged
+                  bar as wide as the slider stops it covers, so bars and thumbs line up. */}
+              <div className="relative flex h-20 items-end gap-[2px]">
+                {bars.map((bar) => {
+                  const within = barInRange(edges, bar, lo, hi)
+                  return (
+                    <div
+                      key={bar.from}
+                      className={cn('min-w-0 rounded-lg transition-colors', within ? 'bg-primary' : 'bg-line-strong/50')}
+                      style={{ flex: `${bar.span} 1 0`, height: `${Math.max(4, (bar.count / maxCount) * 100)}%` }}
+                    />
+                  )
+                })}
+              </div>
+
+              {/* Dual-thumb slider over EDGE INDICES (invariant 1). Only the thumb that moved
+                  updates its bound, so a typed value on the other side survives a drag. */}
+              <RangeSlider
+                className="mt-1"
+                value={[posLo, posHi]}
+                min={0} max={lastIdx} step={1}
+                thumbAriaLabels={[tr('Minimum price', 'Giá tối thiểu'), tr('Maximum price', 'Giá tối đa')]}
+                getAriaValueText={ariaValueText}
+                onChange={([a, b], t) => {
+                  activeThumb.current = t
+                  if (t === 0) setLo(boundAt(0, a))
+                  else if (t === 1) setHi(boundAt(1, b))
+                }}
+                onCommit={([a, b]) => {
+                  const t = activeThumb.current
+                  activeThumb.current = -1
+                  commit(t === 0 ? boundAt(0, a) : lo, t === 1 ? boundAt(1, b) : hi)
+                }}
+              />
+            </div>
+          )}
+
+          {/* Preset budget chips — one tap sets the range via onChange (shared with
+              the mobile filter drawer). Hidden when outside the matching data's real
+              [min, max] — the whole distribution now, not a cheapest-5,000 slice. */}
+          <PricePresetChips value={value} onChange={onChange} bounds={hasBins && hist ? [hist.min, hist.max] : undefined} hist={hasBins && !countsApproximate ? hist : null} className="mt-4" />
+
+          <div className="mt-4 flex items-end gap-3">
+            <label className="min-w-0 flex-1">
+              <span className="mb-1 block text-2xs font-semibold text-ink-4">{tr('Minimum', 'Tối thiểu')}</span>
+              {/* ⛔ A BACKGROUND TINT IS NOT A FOCUS INDICATOR. `focus-within:bg-muted` alone measured
+                  1.05:1 against the surrounding canvas — a keyboard user could not tell which of
+                  the two fields they were in. These inputs use `variant="unstyled"` and so opt
+                  out of the app-wide `:focus-visible` outline, which is why the tint was all
+                  there was. The ring at full alpha measures 5.5:1, the same colour the header
+                  CTA's outline uses.
+                  ⚠️ `focus-within`, not `:focus-visible`, because the ring belongs on this
+                  wrapper — the focusable is the `<Input>` inside it, and the wrapper is what
+                  draws the field's visible boundary.
+                  ⛔ `ring-[var(--ring)]`, NOT `ring-ring` — see help-center.tsx: the bare utility
+                  paints a transparent ring. */}
+                <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted focus-within:ring-2 focus-within:ring-[color:var(--ring)]">
+                {currency === 'VND' && <span className="text-ink-4">₫</span>}
+                <Input
+                  variant="unstyled"
+                  type="text" inputMode="numeric" value={lo == null ? '' : grp(toDisplay(lo))}
+                  placeholder={hasBins && hist ? grp(toDisplay(hist.min)) : undefined}
+                  onChange={(e) => setLo(typed(e.target.value))}
+                  // Kept as typed (invariant 2) — only ordered against the max, on blur.
+                  onBlur={() => { const n = lo != null && hi != null && lo > hi ? hi : lo; setLo(n); commit(n, hi) }}
+                  className="w-full bg-transparent text-foreground outline-none"
+                />
+              </span>
+            </label>
+            <span className="pb-2 text-ink-4">–</span>
+            <label className="min-w-0 flex-1">
+              <span className="mb-1 block text-2xs font-semibold text-ink-4">{tr('Maximum', 'Tối đa')}</span>
+              {/* ⛔ A BACKGROUND TINT IS NOT A FOCUS INDICATOR. `focus-within:bg-muted` alone measured
+                  1.05:1 against the surrounding canvas — a keyboard user could not tell which of
+                  the two fields they were in. These inputs use `variant="unstyled"` and so opt
+                  out of the app-wide `:focus-visible` outline, which is why the tint was all
+                  there was. The ring at full alpha measures 5.5:1, the same colour the header
+                  CTA's outline uses.
+                  ⚠️ `focus-within`, not `:focus-visible`, because the ring belongs on this
+                  wrapper — the focusable is the `<Input>` inside it, and the wrapper is what
+                  draws the field's visible boundary. */}
+                <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted focus-within:ring-2 focus-within:ring-[color:var(--ring)]">
+                {currency === 'VND' && <span className="text-ink-4">₫</span>}
+                <Input
+                  variant="unstyled"
+                  type="text" inputMode="numeric" value={hi == null ? '' : grp(toDisplay(hi))}
+                  placeholder={hasBins && hist ? grp(toDisplay(hist.max)) : undefined}
+                  onChange={(e) => setHi(typed(e.target.value))}
+                  // Kept as typed (invariant 2) — never clamped to the data's max, only ordered
+                  // against the min, on blur.
+                  onBlur={() => { const n = hi != null && lo != null && hi < lo ? lo : hi; setHi(n); commit(lo, n) }}
+                  className="w-full bg-transparent text-foreground outline-none"
+                />
+              </span>
+            </label>
+          </div>
+
+        </>
+      )}
+    </>
+  )
+
+  /**
+   * ⛔ A BOTTOM SHEET ON A PHONE, NOT A POPOVER (E-FILTER-SHEET, 2026-09-29; canon §5 "mobile filters →
+   * ui/drawer"). Anchored to its pill at 390px the panel was a 320px card that clipped a typed
+   * 1,450,000,000, had no result footer, and — once a preset directed the feed and the phone ladder
+   * folded — was left hanging ~220px below a pill that had moved (listings-explorer freezes the fold
+   * while a panel is open, too). The sheet is full width, pinned to the bottom edge over the tab bar,
+   * and ends on the answer: "Show 1,204 results" closes it onto that feed.
+   * ⚠️ THE SAME BODY AND THE SAME STATE — only the container and the action row differ, so a range
+   * picked on a phone commits through the same `commit` and URL as one picked at 1440.
+   */
+  if (isPhone) {
+    return (
+      <Drawer open={open} onOpenChange={changeOpen}>
+        <div className={cn('relative', wrapperClassName)}>
+          <DrawerTrigger render={trigger} />
+        </div>
+        <DrawerContent>
+          <DrawerHeader className="flex-row items-center justify-between gap-3 pb-1 text-left">
+            <DrawerTitle className="text-base font-bold">{tr('Price range', 'Khoảng giá')}</DrawerTitle>
+            <span className="ml-auto text-xs text-muted-foreground">{loaded ? countLabel : tr('Loading…', 'Đang tải…')}</span>
+            {/* The 24px box the header row was laid out for — CloseButton's `2xs` (D-CLOSE). */}
+            <CloseButton size="2xs" onClick={() => changeOpen(false)} className="-mr-1 hover:bg-muted" />
+          </DrawerHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 scroll-thin">{body}</div>
+          <DrawerFooter className="flex-row gap-3 border-t border-border pt-3">
             <Button
-              variant="bare"
+              variant="ghost"
               size="none"
               type="button"
-              className={cn(
-                // active:scale-100 is load-bearing: this button is the popover anchor and
-                // floating-ui reads its rect — a press transform would move the panel off it.
-                // h-12 (48px) to match the other facet pills — flat, borderless.
-                'flex min-h-12 w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-4 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer',
-                open ? 'text-foreground' : active ? activeClassName : className,
-              )}
+              onClick={() => { setLo(null); setHi(null); onChange('all') }}
+              className="min-h-11 flex-1 rounded-xl text-sm font-bold text-body hover:bg-muted hover:text-body"
             >
-              <span className="truncate">{triggerText}</span>
-              <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', open && 'rotate-180')} />
+              {tr('Clear', 'Xóa')}
             </Button>
-          }
-        />
+            <Button variant="cta" size="none" type="button" onClick={() => changeOpen(false)} className="min-h-11 flex-[2] rounded-xl px-4 text-sm">
+              {showLabel}
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
+  return (
+    <Popover open={open} onOpenChange={changeOpen}>
+      <div className={cn('relative', wrapperClassName)}>
+        <PopoverTrigger render={trigger} />
       </div>
 
       <PopoverContent
@@ -226,141 +409,32 @@ export function PriceRangeFilter({
                 count — worst on slider drag. The template translates once.
                 "≈" only when a typed bound cuts through a non-empty bin: at every slider
                 stop the count is exact (see src/lib/price-histogram.ts). */}
-            {!loaded
-              ? tr('Loading…', 'Đang tải…')
-              : hasBins
-                ? (inRange.exact && !countsApproximate ? tr('{n} available', '{n} món') : tr('≈{n} available', '≈{n} món')).replace('{n}', String(inRange.count))
-                : ''}
+            {!loaded ? tr('Loading…', 'Đang tải…') : countLabel}
           </p>
         </div>
 
-        {!loaded ? (
-          <Skeleton className="mt-6 h-24 rounded-xl" />
-        ) : hist && hist.total === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">{tr('No listings match these filters yet.', 'Chưa có tin phù hợp với bộ lọc.')}</p>
-        ) : (
-          <>
-            {/* No histogram (a failed fetch, or an old cached response without `edges`) draws no
-                bars and no slider, but the presets and the typed fields still work. */}
-            {hasBins && (
-              <div className="mt-4">
-                {/* One bar per bin (merged only past ~60 bins). `flexGrow: span` keeps a merged
-                    bar as wide as the slider stops it covers, so bars and thumbs line up. */}
-                <div className="relative flex h-20 items-end gap-[2px]">
-                  {bars.map((bar) => {
-                    const within = barInRange(edges, bar, lo, hi)
-                    return (
-                      <div
-                        key={bar.from}
-                        className={cn('min-w-0 rounded-lg transition-colors', within ? 'bg-primary' : 'bg-line-strong/50')}
-                        style={{ flex: `${bar.span} 1 0`, height: `${Math.max(4, (bar.count / maxCount) * 100)}%` }}
-                      />
-                    )
-                  })}
-                </div>
+        {body}
 
-                {/* Dual-thumb slider over EDGE INDICES (invariant 1). Only the thumb that moved
-                    updates its bound, so a typed value on the other side survives a drag. */}
-                <RangeSlider
-                  className="mt-1"
-                  value={[posLo, posHi]}
-                  min={0} max={lastIdx} step={1}
-                  thumbAriaLabels={[tr('Minimum price', 'Giá tối thiểu'), tr('Maximum price', 'Giá tối đa')]}
-                  getAriaValueText={ariaValueText}
-                  onChange={([a, b], t) => {
-                    activeThumb.current = t
-                    if (t === 0) setLo(boundAt(0, a))
-                    else if (t === 1) setHi(boundAt(1, b))
-                  }}
-                  onCommit={([a, b]) => {
-                    const t = activeThumb.current
-                    activeThumb.current = -1
-                    commit(t === 0 ? boundAt(0, a) : lo, t === 1 ? boundAt(1, b) : hi)
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Preset budget chips — one tap sets the range via onChange (shared with
-                the mobile filter drawer). Hidden when outside the matching data's real
-                [min, max] — the whole distribution now, not a cheapest-5,000 slice. */}
-            <PricePresetChips value={value} onChange={onChange} bounds={hasBins && hist ? [hist.min, hist.max] : undefined} hist={hasBins && !countsApproximate ? hist : null} className="mt-4" />
-
-            <div className="mt-4 flex items-end gap-3">
-              <label className="min-w-0 flex-1">
-                <span className="mb-1 block text-2xs font-semibold text-ink-4">{tr('Minimum', 'Tối thiểu')}</span>
-                {/* ⛔ A BACKGROUND TINT IS NOT A FOCUS INDICATOR. `focus-within:bg-muted` alone measured
-                    1.05:1 against the surrounding canvas — a keyboard user could not tell which of
-                    the two fields they were in. These inputs use `variant="unstyled"` and so opt
-                    out of the app-wide `:focus-visible` outline, which is why the tint was all
-                    there was. The ring at full alpha measures 5.5:1, the same colour the header
-                    CTA's outline uses.
-                    ⚠️ `focus-within`, not `:focus-visible`, because the ring belongs on this
-                    wrapper — the focusable is the `<Input>` inside it, and the wrapper is what
-                    draws the field's visible boundary.
-                    ⛔ `ring-[var(--ring)]`, NOT `ring-ring` — see help-center.tsx: the bare utility
-                    paints a transparent ring. */}
-                  <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted focus-within:ring-2 focus-within:ring-[color:var(--ring)]">
-                  {currency === 'VND' && <span className="text-ink-4">₫</span>}
-                  <Input
-                    variant="unstyled"
-                    type="text" inputMode="numeric" value={lo == null ? '' : grp(toDisplay(lo))}
-                    placeholder={hasBins && hist ? grp(toDisplay(hist.min)) : undefined}
-                    onChange={(e) => setLo(typed(e.target.value))}
-                    // Kept as typed (invariant 2) — only ordered against the max, on blur.
-                    onBlur={() => { const n = lo != null && hi != null && lo > hi ? hi : lo; setLo(n); commit(n, hi) }}
-                    className="w-full bg-transparent text-foreground outline-none"
-                  />
-                </span>
-              </label>
-              <span className="pb-2 text-ink-4">–</span>
-              <label className="min-w-0 flex-1">
-                <span className="mb-1 block text-2xs font-semibold text-ink-4">{tr('Maximum', 'Tối đa')}</span>
-                {/* ⛔ A BACKGROUND TINT IS NOT A FOCUS INDICATOR. `focus-within:bg-muted` alone measured
-                    1.05:1 against the surrounding canvas — a keyboard user could not tell which of
-                    the two fields they were in. These inputs use `variant="unstyled"` and so opt
-                    out of the app-wide `:focus-visible` outline, which is why the tint was all
-                    there was. The ring at full alpha measures 5.5:1, the same colour the header
-                    CTA's outline uses.
-                    ⚠️ `focus-within`, not `:focus-visible`, because the ring belongs on this
-                    wrapper — the focusable is the `<Input>` inside it, and the wrapper is what
-                    draws the field's visible boundary. */}
-                  <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted focus-within:ring-2 focus-within:ring-[color:var(--ring)]">
-                  {currency === 'VND' && <span className="text-ink-4">₫</span>}
-                  <Input
-                    variant="unstyled"
-                    type="text" inputMode="numeric" value={hi == null ? '' : grp(toDisplay(hi))}
-                    placeholder={hasBins && hist ? grp(toDisplay(hist.max)) : undefined}
-                    onChange={(e) => setHi(typed(e.target.value))}
-                    // Kept as typed (invariant 2) — never clamped to the data's max, only ordered
-                    // against the min, on blur.
-                    onBlur={() => { const n = hi != null && lo != null && hi < lo ? lo : hi; setHi(n); commit(lo, n) }}
-                    className="w-full bg-transparent text-foreground outline-none"
-                  />
-                </span>
-              </label>
-            </div>
-
-            {/* ⚠️ 44px TARGETS FOR THE TWO CONTROLS THAT COMMIT OR UNDO THE RANGE — they were
-                34×16 (Reset) and 63×28 (Done). Reset grows by padding and pulls back with `-ml-3`,
-                so its WORD stays aligned with the inputs above while the target grows around it. */}
-            <div className="mt-4 flex items-center justify-between">
-              <Button variant="link" size="none"
-                type="button"
-                onClick={() => { setLo(null); setHi(null); onChange('all') }}
-                className="min-h-11 -ml-3 px-3 text-xs font-semibold text-body underline-offset-2 hover:underline cursor-pointer"
-              >
-                {tr('Reset', 'Đặt lại')}
-              </Button>
-              <Button variant="cta" size="none"
-                type="button"
-                onClick={() => setOpen(false)}
-                className="min-h-11 rounded-lg px-5 text-sm transition-colors cursor-pointer"
-              >
-                {tr('Done', 'Xong')}
-              </Button>
-            </div>
-          </>
+        {/* ⚠️ 44px TARGETS FOR THE TWO CONTROLS THAT COMMIT OR UNDO THE RANGE — they were
+            34×16 (Reset) and 63×28 (Done). Reset grows by padding and pulls back with `-ml-3`,
+            so its WORD stays aligned with the inputs above while the target grows around it. */}
+        {loaded && !(hist && hist.total === 0) && (
+          <div className="mt-4 flex items-center justify-between">
+            <Button variant="link" size="none"
+              type="button"
+              onClick={() => { setLo(null); setHi(null); onChange('all') }}
+              className="min-h-11 -ml-3 px-3 text-xs font-semibold text-body underline-offset-2 hover:underline cursor-pointer"
+            >
+              {tr('Reset', 'Đặt lại')}
+            </Button>
+            <Button variant="cta" size="none"
+              type="button"
+              onClick={() => changeOpen(false)}
+              className="min-h-11 rounded-lg px-5 text-sm transition-colors cursor-pointer"
+            >
+              {tr('Done', 'Xong')}
+            </Button>
+          </div>
         )}
       </PopoverContent>
     </Popover>

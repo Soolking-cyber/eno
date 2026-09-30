@@ -7,10 +7,12 @@ import { Toggle } from '@/components/ui/toggle'
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChevronDown, LayoutGrid } from '@/components/ui/icons'
 import { CategoryIcon } from './category-icons'
-import { SUBCATEGORIES } from '@/lib/subcategories'
+import { offeredCategories, offeredIntents, offeredSubcategories } from './count-chip'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import type { SerializedCategory } from '@/lib/types'
+// Type only — erased at compile, so the module's Prisma/`server-only` chain never reaches the client.
+import type { FacetCounts } from '@/lib/facet-counts'
 
 /**
  * THE CATEGORY LADDER, COLLAPSED TO ONE ROW — the phone feed once the reader has asked it something.
@@ -45,6 +47,8 @@ export function LadderCompactRow({
   activeType,
   onIntent,
   expanded,
+  facets,
+  subcategoryCounts = {},
 }: {
   categories: SerializedCategory[]
   activeCategory: string
@@ -56,13 +60,24 @@ export function LadderCompactRow({
   onIntent?: (type: string) => void
   /** Is the full ladder open below this row? The chips give way to it while it is. */
   expanded: boolean
+  /** The feed's chip counts and legacy subcategory counts — the same two the full rail reads. */
+  facets?: FacetCounts
+  subcategoryCounts?: Record<string, number>
 }) {
   const { lang, tr } = useLanguage()
   const label = (x: { name: string; nameVi: string }) => (lang === 'vi' ? x.nameVi : x.name)
+  /**
+   * ⛔ THE SAME OFFER AS THE FULL RAIL (E-TILES, 2026-09-29): an empty category, subcategory or intent is
+   * not a chip here either. This row used to list EVERY subcategory — eleven for Rentals at 390px, most
+   * of them empty, beside the four the desktop plate offers for the same feed. The rules are shared
+   * with CategoryRail (count-chip.tsx), so the two ladders cannot offer different sets.
+   */
+  const shown = offeredCategories(categories, facets, activeCategory)
+  const shownIntents = offeredIntents(intents, facets, activeType)
   // ⚠️ ONLY A CATEGORY THIS EDITION SHOWS. `?category=<slug>` can name one from the other edition;
   // the rail guards the same way (its subcategory plate lives inside `categories.map`).
   const active = categories.find((c) => c.slug === activeCategory) ?? null
-  const subs = active ? SUBCATEGORIES[active.slug] ?? [] : []
+  const subs = active ? offeredSubcategories(active.slug, facets, subcategoryCounts, activeSubcategory).subs : []
 
   // One chip look for every rung. 44px tall so the whole visible pill is the hit area (the facet
   // pills directly below are 48px); pressed = the same brand-50 tint the rail uses for "chosen".
@@ -121,7 +136,7 @@ export function LadderCompactRow({
             </>
           ) : (
             <>
-              {categories.map((cat) => {
+              {shown.map((cat) => {
                 const on = cat.slug === activeCategory
                 return (
                   <Toggle key={cat.slug} pressed={on} onPressedChange={() => onCategory(on ? 'all' : cat.slug)} className={chipCls}>
@@ -129,7 +144,7 @@ export function LadderCompactRow({
                   </Toggle>
                 )
               })}
-              {intents?.map((it) => (
+              {shownIntents?.map((it) => (
                 <Toggle key={it.type} pressed={activeType === it.type} onPressedChange={() => onIntent?.(it.type)} className={chipCls}>
                   <Tr text={label(it)} />
                 </Toggle>

@@ -19,6 +19,7 @@ import { useLanguage, useTr } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
+import { isImportSeller } from '@/lib/import-sellers'
 import { radiusBoundingBox } from '@/lib/geo-radius'
 import { MAP_GLYPH_LABEL, MAP_GLYPH_PATH, mapGlyphFor, type MapGlyph } from '@/lib/listing-map-glyph'
 import { MapBuildingCard } from './map-building-card'
@@ -36,6 +37,12 @@ import { IconButton } from '@/components/ui/icon-button'
 // native "500k" / "51tr" / "1,2 tỷ" for vi; the rare non-₫ listing keeps its
 // symbol-prefixed format.
 function pinLabel(l: SerializedListingCard, locale: MoneyLocale, currency?: string, rate?: number): string {
+  // ⚠️ A ZERO PRICE IS A WORD, NOT "0" — the rule <Price> applies one tap later in the popup: a free
+  // item reads "Free", and a price-0 JOB is not free at all (its pay is in the posting), so its pin
+  // says what it is. compactPrice(0) printed a bare "0", which reads as a broken pin.
+  // By `locale` rather than tr(): this is a plain function feeding raw marker HTML, and `locale` is
+  // already the language switch every other pin string here follows ('vi', else English).
+  if (l.price === 0) return l.listingType === 'job' ? (locale === 'vi' ? 'Việc làm' : 'Job') : (locale === 'vi' ? 'Miễn phí' : 'Free')
   // ⚠️ A PIN MUST NOT SHOW A BARE ĐỒNG MAGNITUDE TO SOMEONE READING IN DOLLARS. This returned
   // `compactPrice(l.price, locale)` unconditionally for ₫ listings — a unit-less "51M" — while every
   // other surface honoured the viewer's display currency. A USD reader saw "51M" on the pin and
@@ -591,9 +598,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
    * live but only ever runs on a render, and `cardPos.y` is FROZEN at `clientHeight / 2` when the pin
    * was tapped — so an open card silently drifts off-centre, and the tall/compact choice keeps
    * whatever the old height implied.
-   * ⚠️ rAF-COALESCED AND ONLY WHEN SOMETHING IS OPEN. The toolbar transition fires a burst of resizes;
-   * re-placing on each would make the card jitter through it, and re-rendering a map with no card
-   * open buys nothing.
+   * ⚠️ rAF-COALESCED, AND THE CARDS ARE RE-PLACED ONLY WHEN ONE IS OPEN. The toolbar transition fires a
+   * burst of resizes; re-placing on each would make the card jitter through it, and re-rendering a map
+   * with no card open buys nothing. (Leaflet's own re-measure runs every time — see inside.)
    */
   useEffect(() => {
     const el = mapRef.current
@@ -602,6 +609,17 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     const ro = new ResizeObserver(() => {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
+        /**
+         * ⛔ AND LEAFLET IS TOLD ITS NEW SIZE FIRST (E-MAP, 2026-09-29). Leaflet re-measures only on a
+         * WINDOW resize, and the desktop split map now changes height with the header (it ends 1rem
+         * above the fold, its top follows the chrome — listings-explorer.tsx, `--map-top`). Without
+         * this the strip it gains is grey until the next pan, and pixel→latlng is off by the change.
+         * `pan: false` keeps the top-left fixed, so the map grows or shrinks at its bottom edge, the
+         * way the box does, instead of re-centring under the reader. Before the card placement below,
+         * which reads the new size through latLngToContainerPoint.
+         */
+        const m = mapInstanceRef.current
+        if (m) m.invalidateSize({ pan: false })
         const open = openCardObjRef.current
         if (open) placeCardForRef.current(open)
         // The building card has no placement helper of its own — the move handler re-places it
@@ -1553,6 +1571,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                 </Button>
                 {card.seller.officialPartner
                   ? <PartnerBadge asLink={false} className="shrink-0" />
+                  : isImportSeller(card.sellerId) ? null
                   : <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />}
                 <MapsDirectionsButton to={getListingCoordinates(card)} className="h-8 w-8 shrink-0" />
               </div>
@@ -1609,9 +1628,12 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     <p className="truncate text-sm leading-snug text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></p>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <span className="min-w-0 flex-1 truncate"><PopupPlace district={card.district} location={card.location} /></span>
-                      {/* PARTNER REPLACES TRUST, as on the card — a partner must read the same one tap later. */}
+                      {/* PARTNER REPLACES TRUST, as on the card — a partner must read the same one tap later.
+                          And a REFERENCE listing (portal import, linked job) shows neither, as on the card:
+                          eno.vn never rated its source. */}
                       {card.seller.officialPartner
                         ? <PartnerBadge asLink={false} className="shrink-0" />
+                        : isImportSeller(card.sellerId) ? null
                         : <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />}
                     </div>
                   </div>

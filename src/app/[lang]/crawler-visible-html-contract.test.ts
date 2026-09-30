@@ -170,8 +170,8 @@ describe('the category page renders its header, breadcrumb and H1 above its load
  * wave B, H1c; the owner's hybrid). `(home)/loading.tsx` wraps only `(home)/page.tsx`, which React
  * outlines into `<div hidden id="S:0">`; `(home)/layout.tsx` sits above that boundary. Before H1c the
  * crawlers got the sr-only H1 under `[hidden]`, and the header, `<main>` and search box twice.
- * ⚠️ THE EXPLORER STILL CARRIES THE SAME H1, ON BY DEFAULT: `/s/[handle]` renders it and has no H1 of its
- * own. Home turns it off, or the revealed feed adds a second H1.
+ * ⚠️ THE EXPLORER STILL CARRIES THE SAME H1, ON BY DEFAULT for the marketplace (off when seller-scoped:
+ * `/s/[handle]`'s H1 is the shop's name, ST-HEADER). Home turns it off, or the revealed feed adds a second H1.
  */
 const HOME = '(home)'
 
@@ -210,8 +210,8 @@ describe('the home page renders its header, <main> and one H1 above its loading 
     for (const re of [/<Header\b/, /<Footer\b/, /<h1\b/, /<main\b/, /id="main"/]) expect(s).not.toMatch(re)
   })
 
-  /** `/s/[handle]` has no H1 of its own; it keeps the explorer's (the prop's default). */
-  it('/s/[handle] leaves the explorer H1 on', () => {
+  /** `/s/[handle]` passes no `siteHeading`: the prop's default is off under a seller scope, and the shop's SellerCard owns the H1 (ST-HEADER). */
+  it('/s/[handle] leaves the explorer H1 to its default', () => {
     expect(src('s/[handle]/page.tsx')).not.toMatch(/siteHeading/)
   })
 
