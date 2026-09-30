@@ -61,21 +61,21 @@ describe('RentalsLede', () => {
   it('English: the live total, each kind, and what "linked" means', () => {
     expect(text('en', <RentalsLede {...props} />)).toBe(
       '25,502 places for rent in Ho Chi Minh City, including 14,043 apartments, 5,331 houses, 3,289 rooms and 2,270 offices. ' +
-        'Every one is linked from a partner property portal and links to the original listing.',
+        'Every listing links to its original ad on another listing site.',
     )
   })
 
   it('Vietnamese: written whole, dot-grouped', () => {
     expect(text('vi', <RentalsLede {...props} />)).toBe(
       '25.502 tin cho thuê tại TP. Hồ Chí Minh, gồm 14.043 căn hộ, 5.331 nhà, 3.289 phòng trọ và 2.270 mặt bằng. ' +
-        'Tất cả đều được liên kết từ các trang bất động sản đối tác và dẫn tới tin gốc.',
+        'Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.',
     )
   })
 
   it('names vehicle hire in its own sentence, never inside the "places" count', () => {
     expect(text('en', <RentalsLede {...props} vehicles={{ cars: 5904, motorbikes: 245 }} />)).toBe(
       '25,502 places for rent in Ho Chi Minh City, including 14,043 apartments, 5,331 houses, 3,289 rooms and 2,270 offices. ' +
-        'Every one is linked from a partner property portal and links to the original listing. Plus 5,904 cars and 245 motorbikes for hire.',
+        'Every listing links to its original ad on another listing site. Plus 5,904 cars and 245 motorbikes for hire.',
     )
     expect(text('vi', <RentalsLede {...props} vehicles={{ cars: 5904, motorbikes: 245 }} />)).toMatch(/ Ngoài ra còn 5\.904 xe ô tô và 245 xe máy cho thuê\.$/)
     expect(text('en', <RentalsLede {...props} vehicles={{ cars: 0, motorbikes: 1 }} />)).toMatch(/\. Plus 1 motorbike for hire\.$/)

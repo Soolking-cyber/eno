@@ -8,7 +8,7 @@ import { provinceWhere } from '@/lib/province-match'
 import { mergeDistrictGroups, type DistrictChip } from '@/lib/district-canonical'
 import { DISTRICTS_PROVINCE_CODE } from '@/components/marketplace/listings-explorer.constants'
 import vnUnits from '@/data/vn-units.json'
-import { linkedTier, rentalKinds, rentalsHeadline, type RentalsFacts, type RentalsHeadline } from './category-copy'
+import { homeFacts, linkedTier, rentalKinds, rentalsHeadline, type RentalsFacts, type RentalsHeadline } from './category-copy'
 import { RENTAL_PLACES } from '@/lib/rental-places'
 import { isIndexableCount } from '@/lib/index-floor'
 
@@ -92,18 +92,27 @@ export const loadRentalsFacts = cache(async (categoryId: string, _total: number)
     loadDistrictChips(categoryId, true),
     db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES] }) }),
     db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, provinceWhere(HCMC_PROVINCE)] }) }),
-    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, { affiliateUrl: { not: null } }] }) }),
+    // By subcategory, so the homes' own linked tier comes from the same read (D1b, review): the homes
+    // description and lede must not borrow a tier the offices set.
+    db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, { affiliateUrl: { not: null } }] }), _count: { _all: true } }),
     db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere(live(categoryId)), _count: { _all: true } }),
   ])
   if (total === 0) return null
   const bySub = Object.fromEntries(kinds.map((k) => [k.subcategorySlug ?? '', k._count._all]))
+  const homes = homeFacts(bySub)
+  const linkedBySub = Object.fromEntries(linked.map((k) => [k.subcategorySlug ?? '', k._count._all]))
+  const linkedAll = linked.reduce((n, k) => n + k._count._all, 0)
   return {
     total,
     allHcmc: inHcmc >= total,
-    linked: linkedTier(linked, total),
+    linked: linkedTier(linkedAll, total),
+    homesLinked: linkedTier(homeFacts(linkedBySub).total, homes.total),
     kinds: rentalKinds(bySub),
     top: chips.slice(0, 5),
     vehicles: { cars: bySub['car-rental'] ?? 0, motorbikes: bySub['motorbike-rental'] ?? 0 },
+    // SEO wave B, D1b: the homes the description, the lede and the preview all count. From the same
+    // group-by as `kinds` (over the whole category; the three home kinds are places either way).
+    homes,
   }
 })
 

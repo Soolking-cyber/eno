@@ -87,6 +87,14 @@ export type RentalsFacts = {
    * names the vehicles in their own sentence rather than leaving its number short of the grid's.
    */
   vehicles?: { cars: number; motorbikes: number }
+  /**
+   * The homes among them (SEO wave B, D1b): apartments, houses and rooms, and the office count. With
+   * `homes.total > 0` the description, the lede and the preview all count homes — one number
+   * (category-copy.d1b.test.ts). Optional so a fixture without it keeps today's wording.
+   */
+  homes?: HomeFacts
+  /** How much of the HOMES is linked — the tier the homes description and lede speak with. */
+  homesLinked?: LinkedTier
 }
 
 /** Only the kinds with live stock, in display order — a zero is never printed as "0 offices". */
@@ -121,21 +129,6 @@ export function joinList(items: string[], lang: PageLang): string {
   return `${items.slice(0, -1).join(', ')} ${lang === 'vi' ? 'và' : 'and'} ${items[items.length - 1]}`
 }
 
-const RENTALS_LINKED_META: Record<Exclude<LinkedTier, 'none'>, Record<PageLang, string>> = {
-  all: {
-    en: 'Every listing links to its original on a partner property portal.',
-    vi: 'Mỗi tin đều dẫn tới tin gốc trên trang bất động sản đối tác.',
-  },
-  most: {
-    en: 'Most listings link to their original on a partner property portal.',
-    vi: 'Phần lớn tin dẫn tới tin gốc trên trang bất động sản đối tác.',
-  },
-  some: {
-    en: 'Some listings link to their original on a partner property portal.',
-    vi: 'Một số tin dẫn tới tin gốc trên trang bất động sản đối tác.',
-  },
-}
-
 /**
  * `<title>` + meta description for /c/rentals.
  *
@@ -151,16 +144,29 @@ export function rentalsMetadata(
   headline: RentalsHeadline,
 ): { title: string; description: string } {
   const place = f.allHcmc ? HCMC_NAME : VIETNAM_NAME
+  const title = `${HEADLINE_TITLE[headline][lang]} | ${siteName}`
+  /**
+   * ⛔ WITH HOMES, THE DESCRIPTION COUNTS HOMES (SEO wave B, D1b; CS-2 D1b-1): it listed "2,270
+   * offices" and ended on "a partner property portal" (peer finding 2a). Now: homes, their kinds, the
+   * free check (RENTAL_CHECK_MAX_ITEMS), then D-f's sentence over the linked tier of the HOMES (review:
+   * the offices' tier said nothing about them; CS-2 D1b-3 had it over places). The
+   * robots decision keeps reading the total; the title keeps H1b's cached variant.
+   */
+  if (f.homes && f.homes.total > 0) {
+    return { title, description: homesDescription(f.homes, place, { en: '', vi: '' }, f.homesLinked ?? f.linked, lang) }
+  }
   const n = formatCountFull(f.total, lang)
   const kinds = f.kinds.map((k) => `${formatCountFull(k.count, lang)} ${rentalKindNoun(k.slug, k.count, lang)}`)
-  const linked = f.linked === 'none' ? '' : ` ${RENTALS_LINKED_META[f.linked][lang]}`
+  // D-f (CS-2 D1b-3…5, the same set as the district pages).
+  const linkedSentence = rentalsLinkedSentence(f.linked, f.total, lang)
+  const linked = linkedSentence ? ` ${linkedSentence}` : ''
   // ⚠️ NO DISTRICT LIST HERE: it took the snippet to ~270 characters, past what a result shows. The
   // districts are linked on the page itself (<RentalsDistricts>), where they carry the anchors.
   const description =
     lang === 'vi'
       ? `${n} tin cho thuê tại ${place.vi}${kinds.length ? `, gồm ${joinList(kinds, 'vi')}` : ''}.${linked}`
       : `${n} ${f.total === 1 ? 'place' : 'places'} for rent in ${place.en}${kinds.length ? `, including ${joinList(kinds, 'en')}` : ''}.${linked}`
-  return { title: `${HEADLINE_TITLE[headline][lang]} | ${siteName}`, description }
+  return { title, description }
 }
 
 /**

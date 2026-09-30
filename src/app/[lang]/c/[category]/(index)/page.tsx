@@ -1,10 +1,11 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
+import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
 import { loadCategory } from '../load-category'
 import { loadDistrictChips, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline } from '../category-data'
 import { byAreaChips, categoryMetadata, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
-import { CategoryGuides, PlaceName, RentalsDistricts } from '../category-text'
+import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
 import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
@@ -166,7 +167,18 @@ export default async function CategoryPage({ params }: Props) {
    * Wrapped in AND, never spread beside the scoped keys (edition-scope.ts's collision trap).
    */
   const rentalsFacts = cat.slug === 'rentals' && total > 0 ? await loadRentalsFacts(cat.id, total) : null
-  const scopedWhere = await scopedListingWhere(rentalsFacts ? { AND: [base, RENTAL_PLACES] } : base)
+  /**
+   * ⛔ AND WHILE ANY HOME IS LIVE, THE PREVIEW IS HOMES (SEO wave B, D1b; decision D-e). Its first
+   * "relevance" cards were offices (peer finding 2b), under an H1 for people looking for somewhere to
+   * live. The ItemList reads the same rows; Show-more sends `homes=1`; the strip's total is the homes
+   * count, the same number the description and the lede lead with. Offices move to the nofollow
+   * "Also here" link below the grid. Composed through AND, like RENTAL_PLACES.
+   */
+  const homes = rentalsFacts?.homes && rentalsFacts.homes.total > 0 ? rentalsFacts.homes : null
+  const scopedWhere = await scopedListingWhere(
+    homes ? { AND: [base, RENTAL_PLACES, { subcategorySlug: { in: [...HOME_RENTAL_SUBCATS] } }] }
+    : rentalsFacts ? { AND: [base, RENTAL_PLACES] } : base,
+  )
   const [raw, otherCats, chips, rentals] = await Promise.all([
     // Card projection: this page only renders <ListingCard> slots — the full row (description,
     // attributes, searchText, whole Seller) tripled the ISR payload. The order is buildFeedOrderBy('newest').
@@ -262,19 +274,25 @@ export default async function CategoryPage({ params }: Props) {
                 ⛔ `serverScope.params` AND `scopedWhere` ARE ONE SCOPE, CHANGED TOGETHER OR NOT AT ALL
                 (scope-parity-contract.test.ts): while /c/rentals narrows to places (`rentalsFacts` →
                 `RENTAL_PLACES`), the params carry `kind=places` under the SAME condition and the total
-                is the places total (`rentals` IS `rentalsFacts`); when wave-B D1b lands, `homes=1`. */}
+                is the places total (`rentals` IS `rentalsFacts`); while homes are live (D1b), `homes=1` and
+                the homes total, beside the homes-only `scopedWhere`. */}
             <SellerListings
               listings={listings}
               serverScope={{
-                params: { category: cat.slug, ...(rentalsFacts ? { [PLACES_KIND_PARAM.key]: PLACES_KIND_PARAM.value } : {}) },
-                total: rentals?.total ?? total,
+                params: {
+                  category: cat.slug,
+                  ...(rentalsFacts ? { [PLACES_KIND_PARAM.key]: PLACES_KIND_PARAM.value } : {}),
+                  ...(homes ? { [HOMES_ONLY_PARAM.key]: HOMES_ONLY_PARAM.value } : {}),
+                },
+                total: homes?.total ?? rentals?.total ?? total,
                 pageSize: PAGE_SIZE,
               }}
               stripEnd={<CategoryFiltersLink slug={cat.slug} />}
               priceLabel={cat.slug === 'jobs' ? 'salary' : 'price'}
-              sortable={total > 1}
+              sortable={(homes?.total ?? total) > 1}
             />
           </div>
+          {homes && <OtherRentalsLink n={homes.offices} href="/?category=rentals&subcategory=office-rental" />}
           <div className="mt-8">
             {/* Real ArrowRight at h-4, not a literal '→' — the SEO-landing CTAs already
                 use the lucide arrow, and one page family should speak one arrow language.

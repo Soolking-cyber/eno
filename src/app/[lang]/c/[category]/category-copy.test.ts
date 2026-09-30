@@ -79,7 +79,7 @@ describe('rentalsMetadata', () => {
     expect(m.title).toBe('Apartments & Houses for Rent in Ho Chi Minh City | eno.vn')
     expect(m.description).toBe(
       '25,502 places for rent in Ho Chi Minh City, including 14,043 apartments, 5,331 houses, 3,289 rooms and 2,270 offices. ' +
-        'Every listing links to its original on a partner property portal.',
+        'Every listing links to its original ad on another listing site.',
     )
   })
 
@@ -89,12 +89,12 @@ describe('rentalsMetadata', () => {
     expect(m.title).toBe('Cho thuê căn hộ và nhà tại TP. Hồ Chí Minh | eno.vn')
     expect(m.description).toBe(
       '25.502 tin cho thuê tại TP. Hồ Chí Minh, gồm 14.043 căn hộ, 5.331 nhà, 3.289 phòng trọ và 2.270 mặt bằng. ' +
-        'Mỗi tin đều dẫn tới tin gốc trên trang bất động sản đối tác.',
+        'Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.',
     )
   })
 
   it('says "most" / "some" / nothing as the linked count falls', () => {
-    expect(meta({ ...LIVE, linked: 'most' }, 'en', 'x').description).toMatch(/Most listings link to their original/)
+    expect(meta({ ...LIVE, linked: 'most' }, 'en', 'x').description).toMatch(/Most listings link to their original ads/)
     expect(meta({ ...LIVE, linked: 'some' }, 'en', 'x').description).toMatch(/Some listings link to their original/)
     expect(meta({ ...LIVE, linked: 'none' }, 'en', 'x').description).not.toMatch(/partner/)
   })

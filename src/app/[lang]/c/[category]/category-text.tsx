@@ -66,18 +66,32 @@ export function RentalsHeading({ headline }: { headline: RentalsHeadline }) {
  * import-viewing-disclaimer.ts) because the free availability check covers these rentals too —
  * the RentalCheckHint right under this paragraph.
  */
-export function RentalsLede({ total, allHcmc, kinds, linked, vehicles }: Pick<RentalsFacts, 'total' | 'allHcmc' | 'kinds' | 'linked' | 'vehicles'>) {
+export function RentalsLede({ total, allHcmc, kinds, linked, vehicles, homes, homesLinked }: Pick<RentalsFacts, 'total' | 'allHcmc' | 'kinds' | 'linked' | 'vehicles' | 'homes' | 'homesLinked'>) {
   const { lang, tr } = useLanguage()
   const n = formatCountFull(total, lang)
+  /**
+   * ⛔ WITH HOMES, THE LEDE COUNTS HOMES (SEO wave B, D1b; CS-2 D1b-2): it opened on "25,502 places
+   * … and 2,270 offices", the same number and the same offices as the old description. It now leads
+   * with the homes count the description and the preview use (one `loadRentalsFacts` per render);
+   * offices sit behind the "Also here" link under the grid. D-f's sentence closes it in both
+   * languages, from one set of `tr()` pairs (rentalsLinkedLede).
+   */
+  const homesShown = !!homes && homes.total > 0
+  // The tier of what the sentence counts: the homes' own while it counts homes.
+  const tier = homesShown ? homesLinked ?? linked : linked
+  const tail = tier === 'none' ? null : rentalsLinkedLede(tier, (homesShown ? homes!.total : total) === 1, tr)
+  if (homes && homesShown) {
+    return (
+      <>
+        <HomesSentence homes={homes} place={allHcmc ? HCMC_NAME : { en: 'Vietnam', vi: 'Việt Nam' }} />
+        {tail && <> {tail}</>}
+        <VehicleHire vehicles={vehicles} />
+      </>
+    )
+  }
   if (lang === 'vi') {
     const list = kinds.map((k) => `${formatCountFull(k.count, 'vi')} ${rentalKindNoun(k.slug, k.count, 'vi')}`)
-    const tail = {
-      all: ' Tất cả đều được liên kết từ các trang bất động sản đối tác và dẫn tới tin gốc.',
-      most: ' Phần lớn được liên kết từ các trang bất động sản đối tác và dẫn tới tin gốc.',
-      some: ' Một số tin được liên kết từ các trang bất động sản đối tác và dẫn tới tin gốc.',
-      none: '',
-    }[linked]
-    return <>{`${n} tin cho thuê tại ${allHcmc ? HCMC_NAME.vi : 'Việt Nam'}${list.length ? `, gồm ${joinList(list, 'vi')}` : ''}.${tail}`}<VehicleHire vehicles={vehicles} /></>
+    return <>{`${n} tin cho thuê tại ${allHcmc ? HCMC_NAME.vi : 'Việt Nam'}${list.length ? `, gồm ${joinList(list, 'vi')}` : ''}.${tail ? ` ${tail}` : ''}`}<VehicleHire vehicles={vehicles} /></>
   }
   // Literal tr() per form so the harvester can pre-translate each; singular at exactly 1.
   const kindWord = (slug: string, one: boolean) =>
@@ -103,7 +117,7 @@ export function RentalsLede({ total, allHcmc, kinds, linked, vehicles }: Pick<Re
           ))}
         </>
       )}
-      .{linked !== 'none' && <> {linkedLede(linked, tr)}</>}
+      .{tail && <> {tail}</>}
       <VehicleHire vehicles={vehicles} />
     </>
   )
@@ -144,12 +158,6 @@ function VehicleHire({ vehicles }: Pick<RentalsFacts, 'vehicles'>) {
   return (
     <> {tr('Plus', 'Ngoài ra còn')} {parts[0]}{parts.length === 2 && <> {tr('and', 'và')} {parts[1]}</>} {tr('for hire.', 'cho thuê.')}</>
   )
-}
-
-function linkedLede(tier: Exclude<LinkedTier, 'none'>, tr: (en: string) => string): string {
-  if (tier === 'all') return tr('Every one is linked from a partner property portal and links to the original listing.')
-  if (tier === 'most') return tr('Most are linked from partner property portals and link to the original listing.')
-  return tr('Some are linked from partner property portals and link to the original listing.')
 }
 
 /**

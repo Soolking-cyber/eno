@@ -46,7 +46,7 @@ export async function CategoryLedeBlock({ slug }: { slug: string }) {
     <>
       <ClampedLede className="mt-3 max-w-prose text-base leading-relaxed text-body">
         {rentals ? (
-          <RentalsLede total={rentals.total} allHcmc={rentals.allHcmc} kinds={rentals.kinds} linked={rentals.linked} vehicles={rentals.vehicles} />
+          <RentalsLede total={rentals.total} allHcmc={rentals.allHcmc} kinds={rentals.kinds} linked={rentals.linked} vehicles={rentals.vehicles} homes={rentals.homes} homesLinked={rentals.homesLinked} />
         ) : (
           <>
             {/* ⚠️ THE COUNT OPENS THE LEDE NOW, GROUPED (C1-LEDE, L-NUMBERS): it trailed the provenance
