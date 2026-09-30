@@ -25,26 +25,30 @@ function SectionSkeleton({ titleW, hintW, hintWrap, children }: { titleW: string
  * Skeleton for the post wizard: Exit link → h-display title + intro → the two-column grid
  * (form sections left, sticky live-preview + publish column right at lg).
  *
- * Every block below was measured against the FIRST-RUN wizard at 1280px (2026-08-07) —
- * the state this skeleton actually hands over to:
- *   photos 293.4 · category 133.4 · details 318.2 · price 261.4 · location 81.4 · contact 73.4
- *   aside: eyebrow 14 · preview 353.3 · publish 44 · checklist 152 (7 rows) · privacy 21.9
+ * Every block below was measured against the FIRST-RUN wizard at 1280px (2026-08-07, and the
+ * blocks the 2026-09-29 sell-flow pass changed re-measured then) — the state this skeleton
+ * actually hands over to:
+ *   photos 293.4 · category 189.4 · details 292.2 · price 269.4 · location 81.4 · contact 73.4
+ *   aside: heading 20 · preview 353.3 · publish 44 · checklist 108 (5 rows) · privacy 21.9
  *
  * ⚠️ THE PREVIEW IS aspect-SQUARE. <Preview> (post-wizard-parts.tsx) renders
  * `aspect-square w-full rounded-xl` — the same ratio listing-card-skeleton.tsx names as a
  * five-surface invariant. This file drew `aspect-[4/3]`, which both broke that invariant
  * and made the whole sticky column ~76px short at a 304px aside.
  *
- * ⚠️ The checklist is SEVEN rows, not five, and it is not conditional at this moment: the
- * wizard renders it whenever `missing.length > 0`, and on a cold load everything is
- * missing (photos · category · title · description · price · area · sign-in).
+ * ⚠️ The checklist is FIVE rows, and it is not conditional at this moment: on a cold load
+ * every step is outstanding (photos · category · title & description · price · area). It
+ * shows publish STEPS now, not the gate's rows (post-wizard-steps.ts): title and description
+ * are one step, and neither sign-in nor contact is a step while the account is loading.
  */
 export default function PostLoading() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
-        <div className="pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-0">
+        {/* The wizard's own end-of-form reserve below lg: <StickyActionBarSpacer /> (its 4.5rem
+            fallback + the safe-area inset, the same max() it uses) plus the tab bar's 4.5rem. */}
+        <div className="pb-[calc(9rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] lg:pb-0">
           {/* Exit link (text-sm → 20px) */}
           <Skeleton className="h-5 w-14" />
           {/* h1 — h-display is fluid (28 → 40px at line-height 1.12) */}
@@ -69,19 +73,19 @@ export default function PostLoading() {
                 </div>
               </SectionSkeleton>
 
-              {/* Category — chip cloud (px-3.5 py-2 text-sm → 36px, 2 rows at lg) */}
+              {/* Category — pill cloud (rounded-full px-4 py-2.5 text-sm → 40px, 3 rows at lg) */}
               <SectionSkeleton titleW="w-24" hintW="w-64">
-                {/* 15 chips whose widths sum to the real cloud's (~1500px + gaps), so the
-                    row count is 2 at lg — a uniform-width cloud wrapped to 3 and ran 44px long. */}
+                {/* The 17 real pills' measured widths at 1280, so the cloud wraps where the real
+                    one does (7 · 7 · 3 at lg) — a uniform-width cloud wraps to a different count. */}
                 <div className="flex flex-wrap gap-2">
-                  {['w-32', 'w-32', 'w-24', 'w-20', 'w-28', 'w-24', 'w-20', 'w-20', 'w-24', 'w-20', 'w-28', 'w-24', 'w-28', 'w-24', 'w-28'].map((w, i) => (
-                    <Skeleton key={i} className={`h-9 rounded-xl ${w}`} />
+                  {['w-[96px]', 'w-[134px]', 'w-[131px]', 'w-[108px]', 'w-[88px]', 'w-[111px]', 'w-[94px]', 'w-[87px]', 'w-[85px]', 'w-[137px]', 'w-[85px]', 'w-[114px]', 'w-[105px]', 'w-[114px]', 'w-[100px]', 'w-[96px]', 'w-[113px]'].map((w, i) => (
+                    <Skeleton key={i} className={`h-10 rounded-full ${w}`} />
                   ))}
                 </div>
               </SectionSkeleton>
 
-              {/* Details — title field (70) + description field (200.8: label row, the
-                  "Polish with AI" row, the rows=5 textarea, and the hint under it) */}
+              {/* Details — title field (70) + description field (label row — "Polish with AI"
+                  rides in it now, 22.8 — the rows=5 textarea, and the hint under it) */}
               <SectionSkeleton titleW="w-20">
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between">
@@ -91,12 +95,9 @@ export default function PostLoading() {
                   <Skeleton className="h-11 w-full max-w-2xl rounded-xl" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
+                  <div className="flex max-w-2xl items-center justify-between">
                     <Skeleton className="h-5 w-24" />
-                    <Skeleton className="h-5 w-14" />
-                  </div>
-                  <div className="flex max-w-2xl justify-end">
-                    <Skeleton className="h-[23px] w-28 rounded-lg" />
+                    <Skeleton className="h-[23px] w-56 rounded-lg" />
                   </div>
                   <Skeleton className="h-[124px] w-full max-w-2xl rounded-xl" />
                   <div>
@@ -107,7 +108,8 @@ export default function PostLoading() {
               </SectionSkeleton>
 
               {/* Price — amount field + multiplier chips (98), then the Negotiable /
-                  Fixed-price pair and the Urgent-sale toggle (52 each, mt-3 apart) */}
+                  Fixed-price pair (two equal columns, 52) and the Urgent-sale switch row (60),
+                  mt-3 apart */}
               <SectionSkeleton titleW="w-12">
                 <div>
                   <div className="max-w-xs">
@@ -119,13 +121,11 @@ export default function PostLoading() {
                       <Skeleton className="h-6 w-20 rounded-lg" />
                     </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Skeleton className="h-[52px] w-40 rounded-xl" />
-                    <Skeleton className="h-[52px] w-52 rounded-xl" />
+                  <div className="mt-3 grid max-w-md grid-cols-2 gap-2">
+                    <Skeleton className="h-[52px] rounded-xl" />
+                    <Skeleton className="h-[52px] rounded-xl" />
                   </div>
-                  <div className="mt-3">
-                    <Skeleton className="h-[52px] w-80 max-w-full rounded-xl" />
-                  </div>
+                  <Skeleton className="mt-3 h-[60px] max-w-md rounded-xl" />
                 </div>
               </SectionSkeleton>
 
@@ -149,8 +149,8 @@ export default function PostLoading() {
             <aside className="hidden lg:block">
               <div className="sticky top-24 space-y-4">
                 <div className="space-y-2">
-                  {/* "Live preview" eyebrow (text-2xs → 14px line) */}
-                  <Skeleton className="h-[14px] w-20" />
+                  {/* "Preview" heading (text-sm → 20px line) */}
+                  <Skeleton className="h-5 w-16" />
                   {/* Preview card: SQUARE cover → title (line-clamp-2 text-sm) → price */}
                   <div className="w-full">
                     <Skeleton className="aspect-square w-full rounded-xl" />
@@ -160,9 +160,9 @@ export default function PostLoading() {
                 </div>
                 {/* Publish button (44px) */}
                 <Skeleton className="h-11 w-full rounded-xl" />
-                {/* Checklist — 7 text-xs rows with an h-4 bullet */}
+                {/* Checklist — 5 text-xs rows with an h-4 bullet */}
                 <div className="space-y-1.5 pt-1">
-                  {Array.from({ length: 7 }).map((_, i) => (
+                  {Array.from({ length: 5 }).map((_, i) => (
                     <Skeleton key={i} className="h-4 w-40" />
                   ))}
                 </div>

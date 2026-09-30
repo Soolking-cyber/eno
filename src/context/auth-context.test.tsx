@@ -36,6 +36,8 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }))
 vi.mock('@/lib/analytics', () => ({ trackSignUp: vi.fn() }))
+const clearDraftPhotos = vi.hoisted(() => vi.fn(() => Promise.resolve()))
+vi.mock('@/lib/post-draft-photos', () => ({ clearDraftPhotos }))
 
 function fakeClient() {
   return {
@@ -229,5 +231,41 @@ describe('shouldBootAuth', () => {
   /** A listing id that merely contains the word is not an auth signal. */
   it('is false for an unrelated query param that only mentions a token', () => {
     expect(shouldBootAuth(probe({ cookie: '', search: '?q=access_token' }))).toBe(false)
+  })
+})
+
+describe('AuthProvider — signOut leaves nothing of the seller behind on a shared device', () => {
+  /** Node 25 ships its own global `localStorage` that shadows jsdom's and has no working methods
+   *  without --localstorage-file, so the suite stubs one (as favorites-context.test.tsx does). */
+  function memoryStorage(): Storage {
+    const map = new Map<string, string>()
+    return {
+      get length() { return map.size },
+      key: (i: number) => [...map.keys()][i] ?? null,
+      getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+      setItem: (k: string, v: string) => { map.set(k, String(v)) },
+      removeItem: (k: string) => { map.delete(k) },
+      clear: () => { map.clear() },
+    } as Storage
+  }
+  beforeEach(() => { vi.stubGlobal('localStorage', memoryStorage()) })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  function SignOutProbe() {
+    const { signOut } = useAuth()
+    return <button type="button" onClick={() => { void signOut() }}>sign out</button>
+  }
+
+  it('drops the unpublished /post draft: the text in localStorage AND the photos in IndexedDB', async () => {
+    createSupabaseBrowser.mockImplementation(() => ({
+      auth: { ...fakeClient().auth, signOut: () => Promise.resolve({ error: null }) },
+    }))
+    clearDraftPhotos.mockClear()
+    localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), title: 'iPhone 13', photoCount: 3 }))
+    render(<AuthProvider><SignOutProbe /></AuthProvider>)
+    await act(async () => { screen.getByRole('button').click() })
+    await act(async () => { await vi.dynamicImportSettled() })
+    expect(localStorage.getItem('eno-listing-draft')).toBeNull()
+    expect(clearDraftPhotos).toHaveBeenCalledTimes(1)
   })
 })

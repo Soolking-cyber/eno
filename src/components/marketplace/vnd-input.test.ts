@@ -43,18 +43,21 @@ function collectClicks(node: unknown, out: Array<() => void>): void {
   collectClicks(props.children, out)
 }
 
-/** Every value the input would emit if the user tapped each of its chips once. */
-function emissionsFor(typed: string): string[] {
+/** A click event as far as the handlers read one: Clear looks up the field from its own button. */
+const CLICK = { currentTarget: { parentElement: null } }
+
+/** Every value the input would emit if the user tapped each of its buttons once, in document order. */
+function emissionsFor(typed: string, props: Partial<Parameters<typeof VndInput>[0]> = {}): string[] {
   const emitted: string[] = []
-  const tree = VndInput({ value: typed, onChange: (d) => emitted.push(d) })
-  const clicks: Array<() => void> = []
-  collectClicks(tree, clicks)
-  for (const click of clicks) click()
+  const tree = VndInput({ value: typed, onChange: (d) => emitted.push(d), ...props })
+  const clicks: Array<(e: unknown) => void> = []
+  collectClicks(tree, clicks as Array<() => void>)
+  for (const click of clicks) click(CLICK)
   return emitted
 }
 
-const markup = (typed = '115') =>
-  renderToStaticMarkup(createElement(VndInput, { value: typed, onChange: () => {} }))
+const markup = (typed = '115', props: Partial<Parameters<typeof VndInput>[0]> = {}) =>
+  renderToStaticMarkup(createElement(VndInput, { value: typed, onChange: () => {}, ...props }))
 
 describe('VndInput — the ₫ unit ladder', () => {
   it('renders all three multiplier chips', () => {
@@ -67,19 +70,45 @@ describe('VndInput — the ₫ unit ladder', () => {
   })
 
   it('multiplies the typed amount by exactly nghìn / triệu / tỷ', () => {
-    // 115 → 115.000 / 115.000.000 / 115 tỷ, plus the Clear chip's ''.
-    expect(emissionsFor('115')).toEqual(['115000', '115000000', '115000000000', ''])
+    // The in-field Clear comes first in document order and emits ''; then 115 → 115.000 /
+    // 115.000.000 / 115 tỷ.
+    expect(emissionsFor('115')).toEqual(['', '115000', '115000000', '115000000000'])
   })
 
   it('caps at 999 tỷ so a stray tap cannot mint an absurd price', () => {
     // 5.000.000.000 × 1.000.000.000 would be 5e18; CAP clamps every chip to 999 tỷ.
-    for (const emitted of emissionsFor('5000000000').slice(0, 3)) {
+    const products = emissionsFor('5000000000').filter(Boolean)
+    expect(products).toHaveLength(3)
+    for (const emitted of products) {
       expect(Number(emitted)).toBeLessThanOrEqual(999_000_000_000)
     }
   })
 
-  it('keeps Clear reachable', () => {
-    expect(markup()).toContain('Clear')
+  it('keeps Clear reachable — inside the field, and only once there is something to clear', () => {
+    expect(markup()).toContain('aria-label="Clear price"')
+    expect(markup('')).not.toContain('Clear price')
+    // It is no longer a chip in the unit row, where it wrapped the row in a narrow column.
+    expect(markup()).not.toContain('>Clear</button>')
+  })
+})
+
+describe('VndInput — the ladder stops where the caller says', () => {
+  it('drops tỷ when maxFactor is triệu, and multiplies by the other two exactly', () => {
+    const html = markup('115', { maxFactor: 1_000_000 })
+    expect(html).not.toContain('×1.000.000.000')
+    expect((html.match(/×/g) ?? []).length).toBe(2)
+    expect(emissionsFor('115', { maxFactor: 1_000_000 })).toEqual(['', '115000', '115000000'])
+  })
+
+  it('keeps the full ladder by default, so mark-sold-sheet is unchanged', () => {
+    expect(markup()).toContain('×1.000.000.000</button>')
+  })
+})
+
+describe('VndInput — the caller can say the amount is required', () => {
+  it('passes aria-required through to the inner input', () => {
+    expect(markup('', { 'aria-required': true })).toContain('aria-required="true"')
+    expect(markup('')).not.toContain('aria-required')
   })
 })
 

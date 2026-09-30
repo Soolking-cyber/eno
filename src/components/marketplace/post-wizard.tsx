@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Check, Sparkles, Loader2, ShieldCheck } from "@/components/ui/icons"
+import { ChevronLeft, Check, Sparkles, Loader2, ShieldCheck, User } from "@/components/ui/icons"
 import { toast } from 'sonner'
 import { subtleToast } from '@/lib/subtle-toast'
 import type { SerializedCategory } from '@/lib/types'
@@ -20,6 +20,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FieldControl } from '@/components/ui/field'
 import { RadioGroup, Radio } from '@/components/ui/radio-group'
+import { StickyActionBar, StickyActionBarSpacer } from '@/components/ui/sticky-action-bar'
+import { Combobox, ComboboxClear, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxInputGroup, ComboboxItem, ComboboxList, ComboboxTrigger } from '@/components/ui/combobox'
 import { haptic, hapticConfirm, hapticError } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -33,8 +35,12 @@ import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
 import { subcategoriesFor, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES } from '@/lib/taxonomy'
 import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
-import { PublishButton, Section, Field, Chips, Preview } from './post-wizard-parts'
+import { PublishButton, PublishLabel, Section, Field, Chips, Preview } from './post-wizard-parts'
 import { MediaSection, PriceSection, LocationSection, ContactSection, PostSuccess } from './post-wizard-sections'
+import { publishSteps } from './post-wizard-steps'
+import { categoryChangeLosesAnswers, categoryChangeReset } from './post-wizard-category'
+import { postCopyFor } from '@/lib/post-copy'
+import { clearDraftPhotos, draftPhotosEpoch, loadDraftPhotos, saveDraftPhotos } from '@/lib/post-draft-photos'
 import { scrollBehavior } from '@/lib/reduced-motion'
 
 const TITLE_MAX = 140
@@ -116,10 +122,18 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // the ✨ buttons only appear once the server creds are set.
   const aiEnabled = process.env.NEXT_PUBLIC_AI_ASSIST === '1'
   const [aiBusy, setAiBusy] = useState<'photo' | 'desc' | null>(null)
+  // Context notes for the ONE sign-in popup (auth-context's SignInContext.note, rendered under the
+  // card's generic title). A bare openSignIn() here told a guest nothing about why the form had
+  // stopped. Both tips are true as written: an email code signs in inside THIS tab, so everything in
+  // memory survives it, whereas Google redirects the page away and the magic link opens a new tab.
+  // (Since the photo draft moved into IndexedDB the redirect brings the photos back too, within the
+  // draft's TTL and wherever the browser allows IndexedDB — but never a video, which is not kept.)
+  const aiGateNote = t('Trợ giúp AI miễn phí khi có tài khoản. Mẹo: đăng nhập bằng mã qua email để giữ ảnh trên trang này.', 'AI help is free with an account. Tip: sign in with an email code to keep your photos on this page.')
+  const publishGateNote = t('Bước cuối: đăng nhập để đăng tin. Mẹo: đăng nhập bằng mã qua email để giữ ảnh trên trang này.', 'Last step: sign in to publish. Tip: sign in with an email code to keep your photos on this page.')
 
   // ✨ Autofill category/subcategory/type/condition/title from the cover photo.
   const autofillFromPhoto = async () => {
-    if (!user) { openSignIn(); return } // AI burns paid credits — members only
+    if (!user) { openSignIn({ note: aiGateNote }); return } // AI burns paid credits — members only
     const coverFile = photos[0]?.file
     if (!coverFile || aiBusy) return
     setAiBusy('photo')
@@ -172,7 +186,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
   // ✨ Polish the description into professional copy (keeps the facts, your language).
   const polishDescription = async () => {
-    if (!user) { openSignIn(); return } // AI burns paid credits — members only
+    if (!user) { openSignIn({ note: aiGateNote }); return } // AI burns paid credits — members only
     if (description.trim().length < 3 || aiBusy) return
     setAiBusy('desc')
     try {
@@ -220,7 +234,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [condition, setCondition] = useState(edit?.condition ?? '')
   const [brand, setBrand] = useState(edit?.brand ?? '')
   const [model, setModel] = useState(edit?.model ?? '')
-  const [brandOptions, setBrandOptions] = useState<string[]>([])
+  // Brand suggestions: the catalogue's top brands overall, led by the brands that actually have live
+  // listings in the chosen subcategory. Slugs are kept so a typed brand can be matched to its models.
+  const [globalBrands, setGlobalBrands] = useState<{ name: string; slug: string }[]>([])
+  const [scopedBrands, setScopedBrands] = useState<{ name: string; slug: string }[]>([])
+  const [modelItems, setModelItems] = useState<string[]>([])
+  // Controlled so a model field with nothing to suggest never opens an empty popup (and its scrim).
+  const [modelOpen, setModelOpen] = useState(false)
+  // Category picker collapse (W-CATWIPE): once chosen, the 16-chip grid folds into a one-line summary
+  // with a Change button, so the next question is in view instead of seven rows further down.
+  const [catExpanded, setCatExpanded] = useState(false)
+  const changeCatRef = useRef<HTMLButtonElement>(null)
   const [areaOpen, setAreaOpen] = useState(false)
   const areaBtnRef = useRef<HTMLButtonElement>(null)
   const [province, setProvince] = useState<Geo | null>(edit?.city ? { code: '', name: edit.city, nameEn: edit.city } : null)
@@ -299,21 +323,62 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [postingAs, setPostingAs] = useState<string | null>(null)
   const [meLoaded, setMeLoaded] = useState(false)
 
-  // ── Draft autosave (new listings only; photos aren't persisted). Crash
-  // insurance, not a drafts feature: restores only within a short window
-  // (industry norm — protect against accidental close, don't resurrect stale
-  // intent), and only when real typing happened. A category tap alone is not a
-  // draft; anything older than the TTL is silently deleted. ──
+  // `data-post-done` on <html> while the SUCCESS screen is up. header.tsx hides its orange Post button
+  // on the post flow's own pages from the pathname, at render time, so the server HTML already omits it
+  // (an effect-driven hide shifted the header ~105px after hydration — review, 2026-09-29); this lets
+  // it back where posting another IS the next step. Written only after a user's Publish, never on load.
+  // A subject-position hook rather than a `body:has(…)` selector (see the note in header.tsx).
+  useEffect(() => {
+    if (!submitted) return
+    const root = document.documentElement
+    root.setAttribute('data-post-done', '')
+    return () => root.removeAttribute('data-post-done')
+  }, [submitted])
+
+  // ── Draft autosave (new listings only). Crash insurance, not a drafts feature:
+  // restores only within a short window (industry norm — protect against accidental
+  // close, don't resurrect stale intent), and only when real typing happened. A
+  // category tap alone is not a draft; anything older than the TTL is silently
+  // deleted. The TEXT lives in localStorage; the PHOTOS live in IndexedDB
+  // (src/lib/post-draft-photos.ts), because a File cannot be serialised into
+  // localStorage and the Google sign-in at Publish is a full-page redirect that used
+  // to throw every photo away. The video is not kept (up to 50MB). ──
   const DRAFT_TTL_MS = 15 * 60_000
   const draftHydrated = useRef(false)
+  // Which text draft the saved photos belong to. The text draft's savedAt is the ONE TTL clock for
+  // both halves: it is refreshed on every keystroke, while the photos (the first section) are often
+  // not touched again — timed on their own clock they expired under a seller who was still writing.
+  // Adopted from a restored draft, minted fresh otherwise. Not a secret, so no crypto.
+  const draftId = useRef('')
+  // ⚠️ LOAD-BEARING, AND IT IS A SEPARATE FLAG FROM draftHydrated ON PURPOSE. The photo save effect
+  // below clears IndexedDB whenever `photos` is empty — which it is on the very first render, before
+  // the async load has even resolved. Without this gate that first render deletes the draft it is
+  // about to restore. It flips only once the load has settled (or there was nothing to load).
+  // STATE, not a ref: flipping it must re-run the save effect, so photos the seller added while the
+  // load was in flight (which restorePhotos leaves alone) are saved without waiting for the next edit.
+  const [photosHydrated, setPhotosHydrated] = useState(false)
+  // Photos the restored draft HAD but the seller has not got back yet. The text save below writes
+  // `photoCount: photos.length`, and it runs on the render right after the restore — before the
+  // async IndexedDB read lands, and for good when that read comes back empty (IndexedDB refused,
+  // quota, a private window). Without this the rewritten draft said 0 photos, so the NEXT reload
+  // said "Draft restored" and never asked for them again. Dropped once the seller has any photo.
+  // A draft saved before `photoCount` existed carries 0 here: it is asked once, as it always was.
+  const lostPhotoCount = useRef(0)
   useEffect(() => {
     if (edit) { draftHydrated.current = true; return }
+    let restoredId = ''
+    let hadPhotos = false
+    let restoring = false
     try {
       const d = JSON.parse(localStorage.getItem('eno-listing-draft') || 'null')
       const meaningful = d && (d.title?.trim() || d.description?.trim() || d.price)
       const fresh = d && Date.now() - (d.savedAt || 0) < DRAFT_TTL_MS
       if (d && !(meaningful && fresh)) localStorage.removeItem('eno-listing-draft')
       if (d && meaningful && fresh) {
+        restoring = true
+        if (typeof d.draftId === 'string') restoredId = d.draftId
+        hadPhotos = !(d.photoCount === 0)
+        if (typeof d.photoCount === 'number' && d.photoCount > 0) lostPhotoCount.current = d.photoCount
         if (d.categorySlug != null) setCategorySlug(d.categorySlug)
         if (d.subcategorySlug != null) setSubcategorySlug(d.subcategorySlug)
         if (d.listingType) setListingType(d.listingType)
@@ -330,11 +395,48 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         if (d.province) setProvince(d.province)
         if (d.ward) setWard(d.ward)
         if (d.nearby) setNearby(d.nearby)
-        toast.success(t('Đã khôi phục bản nháp — thêm lại ảnh nhé', 'Draft restored — re-add your photos'))
       }
     } catch {}
+    draftId.current = restoredId || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
     draftHydrated.current = true
+    if (!restoring) {
+      // No text draft (none, stale, or only clicks) → no photo draft either: photos without the
+      // listing they belong to are not a draft, and a stale set must not linger on the device.
+      void clearDraftPhotos()
+      setPhotosHydrated(true)
+      return
+    }
+    // The toast waits for the photos so it can say which of the two happened, once — and it only
+    // asks for photos back when the draft had some (`photoCount`; a draft saved before that field
+    // existed is assumed to have had them, which is what this toast always said).
+    let live = true
+    const restored = restoredId ? loadDraftPhotos(restoredId) : Promise.resolve(null)
+    void restored.then((ph) => {
+      if (!live) return
+      if (ph?.length) media.restorePhotos(ph)
+      toast.success(ph?.length || !hadPhotos
+        ? t('Đã khôi phục bản nháp', 'Draft restored')
+        : t('Đã khôi phục bản nháp — thêm lại ảnh nhé', 'Draft restored — re-add your photos'))
+    }).finally(() => { if (live) setPhotosHydrated(true) })
+    return () => { live = false }
+    // `media` and `t` are deliberately not dependencies: this runs once per mount, like the text
+    // restore above it, and restorePhotos never overwrites photos the seller added meanwhile.
   }, [edit])
+  // Photo half of the autosave. Debounced, because a crop or a reorder re-renders `photos` several
+  // times in a row and each save writes every Blob again. Off once published: success clears the
+  // draft, and a save still pending must not land after that clear and resurrect it.
+  useEffect(() => {
+    if (edit || !photosHydrated || submitted) return
+    // The epoch is read NOW, not when the timer fires: a clear in between (sign-out elsewhere in the
+    // app, publish) voids this save instead of letting it resurrect the photos.
+    const since = draftPhotosEpoch()
+    const id = setTimeout(() => {
+      const fresh = photos.filter((p) => p.file)
+      if (!fresh.length) void clearDraftPhotos()
+      else void saveDraftPhotos(draftId.current, fresh.map((p) => ({ file: p.file!, original: p.original, square: p.square })), since)
+    }, 400)
+    return () => clearTimeout(id)
+  }, [edit, photos, photosHydrated, submitted])
   useEffect(() => {
     if (edit || !draftHydrated.current) return
     try {
@@ -343,9 +445,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         localStorage.removeItem('eno-listing-draft')
         return
       }
-      localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby }))
+      if (photos.length) lostPhotoCount.current = 0
+      localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), draftId: draftId.current, photoCount: photos.length || lostPhotoCount.current, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby }))
     } catch {}
-  }, [edit, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby])
+  }, [edit, photos.length, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby])
 
   // Contact name + phone come from the ACCOUNT (not re-typed per post — a number is
   // unique per account). If the account is missing either, we prompt them to add it
@@ -373,15 +476,49 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     return () => ctrl.abort()
   }, [user, authLoading])
 
-  // Top brands for the datalist (suggestions only — free text creates new brands).
+  // Top brands for the Brand combobox (suggestions only — free text creates new brands).
   // Fetched once when the user lands on a brand-relevant category.
   useEffect(() => {
-    if (!categoryHasBrand(categorySlug) || brandOptions.length) return
+    if (!categoryHasBrand(categorySlug) || globalBrands.length) return
     fetch('/api/brands?limit=120')
       .then((r) => r.json())
-      .then((d) => setBrandOptions((d.brands || []).map((b: { name: string }) => b.name)))
+      .then((d) => setGlobalBrands((d.brands || []).map((b: { name: string; slug: string }) => ({ name: b.name, slug: b.slug }))))
       .catch(() => {})
-  }, [categorySlug, brandOptions.length])
+  }, [categorySlug, globalBrands.length])
+  // ⚠️ THE GLOBAL LIST ALONE OFFERED CANON AND DELL FOR A PHONE. /api/brands already answers per
+  // subcategory (live listings there, demand-ranked, edition-scoped), so those lead the list and the
+  // global top-120 follows as the long tail — it is what keeps a thin catalogue (eno.forum, a new
+  // subcategory) from offering nothing at all. Aborted on change so a slow answer for the previous
+  // subcategory cannot land under the new one.
+  useEffect(() => {
+    setScopedBrands([])
+    if (!categoryHasBrand(categorySlug) || !subcategorySlug) return
+    const ctrl = new AbortController()
+    const qs = new URLSearchParams({ category: categorySlug, subcategory: subcategorySlug, limit: '12' })
+    fetch(`/api/brands?${qs}`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : { brands: [] }))
+      .then((d) => setScopedBrands((d.brands || []).map((b: { name: string; slug: string }) => ({ name: b.name, slug: b.slug }))))
+      .catch(() => {})
+    return () => ctrl.abort()
+  }, [categorySlug, subcategorySlug])
+  // One list for the combobox: scoped brands first, then the global tail, each name once.
+  const brandItems = Array.from(new Set([...scopedBrands, ...globalBrands].map((b) => b.name)))
+  // Model suggestions need a KNOWN brand (the models endpoint is keyed by slug): a typed brand that
+  // matches a catalogue entry case-insensitively unlocks the models that brand actually has live here.
+  const brandKey = brand.trim().toLowerCase()
+  const brandSlug = brandKey ? [...scopedBrands, ...globalBrands].find((b) => b.name.toLowerCase() === brandKey)?.slug : undefined
+  useEffect(() => {
+    setModelItems([])
+    if (!brandSlug || !categoryHasBrand(categorySlug)) return
+    const ctrl = new AbortController()
+    const qs = new URLSearchParams({ category: categorySlug })
+    if (subcategorySlug) qs.set('subcategory', subcategorySlug)
+    fetch(`/api/brands/${encodeURIComponent(brandSlug)}/models?${qs}`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : { models: [] }))
+      .then((d) => setModelItems((d.models || []).slice(0, 60).map((m: { model: string }) => m.model)))
+      .catch(() => {})
+    return () => ctrl.abort()
+  }, [brandSlug, categorySlug, subcategorySlug])
 
   // Market-price guidance for the price step — the same PriceStat band the PDP's
   // "Market price" module shows (n≥5 + spread suppression live server-side).
@@ -426,14 +563,50 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const hasCondition = catFacets.some((f) => f.key === 'condition')
   const attrFacets = catFacets.filter((f) => f.key !== 'condition')
   const showBrand = categoryHasBrand(categorySlug)
+  const orderedFacets = [...attrFacets].sort((a, b) => Number(!isRequiredFacet(a)) - Number(!isRequiredFacet(b)))
 
   // Sale-vs-rent quick switch for rentable items (Vehicles/Property ↔ Rentals). AI
   // defaults rentable items to a sale category; one tap flips the WHOLE category to
   // Rentals (mapping the subcategory), so "this is actually a rental" just works.
   const intent: 'sell' | 'rent' = categorySlug === 'rentals' ? 'rent' : 'sell'
   const showRentToggle = !edit && (categorySlug === 'rentals' || RENTABLE_SALE_CATS.has(categorySlug))
+  // ⚠️ PICKING A CATEGORY IS DESTRUCTIVE AND COSTS ONE TAP — so it is undoable. Both pickers below
+  // wipe the subcategory-specific answers (facets differ per category), and before this a seller who
+  // had filled Phones › Used › 128GB and brushed "Home" lost all of it with no way back. The toast
+  // restores the whole snapshot. One id, so quick successive changes replace the offer instead of
+  // stacking toasts; only the latest snapshot is restorable, which is the one the seller means.
+  // `toast` (it carries an action), not subtleToast. No apostrophe in the English half: the
+  // gen-ui-strings harvester reads single-quoted literals only.
+  const offerCategoryUndo = () => {
+    const snap = { categorySlug, subcategorySlug, listingType, attrs, ranges, condition, brand, model }
+    toast(t('Đã đổi danh mục — thông số cũ đã được xoá', 'Category changed — the old details were cleared'), {
+      id: 'pw-cat-undo',
+      duration: 6000,
+      action: {
+        label: t('Hoàn tác', 'Undo'),
+        onClick: () => {
+          setCategorySlug(snap.categorySlug)
+          setSubcategorySlug(snap.subcategorySlug)
+          setListingType(snap.listingType)
+          setAttrs(snap.attrs)
+          setRanges(snap.ranges)
+          setCondition(snap.condition)
+          setBrand(snap.brand)
+          setModel(snap.model)
+          setCatExpanded(false)
+        },
+      },
+    })
+  }
+  // Answers a category switch would throw away. Only these earn an undo toast: a switch that loses
+  // nothing (a first pick, or a change before anything was answered) is not worth interrupting.
+  const answeredSpecifics = !!(condition || Object.values(attrs).some(Boolean) || Object.values(ranges).some((v) => v != null))
+
   const switchIntent = (to: 'sell' | 'rent') => {
     if (to === intent) return
+    // The subcategory maps across (motorbike ↔ motorbike-rental); only an unmappable one is lost.
+    const mappedSub = to === 'rent' ? SALE_TO_RENT[categorySlug]?.[subcategorySlug] : RENT_TO_SALE[subcategorySlug]?.sub
+    if (answeredSpecifics || (subcategorySlug && !mappedSub)) offerCategoryUndo()
     if (to === 'rent') {
       setSubcategorySlug(SALE_TO_RENT[categorySlug]?.[subcategorySlug] ?? '')
       setCategorySlug('rentals')
@@ -448,14 +621,34 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     setAttrs({}); setRanges({}); setCondition('')
   }
 
+  // After a pick collapses a chip grid, the chip that had focus is gone — put focus on the summary's
+  // Change button, the control that now stands where the grid was. preventScroll: the seller's view
+  // should follow their tap, not jump to wherever the button landed.
+  const focusCategoryChange = () => requestAnimationFrame(() => changeCatRef.current?.focus({ preventScroll: true }))
+  // …and the reverse: "Change" unmounts the moment it opens the grid, so focus moves to the chip that
+  // is chosen — the one a keyboard user is most likely to keep, and a Tab away from the rest.
+  const focusChosenCategory = () => requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-category-grid] [aria-pressed="true"]')?.focus({ preventScroll: true }))
+
   const chooseCategory = (slug: string) => {
-    setCategorySlug(slug)
-    setSubcategorySlug('')
-    setAttrs({})
-    setRanges({})
-    setCondition('')
-    if (!categoryHasBrand(slug)) { setBrand(''); setModel('') }
-    setListingType(typesFor(slug)[0] ?? 'sell')
+    // ⚠️ RE-TAPPING THE CHOSEN CATEGORY IS A NO-OP. It used to re-run everything below and wipe the
+    // subcategory, facets, condition and (for brandless categories) brand — the one guard the
+    // short-lived RadioGroup had provided, lost when the chips went back to toggles. It still folds
+    // the grid away, since "I meant this one" is exactly what the tap says.
+    if (slug === categorySlug) { setCatExpanded(false); focusCategoryChange(); return }
+    // Brand + model are cleared on EVERY switch (post-wizard-category.ts): Electronics → Vehicles
+    // used to keep "Apple / iPhone". They are in offerCategoryUndo's snapshot, so Undo brings them back.
+    if (categoryChangeLosesAnswers({ categorySlug, subcategorySlug, condition, attrs, ranges, brand, model })) offerCategoryUndo()
+    const reset = categoryChangeReset(slug)
+    setCategorySlug(reset.categorySlug)
+    setSubcategorySlug(reset.subcategorySlug)
+    setAttrs(reset.attrs)
+    setRanges(reset.ranges)
+    setCondition(reset.condition)
+    setBrand(reset.brand)
+    setModel(reset.model)
+    setListingType(reset.listingType)
+    setCatExpanded(false)
+    focusCategoryChange()
   }
 
   const phoneOk = contactPhone.replace(/\D/g, '').length >= 9
@@ -522,6 +715,24 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const missing = checks.filter((c) => !c.ok)
   const canSubmit = missing.length === 0 && !submitting
 
+  // What the seller SEES as progress — a display-only VIEW of `checks` (post-wizard-steps.ts explains
+  // why the gate itself made a poor progress bar). It groups, names and hides gate rows but never
+  // recomputes one, so the badge cannot call the form done while Publish still refuses it. The
+  // contact step appears only once the account is known, and for a guest never.
+  const steps = publishSteps({
+    checks,
+    photos: photos.length,
+    minPhotos,
+    missingFacetLabels: attrFacets.filter((f) => isRequiredFacet(f) && !attrs[f.key]).map((f) => tr(f.label, f.labelVi)),
+    showContact: !authLoading && !isGuest && meLoaded,
+    t,
+  })
+  const pendingSteps = steps.filter((s) => !s.ok)
+  // No number until it can be right: while auth (or a signed-in profile) is still loading, the set of
+  // steps is not final, and a badge that reads 6 and then 5 looks like the form changed its mind.
+  const countReady = !authLoading && (isGuest || meLoaded)
+  const badgeCount = countReady ? pendingSteps.length : 0
+
   // On-blur inline validation for the high-traffic fields — errors surface as the
   // user leaves a field, not only on submit (says what's wrong + how to fix).
   const [touched, setTouched] = useState<Record<string, boolean>>({})
@@ -572,9 +783,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     el?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
     if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.focus({ preventScroll: true })
   }
+  // The first step the seller SEES as outstanding, in form order. The gate's own first miss is the
+  // fallback for the one case the steps hide on purpose: contact during the auth/profile load, where
+  // the gate still blocks (see the note in submit()) and the steps show nothing to finish.
   const scrollToMissing = () => {
-    const first = missing[0]
-    if (first) scrollToField(first.key)
+    const target = pendingSteps[0]?.target ?? missing[0]?.key
+    if (target) scrollToField(target)
   }
 
   // ⚠️ EVERY EARLY RETURN BELOW IS A PUBLISH THAT NEVER REACHES THE SERVER, so /api/listings'
@@ -656,8 +870,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       return
     }
     // Draft-first: the listing is ready — NOW ask for the account. The text draft
-    // is already in localStorage (survives an OAuth redirect); in-dialog OTP/email
-    // keeps photos too. After sign-in the /api/me effect fills contact info.
+    // is already in localStorage and the photos in IndexedDB (both survive an OAuth
+    // redirect for DRAFT_TTL_MS); in-dialog OTP/email keeps them in memory too. After
+    // sign-in the /api/me effect fills contact info.
     if (!user) {
       // ⚠️ THE MOST VALUABLE ONE. The form was complete and VALID and we asked for an
       // account — so this separates "could not fill the form" from "would not make an
@@ -665,7 +880,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // onboarding bounce used to destroy photos (1298c088), and nothing else can tell us
       // whether that fix helped.
       countAttempt('client_signin_required')
-      openSignIn()
+      openSignIn({ note: publishGateNote })
       return
     }
     submittingRef.current = true
@@ -722,6 +937,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       const created = (await res.json().catch(() => ({}))) as { id?: string }
       trackPostListing({ id: created.id, title: title.trim(), price: Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
       try { localStorage.removeItem('eno-listing-draft') } catch {}
+      void clearDraftPhotos()
       // First-ever publish gets a distinct celebration moment on the success
       // screen (device-local flag — celebration-grade accuracy is fine).
       try {
@@ -742,10 +958,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // ⚖️ THE SELLER IDENTITY GATE (NĐ 248/2026) — only while it is enforced. A legal block, not a
       // content one: nothing in the form fixes it, so the message names the next step and a button
       // beside it takes them there.
-      // ⚠️ THE VERIFY BUTTON OPENS A NEW TAB, AND THE COPY PROMISES NO SAVED DRAFT. The localStorage
-      // draft holds text only (photos are never persisted) and expires after DRAFT_TTL_MS, while a
-      // pending review takes up to a working day — so navigating this tab away would lose the photos
-      // and, often, the text. Keeping this tab open is the only thing that actually keeps the work.
+      // ⚠️ THE VERIFY BUTTON OPENS A NEW TAB, AND THE COPY PROMISES NO SAVED DRAFT. The draft (text in
+      // localStorage, photos in IndexedDB) expires after DRAFT_TTL_MS — 15 minutes — while a pending
+      // review takes up to a working day, so navigating this tab away would lose the photos and the
+      // text alike. Keeping this tab open is the only thing that actually keeps the work.
       const identityMsg = identityBlockMessage(msg, tr)
       setErrorAction(identityBlockAction(msg))
       if (identityMsg) { setError(identityMsg); hapticError(); console.error(e); return }
@@ -843,31 +1059,25 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     canSubmit,
     submitting,
     edit: !!edit,
-    missingCount: missing.length,
+    missingCount: badgeCount,
     t,
   }
 
-  // ⚠️ 13rem, NOT 9rem — AND 9rem WAS ALREADY TOO SMALL BEFORE THIS PASS. This padding is the
-  // ONLY thing keeping the last form field out from under the fixed publish bar, and it is a
-  // hardcoded guess at that bar's height rather than a measurement of it.
-  // Measured at 390×844 with a fresh draft: the bar is 183px tall with the "still needed" chips
-  // present and ~142px without them, against a 144px (9rem) reserve — so the checklist state,
-  // which is the state EVERY seller is in until the last field, overflowed by ~39px, and even the
-  // old single-line version overflowed by ~12px.
-  // 12rem (192px) clears the measured 183px — but by only 9px, and a reviewer was right that 9px
-  // is not a margin here: this bar's height tracks OS font scaling and Vietnamese labels are
-  // longer, either of which eats it. 13rem = 208px gives 25px, which survives a step of text
-  // enlargement. It is still a guess at a measured thing, which is why the warning below matters.
-  // ⚠️ 14rem SINCE 2026-09-25, RE-MEASURED AS THIS WARNS: the "still needed" chips grew from 23px to
-  // 36px tall (tap targets), so the bar measured 196px at 390×844 with them showing — 13rem left 12px.
-  // 14rem = 224px restores the ~28px margin argued for above.
-  // ⚠️ IF YOU CHANGE THE BAR'S CONTENTS, RE-MEASURE THIS. The two numbers are coupled with nothing
-  // to enforce it: the bar grows, this does not, and the failure is silent — the last field simply
-  // sits under the bar and the seller cannot reach it.
-  // `max(env(), var())` — the SAME inset the Publish bar clears (see the note on it below), so the two
-  // grow together on an Android WebView < 140, where env() is 0 and Capacitor injects the var.
+  // The category grid shows until something is chosen, then folds into a summary row. AI autofill and a
+  // restored draft set the category too, so they land folded as well.
+  const showCatGrid = !categorySlug || catExpanded
+  const chosenSub = subOptions.find((s) => s.slug === subcategorySlug)
+  // A string, not JSX: the "›" separator is not translatable copy, and as a variable it is not a
+  // JSX literal either (react/jsx-no-literals).
+  const categorySummary = cat ? (chosenSub ? `${tr(cat.name, cat.nameVi)} › ${tr(chosenSub.name, chosenSub.nameVi)}` : tr(cat.name, cat.nameVi)) : categorySlug
+  const copy = postCopyFor(categorySlug)
+
+  // No bottom padding guess on the form root any more. It used to reserve a hardcoded 14rem for the
+  // mobile publish bar — "coupled with nothing", in its own words, and re-guessed three times as the
+  // bar grew. The bar is now ui/sticky-action-bar, which MEASURES its panel and publishes the height;
+  // <StickyActionBarSpacer /> at the end of this tree reserves exactly that, chips or no chips.
   return (
-    <div className="pb-[calc(14rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] lg:pb-0">
+    <div>
       {/* Exit is a <Link>, not an <a>: inside the Capacitor WebView a raw anchor is a fresh
           HTTP load of the live site — blank screen, full document teardown. The draft is
           already autosaved to localStorage, so a soft nav loses nothing. */}
@@ -902,7 +1112,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         {/* ── FORM ── */}
         <div className="min-w-0 space-y-10">
           {/* Photos (+ optional video) — moved verbatim to post-wizard-sections.tsx */}
-          <MediaSection media={media} errPhoto={err.photo} minPhotos={minPhotos} aiEnabled={aiEnabled} aiBusy={aiBusy} autofillFromPhoto={autofillFromPhoto} t={t} />
+          <MediaSection media={media} errPhoto={err.photo} minPhotos={minPhotos} aiEnabled={aiEnabled} aiBusy={aiBusy} autofillFromPhoto={autofillFromPhoto} isGuest={isGuest} t={t} />
 
           {/* Category & type */}
           <Section id="pw-category" title={t('Danh mục', 'Category')} hint={t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
@@ -945,6 +1155,27 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {cat ? tr(cat.name, cat.nameVi) : categorySlug}
                 <span className="ml-1 text-xs font-normal text-ink-4">{t('(không đổi khi sửa)', '(fixed when editing)')}</span>
               </div>
+            ) : !showCatGrid ? (
+              // The chosen category (and subcategory), folded: the same frozen-pill idea as edit mode,
+              // plus the one control that reopens the grid. The glyph is FILLED on the same rule as the
+              // edit pill — it shows a category that IS chosen.
+              <div className="flex max-w-md items-center gap-2 rounded-xl bg-tint px-3.5 py-2.5">
+                {cat && <CategoryIcon name={cat.icon} stroke={STROKE_UI} selected className="h-4 w-4 shrink-0 text-body" />}
+                <span id="pw-category-summary" className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{categorySummary}</span>
+                <Button
+                  ref={changeCatRef}
+                  variant="bare"
+                  size="none"
+                  type="button"
+                  onClick={() => { setCatExpanded(true); focusChosenCategory() }}
+                  // The visible word stays "Change" (short, and what the eye expects); the summary it
+                  // sits in is its description, so a screen reader hears what is being changed.
+                  aria-describedby="pw-category-summary"
+                  className="relative shrink-0 text-sm font-bold text-accent-foreground hover:underline cursor-pointer tap-44"
+                >
+                  {t('Đổi', 'Change')}
+                </Button>
+              </div>
             ) : (
               <>
                 {/* Chip grid = a RADIO GROUP: pick exactly one category. It used to be a
@@ -973,13 +1204,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   role="group"
                   aria-label={t('Danh mục', 'Category')}
                   aria-describedby={err.category ? 'pw-category-error' : undefined}
+                  data-category-grid
                   // ⚠️ -mx-2 -mt-2, NOT -m-2. `p-2 -m-2` cancels the padding on all four sides for
                     // LAYOUT while the ring still paints 8px outside the box — so the error message
                     // below flowed straight through the ring's bottom edge and rendered struck out.
                     // Dropping only the negative BOTTOM margin lets that 8px occupy real space, so
                     // the message clears the ring, while the sides and top still avoid a shift when
                     // the error appears.
-                    className={cn('flex flex-wrap gap-2 rounded-xl transition-colors', err.category && '-mx-2 -mt-2 p-2 ring-2 ring-destructive/60')}
+                    // rounded-2xl, not xl: the chips inside are pills now, and a 12px ring corner
+                    // 8px outside a pill's curve clipped visually into the first chip's cap.
+                    className={cn('flex flex-wrap gap-2 rounded-2xl transition-colors', err.category && '-mx-2 -mt-2 p-2 ring-2 ring-destructive/60')}
                 >
                   {categories.map((c) => (
                     <Button
@@ -994,7 +1228,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       // `icon-own-ink`: the selected pill is a solid bg-primary, so its glyph takes the
                       // label's white instead of the global accent recolour — accent on accent measured
                       // rgb(10,102,194) on rgb(10,102,194), an invisible icon (owner, 2026-09-27).
-                      className={cn('icon-own-ink relative gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors tap-44', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
+                      // Resting `bg-tint` pill, same states as <Chips> — see the note there.
+                      className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors tap-44', categorySlug === c.slug ? 'bg-primary text-white' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground')}
                     >
                       {/* ⚠️ FILL IS THE SELECTION CUE (owner, 2026-08-07: "use icons filling only
                           when selected, not as default"). `selected` is the SAME boolean that
@@ -1024,50 +1259,112 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 <Chips options={LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => ({ value: lt.value, label: tr(lt.label, lt.labelVi), icon: lt.icon }))} value={listingType} onPick={setListingType} />
               </Field>
             )}
-            {categorySlug && subOptions.length > 0 && (
+            {/* Once a subcategory is picked it joins the category summary above, and its chips fold
+                away with the grid — "Change" reopens both. Not in edit mode: there the category is
+                frozen and has no summary row, so these chips are the only place the subcategory
+                shows or can be changed. */}
+            {categorySlug && subOptions.length > 0 && (!!edit || !subcategorySlug || catExpanded) && (
               <Field group label={t('Danh mục con', 'Subcategory')}>
-                <Chips options={subOptions.map((s) => ({ value: s.slug, label: tr(s.name, s.nameVi), icon: s.icon }))} value={subcategorySlug} onPick={(v) => setSubcategorySlug(v === subcategorySlug ? '' : v)} />
+                <Chips
+                  options={subOptions.map((s) => ({ value: s.slug, label: tr(s.name, s.nameVi), icon: s.icon }))}
+                  value={subcategorySlug}
+                  onPick={(v) => {
+                    const next = v === subcategorySlug ? '' : v
+                    setSubcategorySlug(next)
+                    // A pick folds the chips into the summary, so focus follows to its Change button
+                    // (the chip that held it is about to unmount). Un-picking keeps the chips open.
+                    if (next) { setCatExpanded(false); focusCategoryChange() }
+                  }}
+                />
               </Field>
             )}
+            {/* ⚠️ Base UI COMBOBOX, NOT <input list>. The native datalist drew a different widget in every
+                browser (Chrome's ▼, nothing at all on iOS Safari) and could not lead with the brands
+                that sell in THIS subcategory. Same creatable pattern as visa-cards' checkpoint field:
+                `value` and `inputValue` are both the typed string, so free text is kept as typed and
+                the resolver creates a new brand server-side, exactly as before.
+                `id` goes on the ROOT: Base UI registers the root's id with the Field (the label's
+                htmlFor) and the input inherits it, so the label both names and focuses the field. */}
             {showBrand && (
-              <Field label={t('Thương hiệu', 'Brand')} hint={t('Giúp người mua tìm theo hãng. Bỏ trống nếu không có.', 'Helps buyers find you by brand. Leave blank if none.')}>
-                <FieldControl
-                  render={
-                    <Input
-                      value={brand}
-                      list="brand-options"
+              <Field label={t('Thương hiệu', 'Brand')} optional hint={t('Giúp người mua tìm theo hãng. Bỏ trống nếu không có.', 'Helps buyers find you by brand. Leave blank if none.')}>
+                <Combobox
+                  id="pw-brand"
+                  items={brandItems}
+                  value={brand || null}
+                  inputValue={brand}
+                  onValueChange={(v) => setBrand(typeof v === 'string' ? v : '')}
+                  onInputValueChange={(v) => setBrand(v.slice(0, 40))}
+                  autoHighlight
+                >
+                  {/* The wizard's filled-input idiom (ui/input `filled`): tint, no border, the soft ring. */}
+                  <ComboboxInputGroup className="max-w-md border-0 bg-tint">
+                    <ComboboxInput
+                      autoComplete="off"
                       maxLength={40}
-                      onChange={(e) => setBrand(e.target.value)}
                       placeholder={t('VD: Apple, Samsung, Honda', 'e.g. Apple, Samsung, Honda')}
-                      className="max-w-md"
+                      className="px-4 placeholder:text-ink-4"
                     />
-                  }
-                />
-                <datalist id="brand-options">
-                  {brandOptions.map((b) => <option key={b} value={b} />)}
-                </datalist>
+                    <ComboboxClear aria-label={t('Xoá thương hiệu', 'Clear brand')} />
+                    {/* `aria-labelledby={undefined}`: inside a Field, Base UI labels the trigger with the
+                        FIELD's label, which wins over aria-label — so this button was a second
+                        "Brand (optional)" beside the input (measured). Unset, it is named by what it does. */}
+                    <ComboboxTrigger aria-label={t('Mở danh sách thương hiệu', 'Open brand list')} aria-labelledby={undefined} />
+                  </ComboboxInputGroup>
+                  <ComboboxContent>
+                    <ComboboxEmpty>{t('Không có trong danh sách — sẽ dùng đúng tên bạn nhập.', 'Not in the list — we will use the name you typed.')}</ComboboxEmpty>
+                    <ComboboxList>
+                      {(b: string) => <ComboboxItem key={b} value={b}>{b}</ComboboxItem>}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </Field>
             )}
+            {/* Model suggestions exist only for a catalogue brand (they are keyed by its slug). The
+                combobox is rendered either way so the input never remounts under a seller who is
+                typing when the list arrives; with nothing to suggest, it simply never opens. */}
             {showBrand && brand.trim() && (
-              <Field label={t('Mẫu / Model', 'Model')} hint={t('VD: iPhone 14 Pro, Sorento. Giúp người mua lọc theo mẫu.', 'e.g. iPhone 14 Pro, Sorento. Lets buyers filter by model.')}>
-                <FieldControl
-                  render={
-                    <Input
-                      value={model}
+              <Field label={t('Mẫu / Model', 'Model')} optional hint={t('Giúp người mua lọc theo mẫu.', 'Lets buyers filter by model.')}>
+                <Combobox
+                  id="pw-model"
+                  items={modelItems}
+                  value={model || null}
+                  inputValue={model}
+                  onValueChange={(v) => setModel(typeof v === 'string' ? v : '')}
+                  onInputValueChange={(v) => setModel(v.slice(0, 60))}
+                  open={modelOpen && modelItems.length > 0}
+                  // Only RECORD an open that has something to show. Recorded while the list was empty,
+                  // it outlived the field (Base UI sends no close for a popup it never showed) and the
+                  // list sprang open on its own the moment a later brand's models arrived.
+                  onOpenChange={(next) => setModelOpen(next && modelItems.length > 0)}
+                  autoHighlight
+                >
+                  <ComboboxInputGroup className="max-w-md border-0 bg-tint">
+                    <ComboboxInput
+                      autoComplete="off"
                       maxLength={60}
-                      onChange={(e) => setModel(e.target.value)}
-                      placeholder={t('VD: iPhone 14 Pro', 'e.g. iPhone 14 Pro')}
-                      className="max-w-md"
+                      placeholder={tr(copy.model, copy.modelVi)}
+                      className="px-4 placeholder:text-ink-4"
                     />
-                  }
-                />
+                    <ComboboxClear aria-label={t('Xoá mẫu', 'Clear model')} />
+                    {modelItems.length > 0 && <ComboboxTrigger aria-label={t('Mở danh sách mẫu', 'Open model list')} aria-labelledby={undefined} />}
+                  </ComboboxInputGroup>
+                  <ComboboxContent>
+                    <ComboboxEmpty>{t('Không có trong danh sách — sẽ dùng đúng tên bạn nhập.', 'Not in the list — we will use the name you typed.')}</ComboboxEmpty>
+                    <ComboboxList>
+                      {(m: string) => <ComboboxItem key={m} value={m}>{m}</ComboboxItem>}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </Field>
             )}
           </Section>
 
           {/* Details */}
           <Section title={t('Chi tiết', 'Details')}>
-            <Field label={t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`} error={titleErr}>
+            {/* `className="max-w-2xl"` caps the label row to the control's width, so the counter ends
+                at the field's right edge. aria-required, NOT the native `required` attribute: native
+                would light up :invalid styling on a pristine form, and this form validates in state. */}
+            <Field label={t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`} error={titleErr} className="max-w-2xl">
               {/* `id` goes on the CONTROL, not the wrapper: scrollToMissing() does
                   getElementById('pw-title').focus() and that focus() is guarded by
                   `instanceof HTMLInputElement` — on a wrapper <div> it silently no-ops.
@@ -1080,7 +1377,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     maxLength={TITLE_MAX}
                     onChange={(e) => setTitle(e.target.value)}
                     onBlur={() => touch('title')}
-                    placeholder={t('VD: iPhone 14 128GB — pin 92%', 'e.g. iPhone 14 128GB — battery 92%')}
+                    aria-required
+                    // The example is the category's own (src/lib/post-copy.ts) — a phone title under
+                    // Jobs taught sellers the wrong listing.
+                    placeholder={tr(copy.title, copy.titleVi)}
                     className={cn('max-w-2xl', err.title && 'ring-2 ring-destructive/60')}
                   />
                 }
@@ -1088,34 +1388,44 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             </Field>
             {/* `pw-description` stays on the WRAPPER — it is the scroll anchor, and other
                 code may look it up. Only the title's id lives on its control. */}
-            <Field id="pw-description" label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')} error={descErr}>
-              {/* No mb-* on the row below: the Field wrapper is now `flex flex-col gap-1.5`, and a
-                  flex GAP does not collapse with a sibling's margin the way the old `space-y-1.5`
-                  block flow did — they ADD. An mb-1.5 here would put 12px under the row, not 6px. */}
-              {aiEnabled && (
-                /* pb-1.5 is the room "Polish with AI"'s tap-44 reaches into. The textarea below is
-                   `relative` so it keeps every tap on its own box (a stray tap there must never
-                   rewrite the description with paid AI); with the plain 6px gap that left the
-                   button a 39px target. 6px more makes it a full 44 without touching the field. */
-                <div className="flex max-w-2xl justify-end pb-1.5">
-                  <Button
-                    type="button"
-                    variant="bare"
-                    size="none"
-                    onClick={polishDescription}
-                    disabled={!!aiBusy || description.trim().length < 3}
-                    title={t('Viết lại chuyên nghiệp bằng AI', 'Rewrite professionally with AI')}
-                    // disabled:pointer-events-auto undoes the base's baked
-                    // disabled:pointer-events-none — this button is disabled until the
-                    // description has 3 chars, and that is exactly when its title=
-                    // tooltip explains why. A disabled <button> still fires no click.
-                    className="relative gap-1 rounded-lg px-2 py-1 text-2xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:pointer-events-auto disabled:opacity-40 cursor-pointer tap-44"
-                  >
-                    {aiBusy === 'desc' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                    {t('Chỉnh bằng AI', 'Polish with AI')}
-                  </Button>
-                </div>
-              )}
+            <Field
+              id="pw-description"
+              className="max-w-2xl"
+              label={t('Mô tả', 'Description')}
+              // The 20-character minimum BLOCKS publish, so the counter states it until it is met —
+              // a bare "0/5000" told the seller about a ceiling nobody reaches and hid the floor
+              // everybody hits. The number sits OUTSIDE t() so the phrase is harvestable.
+              counter={description.trim().length < 20 ? `${t('Tối thiểu 20 ký tự', 'Min. 20 characters')} · ${description.trim().length}` : `${description.length}/${DESC_MAX}`}
+              hint={tr(copy.hint, copy.hintVi)}
+              error={descErr}
+              // "Polish with AI" rides in the label row (it had a row of its own between label and
+              // field). Its tap-44 reach now spills ~4px past the 6px gap into the textarea's top edge
+              // — which is why the textarea stays `relative`: a positioned box later in the DOM wins
+              // the hit test for its own pixels, so a tap on the field's edge focuses the field and
+              // can never rewrite the description with paid AI.
+              labelAction={aiEnabled ? (
+                <Button
+                  type="button"
+                  variant="bare"
+                  size="none"
+                  onClick={polishDescription}
+                  disabled={!!aiBusy || description.trim().length < 3}
+                  title={t('Viết lại chuyên nghiệp bằng AI', 'Rewrite professionally with AI')}
+                  // disabled:pointer-events-auto undoes the base's baked
+                  // disabled:pointer-events-none — this button is disabled until the
+                  // description has 3 chars, and that is exactly when its title=
+                  // tooltip explains why. A disabled <button> still fires no click.
+                  className="relative gap-1 rounded-lg px-2 py-1 text-2xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:pointer-events-auto disabled:opacity-40 cursor-pointer tap-44"
+                >
+                  {aiBusy === 'desc' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  {t('Chỉnh bằng AI', 'Polish with AI')}
+                  {/* The gate, stated before the tap. Desktop only: at 390px the label row holds the
+                      label, this button and the counter, and the photo tile's Autofill button above
+                      already tells a guest the same thing. */}
+                  {isGuest && <span className="hidden font-semibold text-ink-4 sm:inline">{t('· miễn phí khi có tài khoản', '· free with an account')}</span>}
+                </Button>
+              ) : undefined}
+            >
               <FieldControl
                 render={
                   <Textarea
@@ -1123,12 +1433,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     maxLength={DESC_MAX}
                     onChange={(e) => setDescription(e.target.value)}
                     onBlur={() => touch('description')}
+                    aria-required
                     rows={5}
                     placeholder={t('Mô tả chi tiết…', 'Describe it in detail…')}
-                    // `relative` so the field keeps its OWN taps: the "Polish with AI" button above
-                    // carries tap-44, whose hit area reaches ~4px past the 6px gap into this box, and a
-                    // positioned pseudo paints (and hit-tests) above an unpositioned sibling. A tap on
-                    // the field's top edge must focus it, never rewrite the description with paid AI.
+                    // `relative` so the field keeps its OWN taps: the "Polish with AI" button in the
+                    // label row carries tap-44, whose hit area reaches ~4px past the 6px gap into this
+                    // box, and a positioned pseudo paints (and hit-tests) above an unpositioned sibling.
+                    // A tap on the field's top edge must focus it, never rewrite the description with AI.
                     className={cn('relative max-w-2xl resize-none', err.description && 'ring-2 ring-destructive/60')}
                   />
                 }
@@ -1144,8 +1455,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   <Chips options={[{ value: 'new', label: t('Mới', 'New') }, { value: 'used', label: t('Đã dùng', 'Used') }]} value={condition} onPick={setCondition} />
                 </Field>
               )}
-              {attrFacets.map((f, fi) => (
-                <Field group key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)} error={err.details && isRequiredFacet(f) && !attrs[f.key] ? t('Hãy chọn một mục', 'Pick one') : undefined}>
+              {/* REQUIRED FACETS FIRST, then the optional ones marked "(optional)". Taxonomy order put
+                  the optional electronics specs (Storage, RAM, Connectivity) ahead of the required
+                  Warranty and Colour, so the seller answered three questions nobody asked for before
+                  reaching the two that block Publish. The sort is stable, so each group keeps its
+                  taxonomy order; `pw-details` (the scroll anchor) now lands on a required facet. */}
+              {orderedFacets.map((f, fi) => (
+                <Field group key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)} optional={!isRequiredFacet(f)} error={err.details && isRequiredFacet(f) && !attrs[f.key] ? t('Hãy chọn một mục', 'Pick one') : undefined}>
                   {f.kind === 'range' && f.range ? (
                     <RangeSpecInput range={f.range} value={ranges[f.key] ?? null} onChange={(v) => setRanges((prev) => ({ ...prev, [f.key]: v }))} />
                   ) : (
@@ -1183,6 +1499,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
              * at a stated price with no offers and no urgency, which is exactly the shape wanted.
              */
             fixedPriceOnly={categorySlug === 'services' || listingType === 'wanted'}
+            // The tỷ (×1.000.000.000) chip only where a price in the billions is plausible — a car,
+            // a house, a wholesale lot, or before a category says otherwise. On a phone it was one
+            // mistap from a 1,000× price.
+            maxFactor={!categorySlug || categorySlug === 'vehicles' || categorySlug === 'property' || listingType === 'wholesale' ? 1_000_000_000 : 1_000_000}
             t={t}
           />
 
@@ -1235,21 +1555,31 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         <aside className="hidden lg:block">
           <div className="sticky top-24 space-y-4">
             <div className="space-y-2">
-              <span className="text-2xs font-bold uppercase tracking-wider text-ink-4">{t('Xem trước', 'Live preview')}</span>
+              {/* A heading, not a kicker: eyebrows are retired (owner, wow design pass), and this names
+                  the region a screen-reader user would otherwise have to discover by reading it. */}
+              <h2 className="text-sm font-semibold text-foreground">{t('Xem trước', 'Preview')}</h2>
               <Preview cover={photos[0]?.url} title={title} price={price} priceUnit={priceUnit} area={areaLabel} categoryIcon={cat?.icon} t={t} />
             </div>
             <PublishButton {...publishButtonProps} />
-            {missing.length > 0 && (
+            {pendingSteps.length > 0 && (
               <ul className="space-y-1.5 pt-1">
-                {checks.map((c) => (
-                  <li key={c.key} className={cn('flex items-center gap-2 text-xs', c.ok ? 'text-ink-4 line-through' : 'text-body')}>
-                    <span className={cn('flex h-4 w-4 items-center justify-center rounded-full', c.ok ? 'text-success' : 'text-ink-4')}>
-                      {c.ok ? <Check className="h-3.5 w-3.5" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+                {steps.map((s) => (
+                  <li key={s.key} className={cn('flex items-center gap-2 text-xs', s.ok ? 'text-ink-4 line-through' : 'text-body')}>
+                    <span className={cn('flex h-4 w-4 items-center justify-center rounded-full', s.ok ? 'text-success' : 'text-ink-4')}>
+                      {s.ok ? <Check className="h-3.5 w-3.5" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
                     </span>
-                    {c.label}
+                    {s.ok ? s.name : s.todo}
                   </li>
                 ))}
               </ul>
+            )}
+            {/* Sign-in is not a step a guest can tick, so it is said in words, once — never as a
+                struck-through "done" row for a thing the seller has not done. */}
+            {isGuest && (
+              <p className="flex items-center gap-1.5 text-2xs text-ink-4">
+                <User className="h-3.5 w-3.5" />
+                {t('Đăng nhập ở bước cuối, khi bạn đăng tin', 'Sign-in comes last, when you publish')}
+              </p>
             )}
             {/* First-party protection claim ("your number stays private") → the eno seal,
                 not a generic lucide lock: §0b reserves exactly this moment for the
@@ -1262,62 +1592,49 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         </aside>
       </div>
 
-      {/* Publish bar (mobile) — sits ABOVE the global fixed bottom-nav. bg runs to
-          bottom-0 (so there's no gap when the nav auto-hides) while the button is
-          padded up clear of the nav; the form root reserves matching space below so
-          the last fields never hide behind it. */}
-      {/* ⚠️ `[html.kb-open_&]:pb-3` — THE 5rem IS THE BOTTOM NAV'S CLEARANCE, AND THE NAV HIDES WHILE
-          TYPING (globals.css `html.kb-open .mobile-nav`). Keeping it reserved (then 76px) for chrome that was
-          not there: at 390×508 (Android, keyboard up) the bar stood 183px tall — 36% of the viewport —
-          and the focused description ran underneath it. Sliding the whole bar away while typing is a
-          separate owner decision; this only stops reserving room for a nav that is gone.
-          The safe-area inset goes too, on purpose: above a keyboard there is no home indicator to
-          clear — the same "no stale home-indicator gap above the keyboard" rule as .kb-bottom. */}
-      {/* ⚠️ 5rem AND `px-3` SINCE THE TAB BAR BECAME A FLOATING PILL (2026-09-26): 12px from the sides and
-          12px off the bottom. At 4.75rem + px-4 the Publish button ended 8px above it with its edges 4px
-          inside the pill's — two near-misses in one stack. Now the gap over the pill equals the pill's own
-          gap below it, and the button lines up with both the pill and the page (/post's main is px-3).
-          The bar grew 4px: 14rem on the form root still clears it by ~24px (re-measured at 390×844).
-          `max(env(), var())`: the pill rests on Capacitor's injected `--safe-area-inset-bottom` on an Android
-          WebView < 140, where env() is 0 — clearing only env() let the pill ride up over the Publish button. */}
-      <div data-fab-clear className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-3 pt-3 pb-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] [html.kb-open_&]:pb-3 material backdrop-blur lg:hidden">
-        <div className="mx-auto max-w-7xl space-y-2">
-          {/* What's still missing — mobile parity with the desktop checklist */}
-          {/* ⚠️ TAPPABLE CHIPS ON ONE SCROLLING ROW — was a `truncate`d sentence, and both halves
-              of that were wrong at the seller funnel's last step.
-              · `truncate` hard-clipped mid-word ("Add a title · Write a de…"), so the instruction
-                telling the seller how to finish was itself unreadable — and it was 11px.
-              · It was PROSE. The seller read what was missing and then had to go find it. Each
-                item now jumps to its own field, so the checklist IS the navigation.
-              ⚠️ ONE ROW, SCROLLED — NOT `flex-wrap`. The form root reserves a FIXED bottom padding for this bar (see the note above the form root);
-              a wrapping list grows the bar and the last fields disappear behind it, which is the exact failure the comment above warns
-              about. A horizontal scroller keeps the height constant however many items are
-              outstanding, and nothing is ever clipped mid-word.
-              `shrink-0` on each chip is what stops flex squeezing them back into ellipses. */}
-          {missing.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-2xs font-semibold text-ink-4">{t('Còn thiếu', 'Still needed')}</p>
-              <div className="-mx-1 flex gap-1.5 overflow-x-auto scrollbar-none px-1">
-                {missing.map((c) => (
-                  <Button
-                    key={c.key}
-                    type="button"
-                    variant="bare"
-                    size="none"
-                    onClick={() => scrollToField(c.key)}
-                    // min-h-9 py-2, NOT tap-44: this row is an overflow-x scroller, which clips a
-                    // pseudo-element hit area to its own box — the chip has to BE the target.
-                    className="press min-h-9 shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-2 text-2xs font-semibold text-warning cursor-pointer"
-                  >
-                    {c.label}
-                  </Button>
-                ))}
-              </div>
+      {/* ── PUBLISH (mobile) ── ui/sticky-action-bar: it sits above the floating tab bar (offset
+          4.5rem, the StepWizard canon), measures itself for the spacer at the end of this tree, and
+          drops the tab-bar clearance while the keyboard is up (.kb-bottom). The CTA stays solid while
+          the form is incomplete — dimming it made a working button look dead (PublishButton's note).
+          ⚠️ MOUNTED LAST, AGAINST THE PRIMITIVE'S "MOUNT EARLY" ADVICE, ON PURPOSE: in a form, Publish
+          belongs AFTER the fields in tab order — a keyboard user fills the form, then reaches it.
+          ⚠️ The "Still needed" chips appear only after a failed Publish. They used to sit in the bar
+          permanently, a 200px block of fixed chrome over a form that had barely started; the count
+          badge, the desktop checklist and the red per-field flags already carry the same news.
+          `null`, not `undefined`, when there is nothing to show: it keeps the bar's stacked shape, so
+          the Publish button is never remounted (and never drops focus) when the chips arrive. */}
+      <StickyActionBar
+        className="lg:hidden"
+        offsetBottom="4.5rem"
+        label={edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing')}
+        // Not `render`: `disabled` flips while the seller watches, and the primitive's own note
+        // says to take the plain path for exactly that.
+        primary={{ label: <PublishLabel submitting={submitting} edit={!!edit} missingCount={badgeCount} t={t} />, onClick: submit, disabled: submitting }}
+        above={attempted && pendingSteps.length > 0 ? (
+          // ⚠️ ONE ROW: the label beside a horizontal scroller, never `flex-wrap`. The row's height is
+          // constant however many items are outstanding, and nothing is ever clipped mid-word
+          // (`shrink-0` on each chip). Each chip jumps to its own field — the list IS the navigation.
+          <div className="flex items-center gap-2">
+            <p className="shrink-0 text-2xs font-semibold text-ink-4">{t('Còn thiếu', 'Still needed')}</p>
+            <div className="-mr-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto scrollbar-none pr-1">
+              {pendingSteps.map((s) => (
+                <Button
+                  key={s.key}
+                  type="button"
+                  variant="bare"
+                  size="none"
+                  onClick={() => scrollToField(s.target)}
+                  // min-h-9 py-2, NOT tap-44: this row is an overflow-x scroller, which clips a
+                  // pseudo-element hit area to its own box — the chip has to BE the target.
+                  className="press min-h-9 shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-2 text-2xs font-semibold text-warning cursor-pointer"
+                >
+                  {s.todo}
+                </Button>
+              ))}
             </div>
-          )}
-          <PublishButton {...publishButtonProps} />
-        </div>
-      </div>
+          </div>
+        ) : null}
+      />
 
       <AreaFilter
         mode="pick"
@@ -1337,6 +1654,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         }}
         onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
       />
+      {/* Stands in for the mobile bar at the end of the flow — the same `lg:hidden` as the bar.
+          ⚠️ PLUS THE TAB BAR'S 4.5rem (`h-18`, the same length as `offsetBottom` above), which the
+          spacer deliberately leaves out: it counts on the app-wide <BottomNavSpacer /> for that, and
+          the BottomNavSpacer sits after the FOOTER. At the end of the form the bar stands 72px panel +
+          72px offset tall over a reserve of 72px + main's pb-12, so the Contact section ended 24px
+          under the Publish button (measured at 390×844) — reachable only by scrolling on into the
+          footer. The reserve belongs to the form, so it goes here. */}
+      <StickyActionBarSpacer className="lg:hidden" />
+      <div aria-hidden className="h-18 lg:hidden" />
     </div>
   )
 }

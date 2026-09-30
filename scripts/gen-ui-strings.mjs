@@ -165,6 +165,8 @@ const VARIABLE_RENDERED_COPY = [
   // Taxonomy display copy — rendered via <Tr text={variable}> / tr(label, labelVi).
   ['src/lib/taxonomy.ts', ['name', 'label']],
   ['src/lib/visa/speed.ts', ['name', 'label']],
+  // The post wizard's category-aware placeholders and hints — rendered as tr(copy.title, copy.titleVi).
+  ['src/lib/post-copy.ts', ['title', 'hint', 'model']],
   // ⚠️ why-eno.tsx WAS HERE AND THE FILE IS GONE (deleted 2026-08-13, commit 357c1c27, as an
   // orphaned component with zero importers). Its row stayed behind and made this generator throw
   // ENOENT on every run — which matters more than a dead row, because the PostToolUse hook that

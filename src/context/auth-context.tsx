@@ -434,6 +434,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('eno:require-signin', onReq)
   }, [])
 
+  // `html.no-session` (the pre-paint script in [lang]/layout.tsx) says "no sb- cookie when this document
+  // started" and lets a guest-only state paint before hydration. A session minted IN this document —
+  // the popup, a code typed in place — makes that stale, so it goes the moment a user exists. It is
+  // only ever read inside auth-`loading` branches, so this is the belt, not the only guard.
+  useEffect(() => { if (user) document.documentElement.classList.remove('no-session') }, [user])
+
   // Load the app identity (account type) whenever the auth user changes, so the
   // onboarding gate below knows whether the one-time business/individual choice is
   // still pending. Separate from the Supabase boot so it also covers phone OTP,
@@ -617,7 +623,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('eno-dashboard')
       localStorage.removeItem('eno-notifs')
       Object.keys(localStorage).filter((k) => k.startsWith('eno-thr:')).forEach((k) => localStorage.removeItem(k))
+      // The unpublished /post draft too — text here, photos in IndexedDB. Both outlive a closed tab
+      // for DRAFT_TTL_MS on purpose (they must survive the Google sign-in redirect), so without this
+      // the next person to open /post on a shared device got the previous seller's draft back,
+      // photos included. Lazy: the module is only needed at sign-out, not in every page's bundle.
+      localStorage.removeItem('eno-listing-draft')
     } catch {}
+    void import('@/lib/post-draft-photos').then((m) => m.clearDraftPhotos()).catch(() => {})
   }, [])
 
   /**

@@ -61,33 +61,52 @@ export function PublishButton({
       // without lying about whether the control works.
       className={cn('w-full rounded-xl px-7 py-3 text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
     >
-      {submitting
-        ? (edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…'))
-        : (
-          // ⚠️ THE LABEL IS ALWAYS A VERB. It used to read "6 left to finish" — a COUNT where the
-          // primary action belongs, so the button stopped naming what it does at the exact moment
-          // the seller is deciding whether to bother. The verb stays put and the count rides
-          // alongside as a badge: same information, but the button still says what pressing it is
-          // for. `tabular-nums` so the badge does not reflow the label as the count ticks down.
-          <span className="inline-flex items-center justify-center gap-2">
-            {edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing')}
-            {missingCount > 0 && (
-              <span
-                aria-label={t(`Còn ${missingCount} mục chưa xong`, `${missingCount} still needed`)}
-                // ⚠️ `bg-white/20` ASSUMES THIS BUTTON IS DARK, and that holds only because
-                // `variant="cta"` is the solid brand fill — measured rgb(10,102,194). It is a
-                // scrim on the button's own ink, not a themed surface, which is why it is white
-                // rather than a token. If this button ever takes a light variant the badge
-                // disappears, and with the dimming gone there would then be NO incompleteness
-                // signal at all. Change the variant, change this.
-                className="inline-flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-2xs font-bold tabular-nums"
-              >
-                {missingCount}
-              </span>
-            )}
-          </span>
-        )}
+      <PublishLabel submitting={submitting} edit={edit} missingCount={missingCount} t={t} />
     </Button>
+  )
+}
+
+/** The Publish control's LABEL on its own, so the mobile bar (ui/sticky-action-bar, which owns its
+ *  own button) and the desktop <PublishButton> say exactly the same thing. */
+export function PublishLabel({
+  submitting,
+  edit,
+  missingCount,
+  t,
+}: {
+  submitting: boolean
+  edit: boolean
+  missingCount: number
+  t: (vi: string, en: string) => string
+}) {
+  if (submitting) return <>{edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…')}</>
+  return (
+    // ⚠️ THE LABEL IS ALWAYS A VERB. It used to read "6 left to finish" — a COUNT where the
+    // primary action belongs, so the button stopped naming what it does at the exact moment
+    // the seller is deciding whether to bother. The verb stays put and the count rides
+    // alongside as a badge: same information, but the button still says what pressing it is
+    // for. `tabular-nums` so the badge does not reflow the label as the count ticks down.
+    <span className="inline-flex items-center justify-center gap-2">
+      {edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing')}
+      {missingCount > 0 && (
+        <span
+          // ⚠️ THE NUMBER STAYS OUTSIDE t(). This was `t(\`Còn ${n} mục chưa xong\`, \`${n} still
+          // needed\`)` — a template literal, which scripts/gen-ui-strings.mjs cannot harvest, so the
+          // phrase never reached the pre-warmed catalogue and every machine-translated language
+          // fetched it lazily, once per count.
+          aria-label={`${missingCount} ${t('mục còn thiếu', 'still needed')}`}
+          // ⚠️ `bg-white/20` ASSUMES THIS BUTTON IS DARK, and that holds only because
+          // `variant="cta"` is the solid brand fill — measured rgb(10,102,194). It is a
+          // scrim on the button's own ink, not a themed surface, which is why it is white
+          // rather than a token. If this button ever takes a light variant the badge
+          // disappears, and with the dimming gone there would then be NO incompleteness
+          // signal at all. Change the variant, change this.
+          className="inline-flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-2xs font-bold tabular-nums"
+        >
+          {missingCount}
+        </span>
+      )}
+    </span>
   )
 }
 
@@ -131,20 +150,45 @@ export function Section({ title, hint, children, id }: { title: string; hint?: s
  *  `pw-description` / `pw-condition` / `pw-details` as SCROLL anchors, so that must not move. The
  *  one id that has to be on the control itself is `pw-title` — it is passed to `<FieldControl>`
  *  there, not to this wrapper.
+ *
+ *  `className` lands on the wrapper, so a call site whose control is capped (`max-w-2xl` on the
+ *  title and description) caps the LABEL ROW to the same width — the counter then ends at the
+ *  control's right edge instead of floating at the column's (measured 200px adrift at 1280).
+ *
+ *  `optional` appends a quiet "(optional)" INSIDE the label, so it is part of the accessible name
+ *  and a screen reader hears it too. Every field without it is one the publish gate asks for.
+ *
+ *  `labelAction` rides at the right of the label row, before the counter (the description's
+ *  "Polish with AI"), so the action no longer needs a row of its own between label and field.
  */
-export function Field({ id, label, counter, hint, error, group, children }: { id?: string; label: string; counter?: string; hint?: string; error?: string; group?: boolean; children: React.ReactNode }) {
+export function Field({ id, label, counter, hint, error, group, optional, labelAction, className, children }: { id?: string; label: string; counter?: string; hint?: string; error?: string; group?: boolean; optional?: boolean; labelAction?: React.ReactNode; className?: string; children: React.ReactNode }) {
   const uid = useId()
+  const { tr } = useLanguage()
   const labelId = `${uid}-label`
   const hintId = `${uid}-hint`
   const errorId = `${uid}-error`
+  // The space sits OUTSIDE the translated string on purpose: gen-ui-strings trims what it harvests,
+  // so a string with a leading space would never match its own catalogue key.
+  const optionalMark = optional ? <span className="font-normal text-ink-4"> {tr('(optional)', '(tùy chọn)')}</span> : null
+  // `flex-wrap` + `ml-auto` on the right cluster: at 390px an action AND a counter beside a label is
+  // close to the row's width, and a longer machine-translated label must wrap the cluster onto its
+  // own right-aligned line rather than push the counter out of the column.
+  const trailing = labelAction || counter
+    ? (
+      <div className="ml-auto flex items-center gap-3">
+        {labelAction}
+        {counter && <span className="text-2xs text-ink-4">{counter}</span>}
+      </div>
+    )
+    : null
 
   if (group) {
     const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined
     return (
-      <div id={id} className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span id={labelId} className="text-sm font-semibold text-foreground">{label}</span>
-          {counter && <span className="text-2xs text-ink-4">{counter}</span>}
+      <div id={id} className={cn('space-y-1.5', className)}>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <span id={labelId} className="text-sm font-semibold text-foreground">{label}{optionalMark}</span>
+          {trailing}
         </div>
         {/* aria-invalid is not a supported prop on role="group" (jsx-a11y/role-supports-aria-props),
             and screen readers ignore it there — the error reaches AT via aria-describedby → the
@@ -161,10 +205,10 @@ export function Field({ id, label, counter, hint, error, group, children }: { id
   }
 
   return (
-    <UiField id={id} invalid={!!error}>
-      <div className="flex items-center justify-between">
-        <FieldLabel className="font-semibold">{label}</FieldLabel>
-        {counter && <span className="text-2xs text-ink-4">{counter}</span>}
+    <UiField id={id} invalid={!!error} className={className}>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <FieldLabel className="font-semibold">{label}{optionalMark}</FieldLabel>
+        {trailing}
       </div>
       {children}
       {hint && <FieldDescription className="text-muted-foreground">{hint}</FieldDescription>}
@@ -232,7 +276,13 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
           // inside the row's 8px gap, so no chip's hit area ever lands on its neighbour's.
           // `icon-own-ink`: a solid bg-primary pill when picked, so the glyph keeps the label's white
           // rather than the global accent recolour, which is the pill's own blue (owner, 2026-09-27).
-          className={cn('icon-own-ink relative gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44', value === o.value ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
+          // ⚠️ A RESTING `bg-tint` PILL, NOT TRANSPARENT. The borderless sweep flattened these to
+          // bare text on the canvas, so an unpicked option had no edge at all and a row of them read
+          // as a sentence rather than as choices. Canon §2 says chips are `rounded-full`, and §3b
+          // says chips that must sit apart take `tint` — the same idiom as VndInput's unit chips.
+          // No border: a canon-token border cannot reach 1.4.11's 3:1 on this canvas (line-strong
+          // measures ~1.4:1), and the visible label is what identifies the control.
+          className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44', value === o.value ? 'bg-primary text-white' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground')}
         >
           {o.icon && (
             // Fill marks the pick (owner, 2026-08-07: "use icons filling only when selected").

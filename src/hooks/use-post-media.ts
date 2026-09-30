@@ -37,7 +37,7 @@ export function usePostMedia({
   // Edit-mode seeds (URL-only, already hosted) have no File/original → not re-croppable.
   const [photos, setPhotos] = useState<{ url: string; file?: File; original?: File; square?: boolean }[]>(() => edit?.images?.map((url) => ({ url })) ?? [])
   // Optional single video: url-only in edit mode (already hosted); a new pick carries a File
-  // + a blob: preview URL. ≤60s (duration-gated client-side) — autoplays on hover + in the feed.
+  // + a blob: preview URL. ≤60s (duration-gated client-side) — autoplays on the listing card + in the feed.
   const [video, setVideo] = useState<{ url: string; file?: File; hevc?: boolean } | null>(() => (edit?.video ? { url: edit.video } : null))
   const [videoBusy, setVideoBusy] = useState(false)
 
@@ -205,6 +205,17 @@ export function usePostMedia({
   }
   const removeVideo = () => setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return null })
 
+  // Photos brought back from the IndexedDB draft (src/lib/post-draft-photos.ts) after a reload or
+  // the Google sign-in redirect. ⚠️ NEVER OVER PHOTOS ALREADY HERE: the read is async, and a seller
+  // who added a photo while it was in flight has started a new set — merging the two would put
+  // photos they did not pick back into the listing. The blob URLs are minted OUTSIDE the updater
+  // (updaters must stay side-effect-free, see setPhotoFile) and tracked, so a set that loses the race
+  // is revoked with everything else at unmount.
+  const restorePhotos = (items: { file: File; original?: File; square?: boolean }[]) => {
+    const restored = items.slice(0, 6).map((it) => ({ url: trackBlobUrl(URL.createObjectURL(it.file)), file: it.file, original: it.original, square: it.square }))
+    setPhotos((p) => (p.length ? p : restored))
+  }
+
   // Upload only NEW photos (those with a File); keep already-hosted URLs (edit mode)
   // in their original order so the cover + sequence are preserved.
   const uploadPhotos = async (): Promise<string[]> => {
@@ -240,6 +251,7 @@ export function usePostMedia({
     photos,
     setPhotos,
     addPhotos,
+    restorePhotos,
     applySquareCrop,
     keepFullPhoto,
     movePhoto,
