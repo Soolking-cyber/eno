@@ -164,7 +164,7 @@ describe('districtMetadata', () => {
   it('English name, the city, and no "Trusted" over linked stock', () => {
     const m = districtMetadata({ ...base, linked: 'all' }, 'en', 'eno.vn')
     expect(m.title).toBe('Rentals in District 2 (Thu Duc), Ho Chi Minh City | eno.vn')
-    expect(m.description).toBe('3,741 places for rent in District 2 (Thu Duc), Ho Chi Minh City. Every one links to its original listing on a partner property portal.')
+    expect(m.description).toBe('3,741 places for rent in District 2 (Thu Duc), Ho Chi Minh City. Every listing links to its original ad on another listing site.')
   })
 
   // /c/rentals/can-gio held exactly one rental on 2026-09-27 and read "1 places for rent", then
@@ -172,17 +172,17 @@ describe('districtMetadata', () => {
   it('counts one as one — the count AND the linked sentence, in both languages', () => {
     const canGio = { ...base, place: { en: 'Can Gio District', vi: 'Huyện Cần Giờ' }, total: 1, linked: 'all' as const }
     expect(districtMetadata(canGio, 'en', 'eno.vn').description).toBe(
-      '1 place for rent in Can Gio District, Ho Chi Minh City. It links to its original listing on a partner property portal.',
+      '1 place for rent in Can Gio District, Ho Chi Minh City. It links to its original ad on another listing site.',
     )
     expect(districtMetadata(canGio, 'vi', 'eno.vn').description).toBe(
-      '1 tin cho thuê tại Huyện Cần Giờ, TP. Hồ Chí Minh. Tin này dẫn tới tin gốc trên trang bất động sản đối tác.',
+      '1 tin cho thuê tại Huyện Cần Giờ, TP. Hồ Chí Minh. Tin này dẫn tới tin gốc trên một trang đăng tin khác.',
     )
     const elecOne = { ...canGio, category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' } }
     expect(districtMetadata(elecOne, 'en', 'eno.vn').description).toMatch(/^1 electronics listing in [^.]+\. It links to its original listing on a partner site\.$/)
     for (const lang of ['en', 'vi'] as const) {
-      expect(districtMetadata(canGio, lang, 'eno.vn').description).not.toMatch(/Every one|Tất cả đều/)
+      expect(districtMetadata(canGio, lang, 'eno.vn').description).not.toMatch(/Every (one|listing)|Mỗi tin đều/)
       // …and two is still plural.
-      expect(districtMetadata({ ...canGio, total: 2 }, lang, 'eno.vn').description).toMatch(/Every one links|Tất cả đều dẫn/)
+      expect(districtMetadata({ ...canGio, total: 2 }, lang, 'eno.vn').description).toMatch(/Every listing links|Mỗi tin đều dẫn/)
     }
     const elec = { ...base, category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }, total: 1, linked: 'none' as const }
     expect(districtMetadata(elec, 'en', 'eno.vn').description).toMatch(/^1 electronics listing in /)
@@ -193,7 +193,7 @@ describe('districtMetadata', () => {
   it('Vietnamese renders its own title and sentence', () => {
     const m = districtMetadata({ ...base, linked: 'all' }, 'vi', 'eno.vn')
     expect(m.title).toBe('Cho thuê tại Quận 2 (Thủ Đức), TP. Hồ Chí Minh | eno.vn')
-    expect(m.description).toBe('3.741 tin cho thuê tại Quận 2 (Thủ Đức), TP. Hồ Chí Minh. Tất cả đều dẫn tới tin gốc trên trang bất động sản đối tác.')
+    expect(m.description).toBe('3.741 tin cho thuê tại Quận 2 (Thủ Đức), TP. Hồ Chí Minh. Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.')
   })
 
   it('keeps the trust sentence only where nothing in scope is linked', () => {

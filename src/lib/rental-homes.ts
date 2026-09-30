@@ -13,3 +13,10 @@
  * night is a stay, not a home. Offices/shopfronts and vehicles stay out as above.
  */
 export const HOME_RENTAL_SUBCATS = ['apartment-rental', 'house-rental', 'room-rental', 'homestay-serviced'] as const
+
+/**
+ * The /api/listings param a rentals district page sends with its sort and Show-more while it lists
+ * homes only (SEO wave B, D1), so page 2 comes from the set page 1 listed (feed-query.ts). Ignored
+ * outside `category=rentals`, and when a subcategory is chosen (that is already narrower).
+ */
+export const HOMES_ONLY_PARAM = { key: 'homes', value: '1' } as const

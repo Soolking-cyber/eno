@@ -21,6 +21,7 @@ import { parseRadiusParams, radiusWhere } from '@/lib/geo-radius'
 import { conditionWhere } from '@/lib/listing-condition'
 import { provinceWhere, wardWhere } from '@/lib/province-match'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
+import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
 
 // Subcategory facet counts are expensive (one multi-LIKE COUNT per subcategory)
 // and change slowly. Memoize per filter-signature with a short TTL so the fan-out
@@ -403,6 +404,15 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
    */
   if (category === 'rentals' && searchParams.get(PLACES_KIND_PARAM.key) === PLACES_KIND_PARAM.value) {
     andFilters.push(RENTAL_PLACES)
+  }
+  /**
+   * `homes=1` — a rentals district page that lists only homes (SEO wave B, D1; src/lib/rental-homes.ts):
+   * apartments, houses and rooms, never offices. Only on `category=rentals` and only with no
+   * subcategory chosen: a chosen one is already narrower, and "Office" chosen from the strip must
+   * still answer offices rather than nothing. A fixed scope clause, like `kind=places`.
+   */
+  if (category === 'rentals' && !subcategoryFilter && searchParams.get(HOMES_ONLY_PARAM.key) === HOMES_ONLY_PARAM.value) {
+    andFilters.push({ subcategorySlug: { in: [...HOME_RENTAL_SUBCATS] } })
   }
   const listingType = searchParams.get('type')?.trim()
   if (listingType && listingType !== 'all') {

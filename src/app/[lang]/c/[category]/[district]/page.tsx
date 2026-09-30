@@ -1,6 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
+import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -11,8 +12,9 @@ import { districtScopeForSlug } from '@/lib/district-slug'
 import { canonicalDistrictSlug, districtLabel, isCuratedDistrict, mergeDistrictGroups } from '@/lib/district-canonical'
 import { MIN_INDEXABLE_LISTINGS, isIndexableCount } from '@/lib/index-floor'
 import { staleBelowFloor } from '@/lib/stale-noindex'
-import { districtMetadata, linkedTier, pageLang } from '../category-copy'
-import { DistrictHeading, DistrictLede, PlaceName, RentIndexLink } from '../category-text'
+import { districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
+import { DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentIndexLink } from '../category-text'
+import { RentalCheckHint } from '@/components/marketplace/rental-check-toggle'
 import { notFound, permanentRedirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { pageShare } from '@/lib/site-identity'
@@ -100,11 +102,31 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   const scope = await districtScopeForSlug(districtSlug)
   if (!scope) return null
   const where = { AND: [base, scope] }
-  // edition-lint-allow: `base` IS `await scopedListingWhere(...)` five lines up, and every read on
+  /**
+   * ⛔ ONE GROUP BY ON SUBCATEGORY, NOT A COUNT (SEO wave B, D1). Every live row falls in exactly one
+   * group, the null one included, so `total` — the sum — is the count this replaced: EVERY rental in
+   * scope (places only). I1's robots floor and the stale-noindex window read it, and the sibling
+   * chips stay a subset of it (order rule 3). The groups also give the homes (apartments, houses,
+   * rooms — HOME_RENTAL_SUBCATS) and the office count the "Also here" link names.
+   */
+  // edition-lint-allow: `base` IS `await scopedListingWhere(...)` above, and every read on
   // this page composes it — the desk exclusion cannot be lost by an AND. The rule counts guard
   // MENTIONS against reads, so one scoped predicate feeding three reads reads as two unguarded.
-  const total = await db.listing.count({ where })
+  const bySubGroups = await db.listing.groupBy({ by: ['subcategorySlug'], where, _count: { _all: true } })
+  const total = bySubGroups.reduce((n, g) => n + g._count._all, 0)
   if (total === 0) return null
+  const bySub = Object.fromEntries(bySubGroups.map((g) => [g.subcategorySlug ?? '', g._count._all]))
+  /**
+   * ⛔ WHILE A RENTALS PAGE HAS HOMES, IT LISTS ONLY HOMES (D1; decisions D-a, D-b). Offices and
+   * shopfronts were among the first cards and the first ItemList entries of pages titled for people
+   * looking for somewhere to live; they move behind the `nofollow` "Also here" link. With no home in
+   * scope the page lists every rental, as before. The grid, the ItemList and Show-more (`homes=1`,
+   * feed-query.ts) all read this one `listed` scope.
+   */
+  const homes = placesOnly ? homeFacts(bySub) : null
+  // …unless the homes alone are under the floor on an indexable page (listsHomesOnly, category-copy.ts).
+  const homesOnly = listsHomesOnly(homes, total, MIN_INDEXABLE_LISTINGS)
+  const listed = homesOnly ? { AND: [where, { subcategorySlug: { in: [...HOME_RENTAL_SUBCATS] } }] } : where
   /**
    * ⛔ PAGE 1 IS THE API'S OWN offset 0, NOT A PLAIN RANK ORDER. Show-more sends sort=newest, and
    * under that sort /api/listings serves `diverseFeedWindow` + `diversifyBySeller` (route.ts), not
@@ -114,7 +136,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
    * the page renders <ListingCard> slots only. The window re-scopes `where` itself (feed-window.ts).
    */
   const sharedSeats = sharedSeatsFor(null, categorySlug)
-  const head = await diverseFeedWindow(where, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats })
+  const head = await diverseFeedWindow(listed, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats })
   const rows = diversifyBySeller(head, { sharedSeats }).slice(0, DISTRICT_PAGE_SIZE)
   if (rows.length === 0) return null
   const [groups, linked, noindex] = await Promise.all([
@@ -133,7 +155,8 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
      * score says nothing about a listing copied from another portal.
      */
     // edition-lint-allow: `where` is `{ AND: [base, scope] }`, base = scopedListingWhere(...) above.
-    db.listing.count({ where: { AND: [where, { affiliateUrl: { not: null } }] } }),
+    // By subcategory, so the homes' own tier comes from the same read (the homes lede speaks of them).
+    db.listing.groupBy({ by: ['subcategorySlug'], where: { AND: [where, { affiliateUrl: { not: null } }] }, _count: { _all: true } }),
     /**
      * ⛔ `noindex` ONLY AFTER 14 DAYS UNDER THE FLOOR (SEO wave B, I1b; decision I-g;
      * src/lib/stale-noindex.ts). The scope is this page's without its liveness clause — the same
@@ -155,7 +178,19 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   const districts = mergeDistrictGroups(groups.map((g) => ({ district: g.district, count: g._count._all })))
   // A curated place is named from DISTRICTS; anything else from a stored spelling in scope.
   const place = districtLabel(districtSlug, rows.find((r) => r.district)?.district ?? null)
-  return { cat, matched: rows, total, linked: linkedTier(linked, total), place, inHcmc: isCuratedDistrict(districtSlug), districts, noindex }
+  const linkedAll = linked.reduce((n, g) => n + g._count._all, 0)
+  const linkedHomes = linked.reduce((n, g) => n + ((HOME_RENTAL_SUBCATS as readonly (string | null)[]).includes(g.subcategorySlug) ? g._count._all : 0), 0)
+  return {
+    cat, matched: rows, total, linked: linkedTier(linkedAll, total), place, inHcmc: isCuratedDistrict(districtSlug), districts, noindex,
+    homes: homesOnly ? homes : null,
+    homesLinked: homesOnly ? linkedTier(linkedHomes, homes!.total) : ('none' as const),
+    /**
+     * ⚠️ THE TITLE, H1 AND DESCRIPTION NAME A RENTALS PLACE IN SEARCHERS' WORDS (D-d:
+     * RENTALS_PLACE_LABEL — "District 2 (Thao Dien)", "District 9"); the breadcrumb, chips and
+     * JSON-LD keep `place`, the DISTRICTS label.
+     */
+    searchPlace: placesOnly ? rentalsPlaceLabel(districtSlug, place) : place,
+  }
 })
 
 /**
@@ -200,7 +235,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   // ⚠️ "— Trusted" IS GONE from the title: over linked stock it was a claim the page cannot make.
   const { title, description } = districtMetadata(
-    { category: { slug: data.cat.slug, name: data.cat.name, nameVi: data.cat.nameVi }, place: data.place, inHcmc: data.inHcmc, total: data.total, linked: data.linked },
+    {
+      category: { slug: data.cat.slug, name: data.cat.name, nameVi: data.cat.nameVi }, place: data.searchPlace, inHcmc: data.inHcmc,
+      total: data.total, linked: data.linked, homes: data.homes, homesLinked: data.homesLinked,
+    },
     lang,
     SITE_NAME,
   )
@@ -227,7 +265,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CategoryDistrictPage({ params }: Props) {
   const { lang, district, data } = await resolve(params)
-  const { cat, matched, total, linked, place, districts } = data
+  const { cat, matched, total, linked, place, districts, homes, homesLinked, searchPlace } = data
+  const rentals = cat.slug === 'rentals'
+  const headline = rentals ? districtRentalsHeadline(homes) : null
+  // What the grid lists: homes while there are any (D1), else every rental in scope.
+  const listedTotal = homes ? homes.total : total
   // ⚠️ ONLY SIBLINGS AT THE FLOOR (src/lib/index-floor.ts): a chip to a `noindex` page is a followed
   // link to a page we asked Google to drop. The count is the stored-name tally (district-canonical.ts),
   // and the linked page's scope matches every spelling it merges — except one that differs from a
@@ -285,15 +327,25 @@ export default async function CategoryDistrictPage({ params }: Props) {
         </Breadcrumb>
 
         {/* English place names on English pages: "Rentals in District 2", never "Rentals in Quận 2". */}
-        <h1 className="h-display text-foreground"><DistrictHeading name={cat.name} nameVi={cat.nameVi} place={place} /></h1>
+        <h1 className="h-display text-foreground">
+          {headline ? <RentalsDistrictHeading headline={headline} place={searchPlace} /> : <DistrictHeading name={cat.name} nameVi={cat.nameVi} place={searchPlace} />}
+        </h1>
         {/* Measured lede — 65ch, same as the category page. */}
         <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
           {/* ⚠️ THE SCOPE'S TRUE COUNT, NOT THE PAGE'S. This read `listings.length` — the survivors of
               a 600-row window — and announced them as the district's inventory. */}
-          <DistrictLede total={total} name={cat.name} nameVi={cat.nameVi} categorySlug={cat.slug} place={place} linked={linked} />
+          <DistrictLede
+            total={total} name={cat.name} nameVi={cat.nameVi} categorySlug={cat.slug} place={searchPlace} linked={linked}
+            homes={homes} homesLinked={homesLinked} slug={district}
+            linkable={districts.filter((d) => isIndexableCount(d.count)).map((d) => d.slug)}
+          />
         </p>
+        {/* ⛔ THE CHECK THE DESCRIPTION PROMISES IS ON THE PAGE (D1, v3): "Pick up to N and eno checks
+            availability for free" is in the meta description, so the hint that says how is here, in the
+            HTML with JavaScript off — rentals pages only, as on /c/rentals. */}
+        {rentals && <RentalCheckHint className="mt-2 max-w-prose" />}
         {/* Only for an HCMC district: the index covers Ho Chi Minh City and nothing else. */}
-        {cat.slug === 'rentals' && data.inHcmc && <RentIndexLink />}
+        {rentals && data.inHcmc && <RentIndexLink />}
 
         {otherDistricts.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">
@@ -317,13 +369,19 @@ export default async function CategoryDistrictPage({ params }: Props) {
               carried in `params`, so no interaction can drop it. */}
           <SellerListings
             listings={listings}
-            sortable={total > 1}
+            sortable={listedTotal > 1}
             serverScope={{
-              params: { category: cat.slug, district, ...(cat.slug === 'rentals' ? { [PLACES_KIND_PARAM.key]: PLACES_KIND_PARAM.value } : {}) },
-              total, pageSize: DISTRICT_PAGE_SIZE,
+              params: {
+                category: cat.slug, district,
+                ...(rentals ? { [PLACES_KIND_PARAM.key]: PLACES_KIND_PARAM.value } : {}),
+                // The same homes-only scope as `listed` in load() (D1): page 2 is homes too.
+                ...(homes ? { [HOMES_ONLY_PARAM.key]: HOMES_ONLY_PARAM.value } : {}),
+              },
+              total: listedTotal, pageSize: DISTRICT_PAGE_SIZE,
             }}
           />
         </div>
+        {homes && <OtherRentalsLink n={homes.offices} href={`/?category=rentals&district=${district}&subcategory=office-rental`} />}
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild variant="outline" size="none" className="border-line-strong font-bold hover:bg-muted hover:text-foreground">

@@ -1,4 +1,6 @@
 import type { DistrictChip } from '@/lib/district-canonical'
+import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
+import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 import { formatInteger } from '@/lib/vnd'
 
 /**
@@ -214,6 +216,135 @@ export const CATEGORY_LINKED_SENTENCE: Record<Exclude<LinkedTier, 'none'>, Recor
 
 /* ── category × district ──────────────────────────────────────────────────────────────────────── */
 
+/**
+ * ⛔ THE RENTALS "WHERE THE LISTING OPENS" SENTENCE — NEUTRAL, NAMING NOBODY (SEO wave B, decision D-f;
+ * copy sheet CS-2 D1-14…D1-17, approved 2026-09-30). The imports are reference listings copied from
+ * Batdongsan, Rever, Chợ Tốt Nhà, Muaban and Honeycomb House (import-sellers.ts); no code or contract
+ * records a partnership, so "a partner property portal" was a claim. The listing page names the site
+ * itself. Retail keeps "partner site": those are affiliate stores (PARTNER_STORES).
+ * ONE SET for every rentals surface — the district description and lede, and /c/rentals' description
+ * and lede — so the languages and the pages cannot drift. `one` is the singular form, for a total of 1
+ * (where the tier can only be `all`, linkedTier).
+ */
+export const RENTALS_LINKED_SENTENCE: Record<Exclude<LinkedTier, 'none'> | 'one', Record<PageLang, string>> = {
+  all: { en: 'Every listing links to its original ad on another listing site.', vi: 'Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.' },
+  most: { en: 'Most listings link to their original ads on other listing sites.', vi: 'Phần lớn tin dẫn tới tin gốc trên các trang đăng tin khác.' },
+  some: { en: 'Some listings link to their original ads on other listing sites.', vi: 'Một số tin dẫn tới tin gốc trên các trang đăng tin khác.' },
+  one: { en: 'It links to its original ad on another listing site.', vi: 'Tin này dẫn tới tin gốc trên một trang đăng tin khác.' },
+}
+
+/** The D-f sentence for a rentals scope of `total`, or '' when nothing in it is linked. */
+export function rentalsLinkedSentence(tier: LinkedTier, total: number, lang: PageLang): string {
+  if (tier === 'none') return ''
+  return RENTALS_LINKED_SENTENCE[total === 1 ? 'one' : tier][lang]
+}
+
+/**
+ * ⛔ WHAT A RENTALS PAGE CALLS ITS PLACE IN THE TITLE, H1 AND DESCRIPTION — searchers' words (SEO wave
+ * B, decision D-d; CS-2 D1-L1…L3). `d2` owns "District 2 / Thảo Điền" searches (D0 moved the Thảo Điền
+ * spellings into its scope, so "(Thao Dien)" is true of it); `d9` drops "(Thu Duc)" so it does not
+ * compete with the Thủ Đức page. Everything else — the breadcrumb, the chips, the rent block — keeps
+ * the DISTRICTS labels.
+ */
+export const RENTALS_PLACE_LABEL: Record<string, { en: string; vi: string }> = {
+  d2: { en: 'District 2 (Thao Dien)', vi: 'Quận 2 (Thảo Điền)' },
+  d9: { en: 'District 9', vi: 'Quận 9' },
+  'thu-duc': { en: 'Thu Duc City', vi: 'TP Thủ Đức' },
+}
+export function rentalsPlaceLabel(slug: string, place: { en: string; vi: string }): { en: string; vi: string } {
+  return Object.hasOwn(RENTALS_PLACE_LABEL, slug) ? RENTALS_PLACE_LABEL[slug] : place
+}
+
+/**
+ * THE HOMES IN A RENTALS SCOPE (SEO wave B, D1): apartments, houses and rooms — HOME_RENTAL_SUBCATS,
+ * the one list — out of the page's per-subcategory counts. Offices, nightly stays and rows with no
+ * subcategory are rentals (the page's `total`, which the robots floor reads) but not homes.
+ * `offices` is the `office-rental` count ALONE: the "Also here" link opens exactly those rows, so it
+ * may never be `total − homes` (CS-2 D1-9 — that difference holds hotels and untyped rows too).
+ */
+export type HomeFacts = {
+  total: number
+  /** Home kinds with stock, in RENTAL_KINDS order. */
+  kinds: RentalsFacts['kinds']
+  offices: number
+}
+export function homeFacts(bySub: Partial<Record<string, number>>): HomeFacts {
+  const homes = Object.fromEntries(HOME_RENTAL_SUBCATS.map((s) => [s, bySub[s] ?? 0]))
+  const kinds = rentalKinds(homes)
+  return { total: kinds.reduce((n, k) => n + k.count, 0), kinds, offices: bySub['office-rental'] ?? 0 }
+}
+
+/**
+ * ⛔ WHETHER A RENTALS DISTRICT PAGE LISTS ONLY ITS HOMES (D1). Yes while it has homes — but NOT when
+ * the homes alone are under the indexing floor while the page's `total` (which the robots decision
+ * reads, order rule 3) is at or over it: /c/rentals/cu-chi held 2 homes among 90 rentals (land,
+ * warehouses, shopfronts; 2026-09-30), and a homes-only view would have been an indexable page of two
+ * cards (both reviewers, D1 round 2). Such a page keeps today's all-rentals view and wording. So an
+ * indexable page always lists at least the floor. `floor` is MIN_INDEXABLE_LISTINGS, passed in to keep
+ * this file free of server imports.
+ */
+export function listsHomesOnly(homes: HomeFacts | null | undefined, total: number, floor: number): boolean {
+  if (!homes || homes.total === 0) return false
+  return homes.total >= floor || total < floor
+}
+
+/**
+ * Which headline a rentals district page may print (D-a): "Apartments & Houses" only while it lists
+ * both, "Apartments" while it lists apartments and no house, else null — today's "Rentals in …".
+ * The same rule as `rentalsHeadline` for /c/rentals.
+ */
+export type DistrictRentalsHeadline = 'apartments-houses' | 'apartments'
+export function districtRentalsHeadline(h: HomeFacts | null | undefined): DistrictRentalsHeadline | null {
+  if (!h || h.total === 0) return null
+  const has = (s: RentalKind) => h.kinds.some((k) => k.slug === s)
+  if (!has('apartment-rental')) return null
+  return has('house-rental') ? 'apartments-houses' : 'apartments'
+}
+
+/**
+ * The rentals district H1 before the place (sentence case, like RENTALS_H1). <RentalsDistrictHeading>
+ * renders these as literal `tr()` pairs; category-text.test.tsx holds the two equal.
+ */
+export const DISTRICT_RENTALS_H1: Record<DistrictRentalsHeadline, Record<PageLang, string>> = {
+  'apartments-houses': { en: 'Apartments & houses for rent in', vi: 'Cho thuê căn hộ và nhà tại' },
+  apartments: { en: 'Apartments for rent in', vi: 'Cho thuê căn hộ tại' },
+}
+const DISTRICT_RENTALS_TITLE: Record<DistrictRentalsHeadline, Record<PageLang, string>> = {
+  'apartments-houses': { en: 'Apartments & Houses for Rent in', vi: DISTRICT_RENTALS_H1['apartments-houses'].vi },
+  apartments: { en: 'Apartments for Rent in', vi: DISTRICT_RENTALS_H1.apartments.vi },
+}
+/** ", HCMC" / ", TP.HCM" — the short city the rentals titles and descriptions use (CS-2 conventions). */
+const HCMC_SHORT = { en: 'HCMC', vi: 'TP.HCM' } as const
+
+/**
+ * "Pick up to N and eno checks availability for free." — N is RENTAL_CHECK_MAX_ITEMS, the limit the
+ * route enforces, never a typed 5 (plan v4, fix 7). "eno", not a domain: both editions run the check.
+ */
+export const rentalCheckSentence = (lang: PageLang): string =>
+  lang === 'vi'
+    ? `Chọn tối đa ${RENTAL_CHECK_MAX_ITEMS} căn, eno kiểm tra phòng trống miễn phí.`
+    : `Pick up to ${RENTAL_CHECK_MAX_ITEMS} and eno checks availability for free.`
+
+/** "{a} apartments, {h} houses and {r} rooms" — only kinds with stock; English singular at 1. */
+export function homeKindsList(kinds: RentalsFacts['kinds'], lang: PageLang): string {
+  return joinList(kinds.map((k) => `${formatCountFull(k.count, lang)} ${rentalKindNoun(k.slug, k.count, lang)}`), lang)
+}
+
+/**
+ * The homes description (CS-2 D1-7 / D1b-1): count, place, kinds, the free check, then D-f's
+ * sentence. Before that sentence it fits 160 characters in the longest case (category-copy.test.ts).
+ * `city` is the ", HCMC" suffix or ''.
+ */
+export function homesDescription(h: HomeFacts, place: { en: string; vi: string }, city: Record<PageLang, string>, linked: LinkedTier, lang: PageLang): string {
+  const n = formatCountFull(h.total, lang)
+  const tail = rentalsLinkedSentence(linked, h.total, lang)
+  const head =
+    lang === 'vi'
+      ? `${n} chỗ ở cho thuê tại ${place.vi}${city.vi} — ${homeKindsList(h.kinds, 'vi')}. ${rentalCheckSentence('vi')}`
+      : `${n} ${h.total === 1 ? 'home' : 'homes'} for rent in ${place.en}${city.en} — ${homeKindsList(h.kinds, 'en')}. ${rentalCheckSentence('en')}`
+  return tail ? `${head} ${tail}` : head
+}
+
 export type DistrictFacts = {
   category: { slug: string; name: string; nameVi: string }
   place: { en: string; vi: string }
@@ -221,12 +352,22 @@ export type DistrictFacts = {
   inHcmc: boolean
   total: number
   linked: LinkedTier
+  /**
+   * Rentals only (SEO wave B, D1): the homes in scope, and how much of THEM is linked. With
+   * `homes.total > 0` the page lists only homes, so the title, H1 and description speak of them;
+   * `total` stays every rental in scope (the robots floor reads it).
+   */
+  homes?: HomeFacts | null
+  homesLinked?: LinkedTier
 }
 
-/** What the linked rows are linked FROM — a property portal for rentals, a partner site otherwise. */
+/**
+ * What the linked rows are linked FROM. Rentals: another listing site (D-f — no partnership is
+ * claimed); retail and everything else: a partner site (affiliate stores).
+ */
 export function partnerNoun(categorySlug: string): { en: string; vi: string } {
   return categorySlug === 'rentals'
-    ? { en: 'a partner property portal', vi: 'trang bất động sản đối tác' }
+    ? { en: 'another listing site', vi: 'một trang đăng tin khác' }
     : { en: 'a partner site', vi: 'trang đối tác' }
 }
 
@@ -236,6 +377,8 @@ export function partnerNoun(categorySlug: string): { en: string; vi: string } {
  * of 1 the tier can only be "all" (linkedTier), so the one form covers it.
  */
 export function districtLinkedSentence(tier: Exclude<LinkedTier, 'none'>, categorySlug: string, lang: PageLang, total: number): string {
+  // Rentals: D-f's own sentences (CS-2 D1-14…17), not the retail frame with a swapped noun.
+  if (categorySlug === 'rentals') return rentalsLinkedSentence(tier, total, lang)
   const p = partnerNoun(categorySlug)[lang]
   if (total === 1) return lang === 'vi' ? `Tin này dẫn tới tin gốc trên ${p}.` : `It links to its original listing on ${p}.`
   if (lang === 'vi') {
@@ -250,6 +393,23 @@ export function districtLinkedSentence(tier: Exclude<LinkedTier, 'none'>, catego
 
 /** `<title>` + meta description for /c/<category>/<district>. */
 export function districtMetadata(f: DistrictFacts, lang: PageLang, siteName: string): { title: string; description: string } {
+  /**
+   * ⛔ RENTALS WITH HOMES: "Apartments & Houses for Rent in District 7 (Phu My Hung), HCMC" (D-a),
+   * and a description that counts homes, never names an office, and states the free check (D1, v3).
+   * With no apartment the title keeps today's wording below; with no home at all, so does the
+   * description (the page then lists every rental).
+   */
+  const homes = f.category.slug === 'rentals' && f.homes && f.homes.total > 0 ? f.homes : null
+  if (homes) {
+    const short = f.inHcmc ? { en: `, ${HCMC_SHORT.en}`, vi: `, ${HCMC_SHORT.vi}` } : { en: '', vi: '' }
+    const headline = districtRentalsHeadline(homes)
+    const description = homesDescription(homes, f.place, short, f.homesLinked ?? 'none', lang)
+    if (headline) {
+      const place = lang === 'vi' ? f.place.vi : f.place.en
+      return { title: `${DISTRICT_RENTALS_TITLE[headline][lang]} ${place}${short[lang]} | ${siteName}`, description }
+    }
+    return { title: districtMetadata({ ...f, homes: null }, lang, siteName).title, description }
+  }
   const city = f.inHcmc ? `, ${HCMC_NAME[lang]}` : ''
   const n = formatCountFull(f.total, lang)
   if (lang === 'vi') {

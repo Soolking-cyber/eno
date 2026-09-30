@@ -5,9 +5,10 @@ import { cleanup } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
 import { LanguageProvider } from '@/context/language-context'
 import { guidesForCategory } from '@/lib/category-guides'
-import { CATEGORY_LINKED_SENTENCE, RENTALS_H1, categoryMetadata, rentalKinds, type RentalsHeadline } from './category-copy'
+import { CATEGORY_LINKED_SENTENCE, DISTRICT_RENTALS_H1, RENTALS_H1, RENTALS_LINKED_SENTENCE, categoryMetadata, homeFacts, rentalKinds, type RentalsHeadline } from './category-copy'
 import { CategoryLede } from '@/components/marketplace/category-lede'
-import { CategoryGuides, DistrictHeading, DistrictLede, PlaceName, RentalsDistricts, RentalsHeading, RentalsLede } from './category-text'
+import { CategoryGuides, DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentalsDistricts, RentalsHeading, RentalsLede, rentalsLinkedLede } from './category-text'
+import { readFileSync } from 'node:fs'
 
 /**
  * What the server actually emits for each page language — `renderToString` under the provider the
@@ -95,10 +96,10 @@ describe('RentalsLede', () => {
     // linked sentence must be singular too, in both languages.
     const canGio = { name: 'Rentals', nameVi: 'Cho thuê', categorySlug: 'rentals', place: { en: 'Can Gio District', vi: 'Huyện Cần Giờ' } }
     expect(text('en', <DistrictLede total={1} {...canGio} linked="all" />)).toBe(
-      '1 place for rent in Can Gio District. It links to its original listing on a partner property portal.',
+      '1 place for rent in Can Gio District. It links to its original ad on another listing site.',
     )
     expect(text('vi', <DistrictLede total={1} {...canGio} linked="all" />)).toBe(
-      '1 tin cho thuê tại Huyện Cần Giờ. Tin này dẫn tới tin gốc trên trang bất động sản đối tác.',
+      '1 tin cho thuê tại Huyện Cần Giờ. Tin này dẫn tới tin gốc trên một trang đăng tin khác.',
     )
     expect(text('en', <DistrictLede total={1} {...canGio} categorySlug="electronics" name="Electronics" linked="all" />)).toBe(
       '1 electronics listing in Can Gio District. It links to its original listing on a partner site.',
@@ -111,8 +112,8 @@ describe('RentalsLede', () => {
       '1 tin cho thuê tại Huyện Cần Giờ. Tin này đến từ người bán có điểm uy tín công khai — ít hàng giả, ít giá mồi hơn.',
     )
     // Two is still plural.
-    expect(text('en', <DistrictLede total={2} {...canGio} linked="all" />)).toMatch(/^2 places for rent in Can Gio District\. Every one links/)
-    expect(text('vi', <DistrictLede total={2} {...canGio} linked="all" />)).toMatch(/Tất cả đều dẫn tới tin gốc/)
+    expect(text('en', <DistrictLede total={2} {...canGio} linked="all" />)).toMatch(/^2 places for rent in Can Gio District\. Every listing links/)
+    expect(text('vi', <DistrictLede total={2} {...canGio} linked="all" />)).toMatch(/Mỗi tin đều dẫn tới tin gốc/)
   })
 
   /** The importers' "enquiries are handled there, not by eno" line was removed on the owner's word. */
@@ -158,8 +159,9 @@ describe('district page copy', () => {
   it('replaces the trust sentence with the linked one when the scope is linked', () => {
     const lede = (lang: 'en' | 'vi', linked: 'all' | 'none') =>
       text(lang, <DistrictLede total={3741} name="Rentals" nameVi="Cho thuê" categorySlug="rentals" place={place} linked={linked} />)
-    expect(lede('en', 'all')).toBe('3,741 places for rent in District 2 (Thu Duc). Every one links to its original listing on a partner property portal.')
-    expect(lede('vi', 'all')).toBe('3.741 tin cho thuê tại Quận 2 (Thủ Đức). Tất cả đều dẫn tới tin gốc trên trang bất động sản đối tác.')
+    // D-f (SEO wave B, D1): the neutral sentence, CS-2 D1-14.
+    expect(lede('en', 'all')).toBe('3,741 places for rent in District 2 (Thu Duc). Every listing links to its original ad on another listing site.')
+    expect(lede('vi', 'all')).toBe('3.741 tin cho thuê tại Quận 2 (Thủ Đức). Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.')
     expect(lede('en', 'all')).not.toMatch(/trust/)
     expect(lede('en', 'none')).toMatch(/each from a seller with a public trust score/)
   })
@@ -276,5 +278,83 @@ describe('RentIndexLink', () => {
       expect(el.querySelector('a[href^="/hcmc-rent-index"]')).toBeNull()
       expect(t).toBe('')
     }
+  })
+})
+
+/* ── SEO wave B, D1: rentals district pages list homes (CS-2, approved 2026-09-30) ─────────────── */
+describe('rentals district copy (D1)', () => {
+  const D7 = { en: 'District 7 (Phu My Hung)', vi: 'Quận 7 (Phú Mỹ Hưng)' }
+  const homes = homeFacts({ 'apartment-rental': 1877, 'house-rental': 277, 'room-rental': 196, 'office-rental': 212 })
+  const base = { name: 'Rentals', nameVi: 'Cho thuê', categorySlug: 'rentals', place: D7, linked: 'all' as const }
+  const html2 = (lang: 'en' | 'vi', node: React.ReactNode) => {
+    const el = document.createElement('div')
+    el.innerHTML = html(lang, node)
+    return el
+  }
+
+  it.each(['apartments-houses', 'apartments'] as const)('%s: the H1 is DISTRICT_RENTALS_H1 + the place, in both languages', (h) => {
+    for (const lang of ['en', 'vi'] as const) {
+      expect(text(lang, <RentalsDistrictHeading headline={h} place={D7} />)).toBe(`${DISTRICT_RENTALS_H1[h][lang]} ${D7[lang]}`)
+    }
+  })
+
+  it('the D-f sentences render exactly RENTALS_LINKED_SENTENCE', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      for (const tier of ['all', 'most', 'some'] as const) {
+        // The `tr` a page gets: the English, or the authored Vietnamese.
+        const tr = (en: string, vi?: string) => (lang === 'vi' ? vi ?? en : en)
+        expect(rentalsLinkedLede(tier, false, tr)).toBe(RENTALS_LINKED_SENTENCE[tier][lang])
+        expect(rentalsLinkedLede(tier, true, tr)).toBe(RENTALS_LINKED_SENTENCE.one[lang])
+      }
+    }
+  })
+
+  it.each(['en', 'vi'] as const)('%s: with homes, the lede counts homes and names no office', (lang) => {
+    const t = text(lang, <DistrictLede total={2562} {...base} homes={homes} homesLinked="all" slug="d7" />)
+    expect(t).toBe(lang === 'vi'
+      ? '2.350 chỗ ở cho thuê tại Quận 7 (Phú Mỹ Hưng), gồm 1.877 căn hộ, 277 nhà và 196 phòng trọ. Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.'
+      : '2,350 homes for rent in District 7 (Phu My Hung), including 1,877 apartments, 277 houses and 196 rooms. Every listing links to its original ad on another listing site.')
+    expect(t).not.toMatch(/office|văn phòng|mặt bằng/i)
+  })
+
+  it('"1 home", in the count and the tail', () => {
+    const one = homeFacts({ 'room-rental': 1 })
+    expect(text('en', <DistrictLede total={1} {...base} homes={one} homesLinked="all" />)).toBe('1 home for rent in District 7 (Phu My Hung), including 1 room. It links to its original ad on another listing site.')
+  })
+
+  it.each(['en', 'vi'] as const)('%s: the three Thu Duc pages cross-link, followed', (lang) => {
+    const ALL = ['d2', 'd9', 'thu-duc']
+    const links = (slug: string, linkable = ALL) => [...html2(lang, <DistrictLede total={50} {...base} homes={homes} homesLinked="all" slug={slug} linkable={linkable} />).querySelectorAll('a')]
+      .map((a) => [a.getAttribute('href'), a.getAttribute('rel')])
+    expect(links('thu-duc')).toEqual([['/c/rentals/d2', null], ['/c/rentals/d9', null]])
+    expect(links('d2')).toEqual([['/c/rentals/thu-duc', null]])
+    expect(links('d9')).toEqual([['/c/rentals/thu-duc', null]])
+    expect(links('d7')).toEqual([])
+    // A page under the floor is named, never linked (it may be noindex).
+    expect(links('thu-duc', ['d2'])).toEqual([['/c/rentals/d2', null]])
+    expect(links('d2', [])).toEqual([])
+    const t = text(lang, <DistrictLede total={50} {...base} homes={homes} homesLinked="all" slug="thu-duc" linkable={ALL} />)
+    expect(t).toContain(lang === 'vi'
+      ? 'Trang này gồm toàn bộ TP Thủ Đức, kể cả các tin vẫn ghi Quận 2 (Thảo Điền) hoặc Quận 9.'
+      : 'This page covers all of Thu Duc City, including listings still labelled District 2 (Thao Dien) or District 9.')
+    expect(text(lang, <DistrictLede total={50} {...base} homes={homes} homesLinked="all" slug="d2" linkable={[]} />)).toContain(lang === 'vi'
+      ? 'Quận 2 được sáp nhập vào TP Thủ Đức năm 2021. Các tin này cũng có trên trang TP Thủ Đức.'
+      : 'District 2 became part of Thu Duc City in 2021. These listings are also on the Thu Duc City page.')
+  })
+
+  it.each(['en', 'vi'] as const)('%s: offices sit behind one nofollow link, and nothing at 0', (lang) => {
+    const el = html2(lang, <OtherRentalsLink n={212} href="/?category=rentals&district=d7&subcategory=office-rental" />)
+    const a = el.querySelector('a')!
+    expect(a.getAttribute('rel')).toBe('nofollow')
+    expect(a.getAttribute('href')).toBe('/?category=rentals&district=d7&subcategory=office-rental')
+    expect(a.textContent).toBe(lang === 'vi' ? 'Ngoài ra còn 212 văn phòng, mặt bằng cho thuê' : 'Also here: 212 offices and shopfronts')
+    expect(html(lang, <OtherRentalsLink n={0} href="/x" />)).toBe('')
+    expect(text(lang, <OtherRentalsLink n={1} href="/x" />)).toBe(lang === 'vi' ? 'Ngoài ra còn 1 văn phòng, mặt bằng cho thuê' : 'Also here: 1 office or shopfront')
+  })
+
+  it('the district page renders the availability hint on rentals only, under the lede', () => {
+    const src = readFileSync('src/app/[lang]/c/[category]/[district]/page.tsx', 'utf8')
+    expect(src).toMatch(/\{rentals && <RentalCheckHint /)
+    expect(src).toMatch(/const rentals = cat\.slug === 'rentals'/)
   })
 })

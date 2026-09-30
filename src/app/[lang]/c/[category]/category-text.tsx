@@ -8,10 +8,13 @@ import { IS_SERVICES } from '@/lib/edition'
 import type { CategoryGuide } from '@/lib/category-guides'
 import {
   HCMC_NAME,
+  RENTALS_PLACE_LABEL,
   districtLinkedSentence,
   formatCountFull,
   joinList,
   rentalKindNoun,
+  type DistrictRentalsHeadline,
+  type HomeFacts,
   type LinkedTier,
   type RentalsFacts,
   type RentalsHeadline,
@@ -191,6 +194,127 @@ export function DistrictHeading({ name, nameVi, place }: { name: string; nameVi:
 }
 
 /**
+ * /c/rentals/<district> H1 while the page lists homes (SEO wave B, D1; decision D-a; CS-2 D1-4/D1-5):
+ * "Apartments & houses for rent in District 7 (Phu My Hung)". Literal `tr()` pairs, held equal to
+ * category-copy.ts `DISTRICT_RENTALS_H1` by category-text.test.tsx. The place is the search label
+ * (RENTALS_PLACE_LABEL), passed in by the page.
+ */
+export function RentalsDistrictHeading({ headline, place }: { headline: DistrictRentalsHeadline; place: { en: string; vi: string } }) {
+  const { lang, tr } = useLanguage()
+  const lead = headline === 'apartments-houses'
+    ? tr('Apartments & houses for rent in', 'Cho thuê căn hộ và nhà tại')
+    : tr('Apartments for rent in', 'Cho thuê căn hộ tại')
+  return <>{lead} {lang === 'vi' ? place.vi : place.en}</>
+}
+
+/**
+ * The D-f sentence (category-copy.ts RENTALS_LINKED_SENTENCE, CS-2 D1-14…17) as literal `tr()` pairs,
+ * so the harvester pre-translates it; category-text.test.tsx holds each equal to the map.
+ */
+export function rentalsLinkedLede(tier: Exclude<LinkedTier, 'none'>, one: boolean, tr: (en: string, vi?: string) => string): string {
+  if (one) return tr('It links to its original ad on another listing site.', 'Tin này dẫn tới tin gốc trên một trang đăng tin khác.')
+  if (tier === 'all') return tr('Every listing links to its original ad on another listing site.', 'Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.')
+  if (tier === 'most') return tr('Most listings link to their original ads on other listing sites.', 'Phần lớn tin dẫn tới tin gốc trên các trang đăng tin khác.')
+  return tr('Some listings link to their original ads on other listing sites.', 'Một số tin dẫn tới tin gốc trên các trang đăng tin khác.')
+}
+
+/** "14,043 apartments, 5,331 houses and 3,289 rooms" — literal `tr()` per word; Vietnamese has no plural. */
+function HomeKinds({ kinds }: { kinds: HomeFacts['kinds'] }) {
+  const { lang, tr } = useLanguage()
+  if (lang === 'vi') return <>{joinList(kinds.map((k) => `${formatCountFull(k.count, 'vi')} ${rentalKindNoun(k.slug, k.count, 'vi')}`), 'vi')}</>
+  const word = (slug: string, one: boolean) =>
+    slug === 'apartment-rental' ? (one ? tr('apartment') : tr('apartments'))
+    : slug === 'house-rental' ? (one ? tr('house') : tr('houses'))
+    : one ? tr('room') : tr('rooms')
+  return (
+    <>
+      {kinds.map((k, i) => (
+        <span key={k.slug}>
+          {i > 0 && (i === kinds.length - 1 ? <> {tr('and')} </> : <>, </>)}
+          {formatCountFull(k.count, lang)} {word(k.slug, k.count === 1)}
+        </span>
+      ))}
+    </>
+  )
+}
+
+/**
+ * The homes sentence that opens a rentals lede while the page lists homes (CS-2 D1-8 / D1b-2):
+ * "{homes} homes for rent in {place}, including {a} apartments, {h} houses and {r} rooms." Offices
+ * and untyped rows are not in it; the page links offices below the grid instead (OtherRentalsLink).
+ */
+export function HomesSentence({ homes, place }: { homes: HomeFacts; place: { en: string; vi: string } }) {
+  const { lang, tr } = useLanguage()
+  const n = formatCountFull(homes.total, lang)
+  if (lang === 'vi') return <>{`${n} chỗ ở cho thuê tại ${place.vi}, gồm `}<HomeKinds kinds={homes.kinds} />.</>
+  return (
+    <>
+      {n} {homes.total === 1 ? tr('home for rent in') : tr('homes for rent in')} {place.en}, {tr('including')} <HomeKinds kinds={homes.kinds} />.
+    </>
+  )
+}
+
+/**
+ * ⛔ THE THREE THỦ ĐỨC PAGES CROSS-LINK (SEO wave B, decision D-d; CS-2 D1-11…13). `thu-duc` is the
+ * union of its own rows and d2 + d9 (district-canonical); each page keeps its own canonical because
+ * the scopes differ, and says how they relate. ⚠️ A NAME IS LINKED ONLY WHILE ITS PAGE IS AT THE
+ * INDEXING FLOOR — the page passes `linkable`, from the same chip tallies its "By area" row uses — so
+ * no followed link ever points at a page that may be `noindex` (review, D1 round 3). Below the floor
+ * the name stays, as plain text.
+ * The history is past tense: Thủ Đức City itself was dissolved in the July 2025 ward reform, which
+ * the rent index already says.
+ */
+export function ThuDucCrossLinks({ slug, linkable }: { slug: string; linkable: readonly string[] }) {
+  const { lang, tr } = useLanguage()
+  const a = (to: 'd2' | 'd9' | 'thu-duc') => {
+    const name = lang === 'vi' ? RENTALS_PLACE_LABEL[to].vi : RENTALS_PLACE_LABEL[to].en
+    if (!linkable.includes(to)) return <>{name}</>
+    return (
+      <Link href={`/c/rentals/${to}`} className="font-semibold text-accent-foreground hover:underline">
+        {name}
+      </Link>
+    )
+  }
+  if (slug === 'thu-duc') {
+    return (
+      <>
+        {' '}{tr('This page covers all of Thu Duc City, including listings still labelled', 'Trang này gồm toàn bộ TP Thủ Đức, kể cả các tin vẫn ghi')}{' '}
+        {a('d2')} {tr('or', 'hoặc')} {a('d9')}.
+      </>
+    )
+  }
+  if (slug !== 'd2' && slug !== 'd9') return null
+  const history = slug === 'd2'
+    ? tr('District 2 became part of Thu Duc City in 2021.', 'Quận 2 được sáp nhập vào TP Thủ Đức năm 2021.')
+    : tr('District 9 became part of Thu Duc City in 2021.', 'Quận 9 được sáp nhập vào TP Thủ Đức năm 2021.')
+  return (
+    <>
+      {' '}{history} {tr('These listings are also on the', 'Các tin này cũng có trên trang')} {a('thu-duc')}
+      {lang === 'vi' ? '.' : <> {tr('page.')}</>}
+    </>
+  )
+}
+
+/**
+ * "Also here: 212 offices and shopfronts" under a homes-only grid (SEO wave B, D1/D1b; decision D-b;
+ * CS-2 D1-9). `nofollow` into the explorer, which is canonicalised to /. ⚠️ `n` IS THE office-rental
+ * COUNT ONLY — the rows the link opens — never `total − homes`. Nothing at 0.
+ */
+export function OtherRentalsLink({ n, href }: { n: number; href: string }) {
+  const { lang, tr } = useLanguage()
+  if (n <= 0) return null
+  return (
+    <p className="mt-6 text-sm text-body">
+      <Link href={href} rel="nofollow" prefetch={false} className="font-semibold text-accent-foreground hover:underline">
+        {tr('Also here:', 'Ngoài ra còn')} {formatCountFull(n, lang)}{' '}
+        {/* English singular at 1 (review); Vietnamese has no plural, so both forms carry CS-2's one string. */}
+        {n === 1 ? tr('office or shopfront', 'văn phòng, mặt bằng cho thuê') : tr('offices and shopfronts', 'văn phòng, mặt bằng cho thuê')}
+      </Link>
+    </p>
+  )
+}
+
+/**
  * /c/<category>/<district> lede. The trust sentence survives only where nothing in scope is linked:
  * a public trust score says nothing about a listing imported from another portal.
  *
@@ -204,6 +328,10 @@ export function DistrictLede({
   categorySlug,
   place,
   linked,
+  homes,
+  homesLinked = 'none',
+  slug,
+  linkable = [],
 }: {
   total: number
   name: string
@@ -211,17 +339,40 @@ export function DistrictLede({
   categorySlug: string
   place: { en: string; vi: string }
   linked: LinkedTier
+  /** Rentals (D1): the homes the page lists. With `homes.total > 0` the lede counts homes. */
+  homes?: HomeFacts | null
+  homesLinked?: LinkedTier
+  /** The canonical district slug — the Thủ Đức pages cross-link (D-d). */
+  slug?: string
+  /** The district slugs whose rentals page is at the indexing floor: only those are linked. */
+  linkable?: readonly string[]
 }) {
   const { lang, tr } = useLanguage()
   const n = formatCountFull(total, lang)
+  const rentals = categorySlug === 'rentals'
+  const cross = rentals && slug ? <ThuDucCrossLinks slug={slug} linkable={linkable} /> : null
+  if (rentals && homes && homes.total > 0) {
+    return (
+      <>
+        <HomesSentence homes={homes} place={place} />
+        {homesLinked !== 'none' && <> {rentalsLinkedLede(homesLinked, homes.total === 1, tr)}</>}
+        {cross}
+      </>
+    )
+  }
+  if (rentals && linked !== 'none') {
+    // No home in scope: every rental, as before, with D-f's sentence (CS-2 D1-14…17).
+    const what = total === 1 ? tr('place for rent in') : tr('places for rent in')
+    if (lang === 'vi') return <>{`${n} tin cho thuê tại ${place.vi}. ${rentalsLinkedLede(linked, total === 1, tr)}`}{cross}</>
+    return <>{n} {what} {place.en}. {rentalsLinkedLede(linked, total === 1, tr)}{cross}</>
+  }
   if (lang === 'vi') {
     const tail =
       linked !== 'none' ? districtLinkedSentence(linked, categorySlug, 'vi', total)
       : total === 1 ? 'Tin này đến từ người bán có điểm uy tín công khai — ít hàng giả, ít giá mồi hơn.'
       : 'Mỗi tin đều đến từ người bán có điểm uy tín công khai — ít hàng giả, ít giá mồi hơn.'
-    return <>{`${n} tin ${nameVi.toLowerCase()} tại ${place.vi}. ${tail}`}</>
+    return <>{`${n} tin ${nameVi.toLowerCase()} tại ${place.vi}. ${tail}`}{cross}</>
   }
-  const rentals = categorySlug === 'rentals'
   // "3,741 rentals listings" read as a typo; rentals are counted as places, as /c/rentals does.
   const what = rentals ? (
     total === 1 ? tr('place for rent in') : tr('places for rent in')
@@ -239,18 +390,17 @@ export function DistrictLede({
         ) : (
           <Tr text="each from a seller with a public trust score — fewer fakes, fewer bait prices." />
         )}
+        {cross}
       </>
     )
   }
   // Literal tr() per form so the harvester can pre-translate each. At 1 the tier is always "all".
+  // Rentals never reach here while linked (D-f's own sentences, above).
   const tail =
-    total === 1
-      ? rentals ? tr('It links to its original listing on a partner property portal.') : tr('It links to its original listing on a partner site.')
-    : linked === 'all'
-      ? rentals ? tr('Every one links to its original listing on a partner property portal.') : tr('Every one links to its original listing on a partner site.')
-      : linked === 'most'
-        ? rentals ? tr('Most link to their original listing on a partner property portal.') : tr('Most link to their original listing on a partner site.')
-        : rentals ? tr('Some link to their original listing on a partner property portal.') : tr('Some link to their original listing on a partner site.')
+    total === 1 ? tr('It links to its original listing on a partner site.')
+    : linked === 'all' ? tr('Every one links to its original listing on a partner site.')
+    : linked === 'most' ? tr('Most link to their original listing on a partner site.')
+    : tr('Some link to their original listing on a partner site.')
   return (
     <>
       {n} {what} {place.en}. {tail}
