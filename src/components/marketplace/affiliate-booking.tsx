@@ -34,6 +34,7 @@ export function AffiliateBooking({
   rental = false,
   job = false,
   applyBy = null,
+  provenance = null,
 }: {
   url: string
   partnerName: string
@@ -61,6 +62,12 @@ export function AffiliateBooking({
   job?: boolean
   /** A job's apply-by date ('YYYY-MM-DD'), printed directly under the Apply button — see JobApplyBy. */
   applyBy?: string | null
+  /**
+   * Where an IMPORTED listing came from — <ImportProvenance>, built by the page from the server-only
+   * import-provenance.ts (SEO wave B, P1). A slot rather than props, so this component never learns
+   * which sellers are imports; null on every other listing.
+   */
+  provenance?: React.ReactNode
 }) {
   // ⛔ https ONLY — see safeAffiliateUrl. A stored `javascript:` value would otherwise be a
   // stored-XSS sink, and this link leads to a payment page so `http:` is refused as well.
@@ -127,6 +134,11 @@ export function AffiliateBooking({
           <CtaLabel job={job} rental={rental} booking={booking} partnerName={partnerName} />
         </a>
       </Button>
+
+      {/* The source and its date sit right under the button whose link they explain, at the column's
+          full gap: its link's 44px hit area needs the room (import-provenance.tsx). Never on a job
+          (P-b), so it never meets the apply-by line below. */}
+      {provenance}
 
       {/* The deadline belongs to the button it limits, so it sits right under it (8px: `-mt-2` against
           this column's 16px gap) — not below the QR row, where it would read as a caption of the code. */}

@@ -55,6 +55,8 @@ import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { RentalCheckToggle } from '@/components/marketplace/rental-check-toggle'
 import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/affiliate-booking'
+import { ImportProvenance } from '@/components/marketplace/import-provenance'
+import { importProvenance } from '@/lib/import-provenance'
 import { JobApplyGuard } from '@/components/marketplace/job-apply-guard'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { isBookingCategory } from '@/lib/affiliate-kind'
@@ -286,6 +288,17 @@ export default async function ListingPage({ params }: Props) {
   // eno.vn never rated the source, so the shop row shows "not vetted" instead of a trust chip — its
   // storefront's 100 is a ranking default, not the /trust Trusted tier. See PdpShopLink's `linked`.
   const linkedSeller = isJob ? 'job' as const : affiliateUrl && isImportSeller(listing.sellerId) ? 'listing' as const : null
+  // Where an IMPORTED listing came from, and the date that is true for that source (SEO wave B, P1):
+  // a rental portal's own post date, the day eno imported it, or — for a partner shop's item — no date.
+  // ⚠️ The RAW columns: `listing.postedAt` is serialized as the later of postedAt and createdAt.
+  const provenance = importProvenance({
+    sellerId: listing.sellerId,
+    sellerName: listing.seller.name,
+    affiliateUrl,
+    listingType: listing.listingType,
+    postedAt: rawListing.postedAt,
+    createdAt: rawListing.createdAt,
+  })
   // Is this the trip desk's own listing? Same trust shape as the visa check above — resolved
   // server-side from (seller, externalId) on the desk that owns the row, never from the title or
   // the category, which another seller could imitate. `cache()`d, so this costs one query per
@@ -532,9 +545,14 @@ export default async function ListingPage({ params }: Props) {
   // on mobile and in the contact column on desktop (each hidden on the other).
   const showProof = listing.savedCount >= 3 || listing.views >= 20
   // 'Posted 1mo ago' on a partner's evergreen catalogue row (a park ticket, an eSIM plan, a shop's
-  // phone) is the IMPORT date, which says nothing about the item. A partner rental and a linked job
-  // keep it: there it is the source post's own date, and freshness is the point.
-  const showPosted = !affiliateUrl || isJob || listing.listingType === 'rent'
+  // phone) is the IMPORT date, which says nothing about the item. A linked job keeps it: there it is
+  // the board's own posting date, and freshness is the point.
+  // ⚠️ AN IMPORTED RENTAL LOST IT TO THE PROVENANCE LINE (decision P-c). "Posted 3d ago" printed the
+  // serialized date, the LATER of the source's post and eno's import (stale.ts listedAt), so a Chợ Tốt
+  // ad re-imported this week read as fresh; the line under the CTA now says which date it is and whose.
+  // A partner rental with no line (an affiliate rent row from a seller outside the rental importers)
+  // keeps the row as before.
+  const showPosted = !affiliateUrl || isJob || (listing.listingType === 'rent' && !provenance)
   // ⚠️ A SELLER'S OWN LISTING WITH NO STORED COORDINATE SHOWS ITS AREA, NOT A PIN (owner, 2026-09-30,
   // P-MAP). The pin was the city/district centroid plus a ±1km jitter (geo.ts getListingCoordinates):
   // a precise-looking point that is not the item's place. approximateArea is null when the city is not
@@ -905,6 +923,7 @@ export default async function ListingPage({ params }: Props) {
                         /* A job is applied for on the posting — see the prop's comment. */
                         job={isJob}
                         applyBy={jobApplyBy}
+                        provenance={provenance ? <ImportProvenance kind={provenance.kind} site={provenance.site} iso={provenance.iso} href={affiliateUrl} /> : null}
                       />
                     </JobApplyGuard>
                   : isVisaProduct
