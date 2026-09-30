@@ -94,6 +94,7 @@ const RAW_CONTROL_ALLOW = [
   { file: 'src/components/marketplace/bulk-upload-panel.tsx', match: 'type="file"', reason: 'hidden CSV input, fired by the dropzone via fileRef.click()' },
   { file: 'src/components/marketplace/business-profile-editor.tsx', match: 'type="file"', reason: 'hidden logo input inside the <label> picker' },
   { file: 'src/components/marketplace/profile-editor.tsx', match: 'type="file"', reason: 'hidden avatar input inside the clickable <label>' },
+  { file: 'src/components/teachers/teacher-form.tsx', match: 'type="file"', reason: 'hidden photo / intro-video / CV inputs, each inside its clickable <label> picker (teacher form, 2026-09-30)' },
   { file: 'src/components/marketplace/post-wizard-sections.tsx', match: 'type="file"', reason: 'hidden photo + video inputs inside the dashed <label> tiles (MediaSection, moved verbatim from post-wizard.tsx); the video one needs currentTarget.value = "" to allow a re-pick' },
   { file: 'src/app/[lang]/disputes/[id]/page.tsx', match: 'type="file"', reason: 'hidden evidence input inside the Evidence <label>' },
   { file: 'src/app/[lang]/appeal/[id]/page.tsx', match: 'type="file"', reason: 'hidden proof input inside the Add <label>' },

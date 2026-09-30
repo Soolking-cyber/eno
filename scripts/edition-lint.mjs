@@ -91,6 +91,7 @@ const ALLOW = new Map([
   ["src/app/api/listings/[id]/view/route.ts", "Guard read: verified/status decide whether to count and seller.ownerId only suppresses self-views; response is { ok, counted }."],
   ["src/app/api/listings/availability/route.ts", "Seller is `where: { ownerId: profile.id }`; the listing read intersects client ids with `sellerId: seller.id`, which exists precisely to stop reval\u2026"],
   ["src/app/api/listings/bulk/route.ts", "Only read is the caller's own `where: { ownerId: profile.id }` seller behind a business-tier 403; the rest is a write path into that same storefront."],
+  ["src/lib/teachers/publish.ts", "every read is keyed on the caller's own profile id (seller ownerId, teacherProfile profileId) or a listing id taken from that profile; it writes the teacher's own row and never serves a feed"],
   ["src/app/api/listings/resolve-seller.ts", "Owned branch is `where: { ownerId: meId }` from getCurrentProfileId(); the two phone lookups are unowned-storefront claim checks whose rows never r\u2026"],
   ["src/app/api/listings/route.ts", "Every where clause (histogram, feed, total, facet counts, subcategory groupBy) is derived from `await buildFeedFilters()`, which pushes marketplace\u2026"],
   ["src/app/api/listings/semantic-rank.ts", "Vertex id resolution is scoped; the sibling read is the structural filter already carried by feed-query andFilters"],

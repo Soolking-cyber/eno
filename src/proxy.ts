@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { isTeacherHost, apexOrigin } from '@/lib/teachers/host'
 import { storefrontBaseHost, storefrontHandleFromHost, storefrontLabelUrl, underscoreHost } from '@/lib/storefront-host'
 import { LANG_COOKIE, langVariantFor, type LangVariant } from '@/lib/lang-variant'
 import { pinnedRoute } from '@/lib/lang-pinned'
@@ -262,6 +263,23 @@ export function proxy(req: NextRequest) {
   // without passing here.
   if (crossOriginWrite(req)) {
     return withCors(new NextResponse('Forbidden', { status: 403 }), origin)
+  }
+
+  /**
+   * ⛔ teacher.<base> — THE TEACHER SIGN-UP FORM, AND NOTHING ELSE (2026-09-30). `/` renders the form's
+   * first half; every other PAGE path 301s to the apex so the site is never duplicated on this host
+   * (Opus plan review: a whole-app mirror splits SEO and puts every page under a second origin).
+   * `/api/*` and assets pass through (the matcher already keeps assets off this function). There
+   * is no session here — cookies are host-scoped — so the form hands its draft to eno.vn in the
+   * URL fragment; nothing on this host writes.
+   */
+  if (isTeacherHost(req.headers.get('host'), process.env.NEXT_PUBLIC_APP_URL) && !isApi(req.nextUrl.pathname)) {
+    const tLang = langVariantFor(req.cookies.get(LANG_COOKIE)?.value, req.headers.get('accept-language'))
+    if (req.nextUrl.pathname === '/' && (req.method === 'GET' || req.method === 'HEAD')) {
+      return rewriteToLang(req, tLang, '/teachers/join')
+    }
+    const to = new URL(req.nextUrl.pathname + req.nextUrl.search, apexOrigin(process.env.NEXT_PUBLIC_APP_URL) || req.nextUrl.origin)
+    return NextResponse.redirect(to, 301)
   }
 
   const handle = storefrontHandleFromHost(req.headers.get('host'), canonicalHost())

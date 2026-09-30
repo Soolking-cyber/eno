@@ -1124,18 +1124,6 @@ model TeacherJobMatch {
   @@index([emailedAt, decision])
 }
 
-/// Anonymous draft from teacher.eno.vn (no session there). Claimed on eno.vn after sign-in;
-/// expires in 7 days (purged by the teachers cron).
-model TeacherDraft {
-  token     String   @id
-  data      Json
-  ipHash    String?
-  createdAt DateTime @default(now())
-  expiresAt DateTime
-
-  @@index([expiresAt])
-}
-
 // A lead signal + the dedupe key so contactCount counts distinct viewers, not clicks.
 // viewerId = Supabase auth user id (no app Profile table required for Phase 1).
 model ContactReveal {

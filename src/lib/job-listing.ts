@@ -319,7 +319,7 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
  * tried and every review round found a new way past it (2026-09-27). A false match — "revisa", "siêu thị thực
  * phẩm" — only drops a posting, which is the safe direction for a licensed edition that carries no visa wording.
  */
-const hasVisaWord = (raw: string) => /visa|thithuc/.test(fold(raw).replace(/[^a-z0-9]+/g, '')) || /비자|签证|簽證|ビザ|виза/i.test(raw)
+export const hasVisaWord = (raw: string) => /visa|thithuc/.test(fold(raw).replace(/[^a-z0-9]+/g, '')) || /비자|签证|簽證|ビザ|виза/i.test(raw)
 /** Today's date in Vietnam, YYYY-MM-DD — every apply-by is a Vietnamese calendar day. */
 export const vnToday = (now: number) => new Date(now).toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' })
 const vnDay = (d: Date) => d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' })

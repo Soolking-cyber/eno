@@ -313,6 +313,13 @@ export type NicheApiErrorCode =
   | 'identity_unverified'
   | 'location_required'
   | 'category_not_postable' // teachers: written only by the teacher form (2026-09-30)
+  | 'invalid_teacher_profile'
+  | 'teacher_profile_missing'
+  | 'business_only'
+  | 'cv_type'
+  | 'cv_size'
+  | 'cv_store_failed'
+  | 'cv_missing'
   | 'photo_required'
   | 'photos_min'
 
@@ -657,6 +664,13 @@ const ALL = [
   'identity_unverified',
   'location_required',
   'category_not_postable',
+  'invalid_teacher_profile',
+  'teacher_profile_missing',
+  'business_only',
+  'cv_type',
+  'cv_size',
+  'cv_store_failed',
+  'cv_missing',
   'photo_required',
   'photos_min',
   'invalid_price',

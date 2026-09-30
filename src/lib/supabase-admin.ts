@@ -16,6 +16,9 @@ export const LISTING_VIDEOS_BUCKET = 'listing-videos'
 // via short-lived (10-min) signed URLs minted only in admin-gated review routes, and the
 // objects are deleted after the review decision + a dispute window (retention job).
 export const BUSINESS_VERIFICATION_BUCKET = 'business-verification'
+/** ⛔ PRIVATE. Teacher CVs carry the phone/email the Teachers feature withholds until the teacher
+ *  taps "Share" — served only by 10-minute signed URL (src/lib/teachers/cv-store.ts). */
+export const TEACHER_CVS_BUCKET = 'teacher-cvs'
 
 let _admin: SupabaseClient | null = null
 
