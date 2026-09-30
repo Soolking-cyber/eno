@@ -316,7 +316,12 @@ export function FacetBar({
       return n
     })
 
-  const cls = ''
+  // ⛔ 44px, NOT CustomSelect's 48px default (home fold, 2026-09-30, owner: "try a little from both
+  // categ and filter"). These pills are the facet ROW, and the row is half of the sticky strip above the
+  // home feed; 44 is the house tap-target floor (WCAG 2.5.8 / our 44px rule) and it gave the fold 4px at
+  // every width. The Area, Filter and Price triggers carry the same `min-h-11`, and so does
+  // FacetBarFallback's picture of the row and the explorer's reservation around it — change all or none.
+  const cls = 'min-h-11'
   const active = 'text-accent-foreground'
   // Content-sized pills (no fixed min-width) so they pack into one swipable
   // row on mobile; widen a touch on desktop where they wrap.
@@ -414,8 +419,8 @@ export function FacetBar({
       aria-expanded={areaOpen}
       onClick={() => setAreaOpen((o) => !o)}
       className={cn(
-        // h-12 (48px) — kid-friendly tap target; flat, borderless (bg-muted only on hover).
-        'flex min-h-12 shrink-0 items-center justify-between gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
+        // min-h-11 (44px) — the facet row's height, see `cls`; flat, borderless (bg-muted only on hover).
+        'flex min-h-11 shrink-0 items-center justify-between gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
         wrap,
         areaOpen ? 'text-foreground' : areaActive ? active : 'text-body hover:bg-muted',
       )}
@@ -593,8 +598,8 @@ export function FacetBar({
       size="none"
       type="button"
       className={cn(
-        // h-12 (48px) to match the Area pill — flat, borderless.
-        'flex min-h-12 shrink-0 items-center justify-start gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
+        // min-h-11 (44px) to match the Area pill — flat, borderless.
+        'flex min-h-11 shrink-0 items-center justify-start gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
         advOpen || activeAdvCount > 0 ? active : 'text-body hover:bg-muted',
       )}
     >

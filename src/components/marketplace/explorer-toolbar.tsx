@@ -377,7 +377,7 @@ export function SortStrip({
           // Price / Area / Any condition. These are those pills' exact classes from facet-bar.tsx —
           // borderless, rounded-xl, px-4, h-12 tap target, muted hover, same press scale and duration —
           // minus their chevron, because this one opens nothing. Keep the two in step if that file moves.
-          // ⚠️ THE HEIGHT IS THE TABS', NOT THE FACET PILLS'. facet-bar's own pills are min-h-12 (48px)
+          // ⚠️ THE HEIGHT IS THE TABS', NOT THE FACET PILLS'. facet-bar's own pills are min-h-11 (44px, 48 until 2026-09-30)
           // because they sit on their own row; measured here, 48 beside 42px tabs grew this row to 48
           // and left the toggle overhanging the tab strip's baseline (agy). It matches its neighbours.
           // `snap-start` so it is a stop on the same reel as the tabs, not a straggler after them.

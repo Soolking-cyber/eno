@@ -3684,10 +3684,17 @@ export function ListingsExplorer({
     // promo's own `aspect-[2.04]` (179px of the 667), and that is the owner's creative, not ours
     // to crop. RE-MEASURE after touching this, as the note above already says: the gap below is
     // not the space-y class.
+    // ⛔ pt-0 / sm:pt-2 (was pt-3 / sm:pt-6) — HOME FOLD TRIM, owner 2026-09-30: "Home fold: mobile or
+    // desktop try a little from both categ and filter". The category rail is the first thing under the
+    // header now and its opening tiles carry their own slack above the glyph, so the 12/24px of section
+    // padding read as a dead band (<main>'s pt-4 still spaces it from the header hairline). Measured
+    // with the rail, facet-pill and gap trims (category-rail.tsx, facet-bar.tsx, `space-y-3` below):
+    // first card top 517 → 447 at 360×740 and 390×844, 407 → 367 at 1440×900, CLS unchanged.
+    // (home)/loading.tsx mirrors every one of these numbers. The notes above are the older layout's.
     // ⛔ A `{/* … */}` COMMENT CANNOT LIVE HERE — right after `return (` is expression position,
     // where JSX comment syntax is a syntax error (tsc TS1005). This is the second time in one
     // night; CLAUDE.md records the rule.
-    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-3 pb-5 sm:pt-6 sm:pb-8">
+    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 sm:pt-2 sm:pb-8">
       {/* Width + edge gutter are owned by the parent page <main> (canonical
           max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
       <div className="relative w-full">
@@ -3861,7 +3868,9 @@ export function ListingsExplorer({
             200ms), i.e. the "one identical entrance on every section" pattern, twice, on the
             money path. The feed should simply be there — and now that this tree is also the
             LANDING tree, an entrance here would fire on every cold home load. */}
-        <div className="space-y-4">
+        {/* ⚠️ space-y-3, NOT 4 (home fold trim, 2026-09-30): 4px back between each rung — rail, recents,
+            strip, results header — at every width. (home)/loading.tsx mirrors this rhythm. */}
+        <div className="space-y-3">
 
           {/* CATEGORY LADDER — ONE SLOT, TWO REPRESENTATIONS.
               Undirected: the FINN-style two-row tile grid (big tiles, eno's own two products
@@ -4017,8 +4026,8 @@ export function ListingsExplorer({
               (see the import), so it is absent from the ISR HTML and mounts after hydration —
               directly ABOVE the feed. Without a reserved row the whole grid would be pushed down
               on every cold load, which is precisely the CLS class this page paid 0.142 → 0.002 to
-              get rid of. 48px is the bar's own single-row height, not a guess: every pill is a
-              <CustomSelect> whose trigger carries `min-h-12` (custom-select.tsx), and the bar is
+              get rid of. 44px (48 until 2026-09-30) is the bar's own single-row height, not a guess: every
+              pill is a <CustomSelect> whose trigger carries facet-bar's `min-h-11` `cls`, and the bar is
               one `flex items-center` row (flex-nowrap + overflow-x-auto on mobile, so it can
               never wrap there). It can wrap to a second row on a narrow DESKTOP window, which
               costs one late row of shift; re-measure here if that becomes visible. */}
@@ -4058,7 +4067,7 @@ export function ListingsExplorer({
             goodPriceOffered={offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
             headerHidden={headerHidden}
             leading={
-              <div className="min-h-12">
+              <div className="min-h-11">
                 <FacetBar
                   openFilterSignal={openFilterSignal}
                   facetCounts={facetCounts}
@@ -4101,6 +4110,8 @@ export function ListingsExplorer({
               </div>
             }
           />
+          {/* ⚠️ The reservation above is `min-h-11` since 2026-09-30: the facet pills went 48 → 44 (the
+              44px floor) as the "filter" half of the home-fold trim. It must equal the pills' height. */}
 
           {/* THE RESULTS HEADER — one row that serves both states, which is the point.
               Undirected it is the feed's section heading, styled like every other home section

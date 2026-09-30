@@ -362,7 +362,7 @@ export function CategoryRail({
    * ⚠️ With no aligned child the container has NO snap points, so `snap-x` is inert and the rail
    * scrolls freely. Nothing re-aligns at rest — an earlier comment here claimed otherwise.
    */
-  const tileCls = `press group flex h-full ${TILE_W} flex-col items-center justify-center gap-1.5 py-1 text-center cursor-pointer select-none`
+  const tileCls = `press group flex h-full ${TILE_W} flex-col items-center justify-center gap-1 py-0 text-center md:py-0.5 cursor-pointer select-none`
   /**
    * ⛔ TWO ROWS FIRST, THREE AFTER THE SWIPE (owner, 2026-09-18: "on mobile 2 rows when swiped
    * transitions into 3"). One grid expresses both: six unit rows, where the first six tiles span
@@ -387,6 +387,16 @@ export function CategoryRail({
    * taller than their content (118px holding 101px) and the rail stayed 247px tall before and after. The
    * fold gain of E-FOLD came from option C (the count on the heading row, listings-explorer.tsx); this
    * is the lighter look the owner approved alongside it.
+   * ⛔ …AND SO THE SWIPED TILES ARE WHERE THE RAIL'S HEIGHT IS WON (home fold trim, owner 2026-09-30:
+   * "try a little from both categ and filter"). Phone small tiles: 48 → 44px box (`p-0.5`, a 40px mark),
+   * gap-1.5 → gap-1, py-1 → py-0, rail gap-y-1 → gap-y-0.5: a small tile is 63px (44 + 4 + a 15px
+   * label), the unit row 30.5px, the rail 247 → 201px at 360 and 390, en and vi. The opening tiles keep
+   * their 60px box and still have ~8px of slack each side (96px holding 79). Desktop: `md:py-0.5` + gap-1
+   * make a 71px tile, the rail 170 → 158px. ⚠️ THE DESKTOP FLOOR IS THE SUBCATEGORY PLATE: five 28px
+   * chips + `md:py-1` is 148px and it spans both rows, so the two rows (2×71 + md:gap-y-2 = 150) must stay
+   * at least that tall or picking a category grows the rail and re-centres every tile (measured 154 → 160
+   * with gap-y-1; kept `md:gap-y-2` for that reason). A two-line label on a swiped tile would also grow
+   * the rows — none wraps today in either language.
    */
   /**
    * ⚠️ THE PRESSED TILE GETS A TINTED DISC, because colour stopped being the selection cue when the
@@ -402,10 +412,10 @@ export function CategoryRail({
          all a tint needs, and the tile still fits: 60 + 6 gap + a two-line 28px label + 8 padding is
          102px inside the opening tile (118px measured at 390, 2026-09-30). */
       'flex items-center justify-center rounded-2xl p-1 transition-colors duration-200',
-      big ? 'h-15 w-15 md:h-12 md:w-12' : 'h-12 w-12',
+      big ? 'h-15 w-15 md:h-12 md:w-12' : 'h-11 w-11 p-0.5 md:h-12 md:w-12 md:p-1',
       on && 'bg-brand-50',
     )
-  const glyphSize = (big: boolean) => (big ? 'h-13 w-13 md:h-11 md:w-11' : '')
+  const glyphSize = (big: boolean) => (big ? 'h-13 w-13 md:h-11 md:w-11' : 'h-10 w-10 md:h-11 md:w-11')
   /**
    * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
    * one navigates away, so it is never "on" while this rail is showing.
@@ -596,7 +606,7 @@ export function CategoryRail({
          ⚠️ SIX UNIT ROWS ON A PHONE, TWO FROM `md`. The unit rows are what let the opening screen be
          2 rows (tiles spanning 3 units) and the rest 3 rows (spanning 2) in ONE scroller, with a
          constant rail height — see `tileSpan`. */
-      className="grid grid-flow-col grid-rows-6 auto-cols-max gap-x-2 gap-y-1 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1 md:grid-rows-2 md:gap-x-3 md:gap-y-2"
+      className="grid grid-flow-col grid-rows-6 auto-cols-max gap-x-2 gap-y-0.5 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1 md:grid-rows-2 md:gap-x-3 md:gap-y-2"
     >
       {/* ⛔ NO "ALL" TILE (owner, 2026-09-18: "remove All category from both desktop and mobile").
           Clearing a category is still one tap — a category tile is a TOGGLE, `onCategory(isActive ?
@@ -695,7 +705,7 @@ export function CategoryRail({
                     re-measure before adding one; the plate does not scroll vertically.
                     `auto-cols-max` keeps each chip its own width and lets the box grow to the
                     right, which is what the visitor swipes through. */}
-                <div className="grid grid-flow-col grid-rows-8 auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 md:grid-rows-5 md:gap-y-0">
+                <div className="grid grid-flow-col grid-rows-8 auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 md:grid-rows-5 md:gap-y-0 md:py-1">
                   <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
                     {tr('All', 'Tất cả')}
                     <CountChip pending={countsPending} count={subDim?.all} className="ml-1" />
