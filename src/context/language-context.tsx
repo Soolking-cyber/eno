@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useMemo, useEffect, useSyncExternalStore, use } from 'react'
+import React, { createContext, useContext, useState, useMemo, useEffect, useLayoutEffect, useRef, useSyncExternalStore, use } from 'react'
 import { detectContentLang } from '@/lib/detect-lang'
 import { LANGUAGES, type Language } from '@/lib/i18n/langs'
 import { TR_OVERRIDES } from '@/lib/i18n/glossary'
@@ -20,6 +20,7 @@ import {
   seedViDict,
 } from '@/lib/i18n/mt-client'
 import { LANG_COOKIE, variantOfLanguage } from '@/lib/lang-variant'
+import { pinnedPair, pinnedRoute } from '@/lib/lang-pinned'
 
 // Re-exported so the many existing importers of the roster keep working
 // (the canonical definition now lives in the isomorphic @/lib/i18n/langs).
@@ -101,6 +102,35 @@ function isNativePlatform(): boolean {
   if (typeof window === 'undefined') return false
   const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
   return !!cap?.isNativePlatform?.()
+}
+
+/**
+ * ⛔ IS THE PAGE ON SCREEN A FIXED-LANGUAGE GUIDE THAT THE SERVER RENDERED IN ITS OWN LANGUAGE? (SEO wave
+ * B, V1 — src/lib/lang-pinned.ts). Such a page cannot change variant by a reload: the proxy pins it
+ * again, so a reload is a wasted load at best and a loop at worst, and a client swap into the other
+ * variant is exactly the mixed page (Vietnamese prose, English chrome) the pin exists to end.
+ * ⚠️ READ ONLY INSIDE EFFECTS AND HANDLERS, never during render: the server has no `window`, and a
+ * render that read it would hydrate differently from the HTML.
+ * ⚠️ AND ONLY WHEN THE SERVER'S VARIANT IS THE PINNED ONE, which is the whole host rule. The proxy skips
+ * the pin on a storefront host (`apple.eno.vn/<guide>` negotiates), so there the variant can differ
+ * from the pin, and such a page keeps today's behaviour, reload included. Where a negotiated variant
+ * happens to EQUAL the guide's, treating it as pinned is harmless: the page is already consistent (the
+ * article's language throughout), and the only thing withheld is a reload into the other variant.
+ * ⚠️ NO CLIENT-SIDE HOST TEST, DELIBERATELY. An earlier cut copied the proxy's storefront rule into
+ * this file, and reviewers showed the copy could disagree with `storefrontHandleFromHost` (reserved,
+ * infra and nested labels); the proxy's own rule cannot ship here without the guide registries it
+ * imports. The variant the server actually rendered is the one signal both sides share.
+ */
+function pinnedHere(serverVariant: 'en' | 'vi'): boolean {
+  if (typeof window === 'undefined') return false
+  return pinnedRoute(window.location.pathname)?.variant === serverVariant
+}
+
+/** The visitor's language as the mount decides it: a stored choice, then a chosen cookie, then the device. */
+function preferredLanguage(): Language {
+  const stored = safeGetItem('lang') as Language | null
+  if (stored && LANGUAGES.some((l) => l.code === stored)) return stored
+  return chosenCookieLanguage() ?? detectDeviceLanguage()
 }
 
 interface LanguageContextProps {
@@ -212,6 +242,18 @@ function LanguageProviderInner({
      * blocked, and that visitor keeps the old client-side swap.
      */
     const reconcile = (next: Language) => {
+      /**
+       * ⛔ ON A PINNED GUIDE THE MOUNT NEVER CROSSES VARIANTS (V1). An English reader on a Vietnamese guide
+       * keeps the Vietnamese page: no reload (the proxy would pin it again), no client swap (English
+       * chrome around Vietnamese prose), and no cookie write, so the pages they go to next still render
+       * in their language.
+       * ⚠️ A MACHINE-TRANSLATED LANGUAGE ON AN ENGLISH GUIDE IS ADOPTED, AS ON EVERY ENGLISH PAGE. The pin is
+       * a server-variant contract (en | vi); the nine machine-translated languages are a client layer over
+       * the English variant everywhere, guides included, exactly as before V1. Refusing them here was tried
+       * and every review round found a new path around it (a soft navigation between two English pages, a
+       * choice made on a guide not following the reader onward) — so this rule stays at the variant.
+       */
+      if (variantOfLanguage(next) !== serverVariant && pinnedHere(serverVariant)) return
       const cookieHeld = writeLangCookie(next)
       const marker = `lang-reload:${next}`
       if (variantOfLanguage(next) === serverVariant) {
@@ -261,6 +303,34 @@ function LanguageProviderInner({
     reconcile(detectDeviceLanguage())
   }, [])
 
+  /**
+   * ⛔ ADOPT THE VARIANT A SOFT NAVIGATION ARRIVED IN (V1). Next 16.3.6 treats `/[lang]` with another
+   * value as the SAME root layout (is-navigating-to-new-root-layout.js compares the param's name, not
+   * its value), so following a link from an English page to a Vietnamese guide is a SOFT navigation.
+   * If React keeps this provider mounted through it, `useState` keeps 'en' while `initialLang` becomes
+   * 'vi', and the page shows Vietnamese server text inside English client chrome. (Measured on the
+   * production build, 4× and 6× CPU: the soft navigation ends with the same header and footer text as a
+   * direct load of the guide, and Back with the English page's.) So when `initialLang` changes after mount,
+   * the state moves to it — or to the visitor's own language when that shares the new variant (a
+   * machine-translated choice on an English page).
+   * ⚠️ NO RELOAD AND NO COOKIE WRITE HERE: the server already rendered this variant for this request,
+   * so there is nothing to correct, only state to catch up.
+   * ⚠️ HERE, NOT IN ViDictGate. That component must stay hookless (see its note, React #467); it
+   * already suspends on the dictionary when the new variant is Vietnamese.
+   */
+  // ⚠️ A LAYOUT EFFECT, SO THE CATCH-UP LANDS BEFORE PAINT: a passive effect let the first frame of the
+  // navigation show English client chrome around Vietnamese server text (a reviewer's catch).
+  // ⚠️ IT NEEDS NO PATH: the variant the server rendered is the whole answer. (Where a path IS read in an
+  // effect — pinnedHere — it is current: Next's HistoryUpdater pushes the URL in a useInsertionEffect,
+  // which runs in the same commit before any layout or passive effect; app-router.js, Next 16.3.6.)
+  const adopted = useRef(initialLang)
+  useLayoutEffect(() => {
+    if (adopted.current === initialLang) return
+    adopted.current = initialLang
+    const own = preferredLanguage()
+    setLangState(variantOfLanguage(own) === variantOfLanguage(initialLang) ? own : initialLang)
+  }, [initialLang])
+
   // Persist the chosen language to the signed-in user's Profile so SERVER-sent messages
   // (e.g. moderation notifications, which the recipient can't supply a cookie for) reach
   // them in this language. Debounced so only the settled language is written (the mount
@@ -270,12 +340,17 @@ function LanguageProviderInner({
   // (Best Practices 100→96), and each one burned a function invocation for nothing.
   useEffect(() => {
     if (typeof document === 'undefined' || !/(^|;\s*)sb-[^=]*-auth-token/.test(document.cookie)) return
+    // ⛔ THE VISITOR'S LANGUAGE, NOT THE ARTICLE'S (V1): on a pinned guide `lang` can be the article's, and
+    // syncing it would switch an English member's notifications to Vietnamese for reading one guide. So
+    // there the locale is their own preference — which also carries a choice made on the guide itself,
+    // even one the page cannot show (English on an unpaired Vietnamese guide).
+    const locale = pinnedHere(variantOfLanguage(initialLang)) ? preferredLanguage() : lang
     // Skip when the settled language was already synced (persisted marker), so a
     // hard load doesn't re-POST the same locale on every visit.
-    if (safeGetItem('lang-synced') === lang) return
+    if (safeGetItem('lang-synced') === locale) return
     const id = setTimeout(() => {
-      fetch('/api/profile/locale', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ locale: lang }) })
-        .then((r) => { if (r.ok) safeSetItem('lang-synced', lang) })
+      fetch('/api/profile/locale', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ locale }) })
+        .then((r) => { if (r.ok) safeSetItem('lang-synced', locale) })
         .catch(() => {})
     }, 800)
     return () => clearTimeout(id)
@@ -408,6 +483,27 @@ function LanguageProviderInner({
     safeSetItem('lang', newLang)
     const cookieHeld = writeLangCookie(newLang)
     writeChoiceCookie()
+    /**
+     * ⛔ ON A PINNED GUIDE EVERY CHOICE IS A FULL DOCUMENT LOAD (V1). The page's variant is fixed by its
+     * path, so it need not match the visitor's cookie, and the router cache holds the header's and
+     * footer's links in whatever variant the cookie gave when they were prefetched. Any in-place switch
+     * therefore left the next soft navigation serving the old language (reviewers found three routes to
+     * that in three rounds). One rule closes all of them: a choice of the other variant goes to the
+     * guide's translation when it has one; every other choice stores itself and reloads — the proxy pins
+     * this page again, the mount adopts the choice if it shares the page's variant (a machine-translated
+     * language on an English guide), and the router cache starts empty.
+     * ⚠️ WHERE THE COOKIE CANNOT HOLD THE CHOICE, nothing reloads (the next document would not know it);
+     * a same-variant choice then switches in place, as it always has for that visitor.
+     * ⚠️ THE QUERY STRING GOES ALONG to the pair (a campaign tag, say); the hash does not, because section
+     * ids are written in each article's own language and do not match across the pair.
+     */
+    if (typeof window !== 'undefined' && pinnedHere(serverVariant)) {
+      const pair = variantOfLanguage(newLang) !== serverVariant ? pinnedPair(window.location.pathname) : null
+      if (pair) { window.location.assign(pair + window.location.search); return }
+      if (cookieHeld) { window.location.reload(); return }
+      if (variantOfLanguage(newLang) === serverVariant) setLangState(newLang)
+      return
+    }
     // State first, so the choice shows immediately; the reload then replaces server-rendered text
     // and the router cache with the new variant.
     setLangState(newLang)
@@ -448,7 +544,9 @@ function LanguageProviderInner({
 
   // t/tr read module-level caches at call time, so [lang, dicts] deps are enough —
   // async translation arrivals repaint via the external store, not new closures.
-  const value = useMemo(() => ({ lang, setLang, t, tr }), [lang, dicts])
+  // ⚠️ `initialLang` TOO: `setLang` reads `serverVariant`, which a soft navigation into the other variant
+  // changes (the adopt effect above), and a memo keyed on `lang` alone could hand out the old one.
+  const value = useMemo(() => ({ lang, setLang, t, tr }), [lang, dicts, initialLang])
 
   return (
     <LanguageContext.Provider value={value}>

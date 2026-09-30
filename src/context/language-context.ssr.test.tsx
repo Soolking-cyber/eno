@@ -133,3 +133,206 @@ describe('LanguageProvider with a server-chosen language', () => {
     expect(screen.getByTestId('probe').textContent?.startsWith('ko|')).toBe(true)
   })
 })
+
+/**
+ * ⛔ A FIXED-LANGUAGE GUIDE CANNOT CHANGE VARIANT (SEO wave B, V1 — src/lib/lang-pinned.ts). The proxy
+ * pins the path, so a reload comes back in the same language and a client swap is the mixed page the pin
+ * exists to end. These pin the provider's half: no reload and no cross-variant swap on mount, a switch
+ * goes to the guide's translation, and a soft navigation into the other variant is adopted.
+ */
+describe('LanguageProvider on a fixed-language guide', () => {
+  const VI = '/thanh-ly-do-gia-dung-cu-tphcm'
+  const EN = '/secondhand-furniture-ho-chi-minh-city'
+  const assign = vi.fn()
+  const at = (pathname: string, hostname = 'eno.vn') =>
+    Object.defineProperty(window, 'location', { configurable: true, value: { pathname, hostname, search: '', hash: '', reload, assign } })
+  const fake = (m: Record<string, string>) => ({ getItem: (k: string) => m[k] ?? null, setItem: (k: string, v: string) => { m[k] = v }, removeItem: (k: string) => { delete m[k] }, clear: () => { for (const k of Object.keys(m)) delete m[k] } })
+  let store: Record<string, string>
+  afterEach(() => vi.unstubAllEnvs())
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    assign.mockReset()
+    store = {}
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: fake(store) })
+    Object.defineProperty(window, 'sessionStorage', { configurable: true, value: fake({}) })
+    // An earlier test replaces document.cookie with a fixed getter; drop it so the real jar is back.
+    Reflect.deleteProperty(document, 'cookie')
+    document.cookie = 'lang=; path=/; max-age=0'
+    document.cookie = 'lang-choice=; path=/; max-age=0'
+    Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['en-US'] })
+  })
+
+  it('an English browser on a Vietnamese guide: no reload, stays Vietnamese, writes no cookie', () => {
+    at(VI)
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(reload).not.toHaveBeenCalled()
+    expect(screen.getByTestId('probe').textContent?.startsWith('vi|')).toBe(true)
+    expect(document.cookie).not.toContain('lang=')
+  })
+
+  it('a stored Vietnamese choice on an English guide: no reload, stays English', () => {
+    at(EN)
+    store.lang = 'vi'
+    render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+    expect(reload).not.toHaveBeenCalled()
+    expect(screen.getByTestId('probe').textContent?.startsWith('en|')).toBe(true)
+  })
+
+  it('a machine-translated language on an English guide is adopted as on any English page — same variant', () => {
+    at(EN)
+    Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['ko-KR'] })
+    render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+    expect(reload).not.toHaveBeenCalled()
+    expect(screen.getByTestId('probe').textContent?.startsWith('ko|')).toBe(true)
+  })
+
+  it('choosing English on a paired Vietnamese guide goes to its English guide, choice stored', () => {
+    at(VI)
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    act(() => setLangRef!('en'))
+    expect(assign).toHaveBeenCalledWith(EN)
+    expect(reload).not.toHaveBeenCalled()
+    expect(store.lang).toBe('en')
+    expect(document.cookie).toContain('lang=en')
+  })
+
+  it('choosing English on an unpaired Vietnamese guide stores the choice, keeps the page, and reloads to drop the router cache', () => {
+    at('/dang-tin-ban-hang-mien-phi')
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    act(() => setLangRef!('en'))
+    expect(assign).not.toHaveBeenCalled()
+    expect(reload).toHaveBeenCalledTimes(1)
+    expect(store.lang).toBe('en')
+    expect(document.cookie).toContain('lang=en')
+    expect(screen.getByTestId('probe').textContent?.startsWith('vi|')).toBe(true)
+    // …and the reload is not a loop: the page comes back pinned, and the mount leaves it alone
+    cleanup()
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('⛔ a signed-in reader\'s profile gets THEIR language from a pinned guide, never the article\'s', () => {
+    vi.useFakeTimers()
+    const fetchSpy = vi.fn(() => Promise.resolve({ ok: true } as Response))
+    vi.stubGlobal('fetch', fetchSpy)
+    document.cookie = 'sb-x-auth-token=1; path=/'
+    const sent = () => (fetchSpy.mock.calls as unknown as [string, { body: string }][]).map((c) => JSON.parse(c[1].body).locale)
+    try {
+      // an English device on a Vietnamese guide: 'en', not the page's 'vi'
+      at(VI)
+      render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+      act(() => { vi.advanceTimersByTime(2000) })
+      expect(sent()).toEqual(['en'])
+      cleanup(); fetchSpy.mockClear(); delete store['lang-synced']
+      // English chosen on an UNPAIRED Vietnamese guide: the page stays Vietnamese, the profile gets 'en'
+      store.lang = 'en'
+      at('/dang-tin-ban-hang-mien-phi')
+      render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+      act(() => { vi.advanceTimersByTime(2000) })
+      expect(screen.getByTestId('probe').textContent?.startsWith('vi|')).toBe(true)
+      expect(sent()).toEqual(['en'])
+      cleanup(); fetchSpy.mockClear(); delete store['lang-synced']
+      // a reader whose own choice IS the guide's language
+      store.lang = 'vi'
+      at(VI)
+      render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+      act(() => { vi.advanceTimersByTime(2000) })
+      expect(sent()).toEqual(['vi'])
+    } finally {
+      document.cookie = 'sb-x-auth-token=; path=/; max-age=0'
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
+  it('a same-variant choice on a guide reloads (the router cache may hold the other variant), and the mount adopts it', () => {
+    at(EN)
+    render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+    act(() => setLangRef!('ko'))
+    expect(assign).not.toHaveBeenCalled()
+    expect(reload).toHaveBeenCalledTimes(1)
+    expect(document.cookie).toContain('lang=ko')
+    cleanup()
+    render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+    expect(reload).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('probe').textContent?.startsWith('ko|')).toBe(true)
+  })
+
+  it('where the cookie cannot hold a choice, nothing reloads; a same-variant choice switches in place', () => {
+    at(EN)
+    Object.defineProperty(document, 'cookie', { configurable: true, get: () => '', set: () => {} })
+    try {
+      render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+      act(() => setLangRef!('ko'))
+      expect(reload).not.toHaveBeenCalled()
+      expect(screen.getByTestId('probe').textContent?.startsWith('ko|')).toBe(true)
+      act(() => setLangRef!('vi'))
+      expect(reload).not.toHaveBeenCalled()
+      expect(assign).toHaveBeenCalledWith('/thanh-ly-do-gia-dung-cu-tphcm')
+    } finally {
+      Reflect.deleteProperty(document, 'cookie')
+    }
+  })
+
+  it('a machine-translated choice on a paired Vietnamese guide goes to the English pair, query kept', () => {
+    Object.defineProperty(window, 'location', { configurable: true, value: { pathname: VI, hostname: 'eno.vn', search: '?utm_source=x', hash: '#muc-1', reload, assign } })
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    act(() => setLangRef!('ko'))
+    expect(assign).toHaveBeenCalledWith(`${EN}?utm_source=x`)
+    expect(store.lang).toBe('ko')
+  })
+
+  it('choosing the page\'s own language on a guide stores it and reloads, so the next pages follow it', () => {
+    at(VI)
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    act(() => setLangRef!('vi'))
+    expect(assign).not.toHaveBeenCalled()
+    expect(reload).toHaveBeenCalledTimes(1)
+    expect(store.lang).toBe('vi')
+  })
+
+  it('⛔ a soft navigation into the other variant is adopted — no mixed chrome, no reload', () => {
+    at('/c/rentals')
+    const { rerender } = render(<LanguageProvider initialLang="en" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(screen.getByTestId('probe').textContent).toBe('en|Latest listings|Every')
+    at(VI)
+    rerender(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(screen.getByTestId('probe').textContent?.startsWith('vi|Tin mới nhất')).toBe(true)
+    expect(document.documentElement.lang).toBe('vi')
+    // …and back: an English page again, not the Vietnamese state carried along
+    at('/c/rentals')
+    rerender(<LanguageProvider initialLang="en" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(screen.getByTestId('probe').textContent?.startsWith('en|')).toBe(true)
+    expect(document.documentElement.lang).toBe('en')
+    expect(reload).not.toHaveBeenCalled()
+    expect(assign).not.toHaveBeenCalled()
+  })
+
+  it('coming back from a guide restores a machine-translated choice that shares the variant', () => {
+    at('/c/rentals')
+    store.lang = 'ko'
+    const { rerender } = render(<LanguageProvider initialLang="en" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(screen.getByTestId('probe').textContent?.startsWith('ko|')).toBe(true)
+    at(VI)
+    rerender(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(screen.getByTestId('probe').textContent?.startsWith('vi|')).toBe(true)
+    at('/c/rentals')
+    rerender(<LanguageProvider initialLang="en" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(screen.getByTestId('probe').textContent?.startsWith('ko|')).toBe(true)
+  })
+
+  it('a storefront host whose negotiated variant equals the guide\'s is treated as pinned — harmless, the page is consistent', () => {
+    at(EN, 'apple.eno.vn')
+    Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['vi-VN'] })
+    render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+    expect(reload).not.toHaveBeenCalled()
+    expect(screen.getByTestId('probe').textContent?.startsWith('en|')).toBe(true)
+  })
+
+  it('a guide rendered in the other variant than its pin (the server did not pin it) keeps the old behaviour, reload included', () => {
+    at(VI)
+    Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['vi-VN'] })
+    render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+})

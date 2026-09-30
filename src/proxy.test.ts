@@ -173,6 +173,88 @@ describe('language rewrite into the hidden [lang] segment', () => {
 })
 
 /**
+ * ⛔ A FIXED-LANGUAGE GUIDE RENDERS IN ITS ARTICLE'S LANGUAGE FOR EVERY VISITOR (SEO wave B, V1). Googlebot
+ * sends no Accept-Language, so before this it read every Vietnamese guide as Vietnamese prose inside
+ * English chrome. Pinning is by the path the guide already has: no new URL, no redirect, no cookie.
+ */
+describe('fixed-language guides', () => {
+  const run = async (path: string, init: { method?: string; host?: string; headers?: Record<string, string> } = {}) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const host = init.host ?? 'eno.vn'
+    const res = proxy(new NextRequest(`https://${host}${path}`, { method: init.method ?? 'GET', headers: { host, ...(init.headers ?? {}) } }))
+    const target = res.headers.get('x-middleware-rewrite')
+    return { status: res.status, rewrite: target ? new URL(target).pathname : null, contentLanguage: res.headers.get('content-language'), setCookie: res.headers.get('set-cookie'), location: res.headers.get('location') }
+  }
+  const VI = '/thanh-ly-do-gia-dung-cu-tphcm'
+  const EN = '/secondhand-furniture-ho-chi-minh-city'
+
+  it('a Vietnamese guide is Vietnamese whatever the cookie or the browser says', async () => {
+    const cases: Record<string, string>[] = [{}, { cookie: 'lang=en' }, { 'accept-language': 'en-US,en;q=0.9' }, { cookie: 'lang=en', 'accept-language': 'vi' }, { cookie: 'lang=ko' }]
+    for (const headers of cases) {
+      const r = await run(VI, { headers })
+      expect(r.rewrite, JSON.stringify(headers)).toBe(`/vi${VI}`)
+      expect(r.contentLanguage, JSON.stringify(headers)).toBe('vi')
+      expect(r.setCookie, JSON.stringify(headers)).toBeNull()
+      expect(r.location, JSON.stringify(headers)).toBeNull()
+    }
+  })
+
+  it('an English guide is English for a Vietnamese browser and a vi cookie (V-f)', async () => {
+    const cases: Record<string, string>[] = [{ 'accept-language': 'vi-VN,vi;q=0.9' }, { cookie: 'lang=vi' }]
+    for (const headers of cases) {
+      const r = await run(EN, { headers })
+      expect(r.rewrite, JSON.stringify(headers)).toBe(`/en${EN}`)
+      expect(r.contentLanguage, JSON.stringify(headers)).toBe('en')
+    }
+  })
+
+  it('keeps the query string', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const res = proxy(new NextRequest(`https://eno.vn${VI}?utm_source=x`, { headers: { host: 'eno.vn', cookie: 'lang=en' } }))
+    const u = new URL(res.headers.get('x-middleware-rewrite')!)
+    expect(u.pathname).toBe(`/vi${VI}`)
+    expect(u.search).toBe('?utm_source=x')
+  })
+
+  it('POST requests are pinned too — a Server Action posts to the page URL', async () => {
+    const r = await run(VI, { method: 'POST', headers: { origin: 'https://eno.vn', cookie: 'lang=en' } })
+    expect(r.rewrite).toBe(`/vi${VI}`)
+  })
+
+  it('pins on eno.forum as well (V-i)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://www.eno.forum')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const res = proxy(new NextRequest(`https://www.eno.forum${VI}`, { headers: { host: 'www.eno.forum', 'accept-language': 'en-US' } }))
+    expect(new URL(res.headers.get('x-middleware-rewrite')!).pathname).toBe(`/vi${VI}`)
+  })
+
+  it('storefront hosts are not pinned', async () => {
+    expect((await run(VI, { host: 'apple.eno.vn', headers: { 'accept-language': 'en-US' } })).rewrite).toBe(`/en${VI}`)
+    expect((await run(EN, { host: 'apple.eno.vn', headers: { cookie: 'lang=vi' } })).rewrite).toBe(`/vi${EN}`)
+  })
+
+  it('every other page keeps negotiating, including a guide with no declared language', async () => {
+    for (const path of ['/', '/c/rentals', '/about', '/furnishing-a-home-in-vietnam', `${VI}/x`]) {
+      expect((await run(path, { headers: { cookie: 'lang=en' } })).rewrite?.split('/')[1], path).toBe('en')
+      expect((await run(path, { headers: { cookie: 'lang=vi' } })).rewrite?.split('/')[1], path).toBe('vi')
+    }
+  })
+
+  it('a public /en/<guide> is still not a second URL', async () => {
+    expect((await run(`/en${VI}`, { headers: { cookie: 'lang=en' } })).rewrite).toBe('/en/~/not-found')
+  })
+
+  it('the cross-origin write guard still runs first', async () => {
+    expect((await run(VI, { method: 'POST', headers: { origin: 'https://evil.example' } })).status).toBe(403)
+  })
+})
+
+/**
  * ⛔ AN UNDERSCORE HOST IS NEVER THE SITE (SEO wave B, I2b). Measured live 2026-09-29: https://sdc_store.eno.vn/
  * and its /llms.txt answered 200 with the whole marketplace (canonical eno.vn, no noindex) — a duplicate host
  * Search Console had crawled. Owner, 2026-09-28: a storefront's subdomain is its handle without underscores.

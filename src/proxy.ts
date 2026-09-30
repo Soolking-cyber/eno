@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { storefrontBaseHost, storefrontHandleFromHost, storefrontLabelUrl, underscoreHost } from '@/lib/storefront-host'
 import { LANG_COOKIE, langVariantFor, type LangVariant } from '@/lib/lang-variant'
+import { pinnedRoute } from '@/lib/lang-pinned'
 
 // Edge-ingress guard. When EDGE_SECRET is set, every /api/* request (except crons,
 // which are invoked off-Cloudflare with their own CRON_SECRET bearer) must carry the
@@ -188,6 +189,9 @@ const NOT_FOUND_PATH = '/~/not-found'
  * ⛔ A PUBLIC `/en/…` or `/vi/…` IS NOT A SECOND URL FOR THE SAME PAGE. Without this, `/vi/c/rentals`
  * would render — a duplicate of `/c/rentals` for crawlers, and a way to force a variant past the
  * cookie. It 404s in the visitor's own language instead.
+ * ⚠️ THE ONE PLACE A VARIANT IS NOT THE VISITOR'S IS A FIXED-LANGUAGE GUIDE (SEO wave B, V1), and it is
+ * decided by the PATH it already has, never by a prefix: `/thanh-ly-do-gia-dung-cu-tphcm` renders
+ * Vietnamese for everyone (src/lib/lang-pinned.ts). No new URL, no redirect.
  */
 const INTERNAL_PREFIX = /^\/(en|vi)(\/|$)/
 
@@ -322,7 +326,20 @@ export function proxy(req: NextRequest) {
    * ⚠️ THIS GUARD IS WHY THE MATCHER STAYS EXPLICIT rather than becoming a catch-all with
    * exclusions: every path added there has to be checked against this block.
    */
-  if (lang) return rewriteToLang(req, lang, req.nextUrl.pathname)
+  if (lang) {
+    /**
+     * ⛔ A FIXED-LANGUAGE GUIDE RENDERS IN ITS ARTICLE'S LANGUAGE, WHATEVER THE COOKIE OR THE BROWSER SAYS
+     * (SEO wave B, V1; list and reasons in src/lib/lang-pinned.ts). Googlebot sends no Accept-Language,
+     * so it read every Vietnamese guide as Vietnamese prose inside English chrome.
+     * ⚠️ EVERY METHOD, like the rewrite itself: a Server Action posts to the page's own URL, and posting
+     * into the other variant would render a page that does not match the one on screen.
+     * ⚠️ NOT ON A STOREFRONT HOST: a shop's host serves the ordinary app on every path but `/`, and those
+     * paths keep negotiating, as they did.
+     */
+    const pinned = handle ? null : pinnedRoute(req.nextUrl.pathname)
+    if (pinned) return rewriteToLang(req, pinned.variant, pinned.internalPath)
+    return rewriteToLang(req, lang, req.nextUrl.pathname)
+  }
   const secret = process.env.EDGE_SECRET
   if (!secret) return withCors(NextResponse.next(), origin)
   // SERVER-TO-SERVER routes that legitimately hit the origin OFF Cloudflare and carry

@@ -41,12 +41,16 @@ import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
  * listings grid — hide it and a useful page remains. Here the prose IS the page: `html.native
  * .web-only { display: none }` would render these as a headline over an empty screen in the app.
  *
- * ⚠️ ENGLISH ONLY, matching the SEO landing pages (see the note on SeoLanding). These target English
- * expat search queries; the machine-translation layer covers a reader who needs another language.
- * The exceptions are the affiliation line, which is legal copy and comes from site-legal.ts, and the
- * date line under the h1, which is written in the article's own language (`content.lang`, see
- * DATE_LINE). Whether the rest of this chrome follows the article's language is an open owner
- * decision (L-SEO-LANG, held with the wave-B Vietnamese-URL pilot) — do not switch it piecemeal.
+ * ⛔ EVERY WORD THIS COMPONENT ADDS IS IN THE ARTICLE'S LANGUAGE (`content.lang`), NEVER THE VISITOR'S —
+ * the date line, "On this page", "Keep reading", the FAQ heading, the affiliation line and the
+ * "Published by" note (ARTICLE_CHROME and DATE_LINE below). SEO wave B settled the old open decision
+ * (L-SEO-LANG) this way, with V1: on the site's own hosts a guide with a declared language is also
+ * served in that language to every visitor (src/lib/lang-pinned.ts), so the header and footer around
+ * it match too. A storefront host (`apple.eno.vn/<guide>`) is not pinned and still negotiates. Before, a
+ * Vietnamese guide carried English labels for every reader, Googlebot included.
+ * ⚠️ PLAIN CONSTANTS, NOT `tr()`: they follow the article, and `tr()` follows the visitor. A reader in a
+ * third language gets the article's language here, as they get it in the prose.
+ * The Vietnamese is from the owner-approved copy sheet CS-2 (2026-09-30, rows V1-1 to V1-6).
  */
 
 /**
@@ -236,9 +240,37 @@ const DATE_LINE = {
   vi: { updated: 'Cập nhật', published: 'Đăng ngày' },
 } as const
 
+/**
+ * The rest of the article's chrome, in the article's language — same rule as DATE_LINE, and for the
+ * same reason. `publishedBy` wraps the site name, which is rendered between its two halves.
+ */
+const ARTICLE_CHROME = {
+  en: {
+    onThisPage: 'On this page',
+    keepReading: 'Keep reading',
+    faq: 'Frequently asked questions',
+    affiliation: AFFILIATION.shortEn,
+    publishedBy: [
+      'Published by ',
+      '. Rules, fees and official processes change — where this guide names an authority, check with that authority before you act on anything here.',
+    ],
+  },
+  vi: {
+    onThisPage: 'Trên trang này',
+    keepReading: 'Đọc thêm',
+    faq: 'Câu hỏi thường gặp',
+    affiliation: AFFILIATION.shortVi,
+    publishedBy: [
+      'Bài viết do ',
+      ' xuất bản. Quy định, phí và thủ tục chính thức có thể thay đổi — khi bài viết nhắc tới một cơ quan có thẩm quyền, hãy kiểm tra với chính cơ quan đó trước khi làm theo bất cứ điều gì ở đây.',
+    ],
+  },
+} as const
+
 export async function SeoArticle({ content }: { content: ArticleContent }) {
   const url = `${SITE_ORIGIN}${content.canonical}`
   const articleLang = content.lang ?? 'en'
+  const chrome = ARTICLE_CHROME[articleLang]
   // ONE date, two consumers: the visible line under the h1 and the JSON-LD below (C-DATES). The guides
   // declared dateModified to Google and showed a reader no date at all.
   const modified = content.updated ?? content.published
@@ -323,8 +355,8 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
             arrived from a query about one of the sections should be able to reach it. It is also
             how Google finds the jump links it sometimes shows under a result. */}
         {content.sections.length >= 4 && (
-          <nav aria-label="On this page" className="mt-8 max-w-3xl border-t border-border pt-5">
-            <p className="eyebrow mb-3 text-ink-4">On this page</p>
+          <nav aria-label={chrome.onThisPage} className="mt-8 max-w-3xl border-t border-border pt-5">
+            <p className="eyebrow mb-3 text-ink-4">{chrome.onThisPage}</p>
             <ul className="grid gap-2 sm:grid-cols-2">
               {content.sections.map((s) => (
                 <li key={s.id}>
@@ -355,7 +387,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
 
         {related.length > 0 && (
           <section className="mt-14 max-w-3xl">
-            <h2 className="h-title mb-4 text-foreground">Keep reading</h2>
+            <h2 className="h-title mb-4 text-foreground">{chrome.keepReading}</h2>
             {/* Ruled rows, not a grid of bordered cards (flat-surface canon §3b; C-BOXES): one column,
                 so every chevron sits on the same right edge and each title gets the full measure. */}
             <Rows bordered>
@@ -376,7 +408,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
 
         {content.faqs.length > 0 && (
           <section className="mt-14 max-w-3xl">
-            <h2 className="h-title mb-4 text-foreground">Frequently asked questions</h2>
+            <h2 className="h-title mb-4 text-foreground">{chrome.faq}</h2>
             <div className="space-y-6">
               {content.faqs.map((f, i) => (
                 <div key={i}>
@@ -398,15 +430,13 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
             showing it once, hence the guard. */}
         {!content.crossSitePromo && (
           <p className="mt-14 max-w-3xl border-t border-border pt-6 text-xs leading-relaxed text-muted-foreground">
-            {AFFILIATION.shortEn}
+            {chrome.affiliation}
           </p>
         )}
 
         <p className="mt-8 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           <ArrowUpRight className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />
-          Published by <strong className="font-semibold text-foreground">{SITE_NAME}</strong>. Rules, fees and
-          official processes change — where this guide names an authority, that authority is the one to
-          check before you act on anything here.
+          {chrome.publishedBy[0]}<strong className="font-semibold text-foreground">{SITE_NAME}</strong>{chrome.publishedBy[1]}
         </p>
       </main>
 
