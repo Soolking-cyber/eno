@@ -51,14 +51,31 @@ test.describe('Guest · icon sprite', () => {
 })
 
 test.describe('Guest · mobile PDP fold', () => {
-  /** Open a real listing off the live feed — pinning a cuid rots into a false pass after a reseed. */
+  /**
+   * Open a real listing off the live feed — pinning a cuid rots into a false pass after a reseed.
+   *
+   * ⚠️ THE FIRST LISTING WITH A GALLERY, NOT THE FIRST LISTING. Since O-28 (owner, 2026-09-30,
+   * P-JOB) a LINKED JOB's PDP renders no gallery at all — its one image was the importer's generated
+   * poster — and opens on the compact `[data-job-header]` instead. Both claims below are about the
+   * media's place on the fold, so on a job they have no subject: `[data-protected]` then resolves to
+   * some card image far down the page and the test reports y≈1346 as if the gallery had been pushed
+   * down. Linked jobs sort first on the home feed often enough to make that the common case, so walk
+   * past them (a handful of hrefs, then skip — a feed of nothing but jobs is a catalogue state, not
+   * a layout regression).
+   */
   const openAListing = async (page: import('@playwright/test').Page) => {
     await page.goto('/')
     await dismissOverlays(page)
-    const first = page.locator('a[data-card-link="true"]').first()
-    await first.waitFor({ state: 'attached' })
-    await page.goto((await first.getAttribute('href'))!)
-    await dismissOverlays(page)
+    const cards = page.locator('a[data-card-link="true"]')
+    await cards.first().waitFor({ state: 'attached' })
+    const hrefs = (await cards.evaluateAll((els) => els.map((el) => el.getAttribute('href')))).filter(Boolean).slice(0, 8) as string[]
+    for (const href of hrefs) {
+      await page.goto(href)
+      await dismissOverlays(page)
+      // The gallery is server-rendered, so its presence is settled at load — no poll needed.
+      if (await page.locator('[data-job-header]').count() === 0) return
+    }
+    test.skip(true, `every one of the first ${hrefs.length} home cards is a linked job — no PDP gallery to measure`)
   }
   const topOf = async (page: import('@playwright/test').Page, selector: string) =>
     page.locator(selector).first().evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY))

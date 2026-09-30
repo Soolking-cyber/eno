@@ -17,7 +17,6 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
   const { isFavorite, toggle } = useFavorites()
   const { tr } = useLanguage()
   const saved = isFavorite(id)
-  const label = saved ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')
   // ⚠️ THE POP IS DRIVEN BY THE CLICK, NOT BY `saved`. Both spans below used
   // `key={saved ? 'on' : 'off'}`, which remounts on ANY change to that boolean — and the favourites
   // Set is hydrated from localStorage AFTER first paint. So opening the PDP of a listing you had
@@ -71,19 +70,19 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
       type="button"
       onClick={onToggle}
       aria-pressed={saved}
-      // ⚠️ THE ONE HEART WHOSE NAME STILL CHANGES, AND IT IS NOT AN OVERSIGHT — but note first
-      // that THIS BRANCH HAS NO CALL SITES TODAY (grepped 2026-08-17: both `<SaveListingButton>`
-      // usages on the PDP pass `compact`). So it is the rule for whoever renders it next, not a
-      // pattern the app currently ships.
-      // Every heart that DOES render is icon-only and takes a constant name (the ARIA toggle
-      // pattern). This one renders `label` as visible text, and WCAG 2.5.3 Label in Name wants
-      // the accessible name to contain what is on screen — pinning it to "Save listing" while
-      // the button reads "Saved" would break speech control ("click Saved" matching nothing).
-      // The pairing that is actually harmful is a name describing the next ACTION ("Remove
-      // favorite") next to aria-pressed; "Saved" + pressed is merely redundant, never wrong.
+      // ⚠️ A CONSTANT NAME, LIKE EVERY OTHER HEART — AND SO A CONSTANT VISIBLE WORD. This branch
+      // had no call sites until the compact linked-job header (O-28, 2026-09-30), and it used to
+      // flip its name Save/Saved. Once it shipped, the PDP's save control stopped answering to
+      // "Save listing" on job pages and the guest e2e (listing.spec "the save heart is a real ARIA
+      // toggle") went red. The name is now "Save listing" in both states, `aria-pressed` carries the
+      // state, and the red solid heart + brand border are the visible state.
+      // ⚠️ WHY THE VISIBLE TEXT NO LONGER SAYS "Saved": WCAG 2.5.3 Label in Name wants the
+      // accessible name to CONTAIN the visible label. "Save listing" contains "Save"; it does not
+      // contain "Saved", so a flipping word would break speech control ("click Saved" matching
+      // nothing). Vietnamese holds the same way: "Lưu tin" contains "Lưu".
       // ⚠️ The text is `hidden sm:inline`, so below `sm` this is icon-only and aria-label is the
       // whole name — which is why it cannot simply be dropped in favour of the visible text.
-      aria-label={label}
+      aria-label={tr('Save listing', 'Lưu tin')}
       className={cn(
         'press flex gap-1.5 rounded-xl border px-3.5 py-2 font-semibold transition-colors',
         saved ? 'border-brand text-accent-foreground' : 'border-border text-body hover:border-brand hover:text-accent-foreground',
@@ -96,7 +95,7 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
       <span onAnimationEnd={(e) => { if (e.animationName === 'heart-pop') setBurst(false) }} className={cn('inline-flex', burst && 'animate-heart-pop')}>
         <Heart className={cn('icon-own-ink h-4 w-4', saved && 'fill-current text-destructive')} />
       </span>
-      <span className="hidden sm:inline">{label}</span>
+      <span className="hidden sm:inline">{tr('Save', 'Lưu')}</span>
     </Button>
   )
 }
