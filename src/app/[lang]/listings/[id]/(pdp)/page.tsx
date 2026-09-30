@@ -83,7 +83,7 @@ import { SafetyStrip } from '@/components/marketplace/safety-strip'
 import { isBusinessVerified } from '@/lib/business-verification'
 
 type Props = {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string; lang?: string }>
 }
 
 // ISR: render on-demand, then cache the HTML at the global edge (the #1 SEO page,
@@ -162,8 +162,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogTitle = priceLabel ? `${displayTitle} — ${priceLabel}` : displayTitle
   const ogDesc = priceLabel && bodyDesc ? `${priceLabel} · ${desc}` : desc
 
+  // A teacher is a person: the title says so, and no price label ever rides on it (2026-09-30).
+  const isTeacher = listing.listingType === TEACHER_LISTING_TYPE
   return {
-    title: priceLabel ? `${displayTitle} — ${priceLabel} | ${SITE_NAME}` : `${displayTitle} | ${SITE_NAME}`,
+    title: isTeacher ? `${displayTitle} — ${(await params).lang === 'vi' ? 'Giáo viên tại Việt Nam' : 'Teacher in Vietnam'} | ${SITE_NAME}` : priceLabel ? `${displayTitle} — ${priceLabel} | ${SITE_NAME}` : `${displayTitle} | ${SITE_NAME}`,
     description: desc,
     // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
     // ⛔ An imported vehicle-hire reference is live but noindex — src/lib/rental-places.ts says why.
@@ -182,7 +184,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       // SITE_NAME, not a literal: this file already uses it for every <title> above, and the
       // hardcoded value made eno.forum's listing shares announce eno.vn as the publishing site.
       siteName: SITE_NAME,
-      type: 'website',
+      type: isTeacher ? 'profile' : 'website',
       // ⚠️ NO og:locale HERE, ON PURPOSE. The seller's words are in whatever language they wrote, and
       // a shape guess (site-identity.ts ogLocaleFor, fine for copy WE write) reads a Vietnamese listing
       // whose description names "Samsung Galaxy Tab Pro" as English — four unmarked words (review,
@@ -236,6 +238,7 @@ export default async function ListingPage({ params }: Props) {
         listing={{ id: listing.id, title: listing.title, images: listing.images, video: listing.video ?? null, updatedAt: rawListing.updatedAt }}
         canonicalUrl={`${hostUrl}/listings/${listing.id}`}
         indexable={rawListing.status === 'active'}
+        lang={(await params).lang === 'vi' ? 'vi' : 'en'}
       />
     )
   }

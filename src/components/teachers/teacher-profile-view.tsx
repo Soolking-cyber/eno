@@ -28,19 +28,21 @@ function Chips({ items }: { items: string[] }) {
   )
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
-      <dt className="text-muted-foreground"><Tr text={label} /></dt>
+      <dt className="text-muted-foreground">{label}</dt>
       <dd className="text-foreground">{children}</dd>
     </div>
   )
 }
 
-export async function TeacherProfileView({ listing, canonicalUrl, indexable }: {
+export async function TeacherProfileView({ listing, canonicalUrl, indexable, lang }: {
   listing: { id: string; title: string; images: string[]; video: string | null; updatedAt: Date | string }
   canonicalUrl: string
   indexable: boolean
+  /** The server-rendered language (en | vi) — country names are named in it. */
+  lang: string
 }) {
   const tp = await db.teacherProfile.findUnique({
     where: { listingId: listing.id },
@@ -83,9 +85,9 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable }: {
                 {tp && <p className="mt-1 text-body">{tp.headline}</p>}
                 {tp && (
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {countryName(tp.nationality, 'en')}
+                    {countryName(tp.nationality, lang)}
                     {tp.nativeSpeaker && <> · <Tr text="Native English speaker" /></>}
-                    {' · '}{tp.yearsExperience} <Tr text="years teaching" />
+                    {' · '}{tp.yearsExperience} {tp.yearsExperience === 1 ? <Tr text="year teaching" /> : <Tr text="years teaching" />}
                     {' · '}{tp.currentDistrict ? `${tp.currentDistrict}, ` : ''}<Tr text={cityLabel} />
                   </p>
                 )}
@@ -110,13 +112,13 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable }: {
               <section aria-labelledby="t-teaching" className="space-y-4">
                 <h2 id="t-teaching" className="text-lg font-semibold text-foreground"><Tr text="Teaching" /></h2>
                 <dl className="divide-y divide-border">
-                  <Row label="Subjects"><Chips items={tp.subjects.map((s) => labelOf(TEACHER_OPTIONS.subject, s))} /></Row>
-                  <Row label="Teaches"><Chips items={tp.ageGroups.map((s) => labelOf(TEACHER_OPTIONS.ageGroup, s))} /></Row>
-                  <Row label="Looking for"><Chips items={tp.jobTypes.map((s) => labelOf(TEACHER_OPTIONS.jobType, s))} /></Row>
-                  {workIn.length > 0 && <Row label="Wants to work in"><Chips items={workIn} /></Row>}
-                  {tp.availableFrom && <Row label="Available from">{tp.availableFrom.toISOString().slice(0, 10)}</Row>}
-                  {tp.expectedSalaryM != null && tp.expectedSalaryM > 0 && <Row label="Expected salary">{formatMoneyFull(tp.expectedSalaryM * 1_000_000, '₫')} / <Tr text="month" /></Row>}
-                  {tp.languages.length > 0 && <Row label="Languages">{tp.languages.join(', ')}</Row>}
+                  <Row label={<Tr text="Subjects" />}><Chips items={tp.subjects.map((s) => labelOf(TEACHER_OPTIONS.subject, s))} /></Row>
+                  <Row label={<Tr text="Teaches" />}><Chips items={tp.ageGroups.map((s) => labelOf(TEACHER_OPTIONS.ageGroup, s))} /></Row>
+                  <Row label={<Tr text="Looking for" />}><Chips items={tp.jobTypes.map((s) => labelOf(TEACHER_OPTIONS.jobType, s))} /></Row>
+                  {workIn.length > 0 && <Row label={<Tr text="Wants to work in" />}><Chips items={workIn} /></Row>}
+                  {tp.availableFrom && <Row label={<Tr text="Available from" />}>{tp.availableFrom.toISOString().slice(0, 10)}</Row>}
+                  {tp.expectedSalaryM != null && tp.expectedSalaryM > 0 && <Row label={<Tr text="Expected salary" />}>{formatMoneyFull(tp.expectedSalaryM * 1_000_000, '₫')} / <Tr text="month" /></Row>}
+                  {tp.languages.length > 0 && <Row label={<Tr text="Languages" />}>{tp.languages.join(', ')}</Row>}
                 </dl>
               </section>
             )}

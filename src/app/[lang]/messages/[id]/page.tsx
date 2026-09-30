@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { TeacherThreadStrip } from '@/components/teachers/teacher-thread-strip'
 import { BubbleChrome, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
 import Link from 'next/link'
 
@@ -306,6 +307,8 @@ type Thread = {
    * already reachable, listed by tsc the moment the type stopped lying.
    */
   listing: { id: string; title: string; image: string | null; price?: number; negotiable?: boolean; availabilityConfirmedAt?: string | null; status?: string } | null
+  /** A thread about a teacher profile (2026-09-30); optional — pending stubs and cached threads omit it. */
+  teacher?: { shared: boolean; live?: boolean } | null
   counterpart: {
     name: string
     avatarColor: string
@@ -2024,7 +2027,14 @@ export default function ThreadPage() {
           {/* ⚠️ `thread.listing &&`: the reveal is `/api/listings/<id>/contact`, so on a LISTING-LESS
               thread (support, the rental desk) the strip could only ever be a dead button — and on the
               rental desk the counterpart is the eno team, whose number is not what anyone is asking for. */}
-          {thread && thread.listing && !thread.iAmSeller && (contact || !thread.sellerIsPartner) && (
+          {/* Teacher threads (2026-09-30): the teacher's own share control / the recruiter's shared
+              details replace the product strip — never "Request number", which any reply unlocked.
+              ⚠️ The product strip needs `teacher === null` (a FRESH payload saying "not a teacher
+              thread"): a cached or pending thread has no `teacher` field and must show neither. */}
+          {thread && thread.listing && thread.teacher && (
+            <TeacherThreadStrip conversationId={thread.id} iAmTeacher={!!thread.iAmSeller} shared={thread.teacher.shared} live={thread.teacher.live !== false} shareSignal={(thread.messages ?? []).filter((m) => /^(📇|🔒)/.test(m.body ?? '')).length} />
+          )}
+          {thread && thread.listing && thread.teacher === null && !thread.iAmSeller && (contact || !thread.sellerIsPartner) && (
             <div className="flex items-center gap-2 border-t border-border bg-background px-4 py-2">
               {contact ? (
                 <>

@@ -320,6 +320,9 @@ export type NicheApiErrorCode =
   | 'cv_size'
   | 'cv_store_failed'
   | 'cv_missing'
+  | 'share_required'
+  | 'teacher_thread_cap'
+  | 'profile_hidden'
   | 'photo_required'
   | 'photos_min'
 
@@ -671,6 +674,9 @@ const ALL = [
   'cv_size',
   'cv_store_failed',
   'cv_missing',
+  'share_required',
+  'teacher_thread_cap',
+  'profile_hidden',
   'photo_required',
   'photos_min',
   'invalid_price',

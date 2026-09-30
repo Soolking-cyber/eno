@@ -1,5 +1,6 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
@@ -122,7 +123,9 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // every visa card is validated against server-side, and the client needs it to tell a
       // LIVE card from the inert history a rebound thread leaves behind.
       visaApplicationId: true,
-      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true } },
+      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true, listingType: true, verified: true, teacherProfile: { select: { status: true } } } },
+      // Teachers (2026-09-30): the teacher's revocable share — decides the thread's contact strip.
+      teacherContactShare: { select: { revokedAt: true } },
       // `owner.locale` / `buyer.locale` = the counterpart's persisted app language, the ONLY
       // signal the live-translation toggle keys off (contract A). It is a language preference,
       // not personal data: nothing here says who they are or where they are.
@@ -291,6 +294,15 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     // `listing` would send the next reader to the listing select above, where it does not exist —
     // and would become an outright lie the day a conversation retarget crosses sellers.
     sellerIsPartner: convo.seller.officialPartner,
+    // A thread about a teacher profile: the strip becomes "Share my contact" (teacher) or the shared
+    // contact / CV (recruiter). `shared` only — the details themselves come from /api/teachers/contact.
+    teacher: convo.listing?.listingType === TEACHER_LISTING_TYPE
+      ? {
+          shared: !!convo.teacherContactShare && !convo.teacherContactShare.revokedAt,
+          // The share is served only while the profile is live (src/lib/teachers/share.ts).
+          live: convo.listing.status === 'active' && convo.listing.verified && convo.listing.teacherProfile?.status === 'live',
+        }
+      : null,
     // availabilityConfirmedAt powers the buyer's instant "still available?" answer
     // (fresh seller confirmation → answered inline, no message sent).
     // ⛔ NULL ON A SUPPORT THREAD. Every consumer of this payload assumed a listing because every

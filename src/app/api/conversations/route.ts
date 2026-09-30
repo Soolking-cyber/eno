@@ -1,5 +1,6 @@
 import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { editionSellerScope, scopedListingWhere } from '@/lib/edition-scope'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { NextResponse } from 'next/server'
@@ -75,10 +76,12 @@ export const POST = route(
   // field, which ListingWhereUniqueInput rejects. On eno.vn a desk listing now resolves to null, so
   // no conversation can be opened against a service the licensed marketplace does not offer.
   const listing = await db.listing.findFirst({
-    where: await scopedListingWhere({ id: listingId }),
+    // `{ teachers: true }`: a recruiter messaging a teacher profile is the Teachers feature's only
+    // door into chat (2026-09-30); the business-only rule below decides who may walk through it.
+    where: await scopedListingWhere({ id: listingId }, { teachers: true }),
     // subcategorySlug is the local "is this a visa product?" second opinion the uncertainty check
     // below needs — see the note there; it costs nothing on a row we already fetch.
-    select: { id: true, title: true, verified: true, negotiable: true, sellerId: true, subcategorySlug: true, affiliateUrl: true, seller: { select: { ownerId: true } } },
+    select: { id: true, title: true, verified: true, negotiable: true, sellerId: true, subcategorySlug: true, affiliateUrl: true, listingType: true, seller: { select: { ownerId: true } } },
   })
   if (!listing || !listing.verified) throw new ApiError('not_found', 404)
 
@@ -97,6 +100,22 @@ export const POST = route(
   // Can't message your own storefront.
   if (listing.seller.ownerId && listing.seller.ownerId === profile.id) {
     throw new ApiError('own_listing', 400)
+  }
+
+  /**
+   * ⛔ ONLY A BUSINESS ACCOUNT MAY MESSAGE A TEACHER (owner, 2026-09-30) — schools and companies, not
+   * any signed-in stranger. And a cap on reaching out: a scraper with a business account could
+   * otherwise message every teacher to collect whatever they share. Strict (fail-closed) and
+   * counted per account per day; a recruiter's real outreach is well under it.
+   */
+  if (listing.listingType === TEACHER_LISTING_TYPE) {
+    if (profile.accountType !== 'business') throw new ApiError('business_only', 403)
+    // Only a NEW thread spends the cap — re-opening a teacher you already talk to never does.
+    const already = await db.conversation.findFirst({ where: { listingId: listing.id, buyerProfileId: profile.id }, select: { id: true } })
+    if (!already) {
+      const cap = await rateLimit('teacher-thread', profile.id, 20, '1 d', { strict: true })
+      if (!cap.success) throw new ApiError('teacher_thread_cap', 429)
+    }
   }
 
   // ⚠️ ENFORCEMENT RUNS BEFORE THE VISA BRANCH, AND THE ORDER IS THE SECURITY PROPERTY.
@@ -374,7 +393,18 @@ export const POST = route(
   // benign (both threads work; the inbox shows the newest), and we accept it
   // rather than serialize creates here.
   const sellerThreads = await db.conversation.findMany({
-    where: { sellerId: listing.sellerId, buyerProfileId: profile.id },
+    // ⛔ A TEACHER THREAD AND A PRODUCT THREAD ARE NEVER MERGED (Opus, commit gate 09-30). Retargeting a
+    // recruiter's teacher thread onto the same storefront's product listing would drop the teacher
+    // strip and bring back "Request number" — which any reply unlocks — around the teacher's Share tap.
+    where: {
+      sellerId: listing.sellerId, buyerProfileId: profile.id,
+      // A teacher thread is reused only for THAT teacher's listing (a storefront may list several);
+      // any other thread keeps the old reuse, including listing-less rows (a relation filter alone
+      // would silently stop matching them — Opus, gate 09-30).
+      ...(listing.listingType === TEACHER_LISTING_TYPE
+        ? { listingId: listing.id }
+        : { OR: [{ listingId: null }, { listing: { listingType: { not: TEACHER_LISTING_TYPE } } }] }),
+    },
     orderBy: { lastMessageAt: 'desc' },
     // A buyer has one thread per listing of a seller, so this is newest-few, not a page. Ordinary
     // sellers match on the first row; only the desk ever has more than one kind to look past.

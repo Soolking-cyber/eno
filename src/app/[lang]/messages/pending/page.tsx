@@ -53,6 +53,8 @@ export default function PendingComposePage() {
             error === 'own_listing' ? tr("That's your own listing.", 'Đây là tin của chính bạn.')
             // Enforcement gates (trust Phase 2) — specific, calm copy over a generic failure.
             : error === 'account_suspended' ? tr('Your account is suspended — messaging is paused while we review it. Details are in your dashboard.', 'Tài khoản của bạn đang tạm ngưng — nhắn tin tạm dừng trong khi chúng tôi xem xét. Xem chi tiết trong trang quản lý.')
+            : error === 'teacher_thread_cap' ? tr('You have reached today’s limit for new chats. Please try again tomorrow.', 'Bạn đã đạt giới hạn cuộc trò chuyện mới hôm nay. Vui lòng thử lại vào ngày mai.')
+            : error === 'business_only' ? tr('Only school and company accounts can message teachers.', 'Chỉ tài khoản trường học hoặc công ty mới nhắn tin được cho giáo viên.')
             : error === 'probation_conversation_cap' ? tr('New accounts can start up to 15 chats a day — please try again tomorrow.', 'Tài khoản mới có thể bắt đầu tối đa 15 cuộc trò chuyện mỗi ngày — hãy thử lại vào ngày mai.')
             : tr('Could not send. Try again.', 'Không gửi được. Thử lại.'))
           // Re-stash the draft before bouncing (audit P2): removeItem ran up front,
