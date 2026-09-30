@@ -49,6 +49,9 @@ test.describe('Guest · sort tabs — a11y semantics', () => {
   })
 
   test('the sort strip is a real tablist, not a row of buttons', async ({ page }) => {
+    // Phones sort through one pill in the single scrolling toolbar line (owner, 2026-09-30); the explorer's
+    // tablist is desktop-only there — /c/* keeps its tabs on every width (the test above).
+    test.skip(test.info().project.name.includes('mobile'), 'phones sort via the sort pill (next test)')
     await page.goto('/?category=electronics')
 
     const tablist = page.getByRole('tablist').first()
@@ -61,6 +64,9 @@ test.describe('Guest · sort tabs — a11y semantics', () => {
   })
 
   test('arrows move roving focus; Enter commits the sort', async ({ page }) => {
+    // Phones sort through one pill in the single scrolling toolbar line (owner, 2026-09-30); the explorer's
+    // tablist is desktop-only there — /c/* keeps its tabs on every width (the test above).
+    test.skip(test.info().project.name.includes('mobile'), 'phones sort via the sort pill (next test)')
     await page.goto('/?category=electronics')
 
     const tablist = page.getByRole('tablist').first()
@@ -86,5 +92,19 @@ test.describe('Guest · sort tabs — a11y semantics', () => {
     // Enter commits, and only now does the sort actually change.
     await page.keyboard.press('Enter')
     await expect(tablist.getByRole('tab', { selected: true })).not.toHaveText(before ?? '')
+  })
+
+  test('on a phone the explorer sorts through one pill in the toolbar line', async ({ page }) => {
+    test.skip(!test.info().project.name.includes('mobile'), 'phone layout only')
+    await page.goto('/?category=electronics')
+    const pill = page.getByRole('combobox', { name: /sort|sắp xếp/i }).first()
+    await expect(pill).toBeVisible()
+    const box = await pill.boundingBox()
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44)
+    const sorted = page.waitForRequest((r) => new URL(r.url()).searchParams.get('sort') === 'price-low')
+    await pill.click()
+    await page.getByRole('option', { name: /low to high|thấp đến cao/i }).first().click()
+    await sorted
+    await expect(page).toHaveURL(/sort=price-low/)
   })
 })
