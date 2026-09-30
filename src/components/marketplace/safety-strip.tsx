@@ -36,13 +36,18 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
         "Apply only on the original posting — eno.vn doesn't handle applications and never charges a fee. Never pay money to get a job.",
         'Chỉ ứng tuyển trên tin tuyển dụng gốc — eno.vn không xử lý hồ sơ và không bao giờ thu phí. Đừng bao giờ trả tiền để có việc làm.',
       )
-    // A PARTNER RENTAL (an imported portal listing) is neither a purchase nor a ticket: "Buy only on
-    // the shop's own website" told a tenant they were buying the flat. Same split as the CTA's
-    // "Rent on …" (affiliate-booking.tsx). True as written: eno holds no money for any listing.
+    // AN IMPORTED RENTAL (a reference to an ad on another listing site) is neither a purchase nor a
+    // ticket: "Buy only on the shop's own website" told a tenant they were buying the flat.
+    // ⛔ NOT "THE PARTNER'S OWN WEBSITE", AND NOT "RENT THROUGH" IT (SEO wave B, P3; copy sheet CS-2
+    // P3-1, owner-approved 2026-09-30). The portals are not partners — no code or contract records one
+    // (import-sellers.ts: reference listings) — and a tenant rents from a landlord, not through a
+    // classifieds site. The advice that stops a loss is to see the place and meet the person first.
+    // "eno", not "eno.vn": this strip renders on both editions, and "eno.vn" on eno.forum named the
+    // other site. True as written: eno holds no money for any listing (Terms, "we hold no escrow").
     : variant === 'affiliate-rental'
     ? tr(
-        "Rent only through the partner's own website — eno.vn never takes rent or a deposit for these listings, and cannot refund one.",
-        'Chỉ thuê qua website chính thức của đối tác — eno.vn không bao giờ nhận tiền thuê hay tiền cọc cho các tin này, và không thể hoàn tiền.',
+        'See the place and meet the landlord or agent before you pay anything. eno never takes rent or a deposit for these listings and cannot refund one.',
+        'Hãy đến xem nhà và gặp chủ nhà hoặc môi giới trước khi trả bất kỳ khoản tiền nào. eno không bao giờ nhận tiền thuê hay tiền cọc cho các tin này và không thể hoàn tiền.',
       )
     : variant === 'affiliate-purchase'
     ? tr(

@@ -1,6 +1,7 @@
 import { ArrowUpRight } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Tr } from '@/context/language-context'
+import { Bilingual } from './bilingual'
 import { affiliateQrSvg, safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { AffiliateCodeCopy } from './affiliate-code-copy'
@@ -75,6 +76,11 @@ export function AffiliateBooking({
   const safeUrl = safeAffiliateUrl(url)
   if (!safeUrl) return null
 
+  // Authored pairs for the rental wording (SEO wave B, P3; copy sheet CS-2 P3-2..P3-4, owner-approved
+  // 2026-09-30) — literal `tr(en, vi)` calls so gen-ui-strings harvests them, rendered through
+  // <Bilingual> because this component renders on the server. No vi-overrides entry is needed.
+  const tr = (en: string, vi: string, values?: Record<string, string>) => <Bilingual en={en} vi={vi} values={values} />
+
   const qr = affiliateQrSvg(safeUrl, { title: job ? `QR code to open the job posting on ${partnerName}` : rental ? `QR code to open the rental on ${partnerName}` : `QR code to book on ${partnerName}` })
   // The product this link was minted for, when the campaign is one measured not to deep-link.
   const productStep = embeddedProductUrl(safeUrl)
@@ -82,7 +88,7 @@ export function AffiliateBooking({
   return (
     <section aria-labelledby="affiliate-booking-heading" className="flex flex-col gap-4">
       <h2 id="affiliate-booking-heading" className="sr-only">
-        {job ? <Tr text="Apply on the original posting" /> : rental ? <Tr text="Rent from this partner" /> : booking ? <Tr text="Book this experience" /> : <Tr text="Buy from this shop" />}
+        {job ? <Tr text="Apply on the original posting" /> : rental ? tr('Open the original ad', 'Mở tin gốc') : booking ? <Tr text="Book this experience" /> : <Tr text="Buy from this shop" />}
       </h2>
 
       {/*
@@ -184,10 +190,10 @@ export function AffiliateBooking({
           <div className="shrink-0 [&>svg]:size-20 [&>svg]:rounded-lg" dangerouslySetInnerHTML={{ __html: qr }} />
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">
-              {job ? <Tr text="Scan to open the job posting on your phone" /> : booking ? <Tr text="Scan to book on your phone" /> : rental ? <Tr text="Scan to open this rental on your phone" /> : <Tr text="Scan to open on your phone" />}
+              {job ? <Tr text="Scan to open the job posting on your phone" /> : booking ? <Tr text="Scan to book on your phone" /> : rental ? tr('Scan to open this rental on your phone', 'Quét để mở tin cho thuê này trên điện thoại') : <Tr text="Scan to open on your phone" />}
             </p>
             <p className="mt-1 text-xs text-body">
-              {job ? <Tr text="Opens the same job posting, where you apply." /> : booking ? <Tr text="Opens the same booking page, with the discount code ready to enter." /> : rental ? <Tr text="Opens the same listing on the partner's website." /> : <Tr text="Opens the same product page on the shop's website." />}
+              {job ? <Tr text="Opens the same job posting, where you apply." /> : booking ? <Tr text="Opens the same booking page, with the discount code ready to enter." /> : rental ? tr('Opens the original ad on {site}.', 'Mở tin gốc trên {site}.', { site: partnerName }) : <Tr text="Opens the same product page on the shop's website." />}
             </p>
           </div>
         </div>

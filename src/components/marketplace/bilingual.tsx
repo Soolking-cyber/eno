@@ -28,7 +28,25 @@ import { useLanguage } from '@/context/language-context'
  * It is a client component because `tr` comes from the language context; the page around it stays a
  * server component and passes the constants down as plain strings.
  */
-export function Bilingual({ en, vi }: { en: string; vi: string }) {
+export function Bilingual({ en, vi, values }: {
+  en: string
+  vi: string
+  /**
+   * `{key}` placeholders filled AFTER translation, so a name or a number is never typed into the copy
+   * and the nine machine-translated languages translate the template, not one instance of it.
+   * split/join rather than a pattern replace, so a `$&` in a value prints as typed.
+   * ⚠️ A TRANSLATION WHOSE PLACEHOLDERS ARE NOT EXACTLY THE ENGLISH TEMPLATE'S FALLS BACK TO THE
+   * ENGLISH. The machine-translation layer does not protect `{…}` tokens: "…on {sitio}." would print
+   * the token and drop the one fact the sentence carries, and an added or doubled token would print
+   * raw. So the rule is the whole set, compared as a sorted list — not "is {site} still in there".
+   */
+  values?: Record<string, string>
+}) {
   const { tr } = useLanguage()
-  return <>{tr(en, vi)}</>
+  const t = tr(en, vi)
+  if (!values) return <>{t}</>
+  const tokens = (x: string) => (x.match(/\{[^{}]*\}/g) ?? []).sort().join('\u0000')
+  let out = tokens(t) === tokens(en) ? t : en
+  for (const [k, v] of Object.entries(values)) out = out.split(`{${k}}`).join(v)
+  return <>{out}</>
 }
