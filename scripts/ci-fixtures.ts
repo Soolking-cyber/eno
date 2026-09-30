@@ -103,6 +103,27 @@ const LISTINGS = [
   { id: 'ci-l-6', title: 'Fixture bicycle', price: 1_200_000, cat: 'vehicles', city: 'Da Nang' },
 ]
 
+/**
+ * ONE IMPORTED RENTAL (SEO wave B, P2) — a Chợ Tốt Nhà reference listing, the shape the listing
+ * page's provenance line, its RealEstateListing markup and the absence of eno's report row are about.
+ *
+ * ⚠️ OUTSIDE `LISTINGS` ON PURPOSE. Those six are "every fixture the home feed renders" and the
+ * no-overflow card count; this row is filed under the importer's own storefront, not the fixture
+ * shop, and is OLDER than all six (and posted there earlier still), so no "newest" or first-page
+ * assertion can meet it. Mid-range price: neither the cheapest nor the dearest row anywhere.
+ * ⚠️ THE SELLER ID IS THE REAL IMPORTER'S (IMPORT_SELLERS, src/lib/import-sellers.ts) — the line is
+ * keyed on it — and so is the storefront name the page prints. No owner: an importer's storefront
+ * belongs to no profile.
+ */
+const IMPORT_SELLER_ID = 'nhatot-import-seller-0001'
+const IMPORT_SELLER_NAME = 'Nhatot.com'
+const IMPORT_LISTING = {
+  id: 'ci-l-import',
+  title: 'Fixture imported flat',
+  price: 9_800_000,
+  affiliateUrl: 'https://www.nhatot.com/ci-fixture-imported-flat.htm',
+}
+
 const IMAGE = '/icons/ui/rest/camera.svg'
 
 async function profile(id: string, email: string, displayName: string) {
@@ -169,6 +190,39 @@ async function main() {
     }
     await db.listing.upsert({ where: { id: l.id }, update: data, create: { id: l.id, ...data } })
   }
+
+  // The imported rental (see IMPORT_LISTING). Created an hour before the oldest LISTINGS row, and
+  // "posted there" a day before that — the source's own date, which is what the page prints for it.
+  await db.seller.upsert({
+    where: { id: IMPORT_SELLER_ID },
+    // ownerId null on BOTH halves, so a re-run cannot inherit an owner from an earlier state.
+    update: { name: IMPORT_SELLER_NAME, ownerId: null },
+    create: { id: IMPORT_SELLER_ID, name: IMPORT_SELLER_NAME, ownerId: null },
+  })
+  const importCreatedAt = new Date(now - LISTINGS.length * 3_600_000)
+  const importData = {
+    title: IMPORT_LISTING.title,
+    description: `${IMPORT_LISTING.title} — a deterministic CI fixture of an imported rental. Not a real listing.`,
+    price: IMPORT_LISTING.price,
+    priceUnit: 'VND/month',
+    listingType: 'rent',
+    subcategorySlug: 'apartment-rental',
+    location: 'District 7, Ho Chi Minh City',
+    district: 'District 7',
+    city: 'Ho Chi Minh City',
+    areaM2: 55,
+    attributes: JSON.stringify({ bedrooms: '2', bathrooms: '1' }),
+    affiliateUrl: IMPORT_LISTING.affiliateUrl,
+    images: JSON.stringify([IMAGE]),
+    categoryId: categories.get('rentals')!,
+    sellerId: IMPORT_SELLER_ID,
+    verified: true,
+    status: 'active',
+    searchText: `${IMPORT_LISTING.title} district 7 ho chi minh city`.toLowerCase(),
+    createdAt: importCreatedAt,
+    postedAt: new Date(importCreatedAt.getTime() - 24 * 3_600_000),
+  }
+  await db.listing.upsert({ where: { id: IMPORT_LISTING.id }, update: importData, create: { id: IMPORT_LISTING.id, ...importData } })
 
   // The one row the marketplace must never show. Same shape as the others so a leak is a
   // visible product card, not a subtle field difference.

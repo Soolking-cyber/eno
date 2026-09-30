@@ -84,7 +84,7 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   'scripts/hide-imageless-imports.ts': { count: 2, why: 'operator repair script over the platform import sellers' },
   'scripts/seed-visa-shop.mjs': { count: 4, why: 'services-edition desk seed (platform seller)' },
   'scripts/seed-trip-desk.mjs': { count: 2, why: 'services-edition trip desk seed (platform seller)' },
-  'scripts/ci-fixtures.ts': { count: 4, why: 'CI fixture data on a disposable database (2 inline + 2 payload literals)' },
+  'scripts/ci-fixtures.ts': { count: 5, why: 'CI fixture data on a disposable database (2 inline + 3 payload literals; the third is the imported rental ci-l-import, P2)' },
   'scripts/import-partners.ts': { count: 1, why: 'partner-catalogue importer — payload literal; refuses a storefront with an ownerId' },
   'scripts/import-supersports.ts': { count: 1, why: 'affiliate importer — payload literal; refuses a storefront with an ownerId' },
   'scripts/import-accesstrade.ts': { count: 1, why: 'affiliate importer — payload literal; refuses a storefront with an ownerId' },

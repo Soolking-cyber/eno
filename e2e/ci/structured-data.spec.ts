@@ -11,7 +11,10 @@ import { test, expect, type APIRequestContext } from '@playwright/test'
 //  - `ci-l-4` (a `sell` row in rentals, bare unit 'month', no subcategory): a RealEstateListing whose
 //    mainEntity is a Place, with a LeaseOut offer priced per month, and no Product anywhere;
 //  - `ci-l-1` (a plain electronics row, no condition, a private seller): a Product with no expiry,
-//    return policy, shipping terms or condition, sold by a Person.
+//    return policy, shipping terms or condition, sold by a Person;
+//  - `ci-l-import` (P2: a Chợ Tốt Nhà apartment, unit 'VND/month'): a RealEstateListing of an
+//    Apartment, leased per month, with no seller — the portal is not the landlord — and no datePosted
+//    (decision S-c: an import's stored dates are not the listing's).
 //
 // ⛔ Fixture-backed like the rest of e2e/ci (scripts/ci-fixtures.ts). Never point E2E_CI_BASE at
 // production.
@@ -75,6 +78,24 @@ for (const locale of ['en-US', 'vi-VN']) {
       const { keys, types } = keysAndTypes(items)
       expect(types.has('Product')).toBe(false)
       for (const k of ['seller', 'itemCondition', 'availability', 'priceValidUntil']) expect(keys.has(k), k).toBe(false)
+    })
+
+    test('ci-l-import, an imported rental: an Apartment leased per month, with no seller and no datePosted', async ({ request }) => {
+      const { canonical, items, crumbs } = await readLd(request, '/listings/ci-l-import', locale)
+      expect(crumbs).toHaveLength(1)
+      expect(items).toHaveLength(1)
+      const n = items[0]
+      expect(n['@type']).toBe('RealEstateListing')
+      expect(n.url).toBe(canonical)
+      expect((n.mainEntity as Node)['@type']).toBe('Apartment')
+      const offer = n.offers as Node
+      expect(offer.businessFunction).toBe(LEASE_OUT)
+      const spec = offer.priceSpecification as Node
+      expect(spec).toMatchObject({ '@type': 'UnitPriceSpecification', price: 9_800_000, priceCurrency: 'VND' })
+      expect(spec.referenceQuantity).toEqual({ '@type': 'QuantitativeValue', value: 1, unitCode: 'MON' })
+      const { keys, types } = keysAndTypes(items)
+      expect(types.has('Product')).toBe(false)
+      for (const k of ['seller', 'provider', 'datePosted', 'itemCondition', 'priceValidUntil']) expect(keys.has(k), k).toBe(false)
     })
 
     test('ci-l-1, goods: a Product with no expiry, returns, shipping or condition, sold by a Person', async ({ request }) => {

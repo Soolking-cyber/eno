@@ -86,6 +86,19 @@ async function hydratedRow(page: Page): Promise<Locator> {
   return row
 }
 
+/**
+ * ⛔ NONE ON AN IMPORTED LISTING (P2). eno runs no report-and-dispute process over a rental on
+ * someone else's site, so the row (and the "pay the seller after meeting" advice behind it) would
+ * promise recourse that does not exist; the SafetyStrip carries that page's advice instead. This is
+ * the fixture-backed half of the count-0 check e2e/guest/listing.spec.ts makes on production partners.
+ */
+test('an imported rental (ci-l-import) has no reports-and-disputes row', async ({ page }) => {
+  await page.goto('/listings/ci-l-import')
+  // Anchor on the partner CTA first, so the zero below is about a rendered page.
+  await expect(page.locator('[data-affiliate-cta]')).toHaveCount(1)
+  await expect(page.locator(ROW)).toHaveCount(0)
+})
+
 for (const [locale, label, title, safetyHeading] of [
   ['en-US', 'Reports & disputes', 'How reports and disputes work', 'What we do — and what we don’t'],
   ['vi-VN', 'Báo cáo & khiếu nại', 'Cách xử lý báo cáo và khiếu nại', 'Những gì chúng tôi làm — và không làm'],
