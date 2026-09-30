@@ -15,12 +15,12 @@ import { scopedListingWhere } from '@/lib/edition-scope'
  * sync — fills a window with its own rows, and everything older silently drops out: districts that
  * only older stock covers lose their combo URL, and their sellers' storefronts leave the sitemap,
  * with nothing reporting it. The fix is not a bigger number: the derivations are now whole-table
- * GROUP BYs (src/app/sitemaps/pages.xml/route.ts), and the listing URLs are paged into as many
+ * GROUP BYs (src/app/sitemaps/pages.xml/build.ts), and the listing URLs are paged into as many
  * children as the count needs.
  *
  * ⚠️ WHAT "EVERY PUBLIC LISTING" MEANS HERE IS UNCHANGED: `submittedListingWhere()` below. Imported
  * reference/affiliate rows stay crawlable but NOT submitted — the owner's 2026-09-17 decision, whose
- * reasoning sits in pages.xml/route.ts beside the old listing loop. Paging does not widen the set;
+ * reasoning sits in pages.xml/build.ts beside the old listing loop. Paging does not widen the set;
  * it stops the set being truncated.
  */
 
@@ -45,7 +45,7 @@ export function siteOrigin(): string {
  *   · `verified: true, status: 'active'` — exactly what the PDP serves without `noindex`
  *     (src/app/[lang]/listings/[id]/(pdp)/page.tsx: robots is undefined only for verified+active).
  *   · `scopedListingWhere` — the edition boundary: the licensed marketplace never submits the desk.
- *   · `affiliateUrl: null` — imported stock is crawlable, not submitted (see pages.xml/route.ts).
+ *   · `affiliateUrl: null` — imported stock is crawlable, not submitted (see pages.xml/build.ts).
  *
  * ⚠️ NESTED IN AN `AND`, NOT SPREAD: whatever shape scopedListingWhere returns, the extra key cannot
  * collide with it (the note that used to sit on this query in sitemap.xml/route.ts).

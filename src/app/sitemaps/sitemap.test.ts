@@ -194,6 +194,8 @@ vi.mock('@/lib/edition-scope', () => ({
 import { GET as indexGET } from '@/app/sitemap.xml/route'
 import { GET as pagesGET } from '@/app/sitemaps/pages.xml/route'
 import { GET as childGET } from '@/app/sitemaps/[file]/route'
+import { buildPagesSitemap, RENT_FROZEN_PATHS } from '@/app/sitemaps/pages.xml/build'
+import { collectSitemaps } from '@/app/api/cron/indexnow/collect'
 import { LISTINGS_PER_SITEMAP, listingSitemapCount, parseListingSitemapFile } from '@/lib/sitemap'
 import { MIN_INDEXABLE_LISTINGS } from '@/lib/index-floor'
 import { storefrontCanonical } from '@/lib/storefront'
@@ -678,5 +680,71 @@ describe('the pages child: lastmod from what each page shows', () => {
       const named = /\bmodel:\s*IPHONE_DUO_MODEL\b/.test(src) ? IPHONE_DUO_MODEL : literal
       expect(named, dir).toBe(m)
     }
+  })
+})
+
+/**
+ * ⛔ THE BUILDER IS WHAT THE ROUTE SERVES (SEO wave B, I4 moved the route's body into build.ts so the
+ * IndexNow cron can read it in-process). `'require'` is the route's own mode; `'optional'` differs only
+ * when the rent snapshot is unknown, and then only by the rent index's URL, which it FREEZES.
+ */
+describe('the pages builder and the IndexNow collector', () => {
+  const fixture = () => [
+    row({ id: 'own-1', district: 'Quận 1', categoryId: 'cat-electronics' }),
+    row({ id: 'imp-1', affiliateUrl: 'https://nhatot.com/x', sellerId: 'import-seller', categoryId: 'cat-rentals', district: 'Quận 1' }),
+    row({ id: 'desk-1', sellerId: 'desk-seller' }),
+  ]
+
+  it("'require' mode is byte-identical to the route, known or unknown snapshot, on both editions", async () => {
+    h.rows = fixture()
+    for (const [services, rent] of [[false, { known: false }], [false, { known: true, index: { computedAt: '2026-09-29T01:00:00.000Z' } }], [true, { known: false }]] as const) {
+      h.services = services
+      h.rent = rent as RentLookup
+      const built = await buildPagesSitemap({ rentIndex: 'require' })
+      expect(built.frozen).toEqual([])
+      expect(built.xml).toBe(await (await pagesGET()).text())
+    }
+  })
+
+  it("'optional' mode with a known snapshot is the same document, nothing frozen", async () => {
+    h.rows = fixture()
+    h.rent = { known: true, index: { computedAt: '2026-09-29T01:00:00.000Z' } }
+    const opt = await buildPagesSitemap({ rentIndex: 'optional' })
+    expect(opt.frozen).toEqual([])
+    expect(opt.xml).toBe((await buildPagesSitemap({ rentIndex: 'require' })).xml)
+  })
+
+  it("'optional' mode with an unknown snapshot freezes the rent index's URLs and leaves them out — nothing else differs", async () => {
+    h.rows = fixture()
+    h.rent = { known: false }
+    const opt = await buildPagesSitemap({ rentIndex: 'optional' })
+    expect(opt.frozen).toEqual([...RENT_FROZEN_PATHS])
+    const req = (await buildPagesSitemap({ rentIndex: 'require' })).xml
+    expect(locs(opt.xml)).toEqual(locs(req).filter((u) => u !== `${HOST}/hcmc-rent-index`))
+    expect(locs(req)).toContain(`${HOST}/hcmc-rent-index`)
+  })
+
+  it("'optional' mode on eno.forum freezes nothing and never reads the snapshot", async () => {
+    h.services = true
+    const opt = await buildPagesSitemap({ rentIndex: 'optional' })
+    expect(opt.frozen).toEqual([])
+    expect(h.rentReads).toBe(0)
+  })
+
+  it('the collector reads every child in-process: own stock only, never an import or the desk, frozen passed through', async () => {
+    h.rows = fixture()
+    h.rent = { known: false }
+    const got = await collectSitemaps()
+    const urls = [...got.urls.keys()]
+    expect(urls).toContain(`${HOST}/listings/own-1`)
+    expect(urls).not.toContain(`${HOST}/listings/imp-1`)
+    expect(urls).not.toContain(`${HOST}/listings/desk-1`)
+    expect(urls.every((u) => new URL(u).host === 'eno.vn')).toBe(true)
+    expect(urls).not.toContain(`${HOST}/hcmc-rent-index`)
+    expect(got.frozen).toEqual([...RENT_FROZEN_PATHS])
+    expect(got.children.map((c) => c.path)).toEqual(['/sitemaps/pages.xml', '/sitemaps/listings-0.xml'])
+    // The pages child's URLs are the builder's, lastmods included.
+    const pages = locs((await buildPagesSitemap({ rentIndex: 'optional' })).xml)
+    for (const u of pages) expect(got.urls.has(u), u).toBe(true)
   })
 })

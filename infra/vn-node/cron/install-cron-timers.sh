@@ -43,6 +43,11 @@ declare -A SCHED=(
   # outbound jobs never overlap, and squarely outside VN shopping hours because this one re-reads
   # thirteen small shops on shared hosting rather than calling one datafeed API.
   [partner-stock]="*-*-* 19:00:00 UTC"
+  # IndexNow pings for eno.vn's changed URLs (SEO wave B, I4). Twice a day, so a trip's hold ripens on
+  # its third run, 24 h after the first (src/lib/indexnow-diff.ts); the deploy also calls it once.
+  # ⛔ DORMANT UNTIL INDEXNOW_KEY IS IN THE eno-vn CONTAINER: without it every run answers 200
+  # {skipped:"no_key"} and reads and writes nothing.
+  [indexnow]="*-*-* 01,13:30:00 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It is safe to
 # enable because it writes only price/affiliateUrl on imported rows and emails nobody — and it
@@ -56,7 +61,10 @@ declare -A SCHED=(
 # catalogue has been imported, so installing it before the import lands is harmless.
 # ⛔ AND IT DECLINES TO RETIRE ANYTHING ON AN INCOMPLETE FETCH — see MIN_ROWS_TO_RECONCILE in the
 # route. A shop whose host has a bad minute reports `reconcileSkipped`, not a sold-out catalogue.
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock)
+# ⚠️ indexnow reaches OUT to www.bing.com with at most a few hundred URLs, twice a day, and only once a
+# key is set. It writes only its own kv rows (indexnow:*). A guard trip exits non-zero on purpose (409):
+# the unit then shows in `systemctl --failed` until the hold re-baselines or someone runs ?rebaseline=1.
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow)
 # Installed, NOT enabled: these send email to real people.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 # Installed, NOT enabled: the FIRST run acts on a policy nobody has acted on yet — every decided
@@ -64,6 +72,13 @@ EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 # included (VERIFICATION_DOC_RETENTION_MS). Enable it once that retention is confirmed:
 #   systemctl enable --now eno-cron-business-verification-retention.timer
 POLICY=(business-verification-retention)
+
+# ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
+# that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the
+# EMAIL timers (the loop at the end), which is right before cutover and wrong on a box whose email
+# crons an operator has since enabled. Adding one new job must not switch the digests off.
+ONLY="${ENO_CRON_ONLY:-}"
+if [ -n "$ONLY" ] && [ -z "${SCHED[$ONLY]:-}" ]; then echo "ENO_CRON_ONLY=$ONLY: no such job" >&2; exit 1; fi
 
 install -d -m 0755 /opt/eno/bin
 cat > /opt/eno/bin/eno-cron.sh <<'RUN'
@@ -87,6 +102,7 @@ RUN
 chmod +x /opt/eno/bin/eno-cron.sh
 
 for job in "${!SCHED[@]}"; do
+  [ -n "$ONLY" ] && [ "$job" != "$ONLY" ] && continue
   # ⛔ affiliate-prices RUNS ON BOTH EDITIONS. Its DB work is idempotent (the second call finds
   # nothing to change), but `revalidatePath` only flushes the container that served the request —
   # and the box runs two off one shared database. Calling only :3001 leaves eno.forum serving the
@@ -101,6 +117,9 @@ for job in "${!SCHED[@]}"; do
   # reads the visa documents table). It is called on eno.forum:3002 and nowhere else.
   TARGET="$HOST_HEADER $PORT"
   [ "$job" = storage-tombstones ] && TARGET="eno.forum 3002"
+  # ⚠️ indexnow is eno.vn's ONLY, whatever host this installer was run for: the route 404s on the
+  # services edition, and IndexNow is told about https://eno.vn URLs only.
+  [ "$job" = indexnow ] && TARGET="eno.vn 3001"
   cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT
 [Unit]
 Description=eno cron: $job
@@ -122,6 +141,18 @@ WantedBy=timers.target
 UNIT
 done
 systemctl daemon-reload
+if [ -n "$ONLY" ]; then
+  # A loop, not `printf | grep -q`: under pipefail grep's early exit can SIGPIPE printf and read as "no".
+  safe=0; for j in "${SAFE[@]}"; do [ "$j" = "$ONLY" ] && safe=1; done
+  if [ "$safe" = 1 ]; then
+    # A clear yes or no: a one-job install is where the operator expects one (opus, diff review).
+    if systemctl enable --now "eno-cron-$ONLY.timer"; then echo "  enabled  eno-cron-$ONLY.timer"
+    else echo "  FAILED to enable eno-cron-$ONLY.timer" >&2; exit 1; fi
+  else
+    echo "  installed, NOT enabled eno-cron-$ONLY.timer (not in SAFE — enable it by hand when intended)"
+  fi
+  exit 0
+fi
 for j in "${SAFE[@]}"; do systemctl enable --now "eno-cron-$j.timer" >/dev/null 2>&1 && echo "  enabled  eno-cron-$j.timer"; done
 # ⚠️ Units for POLICY jobs are written by the SCHED loop above like every other job — only the
 # enable is left to the operator, and this line is how they learn that (and how POLICY is consumed).

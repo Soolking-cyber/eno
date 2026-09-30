@@ -811,3 +811,19 @@ else
   timeout --foreground 900 bash "$APP/infra/vn-node/eno-warmup.sh" --sha="$(git rev-parse --short HEAD)" --since="$WARM_SINCE" \
     || warn "warm-up: exit $? (advisory; the deploy itself is complete, see /opt/eno/warmup/)"
 fi
+
+say "12. IndexNow (advisory: nothing here can fail or roll back this deploy)"
+# SEO wave B, I4. One run of the IndexNow cron right after the warm-up, so the URLs this deploy
+# changed are offered now rather than at the next 01:30/13:30 UTC timer. The route builds the sitemaps
+# in-process and diffs them against its stored snapshot (src/app/api/cron/indexnow/route.ts).
+# ⛔ DORMANT UNTIL INDEXNOW_KEY IS SET: the route then answers 200 {skipped:"no_key"} and touches nothing.
+# ⛔ `|| warn`, NEVER `|| bad`. `bad` (top of this file) only prints a red [XX] line and returns 0 — it
+# counts nothing — so `|| bad` would never fail a deploy, but it would print an advisory miss exactly like
+# a real failure. What does fail a deploy is a checked return code (probe()'s and purge_edge()'s `fail=1`,
+# turned into `restore; exit 1` / `exit 1` in steps 8–9) or an explicit `exit 1`; none of those is reachable
+# from here: the probe passed, the sha is recorded and deploy-incomplete is gone (step 9's tail). A 409
+# (guard tripped, a hold is open), a 503 (a sitemap source failed) or a timeout is a yellow line only.
+# ⚠️ `timeout 300`: eno-cron.sh itself allows a request 900 s (install-cron-timers.sh), which is for
+# the long outbound crons; this one builds three sitemaps and sends at most one small POST.
+timeout 300 /opt/eno/bin/eno-cron.sh indexnow eno.vn 3001 \
+  || warn "indexnow: exit $? (advisory; see /tmp/eno-cron-indexnow.out)"

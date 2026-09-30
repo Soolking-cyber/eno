@@ -130,6 +130,9 @@ export type NicheApiErrorCode =
   // POST /api/rental-check — the operator address resolves to no profile; never open a thread nobody reads.
   | 'desk_unavailable'
   | 'empty_file'
+  // GET /api/cron/indexnow (SEO wave B, I4): 502 the engine refused the ping (400/403/422), 409 the
+  // mass-removal guard tripped, 503 a sitemap source failed. Read by the operator via eno-cron.sh.
+  | 'engine_rejected'
   | 'failed'
   | 'file_too_large'
   | 'fund_failed'
@@ -141,6 +144,7 @@ export type NicheApiErrorCode =
   | 'topup_unavailable'
   | 'fx_unavailable'
   | 'geocode_failed'
+  | 'guard_tripped'
   | 'id_number_required'
   | 'image_analysis_rate_limited'
   | 'image_download_failed'
@@ -413,6 +417,7 @@ export type NicheApiErrorCode =
   // which is run by hand and is NOT part of a deploy — so its absence is a real operational state
   // the cron route has to be able to report rather than swallow.
   | 'social_posts_missing'
+  | 'source_failure'
   | 'store_failed'
   | 'submission_window_closed'
   | 'taken'
@@ -706,6 +711,9 @@ const ALL = [
   'vertex_not_configured',
   'window_closed',
   'social_posts_missing',
+  'engine_rejected',
+  'guard_tripped',
+  'source_failure',
 ] as const satisfies readonly ApiErrorCode[]
 
 /**

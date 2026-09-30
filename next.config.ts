@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { appRootSegments, markdown404Source } from "./src/lib/root-segments";
+import { INDEXNOW_KEY_REWRITE } from "./src/lib/indexnow-key";
 import type { NextConfig } from "next";
 
 /**
@@ -1075,6 +1076,14 @@ const nextConfig: NextConfig = {
         { source: "/auth.md", destination: "/md/auth" },
         { source: "/feeds/facebook-catalog.csv", destination: "/api/feeds/facebook-catalog" },
         { source: "/feeds/google-shopping.xml", destination: "/api/feeds/google-shopping" },
+        /**
+         * ── THE INDEXNOW KEY FILE (SEO wave B, I4) ──────────────────────────────────────────────
+         * `/<key>.txt` → /api/indexnow-key?k=<key>, which answers 200 only for the exact key in
+         * INDEXNOW_KEY on the marketplace edition and 404s otherwise — so with no key set this entry
+         * serves nothing. src/lib/indexnow-key.ts says why the path routes here safely (robots.txt and
+         * llms.txt win first, the proxy skips dotted paths, a handle cannot hold a dot).
+         */
+        INDEXNOW_KEY_REWRITE,
       ],
       /**
        * ⛔ THE 404 MARKDOWN NEGOTIATION MUST BE `fallback` AND NOTHING ELSE IS SAFE.
