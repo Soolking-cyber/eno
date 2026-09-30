@@ -219,6 +219,10 @@ describe('isRequiredFacet — the publish gate', () => {
       // 2026-09-25: the rentals bathroom count is a FILTER the importers fill from the source; a
       // resident posting a room is never blocked on it (standing leniency policy).
       'rentals/bathrooms',
+      // 2026-09-30: apartment type (studio/duplex/penthouse/serviced/officetel) is a FILTER the
+      // importers fill from each source's own property-type field; a resident posting an ordinary
+      // flat has no type to pick, so it must never block publishing.
+      'rentals/aptType',
     ].sort())
   })
 

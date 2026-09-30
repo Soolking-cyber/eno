@@ -543,6 +543,31 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'fully', label: 'Furnished', labelVi: 'Nội thất đầy đủ' },
         { value: 'partly', label: 'Unfurnished', labelVi: 'Nhà trống' },
       ] },
+      // Owner, 2026-09-30: "proper classification for apartments duplex studio with balcony". Filled
+      // for imports by scripts/classify-apartment-rentals.ts from each source's OWN structured fields
+      // (its property-type field, never a guess from size). ⚠️ STUDIO LIVES HERE, not as bedrooms=0:
+      // sources list a studio as "1 bedroom", and rewriting that count would drop it out of the
+      // 1-bedroom chip — the bedrooms Studio chip stays empty and so stays hidden (offeredKeys).
+      { key: 'aptType', label: 'Apartment type', labelVi: 'Loại căn hộ', kind: 'toggle', optional: true,
+        subcats: ['apartment-rental'], options: [
+        { value: 'studio', label: 'Studio', labelVi: 'Studio' },
+        { value: 'duplex', label: 'Duplex', labelVi: 'Duplex' },
+        { value: 'penthouse', label: 'Penthouse', labelVi: 'Penthouse' },
+        // "/ mini" because the sources file both under one type (Nhà Tốt: "Căn hộ dịch vụ, mini"); a
+        // plain "Serviced" would promise housekeeping that a mini flat does not have.
+        { value: 'serviced', label: 'Serviced / mini', labelVi: 'Dịch vụ / mini' },
+        { value: 'officetel', label: 'Officetel', labelVi: 'Officetel' },
+      ] },
+      // MULTI-VALUED (a flat has a balcony AND a pool), so it is stored as `facetTokens`
+      // (src/lib/facet-tokens.ts), which only an importer can write — hence `derived`: the post
+      // wizard never asks for it and it never gates publishing, but it filters like any facet.
+      { key: 'amenities', label: 'Amenities', labelVi: 'Tiện ích', kind: 'toggle', derived: true,
+        subcats: ['apartment-rental'], options: [
+        { value: 'balcony', label: 'Balcony', labelVi: 'Ban công' },
+        { value: 'pool', label: 'Pool', labelVi: 'Hồ bơi' },
+        { value: 'gym', label: 'Gym', labelVi: 'Phòng gym' },
+        { value: 'pets', label: 'Pets allowed', labelVi: 'Cho nuôi thú cưng' },
+      ] },
       { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', kind: 'toggle',
         subcats: ['apartment-rental', 'house-rental', 'room-rental'], options: [
         { value: '0', label: 'Studio', labelVi: 'Studio' },

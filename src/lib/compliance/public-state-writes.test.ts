@@ -83,6 +83,8 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   'scripts/import-vehicle-rentals.ts': { count: 2, why: 'reference-listing importer (HCMC car + motorbike hire) onto ownerless per-source platform sellers pinned by id — the create-only status/verified (2); refuses an owned, renamed or badged seller' },
   'scripts/import-jobs.ts': { count: 3, why: 'reference-listing importer (linked job postings) onto ownerless per-board platform sellers — the create-only status/verified (2) + the dry-run sample literal; refuses an owned or badged seller (sellerRefusal)' },
   'scripts/hide-imageless-imports.ts': { count: 2, why: 'operator repair script over the platform import sellers' },
+  'scripts/retire-stale-batdongsan.ts': { count: 1, why: 'retire of the ownerless Batdongsan import seller’s apartment rows (pinned by id) to status stale — only the rollback .sql it WRITES TO A FILE, re-activating exactly those ids while still stale' },
+  'scripts/retire-rever-rentals.ts': { count: 1, why: 'liveness retire over the ownerless Rever.vn reference seller (pinned by id), apartments only — only the rollback .sql it WRITES TO A FILE, re-activating exactly the rows it marked that are still stale; the script itself only ever sets stale' },
   'scripts/seed-visa-shop.mjs': { count: 4, why: 'services-edition desk seed (platform seller)' },
   'scripts/seed-trip-desk.mjs': { count: 2, why: 'services-edition trip desk seed (platform seller)' },
   'scripts/ci-fixtures.ts': { count: 5, why: 'CI fixture data on a disposable database (2 inline + 3 payload literals; the third is the imported rental ci-l-import, P2)' },
