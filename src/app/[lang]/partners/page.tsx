@@ -82,8 +82,8 @@ export default function PartnersPage() {
          src/app/[lang]/html-nesting-contract.test.ts fails the build on a block element here. */
       intro={
         <Bilingual
-          en="A handful of companies on eno carry the Partner badge — a shield marked P. It is not advertising and it cannot be bought — eno goes looking for the best company in a category, checks who they actually are, and puts its own name next to theirs."
-          vi="Chỉ một số ít công ty trên eno mang huy hiệu Đối tác — hình chiếc khiên có chữ P. Đây không phải quảng cáo và không thể mua được — eno tự tìm kiếm công ty tốt nhất trong từng danh mục, xác minh rõ họ thực sự là ai, rồi mới đặt tên mình bên cạnh họ."
+          en="A handful of companies on eno carry the Partner badge — a green shield. It is not advertising and it cannot be bought — eno goes looking for the best company in a category, checks who they actually are, and puts its own name next to theirs."
+          vi="Chỉ một số ít công ty trên eno mang huy hiệu Đối tác — hình chiếc khiên màu xanh lá. Đây không phải quảng cáo và không thể mua được — eno tự tìm kiếm công ty tốt nhất trong từng danh mục, xác minh rõ họ thực sự là ai, rồi mới đặt tên mình bên cạnh họ."
         />
       }
       sections={[

@@ -8,7 +8,7 @@ import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
 /**
- * THE OFFICIAL-PARTNER BADGE — a shield + "P" plate in partner green that explains itself when tapped.
+ * THE OFFICIAL-PARTNER BADGE — a shield plate (icon only since 2026-09-30) in partner green that explains itself when tapped.
  * (Since 2026-09-14; the history below is of the worded pill it replaced — see the plate comment.)
  *
  * Owner, 2026-08-13: "official partner badge with gold outline similar to trust badge, short
@@ -102,14 +102,15 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
             declaration, the fix the owner asked for on 2026-08-13 when a separately-sized pill measured taller.
             ⛔ THE SAME SHIELD AS THE TRUST CHIP, NOT A HANDSHAKE (owner, 2026-09-14: "just have the same shield icon for
             partners not the waving one"). A handshake shipped for a few hours in 67802694; the owner prefers one mark
-            across both badges, told apart by the partner green and the "P" where the trust chip has a number.
+            across both badges, told apart by the partner green.
+            ⛔ ICON ONLY SINCE 2026-09-30 (owner: "partner chip leave only icon and remove P EVERYWHERE") — the "P" is gone.
             This reverses the 2026-08-13 rule that the word "Partner" stays at every width — the owner's call. The full
             "Official partner" is still the accessible name (role=img / the link's label) and the tooltip.
             ⚠️ THE SAME `.badge-plate` AS THE TRUST CHIP, tinted and inked with the partner green; the contrast
             measurements are on that rule in globals.css. */}
         <span
           className={cn(
-            'badge-plate inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-bold leading-none',
+            'badge-plate inline-flex shrink-0 items-center justify-center rounded-full px-1 py-0.5 text-2xs font-bold leading-none',
             className,
           )}
           style={{ '--plate-tint': 'var(--partner-ink)', '--plate-ink': 'var(--partner-ink)' } as React.CSSProperties}
@@ -120,9 +121,6 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
               <path key={i} d={p.d} fill="currentColor" fillRule={p.evenOdd ? 'evenodd' : undefined} clipRule={p.evenOdd ? 'evenodd' : undefined} />
             ))}
           </svg>
-          {/* Through tr() like every visible string (react/jsx-no-literals). "P" in both languages is the
-              owner's letter; the Vietnamese side is where an "Đ" would go if that is ever asked for. */}
-          {tr('P', 'P')}
         </span>
       </LinkOrSpan>
     </Tooltip>

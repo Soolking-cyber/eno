@@ -1451,7 +1451,6 @@ export const UI_STRINGS: string[] = [
   "Out of its cover, held flat, no glare on the two code lines.",
   "Outdoor & cycling",
   "Outstanding businesses",
-  "P",
   "PC components",
   "PDF, up to 10 MB. Private: a school gets it only when you tap “Share my phone, email & CV” in your chat with them.",
   "PGCE",

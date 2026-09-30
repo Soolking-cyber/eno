@@ -424,10 +424,11 @@ export function MobileNav() {
               {/* `ring-(--tab-surface)` — a 2px cut-out in the colour of whatever is directly under the badge: the
                   pill (set on the <nav>), or the capsule while this tab is active (set by TabFace). A fixed
                   `ring-popover` drew a pill-coloured halo on the tinted capsule — a white hole in light mode. */}
-              {/* ⛔ GREY, NOT RED (owner, O-08 G-SAVED-BADGE): the Saved count is a tally of a list the visitor
-                  built, not news — `counter-neutral`. Red stays for the one count that IS news, Messages. */}
+              {/* (HISTORY — reverted below) GREY, NOT RED (owner, O-08 G-SAVED-BADGE): the Saved count is a tally of a list the visitor
+                  built, not news — `counter-neutral`. Red stays for the one count that IS news, Messages.
+                    ⛔ REVERTED 2026-09-30 (owner: "the counter for saved and messages is gray … make it red as before"): red `counter` again. */}
               {count > 0 && (
-                <Badge variant="counter-neutral" size="count" className="absolute -right-2 -top-1 ring-2 ring-(--tab-surface)">
+                <Badge variant="counter" size="count" className="absolute -right-2 -top-1 ring-2 ring-(--tab-surface)">
                   {count}
                 </Badge>
               )}

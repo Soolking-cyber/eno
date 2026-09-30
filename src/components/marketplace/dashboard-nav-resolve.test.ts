@@ -107,10 +107,10 @@ describe('resolveNavGroups binding', () => {
     expect(byHref).toEqual({ '/dashboard': undefined, '/messages': 7, '/saved': 3 })
   })
 
-  it('O-08: Messages is an ALERT (red) count, Saved a NEUTRAL (grey) tally, everything else has no tone', () => {
+  it('Messages and Saved are both red ALERT counts (O-08 grey Saved reverted by the owner 2026-09-30), everything else has no tone', () => {
     const groups = resolveNavGroups(FIXTURE, ctx({ counters: { unread: 7, saved: 3 } }))
     const tone = Object.fromEntries(groups[0].items.map((i) => [i.href, i.badgeTone]))
-    expect(tone).toEqual({ '/dashboard': undefined, '/messages': 'alert', '/saved': 'neutral' })
+    expect(tone).toEqual({ '/dashboard': undefined, '/messages': 'alert', '/saved': 'alert' })
   })
 
   it('belt-and-braces: a dynamic storefront row without a seller never renders its placeholder href', () => {

@@ -77,7 +77,8 @@ const toRail = (it: NavItem, ctx: NavResolveCtx): ResolvedNavItem | null => {
     exact: it.exact,
     external: it.external,
     badge: it.badge === 'unread' ? ctx.counters.unread : it.badge === 'saved' ? ctx.counters.saved : undefined,
-    badgeTone: it.badge === 'unread' ? 'alert' : it.badge === 'saved' ? 'neutral' : undefined,
+    // Saved went grey on 2026-09-30 (O-08) and back to red the same day (owner: "make it red as before").
+    badgeTone: it.badge === 'unread' || it.badge === 'saved' ? 'alert' : undefined,
   }
 }
 
