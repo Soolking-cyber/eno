@@ -70,6 +70,7 @@ export const CATEGORY_ART_SLUGS = [
   'hobbies-sports',
   'pets',
   'jobs',
+  'teachers',
   'services',
   'community-events',
   'tickets-travel',

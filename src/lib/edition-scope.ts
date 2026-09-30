@@ -5,6 +5,7 @@ import { IS_SERVICES } from '@/lib/edition'
 import { VISA_SHOP_OWNER_EMAILS } from '@/lib/visa-shop'
 import { TRIP_DESK_OWNER_EMAILS } from '@/lib/trips/dm-thread'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { FOREIGN_RENTAL_DESK_SELLER_ID, RENTAL_DESK_SELLER_ID, RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
 
 /**
@@ -471,11 +472,70 @@ async function requiredDeskSellerIds(action?: string): Promise<string[]> {
  * On the services edition this returns the caller's `where` untouched and adds no `AND` wrapper, so
  * eno.forum pays nothing — not even an extra array.
  */
-export async function scopedListingWhere<T extends object>(where: T): Promise<T | { AND: [T, { sellerId: { notIn: string[] } }] }> {
-  const scope = await marketplaceListingScope()
-  if (!scope.sellerId) return where
-  return { AND: [where, { sellerId: scope.sellerId }] }
+export async function scopedListingWhere<T extends object>(
+  where: T,
+  opts?: { teachers?: boolean },
+): Promise<T | { AND: Array<T | ScopeFragment> }> {
+  const [scope, teachersId] = await Promise.all([
+    marketplaceListingScope(),
+    opts?.teachers ? Promise.resolve(null) : teachersCategoryId(),
+  ])
+  const parts: ScopeFragment[] = []
+  if (scope.sellerId) parts.push({ sellerId: scope.sellerId })
+  if (teachersId) parts.push({ categoryId: { not: teachersId } })
+  if (!parts.length) return where
+  return { AND: [where, ...parts] }
 }
+
+type ScopeFragment = { sellerId?: { in?: string[]; notIn: string[] }; categoryId?: { not: string } }
+
+/**
+ * ⛔ TEACHER PROFILES ARE OUT OF EVERY LISTING QUERY UNLESS THE CALLER OPTS IN (owner, 2026-09-30).
+ * A teacher profile is materialised as a Listing so the explorer, PDP and chat can be reused — which
+ * means every rail, feed, "more from this seller", price-0 "free" filter, product feed and digest
+ * would show people as 0-VND products. Both plan reviewers (agy + Opus) refuted the first draft's
+ * denylist of those surfaces: a surface nobody listed leaks. So the exclusion is the DEFAULT, here,
+ * and only the teacher surfaces pass `{ teachers: true }`.
+ *
+ * ⚠️ KEYED ON categoryId, NOT listingType, FOR THE FEED COUNTS. The M2 count index is
+ * [verified, status, categoryId, sellerId]; a listingType predicate would push every whole-feed
+ * count back onto the 366 MB heap. Every teacher row lives in the `teachers` category (the teacher
+ * publish core is the only writer), so the two predicates select the same rows.
+ *
+ * ⚠️ NULL MEANS "NO SUCH CATEGORY ROW", which means no teacher listing can exist (Listing.categoryId
+ * is a required FK) — so skipping the predicate is exact, not fail-open. A database error THROWS.
+ */
+export const teachersCategoryId = cache(async (): Promise<string | null> => {
+  if (teachersIdMemo !== undefined && (teachersIdMemo !== null || Date.now() - teachersMissAt < TEACHERS_MISS_TTL_MS)) {
+    return teachersIdMemo
+  }
+  const row = await db.category.findUnique({ where: { slug: TEACHERS_CATEGORY_SLUG }, select: { id: true } })
+  // A FOUND id is memoised for the life of the process (the row is created once and never changes
+  // id). A MISS is memoised for a minute only (agy + Opus, commit gate 09-30): without it, every
+  // scoped read on a database that has no teachers row yet paid an extra round-trip, and with a
+  // permanent miss the exclusion would not start until a restart once the row is created.
+  teachersIdMemo = row?.id ?? null
+  if (!row) teachersMissAt = Date.now()
+  return teachersIdMemo
+})
+const TEACHERS_MISS_TTL_MS = 60_000
+let teachersIdMemo: string | null | undefined
+let teachersMissAt = 0
+
+/**
+ * The teacher exclusion as ONE `AND` element, for the few callers that compose their own AND array
+ * instead of going through `scopedListingWhere` (the explorer feed, trending, the concierge
+ * fallback). Null = nothing to add (a teacher surface, or no teachers category yet). Push it as its
+ * own element — never spread it beside a caller `categoryId`, which would overwrite one or the other.
+ */
+export async function teacherExclusion(opts?: { teachers?: boolean }): Promise<{ categoryId: { not: string } } | null> {
+  if (opts?.teachers) return null
+  const id = await teachersCategoryId()
+  return id ? { categoryId: { not: id } } : null
+}
+
+/** Tests only — the memo is process-wide, so each test that swaps the fixture must clear it. */
+export function resetTeachersCategoryIdForTests() { teachersIdMemo = undefined; teachersMissAt = 0 }
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────────
  * THE SHARED-DESTINATION HALF: an exclusion that is EDITION-INDEPENDENT on purpose.

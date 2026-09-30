@@ -3,7 +3,7 @@ import vnUnits from '@/data/vn-units.json'
 import { matchesProvinceRow, provinceCityAliases, provinceWhere, wardAliases, wardWhere } from './province-match'
 
 vi.mock('@/lib/db', () => ({ db: {} }))
-vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: unknown) => w, marketplaceListingScope: async () => ({}) }))
+vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: unknown) => w, marketplaceListingScope: async () => ({}), teacherExclusion: async () => null }))
 vi.mock('@/lib/serialize', () => ({ LISTING_CARD_SELECT: {}, serializeListingCard: (r: unknown) => r }))
 vi.mock('@/lib/translate', () => ({ localizeListingTitles: async (l: unknown) => l }))
 

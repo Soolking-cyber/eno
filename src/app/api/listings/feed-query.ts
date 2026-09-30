@@ -1,7 +1,8 @@
 // GET /api/listings query machinery: the ids fast-path, filter/where building from
 // search params, the orderBy branches, and the subcategory facet-count cache.
 // Extracted verbatim from route.ts — the route keeps the exported handlers only.
-import { marketplaceListingScope, scopedListingWhere } from '@/lib/edition-scope'
+import { marketplaceListingScope, teacherExclusion, scopedListingWhere } from '@/lib/edition-scope'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -146,7 +147,8 @@ export async function idsFastPath(searchParams: URLSearchParams): Promise<NextRe
   const ids = requested.slice(0, IDS_FAST_PATH_MAX)
   if (ids.length === 0) return NextResponse.json({ listings: [], total: 0, evaluated: [], complete: true })
   const rows = await db.listing.findMany({
-    where: await scopedListingWhere({ id: { in: ids }, verified: true, status: 'active' }),
+    // Explicit ids (saved, recently viewed) — a recruiter's saved teacher profiles must come back.
+    where: await scopedListingWhere({ id: { in: ids }, verified: true, status: 'active' }, { teachers: true }),
     select: LISTING_CARD_SELECT,
   })
   const byId = new Map(rows.map((r) => [r.id, serializeListingCard(r)]))
@@ -166,6 +168,12 @@ export type FeedFilterOptions = {
    * stripped. Used by resolveFeedFilters' fallback; every other caller leaves it alone.
    */
   inferDistrict?: boolean
+  /**
+   * Keep teacher profiles in the result even though no `category=teachers` is set. ONLY for the
+   * category-dimension facet count, which releases the category filter to ask "how many per
+   * category" — without this the Teachers tile always counts 0 and the rail hides it.
+   */
+  includeTeachers?: boolean
 }
 
 /** Parse the feed's search params and build the Prisma where clause + the tracked sub-filters. */
@@ -215,6 +223,11 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
    */
   const editionScope = await marketplaceListingScope()
   if (editionScope.sellerId) andFilters.push({ sellerId: editionScope.sellerId })
+  // ⛔ TEACHER PROFILES ONLY ON THE TEACHERS CATEGORY (2026-09-30). This feed composes its own AND
+  // array, so it does not inherit scopedListingWhere's default exclusion — without this, teacher
+  // cards would fill the home "all" feed, search and every facet count. Own element, as above.
+  const teacherScope = await teacherExclusion({ teachers: category === TEACHERS_CATEGORY_SLUG || opts.includeTeachers === true })
+  if (teacherScope) andFilters.push(teacherScope)
   /**
    * STOREFRONT SCOPE — `?seller=<id>`, sent by every query a shop's subdomain makes.
    *
@@ -606,7 +619,8 @@ export async function resolveFeedFilters(searchParams: URLSearchParams) {
   const f = await buildFeedFilters(searchParams)
   if (!f.districtInference || !hasPlainTextFallback(f.districtInference)) return f
   const anyRow = async (x: { andFilters: Prisma.ListingWhereInput[]; priceFilter: Prisma.ListingWhereInput | null }) =>
-    anyListingCached(await scopedListingWhere({ AND: x.andFilters.filter((c) => c !== x.priceFilter) }))
+    // `{ teachers: true }`: andFilters already carries buildFeedFilters' teacher decision.
+    anyListingCached(await scopedListingWhere({ AND: x.andFilters.filter((c) => c !== x.priceFilter) }, { teachers: true }))
   // ⚠️ A FAILED PROBE KEEPS THE DISTRICT READING (opus): the net must not turn a search that would
   // have answered into a 500. Failures are not cached, so the next request asks again.
   if (await anyRow(f).catch(() => true)) return f

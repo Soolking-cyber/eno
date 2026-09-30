@@ -63,6 +63,7 @@ export const PUBLISH_OUTCOME_COPY: Record<string, string> = {
   duplicate_listing: 'Duplicate of a listing already live',
   account_restricted: 'Account restricted by the trust gate',
   location_required: 'No location set',
+  category_not_postable: 'Tried to post into a form-only category (teachers)',
   // ⚠️ These four come from branches OUTSIDE publish-guard — resolve-seller.ts and the
   // enforcement gate in enforcement.ts. A reviewer's privacy challenge sent me to read every
   // remaining branch of the route, which is how they were found missing: they would have shown

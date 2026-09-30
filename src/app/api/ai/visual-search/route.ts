@@ -3,14 +3,14 @@ import { aiGuard } from '@/lib/ai-guard'
 import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
-import { TAXONOMY } from '@/lib/taxonomy'
+import { TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const MAX_BYTES = 12 * 1024 * 1024
-const CAT_SLUGS = TAXONOMY.map((c) => c.slug)
-const TAXONOMY_TEXT = TAXONOMY.map((c) => `${c.slug} (${c.name})`).join(', ')
+const CAT_SLUGS = TAXONOMY.filter((c) => isPostableCategory(c.slug)).map((c) => c.slug)
+const TAXONOMY_TEXT = TAXONOMY.filter((c) => isPostableCategory(c.slug)).map((c) => `${c.slug} (${c.name})`).join(', ')
 
 // Visual search: turn a TAKEN / UPLOADED / PASTED photo into a text search query
 // (+ best-guess category/brand) by reading the main subject with Gemini Vision,

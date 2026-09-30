@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { subcategoriesFor } from '@/lib/taxonomy'
 import { topSubcategories, type TopSubcategory } from './category-copy'
 import { scopedListingWhere } from '@/lib/edition-scope'
+// `{ teachers: true }` on every read here: each one is pinned to ONE categoryId, so the default
+// teacher exclusion (scopedListingWhere) can only ever empty /c/teachers — it hides nothing elsewhere.
 import { provinceWhere } from '@/lib/province-match'
 import { mergeDistrictGroups, type DistrictChip } from '@/lib/district-canonical'
 import { DISTRICTS_PROVINCE_CODE } from '@/components/marketplace/listings-explorer.constants'
@@ -41,7 +43,7 @@ export const loadDistrictChips = cache(async (categoryId: string, placesOnly = f
   const groups = await db.listing.groupBy({
     by: ['district'],
     // `placesOnly` for rentals: the chips lead to /c/rentals/<district>, which counts places (rental-places.ts).
-    where: await scopedListingWhere({ AND: [{ ...live(categoryId), district: { not: null } }, placesOnly ? RENTAL_PLACES : {}] }),
+    where: await scopedListingWhere({ AND: [{ ...live(categoryId), district: { not: null } }, placesOnly ? RENTAL_PLACES : {}] }, { teachers: true }),
     _count: { _all: true },
   })
   return mergeDistrictGroups(groups.map((g) => ({ district: g.district, count: g._count._all }))).filter((c) => isIndexableCount(c.count))
@@ -75,7 +77,7 @@ const HCMC_PROVINCE = (vnUnits as { code: string; nameEn: string }[]).find((u) =
  * may keep the "every seller has a public trust score" sentence (category-copy.ts).
  */
 export const loadLinkedCount = cache(async (categoryId: string): Promise<number> =>
-  db.listing.count({ where: await scopedListingWhere({ ...live(categoryId), affiliateUrl: { not: null } }) }),
+  db.listing.count({ where: await scopedListingWhere({ ...live(categoryId), affiliateUrl: { not: null } }, { teachers: true }) }),
 )
 
 /**
@@ -90,12 +92,12 @@ export const loadLinkedCount = cache(async (categoryId: string): Promise<number>
 export const loadRentalsFacts = cache(async (categoryId: string, _total: number): Promise<RentalsFacts | null> => {
   const [chips, total, inHcmc, linked, kinds] = await Promise.all([
     loadDistrictChips(categoryId, true),
-    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES] }) }),
-    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, provinceWhere(HCMC_PROVINCE)] }) }),
+    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES] }, { teachers: true }) }),
+    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, provinceWhere(HCMC_PROVINCE)] }, { teachers: true }) }),
     // By subcategory, so the homes' own linked tier comes from the same read (D1b, review): the homes
     // description and lede must not borrow a tier the offices set.
-    db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, { affiliateUrl: { not: null } }] }), _count: { _all: true } }),
-    db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere(live(categoryId)), _count: { _all: true } }),
+    db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, { affiliateUrl: { not: null } }] }, { teachers: true }), _count: { _all: true } }),
+    db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere(live(categoryId), { teachers: true }), _count: { _all: true } }),
   ])
   if (total === 0) return null
   const bySub = Object.fromEntries(kinds.map((k) => [k.subcategorySlug ?? '', k._count._all]))
@@ -167,8 +169,8 @@ const computeRentalsHeadline = async (categoryId: string): Promise<RentalsHeadli
   // ⛔ PLACES ONLY, like loadRentalsFacts: the H1 and title must name the same set the lede counts.
   // With no place live this is null and the page keeps the generic H1, as loadRentalsFacts does.
   const [inHcmc, kinds] = await Promise.all([
-    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, provinceWhere(HCMC_PROVINCE)] }) }),
-    db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES] }), _count: { _all: true } }),
+    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, provinceWhere(HCMC_PROVINCE)] }, { teachers: true }) }),
+    db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES] }, { teachers: true }), _count: { _all: true } }),
   ])
   const total = kinds.reduce((n, k) => n + k._count._all, 0)
   if (total === 0) return null
@@ -199,7 +201,7 @@ export const loadTopSubcategories = cache(
     if (total <= 0 || slug === 'rentals' || slug === 'jobs') return []
     const groups = await db.listing.groupBy({
       by: ['subcategorySlug'],
-      where: await scopedListingWhere({ ...live(categoryId), subcategorySlug: { not: null } }),
+      where: await scopedListingWhere({ ...live(categoryId), subcategorySlug: { not: null } }, { teachers: true }),
       _count: { _all: true },
     })
     return topSubcategories(groups.map((g) => ({ slug: g.subcategorySlug, count: g._count._all })), subcategoriesFor(slug), total)

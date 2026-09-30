@@ -6,7 +6,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { PostWizard, type ListingEditData } from '@/components/marketplace/post-wizard'
 import { safeParse, serializeCategoryBasic } from '@/lib/serialize'
-import { categoryHasBrand } from '@/lib/taxonomy'
+import { categoryHasBrand, isPostableCategory, NON_POSTING_CATEGORIES } from '@/lib/taxonomy'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,11 +37,13 @@ export default async function EditListingPage({ params }: Props) {
       },
     }),
     // Categories for the wizard's (locked-in-edit) picker — same shape as /post.
-    db.category.findMany({ orderBy: { name: 'asc' } }),
+    db.category.findMany({ where: { slug: { notIn: [...NON_POSTING_CATEGORIES] } }, orderBy: { name: 'asc' } }),
   ])
   if (!listing) notFound()
   // Not your storefront's listing → 404 (don't reveal it exists).
   if (!seller || listing.sellerId !== seller.id) notFound()
+  // A teacher profile is edited in the teacher form, never the post wizard (NON_POSTING_CATEGORIES).
+  if (!isPostableCategory(listing.category.slug)) redirect('/teachers/edit')
 
   const showBrand = categoryHasBrand(listing.category.slug)
   const brandName = showBrand && listing.brandSlug

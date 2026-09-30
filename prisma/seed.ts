@@ -1,6 +1,6 @@
 import { PrismaClient, type Prisma } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { TAXONOMY, categoryHasBrand, type CategoryDef, type ListingType } from '../src/lib/taxonomy'
+import { TAXONOMY, categoryHasBrand, isPostableCategory, type CategoryDef, type ListingType } from '../src/lib/taxonomy'
 import { buildSearchText } from '../src/lib/fold'
 import { rankScoreExprSql } from '../src/lib/ranking-formula'
 
@@ -284,6 +284,8 @@ async function main() {
   let globalIdx = 0
 
   for (const cat of TAXONOMY) {
+    // Teacher rows need a TeacherProfile; they are never seeded as generic mock listings.
+    if (!isPostableCategory(cat.slug)) continue
     const categoryId = catIdBySlug.get(cat.slug)!
     const subs = cat.subcategories
     for (let i = 0; i < PER_CAT; i++) {

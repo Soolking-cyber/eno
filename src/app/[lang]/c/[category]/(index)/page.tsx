@@ -2,6 +2,8 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
+// `{ teachers: true }` on every read here: each one is pinned to ONE categoryId, so the default
+// teacher exclusion (scopedListingWhere) can only ever empty /c/teachers — it hides nothing elsewhere.
 import { loadCategory } from '../load-category'
 import { loadDistrictChips, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline } from '../category-data'
 import { byAreaChips, categoryMetadata, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
@@ -177,8 +179,7 @@ export default async function CategoryPage({ params }: Props) {
   const homes = rentalsFacts?.homes && rentalsFacts.homes.total > 0 ? rentalsFacts.homes : null
   const scopedWhere = await scopedListingWhere(
     homes ? { AND: [base, RENTAL_PLACES, { subcategorySlug: { in: [...HOME_RENTAL_SUBCATS] } }] }
-    : rentalsFacts ? { AND: [base, RENTAL_PLACES] } : base,
-  )
+    : rentalsFacts ? { AND: [base, RENTAL_PLACES] } : base, { teachers: true })
   const [raw, otherCats, chips, rentals] = await Promise.all([
     // Card projection: this page only renders <ListingCard> slots — the full row (description,
     // attributes, searchText, whole Seller) tripled the ISR payload. The order is buildFeedOrderBy('newest').

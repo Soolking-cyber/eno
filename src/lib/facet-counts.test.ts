@@ -56,6 +56,7 @@ vi.mock('@/lib/edition-scope', () => {
   return {
     DeskResolutionError,
     marketplaceListingScope: async () => h.scope,
+    teacherExclusion: async () => null,
     // The real one AND-composes rather than spreading, because spread would let a caller's own
     // `sellerId` silently overwrite the exclusion. The fake keeps that shape so the assertions
     // below are about the real wire format.

@@ -189,7 +189,8 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
      */
     db.listing.groupBy({
       by: ['categoryId'],
-      where: await scopedListingWhere({ verified: true, status: 'active' }),
+      // Teachers included: /c/teachers is submitted like any category with a live row (2026-09-30).
+      where: await scopedListingWhere({ verified: true, status: 'active' }, { teachers: true }),
       _max: { postedAt: true },
     }),
     /**

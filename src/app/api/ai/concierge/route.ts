@@ -1,7 +1,7 @@
-import { marketplaceListingScope, scopedListingWhere } from '@/lib/edition-scope'
+import { marketplaceListingScope, scopedListingWhere, teacherExclusion } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { TAXONOMY } from '@/lib/taxonomy'
+import { TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
 import { fold } from '@/lib/fold'
 import { serializeListing } from '@/lib/serialize'
 import { aiGuard } from '@/lib/ai-guard'
@@ -198,7 +198,7 @@ ${transcript}`
  * that fit it, and it only became usable once the catalogue was classified properly.
  */
 const SUBCATS: string[] = [...new Set(
-  (TAXONOMY as { subcategories?: { slug: string }[] }[]).flatMap((c) => (c.subcategories ?? []).map((sc) => sc.slug)),
+  (TAXONOMY as { slug: string; subcategories?: { slug: string }[] }[]).filter((c) => isPostableCategory(c.slug)).flatMap((c) => (c.subcategories ?? []).map((sc) => sc.slug)),
 )]
 
 async function fallbackSearch(
@@ -224,6 +224,10 @@ async function fallbackSearch(
     ...(price.gte || price.lte ? { price } : {}),
     ...(f.brandSlug ? { brandSlug: f.brandSlug } : {}),
     ...editionScope,
+    // ⛔ No teacher profiles in concierge answers (2026-09-30). A flat key is safe for the reason
+    // given above for sellerId: a rung that sets its own categoryId narrows to a real category,
+    // and the teachers category is not in the concierge's category list.
+    ...((await teacherExclusion()) ?? {}),
   }
   /**
    * ⛔ AN EXPLICIT PRICE SORT MUST BE DONE BY THE DATABASE, ACROSS THE WHOLE MATCHING SET.
@@ -512,7 +516,7 @@ export async function POST(req: NextRequest) {
   if (![...messages].some((m) => m.role === 'user')) return NextResponse.json({ error: 'bad_request' }, { status: 400 })
 
   // Understand the turn: intent + natural reply + structured search params.
-  const cats = await db.category.findMany({ select: { slug: true } })
+  const cats = (await db.category.findMany({ select: { slug: true } })).filter((c) => isPostableCategory(c.slug))
   const u = await understand(messages, cats, lang)
 
   // Conversation, not commerce: reply warmly, show nothing for sale. Free.

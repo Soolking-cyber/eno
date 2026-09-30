@@ -3,7 +3,7 @@ import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { aiGuard } from '@/lib/ai-guard'
-import { TAXONOMY } from '@/lib/taxonomy'
+import { TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
 import { containsPhoneNumber } from '@/lib/phone'
 import { categoryHasBrand } from '@/lib/brand'
 
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 const MAX_BYTES = 12 * 1024 * 1024
 
 // Compact taxonomy the model picks from (slugs are the contract; names give context).
-const TAXONOMY_TEXT = TAXONOMY.map((c) =>
+const TAXONOMY_TEXT = TAXONOMY.filter((c) => isPostableCategory(c.slug)).map((c) =>
   `- ${c.slug} (${c.name}) [types: ${c.types.join(', ')}] subcategories: ${c.subcategories.map((s) => `${s.slug}(${s.name})`).join(', ') || 'none'}`,
 ).join('\n')
 
@@ -151,7 +151,7 @@ Return ONLY JSON.`
   }
 
   // Validate against the taxonomy — never trust the model's slugs blindly.
-  const cat = TAXONOMY.find((c) => c.slug === parsed.category)
+  const cat = TAXONOMY.find((c) => c.slug === parsed.category && isPostableCategory(c.slug))
   if (!cat) return NextResponse.json({ categorySlug: null, subcategorySlug: null, listingType: null, condition: null, title: null, brand: null, description: null })
   const sub = cat.subcategories.find((s) => s.slug === parsed.subcategory)
   const listingType = cat.types.includes(parsed.listingType as never) ? parsed.listingType : 'sell'

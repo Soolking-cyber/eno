@@ -1,6 +1,8 @@
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
+// `{ teachers: true }` on every read here: each one is pinned to ONE categoryId, so the default
+// teacher exclusion (scopedListingWhere) can only ever empty /c/teachers — it hides nothing elsewhere.
 
 /**
  * The category row, looked up once per render by slug — shared by `layout.tsx`'s 404 guard,
@@ -45,6 +47,6 @@ export const categoryExists = cache(async (slug: string) => !!(await getCategory
 export const loadCategory = cache(async (slug: string) => {
   const cat = await getCategoryRow(slug)
   if (!cat) return null
-  const live = await db.listing.count({ where: await scopedListingWhere({ categoryId: cat.id, verified: true, status: 'active' }) })
+  const live = await db.listing.count({ where: await scopedListingWhere({ categoryId: cat.id, verified: true, status: 'active' }, { teachers: true }) })
   return { cat, live }
 })

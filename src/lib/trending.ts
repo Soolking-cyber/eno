@@ -1,4 +1,4 @@
-import { marketplaceListingScope } from '@/lib/edition-scope'
+import { marketplaceListingScope, teacherExclusion } from '@/lib/edition-scope'
 import 'server-only'
 import { fold } from '@/lib/fold'
 import { db } from '@/lib/db'
@@ -98,11 +98,12 @@ export async function getTrending(limit = 6): Promise<string[]> {
      * that catch and every term would silently survive unfiltered. Out here it propagates.
      */
     const editionScope = await marketplaceListingScope()
+    const teacherScope = await teacherExclusion() // a person's profile is not a trending product
     const hits = await Promise.all(
       candidates.map(async (term) => {
         try {
           const clauses = textClauses(term)
-          const n = await db.listing.count({ where: { AND: [{ verified: true }, { status: 'active' }, ...(editionScope.sellerId ? [{ sellerId: editionScope.sellerId }] : []), ...clauses] } })
+          const n = await db.listing.count({ where: { AND: [{ verified: true }, { status: 'active' }, ...(editionScope.sellerId ? [{ sellerId: editionScope.sellerId }] : []), ...(teacherScope ? [teacherScope] : []), ...clauses] } })
           return n > 0
         } catch {
           return true // DB blip → keep the term rather than blanking the whole row

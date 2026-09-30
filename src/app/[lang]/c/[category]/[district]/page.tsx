@@ -7,6 +7,8 @@ import { DistrictRent } from './district-rent'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
+// `{ teachers: true }` on every read here: each one is pinned to ONE categoryId, so the default
+// teacher exclusion (scopedListingWhere) can only ever empty /c/teachers — it hides nothing elsewhere.
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -96,7 +98,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   const placesOnly = categorySlug === 'rentals'
   const base = await scopedListingWhere(placesOnly
     ? { AND: [{ categoryId: cat.id, verified: true, status: 'active' }, RENTAL_PLACES] }
-    : { categoryId: cat.id, verified: true, status: 'active' })
+    : { categoryId: cat.id, verified: true, status: 'active' }, { teachers: true })
   /**
    * ⛔ THE SAME SCOPE THE FEED WILL USE, RESOLVED ONCE. This page used to select districts by exact
    * stored name while every sort and Show-more from it sent the slug to /api/listings, which
@@ -114,7 +116,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
    * chips stay a subset of it (order rule 3). The groups also give the homes (apartments, houses,
    * rooms — HOME_RENTAL_SUBCATS) and the office count the "Also here" link names.
    */
-  // edition-lint-allow: `base` IS `await scopedListingWhere(...)` above, and every read on
+  // edition-lint-allow: `base` IS `await scopedListingWhere(..., { teachers: true })` above, and every read on
   // this page composes it — the desk exclusion cannot be lost by an AND. The rule counts guard
   // MENTIONS against reads, so one scoped predicate feeding three reads reads as two unguarded.
   const bySubGroups = await db.listing.groupBy({ by: ['subcategorySlug'], where, _count: { _all: true } })
@@ -159,7 +161,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
      * the 2026-09-27 supply sample (1,510 listings across categories) was an import, and a trust
      * score says nothing about a listing copied from another portal.
      */
-    // edition-lint-allow: `where` is `{ AND: [base, scope] }`, base = scopedListingWhere(...) above.
+    // edition-lint-allow: `where` is `{ AND: [base, scope] }`, base = scopedListingWhere(..., { teachers: true }) above.
     // By subcategory, so the homes' own tier comes from the same read (the homes lede speaks of them).
     db.listing.groupBy({ by: ['subcategorySlug'], where: { AND: [where, { affiliateUrl: { not: null } }] }, _count: { _all: true } }),
     /**

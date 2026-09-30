@@ -1029,7 +1029,7 @@ export const SPEC = {
             'The payload was refused by validation or by a publish gate. Fix the content and re-post.',
             // ⚠️ The identity codes moved to 403 on 2026-09-23 with the seller identity gate: they are a
             // legal block, not a content one, and publish-block-response.ts fixes 403 for them.
-            ['invalid_input', 'unknown_category', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required'],
+            ['invalid_input', 'unknown_category', 'category_not_postable', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required'],
           ),
         },
       },

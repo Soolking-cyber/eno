@@ -325,7 +325,9 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
               const fromHead = plan.fromHead ? head.slice(plan.fromHead.start, plan.fromHead.end) : []
               if (plan.tailTake <= 0) return fromHead
               const tail = await db.listing.findMany({
-                where: { AND: [await scopedListingWhere(where), { id: { notIn: head.map((r) => r.id) } }] },
+                // `{ teachers: true }`: `where` already carries buildFeedFilters' teacher decision —
+                // the default exclusion here would drop every /c/teachers row past the head window.
+                where: { AND: [await scopedListingWhere(where, { teachers: true }), { id: { notIn: head.map((r) => r.id) } }] },
                 orderBy, skip: plan.tailSkip, take: plan.tailTake, select: LISTING_CARD_SELECT,
               })
               return [...fromHead, ...tail]

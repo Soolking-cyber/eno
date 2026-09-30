@@ -32,7 +32,7 @@ import { specFacets } from './electronics-specs'
 import { IS_MARKETPLACE } from './edition'
 
 // ── Intent axis ──────────────────────────────────────────────────────────────
-export type ListingType = 'sell' | 'rent' | 'free' | 'wanted' | 'wholesale' | 'service' | 'job' | 'event'
+export type ListingType = 'sell' | 'rent' | 'free' | 'wanted' | 'wholesale' | 'service' | 'job' | 'event' | 'teacher'
 
 export const LISTING_TYPES: { value: ListingType; label: string; labelVi: string; icon: string }[] = [
   { value: 'sell', label: 'For sale', labelVi: 'Cần bán', icon: 'Tag' },
@@ -46,6 +46,9 @@ export const LISTING_TYPES: { value: ListingType; label: string; labelVi: string
   { value: 'service', label: 'Service', labelVi: 'Dịch vụ', icon: 'Wrench' },
   { value: 'job', label: 'Job', labelVi: 'Việc làm', icon: 'Briefcase' },
   { value: 'event', label: 'Event', labelVi: 'Sự kiện', icon: 'CalendarDays' },
+  // A teacher's public profile (2026-09-30). Written ONLY by the teacher publish core
+  // (src/lib/teachers/publish.ts) — never offered by the post wizard.
+  { value: 'teacher', label: 'Teacher', labelVi: 'Giáo viên', icon: 'GraduationCap' },
 ]
 
 export const LISTING_TYPE_LABEL: Record<ListingType, { en: string; vi: string }> = Object.fromEntries(
@@ -207,6 +210,16 @@ export type SubcatDef = {
 }
 
 // ── Categories ───────────────────────────────────────────────────────────────
+/**
+ * Categories nobody POSTS into: their rows are written by a dedicated flow (teachers → the teacher
+ * form). They stay in TAXONOMY for browse, filters and SEO, but every posting and classification
+ * surface — the post wizard, /api/categories, AI classify / visual search / concierge, and the
+ * create/update cores — must skip them. Use `isPostableCategory` rather than naming the slug.
+ */
+export const NON_POSTING_CATEGORIES: ReadonlySet<string> = new Set(['teachers'])
+export function isPostableCategory(slug: string | null | undefined): boolean {
+  return !!slug && !NON_POSTING_CATEGORIES.has(slug)
+}
 export type CategoryDef = {
   slug: string
   name: string
@@ -1120,6 +1133,101 @@ export const TAXONOMY: CategoryDef[] = [
     ],
   },
 
+  // 10b ── TEACHERS (owner, 2026-09-30) ─────────────────────────────────────────
+  // ⛔ NOT A POSTING CATEGORY. Every row is written by the teacher form (teacher.eno.vn →
+  // src/lib/teachers/publish.ts), and every facet below is DERIVED from the structured
+  // TeacherProfile, so the post wizard must never offer it (POSTING_EXCLUDED_CATEGORIES).
+  // Multi-valued facets (workIn, cert, ageGroup, subject, jobType) live in Listing.facetTokens.
+  // ⛔ Teacher rows are excluded from every listing query by default — see scopedListingWhere.
+  {
+    slug: 'teachers',
+    name: 'Teachers',
+    nameVi: 'Giáo viên',
+    icon: 'GraduationCap',
+    color: 'violet',
+    description: 'English and subject teachers looking for work in Vietnam — experience, qualifications and an intro video.',
+    types: ['teacher'],
+    subcategories: [
+      { slug: 'english', name: 'English', nameVi: 'Tiếng Anh', icon: 'Languages', keywords: ['english', 'esl', 'efl', 'tiếng anh'] },
+      { slug: 'exam-prep', name: 'IELTS & exams', nameVi: 'IELTS & luyện thi', icon: 'ClipboardList', keywords: ['ielts', 'toefl', 'toeic', 'cambridge', 'sat', 'luyện thi'] },
+      { slug: 'subjects', name: 'Subjects in English', nameVi: 'Môn học bằng tiếng Anh', icon: 'BookOpen', keywords: ['math', 'science', 'stem', 'toán', 'khoa học'] },
+      { slug: 'other-languages', name: 'Other languages', nameVi: 'Ngoại ngữ khác', icon: 'Map', keywords: ['chinese', 'korean', 'japanese', 'french', 'german', 'tiếng trung', 'tiếng hàn', 'tiếng nhật'] },
+    ],
+    facets: [
+      { key: 'salary', label: 'Expected salary', labelVi: 'Mức lương mong muốn', kind: 'range', options: [],
+        range: { min: 0, max: 150, step: 1, unit: 'tr/tháng', column: 'salaryM' } },
+      { key: 'workIn', label: 'Wants to work in', labelVi: 'Muốn làm việc tại', derived: true, options: [
+        { value: 'ho-chi-minh-city', label: 'Ho Chi Minh City', labelVi: 'TP. Hồ Chí Minh' },
+        { value: 'ha-noi', label: 'Hanoi', labelVi: 'Hà Nội' },
+        { value: 'da-nang', label: 'Da Nang', labelVi: 'Đà Nẵng' },
+        { value: 'hai-phong', label: 'Hai Phong', labelVi: 'Hải Phòng' },
+        { value: 'can-tho', label: 'Can Tho', labelVi: 'Cần Thơ' },
+        { value: 'hue', label: 'Hue', labelVi: 'Huế' },
+        { value: 'khanh-hoa', label: 'Nha Trang', labelVi: 'Nha Trang' },
+        { value: 'lam-dong', label: 'Da Lat', labelVi: 'Đà Lạt' },
+        { value: 'dong-nai', label: 'Dong Nai / Bien Hoa', labelVi: 'Đồng Nai / Biên Hòa' },
+        { value: 'binh-duong', label: 'Binh Duong', labelVi: 'Bình Dương' },
+        { value: 'vung-tau', label: 'Vung Tau', labelVi: 'Vũng Tàu' },
+        { value: 'phu-quoc', label: 'Phu Quoc', labelVi: 'Phú Quốc' },
+        { value: 'anywhere', label: 'Anywhere in Vietnam', labelVi: 'Bất kỳ đâu' },
+        { value: 'online', label: 'Online', labelVi: 'Trực tuyến' },
+      ] },
+      { key: 'native', label: 'Native speaker', labelVi: 'Người bản ngữ', kind: 'toggle', derived: true, options: [
+        { value: 'native', label: 'Native', labelVi: 'Bản ngữ' },
+        { value: 'non-native', label: 'Non-native', labelVi: 'Không bản ngữ' },
+      ] },
+      { key: 'experience', label: 'Experience', labelVi: 'Kinh nghiệm', kind: 'toggle', derived: true, options: [
+        { value: 'under-1-year', label: 'Under 1yr', labelVi: 'Dưới 1 năm' },
+        { value: '1-3-years', label: '1–3 yrs', labelVi: '1–3 năm' },
+        { value: '3-5-years', label: '3–5 yrs', labelVi: '3–5 năm' },
+        { value: '5-10-years', label: '5–10 yrs', labelVi: '5–10 năm' },
+        { value: 'over-10-years', label: '10+ yrs', labelVi: 'Trên 10 năm' },
+      ] },
+      { key: 'cert', label: 'Certificate', labelVi: 'Chứng chỉ', derived: true, options: [
+        { value: 'tefl', label: 'TEFL', labelVi: 'TEFL' },
+        { value: 'tesol', label: 'TESOL', labelVi: 'TESOL' },
+        { value: 'celta', label: 'CELTA', labelVi: 'CELTA' },
+        { value: 'delta', label: 'DELTA', labelVi: 'DELTA' },
+        { value: 'tkt', label: 'TKT', labelVi: 'TKT' },
+        { value: 'pgce', label: 'PGCE', labelVi: 'PGCE' },
+        { value: 'teaching-license', label: 'Teaching licence', labelVi: 'Giấy phép giảng dạy' },
+        { value: 'other-cert', label: 'Other', labelVi: 'Khác' },
+      ] },
+      { key: 'degree', label: 'Degree', labelVi: 'Bằng cấp', derived: true, options: [
+        { value: 'phd', label: 'PhD', labelVi: 'Tiến sĩ' },
+        { value: 'master', label: "Master's", labelVi: 'Thạc sĩ' },
+        { value: 'bachelor', label: "Bachelor's", labelVi: 'Cử nhân' },
+        { value: 'associate', label: 'Associate / college', labelVi: 'Cao đẳng' },
+        { value: 'no-degree', label: 'No degree', labelVi: 'Không có bằng' },
+      ] },
+      { key: 'ageGroup', label: 'Teaches', labelVi: 'Dạy lứa tuổi', derived: true, options: [
+        { value: 'kids', label: 'Kids', labelVi: 'Trẻ em' },
+        { value: 'teens', label: 'Teens', labelVi: 'Thiếu niên' },
+        { value: 'adults', label: 'Adults', labelVi: 'Người lớn' },
+        { value: 'business', label: 'Business', labelVi: 'Doanh nghiệp' },
+      ] },
+      { key: 'subject', label: 'Subject', labelVi: 'Môn dạy', derived: true, options: [
+        { value: 'general-english', label: 'General English', labelVi: 'Tiếng Anh tổng quát' },
+        { value: 'ielts', label: 'IELTS', labelVi: 'IELTS' },
+        { value: 'toefl-toeic', label: 'TOEFL / TOEIC', labelVi: 'TOEFL / TOEIC' },
+        { value: 'cambridge', label: 'Cambridge', labelVi: 'Cambridge' },
+        { value: 'phonics', label: 'Phonics', labelVi: 'Ngữ âm' },
+        { value: 'business-english', label: 'Business English', labelVi: 'Tiếng Anh thương mại' },
+        { value: 'stem', label: 'Maths & science', labelVi: 'Toán & khoa học' },
+        { value: 'other-language', label: 'Other language', labelVi: 'Ngoại ngữ khác' },
+      ] },
+      { key: 'jobType', label: 'Looking for', labelVi: 'Tìm việc', derived: true, options: [
+        { value: 'fulltime', label: 'Full-time', labelVi: 'Toàn thời gian' },
+        { value: 'parttime', label: 'Part-time', labelVi: 'Bán thời gian' },
+        { value: 'online', label: 'Online', labelVi: 'Trực tuyến' },
+        { value: 'private', label: 'Private tutoring', labelVi: 'Gia sư' },
+      ] },
+      { key: 'video', label: 'Intro video', labelVi: 'Video giới thiệu', kind: 'toggle', derived: true, options: [
+        { value: 'has-video', label: 'Has video', labelVi: 'Có video' },
+      ] },
+    ],
+  },
+
   // 11 ── SERVICES ──────────────────────────────────────────────────────────────
   {
     slug: 'services',
@@ -1500,8 +1608,9 @@ export function listingMoneyFor(input: {
     // A service price is the price OF that service, not a starting bid (owner, 2026-07-22:
     // "we dont need broad from, exact price"). "(from)" invited a haggle the seller never
     // offered and made every service card read as an estimate.
+    // teacher: `price` stays 0; the expected monthly salary lives in salaryM (a range facet).
     priceUnit: t === 'rent' ? `VND/${RENT_UNIT[input.rentalPeriod ?? 'monthly']}`
-      : t === 'job' ? 'VND/month' : t === 'service' ? 'VND/service' : 'VND',
+      : t === 'job' || t === 'teacher' ? 'VND/month' : t === 'service' ? 'VND/service' : 'VND',
     isoCode: 'VND',
   }
 }

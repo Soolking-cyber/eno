@@ -312,6 +312,7 @@ export type NicheApiErrorCode =
   | 'identity_suspended'
   | 'identity_unverified'
   | 'location_required'
+  | 'category_not_postable' // teachers: written only by the teacher form (2026-09-30)
   | 'photo_required'
   | 'photos_min'
 
@@ -655,6 +656,7 @@ const ALL = [
   'identity_suspended',
   'identity_unverified',
   'location_required',
+  'category_not_postable',
   'photo_required',
   'photos_min',
   'invalid_price',

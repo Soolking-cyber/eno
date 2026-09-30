@@ -1,6 +1,8 @@
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
+// `{ teachers: true }` on every read here: each one is pinned to ONE listing id, so the default
+// teacher exclusion (scopedListingWhere) would only 404 a teacher's own profile page.
 
 /**
  * The PDP's listing reads: a cheap viewability probe for `layout.tsx`, and the full row for
@@ -34,7 +36,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
  */
 export const isListingViewable = cache(async (id: string) => {
   const row = await db.listing.findFirst({
-    where: await scopedListingWhere({ id }),
+    where: await scopedListingWhere({ id }, { teachers: true }),
     select: { verified: true, status: true },
   })
   return listingIsViewable(row)
@@ -57,7 +59,7 @@ export const listingIsViewable = (row: { verified: boolean; status: string } | n
  */
 export const getListing = cache(async (id: string) =>
   db.listing.findFirst({
-    where: await scopedListingWhere({ id }),
+    where: await scopedListingWhere({ id }, { teachers: true }),
     // owner.lastSeenAt: presence for the seller strip — consumed server-side into a
     // day-coarse bucket input (sellerMetrics), the raw timestamp never serializes.
     include: { category: true, seller: { include: { owner: { select: { accountType: true, lastSeenAt: true } } } } },

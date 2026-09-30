@@ -40,6 +40,7 @@ import { HANDLE_RE, isReservedHandle } from './handle-format'
 const INFRA_SUBDOMAINS = new Set([
   'www',
   'sb', // Supabase gateway vhost on the origin box — see above
+  'teacher', // teacher.eno.vn = the teacher sign-up form, rewritten in proxy.ts (2026-09-30)
   'api',
   'cdn',
   'static',

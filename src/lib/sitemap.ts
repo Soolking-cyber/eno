@@ -54,7 +54,8 @@ export function siteOrigin(): string {
  * only ADD conditions — the three rules above always apply.
  */
 export async function submittedListingWhere(extra: Prisma.ListingWhereInput = {}) {
-  return { AND: [await scopedListingWhere({ ...extra, verified: true, status: 'active' }), { affiliateUrl: null }] }
+  // `{ teachers: true }`: teacher profiles are public and indexed by owner decision (2026-09-30).
+  return { AND: [await scopedListingWhere({ ...extra, verified: true, status: 'active' }, { teachers: true }), { affiliateUrl: null }] }
 }
 
 /** How many `listings-<k>.xml` children `total` submitted listings need (0 → none). */

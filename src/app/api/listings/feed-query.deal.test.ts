@@ -15,6 +15,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/edition-scope', () => ({
   scopedListingWhere: async (w: any) => w,
   marketplaceListingScope: async () => ({}),
+  teacherExclusion: async () => null,
 }))
 vi.mock('@/lib/serialize', () => ({ LISTING_CARD_SELECT: {}, serializeListingCard: (r: any) => r }))
 vi.mock('@/lib/translate', () => ({ localizeListingTitles: async (l: any) => l }))

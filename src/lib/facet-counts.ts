@@ -1,5 +1,6 @@
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
 import { CATEGORY_BY_SLUG, LISTING_TYPES, categoryHasBrand, facetsFor, rangeFacetsFor, typesFor, type FacetDef } from '@/lib/taxonomy'
 import { attrFiltersFrom, attrMatcher, viewScope } from '@/lib/attr-match'
@@ -477,7 +478,7 @@ export function subcategoryDropPlan(searchParams: URLSearchParams, category: str
  * can drive the release semantics with a builder it controls. The route passes `buildFeedFilters`
  * from `src/app/api/listings/feed-query.ts` — there is exactly one implementation.
  */
-export type FeedFilterBuilder = (params: URLSearchParams) => Promise<{
+export type FeedFilterBuilder = (params: URLSearchParams, opts?: { includeTeachers?: boolean }) => Promise<{
   andFilters: Prisma.ListingWhereInput[]
   pgTextFilter: Prisma.ListingWhereInput | null
 }>
@@ -663,12 +664,17 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
 
   /** Every filter for `dimension`'s count: the feed's own AND-array minus the free-text clause. */
   const baseFor = async (dimension: FacetDimension): Promise<Prisma.ListingWhereInput[]> => {
-    const { andFilters, pgTextFilter } = await buildFilters(releasedParams(searchParams, dimension, inferredDistrict))
+    // The category dimension counts every category side by side, teachers included — the teacher
+    // rows then land ONLY in the teachers bucket, so no other count moves (2026-09-30).
+    const { andFilters, pgTextFilter } = await buildFilters(releasedParams(searchParams, dimension, inferredDistrict), dimension === 'category' ? { includeTeachers: true } : undefined)
     return andFilters.filter((f) => f !== pgTextFilter)
   }
 
   const want = new Set(dimensions)
   const out: FacetCounts = {}
+  // On /c/teachers every base is already pinned to the teachers category by the feed builder; the
+  // default teacher exclusion would zero every chip there.
+  const onTeachers = searchParams.get('category') === TEACHERS_CATEGORY_SLUG
 
   try {
     /**
@@ -688,15 +694,15 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
      */
     const view = want.has('attr') ? attrView(searchParams) : null
     const [catBase, subBase, brandBase, condBase, typeBase, yearBase, areaBase, attrBase, dealBase] = await Promise.all([
-      want.has('category') ? baseFor('category').then((b) => scopedListingWhere({ AND: b })) : null,
-      want.has('subcategory') ? baseFor('subcategory').then((b) => scopedListingWhere({ AND: b })) : null,
-      want.has('brand') || want.has('model') ? baseFor('brand').then((b) => scopedListingWhere({ AND: b })) : null,
-      want.has('condition') ? baseFor('condition').then((b) => scopedListingWhere({ AND: b })) : null,
-      want.has('type') ? baseFor('type').then((b) => scopedListingWhere({ AND: b })) : null,
-      want.has('year') ? baseFor('year').then((b) => scopedListingWhere({ AND: b })) : null,
-      want.has('area') ? baseFor('area').then((b) => scopedListingWhere({ AND: b })) : null,
-      view ? baseFor('attr').then((b) => scopedListingWhere({ AND: b })) : null,
-      want.has('deal') ? baseFor('deal').then((b) => scopedListingWhere({ AND: b })) : null,
+      want.has('category') ? baseFor('category').then((b) => scopedListingWhere({ AND: b }, { teachers: true })) : null,
+      want.has('subcategory') ? baseFor('subcategory').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
+      want.has('brand') || want.has('model') ? baseFor('brand').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
+      want.has('condition') ? baseFor('condition').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
+      want.has('type') ? baseFor('type').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
+      want.has('year') ? baseFor('year').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
+      want.has('area') ? baseFor('area').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
+      view ? baseFor('attr').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
+      want.has('deal') ? baseFor('deal').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
     ])
     /** The request's own `attr_*` filters — released from `attrBase`, re-applied per rail in memory. */
     const activeAttrs = attrFiltersFrom(searchParams)

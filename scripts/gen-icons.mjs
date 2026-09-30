@@ -107,6 +107,9 @@ const CATEGORIES = [
   { slug: 'jobs', icon: 'case', lucide: 'Briefcase',
     why: 'A briefcase. Solar names it `case`; `suitcase` is the travel one and is deliberately NOT ' +
          'used here (see tickets-travel).' },
+  { slug: 'teachers', icon: 'square-academic-cap', lucide: 'GraduationCap',
+    why: 'A mortarboard — the universal teacher/education mark, and the same idea as lucide GraduationCap ' +
+         '(2026-09-30). Distinct from jobs (a briefcase), which the teachers tile sits beside.' },
   { slug: 'services', icon: 'settings', lucide: 'Wrench',
     why: '⚠️ SOLAR HAS NO WRENCH, spanner, screwdriver or toolbox. A cog is the conventional ' +
          'stand-in and the only inclusive option — `broom`, `paint-roller`, `sledgehammer` and ' +

@@ -42,6 +42,7 @@ export const NAV_CATEGORIES: readonly NavCategory[] = [
   { slug: 'hobbies-sports', name: 'Hobbies', nameVi: 'Sở thích' },
   { slug: 'pets', name: 'Pets', nameVi: 'Thú cưng' },
   { slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm' },
+  { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' },
   { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' },
   { slug: 'community-events', name: 'Community', nameVi: 'Cộng đồng' },
   { slug: 'tickets-travel', name: 'Travel', nameVi: 'Du lịch' },

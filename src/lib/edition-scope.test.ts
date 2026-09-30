@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   sellersFor: null as null | ((emails: string[]) => Array<{ id: string }>),
   throwOnQuery: null as null | Error,
   lastWhere: null as unknown,
+  teachersCat: null as null | { id: string },
 }))
 
 vi.mock('@/lib/edition', () => ({
@@ -34,6 +35,9 @@ vi.mock('@/lib/visa-shop', () => ({ VISA_SHOP_OWNER_EMAILS: ['visa@eno.vn', 'sha
 vi.mock('@/lib/trips/dm-thread', () => ({ TRIP_DESK_OWNER_EMAILS: ['trips@eno.vn', 'shared@eno.vn'] }))
 vi.mock('@/lib/db', () => ({
   db: {
+    category: {
+      findUnique: async () => h.teachersCat,
+    },
     seller: {
       findMany: async ({ where }: { where: unknown }) => {
         h.lastWhere = where
@@ -48,7 +52,7 @@ vi.mock('@/lib/db', () => ({
 // sees its own fixture rather than the first one that ran.
 vi.mock('react', async (orig) => ({ ...(await orig<typeof import('react')>()), cache: (f: unknown) => f }))
 
-const { marketplaceListingScope, scopedListingWhere, deskSellerIds, DeskResolutionError, isServicesDeskListing, deskExcludedListingWhere } = await import('./edition-scope')
+const { teacherExclusion, resetTeachersCategoryIdForTests, marketplaceListingScope, scopedListingWhere, deskSellerIds, DeskResolutionError, isServicesDeskListing, deskExcludedListingWhere } = await import('./edition-scope')
 
 beforeEach(() => {
   h.services = true
@@ -56,6 +60,8 @@ beforeEach(() => {
   h.sellersFor = null
   h.throwOnQuery = null
   h.lastWhere = null
+  h.teachersCat = null
+  resetTeachersCategoryIdForTests()
 })
 
 describe('deskSellerIds', () => {
@@ -597,5 +603,56 @@ describe('the rental desks', () => {
 
     m = await load({ services: true })
     expect(await m.marketplaceListingScope()).toEqual({})
+  })
+})
+
+describe('scopedListingWhere — teacher profiles are excluded by default (2026-09-30)', () => {
+  it('adds the teachers-category exclusion on the services edition too', async () => {
+    h.teachersCat = { id: 'cat-teachers' }
+    const where = { status: 'active' }
+    expect(await scopedListingWhere(where)).toEqual({ AND: [where, { categoryId: { not: 'cat-teachers' } }] })
+  })
+
+  it('carries BOTH the desk exclusion and the teacher exclusion on the marketplace', async () => {
+    h.services = false
+    h.teachersCat = { id: 'cat-teachers' }
+    const result = await scopedListingWhere({ status: 'active' })
+    expect(result).toEqual({
+      AND: [{ status: 'active' }, { sellerId: { notIn: ['desk-1'] } }, { categoryId: { not: 'cat-teachers' } }],
+    })
+  })
+
+  it('lets a teacher surface opt back in, keeping the desk exclusion', async () => {
+    h.services = false
+    h.teachersCat = { id: 'cat-teachers' }
+    const result = await scopedListingWhere({ status: 'active' }, { teachers: true })
+    expect(result).toEqual({ AND: [{ status: 'active' }, { sellerId: { notIn: ['desk-1'] } }] })
+  })
+
+  it('adds nothing while the teachers category row does not exist', async () => {
+    const where = { status: 'active' }
+    expect(await scopedListingWhere(where)).toBe(where)
+  })
+
+  it('does not re-query a missing teachers row on every read (commit-gate finding, 09-30)', async () => {
+    let calls = 0
+    const orig = h.teachersCat
+    const { db } = await import('@/lib/db') as unknown as { db: { category: { findUnique: () => Promise<unknown> } } }
+    const real = db.category.findUnique
+    db.category.findUnique = async () => { calls++; return orig }
+    try {
+      await scopedListingWhere({ status: 'active' })
+      await scopedListingWhere({ status: 'active' })
+      await scopedListingWhere({ status: 'active' })
+      expect(calls).toBe(1)
+    } finally {
+      db.category.findUnique = real
+    }
+  })
+
+  it('teacherExclusion is the same predicate as one AND element, and nothing on a teacher surface', async () => {
+    h.teachersCat = { id: 'cat-teachers' }
+    expect(await teacherExclusion()).toEqual({ categoryId: { not: 'cat-teachers' } })
+    expect(await teacherExclusion({ teachers: true })).toBeNull()
   })
 })

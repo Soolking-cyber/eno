@@ -103,7 +103,7 @@ export type OpenerKind = 'commitment' | 'question' | 'offer'
  * viewed, a service is booked, a job is started, an event is joined — one verb per category,
  * because "I can collect it today" addressed to a landlord reads as a bot.
  */
-export type CommitmentKind = 'collect' | 'view' | 'book' | 'start' | 'attend'
+export type CommitmentKind = 'collect' | 'view' | 'book' | 'start' | 'attend' | 'hire'
 
 /** Stable ids — safe to log, safe to A/B, never shown to a user. */
 export type CommitmentId =
@@ -114,6 +114,7 @@ export type CommitmentId =
   | 'commit.book'
   | 'commit.start'
   | 'commit.attend'
+  | 'commit.hire'
 
 export type QuestionId =
   | 'ask.km-papers'
@@ -136,6 +137,7 @@ export type QuestionId =
   | 'ask.date-transfer'
   | 'ask.notice-delivery'
   | 'ask.time-place'
+  | 'ask.teacher-start-schedule'
 
 export type OfferId = 'offer.cash-collect' | 'offer.close-week'
 
@@ -355,6 +357,12 @@ const COMMITMENT_COPY: Record<CommitmentId, Copy> = {
     label: tr('Can start Monday', 'Bắt đầu thứ Hai'),
     text: tr('I am interested and can start next Monday — is this role still open?', 'Mình quan tâm và có thể bắt đầu từ thứ Hai tuần sau. Vị trí còn tuyển không ạ?'),
   },
+  // ⚠️ A TEACHER PROFILE REVERSES THE JOB DIRECTION (2026-09-30): the buyer is a SCHOOL hiring, so
+  // 'start' ("I can start Monday") would put the job seeker's words in the recruiter's mouth.
+  'commit.hire': {
+    label: tr('We are hiring', 'Chúng tôi đang tuyển'),
+    text: tr('Hello, we are hiring a teacher and your profile looks like a good fit — are you open to talking?', 'Xin chào, chúng tôi đang tuyển giáo viên và hồ sơ của bạn rất phù hợp — bạn có muốn trao đổi thêm không?'),
+  },
   'commit.attend': {
     label: tr('How do I join?', 'Đăng ký thế nào?'),
     text: tr('I would like to join this — how do I sign up?', 'Mình muốn tham gia, đăng ký thế nào ạ?'),
@@ -430,6 +438,10 @@ const QUESTION_COPY: Record<QuestionId, Copy> = {
     label: tr('Ask: availability and price', 'Hỏi lịch trống và giá'),
     text: tr('Two questions: are you free this weekend, and how much does it cost?', 'Cho mình hỏi cuối tuần này bên bạn còn nhận không và chi phí khoảng bao nhiêu ạ?'),
   },
+  'ask.teacher-start-schedule': {
+    label: tr('Ask: start date and schedule', 'Hỏi ngày bắt đầu và lịch dạy'),
+    text: tr('Two questions: when could you start, and what teaching schedule are you looking for?', 'Cho mình hỏi bạn có thể bắt đầu từ khi nào và mong muốn lịch dạy như thế nào ạ?'),
+  },
   'ask.date-transfer': {
     label: tr('Ask: date and transfer', 'Hỏi ngày và sang tên'),
     text: tr('Two questions: which date is it for, and can the name be transferred?', 'Cho mình hỏi vé cho ngày nào và có sang tên được không ạ?'),
@@ -482,6 +494,7 @@ const CATEGORY_PLANS: Record<string, Plan> = {
   'hobbies-sports': { commitment: 'collect', question: 'ask.condition-age' },
   pets: { commitment: 'view', question: 'ask.age-vaccination' },
   jobs: { commitment: 'start', question: 'ask.hours-salary' },
+  teachers: { commitment: 'hire', question: 'ask.teacher-start-schedule' },
   services: { commitment: 'book', question: 'ask.availability-price' },
   'community-events': { commitment: 'attend', question: 'ask.time-place' },
   'tickets-travel': { commitment: 'book', question: 'ask.date-transfer' },
@@ -528,6 +541,7 @@ const TYPE_COMMITMENTS: Record<string, CommitmentKind> = {
   rent: 'view',
   service: 'book',
   job: 'start',
+  teacher: 'hire',
   event: 'attend',
 }
 
@@ -573,6 +587,8 @@ function commitmentIdFor(kind: CommitmentKind, now: number): CommitmentId {
       return 'commit.start'
     case 'attend':
       return 'commit.attend'
+    case 'hire':
+      return 'commit.hire'
   }
 }
 

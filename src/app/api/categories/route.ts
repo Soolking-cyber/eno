@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { TAXONOMY, LISTING_TYPES, categoryHasBrand } from '@/lib/taxonomy'
+import { TAXONOMY, LISTING_TYPES, categoryHasBrand, NON_POSTING_CATEGORIES } from '@/lib/taxonomy'
 import { route } from '@/lib/api/handler'
 
 // Lightweight taxonomy read for client surfaces that can't receive categories
@@ -24,6 +24,8 @@ import { route } from '@/lib/api/handler'
 // plain-object path serialises with no headers. Returning the Response escapes to it verbatim.
 export const GET = route({ auth: 'public' }, async () => {
   const categories = await db.category.findMany({
+    // Native + API post clients read this list to post — a non-posting category must not appear.
+    where: { slug: { notIn: [...NON_POSTING_CATEGORIES] } },
     orderBy: { name: 'asc' },
     select: { slug: true, name: true, nameVi: true },
   })

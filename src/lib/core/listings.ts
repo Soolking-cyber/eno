@@ -24,7 +24,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, isPostableSubcategory } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, isPostableSubcategory, isPostableCategory } from '@/lib/taxonomy'
 import { syndicateListingIfPublic } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
@@ -452,6 +452,8 @@ export async function updateListingCore(
     },
   })
   if (!current) return { ok: false, code: 404, error: 'not_found' }
+  // ⛔ A teacher profile is edited through the teacher form only; to every generic editor it does not exist.
+  if (!isPostableCategory(current.category.slug)) return { ok: false, code: 404, error: 'not_found' }
 
   const data: Record<string, unknown> = {}
 
@@ -884,6 +886,9 @@ export async function createListingCore(input: {
 }): Promise<{ id: string; verified: boolean }> {
   const { seller, guestCreate, category, title, price, body, headers } = input
   const categorySlug = category.slug
+  // ⛔ Teacher profiles are written ONLY by src/lib/teachers/publish.ts (2026-09-30). Every generic
+  // create path (web wizard, /api/v1, MCP, bulk) ends here, so this one refusal covers them all.
+  if (!isPostableCategory(categorySlug)) throw new PublishBlockedError('category_not_postable')
 
   const images: string[] = Array.isArray(body.images)
     ? (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)

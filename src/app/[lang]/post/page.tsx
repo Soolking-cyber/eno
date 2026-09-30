@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import { db } from '@/lib/db'
+import { isPostableCategory } from '@/lib/taxonomy'
 import type { Metadata } from 'next'
 import type { SerializedCategory } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
@@ -14,7 +15,8 @@ export const metadata: Metadata = { title: `Post a listing | ${SITE_NAME}`, robo
 // The server still owns safety: /api/listings, /api/upload and the AI routes are all
 // auth-gated + rate-limited, and the wizard never fires them for guests.
 export default async function PostPage() {
-  const categories = await db.category.findMany({ orderBy: { name: 'asc' } })
+  // Teachers are written by the teacher form, never the post wizard (NON_POSTING_CATEGORIES).
+  const categories = (await db.category.findMany({ orderBy: { name: 'asc' } })).filter((c) => isPostableCategory(c.slug))
   const serialized: SerializedCategory[] = categories.map(serializeCategoryBasic)
 
   return (

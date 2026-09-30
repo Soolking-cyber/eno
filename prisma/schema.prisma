@@ -84,6 +84,8 @@ model Profile {
   buyerConversations      Conversation[]          @relation("BuyerConversations")
   sellerConversations     Conversation[]          @relation("SellerConversations")
   sentMessages            Message[]
+  /// Teachers (2026-09-30): one public teacher profile per account. See TeacherProfile.
+  teacherProfile          TeacherProfile?
   messageReactions        MessageReaction[]
   notifications           Notification[]          @relation("RecipientNotifications")
   trustEvents             TrustEvent[]            @relation("SubjectTrustEvents")
@@ -890,6 +892,9 @@ model Listing {
   salaryM                 Int? // salary in million VND/month (jobs)
   reports                 Report[]
   contactReveals          ContactReveal[]
+  /// Set only on a listingType='teacher' row — the listing IS the teacher's public card.
+  teacherProfile          TeacherProfile?
+  teacherJobMatches       TeacherJobMatch[]
   conversations           Conversation[]
   dailyStats              ListingDailyStat[]
   reviews                 Review[] // verified-buyer reviews that reference this listing
@@ -1017,6 +1022,120 @@ model PriceChange {
 }
 
 // One row per (listing, authenticated viewer) who revealed the seller's contact.
+// ── TEACHERS (owner, 2026-09-30) ─────────────────────────────────────────────────────────────
+// A teacher profile is materialised as ONE Listing (listingType 'teacher', category 'teachers') so
+// the explorer, PDP, SEO and chat are reused; this table holds the structured profile.
+// ⛔ TEACHER ROWS ARE EXCLUDED FROM EVERY LISTING QUERY BY DEFAULT (scopedListingWhere) and opted
+// back in only on the teacher surfaces — a denylist of feeds would leak them (plan review 09-30).
+// ⛔ NO CONTACT DATA HERE. Phone/email/CV live in TeacherPrivate, read only via src/lib/teachers/private.ts,
+// so no `include` of this model can ever put them into listing JSON.
+model TeacherProfile {
+  id                 String   @id @default(cuid())
+  profileId          String   @unique @db.Uuid
+  profile            Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  listingId          String?  @unique
+  listing            Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  status             String   @default("live") // live | hidden
+  fullName           String
+  headline           String
+  bio                String   @default("")
+  photoUrl           String?
+  videoUrl           String?
+  nationality        String   // ISO-3166 alpha-2
+  nativeSpeaker      Boolean  @default(false)
+  languages          String[] @default([])
+  currentCity        String
+  currentDistrict    String?
+  preferredCities    String[] @default([])
+  openToOnline       Boolean  @default(false)
+  availableFrom      DateTime?
+  jobTypes           String[] @default([])
+  ageGroups          String[] @default([])
+  subjects           String[] @default([])
+  yearsExperience    Int      @default(0)
+  /// [{role, employer, city, from, to}] — validated by src/lib/teachers/profile.ts
+  experience         Json     @default("[]")
+  degreeLevel        String?  // none | associate | bachelor | master | phd
+  degreeMajor        String?
+  degreeInstitution  String?
+  degreeYear         Int?
+  /// [{type, hours?, provider?, year?}] — DATA ONLY, no documents are ever uploaded
+  certificates       Json     @default("[]")
+  expectedSalaryM    Float?   // expected monthly salary, millions VND
+  /// Consents — unbundled (VN PDP Law 91/2025). Public profile is the service itself; the two
+  /// below are optional and default OFF.
+  consentPublicAt    DateTime
+  staffContactOptIn  Boolean  @default(false)
+  matchEmailOptIn    Boolean  @default(false)
+  consentAt          DateTime @default(now())
+  lastMatchedAt      DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  private            TeacherPrivate?
+  matches            TeacherJobMatch[]
+
+  @@index([status, currentCity])
+}
+
+/// ⛔ The only place teacher contact data lives. Revealed to a recruiter ONLY through an active
+/// TeacherContactShare on their conversation (src/app/api/teachers/[id]/contact).
+model TeacherPrivate {
+  teacherProfileId String         @id
+  teacherProfile   TeacherProfile @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
+  phone            String?
+  email            String?
+  /// Object path in the PRIVATE bucket `teacher-cvs` — never a URL; served by 10-minute signed URL.
+  cvPath           String?
+  cvFileName       String?
+  updatedAt        DateTime       @updatedAt
+}
+
+/// The teacher's explicit, revocable "share my phone, email & CV" in one thread (owner 09-30:
+/// a tap, not any reply — "no thanks" must not unlock anything).
+model TeacherContactShare {
+  id             String       @id @default(cuid())
+  conversationId String       @unique
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sharedAt       DateTime     @default(now())
+  revokedAt      DateTime?
+}
+
+/// Written by the LOCAL matcher (~/eno-lead-pipeline teachersMatch). Exactly one of
+/// teacherProfileId / leadId is set (CHECK in scripts/teachers-ddl.mjs): FB job-seeker leads have
+/// no eno account.
+model TeacherJobMatch {
+  id               String          @id @default(cuid())
+  teacherProfileId String?
+  teacherProfile   TeacherProfile? @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
+  leadId           String?
+  listingId        String
+  listing          Listing         @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  score            Int
+  reasons          Json            @default("[]")
+  concerns         Json            @default("[]")
+  decision         String          // match | reject_sample (below threshold, logged for labels)
+  modelVersions    Json            @default("{}")
+  staffStatus      String?         // called | interested | hired | not_fit
+  createdAt        DateTime        @default(now())
+  emailedAt        DateTime?
+
+  @@unique([teacherProfileId, listingId])
+  @@unique([leadId, listingId])
+  @@index([emailedAt, decision])
+}
+
+/// Anonymous draft from teacher.eno.vn (no session there). Claimed on eno.vn after sign-in;
+/// expires in 7 days (purged by the teachers cron).
+model TeacherDraft {
+  token     String   @id
+  data      Json
+  ipHash    String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
 // A lead signal + the dedupe key so contactCount counts distinct viewers, not clicks.
 // viewerId = Supabase auth user id (no app Profile table required for Phase 1).
 model ContactReveal {
@@ -1053,6 +1172,8 @@ model Conversation {
   sellerProfileId   String?   @db.Uuid // null until the seller claims their account
   sellerProfile     Profile?  @relation("SellerConversations", fields: [sellerProfileId], references: [id], onDelete: SetNull)
   messages          Message[]
+  /// Teachers: the teacher's revocable "share my phone, email & CV" grant for THIS thread.
+  teacherContactShare TeacherContactShare?
   lastMessageAt     DateTime  @default(now())
   lastMessageText   String?
   buyerUnread       Int       @default(0)
