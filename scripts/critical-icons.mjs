@@ -81,6 +81,24 @@ export const CRITICAL_GLYPHS = [
    * glyphs instead of promoted (src/app/[lang]/not-found.tsx).
    */
   'Download',
+  /**
+   * ⛔ RE-DERIVED 2026-09-29 (F-SPRITE): TWO SURFACES THAT SHIPPED AFTER THE LAST PASS PUT
+   * `glyphs-rest.svg` BACK ON THE BUSIEST PAGES. Measured GET-only headless at 390×844 against
+   * production, and again on the integrated wave-1 build: the home page and /c/rentals referenced the
+   * deferred sprite for `ClipboardCheck` alone, and a partner PDP for `ArrowUpRight` alone — each
+   * pulling ~193 KB gzip (700 KB decoded) for one glyph.
+   *  · `ClipboardCheck` — the rental basket toggle AT REST, on every rental card
+   *    (rental-check-toggle.tsx; the 2026-09-25 basket). `Check` is the same control's ADDED state,
+   *    painted on arrival for a returning visitor whose basket already holds the card — split across
+   *    the two files, it is the `Play`/`Pause` mistake of 09-06 again.
+   *  · `ArrowUpRight` — the partner CTA on an affiliate PDP (affiliate-booking.tsx), above the fold.
+   * Cost, measured after regenerating: the core file 112,847 → 117,151 B raw (+4,304; the six
+   * symbols are 3,972 of it — ClipboardCheck 1,674 + 744, ArrowUpRight 331 + 321, Check 451 + 451,
+   * both weights), ~1.2 KB gzip on every page, against 193 KB on the pages that paid it.
+   * The guard in src/lib/critical-glyphs.guard.test.ts now reads these files' imports, so the next
+   * glyph added to a card or the chrome fails a test instead of a profile.
+   */
+  'ClipboardCheck', 'Check', 'ArrowUpRight',
 ]
 
 /** Measured so a later reader can tell whether the split still earns its complexity. */
@@ -118,5 +136,17 @@ export const CRITICAL_MEASUREMENT = {
     restBytesRaw: 696_713,
     /** The point of the pass: the home document no longer references the deferred sprite at all. */
     homeUseRefs: { core: 246, rest: 0 },
+  },
+  /**
+   * ⚠️ THE 2026-09-29 PASS (F-SPRITE) — what was measured BEFORE promoting the three glyphs above.
+   * `restTransferBytes` is production's gzip transfer (Chrome's own Accept-Encoding); the raw core
+   * size is the file this pass started from.
+   */
+  reDerived2026_09_29: {
+    routes: ['/', '/c/rentals', '/listings/<partner id>'],
+    restRefsBefore: { home: ['ClipboardCheck'], rentals: ['ClipboardCheck'], partnerPdp: ['ArrowUpRight'] },
+    restTransferBytes: 192_891,
+    coreBytesRawBefore: 112_847,
+    coreBytesRawAfter: 117_151,
   },
 }

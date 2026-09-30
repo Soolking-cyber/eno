@@ -58,3 +58,51 @@ describe('the 404 page stays inside the core sprite', () => {
     expect(CRITICAL_GLYPHS).toContain('Download')
   })
 })
+
+/**
+ * ⛔ GLYPHS PAINTED ON ARRIVAL STAY IN THE CORE SPRITE (F-SPRITE, 2026-09-29).
+ *
+ * The partition above is a one-time DOM measurement, and it drifts the moment a new control ships on
+ * a card or in the chrome: measured on production the day this was written, the rental basket's
+ * `ClipboardCheck` (every rental card) and the partner CTA's `ArrowUpRight` each bound the whole
+ * ~193 KB deferred sprite to the home page, /c/rentals and a partner PDP — for one glyph apiece.
+ * So the files whose glyphs paint on ARRIVAL — cards, the tab bar, the header and its search panel —
+ * are read here, import by import, and every glyph they import must be critical. Adding a deferred
+ * glyph to one of them now fails this test instead of a profile three weeks later.
+ * ⚠️ READ FROM THE FILES, and each one must be FOUND to import something, so a moved or renamed
+ * import cannot make the block pass vacuously.
+ */
+const ON_ARRIVAL = [
+  'src/components/marketplace/listing-card.tsx',
+  'src/components/marketplace/rental-check-toggle.tsx',
+  'src/components/marketplace/affiliate-booking.tsx',
+  'src/components/marketplace/mobile-nav.tsx',
+  'src/components/marketplace/header.tsx',
+  // The header's search panel: every glyph added to it rides the core file (W2-SEARCHPANEL-ICONS).
+  'src/components/marketplace/search-suggest.tsx',
+  'src/components/marketplace/trending-searches.tsx',
+]
+
+function iconImports(file: string): string[] {
+  const src = readFileSync(join(process.cwd(), file), 'utf8')
+  const names = [...src.matchAll(/import\s*\{([^}]+)\}\s*from\s*["']@\/components\/ui\/icons["']/g)]
+    .flatMap((m) => m[1].split(','))
+    .map((n) => n.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0])
+    .filter(Boolean)
+  return [...new Set(names)]
+}
+
+describe('glyphs painted on arrival stay in the core sprite', () => {
+  it.each(ON_ARRIVAL)('%s imports its glyphs from the generated icon set (the guard is not vacuous)', (file) => {
+    expect(iconImports(file).length).toBeGreaterThan(0)
+  })
+
+  it.each(ON_ARRIVAL)('%s draws no glyph that lives in the deferred sprite', (file) => {
+    const critical = new Set(CRITICAL_GLYPHS)
+    expect(iconImports(file).filter((g) => !critical.has(g))).toEqual([])
+  })
+
+  it('carries the three glyphs that pulled the deferred sprite onto /, /c/rentals and the partner PDP', () => {
+    expect(CRITICAL_GLYPHS).toEqual(expect.arrayContaining(['ClipboardCheck', 'Check', 'ArrowUpRight']))
+  })
+})

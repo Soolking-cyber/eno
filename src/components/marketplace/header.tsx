@@ -4,10 +4,12 @@ import { categoryFromPath, explorerMounted, explorerFallbackUrl } from '@/lib/ex
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { User, Search, MapPin, Map, Clock, X } from '@/components/ui/icons'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { User, Search, MapPin, Map, Clock, X, ChevronLeftIcon, LayoutGrid } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
-import { useAuth } from '@/context/auth-context'
+import { preloadSignIn, useAuth } from '@/context/auth-context'
+import { useSafeBack } from '@/lib/safe-back'
+import { LANG_VARIANTS } from '@/lib/lang-variant'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -17,9 +19,9 @@ import { NotificationBell } from './notification-bell'
 import { AppDownload } from './app-download'
 import type { Nearby, Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
-import { buildSuggestItems, type SuggestItem } from './search-suggest'
+import { buildSuggestItems, type AnySuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
-import { useTrendingSearches } from '@/hooks/use-trending-searches'
+import { useTrendingPanel } from '@/hooks/use-trending-searches'
 import { searchPanels, trendingEnabled } from '@/lib/search-panel'
 import { AISearchButton } from './ai-concierge'
 import {
@@ -35,6 +37,9 @@ import { useAccountPanel } from './account-panel'
 // The typeahead listbox this bar owns. Static (one Header per page), and distinct
 // from the hero bar's so both can be in the DOM at once without id collisions.
 const SUGGEST_ID = 'header-search-suggest'
+// The empty-focus panel's list names (its eyebrows) — static for the same reason.
+const RECENT_LABEL_ID = 'header-search-recent'
+const CATEGORIES_LABEL_ID = 'header-search-categories'
 
 // One uniform lucide stroke across the whole header, matching the bottom nav — a slightly
 // thicker, identical weight reads softer and keeps every icon visually the same weight.
@@ -48,9 +53,41 @@ const SearchSuggest = dynamic(() => import('./search-suggest').then((m) => m.Sea
 // with the bottom nav so the two chrome bars carry one line weight.
 const STROKE = STROKE_NAV
 
+/**
+ * ⚠️ "HAS THIS DOCUMENT HYDRATED", AS A STORE RATHER THAN A mounted-EFFECT. The sign-in link's
+ * `?next=` cannot trust the SERVER's pathname: a prerendered page is built as `/en/help` and served
+ * at `/help` by the proxy's rewrite, so usePathname() disagrees between the build render and the
+ * browser (mobile-nav.tsx's `mounted` note measured the same trap as React #418), and the href spells
+ * the path out. The server snapshot is `false`, so SSR and the hydration pass render the path-free
+ * fallback; the client snapshot is `true`, so a Header that mounts on a later CLIENT navigation
+ * renders the real thing on its first frame. A per-mount `useState(false)` would flash the fallback on
+ * every page change instead.
+ */
+const noopSubscribe = () => () => {}
+
+/**
+ * ⚠️ HOME, AS A TEST THAT AGREES ON BOTH SIDES OF THE REWRITE. The installed-PWA Back button needs
+ * only "is this home", not the path itself, so it can render on the server with no hydration gate
+ * (which cost a logo→Back swap after hydration in standalone). The proxy maps the public `/` to
+ * `/en` or `/vi`, and every other public path P to `/<variant>P`, which is never one of those three.
+ * So the server's pathname, internal or public, and the browser's always give the same answer. The
+ * one public `/en` or `/vi` is a force-dynamic 404, whose server pathname stays public.
+ */
+const HOME_PATHS = new Set(['/', ...LANG_VARIANTS.map((v) => `/${v}`)])
+
+/**
+ * THE POST FLOW'S OWN PAGES — /post and /listings/<id>/edit, where the PostWizard is the page. Like
+ * HOME_PATHS, a test that agrees on both sides of the proxy's rewrite: the server may render the
+ * internal `/en/post`, the browser reads the public `/post`, and the optional variant prefix makes
+ * both answer the same, so the header can decide at RENDER time with no hydration gate.
+ */
+const POST_FLOW = new RegExp(`^(?:/(?:${LANG_VARIANTS.join('|')}))?/(?:post|listings/[^/]+/edit)/?$`)
+export const isPostFlowPath = (pathname: string | null | undefined) => !!pathname && POST_FLOW.test(pathname)
+
 export function Header() {
   const { t, tr, lang } = useLanguage()
-  const { user } = useAuth()
+  const { user, openSignIn } = useAuth()
+  const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false)
   // ⚠️ `open` IS THE RAIL'S OWN STATE, and the header logo hides on exactly it. Using `user`
   // instead left a hole all three reviewers found independently (2026-08-03): `user && lg:hidden`
   // hides via CSS the instant the session resolves, but the rail only mounts after
@@ -60,6 +97,15 @@ export function Header() {
   const { open: railOpen } = useAccountPanel()
   const pathname = usePathname()
   const router = useRouter()
+  // Installed-PWA Back (see the button before the logo): pop when there is an in-app entry behind
+  // us, else land home — safe-back.ts owns the cold-start and double-tap cases.
+  const onBack = useSafeBack('/')
+  // Anywhere but the home feed. The explorer filters '/' in place with replaceState, so on '/' there
+  // is nothing of its own to pop. NOT hydration-gated: see HOME_PATHS. So a standalone first paint
+  // already shows Back, not the logo it replaces.
+  const backable = !!pathname && !HOME_PATHS.has(pathname)
+  // The sign-in link's `?next=` spells the path out, so it IS gated (see `hydrated`).
+  const offHome = hydrated && backable
   // Roll the bar up on scroll-down, back down on scroll-up — at EVERY width. The parenthetical
   // that used to sit here ("mobile only — desktop stays pinned via lg:translate-y-0") described a
   // class this file does not contain and has not for some time; the className below applies the
@@ -174,22 +220,60 @@ export function Header() {
   // Read fresh on focus so it reflects searches/areas made elsewhere this session
   // (`?? []` because a re-read must also RESET state when history was cleared).
   const openSuggestions = () => {
-    setRecentSearches(readRecentSearches() ?? [])
+    // Only strings: the stored list is unvalidated JSON (use-search-box.ts), and these become rows.
+    const recent = readRecentSearches()
+    setRecentSearches(Array.isArray(recent) ? recent.filter((t): t is string => typeof t === 'string') : [])
     setRecentLocations(readRecentLocations() ?? [])
     setShowSuggestions(true)
   }
 
-  // Retract the suggestions when clicking anywhere outside the search, or on Escape.
+  // Retract the suggestions when clicking anywhere outside the search, on Escape, or when focus
+  // moves to anything outside the search form.
   useEffect(() => {
     if (!showSuggestions) return
-    const onDown = (e: MouseEvent) => {
-      if (searchFormRef.current && !searchFormRef.current.contains(e.target as Node)) setShowSuggestions(false)
-    }
+    const outside = (t: EventTarget | null) => !!searchFormRef.current && !searchFormRef.current.contains(t as Node)
+    const onDown = (e: MouseEvent) => { if (outside(e.target)) setShowSuggestions(false) }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowSuggestions(false) }
+    /**
+     * ⛔ TAB USED TO LEAVE THE PANEL OPEN OVER THE PAGE (D-KEYBOARD, S-TYPEAHEAD, measured headless on
+     * production 2026-09-29: six Tabs later focus sat on "Search all listings" and the fixed panel was
+     * still drawn on top of it). Only a mousedown outside or Escape closed it.
+     * ⚠️ `focusin` ON THE DOCUMENT, NOT `blur`/`focusout` ON THE FORM, AND THAT IS THE SAFARI TRAP.
+     * Safari does not focus a tapped <button>, so tapping a chip blurs the input with a null
+     * relatedTarget — a blur handler cannot tell that from "focus left", closes the panel, and the
+     * chip unmounts before its click fires (the same happens in Chrome for a press on the panel's own
+     * padding). `focusin` only fires when something ELSE RECEIVES focus: a Tab to the bell, a click on
+     * a link or a field elsewhere. Focus that goes nowhere fires nothing, and the mousedown handler
+     * above already covers a press outside. Focus moving WITHIN the form (the panel's rows, chips and
+     * ✕ buttons live inside it) is ignored by the same containment test.
+     */
+    const onFocusIn = (e: FocusEvent) => { if (outside(e.target)) setShowSuggestions(false) }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+    document.addEventListener('focusin', onFocusIn)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('focusin', onFocusIn)
+    }
   }, [showSuggestions])
+
+  /**
+   * One recent search, forgotten — the row's ✕. The panel stays open and the caret stays in the
+   * field: the ✕ holds focus off itself (mousedown preventDefault) and this puts it back for a
+   * keyboard press, so removing three stale terms is three taps, not three re-opens.
+   * The last term out removes the key, exactly as Clear does.
+   */
+  const removeRecent = (term: string) => {
+    const next = recentSearches.filter((x) => x !== term)
+    try {
+      if (next.length) localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next))
+      else localStorage.removeItem(RECENT_SEARCHES_KEY)
+    } catch { /* storage blocked — the row still goes for this visit */ }
+    setRecentSearches(next)
+    const field = searchFormRef.current?.elements.namedItem('q')
+    if (field instanceof HTMLInputElement) field.focus()
+  }
 
   /**
    * The window is "open" (morph + panel) when focused with EITHER history to show (0-1 chars) OR
@@ -206,11 +290,14 @@ export function Header() {
    * nothing appears to flicker. Seed `eno:recent_searches` before testing this by hand — or just
    * read search-panel.test.ts, where 9 of 16 tests go red against the old rule.
    */
-  const trending = useTrendingSearches(trendingEnabled(showSuggestions, searchVal))
+  // Trending terms AND the category shortcuts — one fetch, one memo (use-trending-searches.ts).
+  const { items: trending, categories: shortcutCategories } = useTrendingPanel(trendingEnabled(showSuggestions, searchVal))
   const { suggestOpen, instantOpen, panelOpen } = searchPanels(
     showSuggestions,
     searchVal,
-    recentSearches.length > 0 || recentLocations.length > 0 || trending.length > 0,
+    // ⚠️ The category shortcuts count: they are what a FIRST visit sees — no history, and trending
+    // needs three distinct searchers before it shows a term at all.
+    recentSearches.length > 0 || recentLocations.length > 0 || trending.length > 0 || shortcutCategories.length > 0,
   )
   // The search window is ONE element for both panels (see its comment below), so it keeps its
   // scrollTop across the switch — two separate mounts used to start each panel at the top. Reset it
@@ -224,20 +311,36 @@ export function Header() {
   // 'Search for "{q}"' row ALWAYS first: Enter with no arrow-key selection submits the
   // raw free-text search (never a suggestion); arrow keys still navigate suggestions.
   const live = useSearchSuggest(searchVal, showSuggestions)
-  const suggestItems = buildSuggestItems(searchVal, live.brands, live.categories, live.listings)
+  const suggestItems = buildSuggestItems(searchVal, live.brands, live.categories, live.listings, live.lines, live.scope)
   // Arrow-key virtual focus + its aria-activedescendant announcement — shared with
   // the hero bar (see use-search-box.ts for the a11y contract).
   const { activeIdx, moveDown, moveUp } = useSuggestKeyboardNav(searchVal)
   const activeOptionId = activeSuggestOptionId(SUGGEST_ID, instantOpen, activeIdx, suggestItems.length)
 
-  const pickSuggest = (it: SuggestItem) => {
+  const pickSuggest = (it: AnySuggestItem) => {
     setShowSuggestions(false)
     if (it.type === 'query') { submitSearch(searchVal); return }
-    if (it.type === 'brand') {
-      // Open the brand's facets — the explorer resolves its dominant category.
-      const url = `/?brand=${encodeURIComponent(it.slug)}`
+    // A facet link: applied in place on the explorer (it filters with replaceState, so a push would
+    // not reach it), navigated to anywhere else.
+    const openUrl = (url: string) => {
       if (onExplorer()) window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url } }))
       else router.push(url)
+    }
+    // Open the brand's facets — the explorer resolves its dominant category.
+    if (it.type === 'brand') { openUrl(`/?brand=${encodeURIComponent(it.slug)}`); return }
+    /**
+     * A product line, with the category most of it lives in. With a brand set, the explorer sends that
+     * category as a boost (`priorityCategory`), not a filter, so the total is the row's count; it is in
+     * the URL so the rail lights the right category on arrival instead of after the brand-heal fetch
+     * (api/search/suggest/suggest-entities.ts).
+     */
+    if (it.type === 'line') {
+      openUrl(`/?category=${encodeURIComponent(it.category)}&brand=${encodeURIComponent(it.brand)}&line=${encodeURIComponent(it.line)}`)
+      return
+    }
+    // The query, in its aisle. The words stay the query, so the explorer's box shows them.
+    if (it.type === 'scope') {
+      openUrl(`/?q=${encodeURIComponent(searchVal.trim())}&category=${encodeURIComponent(it.category)}&subcategory=${encodeURIComponent(it.subcategory)}`)
       return
     }
     router.push(it.type === 'category' ? `/c/${it.slug}` : `/listings/${it.listing.id}`)
@@ -336,6 +439,17 @@ export function Header() {
     }
   }
 
+  /**
+   * The placeholder ladder's container-query classes per language — see the note on the overlay in
+   * the search field. Whole literals, so Tailwind sees every class it has to generate.
+   */
+  const placeholderFit =
+    lang === 'vi'
+      ? { overlay: 'peer-placeholder-shown:@min-[5.55em]/q:flex', long: '@min-[8.7em]/q:block', short: '@min-[8.7em]/q:hidden' }
+      : lang === 'en'
+        ? { overlay: 'peer-placeholder-shown:@min-[4.55em]/q:flex', long: '@min-[8.6em]/q:block', short: '@min-[8.6em]/q:hidden' }
+        : { overlay: 'peer-placeholder-shown:@min-[15em]/q:flex', long: 'block', short: 'hidden' }
+
   return (
     <header
       id="app-header"
@@ -408,10 +522,31 @@ export function Header() {
             scale as inset-x-* lands the line exactly on the content column at every
             breakpoint. Keep the two scales in lockstep if either ever changes. */}
         <span aria-hidden className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border/60 sm:inset-x-6 lg:inset-x-8" />
+        {/* ⚠️ INSTALLED-PWA BACK — `display:none` IN A NORMAL TAB, AND THE DISPLAY MODE IS DECIDED BY CSS,
+            NOT BY A RENDER BRANCH. manifest.ts installs the site as `display: standalone` (the owner's
+            only iOS web-push route), which removes the browser's own Back, and nothing here replaced it:
+            a PDP opened from a push notification was a dead end but for the tab bar. globals.css turns
+            this on under `@media (display-mode: standalone)` (never in the native shells, which carry
+            html.native) and hides the logo that follows it, so a normal tab paints exactly what it did
+            before and nothing branches on display mode or hydration: `backable` agrees on server and
+            client (HOME_PATHS), so the SSR HTML already carries the button.
+            ChevronLeftIcon, NOT ChevronLeft: the header is on every page and only the former is in the
+            core sprite (scripts/critical-icons.mjs). */}
+        {backable && (
+          <IconButton
+            size="lg"
+            onClick={onBack}
+            aria-label={tr('Back', 'Quay lại')}
+            className="standalone-back hidden shrink-0 press tap-48 text-foreground"
+          >
+            <ChevronLeftIcon className="h-7 w-7" strokeWidth={STROKE} aria-hidden />
+          </IconButton>
+        )}
         {/* Logo */}
         <Link
           href="/"
           prefetch={false}
+          data-header-logo=""
           onClick={() => window.dispatchEvent(new CustomEvent('eno:reset-home'))}
           // ⚠️ HIDDEN ON DESKTOP FOR SIGNED-IN USERS ONLY — the brand moved to the top of the left
           // rail (owner, 2026-08-03, Alibaba/QwenCloud layout: mark collapsed, mark + wordmark on
@@ -541,6 +676,9 @@ export function Header() {
             )}
             >
               <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" strokeWidth={STROKE} />
+              {/* The field's slot. `@container/q` so the placeholder below can ask how wide the field
+                  is; `text-base` so its `em` thresholds are the field's own 16px. */}
+              <div className="@container/q relative flex min-w-0 flex-1 text-base">
               <Input
                 variant="unstyled"
                 value={searchVal}
@@ -578,12 +716,46 @@ export function Header() {
                 aria-expanded={instantOpen}
                 aria-controls={instantOpen ? SUGGEST_ID : undefined}
                 aria-activedescendant={activeOptionId}
-                // `text-ellipsis`: on a phone the idle field has ~60px of text room beside Map and
-                // ✨, and the placeholder needs ~117px, so it was clipped MID-GLYPH ('Find pr',
-                // 'Tìm sả'). An ellipsis at least ends on a whole letter. The copy and the button
-                // layout are the owner's call.
-                className="min-w-0 flex-1 bg-transparent py-3 pl-2 pr-2 text-base text-ellipsis text-foreground outline-none placeholder:text-ink-4"
+                // `text-ellipsis` is for TYPED text that outgrows the field. The placeholder is painted
+                // by the overlay below — the native one is transparent (`placeholder:text-transparent`)
+                // but stays in the attribute: it is the field's accessible description, the e2e
+                // suites find the box by it, and `:placeholder-shown` needs it to be non-empty.
+                // `forced-color-adjust-none` on it: in Windows High Contrast a forced text colour must
+                // not paint it back UNDER the overlay (Chromium keeps the transparency; this makes
+                // that the rule for every engine, not a behaviour we happened to measure).
+                className="peer w-full min-w-0 bg-transparent py-3 pl-2 pr-2 text-base text-ellipsis text-foreground outline-none placeholder:text-transparent placeholder:forced-color-adjust-none"
               />
+              {/* ⛔ THE PLACEHOLDER NEVER TRUNCATES (G-SEARCH-lite, main thread 2026-09-29; the owner's
+                  G-SEARCH decision — moving ✨ and Map out of the pill on phones — is HELD, so they stay).
+                  Measured on the integrated build at every phone width, guest, en and vi: the idle
+                  field's text room is 0 / 30 / 45 / 60 / 82px at 320 / 360 / 375 / 390 / 412 on Android
+                  (the "Get the app" control is shown) and 34 / 74 / 89 / 104 / 126px on iOS (it is
+                  hidden, G-APPSTORE). "Find products…" needs 117px and "Tìm sản phẩm…" 119px, so on
+                  EVERY phone but a 412px iPhone it read "Find pr…" / "Tìm s…". No copy fits Android
+                  Vietnamese at 390, so this is a LADDER, not a new string: the long copy where it fits
+                  (desktop, tablets, an open panel — the field widens when ✨ and Map step aside), the
+                  one word the field is named by where that fits ("Search" 52.6px, "Tìm kiếm" 68.2px,
+                  = the aria-label, so what a voice user sees is what they can say), and NOTHING below
+                  that — the magnifier, ✨ and Map already say "search", and half a word says less.
+                  ⚠️ CSS, NOT A MEASURING EFFECT, BECAUSE OF THE FIRST PAINT. The field is in the SSR
+                  HTML of every page; a JS pick would paint the long copy truncated until hydration and
+                  then swap it — on every phone load. Container queries on the field's own width pick
+                  the rung before the first frame, in the language the server rendered.
+                  ⚠️ THE THRESHOLDS ARE MEASURED TEXT WIDTHS in the field's font (Open Runde 16px, canvas
+                  measureText) + the 16px of padding + 4px for the fallback face, in em so a zoomed
+                  font scales them too: en 72.8 / 137.6px, vi 88.8 / 139.2px. CHANGE A STRING, RE-MEASURE.
+                  ⚠️ The nine machine-translated languages have no width we can know ahead of time,
+                  so they get only the long copy, and only with 224px of room — never a guess that
+                  might be cut. `truncate` on each rung is a backstop for a fallback face, not a mode. */}
+              <span
+                aria-hidden="true"
+                data-search-placeholder=""
+                className={cn('pointer-events-none absolute inset-y-0 left-2 right-2 hidden items-center text-ink-4', placeholderFit.overlay)}
+              >
+                <span data-rung="long" className={cn('hidden min-w-0 truncate', placeholderFit.long)}>{tr('Find products…', 'Tìm sản phẩm…')}</span>
+                <span data-rung="short" className={cn('min-w-0 truncate', placeholderFit.short)}>{tr('Search', 'Tìm kiếm')}</span>
+              </span>
+              </div>
               {/* De-crowd rule — keyed on ENGAGEMENT (suggest panel open), never on text
                   presence. searchVal persists after submit, so a value-based swap would hide
                   Map + AI on every results page — regressing the owner's 2026-08-03 mandate
@@ -713,23 +885,47 @@ export function Header() {
                       <div className="flex items-center justify-between">
                         {/* Micro-meta eyebrow icons ride the UI tier (lucide default 2) — STROKE_NAV
                             is reserved for h-6/h-7 chrome (§2); 2.25 at 12px reads smudged. */}
-                        <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
+                        <span id={RECENT_LABEL_ID} className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
                         <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem(RECENT_SEARCHES_KEY); setRecentSearches([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {recentSearches.map((term, i) => (
-                          <Button
-                            key={i}
-                            variant="soft"
-                            size="none"
-                            type="button"
-                            onClick={() => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
-                            className="whitespace-normal rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:text-accent-foreground cursor-pointer"
-                          >
-                            {term}
-                          </Button>
+                      {/* ROWS, EACH WITH ITS OWN ✕, not chips (S-TYPEAHEAD 2026-09-29): one stale term
+                          could only go with all the others ("Clear"). Geometry, pixel for pixel:
+                          `-mx-2` hangs each row's hover fill 8px into the panel padding so the clock
+                          lines up under the eyebrow's clock; `pr-2` brings the ✕ back so its edge meets
+                          Clear's. The term is a 44px row (py-3 + 20px line); the ✕ is a 28px button
+                          whose 44px hit area (tap-44) is kept clear of the term by `ml-2` — exactly
+                          its 8px overhang — and ends inside the panel's 16px padding on the right.
+                          Both hold focus off themselves (mousedown preventDefault), so a tap never
+                          blurs the field under the keyboard. */}
+                      <ul aria-labelledby={RECENT_LABEL_ID} className="-mx-2">
+                        {recentSearches.slice(0, 5).map((term, i) => (
+                          <li key={i} className="flex items-center pr-2">
+                            <Button
+                              variant="bare"
+                              size="none"
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
+                              className="flex min-w-0 flex-1 items-center justify-start gap-2.5 rounded-xl px-2 py-3 text-left text-sm font-medium text-body hover:bg-muted cursor-pointer"
+                            >
+                              <Clock className="h-4 w-4 shrink-0 text-ink-4" />
+                              <span className="truncate">{term}</span>
+                            </Button>
+                            <IconButton
+                              size="xs"
+                              aria-label={`${tr('Remove', 'Xóa')} “${term}”`}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => removeRecent(term)}
+                              // The Clear-search ✕'s treatment above, for the same mark: `/75` at rest
+                              // (≥3:1 non-text contrast, measured there), full ink on hover AND focus.
+                              className="ml-2 text-ink-4/75 transition-[color,background-color,scale] duration-150 active:duration-[60ms] active:scale-[0.96] hover:bg-muted hover:text-foreground focus-visible:text-foreground"
+                            >
+                              {/* round((28 − 2) / 0.9) — the close-mark rule in ui/icon-button. */}
+                              <X className="h-[29px] w-[29px] shrink-0" />
+                            </IconButton>
+                          </li>
                         ))}
-                      </div>
+                      </ul>
                     </div>
                   )}
                   {recentLocations.length > 0 && (
@@ -762,6 +958,27 @@ export function Header() {
                     variant="header"
                     onPick={(term) => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
                   />
+                  {/* Category shortcuts — the home grid's first six (the owner's pinned four, then
+                      live demand), so a first visit with no history and no trending still opens on
+                      somewhere to go. Links, not buttons: each is a place with a URL (new tab, long
+                      press, the status bar). Same chip as Trending, same eyebrow. */}
+                  {shortcutCategories.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span id={CATEGORIES_LABEL_ID} className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><LayoutGrid className="h-3 w-3" />{tr('Categories', 'Danh mục')}</span>
+                      <ul aria-labelledby={CATEGORIES_LABEL_ID} className="flex flex-wrap gap-1.5">
+                        {shortcutCategories.map((c) => (
+                          <li key={c.slug}>
+                            {/* Classes on the BUTTON: asChild concatenates, and only these are twMerged. */}
+                            <Button asChild variant="soft" size="none" className="whitespace-normal rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:text-accent-foreground cursor-pointer">
+                              <Link href={`/c/${c.slug}`} prefetch={false} onClick={() => setShowSuggestions(false)}>
+                                {tr(c.name, c.nameVi)}
+                              </Link>
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </>
                 ) : (
                   /* Instant matches — live listings + categories as you type (≥2 chars) */
@@ -797,10 +1014,28 @@ export function Header() {
           {/* Signed-in users reach their account via the persistent LEFT nav rail (desktop) / the
               bottom-nav Account tab (mobile/tablet) — no header avatar (owner 2026-07-17). Guests
               still get a Sign in link here. */}
+          {/* ⛔ THE ONE POPUP, NOT THE PAGE (owner, 2026-08-28: "unify all login signup pages to this
+              only 1 popup"). This link was the last guest gate that NAVIGATED to /signin — every other
+              one (the bell, the gated tabs, the first save) opens the dialog in place, and the dialog
+              returns the visitor to the page they were on (sign-in-form's nextPath). A plain click now
+              does the same; the href stays a real URL, carrying `?next=`, for a middle/modified click
+              and for no-JS. /signin and every /auth route sanitise `next` through safeNextPath, so it
+              can only ever name a same-origin path.
+              ⚠️ NO aria-label, AND THE VISIBLE WORD IS THE NAME (WCAG 2.5.3 label-in-name). It read
+              "Log in" on screen while announcing "Sign in" — a voice user saying what they saw
+              matched nothing. The span is the accessible name at every width: sr-only below lg,
+              visible from lg, and the User glyph is aria-hidden (ui/icons). */}
           {!user && (
             <Link
-              href="/signin"
+              href={offHome ? `/signin?next=${encodeURIComponent(pathname)}` : '/signin'}
               prefetch={false}
+              onPointerEnter={preloadSignIn}
+              onFocus={preloadSignIn}
+              onClick={(e) => {
+                if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+                e.preventDefault()
+                openSignIn()
+              }}
               /* ⚠️ THE ONLY HEADER CONTROL WITH NO PRESS RESPONSE UNTIL NOW — measured against its
                  own neighbours: 0 of 7,872 pixels changed under a held pointer, while /post moved
                  1,120px, the logo 727, the bell 409, AI 187 and Map 212, all at scale ~0.96.
@@ -808,10 +1043,9 @@ export function Header() {
                  behind `@media (hover: hover)`, and this link renders from `sm` up — which includes
                  touch tablets, where it therefore had no feedback at all. */
               className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-[color,background-color,scale] hover:bg-accent hover:text-accent-foreground active:scale-[0.97] active:duration-[60ms] cursor-pointer tap-48 relative"
-              aria-label={tr('Sign in', 'Đăng nhập')}
             >
               <User className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={STROKE} />
-              <span className="hidden lg:inline">{tr('Log in', 'Đăng nhập')}</span>
+              <span className="sr-only lg:not-sr-only">{tr('Sign in', 'Đăng nhập')}</span>
             </Link>
           )}
 
@@ -821,7 +1055,19 @@ export function Header() {
               utility on the button itself (hidden / mobile:hidden) loses to `inline-flex`. The
               wrapper has no competing display, so mobile:hidden reliably hides it; pc:contents
               keeps the button a direct flex child on desktop (zero layout change). */}
-          <div className="mobile:hidden pc:contents">
+          {/* ⚠️ THE ORANGE POST BUTTON STANDS DOWN ON THE POST FLOW ITSELF (/post, /listings/[id]/edit):
+              a second "Free Post" above a form that IS the post flow reads as a restart.
+              ⛔ DECIDED FROM THE PATHNAME AT RENDER TIME, NOT FROM AN EFFECT. The first version hid it
+              only once the wizard's effect set `data-post-wizard` on <html>, so the server HTML carried
+              the button and hydration removed it: the header controls beside it jumped ~105px at
+              1280px (review, 2026-09-29, CLS 0.0017). isPostFlowPath answers the same on the server
+              and in the browser, so the server HTML already omits it.
+              The wizard still writes one attribute — `data-post-done`, on its SUCCESS screen, where
+              posting another IS the next step — and this hook lets the button back then. A
+              SUBJECT-position hook (`html:not([…]) .x`), deliberately not a `body:has(…)` one: `:has()`
+              in a non-subject position makes every DOM mutation re-test the whole document, the cost
+              design-lint's :has rule exists to keep out. Its (0,2,1) specificity beats `pc:contents`. */}
+          <div className={isPostFlowPath(pathname) ? 'mobile:hidden pc:contents [html:not([data-post-done])_&]:hidden' : 'mobile:hidden pc:contents'}>
             {/* gap/weight ride on the BUTTON: asChild composes through Base UI's render
                 prop, which CONCATENATES classNames — only the Button's own className is
                 twMerged. On the child these were decided by stylesheet order instead of

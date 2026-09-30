@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { getTrending, logSearch } from '@/lib/trending'
+import { getCategoriesByDemand } from '@/lib/categories'
 import { clientIp } from '@/lib/client-ip'
 import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 
-// Public "Xu hướng tìm kiếm" (trending searches) feed for the empty-focus search
-// dropdown. Reads the Upstash-backed daily counters via getTrending() — fails
+// Public "Xu hướng tìm kiếm" (trending searches) feed — plus the category shortcuts — for the
+// empty-focus search dropdown. Reads the Upstash-backed daily counters via getTrending() — fails
 // OPEN to an empty list when Redis is unconfigured or errors, so the search UI
 // simply omits the trending row rather than breaking. CDN-cached ~5min since the
 // data is coarse-grained and identical for everyone.
@@ -20,10 +21,33 @@ export const runtime = 'nodejs'
 // `logSearch()` are documented fail-OPEN (src/lib/trending.ts wraps every query and returns
 // `[]`/void on error), and the POST adds its own total try/catch on top. So route()'s
 // `internal_error` boundary is unreachable from here and all four branches are byte-identical.
+/**
+ * The category shortcuts under the trending chips (S-TYPEAHEAD, 2026-09-29): the first six categories
+ * of the home grid's own order (getCategoriesByDemand — the owner's four pinned, then live demand),
+ * only those with live listings, as `{ slug, name, nameVi }`. Edition-scoped and memoized by that
+ * function, so this is the rail the visitor already sees, not a second opinion about it.
+ * ⚠️ FAIL-OPEN LIKE EVERYTHING ELSE ON THIS VERB, INCLUDING A DeskResolutionError that
+ * getCategoriesByDemand deliberately re-throws: that error is meant to break a PAGE loudly (the home
+ * page does), not to take the trending terms down with an optional row of chips.
+ */
+async function shortcutCategories(): Promise<{ slug: string; name: string; nameVi: string }[]> {
+  try {
+    return (await getCategoriesByDemand())
+      .filter((c) => c.verifiedCount > 0)
+      .slice(0, 6)
+      .map(({ slug, name, nameVi }) => ({ slug, name, nameVi }))
+  } catch {
+    return []
+  }
+}
+
+// ⚠️ ADDITIVE WIRE CHANGE, 2026-09-29: `categories` sits beside `trending`, which is unchanged — the
+// hero panel and any native client read `trending` alone and ignore the new key. Still fail-open on
+// both halves, so the `internal_error` boundary stays unreachable from this verb.
 export const GET = route({ auth: 'public' }, async () => {
-  const trending = await getTrending(6)
+  const [trending, categories] = await Promise.all([getTrending(6), shortcutCategories()])
   return NextResponse.json(
-    { trending },
+    { trending, categories },
     { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } },
   )
 })
