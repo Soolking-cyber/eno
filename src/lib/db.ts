@@ -10,7 +10,13 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
+// ⛔ A SMALL POOL WHILE `next build` PRERENDERS (2026-09-30). The build runs ~15 workers, each with its
+// own client, and node-postgres defaults to 10 connections per pool — up to 150 against a database that
+// sits at ~45 of max_connections=100 at rest (Supabase's own services). Two box deploys of the services
+// edition died on "too many clients already" mid-prerender. 3 per worker keeps the build under ~45;
+// the running app (any other phase) keeps the default.
+const buildPool = process.env.NEXT_PHASE === 'phase-production-build' ? { max: 3 } : {}
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, ...buildPool })
 
 export const db =
   globalForPrisma.prisma ??
