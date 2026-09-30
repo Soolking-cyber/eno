@@ -35,7 +35,9 @@ export function FacetBarFallback() {
   return (
     <div aria-hidden="true" inert className="relative">
       {/* FacetBar's own row classes, minus the scroller: nothing here scrolls or takes input. */}
-      <div className="-mx-3 flex flex-nowrap items-center gap-2 overflow-hidden px-3 lg:mx-0 lg:flex-wrap lg:px-0">
+      {/* Below sm it is content-sized inside the SortStrip's one phone scroller, like FacetBar's row
+          (2026-09-30 one-row try) — `overflow-hidden` there would clip the pills at the row's own box. */}
+      <div className="-mx-3 flex flex-nowrap items-center gap-2 overflow-hidden px-3 lg:mx-0 lg:flex-wrap lg:px-0 max-sm:mx-0 max-sm:overflow-visible max-sm:px-0">
         <div className={wrap}>
           <span className={selectPill}>
             <span className="flex items-center gap-1.5 truncate"><span className="truncate">{tr('Any type', 'Mọi loại')}</span></span>

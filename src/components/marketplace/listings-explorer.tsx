@@ -4056,7 +4056,14 @@ export function ListingsExplorer({
               the strip is the sticky bar and its top offsets carry the safe-area / Capacitor /
               edge-bleed behaviour — see the `leading` prop's note. `min-h-12` rides along: the
               FacetBar is a ssr:false dynamic, so without a reserved row the grid below shifts on
-              every cold load, which is the CLS class this page paid 0.142 → 0.002 to remove. */}
+              every cold load, which is the CLS class this page paid 0.142 → 0.002 to remove.
+              ⛔ LOCAL TRY, 2026-09-30 — THE OWNER ASKED TO TRY ONE ROW ON PHONES, reversing "clean 2 lines
+              fit all" below sm (kept above as the history): the filter pills and the sort no longer take two
+              rows there. SortStrip draws ONE horizontally scrolling line — a compact sort pill first (the
+              current order, opening the five choices), the facet pills, then Good price; the tab row is
+              desktop-only. sm and up are unchanged. Measured (next dev, headless, cold): first card top
+              447 → 406 at 360×740 and 390×844, en and vi; 367 unchanged at 1440×900.
+              (home)/loading.tsx and FacetBarFallback mirror the one-row phone geometry. */}
           <SortStrip
             sort={sort}
             onPickSort={pickSort}

@@ -1,6 +1,6 @@
 'use client'
 
-import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/ui/icons'
+import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown, ChevronRight } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -8,6 +8,9 @@ import { Toggle } from '@/components/ui/toggle'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { sortTabClass } from './sort-tab-class'
+import { CustomSelect } from './custom-select'
+import { useScrollArrows } from '@/hooks/use-scroll-arrows'
+import { STROKE_UI } from '@/lib/icon-tokens'
 
 // Presentational toolbar pieces extracted from ListingsExplorer. Pure: they read a value +
 // call a passed handler, own no state.
@@ -133,6 +136,16 @@ export function SortStrip({
    * touch-action note on the list below), and a filter bar beside it would leave both too narrow to scroll
    * sensibly. `basis-full sm:basis-auto` gives the filters their own line on mobile and shares
    * the row from sm up, which is where the wireframe's layout applies.
+   *
+   * ⛔ LOCAL TRY, 2026-09-30 — THE OWNER ASKED TO TRY ONE ROW ON PHONES, reversing the paragraph
+   * above for widths below sm (the "clean 2 lines fit all" arrangement of 2026-08-12 is kept above
+   * as the history). Below sm the filters no longer take their own line: the whole strip is ONE
+   * horizontal scroller — a compact sort pill FIRST (the current sort, opening the choices through
+   * CustomSelect, the same Base UI select the facet pills are), then the facet pills, then Good price.
+   * The tab list is not drawn below sm; from sm up nothing changes. The two nested-scroller traps the
+   * notes below describe are avoided the same way: below sm the facet row and the tab/toggle row stop
+   * scrolling (`max-sm:overflow-visible`) and the ONE scroller is the row that holds them all.
+   * Measured at 390×844: first card 447 → see listings-explorer.tsx at the SortStrip call site.
    */
   leading?: React.ReactNode
 }) {
@@ -147,6 +160,24 @@ export function SortStrip({
   // Re-tap on the ALREADY-active price tab flips asc↔desc. That is not a value change, so
   // onValueChange never fires for it — it has to stay an onClick (see the tab below).
   const flipPrice = () => onPickSort(sort === 'price-low' ? 'price-high' : 'price-low')
+  // THE PHONE ROW (see `leading`'s 2026-09-30 note). The same five orders the tabs reach, with the
+  // price tab's two directions spelled out as two options — a menu has no "re-tap flips".
+  const salary = priceLabel === 'salary'
+  const sortOptions: { value: SortKey; label: string }[] = [
+    { value: 'newest', label: tr('Relevance', 'Liên quan') },
+    { value: 'recent', label: tr('Newest', 'Mới nhất') },
+    { value: 'popular', label: tr('Most contacted', 'Được quan tâm') },
+    { value: 'price-low', label: salary ? tr('Salary: low to high', 'Lương: thấp đến cao') : tr('Price: low to high', 'Giá: thấp đến cao') },
+    { value: 'price-high', label: salary ? tr('Salary: high to low', 'Lương: cao đến thấp') : tr('Price: high to low', 'Giá: cao đến thấp') },
+  ]
+  // The pill says the CURRENT order in the tab's own words ("Price" + its arrow), not the menu's
+  // long option label, so it stays as narrow as a tab.
+  const sortPillLabel = priceSortActive
+    ? (salary ? tr('Salary', 'Lương') : tr('Price', 'Giá'))
+    : (sortOptions.find((o) => o.value === sort)?.label ?? tr('Sort by', 'Sắp xếp'))
+  const SortGlyph = sort === 'price-low' ? ArrowUp : sort === 'price-high' ? ArrowDown : ArrowUpDown
+  // The phone row's scroller, for the edge signpost (category-rail.tsx's pattern — see below).
+  const { scrollerRef: phoneRowRef, canRight: phoneRowCanRight } = useScrollArrows<HTMLDivElement>({ watch: sort })
 
   return (
     <Tabs
@@ -241,8 +272,31 @@ export function SortStrip({
       {/* The hairline lives on THIS row, not on the bled wrapper — see the note above. It lands at
           the content's own left/right edges, so it lines up with the promo banner and the card grid
           beneath it instead of overshooting into the gutter. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 border-b border-border">
-      {leading ? <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">{leading}</div> : null}
+      {/* ⛔ PHONE: ONE SCROLLER (owner's one-row try, 2026-09-30 — see `leading`). The hairline stays on
+          the outer box at the content's width; the scroller inside bleeds to the screen edges
+          (`-mx-3 px-3`, the facet row's own bleed) so pills slide out under the edge rather than being
+          sliced at the gutter. From sm the scroller classes are inert and the row is the old one. */}
+      <div className="relative border-b border-border">
+      <div
+        ref={phoneRowRef}
+        className="flex flex-wrap items-center justify-between gap-x-4 max-sm:-mx-3 max-sm:flex-nowrap max-sm:justify-start max-sm:gap-x-2 max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:overscroll-x-contain max-sm:px-3 scrollbar-none"
+      >
+      {/* THE PHONE SORT PILL — first in the row so the order is visible without a swipe. A facet pill's
+          box (min-h-11, ⌄), with the order's glyph in front (⇅, or the price direction). */}
+      <CustomSelect
+        value={sort}
+        onChange={(v) => onPickSort(v as SortKey)}
+        options={sortOptions}
+        label={tr('Sort by', 'Sắp xếp theo')}
+        triggerLabel={sortPillLabel}
+        icon={<SortGlyph className={cn('size-3.5 shrink-0', sort === 'newest' && 'text-ink-4')} />}
+        indicator="down"
+        searchable={false}
+        className="min-h-11"
+        activeClassName="text-accent-foreground"
+        wrapperClassName="w-auto shrink-0 sm:hidden"
+      />
+      {leading ? <div className="min-w-0 basis-full max-sm:shrink-0 max-sm:basis-auto sm:flex-1 sm:basis-auto">{leading}</div> : null}
       {/* ⚠️ THE TABLIST AND THE GOOD-PRICE TOGGLE SHARE ONE FLEX ROW, AND THE WRAPPER IS WHAT KEEPS THEM
           ON ONE LINE. The TabsList is `w-full` on a phone (its own line, see `leading`); as a direct child
           of the wrapping row above, anything after it would wrap onto a third line. Inside this row the
@@ -260,7 +314,9 @@ export function SortStrip({
         * bar, parked under the reader's thumb. A `touch-pan-x` here would re-break "cant scroll app
         * on mobile" exactly as it did on the list.
         */}
-      <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto -mb-px scrollbar-none flex-nowrap snap-x snap-proximity overflow-x-auto overflow-y-hidden overscroll-x-contain">
+      {/* ⚠️ Below sm (2026-09-30 try) this row is NOT a scroller and holds only Good price — the tab list
+          is hidden and the row it sits in scrolls instead (`max-sm:overflow-visible`, `max-sm:shrink-0`). */}
+      <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto -mb-px scrollbar-none flex-nowrap snap-x snap-proximity overflow-x-auto overflow-y-hidden overscroll-x-contain max-sm:mb-0 max-sm:w-auto max-sm:shrink-0 max-sm:overflow-visible">
       <TabsList
         // variant=line: the default variant paints a bg-muted pill behind the strip.
         variant="line"
@@ -328,6 +384,9 @@ export function SortStrip({
           // scrollers would trap the gesture in whichever one the thumb landed on, so the tabs
           // would pan while "Good price" stayed put — the opposite of one reel.
           'flex-nowrap items-center gap-1',
+          // ⛔ Not drawn below sm (2026-09-30 one-row try): the phone sort pill at the head of the row
+          // reaches the same five orders.
+          'max-sm:hidden',
         )}
       >
         <TabsTrigger value="newest" type="button" className={sortTabClass(sort === 'newest')}>
@@ -382,6 +441,9 @@ export function SortStrip({
           // and left the toggle overhanging the tab strip's baseline (agy). It matches its neighbours.
           // `snap-start` so it is a stop on the same reel as the tabs, not a straggler after them.
           'flex h-[42px] w-auto shrink-0 snap-start items-center justify-between rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96]',
+          // Below sm it sits among the facet pills, not the tabs (2026-09-30 one-row try), so it takes
+          // THEIR 44px — the tap-target floor — rather than the tabs' 42.
+          'max-sm:h-11',
           'text-body hover:bg-muted',
           // GREEN ONLY WHEN PRESSED, and it is the whole affordance now that the border is gone.
           // `--success` is green-800 in light and green-400 in dark, so the ink flips with it: the page
@@ -394,6 +456,22 @@ export function SortStrip({
       </Toggle>
       )}
       </div>
+      </div>
+      {/**
+        * THE PHONE ROW'S EDGE SIGNPOST — category-rail.tsx's, class for class: a static plated chevron
+        * at the right edge while there IS more to the right (`canRight`), gone at the end of the row,
+        * `pointer-events-none` so a swipe passes through it. NOT the rail beam: shelf.tsx reserves the
+        * beam for rails of PRODUCTS and names the facet bar as a row that deliberately goes without.
+        * `sm:hidden` — from sm this row does not scroll.
+        */}
+      {phoneRowCanRight && (
+        <span
+          aria-hidden="true"
+          className="material pointer-events-none absolute right-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm sm:hidden"
+        >
+          <ChevronRight className="h-5 w-5" strokeWidth={STROKE_UI} />
+        </span>
+      )}
       </div>
     </Tabs>
   )

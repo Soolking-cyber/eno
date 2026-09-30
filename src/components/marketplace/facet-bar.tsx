@@ -756,7 +756,11 @@ export function FacetBar({
       {/* ⚠️ `overscroll-x-contain` — see the note in listing-gallery.tsx: without it a flick at
           either end of this strip chains to an ancestor, or to the iOS swipe-back gesture. It only
           applies while the strip is a scroller; from `lg` it wraps and the property is inert. */}
-      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto overscroll-x-contain scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
+      {/* ⛔ BELOW sm IT DOES NOT SCROLL (2026-09-30, owner's one-row try): the explorer's SortStrip puts
+          the sort pill, this row and Good price on ONE phone line and that line is the scroller, so this
+          row is content-sized there (`max-sm:overflow-visible`, no bleed of its own). Two nested scrollers
+          would trap the swipe in whichever one the thumb landed on (explorer-toolbar.tsx). sm–lg unchanged. */}
+      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto overscroll-x-contain scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible max-sm:mx-0 max-sm:overflow-visible max-sm:px-0">
         {/* Advanced per-category filter form — leftmost. Only when the category has facets.
             A Base UI Popover from `sm` up and a bottom sheet (ui/drawer) on a phone — see `filterPanel`. */}
         {hasAdvanced && filterPanel}

@@ -48,9 +48,9 @@ import { ListingCardSkeleton } from '@/components/marketplace/listing-card-skele
  *   section `pt-0 pb-5 sm:pt-2 sm:pb-8` → `space-y-3`
  *     ├ category rail   201 / 158   (phone: two opening rows of big tiles in 6 unit rows; md: 2 rows of 71px)
  *     ├ recents row      44 / 44    (`.recents-row`: shown only under html[data-has-recents], like the page)
- *     ├ sort strip       86 / 45    (facet row 44 + tab row 41 + hairline; one row from sm)
+ *     ├ sort strip       45 / 45    (one 44px row + hairline; a phone had 86 = facet row 44 + tab row 41 + hairline until the 2026-09-30 one-row try)
  *     └ feed            header 44 / 40, 12px, then the grid
- * First card top: 447 at 390×844, 367 at 1440×900. If listings-explorer.tsx or category-rail.tsx moves,
+ * First card top: 447 at 390×844 (406 since the 2026-09-30 phone one-row try), 367 at 1440×900. If listings-explorer.tsx or category-rail.tsx moves,
  * re-measure and move this with it — this file is half of the home page's CLS budget.
  * The notes above are the history of the earlier layouts and are kept for their reasoning.
  */
@@ -78,16 +78,18 @@ export default function HomeLoading() {
             pre-paint `data-has-recents` reservation holds in the skeleton too (display:none otherwise). */}
         <div aria-hidden="true" className="recents-row h-11" />
 
-        {/* THE SORT STRIP — the facet row (44px pills) over the tab row (41 + the hairline) on a phone,
-            one 44px row from sm. */}
+        {/* THE SORT STRIP — one 44px row at every width since the 2026-09-30 phone one-row try: on a phone
+            the sort pill + facet pills + Good price share one scrolling line (the tab row is not drawn),
+            from sm the facets sit left and the tabs right. (Before the try a phone had the facet row over
+            a 41px tab row.) */}
         <div className="border-b border-border">
           <div className="flex flex-wrap items-center gap-x-4">
             <div className="flex h-11 basis-full items-center gap-2 overflow-hidden sm:flex-1 sm:basis-auto">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-5 w-20 shrink-0" />
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className={i === 4 ? 'h-5 w-20 shrink-0 sm:hidden' : 'h-5 w-20 shrink-0'} />
               ))}
             </div>
-            <div className="flex h-[41px] items-center gap-4 overflow-hidden sm:h-11">
+            <div className="hidden h-11 items-center gap-4 overflow-hidden sm:flex">
               {Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className="h-5 w-16 shrink-0" />
               ))}
