@@ -126,7 +126,10 @@ export function HelpThreadClient({
   const router = useRouter()
   const title = useLocalized(post.title, null, i18n?.title, post.official ? 'english' : 'title')
   const body = useLocalized(post.body, null, i18n?.body, post.official ? 'english' : 'description')
-  const modifiedAt = post.official ? helpModifiedAt(post) : null
+  // Printed only after a REAL edit: never-edited, helpModifiedAt is the createdAt the seed writes as
+  // its curated-order key, which the page leaves unprinted (JSON-LD and lastmod still carry it, I3c).
+  // Whenever a date IS printed it is helpModifiedAt, so it cannot differ from dateModified.
+  const modifiedAt = post.official && post.editedAt ? helpModifiedAt(post) : null
   const topic = helpTopic(post.community)
 
   const [comments, setComments] = useState(initial)
@@ -239,13 +242,13 @@ export function HelpThreadClient({
       <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{title}</h1>
       <p className="mt-2 text-xs text-muted-foreground">
         {post.author.name}
-        {/* ⚠️ AN OFFICIAL ANSWER SHOWS WHEN ITS COPY LAST CHANGED, NOT HOW LONG AGO IT WAS SEEDED (C-DATES).
-            Its createdAt is the curated-ORDER key sync-help-center.ts writes (a fixed base date plus
-            the item's index), so "2 months ago" dated the list order, not the answer. editedAt moves
-            only when the title or body does — and an answer with none shows NO date rather than the
-            order key (helpModifiedAt). formatArticleDate is zone-free string surgery, and `lang` is the
-            page's [lang] variant in both the server render and the first client pass (the provider
-            starts from it), so this cannot mismatch. */}
+        {/* ⚠️ AN OFFICIAL ANSWER SHOWS WHEN ITS COPY LAST CHANGED, NOT A RELATIVE "2 months ago" (C-DATES).
+            The date is helpModifiedAt — `editedAt ?? createdAt`, the same value /help/[id]'s JSON-LD
+            dateModified and the sitemap lastmod carry (I3c), so the page and the crawler agree — printed
+            only once editedAt exists (a real edit, I3b): never-edited it is the seed's curated-order
+            createdAt, and the line is left out rather than print that. formatArticleDate is zone-free string surgery, and
+            `lang` is the page's [lang] variant in both the server render and the first client pass
+            (the provider starts from it), so this cannot mismatch. */}
         {post.official ? (
           modifiedAt && (
             <>
