@@ -21,7 +21,11 @@ import { LANDING_TARGET as COFFEE_TARGET } from '@/app/[lang]/wholesale-green-co
 // Read only: the model lists the iPhone pages price, so the sitemap dates the rows those pages show.
 import { IPHONE_18_MODELS, IPHONE_DUO_MODEL } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
 import { loadRentIndex } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
-import { districtLinkSlug } from '@/lib/district-canonical'
+import type { RentIndex } from '@/lib/rent-index'
+import { publishableCells } from '@/lib/district-rent-cells'
+import { canonicalDistrictSlug, districtLinkSlug, isCuratedDistrict } from '@/lib/district-canonical'
+import { districtScopeForSlug } from '@/lib/district-slug'
+import { RENTAL_PLACES } from '@/lib/rental-places'
 import { isIndexableCount } from '@/lib/index-floor'
 import { submittedListingWhere, urlsetXml, siteOrigin } from '@/lib/sitemap'
 import { storefrontCanonicals } from '@/lib/storefront'
@@ -35,23 +39,34 @@ import { storefrontCanonicals } from '@/lib/storefront'
  * fixture and matched byte for byte (a one-off check, not a kept test — the route now simply calls this
  * function); the route-level tests in `sitemap.test.ts` are what keep it true.
  *
- * ⚠️ `rentIndex` IS THE ONE DIFFERENCE BETWEEN THE TWO CALLERS, AND ONLY FOR THE RENT INDEX'S OWN URLS.
- *   · `'require'` (the route): today's behaviour — an unknown snapshot leaves `/hcmc-rent-index`
- *     listed without a `<lastmod>`. (D3 turns this into a throw, so the route keeps its last good copy.)
- *   · `'optional'` (IndexNow): an unknown snapshot, or a loader that throws, FREEZES the rent index's
- *     URLs instead — they are left out of `xml` and named in `frozen`, and the diff carries their
- *     previous entries forward untouched (src/lib/indexnow-diff.ts). Emitting the URL undated would
- *     make the next good snapshot read as a change and ping it for nothing; omitting it unfrozen would
- *     ping its removal. Every other source failure still throws, in both modes.
+ * ⚠️ `rentIndex` IS THE ONE DIFFERENCE BETWEEN THE TWO CALLERS, AND ONLY FOR THE RENT INDEX'S OWN URLS
+ * (`/hcmc-rent-index` and, since SEO wave B D3, the rentals district pages it qualifies).
+ *   · `'require'` (the route): an unknown snapshot THROWS `RentIndexUnavailable` — never a document
+ *     without those URLs. The route rethrows it, and Next keeps serving the last good `pages.xml`
+ *     (route.ts says how, and what was measured). A partial sitemap would be cached for the route's
+ *     whole day and would read to a crawler as "these pages are gone".
+ *   · `'optional'` (IndexNow): an unknown snapshot FREEZES those URLs instead — they are left out of
+ *     `xml` and named in `frozen`, and the diff carries their previous entries forward untouched
+ *     (src/lib/indexnow-diff.ts). Emitting them without the snapshot would make the next good one read
+ *     as a change; omitting them unfrozen would ping ~22 removals. Every other source failure — a
+ *     database error included, here or inside the loader — still throws, in both modes.
  *   `frozen` is always `[]` in `'require'` mode, and in `'optional'` mode while the snapshot is known.
  */
+export class RentIndexUnavailable extends Error {
+  constructor() {
+    // The cause is not carried here: `loadRentIndex()` turns a failed read into `known: false` and logs
+    // it itself, as "[hcmc-rent-index] snapshot failed <error>" — then answers `known: false` without a read for a minute (FAILURE_HOLD_MS).
+    super('the rent index snapshot is unavailable (the cause is the "[hcmc-rent-index] snapshot failed" line logged at most a minute before); pages.xml is not built without it')
+    this.name = 'RentIndexUnavailable'
+  }
+}
+
 export type RentIndexMode = 'require' | 'optional'
 
 /**
  * What `'optional'` mode freezes when the rent snapshot is unknown: a path prefix (trailing `/`) or one
- * exact path. ⚠️ `/c/rentals/` MATCHES NOTHING YET, ON PURPOSE: rule A keeps every rentals district page
- * out of this file until D3 submits them from the rent snapshot. It is here so D3 inherits the freeze
- * instead of having to add it (the bare `/c/rentals` category page is not under the prefix).
+ * exact path. `/c/rentals/` covers the rentals district pages, which only the snapshot can qualify
+ * (rule A's second half, below); the bare `/c/rentals` category page is not under the prefix.
  */
 export const RENT_FROZEN_PATHS: readonly string[] = ['/c/rentals/', '/hcmc-rent-index']
 // ⚠️ STATIC PAGES CARRY NO <lastmod> AT ALL, AND THAT IS THE FIX, NOT AN OMISSION.
@@ -81,6 +96,49 @@ const iphoneModelPath = (model: string) => `${model.toLowerCase().replace(/\s+/g
 const guideLastmod = (slug: string) => {
   const d = guideDates(slug)
   return d.updated ?? d.published
+}
+
+/**
+ * THE RENTALS DISTRICT PAGES `pages.xml` SUBMITS (rule A's second half, D3), in snapshot order. A row of
+ * the rent snapshot qualifies `/c/rentals/<slug>` when ALL of these hold:
+ *   1. `publishableCells(row)` is non-empty — the very list D2's block renders (district-rent-cells.ts),
+ *      from the same cached snapshot (one `unstable_cache` key, load-rent-index.ts), so the sitemap and
+ *      the page cannot disagree about whether the block is there.
+ *   2. `isIndexableCount(row.total)`, I1's floor on the snapshot's count. While MIN_CELL_N equals N,
+ *      (1) implies (2); both are checked so the two constants can diverge later.
+ *   3. The slug is a curated key and its own canonical (`canonicalDistrictSlug` maps each key to
+ *      itself), so the URL answers 200, never a 308. `d2`, `d9` and `thu-duc` are separate rows, each
+ *      emitted once. No other rentals slug can appear: only curated HCMC districts have a row.
+ *   4. ⛔ THE PAGE IS INDEXABLE BY ITS OWN SHIPPED RULE, READ LIVE: the page's own count — rentals, places
+ *      only, in edition scope, over `districtScopeForSlug` (the predicate `[district]/page.tsx`'s
+ *      `load()` counts as `total`, offices included, not the homes `listsHomesOnly` lists) — is at the
+ *      floor. The page says `noindex` only after STALE_NOINDEX_DAYS under it (I1b, `staleBelowFloor`),
+ *      so a page at the floor now is indexable now, and stays so for 14 days even if it dips — longer
+ *      than this file's day. This is what closes v4's accepted gap: the snapshot can be a day old while
+ *      the page decides its robots from the live count, and without this read a district that emptied
+ *      after the snapshot could be submitted as `noindex`. It also keeps I1's promise that a page under
+ *      its floor inside the 14 days is "indexable but unsubmitted".
+ *      ⚠️ THE RESIDUAL: the page's HTML is ISR-cached for a day, so a page that had been `noindex` (14
+ *      days under the floor) and has just climbed back can still serve its cached `noindex` for up to
+ *      a day after this file first lists it. Rare, self-correcting, and the harmless direction.
+ * One `count` per qualifying row (22 at most today), all at once; a failed one throws, and so the route
+ * keeps its last good copy.
+ */
+async function submittedRentalsDistricts(index: RentIndex, rentalsId: string): Promise<string[]> {
+  const slugs = [...new Set(
+    index.districts
+      .filter((r) => isCuratedDistrict(r.slug) && canonicalDistrictSlug(r.slug) === r.slug)
+      .filter((r) => publishableCells(r).length > 0 && isIndexableCount(r.total))
+      .map((r) => r.slug),
+  )]
+  const places = await scopedListingWhere({ AND: [{ categoryId: rentalsId, verified: true, status: 'active' }, RENTAL_PLACES] })
+  const live = await Promise.all(slugs.map(async (slug) => {
+    const scope = await districtScopeForSlug(slug)
+    // edition-lint-allow: `places` IS `await scopedListingWhere(...)` just above; AND-ing the district
+    // scope onto it cannot lose the edition clause.
+    return scope ? db.listing.count({ where: { AND: [places, scope] } }) : 0
+  }))
+  return slugs.filter((_, i) => isIndexableCount(live[i]))
 }
 
 export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Promise<{ xml: string; frozen: string[] }> {
@@ -144,14 +202,18 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
      * edition scope and `affiliateUrl: null`. Its lastmod is our own listing's, never an import's
      * fresher sync.
      *
-     * ⛔ RULE A, THE ONE SITEMAP RULE FOR DISTRICT PAGES (SEO wave B, I1; decision I-a): a
-     * category × district page is submitted only with at least MIN_INDEXABLE_LISTINGS (10) of our
-     * OWN listings, summed across every stored spelling of the place, and NEVER for `rentals` by
-     * that count. One own listing used to be enough, which submitted pages of one to nine cards
-     * (`/c/services/an-khanh`: "Crawled - currently not indexed"). `_count` is the tally; the
-     * floor is applied after the spellings are merged, in the combo loop below. A page under the
-     * floor still answers 200 — as `noindex, follow` after 14 days below 10 listings of ANY kind,
-     * indexable but unsubmitted otherwise (the page counts imports too, src/lib/index-floor.ts).
+     * ⛔ RULE A, THE ONE SITEMAP RULE FOR DISTRICT PAGES (SEO wave B, I1 and D3; decisions I-a, D-c).
+     *   1. A category × district page is submitted only with at least MIN_INDEXABLE_LISTINGS (10) of
+     *      our OWN listings, summed across every stored spelling of the place — and NEVER for
+     *      `rentals` by that count. One own listing used to be enough, which submitted pages of one
+     *      to nine cards (`/c/services/an-khanh`: "Crawled - currently not indexed"). `_count` is the
+     *      tally; the floor is applied after the spellings are merged, in the combo loop below.
+     *   2. A RENTALS district page is submitted through the rent index instead (D3, the block after
+     *      the combo loop): when it carries the rent block — figures computed here, the owner's "add
+     *      value then to those pages" — and passes the same floor. Marketplace only, never dated.
+     * A page under the floor still answers 200 — as `noindex, follow` after 14 days below 10 listings
+     * of ANY kind, indexable but unsubmitted otherwise (the page counts imports too,
+     * src/lib/index-floor.ts).
      */
     // edition-lint-allow: `submittedListingWhere()` IS `scopedListingWhere(...)` AND-ed with the
     // affiliate exclusion (src/lib/sitemap.ts) — the edition scope is inside the helper.
@@ -243,8 +305,8 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    *
    * ⛔ RENTALS NEVER QUALIFY BY THEIR OWN COUNT (rule A). No live rental with a district is our own
    * (measured 2026-09-29: every one carries an `affiliateUrl`), so none was ever submitted; the rule
-   * makes that explicit rather than an accident of the data, before the first own rentals in one
-   * district would submit a page the rent index's rule (SEO wave B, D3) is meant to decide.
+   * makes that explicit rather than an accident of the data. The rent index's rule (D3, after the
+   * combo loop) is the only way a rentals district page enters this file.
    */
   const combos = new Map<string, { max?: Date; n: number }>()
   for (const g of byCombo) {
@@ -400,13 +462,16 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
      * ⚠️ THE RENT INDEX IS DATED BY ITS OWN SNAPSHOT (`computedAt`), the date the page prints and
      * its Dataset's `dateModified` — never a listing's. MARKETPLACE ONLY, for the reason the
      * `hcmc-rent-index` entry below gives: on the services build the route 404s, so the snapshot is
-     * not even read there (order rule 4). An unknown snapshot, or a loader that throws, leaves the
-     * URL undated rather than failing the whole sitemap — or, in `'optional'` mode, freezes it (below).
+     * not even read there (order rule 4).
+     * ⛔ NO TIMEOUT AND NO CATCH (D3). `loadRentIndex()` already turns a failed read into `known:
+     * false`; what it does not catch is a bug, and that fails the build like any other read here. A
+     * race would turn a slow snapshot into a missing one, and a missing one now throws (below).
      */
-    IS_SERVICES ? null : loadRentIndex().catch(() => null),
+    IS_SERVICES ? null : loadRentIndex(),
   ])
-  // The rent snapshot is unknown to this read: `'optional'` mode (IndexNow) freezes the rent index's
-  // URLs rather than list them undated (see RENT_FROZEN_PATHS above). Never on eno.forum, which lists none.
+  // ⛔ AN UNKNOWN SNAPSHOT: THE ROUTE THROWS, INDEXNOW FREEZES (see `rentIndex` at the top of this file).
+  // Never on eno.forum, which reads none and lists none of these URLs.
+  if (opts.rentIndex === 'require' && !IS_SERVICES && !rentIndex?.known) throw new RentIndexUnavailable()
   const frozen = opts.rentIndex === 'optional' && !IS_SERVICES && !rentIndex?.known ? [...RENT_FROZEN_PATHS] : []
   for (const [i, l] of LANDINGS.entries()) {
     const r = landingReads[i]
@@ -428,8 +493,9 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    * original content the rule was protecting the domain's standing for. MARKETPLACE ONLY: the
    * route 404s on the services build (see its page.tsx), and a sitemap must not submit a 404.
    */
-  if (!IS_SERVICES && !frozen.length) {
-    urls.push(`  <url><loc>${hostUrl}/hcmc-rent-index</loc>${rentIndex?.known ? lm(rentIndex.index.computedAt) : ''}</url>\n`)
+  // Known here unless frozen (`'optional'` mode) or eno.forum (never read): the throw above covers the route.
+  if (rentIndex?.known) {
+    urls.push(`  <url><loc>${hostUrl}/hcmc-rent-index</loc>${lm(rentIndex.index.computedAt)}</url>\n`)
   }
 
   // The e-visa cluster: the /vietnam-evisa hub and its long-tail children.
@@ -535,6 +601,23 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   for (const [combo, { max, n }] of combos) {
     if (!isIndexableCount(n)) continue
     urls.push(`  <url><loc>${hostUrl}/c/${combo}</loc>${lm(max)}</url>\n`)
+  }
+
+  /**
+   * ⛔ RULE A, SECOND HALF: RENTALS DISTRICT PAGES THAT CARRY THE RENT BLOCK (SEO wave B, D3; decision
+   * D-c). The owner's rule for imported stock is "add value then to those pages": they stay crawlable
+   * and linked, and are submitted once they carry something of our own. D2's block is that — figures
+   * computed here — and it is why `/hcmc-rent-index` is already submitted above. See
+   * `submittedRentalsDistricts` for the rule and what it guarantees. NO `<lastmod>`: the page shows
+   * imported listings and a snapshot whose `computedAt` moves daily even when no figure does, so any
+   * date would be the fabricated kind this file removed elsewhere; IndexNow then pings these only on
+   * addition or removal. Marketplace only: eno.forum reads no snapshot, so `rentIndex` is null there.
+   */
+  const rentalsId = categories.find((c) => c.slug === 'rentals')?.id
+  if (rentIndex?.known && rentalsId) {
+    for (const slug of await submittedRentalsDistricts(rentIndex.index, rentalsId)) {
+      urls.push(`  <url><loc>${hostUrl}/c/rentals/${slug}</loc></url>\n`)
+    }
   }
 
   // Seller storefronts, each at its page's own canonical (`sellerLocs`, above): the handle's

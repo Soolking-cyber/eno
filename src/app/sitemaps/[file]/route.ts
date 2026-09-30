@@ -49,7 +49,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ file: s
     const urls = rows.map((l) => `  <url><loc>${host}/listings/${l.id}</loc><lastmod>${l.updatedAt.toISOString()}</lastmod></url>\n`)
     return xmlResponse(urlsetXml(urls, file))
   } catch (error) {
-    console.error(`Failed to generate sitemaps/${file}:`, error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    // ⛔ RETHROWN, NEVER RETURNED AS A 500 (SEO wave B, D3): a returned 500 is cached by ISR for the
+    // route's whole day in place of the good child; a throw keeps serving the last good copy
+    // (sitemaps/pages.xml/route.ts says how, and the D3 commit what was measured).
+    console.error(`Failed to generate sitemaps/${file} (the last good copy stays served):`, error)
+    throw error
   }
 }

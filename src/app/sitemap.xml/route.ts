@@ -8,7 +8,6 @@ import {
   submittedListingWhere,
   xmlResponse,
 } from '@/lib/sitemap'
-import { NextResponse } from 'next/server'
 
 /**
  * /sitemap.xml — A SITEMAP INDEX since 2026-09-24, no longer a urlset.
@@ -44,7 +43,10 @@ export async function GET() {
     for (let k = 0; k < listingSitemapCount(submitted); k++) children.push(`${host}${listingSitemapPath(k)}`)
     return xmlResponse(sitemapIndexXml(children))
   } catch (error) {
-    console.error('Failed to generate sitemap.xml:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    // ⛔ RETHROWN, NEVER RETURNED AS A 500 (SEO wave B, D3): a returned 500 is cached by ISR for the
+    // route's whole day in place of the good index; a throw keeps serving the last good copy
+    // (sitemaps/pages.xml/route.ts says how, and the D3 commit what was measured).
+    console.error('Failed to generate sitemap.xml (the last good copy stays served):', error)
+    throw error
   }
 }

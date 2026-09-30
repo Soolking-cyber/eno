@@ -31,7 +31,10 @@ type Row = {
 }
 
 type HelpRow = { id: string; editedAt: Date | null; createdAt: Date; updatedAt: Date }
-type RentLookup = { known: true; index: { computedAt: string } } | { known: false }
+/** The fields of a rent-index district row that `pages.xml` reads (D3): its slug, count and cells. */
+type Stat = { n: number; median: number | null }
+type RentRow = { slug: string; total: number; cells: Record<'apartment' | 'house' | 'room', Stat>; bands: Record<'br1' | 'br2' | 'br3plus', Stat> }
+type RentLookup = { known: true; index: { computedAt: string; districts: RentRow[] } } | { known: false }
 const h = vi.hoisted(() => ({
   rows: [] as Row[],
   hubLive: { car: 1, motorbike: 1 } as Record<string, number>,
@@ -40,6 +43,8 @@ const h = vi.hoisted(() => ({
   rent: { known: false } as RentLookup,
   rentReads: 0,
   failAggregate: false,
+  failCount: false,
+  failFindMany: false,
   services: false,
 }))
 const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
@@ -84,8 +89,12 @@ function matches(row: Record<string, unknown>, where: Where | undefined): boolea
 vi.mock('@/lib/db', () => ({
   db: {
     listing: {
-      count: async ({ where }: { where?: Where } = {}) => h.rows.filter((r) => matches(r, where)).length,
+      count: async ({ where }: { where?: Where } = {}) => {
+        if (h.failCount) throw new Error('fake db: count unavailable')
+        return h.rows.filter((r) => matches(r, where)).length
+      },
       findMany: async ({ where, orderBy, skip = 0, take }: { where?: Where; orderBy?: { id?: 'asc' | 'desc'; updatedAt?: 'asc' | 'desc' }; skip?: number; take?: number } = {}) => {
+        if (h.failFindMany) throw new Error('fake db: findMany unavailable')
         let out = h.rows.filter((r) => matches(r, where))
         if (orderBy?.id) out = [...out].sort((a, b) => (a.id < b.id ? -1 : 1) * (orderBy.id === 'desc' ? -1 : 1))
         // Honoured so the OLD `updatedAt desc, take 45000` shape can be run against this suite.
@@ -180,6 +189,19 @@ vi.mock('@/app/[lang]/hcmc-rent-index/load-rent-index', () => ({
   loadRentIndex: async () => { h.rentReads++; return h.rent },
 }))
 
+/**
+ * A district page's scope, as `districtScopeForSlug` resolves it: the stored spellings of the place. The
+ * real one builds number-bounded LIKE clauses (district-match.ts) the fake database does not model; the
+ * sitemap only passes it through to the count, so an exact-name scope keeps the test honest.
+ */
+const SPELLINGS: Record<string, string[]> = vi.hoisted(() => ({
+  d2: ['Quận 2'], d3: ['Quận 3'], d7: ['Quận 7'], d9: ['Quận 9'], d10: ['Quận 10'],
+  'thu-duc': ['Thủ Đức', 'Quận 2', 'Quận 9'], 'can-gio': ['Cần Giờ'], 'cu-chi': ['Củ Chi'],
+}))
+vi.mock('@/lib/district-slug', () => ({
+  districtScopeForSlug: async (slug: string) => ({ district: { in: SPELLINGS[slug] ?? [] } }),
+}))
+
 /** The edition, switchable per test: a getter, so the route reads it on every request. */
 vi.mock('@/lib/edition', async (orig) => ({
   ...(await orig<typeof import('@/lib/edition')>()),
@@ -194,10 +216,11 @@ vi.mock('@/lib/edition-scope', () => ({
 import { GET as indexGET } from '@/app/sitemap.xml/route'
 import { GET as pagesGET } from '@/app/sitemaps/pages.xml/route'
 import { GET as childGET } from '@/app/sitemaps/[file]/route'
-import { buildPagesSitemap, RENT_FROZEN_PATHS } from '@/app/sitemaps/pages.xml/build'
+import { buildPagesSitemap, RENT_FROZEN_PATHS, RentIndexUnavailable } from '@/app/sitemaps/pages.xml/build'
 import { collectSitemaps } from '@/app/api/cron/indexnow/collect'
 import { LISTINGS_PER_SITEMAP, listingSitemapCount, parseListingSitemapFile } from '@/lib/sitemap'
 import { MIN_INDEXABLE_LISTINGS } from '@/lib/index-floor'
+import { canonicalDistrictSlug, isCuratedDistrict } from '@/lib/district-canonical'
 import { storefrontCanonical } from '@/lib/storefront'
 import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS, guideDates } from '@/lib/expat-guides'
 import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
@@ -217,6 +240,10 @@ function row(over: Partial<Row> & Pick<Row, 'id'>): Row {
   }
 }
 
+/** A known snapshot, as `loadRentIndex()` answers once it has one. */
+const SNAP_AT = '2026-09-29T01:00:00.000Z'
+const snap = (districts: RentRow[] = []): RentLookup => ({ known: true, index: { computedAt: SNAP_AT, districts } })
+
 const OLD = new Date('2025-06-01T00:00:00Z')
 const FRESH = new Date('2026-09-24T00:00:00Z')
 
@@ -226,9 +253,12 @@ beforeEach(() => {
   h.hubLive = { car: 1, motorbike: 1 }
   h.lookups = 0
   h.help = []
-  h.rent = { known: false }
+  // Known and empty: the route throws without a snapshot (D3), and most tests are about something else.
+  h.rent = snap()
   h.rentReads = 0
   h.failAggregate = false
+  h.failCount = false
+  h.failFindMany = false
   h.services = false
 })
 afterEach(() => { vi.unstubAllEnvs() })
@@ -560,7 +590,7 @@ describe('the pages child: lastmod from what each page shows', () => {
 
   it('dates each keyword landing by its own rail, so none shares the home date', async () => {
     const d = (day: number) => new Date(Date.UTC(2026, 8, day))
-    h.rent = { known: true, index: { computedAt: '2026-09-29T01:00:00.000Z' } }
+    h.rent = snap()
     h.rows = [
       row({ id: 'rent', categoryId: 'cat-rentals', postedAt: d(2) }),
       row({ id: 'sofa-used', categoryId: 'cat-furniture', condition: 'Đã qua sử dụng', postedAt: d(3) }),
@@ -607,13 +637,13 @@ describe('the pages child: lastmod from what each page shows', () => {
     expect(lastmodOf(xml, `${HOST}/motorbikes-for-sale-vietnam`)).toBe('2026-09-11T00:00:00.000Z')
   })
 
-  it('keeps every landing, undated, when its read fails — and the rent index undated when unknown', async () => {
+  it('keeps every landing, undated, when its read fails', async () => {
     h.failAggregate = true
     h.rows = [row({ id: 'book' })]
     const xml = await (await pagesGET()).text()
     for (const path of [
       'housing-vietnam-expats', 'iphone-18-vietnam', 'iphone-18-pro-vietnam', 'iphone-18-pro-max-vietnam', 'iphone-duo-vietnam',
-      'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam', 'wholesale-green-coffee-vietnam', 'hcmc-rent-index',
+      'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam', 'wholesale-green-coffee-vietnam',
     ]) {
       expect(lastmodOf(xml, `${HOST}/${path}`), path).toBeUndefined()
     }
@@ -621,7 +651,7 @@ describe('the pages child: lastmod from what each page shows', () => {
 
   it('never reads the rent index on eno.forum, where the page 404s, and does not submit it there', async () => {
     h.services = true
-    h.rent = { known: true, index: { computedAt: '2026-09-29T01:00:00.000Z' } }
+    h.rent = snap()
     h.rows = [row({ id: 'book' })]
     const urls = locs(await (await pagesGET()).text())
     expect(h.rentReads).toBe(0)
@@ -695,9 +725,9 @@ describe('the pages builder and the IndexNow collector', () => {
     row({ id: 'desk-1', sellerId: 'desk-seller' }),
   ]
 
-  it("'require' mode is byte-identical to the route, known or unknown snapshot, on both editions", async () => {
+  it("'require' mode is byte-identical to the route: known snapshot on eno.vn, and eno.forum, which reads none", async () => {
     h.rows = fixture()
-    for (const [services, rent] of [[false, { known: false }], [false, { known: true, index: { computedAt: '2026-09-29T01:00:00.000Z' } }], [true, { known: false }]] as const) {
+    for (const [services, rent] of [[false, snap()], [true, { known: false }]] as const) {
       h.services = services
       h.rent = rent as RentLookup
       const built = await buildPagesSitemap({ rentIndex: 'require' })
@@ -708,7 +738,7 @@ describe('the pages builder and the IndexNow collector', () => {
 
   it("'optional' mode with a known snapshot is the same document, nothing frozen", async () => {
     h.rows = fixture()
-    h.rent = { known: true, index: { computedAt: '2026-09-29T01:00:00.000Z' } }
+    h.rent = snap()
     const opt = await buildPagesSitemap({ rentIndex: 'optional' })
     expect(opt.frozen).toEqual([])
     expect(opt.xml).toBe((await buildPagesSitemap({ rentIndex: 'require' })).xml)
@@ -719,6 +749,7 @@ describe('the pages builder and the IndexNow collector', () => {
     h.rent = { known: false }
     const opt = await buildPagesSitemap({ rentIndex: 'optional' })
     expect(opt.frozen).toEqual([...RENT_FROZEN_PATHS])
+    h.rent = snap()
     const req = (await buildPagesSitemap({ rentIndex: 'require' })).xml
     expect(locs(opt.xml)).toEqual(locs(req).filter((u) => u !== `${HOST}/hcmc-rent-index`))
     expect(locs(req)).toContain(`${HOST}/hcmc-rent-index`)
@@ -746,5 +777,132 @@ describe('the pages builder and the IndexNow collector', () => {
     // The pages child's URLs are the builder's, lastmods included.
     const pages = locs((await buildPagesSitemap({ rentIndex: 'optional' })).xml)
     for (const u of pages) expect(got.urls.has(u), u).toBe(true)
+  })
+})
+
+/**
+ * ⛔ RULE A, SECOND HALF (SEO wave B, D3; decision D-c): a rentals district page is submitted when the
+ * rent snapshot gives it the block (a publishable cell), its row passes I1's floor, and the page itself
+ * is indexable by its live count. Never by own-listing counts, never on eno.forum, never dated.
+ */
+describe('the pages child: rentals district pages that carry the rent block (D3)', () => {
+  const stat = (n: number): Stat => ({ n, median: n ? 12_000_000 : null })
+  const rentRow = (slug: string, total: number, cells: Partial<Record<'apartment' | 'house' | 'room' | 'br1' | 'br2' | 'br3plus', number>>): RentRow => ({
+    slug,
+    total,
+    cells: { apartment: stat(cells.apartment ?? 0), house: stat(cells.house ?? 0), room: stat(cells.room ?? 0) },
+    bands: { br1: stat(cells.br1 ?? 0), br2: stat(cells.br2 ?? 0), br3plus: stat(cells.br3plus ?? 0) },
+  })
+  /** `n` live imported places in `district` — what the district page counts as `total`. */
+  const places = (n: number, district: string, over: Partial<Row> = {}) => Array.from({ length: n }, (_, i) => row({
+    id: `rent-${district}-${over.status ?? 'live'}-${over.subcategorySlug ?? 'apt'}-${i}`, categoryId: 'cat-rentals', district,
+    subcategorySlug: 'apartment-rental', affiliateUrl: 'https://nhatot.com/x', sellerId: 'import-seller', ...over,
+  }))
+  const rentalsLocs = (xml: string) => locs(xml).filter((u) => u.startsWith(`${HOST}/c/rentals/`))
+  const lastmodOf = (xml: string, loc: string) => xml.match(new RegExp(`<loc>${loc}</loc>(<lastmod>[^<]+</lastmod>)?</url>`))?.[1]
+
+  it('submits d7 exactly once, undated, when its row has a publishable cell and the page is at the floor', async () => {
+    h.rent = snap([rentRow('d7', 40, { br1: 12, house: 10 })])
+    h.rows = places(40, 'Quận 7')
+    const xml = await (await pagesGET()).text()
+    expect(rentalsLocs(xml)).toEqual([`${HOST}/c/rentals/d7`])
+    expect(lastmodOf(xml, `${HOST}/c/rentals/d7`)).toBeUndefined()
+    expect(xml).toContain(`<loc>${HOST}/c/rentals/d7</loc></url>`)
+  })
+
+  it('leaves out can-gio (one house), cu-chi (two houses) and a row whose total is under the floor', async () => {
+    h.rent = snap([
+      rentRow('can-gio', 1, { house: 1 }),
+      rentRow('cu-chi', 2, { house: 2 }),
+      // Impossible while MIN_CELL_N equals N (a cell of 10 needs a total of 10): pins the second check.
+      rentRow('d10', MIN_INDEXABLE_LISTINGS - 1, { house: MIN_INDEXABLE_LISTINGS }),
+    ])
+    h.rows = [...places(30, 'Cần Giờ'), ...places(30, 'Củ Chi'), ...places(30, 'Quận 10')]
+    expect(rentalsLocs(await (await pagesGET()).text())).toEqual([])
+  })
+
+  it('submits d2, d9 and thu-duc each once, and never a twin spelling or a place that is not curated', async () => {
+    h.rent = snap([
+      rentRow('thu-duc', 60, { br1: 20 }), rentRow('d2', 30, { br2: 11 }), rentRow('d9', 30, { room: 15 }),
+      rentRow('quan-2', 30, { br2: 11 }), rentRow('ha-noi', 30, { br1: 11 }),
+    ])
+    h.rows = [...places(30, 'Quận 2'), ...places(30, 'Quận 9'), ...places(20, 'Thủ Đức')]
+    const urls = rentalsLocs(await (await pagesGET()).text())
+    expect(urls).toEqual([`${HOST}/c/rentals/thu-duc`, `${HOST}/c/rentals/d2`, `${HOST}/c/rentals/d9`])
+    for (const u of urls) {
+      const slug = u.split('/').pop()!
+      expect(canonicalDistrictSlug(slug), slug).toBe(slug)
+      expect(isCuratedDistrict(slug), slug).toBe(true)
+    }
+  })
+
+  /**
+   * ⛔ THE PAGE'S OWN INDEXABILITY, READ LIVE. The snapshot can be a day old; the page decides its robots
+   * from its live count, and under the floor it is at best "indexable but unsubmitted" (I1b's window) —
+   * so a district that emptied since the snapshot is not submitted, even while rows that left recently
+   * keep its page indexable. Vehicle hire never counts: the page counts places only.
+   */
+  it('leaves out a district whose page is now under the floor, whatever the snapshot said', async () => {
+    h.rent = snap([rentRow('d3', 30, { br1: 12 })])
+    const recent = new Date(Date.now() - 24 * 3600_000)
+    h.rows = [
+      ...places(MIN_INDEXABLE_LISTINGS - 1, 'Quận 3'),
+      ...places(5, 'Quận 3', { subcategorySlug: 'car-rental' }),
+      ...places(20, 'Quận 3', { status: 'hidden', updatedAt: recent, postedAt: recent }),
+    ]
+    expect(rentalsLocs(await (await pagesGET()).text())).toEqual([])
+    h.rows.push(...places(1, 'Quận 3', { subcategorySlug: null, id: 'rent-q3-null-sub' } as Partial<Row>))
+    expect(rentalsLocs(await (await pagesGET()).text())).toEqual([`${HOST}/c/rentals/d3`])
+  })
+
+  it('keeps I1: own rentals in d3 with no snapshot row are not submitted, however many', async () => {
+    h.rent = snap([])
+    h.rows = places(MIN_INDEXABLE_LISTINGS * 3, 'Quận 3', { affiliateUrl: null, sellerId: 'own-seller' })
+    expect(rentalsLocs(await (await pagesGET()).text())).toEqual([])
+  })
+
+  it('on eno.forum: none of them, and no rent-index read', async () => {
+    h.services = true
+    h.rent = snap([rentRow('d7', 40, { br1: 12 })])
+    h.rows = places(40, 'Quận 7')
+    expect(rentalsLocs(await (await pagesGET()).text())).toEqual([])
+    expect(h.rentReads).toBe(0)
+  })
+
+  it("an unknown snapshot in 'require' mode throws RentIndexUnavailable, and the route rejects — no Response of any status", async () => {
+    h.rent = { known: false }
+    h.rows = places(40, 'Quận 7')
+    await expect(buildPagesSitemap({ rentIndex: 'require' })).rejects.toBeInstanceOf(RentIndexUnavailable)
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await expect(pagesGET()).rejects.toBeInstanceOf(RentIndexUnavailable)
+    quiet.mockRestore()
+  })
+
+  it("an unknown snapshot in 'optional' mode: no rentals URL, no rent index, both frozen — every other URL present", async () => {
+    h.rows = places(40, 'Quận 7')
+    h.rent = snap([rentRow('d7', 40, { br1: 12 })])
+    const known = locs((await buildPagesSitemap({ rentIndex: 'require' })).xml)
+    expect(known).toContain(`${HOST}/c/rentals/d7`)
+    h.rent = { known: false }
+    const opt = await buildPagesSitemap({ rentIndex: 'optional' })
+    expect(opt.frozen).toEqual(['/c/rentals/', '/hcmc-rent-index'])
+    expect(opt.xml).not.toContain('<lastmod>' + SNAP_AT)
+    expect(locs(opt.xml)).toEqual(known.filter((u) => u !== `${HOST}/hcmc-rent-index` && !u.startsWith(`${HOST}/c/rentals/`)))
+  })
+
+  it('a database error inside the builder makes every sitemap route reject — never a cached 500', async () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    h.rent = snap([rentRow('d7', 40, { br1: 12 })])
+    h.rows = places(40, 'Quận 7')
+    h.failCount = true
+    await expect(buildPagesSitemap({ rentIndex: 'require' })).rejects.toThrow(/count unavailable/)
+    await expect(buildPagesSitemap({ rentIndex: 'optional' })).rejects.toThrow(/count unavailable/)
+    await expect(pagesGET()).rejects.toThrow(/count unavailable/)
+    // The index and the listing children rethrow too (they used to return a JSON 500, which ISR caches).
+    await expect(indexGET()).rejects.toThrow(/count unavailable/)
+    h.failCount = false
+    h.failFindMany = true
+    await expect(child('listings-0.xml')).rejects.toThrow(/findMany unavailable/)
+    quiet.mockRestore()
   })
 })

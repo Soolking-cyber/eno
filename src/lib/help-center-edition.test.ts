@@ -67,6 +67,15 @@ vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => null }))
 /** The sitemap's listing predicate is exercised by src/lib/edition-scope.test.ts, not here. */
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (where: unknown) => where }))
 
+/**
+ * The rent snapshot, known and empty. Since SEO wave B (D3) the pages sitemap THROWS without one on the
+ * marketplace edition (it keeps the last good copy rather than emit a partial document), and this suite
+ * has no incremental cache for the real `unstable_cache` loader to use.
+ */
+vi.mock('@/app/[lang]/hcmc-rent-index/load-rent-index', () => ({
+  loadRentIndex: async () => ({ known: true, index: { computedAt: '2026-09-29T01:00:00.000Z', districts: [] } }),
+}))
+
 /** One published ForumPost row, shaped for `serializeForumPost`. */
 function post(id: string, communitySlug: string, official = true) {
   return {
@@ -128,9 +137,9 @@ vi.mock('@/lib/db', () => ({
     // The sitemap's other four reads. Empty is fine: this file is about the help block, and the
     // listing/seller scoping has its own suite in src/lib/edition-scope.test.ts.
     // ⚠️ `groupBy` IS NOT OPTIONAL HERE EVEN THOUGH THIS SUITE IS ABOUT HELP ARTICLES. The sitemap
-    // route wraps its whole body in a try/catch, so a missing mock does not surface as "groupBy is
-    // not a function" — it produces a VALID BUT EMPTY sitemap, and every assertion below then
-    // passes vacuously. Only the `listed.length > 0` guard in the last test catches it.
+    // route used to catch every error and answer a VALID-LOOKING 500, so a missing mock made every
+    // assertion below pass vacuously (only the `listed.length > 0` guard in the last test caught it).
+    // Since D3 it rethrows, so a missing mock now fails loudly — keep the mocks anyway.
     listing: { findMany: async () => [], groupBy: async () => [] },
     category: { findMany: async () => [] },
     seller: { findMany: async () => [] },
