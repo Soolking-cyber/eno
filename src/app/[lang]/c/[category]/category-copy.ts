@@ -52,7 +52,7 @@ export const HCMC_NAME = { en: 'Ho Chi Minh City', vi: 'TP. Hồ Chí Minh' } as
 const VIETNAM_NAME = { en: 'Vietnam', vi: 'Việt Nam' } as const
 
 /**
- * The four home and work shapes the rentals copy may name, in the order it names them.
+ * The five home and work shapes the rentals copy may name, in the order it names them.
  * `one` is the English singular — a count of 1 must read "1 office", not "1 offices" (Vietnamese has
  * no plural form).
  */
@@ -60,6 +60,11 @@ export const RENTAL_KINDS = [
   { slug: 'apartment-rental', en: 'apartments', one: 'apartment', vi: 'căn hộ' },
   { slug: 'house-rental', en: 'houses', one: 'house', vi: 'nhà' },
   { slug: 'room-rental', en: 'rooms', one: 'room', vi: 'phòng trọ' },
+  // Owner decision O-45 (2026-09-30): `homestay-serviced` is a home (src/lib/rental-homes.ts), so the
+  // homes breakdown names it; without this row the parts stopped adding up to the homes=1 total. Named
+  // by the category's own label (taxonomy.ts: "Homestay" / "Homestay"), which covers homestays AND
+  // serviced apartments — never "serviced apartments", which would mislabel the homestays in it.
+  { slug: 'homestay-serviced', en: 'homestays', one: 'homestay', vi: 'homestay' },
   // taxonomy.ts: `office-rental` is "Office" / "Mặt bằng" — commercial space, not a desk.
   { slug: 'office-rental', en: 'offices', one: 'office', vi: 'mặt bằng' },
 ] as const

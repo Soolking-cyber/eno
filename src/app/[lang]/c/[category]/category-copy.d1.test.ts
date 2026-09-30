@@ -9,8 +9,9 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/rental-check/shared', () => ({ RENTAL_CHECK_MAX_ITEMS: 7 }))
 
 import {
-  RENTALS_LINKED_SENTENCE, RENTALS_PLACE_LABEL, districtMetadata, homeFacts, listsHomesOnly, rentalsPlaceLabel, type DistrictFacts,
+  RENTAL_KINDS, RENTALS_LINKED_SENTENCE, RENTALS_PLACE_LABEL, districtMetadata, homeFacts, listsHomesOnly, rentalsPlaceLabel, type DistrictFacts,
 } from './category-copy'
+import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 
 const D7 = { en: 'District 7 (Phu My Hung)', vi: 'Quận 7 (Phú Mỹ Hưng)' }
 const facts = (bySub: Record<string, number>, over: Partial<DistrictFacts> = {}): DistrictFacts => {
@@ -27,11 +28,22 @@ const D7_STOCK = { 'apartment-rental': 1877, 'house-rental': 277, 'room-rental':
 const OFFICE_WORD = /office|văn phòng|mặt bằng/i
 
 describe('homeFacts', () => {
-  it('sums the three home kinds, and counts offices as office-rental alone', () => {
+  it('sums the four home kinds (serviced apartments since O-45), and counts offices as office-rental alone', () => {
     const h = homeFacts({ ...D7_STOCK, '': 40 })
-    expect(h.total).toBe(1877 + 277 + 196)
-    expect(h.kinds.map((k) => k.slug)).toEqual(['apartment-rental', 'house-rental', 'room-rental'])
+    expect(h.total).toBe(1877 + 277 + 196 + 9)
+    expect(h.kinds.map((k) => k.slug)).toEqual(['apartment-rental', 'house-rental', 'room-rental', 'homestay-serviced'])
     expect(h.offices).toBe(212)
+  })
+})
+
+describe('the named home kinds are the one home list', () => {
+  it('RENTAL_KINDS names exactly HOME_RENTAL_SUBCATS plus office-rental, so the parts always add up to the homes total', () => {
+    expect(RENTAL_KINDS.map((k) => k.slug).filter((s) => s !== 'office-rental').sort()).toEqual([...HOME_RENTAL_SUBCATS].sort())
+  })
+  it('names a lone homestay in the singular, and the Vietnamese in the category\'s own word', () => {
+    expect(homeFacts({ 'homestay-serviced': 1 }).total).toBe(1)
+    expect(districtMetadata(facts({ 'homestay-serviced': 1 }), 'en', 'eno.vn').description).toMatch(/\b1 homestay\b(?!s)/)
+    expect(districtMetadata(facts({ 'homestay-serviced': 3 }), 'vi', 'eno.vn').description).toContain('3 homestay')
   })
 })
 
@@ -85,15 +97,15 @@ describe('the homes description (CS-2 D1-7)', () => {
     const d = districtMetadata(facts(D7_STOCK), lang, 'eno.vn').description
     expect(d).not.toMatch(OFFICE_WORD)
     expect(d).toContain(lang === 'vi' ? 'tối đa 7 căn' : 'up to 7 ')
-    expect(d).toMatch(lang === 'vi' ? /^2\.350 chỗ ở cho thuê tại Quận 7 \(Phú Mỹ Hưng\), TP\.HCM — / : /^2,350 homes for rent in District 7 \(Phu My Hung\), HCMC — /)
+    expect(d).toMatch(lang === 'vi' ? /^2\.359 chỗ ở cho thuê tại Quận 7 \(Phú Mỹ Hưng\), TP\.HCM — / : /^2,359 homes for rent in District 7 \(Phu My Hung\), HCMC — /)
     expect(d.endsWith(RENTALS_LINKED_SENTENCE.all[lang])).toBe(true)
   })
   it('English, whole', () => {
     expect(districtMetadata(facts(D7_STOCK), 'en', 'eno.vn').description).toBe(
-      '2,350 homes for rent in District 7 (Phu My Hung), HCMC — 1,877 apartments, 277 houses and 196 rooms. Pick up to 7 and eno checks availability for free. Every listing links to its original ad on another listing site.',
+      '2,359 homes for rent in District 7 (Phu My Hung), HCMC — 1,877 apartments, 277 houses, 196 rooms and 9 homestays. Pick up to 7 and eno checks availability for free. Every listing links to its original ad on another listing site.',
     )
     expect(districtMetadata(facts(D7_STOCK), 'vi', 'eno.vn').description).toBe(
-      '2.350 chỗ ở cho thuê tại Quận 7 (Phú Mỹ Hưng), TP.HCM — 1.877 căn hộ, 277 nhà và 196 phòng trọ. Chọn tối đa 7 căn, eno kiểm tra phòng trống miễn phí. Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.',
+      '2.359 chỗ ở cho thuê tại Quận 7 (Phú Mỹ Hưng), TP.HCM — 1.877 căn hộ, 277 nhà, 196 phòng trọ và 9 homestay. Chọn tối đa 7 căn, eno kiểm tra phòng trống miễn phí. Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.',
     )
   })
   it('lists only kinds with stock, singular at one, and no linked sentence when nothing is linked', () => {
