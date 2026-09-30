@@ -123,9 +123,12 @@ test.describe('Guest · homepage', () => {
   })
 
   test('renders category navigation', async ({ page }) => {
-    await expect(page.getByRole('button', { name: /Electronics/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Vehicles/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Property/ })).toBeVisible()
+    // Since E-TILES (2026-09-29) the tiles are crawlable LINKS (a plain click still filters in place),
+    // scoped to the rail so the footer's Explore links cannot satisfy it. "Property" was renamed Rentals.
+    const rail = page.getByRole('group', { name: /^Categories$/ })
+    await expect(rail.getByRole('link', { name: /Electronics/ }).first()).toBeVisible()
+    await expect(rail.getByRole('link', { name: /Vehicles/ }).first()).toBeVisible()
+    await expect(rail.getByRole('link', { name: /Rentals/ }).first()).toBeVisible()
   })
 
   test('shows home rails', async ({ page }) => {
