@@ -20,12 +20,18 @@ blue-wash canvas (`--wash-tail`) on every surface, generous radii, spring motion
 
 ## 1. Type scale
 
+**Typeface: Open Runde, for English AND Vietnamese** (confirmed against `src/app/globals.css`
+and `src/app/[lang]/layout.tsx`, 2026-09-30 — owner decision O-01). It is self-hosted as four
+static cuts behind `--font-open-runde`; `html[lang="vi"] body` keeps the same family because
+Open Runde draws every Vietnamese glyph (verified per-glyph). Inter and Be Vietnam Pro are
+**retired** — any brief, plan or DESIGN.md that names them is stale. One family, both languages.
+
 Six working sizes for UI markup. Nothing in between.
 
 | Utility | px | Use for |
 |---|---|---|
 | `text-3xs` | 10 | micro badge/counter labels (notification dots, image counters) |
-| `text-2xs` | 11 | dense card meta, chip labels, trust-chip text |
+| `text-2xs` | 11 | dense card meta **from `sm` up**, chip labels, trust-chip text |
 | `text-xs` | 12 | standard meta, captions, secondary labels |
 | `text-sm` | 14 | UI default — buttons, inputs, labels, list rows |
 | `text-base` | 16 | body copy on content pages, PDP description |
@@ -35,6 +41,24 @@ Six working sizes for UI markup. Nothing in between.
 `text-[12px]`, `text-[13px]`, `text-[15px]`, …). Mappings used in the 2026-07
 normalization: 9→`3xs`, 10→`3xs`, 11→`2xs`, 12→`xs`, 13→`sm` (or `xs` when it
 was meta), 15→`base`.
+
+**D-TYPE — two size rules (owner, 2026-09-30: "do what's recommended", plan row O-39):**
+
+- **Card meta is 12px on phones.** `<ListingCard>`'s metadata row is `text-xs sm:text-2xs`:
+  12px below `sm`, 11px from `sm` up, where the row carries four facts instead of two. It is a
+  single truncating line, so it never wraps — measured on the dev feed at 360/390, 0 wrapped rows
+  in EN and VI, light and dark. Truncation does rise (home at 390: 4 → 21 of 28 rows;
+  `/c/rentals` at 390: 19 → 27 of 48; 360 was already truncating 22/28 and moved by one); what
+  gets clipped is the city tail (", Hồ Chí Minh"), not the ward. Buy width back with a shorter
+  location string, not by shrinking the type again.
+- **A section heading is always larger than the card price.** `SECTION_TITLE` (shelf.tsx —
+  shared by every Shelf, category-rails and the home feed heading) is `text-lg sm:text-xl`,
+  against the card `<Price>`'s `text-base sm:text-lg`: 18 > 16 on phones, 20 > 18 from `sm`
+  (measured at 360/390/1440). Both steps have a 28px line box, so skeletons do not move. Raise
+  the price and you raise the heading in the same change.
+  ⚠️ Open follow-up: the PDP page's own section `<h2>`s (Description, Details, Location) and
+  `reviews-preview` still hand-type `text-lg`, so from `sm` up they sit one step below the
+  "More like this" / "More from this seller" shelves on the same page.
 
 **Page titles sit on the heading ramp.** A page's `<h1>` is `.h-display` (28→40px — landing,
 category, SEO, /post) or `.h-title` (20→24px — app screens) — `.h-greeting` for the dashboard's
@@ -98,6 +122,29 @@ A colour class must name a real token: Tailwind emits nothing for an unknown one
 - Neutral ramp: `ink` (headings) · `ink-2` · `ink-3` · `ink-4`
   (placeholder/meta — AA on tint) · `body` (neutral-600 secondary text) ·
   `tint` (neutral-100 surfaces/chips) · `line-strong` (neutral-300 borders)
+- **D-GREYS — the text greys are ONE monotonic ramp, in the same order in both themes** (owner,
+  2026-09-30: "do what's recommended", plan row O-39). Strongest to quietest:
+  **`ink` > `ink-2` > `ink-3` > `body` > `ink-4` > `muted-foreground`**. A higher number is
+  always quieter; `body` sits between `ink-3` and `ink-4` because it is running text, and
+  placeholder/meta must never out-shout it. Measured contrast (WCAG):
+
+  | Token | Light | canvas / white / tint | Dark | canvas / tint / popover |
+  |---|---|---|---|---|
+  | `ink` | `#171717` | 17.26 / 17.93 / 16.44 | `#f0f0f0` | 14.80 / 13.28 / 12.60 |
+  | `ink-2` | `#262626` | 14.57 / 15.13 / 13.88 | `#e0e0e0` | 12.78 / 11.46 / 10.87 |
+  | `ink-3` | `#404040` | 9.98 / 10.37 / 9.51 | `#d4d4d4` | 11.38 / 10.21 / 9.68 |
+  | `body` | `#525252` | 7.52 / 7.81 / 7.17 | `#cccccc` | 10.50 / 9.42 / 8.94 |
+  | `ink-4` | `#616161` | 5.96 / 6.19 / 5.68 | `#a0a0a0` | 6.45 / 5.79 / 5.49 |
+  | `muted-foreground` | `#737373` | 4.57 / 4.74 / 4.35 | `#b8b8b8` | 8.50 / 7.63 / 7.24 |
+
+  What moved: light `ink-3` `#737373` → `#404040` (it was LIGHTER than `ink-4`, identical to
+  `muted-foreground`, and 4.35:1 on tint where it inks icons — under AA); dark `ink-2` `#d6d6d6`
+  → `#e0e0e0` and `ink-3` `#b8b8b8` → `#d4d4d4` (dark `ink-3` sat BELOW `body` while light put it
+  above). Every stop from `ink-4` up clears AA 4.5:1 on canvas, white/popover and tint.
+  ⚠️ Two known exceptions, recorded rather than hidden: light `muted-foreground` is 4.35:1 on
+  `tint` (use `ink-4` for text on a tint well); and in dark `muted-foreground` (#b8b8b8) is
+  brighter than `ink-4` (#a0a0a0), the one inversion left — 418 call sites, not moved in this
+  change. Move a stop and you re-measure and keep the order.
 - Money: `price` — prices, and only prices, wear it. It is NOT the palette's only red:
   `destructive` is red in both themes and globals.css spends a paragraph keeping the two
   apart (OKLab dE 0.076 in light). Never let hue alone carry that distinction — an error

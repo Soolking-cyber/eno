@@ -24,7 +24,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, isPostableSubcategory } from '@/lib/taxonomy'
 import { syndicateListingIfPublic } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
@@ -610,7 +610,9 @@ export async function updateListingCore(
   // Subcategory — must belong to the listing's (unchanged) category.
   if (body.subcategorySlug !== undefined) {
     const sc = body.subcategorySlug ? String(body.subcategorySlug).trim() : null
-    if (!sc || subcategoriesFor(current.category.slug).some((s) => s.slug === sc)) data.subcategorySlug = sc
+    // O-34: an edit may KEEP a withheld subcategory the listing already has, never switch INTO one.
+    const allowed = !sc || sc === current.subcategorySlug || isPostableSubcategory(current.category.slug, sc)
+    if (allowed && (!sc || subcategoriesFor(current.category.slug).some((s) => s.slug === sc))) data.subcategorySlug = sc
   }
   // Intent (listingType) — must be valid for the category.
   if (body.listingType !== undefined) {
@@ -952,10 +954,14 @@ export async function createListingCore(input: {
   const allowedTypes = typesFor(categorySlug) as string[]
   const reqType = String(body.listingType || '').trim()
   const listingType = allowedTypes.includes(reqType) ? reqType : allowedTypes[0]
-  const subs = subcategoriesFor(categorySlug)
+  // ⛔ A NEW listing can only take a POSTABLE subcategory (O-34, 2026-09-30): the marketplace edition
+  // withholds `tickets-travel/visa-runs` from the picker, and a restored draft or a crafted request must
+  // not get it past the server either. Editing an existing listing is a different path (updateListing).
+  const subs = subcategoriesFor(categorySlug).filter((s) => isPostableSubcategory(categorySlug, s.slug))
   let subcategorySlug: string | null = String(body.subcategorySlug || '').trim()
   if (!subs.some((s) => s.slug === subcategorySlug)) {
-    subcategorySlug = suggestSubcategory(categorySlug, `${title} ${body.description || ''}`) || (subs[0]?.slug ?? null)
+    const suggested = suggestSubcategory(categorySlug, `${title} ${body.description || ''}`)
+    subcategorySlug = (suggested && subs.some((s) => s.slug === suggested) ? suggested : null) || (subs[0]?.slug ?? null)
   }
   // Currency + price unit — ₫ for EVERY listing, unit follows the intent (monthly for
   // rent/job, per-service for a service). Derived in one place so create and the taxonomy

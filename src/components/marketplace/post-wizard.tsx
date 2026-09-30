@@ -32,7 +32,7 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { subcategoriesFor, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES } from '@/lib/taxonomy'
+import { postableSubcategoriesFor, isPostableSubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES } from '@/lib/taxonomy'
 import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
 import { PublishButton, PublishLabel, Section, Field, Chips, Preview } from './post-wizard-parts'
@@ -158,7 +158,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       }
       if (d.categorySlug) {
         setCategorySlug(d.categorySlug)
-        setSubcategorySlug(d.subcategorySlug || '')
+        // AI must not pick a subcategory this edition does not offer for new posts (O-34).
+        setSubcategorySlug(d.subcategorySlug && isPostableSubcategory(d.categorySlug, d.subcategorySlug) ? d.subcategorySlug : '')
         setAttrs(d.attributes && typeof d.attributes === 'object' ? d.attributes : {})
         setRanges({})
         if (d.listingType) setListingType(d.listingType)
@@ -554,7 +555,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }, [categorySlug, subcategorySlug, listingType, brand, model, condition, bandYear])
 
   const cat = categories.find((c) => c.slug === categorySlug)
-  const subOptions = subcategoriesFor(categorySlug)
+  // Edition-aware (taxonomy.ts POST_HIDDEN_ON_MARKETPLACE); the value already on the form stays listed.
+  // A hidden subcategory is kept on screen only when EDITING a listing that already has it — never for a
+  // new post or a restored draft (the create route refuses it too).
+  const subOptions = postableSubcategoriesFor(categorySlug, edit ? subcategorySlug : undefined)
+  // A restored draft or an AI fill can still hold a withheld subcategory (O-34) — drop it so the chips
+  // show the truth and the seller picks again, instead of the server silently re-filing it on publish.
+  if (!edit && subcategorySlug && categorySlug && !isPostableSubcategory(categorySlug, subcategorySlug)) setSubcategorySlug('')
   const typeOptions = typesFor(categorySlug)
   // askableFacetsFor, not facetsFor: a DERIVED facet (providerType) is computed from the
   // account server-side, so asking would be redundant — and lets a seller contradict their

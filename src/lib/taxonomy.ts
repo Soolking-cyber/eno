@@ -27,6 +27,9 @@ import { VISA_ENTRY_TYPES, VISA_SPEED_CODES, VISA_SPEED_SPECS } from './visa/spe
 // chips said `intel-i5`/`apple-silicon` while every row stores `i5`/`m4`, so those chips matched
 // nothing and read as an empty catalogue. Add an electronics spec THERE, never here.
 import { specFacets } from './electronics-specs'
+// Import-free and build-time inlined (see edition.ts), so the post picker's gate below minifies
+// away on the edition it does not apply to.
+import { IS_MARKETPLACE } from './edition'
 
 // ── Intent axis ──────────────────────────────────────────────────────────────
 export type ListingType = 'sell' | 'rent' | 'free' | 'wanted' | 'wholesale' | 'service' | 'job' | 'event'
@@ -1380,6 +1383,39 @@ export function categoryHasBrand(slug: string | null | undefined): boolean {
 
 export function subcategoriesFor(categorySlug: string): SubcatDef[] {
   return CATEGORY_BY_SLUG[categorySlug]?.subcategories ?? []
+}
+
+/**
+ * Subcategories a seller may NOT pick when POSTING on the marketplace edition (eno.vn), keyed
+ * `category/subcategory`. Owner, 2026-09-30 (O-34, "do what's recommended"): a visa run is a
+ * visa service, which the licensed sàn TMĐT does not offer, so eno.vn stops inviting new ones.
+ * ⚠️ POSTING ONLY. The subcategory stays in TAXONOMY — browse, search, facets, storefronts and
+ * every existing row are untouched, and eno.forum still offers it. This is deliberately not a
+ * relabel of services/visa-legal (VietKite's own category) and hides nobody's listings.
+ */
+export const POST_HIDDEN_ON_MARKETPLACE: ReadonlySet<string> = new Set(['tickets-travel/visa-runs'])
+
+/** Is this subcategory offered in the post picker on this edition? `marketplace` is a parameter
+ *  (defaulting to the build's edition) so the test can pin both editions in one process. */
+export function isPostableSubcategory(
+  categorySlug: string, subcategorySlug: string | null | undefined, marketplace: boolean = IS_MARKETPLACE,
+): boolean {
+  if (!subcategorySlug) return true
+  return !(marketplace && POST_HIDDEN_ON_MARKETPLACE.has(`${categorySlug}/${subcategorySlug}`))
+}
+
+/**
+ * The post wizard's subcategory chips: `subcategoriesFor` minus what this edition does not offer
+ * for NEW posts. `keep` is the subcategory already on the form — an edited listing, a restored
+ * draft — and stays listed even when hidden, so the chip row never loses the value it is showing
+ * and a seller editing an old visa-run listing is not silently moved out of it.
+ */
+export function postableSubcategoriesFor(
+  categorySlug: string, keep?: string | null, marketplace: boolean = IS_MARKETPLACE,
+): SubcatDef[] {
+  return subcategoriesFor(categorySlug).filter(
+    (s) => s.slug === keep || isPostableSubcategory(categorySlug, s.slug, marketplace),
+  )
 }
 
 // Facets for a category, narrowed to a subcategory when given. A facet with

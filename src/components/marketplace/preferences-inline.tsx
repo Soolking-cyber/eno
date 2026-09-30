@@ -68,8 +68,9 @@ export function PreferencesInline({ className, compact = false }: { className?: 
           // #f5f5f5, so a white fill is 1.09:1 there no matter what, and a shadow is not a
           // contrast boundary. The ring is therefore load-bearing in light mode and has to be
           // dark enough to clear the 3:1 floor for a non-text UI part on its own — ink-3
-          // (#737373) is 4.35:1 against the track and 4.74:1 against the knob. In dark it is
-          // #b8b8b8 and merely decorative, because the fill already carries the boundary.
+          // (#404040 since D-GREYS 2026-09-30; was #737373 at 4.35:1) is 9.51:1 against the track
+          // and 10.37:1 against the knob. In dark it is #d4d4d4 and merely decorative, because the
+          // fill already carries the boundary.
           //
           // ⛔ `translate-x-6`, NOT `data-checked:left-7` — AND THE TWO CANNOT BE MIXED. ui/switch
           // moved its thumb travel from `left` to `transform` (a layout property animating on the

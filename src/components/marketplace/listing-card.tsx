@@ -1117,7 +1117,7 @@ function ListingCardImpl({
             (role=img so AT still announces it) to keep the row from wrapping on a narrow card. The
             "N contacted" demand count moved to the PDP — one fewer shrink-0 item keeps this line
             from overflowing on a 2-col mobile card, and reads cleaner. */}
-        <div className="mt-auto flex items-center gap-1.5 pt-1 text-2xs text-muted-foreground">
+        <div className="mt-auto flex items-center gap-1.5 pt-1 text-xs text-muted-foreground sm:text-2xs">
           <span className="min-w-0 flex-1 truncate">
             {/* condition leads the line (owner, 2026-07-23) — the fastest signal a buyer scans
                 for. Stored values are the two facet buckets 'new'/'used'; anything else shows
@@ -1142,6 +1142,13 @@ function ListingCardImpl({
                 business seller's card (104px) would begin truncating with no new content at all.
                 The width has to be bought first — one fewer fact, or shorter VI time strings in
                 timeAgo() — not borrowed against.
+                ⚠️ OVERRULED ON PHONES, KNOWINGLY (D-TYPE, owner 2026-09-30, "do what's recommended"):
+                below `sm` this row is now `text-xs` (12px) for legibility; `sm:` and up stay 11px,
+                where the row carries four facts. Measured on the dev feed (EN = VI counts): rows
+                still never wrap (0 at 360/390), but truncation rises — home 390 from 4 to 21 of 28
+                rows, /c/rentals 390 from 19 to 27 of 48, 360 unchanged ±1 (already 22/28). The
+                clipped part is the city tail (", Hồ Chí Minh"), not the ward. Buying the width
+                back (a shorter HCMC location string) is the follow-up, not a revert.
                 ORDER: the time sits immediately after the area ("area · relative time") and BEFORE
                 brand/model, so when the line does overflow at sm/md the ellipsis eats the brand
                 first — it is repeated in the title above — rather than the freshness signal, which
