@@ -110,10 +110,11 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // 600 onto the one bold cut it ships), so the colour is what sets it apart, and the price row keeps
   // its weight. Size stays the caller's (tailwind-merge keeps it), so the line box, and with it every
   // card skeleton, is unchanged. "Free" keeps the price ink: it IS the price.
-  const noFigure = isFree && listingType === 'job'
+  // A teacher profile reads like a job's salary line (plain, no price weight) — it is a person, not a price.
+  const noFigure = isFree && (listingType === 'job' || listingType === 'teacher')
   const amount = isFree
     // A teacher profile (2026-09-30) has no price: it is a person, never "Free".
-    ? (noFigure ? tr('Salary: see details', 'Lương: xem chi tiết') : listingType === 'teacher' ? tr('Teacher profile', 'Hồ sơ giáo viên') : tr('Free', 'Miễn phí'))
+    ? (listingType === 'teacher' ? tr('Teacher profile', 'Hồ sơ giáo viên') : noFigure ? tr('Salary: see details', 'Lương: xem chi tiết') : tr('Free', 'Miễn phí'))
     : currency === '₫' && !native ? format(price, locale) : formatMoneyFull(price, currency, locale)
   // ⚠️ NO LEADING SPACE — the space that separates the suffix from the amount is rendered as its
   // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the

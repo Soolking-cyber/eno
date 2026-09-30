@@ -379,7 +379,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
         <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-tint text-brand"><Check className="size-6" /></span>
         <h1 className="mt-4 text-xl font-semibold text-foreground">{mode === 'edit' || !done.live ? tr('Profile saved', 'Đã lưu hồ sơ') : tr('Your profile is live', 'Hồ sơ của bạn đã được đăng')}</h1>
         <p className="mt-2 text-sm text-body">
-          {tr('Schools can now find you. When one messages you, reply and tap “Share contact” if you want them to have your phone, email and CV.', 'Các trường giờ có thể tìm thấy bạn. Khi có trường nhắn tin, hãy trả lời và bấm “Chia sẻ liên hệ” nếu bạn muốn gửi số điện thoại, email và CV.')}
+          {tr('Schools can now find you. When one messages you, reply and tap “Share my phone, email & CV” if you want them to have your phone, email and CV.', 'Các trường giờ có thể tìm thấy bạn. Khi có trường nhắn tin, hãy trả lời và bấm “Chia sẻ số điện thoại, email và CV” nếu bạn muốn gửi số điện thoại, email và CV.')}
         </p>
         {formError && <p role="alert" className="mt-3 text-sm text-destructive">{formError}</p>}
         <div className="mt-6 flex justify-center gap-3">
@@ -593,7 +593,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
                 </label>
               )}
             </Section>
-            <Section title={tr('CV (optional)', 'CV (không bắt buộc)')} hint={tr('PDF, up to 10 MB. Private: a school gets it only when you tap “Share contact” in your chat with them.', 'PDF, tối đa 10 MB. Riêng tư: trường chỉ nhận được khi bạn bấm “Chia sẻ liên hệ” trong tin nhắn.')}>
+            <Section title={tr('CV (optional)', 'CV (không bắt buộc)')} hint={tr('PDF, up to 10 MB. Private: a school gets it only when you tap “Share my phone, email & CV” in your chat with them.', 'PDF, tối đa 10 MB. Riêng tư: trường chỉ nhận được khi bạn bấm “Chia sẻ số điện thoại, email và CV” trong tin nhắn.')}>
               <div className="flex flex-wrap items-center gap-3">
                 {(cvFile || cvName) && <span className="inline-flex items-center gap-2 text-sm text-body"><FileText className="size-4" />{cvFile?.name ?? cvName}</span>}
                 <label className={cn('inline-flex cursor-pointer items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-body hover:bg-muted', !user && 'pointer-events-none opacity-50')}>
@@ -607,7 +607,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
             <Field invalid={!!errors.phone}>
               <Label htmlFor="tf-phone">{tr('Phone number', 'Số điện thoại')}</Label>
               <FieldControl id="tf-phone" render={<Input id="tf-phone" type="tel" inputMode="tel" autoComplete="tel" value={t.phone} maxLength={20} placeholder="0901 234 567" onChange={(e) => set('phone', e.target.value)} />} />
-              <FieldDescription className="text-muted-foreground">{tr('Never shown publicly. Shared with a school only when you tap “Share contact” in your chat.', 'Không bao giờ công khai. Chỉ chia sẻ với trường khi bạn bấm “Chia sẻ liên hệ” trong tin nhắn.')}</FieldDescription>
+              <FieldDescription className="text-muted-foreground">{tr('Never shown publicly. Shared with a school only when you tap “Share my phone, email & CV” in your chat.', 'Không bao giờ công khai. Chỉ chia sẻ với trường khi bạn bấm “Chia sẻ số điện thoại, email và CV” trong tin nhắn.')}</FieldDescription>
               {errors.phone && <FieldError>{errText(errors.phone)}</FieldError>}
             </Field>
             <Section title={tr('Your choices', 'Lựa chọn của bạn')}>

@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, Phone } from '@/components/ui/icons'
+import { FileText, Phone } from '@/components/ui/icons'
 
 type Contact = { phone: string | null; email: string | null; hasCv: boolean }
 
@@ -47,6 +47,8 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
   }, [conversationId, iAmTeacher, shareSignal])
 
   const toggle = async (next: boolean) => {
+    // `loading` keeps the button focusable (aria-disabled), so the double-tap guard lives here.
+    if (busy) return
     setBusy(true); setError('')
     try {
       const r = await fetch('/api/teachers/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId, share: next }) })
@@ -61,12 +63,12 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
         shared ? (
           <>
             <p className="text-2xs text-body">{live ? tr('This school can see your phone, email and CV.', 'Trường này xem được số điện thoại, email và CV của bạn.') : tr('Paused while your profile is hidden — the school sees nothing until it is visible again.', 'Tạm dừng khi hồ sơ bị ẩn — trường không xem được gì cho đến khi hồ sơ hiển thị lại.')}</p>
-            <Button variant="ghost" size="sm" onClick={() => toggle(false)} disabled={busy}>{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{tr('Stop sharing', 'Ngừng chia sẻ')}</Button>
+            <Button variant="ghost" size="sm" onClick={() => toggle(false)} loading={busy}>{tr('Stop sharing', 'Ngừng chia sẻ')}</Button>
           </>
         ) : (
           <>
-            <Button variant="cta" size="sm" onClick={() => toggle(true)} disabled={busy}>
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+            <Button variant="cta" size="sm" onClick={() => toggle(true)} loading={busy}>
+              <Phone className="h-3.5 w-3.5" />
               {tr('Share my phone, email & CV', 'Chia sẻ số điện thoại, email và CV')}
             </Button>
             <p className="text-2xs text-muted-foreground">{tr('Only this school sees them, and you can stop any time.', 'Chỉ trường này xem được, và bạn có thể ngừng bất cứ lúc nào.')}</p>

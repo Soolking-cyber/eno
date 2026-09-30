@@ -26,7 +26,7 @@ vi.mock('@/lib/db', () => ({
     brand: { findMany: (a: any) => brandFindMany(a), findUnique: (a: any) => brandFindUnique(a) },
   },
 }))
-vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: any) => w, marketplaceListingScope: async () => ({}) }))
+vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: any) => w, marketplaceListingScope: async () => ({}), teacherExclusion: async () => null }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
 vi.mock('@/lib/client-ip', () => ({ clientIp: () => '203.0.113.9' }))
 vi.mock('@/lib/api/handler', () => ({
