@@ -42,7 +42,11 @@ describe('assignDistrict', () => {
     expect(assignDistrict('Quận 2')).toBe('d2')
     expect(assignDistrict('Quận 9')).toBe('d9')
     expect(assignDistrict('TP. Thủ Đức (P. Long Phước mới)')).toBe('thu-duc')
-    expect(assignDistrict('Thảo Điền')).toBe('thu-duc')
+    // Thảo Điền is a ward of the former District 2 (D0, decision D-d): its own row, and — since d2 is
+    // one of the umbrella's parts — still inside Thủ Đức's union row.
+    expect(assignDistrict('Thảo Điền')).toBe('d2')
+    expect(assignDistrict('Thao Dien')).toBe('d2')
+    expect(assignDistrict('Phường Thảo Điền, TP. Thủ Đức')).toBe('d2')
   })
   it('refuses a value naming two districts, and an unknown one', () => {
     expect(assignDistrict('Quận 1, Quận 3')).toBeNull()

@@ -362,9 +362,10 @@ describe('the pages child', () => {
     const xml = await (await pagesGET()).text()
     const urls = locs(xml)
     expect(xml).toMatch(/<urlset /)
-    // ⚠️ THE CANONICAL SLUG (district-canonical.ts): "Thảo Điền" is a spelling of the curated Thủ Đức
-    // entry, and /c/<cat>/thao-dien now 308s to /c/<cat>/thu-duc — the sitemap submits where it lands.
-    expect(urls).toContain(`${HOST}/c/books-stationery/thu-duc`)
+    // ⚠️ THE CANONICAL SLUG (district-canonical.ts): "Thảo Điền" is a spelling of the curated District 2
+    // entry (SEO wave B, D0), and /c/<cat>/thao-dien now 308s to /c/<cat>/d2 — the sitemap submits
+    // where it lands.
+    expect(urls).toContain(`${HOST}/c/books-stationery/d2`)
     expect(urls).not.toContain(`${HOST}/c/books-stationery/thao-dien`)
     expect(urls).toContain(`${HOST}/old_shop`)
     expect(urls).toContain(`${HOST}/c/books-stationery`)
@@ -377,8 +378,8 @@ describe('the pages child', () => {
     expect(urls).not.toContain(`${HOST}/c/rentals/quan-1`)
     expect(urls.some((u) => u.includes('/listings/'))).toBe(false)
     // Two spellings of one place are one URL, carrying the later of their two dates.
-    expect(urls.filter((u) => u.endsWith('/c/books-stationery/thu-duc'))).toHaveLength(1)
-    expect(xml).toContain(`<loc>${HOST}/c/books-stationery/thu-duc</loc><lastmod>2025-07-01T00:00:00.000Z</lastmod>`)
+    expect(urls.filter((u) => u.endsWith('/c/books-stationery/d2'))).toHaveLength(1)
+    expect(xml).toContain(`<loc>${HOST}/c/books-stationery/d2</loc><lastmod>2025-07-01T00:00:00.000Z</lastmod>`)
     // The home page's lastmod is the freshest live row anywhere.
     expect(xml).toContain(`<loc>${HOST}</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
   }, 60_000)

@@ -169,7 +169,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
  * and a twin that is not the canonical spelling is a 308 to it.
  *
  * ⚠️ THE COUNT HAPPENS BEFORE THE REDIRECT, on the canonical scope, so a 308 never lands on a 404:
- * `/c/electronics/thao-dien` would map to `thu-duc`, which holds no electronics, so it 404s here
+ * `/c/electronics/thao-dien` would map to `d2`, which holds no electronics, so it 404s here
  * instead of redirecting to an empty page. The canonical scope contains every row the old spelling
  * showed (pinned per alias in district-canonical.test.ts), so a non-empty source always redirects.
  *

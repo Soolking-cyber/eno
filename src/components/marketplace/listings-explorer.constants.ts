@@ -112,8 +112,19 @@ export const DISTRICTS: { slug: string; name: string; nameEn: string; match?: st
    * ⚠️ NO EXCLUSION SET IS NEEDED and none is generated: the prefix guard in district-slug.ts only
    * excludes curated spellings that EXTEND ours, and nothing starts with "Quận 2"/"Quận 9" — there
    * is no Quận 2x in Vietnam, and production carries no such string.
+   *
+   * ⛔ THẢO ĐIỀN IS d2's, AND STILL THỦ ĐỨC's (SEO wave B, D0; owner decision D-d, 2026-09-30:
+   * `d2` owns "District 2 / Thảo Điền" searches). Thảo Điền is a ward of the former District 2, so
+   * a row that names it is a District 2 home; before this, only the umbrella listed the spelling and
+   * `/c/<cat>/thao-dien` 308'd to `thu-duc`. The umbrella keeps all eight spellings, and d2's four
+   * stay a SUBSET of them — the rule district-canonical.ts uses to send a shared alias to the
+   * narrower place (pinned in district-canonical.test.ts). ⚠️ THE RENT INDEX READS THESE SPELLINGS
+   * (rent-index.ts `assignDistrict`, on the `district` column only), so a new one can move published
+   * figures and belongs under a RENT_INDEX_RULES_VERSION bump. This one moves none today — measured
+   * 2026-09-30, no live HCMC rental's `district` column names Thảo Điền (the ward lives in
+   * `location`) — and it ships in the same deploy as rules v3 (SEO wave B, R1), which bumps it.
    */
-  { slug: 'd2', name: 'Quận 2 (Thủ Đức)', nameEn: 'District 2 (Thu Duc)', match: ['District 2', 'Quận 2'] },
+  { slug: 'd2', name: 'Quận 2 (Thủ Đức)', nameEn: 'District 2 (Thu Duc)', match: ['District 2', 'Quận 2', 'Thao Dien', 'Thảo Điền'] },
   { slug: 'd3', name: 'Quận 3', nameEn: 'District 3', match: ['District 3', 'Quận 3'] },
   { slug: 'd4', name: 'Quận 4', nameEn: 'District 4', match: ['District 4', 'Quận 4'] },
   { slug: 'd5', name: 'Quận 5', nameEn: 'District 5', match: ['District 5', 'Quận 5'] },

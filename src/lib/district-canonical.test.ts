@@ -46,10 +46,15 @@ const LIVE_TWINS: [stored: string, source: string, target: string, sourceRentals
 
 /** The slugs that answered 200 + "Page not found" (soft 404) and have a real place to go to. */
 const SOFT_404_REDIRECTS: [spelling: string, source: string, target: string, targetRentals: number][] = [
-  // Thảo Điền is a spelling of the Thủ Đức umbrella in DISTRICTS, so every listing that says Thảo
-  // Điền is on /thu-duc. `d2` would drop the ~20% of them stored under "TP. Thủ Đức" (100-row
-  // text-search sample: 80 Quận 2, 20 TP. Thủ Đức).
-  ['Thảo Điền', 'thao-dien', 'thu-duc', 6023],
+  // Thảo Điền is a ward of the former District 2, and `d2` owns it (SEO wave B, D0; decision D-d).
+  // It used to go to the umbrella, because only `thu-duc` listed the spelling and `d2` would have
+  // dropped the ~20% of those listings stored under "TP. Thủ Đức" (100-row text-search sample: 80
+  // Quận 2, 20 TP. Thủ Đức). `d2` now carries both spellings itself, so a row stored as Thảo Điền —
+  // whatever its district column says — is inside `d2`'s scope, and the 308 stays lossless. The
+  // umbrella still lists them too, so the same rows stay on /thu-duc. Count: /api/listings on the
+  // D0 build, reading production (2026-09-30) — 16 more than the live `d2` (3,746), every one a
+  // car-rental row whose address names Thảo Điền; its places (kind=places) stayed at 3,741.
+  ['Thảo Điền', 'thao-dien', 'd2', 3762],
   ['Phú Mỹ Hưng', 'phu-my-hung', 'd7', 2655],
   ['District 2', 'district-2', 'd2', 3741],
   ['Thành phố Thủ Đức', 'thanh-pho-thu-duc', 'thu-duc', 6023],

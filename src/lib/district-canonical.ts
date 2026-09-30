@@ -67,9 +67,10 @@ function aliasesOf(d: Curated): Set<string> {
  *
  * ⚠️ AN ALIAS TWO ENTRIES SHARE GOES TO THE NARROWER ONE. "Quận 2" is a spelling of both `d2` and the
  * `thu-duc` umbrella (HCMC merged D2 and D9 into Thủ Đức in 2021 and the umbrella keeps matching the
- * old names — see DISTRICTS). Someone who typed District 2 meant District 2, and `d2`'s two spellings
- * are a subset of `thu-duc`'s eight, so the smaller match list wins. The test asserts that every
- * shared alias resolves to an entry whose spellings are contained in each rival's.
+ * old names — see DISTRICTS). Someone who typed District 2 meant District 2, and `d2`'s four
+ * spellings (District 2 and its ward Thảo Điền) are a subset of `thu-duc`'s eight, so the smaller
+ * match list wins. The test asserts that every shared alias resolves to an entry whose spellings
+ * are contained in each rival's.
  */
 const ALIAS_TO_CURATED: ReadonlyMap<string, string> = (() => {
   const map = new Map<string, Curated>()
@@ -91,7 +92,7 @@ const ALIAS_TO_CURATED: ReadonlyMap<string, string> = (() => {
  *
  * ⚠️ THE RESULT IS A URL, NOT A PROMISE THAT THE PAGE HAS LISTINGS. The page still counts the
  * scope and answers a real 404 when it is empty — including when the target is empty in THAT
- * category (`/c/electronics/thao-dien` must not 308 to an empty `/c/electronics/thu-duc`).
+ * category (`/c/electronics/thao-dien` must not 308 to an empty `/c/electronics/d2`).
  */
 export function canonicalDistrictSlug(slug: string): string {
   const s = slugify(slug)
