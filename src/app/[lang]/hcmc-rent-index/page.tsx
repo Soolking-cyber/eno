@@ -10,7 +10,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { MIN_CELL_N, type RentIndex } from '@/lib/rent-index'
 import { loadRentIndex } from './load-rent-index'
-import { DistrictTable, Headline, Methodology, Unavailable } from './rent-index-sections'
+import { BedroomTable, DistrictTable, Headline, Methodology, Unavailable } from './rent-index-sections'
 import { CiteBox } from './cite-box'
 
 /**
@@ -117,7 +117,7 @@ function jsonLd(index: RentIndex | null, lang: string): Record<string, unknown>[
       '@type': 'Dataset',
       name: 'Ho Chi Minh City Rent Index',
       description:
-        `Median, 25th and 75th percentile monthly asking rent in Vietnamese đồng for apartments, houses and rooms in each Ho Chi Minh City district, computed daily by ${SITE_NAME} from live rental listings. Cells with fewer than ${MIN_CELL_N} listings are not published. Asking prices, not signed leases.`,
+        `Median, 25th and 75th percentile monthly asking rent in Vietnamese đồng for apartments (also by 1, 2 and 3+ bedrooms), houses and rooms in each Ho Chi Minh City district, computed daily by ${SITE_NAME} from live rental listings. Houses with no bedroom count are left out as commercial. Cells with fewer than ${MIN_CELL_N} listings are not published. Asking prices, not signed leases.`,
       url: URL_,
       creator: { '@type': 'Organization', name: SITE_NAME, url: ORIGIN },
       // ⚠️ NO `license` (owner, 2026-09-27): the terms are "free to cite and quote, with a credit link",
@@ -207,6 +207,7 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
           <>
             <Headline index={index} locale={locale} />
             <DistrictTable index={index} lang={lang} locale={locale} />
+            <BedroomTable index={index} lang={lang} locale={locale} />
           </>
         )}
 

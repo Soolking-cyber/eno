@@ -150,7 +150,6 @@ export const UI_STRINGS: string[] = [
   "Almost everything listed is in Ho Chi Minh City.",
   "Almost there",
   "Already taken",
-  "An apartment or house listed by two different sellers with the same district, price and floor area counts once. Rooms are never merged: their round prices and sizes match too often by chance.",
   "An eno specialist is in this chat — Eno concierge stays quiet.",
   "Answers",
   "Answers about buying, selling, trust and staying safe on eno.vn — plus practical guides for getting around Vietnam. Upvote what helped you, and ask anything that is missing.",
