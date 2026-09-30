@@ -1,16 +1,17 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Button } from '@/components/ui/button'
 import { Search, Tag, Plus, BadgeCheck, Bell, Heart, Globe, ChevronRight, ShieldCheck } from "@/components/ui/icons"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `How ${SITE_NAME} works — Guide | ${SITE_NAME}`,
   description: 'A quick guide to eno.vn: how to buy, sell, build trust, message, make offers and trade safely on Vietnam’s marketplace for the international community.',
   alternates: { canonical: '/guide' },
-}
+})
 
 // Ordered steps carry their sequence in a tint number chip — the same treatment as
 // /safety's "If something goes wrong" list and /about's trust steps, so the whole

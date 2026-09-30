@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { expatGuidesExcept, guideDates } from '@/lib/expat-guides'
@@ -304,11 +305,12 @@ export const metadata: Metadata = {
   description:
     'What to do in your first month in Vietnam, in order: registering your stay with the local police, a SIM that banks accept, the licence rules for riding, the five things to check in a lease, furnishing cheaply, and the deadlines that have consequences.',
   alternates: { canonical: '/first-month-in-vietnam' },
-  openGraph: {
+  ...pageShare({
     title: `Your First Month in Vietnam: The Arrival Checklist | ${SITE_NAME}`,
     description:
       'Residence registration, a working phone number, the lease clauses that cost money, and the two deadlines nobody warns you about.',
-  },
+    type: 'article',
+  }),
 }
 
 export default function Page() {

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -273,12 +274,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Cheap 5G phones in Vietnam — coverage, bands and the specs that matter | ${SITE_NAME}`,
   description:
     'Where Vietnamese 5G coverage actually reaches, which bands a handset needs to use it, the four budget specs that decide how long a phone lasts, and the spec-sheet claims worth ignoring.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function Budget5GPhonesVietnamPage() {
   return <SeoArticle content={CONTENT} />

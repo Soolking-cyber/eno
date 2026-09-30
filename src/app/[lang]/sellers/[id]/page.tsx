@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { loadSeller, SellerStorefront, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
 import { storefrontCanonical } from '@/lib/storefront'
+import { pageShare } from '@/lib/site-identity'
 
 // Per-request render, like the canonical [handle] storefront (which is force-dynamic
 // on purpose). Without this the page was STATICALLY cached — no dynamic API in scope,
@@ -11,7 +12,7 @@ import { storefrontCanonical } from '@/lib/storefront'
 // (handle-owners get redirected below). Owner-reported 2026-07-23.
 export const dynamic = 'force-dynamic'
 
-type Props = { params: Promise<{ id: string }> }
+type Props = { params: Promise<{ lang?: string; id: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
@@ -21,25 +22,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // with the not-found UI) that the root loading.tsx boundary would otherwise cause.
   if (!seller) notFound()
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  /**
+   * ⚠️ THE SAME COMPOSITION AS `/<handle>` (src/lib/storefront-description.ts). This used to be
+   * `${name} — ${reviewCount} reviews · ${rating}★`, and `Seller.rating` defaults to 5, so an
+   * importer nobody had reviewed was described as "Nhatot.com — 0 reviews · 5.0★".
+   */
+  const description = (await storefrontMetaDescription(id)) ?? `${seller.name} on ${SITE_NAME}`
+  /**
+   * The handle's canonical is this page's canonical — `storefrontCanonical`, the one answer the
+   * handle page, Share and pages.xml give (the subdomain when it serves the shop, else the path), so
+   * this is never a canonical that points at a page which canonicalises somewhere else.
+   * ⚠️ AND A HANDLE-LESS SELLER SELF-CANONICALISES rather than declaring nothing. `undefined` left
+   * this page with no canonical at all — and it is `force-dynamic`, reachable by id, and submitted
+   * to the sitemap under exactly this shape, so the only signal Google had for which URL to keep was
+   * its own guess (astra). Handle-less storefronts are the minority, but they are the ones with no
+   * second URL to inherit a canonical from.
+   */
+  const canonical = seller.handle ? await storefrontCanonical(seller.handle.handle, hostUrl) : `${hostUrl}/sellers/${id}`
   return {
     title: `${seller.name} | ${SITE_NAME}`,
-    /**
-     * ⚠️ THE SAME COMPOSITION AS `/<handle>` (src/lib/storefront-description.ts). This used to be
-     * `${name} — ${reviewCount} reviews · ${rating}★`, and `Seller.rating` defaults to 5, so an
-     * importer nobody had reviewed was described as "Nhatot.com — 0 reviews · 5.0★".
-     */
-    description: (await storefrontMetaDescription(id)) ?? `${seller.name} on ${SITE_NAME}`,
-    /**
-     * The handle's canonical is this page's canonical — `storefrontCanonical`, the one answer the
-     * handle page, Share and pages.xml give (the subdomain when it serves the shop, else the path), so
-     * this is never a canonical that points at a page which canonicalises somewhere else.
-     * ⚠️ AND A HANDLE-LESS SELLER SELF-CANONICALISES rather than declaring nothing. `undefined` left
-     * this page with no canonical at all — and it is `force-dynamic`, reachable by id, and submitted
-     * to the sitemap under exactly this shape, so the only signal Google had for which URL to keep was
-     * its own guess (astra). Handle-less storefronts are the minority, but they are the ones with no
-     * second URL to inherit a canonical from.
-     */
-    alternates: { canonical: seller.handle ? await storefrontCanonical(seller.handle.handle, hostUrl) : `${hostUrl}/sellers/${id}` },
+    description,
+    // The share card carries the canonical URL and the site's preview image (C-SHARE).
+    ...pageShare({ title: `${seller.name} | ${SITE_NAME}`, description, url: canonical }),
+    alternates: { canonical },
   }
 }
 

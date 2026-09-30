@@ -8,8 +8,9 @@ import { notFound } from "next/navigation";
 import { LANG_VARIANTS, type LangVariant } from "@/lib/lang-variant";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
 import { COMPANY, OPERATOR_REGISTERED } from "@/lib/site-legal";
+import { IOS_APP_URL } from "@/lib/app-store-links";
 // The Organization/WebSite JSON-LD's entity fields (@id, sameAs, legalName…) — see that block below.
-import { marketplaceOrganizationFields, ORGANIZATION_TYPE, organizationId, POSTING_IS_FREE, registeredOperatorFields, SHARE_CARD, toE164VN, websiteId } from "@/lib/site-identity";
+import { marketplaceOrganizationFields, ogLocaleFor, ORGANIZATION_TYPE, organizationId, POSTING_IS_FREE, registeredOperatorFields, SHARE_CARD, SHARE_CARD_ALT, toE164VN, websiteId } from "@/lib/site-identity";
 // The content-hashed sprite URL, from the generated shim — never a literal here, or a glyph edit
 // would preload a file that no longer exists while every icon silently fetched the new one.
 import { ICON_SPRITE_CORE } from "@/components/ui/icons";
@@ -38,6 +39,19 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
 
 /** The operator's phone as the Organization JSON-LD states it: E.164, or null (see toE164VN). */
 const ORG_TELEPHONE = toE164VN(COMPANY.phone);
+
+/**
+ * The pre-paint half of hiding the header's "Download the app" control where it can only say "not yet"
+ * (owner-approved O-04, 2026-09-29): an iPhone/iPad — the same test as isIOS() in
+ * src/lib/in-app-browser.ts — or an installed PWA, which is already the app on the home screen. It adds
+ * `no-app-download` to <html>, which globals.css hides the control on from the first frame.
+ * ⚠️ DECIDED AT BUILD TIME: with NEXT_PUBLIC_IOS_APP_URL set this is '' and the script carries no test at
+ * all, so the control comes back everywhere with a rebuild and no code change. The string is spliced
+ * into a template literal, so it must stay free of backslashes (a `\s` there would silently become `s`).
+ */
+const APP_DOWNLOAD_OFF_JS = IOS_APP_URL
+  ? ""
+  : "if(/iPhone|iPod|iPad/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches))dc.add('no-app-download');";
 
 /**
  * ⚠️ THE VARIABLE CLASS GOES ON <html>, NOT <body>. THIS IS THE WHOLE BUG THAT USED TO BE HERE.
@@ -183,9 +197,10 @@ const openRunde = localFont({
  * partner. Gate this on IS_SERVICES the day a forum-specific card exists; do not gate it on the
  * strength of that mismatch alone, because a motorbike photo served both worse.
  */
-// The file and dimensions come from SHARE_CARD (src/lib/site-identity.ts), which the pages that set
-// their own `openGraph` (/about, the guides) also use — one literal, so the two cannot drift.
-const OG_IMAGE = { ...SHARE_CARD, alt: `${SITE_NAME} — buy, sell, rent and connect in Vietnam` };
+// The file, dimensions and alt come from SHARE_CARD / SHARE_CARD_ALT (src/lib/site-identity.ts), which
+// every page that sets its own `openGraph` also gets through pageOpenGraph() — one literal, so they
+// cannot drift.
+const OG_IMAGE = { ...SHARE_CARD, alt: SHARE_CARD_ALT };
 
 /**
  * THE SITEWIDE DESCRIPTION, PER EDITION.
@@ -311,6 +326,8 @@ export const metadata: Metadata = {
     description: SITE_TAGLINE,
     siteName: SITE_NAME,
     type: "website",
+    // The language of THESE words (English), not of the reader's variant — see ogLocaleFor.
+    locale: ogLocaleFor(`${SITE_NAME} - Trusted Expat Marketplace in Vietnam`, SITE_TAGLINE),
     images: [OG_IMAGE],
   },
   twitter: {
@@ -401,10 +418,18 @@ export default async function RootLayout({
               DOMContentLoaded. It is longer than the native 3s floor on purpose: it must never be
               the thing that reveals a blank WebView, only a last resort if the floor is raised.
             native-bootstrap's hide stays as an idempotent fallback — both platforms no-op when the
-            splash is already hidden. */}
+            splash is already hidden.
+
+            Two more <html> classes ride along, each for a first-frame reason:
+            · `no-app-download` — see APP_DOWNLOAD_OFF_JS above.
+            · `no-session` — the document started with NO `sb-` cookie (clause 1 of shouldBootAuth in
+              auth-context.tsx, as a string search: this is a template literal, so no regex). It lets
+              /messages paint its guest gate before hydration instead of skeletons that turn into a
+              gate a second later. ⚠️ ITS OWN try BLOCK, so a throw there cannot cost the native or
+              page-at-top classes above, and a throw means no class — today's behaviour. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=matchMedia('(prefers-reduced-transparency: reduce)');var a=function(){document.documentElement.classList.toggle('reduce-transparency',m.matches)};a();if(m.addEventListener)m.addEventListener('change',a);}catch(e){}try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l)document.documentElement.lang=l;}catch(e){}try{var de=document.documentElement,tc=document.querySelector('meta[name="theme-color"]');if(!tc){tc=document.createElement('meta');tc.name='theme-color';document.head.appendChild(tc);}tc.content=getComputedStyle(de).getPropertyValue('--background').trim()||(de.classList.contains('dark')?'#1c1d1f':'#f8fbfe');}catch(e){}try{var dc=document.documentElement.classList;var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));(function(){var done=false;var lift=function(){if(done)return;try{var r=C.nativePromise('SplashScreen','hide',{fadeOutDuration:200});done=true;if(r&&typeof r.catch==='function')r.catch(function(){done=false;});}catch(e){}};var po=null;try{po=new PerformanceObserver(function(list){for(var i=0,e=list.getEntries();i<e.length;i++){if(e[i].name==='first-contentful-paint'){po.disconnect();requestAnimationFrame(lift);return;}}});po.observe({type:'paint',buffered:true});}catch(e){po=null;}if(!po){var dcl=function(){requestAnimationFrame(function(){requestAnimationFrame(lift);});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',dcl,{once:true});else dcl();}setTimeout(lift,4000);})();}else if(navigator.userAgent.indexOf('EnoNativeTabs')>-1){dc.add('native');dc.add('native-ios');dc.add('native-tabs');}else if(!window.scrollY){dc.add('page-at-top');}}catch(e){}})();`,
+            __html: `(function(){try{var m=matchMedia('(prefers-reduced-transparency: reduce)');var a=function(){document.documentElement.classList.toggle('reduce-transparency',m.matches)};a();if(m.addEventListener)m.addEventListener('change',a);}catch(e){}try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l)document.documentElement.lang=l;}catch(e){}try{var de=document.documentElement,tc=document.querySelector('meta[name="theme-color"]');if(!tc){tc=document.createElement('meta');tc.name='theme-color';document.head.appendChild(tc);}tc.content=getComputedStyle(de).getPropertyValue('--background').trim()||(de.classList.contains('dark')?'#1c1d1f':'#f8fbfe');}catch(e){}try{var dc=document.documentElement.classList;var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));(function(){var done=false;var lift=function(){if(done)return;try{var r=C.nativePromise('SplashScreen','hide',{fadeOutDuration:200});done=true;if(r&&typeof r.catch==='function')r.catch(function(){done=false;});}catch(e){}};var po=null;try{po=new PerformanceObserver(function(list){for(var i=0,e=list.getEntries();i<e.length;i++){if(e[i].name==='first-contentful-paint'){po.disconnect();requestAnimationFrame(lift);return;}}});po.observe({type:'paint',buffered:true});}catch(e){po=null;}if(!po){var dcl=function(){requestAnimationFrame(function(){requestAnimationFrame(lift);});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',dcl,{once:true});else dcl();}setTimeout(lift,4000);})();}else if(navigator.userAgent.indexOf('EnoNativeTabs')>-1){dc.add('native');dc.add('native-ios');dc.add('native-tabs');}else{${APP_DOWNLOAD_OFF_JS}if(!window.scrollY)dc.add('page-at-top');}}catch(e){}try{var hd=document.documentElement.classList;if(!hd.contains('native')&&('; '+document.cookie).indexOf('; sb-')<0)hd.add('no-session');}catch(e){}})();`,
           }}
         />
         {/* ⚠️ THE ICON SPRITE — ONE REQUEST THAT EVERY PAGE NEEDS, AND THE ONLY THING THE PRELOAD

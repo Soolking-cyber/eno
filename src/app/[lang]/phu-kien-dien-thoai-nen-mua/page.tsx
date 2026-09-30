@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -285,12 +286,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Phụ kiện điện thoại nên mua — ốp, cường lực, củ sạc và cáp | ${SITE_NAME}`,
   description:
     'Chọn ốp và cường lực thế nào cho hợp khí hậu Việt Nam, full keo khác keo viền ra sao, chuẩn sạc nhanh của mỗi hãng, dung lượng thật của sạc dự phòng, và những phụ kiện chỉ là tiền oan.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function PhuKienDienThoaiNenMuaPage() {
   return <SeoArticle content={CONTENT} />

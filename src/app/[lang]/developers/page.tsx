@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -26,11 +27,11 @@ import { API_BASE, API_NAME, DISCOVERY, MEDIA_ORIGIN, SCOPES, SITE_ORIGIN, SUPPO
  * HTML, which is indistinguishable from the page not existing to everything that matters here.
  */
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `${API_NAME} | Developer documentation`,
   description: `${API_NAME} — manage your shop programmatically over REST or MCP. Bearer keys or OAuth 2.0 client credentials, four scopes, OpenAPI 3.1 spec.`,
   alternates: { canonical: '/developers' },
-}
+})
 
 const BASE = API_BASE
 
@@ -60,7 +61,8 @@ export default function DevelopersPage() {
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 pt-10 pb-16 sm:px-6 lg:px-8">
-        <p className="eyebrow text-accent-foreground mb-2">{SITE_NAME} API</p>
+        {/* No "<site> API" kicker above the h1: API_NAME already leads with the product name, and
+            pure-label eyebrows are retired (owner, 2026-08-05; C-KICKERS). */}
         <h1 className="h-display text-foreground">{API_NAME}</h1>
         <p className="mt-3 text-sm leading-relaxed text-body">
           Manage your {SITE_NAME} storefront programmatically — from your own systems or an AI agent. A REST API with
@@ -108,15 +110,20 @@ export default function DevelopersPage() {
               </li>
             ))}
           </ul>
+          {/* ⛔ INLINE <code>, NEVER <Code> INSIDE A <p>. <Code> renders a <pre>, the HTML parser closes
+              the <p> in front of it, and the server DOM stops matching React's tree — React #418 on
+              every cold load, and the duplicated layout JSON-LD from the client re-render that follows
+              (C-HYDRATION, 2026-09-29). src/app/[lang]/html-nesting-contract.test.ts holds the line. */}
           <p className="mt-4 text-sm leading-relaxed text-body">
-            Nothing here requires an account. Together with <Code>GET /status</Code> below, this is what you can
+            Nothing here requires an account. Together with <code className="font-mono text-foreground">GET /status</code> below, this is what you can
             call before you have a key:
           </p>
           <div className="mt-3"><Code>{`curl ${SITE_ORIGIN}/openapi.json`}</Code></div>
         </section>
 
-        <section className="mt-8 rounded-2xl bg-accent/40 p-5 ring-1 ring-border">
-          <p className="eyebrow text-accent-foreground mb-1">New</p>
+        {/* A section on the canvas like every other one here — a hairline, not a tinted box and a
+            "New" kicker (flat-surface canon §3b; C-BOXES, C-KICKERS). The code wells stay wells. */}
+        <section className="mt-8 border-t border-border pt-6">
           <h2 className="h-section text-foreground">Manage your shop with AI (MCP)</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
             {SITE_NAME} runs a hosted <a href="https://modelcontextprotocol.io" className="font-semibold text-accent-foreground hover:underline">Model Context Protocol</a> server,

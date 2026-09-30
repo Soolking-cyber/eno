@@ -9,8 +9,10 @@
 export const revalidate = 3600
 
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
+import { linkifyLegal } from '@/components/marketplace/legal-linkify'
 import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, PRELAUNCH, TOS_VERSION } from '@/lib/site-legal'
 import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 
@@ -468,11 +470,11 @@ const ARTICLES: Article[] = [
   },
 ]
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Quy chế hoạt động | Operating Regulations | ${SITE_NAME}`,
   description: `Quy chế hoạt động sàn giao dịch thương mại điện tử ${SITE_NAME}: phạm vi hoạt động, quyền và nghĩa vụ của các bên, quy trình đăng tin, rà soát nội dung, khiếu nại và tiêu chí hiển thị. Operating regulations of the ${SITE_NAME} e-commerce platform.`,
   alternates: { canonical: '/regulations' },
-}
+})
 
 // ⚠️ ContentPage renders `intro` INSIDE a <p>, so only phrasing content may be passed to it —
 // <span className="block">, never a <div> or a nested <p>. `meta` is a sibling of the <h1> and has
@@ -495,16 +497,32 @@ export default function RegulationsPage() {
       }
       sections={ARTICLES.map((a) => ({ id: a.id, label: a.rail }))}
     >
+      {/**
+        * ⚠️ SIDE BY SIDE FROM xl, INTERLEAVED BELOW IT — AND BOTH LANGUAGES ALWAYS IN THE DOM (C-LEGAL-UX).
+        * Each Vietnamese paragraph and its English translation are one grid row from 1280px, so the
+        * document is half as tall on a desktop (15,216px at 1440, measured 2026-09-29) while the
+        * invariant above still holds: nothing is hidden, and the Vietnamese comes first in source
+        * order, so it is what a screen reader and a phone read first. NOT ui/tabs: Base UI's panels
+        * unmount (or hide) the inactive language, and "a reviewer with an English UI must still see the
+        * Vietnamese" is exactly what that would break. xl rather than lg: beside the 210px rail two
+        * columns at 1024px are ~330px each — 40-character lines of legal text.
+        * 4fr : 3fr, not halves: the Vietnamese is set a size larger and runs longer, so equal columns
+        * left the English finishing a third early beside every paragraph (measured 8,996 vs 6,695px of
+        * text at 1440). The wider Vietnamese column evens the pair out and says which text governs.
+        * `wide` lifts ContentSection's 70ch wrapper so the pair can use the column; each paragraph
+        * keeps its own 60ch measure. `linkifyLegal` links the document paths and mailboxes the text
+        * names without changing a character of it.
+        */}
       {ARTICLES.map((a) => (
-        <ContentSection key={a.id} id={a.id}>
-          <div>
-            <h2 className="h-section text-foreground" lang="vi">{a.titleVi}</h2>
-            <p className="mt-1 text-sm font-medium text-ink-4" lang="en">{a.titleEn}</p>
+        <ContentSection key={a.id} id={a.id} wide>
+          <div className="grid gap-1 xl:grid-cols-[4fr_3fr] xl:items-baseline xl:gap-x-10">
+            <h2 className="h-title text-foreground" lang="vi">{a.titleVi}</h2>
+            <p className="text-sm font-medium text-ink-4" lang="en">{a.titleEn}</p>
           </div>
           {a.body.map((p, i) => (
-            <div key={i} className="space-y-1.5">
-              <p className="text-base leading-relaxed text-body" lang="vi">{p.vi}</p>
-              <p className="text-sm leading-relaxed text-ink-4" lang="en">{p.en}</p>
+            <div key={i} className="grid gap-1.5 xl:grid-cols-[4fr_3fr] xl:items-baseline xl:gap-x-10">
+              <p className="max-w-[60ch] text-base leading-relaxed text-body" lang="vi">{linkifyLegal(p.vi)}</p>
+              <p className="max-w-[60ch] text-sm leading-relaxed text-ink-4" lang="en">{linkifyLegal(p.en)}</p>
             </div>
           ))}
           {a.links && (

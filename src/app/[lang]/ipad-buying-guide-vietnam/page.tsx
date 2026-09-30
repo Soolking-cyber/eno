@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -280,12 +281,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Which iPad to buy in Vietnam — Air, Pro, mini or base | ${SITE_NAME}`,
   description:
     'What each iPad line is genuinely for, whether a cellular model is worth it where data is cheap and Wi-Fi is everywhere, which storage tier you will regret, what the keyboard and Pencil really add, and buying locally versus bringing one in.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function IPadBuyingGuideVietnamPage() {
   return <SeoArticle content={CONTENT} />

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -290,12 +291,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Which Samsung Galaxy to buy in Vietnam — S, A, M and Z explained | ${SITE_NAME}`,
   description:
     'What the S, A, M and Z lines actually are, why Galaxy prices fall further in Vietnam than Apple’s do, which line fits which buyer, and the three dialler codes that verify a handset before you pay.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function SamsungGalaxyBuyingGuideVietnamPage() {
   return <SeoArticle content={CONTENT} />

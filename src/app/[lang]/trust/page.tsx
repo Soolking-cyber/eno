@@ -1,13 +1,27 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
+import type { ReactNode } from 'react'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
+import { Bilingual } from '@/components/marketplace/bilingual'
 
-export const metadata: Metadata = {
+/** Both link-preview cards, built whole by withShare() from the English title and description. */
+const METADATA: Metadata = withShare({
   title: `How trust works — ${SITE_NAME}`,
   description: 'eno.vn uses a single Trust Score, shown in color, instead of stars. Learn how accounts earn and lose trust.',
   alternates: { canonical: '/trust' },
+})
+
+/**
+ * ⚠️ PER LANGUAGE VARIANT, because the `[lang]` segment is: the proxy serves a Vietnamese reader the
+ * `vi` render, and its <title> was the English one (L-CONTENT-VI, 2026-09-29). The description — and
+ * both share cards — stay English on both: they are what a share scraper, which sends no language, reads.
+ */
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  return lang === 'vi' ? { ...METADATA, title: `Cách điểm uy tín hoạt động — ${SITE_NAME}` } : METADATA
 }
 
 // Flat, single-canvas content page (matches Guide/About) — no boxes; the tier ladder
@@ -20,34 +34,42 @@ export const metadata: Metadata = {
 // seven prose paragraphs, six sat at 1.43 and one at 1.63 — the tell that the leading
 // was never chosen, just inherited. /guide, /about, /safety, /privacy and /terms all
 // set their prose relaxed; this page is now the same, measured at 1.63 across all
-// seven. The five compact notes inside Band keep the tighter 1.43 on purpose — those
+// seven. The four compact notes inside Band keep the tighter 1.43 on purpose — those
 // are list metadata beside a fixed-height shield, not prose, and relaxing them only
 // makes the ladder taller. So "every paragraph on the page" is NOT the claim here and
-// a reviewer reading it that way will find five counterexamples: the claim is every
+// a reviewer reading it that way will find four counterexamples: the claim is every
 // PROSE paragraph, and the ladder notes are deliberately not prose.
-function Band({ score, name, range, note }: { score: number; name: string; range: string; note: string }) {
+//
+// ⚠️ `range` IS A NODE: the numeric ranges ("110–150") are the same in every language and go in raw,
+// so they never become translation keys; only "below 60" is words, and it arrives as its own <Tr>.
+function Band({ score, name, range, note }: { score: number; name: string; range: ReactNode; note: string }) {
   return (
     <div className="flex items-start gap-4 py-4">
       <TrustScore score={score} size="lg" />
       <div className="min-w-0">
-        <div className="text-base font-bold text-foreground"><Tr text={name} /> <span className="text-sm font-normal text-ink-4">· <Tr text={range} /></span></div>
+        <div className="text-base font-bold text-foreground"><Tr text={name} /> <span className="text-sm font-normal text-ink-4 tabular-nums">· {range}</span></div>
         <p className="mt-0.5 text-sm text-body"><Tr text={note} /></p>
       </div>
     </div>
   )
 }
 
-// Clear action → points table. Green for rewards, red for penalties.
+// Clear action → points table. Green for rewards, red for penalties — and the SIGN carries the
+// meaning too (a true minus, U+2212), so hue is never the only difference (WCAG 1.4.1).
+//
+// ⚠️ THE SUB-LINE IS THE RULE, NOT METADATA. "Verified phone +10, business identity +10, account
+// older than 90 days +5" is the method this page exists to publish, and it was set at 12px in ink-4
+// like a caption (C-TRUST, measured 2026-09-29). It reads as body copy now: 14px, relaxed, body ink.
 function Points({ rows }: { rows: [string, number, string][] }) {
   return (
     <div className="divide-y divide-border">
       {rows.map(([action, pts, sub], i) => (
         <div key={i} className="flex items-start justify-between gap-4 py-3">
           <div className="min-w-0">
-            <div className="text-sm font-medium text-foreground"><Tr text={action} /></div>
-            {sub && <div className="mt-0.5 text-xs text-ink-4"><Tr text={sub} /></div>}
+            <div className="text-base font-semibold text-foreground"><Tr text={action} /></div>
+            {sub && <div className="mt-1 text-sm leading-relaxed text-body"><Tr text={sub} /></div>}
           </div>
-          <span className={`shrink-0 text-sm font-bold tabular-nums ${pts > 0 ? 'text-success' : 'text-destructive'}`}>{pts > 0 ? `+${pts}` : pts}</span>
+          <span className={`shrink-0 text-base font-bold tabular-nums ${pts > 0 ? 'text-success' : 'text-destructive'}`}>{pts > 0 ? `+${pts}` : `\u2212${Math.abs(pts)}`}</span>
         </div>
       ))}
     </div>
@@ -61,27 +83,33 @@ export default function TrustPage() {
   return (
     <ContentPage
       title="How trust works on eno.vn"
+      titleVi="Cách điểm uy tín hoạt động trên eno.vn"
       intro={<Tr text="Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It is recomputed every day from what an account actually does on eno.vn, and recent behavior counts more than the past — so the score always reflects who a seller is now, not who they used to be." />}
       sections={[
-        { id: 'colors', label: 'What the colors mean' },
-        { id: 'built', label: 'How the score is built' },
+        { id: 'colors', label: 'What the colors mean', labelVi: 'Ý nghĩa các màu' },
+        { id: 'built', label: 'How the score is built', labelVi: 'Điểm được tính thế nào' },
         { id: 'reviews', label: 'Reviews' },
-        { id: 'penalties', label: 'What costs you trust' },
-        { id: 'fair', label: 'Fair by design' },
+        { id: 'penalties', label: 'What costs you trust', labelVi: 'Điều gì làm giảm uy tín' },
+        { id: 'fair', label: 'Fair by design', labelVi: 'Công bằng ngay từ thiết kế' },
       ]}
     >
-      <ContentSection id="colors" title="What the colors mean">
-          <p className="text-sm leading-relaxed text-body"><Tr text="Every account starts at 60 — a neutral 'Building' state, not a warning. The upper tiers are earned with real volume: a badge certifies a track record, never just a number." /></p>
+      <ContentSection id="colors" title="What the colors mean" titleVi="Ý nghĩa các màu">
+          <p className="text-sm leading-relaxed text-body"><Bilingual en="Scores run from 0 to 150." vi="Điểm nằm trong khoảng từ 0 đến 150." />{' '}<Tr text="Every account starts at 60 — a neutral 'Building' state, not a warning. The upper tiers are earned with real volume: a badge certifies a track record, never just a number." /></p>
+          {/* ⛔ ONLY BANDS A SCORE CAN REACH (C-TRUST, owner-approved 2026-09-29). This ladder opened
+              with "Elite · 160 and up" while composeScore clamps every score at TRUST.MAX = 150
+              (src/lib/trust-math.ts) — a published tier nobody can ever be in. trust-score.ts keeps
+              160 as headroom ON PURPOSE (read its note before touching it); what changed is that
+              this page no longer advertises it. ./trust-ladder-contract.test.ts holds every band
+              here to TRUST.MAX, so raising the cap means re-adding the band, not the other way round. */}
           <div className="mt-1 divide-y divide-border">
-            <Band score={175} name="Elite" range="160 and up" note="The top tier — a long, high-volume, spotless track record. The most trusted businesses on eno.vn." />
-            <Band score={130} name="Exceptional" range="110–159" note="At least 10 completed deals in the last year, reviews from 5 different buyers, a proven fast-reply record, and 6 clean months." />
+            <Band score={130} name="Exceptional" range="110–150" note="At least 10 completed deals in the last year, reviews from 5 different buyers, a proven fast-reply record, and 6 clean months." />
             <Band score={95} name="Trusted" range="85–109" note="A verified account with at least 3 completed deals and either 60 days on eno or reviews from 3 different buyers — plus a clean last 90 days." />
             <Band score={70} name="Building" range="60–84" note="Where every account starts, and where accounts with fewer than 3 completed deals stay. Not a penalty — just an unproven track record." />
-            <Band score={45} name="Restricted" range="below 60" note="A serious or repeated confirmed problem — including any confirmed scam. New listings may be held for review." />
+            <Band score={45} name="Restricted" range={<Tr text="below 60" />} note="A serious or repeated confirmed problem — including any confirmed scam. New listings may be held for review." />
           </div>
       </ContentSection>
 
-      <ContentSection id="built" title="How the score is built">
+      <ContentSection id="built" title="How the score is built" titleVi="Điểm được tính thế nào">
           <p className="text-sm leading-relaxed text-body"><Tr text="The score starts at 60 and adds four components, each with a hard ceiling — so no single tactic can be farmed to the top. Everything except verification is windowed: only recent behavior moves it." /></p>
           <div className="mt-1">
             <Points rows={[
@@ -93,12 +121,12 @@ export default function TrustPage() {
           </div>
       </ContentSection>
 
-      <ContentSection id="reviews" title="Reviews that can't be gamed">
+      <ContentSection id="reviews" title="Reviews that can't be gamed" titleVi="Đánh giá không thể gian lận">
           <p className="text-sm leading-relaxed text-body"><Tr text="Only verified buyers — people who actually completed a deal through eno chat — can review, and each buyer counts once per 90 days. Ratings are statistically smoothed toward the platform average, so two perfect ratings can never beat two hundred near-perfect ones. Reply speed is judged the same way: a proven rate over many conversations beats a lucky streak of three." /></p>
           <p className="text-sm leading-relaxed text-body"><Tr text="Who says it matters too: reviews and reports from established, verified accounts carry full weight, while a day-old account carries very little — so burner accounts can neither inflate a friend nor sink a rival." /></p>
       </ContentSection>
 
-      <ContentSection id="penalties" title="What costs you trust">
+      <ContentSection id="penalties" title="What costs you trust" titleVi="Điều gì làm giảm uy tín">
           <p className="text-sm leading-relaxed text-body"><Tr text="Only reports confirmed by our moderators count, weighted by severity and by the reporter's credibility. Minor issues fade in about 3 months of clean trading; misrepresentation takes about a year." /></p>
           <div className="mt-1">
             <Points rows={[
@@ -113,10 +141,10 @@ export default function TrustPage() {
               src/lib/scam-hold-copy.test.ts. The old sentence promised the penalty would start fading
               after five new sales — sales the seller marked sold themselves. That exit was removed on
               2026-09-23; only a person ends a scam hold now, and a release does not thaw the penalty. */}
-          <p className="text-xs leading-relaxed text-muted-foreground"><Tr text="A confirmed scam is different: waiting does nothing, and neither does marking items as sold. The seller's listings stay hidden until our team releases them — no sooner than 14 days after the report was confirmed, and only for a seller who has verified their identity and sent us a written plan. Time alone never launders fraud." />{' '}<Tr text="A release does not clear the record: the full penalty stays on the score, and while the confirmed report stands the seller can post again but keep at most 10 active listings." /></p>
+          <p className="text-sm leading-relaxed text-body"><Tr text="A confirmed scam is different: waiting does nothing, and neither does marking items as sold. The seller's listings stay hidden until our team releases them — no sooner than 14 days after the report was confirmed, and only for a seller who has verified their identity and sent us a written plan. Time alone never launders fraud." />{' '}<Tr text="A release does not clear the record: the full penalty stays on the score, and while the confirmed report stands the seller can post again but keep at most 10 active listings." /></p>
       </ContentSection>
 
-      <ContentSection id="fair" title="Fair by design">
+      <ContentSection id="fair" title="Fair by design" titleVi="Công bằng ngay từ thiết kế">
           <p className="text-sm leading-relaxed text-body">
             <Tr text="One hostile buyer can never sink a seller alone: reports only pull a tier down when they come from at least two different people AND exceed 2% of the seller's deals — or when a scam is confirmed. Penalties scale with your volume in practice, judgments are windowed so an old mistake doesn't mark you forever, and nothing heals by waiting: scores rise only through verification, real deals, real reviews, and fast replies. Daily gains are capped, so trust can only be built the slow, honest way — and higher trust ranks higher in search and the feed, so being reliable directly earns more views, chats, and sales." />
           </p>

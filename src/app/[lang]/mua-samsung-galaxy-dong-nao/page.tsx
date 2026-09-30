@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -280,12 +281,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Mua Samsung Galaxy dòng nào — phân biệt S, A, M và Z | ${SITE_NAME}`,
   description:
     'Dòng S, A, M, Z và bản FE khác nhau ra sao, vì sao giá Samsung tại Việt Nam giảm sâu hơn iPhone, nên chọn S đời cũ hay A đời mới, và cách kiểm tra máy chính hãng ngay tại quầy.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function MuaSamsungGalaxyDongNaoPage() {
   return <SeoArticle content={CONTENT} />

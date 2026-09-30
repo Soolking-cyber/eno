@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
@@ -183,11 +184,12 @@ export const metadata: Metadata = {
   description:
     'When to list, how to price against the market rather than what you paid, what makes a listing sell, and the collection and handover details that decide whether you keep your rental deposit.',
   alternates: { canonical: '/selling-up-before-you-leave-vietnam' },
-  openGraph: {
+  ...pageShare({
     title: `Selling Up Before You Leave Vietnam: A Six-Week Plan | ${SITE_NAME}`,
     description:
       'Six weeks out you price properly. Six days out you give things away. The order that works, and the handover that protects your deposit.',
-  },
+    type: 'article',
+  }),
 }
 
 export default function Page() {

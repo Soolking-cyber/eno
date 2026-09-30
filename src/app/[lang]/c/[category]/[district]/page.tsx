@@ -4,6 +4,8 @@ import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
+import { diverseFeedWindow } from '@/lib/feed-window'
+import { diversifyBySeller, sharedSeatsFor } from '@/lib/feed-diversity'
 import { localizeListingTitles } from '@/lib/translate'
 import { districtScopeForSlug } from '@/lib/district-slug'
 import { canonicalDistrictSlug, districtLabel, isCuratedDistrict, mergeDistrictGroups } from '@/lib/district-canonical'
@@ -13,6 +15,7 @@ import { districtMetadata, linkedTier, pageLang } from '../category-copy'
 import { DistrictHeading, DistrictLede, PlaceName, RentIndexLink } from '../category-text'
 import { notFound, permanentRedirect } from 'next/navigation'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -102,17 +105,17 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   // MENTIONS against reads, so one scoped predicate feeding three reads reads as two unguarded.
   const total = await db.listing.count({ where })
   if (total === 0) return null
-  // edition-lint-allow: same `where` as the count above, built from scopedListingWhere.
-  const rows = await db.listing.findMany({
-    where,
-    // Card projection: the page renders <ListingCard> slots only. The full row dragged
-    // descriptions/searchText/whole-Seller through Postgres for nothing.
-    select: LISTING_CARD_SELECT,
-    // ⚠️ MUST EQUAL buildFeedOrderBy('newest'), which is what Show-more sends — otherwise page 2
-    // comes from a different ordering than page 1.
-    orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
-    take: DISTRICT_PAGE_SIZE,
-  })
+  /**
+   * ⛔ PAGE 1 IS THE API'S OWN offset 0, NOT A PLAIN RANK ORDER. Show-more sends sort=newest, and
+   * under that sort /api/listings serves `diverseFeedWindow` + `diversifyBySeller` (route.ts), not
+   * `rankScore desc` — this said the two were equal, and they were not: the first Show-more continued
+   * a different sequence, so rows repeated (deduped away) and rows never appeared. Same window, same
+   * seat rule as the API reads it for `?category=&district=`, reorder THEN slice. Card projection:
+   * the page renders <ListingCard> slots only. The window re-scopes `where` itself (feed-window.ts).
+   */
+  const sharedSeats = sharedSeatsFor(null, categorySlug)
+  const head = await diverseFeedWindow(where, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats })
+  const rows = diversifyBySeller(head, { sharedSeats }).slice(0, DISTRICT_PAGE_SIZE)
   if (rows.length === 0) return null
   const [groups, linked, noindex] = await Promise.all([
     // Sibling chips come from one aggregate over the whole category.
@@ -218,7 +221,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ...(data.noindex ? { robots: { index: false, follow: true } } : {}),
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
-    openGraph: { title, description, url: `${hostUrl}/c/${data.cat.slug}/${district}` },
+    ...pageShare({ title, description, url: `${hostUrl}/c/${data.cat.slug}/${district}` }),
   }
 }
 
@@ -303,8 +306,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
           </div>
         )}
 
-        {/* Masthead boundary — full-bleed hairline, aligned with the sort strip's own border. */}
-        <div aria-hidden className="mt-8 -mx-3 border-t border-border sm:-mx-6 lg:-mx-8" />
+        {/* Masthead boundary — on the content box, like the sort strip's own border (C1-HAIRLINE). */}
+        <div aria-hidden className="mt-8 border-t border-border" />
 
         <div className="mt-6">
           {/* sr-only h2 — card titles are h3s; without this the outline jumps h1 → h3. */}
@@ -331,7 +334,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
           <Button asChild variant="cta" size="none">
             {/* ⛔ THE DISTRICT USED TO BE DROPPED HERE. This linked to `/?category=<slug>` and the
                 reader landed in the whole category, one click after choosing a district. */}
-            <Link href={scopedExplorer} className="px-5 py-2.5">
+            <Link href={scopedExplorer} rel="nofollow" prefetch={false} className="px-5 py-2.5">
               <Tr text="Refine in full search" /> →
             </Link>
           </Button>

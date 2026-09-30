@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -170,12 +171,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `eSIM in Vietnam — networks, compatible phones and registration | ${SITE_NAME}`,
   description:
     'Which Vietnamese networks issue eSIM, which handsets support it, what a foreigner needs to register one, why a local number is effectively required for banking apps, and the transfer traps worth knowing.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function EsimVietnamGuidePage() {
   return <SeoArticle content={CONTENT} />

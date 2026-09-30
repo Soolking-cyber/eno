@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -268,12 +269,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Mua iPad loại nào tốt — Air, Pro, mini hay bản thường | ${SITE_NAME}`,
   description:
     'Bốn dòng iPad hợp với ai, bản Wi-Fi hay 4G, chọn dung lượng bao nhiêu cho đủ, bút và bàn phím tốn thêm những gì, và cách kiểm tra iPad cũ hoặc máy xách tay trước khi trả tiền.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function MuaIPadLoaiNaoTotPage() {
   return <SeoArticle content={CONTENT} />

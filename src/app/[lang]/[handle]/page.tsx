@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerStorefront, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
+import { pageShare } from '@/lib/site-identity'
 import SubdomainStorefront from '@/app/[lang]/s/[handle]/page'
 import { isSellerHiddenHere } from '@/lib/edition-scope'
 import { Tr } from '@/context/language-context'
@@ -29,7 +30,7 @@ import { Tr } from '@/context/language-context'
 
 export const dynamic = 'force-dynamic'
 
-type Props = { params: Promise<{ handle: string }> }
+type Props = { params: Promise<{ lang?: string; handle: string }> }
 
 // Shared by generateMetadata + the page (one DB round-trip per request). Accepts the
 // bare handle; a leading "@" (legacy links) is tolerated and stripped.
@@ -90,21 +91,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: `${seller.name} | ${SITE_NAME}`,
       description,
       alternates: { canonical },
-      openGraph: {
-        title: `${seller.name} | ${SITE_NAME}`,
-        description,
-        url: canonical,
-      },
+      // The SITE's card, not the shop banner: banners are 1280×300 (banner-image.tsx), and a 1.91:1 unfurl
+      // crop keeps only the middle 45% of that artwork — a sliver of the creative, words cut mid-line.
+      ...pageShare({ title: `${seller.name} | ${SITE_NAME}`, description, url: canonical }),
     }
   }
   return {
     title: `@${row.handle} | ${SITE_NAME}`,
     description: `${row.profile?.displayName || `@${row.handle}`} on ${SITE_NAME}`,
-    openGraph: {
+    // Shared links are how people reach a member card, so it keeps the site's preview image too.
+    ...pageShare({
       title: `@${row.handle} | ${SITE_NAME}`,
       description: `${row.profile?.displayName || `@${row.handle}`} on ${SITE_NAME}`,
       url: `${hostUrl}/${row.handle}`,
-    },
+    }),
     // Member cards are not an SEO surface — people land here via shared links only.
     robots: { index: false, follow: false },
   }

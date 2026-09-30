@@ -8,7 +8,8 @@ import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
 import { RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL, RailBeam } from './shelf'
 import { STROKE_UI } from '@/lib/icon-tokens'
-import { useLanguage, Tr } from '@/context/language-context'
+import { useLanguage } from '@/context/language-context'
+import { Bilingual } from './bilingual'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { Button } from '@/components/ui/button'
@@ -23,7 +24,7 @@ type Rail = { slug: string; listings: SerializedListingCard[] }
  *  card up front flooded the page with images. A same-height skeleton holds the space
  *  so there's no layout shift. */
 function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; listings: SerializedListingCard[]; onCategory: (slug: string) => void }) {
-  const { lang, tr } = useLanguage()
+  const { tr } = useLanguage()
   const router = useRouter()
   // The scroller ref is shared: the hook drives the ← / → arrows AND the lazy-mount IntersectionObserver.
   const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]' })
@@ -62,7 +63,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
                 component has none. */}
             <CategoryIcon name={cat.icon} stroke={STROKE_UI} className="h-4 w-4 text-accent-foreground" />
             <span className={cn(SECTION_TITLE, 'transition-colors group-hover:text-accent-foreground')}>
-              <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
+              <Bilingual en={cat.name} vi={cat.nameVi || cat.name} />
             </span>
           </Button>
         </h2>

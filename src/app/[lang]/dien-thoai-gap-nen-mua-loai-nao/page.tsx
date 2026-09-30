@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -152,12 +153,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Điện thoại gập nên mua loại nào — iPhone Duo hay Galaxy Z Fold | ${SITE_NAME}`,
   description:
     'Giá máy gập tại Việt Nam, những bộ phận thường hỏng, chi phí thay màn hình khi hết bảo hành, và vì sao máy gập đời đầu thường nên chờ thế hệ sau.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function DienThoaiGapNenMuaLoaiNaoPage() {
   return <SeoArticle content={CONTENT} />

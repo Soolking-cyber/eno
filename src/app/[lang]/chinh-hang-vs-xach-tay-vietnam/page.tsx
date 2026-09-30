@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -175,12 +176,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Chính hãng VN/A vs xách tay — what the price gap really buys | ${SITE_NAME}`,
   description:
     'VN/A, LL/A, ZA/A and J/A explained: who honours the warranty on each, how to verify a model number in ten seconds, what genuinely differs between an official and an imported handset, and when the cheaper import is the right buy.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function ChinhHangVsXachTayPage() {
   return <SeoArticle content={CONTENT} />

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
@@ -28,11 +29,11 @@ import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
  * present in the artifact anyway. Keep this page about reaching the operator, nothing else.
  */
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Contact ${SITE_NAME}`,
   description: `How to reach ${SITE_NAME} — support email, phone, registered address and the fastest route for account, listing or safety questions.`,
   alternates: { canonical: '/contact' },
-}
+})
 
 const LINK = 'font-semibold text-accent-foreground hover:underline'
 

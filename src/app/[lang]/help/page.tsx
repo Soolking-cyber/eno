@@ -1,15 +1,16 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { HelpCenter } from '@/components/marketplace/help-center'
 import { loadHelpCenter } from '@/lib/help-center-data'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Help center | ${SITE_NAME}`,
   description: 'Answers about buying, selling, trust, messaging, offers and safe trading on eno.vn — plus practical guides for travelling in Vietnam.',
   alternates: { canonical: '/help' },
-}
+})
 
 // The payload carries the VIEWER's own votes and saved flags, read from the request
 // cookie — so this page must never be served from a prerendered shell shared between

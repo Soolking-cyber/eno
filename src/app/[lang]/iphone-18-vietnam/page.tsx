@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { formatMoneyFull } from '@/lib/vnd'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
@@ -23,11 +24,11 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: '/iphone-18-vietnam' },
-  openGraph: {
+  ...pageShare({
     title: 'iPhone 18 Price in Vietnam — Pro, Pro Max & iPhone Duo',
     description:
       'Live iPhone 18 Pro and Pro Max prices from Vietnamese retailers, the official iPhone Duo prices, and the launch dates.',
-  },
+  }),
 }
 
 /**

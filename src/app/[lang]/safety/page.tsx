@@ -1,5 +1,6 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import type { IconComponent } from '@/components/ui/icons'
 import {
   Images, MessageSquare, ClipboardCheck,
@@ -56,12 +57,21 @@ type Copy = string | { en: string; vi: string }
 const DESCRIPTION =
   `How to trade safely on ${SITE_NAME}: vet the seller, meet in public, inspect before paying, spot red flags, and how reports and our listing checks work.`
 
-export const metadata: Metadata = {
+// Both link-preview cards come from withShare() and stay ENGLISH on both variants: a share scraper
+// sends no language, so the card must not depend on which variant it happened to hit.
+const METADATA: Metadata = withShare({
   title: `Safe trading | ${SITE_NAME}`,
   // The services build swaps the whole description rather than appending to it — an
   // appended clause pushes the useful half past the ~160 chars a result actually shows.
   description: IS_SERVICES && SERVICES_SAFETY.metaDescription ? SERVICES_SAFETY.metaDescription : DESCRIPTION,
   alternates: { canonical: '/safety' },
+})
+
+// The <title> follows the `[lang]` variant the proxy served (L-CONTENT-VI, 2026-09-29): a Vietnamese
+// reader's tab and history said "Safe trading". The description stays one string for both.
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  return lang === 'vi' ? { ...METADATA, title: `Giao dịch an toàn | ${SITE_NAME}` } : METADATA
 }
 
 // A tip's glyph is a lucide icon OR the eno seal. The seal is bespoke first-party art, not
@@ -261,14 +271,18 @@ function CopyText({ copy }: { copy: Copy }) {
   return typeof copy === 'string' ? <Tr text={copy} /> : <Bilingual en={copy.en} vi={copy.vi} />
 }
 
+// ⚠️ TWO COLUMNS AT EVERY WIDTH ABOVE sm, NEVER THREE (C-SAFETY, 2026-09-29). Beside the 210px rail
+// a 3-up grid gave 298px tiles — ~40-character lines — and 3 divides none of the tip counts (4, 5, 7,
+// 6), so every grid ended on an orphan row. Two ~455px columns read at ~58 characters and fill 4 and
+// 6 evenly; 5 and 7 leave one tile on the last row, which a two-up list carries fine.
 function TipGrid({ tips, danger = false }: { tips: Tip[]; danger?: boolean }) {
   return (
-    <div className="grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-x-12 gap-y-8 sm:grid-cols-2">
       {tips.map(([Icon, title, body], i) => (
         <div key={i}>
           <Icon className={danger ? 'h-5 w-5 text-destructive' : 'h-5 w-5 text-accent-foreground'} strokeWidth={2} aria-hidden />
-          <h3 className="mt-2 text-sm font-bold text-foreground"><CopyText copy={title} /></h3>
-          <p className="mt-1 text-sm leading-relaxed text-body"><CopyText copy={body} /></p>
+          <h3 className="mt-2 text-base font-bold text-foreground"><CopyText copy={title} /></h3>
+          <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-body"><CopyText copy={body} /></p>
         </div>
       ))}
     </div>
@@ -281,7 +295,7 @@ function AskList({ title, items, ok }: { title: string; items: string[]; ok: boo
   const Icon = ok ? Check : X
   return (
     <div>
-      <h3 className="text-sm font-bold text-foreground"><Tr text={title} /></h3>
+      <h3 className="text-base font-bold text-foreground"><Tr text={title} /></h3>
       <ul className="mt-3 space-y-2.5">
         {items.map((item, i) => (
           <li key={i} className="flex gap-2.5">
@@ -299,15 +313,18 @@ function AskList({ title, items, ok }: { title: string; items: string[]; ok: boo
 }
 
 export default function SafetyPage() {
+  // `labelVi`/`titleVi` are AUTHORED Vietnamese (L-CONTENT-VI): these headings reach ContentPage as
+  // string props, which the ui-strings harvester never sees, so the vi server HTML carried them in
+  // English until client machine translation swapped them.
   const sections = [
-    { id: 'before', label: 'Before you meet' },
-    { id: 'meeting', label: 'Meeting in person' },
-    { id: 'red-flags', label: 'Red flags' },
+    { id: 'before', label: 'Before you meet', labelVi: 'Trước khi gặp mặt' },
+    { id: 'meeting', label: 'Meeting in person', labelVi: 'Khi gặp trực tiếp' },
+    { id: 'red-flags', label: 'Red flags', labelVi: 'Dấu hiệu lừa đảo' },
     // Gated AND aliased: the anchor id and the label are both services-only copy, so neither
     // string exists in a marketplace build.
     ...(IS_SERVICES && SERVICES_SAFETY.navId ? [{ id: SERVICES_SAFETY.navId, label: SERVICES_SAFETY.navLabel }] : []),
     { id: 'protection', label: PROTECTION_HEADING.en, labelVi: PROTECTION_HEADING.vi },
-    { id: 'help', label: 'If something goes wrong' },
+    { id: 'help', label: 'If something goes wrong', labelVi: 'Nếu có sự cố' },
   ]
 
   return (
@@ -318,15 +335,15 @@ export default function SafetyPage() {
       }
       sections={sections}
     >
-      <ContentSection id="before" title="Before you meet" wide>
+      <ContentSection id="before" title="Before you meet" titleVi="Trước khi gặp mặt" wide>
         <TipGrid tips={before} />
       </ContentSection>
 
-      <ContentSection id="meeting" title="Meeting in person" wide>
+      <ContentSection id="meeting" title="Meeting in person" titleVi="Khi gặp trực tiếp" wide>
         <TipGrid tips={meeting} />
       </ContentSection>
 
-      <ContentSection id="red-flags" title="Red flags — stop and walk away" wide>
+      <ContentSection id="red-flags" title="Red flags — stop and walk away" titleVi="Dấu hiệu lừa đảo — dừng lại và rời đi" wide>
         <p className="mb-6 max-w-[70ch] text-sm leading-relaxed text-body">
           <Tr text="Almost every scam shows one of these signs. If you see even one, don’t pay — pause, and report it." />
         </p>
@@ -380,7 +397,7 @@ export default function SafetyPage() {
         <TipGrid tips={protection} />
       </ContentSection>
 
-      <ContentSection id="help" title="If something goes wrong">
+      <ContentSection id="help" title="If something goes wrong" titleVi="Nếu có sự cố">
         <ol className="space-y-5">
           {recovery.map(([title, body], i) => (
             <li key={i} className="flex gap-4">
@@ -388,7 +405,7 @@ export default function SafetyPage() {
                 {i + 1}
               </span>
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-foreground"><CopyText copy={title} /></h3>
+                <h3 className="text-base font-bold text-foreground"><CopyText copy={title} /></h3>
                 <p className="mt-1 text-sm leading-relaxed text-body"><CopyText copy={body} /></p>
               </div>
             </li>

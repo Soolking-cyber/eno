@@ -1,6 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
 import { EVISA_HUB_PATH, evisaRelated } from '../links'
@@ -87,10 +88,10 @@ export const metadata: Metadata = {
   description:
     'Every nationality can apply for a Vietnam e-visa — but some can enter visa-free. How to tell which case you are in, and when an exempt traveller should apply anyway.',
   alternates: { canonical: '/vietnam-evisa/by-nationality' },
-  openGraph: {
+  ...pageShare({
     title: `Who Needs a Vietnam e-Visa? Eligibility by Nationality | ${SITE_NAME}`,
     description: 'All nationalities are eligible. The question is whether you need a visa at all.',
-  },
+  }),
 }
 
 export default function Page() {

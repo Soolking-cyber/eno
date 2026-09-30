@@ -1,9 +1,20 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
+import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
+import { formatMoneyFull } from '@/lib/vnd'
+
+/**
+ * ⚠️ ENGLISH PAGE, ENGLISH GROUPING, THROUGH vnd.ts (docs/design-language.md §7 — never hand-format a
+ * number): "2,480,000 đ", as every English price on the site prints. The figures were typed by hand
+ * as "2.480.000 đ" on a note that đồng always takes dots "per src/lib/vnd.ts" — which says the
+ * opposite: it groups đồng by the READER's language (L-NUMBERS, 2026-09-29).
+ */
+const d = (n: number) => formatMoneyFull(n, '₫', 'en')
 
 /**
  * RENTAL DEPOSITS IN VIETNAM — the guide for "my landlord has not returned my deposit".
@@ -146,35 +157,35 @@ const CONTENT: ArticleContent = {
                 )
               }
             </LiveCounts>{' '}
-            In a 300-listing sample taken on 23 September 2026, the middle of that market sat at
-            2.480.000 đ, with a quarter under 1.050.000 đ and a quarter above 4.100.000 đ. By item, the
+            In a 300-listing sample taken on 23 September 2026, the middle of that market sat at{' '}
+            {d(2_480_000)}, with a quarter under {d(1_050_000)} and a quarter above {d(4_100_000)}. By item, the
             medians and the number of listings each one rests on:
           </P>
           <Ul>
             <li>
-              <strong>Air conditioner</strong> — 4.298.000 đ, with most listings between 3.948.000 đ and
-              5.498.000 đ (24 listings).
+              <strong>Air conditioner</strong> — {d(4_298_000)}, with most listings between {d(3_948_000)} and{' '}
+              {d(5_498_000)} (24 listings).
             </li>
             <li>
-              <strong>Wardrobe</strong> — 6.200.000 đ, between 3.980.000 đ and 7.800.000 đ (13 listings).
+              <strong>Wardrobe</strong> — {d(6_200_000)}, between {d(3_980_000)} and {d(7_800_000)} (13 listings).
             </li>
             <li>
-              <strong>Washing machine</strong> — 2.730.000 đ, between 1.648.000 đ and 3.480.000 đ (10
+              <strong>Washing machine</strong> — {d(2_730_000)}, between {d(1_648_000)} and {d(3_480_000)} (10
               listings).
             </li>
             <li>
-              <strong>Sofa</strong> — 2.515.000 đ, between 1.390.000 đ and 4.510.000 đ (12 listings).
+              <strong>Sofa</strong> — {d(2_515_000)}, between {d(1_390_000)} and {d(4_510_000)} (12 listings).
             </li>
             <li>
-              <strong>Shelf or cabinet</strong> — 1.980.000 đ, between 1.180.000 đ and 3.380.000 đ (37
+              <strong>Shelf or cabinet</strong> — {d(1_980_000)}, between {d(1_180_000)} and {d(3_380_000)} (37
               listings).
             </li>
             <li>
-              <strong>Table or desk</strong> — 1.650.000 đ, between 1.050.000 đ and 3.200.000 đ (87
+              <strong>Table or desk</strong> — {d(1_650_000)}, between {d(1_050_000)} and {d(3_200_000)} (87
               listings).
             </li>
             <li>
-              <strong>Air purifier</strong> — 6.000.000 đ, and a <strong>robot vacuum</strong> 9.000.000 đ.
+              <strong>Air purifier</strong> — {d(6_000_000)}, and a <strong>robot vacuum</strong> {d(9_000_000)}.
               Six listings each, so treat those two as an indication rather than a market.
             </li>
           </Ul>
@@ -187,7 +198,7 @@ const CONTENT: ArticleContent = {
               furniture &amp; appliances
             </Link>{' '}
             and send three live listings for the same item. A wardrobe billed at the price of a new one
-            is a different conversation once three comparable wardrobes around the 6.200.000 đ median are
+            is a different conversation once three comparable wardrobes around the {d(6_200_000)} median are
             on the screen.
           </P>
           <P>
@@ -344,6 +355,15 @@ const CONTENT: ArticleContent = {
       ),
     },
   ],
+  // ⚠️ THE GUIDE ENDS ON THE HOMES IT EXPLAINS HOW TO RENT (C-GUIDES-CTA): apartments, houses and rooms —
+  // the one shared definition in src/lib/rental-homes.ts, so offices, shopfronts and vehicle hire never
+  // reach this rail. A set of kinds keeps the shelf in featured-then-newest order with the
+  // best-photographed first; a single subcategory would switch it to cheapest-first.
+  rail: {
+    target: { categorySlug: 'rentals', subcategoryIn: HOME_RENTAL_SUBCATS },
+    title: 'Homes for rent now',
+    cta: 'Browse rentals',
+  },
   related: marketplaceGuidesExcept('rental-deposit-vietnam'),
   faqs: [
     {
@@ -352,7 +372,7 @@ const CONTENT: ArticleContent = {
     },
     {
       q: 'My landlord wants the price of a brand-new appliance for a damaged one. Is that fair?',
-      a: 'No. You owe an equivalent replacement of a comparable age, not an upgrade. The Ho Chi Minh City secondhand market is public: median asking prices are 4.298.000 đ for an air conditioner, 2.730.000 đ for a washing machine, 2.515.000 đ for a sofa and 6.200.000 đ for a wardrobe. Send three live listings for the same item, and ask for the repair quotation rather than accepting a round number.',
+      a: `No. You owe an equivalent replacement of a comparable age, not an upgrade. The Ho Chi Minh City secondhand market is public: median asking prices are ${d(4_298_000)} for an air conditioner, ${d(2_730_000)} for a washing machine, ${d(2_515_000)} for a sofa and ${d(6_200_000)} for a wardrobe. Send three live listings for the same item, and ask for the repair quotation rather than accepting a round number.`,
     },
     {
       q: 'Can a landlord deduct for repainting?',
@@ -376,11 +396,12 @@ export const metadata: Metadata = {
   description:
     'What a rental deposit in Vietnam covers, where the fair wear and tear line sits in this climate, real secondhand replacement prices to answer a deduction with, and what to do when a landlord does not return it.',
   alternates: { canonical: '/rental-deposit-vietnam' },
-  openGraph: {
+  ...pageShare({
     title: `Rental Deposit in Vietnam: What Is Fair and How to Get It Back | ${SITE_NAME}`,
     description:
       'The handover photo routine that settles deposit arguments, real replacement prices for a damaged item, and the escalation path when the money is withheld.',
-  },
+    type: 'article',
+  }),
 }
 
 export default function Page() {

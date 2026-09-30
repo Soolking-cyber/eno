@@ -1,7 +1,9 @@
 import { SITE_NAME, IS_SERVICES } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
+import { LinkifiedTr } from '@/components/marketplace/linkified-tr'
 import { CookieSettingsButton } from '@/components/marketplace/cookie-settings-button'
 import { AFFILIATION, COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import {
@@ -14,11 +16,11 @@ import {
   type PrivacySection,
 } from '@/lib/privacy-services-copy'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Privacy Policy | ${SITE_NAME}`,
   description: `How ${SITE_NAME} collects, uses, shares and protects personal data under Vietnam’s Personal Data Protection Law 91/2025 — sensitive data, processing outside Vietnam, and the rights you can exercise.`,
   alternates: { canonical: '/privacy' },
-}
+})
 
 // ── Privacy policy — Personal Data Protection Law 91/2025/QH15 + Decree 356/2025/ND-CP ──────────
 //
@@ -221,7 +223,7 @@ export default function PrivacyPage() {
         <ContentSection key={id} id={id} title={title}>
           <div className="space-y-2">
             {paras.map((p, j) => (
-              <p key={j} className="text-base leading-relaxed text-body"><Tr text={p} /></p>
+              <p key={j} className="text-base leading-relaxed text-body"><LinkifiedTr text={p} /></p>
             ))}
           </div>
         </ContentSection>

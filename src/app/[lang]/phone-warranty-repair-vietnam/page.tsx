@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -303,12 +304,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Phone warranty and repair in Vietnam — who covers what | ${SITE_NAME}`,
   description:
     'Which warranty you actually hold in Vietnam, whether a phone bought abroad is covered, what authorised centres and independent shops each do well, typical turnaround, the repairs that void everything, and how to check a fitted part is genuine.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function PhoneWarrantyRepairVietnamPage() {
   return <SeoArticle content={CONTENT} />

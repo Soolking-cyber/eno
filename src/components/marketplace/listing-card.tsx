@@ -17,6 +17,7 @@ import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { isBookingCategory } from '@/lib/affiliate-kind'
+import { isImportSeller } from '@/lib/import-sellers'
 import { formatMoneyFull, moneyLocale, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
 import { cardSlots, isSwipe } from '@/lib/card-slots'
@@ -126,8 +127,11 @@ function ListingCardImpl({
    * Vietnamese. A third spelling here would be a new vocabulary for the same city.
    * ⛔ DISPLAY ONLY. `listing.location` is untouched — abbreviating the stored value would split
    * the location facet and break saved searches. See src/lib/city-short.ts.
+   * ⚠️ THE HCMC VALUE IS REPLACED BELOW, SO IT IS NEVER SENT TO MACHINE TRANSLATION — the hook still
+   * runs (hooks are unconditional) with '', its no-op. Translating it and throwing the answer away
+   * was 54 requested texts per Vietnamese home view (2026-09-29).
    */
-  const translatedLocation = useTr(listing.location)
+  const translatedLocation = useTr(isHcmc(listing.location) ? '' : listing.location)
   const displayLocation = isHcmc(listing.location) ? tr('HCM', 'TP.HCM') : translatedLocation
   // Condition badge text for the metadata line. new/used are the canonical facet values
   // (verified in prod); an unexpected value is shown verbatim rather than dropped.
@@ -563,7 +567,11 @@ function ListingCardImpl({
                     // — the MEDIA brightens instead — so the card still answers the pointer without the
                     // imagery drifting under it. Brightness is a compositor-only filter, so this stays
                     // as cheap as the transform it replaced and never triggers layout.
-                    className="object-cover transition-[filter] duration-200 group-hover:brightness-105"
+                    // ⚠️ DIMMED 8% IN DARK MODE, category-art.tsx's precedent: a white packshot lit for
+                    // a white ground is the brightest surface on the dark canvas and glares. The dark
+                    // HOVER is spelled out (0.97) because it ties `group-hover:brightness-105` on
+                    // specificity and must win it — hover still brightens, and still never scales.
+                    className="object-cover transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97]"
                     quality={60}
                     // Mock/seed images (picsum) are already CDN-sized — bypass the Vercel
                     // optimizer (saves transformations AND removes a failure hop). No-op
@@ -592,8 +600,15 @@ function ListingCardImpl({
                     // 5 KB against a blank slot under the pointer before changing this back, and
                     // re-measure rather than re-reasoning: `scripts` aside, the probe is a mouse
                     // sweep plus a content-length tally.
+                    //
+                    // ⚠️ `priority` ALONE NO LONGER MAKES THE LCP FETCH HIGH PRIORITY. In Next 16 it maps
+                    // to the preload only (get-img-props.js): the <link rel=preload> and the <img> both
+                    // went out at the browser's default image priority, which is what Lighthouse's
+                    // lcp-discovery check fails. `fetchPriority: 'high'` is what marks BOTH of them High.
+                    // Still exactly ONE image — this card's first photo, and the explorer passes `lcp` to
+                    // index 0 only. ⛔ Not the `preload` prop instead: Next throws when it meets both.
                     {...(lcp && i === 0
-                      ? { priority: true }
+                      ? { priority: true, fetchPriority: 'high' as const }
                       : { loading: i === 0 ? (priority ? 'eager' : 'lazy') : 'eager' })}
                   />
                 )}
@@ -628,7 +643,8 @@ function ListingCardImpl({
                     aria-hidden
                     fill
                     sizes={sizes}
-                    className="object-cover"
+                    // The same dark-mode dim as the slides it follows (see the photo above).
+                    className="object-cover dark:brightness-[0.92]"
                     // ⚠️ 60, NOT a cheaper number, even though this image is never seen
                     // unscrimmed. `qualities` in next.config.ts is an ALLOWLIST — [60, 70] — and
                     // Next's optimizer answers 400 to any `q` outside it (the same invariant
@@ -1065,7 +1081,10 @@ function ListingCardImpl({
               182 at 360px ("41,990,000 đ ≈ $1,638"). The " VND" → " đ" change is what bought the room
               the old two-line reserve existed for. What can
               still wrap: a struck "was" price (0 of 36 feed cards carried one) and a long rent or
-              property price with its unit — neither category had live cards to measure. */}
+              property price with its unit — neither category had live cards to measure.
+              ⚠️ RENTALS HAVE BEEN MEASURED SINCE (2026-09-29): 48 of 48 rental cards on /c/rentals
+              wrap to two lines at 390px ("… đ / month" then "≈ $…"), one line from sm up. The
+              skeleton still reserves one; see listing-card-skeleton.tsx for why that is held. */}
           <Price native price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-base leading-tight sm:text-lg" listingType={listing.listingType} />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, present
               whenever the listing HAS a live drop.
@@ -1076,9 +1095,11 @@ function ListingCardImpl({
               a badge the overlay chose not to render.
               ⚠️ `whitespace-nowrap`, NOT `truncate` — half a number reads as the whole number.
               ⛔ `native`, NEVER `dual={false}`: đồng leads, so a USD viewer can never be left with a
-              USD-only struck price (ND 340/2025). */}
+              USD-only struck price (ND 340/2025).
+              `approxClassName="text-3xs"`: <Price>'s ≈ is a fixed 12px now, which would print the
+              estimate LARGER than the 11px figure it follows. */}
           {hasDrop && (
-            <Price native price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" />
+            <Price native price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" approxClassName="text-3xs" />
           )}
         </span>
 
@@ -1222,11 +1243,15 @@ function ListingCardImpl({
               and showing both spends two chips on one point. Same swap in seller-card,
               pdp-shop-link and compact-listing-row, so a partner reads identically everywhere. */}
           {/* Mini chip (glyph + number) — display only; the card itself is the button. */}
-          {/* No trust chip on a LINKED job: its "seller" is the job board, which eno.vn never rated
-              (same rule as pdp-shop-link's `linkedPosting`). */}
+          {/* ⛔ NO TRUST CHIP ON A REFERENCE LISTING — a portal import (Chợ Tốt, Batdongsan, Rever…)
+              or a linked job. eno.vn never rated the source: its storefront's 100 is the ranking
+              default every import seller starts at, not the /trust "Trusted" tier the chip reads as.
+              This was the linked-jobs rule (same as pdp-shop-link's) and it now covers every id in
+              src/lib/import-sellers.ts, jobs boards included — so the job clause folded into it. The
+              number itself is untouched: rankScore still reads it (whole-app audit, 2026-09-23). */}
           {listing.seller.officialPartner
             ? <PartnerBadge asLink={false} className="shrink-0" />
-            : listing.isPartnerBooking && listing.listingType === 'job'
+            : isImportSeller(listing.sellerId) || (listing.isPartnerBooking && listing.listingType === 'job')
               ? null
               : <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />}
         </div>

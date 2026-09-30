@@ -1,5 +1,5 @@
-import { SITE_NAME } from '@/lib/edition'
-import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor } from '@/lib/taxonomy'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor, isVisaProductSlot } from '@/lib/taxonomy'
 import { plainSnippet } from '@/lib/strip-md'
 import { feedIdentifiers } from '@/lib/product-feed'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
@@ -12,6 +12,7 @@ import { formatMoneyFull, dropPercent } from '@/lib/vnd'
 import { serializeListing, safeParse } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { SHARE_CARD, SHARE_CARD_ALT } from '@/lib/site-identity'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
@@ -24,6 +25,7 @@ import { brandIconPath } from '@/lib/brand-icons'
 import {
   MapPin,
   AlertTriangle,
+  Clock,
   Heart,
   Eye,
   Tag,
@@ -36,6 +38,8 @@ import { Price } from '@/components/marketplace/price'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Tr } from '@/context/language-context'
 import { LocalizedTitle, LocalizedText, ListingDescription, PostedAgo } from '@/components/marketplace/listing-content'
+import { hideRepeatedFacts } from '@/components/marketplace/rich-text'
+import { CalendarDay } from '@/components/marketplace/calendar-day'
 import { cachedTranslations } from '@/lib/translate'
 import { cn } from '@/lib/utils'
 import { ReviewsPreview } from '@/components/marketplace/reviews-preview'
@@ -53,6 +57,8 @@ import { AffiliateBooking } from '@/components/marketplace/affiliate-booking'
 import { JobApplyGuard } from '@/components/marketplace/job-apply-guard'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { isBookingCategory } from '@/lib/affiliate-kind'
+import { isImportSeller } from '@/lib/import-sellers'
+import { hasRealCoords } from '@/lib/geo'
 import { isVehicleHireReference } from '@/lib/rental-places'
 import { VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
 import { isVisaShopListing } from '@/lib/visa-shop'
@@ -172,13 +178,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       // hardcoded value made eno.forum's listing shares announce eno.vn as the publishing site.
       siteName: SITE_NAME,
       type: 'website',
-      images: images.map((img: string) => ({ url: img })),
+      // ⚠️ NO og:locale HERE, ON PURPOSE. The seller's words are in whatever language they wrote, and
+      // a shape guess (site-identity.ts ogLocaleFor, fine for copy WE write) reads a Vietnamese listing
+      // whose description names "Samsung Galaxy Tab Pro" as English — four unmarked words (review,
+      // 2026-09-29). Saying nothing leaves the platform's default, which is what this page always sent.
+      // ⚠️ A LISTING WITH NO PHOTO STILL UNFURLS WITH AN IMAGE — the site's card. This object REPLACES
+      // the layout's, so an empty list here meant no og:image at all (pageOpenGraph, site-identity.ts).
+      images: images.length ? images.map((img: string) => ({ url: img })) : [{ ...SHARE_CARD, alt: SHARE_CARD_ALT }],
     },
     twitter: {
       card: 'summary_large_image',
       title: ogTitle,
       description: ogDesc,
-      images: images[0] ? [images[0]] : undefined,
+      images: [images[0] ?? SHARE_CARD.url],
     },
   }
 }
@@ -269,6 +281,10 @@ export default async function ListingPage({ params }: Props) {
   // listingType AND the link: an ordinary employer's own job post has no affiliateUrl and keeps chat.
   const isJob = !!affiliateUrl && listing.listingType === 'job'
   const jobApplyBy = isJob && typeof listing.attributes?.applyBy === 'string' ? (listing.attributes.applyBy as string) : null
+  // A REFERENCE listing from an import storefront (a job board, or a rental portal such as Chợ Tốt):
+  // eno.vn never rated the source, so the shop row shows "not vetted" instead of a trust chip — its
+  // storefront's 100 is a ranking default, not the /trust Trusted tier. See PdpShopLink's `linked`.
+  const linkedSeller = isJob ? 'job' as const : affiliateUrl && isImportSeller(listing.sellerId) ? 'listing' as const : null
   // Is this the trip desk's own listing? Same trust shape as the visa check above — resolved
   // server-side from (seller, externalId) on the desk that owns the row, never from the title or
   // the category, which another seller could imitate. `cache()`d, so this costs one query per
@@ -359,6 +375,36 @@ export default async function ListingPage({ params }: Props) {
   if (listing.year != null) numericSpecs.push({ label: 'Year', value: String(listing.year) })
   if (listing.mileageKm != null) numericSpecs.push({ label: 'Mileage', value: <><CountValue value={listing.mileageKm} /> km</> })
   if (listing.engineL != null) numericSpecs.push({ label: 'Engine', value: `${listing.engineL} L` })
+  // A motorbike's displacement is stored in cc (the filterable `engineCc` range column), and was never
+  // shown anywhere on the page it filters to. Only when there is no litre figure — one engine, one chip.
+  if (listing.engineL == null && rawListing.engineCc != null && rawListing.engineCc > 0) numericSpecs.push({ label: 'Engine', value: <><CountValue value={rawListing.engineCc} /> cc</> })
+  // Floor area (the `areaM2` range column, filterable on /c/rentals) — in Details ONLY, never as a meta
+  // chip: the chips sit between the title and the CTA, and every one of them is spent from the phone fold.
+  const detailOnlySpecs: { label: string; value: ReactNode }[] = []
+  if (rawListing.areaM2 != null && rawListing.areaM2 > 0) detailOnlySpecs.push({ label: 'Area', value: <><CountValue value={rawListing.areaM2} /> m²</> })
+  // Details rows that say nothing to a reader: an eSIM's "Service location: Online" (the facet is
+  // excluded for eSIM, so it printed its raw key), a partner row's DERIVED "Provider: Business" facet
+  // (taxonomy's providerType), and a Network row that repeats the Carrier beside it.
+  const hiddenAttrs = new Set<string>()
+  if (rawListing.subcategorySlug === 'esim') hiddenAttrs.add('serviceLocation')
+  if (affiliateUrl) hiddenAttrs.add('providerType')
+  if (listing.attributes?.network != null && listing.attributes.network === listing.attributes.carrier) hiddenAttrs.add('network')
+  const detailAttrs = attrs.filter(([k]) => !hiddenAttrs.has(k))
+  const showDetails = detailAttrs.length > 0 || numericSpecs.length > 0 || detailOnlySpecs.length > 0
+  // The Details rows this page renders, by the name rich-text.tsx gives each (the spec label lower-cased,
+  // the attribute key as stored): the description hides its own row for any of them, so an imported
+  // rental's Area / Bedrooms / Bathrooms are not printed twice, one table above the other.
+  const repeatedFacts = hideRepeatedFacts([...numericSpecs, ...detailOnlySpecs].map((s) => s.label.toLowerCase()).concat(detailAttrs.map(([k]) => k)))
+  // ⚠️ A DESCRIPTION THAT ONLY REPEATS THE TITLE IS NOT SHOWN. Importers copy the title into the body
+  // when the feed has none ('iPhone 18 Pro 256GB' under an H1 saying 'iPhone 18 Pro 256GB'), which
+  // spent a section heading and a line on nothing. Compared on letters and digits only, so case,
+  // punctuation and Unicode form do not decide it — and against BOTH title columns: a localized import
+  // keeps its English title in `title` and the source's Vietnamese one in `titleVi`, while the copied
+  // body is the Vietnamese ('Sofa Băng Cũ …' under 'Used Sofa Bench …'), which is still only the title.
+  // Metadata and JSON-LD still use the description.
+  const normText = (s: string) => s.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+  const descNorm = normText(listing.description)
+  const showDescription = descNorm !== '' && descNorm !== normText(listing.title) && descNorm !== normText(listing.titleVi ?? '')
   // Brand chip (when the listing carries a canonical brand) — links into the
   // brand-filtered feed (resolved in the parallel batch above).
   const brandLogoPath = brand ? brandIconPath(brand) : null
@@ -479,10 +525,51 @@ export default async function ListingPage({ params }: Props) {
 
   const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
 
+  // The bottom safety note, per listing TYPE (see its render). A job keeps its fee-scam line even when
+  // it is an employer's own post; any other partner row gets none (the SafetyStrip carries it).
+  // ⚠️ Every sentence must stay true to the code: eno holds no money for any listing (no escrow).
+  const catSlug = rawListing.category.slug
+  // ⚠️ AN E-VISA PAGE KEEPS THE LINE IT HAD. Visa copy is held for the owner (2026-09-29, "no copy
+  // change about visa"), and the services line would contradict the page's own flow: the visa desk
+  // quotes in chat and, on eno.forum, takes the payment there (visa-cards.tsx pay card) — so "never
+  // send a deposit through a link" is not advice this page can give. Keyed on the visa SLOT as well
+  // as the desk check, because on eno.vn the same e-visa listings (14 live in services/visa-legal,
+  // 2026-09-29) render with ContactComposer — isVisaProduct is false there — and would switch lines too.
+  const visaCopyHeld = isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug)
+  /**
+   * ⚠️ THE SITE THAT "NEVER ASKS" IS THE ONE THE READER IS ON. These lines said "eno.vn" on both
+   * editions, so eno.forum's PDP named the other site (review, 2026-09-29). Two literal copies behind
+   * the edition ternary, never `${SITE_NAME}` inside the copy: gen-ui-strings harvests LITERALS only
+   * (footer.tsx and sign-in-card.tsx spell out the same trap). eno.vn keeps its <Tr> lines and their
+   * curated vi-overrides word for word; the eno.forum lines are authored pairs through `tr` below — a
+   * literal-pair builder named `tr` so the harvest sees them (the dashboard-nav.tsx precedent).
+   * ⛔ An e-visa page keeps the line it had on BOTH editions — visa copy is held for the owner (above).
+   */
+  const tr = (en: string, vi: string) => <Bilingual en={en} vi={vi} />
+  const safetyNote = listing.listingType === 'job'
+    ? <Tr text="Never pay a fee, a deposit or for training to get a job, and don't send copies of your ID documents before you have checked the employer." />
+    : affiliateUrl ? null
+    : (catSlug === 'rentals' || catSlug === 'property' || listing.listingType === 'rent')
+      ? (IS_SERVICES
+        ? tr("Visit in person and check the owner's papers before paying any deposit. eno.forum never asks for a deposit via a link.", 'Hãy đến xem tận nơi và kiểm tra giấy tờ của chủ sở hữu trước khi đặt cọc. eno.forum không bao giờ yêu cầu đặt cọc qua đường link.')
+        : <Tr text="Visit in person and check the owner's papers before paying any deposit. eno.vn never asks for a deposit via a link." />)
+    : (catSlug === 'services' || listing.listingType === 'service') && !visaCopyHeld
+      ? (IS_SERVICES
+        ? tr('Agree what is included and the price in chat before paying, and never send a deposit through a link. eno.forum never asks for one.', 'Thống nhất nội dung và giá dịch vụ trong khung chat trước khi thanh toán, và đừng bao giờ chuyển tiền cọc qua đường link. eno.forum không bao giờ yêu cầu điều đó.')
+        : <Tr text="Agree what is included and the price in chat before paying, and never send a deposit through a link. eno.vn never asks for one." />)
+    : IS_SERVICES && !visaCopyHeld
+      ? tr('Meet in a public place and inspect the item before paying. eno.forum never asks for a deposit via a link.', 'Hãy gặp ở nơi công cộng và kiểm tra món hàng trước khi trả tiền. eno.forum không bao giờ yêu cầu đặt cọc qua đường link.')
+    : <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />
+
   // Quiet social proof — only above a credibility floor so a fresh listing never
   // advertises "0 saved" (saves ≥3 / views ≥20). Rendered twice: under the title
   // on mobile and in the contact column on desktop (each hidden on the other).
   const showProof = listing.savedCount >= 3 || listing.views >= 20
+  // 'Posted 1mo ago' on a partner's evergreen catalogue row (a park ticket, an eSIM plan, a shop's
+  // phone) is the IMPORT date, which says nothing about the item. A partner rental and a linked job
+  // keep it: there it is the source post's own date, and freshness is the point.
+  const showPosted = !affiliateUrl || isJob || listing.listingType === 'rent'
+  const showMap = !isJob && (hasRealCoords(listing.lat, listing.lng) || !affiliateUrl)
   const socialProof = (
     <>
       {listing.savedCount >= 3 && (
@@ -490,7 +577,6 @@ export default async function ListingPage({ params }: Props) {
           <Heart className="h-3.5 w-3.5" /> <SavedCount base={listing.savedCount} id={listing.id} /> <Tr text="saved" />
         </span>
       )}
-      {listing.savedCount >= 3 && listing.views >= 20 && <span aria-hidden>·</span>}
       {listing.views >= 20 && (
         <span className="inline-flex items-center gap-1">
           <Eye className="h-3.5 w-3.5" /> <CountValue value={listing.views} /> <Tr text="views" />
@@ -533,16 +619,21 @@ export default async function ListingPage({ params }: Props) {
           a fixed mobile action bar; that bar is gone, and <BottomNavSpacer/> already reserves
           the tab bar's 4.5rem globally — so the old padding just left a dead band above it. */}
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-8 lg:pb-12">
-        {/* ONE responsive tree, TWO layouts. On mobile it is a single flex column and the
+        {/* ONE responsive tree, TWO layouts. On a phone it is a single flex column and the
             `order-*` on each block sequences the whole page — the LEFT/RIGHT column wrappers are
             `display:contents` there, so their children flatten into this one shared order space:
-            breadcrumb → gallery → price/title/meta → seller → contact → protections → description
-            → safety → reviews → map. On lg the wrappers snap into a 12-col grid: a col-7 media +
-            detail column and a STICKY col-5 "buy box" (price/title/meta → seller → contact →
-            protections → safety → reviews). Exactly ONE <h1>, ONE <ContactComposer> and ONE map
-            mount across both layouts → no duplicate H1, no hydration variance, and no double
-            `eno:chat-now` listener. */}
-        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:gap-x-10 lg:gap-y-8">
+            gallery → price/title/meta → contact → market price → breadcrumb/shop → description/
+            details → safety → reviews → map → safety note. From md (768px) the wrappers snap into a
+            12-col grid: a media + detail column beside a "buy box" (price/title/meta → contact →
+            safety → reviews), 6/6 at md and 7/5 at lg; the market price sits under the contact block
+            at md and beside the title at lg (see its wrapper). The buy box turns STICKY only at lg.
+            Exactly ONE <h1>, ONE <ContactComposer> and ONE map mount across every layout → no
+            duplicate H1, no hydration variance, and no double `eno:chat-now` listener.
+            ⚠️ WHY md AND NOT lg FOR THE COLUMNS (2026-09-29): the media already switched to its
+            desktop mount at md, so a tablet got the stacked phone order under a ~770px square
+            gallery — at 820x1180 the H1 at y=1123 and 'Buy on …' below the fold, behind the tab bar
+            (which shows up to 1023px). Side by side, both sit in the first screen. */}
+        <div className="flex flex-col gap-6 md:grid md:grid-cols-12 md:gap-x-6 md:gap-y-6 lg:gap-x-10 lg:gap-y-8">
 
           {/* 1 — Breadcrumb (subdued, full width). Leaf crumb hidden on mobile (it duplicates
               the H1); the BreadcrumbList JSON-LD still carries all 3 levels. */}
@@ -570,7 +661,7 @@ export default async function ListingPage({ params }: Props) {
               `tap-44` hit areas need 44px of room — but `truncate` makes this nav `overflow:hidden`,
               which would clip them back to the 20px line. The padding gives the clip box its 44px and
               the negative margin hands the space straight back, so nothing on the page moves. */}
-          <nav aria-label="Breadcrumb" className="order-7 -my-3 truncate py-3 text-sm text-muted-foreground md:order-1 lg:col-span-12">
+          <nav aria-label="Breadcrumb" className="order-7 -my-3 truncate py-3 text-sm text-muted-foreground md:order-1 md:col-span-12">
             {/* prefetch={false} on both crumbs: they sit above the fold on every PDP, so auto
                 prefetch fires two extra RSC requests per listing view for links most visitors
                 never take (the way back is the tab bar or the browser's back button). */}
@@ -605,7 +696,7 @@ export default async function ListingPage({ params }: Props) {
               from the same 772px budget, and this page has no sticky mobile CTA to fall back on —
               `PdpMobileBar` was deleted deliberately and must not come back. */}
           <div className="order-7 md:hidden">
-            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linkedPosting={isJob} />
+            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} />
           </div>
 
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
@@ -624,36 +715,22 @@ export default async function ListingPage({ params }: Props) {
             </div>
           </div>
 
-          {/* RIGHT COLUMN (lg col-5): the sticky "buy box". It comes FIRST in the DOM (so the H1,
-              price, seller and contact controls lead the reading / tab order — the media + copy
-              column follows); `lg:order-3` still paints it on the RIGHT at lg, and `lg:order-2` on
-              the LEFT column below paints the media on the left. `contents` on mobile so its
+          {/* RIGHT COLUMN (md col-6, lg col-5): the "buy box", sticky at lg. It comes FIRST in the DOM
+              (so the H1, price, seller and contact controls lead the reading / tab order — the media +
+              copy column follows); `md:order-3` still paints it on the RIGHT from md, and `md:order-2`
+              on the LEFT column below paints the media on the left. `contents` on phones so its
               children join the single order flow. */}
-          <div className="contents lg:order-3 lg:col-span-5 lg:block">
-            <div className="contents lg:sticky lg:top-24 lg:flex lg:flex-col lg:gap-4 lg:border-l lg:border-border/70 lg:pl-10">
+          <div className="contents md:order-3 md:col-span-6 md:block lg:col-span-5">
+            {/* ⚠️ STICKY STAYS lg-ONLY. At 768-1023 and in landscape the buy box (strip, reviews) is
+                taller than the viewport, and a sticky column would park its lower half out of reach. */}
+            <div className="contents md:flex md:flex-col md:gap-4 md:border-l md:border-border/70 md:pl-6 lg:sticky lg:top-24 lg:pl-10">
 
               {/* 3 — HEADER BLOCK: price (the anchor) → title → metadata, kept tight (gap-2) so the
                   three read as one cohesive unit. Price is the largest, boldest text on the page. */}
               <div className="order-3 flex flex-col gap-2">
                 <div className="flex flex-col gap-1.5">
-                  {/* ⚠️ KNOWN, MEASURED, AND DELIBERATELY NOT "FIXED" — read this before trying.
-                      On a COLD cache this row grows after first paint and everything below it moves:
-                      the approximate USD is not in the server HTML (it needs the rate from /api/fx),
-                      so when that lands the price span widens 222px -> 302px, the row wraps, and this
-                      container goes 36px -> 63px. Measured at 390px with /api/fx held: the <h1> drops
-                      26px, CLS 0.0811. At 640px and wider it does not wrap at all (0px, CLS 0.0002),
-                      and on every visit after the first `eno-fx` is cached so it never happens.
-                      ⛔ `min-h-[4rem]` WAS TRIED AND IS WORSE. It removes the shift (0px, CLS 0.0032
-                      at 390) but pins the row at 64px for listings whose price is short enough not to
-                      wrap: measured with a 500,000 price, content 36px inside a 64px box — 28px of
-                      permanent dead space directly under the largest text on the page, on the cheap
-                      listings a classifieds site is full of. Three reviewers called it and they were
-                      right; the measurement is above so nobody has to re-derive it.
-                      ⛔ AND NOT BY BAKING THE RATE INTO THE HTML. This page is ISR-cached for 30 days;
-                      a rate baked into prerendered markup is exactly the shape that already broke
-                      hydration on the home page. The real fix is a stable-width approximation slot,
-                      which needs the rate's magnitude up front — $19 and $2,926 are not the same
-                      width — so it is a Price-component change, not a class on this div. */}
+                  {/* The ≈ slot is reserved before /api/fx answers — price.tsx's invisible FX stand-in —
+                      so this row does not grow when the rate lands (CLS measured 0, 2026-09-29). */}
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     {/*
                       * "from" ON A PARTNER LISTING — the number is the LOWEST adult ticket, and the
@@ -671,9 +748,17 @@ export default async function ListingPage({ params }: Props) {
                     {/* A JOB AT PRICE 0 WITH A STATED PAY shows the posting's own words (a range, per hour, USD) as the
                         headline — plain wrapping text, because <Price>'s digit runs never break and a range overflowed
                         the phone width. Verbatim, no FX (ND 340/2025). */}
-                    {listing.listingType === 'job' && listing.price === 0 && typeof listing.attributes?.salaryText === 'string'
-                      ? <span className="text-2xl font-bold tracking-tight text-price [overflow-wrap:anywhere]">{listing.attributes.salaryText}</span>
-                      : <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight" listingType={listing.listingType} />}
+                    {/* ⚠️ AND WITHOUT A STATED PAY, A NEUTRAL LINE — NOT <Price>. Price prints its
+                        'Salary: see details' in the 30px orange headline tier, which made the loudest thing
+                        on the page a sentence saying there is nothing to show. Body ink at 16px says the
+                        same without pretending to be a figure; a linked job points at the posting. */}
+                    {listing.listingType === 'job' && listing.price === 0
+                      ? (typeof listing.attributes?.salaryText === 'string'
+                          ? <span className="text-2xl font-bold tracking-tight text-price [overflow-wrap:anywhere]">{listing.attributes.salaryText}</span>
+                          : <span className="text-base font-semibold text-body">{isJob
+                              ? <Bilingual en="Salary: see the original posting" vi="Mức lương: xem tin tuyển dụng gốc" />
+                              : <Bilingual en="Salary not stated" vi="Chưa nêu mức lương" />}</span>)
+                      : <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight" approxClassName="text-base" listingType={listing.listingType} />}
                     {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
                     {/* ⚠️ BOTH CLAIMS ARE WRAPPED IN <LiveUntil> BECAUSE THIS PAGE IS ISR-CACHED
                         FOR 30 DAYS. `prevPrice` and `urgent` are resolved by serialize.ts against
@@ -705,8 +790,17 @@ export default async function ListingPage({ params }: Props) {
                         </Badge>
                       </LiveUntil>
                     )}
-                    {/* Not on a job: "Fixed price" beside a salary line says something no employer offered. */}
-                    {!listing.negotiable && listing.listingType !== 'job' && (
+                    {/* "Fixed price" is a P2P seller's statement that they won't haggle, so it is shown only
+                        where one could: a seller's own sale (retail or wholesale) or rental with a real
+                        price. Not on a job (a salary line is not an offer), not on a partner row (the
+                        partner prices it at its own checkout, and on a ticket the figure is only "from"),
+                        not on a service (in the services category the server forces every price to fixed,
+                        so there the chip says nothing),
+                        and not on a Free (0) item, where it read "Free · Fixed price".
+                        ⚠️ WHOLESALE IS A SALE: the post wizard offers its seller the same Negotiable/Fixed
+                        choice (fixedPriceOnly is services + wanted only), and 16 live wholesale posts
+                        chose Fixed (2026-09-29) — dropping the chip there would lose their answer. */}
+                    {!listing.negotiable && !affiliateUrl && listing.price > 0 && (listing.listingType === 'sell' || listing.listingType === 'rent' || listing.listingType === 'wholesale') && (
                       <Badge size="md" className="text-2xs text-body">
                         <Tag className="h-3 w-3" /><Tr text="Fixed price" />
                       </Badge>
@@ -721,16 +815,18 @@ export default async function ListingPage({ params }: Props) {
                       is still load-bearing — eno holds no money and offers no buyer protection, so it
                       must never promise one (three diff reviewers flagged the original "protections
                       apply" as a false consumer claim on a licensed sàn TMĐT). */}
-                  {/* The market-price gauge travels with the price — it's a benchmark OF this number. */}
-                  {priceBand && <MarketPrice price={listing.price} band={priceBand} />}
                 </div>
 
                 {/* Title — clean + medium weight so it never out-shouts the price. The single H1. */}
                 <h1 className="text-lg font-medium leading-snug text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
 
                 {/* Metadata — ONE tightly-packed subdued row: brand · condition · specs · location ·
-                    posted · social proof; flex-wrap spills to a second row only when it must. */}
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground">
+                    posted · social proof; flex-wrap spills to a second row only when it must.
+                    ⚠️ NO LITERAL '·' SEPARATORS. They were flex items of their own, so a wrap could strand
+                    one at the end of a line ('Apple · New · Hồ Chí Minh ·') or the start of the next.
+                    Every item now leads with its own glyph (MapPin, Clock, Heart, Eye) or is a chip, and
+                    the column gap is what separates them — nothing is left to strand. */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
                   {brand && (
                     <Badge size="md" interactive render={<Link href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`} prefetch={false} />} className="w-fit gap-1.5 font-semibold text-foreground">
                       <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
@@ -751,14 +847,13 @@ export default async function ListingPage({ params }: Props) {
                     <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
                     <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
                   </span>
-                  <span aria-hidden className="text-line-strong">·</span>
-                  <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
-                  {showProof && (
-                    <>
-                      <span aria-hidden className="text-line-strong">·</span>
-                      <span className="flex shrink-0 items-center gap-2 text-xs">{socialProof}</span>
-                    </>
+                  {showPosted && (
+                    <span className="inline-flex shrink-0 items-center gap-1">
+                      <Clock className="h-4 w-4 shrink-0 text-ink-4" />
+                      <span><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
+                    </span>
                   )}
+                  {showProof && <span className="flex shrink-0 items-center gap-3 text-xs">{socialProof}</span>}
                 </div>
               </div>
 
@@ -809,6 +904,7 @@ export default async function ListingPage({ params }: Props) {
                         rental={listing.listingType === 'rent'}
                         /* A job is applied for on the posting — see the prop's comment. */
                         job={isJob}
+                        applyBy={jobApplyBy}
                       />
                     </JobApplyGuard>
                   : isVisaProduct
@@ -873,6 +969,21 @@ export default async function ListingPage({ params }: Props) {
                 )}
               </div>
 
+              {/* Market price: BELOW the CTA on phones (`order-6` ties with #contact, and DOM order then
+                  paints it after), beside the title on desktop (`lg:order-3` ties with the header block,
+                  and DOM order paints it after the meta row). It used to sit between the price and the
+                  H1, and its ~81px were all spent above the CTA: on a 390x844 phone 'Buy on …' landed
+                  26 of its 44px under the floating tab bar (measured on prod, 2026-09-29), and at 360x740
+                  entirely under it. The verdict is one short scroll below the button now.
+                  ⚠️ KEEP `lg:`, NOT `md:`, even though the two-column grid starts at md: at 768-1023 and
+                  in landscape the buy box is not sticky, so a band above the CTA pushes it below the
+                  fold there too (844x390 has 390px of height for everything). */}
+              {priceBand && (
+                <div data-market-price className="order-6 lg:order-3">
+                  <MarketPrice price={listing.price} band={priceBand} />
+                </div>
+              )}
+
               {/* 9 — ONE trust block: the scam warning, with the reports-and-disputes row folded in
                   as its second line (owner, 2026-08-11). The separate order-7 protections row is GONE —
                   the two were adjacent boxes circling the same subject, and the warning is the
@@ -892,7 +1003,7 @@ export default async function ListingPage({ params }: Props) {
                   */}
                 <SafetyStrip
                   categorySlug={rawListing.category.slug}
-                  variant={affiliateUrl ? (isJob ? 'affiliate-job' : isBooking ? 'affiliate' : 'affiliate-purchase') : undefined}
+                  variant={affiliateUrl ? (isJob ? 'affiliate-job' : isBooking ? 'affiliate' : listing.listingType === 'rent' ? 'affiliate-rental' : 'affiliate-purchase') : undefined}
                   protections={affiliateUrl ? undefined : <ProtectionsRow inline />}
                   action={<ReportButton listingId={listing.id} />}
                 />
@@ -911,15 +1022,14 @@ export default async function ListingPage({ params }: Props) {
             </div>
           </div>
 
-          {/* LEFT COLUMN (lg col-7): gallery → description/details → map → safety note. It follows
-              the buy box in the DOM (reading order) but `lg:order-2` paints it on the LEFT at lg;
-              `contents` on mobile flattens these into the shared order space. */}
-          <div className="contents lg:order-2 lg:col-span-7 lg:flex lg:flex-col lg:gap-8">
+          {/* LEFT COLUMN (md col-6, lg col-7): gallery → description/details → map → safety note. It
+              follows the buy box in the DOM (reading order) but `md:order-2` paints it on the LEFT from
+              md; `contents` on phones flattens these into the shared order space. */}
+          <div className="contents md:order-2 md:col-span-6 md:flex md:flex-col md:gap-6 lg:col-span-7 lg:gap-8">
             {/* Shop-on-top (Shopee): storefront link above the media, DESKTOP/TABLET. order-1 so it
-                leads the left column at lg (above the gallery) and follows only the breadcrumb when
-                the layout is a single flattened column at md; hidden below md (mobile twin above). */}
+                leads the left column from md (above the gallery); hidden below md (mobile twin above). */}
             <div className="order-1 hidden md:block">
-              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linkedPosting={isJob} />
+              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} />
             </div>
 
             {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens) */}
@@ -935,28 +1045,35 @@ export default async function ListingPage({ params }: Props) {
               </div>
             </div>
 
-            {/* 8 — Description + Details */}
+            {/* 8 — Description + Details. The wrapper renders only when one of them does: an empty
+                flex item in this gapped column would still earn a gap. */}
+            {(showDescription || showDetails) && (
             <div className="order-8 flex flex-col gap-8">
               {/* Section headers on this page share ONE treatment (text-lg font-semibold, matching
                   the shelf + reviews headers below) with more space above (section gap) than below. */}
+              {showDescription && (
               <div className="space-y-2">
                 <h2 className="text-lg font-semibold text-foreground"><Tr text="Description" /></h2>
                 {/* max-w-prose caps the reading measure at ~65ch — the col-7 body otherwise runs wide. */}
-                <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} className="max-w-prose space-y-3 text-base leading-relaxed text-body" />
+                <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} className={`max-w-prose space-y-3 text-base leading-relaxed text-body ${repeatedFacts}`} />
               </div>
+              )}
 
-              {(attrs.length > 0 || numericSpecs.length > 0) && (
+              {showDetails && (
                 <div className="space-y-2">
                   <h2 className="text-lg font-semibold text-foreground"><Tr text="Details" /></h2>
-                  {/* Spec table: hairline row dividers, muted label / strong value, even row height. */}
+                  {/* Spec table: hairline row dividers, muted label / strong value, even row height.
+                      `data-fab-avoid` on every value: the floating support mark yields (fades) when it
+                      would sit over one — these right-aligned values run into the corner it rests in,
+                      and plain text is otherwise never an obstacle (back-to-top.tsx OBSTACLES). */}
                   <dl className="divide-y divide-border text-sm">
-                    {numericSpecs.map((s) => (
+                    {[...numericSpecs, ...detailOnlySpecs].map((s) => (
                       <div key={s.label} className="flex items-start justify-between gap-4 py-2.5">
                         <dt className="text-muted-foreground"><Tr text={s.label} /></dt>
-                        <dd className="text-right font-medium text-foreground">{s.value}</dd>
+                        <dd data-fab-avoid className="text-right font-medium text-foreground">{s.value}</dd>
                       </div>
                     ))}
-                    {attrs.map(([k, v]) => {
+                    {detailAttrs.map(([k, v]) => {
                       // A job's text facts carry their own label and are shown verbatim (JOB_TEXT_ATTRIBUTES).
                       const jobText = listing.listingType === 'job' ? JOB_TEXT_ATTRIBUTES[k] : undefined
                       // On a job, a facet key/value gets the taxonomy's own words ("Type: Full-time", not "Jobtype:
@@ -964,17 +1081,38 @@ export default async function ListingPage({ params }: Props) {
                       // ⚠️ And to Services › eSIM: its values are SLUGS ("validity: 30-days", "dailyData:
                       // 1-5gb") that only read right through their option label ("Validity: 30 days").
                       const labelled = listing.listingType === 'job' || rawListing.subcategorySlug === 'esim'
-                      const facet = labelled && !jobText ? attrFacets.find((f) => f.key === k) : undefined
+                      // ⚠️ THE LABEL, THOUGH, IS THE TAXONOMY'S FOR EVERY CATEGORY, IN BOTH LANGUAGES — the
+                      // facet row carries its own labelVi ("Phòng ngủ"), and a raw key through <Tr> found
+                      // Vietnamese only where the UI dictionary held that exact casing: it has "Bedrooms", not
+                      // "bedrooms", so a vi rental PDP printed "bedrooms", "bathrooms" (prod, 2026-09-29).
+                      // VALUES stay scoped as above (./details-labels.test.tsx).
+                      const labelFacet = !jobText ? attrFacets.find((f) => f.key === k) : undefined
+                      const facet = labelled ? labelFacet : undefined
                       const option = facet?.options?.find((o) => o.value === String(v))
+                      const value = String(v)
+                      // ⚠️ SENTENCE CASE, NOT CSS `capitalize`. Taxonomy and job labels are already written in
+                      // sentence case ('Apply by', 'eSIM', 'Full-time'), and `capitalize` title-cased every
+                      // word of them into 'Apply By', 'ESIM', 'Full-Time'. Only a RAW key or value (stored
+                      // lowercase, no label to borrow) gets its first letter raised — `first-letter:` works
+                      // here because dt/dd are flex items, which are blockified.
+                      const rawKey = k.replace(/([A-Z])/g, ' $1').toLowerCase()
                       return (
                       <div key={k} className="flex items-start justify-between gap-4 py-2.5">
-                        <dt className="capitalize text-muted-foreground"><Tr text={jobText?.label ?? facet?.label ?? k.replace(/([A-Z])/g, ' $1')} /></dt>
-                        {/* Attribute values are stored lowercase — capitalize like the keys. ⚠️ Except a NAME
-                            (author, publisher): it is stored as written and must never go through machine
-                            translation, which would "translate" a person. */}
-                        {jobText || (FREE_TEXT_ATTRIBUTES as readonly string[]).includes(k)
-                          ? <dd className="text-right font-medium text-foreground">{String(v)}</dd>
-                          : <dd className="text-right font-medium capitalize text-foreground"><Tr text={option?.label ?? String(v)} /></dd>}
+                        <dt className="text-muted-foreground first-letter:uppercase">
+                          {jobText ? <Bilingual en={jobText.label} vi={jobText.labelVi} />
+                            : labelFacet ? <Bilingual en={labelFacet.label} vi={labelFacet.labelVi} />
+                            : <Tr text={rawKey} />}
+                        </dt>
+                        {/* A stored DATE ('2026-10-08' — a job's posted/apply-by) reads as the reader writes a
+                            date: '8 Oct 2026' / '8/10/2026'. ⚠️ A NAME (author, publisher) is stored as written
+                            and must never go through machine translation, which would "translate" a person. */}
+                        {/^\d{4}-\d{2}-\d{2}$/.test(value)
+                          ? <dd data-fab-avoid className="text-right font-medium text-foreground"><CalendarDay value={value} /></dd>
+                          : jobText || (FREE_TEXT_ATTRIBUTES as readonly string[]).includes(k)
+                          ? <dd data-fab-avoid className="text-right font-medium text-foreground">{value}</dd>
+                          : option
+                          ? <dd data-fab-avoid className="text-right font-medium text-foreground"><Bilingual en={option.label} vi={option.labelVi} /></dd>
+                          : <dd data-fab-avoid className="text-right font-medium text-foreground first-letter:uppercase"><Tr text={value} /></dd>}
                       </div>
                       )
                     })}
@@ -982,10 +1120,15 @@ export default async function ListingPage({ params }: Props) {
                 </div>
               )}
             </div>
+            )}
 
-            {/* 11 — Map. Not on a LINKED job: it carries only a city, and the map would pin a street it
-                does not have (with a "0" price label). */}
-            {!isJob && (
+            {/* 11 — Map. Not on a linked job or a partner row without a stored coordinate: the map would
+                pin a city centroid (±1km jitter, geo.ts getListingCoordinates) that is not the item's
+                place — an eSIM or a shop's phone 'in District 1'. When there is no map, render NOTHING:
+                the meta row under the title already shows the location beside its pin glyph, so a
+                text-only Location section would only repeat it. A seller's own listing keeps its map
+                as before, district-level or not. */}
+            {showMap && (
             <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20">
               <h2 className="text-lg font-semibold text-foreground"><Tr text="Location" /></h2>
               {/* ⛔ THE RING IS ON THIS WRAPPER, KEYED OFF THE CHILD'S FOCUS. The focusable is
@@ -1001,13 +1144,17 @@ export default async function ListingPage({ params }: Props) {
             </div>
             )}
 
-            {/* 12 — Safety note */}
-            <p className="order-12 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              {listing.listingType === 'job'
-                ? <Tr text="Never pay a fee, a deposit or for training to get a job, and don't send copies of your ID documents before you have checked the employer." />
-                : <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />}
-            </p>
+            {/* 12 — Safety note, in the words that are true for THIS kind of listing. "Meet in a public
+                place and inspect the item" was written for P2P goods and was printed on a flat, a
+                ticket, an eSIM and a partner's phone alike. None on a partner row: the SafetyStrip's
+                partner variant above already states the only true advice there (buy/book/rent on the
+                partner's own site), and there is nobody to meet. */}
+            {safetyNote && (
+              <p className="order-12 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                {safetyNote}
+              </p>
+            )}
           </div>
         </div>
 
@@ -1016,12 +1163,14 @@ export default async function ListingPage({ params }: Props) {
             same-category shelf so a buyer sees the seller's own range first. */}
         <SameSellerShelf listings={moreFromSeller} sellerHref={sellerHref} sellerName={listing.seller.name} />
 
-        {/* More like this — same-category listings (client-fetched, ISR-safe) */}
+        {/* More like this — same-category listings (client-fetched, ISR-safe). Without the seller's own
+            rows whenever the seller rail above is showing (it needs two), so the two never repeat a card. */}
         <RelatedListings
           listingId={listing.id}
           categorySlug={rawListing.category.slug}
           subcategorySlug={rawListing.subcategorySlug}
           brandSlug={rawListing.brandSlug}
+          excludeSellerId={moreFromSeller.length >= 2 ? listing.sellerId : undefined}
         />
 
         {/* The buyer's own recently-viewed trail (excludes this listing). mt-12 matches the

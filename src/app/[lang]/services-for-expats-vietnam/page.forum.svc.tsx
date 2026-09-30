@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { NOT_GOVERNMENT, PROVIDER_OF_RECORD } from '@/lib/visa-provider'
@@ -112,11 +113,11 @@ export const metadata: Metadata = {
   description:
     'Services for expats in Vietnam: Vietnam e-visa applications, single and multiple entry, from standard to 1-hour express, each priced on its own listing. Provided by a licensed Vietnamese travel partner, with a public trust score behind every provider.',
   alternates: { canonical: '/services-for-expats-vietnam' },
-  openGraph: {
+  ...pageShare({
     title: `Services for Expats in Vietnam — e-Visa Applications | ${SITE_NAME}`,
     description:
       'Vietnam e-visas priced up front and provided by a licensed travel partner, with a public trust score behind every provider.',
-  },
+  }),
 }
 
 /**

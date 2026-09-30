@@ -1,8 +1,20 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
+import { formatInteger, formatMoneyFull } from '@/lib/vnd'
+
+/**
+ * ⚠️ ENGLISH PAGE, ENGLISH GROUPING, THROUGH vnd.ts (docs/design-language.md §7 — never hand-format a
+ * number): "2,480,000 đ", as every English price on the site prints. The figures were typed by hand
+ * as "2.480.000 đ" on a note that đồng always takes dots "per src/lib/vnd.ts" — which says the
+ * opposite: it groups đồng by the READER's language (L-NUMBERS, 2026-09-29). `num` is the bare figure
+ * that opens a range ("3,980,000–7,800,000 đ").
+ */
+const d = (n: number) => formatMoneyFull(n, '₫', 'en')
+const num = (n: number) => formatInteger(n, 'en')
 
 /**
  * SECONDHAND FURNITURE IN HO CHI MINH CITY — the English half; Vietnamese half at
@@ -53,34 +65,34 @@ const CONTENT: ArticleContent = {
             sampled on 23 September 2026 out of 3,201 live. The median is the middle price; the band
             beside it is where the middle half of listings sit, so a quarter are cheaper than the low
             figure and a quarter are dearer than the high one. Across everything, the median is{' '}
-            <strong>2.480.000 đ</strong> and the middle half runs from 1.050.000 đ to 4.100.000 đ.
+            <strong>{d(2_480_000)}</strong> and the middle half runs from {d(1_050_000)} to {d(4_100_000)}.
           </P>
           <Ul>
             <li>
-              <strong>Wardrobe — 6.200.000 đ</strong> (middle half 3.980.000–7.800.000 đ). The most
+              <strong>Wardrobe — {d(6_200_000)}</strong> (middle half {num(3_980_000)}–{d(7_800_000)}). The most
               expensive thing on the list, and the hardest to get through a door.
             </li>
             <li>
-              <strong>Air conditioner — 4.298.000 đ</strong> (3.948.000–5.498.000 đ). The tightest band
+              <strong>Air conditioner — {d(4_298_000)}</strong> ({num(3_948_000)}–{d(5_498_000)}). The tightest band
               of any category, which is informative in itself; see below.
             </li>
             <li>
-              <strong>Washing machine — 2.730.000 đ</strong> (1.648.000–3.480.000 đ).
+              <strong>Washing machine — {d(2_730_000)}</strong> ({num(1_648_000)}–{d(3_480_000)}).
             </li>
             <li>
-              <strong>Sofa — 2.515.000 đ</strong> (1.390.000–4.510.000 đ). A wide band, because a sofa
+              <strong>Sofa — {d(2_515_000)}</strong> ({num(1_390_000)}–{d(4_510_000)}). A wide band, because a sofa
               is a frame plus foam plus a cover and all three age differently.
             </li>
             <li>
-              <strong>Shelving and cabinets — 1.980.000 đ</strong> (1.180.000–3.380.000 đ).
+              <strong>Shelving and cabinets — {d(1_980_000)}</strong> ({num(1_180_000)}–{d(3_380_000)}).
             </li>
             <li>
-              <strong>Tables and desks — 1.650.000 đ</strong> (1.050.000–3.200.000 đ). The deepest
+              <strong>Tables and desks — {d(1_650_000)}</strong> ({num(1_050_000)}–{d(3_200_000)}). The deepest
               supply in the sample by a distance, which is where your negotiating room is.
             </li>
             <li>
-              <strong>Air purifier — 6.000.000 đ</strong>, and <strong>robot vacuum —
-              9.000.000 đ</strong>. Only six listings each, so read these as an indication rather
+              <strong>Air purifier — {d(6_000_000)}</strong>, and <strong>robot vacuum —{' '}
+              {d(9_000_000)}</strong>. Only six listings each, so read these as an indication rather
               than a band.
             </li>
           </Ul>
@@ -150,21 +162,21 @@ const CONTENT: ArticleContent = {
               dozens more — which is exactly why an asking price there is soft.
             </li>
             <li>
-              <strong>A tight band means a settled market.</strong> Used air conditioners sit inside a
-              1.550.000 đ spread from the 25th to the 75th percentile — far tighter than anything
+              <strong>A tight band means a settled market.</strong> Used air conditioners sit inside a{' '}
+              {d(1_550_000)} spread from the 25th to the 75th percentile — far tighter than anything
               else. A unit listed well under that is not a bargain that everyone else missed; it is
               old, it is small, or the price excludes taking it off one wall and putting it on yours.
             </li>
             <li>
               <strong>The high-priced small appliances carry a second bill.</strong> A used air
-              purifier at a median 6.000.000 đ needs a filter, and a used robot vacuum at
-              9.000.000 đ needs a battery within its remaining life. Neither is in the asking price, and
+              purifier at a median {d(6_000_000)} needs a filter, and a used robot vacuum at{' '}
+              {d(9_000_000)} needs a battery within its remaining life. Neither is in the asking price, and
               on both the consumable is a meaningful fraction of what you just paid. Ask when the
               filter was last changed and how many hours the battery has done.
             </li>
           </Ul>
           <P>
-            The one category to think twice about is the wardrobe. At a median of 6.200.000 đ it is
+            The one category to think twice about is the wardrobe. At a median of {d(6_200_000)} it is
             the most expensive item here and the most likely not to fit — through your door, around
             your stairwell, into your lift. Measure the alcove, the stairwell turn and the lift
             diagonal before you fall in love with a photograph.
@@ -203,7 +215,7 @@ const CONTENT: ArticleContent = {
               the frame is thinnest. Foam that does not come back up is a re-upholstery job. Look
               underneath: solid timber that is screwed and braced versus stapled board is the whole
               difference in this category, and it is the only honest explanation for why the top
-              quarter of sofas here ask more than 4.510.000 đ. And smell it — in this humidity a
+              quarter of sofas here ask more than {d(4_510_000)}. And smell it — in this humidity a
               mould smell in a cushion never leaves.
             </li>
             <li>
@@ -284,11 +296,11 @@ const CONTENT: ArticleContent = {
   faqs: [
     {
       q: 'How much does secondhand furniture cost in Ho Chi Minh City?',
-      a: 'From 300 used listings sampled on 23 September 2026, the median asking price is 2.480.000 đ and the middle half runs 1.050.000–4.100.000 đ. By item: wardrobes around 6.200.000 đ, air conditioners around 4.298.000 đ, washing machines around 2.730.000 đ, sofas around 2.515.000 đ, shelving around 1.980.000 đ and tables or desks around 1.650.000 đ. These are asking prices, so there is usually room on the larger pieces.',
+      a: `From 300 used listings sampled on 23 September 2026, the median asking price is ${d(2_480_000)} and the middle half runs ${num(1_050_000)}–${d(4_100_000)}. By item: wardrobes around ${d(6_200_000)}, air conditioners around ${d(4_298_000)}, washing machines around ${d(2_730_000)}, sofas around ${d(2_515_000)}, shelving around ${d(1_980_000)} and tables or desks around ${d(1_650_000)}. These are asking prices, so there is usually room on the larger pieces.`,
     },
     {
       q: 'Is a used air conditioner worth buying?',
-      a: 'Usually yes, but the price is not the whole price. Used units cluster tightly between about 3.948.000 đ and 5.498.000 đ, and moving a split unit needs an installer, new pipe and often a gas top-up, all billed separately. Ask the year, ask whether removal and installation are included, and insist on seeing it blowing genuinely cold before you agree anything.',
+      a: `Usually yes, but the price is not the whole price. Used units cluster tightly between about ${d(3_948_000)} and ${d(5_498_000)}, and moving a split unit needs an installer, new pipe and often a gas top-up, all billed separately. Ask the year, ask whether removal and installation are included, and insist on seeing it blowing genuinely cold before you agree anything.`,
     },
     {
       q: `Where does secondhand furniture on ${SITE_NAME} come from?`,
@@ -312,11 +324,12 @@ export const metadata: Metadata = {
   description:
     'What used furniture and appliances actually cost in HCMC, measured from 3,201 live listings — median prices for wardrobes, sofas, air conditioners and washing machines, what to test before paying, and how delivery really works.',
   alternates: marketplaceGuideAlternates(SLUG),
-  openGraph: {
+  ...pageShare({
     title: `Secondhand Furniture in Ho Chi Minh City: Real Prices | ${SITE_NAME}`,
     description:
       'Measured price bands from 3,201 used furniture and appliance listings in Ho Chi Minh City, plus the checks to run on a used air conditioner, washing machine or sofa before you pay.',
-  },
+    type: 'article',
+  }),
 }
 
 export default function SecondhandFurnitureHoChiMinhCityPage() {

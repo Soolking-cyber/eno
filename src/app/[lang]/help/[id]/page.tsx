@@ -1,32 +1,59 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
-import { organizationId } from '@/lib/site-identity'
+import { organizationId, withShare } from '@/lib/site-identity'
 import type { Metadata } from 'next'
+import { cookies, headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { loadHelpThread } from '@/lib/help-center-data'
+import { loadHelpThread, loadRelatedHelp } from '@/lib/help-center-data'
+import { cachedTranslations } from '@/lib/translate'
+import { LANG_COOKIE } from '@/lib/lang-variant'
+import { embedLanguages, pickEmbedded, readerLanguage } from './embed-languages'
 import { HelpThreadClient, type HelpComment } from './help-thread-client'
 
 export const dynamic = 'force-dynamic'
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params
+type Params = { params: Promise<{ id: string; lang: string }> }
+
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const { id, lang } = await params
   const thread = await loadHelpThread(id)
   if (!thread) return { title: `Help center | ${SITE_NAME}` }
-  return {
+  // The Vietnamese variant's <title> is the curated translation when the cache holds one
+  // (L-CONTENT-VI) — one indexed read, the same one the page makes below.
+  const viTitle = lang === 'vi' ? (await cachedTranslations([thread.post.title]))[thread.post.title]?.vi : undefined
+  // Both share cards are built by withShare() from the thread's OWN title, on either variant: a share
+  // scraper sends no language, so the card must not depend on which variant it happened to hit.
+  const meta = withShare({
     title: `${thread.post.title} | ${SITE_NAME}`,
     // The body is plain text, so a slice is a safe description — no markup to strip.
     description: thread.post.body.replace(/\s+/g, ' ').slice(0, 200),
     alternates: { canonical: `/help/${id}` },
-  }
+  }, { type: 'article' })
+  return viTitle ? { ...meta, title: `${viTitle} | ${SITE_NAME}` } : meta
 }
 
-export default async function HelpThreadPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function HelpThreadPage({ params }: Params) {
   const { id } = await params
   const thread = await loadHelpThread(id)
   // loadHelpThread only resolves published posts inside a HELP topic, so a general
   // forum thread id 404s here rather than rendering inside Help Center chrome.
   if (!thread) notFound()
+
+  // Related answers (C-HELP-CENTER) and every translation the page renders, in one cache read: the
+  // curated Vietnamese of each seeded answer lives in the Translation cache, and embedding it here is
+  // what puts a Vietnamese h1 and body in the server HTML instead of after hydration (L-CONTENT-VI).
+  // A failed read degrades to the client path it replaced (cachedTranslations swallows its own errors).
+  // ⚠️ ONLY THE READER'S LANGUAGES ARE EMBEDDED (embed-languages.ts): the cache holds every language
+  // anyone has read the thread in, and the client reads at most en, vi and its own.
+  const [relatedRows, jar, head] = await Promise.all([
+    loadRelatedHelp(thread.post.community, thread.post.id).catch(() => []),
+    cookies(),
+    headers(),
+  ])
+  const keep = embedLanguages(readerLanguage(jar.get(LANG_COOKIE)?.value, head.get('accept-language')))
+  const translations = await cachedTranslations([thread.post.title, thread.post.body, ...relatedRows.map((r) => r.title)])
+  const related = relatedRows.map((r) => ({ id: r.id, title: r.title, i18n: pickEmbedded(translations[r.title], keep) }))
 
   const flat: HelpComment[] = thread.comments.map((comment) => ({
     id: comment.id,
@@ -119,7 +146,13 @@ export default async function HelpThreadPage({ params }: { params: Promise<{ id:
             client-side hop between two /help/[id] routes reuses the same component
             instance — without a key the previous thread's replies and half-typed draft
             would render under the new question. The key forces a fresh mount. */}
-        <HelpThreadClient key={thread.post.id} post={thread.post} comments={comments} />
+        <HelpThreadClient
+          key={thread.post.id}
+          post={thread.post}
+          comments={comments}
+          i18n={{ title: pickEmbedded(translations[thread.post.title], keep), body: pickEmbedded(translations[thread.post.body], keep) }}
+          related={related}
+        />
       </main>
       <Footer />
     </div>

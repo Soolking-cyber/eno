@@ -1,15 +1,16 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { CROSS_SITE_REL } from '@/lib/cross-site-links'
 import { PROHIBITED_SERVICES_CROSSLINK, PROHIBITED_SERVICES_SECTION } from '@/lib/prohibited-services-copy'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Prohibited items & services | Hàng hóa & dịch vụ cấm | ${SITE_NAME}`,
   description: `Goods and services that must not be listed on ${SITE_NAME}, per Vietnamese law and platform policy.`,
   alternates: { canonical: '/prohibited' },
-}
+})
 
 // ── Prohibited goods & services (part of the Operating Regulations) ─────────────
 // Legal basis: Investment Law banned lines (as amended by Law 143/2025), Decree

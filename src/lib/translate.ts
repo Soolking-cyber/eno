@@ -1,7 +1,7 @@
 import 'server-only'
 import crypto from 'crypto'
 import { db } from './db'
-import { detectContentLang } from './detect-lang'
+import { detectContentLang, longestUndiacritickedRun } from './detect-lang'
 import { LANGS, type Lang } from './i18n/langs'
 import { rateLimit } from '@/lib/ratelimit'
 import { INTERACTIVE_TIMEOUT_MS, localMtConfigured, localTranslate } from './mt-local'
@@ -57,10 +57,8 @@ function worthTranslating(t: string): boolean {
 }
 const translatableUniq = (texts: string[]): string[] => Array.from(new Set(texts.filter(worthTranslating)))
 
-// Any Vietnamese diacritic, not just the language-exclusive ones. Used ONLY to judge whether
-// a WORD looks Vietnamese-shaped, so that a long undiacriticked passage can be spotted.
-const VI_DIACRITIC =
-  /[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ]/
+// VI_DIACRITIC and longestUndiacritickedRun live in ./detect-lang (isomorphic), so the client's
+// looksVietnamese() gate and alreadyInTarget below share one table and one cut-off.
 
 // Scripts whose presence genuinely establishes ONE language. Hangul is Korean-exclusive and
 // Thai script is Thai-exclusive, so a high ratio of either really does certify the string.
@@ -82,18 +80,6 @@ const SCRIPT_OF: Record<string, RegExp> = {
   // survive every review pipeline intact (one reviewer saw `th` as /[-]/ and reported it broken).
   ko: /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7A3]/u, // Hangul jamo + syllables
   th: /[\u0E00-\u0E7F]/u, // Thai
-}
-
-/** Longest run of consecutive words carrying NO Vietnamese diacritic. */
-function longestUndiacritickedRun(text: string): number {
-  let run = 0
-  let max = 0
-  for (const word of text.split(/\s+/)) {
-    if (!/\p{L}/u.test(word)) continue // pure digits/punctuation break nothing
-    if (VI_DIACRITIC.test(word)) run = 0
-    else if (++run > max) max = run
-  }
-  return max
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { Language } from './langs'
+import { looksVietnamese } from '@/lib/detect-lang'
 
 // djb2 hash of the UI string set → cache-busts the localStorage UI dictionary when
 // copy changes. A function (not a top-level const over a static import) so the large
@@ -119,7 +120,11 @@ function flush() {
   for (const key of Object.keys(pending) as Language[]) {
     const items = pending[key]!
     delete pending[key]
-    const texts = items.map((i) => i.text)
+    // ⚠️ ONE COPY OF EACH TEXT PER REQUEST. Every card asks for its own location and a batch window
+    // holds a whole feed page, so the same string was queued many times and all of them were posted
+    // (one vi home view: "Hồ Chí Minh" ×54 across 5 requests, 2026-09-29). Every waiter still
+    // resolves — from the one answer for its text.
+    const texts = [...new Set(items.map((i) => i.text))]
     fetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -127,8 +132,9 @@ function flush() {
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then(({ translations }) => {
-        items.forEach((it, i) => {
-          const value = translations?.[i] ?? it.text
+        const byText = new Map(texts.map((t, i) => [t, translations?.[i] ?? t]))
+        items.forEach((it) => {
+          const value = byText.get(it.text) ?? it.text
           // Don't PIN an English passthrough: when the provider is down the API
           // 200s with the source text, and caching that froze English into the
           // session until a full reload (2026-07-06 audit). Resolve it (render
@@ -143,6 +149,17 @@ function flush() {
 }
 
 export function translateText(text: string, lang: Language): Promise<string> {
+  /**
+   * ⛔ VIETNAMESE IS NOT SENT TO BE TRANSLATED INTO VIETNAMESE. Category names, districts and
+   * "Hồ Chí Minh" reach here already in Vietnamese, and the server's alreadyInTarget skip returned
+   * each one unchanged — after a round trip per batch (src/lib/detect-lang.ts looksVietnamese, same
+   * cut-off). The identity is deterministic, so unlike the provider-down passthrough in flush() it
+   * IS cached: every later useTr/tr() reads it synchronously.
+   */
+  if (lang === 'vi' && looksVietnamese(text)) {
+    trCache.set(`vi ${text}`, text)
+    return Promise.resolve(text)
+  }
   return new Promise((resolve) => {
     (pending[lang] ||= []).push({ text, resolve })
     if (!scheduled) { scheduled = true; setTimeout(flush, 60) }

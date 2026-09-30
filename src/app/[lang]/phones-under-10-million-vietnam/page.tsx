@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -289,12 +290,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `The best phones under 10 million đồng in Vietnam | ${SITE_NAME}`,
   description:
     'What 10 million đồng buys new, what it buys second-hand, which of the two is the better phone to own, and the compromises — bands, eSIM, battery health, warranty — that decide it in Vietnam.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function PhonesUnder10MillionVietnamPage() {
   return <SeoArticle content={CONTENT} />

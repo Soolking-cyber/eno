@@ -1,8 +1,19 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
+import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
+import { formatMoneyFull } from '@/lib/vnd'
+
+/**
+ * ⚠️ ENGLISH PAGE, ENGLISH GROUPING, THROUGH vnd.ts (docs/design-language.md §7 — never hand-format a
+ * number): "2,480,000 đ", as every English price on the site prints. The figures were typed by hand
+ * as "2.480.000 đ" on a note that đồng always takes dots "per src/lib/vnd.ts" — which says the
+ * opposite: it groups đồng by the READER's language (L-NUMBERS, 2026-09-29).
+ */
+const d = (n: number) => formatMoneyFull(n, '₫', 'en')
 
 /**
  * RENTING AN APARTMENT IN VIETNAM AS A FOREIGNER — the marketplace's own long-form guide.
@@ -28,9 +39,9 @@ import { LiveCounts } from '@/components/marketplace/live-count'
  * months, which had one site contradicting itself on the single fact both pages are read for. Summary
  * links to deep dive, one direction, and the number is stated the same way in both.
  *
- * ⚠️ COUNTS ARE ENGLISH-FORMATTED (3,201), MONEY IS VIETNAMESE-FORMATTED (2.480.000 đ), and both
- * appear in the same sentence deliberately. The prose is English, so a count written "3.201" reads as
- * three-point-two — while đồng always takes dot separators, per src/lib/vnd.ts.
+ * ⚠️ COUNTS AND MONEY BOTH USE ENGLISH GROUPING ON THIS ENGLISH PAGE (3,201 · 2,480,000 đ): vnd.ts
+ * groups đồng by the reader's language, commas in English — the earlier note claiming đồng always
+ * takes dots "per src/lib/vnd.ts" misread it (L-NUMBERS, 2026-09-29).
  *
  * ⛔ THE RENTALS COUNT IS COMPUTED, NOT TYPED. It said "19,359 rental listings … every one of them in a
  * Ho Chi Minh City district" (measured 2026-09-23); four days later the live figure was 25,502 and
@@ -135,10 +146,10 @@ const CONTENT: ArticleContent = {
             Furnished and unfurnished are not two price points for the same thing — an unfurnished unit
             hands you the whole fit-out. Against the secondhand stock in Ho Chi Minh City that is a real
             number rather than a vague one: there are 3,201 used furniture and appliance listings from
-            HCMC sellers on this site, and a 300-item sample of them puts the median piece at 2.480.000 đ,
-            with the middle half between 1.050.000 đ and 4.100.000 đ — a wardrobe around 6.200.000 đ, an
-            air conditioner around 4.298.000 đ, a washing machine around 2.730.000 đ, a desk or table
-            around 1.650.000 đ. Price the gap before you sign, not after — the{' '}
+            HCMC sellers on this site, and a 300-item sample of them puts the median piece at {d(2_480_000)},
+            with the middle half between {d(1_050_000)} and {d(4_100_000)} — a wardrobe around {d(6_200_000)}, an
+            air conditioner around {d(4_298_000)}, a washing machine around {d(2_730_000)}, a desk or table
+            around {d(1_650_000)}. Price the gap before you sign, not after — the{' '}
             <HereLink href="/furnishing-a-home-in-vietnam">furnishing guide</HereLink> has the tests that
             separate a working secondhand appliance from an expensive one.
           </P>
@@ -299,6 +310,15 @@ const CONTENT: ArticleContent = {
       ),
     },
   ],
+  // ⚠️ THE GUIDE ENDS ON THE HOMES IT EXPLAINS HOW TO RENT (C-GUIDES-CTA): apartments, houses and rooms —
+  // the one shared definition in src/lib/rental-homes.ts, so offices, shopfronts and vehicle hire never
+  // reach this rail. A set of kinds keeps the shelf in featured-then-newest order with the
+  // best-photographed first; a single subcategory would switch it to cheapest-first.
+  rail: {
+    target: { categorySlug: 'rentals', subcategoryIn: HOME_RENTAL_SUBCATS },
+    title: 'Homes for rent now',
+    cta: 'Browse rentals',
+  },
   related: marketplaceGuidesExcept('renting-an-apartment-vietnam-foreigner'),
   faqs: [
     {
@@ -319,7 +339,7 @@ const CONTENT: ArticleContent = {
     },
     {
       q: 'Is it cheaper to rent unfurnished?',
-      a: 'Monthly, yes — but you are buying the fit-out. There are 3,201 secondhand furniture and appliance listings from Ho Chi Minh City sellers on this site; a 300-item sample puts the median piece at 2.480.000 đ, with the middle half between 1.050.000 đ and 4.100.000 đ, a wardrobe around 6.200.000 đ and an air conditioner around 4.298.000 đ. Price the specific gaps in the flat you are looking at before you decide, not after you sign.',
+      a: `Monthly, yes — but you are buying the fit-out. There are 3,201 secondhand furniture and appliance listings from Ho Chi Minh City sellers on this site; a 300-item sample puts the median piece at ${d(2_480_000)}, with the middle half between ${d(1_050_000)} and ${d(4_100_000)}, a wardrobe around ${d(6_200_000)} and an air conditioner around ${d(4_298_000)}. Price the specific gaps in the flat you are looking at before you decide, not after you sign.`,
     },
   ],
 }
@@ -331,11 +351,12 @@ export const metadata: Metadata = {
   description:
     'How listings and viewings really work in Ho Chi Minh City, what a normal lease contains, the deposit norm and how it comes back, who declares your residence, which bills sit outside the rent, and the clauses worth negotiating.',
   alternates: { canonical: '/renting-an-apartment-vietnam-foreigner' },
-  openGraph: {
+  ...pageShare({
     title: `Renting an Apartment in Vietnam as a Foreigner | ${SITE_NAME}`,
     description:
       'The half a brokerage leaves out: lease terms, what the deposit really covers and how to get it back, metered bills, handover photos and the clauses that are actually negotiable.',
-  },
+    type: 'article',
+  }),
 }
 
 export default function Page() {

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -181,12 +182,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Mua iPhone ở đâu uy tín — 5 kiểu cửa hàng và cách kiểm tra máy | ${SITE_NAME}`,
   description:
     'Năm kiểu cửa hàng bán iPhone tại Việt Nam, chênh lệch giá mua được gì, cách phân biệt máy VN/A, máy trưng bày và hàng dựng, và các bước kiểm tra ngay tại quầy trước khi trả tiền.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function MuaIPhoneODauUyTinPage() {
   return <SeoArticle content={CONTENT} />

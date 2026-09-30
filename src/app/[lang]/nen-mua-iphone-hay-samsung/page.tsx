@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -128,12 +129,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Nên mua iPhone hay Samsung — giá bán lại, bảo hành, giá thực tế | ${SITE_NAME}`,
   description:
     'Ba yếu tố quyết định tại Việt Nam: iPhone giữ giá tốt hơn bao nhiêu trên thị trường máy cũ, khả năng sửa chữa và bảo hành của từng hãng, và giá thực tế khi Samsung đặt nhà máy ngay trong nước.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function NenMuaIPhoneHaySamsungPage() {
   return <SeoArticle content={CONTENT} />

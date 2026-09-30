@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -282,12 +283,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Hoàn thuế VAT khi mua điện thoại — ai được hoàn, hóa đơn đứng tên ai | ${SITE_NAME}`,
   description:
     'Hoàn thuế GTGT tại sân bay chỉ dành cho người mang hộ chiếu nước ngoài. Bài viết giải thích thực nhận bao nhiêu phần trăm, mốc 2.000.000 đ, cách lấy đúng hóa đơn khi mua hộ người sắp bay, và khi nào hóa đơn đỏ có giá trị với người mua trong nước.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function HoanThueVatMuaDienThoaiPage() {
   return <SeoArticle content={CONTENT} />

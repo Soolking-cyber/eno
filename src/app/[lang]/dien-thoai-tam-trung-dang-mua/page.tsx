@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -242,12 +243,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Điện thoại tầm trung đáng mua — chip, pin và thời hạn cập nhật | ${SITE_NAME}`,
   description:
     'Khi nào máy tầm trung hơn hẳn flagship, ba thông số xuống cấp nhanh nhất là chip, pin và thời hạn cập nhật, và khi nào flagship đời trước đáng tiền hơn cả hai.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function DienThoaiTamTrungDangMuaPage() {
   return <SeoArticle content={CONTENT} />

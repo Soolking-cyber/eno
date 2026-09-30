@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -274,12 +275,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Bán điện thoại cũ được giá — thu cũ đổi mới hay bán ngoài | ${SITE_NAME}`,
   description:
     'Bốn cách bán máy cũ và khoảng chênh thật sự, cửa hàng chấm điểm máy theo những gì, cách xóa dữ liệu và hủy liên kết trước khi giao máy, cách nhận tiền an toàn và nên bán vào lúc nào.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function BanDienThoaiCuDuocGiaPage() {
   return <SeoArticle content={CONTENT} />

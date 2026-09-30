@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -166,12 +167,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Phone instalments in Vietnam — the 0% that is not 0% | ${SITE_NAME}`,
   description:
     'How trả góp works in Vietnam: credit-card conversion versus consumer finance, what paperwork each needs, the conversion and insurance fees that turn a 0% plan into an 8% one, and the one question that makes offers comparable.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function PhoneInstalmentsVietnamPage() {
   return <SeoArticle content={CONTENT} />

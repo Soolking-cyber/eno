@@ -13,8 +13,10 @@ export const revalidate = 3600
 
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
+import { LinkifiedTr } from '@/components/marketplace/linkified-tr'
 import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, TOS_VERSION } from '@/lib/site-legal'
 import { CROSS_SITE_REL, MARKETPLACE_HOME } from '@/lib/cross-site-links'
 import { TERMS_SERVICES_COPY } from '@/lib/terms-services-copy'
@@ -41,11 +43,11 @@ import { TERMS_SERVICES_COPY } from '@/lib/terms-services-copy'
 // would silently re-point again on the next edit. Anchors in these pages get quoted in emails and
 // in complaint threads; they have to keep meaning the same thing.
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Terms of Service | ${SITE_NAME}`,
   description: `The terms that apply when you use ${SITE_NAME}: accounts, listings posted by third parties, our role as an intermediary platform, liability, complaints and governing law.`,
   alternates: { canonical: '/terms' },
-}
+})
 
 type Section = { id: string; title: string; paras: string[] }
 
@@ -208,7 +210,7 @@ export default function TermsPage() {
         <ContentSection key={s.id} id={s.id} title={s.title}>
           <div className="space-y-2">
             {s.paras.map((p, j) => (
-              <p key={j} className="text-base leading-relaxed text-body"><Tr text={p} /></p>
+              <p key={j} className="text-base leading-relaxed text-body"><LinkifiedTr text={p} /></p>
             ))}
             {s.id === 'related' && IS_SERVICES && MARKETPLACE_HOME ? (
               <p className="text-base leading-relaxed text-body">

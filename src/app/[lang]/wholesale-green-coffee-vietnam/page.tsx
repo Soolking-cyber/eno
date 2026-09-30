@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { storefrontUrl } from '@/lib/storefront-host'
 
@@ -15,11 +16,11 @@ export const metadata: Metadata = {
   description:
     'Buy green Robusta coffee beans wholesale from Đắk Lắk, Vietnam — S18, S16 and S13 screens, wet-polished, clean 2%/5%/25% black & broken, honey, natural and anaerobic lots. Prices per kg in đồng, straight from the grader.',
   alternates: { canonical: '/wholesale-green-coffee-vietnam' },
-  openGraph: {
+  ...pageShare({
     title: `Wholesale Green Coffee Beans Vietnam — Robusta by the Kilo | ${SITE_NAME}`,
     description:
       'Green Robusta from Buôn Ma Thuột by the kilogram — screen grades, defect ratios and processing method stated on every lot.',
-  },
+  }),
 }
 
 /**

@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -166,11 +167,11 @@ export const metadata: Metadata = {
   description:
     'Vietnam e-visa, 90 days, single or multiple entry, at seven processing speeds from standard to 1-hour express. Every option priced on its own listing — compare before you apply.',
   alternates: { canonical: '/vietnam-evisa' },
-  openGraph: {
+  ...pageShare({
     title: `Vietnam e-Visa — Prices, Processing Times & How to Apply | ${SITE_NAME}`,
     description:
       `Single or multiple entry, standard to 1-hour express. Every combination priced up front on ${SITE_NAME}, provided by a licensed Vietnamese travel partner.`,
-  },
+  }),
 }
 
 /**

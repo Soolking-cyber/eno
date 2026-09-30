@@ -8,7 +8,7 @@ import { AFFILIATION, COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import { PROVIDER_LICENCE_ON_FILE, PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { LANGUAGES } from '@/lib/i18n/langs'
-import { POSTING_IS_FREE, SHARE_CARD, aboutPageJsonLd, siteOrigin } from '@/lib/site-identity'
+import { POSTING_IS_FREE, aboutPageJsonLd, siteOrigin, withShare } from '@/lib/site-identity'
 import { inCity, loadSiteFacts, shareOf, type SiteFacts } from '@/lib/site-facts'
 
 /**
@@ -77,29 +77,30 @@ const DESCRIPTION = IS_SERVICES ? SERVICES_DESCRIPTION : MARKETPLACE_DESCRIPTION
 export const revalidate = 3600
 
 /**
- * ⚠️ `openGraph` AND `twitter` ARE SET HERE IN FULL, IMAGE INCLUDED. Next replaces the layout's
- * objects with a page's rather than merging them, so without these the About link previewed with the
- * HOMEPAGE's title (measured: og:title "eno.vn - Trusted Expat Marketplace in Vietnam" on /about),
- * and an override of title/description alone would have dropped the share card.
+ * ⚠️ THE <title> FOLLOWS THE `[lang]` VARIANT; NOTHING ELSE HERE DOES (L-CONTENT-VI, 2026-09-29). A
+ * Vietnamese reader got the English <title>. Only the marketplace's has a Vietnamese one — the services
+ * title stays exactly as is (rule 1 above) — and openGraph/twitter stay English on both variants: a
+ * share scraper sends no language, so the card must not depend on which variant it happened to hit.
  */
-export const metadata: Metadata = {
+const MARKETPLACE_TITLE_VI = `Về ${SITE_NAME} — ${POSTING_IS_FREE ? 'rao vặt miễn phí' : 'rao vặt'} cho người nước ngoài và người Việt tại Việt Nam`
+
+/**
+ * ⚠️ `openGraph` AND `twitter` ARE SET, IMAGE INCLUDED — through withShare(), which builds both whole.
+ * Next replaces the layout's objects with a page's rather than merging them, so without these the
+ * About link previewed with the HOMEPAGE's title (measured: og:title "eno.vn - Trusted Expat
+ * Marketplace in Vietnam" on /about), and an override of title/description alone would have dropped
+ * the share card. generateMetadata below swaps only the <title> for the Vietnamese variant; both
+ * cards keep the English TITLE, per the note above MARKETPLACE_TITLE_VI.
+ */
+const BASE_METADATA: Metadata = withShare({
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: '/about' },
-  openGraph: {
-    title: TITLE,
-    description: DESCRIPTION,
-    url: '/about',
-    siteName: SITE_NAME,
-    type: 'website',
-    images: [{ ...SHARE_CARD, alt: `${SITE_NAME} — buy, sell, rent and connect in Vietnam` }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: TITLE,
-    description: DESCRIPTION,
-    images: [SHARE_CARD.url],
-  },
+})
+
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  return { ...BASE_METADATA, title: !IS_SERVICES && lang === 'vi' ? MARKETPLACE_TITLE_VI : TITLE }
 }
 
 const LINK = 'font-semibold text-accent-foreground hover:underline'
@@ -252,12 +253,15 @@ const RAIL = IS_SERVICES
       { id: 'operator', label: 'Who runs this site' },
       { id: 'contact', label: 'Contact' },
     ]
-  : [
+  : // `labelVi` is AUTHORED Vietnamese (L-CONTENT-VI): rail labels are data, which the ui-strings
+    // harvester never sees, so these reached a Vietnamese reader in English. Marketplace branch only
+    // — the services list above stays untouched, per rule 1.
+    [
       { id: 'glance', label: 'At a glance' },
-      { id: 'what', label: 'What eno.vn is' },
+      { id: 'what', label: 'What eno.vn is', labelVi: 'eno.vn là gì' },
       { id: 'trust', label: 'How trust works' },
-      { id: 'affiliation', label: 'How the two sites relate' },
-      { id: 'operator', label: 'Who runs this site' },
+      { id: 'affiliation', label: 'How the two sites relate', labelVi: 'Hai website liên quan thế nào' },
+      { id: 'operator', label: 'Who runs this site', labelVi: 'Ai vận hành website này' },
       { id: 'contact', label: 'Contact' },
     ]
 
@@ -431,6 +435,7 @@ export default async function AboutPage() {
       )}
       <ContentPage
         title={IS_SERVICES ? 'Before you arrive, and after you land.' : 'The trusted marketplace for Vietnam.'}
+        titleVi={IS_SERVICES ? undefined : 'Chợ mua bán uy tín tại Việt Nam.'}
         intro={<Tr text={IS_SERVICES ? SERVICES_INTRO : MARKETPLACE_INTRO} />}
         sections={RAIL}
       >
@@ -440,7 +445,7 @@ export default async function AboutPage() {
           </ContentSection>
         )}
 
-        <ContentSection id="what" title={IS_SERVICES ? 'What eno.forum is' : 'What eno.vn is'}>
+        <ContentSection id="what" title={IS_SERVICES ? 'What eno.forum is' : 'What eno.vn is'} titleVi={IS_SERVICES ? undefined : 'eno.vn là gì'}>
           {(IS_SERVICES ? SERVICES_WHAT : MARKETPLACE_WHAT).map((p, i) => (
             <Para key={i} text={p} />
           ))}
@@ -471,7 +476,7 @@ export default async function AboutPage() {
               <div key={i} className="flex gap-4">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-foreground">
+                  <h3 className="text-base font-bold text-foreground">
                     <Tr text={s.title} />
                   </h3>
                   <p className="mt-1 text-sm leading-relaxed text-body">
@@ -506,7 +511,7 @@ export default async function AboutPage() {
           </ContentSection>
         )}
 
-        <ContentSection id="affiliation" title="How eno.vn and eno.forum relate">
+        <ContentSection id="affiliation" title="How eno.vn and eno.forum relate" titleVi="eno.vn và eno.forum liên quan thế nào">
           {/* Disclosed affiliation, not independence — claiming the sites are unrelated would be
               false, and a false disclosure is worse than none. Authored in both languages. */}
           <p className="text-base leading-relaxed text-body">
@@ -515,7 +520,7 @@ export default async function AboutPage() {
           <Para text={AFFILIATION_PLAIN} />
         </ContentSection>
 
-        <ContentSection id="operator" title="Who runs this site">
+        <ContentSection id="operator" title="Who runs this site" titleVi="Ai vận hành website này">
           <Para text={OPERATOR_LINE} />
           <p className="text-base leading-relaxed text-body">
             <Tr text="The rules for using the site, the operator notice Vietnamese law requires, and how your personal data is handled are set out on three pages:" />{' '}

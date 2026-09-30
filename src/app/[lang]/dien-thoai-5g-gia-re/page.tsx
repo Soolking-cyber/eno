@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -258,12 +259,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Điện thoại 5G giá rẻ — sóng tới đâu và thông số nào đáng tiền | ${SITE_NAME}`,
   description:
     'Vùng phủ 5G thực tế tại Việt Nam, SIM 4G có dùng được 5G không, bốn thông số quyết định máy giá rẻ trụ được mấy năm, và nên chọn máy 5G mới hay flagship cũ.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function DienThoai5GGiaRePage() {
   return <SeoArticle content={CONTENT} />

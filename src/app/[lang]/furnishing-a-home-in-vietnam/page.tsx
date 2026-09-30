@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
@@ -194,11 +195,12 @@ export const metadata: Metadata = {
   description:
     'What a landlord should already supply, what is worth buying new, what to buy secondhand, and how to check a used fridge, washing machine or wardrobe before you pay for it.',
   alternates: { canonical: '/furnishing-a-home-in-vietnam' },
-  openGraph: {
+  ...pageShare({
     title: `Furnishing a Home in Vietnam Without Overpaying | ${SITE_NAME}`,
     description:
       'What to buy new, what to buy used, and the five-minute test that separates a working secondhand appliance from an expensive one.',
-  },
+    type: 'article',
+  }),
 }
 
 export default function Page() {

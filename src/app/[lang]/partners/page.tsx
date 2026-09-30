@@ -1,19 +1,25 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { PartnerBadge } from '@/components/marketplace/partner-badge'
+import { Bilingual } from '@/components/marketplace/bilingual'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Official partners — ${SITE_NAME}`,
   description:
-    'What the gold Partner badge means: how eno picks partner companies, the documents and licences checked before the badge is granted, and what happens if a partner slips.',
+    'What the Partner badge means: how eno picks partner companies, the documents and licences checked before the badge is granted, and what happens if a partner slips.',
   alternates: { canonical: '/partners' },
-}
+})
 
 /**
- * THE EXPLAINER BEHIND THE GOLD PARTNER PILL — the /trust of partnerships, and built the same
+ * THE EXPLAINER BEHIND THE PARTNER BADGE — the /trust of partnerships, and built the same
  * way (ContentPage + ContentSection, flat canvas, hairline rows, no panels).
+ *
+ * ⚠️ THE COPY NAMES THE BADGE BY ITS SHAPE, NEVER BY A COLOUR. It said "a gold Partner badge" for
+ * two weeks after the plate turned partner green (partner-badge.tsx, 2026-09-14), and the dark theme
+ * still inverts it — any colour word here is a claim one theme contradicts (C-PARTNERS-COPY).
  *
  * ⚠️ THE ONE SENTENCE THIS PAGE MUST NOT CONTAIN. The owner's brief asked it to say eno
  * "guarantee[s] the quality of service". It does not say that, and the omission is deliberate
@@ -69,10 +75,16 @@ export default function PartnersPage() {
   return (
     <ContentPage
       title="Official partners"
+      /* ⛔ PHRASING CONTENT ONLY. ContentPage renders `intro` INSIDE a <p>; this used to pass its own
+         <p>, the parser closed the outer one early, and the server DOM stopped matching React's tree —
+         React #418 on every cold load of this page, and the duplicated Organization/WebSite JSON-LD
+         that came from re-rendering the root on the client (C-HYDRATION, measured 2026-09-29).
+         src/app/[lang]/html-nesting-contract.test.ts fails the build on a block element here. */
       intro={
-        <p className="text-body leading-relaxed">
-          <Tr text="A handful of companies on eno carry a gold Partner badge. It is not advertising and it cannot be bought — eno goes looking for the best company in a category, checks who they actually are, and puts its own name next to theirs." />
-        </p>
+        <Bilingual
+          en="A handful of companies on eno carry the Partner badge — a shield marked P. It is not advertising and it cannot be bought — eno goes looking for the best company in a category, checks who they actually are, and puts its own name next to theirs."
+          vi="Chỉ một số ít công ty trên eno mang huy hiệu Đối tác — hình chiếc khiên có chữ P. Đây không phải quảng cáo và không thể mua được — eno tự tìm kiếm công ty tốt nhất trong từng danh mục, xác minh rõ họ thực sự là ai, rồi mới đặt tên mình bên cạnh họ."
+        />
       }
       sections={[
         { id: 'what', label: 'What the badge means' },

@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { seoLandingRobots } from '@/components/marketplace/seo-landing-robots'
 import { LANDING_TARGET } from './landing-target'
@@ -24,11 +25,11 @@ const BASE_METADATA: Metadata = {
   description:
     'English-teaching jobs and roles for English speakers in Vietnam — Ho Chi Minh City, Hanoi, Da Nang and beyond. Each job links to the original posting, where you apply. Never pay to get a job.',
   alternates: { canonical: '/jobs-vietnam-expats' },
-  openGraph: {
+  ...pageShare({
     title: `Jobs for Expats & Internationals in Vietnam | ${SITE_NAME}`,
     description:
       'English-teaching jobs and roles for English speakers in Vietnam, each linked to the original posting.',
-  },
+  }),
 }
 
 const CONTENT: SeoContent = {

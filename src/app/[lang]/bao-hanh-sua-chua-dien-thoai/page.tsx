@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -286,12 +287,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Bảo hành và sửa chữa điện thoại — ai bảo hành cái gì | ${SITE_NAME}`,
   description:
     'Phân biệt bảo hành chính hãng, bảo hành cửa hàng và gói mở rộng; ép kính, màn zin bóc máy hay màn lô; các trường hợp bị từ chối bảo hành; thời gian sửa ước lượng và sáu thứ phải kiểm tra khi nhận máy.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function BaoHanhSuaChuaDienThoaiPage() {
   return <SeoArticle content={CONTENT} />

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
@@ -48,11 +49,11 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: PATH },
-  openGraph: {
+  ...pageShare({
     title: TITLE,
     description: DESCRIPTION,
     url: PATH,
-  },
+  }),
 }
 
 /**

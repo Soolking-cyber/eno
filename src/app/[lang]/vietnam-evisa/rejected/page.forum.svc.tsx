@@ -1,6 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
 import { EVISA_HUB_PATH, evisaRelated } from '../links'
@@ -99,10 +100,10 @@ export const metadata: Metadata = {
   description:
     'Vietnam e-visa refused? The fixable causes (name mismatches, passport validity, photo quality), the ones reapplying will not solve, and what a second application costs.',
   alternates: { canonical: '/vietnam-evisa/rejected' },
-  openGraph: {
+  ...pageShare({
     title: `Vietnam e-Visa Rejected — What to Do Next | ${SITE_NAME}`,
     description: 'Which refusal causes you can correct, which you cannot, and what reapplying costs.',
-  },
+  }),
 }
 
 export default function Page() {

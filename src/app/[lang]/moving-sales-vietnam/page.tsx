@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { formatMoneyFull } from '@/lib/vnd'
 import { marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
@@ -35,23 +36,24 @@ export const metadata: Metadata = {
   description:
     'Used sofas, wardrobes, air conditioners and washing machines in Ho Chi Minh City, mostly from secondhand shops — measured asking prices, what to check before you pay, and how to sell up when you move out.',
   alternates: { canonical: '/moving-sales-vietnam' },
-  openGraph: {
+  ...pageShare({
     title: `Moving Sales & Secondhand Furniture in Vietnam | ${SITE_NAME}`,
     description: 'Used furniture and appliances in Ho Chi Minh City, mostly from secondhand shops, with measured asking prices.',
-  },
+  }),
 }
 
 /**
  * ⚠️ MEASURED, DATED AND SAMPLED — the same 2026-09-23 sample the secondhand-furniture guide quotes
  * (n=300 used furniture-appliance listings), so the site states one fact one way. Asking prices, not
- * sold prices, and the sentence says so. Formatted through src/lib/vnd.ts in the guides' money
- * convention — đồng with DOT grouping (2.480.000 đ), exactly as rental-deposit-vietnam and the
- * secondhand-furniture guide print the same three figures; an 'en' format here printed 2,480,000 đ,
- * one fact two ways (opus review, 2026-09-27).
+ * sold prices, and the sentence says so. Formatted through src/lib/vnd.ts in ENGLISH grouping
+ * (2,480,000 đ), exactly as rental-deposit-vietnam and the secondhand-furniture guide print the same
+ * three figures — one fact one way (opus review, 2026-09-27). All four English guides used to print
+ * DOT grouping on a misreading of vnd.ts, which groups đồng by the reader's language (L-NUMBERS,
+ * 2026-09-29).
  */
-const MEDIAN = formatMoneyFull(2_480_000, '₫', 'vi')
-const P25 = formatMoneyFull(1_050_000, '₫', 'vi')
-const P75 = formatMoneyFull(4_100_000, '₫', 'vi')
+const MEDIAN = formatMoneyFull(2_480_000, '₫', 'en')
+const P25 = formatMoneyFull(1_050_000, '₫', 'en')
+const P75 = formatMoneyFull(4_100_000, '₫', 'en')
 
 /** From the registry — see the same note on /housing-vietnam-expats. English guides only. */
 const RELATED_GUIDES = ['/selling-up-before-you-leave-vietnam', '/secondhand-furniture-ho-chi-minh-city', '/furnishing-a-home-in-vietnam']

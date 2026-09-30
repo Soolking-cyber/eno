@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { PROVIDER_OF_RECORD, VISA_PROVIDER } from '@/lib/visa-provider'
 import { expatGuidesExcept } from '@/lib/expat-guides'
@@ -329,11 +330,12 @@ export const metadata: Metadata = {
   description:
     'The official Vietnam e-visa process at evisa.gov.vn, the government fee (US$25 single / US$50 multiple entry at the time of writing), the official processing time, and an honest account of what an agent can and cannot do for you.',
   alternates: { canonical: '/vietnam-evisa/official-process' },
-  openGraph: {
+  ...pageShare({
     title: `Vietnam e-Visa: Official Process, Official Fee & What a Service Can Do | ${SITE_NAME}`,
     description:
       'One government portal, one government fee. What a service genuinely adds, and what nobody can sell you.',
-  },
+    type: 'article',
+  }),
 }
 
 export default function Page() {

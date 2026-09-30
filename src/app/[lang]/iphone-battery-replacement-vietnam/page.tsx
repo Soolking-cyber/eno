@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -279,12 +280,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `iPhone battery replacement in Vietnam — official vs independent | ${SITE_NAME}`,
   description:
     'When iPhone battery health actually means replace, what an authorised service centre gives you that an independent shop cannot, how a non-genuine cell shows up as Unknown Part in Settings, and the checks that catch a swapped battery.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function IPhoneBatteryReplacementVietnamPage() {
   return <SeoArticle content={CONTENT} />

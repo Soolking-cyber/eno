@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -142,12 +143,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Có nên lên đời iPhone 18 — tính chi phí thật trước khi đổi máy | ${SITE_NAME}`,
   description:
     'iPhone 18 Pro khác iPhone 17 Pro những gì, cách tính chi phí lên đời bằng giá bán lại máy cũ, khi nào nên chờ bản không Pro mùa xuân 2027, và vì sao 17 Pro lúc này thường là lựa chọn hợp lý hơn.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function CoNenLenDoiIPhone18Page() {
   return <SeoArticle content={CONTENT} />

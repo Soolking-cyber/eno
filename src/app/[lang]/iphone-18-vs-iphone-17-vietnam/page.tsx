@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -147,12 +148,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `iPhone 18 vs iPhone 17 in Vietnam — worth the upgrade? | ${SITE_NAME}`,
   description:
     'What actually changed between the iPhone 18 Pro and the 17 Pro, how to work out the real cost of upgrading in a market with a deep second-hand tier, who should skip it, and why the outgoing flagship is often the smarter buy.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function IPhone18VsIPhone17VietnamPage() {
   return <SeoArticle content={CONTENT} />

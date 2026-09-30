@@ -1,10 +1,12 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { LiveCounts } from '@/components/marketplace/live-count'
+import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 
 // 1h, not 7d. The copy IS static, but the page also renders a LIVE 8-listing rail and an
 // "inventory is empty" branch — so at weekly regeneration a category that filled on Monday kept
@@ -44,10 +46,10 @@ export const metadata: Metadata = {
   description:
     'Expat housing in Ho Chi Minh City — apartments, houses and rooms for rent in Thao Dien, District 2, District 7, District 1 and Binh Thanh, and what to check before you view, sign and pay a deposit.',
   alternates: { canonical: '/housing-vietnam-expats' },
-  openGraph: {
+  ...pageShare({
     title: `Expat Housing in Vietnam: Renting in Ho Chi Minh City | ${SITE_NAME}`,
     description: 'Apartments, houses and rooms for rent in Ho Chi Minh City, and what to check before you sign.',
-  },
+  }),
 }
 
 /**
@@ -82,6 +84,11 @@ const CONTENT: SeoContent = {
   // Rentals (not `property`) is right per the taxonomy split: rentals owns ALL rent intent,
   // property is buy-sell only, and an expat looking for somewhere to live is renting.
   categorySlug: 'rentals',
+  // ⛔ HOMES ONLY — apartments, houses, rooms (src/lib/rental-homes.ts). `rentals` also holds offices
+  // and shopfronts, and measured 2026-09-29 four of this rail's eight cards were Office/shopfront (a
+  // 1,400m² unit among them) under a page about where an expat lives. The live count below is the
+  // same set, so the number and the rail agree (C1-HOUSING).
+  subcategoryIn: HOME_RENTAL_SUBCATS,
   // Not "Trusted listings" (the component default): the rail is mostly partner imports that
   // nobody here has vetted, the same reason the jobs landing renames its rail.
   railTitle: 'Latest rentals',
@@ -128,13 +135,15 @@ export default function Page() {
         // removes the clause on the next hourly render. On a failed count the line is not rendered at
         // all — the page never falls back to a remembered figure.
         <>
-          <LiveCounts targets={{ rentals: { categorySlug: 'rentals', allIn: 'Ho Chi Minh' } }} lang="en">
+          <LiveCounts targets={{ rentals: { categorySlug: 'rentals', subcategoryIn: HOME_RENTAL_SUBCATS, allIn: 'Ho Chi Minh' } }} lang="en">
             {({ rentals }) =>
               rentals && (
                 <p className="mt-4 max-w-prose text-sm leading-relaxed text-body">
+                  {/* "homes", not "rentals": the count is the rail's set (apartments, houses, rooms), and
+                      "N rentals" would read as the whole category that /c/rentals counts larger. */}
                   {rentals.allInside
-                    ? `${rentals.count} rentals are listed right now, every one of them in Ho Chi Minh City.`
-                    : `${rentals.count} rentals are listed right now.`}
+                    ? `${rentals.count} homes are listed for rent right now, every one of them in Ho Chi Minh City.`
+                    : `${rentals.count} homes are listed for rent right now.`}
                 </p>
               )
             }

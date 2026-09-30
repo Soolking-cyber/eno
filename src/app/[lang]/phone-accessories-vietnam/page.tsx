@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -294,12 +295,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Phone accessories worth buying in Vietnam | ${SITE_NAME}`,
   description:
     'What Vietnam’s heat and humidity do to cases, glass and cables, which fast-charging standard your phone actually needs, whether your charger plugs in here, and the accessories that are pure markup.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function PhoneAccessoriesVietnamPage() {
   return <SeoArticle content={CONTENT} />

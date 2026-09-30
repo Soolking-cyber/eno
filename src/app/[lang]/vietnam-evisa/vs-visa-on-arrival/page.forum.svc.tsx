@@ -1,6 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
 import { EVISA_HUB_PATH, evisaRelated } from '../links'
@@ -73,10 +74,10 @@ export const metadata: Metadata = {
   description:
     'Vietnam e-visa or visa on arrival? What each actually involves, which one works at land borders, why the advertised prices are not comparable, and which to choose.',
   alternates: { canonical: '/vietnam-evisa/vs-visa-on-arrival' },
-  openGraph: {
+  ...pageShare({
     title: `Vietnam e-Visa vs Visa on Arrival — Which Applies to You | ${SITE_NAME}`,
     description: 'Two products, similar names, different arrival requirements. The practical difference.',
-  },
+  }),
 }
 
 export default function Page() {

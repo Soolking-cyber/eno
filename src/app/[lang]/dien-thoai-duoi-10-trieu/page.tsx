@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -285,12 +286,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Điện thoại dưới 10 triệu nên mua máy mới hay máy cũ | ${SITE_NAME}`,
   description:
     'Dưới 10 triệu, máy mới tầm trung cho gì và cắt gì, cùng số tiền mua máy cũ được flagship đời nào, những thông số dễ đánh lừa ở phân khúc này, và checklist kiểm tra trước khi trả tiền.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function DienThoaiDuoi10TrieuPage() {
   return <SeoArticle content={CONTENT} />

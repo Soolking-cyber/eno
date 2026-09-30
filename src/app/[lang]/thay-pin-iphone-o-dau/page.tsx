@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -270,12 +271,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Thay pin iPhone ở đâu — chính hãng, pin zin hay pin ngoài | ${SITE_NAME}`,
   description:
     'Khi nào pin iPhone thật sự cần thay, ba loại pin trên thị trường khác nhau ra sao, vì sao máy báo Bộ phận không xác định, và các bước kiểm tra tại quầy để không bị tráo pin.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function ThayPinIPhoneODauPage() {
   return <SeoArticle content={CONTENT} />

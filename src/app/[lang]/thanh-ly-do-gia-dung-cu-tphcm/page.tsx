@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
@@ -322,11 +323,12 @@ export const metadata: Metadata = {
   description:
     'Khoảng giá thật của máy lạnh, máy giặt, sofa, tủ quần áo cũ tại TP.HCM đo từ tin đang rao; cách kiểm tra trước khi trả tiền; và vì sao cửa hàng thu mua không bao giờ trả bạn mức giá họ rao lại.',
   alternates: marketplaceGuideAlternates(SLUG),
-  openGraph: {
+  ...pageShare({
     title: `Thanh lý đồ gia dụng cũ TP.HCM: giá thật và cách kiểm tra | ${SITE_NAME}`,
     description:
       'Trung vị 2.480.000 đ cho đồ gia dụng cũ tại TP.HCM — giá từng món, cách kiểm tra máy lạnh và máy giặt trong vài phút, và cách thanh lý khi chuyển nhà mà không bán hớ.',
-  },
+    type: 'article',
+  }),
 }
 
 export default function ThanhLyDoGiaDungCuTphcmPage() {

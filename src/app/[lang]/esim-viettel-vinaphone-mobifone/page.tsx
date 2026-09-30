@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -155,12 +156,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `eSIM Viettel, VinaPhone, MobiFone — chuyển đổi và giữ nguyên số | ${SITE_NAME}`,
   description:
     'Cách chuyển SIM vật lý sang eSIM mà giữ nguyên số, giấy tờ cần mang, máy nào hỗ trợ eSIM, và điều quan trọng nhất khi đổi điện thoại mới để không mất số.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function EsimViettelVinaphoneMobifonePage() {
   return <SeoArticle content={CONTENT} />

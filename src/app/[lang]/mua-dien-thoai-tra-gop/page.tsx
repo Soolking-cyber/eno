@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -155,12 +156,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('vi', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Mua điện thoại trả góp 0% có thật sự 0% — phí ẩn cần biết | ${SITE_NAME}`,
   description:
     'Trả góp qua thẻ tín dụng và qua công ty tài chính khác nhau thế nào, cần giấy tờ gì, phí chuyển đổi và bảo hiểm khoản vay ảnh hưởng ra sao, và câu hỏi duy nhất giúp so sánh mọi gói trả góp.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function MuaDienThoaiTraGopPage() {
   return <SeoArticle content={CONTENT} />

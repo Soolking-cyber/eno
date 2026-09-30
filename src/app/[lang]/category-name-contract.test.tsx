@@ -42,6 +42,13 @@ const TR_OF_A_NAME = /<Tr\s+text=\{\s*[\w.?]*\.name\s*\}/
  * wizard already use.
  */
 const TR_CALL_OF_A_NAME = /\b(?:tr|useTr)\(\s*[\w.?]*\.name\s*\)/
+/**
+ * The row's Vietnamese handed to `<Tr>` as its text (the `lang === 'vi' ? x.nameVi : x.name` shape).
+ * `<Tr>` keys its dictionary by ENGLISH, so the Vietnamese name missed it and was sent to machine
+ * translation INTO Vietnamese — "Cho thuê", "Việc làm", "Điện tử" were posted to /api/translate on
+ * every vi home view, to come back unchanged (2026-09-29).
+ */
+const TR_OF_A_NAME_VI = /<Tr\s+text=\{[^}]*\.nameVi\b/
 /** A `<Bilingual>` whose `en` is some object's `.name`: captures the object and the `vi` expression. */
 const BILINGUAL_NAME = /<Bilingual\s+en=\{\s*([\w.?]+)\.name\s*\}\s+vi=\{([^}]*)\}/g
 
@@ -53,6 +60,11 @@ describe('category names come from the category row', () => {
 
   it('no source renders a `.name` through <Tr>', () => {
     const hits = FILES.filter((f) => TR_OF_A_NAME.test(f.text)).map((f) => f.path)
+    expect(hits, 'render it as <Bilingual en={x.name} vi={x.nameVi || x.name} /> instead').toEqual([])
+  })
+
+  it('no source hands a row’s `.nameVi` to <Tr>', () => {
+    const hits = FILES.filter((f) => TR_OF_A_NAME_VI.test(f.text)).map((f) => f.path)
     expect(hits, 'render it as <Bilingual en={x.name} vi={x.nameVi || x.name} /> instead').toEqual([])
   })
 

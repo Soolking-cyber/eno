@@ -4,6 +4,7 @@ import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landin
 import { lowestPrices, type PriceRow } from './lowest-prices'
 import { AffiliateNote, PriceTable } from './price-table'
 import { modelProductLd } from './model-product-ld'
+import { pageShare } from '@/lib/site-identity'
 
 /**
  * ONE MODEL, ONE PAGE — the machinery the per-variant landing pages share.
@@ -127,7 +128,7 @@ export const modelMeta = (cfg: ModelPageConfig, description: string) => ({
   title: `${cfg.h1} — live prices | ${SITE_NAME}`,
   description,
   alternates: { canonical: `/${cfg.slug}` },
-  openGraph: { title: cfg.h1, description },
+  ...pageShare({ title: cfg.h1, description }),
 })
 
 export async function ModelLanding({ cfg }: { cfg: ModelPageConfig }) {

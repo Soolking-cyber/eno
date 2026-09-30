@@ -1,6 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
 import { EVISA_HUB_PATH, evisaRelated } from '../links'
@@ -79,10 +80,10 @@ export const metadata: Metadata = {
   description:
     'Vietnam multiple entry e-visa: what it costs against single entry at each processing speed, when the difference is worth paying, and when it is not.',
   alternates: { canonical: '/vietnam-evisa/multiple-entry-cost' },
-  openGraph: {
+  ...pageShare({
     title: `Vietnam Multiple Entry e-Visa — Cost & When It Pays Off | ${SITE_NAME}`,
     description: '90 days either way — the extra buys crossings, not time. When that is worth it.',
-  },
+  }),
 }
 
 export default function Page() {

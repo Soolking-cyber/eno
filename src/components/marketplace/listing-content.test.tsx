@@ -5,7 +5,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 
 import { LanguageProvider } from '@/context/language-context'
 import { detectContentLang } from '@/lib/detect-lang'
-import { ListingDescription, LocalizedTitle, RichText, ownDescriptionVi } from './listing-content'
+import { ListingDescription, LocalizedTitle, RichText, localizedPlan, ownDescriptionVi, useLocalized, type LocalizedColumn } from './listing-content'
 
 /**
  * THE LIGHT-MARKDOWN FORMATTER, which now renders BOTH listing descriptions and storefront bios.
@@ -91,6 +91,56 @@ describe('RichText / formatDescription', () => {
     const { container } = renderRich(TICK_BIO)
     expect(container.querySelectorAll('p')).toHaveLength(1)
     expect(screen.getByText('Welcome to Eno')).toBeTruthy()
+  })
+})
+
+/**
+ * AN IMPORTER'S 'Label: value' FACT BLOCK. One fact per SINGLE newline is a soft wrap to this parser,
+ * so a rental's Type, Area and Bedrooms used to merge into one run-on paragraph — the same failure
+ * the tick-list cases above guard, in the shape every imported rental description has.
+ */
+describe('RichText / fact lines', () => {
+  it("turns a run of 'Label: value' lines into ONE spec list, after the prose above it", () => {
+    const { container } = renderRich(['Listed on Nhatot.com.', '', 'Type: Apartment', 'Area: 28 m²', 'Bedrooms: 1'].join('\n'))
+    expect(container.querySelectorAll('dl')).toHaveLength(1)
+    expect([...container.querySelectorAll('dt')].map((d) => d.textContent)).toEqual(['Type', 'Area', 'Bedrooms'])
+    expect([...container.querySelectorAll('dd')].map((d) => d.textContent)).toEqual(['Apartment', '28 m²', '1'])
+    expect(container.querySelectorAll('p')).toHaveLength(1)
+    // ⚠️ The regression: before, all three facts were one paragraph.
+    expect(container.textContent).not.toContain('Apartment Area')
+  })
+
+  it('keeps a single fact line as prose — one "Note:" is a sentence, not a table', () => {
+    const { container } = renderRich(['Great bike.', 'Note: call first'].join('\n'))
+    expect(container.querySelector('dl')).toBeNull()
+    expect(container.querySelector('p')?.textContent).toBe('Great bike. Note: call first')
+  })
+
+  it('reads Vietnamese labels, slashes included', () => {
+    const { container } = renderRich(['Phường/xã: Tân Bình', 'Quận/huyện: Tân Bình'].join('\n'))
+    expect(container.querySelectorAll('dl dt')).toHaveLength(2)
+    expect(container.querySelector('dt')?.textContent).toBe('Phường/xã')
+  })
+
+  it('leaves a dash list of "Size: M" items a bullet list', () => {
+    const { container } = renderRich(['- Size: M', '- Colour: red'].join('\n'))
+    expect(container.querySelector('dl')).toBeNull()
+    expect(container.querySelectorAll('ul li')).toHaveLength(2)
+  })
+
+  it('does not build a list from a sentence with a parenthesis in its label', () => {
+    const { container } = renderRich([
+      'X · free',
+      'Free (0đ): the eSIM plus 10GB of high-speed data for 24 hours, one per valid passport.',
+      'Includes: data',
+    ].join('\n'))
+    expect(container.querySelector('dl')).toBeNull()
+    expect(container.querySelectorAll('p')).toHaveLength(1)
+  })
+
+  it('leaves **bold:** lead-ins and links to the paragraph', () => {
+    const { container } = renderRich(['**Who can buy:** anyone with a passport', 'Site: https://example.com', 'https://example.com/a'].join('\n'))
+    expect(container.querySelector('dl')).toBeNull()
   })
 })
 
@@ -194,5 +244,168 @@ describe('ListingDescription / LocalizedTitle for a Vietnamese reader', () => {
     const title = 'The Pragmatic Programmer, 20th Anniversary Edition'
     const { container } = renderVi(<LocalizedTitle title={title} titleVi={title} i18n={{ vi: 'Lập trình viên thực dụng' }} />)
     expect(container.textContent).toBe(title)
+  })
+})
+
+/**
+ * ⛔ THE AUTHORED VIETNAMESE COLUMN WINS — even when the English slot names a Vietnamese place.
+ * detectContentLang reads one exclusive letter as "Vietnamese", so "… Tây Thạnh Ward" (ạ) used to be
+ * shown AS the Vietnamese version, over the titleVi the importer wrote beside it: 22 English rental
+ * cards on vi /c/rentals (2026-09-29). And an English reader of the same row was sent to
+ * English→English machine translation, one request per card.
+ */
+const EN_RENTAL = 'Office / shopfront · 65 m² for rent — Tây Thạnh Ward, Tân Phú District'
+const VI_RENTAL = 'Cho thuê Mặt bằng 65m² — Phường Tây Thạnh, Quận Tân Phú'
+const EN_RENTAL_DESC = ['Listed on Muaban.net.', '', 'Type: Room', 'Ward: Vĩnh Hội Ward (new), District 4', 'Rent: 10,500,000 đ/month'].join('\n')
+const VI_RENTAL_DESC = ['Tin đăng trên Muaban.net.', '', 'Loại: Phòng trọ', 'Phường: P. Vĩnh Hội mới, Quận 4', 'Giá thuê: 10.500.000 đ/tháng'].join('\n')
+
+describe('useLocalized — an English slot that names a Vietnamese place', () => {
+  function renderIn(lang: 'en' | 'vi', node: React.ReactNode) {
+    Object.defineProperty(navigator, 'languages', { configurable: true, get: () => (lang === 'vi' ? ['vi-VN', 'vi'] : ['en-US', 'en']) })
+    return render(<LanguageProvider initialLang={lang} initialViDict={{}}>{node}</LanguageProvider>)
+  }
+  /** Past the batcher's 60ms window, so a queued request would have been sent. */
+  const settle = () => new Promise((r) => setTimeout(r, 120))
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'languages')
+    vi.unstubAllGlobals()
+  })
+
+  it('a Vietnamese reader gets the titleVi, with no request', async () => {
+    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(detectContentLang(EN_RENTAL)).toBe('vi') // the false positive this guards
+    const { container } = renderIn('vi', <LocalizedTitle title={EN_RENTAL} titleVi={VI_RENTAL} />)
+    expect(container.textContent).toBe(VI_RENTAL)
+    await settle()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('a Vietnamese reader gets the descriptionVi of an English description that names "Vĩnh Hội"', () => {
+    const { container } = renderIn('vi', <ListingDescription text={EN_RENTAL_DESC} vi={VI_RENTAL_DESC} />)
+    expect(container.textContent).toContain('Tin đăng trên Muaban.net.')
+    expect(container.textContent).not.toContain('Listed on')
+  })
+
+  it('an English reader gets the English title as it is, with no request', async () => {
+    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { container } = renderIn('en', <LocalizedTitle title={EN_RENTAL} titleVi={VI_RENTAL} />)
+    expect(container.textContent).toBe(EN_RENTAL)
+    await settle()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('a Vietnamese-source title with no titleVi still renders the source for a Vietnamese reader', () => {
+    const src = 'Cho thuê phòng trọ gần chợ Bến Thành'
+    const { container } = renderIn('vi', <LocalizedTitle title={src} titleVi={null} i18n={{ vi: 'Phòng trọ cho thuê gần chợ Bến Thành' }} />)
+    expect(container.textContent).toBe(src)
+  })
+
+  it('⛔ an English title dense with place names is still the English slot — no request', async () => {
+    // 3 unmarked words at most, so it LOOKS Vietnamese by shape: 2,684 real titles like it were sent
+    // to English→English translation while a shape test sat on top of the schema rule (2026-09-29).
+    const title = '300 m² for rent — Tân Định Ward (new), District 1'
+    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { container } = renderIn('en', <LocalizedTitle title={title} titleVi="Cho thuê Nhà phố / Biệt thự 300m² — P. Tân Định mới, Quận 1" />)
+    expect(container.textContent).toBe(title)
+    await settle()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('⚠️ a DESCRIPTION beside a different descriptionVi is not assumed English — it still translates', () => {
+    // The shape of one shop's spec sheets: the scraped Vietnamese original in `description`, a
+    // re-labelled copy in descriptionVi. An English reader gets the embedded English, not the original.
+    const src = 'Hãng sản xuất: Màn hình Dell · Model: P2723D · Kích thước màn hình: 27 inch · Độ phân giải: QHD (2560 x 1440)'
+    const viCopy = 'Hãng sản xuất: Màn hình Dell · Mẫu: P2723D · Kích thước màn hình: 27 inch · Độ phân giải: QHD (2560 x 1440)'
+    const en = 'Manufacturer: Dell monitor · Model: P2723D · Screen size: 27 inch · Resolution: QHD (2560 x 1440)'
+    const { container } = renderIn('en', <ListingDescription text={src} vi={viCopy} i18n={{ en }} />)
+    expect(container.textContent).toBe(en)
+  })
+
+  it('an English reader of Vietnamese titles with nothing embedded: ONE request, each text once', async () => {
+    const src = 'Giảng viên — Đại học Việt Nam'
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ translations: ['Lecturer — Vietnam University'] }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    renderIn('en', <><p><LocalizedTitle title={src} titleVi={null} /></p><p><LocalizedTitle title={src} titleVi={null} /></p></>)
+    expect(await screen.findAllByText('Lecturer — Vietnam University')).toHaveLength(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body))
+    expect(body).toEqual({ texts: [src], target: 'en' })
+  })
+})
+
+/**
+ * ⛔ AN OFFICIAL HELP ANSWER IS ENGLISH BY AUTHORSHIP ('english'), SO NO LETTER IN IT SENDS IT TO
+ * /api/translate target=en. 10 of the 40 seeded bodies carry one the detector reads as foreign — "đ"
+ * in a VND price, "Cảm ơn" in a phrase list, "한국어" in the language list — and each was machine-
+ * translated English→English after hydration, tagged vi or ko (review, 2026-09-29). `en` in the plan is
+ * the only text useMachineEn ever sends, so '' there IS "no English-target request".
+ */
+const HELP_VND = 'After the photo, price is what buyers read first. 12.000.000 đ looks like a real price; 12tr reads like a guess.'
+const HELP_LANGS = 'The site speaks these languages:\n\n• English, Tiếng Việt, 中文, 한국어, Русский'
+const HELP_VND_VI = 'Sau ảnh, giá là điều người mua đọc đầu tiên. 12.000.000 đ trông như giá thật; 12tr đọc như đoán.'
+
+describe("localizedPlan — 'english' (an official help answer)", () => {
+  it.each([HELP_VND, HELP_LANGS])('an English reader gets the authored text and NO target=en request: %s', (text) => {
+    expect(detectContentLang(text)).not.toBeNull() // the per-letter false positive this guards
+    expect(localizedPlan(text, null, null, 'en', 'english')).toEqual({ embedded: text, tr: '', en: '' })
+    // …even when the cache holds an `en` row for it.
+    expect(localizedPlan(text, null, { en: 'MT' }, 'en', 'english').en).toBe('')
+  })
+
+  it('a Vietnamese reader gets the curated twin from the embed — not the English body read AS Vietnamese', () => {
+    expect(localizedPlan(HELP_VND, null, { vi: HELP_VND_VI }, 'vi', 'english')).toEqual({ embedded: HELP_VND_VI, tr: '', en: '' })
+    // The per-letter rule it replaces showed the English body to the Vietnamese reader.
+    expect(localizedPlan(HELP_VND, null, { vi: HELP_VND_VI }, 'vi', 'description').embedded).toBe(HELP_VND)
+  })
+
+  it('without an embed a non-English reader falls back to useTr (never target=en); another language to its own embed', () => {
+    expect(localizedPlan(HELP_VND, null, null, 'vi', 'english')).toEqual({ embedded: null, tr: HELP_VND, en: '' })
+    expect(localizedPlan(HELP_VND, null, { ko: '사진 다음은 가격' }, 'ko', 'english').embedded).toBe('사진 다음은 가격')
+    expect(localizedPlan(HELP_VND, null, null, 'ko', 'english')).toEqual({ embedded: null, tr: HELP_VND, en: '' })
+  })
+
+  it("a member's Vietnamese post still translates for an English reader (the 2026-07-14 rule stands)", () => {
+    const src = 'Làm sao để đăng tin cho thuê phòng?'
+    expect(localizedPlan(src, null, null, 'en', 'description')).toEqual({ embedded: null, tr: '', en: src })
+  })
+
+  it('English text with no foreign letter is left alone in every column', () => {
+    const text = 'How do I sign in?'
+    for (const column of ['title', 'description', 'english'] as LocalizedColumn[]) {
+      expect(localizedPlan(text, null, null, 'en', column)).toEqual({ embedded: text, tr: '', en: '' })
+    }
+  })
+})
+
+describe("useLocalized — 'english' rendered", () => {
+  function Probe({ text, i18n }: { text: string; i18n?: Record<string, string> | null }) {
+    return <>{useLocalized(text, null, i18n, 'english')}</>
+  }
+  function renderIn(lang: 'en' | 'vi', node: React.ReactNode) {
+    Object.defineProperty(navigator, 'languages', { configurable: true, get: () => (lang === 'vi' ? ['vi-VN', 'vi'] : ['en-US', 'en']) })
+    return render(<LanguageProvider initialLang={lang} initialViDict={{}}>{node}</LanguageProvider>)
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 120))
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'languages')
+    vi.unstubAllGlobals()
+  })
+
+  it('⛔ under the English UI: the authored body, and no request at all', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ translations: ['MT[After the …]'] }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { container } = renderIn('en', <><p><Probe text={HELP_VND} /></p><p><Probe text={HELP_LANGS} /></p></>)
+    await settle()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(container.textContent).toContain(HELP_VND)
+    expect(container.textContent).not.toContain('MT[')
+  })
+
+  it('under the Vietnamese UI: the curated twin, synchronously', () => {
+    const { container } = renderIn('vi', <Probe text={HELP_VND} i18n={{ vi: HELP_VND_VI }} />)
+    expect(container.textContent).toBe(HELP_VND_VI)
   })
 })

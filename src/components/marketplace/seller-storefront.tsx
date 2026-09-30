@@ -16,6 +16,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import { RichText } from '@/components/marketplace/listing-content'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
@@ -165,6 +166,30 @@ const loadReviews = cache(async (sellerId: string) => {
   }
 })
 
+/**
+ * The storefront header's two inputs — SellerCard's identity and its honest metrics strip — from a
+ * loaded seller and its 90-day conversation count. ONE builder for BOTH storefront bodies: this page
+ * and the subdomain storefront (s/[handle]/page.tsx), which used to print the shop's name as a bare
+ * 18px <p> with no avatar, badge or metrics while this one had the whole card (ST-HEADER, 2026-09-29).
+ */
+export function storefrontCard(seller: NonNullable<Awaited<ReturnType<typeof loadSeller>>>, convoCount: number) {
+  // Honest, decomposed display metrics for the shared SellerCard (raw responseRate stays server-side;
+  // only the bucketed label escapes).
+  const metrics = sellerMetrics({ ...seller, lastSeenAt: seller.owner?.lastSeenAt ?? null }, convoCount)
+  const cardSeller = {
+    id: seller.id,
+    name: seller.name,
+    avatarColor: seller.avatarColor,
+    avatarUrl: seller.avatarUrl,
+    isBusiness: seller.owner?.accountType === 'business',
+    // The verified-business badge — the identity-hash-derived gate (>=2 channels).
+    // seller has every scalar column (loadSeller uses include, no explicit select).
+    businessVerified: seller.owner?.accountType === 'business' && isBusinessVerified(seller),
+    officialPartner: seller.officialPartner,
+  }
+  return { cardSeller, metrics }
+}
+
 export async function SellerStorefront({ id }: { id: string }) {
   // The share address: the subdomain where `/s/<handle>` will actually serve this shop, otherwise the
   // path — this component is also the fallback for handles the subdomain rejects (brand-slug collisions).
@@ -254,22 +279,9 @@ export async function SellerStorefront({ id }: { id: string }) {
     diversifyBySeller(otherRows, { sharedSeats: true }).slice(0, OTHER_LISTINGS).map(serializeListingCard),
   )
 
-  // Honest, decomposed display metrics for the shared SellerCard (raw responseRate
-  // stays server-side; only the bucketed label escapes). Trust score / rating /
-  // member-year now ride in the card's metrics strip, so the old flat Stat grid is
-  // retired to avoid duplicating the same three signals.
-  const metrics = sellerMetrics({ ...seller, lastSeenAt: seller.owner?.lastSeenAt ?? null }, convoCount)
-  const cardSeller = {
-    id: seller.id,
-    name: seller.name,
-    avatarColor: seller.avatarColor,
-    avatarUrl: seller.avatarUrl,
-    isBusiness: seller.owner?.accountType === 'business',
-    // The verified-business badge — the identity-hash-derived gate (>=2 channels).
-    // seller has every scalar column (loadSeller uses include, no explicit select).
-    businessVerified: seller.owner?.accountType === 'business' && isBusinessVerified(seller),
-    officialPartner: seller.officialPartner,
-  }
+  // Trust score / rating / member-year ride in the card's metrics strip, so the old flat Stat grid
+  // is retired to avoid duplicating the same three signals.
+  const { cardSeller, metrics } = storefrontCard(seller, convoCount)
   // Anchor "Chat" to the newest active listing (listings already ordered postedAt
   // desc). Null when there's nothing active to talk about → button self-omits.
   // ⚠️ THE NEWEST listing THAT CHAT ACTUALLY WORKS FOR. A partner ticket is booked on the
@@ -527,9 +539,13 @@ export async function SellerStorefront({ id }: { id: string }) {
             ⚠️ EMPTY IS A REAL STATE AND RENDERS NOTHING. SellerListings returns null when it has no
             rows and no server total, which is what a hidden-list edition produces (eno.forum hides
             partners wholesale — an empty marketplace there is correct, not a bug to paper over). */}
+        {/* ⚠️ A RULED BREAK AND A HEADING THAT SAYS WHOSE (ST-HEADER, 2026-09-29): under "Listings by
+            <shop>" the continuation read as more of the shop — same grid, same cards, a heading
+            ("More on eno.vn") that did not say the seller changed. The hairline closes the shop;
+            the heading names the change of seller. */}
         {otherCount > 0 && (
-          <section className="mt-10 space-y-4">
-            <h2 className="h-section text-foreground"><Tr text="More on" /> {SITE_NAME}</h2>
+          <section className="mt-12 space-y-4 border-t border-border pt-8">
+            <h2 className="h-section text-foreground"><Bilingual en="More from other sellers" vi="Tin từ người bán khác" /></h2>
             {/* Server-rendered like the grid above, and see OTHER_LISTINGS for why it is 24 rather
                 than 60: this is the continuation, not the reason the visitor came. */}
             <SellerListings

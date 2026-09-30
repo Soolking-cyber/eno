@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -298,12 +299,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Selling your phone in Vietnam — trade-in vs private sale | ${SITE_NAME}`,
   description:
     'Trade-in, dealer buy-back or private sale in Vietnam, what battery health and VN/A status do to the price, how to wipe and unlink so the sale does not collapse at the handover, and the timing that costs the most.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function SellingYourPhoneVietnamPage() {
   return <SeoArticle content={CONTENT} />

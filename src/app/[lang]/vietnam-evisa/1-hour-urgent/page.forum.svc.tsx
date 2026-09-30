@@ -1,6 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
 import { VISA_BUSINESS_HOURS, VISA_SPEED_SPECS } from '@/lib/visa/speed'
@@ -90,10 +91,10 @@ export const metadata: Metadata = {
   description:
     'Vietnam e-visa in 1 hour: what the express tier actually promises, the daily intake cutoffs it depends on, and when a cheaper tier gets you there in time anyway.',
   alternates: { canonical: '/vietnam-evisa/1-hour-urgent' },
-  openGraph: {
+  ...pageShare({
     title: `Urgent Vietnam Visa — e-Visa in 1 Hour | ${SITE_NAME}`,
     description: 'The express tier, its daily cutoffs, and when it is not worth paying for.',
-  },
+  }),
 }
 
 export default function Page() {

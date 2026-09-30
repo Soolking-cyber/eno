@@ -1,3 +1,5 @@
+import type { Metadata } from 'next'
+import { detectContentLang, looksVietnamese } from '@/lib/detect-lang'
 import { SITE_NAME } from '@/lib/edition'
 import { LANGS } from '@/lib/i18n/langs'
 import { normalizePhone } from '@/lib/phone'
@@ -160,12 +162,92 @@ export function aboutPageJsonLd(origin: string, page: { name: string; descriptio
 }
 
 /**
- * The link-preview card, for a page that sets its own `openGraph`.
+ * The link-preview card, for a page that sets its own `openGraph` — which it does through
+ * pageOpenGraph() below, never by hand.
  *
  * ⚠️ WHY A PAGE NEEDS IT AT ALL: Next REPLACES a parent's `openGraph` object with the page's, it does
  * not merge into it. A page that overrides only title/description ships no og:image, og:type or
- * og:site_name (measured on the marketplace guides, 2026-09-27). Same file and dimensions as the root
- * layout's OG_IMAGE (src/app/[lang]/layout.tsx), whose comment explains the 1200x630 shape; the
- * layout should import this rather than keep its own literal.
+ * og:site_name (measured on the marketplace guides, 2026-09-27). The root layout's OG_IMAGE
+ * (src/app/[lang]/layout.tsx) is built from this, and its comment explains the 1200x630 shape.
  */
 export const SHARE_CARD = { url: '/og/share-card.jpg', width: 1200, height: 630 } as const
+/** The share card's alt — what the image SHOWS, the site, so it is the same on every page that uses it. */
+export const SHARE_CARD_ALT = `${SITE_NAME} — buy, sell, rent and connect in Vietnam`
+
+type OgImage = { url: string; width?: number; height?: number; alt?: string }
+/** What a page says about itself in a link preview. `images` omitted = the site's share card. */
+export type PageOg = { title: string; description: string; url?: string; type?: 'website' | 'article'; images?: OgImage[] }
+
+/**
+ * og:locale for a preview — the language its words are WRITTEN in, not the reader's. The Vietnamese
+ * guides ("Bán đồ cũ ở đâu được giá") and a category's Vietnamese variant say vi_VN, everything
+ * written in English says en_US, and text in another script says nothing (Facebook's default, en_US,
+ * would be a lie there).
+ * ⛔ FOR COPY WE WRITE, NOT A SELLER'S. The listing page sets none: a seller's description naming
+ * "Samsung Galaxy Tab Pro" is four unmarked words, and this reads it as English (review, 2026-09-29).
+ * ⚠️ THE DESCRIPTION DECIDES; the title only when there is none. A title is where the NAMES are — a
+ * shop ("Honeycomb House | eno.vn" over "Honeycomb House trên eno.vn: 229 tin đăng…" said en_US on the
+ * Vietnamese storefront), a bilingual heading ("Prohibited items & services | Hàng hóa & dịch vụ cấm",
+ * settled by the English sentence under it) — while the description is a sentence in one language.
+ * Judging one string also keeps the two from being GLUED: that made a false unmarked run across the
+ * seam ("Minh | eno.vn tin cho" — four words) and read a wholly Vietnamese /c/rentals preview as English.
+ * ⚠️ looksVietnamese, not detectContentLang, decides Vietnamese: the detector calls "… for rent —
+ * Tây Thạnh Ward" Vietnamese on one letter, and that title is English.
+ */
+export function ogLocaleFor(title: string, description = ''): 'vi_VN' | 'en_US' | undefined {
+  const words = description.trim() ? description : title
+  if (looksVietnamese(words)) return 'vi_VN'
+  const script = detectContentLang(words)
+  return script === null || script === 'vi' ? 'en_US' : undefined
+}
+
+/**
+ * A page's `openGraph`, ALWAYS with an image, the site name, a type and a locale.
+ *
+ * ⛔ NEXT REPLACES THE PARENT'S `openGraph`, IT DOES NOT MERGE INTO IT. A page that wrote only
+ * `{ title, description }` shipped no og:image at all — /c/rentals, /c/rentals/d1, /hcmc-rent-index
+ * and the guides that named themselves unfurled with no picture (curl as facebookexternalhit on
+ * prod, 2026-09-29) — and a page with no `openGraph` of its own (/trust, /help, the 36 phone guides)
+ * announced itself with the home page's title. src/app/[lang]/og-images-contract.test.ts fails any
+ * page that goes back to a literal. `images` defaults to the share card; the PDP writes its own
+ * object, with the listing's photos.
+ */
+export function pageOpenGraph(og: PageOg): NonNullable<Metadata['openGraph']> {
+  const { images, type = 'website', ...rest } = og
+  const locale = ogLocaleFor(og.title, og.description)
+  return {
+    ...rest,
+    siteName: SITE_NAME,
+    type,
+    ...(locale ? { locale } : {}),
+    images: images?.length ? images : [{ ...SHARE_CARD, alt: SHARE_CARD_ALT }],
+  }
+}
+
+/**
+ * The X/Twitter card for the same page. ⚠️ SAME REPLACE-NOT-MERGE RULE, AND IT BIT HARDER: a page
+ * that set only `openGraph` inherited the LAYOUT's `twitter`, so every one of them — /c/rentals, the
+ * guides — shipped twitter:title "eno.vn - Trusted Expat Marketplace in Vietnam" beside its own
+ * og:title (prod, 2026-09-29), and X reads twitter:title first.
+ */
+export function pageTwitter(og: PageOg): NonNullable<Metadata['twitter']> {
+  return { card: 'summary_large_image', title: og.title, description: og.description, images: [og.images?.[0]?.url ?? SHARE_CARD.url] }
+}
+
+/** Both cards from one description — what a page spreads into its metadata: `...pageShare({ … })`. */
+export function pageShare(og: PageOg): Pick<Metadata, 'openGraph' | 'twitter'> {
+  return { openGraph: pageOpenGraph(og), twitter: pageTwitter(og) }
+}
+
+/**
+ * A page whose preview says exactly what its <title> and meta description say: wrap its metadata,
+ * `export const metadata: Metadata = withShare({ title, description, alternates })`, and both cards
+ * take those two strings — one copy, so they cannot drift — with the canonical as og:url.
+ */
+export function withShare(m: Metadata & { title: string; description: string }, og?: Pick<PageOg, 'type' | 'images'>): Metadata {
+  const canonical = m.alternates?.canonical
+  return {
+    ...m,
+    ...pageShare({ title: m.title, description: m.description, ...(typeof canonical === 'string' ? { url: canonical } : {}), ...og }),
+  }
+}

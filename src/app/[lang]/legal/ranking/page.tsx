@@ -11,6 +11,7 @@
 export const revalidate = 3600
 
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { RankingContent } from './ranking-content'
 
@@ -22,11 +23,11 @@ import { RankingContent } from './ranking-content'
 // Vietnamese via tr(en, vi) rather than machine translation. This file stays a server component
 // purely to own `metadata` and `revalidate`, which client components cannot export.
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `How ${SITE_NAME} ranks results`,
   description: `The parameters that determine listing order on ${SITE_NAME}, and their relative importance.`,
   alternates: { canonical: '/legal/ranking' },
-}
+})
 
 export default function RankingPage() {
   return <RankingContent />

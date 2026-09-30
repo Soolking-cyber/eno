@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { expatGuidesExcept, guideDates } from '@/lib/expat-guides'
@@ -309,11 +310,12 @@ export const metadata: Metadata = {
   description:
     'A pre-departure guide to moving to Vietnam: which visa you need and what it costs officially, the documents to legalise at home, what to ship and what to buy secondhand, money for the first month, and where to stay while you look for a flat.',
   alternates: { canonical: '/moving-to-vietnam' },
-  openGraph: {
+  ...pageShare({
     title: `Moving to Vietnam: What to Arrange Before You Fly | ${SITE_NAME}`,
     description:
       'The visa decision, the documents only your home country can issue, and what not to ship. The pre-departure half of moving to Vietnam.',
-  },
+    type: 'article',
+  }),
 }
 
 export default function Page() {

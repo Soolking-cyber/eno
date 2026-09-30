@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
@@ -156,12 +157,12 @@ const CONTENT: ArticleContent = {
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   title: `Foldable phones in Vietnam — iPhone Duo vs Galaxy Z Fold | ${SITE_NAME}`,
   description:
     'What folding phones cost in Vietnam, what actually fails on them, what an out-of-warranty screen repair means here, and the case for waiting for a second generation rather than buying a first.',
   alternates: phoneGuideAlternates(SLUG),
-}
+}, { type: 'article' })
 
 export default function FoldablePhonesVietnamPage() {
   return <SeoArticle content={CONTENT} />

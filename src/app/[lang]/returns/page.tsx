@@ -6,9 +6,11 @@
 export const revalidate = 3600
 
 import type { Metadata } from 'next'
+import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
+import { LinkifiedTr } from '@/components/marketplace/linkified-tr'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 
 // ── Returns and exchanges ───────────────────────────────────────────────────────────────
@@ -67,7 +69,7 @@ import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
  *  all have to say the same number, and a literal typed three times drifts on the first edit. */
 const WINDOW_DAYS = 7
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withShare({
   // ⚠️ SENTENCE CASE, MATCHING THE H1 AND THE `vi` OVERRIDE KEYED ON IT. It read "Returns and
   // Exchanges" while the heading read "Returns and exchanges" — only the heading has curated
   // Vietnamese, so the two drifted by case as well as by locale. /terms keeps its title and its H1
@@ -75,7 +77,7 @@ export const metadata: Metadata = {
   title: `Returns and exchanges | ${SITE_NAME}`,
   description: `How returns and exchanges work on ${SITE_NAME}: a ${WINDOW_DAYS}-day window on items bought from verified business storefronts, who pays return shipping, how to start a return, and what private person-to-person sales mean for buyers.`,
   alternates: { canonical: '/returns' },
-}
+})
 
 type Section = { id: string; title: string; paras: string[] }
 
@@ -177,12 +179,13 @@ export default function ReturnsPage() {
         <ContentSection key={s.id} id={s.id} title={s.title}>
           <div className="space-y-2">
             {s.paras.map((p, j) => (
-              <p key={j} className="text-base leading-relaxed text-body"><Tr text={p} /></p>
+              <p key={j} className="text-base leading-relaxed text-body"><LinkifiedTr text={p} /></p>
             ))}
-            {/* ⚠️ THE DISPUTE CENTER IS A REAL LINK, NOT A PATH TYPED INTO A SENTENCE. /terms writes
-                its cross-references as bare text ("published at /privacy") and that is fine for a
-                document people read; this section is the PROCESS a buyer follows when a return goes
-                wrong, and it is the part a Merchant Center reviewer checks is actually reachable.
+            {/* ⚠️ THE DISPUTE CENTER IS A REAL LINK WITH ITS OWN LABEL, NOT A PATH IN A SENTENCE. The
+                paragraphs' own paths and mailboxes are linked in place by LinkifiedTr (C-LEGAL-UX),
+                but that only makes "/privacy" clickable where the prose already names it; this
+                section is the PROCESS a buyer follows when a return goes wrong, and it is the part a
+                Merchant Center reviewer checks is actually reachable.
                 One link, appended after the paragraphs rather than threaded through them, because
                 `paras` is a string array by design — see the same shape in /terms' `related`. */}
             {s.id === 'how' ? (
