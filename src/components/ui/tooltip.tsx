@@ -113,14 +113,14 @@ export function Tooltip({
     <TooltipPrimitive.Root>
       <TooltipPrimitive.Trigger render={children} />
       <TooltipPrimitive.Portal>
-        <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset} align={align} className="z-[70]">
+        <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset} align={align} className="z-tooltip">
           <TooltipPrimitive.Popup
             className={cn(
               "origin-(--transform-origin) rounded-lg bg-foreground px-2 py-1 text-xs font-medium text-background shadow-md select-none",
               // Anchored motion mirroring ui/popover, at tooltip scale: a quick fade + subtle zoom
               // and a 1px slide FROM the anchor on open, reversed TO the anchor on close.
-              "duration-100 ease-[var(--ease-out-strong)] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
-              "data-closed:duration-75 data-closed:ease-[var(--ease-out-strong)] data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+              "duration-100 ease-out-strong data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
+              "data-closed:duration-75 data-closed:ease-out-strong data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
               "data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1",
               "data-[side=bottom]:data-closed:slide-out-to-top-1 data-[side=top]:data-closed:slide-out-to-bottom-1 data-[side=left]:data-closed:slide-out-to-right-1 data-[side=right]:data-closed:slide-out-to-left-1",
               /**

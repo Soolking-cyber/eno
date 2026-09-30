@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Clock } from '@/components/ui/icons'
 import { Alert } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { Chip } from '@/components/ui/chip'
 import { useLanguage } from '@/context/language-context'
 import { useMounted } from '@/hooks/use-mounted'
 import { haptic } from '@/lib/haptics'
@@ -117,18 +117,9 @@ export type OpenerPickerProps = {
   className?: string
 }
 
-/**
- * The chip look, matching the quick-reply chips this replaces on the first-message surface
- * (src/components/marketplace/quick-reply-chips.tsx) so the two never disagree while both exist.
- * Paired with <Button variant="soft" size="none">: `soft` supplies the muted hover and leaves
- * the label colour to this class.
- *
- * ⚠️ RESTATED, NOT IMPORTED — the constant there is module-private. When the openers replace the
- * buyer-side quick reply for good, hoist ONE copy into a shared module rather than letting a
- * second one drift.
- */
-const chipCls =
-  'shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted hover:text-foreground cursor-pointer'
+// The chip look matches the quick-reply chips this replaces on the first-message surface
+// (quick-reply-chips.tsx) so the two never disagree while both exist — both are ui/chip `xs` `ghost`
+// since 2026-09-29, the "ONE copy in a shared module" this file used to ask for.
 
 export function OpenerPicker({
   listing,
@@ -304,18 +295,17 @@ export function OpenerPicker({
         className="flex gap-1 overflow-x-auto scrollbar-none"
       >
         {openers.map((o) => (
-          <Button
+          <Chip
             key={o.id}
-            variant="soft"
-            size="none"
+            size="xs"
+            tone="ghost"
             onClick={() => pick(o)}
-            className={chipCls}
             /* The chip previews the message; the full sentence goes into the composer, where the
                buyer reads and edits it before anything is sent. Nothing here auto-sends. */
             title={openerString(o, o.text, tr, lang)}
           >
             {openerString(o, o.label, tr, lang)}
-          </Button>
+          </Chip>
         ))}
       </div>
       )}

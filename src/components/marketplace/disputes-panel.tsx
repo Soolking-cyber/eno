@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Rows, Row } from '@/components/ui/rows'
+import { PageHeader } from '@/components/ui/page-header'
 import { cn } from '@/lib/utils'
 
 // My dispute cases — both roles: cases I filed and cases about me/my storefront.
@@ -80,6 +81,8 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
     return <Badge variant="neutral" className="text-ink-4">{t('Closed — no violation', 'Đã đóng — không vi phạm')}</Badge>
   }
 
+  const disputesLede = t('Reports you filed and cases about you. Both sides can add evidence; the eno.vn team decides.', 'Báo cáo bạn đã gửi và hồ sơ liên quan đến bạn. Hai bên đều có thể nộp bằng chứng; đội ngũ eno.vn sẽ quyết định.')
+
   return (
     <div>
       {/* Plain h1, NO glyph (R3 critic; icon-language §6). The accent-blue Scale that sat
@@ -88,10 +91,13 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
           and a static header icon fits no bucket — nor do the sibling dashboard sections
           (listings, help) or any mobile SectionHeader carry a title glyph. The concept
           keeps its Scale where it MEANS something: the rail row and the empty state. */}
-      {!compact && <h1 className="h-title text-foreground">{t('Disputes', 'Khiếu nại')}</h1>}
-      <p className={cn('text-sm text-muted-foreground', !compact && 'mt-1')}>
-        {t('Reports you filed and cases about you. Both sides can add evidence; the eno.vn team decides.', 'Báo cáo bạn đã gửi và hồ sơ liên quan đến bạn. Hai bên đều có thể nộp bằng chứng; đội ngũ eno.vn sẽ quyết định.')}
-      </p>
+      {/* The page title row is ui/page-header (the heading ramp + its meta line); `compact` (embedded
+          in another screen that owns the title) keeps only the line. */}
+      {compact ? (
+        <p className="text-sm text-muted-foreground">{disputesLede}</p>
+      ) : (
+        <PageHeader title={t('Disputes', 'Khiếu nại')} meta={disputesLede} />
+      )}
 
       {loading ? (
         <Rows className="mt-6">

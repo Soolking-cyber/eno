@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Loader2, Check, X } from '@/components/ui/icons'
+import { Search, Loader2, Check } from '@/components/ui/icons'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Price } from '@/components/marketplace/price'
 import { Mascot } from '@/components/marketplace/mascot'
@@ -13,7 +13,7 @@ import type { SerializedListing } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogPortal, DialogOverlay } from '@/components/ui/dialog'
-import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { STROKE_MARK } from '@/lib/icon-tokens'
@@ -115,13 +115,14 @@ export function AvailabilityClient() {
             <Mascot name="success" className="mx-auto h-24 w-24" />
             <DialogPrimitive.Title className="mt-2 h-title text-foreground">{tr('Still available?', 'Còn hàng không?')}</DialogPrimitive.Title>
             <p className="mt-1 text-sm text-muted-foreground">{tr('Tick anything that sold — everything else gets bumped to the top.', 'Đánh dấu món đã bán — những món còn lại sẽ được đẩy lên đầu.')}</p>
-            {/* Icon-only control → the IconButton shell (44px tap target), composed onto the
-                Base UI Close via the render prop — not a bare padded button. */}
+            {/* Icon-only control → ui/close-button (the IconButton shell, 44px tap target, glyph sized
+                to its button), composed onto the Base UI Close via the render prop — not a bare
+                padded button. The ✕ is CloseButton's own child, so the Close takes none.
+                `hover:text-ink-4` keeps the ink this close had before the swap (CloseButton's ghost
+                tone darkens to foreground on hover); the hover here is the muted plate, as it was. */}
             <DialogPrimitive.Close
-              render={<IconButton aria-label={tr('Close', 'Đóng')} className="absolute right-3 top-3 text-ink-4 transition-colors hover:bg-muted" />}
-            >
-              <X className="h-[38px] w-[38px] shrink-0" />
-            </DialogPrimitive.Close>
+              render={<CloseButton size="md" className="absolute right-3 top-3 transition-colors hover:bg-muted hover:text-ink-4" />}
+            />
           </div>
 
           {total > 6 && (

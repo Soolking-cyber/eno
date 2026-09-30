@@ -151,7 +151,7 @@ function TabBody({ active, ...face }: { active: boolean; icon: TabIcon; capsule?
  *  to a page that would gate inconsistently — so every gated action on mobile
  *  meets the SAME card. While auth is still resolving (or signed in) it's a normal
  *  Link, so a logged-in user is never wrongly shown the modal. */
-function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, stack }: { href: string; active: boolean; onHref?: boolean; icon: TabIcon; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false; stack?: string }) {
+function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, stack, signInNote }: { href: string; active: boolean; onHref?: boolean; icon: TabIcon; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false; stack?: string; /** The sign-in card's context line — what this tab is FOR (SignInContext.note). */ signInNote?: string }) {
   const { openSignIn, user, loading } = useAuth()
   const router = useRouter()
   // ⚠️ THE BOOT WINDOW WAS A DOUBLE REDIRECT TO A SECOND LOGIN PAGE (owner, 2026-08-03: "mobile
@@ -181,8 +181,8 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
     if (deferred.path !== pathname) return          // they moved on — the intent is stale
     if (Date.now() - deferred.at > 10_000) return   // too old to still be what they meant
     if (user) router.push(href)
-    else openSignIn()
-  }, [deferred, loading, user, href, router, openSignIn, pathname])
+    else openSignIn(signInNote ? { note: signInNote } : undefined)
+  }, [deferred, loading, user, href, router, openSignIn, pathname, signInNote])
   if (gate) {
     return (
       // onPointerDown={preloadSignIn}: the dialog's chunk starts downloading on the finger's
@@ -192,7 +192,7 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
       // ⚠️ IT STILL SHOWS LOCATION. A guest can stand on /messages (the page renders its own sign-in
       // prompt), and with no labels in the bar an idle glyph there left nothing saying where they
       // were. The capsule + brand ink + `aria-current` come back; the tap still opens the card.
-      <Button type="button" variant="bare" size="none" onPointerDown={preloadSignIn} onClick={() => openSignIn()} aria-label={label} aria-current={active ? 'page' : undefined} className={cn(TAB, 'focus-visible:ring-0')}>
+      <Button type="button" variant="bare" size="none" onPointerDown={preloadSignIn} onClick={() => openSignIn(signInNote ? { note: signInNote } : undefined)} aria-label={label} aria-current={active ? 'page' : undefined} className={cn(TAB, 'focus-visible:ring-0')}>
         <TabFace on={active} icon={icon} stack={stack} />
       </Button>
     )
@@ -351,7 +351,7 @@ export function MobileNav() {
         // trade one snap for another. Listing both is what makes every route into and out of this
         // bar continuous. `ease-out`, not the house spring: a retracting bar travels to a resting
         // place, and an overshoot there reads as a wobble (globals.css, the motion contract).
-        'mobile-nav lg:hidden fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px))] z-40 [--tab-surface:var(--color-popover)] mx-auto h-14 max-w-sm rounded-full border border-foreground/10 bg-popover/95 shadow-pop backdrop-blur-md material transition-[translate,transform,opacity] duration-[250ms] ease-out [will-change:translate,transform,opacity] motion-reduce:transition-none',
+        'mobile-nav lg:hidden fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px))] z-nav [--tab-surface:var(--color-popover)] mx-auto h-14 max-w-sm rounded-full border border-foreground/10 bg-popover/95 shadow-pop backdrop-blur-md material transition-[translate,transform,opacity] duration-[250ms] ease-out [will-change:translate,transform,opacity] motion-reduce:transition-none',
         // Reveal-on-focus: if a keyboard user tabs into the (scroll-hidden) bar, :focus-within
         // out-specificities the retract below and slides it back into view — never an invisible,
         // focused control. (Harmless while docked; a no-op when inert during keyboard-up.)
@@ -491,6 +491,7 @@ export function MobileNav() {
         // must navigate back OUT to the inbox.
         onClick={(e) => onTabClick(e, pathname === '/messages')}
         label={tr('Messages', 'Tin nhắn')}
+        signInNote={tr('Chat with sellers in the app — your phone number stays private.', 'Nhắn tin với người bán ngay trong ứng dụng — số điện thoại của bạn được giữ kín.')}
         icon={(
           <>
             {/* Same rule as Saved: colour is location only — the pre-2026-08-28 unread fill is not restored;
@@ -525,6 +526,7 @@ export function MobileNav() {
         // dashboard scrolls to top, exactly like the other four.
         onClick={(e) => onTabClick(e, accountActive)}
         label={tr('Account', 'Tài khoản')}
+        signInNote={tr('Sign in to manage your listings, messages and alerts.', 'Đăng nhập để quản lý tin đăng, tin nhắn và thông báo của bạn.')}
         icon={<User className="h-7 w-7" strokeWidth={STROKE} />}
       />
       </div>

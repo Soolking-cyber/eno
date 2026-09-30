@@ -22,9 +22,16 @@ const CHEVRON_AFTER_Y = 700
 const REST_MS = 120
 /** The most the cluster may rise above a bar, as a share of the viewport; past it, it stands down. */
 const MAX_LIFT_SHARE = 0.4
-/** The controls the cluster must never sit on. Scoped to <main>: the header, the tab bar and every
- *  overlay are chrome with their own stacking rules, and the cluster already stands down under a modal. */
-const OBSTACLES = 'main button, main a[href], main [role="button"], main input, main select, main textarea'
+/** The controls the cluster must never sit on. Scoped to <main> and the footer: the header, the tab bar
+ *  and every overlay are chrome with their own stacking rules, and the cluster already stands down under
+ *  a modal or a popup.
+ *  ⚠️ `#app-footer` IS PAGE CONTENT, NOT CHROME — it sits outside <main>, so the mark rested on its links:
+ *  measured at 1280x800 on /contact scrolled to the bottom, the support mark covered "Cookie settings".
+ *  ⚠️ `[data-fab-avoid]` is an OPT-IN for a small NON-interactive value a reader has to see (the PDP's
+ *  Details values sit flush right, exactly under the mark). Text is otherwise never an obstacle — a
+ *  mark that yielded to every paragraph would be hidden on every feed. The yield itself is unchanged:
+ *  fade + no pointer, still focusable (YIELDED in src/lib/fab-clearance.ts). */
+const OBSTACLES = 'main button, main a[href], main [role="button"], main input, main select, main textarea, main [data-fab-avoid], #app-footer a[href], #app-footer button'
 
 type Plan = { rise: number; standDown: boolean; chevron: boolean; support: boolean }
 const AT_REST: Plan = { rise: 0, standDown: false, chevron: false, support: false }
@@ -275,10 +282,17 @@ export function BackToTop() {
         className={cn(
           // Width-capped so even the longer Vietnamese label on a 320px phone stops short of the right-hand
           // column: 16px gutter + 44px chevron/support column + 16px edge + 12px gap = 5.5rem.
-          'pointer-events-none fixed left-4 z-[60] max-w-[calc(100vw-5.5rem)]',
+          'pointer-events-none fixed left-4 z-fab max-w-[calc(100vw-5.5rem)]',
           '[body:has([data-slot=dialog-content])_&]:hidden',
           '[body:has([data-slot=sheet-content])_&]:hidden',
           '[body:has([data-slot=alert-dialog-content])_&]:hidden',
+          // The popup stand-downs — see the ⚠️ MATCH THE POPUP SLOTS note on the column below.
+          '[body:has(.overlay-scrim:not([hidden],[data-closed]))_&]:hidden',
+          '[body:has([data-slot=popover-content]:not([data-closed]))_&]:hidden',
+          '[body:has([data-slot=select-content]:not([data-closed]))_&]:hidden',
+          '[body:has([data-slot=combobox-content]:not([data-closed]))_&]:hidden',
+          '[body:has([data-slot=dropdown-menu-content]:not([data-closed]))_&]:hidden',
+          '[html.kb-open_&]:hidden',
           'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))]',
           'transition-[bottom] duration-300 motion-reduce:transition-none',
           panelOpen && 'hidden',
@@ -302,21 +316,47 @@ export function BackToTop() {
           // wider than the 44px column the two glyphs define, and centring it would push it past the
           // right edge. Right-aligning changes nothing for the chevron and the support mark: both are
           // exactly 44px wide, so their boxes land where they did.
-          'pointer-events-none fixed z-[60] flex flex-col items-end gap-2.5',
+          'pointer-events-none fixed z-fab flex flex-col items-end gap-2.5',
           // ⚠️ NEVER OVER A MODAL. At z-[60] this cluster floated ON TOP of the report
           // dialog's "Gửi báo cáo" submit and over the protections sheet's copy — a tap on
           // the CTA's right edge scrolled the page instead of filing a fraud report (blind
           // critic, 2026-08-07; same family as the fixed-overlay traps in globals.css).
           // A modal owns the screen while open, so the affordance goes away — no state to
           // wire, nothing to keep in sync.
+          // ⛔ AND IT NO LONGER OUTRANKS ONE: `z-fab` (45) is BELOW `z-overlay` (50) on the ladder in
+          // globals.css (D-Z, 2026-09-29), so a dialog, sheet, drawer or popup panel paints over this
+          // column even if a stand-down below ever misses. It used to be the other way round — 60
+          // over 50 — which is why each overlay needed its own rule; the Drawer never got one and
+          // the cluster sat on top of mark-sold and the trip map. The stand-downs STAY as the belt
+          // (owner-kept, G-FAB): the popup SCRIMS are z-40, under this column, and an un-scrimmed
+          // cluster beside an open panel is still in the way. design-lint allowlists them by name.
           // ⚠️ MATCH THE POPUP SLOTS, NOT role=dialog. The cookie-consent banner is a
           // permanently-mounted role=dialog, so `body:has([role=dialog])` hides this button
           // on every page forever (measured — it is a worse bug than the one being fixed).
           // These three data-slots exist ONLY while a real popup is mounted (verified open →
           // Escape → gone), and they cover every modal primitive in ui/*.
+          // ⚠️ AND EVERY POPUP, NOT ONLY THE MODALS. ui/popover's panel was z-50 under this column's old
+          // z-[60], so the Filters and Price panels (facet-bar, price-range-filter — both ui/popover) had
+          // the mark painted over their own "Done" and range values; CustomSelect and AreaFilter menus
+          // carry `.overlay-scrim`, as do the drawer and sheet scrims.
+          // ⛔ EACH ONE MATCHES ONLY WHILE OPEN — `:not([data-closed])`, and `:not([hidden])` for the scrim.
+          // Base UI's SELECT DOES NOT UNMOUNT: after its first open the portal stays in <body> with the
+          // backdrop and positioner `hidden` and the popup `data-closed` (measured on the explorer's
+          // "Any condition" picker). A bare `body:has(.overlay-scrim)` therefore latched this cluster
+          // hidden for the rest of the page after one tap on any select — the exact latch the
+          // permanently-mounted cookie role=dialog caused above. Popover, menu and combobox do unmount,
+          // but carry `data-closed` through their exit, so the same guard costs them nothing.
+          // `html.kb-open`: with the keyboard up, Android's layout viewport lifts the cluster over the
+          // search panel it is typing into.
           '[body:has([data-slot=dialog-content])_&]:hidden',
           '[body:has([data-slot=sheet-content])_&]:hidden',
           '[body:has([data-slot=alert-dialog-content])_&]:hidden',
+          '[body:has(.overlay-scrim:not([hidden],[data-closed]))_&]:hidden',
+          '[body:has([data-slot=popover-content]:not([data-closed]))_&]:hidden',
+          '[body:has([data-slot=select-content]:not([data-closed]))_&]:hidden',
+          '[body:has([data-slot=combobox-content]:not([data-closed]))_&]:hidden',
+          '[body:has([data-slot=dropdown-menu-content]:not([data-closed]))_&]:hidden',
+          '[html.kb-open_&]:hidden',
           // Clear the mobile bottom-nav. The max(env, var) pairing covers Android
           // WebView < 140, where Capacitor injects --safe-area-inset-* vars instead
           // of env() passthrough (see the Android safe-area note in globals.css);

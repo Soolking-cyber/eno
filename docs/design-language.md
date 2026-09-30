@@ -5,10 +5,16 @@ This is the single source of truth for UI styling. `scripts/design-lint.mjs`
 below — a violation fails the build. When a rule here conflicts with older code,
 this document wins.
 
+Some rules are **ratchets** rather than bans: the lint counts a pattern the canon has moved
+past (hand-built button spinners, hand-sized ✕ glyphs, off-ladder icon sizes, page `<h1>`s off
+the heading ramp, the arbitrary `var()` spelling of a house easing curve) and fails only when
+the count **rises**. The existing sites are debt with a number on it; migrate one when you are
+in its file, then lower the baseline in `RATCHETS` in the same change.
+
 Identity in one line: **flat single-canvas marketplace — one brand blue
 (#0a66c2), a 58同城-style commerce orange (#d64000 fill / #c73c00 ink) used ONLY
-for price, the Post button and the commerce badges, true-neutral grays, #fafafa
-canvas with a warm wash on the home page, generous radii, spring motion.**
+for price, the Post button and the commerce badges, true-neutral grays, one #f8fbfe
+blue-wash canvas (`--wash-tail`) on every surface, generous radii, spring motion.**
 
 ---
 
@@ -29,6 +35,18 @@ Six working sizes for UI markup. Nothing in between.
 `text-[12px]`, `text-[13px]`, `text-[15px]`, …). Mappings used in the 2026-07
 normalization: 9→`3xs`, 10→`3xs`, 11→`2xs`, 12→`xs`, 13→`sm` (or `xs` when it
 was meta), 15→`base`.
+
+**Page titles sit on the heading ramp.** A page's `<h1>` is `.h-display` (28→40px — landing,
+category, SEO, /post) or `.h-title` (20→24px — app screens) — `.h-greeting` for the dashboard's
+display-size greeting — or `sr-only` where a mobile SectionHeader carries the visible title. Reach for `<PageHeader>` (ui/page-header: title +
+meta line + actions) rather than hand-typing `text-xl font-bold`; that is how eight different
+h1 styles happened. The PDP headline is the one owner exception (price-first). design-lint
+ratchets the rest (`h1-off-ramp`).
+
+**No kicker eyebrows.** A small uppercase label that restates the heading under it ("Error
+404", "New") is retired (owner, 2026-08-05). The survivors are the SEO *topic · place* lines
+("Housing · Vietnam"), which carry the place the heading does not; design-lint allowlists
+those files (`EYEBROW_ALLOW`) and refuses the class anywhere else.
 
 The `:root` vars `--text-display/title/section/body/small/caption` are the
 **prose scale** for long-form content pages (guide/terms/privacy). They are
@@ -68,7 +86,9 @@ pill once 2R passes the shorter side. Measured on `/`: 12px pills 4 elements, 14
 ## 3. Color
 
 Tokens only — never raw hex in `className` or `style`. The palette is 60/30/10:
-white/`#fafafa` canvas, true-neutral grays, ONE brand blue (plus the commerce orange on price/Post).
+the `#f8fbfe` canvas (`--wash-tail`), true-neutral grays, ONE brand blue (plus the commerce orange on price/Post).
+A colour class must name a real token: Tailwind emits nothing for an unknown one (`text-danger`,
+`bg-surface`), silently, so design-lint refuses it.
 
 - Brand: `brand`, `brand-dark` (hover), `brand-light`, `brand-50`, `brand-100`,
   `brand-deep(er)` (fixed dark marketing panels)
@@ -82,6 +102,14 @@ white/`#fafafa` canvas, true-neutral grays, ONE brand blue (plus the commerce or
   `destructive` is red in both themes and globals.css spends a paragraph keeping the two
   apart (OKLab dE 0.076 in light). Never let hue alone carry that distinction — an error
   keeps its icon or label. Tune it against `accent` (the buy-box tint), not just the canvas.
+- `destructive` is tuned against the surface it is hardest on, not the canvas: dark
+  `#f7737b` is set by the PDP safety strip (`bg-warning/10` over the canvas, 5.02:1). Text on a
+  solid destructive fill is `destructive-foreground` (white light / near-black dark) — never
+  `text-white`, which is 2.73:1 on the dark red. That includes the white ink a variant carries:
+  a red delete is `<Button variant="destructive">`, not `variant="cta"` repainted `bg-destructive`.
+  design-lint refuses both shapes (class string or Button/Badge tag).
+- `popover` MATCHES the canvas in light (it is `var(--wash-tail)`; owner, 2026-07-13) and lifts
+  to `#2a2a2a` in dark. A floating surface's edge is its border + `shadow-pop`/`shadow-overlay`.
 - Trust ladder: `verified`, `pending` + the tier colors on `/trust`
 
 Every token has a `.dark` counterpart — using tokens is what keeps dark mode
@@ -118,6 +146,13 @@ lightbox, the floating mobile tab bar. Those use `popover`, not `card`. Everythi
   `shadow-overlay`.** Those are unlayered `box-shadow` rules and a Tailwind ring is a box-shadow,
   so the ring is silently overwritten (measured on the tab bar: no line in either theme).
 
+**Forced colors (Windows High Contrast) drop fills and box-shadows**, so a state carried only by
+those vanishes. globals.css restates selection in system colours under
+`@media (forced-colors: active)`: a selected tab gets a `Highlight` underline and bold weight, a
+pressed/checked/selected control a `Highlight` fill with `HighlightText` ink, and every Button a
+`ButtonText` border. A new selected state rides `aria-selected` / `aria-pressed` / `aria-checked`
+and inherits this for free; one expressed only in a class does not.
+
 **Structure has to be real, not painted.** Removing a fill removes a *visual* group, so the
 semantic one must exist: headings, `<section>`, list markup. Hairlines that identify a control
 keep non-text contrast (WCAG 1.4.11), and focus rings must stay obvious on the flat canvas.
@@ -133,6 +168,22 @@ costs conversions. It stays a separate, owner-reviewed decision.
   overlay offsets, media aspect boxes) — never for font size, radius, or color.
 - Page frame: `max-w-7xl px-3 sm:px-6 lg:px-8` (header/footer edge-aligned);
   explorer fills parent `main` — no double containers.
+
+**Layers — the z ladder.** One ordered scale, named by role (`@theme { --z-index-* }` in
+globals.css, so `z-overlay` etc. are real utilities and tailwind-merge knows them):
+
+| Utility | z | Who |
+|---|---|---|
+| `z-raised` | 10 | a sibling lifted inside its own section |
+| `z-sticky` | 30 | in-flow sticky chrome (facet/sort toolbar, PDP action bar) |
+| `z-nav` | 40 | header, floating tab bar (popup scrims also sit at 40) |
+| `z-fab` | 45 | the back-to-top / support cluster — over the page, **under every overlay** |
+| `z-overlay` | 50 | dialog, sheet, drawer, alert-dialog, every popup positioner |
+| `z-tooltip` | 70 | a hint over the overlay that owns its trigger |
+| `z-splash` / `z-consent` | 90 / 200 | the app splash; the cookie bar |
+| `z-map-overlay` / `z-nested-popover` | 1100 / 1201 | inside a map (panes top out near 1000) |
+
+A new floating thing picks its row; it does not invent a number between two.
 
 ## 5. Primitives — reuse, don't re-roll
 
@@ -152,15 +203,18 @@ until load → strips it from SSR → costs the LCP; reason in the file).
 
 | Need | Use |
 |---|---|
-| Any button | `<Button>` — `variant="cta"` is THE brand CTA; `size="none"` preserves bespoke sizing during migration |
+| Any button | `<Button>` — `variant="cta"` is THE brand CTA; `size="none"` preserves bespoke sizing during migration; `loading` for an async action (label kept at opacity 0 so the width holds, spinner centred, `aria-busy`, focus kept) — never a hand-built `<Loader2>` |
 | Icon-only button | `<IconButton>` (44px tap target) |
-| Chip / badge / status pill | `<Badge>` — variants: `neutral` (tint), `brand`, `success`, `warning`, `destructive`, `outline`; sizes `sm` (2xs) / `md` (xs) |
+| Close / dismiss / remove ✕ | `<CloseButton>` (ui/close-button) — sizes `2xs`–`lg`, `variant="overlay"` over media; the glyph is derived from the button (`CLOSE_GLYPH`), never hand-typed; `label` when the action is not "Close" |
+| Static chip / badge / status pill | `<Badge>` — variants: `neutral` (tint), `brand`, `success`, `warning`, `destructive`, `outline`; sizes `sm` (2xs) / `md` (xs) |
+| Interactive chip | `<Chip>` (ui/chip) — an action chip, or a filter toggle when `pressed` is passed (Base UI Toggle, `aria-pressed`); sizes `xs` 28 / `sm` 32 / `md` 36, tones `ghost` / `neutral` / `warning`; `chipVariants()` on a `<Link>` |
+| Page title row | `<PageHeader>` (ui/page-header) — the h1 on the ramp + meta line + actions |
 | Text input | `<Input>` — filled tint idiom (`rounded-xl bg-tint px-4 py-3 text-sm`); `variant="outline"` for bordered forms |
 | Multiline | `<Textarea>` — same idioms as Input |
 | Checkbox | `<Checkbox>` |
 | On/off toggle | `<Switch>` (has haptics) |
 | Avatar | `<Avatar>` |
-| Empty states | `<EmptyState>` (mascot + title + hint + action) |
+| Empty / error states | `<EmptyState>` (mascot or coin + title + hint + action) — flat (`tone="bare"`) by default; `variant="fault"` for a failure (neutral coin, destructive ink, no mascot); `titleAs="h1"` when the state IS the page (the route error screen) |
 | Horizontal shelf | `<Shelf>` (marketplace) |
 | Loading | `<Skeleton>` / `<Spinner>` |
 | Modal | `ui/dialog` (Base UI); destructive confirms → `ui/alert-dialog` |
@@ -193,7 +247,9 @@ seconds — but add it *with* its first real call site, never ahead of one.
 ## 6. Motion
 
 - Springs: `--ease-spring` (default, 220–340ms), `--ease-spring-snappy`
-  (toggles/chips/press, 160–220ms), `--ease-bounce` (success moments only).
+  (toggles/chips/press, 160–220ms), `--ease-bounce` (success moments only), and
+  `--ease-out-strong` for the overlay family. They are theme tokens, so write the named
+  utility — `ease-spring-snappy`, not the arbitrary `var()` form (design-lint ratchets it).
 - `.press` utility for press feedback; `hapticTap` / `hapticConfirm` /
   `hapticError` (`src/lib/haptics.ts`) on key taps; `.bubble-in`,
   `.reveal-on-scroll` for entrances.

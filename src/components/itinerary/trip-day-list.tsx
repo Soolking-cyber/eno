@@ -279,7 +279,10 @@ function StopRow({
       {/* A row with no pin still occupies the glyph's width, so every title starts on the same
           x — a ragged left edge reads as broken rather than as "this one isn't mapped". */}
       {pinIndex === null
-        ? <MapPinOff className="mt-1 h-4 w-[1.15rem] shrink-0 text-ink-4" aria-hidden="true" />
+        // The slot is the StopGlyph's width; the glyph inside it is square. An `h-4` svg stretched
+        // to that width rendered the same 16px mark (viewBox meet) but read as a mismatched pair to
+        // design-lint's icon rule — the reserve now lives on the wrapper, where it belongs.
+        ? <span className="mt-1 flex w-[1.15rem] shrink-0 justify-center" aria-hidden="true"><MapPinOff className="h-4 w-4 text-ink-4" /></span>
         : <StopGlyph index={pinIndex} dayNumber={dayNumber} active={selected} className="mt-0.5" />}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">{stop.name}</p>

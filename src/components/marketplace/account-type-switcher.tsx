@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -151,10 +150,11 @@ export function AccountTypeSwitcher({ isBusiness, businessName, onSaved }: { isB
               variant="cta"
               size="none"
               onClick={submit}
-              disabled={busy || (target === 'business' && name.trim().length < 2)}
+              disabled={target === 'business' && name.trim().length < 2}
+              loading={busy}
               className="gap-1.5 px-5 py-2"
             >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Confirm', 'Xác nhận')}
+              {tr('Confirm', 'Xác nhận')}
             </Button>
             <Button
               variant="ghost"

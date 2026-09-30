@@ -308,7 +308,7 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
                 <AlertDialogCancel render={<Button type="button" variant="outline">{tr('Keep it', 'Giữ lại')}</Button>} />
                 <AlertDialogAction
                   render={
-                    <Button type="button" variant="cta" className="bg-destructive hover:bg-destructive" disabled={deleting} onClick={(e) => { e.preventDefault(); void deleteTrip() }}>
+                    <Button type="button" variant="destructive" className="font-bold" disabled={deleting} onClick={(e) => { e.preventDefault(); void deleteTrip() }}>
                       {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                       {tr('Delete trip', 'Xóa chuyến đi')}
                     </Button>

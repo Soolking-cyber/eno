@@ -94,7 +94,7 @@ export function Switch({
         className={cn(
           // ⚠️ A spring, not a linear ramp: a toggle is a physical object and the house `--ease-spring`
           // token is the app's critically-damped curve (Apple's damping 1.0 / response ~0.3).
-          'absolute top-0.5 flex items-center justify-center rounded-full bg-white shadow transition-transform duration-200 ease-[var(--ease-spring)]',
+          'absolute top-0.5 flex items-center justify-center rounded-full bg-white shadow transition-transform duration-200 ease-spring',
           s.thumb,
           thumbClassName,
         )}

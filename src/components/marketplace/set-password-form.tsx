@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, Eye, EyeOff } from '@/components/ui/icons'
+import { Eye, EyeOff } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -263,10 +263,11 @@ export function SetPasswordForm({ signInEnabled = false }: {
               variant="cta"
               size="none"
               onClick={submit}
-              disabled={busy || !password || !confirm}
+              disabled={!password || !confirm}
+              loading={busy}
               className="gap-1.5 px-5 py-2"
             >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Save password', 'Lưu mật khẩu')}
+              {tr('Save password', 'Lưu mật khẩu')}
             </Button>
             <Button
               variant="ghost"

@@ -286,7 +286,7 @@ fills for counts — the counter Badge carries the number.
   The INK on that disc was measured too, because a reviewer estimated it at ~3:1 and that
   estimate was wrong: `--warning` on `--secondary` is **5.63:1** light (#92400e on #e5e5e5)
   and **7.91:1** dark (#fbbf24 on #303030); `--destructive` is **5.14:1** light (#b91c1c)
-  and **4.17:1** dark (#f0616b). All clear the 3:1 that WCAG 1.4.11 asks of a non-text
+  and **4.83:1** dark (#f7737b since 2026-09-29; it was 4.17:1 at #f0616b). All clear the 3:1 that WCAG 1.4.11 asks of a non-text
   graphic. Re-measure if either token moves — do not re-estimate.
   **And no mascot on a fault** — the mascots are the warm-empty voice; on a failure
   they read as the product being pleased with itself.

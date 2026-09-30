@@ -1,14 +1,12 @@
 'use client'
 
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { X } from '@/components/ui/icons'
 
 import { Button } from '@/components/ui/button'
-import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
 import { useLanguage } from '@/context/language-context'
 import { ScrollArrows, useScrollArrows } from '@/hooks/use-scroll-arrows'
 import type { DimensionCounts } from '@/lib/facet-counts'
-import { STROKE_UI } from '@/lib/icon-tokens'
 // The shared helper, not a local matchMedia copy: its reduced branch is 'instant' — the copy returned
 // 'auto', which defers to CSS scroll-behavior (see the note in lib/reduced-motion.ts).
 import { scrollBehavior } from '@/lib/reduced-motion'
@@ -78,7 +76,7 @@ const PATH_SEP = '\u203a'
  *     (max-w-sm, 12px gutters, like the pill),
  *     raised over the back-to-top cluster on 2026-09-18 because that 44px button was landing on it.
  *     Anything new that floats goes UNDER it.
- *   · back-to-top — `fixed z-[60]`, a 44px control at `right-4`, anchored to the BOTTOM
+ *   · back-to-top — `fixed z-fab` (45, under every overlay), a 44px control at `right-4`, anchored to the BOTTOM
  *     (`bottom-[calc(5rem+safe-area)]`). A top-docked line never meets it vertically, so the
  *     default horizontal reserve is 0. `stickyInsetEnd` exists for the integrator who moves this
  *     line to the bottom edge: the measured clearance there is 44px + the 16px gutter = 60px, so
@@ -910,14 +908,12 @@ export function MobileLadder({
           </nav>
 
           {onClear && (
-            <IconButton
+            <CloseButton
               size="lg"
-              aria-label={tr('Clear selection', 'Xóa lựa chọn')}
+              label={tr('Clear selection', 'Xóa lựa chọn')}
               onClick={onClear}
-              className="shrink-0 text-body transition-colors hover:text-foreground"
-            >
-              <X className="h-[42px] w-[42px] shrink-0" strokeWidth={STROKE_UI} />
-            </IconButton>
+              className="shrink-0 text-body transition-colors"
+            />
           )}
         </div>
       )}

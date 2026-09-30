@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Star, Loader2 } from '@/components/ui/icons'
+import { X, Star } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -132,10 +132,12 @@ export function ReviewPrompt({
               variant="cta"
               size="none"
               onClick={submit}
-              disabled={state === 'sending'}
+              // `loading` keeps "Submit" (invisible) under the spinner: swapping it out collapsed the
+              // pill to the spinner's width and left the button with no accessible name while sending.
+              loading={state === 'sending'}
               className="relative tap-44 rounded-full px-3 py-2 text-xs font-bold"
             >
-              {state === 'sending' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : tr('Submit', 'Gửi đánh giá')}
+              {tr('Submit', 'Gửi đánh giá')}
             </Button>
           </div>
         )}

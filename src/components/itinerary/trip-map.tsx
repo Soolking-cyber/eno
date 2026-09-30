@@ -2,10 +2,10 @@
 
 import { basemapTileUrl } from '@/lib/basemap'
 import { useEffect, useRef, useState } from 'react'
-import { Map as MapIcon, X, Info } from '@/components/ui/icons'
+import { Map as MapIcon, Info } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
 import { Spinner } from '@/components/ui/spinner'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { OSM_CREDIT, CARTO_CREDIT } from '@/lib/map-credit'
@@ -679,9 +679,9 @@ export function TripMapDrawer(props: Props & { triggerClassName?: string }) {
         <DrawerContent>
           <DrawerHeader className="flex-row items-center justify-between border-b border-border/80 pb-2.5">
             <DrawerTitle>{tr('Trip map', 'Bản đồ chuyến đi')}</DrawerTitle>
-            <IconButton size="xs" onClick={() => setOpen(false)} aria-label={tr('Close', 'Đóng')} className="bg-tint text-ink-3">
-              <X className="h-[29px] w-[29px] shrink-0" />
-            </IconButton>
+            {/* `hover:text-ink-3` pins the ink this close had before it became a CloseButton, whose
+                ghost tone darkens to foreground on hover; the swap was meant to be visually identical. */}
+            <CloseButton size="xs" onClick={() => setOpen(false)} className="bg-tint text-ink-3 hover:text-ink-3" />
           </DrawerHeader>
           {/* A definite height: Leaflet cannot size itself inside a flex child with no basis,
               and a 0px map is the other classic way this component "silently breaks".

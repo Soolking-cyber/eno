@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X, TrendingDown, ShieldCheck } from "@/components/ui/icons"
+import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, TrendingDown, ShieldCheck } from "@/components/ui/icons"
 import { STROKE_NAV } from '@/lib/icon-tokens'
 import { useNotifications } from '@/context/notifications-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
@@ -48,7 +49,8 @@ export function NotificationBell() {
       // the bell, Base UI asks to open (next === true) — we send them to sign-in instead and
       // never flip `open`, so the popover stays closed. Signed-in taps toggle normally.
       onOpenChange={(next) => {
-        if (next && !user) { openSignIn(); return }
+        // The note says what the bell is FOR, so the card is not a bare "Sign in" (SignInContext.note).
+        if (next && !user) { openSignIn({ note: tr('Sign in to get replies, offers and price drops here.', 'Đăng nhập để nhận phản hồi, lời trả giá và thông báo giảm giá tại đây.') }); return }
         setOpen(next)
       }}
     >
@@ -72,7 +74,7 @@ export function NotificationBell() {
               // `zoom-in-90`, never a bare `zoom-in`: in tw-animate that is --tw-enter-scale: 0, so the
               // counter grew out of NOTHING on every page load. From 0.9 with a fade, on the snappy
               // spring (a keyframe does not inherit the house default curve).
-              <Badge aria-hidden variant="counter" size="count" className="absolute right-1 top-1 animate-in fade-in zoom-in-90 duration-200 ease-[var(--ease-spring-snappy)]">
+              <Badge aria-hidden variant="counter" size="count" className="absolute right-1 top-1 animate-in fade-in zoom-in-90 duration-200 ease-spring-snappy">
                 {unread > 9 ? '9+' : unread}
               </Badge>
             )}
@@ -194,14 +196,12 @@ export function NotificationBell() {
                       the same `hover-pointer:` prefix so keyboard focus still reveals it. And while
                       hidden it is also UNPRESSABLE: a touchscreen laptop counts as a hover device,
                       so a tap there could still land on the invisible ✕. */}
-                  <IconButton
+                  <CloseButton
                     size="xs"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(n.id) }}
-                    aria-label={tr('Delete notification', 'Xóa thông báo')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-4 transition-opacity hover:bg-accent hover:text-foreground hover-pointer:pointer-events-none hover-pointer:opacity-0 hover-pointer:group-hover:pointer-events-auto hover-pointer:group-hover:opacity-100 hover-pointer:focus-visible:pointer-events-auto hover-pointer:focus-visible:opacity-100"
-                  >
-                    <X className="h-[29px] w-[29px] shrink-0" />
-                  </IconButton>
+                    label={tr('Delete notification', 'Xóa thông báo')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 transition-opacity hover:bg-accent hover-pointer:pointer-events-none hover-pointer:opacity-0 hover-pointer:group-hover:pointer-events-auto hover-pointer:group-hover:opacity-100 hover-pointer:focus-visible:pointer-events-auto hover-pointer:focus-visible:opacity-100"
+                  />
                 </div>
               )
             })

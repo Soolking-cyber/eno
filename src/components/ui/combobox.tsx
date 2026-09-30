@@ -13,18 +13,23 @@ function ComboboxInputGroup({ className, ...props }: ComboboxPrimitive.InputGrou
     <ComboboxPrimitive.InputGroup
       data-slot="combobox-input-group"
       className={cn(
-        // ⛔ RAISED ABOVE THE SCRIM WHILE OPEN — `data-open:relative data-open:z-50`. `ComboboxContent`
+        // ⛔ RAISED ABOVE THE SCRIM WHILE OPEN — `relative` + the overlay tier (z-overlay = 50, the
+        // ladder in globals.css) under the popup-open variant. `ComboboxContent`
         // paints an `overlay-scrim` backdrop at z-40 over the whole page, and the input group is
         // ordinary page content, so the field a user is actively TYPING IN was being dimmed and
         // blurred by its own dropdown. Owner, 2026-08-31: "input should be on dropdown not behind
         // the blur". z-50 needs `relative` to apply at all — z-index is inert on a static element,
         // which is the silent half of this bug.
-        // ⚠️ z-50 TIES THE POSITIONER'S OWN z-50 AND THE POPUP STILL WINS, because the portal is
+        // ⚠️ z-overlay TIES THE POSITIONER'S OWN z-overlay AND THE POPUP STILL WINS, because the portal is
         // appended after this subtree and a tie breaks on DOM order. Raising it further (z-[60])
         // would put the field OVER its own list.
         // ⚠️ ONLY WHILE OPEN. A permanently-positioned z-50 input group would sit above the sticky
         // facet bar (z-30) and the header on every page that renders one.
-        "flex h-11 w-full items-center rounded-xl border border-line-strong bg-card transition-[border-color,box-shadow,background-color] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 data-open:relative data-open:z-50 data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        // ⚠️ `data-popup-open:`, NOT `data-open:` — Base UI marks the INPUT GROUP `data-popup-open`
+        // (ComboboxInputGroupDataAttributes); `data-open` is the popup's own attribute and never lands
+        // here. Keyed on `data-open`, this lift matched nothing and the field sat under its own scrim,
+        // blurred — measured on the post wizard's Brand field, 2026-09-29.
+        "flex h-11 w-full items-center rounded-xl border border-line-strong bg-card transition-[border-color,box-shadow,background-color] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 data-popup-open:relative data-popup-open:z-overlay data-disabled:cursor-not-allowed data-disabled:opacity-50",
         className,
       )}
       {...props}
@@ -70,12 +75,12 @@ function ComboboxTrigger({ className, children, ...props }: ComboboxPrimitive.Tr
         // `scale`, not `transform` — `active:scale-[0.96]` writes the standalone `scale` property
         // in Tailwind v4, so naming `transform` subscribed to a property nothing sets and the press
         // snapped instead of tweening. Same fix as its sibling trigger above.
-        "group flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-body outline-none transition-[color,background-color,scale] duration-150 ease-[var(--ease-spring-snappy)] hover:bg-tint hover:text-foreground active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-ring/40",
+        "group flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-body outline-none transition-[color,background-color,scale] duration-150 ease-spring-snappy hover:bg-tint hover:text-foreground active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-ring/40",
         className,
       )}
       {...props}
     >
-      {children ?? <ChevronDownIcon className="size-4 transition-transform duration-200 ease-[var(--ease-spring-snappy)] group-data-popup-open:rotate-180" />}
+      {children ?? <ChevronDownIcon className="size-4 transition-transform duration-200 ease-spring-snappy group-data-popup-open:rotate-180" />}
     </ComboboxPrimitive.Trigger>
   )
 }
@@ -106,7 +111,7 @@ function ComboboxContent({
           z-40: under the Positioner's own z-50 popup, above the sticky facet bar (z-30). */}
       {/* `--scrim-exit` = the list's 75ms exit, or the scrim is cut mid-fade when the popup unmounts it. */}
       <ComboboxPrimitive.Backdrop className="overlay-scrim pointer-events-none fixed inset-0 z-40 [--scrim-exit:75ms_var(--ease-out-strong)]" />
-      <ComboboxPrimitive.Positioner side={side} sideOffset={sideOffset} align={align} className="isolate z-50">
+      <ComboboxPrimitive.Positioner side={side} sideOffset={sideOffset} align={align} className="isolate z-overlay">
         {/* `shadow-pop` — the ELEVATION TOKEN, not one of Tailwind's stock t-shirt shadow
             utilities (what this carried until 2026-08-11). The combobox list is the same kind of
             floating layer as ui/select and ui/dropdown-menu, so it takes the same token: the
@@ -124,7 +129,7 @@ function ComboboxContent({
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
           className={cn(
-            "relative z-50 max-h-(--available-height) w-(--anchor-width) min-w-64 origin-(--transform-origin) overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-pop ring-1 ring-foreground/10 duration-100 ease-[var(--ease-out-strong)] data-closed:duration-75 data-closed:ease-[var(--ease-out-strong)] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
+            "relative z-overlay max-h-(--available-height) w-(--anchor-width) min-w-64 origin-(--transform-origin) overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-pop ring-1 ring-foreground/10 duration-100 ease-out-strong data-closed:duration-75 data-closed:ease-out-strong data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
             className,
           )}
           {...props}
@@ -168,7 +173,11 @@ function ComboboxItem({ className, children, ...props }: ComboboxPrimitive.Item.
 }
 
 function ComboboxEmpty({ className, ...props }: ComboboxPrimitive.Empty.Props) {
-  return <ComboboxPrimitive.Empty data-slot="combobox-empty" className={cn("px-3 py-4 text-center text-sm text-body", className)} {...props} />
+  // `empty:p-0`: Base UI renders this element ALWAYS (it is the list's role="status" live region) and
+  // only fills it when nothing matches — so its padding put a blank 32px band at the top of every
+  // list that DID have matches. Zero padding while empty, not `hidden`: a live region switched in from
+  // display:none is not reliably announced.
+  return <ComboboxPrimitive.Empty data-slot="combobox-empty" className={cn("px-3 py-4 text-center text-sm text-body empty:p-0", className)} {...props} />
 }
 
 export {

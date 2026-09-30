@@ -104,7 +104,7 @@ function DropdownMenuContent({
       {/* `--scrim-exit` = the menu's 75ms exit, or the scrim is cut mid-fade when the popup unmounts it. */}
       <MenuPrimitive.Backdrop className="overlay-scrim pointer-events-none fixed inset-0 z-40 [--scrim-exit:75ms_var(--ease-out-strong)]" />
       <MenuPrimitive.Positioner
-        className="isolate z-50 outline-none"
+        className="isolate z-overlay outline-none"
         align={align}
         alignOffset={alignOffset}
         side={side}
@@ -128,7 +128,7 @@ function DropdownMenuContent({
           // and the focus outline an Escape keystroke changes on this (focused) popup became a 100ms
           // transition Base UI waited out — a pointer-opened menu closed by Escape sat on screen
           // 160–220ms (measured). Keyboard-initiated, so it should go at once.
-          className={cn("z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl bg-popover p-1 text-popover-foreground shadow-pop ring-1 ring-foreground/10 duration-100 ease-[var(--ease-out-strong)] data-closed:duration-75 outline-none transition-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=inline-end]:data-closed:slide-out-to-left-2 data-[side=inline-start]:data-closed:slide-out-to-right-2 data-[side=left]:data-closed:slide-out-to-right-2 data-[side=right]:data-closed:slide-out-to-left-2 data-[side=top]:data-closed:slide-out-to-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:ease-[var(--ease-out-strong)] data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95 data-instant:duration-0!", className )}
+          className={cn("z-overlay max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl bg-popover p-1 text-popover-foreground shadow-pop ring-1 ring-foreground/10 duration-100 ease-out-strong data-closed:duration-75 outline-none transition-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=inline-end]:data-closed:slide-out-to-left-2 data-[side=inline-start]:data-closed:slide-out-to-right-2 data-[side=left]:data-closed:slide-out-to-right-2 data-[side=right]:data-closed:slide-out-to-left-2 data-[side=top]:data-closed:slide-out-to-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:ease-out-strong data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95 data-instant:duration-0!", className )}
           {...props}
         />
       </MenuPrimitive.Positioner>
@@ -235,7 +235,7 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
-      className={cn("w-auto min-w-[96px] rounded-lg bg-popover p-1 text-popover-foreground ring-1 ring-foreground/10 duration-100 ease-[var(--ease-out-strong)] data-closed:duration-75 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=left]:data-closed:slide-out-to-right-2 data-[side=right]:data-closed:slide-out-to-left-2 data-[side=top]:data-closed:slide-out-to-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:ease-[var(--ease-out-strong)] data-closed:fade-out-0 data-closed:zoom-out-95 data-instant:duration-0!", className )}
+      className={cn("w-auto min-w-[96px] rounded-lg bg-popover p-1 text-popover-foreground ring-1 ring-foreground/10 duration-100 ease-out-strong data-closed:duration-75 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=left]:data-closed:slide-out-to-right-2 data-[side=right]:data-closed:slide-out-to-left-2 data-[side=top]:data-closed:slide-out-to-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:ease-out-strong data-closed:fade-out-0 data-closed:zoom-out-95 data-instant:duration-0!", className )}
       align={align}
       alignOffset={alignOffset}
       side={side}

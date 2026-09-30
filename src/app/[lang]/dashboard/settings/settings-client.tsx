@@ -8,6 +8,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useDashboard } from '@/hooks/use-dashboard'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageHeader } from '@/components/ui/page-header'
 import { cn } from '@/lib/utils'
 import { ProfileEditor } from '@/components/marketplace/profile-editor'
 import { StorefrontBannerEditor } from '@/components/marketplace/storefront-banner-editor'
@@ -98,8 +99,11 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
       {/* Native stack-nav title bar (mobile only) — same established title string. */}
       {!embedded && <SectionHeader title={tr('Settings', 'Cài đặt')} />}
       <div className="w-full">
-        {/* h1 stays for the outline; the SectionHeader carries the visible mobile title. */}
-        {!embedded && <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Settings', 'Cài đặt')}</h1>}
+        {/* h1 stays for the outline; the SectionHeader carries the visible mobile title.
+            ⚠️ ON THE RAMP LIKE ITS SIBLINGS (D-PAGEHEADER, 2026-09-29): every other dashboard section
+            titles itself `.h-title` through DashboardTabs (24px at desktop); this one was a hand-typed
+            text-xl, 20px, so the title shrank when you moved from Listings to Settings. */}
+        {!embedded && <PageHeader title={tr('Settings', 'Cài đặt')} titleClassName="max-lg:sr-only" />}
 
       {!dash ? (
         // Second stage (auth resolved, `dash` still in flight) — the SAME flat-group shape as

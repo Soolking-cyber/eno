@@ -23,7 +23,7 @@ import {
  *   2. THE TAB-BAR OFFSET IS NEVER A LITERAL IN THIS PRIMITIVE. `PdpMobileBar` was deleted for
  *      owning the bottom edge (cd9127a7); the replacement must take that geometry from the
  *      caller, so the source may not contain the tab bar's height at all.
- *   3. `data-fab-clear` IS PRESENT. back-to-top.tsx's z-[60] cluster lifts off elements carrying
+ *   3. `data-fab-clear` IS PRESENT. back-to-top.tsx's z-fab cluster lifts off elements carrying
  *      it; without the attribute the floating chevron sits on the primary CTA, and nothing in a
  *      screenshot or a click-through test would show it.
  *
@@ -495,5 +495,40 @@ describe('StickyActionBar names itself only when there is something to say', () 
   it('claims no role at all without one — an unnamed group is noise to a screen reader', () => {
     render(<StickyActionBar primary={{ label: 'Chat' }} />)
     expect(bar().hasAttribute('role')).toBe(false)
+  })
+})
+
+describe('StickyActionBar can carry a status line above its actions', () => {
+  // Fixture copy as consts: `react/jsx-no-literals` lints tests too.
+  const NOTE = 'Still needed'
+
+  it('renders `above` inside the measured panel, before the action row', () => {
+    render(<StickyActionBar primary={{ label: 'Publish' }} above={<p>{NOTE}</p>} />)
+    const note = screen.getByText(NOTE)
+    // Inside the PANEL, so the published height — and therefore the spacer — includes it.
+    expect(panel().contains(note)).toBe(true)
+    // And before the primary in document order: the status reads first, the action sits last.
+    const button = screen.getByRole('button', { name: 'Publish' })
+    expect(note.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('leaves the panel exactly as it was when `above` is absent', () => {
+    render(<StickyActionBar primary={{ label: 'Chat' }} secondary={{ label: 'Make offer' }} />)
+    // The actions are the panel's own children — no wrapper row — so StepWizard's DOM is unchanged.
+    const children = Array.from(panel().children)
+    expect(children).toHaveLength(2)
+    expect(children.map((el) => el.getAttribute('data-action'))).toEqual(['secondary', 'primary'])
+    expect(panel().className).toBe('mx-auto flex w-full max-w-7xl items-center gap-2 px-3 py-3 sm:px-6 lg:px-8')
+  })
+
+  it('keeps the SAME button when the line appears, so a keyboard user keeps focus', () => {
+    // `null` = "empty for now": the stacked shape stays, and filling it must not remount the action.
+    const { rerender } = render(<StickyActionBar primary={{ label: 'Publish' }} above={null} />)
+    const before = screen.getByRole('button', { name: 'Publish' })
+    before.focus()
+    rerender(<StickyActionBar primary={{ label: 'Publish' }} above={<p>{NOTE}</p>} />)
+    const after = screen.getByRole('button', { name: 'Publish' })
+    expect(after).toBe(before)
+    expect(document.activeElement).toBe(before)
   })
 })

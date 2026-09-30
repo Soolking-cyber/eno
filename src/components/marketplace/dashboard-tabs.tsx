@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageHeader } from '@/components/ui/page-header'
 import { useLanguage } from '@/context/language-context'
 
 /**
@@ -109,7 +110,7 @@ export function DashboardTabs({
             ACCESSIBILITY tree there too — leaving a phone screen-reader with no page heading on the
             section. sr-only keeps the h1 in the outline on mobile (visually hidden, zero layout) and
             shows it plainly on desktop, where SectionHeader is hidden. One h1, present on every size. */}
-        <h1 className="h-title text-foreground max-lg:sr-only">{title}</h1>
+        <PageHeader title={title} titleClassName="max-lg:sr-only" />
 
         <Tabs value={active} onValueChange={onChange} className="mt-3 lg:mt-4">
           {/* ⚠️ NO STRIP FOR A LONE TAB. A tier-gated section can resolve to a single tab — an

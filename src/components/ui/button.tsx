@@ -3,6 +3,8 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import { Loader2 } from "@/components/ui/icons"
+import { ICON_SIZE } from "@/lib/icon-tokens"
 
 const buttonVariants = cva(
   // Press feedback: a subtle compositor-only scale (active:scale-[0.97] at 160ms on
@@ -37,12 +39,17 @@ const buttonVariants = cva(
   // `pointer-events`, and the gradient stops. If you add a variant that animates something
   // else, add it here.
   //
-  // ⚠️ USE THE `ease-` UTILITY WITH AN ARBITRARY VALUE, NOT AN ARBITRARY-PROPERTY CLASS that
-  // sets the timing-function longhand directly. The longhand form does not set `--tw-ease`,
-  // so tailwind-merge does not group it with `ease-*`: a call site passing `ease-out` would
-  // NOT win through cn(), both classes would ship, and stylesheet order would decide (the
-  // concatenation trap in CLAUDE.md). The utility form sets the variable Tailwind's own
-  // transition utility reads, so it survives both.
+  // ⚠️ USE THE `ease-` UTILITY, NOT AN ARBITRARY-PROPERTY CLASS that sets the timing-function
+  // longhand directly. The longhand form does not set `--tw-ease`, so tailwind-merge does not
+  // group it with `ease-*`: a call site passing `ease-out` would NOT win through cn(), both
+  // classes would ship, and stylesheet order would decide (the concatenation trap in CLAUDE.md).
+  // The utility form sets the variable Tailwind's own transition utility reads, so it survives
+  // both. Since 2026-09-29 the curve is a theme token (`@theme static` in globals.css), so the
+  // NAMED utility `ease-spring-snappy` is that utility form — identical output to the arbitrary
+  // var() spelling it replaced, and design-lint now counts the arbitrary spelling down. ⚠️ The
+  // merge half holds only because lib/utils.ts lists the four curve names under tailwind-merge's
+  // `theme.ease`: its stock scale knows in/out/in-out only, and without that list the named curve
+  // was an unknown class that shipped beside the caller's `ease-out` and won on stylesheet order.
   //
   // ⚠️ AND DO NOT SPELL THAT LONGHAND CLASS OUT IN A COMMENT. Tailwind v4 scans source TEXT,
   // not parsed code, so a class-shaped string inside a comment is compiled like any other.
@@ -94,7 +101,7 @@ const buttonVariants = cva(
   // that must be re-stated at every call site is a defect in the primitive, not in the
   // callers. (`disabled:pointer-events-none` below already suppresses hover on a disabled
   // button, so this needs no disabled: counterpart.)
-  "cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,opacity,box-shadow,filter,backdrop-filter,transform,translate,scale,rotate] duration-[160ms] ease-[var(--ease-spring-snappy)] active:duration-[60ms] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
+  "cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,opacity,box-shadow,filter,backdrop-filter,transform,translate,scale,rotate] duration-[160ms] ease-spring-snappy active:duration-[60ms] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
@@ -211,10 +218,16 @@ const buttonVariants = cva(
       //
       // The ICON sizes deliberately keep `size-*`: they hold a glyph, not a line box, so
       // nothing reflows, and they must stay SQUARE (a min-h on a circle deforms it).
+      //
+      // ⚠️ THE LEADING-ICON TEST LOOKS THROUGH THE LOADING LABEL TOO. `loading` (below) moves the
+      // children into a `data-slot="button-label"` span so they can be hidden without leaving the
+      // accessibility tree — which would take a leading icon out of `>svg` reach and put the wide
+      // padding back mid-submit: an 8px jump, the exact thing `loading` exists to prevent. So the
+      // test is "a direct svg, OR one directly inside that span". Nothing else is ever in the span.
       size: {
-        default: "min-h-9 px-4 py-1.5 has-[>svg]:px-3",
-        sm: "min-h-8 rounded-xl gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "min-h-10 rounded-xl px-6 has-[>svg]:px-4",
+        default: "min-h-9 px-4 py-1.5 has-[>svg,>[data-slot=button-label]>svg]:px-3",
+        sm: "min-h-8 rounded-xl gap-1.5 px-3 has-[>svg,>[data-slot=button-label]>svg]:px-2.5",
+        lg: "min-h-10 rounded-xl px-6 has-[>svg,>[data-slot=button-label]>svg]:px-4",
         icon: "size-9",
         "icon-sm": "size-7",
         "icon-xs": "size-6",
@@ -299,10 +312,18 @@ function Button({
   // the DOM node and trip a React warning.
   iconSize,
   asChild = false,
+  // Destructured for the same reason — `loading` is state for this component, never a DOM attribute.
+  loading = false,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
+    /**
+     * An async action is running (D-BTNLOAD, 2026-09-29). The label stays in place but invisible, a
+     * spinner sits over its centre, the button reports `aria-busy`, and it refuses clicks WITHOUT
+     * dropping focus. See the note at the render. Not supported with `asChild` (a link does not load).
+     */
+    loading?: boolean
   }) {
   // asChild = a real Slot (Base UI ships none): merge the button STYLING onto the child element
   // itself rather than wrapping it in Base UI's Button.
@@ -325,6 +346,9 @@ function Button({
   // clobber `data-slot`/`className`; if a call site ever legitimately needs a merged handler on the
   // wrapper, add composition here rather than moving the prop.
   if (asChild) {
+    if (process.env.NODE_ENV !== 'production' && loading) {
+      console.warn('ui/button: `loading` is ignored with `asChild` — a navigating link has no busy state.')
+    }
     const { children, ...rest } = props as { children?: React.ReactNode }
     const child = React.Children.only(children) as React.ReactElement<Record<string, unknown>>
     return React.cloneElement(child, {
@@ -336,12 +360,52 @@ function Button({
       ),
     })
   }
+  if (!loading) {
+    return (
+      <ButtonPrimitive
+        data-slot="button"
+        className={cn(buttonVariants({ variant, size, iconSize, className: keepPressTransition(className) }))}
+        {...props}
+      />
+    )
+  }
+  /**
+   * ⛔ THE BUSY STATE, AND WHY EACH PIECE IS SHAPED THE WAY IT IS. 126 call sites hand-built this three
+   * incompatible ways — swap the icon, prepend a spinner (the label shoves sideways and an auto-width
+   * button grows ~22px, pushing its Cancel neighbour), or replace the label with the spinner (the
+   * button loses its accessible NAME and its line box, so it shrinks) — and none set aria-busy.
+   *   · THE LABEL STAYS, AT OPACITY 0 — not `invisible`, not removed. `visibility: hidden` drops the
+   *     text from the accessibility tree, so the button would go nameless mid-submit; opacity keeps
+   *     the name AND the exact width and height, so nothing around the button moves.
+   *   · `focusableWhenDisabled`: Base UI then sets `aria-disabled` instead of the native attribute, so
+   *     the click (and Enter/Space) is refused but focus is NOT thrown to <body> — a keyboard user who
+   *     pressed Submit is still on Submit when it finishes. A consequence, intended: the `disabled:`
+   *     variants (opacity-50, a caller's opacity-40) do not match, because the button is not disabled,
+   *     it is working; the spinner is the signal. `cursor-wait` says the same to a pointer.
+   *   · `relative` goes BEFORE the caller's className, so a caller's `absolute`/`fixed` still wins.
+   *   · The spinner is wrapped in a span, never a direct svg: `has-[>svg]` padding must not count it.
+   */
+  const { children, ...rest } = props
   return (
     <ButtonPrimitive
+      // Spread FIRST: the four busy props below must beat a caller's `disabled={false}`.
+      {...rest}
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, iconSize, className: keepPressTransition(className) }))}
-      {...props}
-    />
+      data-loading=""
+      aria-busy
+      disabled
+      focusableWhenDisabled
+      // `data-loading:cursor-wait`, not `cursor-wait`: a caller's plain `cursor-pointer` (dozens of
+      // size="none" sites carry one) is the same tailwind-merge group and would delete a bare one.
+      className={cn(buttonVariants({ variant, size, iconSize }), 'relative data-loading:cursor-wait', keepPressTransition(className))}
+    >
+      <span data-slot="button-label" className="inline-flex items-center justify-center gap-[inherit] opacity-0">
+        {children as React.ReactNode}
+      </span>
+      <span aria-hidden className="absolute inset-0 flex items-center justify-center">
+        <Loader2 className={cn(size === 'sm' ? ICON_SIZE.sm : ICON_SIZE.md, 'animate-spin')} />
+      </span>
+    </ButtonPrimitive>
   )
 }
 

@@ -11,10 +11,10 @@ import { compressImageFile } from '@/lib/normalize-image'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { Loader2, ImagePlus, CheckCircle2, X, ShieldCheck } from "@/components/ui/icons"
+import { ImagePlus, CheckCircle2, ShieldCheck } from "@/components/ui/icons"
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
-import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -94,9 +94,12 @@ export default function AppealPage() {
               {files.map((f, i) => (
                 <div key={i} className="relative h-20 w-20 overflow-hidden rounded-xl bg-tint">
                   <img src={f.url} alt="" className="h-full w-full object-cover" />
-                  {/* IconButton, mirroring the sibling /reports/[id] tile exactly — the two
-                      supplement pages are one pattern and must stay byte-identical here. */}
-                  <IconButton size="xs" tapTarget={false} onClick={() => removeFile(i)} aria-label={t('Remove', 'Xóa')} className="absolute right-0.5 top-0.5 size-5 bg-black/60 text-white"><X className="h-[29px] w-[29px] shrink-0" /></IconButton>
+                  {/* CloseButton, mirroring the sibling /reports/[id] tile exactly — the two
+                      supplement pages are one pattern and must stay byte-identical here.
+                      ⚠️ THE POST WIZARD'S PHOTO-TILE REMOVE, NOT A HAND-SIZED ONE (D-CLOSE, 2026-09-29): this
+                      was a 29px ✕ (26px of ring) on a 20px black plate, so the ring hung past the plate on
+                      every side. `2xs` + `overlay` is the measured pair — 24px plate, 18px mark. */}
+                  <CloseButton size="2xs" variant="overlay" tapTarget={false} onClick={() => removeFile(i)} label={t('Remove', 'Xóa')} className="absolute right-1 top-1" />
                 </div>
               ))}
               {files.length < 6 && (
@@ -110,8 +113,8 @@ export default function AppealPage() {
 
             {error && <p role="alert" className="mt-3 text-center text-xs font-semibold text-destructive">{error}</p>}
 
-            <Button variant="cta" size="none" onClick={submit} disabled={submitting || note.trim().length < 5} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
-              {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {t('Submit appeal', 'Gửi khiếu nại')}
+            <Button variant="cta" size="none" onClick={submit} loading={submitting} disabled={note.trim().length < 5} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+              {t('Submit appeal', 'Gửi khiếu nại')}
             </Button>
           </div>
         )}

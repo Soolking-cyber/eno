@@ -1,5 +1,34 @@
 import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { extendTailwindMerge } from "tailwind-merge"
+
+/**
+ * ⚠️ THE Z LADDER'S NAMES MUST BE TAUGHT TO tailwind-merge, OR AN OVERRIDE SILENTLY LOSES. The ladder
+ * in globals.css (`@theme { --z-index-* }`, D-Z 2026-09-29) mints `z-overlay`, `z-fab` … — and
+ * tailwind-merge's stock `z` group accepts only integers, `auto` and arbitrary values, so it would
+ * keep BOTH of `cn('z-overlay', 'z-[70]')` and leave stylesheet order to pick one (the concatenation
+ * trap CLAUDE.md warns about). Tailwind sorts `z-[70]` before `z-overlay`, so the caller would lose.
+ * Keep this list equal to the `--z-index-*` names in globals.css.
+ *
+ * ⚠️ THE FOUR HOUSE CURVES NEED THE SAME TREATMENT, FOR THE SAME REASON (D-LINT, 2026-09-29). Once they
+ * became theme tokens (`@theme static { --ease-* }` in globals.css) the primitives spell the NAMED
+ * utility (`ease-spring-snappy`) where they used the arbitrary var() form. tailwind-merge put the
+ * arbitrary form in its `ease` group, but its stock theme knows only `in`, `out` and `in-out`, so a
+ * named curve is an unknown class: `cn('ease-spring-snappy', 'ease-out')` kept BOTH, and Tailwind
+ * emits the named curves after `ease-out`, so the primitive beat every caller (rental-check-pill's
+ * 200ms `ease-out` entrance on <Button>, the theme Switch thumb in preferences-inline). `theme.ease`
+ * is the key tailwind-merge's `ease` group reads, i.e. the same namespace as Tailwind's `--ease-*`.
+ * Keep this list equal to the `--ease-*` names in that block; utils.test.ts reads both.
+ */
+const twMerge = extendTailwindMerge({
+  extend: {
+    theme: {
+      ease: ['out-strong', 'spring', 'spring-snappy', 'bounce'],
+    },
+    classGroups: {
+      z: [{ z: ['raised', 'sticky', 'nav', 'fab', 'overlay', 'tooltip', 'splash', 'consent', 'map-overlay', 'nested-popover'] }],
+    },
+  },
+})
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

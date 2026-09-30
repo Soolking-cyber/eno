@@ -11,10 +11,10 @@ import { compressImageFile } from '@/lib/normalize-image'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { Loader2, ImagePlus, CheckCircle2, X, MessageSquareWarning } from '@/components/ui/icons'
+import { ImagePlus, CheckCircle2, MessageSquareWarning } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
-import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -101,7 +101,7 @@ export default function ReportSupplementPage() {
               {files.map((f, i) => (
                 <div key={i} className="relative h-20 w-20 overflow-hidden rounded-xl bg-tint">
                   <img src={f.url} alt="" className="h-full w-full object-cover" />
-                  <IconButton size="xs" tapTarget={false} onClick={() => removeFile(i)} aria-label={t('Remove', 'Xóa')} className="absolute right-0.5 top-0.5 size-5 bg-black/60 text-white"><X className="h-[29px] w-[29px] shrink-0" /></IconButton>
+                  <CloseButton size="2xs" variant="overlay" tapTarget={false} onClick={() => removeFile(i)} label={t('Remove', 'Xóa')} className="absolute right-1 top-1" />
                 </div>
               ))}
               {files.length < 6 && (
@@ -115,8 +115,8 @@ export default function ReportSupplementPage() {
 
             {error && <p role="alert" className="mt-3 text-center text-xs font-semibold text-destructive">{error}</p>}
 
-            <Button variant="cta" size="none" onClick={submit} disabled={submitting || (text.trim().length < 3 && files.length === 0)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
-              {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send to the review team', 'Gửi cho đội xem xét')}
+            <Button variant="cta" size="none" onClick={submit} loading={submitting} disabled={text.trim().length < 3 && files.length === 0} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+              {t('Send to the review team', 'Gửi cho đội xem xét')}
             </Button>
           </div>
         )}

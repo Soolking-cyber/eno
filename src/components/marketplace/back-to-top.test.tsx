@@ -42,7 +42,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.useRealTimers()
-  document.querySelectorAll('main').forEach((m) => m.remove())
+  document.querySelectorAll('main, #app-footer').forEach((m) => m.remove())
 })
 
 const chevron = () => document.querySelector<HTMLElement>('.back-to-top-chevron')!
@@ -74,6 +74,13 @@ function control(rect: { top: number; bottom: number; left: number; right: numbe
   b.getBoundingClientRect = () => ({ ...rect, width: rect.right - rect.left, height: rect.bottom - rect.top, x: rect.left, y: rect.top, toJSON() {} }) as DOMRect
   main.appendChild(b)
   return b
+}
+/** Any element at a viewport rect, appended under `parent` (a <main> or the footer). */
+function placed(tag: string, parent: HTMLElement, rect: { top: number; bottom: number; left: number; right: number }) {
+  const el = document.createElement(tag)
+  el.getBoundingClientRect = () => ({ ...rect, width: rect.right - rect.left, height: rect.bottom - rect.top, x: rect.left, y: rect.top, toJSON() {} }) as DOMRect
+  parent.appendChild(el)
+  return el
 }
 
 describe('BackToTop — the chevron shows only while scrolling UP', () => {
@@ -207,5 +214,87 @@ describe('BackToTop — at rest, never on a page control', () => {
     // …until the page moves: a reader scrolling must get the controls back.
     scrollTo(40)
     expect(yielded(support())).toBe(false)
+  })
+})
+
+/**
+ * ⚠️ THE POPUP STAND-DOWNS (G-FAB, 2026-09-29). jsdom evaluates no Tailwind, so these pin the CLASS
+ * CONTRACT: the column carries a hide rule for every popup slot it could sit beside or on — the
+ * Filters and Price panels are ui/popover, and CustomSelect / AreaFilter menus and every drawer and
+ * sheet carry `.overlay-scrim` (the popup scrims are z-40, UNDER the column's z-fab). A rule dropped
+ * here is the mark back beside "Done".
+ */
+describe('BackToTop — stands down under every popup, not only the modals', () => {
+  const RULES = [
+    '[body:has([data-slot=dialog-content])_&]:hidden',
+    '[body:has([data-slot=sheet-content])_&]:hidden',
+    '[body:has([data-slot=alert-dialog-content])_&]:hidden',
+    '[body:has(.overlay-scrim:not([hidden],[data-closed]))_&]:hidden',
+    '[body:has([data-slot=popover-content]:not([data-closed]))_&]:hidden',
+    '[body:has([data-slot=select-content]:not([data-closed]))_&]:hidden',
+    '[body:has([data-slot=combobox-content]:not([data-closed]))_&]:hidden',
+    '[body:has([data-slot=dropdown-menu-content]:not([data-closed]))_&]:hidden',
+    '[html.kb-open_&]:hidden',
+  ]
+  it('the column carries the stand-down for each popup slot and for the open keyboard', () => {
+    render(<BackToTop />)
+    const cls = column().className.split(/\s+/)
+    for (const r of RULES) expect(cls, r).toContain(r)
+  })
+
+  it('matches OPEN popups only — a closed Base UI Select stays mounted (hidden, data-closed) and must not latch it', () => {
+    render(<BackToTop />)
+    const scrim = column().className.split(/\s+/).find((c) => c.includes('overlay-scrim'))
+    expect(scrim).toContain(':not([hidden],[data-closed])')
+    for (const c of column().className.split(/\s+/).filter((c) => c.includes('data-slot=') && !/dialog|sheet/.test(c))) {
+      expect(c, c).toContain(':not([data-closed])')
+    }
+  })
+
+  // ⛔ D-Z (2026-09-29): the cluster sits on the ladder's `fab` tier (45), UNDER `overlay` (50). It was
+  // z-[60], above every overlay, which is why each overlay needed its own stand-down and the Drawer —
+  // which never got one — was painted over. The stand-downs above are now the belt, this is the brace.
+  it('sits on the fab tier, below the overlay tier — not the old z-[60]', () => {
+    render(<BackToTop />)
+    const cls = column().className.split(/\s+/)
+    expect(cls).toContain('z-fab')
+    expect(cls.filter((c) => /^z-/.test(c))).toEqual(['z-fab'])
+  })
+
+  it('so does the phone rental-check pill, which shares the column\'s rules', () => {
+    render(<BackToTop />)
+    // The pill's wrapper is the other fixed child of the portal: the one that is not the column.
+    const pill = [...document.body.children].find((el) => el !== column() && el.className.includes('left-4'))
+    expect(pill, 'pill wrapper').toBeDefined()
+    const cls = pill!.className.split(/\s+/)
+    for (const r of RULES) expect(cls, r).toContain(r)
+  })
+})
+
+describe('BackToTop — yields to the opt-in values and to the footer', () => {
+  it('a [data-fab-avoid] value under the mark (a PDP Details value) yields it — text alone never does', () => {
+    const main = document.createElement('main')
+    document.body.prepend(main)
+    placed('p', main, { left: 200, right: 378, top: 734, bottom: 754 }) // plain text: not an obstacle
+    render(<BackToTop />)
+    layOut()
+    rest()
+    expect(yielded(support())).toBe(false)
+    placed('dd', main, { left: 300, right: 378, top: 734, bottom: 754 }).setAttribute('data-fab-avoid', '')
+    scrollTo(40)
+    rest()
+    expect(yielded(support())).toBe(true)
+  })
+
+  it('a footer link under the mark yields it — #app-footer is page content, not chrome', () => {
+    const footer = document.createElement('footer')
+    footer.id = 'app-footer'
+    document.body.appendChild(footer)
+    const a = placed('a', footer, { left: 300, right: 378, top: 736, bottom: 752 }) as HTMLAnchorElement
+    a.href = '/help'
+    render(<BackToTop />)
+    layOut()
+    rest()
+    expect(yielded(support())).toBe(true)
   })
 })

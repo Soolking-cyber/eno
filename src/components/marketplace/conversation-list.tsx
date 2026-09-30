@@ -6,15 +6,18 @@ import { useParams, usePathname } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
-import { SignInPrompt } from '@/components/marketplace/account-actions'
+import { MessagesGuestGate } from '@/components/marketplace/messages-guest-gate'
 import { Search, Trash2, X, Sparkles, Check, Undo2, Tag } from '@/components/ui/icons'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
 import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
 import { Input } from '@/components/ui/input'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
@@ -22,6 +25,9 @@ import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 // (and the whole screen on mobile). Highlights the open thread on desktop.
 export function ConversationList() {
   const { user, loading } = useAuth()
+  // Known to be signed out. While auth is still `loading`, `html.no-session` (set pre-paint when the
+  // document had no sb- cookie) is what lets the guest state paint before hydration — see below.
+  const guest = !loading && !user
   const { lang, tr } = useLanguage()
   const { convos, deleteConvo, refreshConvos, prefetchThread } = useChat()
   const { id: activeId } = useParams<{ id?: string }>()
@@ -69,10 +75,15 @@ export function ConversationList() {
     <div className="flex h-full flex-col">
       <div className="px-2 pt-3">
         {/* Title only on desktop; on mobile the navbar gives context + the search
-            sits right under it. */}
-        <h1 className="h-title text-foreground px-1 hidden lg:block">{tr('Messages', 'Tin nhắn')}</h1>
-        {/* Search — filled, borderless */}
-        <div className="relative lg:mt-3">
+            sits right under it. ⚠️ `max-lg:sr-only`, NOT `hidden lg:block`: display:none took the h1
+            out of the accessibility tree too, so a phone screen reader met /messages with no page
+            heading at all (the same fix DashboardTabs records). Visually nothing changes. */}
+        <PageHeader title={tr('Messages', 'Tin nhắn')} className="px-1" titleClassName="max-lg:sr-only" />
+        {/* Search — filled, borderless. ⚠️ NOT FOR A GUEST: there is nothing of theirs to search, and a
+            search box above a sign-in gate reads as a broken inbox. Pre-hydration, `no-session:hidden`
+            drops it for a cookie-less document while auth is still loading. */}
+        {!guest && (
+        <div className={cn('relative lg:mt-3', loading && 'no-session:hidden')}>
           {/* Input lead rides the 20px step (icon-language §4: inputs = h-5). */}
           <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-4" aria-hidden />
           <Input
@@ -85,6 +96,7 @@ export function ConversationList() {
             className="py-2.5 pl-10 pr-4 transition-colors focus:bg-muted focus:ring-0"
           />
         </div>
+        )}
       </div>
 
       <div className="mt-2 flex-1 overflow-y-auto px-2 pb-4 scroll-thin">
@@ -103,21 +115,45 @@ export function ConversationList() {
             <p className="truncate text-xs text-accent-foreground">{tr('Ask anything — find products by chat', 'Hỏi bất cứ điều gì — tìm đồ bằng chat')}</p>
           </div>
         </Link>
-        {!loading && !user ? (
-          <div className="px-2 py-10 text-center">
-            <Mascot name="chat" className="mx-auto h-40 w-40" />
-            <p className="mt-3 text-sm text-muted-foreground">{tr('Sign in to see your messages.', 'Đăng nhập để xem tin nhắn của bạn.')}</p>
-            <div className="mt-4"><SignInPrompt /></div>
-          </div>
+        {/* ⚠️ ONE GATE PER SCREEN: on a phone it lives here (the list IS the page); from lg the right
+            pane shows it (messages/page.tsx), so this copy is `lg:hidden` — desktop used to show two
+            mascots and two sign-in buttons side by side. */}
+        {guest ? (
+          <div className="lg:hidden"><MessagesGuestGate /></div>
         ) : convos === null ? (
-          <div className="space-y-1.5 px-1">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+          loading ? (
+            /* ⛔ AUTH STILL RESOLVING — THE GATE PAINTS FROM THE FIRST FRAME FOR A COOKIE-LESS DOCUMENT.
+               `loading` is true on the server and on the first client render, and only flips after
+               hydration (auth-context boots Supabase in an effect), so a guest used to watch six
+               skeleton rows for ~1s before the gate replaced them. `html.no-session` is known BEFORE
+               paint, so CSS picks the branch: skeletons for a document with a session cookie, the gate
+               without one. Server and first client render emit this same markup, so there is no
+               hydration mismatch; once `loading` flips, the branches above take over. */
+            <>
+              <div className="space-y-1.5 px-1 no-session:hidden">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+              <div className="lg:hidden"><MessagesGuestGate className="hidden no-session:flex" /></div>
+            </>
+          ) : (
+            <div className="space-y-1.5 px-1">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+          )
         ) : convos.length === 0 ? (
-          <div className="px-3 py-12 text-center">
-            <Mascot name="chat" className="mx-auto h-40 w-40" />
-            <p className="mt-3 text-sm text-ink-4">{tr('No messages yet. Tap "Message" on a listing to start a chat.', 'Chưa có tin nhắn. Nhấn "Nhắn tin" trên một tin đăng để bắt đầu.')}</p>
-          </div>
+          // ⚠️ THE SHARED EMPTY STATE, WITH A TITLE AND A WAY FORWARD (D-STATES, 2026-09-29): this was a
+          // mascot over one muted sentence and nothing to tap — the inbox told a new user to go and
+          // find a listing and gave them no door to it. `bare`: the flat canon, no box around it.
+          <EmptyState
+            tone="bare"
+            size="lg"
+            media={<Mascot name="chat" className="mx-auto h-40 w-40" />}
+            title={tr('No messages yet', 'Chưa có tin nhắn')}
+            subtitle={tr('Tap "Message" on any listing to start a chat.', 'Nhấn "Nhắn tin" trên một tin đăng để bắt đầu trò chuyện.')}
+            action={
+              <Button asChild variant="cta" size="none">
+                <Link href="/" className="px-5 py-2.5">{tr('Browse listings', 'Khám phá tin đăng')}</Link>
+              </Button>
+            }
+          />
         ) : filtered && filtered.length === 0 ? (
-          <p className="px-3 py-12 text-center text-sm text-ink-4">{tr('No conversations match.', 'Không có cuộc trò chuyện phù hợp.')}</p>
+          <EmptyState tone="bare" title={tr('No conversations match.', 'Không có cuộc trò chuyện phù hợp.')} />
         ) : (
           <div className="space-y-0.5">
             {(filtered ?? []).map((c) => (
@@ -254,8 +290,8 @@ export function ConversationList() {
                 </Link>
                 {confirmId === c.id ? (
                   <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
-                    <Button variant="destructive" size="none" onClick={() => removeRow(c.id)} className="cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold text-white active:scale-[0.96]">{tr('Delete', 'Xóa')}</Button>
-                    <IconButton size="xs" onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="text-ink-4 hover:text-foreground"><X className="h-[29px] w-[29px] shrink-0" /></IconButton>
+                    <Button variant="destructive" size="none" onClick={() => removeRow(c.id)} className="cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold active:scale-[0.96]">{tr('Delete', 'Xóa')}</Button>
+                    <CloseButton size="xs" onClick={() => setConfirmId(null)} label={tr('Cancel', 'Hủy')} />
                   </div>
                 ) : (
                   <IconButton

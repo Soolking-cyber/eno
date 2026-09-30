@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import * as React from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { Button } from './button'
 
@@ -66,5 +66,71 @@ describe('Button keeps its press transition', () => {
     const el = screen.getByRole('button', { name: 'x' })
     expect(classes(el)).toContain('duration-300')
     expect(classes(el)).not.toContain('duration-[160ms]')
+  })
+
+  // The base curve became the NAMED `ease-spring-snappy` (D-LINT). A caller's `ease-out` must
+  // still replace it — rental-check-pill's 200ms entrance depends on it — which needs the curve
+  // names taught to tailwind-merge in lib/utils.ts.
+  it("a caller's curve replaces the base house curve instead of shipping beside it", () => {
+    render(<Button className="ease-out">{X}</Button>)
+    const el = screen.getByRole('button', { name: 'x' })
+    expect(classes(el)).toContain('ease-out')
+    expect(classes(el).filter((c) => c.startsWith('ease-'))).toEqual(['ease-out'])
+  })
+})
+
+// D-BTNLOAD (2026-09-29). The busy state's whole contract is observable in the DOM: the name stays,
+// the state is announced, the click is refused, and focus survives the switch.
+const SAVE = 'Save'
+describe('Button loading', () => {
+  it('keeps its accessible name, reports busy + disabled, and shows exactly one spinner', () => {
+    render(<Button loading>{SAVE}</Button>)
+    const el = screen.getByRole('button', { name: 'Save' })
+    expect(el.getAttribute('aria-busy')).toBe('true')
+    expect(el.getAttribute('aria-disabled')).toBe('true')
+    // Focusable while busy: NOT the native attribute, which would throw focus to <body>.
+    expect(el.hasAttribute('disabled')).toBe(false)
+    expect(el.querySelectorAll('svg.animate-spin')).toHaveLength(1)
+    // The label is hidden by opacity, never removed or `invisible` (that would drop the name).
+    const label = el.querySelector('[data-slot=button-label]')!
+    expect(label.textContent).toBe('Save')
+    expect(classes(label as HTMLElement)).toContain('opacity-0')
+    expect(classes(label as HTMLElement)).not.toContain('invisible')
+  })
+
+  it('refuses the click while loading', () => {
+    const fn = vi.fn()
+    render(<Button loading onClick={fn}>{SAVE}</Button>)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(fn).not.toHaveBeenCalled()
+  })
+
+  it('keeps focus when it switches from idle to loading and back', () => {
+    const { rerender } = render(<Button>{SAVE}</Button>)
+    const el = screen.getByRole('button', { name: 'Save' })
+    el.focus()
+    expect(document.activeElement).toBe(el)
+    rerender(<Button loading>{SAVE}</Button>)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Save' }))
+    rerender(<Button>{SAVE}</Button>)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Save' }))
+  })
+
+  it('beats a caller disabled={false}, and a caller absolute still beats its relative', () => {
+    render(<Button loading disabled={false} className="absolute cursor-pointer">{SAVE}</Button>)
+    const el = screen.getByRole('button', { name: 'Save' })
+    expect(el.getAttribute('aria-disabled')).toBe('true')
+    expect(classes(el)).toContain('absolute')
+    expect(classes(el)).not.toContain('relative')
+    // The wait cursor is variant-scoped so the caller's cursor-pointer cannot delete it.
+    expect(classes(el)).toContain('data-loading:cursor-wait')
+  })
+
+  it('is inert when false — the idle markup has no wrapper and no busy attributes', () => {
+    render(<Button loading={false}>{SAVE}</Button>)
+    const el = screen.getByRole('button', { name: 'Save' })
+    expect(el.hasAttribute('aria-busy')).toBe(false)
+    expect(el.querySelector('[data-slot=button-label]')).toBeNull()
+    expect(el.hasAttribute('loading')).toBe(false)
   })
 })

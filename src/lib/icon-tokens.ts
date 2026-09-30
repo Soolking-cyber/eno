@@ -80,3 +80,40 @@ export const WASH_ACTIVE = "[&_svg:not([class*='fill-'])>path:first-of-type]:fil
 export const WASH_ACTIVE_TWIN =
   "[&_svg:not([class*='fill-'])>path:first-of-type]:fill-brand-100 [&_svg:not([class*='fill-'])>path:nth-of-type(2)]:fill-brand-100"
 
+
+/**
+ * THE ✕ CLOSE MARK'S GLYPH, BY BUTTON SIZE — consumed by ui/close-button.tsx, which is the only
+ * place a close mark should be sized (D-CLOSE, 2026-09-29). Two rules, because the two variants put
+ * the mark in two different boxes:
+ *   ghost   — the mark FILLS its button (owner, 2026-08-26, 43dd9bcf: "make this icon fit its
+ *             outline everywhere"). Solar's ✕ inks 90% of its box, so glyph = round((button − 2) / 0.9)
+ *             lands ~1px of ink inside the edge: 28→29, 32→33, 36→38, 40→42 (24→24 by the same rule).
+ *   overlay — the glyph wears a plate (`.plate-host svg`, 3px padding, box-content), so the plate is
+ *             the glyph + 6 and must equal the button: glyph = button − 6. Measured twice before this
+ *             table existed: the post wizard's photo-tile remove (24 → 18) and the lightbox close
+ *             (40 → 34, listing-gallery.tsx).
+ * ⚠️ 0.9 IS THIS GLYPH'S NUMBER. Never size another icon from the ghost row.
+ */
+export const CLOSE_GLYPH = {
+  ghost: { '2xs': 'size-6', xs: 'size-[29px]', sm: 'size-[33px]', md: 'size-[38px]', lg: 'size-[42px]' },
+  overlay: { '2xs': 'size-[18px]', xs: 'size-[22px]', sm: 'size-[26px]', md: 'size-[30px]', lg: 'size-[34px]' },
+} as const
+
+/**
+ * OWNER-MEASURED GLYPH FITS OFF THE ICON_SIZE LADDER — the only arbitrary icon sizes design-lint
+ * accepts outside ui/close-button.tsx (D-LINT, 2026-09-29). Each is a mark sized to FILL a plate or a
+ * button by measurement, so it is a number with a reason, not drift:
+ *   X             29/33/38/42 — the ghost ✕ rule above, still hand-typed where CloseButton has not
+ *                 reached yet; 34 — the lightbox close on its overlay plate (listing-gallery.tsx).
+ *   Plus          29 — the add-circle on the 28px avatar/logo plate (profile editors), same arithmetic;
+ *                 42 — the Post coin's plus on its 40px disc (mobile-nav.tsx).
+ *   SupportDialog 46 — the floating support mark (support-button.tsx; dialog-2 needed 46, see
+ *                 ui/icon-button.tsx).
+ * ⚠️ design-lint PARSES THIS LITERAL (it is an .mjs and cannot import TypeScript): keep it one
+ * `Name: ['Npx', …]` entry per line, and add a value only with the measurement that justifies it.
+ */
+export const ICON_FIT = {
+  X: ['29px', '33px', '34px', '38px', '42px'],
+  Plus: ['29px', '42px'],
+  SupportDialog: ['46px'],
+} as const

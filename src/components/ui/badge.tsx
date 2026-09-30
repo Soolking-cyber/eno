@@ -106,7 +106,10 @@ const SIZES = {
   //
   // `max-w-full` + a truncating label (see RemovableBadge) is what stops a long chip
   // ("honda vision 2022 màu đen") pushing the page into horizontal scroll on a 360px phone.
-  removable: 'max-w-full min-h-7 gap-0.5 py-0 pl-3 pr-0.5 text-xs',
+  // `pr-1`, not `pr-0.5` (E-ACTIVE, 2026-09-29): the ✕'s ring is 26px of ink in a 24px button, so at
+  // 2px of padding it overhung the button by a pixel and sat ON the pill's curve. 4px clears it; the
+  // vertical hit-area extender on the button is unchanged.
+  removable: 'max-w-full min-h-7 gap-0.5 py-0 pl-3 pr-1 text-xs',
 } as const
 
 // Hover/active affordance for a chip that is actually clickable. Off by default.

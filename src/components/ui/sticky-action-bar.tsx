@@ -185,6 +185,18 @@ export interface StickyActionBarProps {
   /** Accessible name for the bar itself. Given one, the bar becomes a labelled group. */
   label?: string
   /**
+   * Rendered inside the measured panel, above the action row — a short status line the action
+   * depends on (the post wizard's "Still needed" chips after a failed publish). It is measured with
+   * the panel, so <StickyActionBarSpacer /> grows with it and nothing has to re-derive the height.
+   * ⚠️ Keep it to one row and only show it when it earns the room: every pixel here is a pixel of
+   * page the bar covers. Absent, the panel's DOM is exactly what it was before this prop existed.
+   * ⚠️ PASS `null`, NOT `undefined`, WHILE THE SLOT IS EMPTY BUT MAY FILL. Any value other than
+   * `undefined` keeps the stacked shape (and `null` renders nothing, so the panel is still 72px);
+   * flipping between the two shapes re-parents the actions, which REMOUNTS the primary button — a
+   * keyboard user who pressed it would lose focus at the exact moment the status line appears.
+   */
+  above?: React.ReactNode
+  /**
    * Merged onto the ROOT via cn(). Put `lg:hidden` here when the surface has a desktop CTA —
    * and pass the SAME class to <StickyActionBarSpacer />. See the second ⚠️⚠️ at the top.
    */
@@ -307,6 +319,7 @@ export function StickyActionBar({
   secondary,
   offsetBottom,
   label,
+  above,
   className,
 }: StickyActionBarProps) {
   const panelRef = React.useRef<HTMLDivElement>(null)
@@ -472,7 +485,7 @@ export function StickyActionBar({
         'fixed inset-x-0 bottom-0 z-30',
         // z-30 sits UNDER <MobileNav> (z-40) deliberately: the two overlap by design — this
         // bar's background runs beneath the tabs — and the tabs must paint on top. It is also
-        // under every ui/* overlay (dialog/sheet at z-50) and under back-to-top's z-[60].
+        // under every ui/* overlay (dialog/sheet at z-overlay, 50) and under back-to-top's z-fab (45).
         // A hairline top edge, not a shadow: the flat language separates with a line, and this
         // is the same treatment <MobileNav> gives the app's other bottom edge. `hairline-t`
         // needs a positioned host and `fixed` is one.
@@ -490,7 +503,7 @@ export function StickyActionBar({
         // nothing (the same omission ui/button.tsx documents in its property list).
         // Reduced motion kills it twice over — the explicit variant here, and the global
         // switch at the bottom of globals.css that collapses every duration to 0.01ms.
-        'translate-y-0 opacity-100 transition-[translate,opacity] duration-[260ms] ease-[var(--ease-spring)]',
+        'translate-y-0 opacity-100 transition-[translate,opacity] duration-[260ms] ease-spring',
         'starting:translate-y-full starting:opacity-0 motion-reduce:transition-none',
         className,
       )}
@@ -503,14 +516,31 @@ export function StickyActionBar({
         spacer never has to subtract anything and never has to know the offset.
         Gutters follow the canonical page width so the actions line up with the content above.
       */}
-      <div
-        ref={panelRef}
-        data-slot="sticky-action-bar-panel"
-        className="mx-auto flex w-full max-w-7xl items-center gap-2 px-3 py-3 sm:px-6 lg:px-8"
-      >
-        {secondary ? <BarAction action={secondary} variant="outline" marker="secondary" /> : null}
-        <BarAction action={primary} variant="cta" marker="primary" />
-      </div>
+      {/* ⚠️ TWO SHAPES, AND THE PLAIN ONE IS BYTE-FOR-BYTE WHAT IT WAS BEFORE `above` EXISTED — a
+          row of actions directly in the panel — so StepWizard and every existing caller render the
+          same DOM. Only a caller that passes `above` (even `null`) gets the stacked column. */}
+      {above !== undefined ? (
+        <div
+          ref={panelRef}
+          data-slot="sticky-action-bar-panel"
+          className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-3 py-3 sm:px-6 lg:px-8"
+        >
+          {above}
+          <div className="flex items-center gap-2">
+            {secondary ? <BarAction action={secondary} variant="outline" marker="secondary" /> : null}
+            <BarAction action={primary} variant="cta" marker="primary" />
+          </div>
+        </div>
+      ) : (
+        <div
+          ref={panelRef}
+          data-slot="sticky-action-bar-panel"
+          className="mx-auto flex w-full max-w-7xl items-center gap-2 px-3 py-3 sm:px-6 lg:px-8"
+        >
+          {secondary ? <BarAction action={secondary} variant="outline" marker="secondary" /> : null}
+          <BarAction action={primary} variant="cta" marker="primary" />
+        </div>
+      )}
     </div>
   )
 }

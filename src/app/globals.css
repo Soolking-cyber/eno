@@ -24,6 +24,13 @@
    Nothing fails; the line is just gone. */
 @custom-variant data-horizontal (&[data-orientation="horizontal"]);
 @custom-variant data-vertical (&[data-orientation="vertical"]);
+/* `no-session` = the document had no Supabase cookie AT ALL when it started (html.no-session, set by
+   the pre-paint script in [lang]/layout.tsx — the same `sb-` prefix test as clause 1 of
+   shouldBootAuth). It lets a guest-only state paint BEFORE hydration, where auth `loading` is still
+   true. ⚠️ Consume it ONLY inside an auth-`loading` branch: the class is never re-added, and
+   auth-context removes it the moment a user appears, but a stale class must never be able to hide
+   a signed-in surface on its own. */
+@custom-variant no-session (&:is(.no-session *));
 
 @theme inline {
   /* ⚠️ THE HOUSE CURVE IS THE DEFAULT, WHICH IS THE ONLY WAY THIS EVER GOT FIXED.
@@ -180,6 +187,7 @@
   /* Semantic status colors — flip lighter on dark so success/warning/info chips
      stay on-theme instead of using raw emerald/amber (which have no dark variant). */
   --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-info: var(--info);
   /* Rating gold — a CONVENTION (the review star), not a status. Kept apart from
@@ -208,6 +216,67 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+}
+
+/* ── THE FOUR HOUSE CURVES ARE THEME TOKENS, SO THEY ARE UTILITIES (D-LINT, 2026-09-29) ──────────
+   They sat in `:root`, where Tailwind cannot see them, so every call site spelled the arbitrary
+   form of the `ease-` utility around a var() (43 of them) and nothing could check the name inside.
+   Declared here they mint `ease-out-strong`, `ease-spring`, `ease-spring-snappy` and `ease-bounce`,
+   which set `--tw-ease` exactly as the arbitrary form did. ⚠️ tailwind-merge does NOT group a named
+   curve with `ease-out` on its own — its stock ease scale is only in/out/in-out — so lib/utils.ts
+   teaches it these four names (`theme.ease`); without that, a caller's `ease-out` stopped replacing
+   a primitive's curve and both classes shipped, the named one winning on stylesheet order. That
+   merge is the reason ui/button.tsx gives for the utility form over the longhand; a fifth curve
+   added here goes into that list too (utils.test.ts compares the two).
+   ⚠️ `static`, NOT PLAIN `@theme`: a plain theme block emits a variable only when a utility uses it,
+   and these four are ALSO read through bare var() — the default-transition fallback above, the
+   keyframed animations and `transition:` shorthands further down, and inline styles in TSX
+   (back-to-top's `transitionTimingFunction`). `static` keeps them on `:root` whatever is used.
+   The motion contract that says which curve goes with which duration is still in `:root` below,
+   beside the other motion tokens; only the four declarations moved. */
+@theme static {
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-spring: linear(0, 0.007, 0.029, 0.063, 0.108, 0.219, 0.354, 0.5, 0.638, 0.756, 0.85, 0.919, 0.965, 0.992, 1.006, 1.011, 1.009, 1.005, 1.001, 1);
+  --ease-spring-snappy: linear(0, 0.026, 0.101, 0.219, 0.375, 0.559, 0.727, 0.859, 0.949, 1.001, 1.025, 1.03, 1.024, 1.014, 1.005, 0.999, 0.998, 1);
+  --ease-bounce: linear(0, 0.004, 0.036, 0.098, 0.19, 0.417, 0.685, 0.912, 1.062, 1.13, 1.147, 1.13, 1.098, 1.062, 1.033, 1.013, 1.002, 0.998, 0.999, 1);
+}
+
+/* ── THE Z LADDER (D-Z, 2026-09-29) ──────────────────────────────────────────────────────────────
+   27 hand-typed values had grown with no order written down, and the one that mattered was wrong:
+   back-to-top's cluster sat at 60, ABOVE the 50 every overlay uses, so it painted over open drawers,
+   popovers and menus near the bottom-right and had to be patched overlay by overlay. The ladder, low
+   to high — each tier's WHY is the thing to preserve:
+     raised          10   a sibling lifted inside its own section (sticky rail arrows, card badges)
+     sticky          30   in-flow sticky chrome: facet/sort toolbar, the PDP sticky action bar
+     nav             40   the header and the floating tab bar. ⚠️ The popup SCRIMS (ui/popover,
+                          select, dropdown-menu, combobox) also sit at a literal 40 — above the sticky
+                          toolbar, under their own popup — i.e. UNDER the FAB. That is why
+                          back-to-top keeps its per-popup stand-downs (G-FAB, owner-kept).
+     fab             45   the back-to-top / support cluster: over the page and the tab bar, under
+                          every overlay, so an open modal's scrim covers it instead of the reverse
+     overlay         50   dialog, sheet, drawer, alert-dialog and every popup positioner
+     tooltip         70   a hint may sit over the overlay that owns its trigger
+     splash          90   the app splash (#app-splash, a literal in this file)
+     consent        200   the cookie bar, over the FAB on purpose (cookie-consent.tsx)
+     map-overlay   1100   anything floating INSIDE a map: MapLibre/Leaflet panes top out near 1000,
+                          so a 10–100 ladder would drop these under the tiles (custom-select.tsx's
+                          nested 800/1100/1200 ladder is documented there and stays literal for now)
+     nested-popover 1201  a popup opened from inside a map overlay
+   A theme namespace, not @utility: `--z-index-*` is Tailwind's own key for the `z-` utility, so these
+   sort with every other z utility, and lib/utils.ts teaches tailwind-merge the same names — without
+   that, a caller's `z-[70]` would NOT replace a primitive's `z-overlay` and stylesheet order would
+   pick the winner. Emitted only where used; a new tier goes in this table first. */
+@theme {
+  --z-index-raised: 10;
+  --z-index-sticky: 30;
+  --z-index-nav: 40;
+  --z-index-fab: 45;
+  --z-index-overlay: 50;
+  --z-index-tooltip: 70;
+  --z-index-splash: 90;
+  --z-index-consent: 200;
+  --z-index-map-overlay: 1100;
+  --z-index-nested-popover: 1201;
 }
 
 :root {
@@ -392,8 +461,12 @@
   --card-foreground: #171717;
   /* Floating panels MATCH the canvas (user decision 2026-07-13 — pure-white
      dropdowns read lighter than the #fafafa app). Dark keeps its lighter
-     elevation values: that's the correct dark-mode depth cue. */
-  --popover: #fafafa;
+     elevation values: that's the correct dark-mode depth cue.
+     ⚠️ MATCH THE CANVAS, AND THE CANVAS IS NOW THE WASH FLOOR (#f8fbfe since 2026-09-19), so this
+     FOLLOWS --wash-tail rather than restating a literal (D-POPOVER, 2026-09-29). It kept #fafafa for
+     ten days after the canvas moved — the very mismatch the 07-13 rule exists to prevent. The edge of
+     a floating surface is its border and shadow-pop / shadow-overlay, never a lighter fill. */
+  --popover: var(--wash-tail);
   --popover-foreground: #171717;
 
   /* shadcn primary maps to brand blue */
@@ -428,7 +501,7 @@
   --price: #c73c00;
   --destructive: #b91c1c;
   /* Text/icon colour ON a solid destructive surface. It must FLIP with the theme: the
-     dark --destructive is a light red (#f0616b), and white on it is only 3.17:1 — so a
+     dark --destructive is a light red (#f7737b), and white on it is only 2.73:1 — so a
      hardcoded text-white on a solid red chip fails AA in dark mode. */
   --destructive-foreground: #ffffff;
   --border: #e5e5e5;
@@ -474,6 +547,10 @@
   /* Semantic status (light): AA on white/tint cards. */
   --success: #166534; /* green-800 — green-700 (#15803d) is only 4.22:1 as text on
                         bg-success/10, the callout idiom. This clears AA (5.87:1). */
+  /* Ink ON a solid --success fill (the verification step's done check). It was used and never
+     defined, so Tailwind emitted nothing and the glyph inherited #171717: 2.51:1 on green-800.
+     White is 7.13:1 (D-TOKENS, 2026-09-29). */
+  --success-foreground: #ffffff;
   --warning: #92400e; /* amber-800 — amber-700 (#b45309) is only 4.20:1 as text on
                          bg-warning/10, the callout idiom this app uses. This clears AA (5.82:1). */
   --info:    #0a66c2; /* brand blue */
@@ -638,11 +715,10 @@
      argument against `ease-in` on a dismissal; the open half is a smaller, real improvement.
      ⚠️ SCOPE IS THE OVERLAY FAMILY, DELIBERATELY. The note above records a migration that changed
      ~40 call sites and had to put five back; this is not a licence to sweep `ease-out` app-wide.
-     A docked bar resting on a boundary still wants plain `ease-out`. */
-  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-spring: linear(0, 0.007, 0.029, 0.063, 0.108, 0.219, 0.354, 0.5, 0.638, 0.756, 0.85, 0.919, 0.965, 0.992, 1.006, 1.011, 1.009, 1.005, 1.001, 1);
-  --ease-spring-snappy: linear(0, 0.026, 0.101, 0.219, 0.375, 0.559, 0.727, 0.859, 0.949, 1.001, 1.025, 1.03, 1.024, 1.014, 1.005, 0.999, 0.998, 1);
-  --ease-bounce: linear(0, 0.004, 0.036, 0.098, 0.19, 0.417, 0.685, 0.912, 1.062, 1.13, 1.147, 1.13, 1.098, 1.062, 1.033, 1.013, 1.002, 0.998, 0.999, 1);
+     A docked bar resting on a boundary still wants plain `ease-out`.
+     ⚠️ THE FOUR DECLARATIONS THIS CONTRACT DESCRIBES NOW LIVE IN THE `@theme static` BLOCK AT THE TOP
+     OF THIS FILE (2026-09-29), so Tailwind mints `ease-out-strong` / `ease-spring` /
+     `ease-spring-snappy` / `ease-bounce`. Same names, same values, still on `:root`. */
 
   /* ── THE STICKY STACK MOVES AS ONE ────────────────────────────────────
      header.tsx, explorer-toolbar.tsx and section-header.tsx all reposition on
@@ -761,8 +837,13 @@
      the #1b1b1b canvas, 6.66:1 on the --cta-50 tint, 6.21:1 on the #2a2a2a popover. ⚠️ The dark
      --accent went back to blue with the rest of the theme, and a price never renders on it. */
   --price: #ff8c42;
-  --destructive: #f0616b;
-  /* Near-black ON the light dark-mode red: white would be 3.17:1 (fails). 5.5:1. */
+  /* ⚠️ TUNED AGAINST THE SAFETY STRIP, NOT THE CANVAS (D-CONTRAST, 2026-09-29). The binding surface is
+     `bg-warning/10` over the canvas (#322d20) — the PDP safety strip that holds the 12px "Report"
+     action — where the old #f0616b measured 4.33:1, under AA. #f7737b: 5.02:1 there, canvas 6.18,
+     popover 5.26, its own /10 tint 5.33, --accent 4.86, --tint 5.54. Still apart from the dark price
+     (#ff8c42): pink-red against orange, and an error keeps its icon or label (§3). */
+  --destructive: #f7737b;
+  /* Near-black ON the light dark-mode red: white would be 2.73:1 (fails). 6.31:1. */
   --destructive-foreground: #1b1b1b;
   --border: #363636;       /* more visible separators on the lighter canvas */
   --input: #3b3b3b;
@@ -794,6 +875,7 @@
 
   /* Semantic status (dark): lightened so they read on dark cards. */
   --success: #4ade80; /* green-400 */
+  --success-foreground: #1c1d1f; /* 9.68:1 on green-400; the inherited #f0f0f0 was 1.53:1 */
   --warning: #fbbf24; /* amber-400 */
   --info:    #60a5fa; /* blue-400  */
   --rating:  #fbbf24; /* amber-400 — brighter star gold on the dark canvas */
@@ -1814,6 +1896,62 @@ summary:focus-visible,
   outline-offset: -4px !important;
 }
 
+/* ── FORCED COLORS (Windows High Contrast): SELECTION MUST SURVIVE THE PALETTE SWAP (D-FORCED) ──────
+   In forced-colors mode the UA replaces every authored colour with the user's system palette and
+   DROPS box-shadow entirely. This app marks "selected" with exactly those two things — a brand
+   underline vs a transparent one on the explorer's sort tabs, a tinted fill on a pressed chip, a
+   ring on a checked option — so the selected and unselected states computed IDENTICAL colour,
+   border and weight (critic probe, Chromium forcedColors, dark). The fix is to say it in system
+   colours, which the UA keeps as authored (measured 2026-09-29 in headless Chromium: an authored
+   `Highlight` background and `HighlightText` ink survive forcing).
+   · `Highlight`/`HighlightText` is the pair the platform reserves for "this item is selected".
+   · ⛔ A FILLED SELECTION NEEDS `forced-color-adjust: none`, AND `auto` WAS TRIED FIRST. On `auto`
+     Chromium paints its readability BACKPLATE — a Canvas-coloured box behind every text run — so the
+     pressed category tile's label came out as HighlightText on a black plate: a black rectangle where
+     the word was (screenshot, dark HC). `none` drops the backplate. It is INHERITED, so every
+     descendant would keep its authored colours (a grey hint, a tinted plate) on the Highlight fill —
+     which is why the descendants are then told HighlightText and a transparent fill explicitly.
+   · The tab rules need `!important`: the tab underlines are Tailwind utilities behind (0,3,0)
+     variant chains, and a forced-colors user needs this to win over all of them.
+   · A Button gets a ButtonText border because without one a filled button is a floating label: its
+     fill is forced to Canvas, the same colour as the page. 1px of layout, in this mode only. */
+@media (forced-colors: active) {
+  [role="tab"][aria-selected="true"] {
+    border-bottom-color: Highlight !important;
+    font-weight: 700;
+  }
+  [role="tab"][aria-selected="false"] {
+    border-bottom-color: Canvas !important;
+  }
+  /* ui/tabs' line variant draws its indicator as a background on ::after — forced to Canvas. */
+  [role="tab"][aria-selected="true"]::after {
+    background-color: Highlight;
+  }
+  :is(button, a, [role="button"])[aria-pressed="true"],
+  [role="radio"][aria-checked="true"],
+  [role="switch"][aria-checked="true"],
+  [role="option"][aria-selected="true"] {
+    forced-color-adjust: none;
+    background-color: Highlight;
+    color: HighlightText;
+    border-color: Highlight;
+  }
+  /* Descendants: the ink and fill `none` would otherwise leave as authored (see the note above). A
+     label or glyph plate's own fill (colour or gradient — the "All" pill's count fade) goes, so the
+     Highlight shows through under the ink. */
+  :is(button, a, [role="button"])[aria-pressed="true"] *,
+  [role="radio"][aria-checked="true"] *,
+  [role="option"][aria-selected="true"] * {
+    color: HighlightText;
+    background-color: transparent;
+    background-image: none;
+  }
+  [data-slot="button"],
+  [data-slot="icon-button"] {
+    border: 1px solid ButtonText;
+  }
+}
+
 /* a11y — guarantee a ≥44×44px TAP target on compact icon controls WITHOUT changing
    their visual size: an invisible centered hit area (::before) that overflows the
    element; pointer events on it dispatch to the element. Add `tap-44` to a small
@@ -2027,6 +2165,56 @@ html.native #app-header {
    is what a render-time `typeof window` check would have caused instead. */
 html.native [data-app-download] {
   display: none !important;
+}
+/* ⛔ …AND ON iOS, AND IN AN INSTALLED PWA, UNTIL THE APP STORE LISTING EXISTS (owner-approved O-04,
+   2026-09-29). On an iPhone the control opened /app, a page saying the iOS app is not out yet — a
+   header button whose only destination is "not yet". `no-app-download` is added by the same pre-paint
+   script, and only on a build where NEXT_PUBLIC_IOS_APP_URL is unset (the test is interpolated in at
+   build time), so setting the URL brings the control back with no code change. Android in a normal tab
+   is untouched. Same first-frame reasoning as the rule above: no flash, no shift, no hydration branch. */
+html.no-app-download [data-app-download] {
+  display: none !important;
+}
+
+/* ⚠️ THE INSTALLED PWA GETS A BACK BUTTON WHERE THE LOGO WAS. manifest.ts installs the site as
+   `display: standalone` (the owner's only route to iOS web push), which removes the browser's own Back
+   — so a listing opened from a notification had no way back but the tab bar. header.tsx renders
+   `.standalone-back` `hidden` on every page but home, and this turns it on in standalone only, hiding
+   the logo it precedes. UNLAYERED, so it beats the `hidden` utility; `html:not(.native)` because the
+   Capacitor WebView reports display-mode `browser` anyway and keeps its own native chrome. In a normal
+   tab nothing matches, so the header is byte-for-byte what it was. */
+@media (display-mode: standalone) {
+  html:not(.native) .standalone-back { display: flex; }
+  html:not(.native) .standalone-back + [data-header-logo] { display: none; }
+}
+
+/* ⚠️ THE FOOTER'S LINK GROUPS ARE AN ACCORDION ON A PHONE AND ALWAYS OPEN FROM sm UP. Measured on
+   prod at 390: the fully expanded footer was 1,748px — five link groups stacked above the legal block.
+   footer.tsx wraps the groups in ui/accordion (hiddenUntilFound, so a closed group's links stay in the
+   HTML for crawlers and for find-in-page) and renders the root `sm:contents`, so from 40rem the items
+   are grid children exactly as before. This block is what makes that true: it hides the accordion
+   headers (each group keeps its static <h3>) and forces every panel open. The height, overflow and
+   content-visibility lines are UNLAYERED on purpose: they have to beat the panel's layered height
+   utility and Chrome's until-found `content-visibility: hidden`.
+   ⛔ `display` IS NOT IN THAT RULE, AND CANNOT BE. React renders `hidden` as a boolean, so the SSR
+   HTML carries a plain `hidden=""`; Base UI writes `until-found` only in a client layout effect
+   (useCollapsiblePanel, citing React issue 24740). Until then Tailwind preflight's
+   `[hidden]:where(:not([hidden='until-found'])) { display: none !important }` matches, and a layered
+   !important beats any normal declaration AND an unlayered !important. Measured at 1280 with the JS
+   chunks blocked: all five lists display:none, footer 711px, then 1,048px once hydrated. That was a
+   337px layout shift on every desktop page, and no footer links at all if a chunk failed to load. So
+   `display` lives in `@layer base`, the same layer as preflight, with !important, where the id
+   selector (1,1,0) outranks preflight's (0,1,0). It also beats the UA `[hidden]` rule, which Safari
+   applies to `until-found` because it doesn't support it.
+   ⛔ Load-bearing on Base UI's data-slot names: footer.test.tsx pins them. */
+@media (min-width: 40rem) {
+  #app-footer [data-slot=accordion-header] { display: none; }
+  #app-footer [data-slot=accordion-panel] { height: auto; overflow: visible; content-visibility: visible; }
+}
+@layer base {
+  @media (min-width: 40rem) {
+    #app-footer [data-slot=accordion-panel] { display: block !important; }
+  }
 }
 /* The tab bar is a FLOATING PILL since 2026-09-26 (mobile-nav.tsx), so the inset LIFTS it rather than
    padding it: this restates the utility's `bottom: max(0.75rem, env(), var())` (belt and braces — the
@@ -3764,7 +3952,10 @@ html:not(.native) #app-splash {
    so it cannot trigger at all: the "first 12 stay visible" rule below covers the entire grid.
    ⚠️ For context on why the bar is a measurement: PageSpeed's `dom-size-insight` already scores 1
    at 1,830 elements, so there are no audit points here either way. The only thing this could ever
-   buy is Style & Layout time on a feed several pages deep. */
+   buy is Style & Layout time on a feed several pages deep.
+   ⚠️ 2026-09-29: the 320px GUESS is observable, and costs something — a Back into a deep feed laid
+   never-rendered cards out at it and threw the restore off by ~300px for a frame. See the
+   `data-feed-restoring` rule below, which switches it off for exactly that window. */
 [data-feed-card] {
   content-visibility: auto;
   contain-intrinsic-size: auto 320px;
@@ -3772,10 +3963,51 @@ html:not(.native) #app-splash {
 
 /* The first screen must never be skipped: a card that has not been rendered yet has no remembered
    size, so letting the LCP row start as a 320px guess would move the fold on first paint. Twelve
-   is two full rows at the widest breakpoint plus the guest-capture card. */
+   is the first page (FIRST_PAGE_SIZE): three full rows at the widest breakpoint. The guest-capture
+   row comes AFTER it since 2026-09-29 (E-ORPHAN), so these twelve children are all listing cards. */
 .feed-grid > *:nth-child(-n + 12) [data-feed-card],
 .feed-grid > *:nth-child(-n + 12)[data-feed-card] {
   content-visibility: visible;
+}
+
+/* ⛔ …AND NOTHING IS SKIPPED WHILE A BACK-NAV RESTORE ALIGNS (E-BACK, 2026-09-29) — THE SKIPPING ABOVE
+   IS REAL. Measured on the dev build at 390×844, Back to card 40 of a 48-row home feed: the restore
+   scrolled to the tapped card in the first frame, then the document SHRANK ~700px as the rows near the
+   viewport rendered (every never-rendered card had been laid out at the 320px guess, real ones are
+   ~270px), so the first painted frame had the card 314px off its place and the loop needed two more
+   frames to catch it. The explorer sets `data-feed-restoring` on the grid for exactly the restore
+   (listings-explorer.tsx, `restoring`), so the restored rows lay out at their real size before the
+   first alignment; once it ends each card has a remembered size (`auto`), so skipping resumes with
+   nothing to shift. */
+[data-feed-restoring] [data-feed-card] {
+  content-visibility: visible;
+}
+
+/* ⛔ A COLD DIRECTED DEEP LINK DOES NOT SHOW THE SEED AS ITS ANSWER (E-SSR phase 1, 2026-09-29).
+   The home route is ONE 6h-ISR document for every query string, so /?q=honda arrives painted with the
+   unfiltered home: twelve unrelated cards, the whole catalogue's count, a "Recommended" heading — and
+   keeps them through hydration, the request and the answer (≈4s on a phone). The pre-paint script in
+   (home)/layout.tsx sets `html[data-explorer-directed]` from the URL before the first paint; while it is
+   set, each seed card is a skeleton-coloured photo box over blank text lines, and the count and the
+   heading are hidden. The explorer removes the attribute once the grid draws the URL's own answer.
+   ⚠️ `visibility`, NEVER `display`: every box keeps its size, so lifting the mask moves nothing — this
+   is a paint change, not a layout one, and CLS cannot see it. The script's own 15s timeout is the net
+   if the explorer never hydrates.
+   ⚠️ The photo box's pseudo-elements go too: the partner ring is an `::after` on it, and a gold ring
+   around a grey box would still say "a partner's listing is here". */
+html[data-explorer-directed] #listings .feed-grid > [data-feed-card] * {
+  visibility: hidden;
+}
+html[data-explorer-directed] #listings .feed-grid > [data-feed-card] [data-protected] {
+  visibility: visible;
+  background: var(--skeleton);
+}
+html[data-explorer-directed] #listings .feed-grid > [data-feed-card] [data-protected] *,
+html[data-explorer-directed] #listings .feed-grid > [data-feed-card] [data-protected]::before,
+html[data-explorer-directed] #listings .feed-grid > [data-feed-card] [data-protected]::after,
+html[data-explorer-directed] #listings [data-slot="result-line"] p[aria-live],
+html[data-explorer-directed] #listings [data-feed-heading] {
+  visibility: hidden;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

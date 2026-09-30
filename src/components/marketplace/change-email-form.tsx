@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -98,10 +97,11 @@ export function ChangeEmailForm({ currentEmail }: { currentEmail: string | null 
               variant="cta"
               size="none"
               onClick={submit}
-              disabled={busy || !email.trim()}
+              disabled={!email.trim()}
+              loading={busy}
               className="gap-1.5 px-5 py-2"
             >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Send confirmation', 'Gửi xác nhận')}
+              {tr('Send confirmation', 'Gửi xác nhận')}
             </Button>
             <Button
               variant="ghost"

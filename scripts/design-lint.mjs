@@ -5,7 +5,7 @@
  * `npm run build` (so Vercel enforces it). Exit 1 on any violation.
  *
  * Bans (in all src .tsx files, comments stripped):
- *   1. Arbitrary px font sizes:  text-[13px]           → use the canon scale
+ *   1. Arbitrary font sizes:     text-[13px], and em/rem → use the canon scale
  *   2. Off-tier radii:           rounded / -sm / -md   → lg / xl / 2xl / full
  *   3. Raw 6-digit hex colors outside the allowlist    → use tokens
  *   4. Raw Tailwind palette colours (bg-red-600 …)     → use the semantic tokens
@@ -14,6 +14,16 @@
  *   7. :has() in a NON-SUBJECT position (the group-has / peer-has variants, and a has
  *      variant chained onto a child variant) — Chromium restyles the whole document on
  *      every DOM insertion while one is in the stylesheet; see the rule for the numbers
+ *   9. Colour utilities naming a token that does not exist (text-danger, bg-surface …) —
+ *      Tailwind emits NOTHING for them, silently; see checkColorTokens
+ *  10. :has() on <body>/<html> spelled as an arbitrary variant ([body:has(…)_&]) — rule 7's
+ *      document-wide restyle in the shape its regex could not see; two owner-kept files allowlisted
+ *  11. Kicker eyebrows outside the SEO topic · place allowlist; see checkEyebrows
+ *  12. White ink on a solid destructive fill (a class, or a Button/Badge variant that carries one
+ *      half) — 2.73:1 on the dark red; see checkDestructiveInk
+ *  + RATCHETS (fail only when a count RISES — see the block): hand-built button spinners,
+ *    hand-sized ✕ glyphs, off-ladder icon sizing, page h1s off the heading ramp, and the
+ *    arbitrary var() spelling of a house easing curve
  *   + two structural gates: raw controls (use src/components/ui/*) and hand-rolled
  *     popups (createPortal). Each has its own allowlist, documented at its definition.
  *
@@ -585,10 +595,307 @@ function checkTransitionProps(rel, codeLines, rawLines) {
 // every entry is a surface that will not adapt in dark mode.
 const PALETTE_ALLOW = new Set([])
 
+// ── THE COLOUR-TOKEN GATE ─────────────────────────────────────────────────────────────────────────
+// ⛔ A COLOUR CLASS WHOSE TOKEN DOES NOT EXIST RENDERS NOTHING, AND NOTHING SAYS SO. Tailwind v4
+// emits `text-x` only when `--color-x` is in the theme; any other name is a dead string that ships.
+// Measured 2026-09-29 (D-TOKENS): 11 sites in 7 files — `text-success-foreground` (the verification
+// check inherited #171717 on green-800, 2.51:1), `text-danger` on a role=alert pairing error (not
+// red), `bg-surface`, `border-line`, `text-ink-1` — and chat-card-shell.tsx records the same bug
+// fixed once before. So: every colour-shaped class must name a token in src/app/globals.css (or a
+// Tailwind palette colour, which rule 4 polices separately).
+// ⚠️ KNOWN IS READ FROM THE STYLESHEET AT RUN TIME, so adding a token is the whole fix — never an
+// entry here. NON_COLOR lists the non-colour utilities that share a prefix (text-sm, border-2,
+// bg-cover, ring-inset …); a new one of those is the only reason to touch this block.
+const KNOWN_COLORS = (() => {
+  const css = readFileSync(join(SRC, 'app', 'globals.css'), 'utf8')
+  const known = new Set(['white', 'black', 'transparent', 'current', 'inherit'])
+  for (const m of css.matchAll(/--color-([a-z0-9-]+)\s*:/g)) known.add(m[1])
+  const hues = 'slate gray zinc neutral stone red orange amber yellow lime green emerald teal cyan sky blue indigo violet purple fuchsia pink rose'.split(' ')
+  for (const h of hues) for (const n of [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]) known.add(`${h}-${n}`)
+  return known
+})()
+const NON_COLOR = new Set([
+  // text-*: size, alignment, wrapping, overflow
+  'xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl', '2xs', '3xs',
+  'left', 'right', 'center', 'justify', 'start', 'end', 'wrap', 'nowrap', 'balance', 'pretty', 'clip', 'ellipsis',
+  // border-* / outline-* / divide-*: style and side
+  'none', 'solid', 'dashed', 'dotted', 'double', 'hidden', 'collapse', 'separate', 'x', 'y', 't', 'b', 'l', 'r', 's', 'e', 'reverse',
+  // ring-* / bg-* / others
+  'inset', 'auto', 'px', 'fixed', 'local', 'scroll', 'cover', 'contain', 'top', 'bottom', 'repeat', 'no-repeat',
+])
+// A name whose FIRST segment is one of these is a property word, not a colour (bg-linear-to-r,
+// bg-clip-text, border-spacing-2, ring-offset-2, text-shadow-sm, decoration-from-font, stroke-width …).
+const NON_COLOR_HEAD = new Set(['offset', 'width', 'linecap', 'linejoin', 'radius', 'overflow', 'anchor', 'align', 'shadow', 'color', 'image', 'linear', 'radial', 'conic', 'gradient', 'clip', 'origin', 'repeat', 'blend', 'spacing', 'opacity', 'from', 'size', 'position', 'decoration'])
+const COLOR_CLASS_RE = /(?<![\w[\-/.])(text|bg|border(?:-[trblxyse])?|ring(?:-offset)?|outline|fill|stroke|divide|from|via|to|decoration|caret|accent)-([a-z][a-z0-9-]*?)(?:\/\d+)?(?![\w-])/g
+function checkColorTokens(rel, codeLines, rawLines) {
+  let n = 0
+  codeLines.forEach((line, i) => {
+    if (rawLines[i]?.includes('design-lint-allow')) return
+    // Only inside string literals — a class lives in one; a word in JSX text ("to-do") does not.
+    for (const [a, b] of stringSpans(line)) {
+      for (const m of line.slice(a, b).matchAll(COLOR_CLASS_RE)) {
+        const name = m[2]
+        // Skipped: widths and numbers (border-2, border-b-2 — the side prefix backtracks into the
+        // name), a name cut off by an interpolation (`border-l-${tone}`), and property words.
+        if (KNOWN_COLORS.has(name) || NON_COLOR.has(name) || /^\d/.test(name) || /^[trblxyse]-\d/.test(name) || name.endsWith('-')) continue
+        if (NON_COLOR_HEAD.has(name.split('-')[0])) continue
+        n++
+        console.error(`${rel}:${i + 1}  ${m[0]}  — unknown colour token: no --color-${name} in globals.css, so Tailwind emits nothing (docs/design-language.md §3)`)
+      }
+    }
+  })
+  return n
+}
+
+// ── WHITE INK ON A SOLID DESTRUCTIVE FILL (D-CONTRAST, 2026-09-29) ─────────────────────────────────
+// The dark --destructive is a LIGHT red (#f7737b since D-CONTRAST, tuned for the PDP safety strip),
+// and white on it is 2.73:1 — the ink that belongs there is `text-destructive-foreground`, which flips
+// to near-black in dark (6.31:1). The token change made three shipped sites worse, and the first sweep
+// found only one of them by grep: listings-client (a class), the inbox row's Delete (a caller
+// `text-white` beating <Button variant="destructive">'s own ink through cn()) and trip-card's Delete
+// trip (`variant="cta"`, whose white ink is in the VARIANT, never in the markup, over a caller
+// `bg-destructive`). So the check reads the whole opening tag, variants included, and also any single
+// class string (a cva map or a constant). Zero hits when added, so it is a ban, not a ratchet.
+const SOLID_DESTRUCTIVE_RE = /(?<![\w/-])bg-destructive(?![\w/-])/
+const WHITE_INK_RE = /(?<![\w/-])text-(?:white|primary-foreground)(?![\w/-])/
+const FLIPPING_INK_RE = /(?<![\w/-])text-destructive-foreground(?![\w/-])/
+// A literal variant's name; 'default' when the tag names none; null when it is computed (unknown).
+const variantOf = (tag) =>
+  /\bvariant=/.test(tag) ? tag.match(/\bvariant=\{?["'`]([\w-]+)["'`]\}?/)?.[1] ?? null : 'default'
+function checkDestructiveInk(rel, code, rawLines) {
+  const lines = new Set()
+  const flag = (idx) => {
+    const line = lineAt(code, idx)
+    if (!rawLines[line - 1]?.includes('design-lint-allow')) lines.add(line)
+  }
+  for (const [a, b] of stringSpans(code)) {
+    const s = code.slice(a, b)
+    if (SOLID_DESTRUCTIVE_RE.test(s) && WHITE_INK_RE.test(s) && !FLIPPING_INK_RE.test(s)) flag(a)
+  }
+  for (const m of code.matchAll(/<(Button|Badge)(?=[\s/>])/g)) {
+    const [end] = openingTagEnd(code, m.index)
+    const tag = code.slice(m.index, end)
+    if (FLIPPING_INK_RE.test(tag)) continue
+    const v = variantOf(tag)
+    // Button's cta / commerce / default variants all carry a fixed white ink; Badge's counter and
+    // Button's destructive carry the solid red fill themselves.
+    const solid = SOLID_DESTRUCTIVE_RE.test(tag) || (m[1] === 'Button' && v === 'destructive') || (m[1] === 'Badge' && v === 'counter')
+    const white = WHITE_INK_RE.test(tag) || (m[1] === 'Button' && (v === 'cta' || v === 'commerce' || v === 'default'))
+    if (solid && white) flag(m.index)
+  }
+  for (const line of lines) {
+    console.error(
+      `${rel}:${line}  white ink on a solid destructive fill — 2.73:1 on the dark red; use <Button variant="destructive"> ` +
+        `or text-destructive-foreground, which flips to near-black in dark (docs/design-language.md §3)`,
+    )
+  }
+  return lines.size
+}
+
+// ── THE OPENING-TAG READER ─────────────────────────────────────────────────────────────────────────
+// Several rules below need "this JSX element's opening tag" — its attributes, and whether it closes
+// itself. A regex cannot find the end of one: `className={cn('a', x > 1 && 'b')}` holds a `>`, and
+// `onClick={() => …}` an `=>`. So this walks from `<Tag` to the first `>` at brace depth 0 that is not
+// inside a string, the way the parser would. Returns [end index (exclusive), selfClosing].
+function openingTagEnd(text, start) {
+  let depth = 0
+  for (let i = start + 1; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '"' || ch === "'" || ch === '`') {
+      for (let j = i + 1; j < text.length; j++) {
+        if (text[j] === '\\') { j++; continue }
+        if (text[j] === ch) { i = j; break }
+      }
+      continue
+    }
+    if (ch === '{') depth++
+    else if (ch === '}') depth--
+    else if (ch === '>' && depth === 0) return [i + 1, text[i - 1] === '/']
+  }
+  return [text.length, true]
+}
+const lineAt = (text, idx) => text.slice(0, idx).split('\n').length
+
+// ── THE KICKER GATE (C-KICKERS) ──────────────────────────────────────────────────────────────────────
+// ⛔ KICKER EYEBROWS ARE RETIRED (owner, 2026-08-05) — a small uppercase label over a heading that
+// only restates what the heading says ("Error 404" over "This page has moved on", "New" over a
+// changelog). The design pass deleted them from ContentPage and they kept surviving elsewhere,
+// because nothing refused a new one. The survivors are the SEO topic · place lines ("Housing ·
+// Vietnam"), which the owner kept after three reviewers tried to delete them — they carry the
+// page's place, which the heading does not — and a few non-kicker uses of the class that happen to
+// share its look (a rail label, a dated sale line). Those files are the allowlist; a new SEO template
+// joins it WITH its reason.
+// ⚠️ Class tokens only: `eyebrow` between quotes/whitespace. The `eyebrow:` KEY that the SEO content
+// objects carry (content.eyebrow) is data, not markup, and does not match.
+const EYEBROW_ALLOW = new Set([
+  'src/components/marketplace/seo-landing.tsx', // SEO topic · place (owner-kept 2026-08-05)
+  'src/components/marketplace/seo-article.tsx', // SEO topic · place + its "On this page" rail label
+  'src/app/[lang]/hcmc-rent-index/page.tsx', // "Data · Ho Chi Minh City" — the same topic · place form
+  'src/components/marketplace/content-page.tsx', // the "On this page" rail label, not a kicker
+  'src/components/marketplace/trending-searches.tsx', // a section label over a chip row
+  'src/app/[lang]/iphone-18-vietnam/duo-card.tsx', // a dated sale line ("On sale 23 October")
+])
+/**
+ * ⚠️ IN FLIGHT, NOT EXEMPT: a kicker another package is already deleting, as `{ file, match }`. Each
+ * entry is matched on its line's CONTENT, so it covers exactly that kicker and nothing added beside it —
+ * and once the deletion lands the entry matches nothing and this script says so, so it cannot outlive
+ * its reason. EMPTY since W3-CONTENT (C-KICKERS / C-404) landed: its four entries — not-found's
+ * "Error 404", developers' "{SITE_NAME} API" and "New", cross-site-promo's "Also from eno" — matched
+ * nothing once the integration merged it, and were deleted as this script asked.
+ */
+const EYEBROW_PENDING = /** @type {{ file: string, match: string }[]} */ ([])
+const eyebrowPendingUsed = new Set()
+const EYEBROW_RE = /(^|[\s"'`])eyebrow(?=[\s"'`])/
+function checkEyebrows(rel, codeLines, rawLines) {
+  if (EYEBROW_ALLOW.has(rel)) return 0
+  let n = 0
+  codeLines.forEach((line, i) => {
+    if (rawLines[i]?.includes('design-lint-allow')) return
+    if (!EYEBROW_RE.test(line)) return
+    const pending = EYEBROW_PENDING.findIndex((e) => e.file === rel && rawLines[i].includes(e.match))
+    if (pending !== -1) { eyebrowPendingUsed.add(pending); return }
+    n++
+    console.error(
+      `${rel}:${i + 1}  eyebrow  — Kicker eyebrows are retired (owner 2026-08-05); only SEO topic · place ` +
+        `eyebrows in allowlisted files (EYEBROW_ALLOW in this file, which a new SEO template joins with its reason).`,
+    )
+  })
+  return n
+}
+
+// ── THE RATCHETS ─────────────────────────────────────────────────────────────────────────────────────
+// A ratchet COUNTS a pattern the canon has moved past but the app has not finished migrating, and fails
+// the build only when the count RISES. The existing sites are debt with a number on it; a new one is a
+// regression. When a count drops below its baseline this script says so — lower the baseline in the
+// same change, so the ground gained cannot be given back. (Mass codemods are out of scope by design:
+// files migrate when a later change touches them.) Measured 2026-09-29 (W3-SYSTEM).
+const RATCHETS = {
+  'button-spinner': {
+    baseline: 71,
+    what: 'a hand-built <Loader2 animate-spin> inside a <Button>',
+    fix: 'pass `loading` to <Button> — it keeps the label (and the width), sets aria-busy and keeps focus (docs/design-language.md §5)',
+  },
+  'close-glyph': {
+    baseline: 8,
+    what: 'a hand-sized ✕ (<X> with an arbitrary px size) outside ui/close-button',
+    fix: 'use <CloseButton size=… variant=…> — it derives the glyph from the button (CLOSE_GLYPH in src/lib/icon-tokens.ts)',
+  },
+  'icon-sizing': {
+    baseline: 5,
+    what: 'an icon sized off the ladder (arbitrary size not in ICON_FIT, an h-N/w-M pair that disagrees, or a literal strokeWidth)',
+    fix: 'use ICON_SIZE / a square size-* class and the STROKE_* constants (src/lib/icon-tokens.ts); an owner-measured fit goes in ICON_FIT with its measurement',
+  },
+  'h1-off-ramp': {
+    baseline: 24,
+    what: 'a page <h1> whose literal classes name none of h-display / h-title / h-greeting / sr-only',
+    fix: 'use <PageHeader> (ui/page-header) or the .h-display / .h-title class (docs/design-language.md §1)',
+  },
+  'arbitrary-ease': {
+    baseline: 10,
+    what: 'the arbitrary var() form of an ease- utility for a house curve',
+    fix: 'use the named utility — ease-out-strong · ease-spring · ease-spring-snappy · ease-bounce (theme tokens since 2026-09-29)',
+  },
+}
+for (const r of Object.values(RATCHETS)) r.hits = []
+const ratchet = (key, rel, line, text) => RATCHETS[key].hits.push(`${rel}:${line}  ${text}`)
+
+// ICON_FIT lives in src/lib/icon-tokens.ts (TypeScript, which an .mjs cannot import), so its literal is
+// read here — one `Name: ['Npx', …]` entry per line, as the note there asks.
+const ICON_FIT = (() => {
+  const ts = readFileSync(join(SRC, 'lib', 'icon-tokens.ts'), 'utf8')
+  const block = ts.match(/export const ICON_FIT = \{([\s\S]*?)\} as const/)
+  if (!block) throw new Error('design-lint: ICON_FIT not found in src/lib/icon-tokens.ts — the icon ratchet cannot run without it')
+  const fit = new Map()
+  for (const m of block[1].matchAll(/(\w+):\s*\[([^\]]*)\]/g)) fit.set(m[1], new Set([...m[2].matchAll(/'([^']+)'/g)].map((x) => x[1])))
+  return fit
+})()
+const ICON_IMPORT_RE = /import\s*\{([^}]*)\}\s*from\s*['"]@\/components\/ui\/icons['"]/g
+
+function countRatchets(rel, code) {
+  const inUi = rel.startsWith('src/components/ui/')
+
+  // button-spinner: a Loader2 spinning inside a <Button>…</Button> (ui/* is where the busy state lives).
+  if (!inUi) {
+    for (const m of code.matchAll(/<Button(?=[\s>])/g)) {
+      const [end, selfClosing] = openingTagEnd(code, m.index)
+      if (selfClosing) continue
+      const close = code.indexOf('</Button>', end)
+      if (close === -1) continue
+      for (const s of code.slice(end, close).matchAll(/<Loader2\b[^>]*\banimate-spin\b/g)) {
+        ratchet('button-spinner', rel, lineAt(code, end + s.index), 'Loader2 animate-spin inside <Button>')
+      }
+    }
+  }
+
+  // arbitrary-ease
+  for (const m of code.matchAll(/ease-\[var\(--ease-(?:out-strong|spring-snappy|spring|bounce)\)\]/g)) {
+    ratchet('arbitrary-ease', rel, lineAt(code, m.index), m[0])
+  }
+
+  // h1-off-ramp: page surfaces only (the PDP h1 is the owner's price-first size; admin is EN chrome).
+  if (
+    (rel.startsWith('src/app/[lang]/') || rel.startsWith('src/components/marketplace/')) &&
+    !rel.startsWith('src/app/[lang]/admin/') &&
+    rel !== 'src/app/[lang]/listings/[id]/(pdp)/page.tsx'
+  ) {
+    for (const m of code.matchAll(/<h1(?=[\s>])/g)) {
+      const [end] = openingTagEnd(code, m.index)
+      const tag = code.slice(m.index, end)
+      const cls = tag.match(/className=(?:"([^"]*)"|\{([\s\S]*)\})/)
+      let literals
+      if (!cls) literals = ''
+      else if (cls[1] !== undefined) literals = cls[1]
+      else {
+        const spans = stringSpans(cls[2])
+        // A class held in a variable is not readable here — skip it rather than guess.
+        if (!spans.length) continue
+        literals = spans.map(([a, b]) => cls[2].slice(a, b)).join(' ')
+      }
+      // `.h-greeting` is the dashboard's display-size greeting (400 weight) — on the ramp, not off it.
+      if (!/(?:^|[\s:])(?:h-display|h-title|h-greeting|sr-only)(?=\s|$)/.test(literals)) {
+        ratchet('h1-off-ramp', rel, lineAt(code, m.index), `<h1 className="${literals.replace(/\s+/g, ' ').trim()}">`)
+      }
+    }
+  }
+
+  // icon-sizing + close-glyph: only for tags this file imports from '@/components/ui/icons'.
+  const names = new Set()
+  for (const m of code.matchAll(ICON_IMPORT_RE)) {
+    for (const part of m[1].split(',')) {
+      const local = part.trim().split(/\s+as\s+/).pop()
+      if (local && /^[A-Z]/.test(local)) names.add(local)
+    }
+  }
+  if (!names.size || rel === 'src/components/ui/close-button.tsx') return
+  const tagRe = new RegExp(`<(${[...names].join('|')})(?=[\\s/>])`, 'g')
+  for (const m of code.matchAll(tagRe)) {
+    const [end] = openingTagEnd(code, m.index)
+    const tag = code.slice(m.index, end)
+    const line = lineAt(code, m.index)
+    const strs = stringSpans(tag).map(([a, b]) => tag.slice(a, b)).join(' ')
+    const fit = ICON_FIT.get(m[1])
+    const arbitrary = [...strs.matchAll(/(?<![\w-])(?:[a-z0-9-]+:)*(?:h|w|size)-\[([^\]\s]+)\]/g)]
+    const offFit = arbitrary.filter((a) => !fit?.has(a[1]))
+    if (offFit.length) ratchet('icon-sizing', rel, line, `<${m[1]}> ${offFit.map((a) => a[0]).join(' ')}`)
+    if (m[1] === 'X' && arbitrary.length && rel !== 'src/components/ui/badge.tsx') ratchet('close-glyph', rel, line, `<X> ${arbitrary.map((a) => a[0]).join(' ')}`)
+    // A pair per variant prefix: `h-4 w-5`, or `sm:h-5 sm:w-6`.
+    const hs = {}, ws = {}
+    for (const a of strs.matchAll(/(?<![\w-])((?:[a-z0-9-]+:)*)(h|w)-(\[[^\]\s]+\]|[0-9.]+|px|full)(?![\w-])/g)) (a[2] === 'h' ? hs : ws)[a[1]] = a[3]
+    for (const k of Object.keys(hs)) if (k in ws && ws[k] !== hs[k]) ratchet('icon-sizing', rel, line, `<${m[1]}> ${k}h-${hs[k]} ${k}w-${ws[k]} (a non-square icon box)`)
+    const sw = tag.match(/strokeWidth=(?:\{\s*[0-9.]+\s*\}|["'][0-9.]+["'])/)
+    if (sw) ratchet('icon-sizing', rel, line, `<${m[1]}> ${sw[0]} (use a STROKE_* constant)`)
+  }
+}
+
 const RULES = [
   {
-    name: 'arbitrary px font size (use text-3xs/2xs/xs/sm/base — docs/design-language.md §1)',
-    re: /text-\[\d+(?:\.\d+)?px\]/g,
+    // ⚠️ px, em AND rem — and the `length:` type hint. The px-only pattern this replaced let the
+    // app's one relative size through for months: <Price>'s "≈" was 0.8em of whatever price it sat
+    // beside, which is off the scale at every size it ever rendered (12.8px on a card, 14.4px at
+    // sm:text-lg, 24px under the PDP headline). A relative size is still an arbitrary size; the
+    // canon has six steps and a surface that needs another size picks a different step.
+    name: 'arbitrary font size (px/em/rem) — use text-3xs/2xs/xs/sm/base — docs/design-language.md §1',
+    re: /text-\[(?:length:)?\d*\.?\d+(?:px|r?em)\]/g,
   },
   {
     name: 'off-tier radius (use rounded-lg/xl/2xl/full — docs/design-language.md §2)',
@@ -663,6 +970,21 @@ const RULES = [
     // text, and a literal here would compile the very selector this bans into the bundle.
     name: 'non-subject :has() variant (group-has / peer-has, or a has variant followed by a child variant) — restyles the whole document on every DOM insertion; put the :has() on the element it styles, or have the component write a data attribute',
     re: /(?<![-\w])(?:group|peer)-has-|(?<![-\w])has-[^\s'"`]*?:\*{1,2}:/g,
+  },
+  {
+    // ⛔ THE SAME DOCUMENT-WIDE :has(), SPELLED AS AN ARBITRARY VARIANT. `[body:has(…)_&]:hidden`
+    // compiles to `body:has(…) .x` — the :has() on <body>, an ancestor of everything, which is the
+    // exact non-subject shape the rule above bans. Its regex only ever knew the group-has / peer-has
+    // spellings, so 17 of these slipped past it (D-Z, 2026-09-29).
+    // ⚠️ THE TWO ALLOWLISTED FILES ARE KEPT ON PURPOSE, not grandfathered by accident: back-to-top's
+    // stand-downs are incident-driven and owner-kept (G-FAB) — its cluster sits on the z-fab tier now,
+    // under every overlay, but the popup scrims are z-40 and it must still leave beside an open panel;
+    // cookie-consent's one rule hides the bar under any open scrim. A THIRD file needs a subject-position
+    // hook instead: have the component set a data attribute on <html> in an effect and select
+    // `[html[data-x]_&]` — no :has() at all (the header's Post button does exactly this on /post).
+    name: 'document-level :has() arbitrary variant ([body:has(…)_&] / [html:has(…)_&]) — restyles the whole document on every DOM insertion; set a data attribute on <html> from the component and select on that',
+    re: /\[(?:html|body)[^\s'"`]*?:has\(/g,
+    allow: new Set(['src/components/marketplace/back-to-top.tsx', 'src/components/marketplace/cookie-consent.tsx']),
   },
 ]
 
@@ -769,6 +1091,10 @@ for (const file of walk(SRC)) {
   violations += checkPortals(rel, lines, rawLines)
   violations += checkScrollBehavior(rel, lines, rawLines)
   violations += checkMaterials(rel, lines, rawLines)
+  violations += checkColorTokens(rel, lines, rawLines)
+  violations += checkEyebrows(rel, lines, rawLines)
+  violations += checkDestructiveInk(rel, code, rawLines)
+  countRatchets(rel, code)
   for (const rule of RULES) {
     if (rule.allow?.has(rel)) continue
     // `raw` rules match across newlines against the ORIGINAL source (a JSX comment is
@@ -813,6 +1139,23 @@ for (const file of walkCss(SRC)) {
   // the same helper handles it, so the @theme note explaining the retarget does not trip its own rule.
   violations += checkFontWeights(rel, stripComments(raw).split('\n'), rawLines)
 }
+
+// ── the ratchets and the in-flight list, judged once the whole tree is counted ──────────────────────
+for (const [key, r] of Object.entries(RATCHETS)) {
+  const n = r.hits.length
+  if (n > r.baseline) {
+    violations++
+    console.error(
+      `\nratchet ${key}: ${n} > baseline ${r.baseline} — ${n - r.baseline} new ${r.what}. ${r.fix}. ` +
+        `Every current site (the new one is among them):\n  ${r.hits.join('\n  ')}`,
+    )
+  } else if (n < r.baseline) {
+    console.log(`design-lint: ratchet ${key} is at ${n}, under its baseline ${r.baseline} — lower RATCHETS['${key}'].baseline to ${n} so it cannot creep back.`)
+  }
+}
+EYEBROW_PENDING.forEach((e, i) => {
+  if (!eyebrowPendingUsed.has(i)) console.log(`design-lint: EYEBROW_PENDING entry for ${e.file} ("${e.match}") matches nothing any more — the kicker is gone; delete the entry.`)
+})
 
 if (violations) {
   console.error(`\ndesign-lint: ${violations} violation(s). See docs/design-language.md.`)

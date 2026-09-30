@@ -125,10 +125,12 @@ function OfflineBanner() {
   // The offset reuses bottom-nav-spacer's exact token so it tracks the tab bar; at lg the tab
   // bar is hidden (mobile-nav is lg:hidden) so it drops to a plain inset.
   //
-  // `pr-18` below lg keeps the strip clear of back-to-top.tsx's z-[60] cluster, which owns the
+  // `pr-18` below lg keeps the strip clear of back-to-top.tsx's cluster, which owns the
   // bottom-right corner at right-4 (measured x 330→374 on a 390pt viewport; this strip reached
-  // 378 and swallowed its OWN dismiss button, because z-60 beats this z-50 — the e2e caught
-  // it). Solved horizontally on purpose: that cluster's VERTICAL position is dynamic — it takes
+  // 378 and swallowed its OWN dismiss button, because the cluster's z-60 beat this z-50 — the e2e
+  // caught it). Since 2026-09-29 the cluster is z-fab (45) and this strip wins the overlap instead,
+  // which would bury the support mark — so the gutter stays either way.
+  // Solved horizontally on purpose: that cluster's VERTICAL position is dynamic — it takes
   // an inline `bottom: lift + 12` whenever a bottom bar is on screen — so any clearance
   // computed from its y would be wrong half the time. At lg it moves to right-6 while this
   // strip is a centred max-w-md island far from the edge, so the reservation drops away.

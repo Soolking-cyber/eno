@@ -1,23 +1,18 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Check, Loader2, LocateFixed, PartyPopper, X } from '@/components/ui/icons'
+import { Check, Loader2, LocateFixed, PartyPopper } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
-import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
+import { Chip } from '@/components/ui/chip'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { haptic } from '@/lib/haptics'
 import { timeAgo } from '@/lib/types'
 
-/**
- * The one chip look, shared by the quick-reply chips and the "Keep it live"
- * dismiss below. Module scope so both components use the same constant.
- * Paired with <Button variant="soft" size="none">: `soft` gives the muted hover
- * background and leaves the label colour (text-body) entirely to this class.
- */
-const chipCls =
-  'shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted hover:text-foreground cursor-pointer'
-
+// The one chip look, shared by the quick-reply chips, the "Keep it live" dismiss below and the
+// buyer's opener picker: ui/chip's `xs` `ghost` (a 28px pill, transparent at rest, muted on hover).
+// It was a module constant restated in opener-picker.tsx; the primitive is the shared copy.
 /**
  * One-tap quick replies above the chat composer — shared by the full thread page
  * and the docked chat widget so both surfaces behave identically.
@@ -128,39 +123,37 @@ export function QuickReplyChips({
             <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />
             <span className="truncate">{tr('Seller confirmed this is available {timeAgo}', 'Người bán đã xác nhận còn hàng {timeAgo}').replace('{timeAgo}', timeAgo(availabilityConfirmedAt, lang))}</span>
           </p>
-          <IconButton
+          <CloseButton
             tapTarget={false}
             size="xs"
             onClick={() => setNote('dismissed')}
-            aria-label={tr('Dismiss', 'Đóng')}
-            className="text-ink-4 transition-colors hover:text-foreground"
-          >
-            <X className="h-[29px] w-[29px] shrink-0" />
-          </IconButton>
+            label={tr('Dismiss', 'Đóng')}
+            className="transition-colors"
+          />
         </div>
       )}
       <div className="flex gap-1 overflow-x-auto scrollbar-none">
         {isSeller ? (
           sellerChips.map((c) => (
-            <Button
+            <Chip
               key={c.label}
-              variant="soft"
-              size="none"
+              size="xs"
+              tone="ghost"
               onClick={() => (c.text === meetTemplate ? locateMeet() : c.complete ? fire(c.text) : onInsert(c.text))}
-              className={chipCls}
             >
               {c.label}
               {c.text === meetTemplate &&
-                /* size-* class is REQUIRED: ui/button inflates unclassed svgs to size-4. */
+                /* size-* class is REQUIRED: ui/button inflates unclassed svgs to size-4.
+                   `ml-1.5` + the chip's 6px gap = the 12px this glyph always sat at (gap-2 + ml-1). */
                 (locating
-                  ? <Loader2 className="ml-1 size-3.5 animate-spin text-accent-foreground" />
-                  : <LocateFixed className="ml-1 size-3.5 text-accent-foreground" />)}
-            </Button>
+                  ? <Loader2 className="ml-1.5 size-3.5 animate-spin text-accent-foreground" />
+                  : <LocateFixed className="ml-1.5 size-3.5 text-accent-foreground" />)}
+            </Chip>
           ))
         ) : (
-          <Button variant="soft" size="none" onClick={askAvailability} className={chipCls}>
+          <Chip size="xs" tone="ghost" onClick={askAvailability}>
             {tr('Is it still available?', 'Còn hàng không?')}
-          </Button>
+          </Chip>
         )}
       </div>
     </div>
@@ -219,14 +212,9 @@ export function MarkSoldPrompt({ listingId, listingTitle }: { listingId: string;
         >
           {tr('Mark as sold', 'Đánh dấu đã bán')}
         </Button>
-        <Button
-          variant="soft"
-          size="none"
-          onClick={() => setState('dismissed')}
-          className={chipCls}
-        >
+        <Chip size="xs" tone="ghost" onClick={() => setState('dismissed')}>
           {tr('Keep it live', 'Giữ tin đăng')}
-        </Button>
+        </Chip>
       </div>
     </div>
   )

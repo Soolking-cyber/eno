@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { TrendingDown, Loader2, Sparkles } from '@/components/ui/icons'
+import { TrendingDown, Sparkles } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field, FieldLabel, FieldControl, FieldError } from '@/components/ui/field'
@@ -249,10 +249,11 @@ export function QuickDiscount({
               size="none"
               type="button"
               onClick={apply}
-              disabled={!valid || saving}
+              disabled={!valid}
+              loading={saving}
               className="w-full py-2.5 disabled:opacity-40 cursor-pointer"
             >
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Apply discount', 'Áp dụng')}
+              {tr('Apply discount', 'Áp dụng')}
             </Button>
           </div>
         </DialogContent>

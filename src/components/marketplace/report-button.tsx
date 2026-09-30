@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Flag, Loader2, CheckCircle2 } from '@/components/ui/icons'
+import { Flag, CheckCircle2 } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -269,10 +269,11 @@ export function ReportButton({ listingId, sellerId, conversationId, className, o
                 variant="cta"
                 size="none"
                 onClick={submit}
-                disabled={loading || !reason}
+                loading={loading}
+                disabled={!reason}
                 className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer"
               >
-                {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Submit report', 'Gửi báo cáo')}
+                {t('Submit report', 'Gửi báo cáo')}
               </Button>
             </div>
           )}

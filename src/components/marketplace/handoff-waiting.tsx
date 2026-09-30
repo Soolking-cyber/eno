@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { EnoLoader } from '@/components/ui/eno-loader'
 import { useRouter } from 'next/navigation'
-import { Loader2 } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/context/language-context'
@@ -155,9 +154,11 @@ export function HandoffWaiting({ nonce }: { nonce: string }) {
             className="mt-4 text-center font-mono text-2xl font-extrabold tracking-[0.25em]"
             aria-label={tr('Code from your browser', 'Mã từ trình duyệt')}
           />
-          {pairError && <p role="alert" className="mt-2 text-sm font-semibold text-danger">{pairError}</p>}
-          <Button variant="cta" size="none" type="button" disabled={busy || pair.length < PAIR_LEN} onClick={() => void submitPair()} className="mt-4 w-full py-3">
-            {busy ? <Loader2 className="size-4 animate-spin" /> : tr('Sign in', 'Đăng nhập')}
+          {pairError && <p role="alert" className="mt-2 text-sm font-semibold text-destructive">{pairError}</p>}
+          {/* `loading`, not a spinner in place of the label: the swap took the button's accessible name
+              and its 20px line box away mid-submit (a nameless, 4px-shorter button). */}
+          <Button variant="cta" size="none" type="button" loading={busy} disabled={pair.length < PAIR_LEN} onClick={() => void submitPair()} className="mt-4 w-full py-3">
+            {tr('Sign in', 'Đăng nhập')}
           </Button>
         </>
       )}

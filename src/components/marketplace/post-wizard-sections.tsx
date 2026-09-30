@@ -17,11 +17,13 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { ImagePlus, X, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, SquarePlay, Camera, Crop, ShieldCheck } from "@/components/ui/icons"
+import { ImagePlus, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, SquarePlay, Camera, Crop, ShieldCheck } from "@/components/ui/icons"
 import { cn } from '@/lib/utils'
 import { captureNativePhoto, nativePhotoCaptureAvailable } from '@/lib/native-photos'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { CloseButton } from '@/components/ui/close-button'
+import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { FieldControl } from '@/components/ui/field'
 import { useLanguage } from '@/context/language-context'
@@ -43,6 +45,7 @@ export function MediaSection({
   aiEnabled,
   aiBusy,
   autofillFromPhoto,
+  isGuest,
   t,
 }: {
   media: PostMedia
@@ -52,6 +55,8 @@ export function MediaSection({
   aiEnabled: boolean
   aiBusy: 'photo' | 'desc' | null
   autofillFromPhoto: () => void
+  /** A signed-out seller: the Autofill button says up front that AI needs an account. */
+  isGuest: boolean
   t: T
 }) {
   const { photos, setPhotos, addPhotos, applySquareCrop, keepFullPhoto, movePhoto, bindPhoto, draggingPhoto, converting, video, videoBusy, addVideo, removeVideo } = media
@@ -176,14 +181,14 @@ export function MediaSection({
                 {t('Đặt làm bìa', 'Make cover')}
               </Button>
             )}
-            <IconButton size="xs" variant="overlay" aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 h-6 w-6">
-              {/* ⛔ 18px, NOT 29 — `variant="overlay"` PLATES THE GLYPH AND THIS BUTTON IS 24px.
-                The plate is the glyph box + 6px, so 29 drew a 35px disc hanging 5px past every
-                edge of an `h-6 w-6` button, over the photo it is meant to remove. 29 came from the
-                "fill its button" pass, which sized for the xs DEFAULT (28px) — this call site
-                overrides the box to 24 and the glyph was never re-derived. 18 + 6 = 24. */}
-              <X className="h-[18px] w-[18px] shrink-0" />
-            </IconButton>
+            {/* ⛔ 18px, NOT 29 — `variant="overlay"` PLATES THE GLYPH AND THIS BUTTON IS 24px.
+              The plate is the glyph box + 6px, so 29 drew a 35px disc hanging 5px past every
+              edge of an `h-6 w-6` button, over the photo it is meant to remove. 29 came from the
+              "fill its button" pass, which sized for the xs DEFAULT (28px) — this call site
+              overrides the box to 24 and the glyph was never re-derived. 18 + 6 = 24.
+              Since 2026-09-29 that pair IS CloseButton's `2xs` overlay size (CLOSE_GLYPH), so the
+              box and the mark can no longer be edited apart. */}
+            <CloseButton size="2xs" variant="overlay" label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1" />
             {/* Reframe / keep-full — only on a NEW photo (edit-mode hosted images have no source
                 to re-crop). Always visible (mobile can't hover); the label says the current state. */}
             {p.original && (
@@ -216,19 +221,24 @@ export function MediaSection({
             className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground"
           >
             {capturing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
-            <span className="text-3xs font-semibold">{t('Chụp ảnh', 'Take photo')}</span>
-            <span className="text-3xs leading-tight text-ink-4">{t('tối đa 6 ảnh', 'up to 6 photos')}</span>
+            <span className="px-1 text-center text-sm font-bold leading-tight">{t('Chụp ảnh', 'Take photo')}</span>
+            <span className="px-1 text-center text-2xs leading-tight text-ink-4">{t('tối đa 6 ảnh', 'up to 6 photos')}</span>
           </Button>
         )}
         {/* ⚠️ Optical pairing (R2, blind critic): every empty tile in this grid keeps the SAME
-            three-row stack (glyph · label · 3xs hint) so the glyphs sit on one shared centerline —
+            three-row stack (glyph · label · hint) so the glyphs sit on one shared centerline —
             the photo tile used to be two rows, which floated its glyph lower than the video
-            tile's. The hint line is real copy, not a spacer. */}
+            tile's. The hint line is real copy, not a spacer.
+            Label 14px bold, hint 11px: at 10px both were below the type scale's floor for copy a
+            seller has to read to act, on the first thing the form asks for. `px-1 text-center
+            leading-tight` lets a long label (Vietnamese, or "Processing…") wrap inside a 106px
+            tile at 360px instead of overflowing it. The colour stays on the <label>, so the hover
+            recolour still reaches the text. */}
         {photos.length < 6 && (
           <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
             {converting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}
-            <span className="text-3xs font-semibold">{converting ? t('Đang xử lý…', 'Processing…') : nativeCamera ? t('Thư viện', 'Library') : t('Thêm ảnh', 'Add')}</span>
-            <span className="text-3xs leading-tight text-ink-4">{t('tối đa 6 ảnh', 'up to 6 photos')}</span>
+            <span className="px-1 text-center text-sm font-bold leading-tight">{converting ? t('Đang xử lý…', 'Processing…') : nativeCamera ? t('Thư viện', 'Library') : t('Thêm ảnh', 'Add')}</span>
+            <span className="px-1 text-center text-2xs leading-tight text-ink-4">{t('tối đa 6 ảnh', 'up to 6 photos')}</span>
             <input type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
           </label>
         )}
@@ -258,8 +268,8 @@ export function MediaSection({
             )}
           >
             <Video className="h-6 w-6" />
-            <span className="text-3xs font-semibold">{t('Quay video', 'Record video')}</span>
-            <span className="text-3xs leading-tight text-ink-4">{t('tối đa 60 giây', 'stop before 60s')}</span>
+            <span className="px-1 text-center text-sm font-bold leading-tight">{t('Quay video', 'Record video')}</span>
+            <span className="px-1 text-center text-2xs leading-tight text-ink-4">{t('tối đa 60 giây', 'stop before 60s')}</span>
             {/* `accept` must literally contain `video/*` and `capture` must be present, or
                 Capacitor's Android bridge silently opens the file picker instead. */}
             <input
@@ -280,14 +290,8 @@ export function MediaSection({
               <span className="pointer-events-none absolute left-1.5 top-1.5 flex items-center gap-1 rounded-lg bg-black/60 px-1.5 py-0.5 text-3xs font-bold text-white material backdrop-blur-[2px]">
                 <Video className="h-3 w-3" /> {t('Video', 'Video')}
               </span>
-              <IconButton size="xs" variant="overlay" aria-label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1 top-1 h-6 w-6">
-                {/* ⛔ 18px, NOT 29 — `variant="overlay"` PLATES THE GLYPH AND THIS BUTTON IS 24px.
-                The plate is the glyph box + 6px, so 29 drew a 35px disc hanging 5px past every
-                edge of an `h-6 w-6` button, over the photo it is meant to remove. 29 came from the
-                "fill its button" pass, which sized for the xs DEFAULT (28px) — this call site
-                overrides the box to 24 and the glyph was never re-derived. 18 + 6 = 24. */}
-              <X className="h-[18px] w-[18px] shrink-0" />
-              </IconButton>
+              {/* Same 24px plate + 18px mark as the photo tile above — CloseButton `2xs` overlay. */}
+              <CloseButton size="2xs" variant="overlay" label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1 top-1" />
             </div>
           ) : (
             // Same busy guard as the camcorder tile: a second pick landing mid-probe hits
@@ -311,8 +315,8 @@ export function MediaSection({
               {videoBusy ? <Loader2 className="h-6 w-6 animate-spin" /> : <SquarePlay className="h-6 w-6" />}
               {/* Relabelled when the camcorder tile is beside it, so the two tiles read as
                   "record" vs "pick" rather than two identical "Add video"s. */}
-              <span className="text-3xs font-semibold">{videoBusy ? t('Đang kiểm tra…', 'Checking…') : androidCamcorder ? t('Thư viện', 'Library') : t('Thêm video', 'Add video')}</span>
-              <span className="text-3xs leading-tight text-ink-4">{t('tùy chọn · 60 giây', 'optional · 60s')}</span>
+              <span className="px-1 text-center text-sm font-bold leading-tight">{videoBusy ? t('Đang kiểm tra…', 'Checking…') : androidCamcorder ? t('Thư viện', 'Library') : t('Thêm video', 'Add video')}</span>
+              <span className="px-1 text-center text-2xs leading-tight text-ink-4">{t('tùy chọn · 60 giây', 'optional · 60s')}</span>
               {/* disabled, not just pointer-events-none: the label can also be reached by
                   keyboard, and only a disabled input refuses to open the picker. */}
               <input type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" className="hidden" disabled={videoBusy} onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
@@ -321,8 +325,9 @@ export function MediaSection({
         </div>
       </div>
       {errPhoto && <p id="pw-photo-error" role="alert" className="mt-2 text-xs font-semibold text-destructive">{minPhotos === 1 ? t('Thêm ít nhất 1 ảnh', 'Add at least 1 photo') : t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
-      {/* Media hint covers the video square in the grid above. */}
-      <p id="pw-photo-hint" className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.', 'First photo is your cover. A video (optional) autoplays on hover and in the Video feed.')}</p>
+      {/* Media hint covers the video square in the grid above. No "on hover": the card clip
+          autoplays once the card settles in view, on every device (listing-card's CardVideo). */}
+      <p id="pw-photo-hint" className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát trên thẻ tin đăng và trong mục Video.', 'First photo is your cover. A video (optional) plays on your listing card and in the Video tab.')}</p>
       {aiEnabled && photos.length > 0 && (
         <Button
           type="button"
@@ -334,6 +339,8 @@ export function MediaSection({
         >
           {aiBusy === 'photo' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
           {t('Tự điền từ ảnh', 'Autofill from photo')}
+          {/* The account gate, stated BEFORE the tap rather than discovered after it. */}
+          {isGuest && <span className="font-semibold text-ink-4">{t('· miễn phí khi có tài khoản', '· free with an account')}</span>}
         </Button>
       )}
       <SquareCropDialog
@@ -364,6 +371,7 @@ export function PriceSection({
   setUrgent,
   priceHeading,
   priceHint,
+  maxFactor,
   t,
 }: {
   /** Services sell at a stated price: no offers, no urgency (owner, 2026-07-22). */
@@ -384,6 +392,8 @@ export function PriceSection({
   priceHeading?: string
   /** One line under the field naming what the amount means, when the intent needs saying. */
   priceHint?: string
+  /** The largest unit chip VndInput offers — ×1.000.000.000 (tỷ) only where billions are plausible. */
+  maxFactor?: 1_000_000 | 1_000_000_000
   t: T
 }) {
   const heading = priceHeading ?? t('Giá', 'Price')
@@ -406,6 +416,8 @@ export function PriceSection({
               invalid={errPrice}
               aria-label={heading}
               aria-describedby={priceErr ? 'pw-price-error' : undefined}
+              aria-required
+              maxFactor={maxFactor}
             />
           </div>
           {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
@@ -420,8 +432,10 @@ export function PriceSection({
             Urgent toggle are both hidden for them (owner, 2026-07-22: "for services
             category all products non negotiable"). The server forces the same two values,
             so hiding the control is presentation, never the enforcement. */}
+        {/* ⚠️ A PAIR, SO IT IS LAID OUT AS ONE: two equal columns. As wrapping pills they measured
+            159px and 200px wide on two rows, which read as two unrelated buttons, not a choice. */}
         {!fixedPriceOnly && (
-        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={t('Kiểu giá', 'Price type')}>
+        <div className="mt-3 grid max-w-md grid-cols-2 gap-2" role="group" aria-label={t('Kiểu giá', 'Price type')}>
           {[
             { val: true, label: t('Có thể trả giá', 'Negotiable'), hint: t('Người mua có thể trả giá', 'Buyers can send offers') },
             { val: false, label: t('Giá cố định', 'Fixed price'), hint: t('Không nhận trả giá', 'No offers — ask & buy directly') },
@@ -436,51 +450,56 @@ export function PriceSection({
               className={cn(
                 // Stacked two-line label: `block` (the base is inline-flex) and
                 // `whitespace-normal` (the base nowrap inherits into the hint line).
-                'block whitespace-normal rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
+                // `h-full w-full`: both cells match the taller one when a hint wraps.
+                'block h-full w-full whitespace-normal rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
                 negotiable === opt.val ? 'bg-primary text-white' : 'bg-tint text-body hover:bg-muted',
               )}
             >
               {opt.label}
-              <span className={cn('block text-xs font-medium', negotiable === opt.val ? 'text-white/80' : 'text-ink-4')}>{opt.hint}</span>
+              {/* text-primary-foreground (white), NOT white/80: the translucent hint composited to
+                  #cee0f3 on the brand blue, 4.23:1 — under AA for 12px text. White is 5.69:1. */}
+              <span className={cn('block text-xs font-medium', negotiable === opt.val ? 'text-primary-foreground' : 'text-ink-4')}>{opt.hint}</span>
             </Button>
           ))}
         </div>
         )}
-        {/* Urgent sale ("Bán gấp") — free, 7 days, auto-expires. Selecting it
-            force-enables offers (the server enforces the same coupling). Uses the
-            destructive token (not warning): white-on-warning is unreadable in dark
-            (--warning is amber-400 there). Distinct from the blue selections. */}
+        {/* Urgent sale ("Bán gấp") — free, 7 days, auto-expires. Turning it on force-enables offers
+            (the server enforces the same coupling), and choosing "Fixed price" turns it off.
+            ⚠️ A SWITCH ROW, NOT A PRESSED PILL: it is an on/off setting beside a choice of two, and
+            the canon's control for on/off is <Switch>. The pressed pill also inverted to a solid
+            ink fill whose white/80 hint was near-invisible in dark mode (1.11:1 on #f0f0f0). Urgent
+            is NOT an error, so no destructive red here either.
+            The Zap goes Bold (and blue) when it is on through the app's icon grammar: a glyph is two
+            sprite layers, and globals.css shows the Bold one under a control in a selected state —
+            `data-state="checked"` on the row is that state (a `fill-current` class cannot reach
+            inside the <use> shadow tree, so it drew nothing).
+            ⚠️ THE WHOLE ROW IS THE <label>, SO THE WHOLE ROW IS THE TARGET — and not only for reach.
+            The wrapper above touches `price` on ANY blur inside it, so with the price still empty,
+            focus leaving "Fixed price" for the switch drops "Set a price" in above this row and shoves
+            it 22px down between pointerdown and click. On the bare 44×24 switch that lost the click
+            (measured: the click landed on the row, the switch stayed off); a 60px row still catches
+            it. Phrasing content only inside a label, hence spans rather than <p>/<div>. */}
         {!fixedPriceOnly && (
-        <div className="mt-3">
-          <Button
-            type="button"
-            variant="bare"
-            size="none"
-            onClick={() => { const next = !urgent; setUrgent(next); if (next) setNegotiable(true) }}
-            aria-pressed={urgent}
-            className={cn(
-              // Block-level flex row, left-aligned, wrapping: `flex` (base is
-              // inline-flex), `justify-start` (base centres), and
-              // `whitespace-normal` (base nowrap inherits into the two-line hint).
-              // `icon-own-ink`: pressed is a solid bg-foreground, so the Zap takes text-background
-              // like the label, not the global accent blue (~3.1:1 light, ~2:1 dark on that fill).
-              'icon-own-ink flex justify-start whitespace-normal gap-2 rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
-              // Urgent is NOT an error: it wears the same solid-ink tone the urgent
-              // chip uses on cards (card-badges TONE.urgent), not the destructive red.
-              // Red here would both conflate urgency with failure and fail AA in dark
-              // (white on the light dark-mode red is 3.17:1).
-              urgent ? 'bg-foreground text-background' : 'bg-tint text-body hover:bg-muted',
-            )}
-          >
-            <Zap className={cn('h-4 w-4 shrink-0', urgent && 'fill-current')} />
+        <label data-state={urgent ? 'checked' : 'unchecked'} className="mt-3 flex max-w-md cursor-pointer items-center justify-between gap-3 rounded-xl bg-tint px-3.5 py-3 transition-colors hover:bg-muted">
+          <span className="flex min-w-0 items-start gap-2">
+            <Zap className="mt-0.5 h-4 w-4 shrink-0 text-ink-4" />
             <span>
-              {t('Bán gấp', 'Urgent sale')}
-              <span className={cn('block text-xs font-medium', urgent ? 'text-white/80' : 'text-ink-4')}>
-                {t('Nổi bật 7 ngày — cần bán nhanh, sẵn sàng nhận trả giá', 'Highlighted for 7 days — sell fast, open to offers')}
-              </span>
+              <span id="pw-urgent-label" className="block text-sm font-semibold text-foreground">{t('Bán gấp', 'Urgent sale')}</span>
+              <span id="pw-urgent-hint" className="block text-xs text-ink-4">{t('Nổi bật 7 ngày — cần bán nhanh, sẵn sàng nhận trả giá', 'Highlighted for 7 days — sell fast, open to offers')}</span>
             </span>
-          </Button>
-        </div>
+          </span>
+          {/* ⚠️ aria-labelledby IS LOAD-BEARING, NOT REDUNDANT WITH aria-label. With no explicit
+              value, Base UI's Switch points aria-labelledby at the <label> wrapping it
+              (useAriaLabelledBy → findAssociatedLabel), and aria-labelledby beats aria-label — so the
+              name was the WHOLE ROW, hint included, and aria-describedby then read the hint again.
+              Name = the title; description = the hint, once. */}
+          <Switch
+            checked={urgent}
+            onChange={(next) => { setUrgent(next); if (next) setNegotiable(true) }}
+            aria-labelledby="pw-urgent-label"
+            aria-describedby="pw-urgent-hint"
+          />
+        </label>
         )}
       </div>
     </Section>
