@@ -21,7 +21,13 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
  * ⚠️ Starts OPEN and closes in an effect, so server and client render the same first frame (no
  * hydration mismatch); a closed job flips within a frame of hydrating.
  */
-export function JobApplyGuard({ applyBy, children }: { applyBy: string | null; children: React.ReactNode }) {
+export function JobApplyGuard({ applyBy, children, closed: closedView }: {
+  applyBy: string | null
+  children: React.ReactNode
+  /** What a closed job shows instead. Default: the closed notice. The PDP's in-flow CTA repeat passes
+   *  null — the buy box already says the job has closed, once is enough. */
+  closed?: React.ReactNode
+}) {
   const [closed, setClosed] = useState(false)
   useEffect(() => {
     if (!applyBy || !ISO_DAY.test(applyBy)) return
@@ -30,6 +36,7 @@ export function JobApplyGuard({ applyBy, children }: { applyBy: string | null; c
     if (Number.isFinite(end) && Date.now() > end) setClosed(true)
   }, [applyBy])
   if (closed) {
+    if (closedView !== undefined) return <>{closedView}</>
     return (
       <p className="text-sm font-medium text-body">
         <Tr text="This job has closed — the posting is no longer taking applications." />

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizePlace, placeCoordinates, getListingCoordinates } from './geo'
+import { normalizePlace, placeCoordinates, getListingCoordinates, approximateArea } from './geo'
 
 // ⛔ THE REGRESSION THIS FILE EXISTS FOR. The old city table tested `city.includes('hanoi')` —
 // no space — against city values that all carry one, so it matched nothing and every listing
@@ -84,5 +84,17 @@ describe('getListingCoordinates', () => {
   it('places a coordinate-less Nha Trang listing in Nha Trang, not Saigon', () => {
     const c = getListingCoordinates(listing())
     expect(c.lat).toBeCloseTo(12.24, 1)
+  })
+})
+
+describe('approximateArea — the area, never a guessed point (P-MAP, 2026-09-30)', () => {
+  it('a known district is a ~1.5km area on the district centroid, unjittered', () => {
+    expect(approximateArea({ city: 'Ho Chi Minh City', district: 'District 7' })).toEqual({ lat: 10.7226, lng: 106.7271, radiusM: 1500 })
+  })
+  it('a city without a known district is a ~4km area on the city', () => {
+    expect(approximateArea({ city: 'Buôn Ma Thuột', district: 'Cư M’gar, Đắk Lắk' })).toEqual({ lat: 12.6667, lng: 108.05, radiusM: 4000 })
+  })
+  it('an unrecognised city is null — no area drawn in Saigon by default', () => {
+    expect(approximateArea({ city: 'Nowhereville', district: null })).toBeNull()
   })
 })

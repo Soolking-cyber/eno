@@ -54,12 +54,12 @@ import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { RentalCheckToggle } from '@/components/marketplace/rental-check-toggle'
-import { AffiliateBooking } from '@/components/marketplace/affiliate-booking'
+import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/affiliate-booking'
 import { JobApplyGuard } from '@/components/marketplace/job-apply-guard'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { isBookingCategory } from '@/lib/affiliate-kind'
 import { isImportSeller } from '@/lib/import-sellers'
-import { hasRealCoords } from '@/lib/geo'
+import { approximateArea, hasRealCoords } from '@/lib/geo'
 import { isVehicleHireReference } from '@/lib/rental-places'
 import { VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
 import { isVisaShopListing } from '@/lib/visa-shop'
@@ -321,7 +321,7 @@ export default async function ListingPage({ params }: Props) {
   // and the seller's 90d conversation count — the honest denominator behind the
   // responsiveness bucket (Seller.responseRate defaults to 100 and lies without it).
   const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000
-  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90, priceBand] = await Promise.all([
+  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90, priceBand, partnerListingCount] = await Promise.all([
     cachedTranslations([listing.title, listing.description, listing.location]),
     listing.brandSlug
       ? db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true, logoPath: true } })
@@ -335,6 +335,12 @@ export default async function ListingPage({ params }: Props) {
     // Market-price band for this brand+model on THIS shelf (null when there aren't enough comparables,
     // or the listing has no subcategory — a case is never judged against the phone it fits).
     getPriceBand({ brandSlug: listing.brandSlug, model: listing.model, categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: rawListing.listingType, condition: listing.condition, year: listing.year }),
+    // An official partner's live listing count, for '{n} listings on eno.vn' in the shop row (owner,
+    // 2026-09-30, K-TRUST-BADGE option D). Partners only: one indexed count, and only on ISR regen.
+    // Edition-scoped exactly like the storefront's `_count` (seller-storefront.tsx), so the two agree.
+    listing.seller.officialPartner
+      ? scopedListingWhere({ sellerId: listing.sellerId, verified: true, status: 'active' }).then((where) => db.listing.count({ where }))
+      : Promise.resolve(null),
   ])
   // Honest, decomposed seller display bundle (raw responseRate never leaves here —
   // only the suppressed/bucketed label rides into the client SellerCard). The two
@@ -529,7 +535,18 @@ export default async function ListingPage({ params }: Props) {
   // phone) is the IMPORT date, which says nothing about the item. A partner rental and a linked job
   // keep it: there it is the source post's own date, and freshness is the point.
   const showPosted = !affiliateUrl || isJob || listing.listingType === 'rent'
-  const showMap = !isJob && (hasRealCoords(listing.lat, listing.lng) || !affiliateUrl)
+  // ⚠️ A SELLER'S OWN LISTING WITH NO STORED COORDINATE SHOWS ITS AREA, NOT A PIN (owner, 2026-09-30,
+  // P-MAP). The pin was the city/district centroid plus a ±1km jitter (geo.ts getListingCoordinates):
+  // a precise-looking point that is not the item's place. approximateArea is null when the city is not
+  // recognised — the old pin then sat in Saigon by default, so that case now shows no map at all.
+  const realCoords = hasRealCoords(listing.lat, listing.lng)
+  const approxArea = !realCoords && !affiliateUrl ? approximateArea(listing) : null
+  const showMap = !isJob && (realCoords || approxArea !== null)
+  // P-CTA part B (owner, 2026-09-30): repeat the partner CTA once, after the description, on a LONG
+  // partner PDP — one where the buy box is well out of sight by the end of the text. "Long" = a
+  // description of 600+ characters or 8+ Details rows (the eSIM and rental imports carry both).
+  const detailRowCount = numericSpecs.length + detailOnlySpecs.length + detailAttrs.length
+  const repeatCta = !!affiliateUrl && ((showDescription && descNorm.length >= 600) || detailRowCount >= 8)
   const socialProof = (
     <>
       {listing.savedCount >= 3 && (
@@ -656,13 +673,18 @@ export default async function ListingPage({ params }: Props) {
               from the same 772px budget, and this page has no sticky mobile CTA to fall back on —
               `PdpMobileBar` was deleted deliberately and must not come back. */}
           <div className="order-7 md:hidden">
-            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} />
+            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} />
           </div>
 
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
               md:hidden. Its desktop twin lives in the left column below; the variant gates stop
               the hidden one from fetching images. Share/Save overlay the media (Shopee pattern);
               z-10 stays under the lightbox (z-[100]). */}
+          {/* ⛔ NO GALLERY ON A LINKED JOB (owner, 2026-09-30, P-JOB): its one image is the importer's
+              generated poster (scripts/import-jobs.ts), which on a PDP spent a full-width square — the
+              whole phone fold — on a picture of the words printed below it. Cards keep the poster; the
+              PDP opens on the compact job header in the buy box instead (see `isJob` there). */}
+          {!isJob && (
           <div className="relative order-2 -mx-3 sm:-mx-6 md:hidden">
             <ListingGallery variant="mobile" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
             <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
@@ -674,6 +696,7 @@ export default async function ListingPage({ params }: Props) {
               <OwnerEditButton listingId={listing.id} sellerId={listing.seller.id} compact />
             </div>
           </div>
+          )}
 
           {/* RIGHT COLUMN (md col-6, lg col-5): the "buy box", sticky at lg. It comes FIRST in the DOM
               (so the H1, price, seller and contact controls lead the reading / tab order — the media +
@@ -688,6 +711,21 @@ export default async function ListingPage({ params }: Props) {
               {/* 3 — HEADER BLOCK: price (the anchor) → title → metadata, kept tight (gap-2) so the
                   three read as one cohesive unit. Price is the largest, boldest text on the page. */}
               <div className="order-3 flex flex-col gap-2">
+                {/* THE COMPACT JOB HEADER (owner, 2026-09-30, P-JOB): with no poster gallery on a linked
+                    job, Share / Save / Edit lose the photo they were overlaid on, so they sit here in
+                    their labelled (non-overlay) form, beside a plain 'Job posting' kicker. The overlay
+                    variants are white ink for photos and would vanish on the page ground. */}
+                {isJob && (
+                  <div data-job-header className="flex items-center justify-between gap-2">
+                    <Badge size="md" className="font-semibold text-body">{tr('Job posting', 'Tin tuyển dụng')}</Badge>
+                    <div className="flex items-center gap-1">
+                      {/* The border matches the labelled Save beside it (its own base has one; Share's does not). */}
+                      <ShareButton url={canonicalUrl} title={displayTitle} className="border border-border" />
+                      <SaveListingButton id={listing.id} />
+                      <OwnerEditButton listingId={listing.id} sellerId={listing.seller.id} />
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-col gap-1.5">
                   {/* The ≈ slot is reserved before /api/fx answers — price.tsx's invisible FX stand-in —
                       so this row does not grow when the rate lands (CLS measured 0, 2026-09-29). */}
@@ -777,8 +815,10 @@ export default async function ListingPage({ params }: Props) {
                       apply" as a false consumer claim on a licensed sàn TMĐT). */}
                 </div>
 
-                {/* Title — clean + medium weight so it never out-shouts the price. The single H1. */}
-                <h1 className="text-lg font-medium leading-snug text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
+                {/* Title — the single H1, 18px/700 (owner, 2026-09-30, P-HIER). At font-medium it read as
+                    body copy under the price and the page had no heading. Bold at 18px it is a heading
+                    and still sits far below the 30px price, so price-first holds. */}
+                <h1 className="text-lg font-bold leading-snug text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
 
                 {/* Metadata — ONE tightly-packed subdued row: brand · condition · specs · location ·
                     posted · social proof; flex-wrap spills to a second row only when it must.
@@ -989,10 +1029,12 @@ export default async function ListingPage({ params }: Props) {
             {/* Shop-on-top (Shopee): storefront link above the media, DESKTOP/TABLET. order-1 so it
                 leads the left column from md (above the gallery); hidden below md (mobile twin above). */}
             <div className="order-1 hidden md:block">
-              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} />
+              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} />
             </div>
 
-            {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens) */}
+            {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens). None on a
+                linked job — see the mobile mount. */}
+            {!isJob && (
             <div className="relative order-2 hidden md:block">
               <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
               <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
@@ -1004,6 +1046,7 @@ export default async function ListingPage({ params }: Props) {
                 <OwnerEditButton listingId={listing.id} sellerId={listing.seller.id} compact />
               </div>
             </div>
+            )}
 
             {/* 8 — Description + Details. The wrapper renders only when one of them does: an empty
                 flex item in this gapped column would still earn a gap. */}
@@ -1079,6 +1122,13 @@ export default async function ListingPage({ params }: Props) {
                   </dl>
                 </div>
               )}
+              {/* P-CTA part B — the partner CTA once more, after the text (see repeatCta). A closed job
+                  repeats nothing: the buy box already says so. */}
+              {repeatCta && affiliateUrl && (
+                <JobApplyGuard applyBy={jobApplyBy} closed={null}>
+                  <AffiliateCtaRepeat url={affiliateUrl} partnerName={listing.seller.name} booking={isBooking} rental={listing.listingType === 'rent'} job={isJob} />
+                </JobApplyGuard>
+              )}
             </div>
             )}
 
@@ -1091,6 +1141,11 @@ export default async function ListingPage({ params }: Props) {
             {showMap && (
             <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20">
               <h2 className="text-lg font-semibold text-foreground"><Tr text="Location" /></h2>
+              {approxArea && (
+                <p data-map-approximate className="text-xs text-muted-foreground">
+                  {tr('Approximate area — the exact address is not on the map.', 'Khu vực gần đúng — bản đồ không hiển thị địa chỉ chính xác.')}
+                </p>
+              )}
               {/* ⛔ THE RING IS ON THIS WRAPPER, KEYED OFF THE CHILD'S FOCUS. The focusable is
                   Leaflet's own `.leaflet-container` (tabIndex=0), which sits flush inside this
                   `overflow-hidden` box — so the global `outline-offset: 2px` ring was clipped
@@ -1099,7 +1154,7 @@ export default async function ListingPage({ params }: Props) {
                   ⚠️ `:focus-visible`, not `focus-within` — a mouse click inside a map should not
                   draw a keyboard ring, and Leaflet focuses its container on click. */}
               <div className="relative h-[260px] overflow-hidden rounded-2xl after:pointer-events-none after:absolute after:inset-0 after:z-[500] after:rounded-[inherit] after:border-2 after:border-ring after:opacity-0 after:content-[''] has-[:focus-visible]:after:opacity-100">
-                <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} />
+                <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} approximate={approxArea} />
               </div>
             </div>
             )}

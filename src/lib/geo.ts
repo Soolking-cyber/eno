@@ -121,7 +121,22 @@ export function placeCoordinates(city: string | null | undefined, district?: str
   const districtBelongsHere = !byCity || !byDistrict ? false
     : Math.abs(byCity[0] - byDistrict[0]) < 0.6 && Math.abs(byCity[1] - byDistrict[1]) < 0.6
   const point = (districtBelongsHere ? byDistrict : byCity) ?? PLACE_COORDS.hochiminhcity
-  return { lat: point[0], lng: point[1], matched: Boolean(byCity) }
+  return { lat: point[0], lng: point[1], matched: Boolean(byCity), byDistrict: districtBelongsHere }
+}
+
+/**
+ * THE AREA A LISTING WITHOUT A STORED COORDINATE IS IN — drawn as a circle, never as a pin (owner,
+ * 2026-09-30, P-MAP). A pin says "here"; for these rows all we know is the district or the city, and
+ * `getListingCoordinates` jitters the centroid by ±1km so pins do not stack — a precise-looking point
+ * that is not the item's place. The circle is centred on the UNJITTERED centroid and sized to the
+ * level we actually matched: ~1.5km for a known district, ~4km for a city.
+ * ⚠️ null WHEN THE CITY IS NOT RECOGNISED. placeCoordinates then falls back to Ho Chi Minh City, and
+ * an area drawn there would be exactly the confident wrong answer this replaces — show no map.
+ */
+export function approximateArea(listing: { city?: string | null; district?: string | null }): { lat: number; lng: number; radiusM: number } | null {
+  const p = placeCoordinates(listing.city, listing.district)
+  if (!p.matched) return null
+  return { lat: p.lat, lng: p.lng, radiusM: p.byDistrict ? 1500 : 4000 }
 }
 
 export function getListingCoordinates(listing: Pick<SerializedListingCard, 'id' | 'lat' | 'lng' | 'city' | 'district'>) {

@@ -5,6 +5,7 @@ import { MessageCircle, Store, Star } from "@/components/ui/icons"
 import { useLanguage } from '@/context/language-context'
 import { BusinessVerifiedBadge } from '@/components/marketplace/business-verified-badge'
 import { PartnerBadge } from './partner-badge'
+import { PartnerListingCount } from './partner-listing-count'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { trustBand } from '@/lib/trust-score'
 import { RatingValue, CountValue } from '@/components/marketplace/rating-value'
@@ -116,9 +117,16 @@ export function SellerCard({
   }
   if (typeof listingCount === 'number' && listingCount > 0) {
     strip.push(
-      <span key="listings">
-        <CountValue value={listingCount} /> {tr('listings', 'tin đăng')}
-      </span>,
+      // An official partner reads '{n} listings on eno.vn' (owner, 2026-09-30, K-TRUST-BADGE option D):
+      // it carries no trust score, so the count is what sizes the partner claim. Everyone else keeps
+      // the bare count.
+      seller.officialPartner
+        ? <PartnerListingCount key="listings" n={listingCount} />
+        : (
+          <span key="listings">
+            <CountValue value={listingCount} /> {listingCount === 1 ? tr('listing', 'tin đăng') : tr('listings', 'tin đăng')}
+          </span>
+        ),
     )
   }
 

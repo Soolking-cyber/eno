@@ -51,12 +51,12 @@ export function tileUrl(template: string, x: number, y: number, z: number): stri
  * such tiles); a box edge that falls exactly on a tile edge does not fetch the tile beyond it.
  */
 export function staticMapTiles(
-  { lat, lng, width, height, zoom = STATIC_MAP_ZOOM, retina = false }:
-  { lat: number; lng: number; width: number; height: number; zoom?: number; retina?: boolean },
+  { lat, lng, width, height, zoom = STATIC_MAP_ZOOM, retina = false, style }:
+  { lat: number; lng: number; width: number; height: number; zoom?: number; retina?: boolean; style?: string },
 ): { tiles: StaticTile[]; pin: { x: number; y: number } } {
   const pin = { x: width / 2, y: height / 2 }
   if (!(width > 0 && height > 0) || !Number.isFinite(lat) || !Number.isFinite(lng)) return { tiles: [], pin }
-  const template = basemapTileUrl(retina ? '@2x' : '')
+  const template = basemapTileUrl(retina ? '@2x' : '', style)
   const n = 2 ** zoom
   const c = worldPixel(lat, lng, zoom)
   const left = Math.round(c.x - width / 2)
@@ -78,4 +78,19 @@ export function wantsRetinaTiles(): boolean {
   const conn = (navigator as Navigator & { connection?: { effectiveType?: string; saveData?: boolean } }).connection
   const lightTiles = !!conn && (conn.saveData === true || (!!conn.effectiveType && conn.effectiveType !== '4g'))
   return !lightTiles && (window.devicePixelRatio || 1) > 1
+}
+
+/** Metres per CSS pixel at `lat` and `zoom` (Web Mercator, 256px tiles — the scale Leaflet draws at). */
+export function metresPerPixel(lat: number, zoom: number): number {
+  return (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (TILE * 2 ** zoom)
+}
+
+/**
+ * The deepest zoom (≤ STATIC_MAP_ZOOM) at which a circle of `radiusM` still fits a `width` × `height`
+ * box with room around it — the preview's stand-in for the live map's fitBounds on the same circle.
+ */
+export function zoomToFitRadius(lat: number, radiusM: number, width: number, height: number): number {
+  const room = 0.38 * Math.min(width, height)
+  for (let z = STATIC_MAP_ZOOM; z > 3; z--) if (radiusM / metresPerPixel(lat, z) <= room) return z
+  return 3
 }

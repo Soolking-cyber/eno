@@ -226,3 +226,12 @@ export function useTheme() {
   if (!ctx) throw new Error('useTheme must be used within a ThemeProvider')
   return ctx
 }
+
+/**
+ * The applied scheme, or 'light' outside a ThemeProvider. For leaf components that only need to
+ * FOLLOW the theme (the PDP map's basemap) and are rendered by tests without the provider — useTheme
+ * throws there, which is right for a control that SETS the theme and wrong for one that only reads it.
+ */
+export function useResolvedTheme(): 'light' | 'dark' {
+  return useContext(ThemeContext)?.resolved ?? 'light'
+}

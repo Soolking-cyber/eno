@@ -59,7 +59,8 @@ export function AffiliateProductStep({ productUrl, listingId }: { productUrl: st
       // shopper ever visiting the affiliate — exactly the bypass this component is ordered to prevent.
       if (e.button !== 0 && e.button !== 1) return
       const target = e.target as HTMLElement | null
-      if (!target?.closest?.('[data-affiliate-cta="true"]')) return
+      // The buy box's CTA or its in-flow repeat (affiliate-booking.tsx AffiliateCtaRepeat) — the same link.
+      if (!target?.closest?.('[data-affiliate-cta="true"], [data-affiliate-cta-repeat="true"]')) return
       setOpened(true)
       try { sessionStorage.setItem(key, '1') } catch { /* the reveal still works for this render */ }
     }

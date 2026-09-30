@@ -39,6 +39,11 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
 type Props = {
   listings: SerializedListingCard[]
   activeDistrict: string
+  /**
+   * The listing has no stored coordinate, only a district or city: show THAT AREA and no pin (owner,
+   * 2026-09-30, P-MAP). geo.ts approximateArea builds it; null keeps the ordinary pinned map.
+   */
+  approximate?: { lat: number; lng: number; radiusM: number } | null
 }
 
 /**
@@ -80,14 +85,18 @@ const coarseNow = () => window.matchMedia?.(COARSE).matches ?? false
  *  full-size, so it is the natural target. The hook fails open where IntersectionObserver
  *  is missing (old WebViews, jsdom) — there the map simply mounts as it does today.
  *  The touch preview rides the same gate, so its tiles are not fetched before the reader is near. */
-export function ListingDetailMap({ listings, activeDistrict }: Props) {
+export function ListingDetailMap({ listings, activeDistrict, approximate = null }: Props) {
   const { ref, near } = useNearViewport<HTMLDivElement>()
   const touch = useSyncExternalStore<boolean | null>(subscribeCoarse, coarseNow, () => null)
   const liveMap = () => (
     <ListingsMap
-      listings={listings}
+      /* No listings on an approximate map: every listing becomes a pin, and a pin is the claim being
+         withdrawn. The area circle is drawn from `approximate` instead. */
+      listings={approximate ? [] : listings}
       activeDistrict={activeDistrict}
       onOpenListing={() => {}}
+      approximate={approximate}
+      themedBasemap
     />
   )
 
@@ -98,7 +107,7 @@ export function ListingDetailMap({ listings, activeDistrict }: Props) {
       ) : touch ? (
         // A PDP always passes its one listing; with none there is nothing to picture — and a
         // placeholder here would be a loading tile that never resolves.
-        listings[0] ? <ListingMapPreview listing={listings[0]} liveMap={liveMap} /> : null
+        listings[0] ? <ListingMapPreview listing={listings[0]} liveMap={liveMap} approximate={approximate} /> : null
       ) : (
         liveMap()
       )}

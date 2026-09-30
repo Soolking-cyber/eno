@@ -93,3 +93,24 @@ describe('ListingDetailMap — touch gets a picture, a pointer gets the live map
     expect(screen.queryByRole('button', { name: 'Open map' })).toBeNull()
   })
 })
+
+describe('ListingDetailMap — an approximate area has no pin (owner, 2026-09-30, P-MAP)', () => {
+  it('touch: draws the area disc and no pin, framed below zoom 15', () => {
+    coarse = true
+    render(<ListingDetailMap listings={[listing]} activeDistrict="all" approximate={{ lat: 12.6667, lng: 108.05, radiusM: 4000 }} />)
+    const open = screen.getByRole('button', { name: 'Open map' })
+    expect(open.querySelector('[data-map-area]')).not.toBeNull()
+    expect(open.querySelector('svg.text-brand')).toBeNull()
+    const src = open.querySelector('img')?.getAttribute('src') ?? ''
+    const z = Number(src.match(/light_all\/(\d+)\//)?.[1])
+    expect(z).toBeLessThan(15)
+  })
+
+  it('touch without an area keeps the pin and no disc', () => {
+    coarse = true
+    render(<ListingDetailMap listings={[listing]} activeDistrict="all" />)
+    const open = screen.getByRole('button', { name: 'Open map' })
+    expect(open.querySelector('[data-map-area]')).toBeNull()
+    expect(open.querySelector('svg.text-brand')).not.toBeNull()
+  })
+})

@@ -13,6 +13,7 @@ import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { lastSeenBucket } from '@/lib/last-seen'
 import { useMounted } from '@/hooks/use-mounted'
+import { PartnerListingCount } from './partner-listing-count'
 import type { SellerMetrics } from '@/lib/seller-metrics'
 
 /** Shopee "shop on top": the SINGLE seller surface on the PDP, sitting directly above the media.
@@ -20,7 +21,7 @@ import type { SellerMetrics } from '@/lib/seller-metrics'
  *  reviews) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
  *  buy box is gone (its "Chat now" lives on in the ContactComposer). The whole strip is a div (not
  *  one anchor) so the trust chip and the Shop link can each be their own real link. */
-export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linked = null }: {
+export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linked = null, partnerListingCount = null }: {
   name: string
   avatarColor?: string | null
   avatarUrl?: string | null
@@ -43,6 +44,12 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
    * (response time, last seen, joined, reviews), which describes nobody.
    */
   linked?: 'job' | 'listing' | null
+  /**
+   * An OFFICIAL PARTNER's live listing count (edition-scoped, page.tsx), shown as '{n} listings on
+   * eno.vn' (owner, 2026-09-30, K-TRUST-BADGE option D). A partner shows no trust score, so this is
+   * the one line that says how much of the partner is on the site. null → nothing.
+   */
+  partnerListingCount?: number | null
 }) {
   const { tr } = useLanguage()
   const { responseBucket, lastSeenDay, memberSinceYear, reviewCount, rating, trustScore } = metrics
@@ -59,6 +66,8 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
 
   // Honest metrics strip — only signals that exist (never zero-filled), joined with middots.
   const strip: React.ReactNode[] = []
+  // First in the strip: for a partner it is the fact that sizes the claim the P plate makes.
+  if (officialPartner && typeof partnerListingCount === 'number' && partnerListingCount > 0) strip.push(<PartnerListingCount key="partner-count" n={partnerListingCount} />)
   if (linked === 'job') strip.push(tr('Linked job posting — not vetted by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa kiểm duyệt'))
   else if (linked === 'listing') strip.push(tr('Linked listing — not vetted by eno.vn', 'Tin đăng dẫn link — eno.vn chưa kiểm duyệt'))
   else if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
@@ -165,3 +174,4 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
     </div>
   )
 }
+

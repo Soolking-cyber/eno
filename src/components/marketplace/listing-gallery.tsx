@@ -191,7 +191,11 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
           lazy, i.e. held until after hydration. It is a 64px source, so loading it eagerly costs ~1 KB
           and does not compete with the sharp layer's fetchPriority=high. */}
       <Image src={img} alt="" fill sizes="64px" quality={60} unoptimized={mock || undefined} aria-hidden loading={priority || eager ? 'eager' : undefined} className="scale-110 object-cover blur-2xl dark:brightness-[0.92]" />
-      <span aria-hidden className="pointer-events-none absolute inset-0 bg-repeat opacity-70 [background-image:url('/watermark.svg')] [background-size:116px_80px] md:[background-size:248px_171px]" />
+      {/* ⚠️ 0.08, NOT 0.7 (owner, 2026-09-30, I-MARK-DENSITY option B). At 0.7 the repeating tile read
+          as a pattern printed over the gutters — a dense field of wordmarks beside a photo that already
+          carries its own ImageMark. At 0.08 it is a texture you notice only on a wide letterbox. The
+          per-photo <ImageMark> below is unchanged: the brand mark on the image is the real one. */}
+      <span aria-hidden className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.08] [background-image:url('/watermark.svg')] [background-size:116px_80px] md:[background-size:248px_171px]" />
       <Image
         src={img}
         alt={alt}
@@ -529,7 +533,9 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               web ios and android … square viewport for images and videos"). This file is
               also the Capacitor WebView the native apps load, so mobile-web square IS the
               iOS/Android square. */}
-          <div data-protected className="relative aspect-square w-full overflow-hidden bg-tint">
+          {/* Same desktop height cap as the mosaic below (P-GALLERY-DESKTOP, see there); `md:` only — the
+              phone keeps its full square. */}
+          <div data-protected className="relative aspect-square w-full overflow-hidden bg-tint md:max-h-[max(24rem,calc(100dvh-19rem))]">
             <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority />
           </div>
         </Button>
@@ -593,7 +599,13 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               WRAPPER) onto the image's own corner — the centered cap left them floating
               beside the hero. */}
           <div data-protected className="hidden w-full md:block">
-            <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-tint">
+            {/* ⚠️ CAPPED AT max(24rem, 100dvh − 19rem) (owner, 2026-09-30, P-GALLERY-DESKTOP). A full-width
+                square in the col-7 column was ~720px tall at 1440x900, so the thumbnail rail and the
+                description started below the fold. The cap only shortens the frame: the width stays
+                full, so a clamped frame is wider than square and the photo layer (object-contain over
+                its own blurred copy) shows the WHOLE photo with gutters — nothing is cropped. The
+                24rem floor keeps a short landscape window from collapsing the hero. */}
+            <div className="relative aspect-square max-h-[max(24rem,calc(100dvh-19rem))] w-full overflow-hidden rounded-2xl bg-tint">
               {hasVideo && sel === 0 ? (
                 <GalleryVideo src={video!} poster={images[0]} className="rounded-none" />
               ) : (

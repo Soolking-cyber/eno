@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Info, Map as MapIcon } from '@/components/ui/icons'
 import { getListingCoordinates } from '@/lib/geo'
-import { staticMapTiles, wantsRetinaTiles } from '@/lib/static-map'
+import { basemapStyle } from '@/lib/basemap'
+import { useResolvedTheme } from '@/context/theme-context'
+import { metresPerPixel, staticMapTiles, STATIC_MAP_ZOOM, wantsRetinaTiles, zoomToFitRadius } from '@/lib/static-map'
 import { OSM_CREDIT, CARTO_CREDIT } from '@/lib/map-credit'
 import { handleExternalClick } from '@/lib/native-browser'
 
@@ -34,8 +36,14 @@ import { handleExternalClick } from '@/lib/native-browser'
  * two OSM/CARTO credit links (a licence obligation — src/lib/map-credit.ts) cannot live inside a
  * <button> (nested interactive content is invalid and unreachable), so they are siblings painted above.
  */
-export function ListingMapPreview({ listing, liveMap }: { listing: SerializedListingCard; liveMap: () => ReactNode }) {
+export function ListingMapPreview({ listing, liveMap, approximate = null }: {
+  listing: SerializedListingCard
+  liveMap: () => ReactNode
+  /** Only the district or city is known: draw that AREA as a circle, and no pin — see approximateArea (geo.ts). */
+  approximate?: { lat: number; lng: number; radiusM: number } | null
+}) {
   const { tr } = useLanguage()
+  const dark = useResolvedTheme() === 'dark'
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<{ w: number; h: number } | null>(null)
   const [retina, setRetina] = useState(false)
@@ -61,8 +69,11 @@ export function ListingMapPreview({ listing, liveMap }: { listing: SerializedLis
     return () => ro.disconnect()
   }, [])
 
-  const { lat, lng } = getListingCoordinates(listing)
-  const { tiles, pin } = size ? staticMapTiles({ lat, lng, width: size.w, height: size.h, retina }) : { tiles: [], pin: { x: 0, y: 0 } }
+  const { lat, lng } = approximate ?? getListingCoordinates(listing)
+  // An area is framed to fit its circle (the live map's fitBounds on the same shape); a pin keeps zoom 15.
+  const zoom = approximate && size ? zoomToFitRadius(lat, approximate.radiusM, size.w, size.h) : STATIC_MAP_ZOOM
+  const { tiles, pin } = size ? staticMapTiles({ lat, lng, width: size.w, height: size.h, retina, zoom, style: basemapStyle(dark) }) : { tiles: [], pin: { x: 0, y: 0 } }
+  const areaR = approximate ? approximate.radiusM / metresPerPixel(lat, zoom) : 0
 
   return (
     <div ref={box} className="relative h-full w-full overflow-hidden bg-tint select-none">
@@ -97,7 +108,17 @@ export function ListingMapPreview({ listing, liveMap }: { listing: SerializedLis
               style={{ left: t.left, top: t.top, width: 256, height: 256 }}
             />
           ))}
-          {tiles.length > 0 && (
+          {tiles.length > 0 && approximate && (
+            // THE AREA, NOT A POINT: a brand-tinted disc with a hairline edge, centred on the district or
+            // city centroid. No pin anywhere on it — a pin would claim a place we do not know.
+            <span
+              aria-hidden
+              data-map-area
+              className="pointer-events-none absolute rounded-full border-2 border-brand bg-brand/15"
+              style={{ left: pin.x - areaR, top: pin.y - areaR, width: areaR * 2, height: areaR * 2 }}
+            />
+          )}
+          {tiles.length > 0 && !approximate && (
             // Only over a drawn map: a pin on a blank tile (no size yet, or a point that could not be
             // projected) would assert a location that is not on screen.
             // The pin: Solar `map-point` (Bold) — the glyph the app's map icons are drawn from — with its

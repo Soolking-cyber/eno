@@ -6,6 +6,7 @@ import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { AffiliateCodeCopy } from './affiliate-code-copy'
 import { AffiliateProductStep } from './affiliate-product-step'
 import { JobApplyBy } from './job-apply-guard'
+import { cn } from '@/lib/utils'
 
 /**
  * THE BUY BOX FOR A LISTING WHOSE CHECKOUT HAPPENS ON A PARTNER'S SITE.
@@ -123,8 +124,7 @@ export function AffiliateBooking({
           // the applicant came from eno.vn.
           rel={job ? 'nofollow noopener' : 'sponsored nofollow noopener noreferrer'}
         >
-          {job ? <Tr text="Apply on" /> : rental ? <Tr text="Rent on" /> : booking ? <Tr text="Book on" /> : <Tr text="Buy on" />} {partnerName}
-          <ArrowUpRight className="size-4" aria-hidden />
+          <CtaLabel job={job} rental={rental} booking={booking} partnerName={partnerName} />
         </a>
       </Button>
 
@@ -195,5 +195,54 @@ export function AffiliateBooking({
         * extra cost to you." — and this is the element it belongs on.
         */}
     </section>
+  )
+}
+
+/** The CTA's words — one source for the buy box and its in-flow repeat, so the two can never disagree. */
+function CtaLabel({ job, rental, booking, partnerName }: { job: boolean; rental: boolean; booking: boolean; partnerName: string }) {
+  return (
+    <>
+      {job ? <Tr text="Apply on" /> : rental ? <Tr text="Rent on" /> : booking ? <Tr text="Book on" /> : <Tr text="Buy on" />} {partnerName}
+      <ArrowUpRight className="size-4" aria-hidden />
+    </>
+  )
+}
+
+/**
+ * THE PRIMARY CTA, ONCE MORE, IN THE PAGE FLOW (owner, 2026-09-30, P-CTA part B) — on a LONG partner
+ * PDP only, placed by page.tsx after the description. A reader who has just finished a long description
+ * is a screen or more below the buy box, and on a phone there is no sticky bar to fall back on
+ * (PdpMobileBar was deleted deliberately). Not sticky: it scrolls with the text it follows.
+ *
+ * ⚠️ `data-affiliate-cta-repeat`, NEVER `data-affiliate-cta`. The guest e2e counts `[data-affiliate-cta]`
+ * as exactly one anchor — the buy box's. AffiliateProductStep listens for BOTH, because a click here is
+ * the same affiliate click and must reveal the second step the same way.
+ * ⚠️ Same URL, same rel, same words (CtaLabel) as the buy box: a second button that differed in any of
+ * them would be a second, different claim. `lg:hidden` — from lg the buy box is sticky, so the original
+ * CTA is already on screen beside the description and a repeat would only be noise.
+ */
+export function AffiliateCtaRepeat({ url, partnerName, booking, rental = false, job = false, className }: {
+  url: string
+  partnerName: string
+  booking: boolean
+  rental?: boolean
+  job?: boolean
+  className?: string
+}) {
+  const safeUrl = safeAffiliateUrl(url)
+  if (!safeUrl) return null
+  return (
+    <div className={cn('lg:hidden', className)}>
+      <Button asChild variant="cta" size="lg" className="w-full min-h-11">
+        <a
+          data-affiliate-cta-repeat="true"
+          href={safeUrl}
+          target="_blank"
+          rel={job ? 'nofollow noopener' : 'sponsored nofollow noopener noreferrer'}
+        >
+          <CtaLabel job={job} rental={rental} booking={booking} partnerName={partnerName} />
+        </a>
+      </Button>
+    </div>
   )
 }

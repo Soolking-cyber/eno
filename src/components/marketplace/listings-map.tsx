@@ -1,6 +1,7 @@
 'use client'
 
-import { basemapTileUrl } from '@/lib/basemap'
+import { basemapStyle, basemapTileUrl } from '@/lib/basemap'
+import { useResolvedTheme } from '@/context/theme-context'
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { useEffect, useRef, useState } from 'react'
@@ -129,6 +130,14 @@ type Props = {
   districtShapes?: { slug: string; name: string; nameEn: string; geojson: unknown }[]
   /** Selecting a district by clicking its shape. Absent → the layer is not drawn at all. */
   onSelectDistrict?: (slug: string) => void
+  /**
+   * THE PDP'S "APPROXIMATE AREA" (owner, 2026-09-30, P-MAP): a listing with no stored coordinate,
+   * only a district or city. Drawn as a non-interactive circle and fitted to; the host passes NO
+   * listings with it, so there is no pin. Absent everywhere but the PDP (listing-detail-map.tsx).
+   */
+  approximate?: { lat: number; lng: number; radiusM: number } | null
+  /** Follow the app's dark scheme with CARTO's dark basemap. PDP only — the explorer keeps light_all. */
+  themedBasemap?: boolean
 }
 
 // SELF-HOSTED (public/vendor/leaflet, byte-verified against the npm 1.9.4 tarball) — was
@@ -356,7 +365,7 @@ function MapCredit({ className }: { className?: string }) {
   )
 }
 
-export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove, buildings, selectedBuilding, onSelectBuilding, feedParams, boundary, districtShapes, onSelectDistrict }: Props) {
+export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove, buildings, selectedBuilding, onSelectBuilding, feedParams, boundary, districtShapes, onSelectDistrict, approximate = null, themedBasemap = false }: Props) {
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
   const { currency: pickedCurrency, rates: fxRates } = useCurrency()
@@ -372,6 +381,15 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   const locale = moneyLocale(uiLang)
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
+  // The basemap style follows the scheme only where the host opted in (the PDP); read in the init
+  // effect through a ref so a theme flip swaps the tile URL (effect below) instead of rebuilding the map.
+  const resolvedTheme = useResolvedTheme()
+  const tileStyle = basemapStyle(themedBasemap && resolvedTheme === 'dark')
+  const tileStyleRef = useRef(tileStyle)
+  tileStyleRef.current = tileStyle
+  const tileLayerRef = useRef<any>(null)
+  const retinaRef = useRef<'@2x' | ''>('')
+  const approxLayerRef = useRef<any>(null)
   /** True once the map is zoomed in far enough for building pins to carry their names. */
   const [labelled, setLabelled] = useState(false)
   const markersRef = useRef<Map<string, any>>(new Map())
@@ -829,7 +847,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     const conn = (navigator as Navigator & { connection?: { effectiveType?: string; saveData?: boolean } }).connection
     const lightTiles = !!conn && (conn.saveData === true || (!!conn.effectiveType && conn.effectiveType !== '4g'))
     const retina = !lightTiles && L.Browser.retina ? '@2x' : ''
-    L.tileLayer(basemapTileUrl(retina as '@2x' | ''), {
+    retinaRef.current = retina
+    tileLayerRef.current = L.tileLayer(basemapTileUrl(retina as '@2x' | '', tileStyleRef.current), {
       maxZoom: 19,
       keepBuffer: 1,        // hold fewer off-screen tiles → fewer requests on slow links
       updateWhenIdle: true, // defer tile fetches until a pan/zoom settles
@@ -881,6 +900,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       map.off()
       map.remove()
       mapInstanceRef.current = null
+      tileLayerRef.current = null
+      approxLayerRef.current = null
       markersRef.current.clear()
       // The html cache is keyed by marker id and those ids are reused across redraws, so it must
       // be dropped with the markers — otherwise a rebuilt pin matches a stale entry and skips its
@@ -1112,6 +1133,40 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     const sizeT = setTimeout(() => { if (mapInstanceRef.current === map) map.invalidateSize() }, 80)
     return () => clearTimeout(sizeT)
   }, [listings, ready, activeDistrict, areaKey, nearby, locale, buildings, selectedBuilding])
+
+  // A theme flip swaps the basemap's URL in place — no new map, no lost viewport. A no-op for every
+  // host that did not opt in (`tileStyle` is then always light_all).
+  useEffect(() => {
+    const layer = tileLayerRef.current
+    if (!ready || !layer) return
+    layer.setUrl(basemapTileUrl(retinaRef.current, tileStyle))
+    /**
+     * ⚠️ AND THE DARK TILES MUST NOT BE INVERTED. globals.css inverts `.leaflet-tile-pane` under
+     * html.dark — the old trick for a light_all map on a dark page — and applied to dark_all tiles it
+     * turns them back into a LIGHT map (measured: dark_all URLs, pale-grey pixels). An inline `none`
+     * outranks that rule for this map only; '' hands the pane back to the stylesheet (light mode, and
+     * every host that did not opt in).
+     */
+    const pane = mapInstanceRef.current?.getPane?.('tilePane') as HTMLElement | undefined
+    if (pane) pane.style.filter = tileStyle === 'dark_all' ? 'none' : ''
+  }, [ready, tileStyle])
+
+  // The approximate AREA (PDP, no stored coordinate): one circle, not clickable, and the view fitted to
+  // it. ⚠️ `interactive: false` for the reason the search rectangle above gives — a filled vector is a
+  // click target across its whole fill. Keyed on the numbers, not the object, so a re-render with an
+  // equal area does not redraw or re-fit a map the reader has since panned.
+  const approxLat = approximate?.lat
+  const approxLng = approximate?.lng
+  const approxR = approximate?.radiusM
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!ready || !map) return
+    const L = (window as any).L
+    if (approxLayerRef.current) { map.removeLayer(approxLayerRef.current); approxLayerRef.current = null }
+    if (approxLat == null || approxLng == null || approxR == null) return
+    approxLayerRef.current = L.circle([approxLat, approxLng], { radius: approxR, interactive: false, color: '#0A66C2', weight: 2, fillColor: '#0A66C2', fillOpacity: 0.15 }).addTo(map)
+    map.fitBounds(approxLayerRef.current.getBounds(), { padding: [24, 24] })
+  }, [ready, approxLat, approxLng, approxR])
 
   /**
    * ⛔ A CARD MUST NOT OUTLIVE ITS PIN (reviewer). Change a filter so the tower falls out of the

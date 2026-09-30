@@ -30,3 +30,12 @@ export function basemapTileUrl(retina: '@2x' | '{r}' | '' = '', style = 'light_a
   const base = `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}${retina}.png`
   return CARTO_KEY ? `${base}?key=${CARTO_KEY}` : base
 }
+
+/**
+ * The CARTO style for the app's scheme (owner, 2026-09-30, P-MAP: "dark CARTO basemap: yes"). A
+ * `light_all` tile is a near-white 260px slab in dark mode — the brightest thing on the page. PDP map
+ * only for now; the explorer's map keeps `light_all` (its pins and chips were contrast-measured on it).
+ */
+export function basemapStyle(dark: boolean): 'dark_all' | 'light_all' {
+  return dark ? 'dark_all' : 'light_all'
+}
