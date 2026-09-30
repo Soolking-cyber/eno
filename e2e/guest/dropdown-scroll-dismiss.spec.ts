@@ -12,12 +12,22 @@ import { test, expect } from '../helpers'
 // `touchmove` — the USER-INITIATED events — precisely so a programmatic scroll (the browser
 // bringing a trigger into view, or the iOS keyboard shifting the document) cannot dismiss a popup.
 // A `scrollTo`-driven test would therefore report a failure that no user can reproduce.
+//
+// ⚠️ ON A PHONE THE PRICE PANEL IS NOT A POPOVER (E-FILTER-SHEET, 2026-09-29). Below `sm` (useIsPhone)
+// price-range-filter.tsx renders a ui/drawer bottom sheet instead: MODAL, full width and pinned to the
+// viewport's bottom edge, so there is no anchored popup left to ride the page — the defect this file
+// exists for cannot occur there, and a wheel over its scrim neither dismisses it nor moves the page
+// (measured). The popover case therefore runs on guest-desktop only, unchanged, and guest-mobile
+// asserts the sheet contract instead: the phone never renders the popover, and the Price pill opens a
+// full-width sheet on the bottom edge that closes through its own action.
 
 const CATEGORY_ROUTE = '/?category=vehicles'
 const POPOVER = '[data-slot="popover-content"]'
+const SHEET = '[data-slot="drawer-popup"]'
 
 test.describe('Guest · open popups dismiss on a user scroll', () => {
-  test('the facet bar price popover closes when the page is wheeled', async ({ page }) => {
+  test('the facet bar price popover closes when the page is wheeled', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === 'guest-mobile', 'phone: Price is a modal bottom sheet, not a popover — covered by the next test')
     await page.goto(CATEGORY_ROUTE)
 
     const trigger = page.locator('[data-slot="popover-trigger"]', { hasText: /price|giá/i }).first()
@@ -32,6 +42,35 @@ test.describe('Guest · open popups dismiss on a user scroll', () => {
 
     await expect(page.locator(POPOVER)).toHaveCount(0)
     expect(await page.evaluate(() => window.scrollY), 'the page should have actually moved').toBeGreaterThan(0)
+  })
+
+  test('on a phone the price pill opens a full-width bottom sheet that closes', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'guest-mobile', 'phone-only: from sm up Price is the popover above')
+    await page.goto(CATEGORY_ROUTE)
+
+    const trigger = page.locator('[data-slot="drawer-trigger"]', { hasText: /price|giá/i }).first()
+    await expect(trigger, 'the facet bar did not render — check the /?category= entry point').toBeVisible()
+    // The phone branch REPLACES the popover; it does not sit beside it.
+    await expect(page.locator('[data-slot="popover-trigger"]', { hasText: /price|giá/i })).toHaveCount(0)
+    await trigger.click()
+
+    const sheet = page.locator(SHEET)
+    await expect(sheet).toBeVisible()
+    await expect(page.getByRole('dialog', { name: /^(Price range|Khoảng giá)$/ })).toBeVisible()
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.locator(POPOVER)).toHaveCount(0)
+    // Full width, on the bottom edge. The sheet slides up over 450ms — measure where it SETTLES.
+    const vp = page.viewportSize()!
+    await expect.poll(async () => { const b = await sheet.boundingBox(); return b && Math.round(b.y + b.height) }).toBe(vp.height)
+    const box = (await sheet.boundingBox())!
+    expect(box.x).toBe(0)
+    expect(Math.round(box.width)).toBe(vp.width)
+
+    // It closes through its own action — "Show {n} results", "≈{n}" when the count is approximate,
+    // bare while the histogram loads — and leaves the pill collapsed.
+    await sheet.getByRole('button', { name: /^(Show(?: ≈?[\d,.]+)? results?|Xem(?: ≈?[\d.,]+)? kết quả)$/ }).click()
+    await expect(page.locator(SHEET)).toHaveCount(0)
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
   })
 
   // ⛔ THERE IS DELIBERATELY NO "wheel INSIDE the popup leaves it open" CASE HERE, AND THE REASON

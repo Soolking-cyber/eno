@@ -106,8 +106,9 @@ function Grid({ data, lang }: { data: VehicleHubData; lang: Lang }) {
         <SellerListings
           listings={data.listings}
           sortable={data.total > 1}
-          sortBase={explorer(data.kind)}
-          scope={{ shown: data.listings.length, total: data.total }}
+          /* Sort and Show more stay on this page (E-SORT / C1-DEADEND retired the link-out `sortBase`):
+             they page over the same set the "See all" link opens — rentals › this vehicle subcategory. */
+          serverScope={{ params: { category: 'rentals', subcategory: SUB[data.kind] }, total: data.total, pageSize: Math.max(1, data.listings.length) }}
         />
       </div>
       <div className="mt-6">

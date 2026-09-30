@@ -127,3 +127,37 @@ describe('seoBrowseHref — brand and model', () => {
     )
   })
 })
+
+/**
+ * `subcategoryIn` — the housing pages' homes (apartments, houses, rooms) out of `rentals` (C1-HOUSING).
+ * The rail narrowed by it while this function did not know the field, so the CTA fell through to
+ * `/c/rentals` by accident (review, 2026-09-29). It still goes there for a set of several — the feed
+ * has no param for a set — but as a pinned decision, and a set of one is now exact.
+ */
+describe('seoBrowseHref — subcategoryIn', () => {
+  const HOMES = ['apartment-rental', 'house-rental', 'room-rental'] as const
+
+  it('sends a one-kind set to that subcategory, exactly', () => {
+    expect(seoBrowseHref({ categorySlug: 'rentals', subcategoryIn: ['room-rental'] })).toBe('/?category=rentals&subcategory=room-rental')
+  })
+
+  it('⛔ sends a set of several to the category hub — a superset — never to ONE member of it', () => {
+    const href = seoBrowseHref({ categorySlug: 'rentals', subcategoryIn: HOMES })
+    expect(href).toBe('/c/rentals')
+    expect(href).not.toContain('subcategory=')
+  })
+
+  it('keeps every other narrowing beside a set it cannot express', () => {
+    expect(seoBrowseHref({ categorySlug: 'rentals', subcategoryIn: HOMES, condition: 'used' })).toBe('/?category=rentals&condition=used')
+  })
+
+  it('lets a single subcategorySlug win over the set, as seoLandingWhere does', () => {
+    expect(seoBrowseHref({ categorySlug: 'rentals', subcategorySlug: 'house-rental', subcategoryIn: HOMES })).toBe(
+      '/?category=rentals&subcategory=house-rental',
+    )
+  })
+
+  it('treats an empty set as no narrowing', () => {
+    expect(seoBrowseHref({ categorySlug: 'rentals', subcategoryIn: [] })).toBe('/c/rentals')
+  })
+})

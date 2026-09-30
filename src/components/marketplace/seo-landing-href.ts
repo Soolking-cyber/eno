@@ -20,6 +20,20 @@ export type SeoBrowseTarget = {
   categorySlug: string
   subcategorySlug?: string
   /**
+   * Several subcategories at once (seo-landing-where.ts) — the three kinds of home out of `rentals`.
+   *
+   * ⛔ A SET OF SEVERAL HAS NO URL THAT SAYS IT, AND GOES TO THE CATEGORY HUB AS A DECISION, NOT A
+   * FALL-THROUGH. The explorer and the feed take ONE `subcategory` (feed-query.ts filters
+   * `{ subcategorySlug: subcategory }`), so apartments + houses + rooms cannot be a destination. Naming
+   * one member would browse NARROWER than the rail just showed — the choice the `models` note below
+   * refuses for a family with no search term — so the CTA goes to the nearest real superset: the
+   * crawlable `/c/<category>` hub, its filters one tap away. The pages that pass a set word their
+   * CTA for that hub ("Browse rentals", not "Browse homes"). The exact destination is the `homes=1`
+   * feed filter src/lib/rental-homes.ts reserves for wave-B D1b; it belongs here when it lands.
+   * A set of ONE is a subcategory and is sent as one. Ignored when `subcategorySlug` is set.
+   */
+  subcategoryIn?: readonly string[]
+  /**
    * Narrow to one listing INTENT — `wholesale`, `service`, `wanted`, `rent`… (`taxonomy.ts`
    * `ListingType`).
    *
@@ -76,8 +90,10 @@ export function seoBrowseHref(content: SeoBrowseTarget): string {
   // destinations are valid pages full of listings. No page does that today; the point is that
   // adding one would not have been a mistake anybody could see.
   const models = content.models ?? []
+  // A one-member set IS a subcategory; a larger one has no param (see `subcategoryIn`).
+  const subcategory = content.subcategorySlug || (content.subcategoryIn?.length === 1 ? content.subcategoryIn[0] : undefined)
   if (
-    !content.subcategorySlug &&
+    !subcategory &&
     !content.listingType &&
     !content.brandSlug &&
     !content.condition &&
@@ -87,7 +103,7 @@ export function seoBrowseHref(content: SeoBrowseTarget): string {
     return `/c/${content.categorySlug}`
   }
   const params = new URLSearchParams({ category: content.categorySlug })
-  if (content.subcategorySlug) params.set('subcategory', content.subcategorySlug)
+  if (subcategory) params.set('subcategory', subcategory)
   if (content.brandSlug) params.set('brand', content.brandSlug)
   // One model is a facet; a family is a search. See the `models` note above.
   if (models.length === 1) params.set('model', models[0])
