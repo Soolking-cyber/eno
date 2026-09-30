@@ -1,5 +1,7 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor, isVisaProductSlot } from '@/lib/taxonomy'
+import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { plainSnippet } from '@/lib/strip-md'
 import { feedIdentifiers } from '@/lib/product-feed'
 import { listingJsonLd } from '@/lib/listing-jsonld'
@@ -224,6 +226,19 @@ export default async function ListingPage({ params }: Props) {
   }
 
   const listing = serializeListing(rawListing)
+  // ⛔ A TEACHER IS A PERSON, NOT A PRODUCT (2026-09-30): its own page — no price, offers, map,
+  // Product JSON-LD, seller-contact reveal or safety price copy. Only live rows reach here
+  // (the guard above), so the page is indexable exactly when any listing is.
+  if (rawListing.listingType === TEACHER_LISTING_TYPE) {
+    const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+    return (
+      <TeacherProfileView
+        listing={{ id: listing.id, title: listing.title, images: listing.images, video: listing.video ?? null, updatedAt: rawListing.updatedAt }}
+        canonicalUrl={`${hostUrl}/listings/${listing.id}`}
+        indexable={rawListing.status === 'active'}
+      />
+    )
+  }
   // Use the listing's SOURCE title (as posted) for all BAKED, shared output — the
   // <title> tab, OG tags, JSON-LD, share text. This page is static HTML shared across
   // users, so it can't vary by language; forcing titleVi made an English app show a

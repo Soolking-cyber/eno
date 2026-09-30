@@ -1,6 +1,7 @@
 'use client'
 
 import { Tr, useLanguage } from '@/context/language-context'
+import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { Bilingual } from './bilingual'
 import { formatCountFull, joinList } from '@/app/[lang]/c/[category]/category-copy'
@@ -97,6 +98,15 @@ function Provenance({ name, nameVi, slug, linked }: { name: string; nameVi: stri
    * is the job board and whom eno.vn never vetted — "every listing comes from a seller with a public
    * trust score" would be false there, on the vertical where job scams live.
    */
+  // Teachers (2026-09-30): people, not listings — no seller-trust or bait-price claim.
+  if (slug === 'teachers') {
+    return (
+      <>
+        {tr('English and subject teachers looking for work in Vietnam. Schools and companies can message a teacher; their phone, email and CV are shared only when the teacher chooses to. ', 'Giáo viên tiếng Anh và các môn học đang tìm việc tại Việt Nam. Trường học và công ty có thể nhắn tin cho giáo viên; số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý. ')}
+        <Link href="/teachers/join" className="font-semibold text-brand underline">{tr('Teachers: create your free profile', 'Giáo viên: tạo hồ sơ miễn phí')}</Link>
+      </>
+    )
+  }
   if (slug === 'jobs') {
     return <>{tr('Most jobs here link to the original posting, where you apply. eno.vn does not handle applications and never charges a fee — never pay to get a job.', 'Phần lớn việc làm ở đây dẫn link tới tin tuyển dụng gốc, nơi bạn ứng tuyển. eno.vn không xử lý hồ sơ và không bao giờ thu phí — đừng bao giờ trả tiền để có việc làm.')}</>
   }

@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { TeacherForm } from '@/components/teachers/teacher-form'
+import { TeacherHostHeader } from '@/components/teachers/teacher-host-header'
 import { apexOrigin, isTeacherHost, teacherOrigin } from '@/lib/teachers/host'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL
@@ -21,7 +22,7 @@ export default async function TeacherJoinPage() {
   const draftHost = isTeacherHost((await headers()).get('host'), APP_URL)
   return (
     <div className="flex min-h-screen flex-col">
-      <Header />
+      {draftHost ? <TeacherHostHeader apexOrigin={apexOrigin(APP_URL)} /> : <Header />}
       <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <noscript>
           {/* No JS ⇒ no client i18n — deliberately static bilingual copy. */}

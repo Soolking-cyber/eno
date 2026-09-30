@@ -220,9 +220,8 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       default: return ''
     }
   }
-  const publishErrText = (code: string, detail?: string | null): string => {
+  const publishErrText = (code: string): string => {
     if (code === 'contact_in_text' || code === 'contact_in_name') return tr('Please remove phone numbers, emails and links from your profile text — schools get your contact only when you share it in chat.', 'Vui lòng xoá số điện thoại, email và liên kết khỏi hồ sơ — trường chỉ nhận liên hệ khi bạn chia sẻ trong tin nhắn.')
-    if (code === 'banned_words' && detail === 'visa') return tr('Please remove any mention of visas from your profile.', 'Vui lòng bỏ mọi nội dung về thị thực khỏi hồ sơ.')
     if (code === 'banned_words') return tr('Your profile contains a word we do not allow. Please rephrase.', 'Hồ sơ có từ không được phép. Vui lòng viết lại.')
     if (code === 'account_restricted') return tr('Your account cannot publish right now.', 'Tài khoản của bạn hiện chưa thể đăng.')
     if (code.startsWith('identity_')) return tr('Please verify your identity in Account settings before publishing.', 'Vui lòng xác minh danh tính trong Cài đặt tài khoản trước khi đăng.')
@@ -309,7 +308,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (d.error === 'invalid_teacher_profile' && d.fields) setErrors(d.fields)
-        setFormError(publishErrText(String(d.error || ''), d.detail))
+        setFormError(publishErrText(String(d.error || '')))
         return
       }
       // The profile is saved either way; a failed CV upload is reported on the done screen and can be

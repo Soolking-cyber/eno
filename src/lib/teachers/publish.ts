@@ -84,7 +84,8 @@ export function screenTeacherTexts(t: TeacherInput) {
   const texts = teacherFreeTexts(t)
   assertCleanTexts(texts)
   // ⛔ eno.vn carries no visa wording (licensing split) — on BOTH editions, since the row is shared.
-  if (texts.some(teacherVisaMention)) throw new PublishBlockedError('banned_words', 'visa')
+  // ⛔ The detail names no term: a visa word must not reach eno.vn's UI or wire either.
+  if (texts.some(teacherVisaMention)) throw new PublishBlockedError('banned_words', 'restricted_term')
 }
 
 /**

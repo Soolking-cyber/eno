@@ -112,7 +112,8 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // card skeleton, is unchanged. "Free" keeps the price ink: it IS the price.
   const noFigure = isFree && listingType === 'job'
   const amount = isFree
-    ? (noFigure ? tr('Salary: see details', 'Lương: xem chi tiết') : tr('Free', 'Miễn phí'))
+    // A teacher profile (2026-09-30) has no price: it is a person, never "Free".
+    ? (noFigure ? tr('Salary: see details', 'Lương: xem chi tiết') : listingType === 'teacher' ? tr('Teacher profile', 'Hồ sơ giáo viên') : tr('Free', 'Miễn phí'))
     : currency === '₫' && !native ? format(price, locale) : formatMoneyFull(price, currency, locale)
   // ⚠️ NO LEADING SPACE — the space that separates the suffix from the amount is rendered as its
   // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the
