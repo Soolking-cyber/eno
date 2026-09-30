@@ -61,7 +61,8 @@ function postSelect(viewerId: string) {
     viewCount: true,
     createdAt: true,
     updatedAt: true,
-    // For /help/[id]'s `dateModified` only (`modifiedAt` below) — the serializer does not carry it.
+    // Copy edits only (I3b; C-DATES): /help/[id]'s `dateModified` (`modifiedAt` below) and the
+    // serialized post's `editedAt` (serialize.ts) both read it — never `updatedAt`.
     editedAt: true,
     media: {
       select: { storagePath: true, mimeType: true, width: true, height: true, altText: true, position: true },
@@ -138,6 +139,20 @@ export async function loadHelpCenter(): Promise<HelpCenterData> {
       createdAt: review.createdAt.toISOString(),
     })),
   }
+}
+
+/**
+ * Up to `take` other official answers in the same help topic, most-read first — the "Related answers"
+ * block under a thread (C-HELP-CENTER). No edition gate of its own is needed: the thread being read
+ * already passed `HELP_TOPIC_SLUGS` (loadHelpThread), and these share its topic.
+ */
+export async function loadRelatedHelp(community: string, excludeId: string, take = 3) {
+  return db.forumPost.findMany({
+    where: { communitySlug: community, status: 'published', official: true, id: { not: excludeId } },
+    orderBy: [{ viewCount: 'desc' }, { createdAt: 'asc' }],
+    take,
+    select: { id: true, title: true },
+  })
 }
 
 /**

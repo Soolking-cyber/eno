@@ -1,6 +1,4 @@
 import { type ListingCondition } from '@/lib/listing-condition'
-import { scopedListingWhere } from '@/lib/edition-scope'
-import { seoLandingWhere } from './seo-landing-where'
 // ⚠️ THE TAXONOMY UNION, NOT `string`. A typo silently empties the rail — there is no slug test
 // covering this dimension the way seo-landing-slugs.test.ts covers category/subcategory (fable).
 import { VisaDisclosure } from './visa-disclosure'
@@ -9,23 +7,15 @@ import { SITE_NAME } from '@/lib/edition'
 import { RichBlock } from '@/components/marketplace/rich-text'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
-import { ImageMark } from './image-mark'
-import { isMockImageUrl } from '@/lib/listing-image'
-import { ArrowRight, ShieldCheck } from "@/components/ui/icons"
-import { db } from '@/lib/db'
-import { serializeListing } from '@/lib/serialize'
+import { ArrowRight, ChevronRight, ShieldCheck } from "@/components/ui/icons"
 import { Button } from '@/components/ui/button'
-import { localizeListingTitles } from '@/lib/translate'
+import { Rows, Row } from '@/components/ui/rows'
 import { Header } from './header'
 import { Footer } from './footer'
-import { Price } from './price'
 import { seoBrowseHref } from './seo-landing-href'
 import { hasNoInventory } from './seo-landing-inventory'
-import { categoryFor, subcategoryFor } from '@/lib/feed-taxonomy'
-
-/** Shelves whose products are made FOR a device. A model page's rail must never show one. */
-const ACCESSORY_SHELVES = new Set(['phone-cases', 'screen-protectors', 'cables-chargers', 'power-banks', 'accessories'])
+// The rail's query and markup live in seo-listing-rail.tsx, shared with the long-form guides.
+import { loadSeoRail, SeoListingGrid } from './seo-listing-rail'
 
 type SeoContentFields = {
   eyebrow: string
@@ -55,6 +45,16 @@ type SeoContentFields = {
    * of failure seo-landing-slugs.test.ts exists to catch a sibling of.
    */
   subcategorySlug?: string
+  /**
+   * Narrow to SEVERAL subcategories of `categorySlug` — e.g. the three kinds of home
+   * (src/lib/rental-homes.ts) out of a `rentals` category that also holds offices and shopfronts.
+   *
+   * ⚠️ UNLIKE `subcategorySlug` IT DOES NOT SWITCH THE RAIL TO PRICE ORDER: a set of kinds is still a
+   * browse shelf (featured, then newest), not one product. It over-fetches and puts listings with
+   * three or more photos first, because a shelf of mixed kinds is judged by its pictures (C1-HOUSING).
+   * Ignored when `subcategorySlug` is set.
+   */
+  subcategoryIn?: readonly string[]
   /**
    * Narrow to one listing INTENT — a `ListingType` from `taxonomy.ts` (`wholesale`, `service`,
    * `wanted`, `rent`, …), matched against `Listing.listingType`.
@@ -168,49 +168,13 @@ export type SeoContent = SeoContentFields & SeoCta
  *  "which pages carry the promo" is a question somebody can answer by grepping for the component.
  */
 export async function SeoLanding({ content, lede, after }: { content: SeoContent; lede?: ReactNode; after?: ReactNode }) {
-  let listings: ReturnType<typeof serializeListing>[] = []
-  // ⚠️ NOT `listings.length === 0` — the catch below ALSO leaves the array empty when the
+  // ⚠️ `inventoryKnown`, NOT `listings.length === 0` — loadSeoRail ALSO returns an empty array when the
   // database is unreachable at build time, and those two states must not share a UI. Treating a
   // transient build failure as "nobody has listed one" would put "Be the first to list one" on a
-  // page with a hundred listings until the next ISR regen, a week later. This flag is set only
-  // after the query genuinely returns, so an outage falls back to today's behaviour.
-  let inventoryKnown = false
+  // page with a hundred listings until the next ISR regen, a week later. `known` is set only after
+  // the query genuinely returns, so an outage falls back to today's behaviour.
+  const { listings, known: inventoryKnown } = await loadSeoRail(content)
   const browseHref = seoBrowseHref(content)
-  try {
-    const rows = await db.listing.findMany({
-      // ⚠️ ONE INSERTION COVERS TEN LANDING PAGES. This is a COMPONENT, so a route-level audit never
-      // finds it — and the comment below is the tell: these pages were built to surface the live
-      // visa listings by attribute, which is exactly what must not happen on eno.vn.
-      // ⛔ THE SAME PREDICATE `generateMetadata` COUNTS WITH — see seo-landing-where.ts. Built once,
-      // in one place, so the rail and the page's own `robots` tag can never disagree about whether
-      // this page has inventory.
-      where: await scopedListingWhere(seoLandingWhere(content)),
-      // Narrowed pages sort by price: these are products (one entry type × one speed), and the
-      // question a visitor arrives with is what it costs. Category pages keep featured-then-newest.
-      // Narrowed pages sort by price — and a brand/model page is the narrowest of them.
-      orderBy: content.subcategorySlug || content.models?.length ? [{ price: 'asc' }] : [{ featured: 'desc' }, { postedAt: 'desc' }],
-      // A model page over-fetches so the accessory guard below can drop rows and still fill the rail.
-      take: content.models?.length ? 64 : 8,
-      include: { category: true, seller: true },
-    })
-    /**
-     * ⚠️ THE RAIL, LIKE THE PRICE TABLE, MUST NOT DEPEND ON A REPAIR SCRIPT HAVING RUN. Both external
-     * reviewers found that the table re-derives the shelf from the title and this rail did not, so a
-     * case still stored on `phones-tablets` with a phone's model — the exact state 95 live rows were
-     * in — would sort to the top of a price-ascending iPhone rail. Only model pages pay for it.
-     */
-    const shown = content.models?.length
-      ? rows.filter((r) => {
-          const name = r.titleVi || r.title
-          const shelf = subcategoryFor(categoryFor(name), name)
-          return !(shelf && ACCESSORY_SHELVES.has(shelf))
-        }).slice(0, 8)
-      : rows
-    listings = await localizeListingTitles(shown.map(serializeListing))
-    inventoryKnown = true
-  } catch {
-    /* DB unreachable at build → render the content shell; ISR fills listings later */
-  }
 
   // Nothing to browse, and we know it rather than merely failing to look. The predicate lives in
   // its own module so it can be unit-tested — this file imports Prisma, so a test cannot.
@@ -362,61 +326,13 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
             cost" must answer it before the editorial prose, or the answer is three screens down. */}
         {lede}
 
-        {/* Full-bleed masthead hairline — same negative-margin coupling the category pages use,
-            so the SEO-landing family shares their statement-header close. */}
-        <div className="mt-8 -mx-3 border-t border-border sm:-mx-6 lg:-mx-8" aria-hidden />
+        {/* Masthead hairline — on the content box, as on the category pages and home (C1-HAIRLINE):
+            the SEO-landing family shares their statement-header close. */}
+        <div className="mt-8 border-t border-border" aria-hidden />
 
         {/* Real verified listings (crawlable internal links) */}
         {listings.length > 0 && (
-          <section className="mt-12">
-            <h2 className="h-section text-foreground mb-4">{content.railTitle ?? 'Trusted listings'}</h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {listings.map((l) => (
-                <Link key={l.id} href={`/listings/${l.id}`} className="group flex flex-col">
-                  <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-tint">
-                    {l.images[0] && (
-                      <Image
-                        src={l.images[0]}
-                        alt={l.title}
-                        fill
-                        unoptimized={isMockImageUrl(l.images[0]) || undefined}
-                        sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
-                        quality={60}
-                        className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                      />
-                    )}
-                    <ImageMark src={l.images[0]} />
-                  </div>
-                  {/* Same shape as <ListingCard>: price → one-line title → location (owner, 2026-09-13). */}
-                  <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2">
-                    <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} className="text-base leading-tight sm:text-lg" />
-                    <span className="truncate text-sm leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">{l.title}</span>
-                    <span className="truncate text-xs text-muted-foreground">{l.location}</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-            {content.browseLinks ? (
-              <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
-                {content.browseLinks.map((b) => (
-                  <Link
-                    key={b.href}
-                    href={b.href}
-                    className="inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
-                  >
-                    {b.label} <ArrowRight className="h-4 w-4" />
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <Link
-                href={browseHref}
-                className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
-              >
-                {content.cta} <ArrowRight className="h-4 w-4" />
-              </Link>
-            )}
-          </section>
+          <SeoListingGrid listings={listings} title={content.railTitle ?? 'Trusted listings'} cta={content.cta} links={content.browseLinks} href={browseHref} />
         )}
 
         {/* Editorial / keyword sections — wide container, readable measure.
@@ -437,18 +353,21 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
         {content.related && content.related.length > 0 && (
           <section className="mt-12 max-w-3xl">
             <h2 className="h-section text-foreground mb-4">Keep reading</h2>
-            <ul className="grid gap-3 sm:grid-cols-2">
+            {/* Ruled rows, not a grid of bordered cards (flat-surface canon §3b; C-BOXES) — the same
+                shape as SeoArticle's "Keep reading", with every chevron on one right edge. */}
+            <Rows bordered>
               {content.related.map((r) => (
-                <li key={r.href}>
-                  <Link href={r.href} className="group flex flex-col rounded-xl border border-border p-4 hover:border-accent-foreground/40">
-                    <span className="flex items-center gap-1 text-sm font-semibold text-foreground group-hover:text-accent-foreground">
-                      {r.label} <ArrowRight className="h-4 w-4 shrink-0" />
+                <Row key={r.href} className="py-0">
+                  <Link href={r.href} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
+                    <span className="min-w-0">
+                      <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground">{r.label}</span>
+                      <span className="mt-1 block line-clamp-2 text-sm leading-relaxed text-body">{r.blurb}</span>
                     </span>
-                    <span className="mt-1 text-sm leading-relaxed text-body">{r.blurb}</span>
+                    <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
                   </Link>
-                </li>
+                </Row>
               ))}
-            </ul>
+            </Rows>
           </section>
         )}
 

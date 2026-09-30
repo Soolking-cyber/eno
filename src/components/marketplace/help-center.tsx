@@ -32,10 +32,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
+import { Rows, Row } from '@/components/ui/rows'
+import { formatHelpBody } from '@/components/marketplace/rich-text'
 import { HELP_TOPICS, splitIntoColumns } from '@/lib/help-center'
 import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import type { HelpCenterData, HelpPost, HelpReview } from '@/lib/help-center-data'
 import { cn } from '@/lib/utils'
+import { COMPANY } from '@/lib/site-legal'
 
 // The Help Center body — shared by the public /help page AND the dashboard "Help" tab.
 //
@@ -112,7 +115,9 @@ const MORE_LINKS: { label: string; href: string }[] = [
   { label: 'Post a listing', href: '/post' },
   { label: 'Saved listings', href: '/saved' },
   { label: 'Browse by brand', href: '/brands' },
-  { label: 'Contact us', href: '/about#contact' },
+  // /contact is the contact page (who runs the site, the edition's mailbox, which route is fastest);
+  // /about#contact was a section of a different page that pre-dated it.
+  { label: 'Contact us', href: '/contact' },
   { label: 'Terms of use', href: '/terms' },
   { label: 'Privacy policy', href: '/privacy' },
 ]
@@ -120,6 +125,64 @@ const MORE_LINKS: { label: string; href: string }[] = [
 function matches(post: HelpPost, needle: string): boolean {
   if (!needle) return true
   return `${post.title} ${post.body} ${post.flair}`.toLocaleLowerCase().includes(needle)
+}
+
+/**
+ * THE POLICY PAGES, SEARCHABLE FROM HERE (C-HELP-CENTER). The search only ever looked inside help
+ * posts, so "refund" found nothing while /returns answers it in full. Each entry is matched on its
+ * two names plus a handful of words people actually type (both languages); every href exists on BOTH
+ * editions — no services surface belongs in this list (see the not-found.tsx note on shared files).
+ */
+const POLICY_PAGES: { href: string; en: string; vi: string; k: string }[] = [
+  { href: '/returns', en: 'Returns and exchanges', vi: 'Đổi trả và hoàn tiền', k: 'refund return exchange warranty hoàn tiền đổi trả bảo hành' },
+  { href: '/safety', en: 'Safe trading', vi: 'An toàn giao dịch', k: 'scam safe meet deposit lừa đảo an toàn gặp mặt đặt cọc' },
+  { href: '/trust', en: 'How trust works', vi: 'Cách điểm uy tín hoạt động', k: 'trust score badge review điểm uy tín tin cậy đánh giá' },
+  { href: '/prohibited', en: 'Prohibited items', vi: 'Hàng hóa bị cấm', k: 'banned prohibited illegal hàng cấm' },
+  { href: '/disputes', en: 'Dispute resolution', vi: 'Giải quyết tranh chấp', k: 'dispute complaint tranh chấp khiếu nại' },
+  { href: '/terms', en: 'Terms of Service', vi: 'Điều khoản dịch vụ', k: 'terms rules account điều khoản quy định' },
+  { href: '/privacy', en: 'Privacy policy', vi: 'Chính sách quyền riêng tư', k: 'privacy data delete export dữ liệu xóa tài khoản' },
+  { href: '/contact', en: 'Contact us', vi: 'Liên hệ', k: 'contact email phone support liên hệ hỗ trợ' },
+]
+
+/** One link row on the flat canvas: the label, then a chevron on a shared right edge. */
+const ROW_LINK = 'group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-3 text-sm font-semibold text-foreground hover:text-accent-foreground'
+const ROW_CHEVRON = 'size-4 text-ink-4 group-hover:text-accent-foreground'
+
+/** A "Top questions" row: the post's title in the reader's language, linking to its thread. */
+function TopQuestion({ post }: { post: HelpPost }) {
+  const title = useTr(post.title)
+  return (
+    <Row className="py-0">
+      <Link href={`/help/${encodeURIComponent(post.id)}`} className={ROW_LINK}>
+        <span className="min-w-0">{title}</span>
+        <ChevronRight className={ROW_CHEVRON} aria-hidden />
+      </Link>
+    </Row>
+  )
+}
+
+/** The policy pages whose names or keywords match the search, listed above the answers. */
+function PolicyMatches({ pages }: { pages: typeof POLICY_PAGES }) {
+  const { tr } = useLanguage()
+  return (
+    <section className="mt-8 max-w-3xl" aria-labelledby="help-policies-title">
+      <h2 id="help-policies-title" className="h-section text-foreground">
+        {tr('Policies and pages', 'Chính sách và trang liên quan')}
+      </h2>
+      {/* A top rule only: the Answers section below opens with its own, and closing this list too
+          stacked two hairlines 32px apart. */}
+      <Rows className="mt-3 border-t border-border">
+        {pages.map((page) => (
+          <Row key={page.href} className="py-0">
+            <Link href={page.href} className={ROW_LINK}>
+              <span className="min-w-0">{tr(page.en, page.vi)}</span>
+              <ChevronRight className={ROW_CHEVRON} aria-hidden />
+            </Link>
+          </Row>
+        ))}
+      </Rows>
+    </section>
+  )
 }
 
 /** One FAQ answer. The question is the accordion trigger; the answer body, the upvote and
@@ -133,9 +196,9 @@ function AnswerItem({ post }: { post: HelpPost }) {
     <AccordionItem value={post.id}>
       <AccordionTrigger>{title}</AccordionTrigger>
       <AccordionPanel>
-        {/* Bodies are plain text with "•" bullets — nothing in the stack renders
-            markdown, so whitespace-pre-line is what preserves the authored shape. */}
-        <p className="whitespace-pre-line">{body}</p>
+        {/* Headings, paragraphs and lists, not a pre-line <p> printing "•" (C-HELP-RENDER). h4: the
+            trigger above is this answer's h3. Sub-heads are guessed only on the eno team's answers. */}
+        <div>{formatHelpBody(body, { implicitHeadings: post.official, headingLevel: 4 })}</div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <HelpVote id={post.id} kind="post" score={post.score} viewerVote={post.viewerVote} size="sm" />
           <span className="text-xs text-muted-foreground">
@@ -254,6 +317,17 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
   }, [])
 
   const needle = query.trim().toLocaleLowerCase()
+
+  // The most-read answers, for a reader who arrives without a query (C-HELP-CENTER). Views first, votes
+  // to break a tie; shown only on the unfiltered page and only when there are enough to be a list.
+  const top = useMemo(
+    () => [...data.answers].sort((a, b) => b.viewCount - a.viewCount || b.score - a.score).slice(0, 6),
+    [data.answers],
+  )
+  const policies = useMemo(
+    () => (needle ? POLICY_PAGES.filter((page) => `${page.en} ${page.vi} ${page.k}`.toLocaleLowerCase().includes(needle)) : []),
+    [needle],
+  )
 
   const answers = useMemo(
     () => data.answers.filter((post) => (!topic || post.community === topic) && matches(post, needle)),
@@ -375,6 +449,26 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
           )
         })}
       </div>
+
+      {!needle && !topic && top.length >= 3 && (
+        // max-w-3xl, like every other list of links to read: at the page's full width the chevron sat
+        // ~900px from a 300px question (the note on MORE_LINKS measured the same failure).
+        <section className="mt-8 max-w-3xl" aria-labelledby="help-top-title">
+          <h2 id="help-top-title" className="h-section text-foreground">
+            {tr('Top questions', 'Câu hỏi được xem nhiều')}
+          </h2>
+          {/* Top rule only — the Answers section's own hairline closes the list (see PolicyMatches). */}
+          <Rows className="mt-3 border-t border-border">
+            {top.map((post) => (
+              <TopQuestion key={post.id} post={post} />
+            ))}
+          </Rows>
+        </section>
+      )}
+
+      {/* A query that names a policy finds the page that answers it, above the help posts — and above
+          the "no answers" state, where it is the whole answer ("refund" → /returns). */}
+      {policies.length > 0 && <PolicyMatches pages={policies} />}
 
       {/* Answers — the hairline below the search/topic block is the family's article
           hero rule (title + lede + hairline), applied to the one page with a toolbar. */}
@@ -558,9 +652,12 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
           <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
           <p className="text-sm text-body"><Tr text="Our team replies within one business day." /></p>
         </div>
+        {/* ⚠️ COMPANY.email, NOT A LITERAL: this said support@eno.vn on BOTH editions, so eno.forum's
+            help centre sent its readers to the marketplace's mailbox. The footer's "Contact us" was
+            fixed for exactly this drift before; site-legal.ts holds the per-edition address. */}
         <Button asChild variant="cta" size="none">
-          <a href="mailto:support@eno.vn" className="shrink-0 px-5 py-2.5">
-            <Mail className="size-4" /> support@eno.vn
+          <a href={`mailto:${COMPANY.email}`} className="shrink-0 px-5 py-2.5">
+            <Mail className="size-4" /> {COMPANY.email}
           </a>
         </Button>
       </div>

@@ -302,7 +302,12 @@ export async function GET() {
     // Partner API, the OpenAPI spec and both .well-known documents are served identically by
     // eno.vn and eno.forum (curled, 200 on every path on both hosts, 2026-08-23). Nothing on
     // /developers names a service either edition may not offer.
-    for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'returns', 'prohibited', 'brands', 'developers']) {
+    //
+    // ⚠️ 'contact', 'partners' AND 'legal/ranking' JOINED 2026-09-29, for the same reason: all three are
+    // live, self-canonical and indexable on both editions, and none was in this list — /contact had one
+    // inbound link in the whole app (the 404 page). None names a partner or a service either edition
+    // may not offer.
+    for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'returns', 'prohibited', 'brands', 'developers', 'contact', 'partners', 'legal/ranking']) {
       urls.push(`  <url><loc>${hostUrl}/${p}</loc></url>\n`)
     }
 

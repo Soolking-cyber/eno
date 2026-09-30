@@ -11,6 +11,16 @@ async function openHelp(page: Page, path = '/help') {
   await page.locator('[data-help-center][data-hydrated="true"]').waitFor({ state: 'attached' })
 }
 
+// ⛔ THE ANSWERS ARE THE ACCORDION TRIGGERS INSIDE <main>, NOT EVERY TRIGGER ON THE PAGE. Since the
+// footer became an accordion on phones (footer.tsx — its link groups are ui/accordion items at every
+// width, the headers only hidden from `sm` up), every page carries FIVE more
+// `[data-slot="accordion-trigger"]`s in #app-footer, outside <main>. A page-wide count then mixes
+// footer furniture into the answer list: the topic-chip test's exact equality broke on it, and
+// "more than 5 answers" would be met by the footer alone on an empty Help Center. /help renders its
+// <HelpCenter> as the only child of <main> and the <Footer> after it, so <main> is exactly the
+// help page's own content.
+const answerTriggers = (page: Page) => page.locator('main [data-slot="accordion-trigger"]')
+
 // Guest coverage for the Help Center. Before this, NO spec touched /help in either app —
 // so the FAQ could silently stop rendering (an empty answers query, a broken seed, a
 // serializer change) and every gate would still be green.
@@ -26,25 +36,25 @@ test.describe('Guest · help center', () => {
 
     // The seeded answers must actually arrive from the database. An empty Help Center
     // still renders its chrome, so assert on the answer list, not the page shell.
-    const answers = page.locator('[data-slot="accordion-trigger"]')
+    const answers = answerTriggers(page)
     expect(await answers.count()).toBeGreaterThan(5)
   })
 
   test('an answer expands to reveal its body', async ({ page }) => {
     await openHelp(page)
-    const first = page.locator('[data-slot="accordion-trigger"]').first()
+    const first = answerTriggers(page).first()
     const question = (await first.textContent())?.trim() ?? ''
     expect(question.length).toBeGreaterThan(0)
 
     await first.click()
     // Base UI marks the open trigger; the panel is the sibling that carries the answer.
     await expect(first).toHaveAttribute('data-panel-open', '')
-    await expect(page.locator('[data-slot="accordion-panel"]').first()).toBeVisible()
+    await expect(page.locator('main [data-slot="accordion-panel"]').first()).toBeVisible()
   })
 
   test('search narrows the answer list', async ({ page }) => {
     await openHelp(page)
-    const answers = page.locator('[data-slot="accordion-trigger"]')
+    const answers = answerTriggers(page)
     const before = await answers.count()
 
     await page.getByRole('searchbox', { name: /search the help center/i }).fill('zzzznomatch')
@@ -56,7 +66,7 @@ test.describe('Guest · help center', () => {
 
   test('a topic chip filters to that topic', async ({ page }) => {
     await openHelp(page)
-    const answers = page.locator('[data-slot="accordion-trigger"]')
+    const answers = answerTriggers(page)
     const before = await answers.count()
 
     // "Shorter but non-empty" is true of ANY filter, including a wrong one. The real
@@ -80,7 +90,7 @@ test.describe('Guest · help center', () => {
 
   test('an answer opens its own thread page', async ({ page }) => {
     await openHelp(page)
-    const trigger = page.locator('[data-slot="accordion-trigger"]').first()
+    const trigger = answerTriggers(page).first()
     // Capture the question we clicked, so we can prove the thread that opens is THAT one.
     const question = ((await trigger.textContent()) ?? '').trim()
     expect(question.length).toBeGreaterThan(0)
@@ -93,8 +103,35 @@ test.describe('Guest · help center', () => {
     // route and watching this test stay green. Assert the ANSWER, not the page furniture:
     // the h1 must be the question we clicked, and the reply composer must exist.
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(question)
-    await expect(page.getByRole('textbox', { name: /write a reply/i })).toBeVisible()
+    // The composer sits behind "Ask a follow-up question" (C-HELP-CENTER): an answer that did its job
+    // should not end on an empty reply box. Asking for it must open it, focused.
+    await expect(page.getByRole('textbox', { name: /write a reply/i })).toHaveCount(0)
+    await page.getByRole('button', { name: /ask a follow-up question/i }).click()
+    await expect(page.getByRole('textbox', { name: /write a reply/i })).toBeFocused()
     await expect(page.getByRole('link', { name: /help center/i }).first()).toBeVisible()
+  })
+
+  test('an official answer reads as headings and lists, not a pre-line block', async ({ page }) => {
+    await page.goto('/help/help-safe-trading-checklist')
+    const article = page.locator('article')
+    await expect(article.getByRole('heading', { level: 2, name: 'Before you go' })).toBeVisible()
+    expect(await article.locator('ul li').count()).toBeGreaterThanOrEqual(8)
+    await expect(article).not.toContainText('•')
+    // "No replies yet" was the page's only h2 at zero replies — an outline announcing an absence.
+    await expect(page.getByRole('heading', { level: 2, name: /no replies/i })).toHaveCount(0)
+  })
+
+  test('the unfiltered page opens on the most-read questions', async ({ page }) => {
+    await openHelp(page)
+    const top = page.locator('section[aria-labelledby="help-top-title"]')
+    await expect(top.getByRole('heading', { level: 2, name: 'Top questions' })).toBeVisible()
+    expect(await top.locator('a[href^="/help/"]').count()).toBeGreaterThanOrEqual(3)
+  })
+
+  test('a search that names a policy finds the policy page', async ({ page }) => {
+    await openHelp(page)
+    await page.getByRole('searchbox', { name: /search the help center/i }).fill('refund')
+    await expect(page.locator('section[aria-labelledby="help-policies-title"] a[href="/returns"]')).toBeVisible()
   })
 
   test('help center has no serious a11y violations', async ({ page }) => {

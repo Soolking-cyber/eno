@@ -109,6 +109,12 @@ type PublicForumPost = {
   viewCount: number
   createdAt: Date
   updatedAt: Date
+  /**
+   * When the title or body last changed — the edit route and sync-help-center.ts set it; nothing else
+   * does. OPTIONAL so a caller whose select omits it compiles unchanged (it serializes as null).
+   * ⚠️ Not `updatedAt`, which Prisma bumps on every view-count increment and vote (C-DATES).
+   */
+  editedAt?: Date | null
   media: Array<{ storagePath: string; mimeType: string; width: number | null; height: number | null; altText: string | null; position: number }>
   votes: Array<{ value: number }>
   bookmarks: Array<{ postId: string }>
@@ -133,6 +139,7 @@ export function serializeForumPost(post: PublicForumPost) {
     viewCount: post.viewCount,
     createdAt: post.createdAt.toISOString(),
     updatedAt: post.updatedAt.toISOString(),
+    editedAt: post.editedAt ? post.editedAt.toISOString() : null,
     viewerVote: post.votes[0]?.value || 0,
     saved: post.bookmarks.length > 0,
     media: post.media.map((item) => ({ ...item, url: forumMediaUrl(item.storagePath) })),

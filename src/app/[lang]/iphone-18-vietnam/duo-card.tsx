@@ -35,7 +35,8 @@ export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boo
   const listed = rows.length > 0
 
   return (
-    <section className="mt-8 rounded-xl border border-border p-5" aria-labelledby="iphone-duo">
+    // A section under a hairline, like the rest of the page — not a bordered card (C-BOXES).
+    <section className="mt-8 border-t border-border pt-6" aria-labelledby="iphone-duo">
       <p className="eyebrow text-accent-foreground mb-1"><Tr text="On sale 23 October 2026" /></p>
       <h2 id="iphone-duo" className="h-section text-foreground">
         <Tr text="iPhone Duo — the foldable, and what it costs here" />

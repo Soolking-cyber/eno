@@ -51,9 +51,12 @@ export function PriceTable({ rows, known, updated, seeAll = true }: {
             into the stamp is the one fragment a Vietnamese reader would still see in English. */}
         <span className="whitespace-nowrap">{offers} <Tr text="listings" /> · {updated}</span>
       </p>
+      {/* Each model is a ruled group on the canvas — its own heading over its own table, under one
+          hairline — not a bordered box (flat-surface canon §3b; C-BOXES). The heading and the table
+          are the grouping now, so they stay inside the model's own block. */}
       <div className="grid gap-6 sm:grid-cols-2">
         {models.map((model) => (
-          <div key={model} className="rounded-xl border border-border p-4">
+          <div key={model} className="border-t border-border pt-4">
             <h3 className="text-sm font-bold text-foreground">{model}</h3>
             <table className="mt-3 w-full text-sm">
               <thead>

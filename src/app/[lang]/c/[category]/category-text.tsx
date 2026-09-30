@@ -149,7 +149,12 @@ function linkedLede(tier: Exclude<LinkedTier, 'none'>, tr: (en: string) => strin
   return tr('Some are linked from partner property portals and link to the original listing.')
 }
 
-/** /c/rentals, below the grid: the busiest districts as links, by canonical slug. */
+/**
+ * /c/rentals, below the grid: the busiest districts as links, by canonical slug, and the Rent Index.
+ * ⚠️ THE RENT INDEX LINK LIVES HERE, NOT UNDER THE LEDE (C1-FOLD, 2026-09-29): above the grid it was
+ * one more line between a phone's H1 and its first card. /c/rentals still links /hcmc-rent-index from
+ * here; an HCMC district page keeps its own under its lede ([district]/page.tsx).
+ */
 export function RentalsDistricts({ allHcmc, top }: Pick<RentalsFacts, 'allHcmc' | 'top'>) {
   const { lang, tr } = useLanguage()
   if (!top.length) return null
@@ -169,6 +174,7 @@ export function RentalsDistricts({ allHcmc, top }: Pick<RentalsFacts, 'allHcmc' 
       <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
         {tr('The most listings are in', 'Nhiều tin nhất ở')} {links}.
       </p>
+      <RentIndexLink />
     </section>
   )
 }
@@ -253,7 +259,8 @@ export function DistrictLede({
 }
 
 /**
- * /c/rentals and /c/rentals/<district>, under the lede: one line pointing at /hcmc-rent-index.
+ * /c/rentals (under the grid, in RentalsDistricts) and /c/rentals/<district> (under the lede): one line
+ * pointing at /hcmc-rent-index.
  *
  * ⚠️ MARKETPLACE EDITION ONLY — the rent index page is `notFound()` on eno.forum, so there this would
  * be a link to a 404. The gate lives here rather than at the two call sites so neither can forget it.
@@ -277,7 +284,7 @@ export function RentIndexLink() {
  * The "Guides" block — up to four long-form guides for this category (src/lib/category-guides.ts).
  *
  * ⚠️ FLAT: rows divided by hairlines under a ruled section, no card boxes (docs/design-language.md
- * §3b) — unlike SeoArticle's bordered "Keep reading" cards, which predate the flat pass.
+ * §3b) — the same ruled-rows shape as SeoArticle's "Keep reading" list.
  * ⚠️ THE LINK TEXT IS THE GUIDE'S OWN LABEL IN THE GUIDE'S OWN LANGUAGE, never translated, and it
  * carries `lang` when that differs from the page's, so a screen reader pronounces it correctly.
  */

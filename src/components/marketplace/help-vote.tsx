@@ -111,7 +111,10 @@ export function HelpVote({ id, kind, score, viewerVote, className, size = 'md' }
           language, the loudest mark in the system, reserved for state the user owns.
           (Not fill-current: that borrowed the chip's accent ink and read as location.) */}
       <ArrowBigUp className={cn(size === 'sm' ? 'size-4' : 'size-5', state.voted && 'fill-brand text-brand')} aria-hidden />
-      <span className="tabular-nums">{state.score}</span>
+      {/* A count only once it says something (C-HELP-CENTER). "0" and "1" under an official answer read
+          as "nobody found this useful"; below three the pill names the action instead. The votes, and
+          the owner's Reddit-style model, are unchanged — only the small numbers are not printed. */}
+      {state.score >= 3 ? <span className="tabular-nums">{state.score}</span> : <span>{tr('Helpful', 'Hữu ích')}</span>}
     </Button>
   )
 }

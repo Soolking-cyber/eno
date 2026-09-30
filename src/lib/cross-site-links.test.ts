@@ -94,7 +94,9 @@ describe('cross-site links', () => {
       .replace(/\{?\/\*[\s\S]*?\*\/\}?/g, '')
       .replace(/(^|[^:])\/\/.*$/gm, '$1')
     const literals = [...promo.matchAll(/tr\(\s*'([^']*)',\s*'([^']*)'/g)].flatMap((m) => [m[1], m[2]])
-    expect(literals.length, 'no tr() literals found — this check has gone vacuous').toBeGreaterThanOrEqual(6)
+    // Two pairs today — the heading and the body. The "Also from eno" kicker was the third, deleted
+    // with the other pure-label eyebrows (C-KICKERS, 2026-09-29).
+    expect(literals.length, 'no tr() literals found — this check has gone vacuous').toBeGreaterThanOrEqual(4)
     for (const text of literals) expect(text).not.toMatch(OVERCLAIM)
   })
 

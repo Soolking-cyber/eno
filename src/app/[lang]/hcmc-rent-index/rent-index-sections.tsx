@@ -58,16 +58,20 @@ export function Headline({ index, locale }: { index: RentIndex; locale: MoneyLoc
       <h2 id="city-wide" className="h-section text-foreground mb-4">
         <Tr text="Median asking rent across the city" />
       </h2>
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* Three figures on one ruled band, not three bordered tiles (flat-surface canon §3b; C-BOXES):
+          hairlines between them, stacked with a rule between each below md. The figure drops a step
+          between md and lg only, where three columns share a tablet width and "12,000,000 ₫" at 30px
+          would wrap; "per month" wraps as one unit or not at all. */}
+      <div className="grid border-t border-border md:grid-cols-3 md:divide-x md:divide-border max-md:divide-y max-md:divide-border">
         {RENT_TYPES.map((t) => {
           const s = index.cityWide[t]
           return (
-            <div key={t} className="rounded-2xl border border-border p-4">
+            <div key={t} className="min-w-0 py-4 md:px-6 md:first:pl-0">
               <p className="text-sm font-semibold text-muted-foreground"><TypeLabel t={t} /></p>
               {s.median !== null ? (
                 <>
-                  <p className="mt-1 text-2xl font-bold text-foreground">
-                    {shown(s.median, locale)}<span className="text-sm font-semibold text-muted-foreground"> <Tr text="per month" /></span>
+                  <p className="mt-1 text-3xl font-bold tabular-nums text-foreground md:text-2xl lg:text-3xl">
+                    {shown(s.median, locale)} <span className="whitespace-nowrap text-sm font-semibold text-muted-foreground"><Tr text="per month" /></span>
                   </p>
                   <p className="mt-1 text-xs text-body">
                     <Tr text="Middle half" />: {shown(s.p25!, locale)} – {shown(s.p75!, locale)}
@@ -77,7 +81,7 @@ export function Headline({ index, locale }: { index: RentIndex; locale: MoneyLoc
                   )}
                 </>
               ) : (
-                <p className="mt-1 text-2xl font-bold text-muted-foreground">—</p>
+                <p className="mt-1 text-3xl font-bold text-muted-foreground md:text-2xl lg:text-3xl">—</p>
               )}
               <p className="mt-2 text-xs text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></p>
             </div>
@@ -88,20 +92,28 @@ export function Headline({ index, locale }: { index: RentIndex; locale: MoneyLoc
   )
 }
 
-function Cell({ s, locale }: { s: Stats; locale: MoneyLocale }) {
+/**
+ * One district × type cell. Below md each carries its own type label, because the column headers are
+ * visually hidden there (see DistrictTable); from md the headers show and the label hides.
+ * Figures are tabular and right-aligned on desktop, so the medians line up by digit down a column.
+ */
+function Cell({ s, t, locale }: { s: Stats; t: RentType; locale: MoneyLocale }) {
+  const label = <span className="block text-2xs font-semibold text-muted-foreground md:hidden"><TypeLabel t={t} /></span>
   if (s.median === null) {
     return (
-      <td className="py-2 pr-4 align-top">
-        <span className="font-semibold text-muted-foreground">—</span>
-        <span className="block text-2xs text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></span>
+      <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
+        {label}
+        <span className="block font-semibold text-muted-foreground">—</span>
+        <span className="block text-2xs tabular-nums text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></span>
       </td>
     )
   }
   return (
-    <td className="py-2 pr-4 align-top">
-      <span className="block whitespace-nowrap font-semibold text-foreground">{shown(s.median, locale)}</span>
-      <span className="block whitespace-nowrap text-2xs text-body">{shown(s.p25!, locale)} – {shown(s.p75!, locale)}</span>
-      <span className="block text-2xs text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></span>
+    <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
+      {label}
+      <span className="block whitespace-nowrap font-bold tabular-nums text-foreground">{shown(s.median, locale)}</span>
+      <span className="block text-2xs tabular-nums text-body md:whitespace-nowrap">{shown(s.p25!, locale)} – {shown(s.p75!, locale)}</span>
+      <span className="block text-2xs tabular-nums text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></span>
     </td>
   )
 }
@@ -115,22 +127,27 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
       <p className="mb-4 max-w-prose text-sm text-muted-foreground">
         <Tr text="Each cell shows the median monthly asking rent, the middle half of asking rents below it, and how many listings it is computed from. A dash means fewer listings than the publishing threshold." />
       </p>
-      {/* ⚠️ THE TABLE SCROLLS, THE PAGE DOES NOT. Four columns of full đồng amounts are wider than a
-          phone; the first column stays readable as the scroll anchor. */}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[36rem] text-sm">
-          <thead>
+      {/* ⚠️ ONE TABLE AT EVERY WIDTH, RESTYLED BELOW md — NOT A SCROLLER, NOT A SECOND LIST (C-RENT-INDEX).
+          Four columns of full đồng amounts are wider than a phone, and the table used to scroll sideways
+          inside the page with no affordance (638px of content in a 366px box at 390, 24 rows). Below md
+          each district row becomes a heading line over a 3-up grid of its figures, each cell labelled;
+          the header row stays in the DOM for assistive tech but leaves the layout. Keeping one <table>
+          keeps what the Dataset JSON-LD, print and a crawler read, and never prints a number twice.
+          From md it is the plain table again, horizontally scrollable only if a column ever outgrows it. */}
+      <div className="md:overflow-x-auto">
+        <table className="w-full text-sm max-md:block md:min-w-[36rem]">
+          <thead className="max-md:sr-only">
             <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th scope="col" className="pb-2 pr-4 font-semibold"><Tr text="District" /></th>
               {RENT_TYPES.map((t) => (
-                <th key={t} scope="col" className="pb-2 pr-4 font-semibold"><TypeLabel t={t} /></th>
+                <th key={t} scope="col" className="pb-2 pl-4 text-right font-semibold"><TypeLabel t={t} /></th>
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="max-md:block">
             {index.districts.map((d) => (
-              <tr key={d.slug} className="border-t border-border">
-                <th scope="row" className="min-w-[9rem] py-2 pr-4 text-left align-top font-semibold text-foreground">
+              <tr key={d.slug} className="border-t border-border max-md:grid max-md:grid-cols-3 max-md:gap-x-3 max-md:py-3">
+                <th scope="row" className="text-left align-top font-semibold text-foreground max-md:col-span-3 max-md:pb-2 md:min-w-[9rem] md:py-2 md:pr-4">
                   {/* ⚠️ EVERY ROW HERE HAS ≥ 1 LISTING, AND /c/rentals/<slug> MATCHES A SUPERSET OF
                       THEM (the same curated spellings on `district` OR `location`; apartments, houses
                       and rooms are all places), so the link can never land on that page's 404. Its
@@ -157,7 +174,7 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
                     <span className="block text-2xs font-normal text-muted-foreground"><Tr text="Listings labelled with the former district name; also counted in Thu Duc City" /></span>
                   )}
                 </th>
-                {RENT_TYPES.map((t) => <Cell key={t} s={d.cells[t]} locale={locale} />)}
+                {RENT_TYPES.map((t) => <Cell key={t} s={d.cells[t]} t={t} locale={locale} />)}
               </tr>
             ))}
           </tbody>

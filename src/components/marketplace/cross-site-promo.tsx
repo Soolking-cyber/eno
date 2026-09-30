@@ -70,7 +70,8 @@ export function CrossSitePromo({ className }: { className?: string }) {
       aria-labelledby={titleId}
       className={cn('mt-14 max-w-3xl border-t border-border pt-8', className)}
     >
-      <p className="eyebrow mb-2 text-accent-foreground">{tr('Also from eno', 'Cũng từ eno')}</p>
+      {/* No "Also from eno" kicker: the heading below names eno.vn itself, and pure-label eyebrows
+          are retired (owner, 2026-08-05; C-KICKERS). */}
       <h2 id={titleId} className="h-section text-foreground">
         {/* ⚠️ Names only what the links below lead to. It said "motorbikes" while eno.vn held 0
             motorbikes and that landing was noindex (2026-09-27). */}

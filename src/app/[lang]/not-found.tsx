@@ -6,6 +6,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Tr } from '@/context/language-context'
+import { NotFoundBody } from './not-found-body'
 
 export const metadata: Metadata = { title: `Page not found | ${SITE_NAME}` }
 
@@ -103,12 +104,13 @@ export default function NotFound() {
         </div>
 
         <div className="relative w-full max-w-lg text-center">
-          <Mascot name="search" className="mx-auto h-72 w-72" />
-          <p className="eyebrow mt-6 text-accent-foreground"><Tr text="Error 404" /></p>
-          <h1 className="h-display mt-2 text-foreground"><Tr text="This page has moved on." /></h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-body">
-            <Tr text="The listing may have sold, been taken down, or the link is broken — let's get you back to the good stuff." />
-          </p>
+          {/* 160px on a phone, not 288: at 390×844 the full-size mascot pushed the heading, the
+              search and every recovery link below the fold of the one page whose job is a way out. */}
+          <Mascot name="search" className="mx-auto h-40 w-40 sm:h-72 sm:w-72" />
+          {/* No "Error 404" kicker: pure-label eyebrows are retired (owner, 2026-08-05; C-KICKERS), and
+              the status is the response's business — the heading says what happened.
+              The path-aware heading + lede + the search box — a client island, see its header for why. */}
+          <NotFoundBody />
 
           {/*
             ⛔ THE RECOVERY LINKS ARE FOR AGENTS AS MUCH AS PEOPLE, AND THEY ARE DELIBERATELY

@@ -78,6 +78,12 @@ async function loadPage(edition: 'marketplace' | 'services') {
   return import('./page')
 }
 
+/** The page's metadata for one `[lang]` variant — it is `generateMetadata` since the <title> follows it. */
+async function metadataFor(edition: 'marketplace' | 'services', lang: 'en' | 'vi' = 'en') {
+  const mod = await loadPage(edition)
+  return mod.generateMetadata({ params: Promise.resolve({ lang }) })
+}
+
 async function render(edition: 'marketplace' | 'services') {
   const mod = await loadPage(edition)
   return renderToStaticMarkup(await mod.default())
@@ -94,7 +100,7 @@ afterEach(() => { vi.unstubAllEnvs() })
 
 describe('/about metadata', () => {
   it('describes what the site is, for whom and where — and previews as itself, image included', async () => {
-    const { metadata } = await loadPage('marketplace')
+    const metadata = await metadataFor('marketplace')
     expect(metadata.title).toBe('About eno.vn — free classifieds for expats and locals in Vietnam')
     expect(String(metadata.description)).toContain('free classifieds marketplace for expats, internationals and locals in Vietnam')
     // Both 0 live listings on 2026-09-27 — a description is a claim about the shelf.
@@ -105,9 +111,18 @@ describe('/about metadata', () => {
   })
 
   it('keeps eno.forum’s own truth', async () => {
-    const { metadata } = await loadPage('services')
+    const metadata = await metadataFor('services')
     expect(metadata.title).toBe('About eno.forum — services for travellers and newcomers to Vietnam')
     expect(String(metadata.title)).not.toContain('free')
+  })
+
+  it('gives the Vietnamese variant a Vietnamese <title> on the marketplace only, and keeps the share card English', async () => {
+    const vi = await metadataFor('marketplace', 'vi')
+    expect(vi.title).toBe('Về eno.vn — rao vặt miễn phí cho người nước ngoài và người Việt tại Việt Nam')
+    // A share scraper sends no language: the card must not depend on which variant it hit.
+    expect(vi.openGraph).toMatchObject({ title: 'About eno.vn — free classifieds for expats and locals in Vietnam' })
+    // eno.forum's title is untouched in either language (the file's rule 1).
+    expect((await metadataFor('services', 'vi')).title).toBe('About eno.forum — services for travellers and newcomers to Vietnam')
   })
 })
 
@@ -194,7 +209,7 @@ describe('/about on eno.forum', () => {
   })
 
   it('sends newcomers only to shelves that have stock, and never calls dealer stock a moving sale', async () => {
-    const { metadata } = await loadPage('services')
+    const metadata = await metadataFor('services')
     expect(String(metadata.description)).not.toMatch(/motorbike/i)
     const html = await render('services')
     expect(html).not.toContain('/motorbikes-for-sale-vietnam')

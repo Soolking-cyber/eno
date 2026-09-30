@@ -2,7 +2,9 @@ import type { ReactNode } from 'react'
 import { Header } from './header'
 import { Footer } from './footer'
 import { Tr } from '@/context/language-context'
+import { ChevronDown } from '@/components/ui/icons'
 import { Bilingual } from './bilingual'
+import { ContentRail } from './content-rail'
 import { cn } from '@/lib/utils'
 
 // ── Content-page chunk system (help/safety/trust/privacy/terms/about/guide) ─────────
@@ -13,14 +15,22 @@ import { cn } from '@/lib/utils'
 // by a panel. lg+: a sticky "On this page" rail on the left, chunked content on the
 // right; below lg it stacks. Chunks are BORDERLESS (one-canvas design language):
 // separation is spacing + headings only, never boxes. Body copy inside a chunk stays
-// capped at a readable measure (70ch, the 65–75ch craft floor) — wide layout,
+// capped at a readable measure (60ch — see ContentSection for why not 70) — wide layout,
 // readable lines — while grids (tip tiles, step cards) may opt into the full column
-// with `wide`. Server components — zero client JS; anchors are plain links.
+// with `wide`. Server components, plain anchors; the one client island is the rail's
+// scroll-spy (content-rail.tsx), which renders the same links the server did.
 
-export function ContentPage({ title, meta, intro, sections, children }: {
+export function ContentPage({ title, titleVi, meta, intro, sections, children }: {
   // Pure-label kickers are banned (craft floor); the last caller's eyebrow was deleted
   // with the slot itself so it can't quietly come back.
   title: string
+  /**
+   * An AUTHORED Vietnamese h1 — same contract as ContentSection's `titleVi`. `title` is a string
+   * prop rendered as `<Tr text={title}>`, which scripts/gen-ui-strings.mjs cannot harvest (it only
+   * sees literals), so without this a Vietnamese reader's server HTML carried an English h1 until
+   * client machine translation replaced it (L-CONTENT-VI, measured on /trust and /about 2026-09-29).
+   */
+  titleVi?: string
   /** Small line under the title (e.g. "Last updated …"). */
   meta?: ReactNode
   intro?: ReactNode
@@ -34,10 +44,41 @@ export function ContentPage({ title, meta, intro, sections, children }: {
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-16">
         <header className="border-b border-border pb-8">
-          <h1 className="h-display max-w-4xl text-balance text-foreground"><Tr text={title} /></h1>
+          <h1 className="h-display max-w-4xl text-balance text-foreground">{titleVi ? <Bilingual en={title} vi={titleVi} /> : <Tr text={title} />}</h1>
           {meta}
           {intro && <p className="mt-4 max-w-[70ch] text-base leading-relaxed text-body">{intro}</p>}
         </header>
+        {/**
+          * ⚠️ PHONES GET THE CONTENTS TOO, COLLAPSED (C-TOC). The rail below is lg-only, so below 1024px
+          * a 14-section /terms or a 16-article /regulations (25,000px tall on a phone) had no way to
+          * reach a section but scrolling. Four sections is the threshold for the same reason
+          * SeoArticle's anchor list uses it: fewer than that is one screen of scrolling anyway.
+          * ⚠️ NATIVE <details>, NOT ui/collapsible (Base UI), ON PURPOSE: this is a SERVER component,
+          * and <details> opens with zero JavaScript, keeps its links in the server HTML for a crawler
+          * and a no-JS reader, and needs no client island for a disclosure the browser already draws.
+          * Rows are 44px (py-3 on 20px lines) — full-width block links, so no tap-44 layer is needed.
+          */}
+        {sections && sections.length >= 4 && (
+          // Straight under the hero's hairline, which is its top edge: a second rule 24px lower read
+          // as a double line. The link text aligns with the summary; the hover wash bleeds past it.
+          <details className="group border-b border-border lg:hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+              <span>
+                <Tr text="On this page" /> <span className="font-normal text-ink-4 tabular-nums">· {sections.length}</span>
+              </span>
+              <ChevronDown className="size-4 shrink-0 text-ink-4 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+            </summary>
+            <ul className="pb-3">
+              {sections.map((s) => (
+                <li key={s.id}>
+                  <a href={`#${s.id}`} className="-mx-2 block rounded-lg px-2 py-3 text-sm text-body hover:bg-muted hover:text-foreground active:bg-muted">
+                    {s.labelVi ? <Bilingual en={s.label} vi={s.labelVi} /> : <Tr text={s.label} />}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         <div className={cn('mt-10', hasRail && 'lg:grid lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-12')}>
           {/* ⚠️ The rail names itself with aria-labelledBY, not aria-label. This is a SERVER
               component, so there is no `tr()` in scope for an attribute string — and the rail
@@ -50,17 +91,15 @@ export function ContentPage({ title, meta, intro, sections, children }: {
               note there before renaming any other nav. */}
           {hasRail && (
             <nav aria-labelledby="on-this-page" className="hidden lg:block">
-              <div className="sticky top-24 space-y-0.5">
+              {/* max-h + its own scroll: /regulations' 16 entries must stay reachable on a short
+                  laptop screen while the rail is pinned (7rem = the top-24 offset + breathing room). */}
+              <div className="sticky top-24 max-h-[calc(100dvh-7rem)] space-y-0.5 overflow-y-auto overscroll-contain">
                 <p id="on-this-page" className="eyebrow mb-2 text-ink-4"><Tr text="On this page" /></p>
-                {sections!.map((s) => (
-                  <a key={s.id} href={`#${s.id}`} className="block rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:bg-muted">
-                    {s.labelVi ? <Bilingual en={s.label} vi={s.labelVi} /> : <Tr text={s.label} />}
-                  </a>
-                ))}
+                <ContentRail sections={sections!} />
               </div>
             </nav>
           )}
-          <div className="min-w-0 space-y-12">{children}</div>
+          <div className="min-w-0 space-y-14 lg:space-y-16">{children}</div>
         </div>
       </main>
       <Footer />
@@ -78,13 +117,15 @@ export function ContentSection({ id, title, titleVi, wide = false, children }: {
    * (src/generated/vi-overrides.ts) is generated, never hand-edited.
    */
   titleVi?: string
-  /** true → children (grids/tiles) span the full column; default caps text at 70ch. */
+  /** true → children (grids/tiles) span the full column; default caps text at 60ch. */
   wide?: boolean
   children: ReactNode
 }) {
   return (
     <section id={id} className="scroll-mt-24">
-      {title && <h2 className="h-section text-foreground">{titleVi ? <Bilingual en={title} vi={titleVi} /> : <Tr text={title} />}</h2>}
+      {/* h-title (20→24px), not h-section (18px): a prose heading over 16px body copy needs a real
+          step above it, and h-section is the dense-UI step (C-TYPO). */}
+      {title && <h2 className="h-title text-foreground">{titleVi ? <Bilingual en={title} vi={titleVi} /> : <Tr text={title} />}</h2>}
       {/**
         * ⛔ THE CAP IS ON THE CHILDREN, NOT ON THIS WRAPPER, BECAUSE `ch` RESOLVES AGAINST THE
         * ELEMENT THAT DECLARES IT. On the wrapper it inherited 16px (1ch = 10px), so
@@ -105,8 +146,12 @@ export function ContentSection({ id, title, titleVi, wide = false, children }: {
         * ran the full container width. Keeping both means text resolves `ch` against its own size
         * (612px at 14px, 525px at 12px) while everything else keeps the 700px it always had.
         * ⚠️ `/terms` already did it this way; this brings the shared component in line.
+        * ⚠️ 60ch ON THE TEXT, NOT 70 (C-TYPO, 2026-09-29). `ch` is the width of "0", and this face's
+        * average glyph is ~14% narrower, so a 70ch box set lines of 77–82 characters on /terms
+        * (measured median at 1440) — past the 75 the cap exists to hold. 60ch lands at ~65–70. The
+        * wrapper keeps its 70ch: it bounds tables and callouts, which have no line length.
         */}
-      <div className={cn('space-y-3', title && 'mt-3', !wide && 'max-w-[70ch] [&_p]:max-w-[70ch] [&_li]:max-w-[70ch]')}>{children}</div>
+      <div className={cn('space-y-3', title && 'mt-4', !wide && 'max-w-[70ch] [&_p]:max-w-[60ch] [&_li]:max-w-[60ch]')}>{children}</div>
     </section>
   )
 }

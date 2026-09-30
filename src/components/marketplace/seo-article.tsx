@@ -1,12 +1,15 @@
 import Link from 'next/link'
-import { ArrowRight, ArrowUpRight, Info } from '@/components/ui/icons'
+import { ArrowUpRight, ChevronRight, Info } from '@/components/ui/icons'
+import { Rows, Row } from '@/components/ui/rows'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { organizationId } from '@/lib/site-identity'
 import { AFFILIATION } from '@/lib/site-legal'
 import { CROSS_SITE_REL, MARKETPLACE_LINKS } from '@/lib/cross-site-links'
+import { formatArticleDate } from '@/lib/dates'
 import { Header } from './header'
 import { Footer } from './footer'
 import { keepReading } from './seo-article-related'
+import { SeoListingRail, type SeoRailTarget } from './seo-listing-rail'
 /**
  * ⚠️ `@/components/marketplace/cross-site-promo`, NOT `./cross-site-promo`, AND THE DIFFERENCE IS
  * THE WHOLE STUB MECHANISM. next.config.ts aliases this module away on a marketplace build, and a
@@ -40,7 +43,10 @@ import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
  *
  * ⚠️ ENGLISH ONLY, matching the SEO landing pages (see the note on SeoLanding). These target English
  * expat search queries; the machine-translation layer covers a reader who needs another language.
- * The one exception is the affiliation line, which is legal copy and comes from site-legal.ts.
+ * The exceptions are the affiliation line, which is legal copy and comes from site-legal.ts, and the
+ * date line under the h1, which is written in the article's own language (`content.lang`, see
+ * DATE_LINE). Whether the rest of this chrome follows the article's language is an open owner
+ * decision (L-SEO-LANG, held with the wave-B Vietnamese-URL pilot) — do not switch it piecemeal.
  */
 
 /**
@@ -67,7 +73,10 @@ export type ArticleContent = {
   intro: string
   /** Path only, e.g. `/moving-to-vietnam`. Used for `mainEntityOfPage`. */
   canonical: string
-  /** ISO date (YYYY-MM-DD). */
+  /**
+   * ISO date (YYYY-MM-DD). With `updated`, the ONE source of both the visible date line and the Article
+   * JSON-LD's datePublished/dateModified — so what a reader sees and what Google is told cannot drift.
+   */
   published: string
   updated?: string
   /**
@@ -118,16 +127,26 @@ export type ArticleContent = {
    * topic, and leave it off where the article already ends with its own contextual links.
    */
   crossSitePromo?: boolean
+  /**
+   * A live listing rail after the last section, before "Keep reading" — the inventory the guide has
+   * just explained how to use (C-GUIDES-CTA). Same query and markup as the SEO landing pages'
+   * (seo-listing-rail.tsx); it renders only with at least four listings, so a thin or failed query
+   * leaves the article ending as it always did. Strings are in the article's language, like its prose.
+   */
+  rail?: { target: SeoRailTarget; title: string; cta: string }
 }
 
-/** Body paragraph. */
+/**
+ * Body paragraph. `max-w-[60ch]` holds the reading measure inside the 3xl column: the column alone
+ * set 768px lines — ~80 characters at 16px (C-TYPO).
+ */
 export function P({ children }: { children: React.ReactNode }) {
-  return <p className="mt-3 text-base leading-relaxed text-body first:mt-0">{children}</p>
+  return <p className="mt-3 max-w-[60ch] text-base leading-relaxed text-body first:mt-0">{children}</p>
 }
 
 /** Body list. Markers are inside the content box so a wrapped line aligns under the text. */
 export function Ul({ children }: { children: React.ReactNode }) {
-  return <ul className="mt-3 list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4">{children}</ul>
+  return <ul className="mt-3 max-w-[60ch] list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4">{children}</ul>
 }
 
 /**
@@ -207,8 +226,23 @@ export function HereLink({ href, children }: { href: string; children: React.Rea
 
 const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
 
-export function SeoArticle({ content }: { content: ArticleContent }) {
+/**
+ * The words of the date line, in the ARTICLE's language (`content.lang`), like the prose it dates — a
+ * Vietnamese guide says "Cập nhật 23/9/2026" to every reader. Plain constants, never `tr()`: they
+ * follow the article, not the visitor, so they must not reach the translation layer.
+ */
+const DATE_LINE = {
+  en: { updated: 'Updated', published: 'Published' },
+  vi: { updated: 'Cập nhật', published: 'Đăng ngày' },
+} as const
+
+export async function SeoArticle({ content }: { content: ArticleContent }) {
   const url = `${SITE_ORIGIN}${content.canonical}`
+  const articleLang = content.lang ?? 'en'
+  // ONE date, two consumers: the visible line under the h1 and the JSON-LD below (C-DATES). The guides
+  // declared dateModified to Google and showed a reader no date at all.
+  const modified = content.updated ?? content.published
+  const revised = !!content.updated && content.updated !== content.published
   // ⚠️ CAPPED HERE, NOT AT EACH CALL SITE. The phone guides passed all sixteen same-language siblings
   // and the block grew with every guide added; seo-article-related.ts picks at most six (the most
   // related first, plus alphabetical neighbours so no sibling is left without an inbound card).
@@ -235,7 +269,7 @@ export function SeoArticle({ content }: { content: ArticleContent }) {
     description: content.intro,
     inLanguage: content.lang ?? 'en',
     datePublished: content.published,
-    dateModified: content.updated ?? content.published,
+    dateModified: modified,
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
     author: { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN },
     publisher: { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN, logo: `${SITE_ORIGIN}/logo.svg` },
@@ -268,6 +302,12 @@ export function SeoArticle({ content }: { content: ArticleContent }) {
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
         <h1 className="h-display max-w-3xl text-foreground">{content.h1}</h1>
+        {/* The date, as ContentPage places its "Last updated" line: under the title, before the lede.
+            No relative time (ISR HTML would freeze "3 days ago") and no invented "reviewed by". */}
+        <p className="mt-3 text-sm text-ink-4" lang={articleLang}>
+          {revised ? DATE_LINE[articleLang].updated : DATE_LINE[articleLang].published}{' '}
+          <time dateTime={modified}>{formatArticleDate(modified, articleLang)}</time> · {SITE_NAME}
+        </p>
         <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{content.intro}</p>
 
         {content.disclosure && (
@@ -300,39 +340,48 @@ export function SeoArticle({ content }: { content: ArticleContent }) {
         <div className="mt-10 max-w-3xl space-y-10">
           {content.sections.map((s) => (
             // `scroll-mt` so the sticky header does not sit on top of the heading after a jump.
+            // h-title (20→24px) over 16px prose, not the 18px dense-UI step (C-TYPO).
             <section key={s.id} id={s.id} className="scroll-mt-24">
-              <h2 className="h-section mb-2 text-foreground">{s.title}</h2>
+              <h2 className="h-title mb-3 text-foreground">{s.title}</h2>
               {s.body}
             </section>
           ))}
         </div>
 
+        {/* Full width, not the 3xl prose column: in 768px the grid's four cards were ~180px and every
+            price broke onto two lines, against the owner's one-line card price (2026-09-13). At the
+            page width the cards are the SEO landing pages' own size. */}
+        {content.rail && <SeoListingRail {...content.rail} className="mt-14" heading="h-title" />}
+
         {related.length > 0 && (
           <section className="mt-14 max-w-3xl">
-            <h2 className="h-section mb-4 text-foreground">Keep reading</h2>
-            <ul className="grid gap-3 sm:grid-cols-2">
+            <h2 className="h-title mb-4 text-foreground">Keep reading</h2>
+            {/* Ruled rows, not a grid of bordered cards (flat-surface canon §3b; C-BOXES): one column,
+                so every chevron sits on the same right edge and each title gets the full measure. */}
+            <Rows bordered>
               {related.map((r) => (
-                <li key={r.href}>
-                  <Link href={r.href} className="group flex flex-col rounded-xl border border-border p-4 hover:border-accent-foreground/40">
-                    <span className="flex items-center gap-1 text-sm font-semibold text-foreground group-hover:text-accent-foreground">
-                      {r.label} <ArrowRight className="h-4 w-4 shrink-0" />
+                <Row key={r.href} className="py-0">
+                  <Link href={r.href} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
+                    <span className="min-w-0">
+                      <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground">{r.label}</span>
+                      <span className="mt-1 block line-clamp-2 text-sm leading-relaxed text-body">{r.blurb}</span>
                     </span>
-                    <span className="mt-1 text-sm leading-relaxed text-body">{r.blurb}</span>
+                    <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
                   </Link>
-                </li>
+                </Row>
               ))}
-            </ul>
+            </Rows>
           </section>
         )}
 
         {content.faqs.length > 0 && (
           <section className="mt-14 max-w-3xl">
-            <h2 className="h-section mb-4 text-foreground">Frequently asked questions</h2>
-            <div className="space-y-5">
+            <h2 className="h-title mb-4 text-foreground">Frequently asked questions</h2>
+            <div className="space-y-6">
               {content.faqs.map((f, i) => (
                 <div key={i}>
-                  <h3 className="text-sm font-bold text-foreground">{f.q}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-body">{f.a}</p>
+                  <h3 className="text-base font-bold text-foreground">{f.q}</h3>
+                  <p className="mt-1 max-w-[60ch] text-base leading-relaxed text-body">{f.a}</p>
                 </div>
               ))}
             </div>
