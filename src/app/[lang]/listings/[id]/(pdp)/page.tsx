@@ -108,7 +108,7 @@ export async function generateStaticParams() {
 // The loader moved to ./get-listing so `layout.tsx` can share the same cache() memo — see there.
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params
+  const { id, lang } = await params
   const listing = await getListing(id)
 
   // ⚠️ THIS notFound() NEVER PRODUCED A 404 BY ITSELF. The comment here once claimed it did, for
@@ -128,14 +128,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // (not a 404), so here we return noindex metadata for it rather than notFound() — a
   // sold URL shouldn't stay in search, but it's still a real, on-brand page.
   if (!listing || !listing.verified || (listing.status !== 'active' && listing.status !== 'sold')) notFound()
+  /**
+   * ⛔ THE <title> AND THE SHARE TITLES FOLLOW THE `[lang]` VARIANT (SEO wave B, V2b; copy sheet CS-3,
+   * approved 2026-10-01). This page renders once per variant since `[lang]` (src/proxy.ts) — the old note
+   * here said "static HTML shared across users, so it can't vary by language", which stopped being true
+   * then. The Vietnamese variant names the listing by `titleVi` when it has one, the same text its H1
+   * already shows that reader (<LocalizedTitle> prefers it), and formats the price the Vietnamese way
+   * ("12.000.000 đ"). The meta description, the JSON-LD and the share text keep the source title.
+   * ⚠️ `||`, not `??`: an empty `titleVi` is no title, as localizedPlan reads it.
+   */
+  const vi = lang === 'vi'
+  const titleFor = vi ? listing.titleVi || listing.title : listing.title
   if (listing.status === 'sold') {
-    return { title: `${listing.title} — Sold | ${SITE_NAME}`, robots: { index: false, follow: true } }
+    return { title: `${titleFor} — ${vi ? 'Đã bán' : 'Sold'} | ${SITE_NAME}`, robots: { index: false, follow: true } }
   }
 
-  // Use the listing's SOURCE title (as posted) for all BAKED, shared output — the
-  // <title> tab, OG tags, JSON-LD, share text. This page is static HTML shared across
-  // users, so it can't vary by language; forcing titleVi made an English app show a
-  // Vietnamese tab. The visible H1 still localizes per-user via <LocalizedTitle>.
+  // The listing's SOURCE title (as posted) for the description and share text; the titles take
+  // `titleFor` above.
   const displayTitle = listing.title
   // Guard against corrupt/legacy image rows (a known reality here — see the mock
   // self-heal in serialize.ts): a single bad row must not 500 the top SEO page.
@@ -159,8 +168,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // — the unit <Price> prints after it on the page (review, 2026-10-01). A job's salary is monthly by
   // construction (salaryPriceFor); a stored 'VND/hour' (an imported hourly job) keeps its own unit.
   const jobUnit = isJobListing ? (priceUnitSuffix(listing.priceUnit) ?? 'month') : null
-  const jobUnitLabel = jobUnit ? ` / ${(await params).lang === 'vi' ? ({ hour: 'giờ', day: 'ngày', week: 'tuần' } as Record<string, string>)[jobUnit] ?? 'tháng' : jobUnit}` : ''
+  const jobUnitLabel = jobUnit ? ` / ${vi ? ({ hour: 'giờ', day: 'ngày', week: 'tuần' } as Record<string, string>)[jobUnit] ?? 'tháng' : jobUnit}` : ''
   const priceLabel = isJobListing && jobSalary ? jobSalary : listing.price > 0 ? `${formatMoneyFull(listing.price, listing.currency)}${jobUnitLabel}` : ''
+  // The titles' price: the Vietnamese variant groups it the Vietnamese way (CS-3 V2b-1); a stated salary
+  // stays as the posting wrote it.
+  const titlePrice = isJobListing && jobSalary ? jobSalary : listing.price > 0 && vi ? `${formatMoneyFull(listing.price, listing.currency, 'vi')}${jobUnitLabel}` : priceLabel
   // A linked job closes on its apply-by date, but this page is ISR-cached for 30 days. `unavailable_after`
   // tells Google the date itself, from row data, so it is stable across regenerations.
   // safeAffiliateUrl, the page's own predicate: a link the page will not trust makes it an ordinary listing.
@@ -171,16 +183,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Flattened: a rich body's headings and bullets must not reach the meta tag as literal ** and - (plainSnippet).
   const bodyDesc = plainSnippet(listing.description)
   const facts = [priceLabel, listing.category.name].filter(Boolean).join(', ')
-  const fallbackDesc = `${displayTitle}${facts ? ` — ${facts}` : ''}${listing.location ? ` in ${listing.location}` : ''} on eno.vn`
+  // SITE_NAME, not "eno.vn": this page renders on eno.forum too (CS-3 claim 8).
+  const fallbackDesc = `${displayTitle}${facts ? ` — ${facts}` : ''}${listing.location ? ` in ${listing.location}` : ''} on ${SITE_NAME}`
   const desc = (bodyDesc || fallbackDesc).slice(0, 160)
   // The fallback already carries the price — only prefix it onto a real body.
-  const ogTitle = priceLabel ? `${displayTitle} — ${priceLabel}` : displayTitle
-  const ogDesc = priceLabel && bodyDesc ? `${priceLabel} · ${desc}` : desc
+  const ogTitle = titlePrice ? `${titleFor} — ${titlePrice}` : titleFor
+  // The card's price matches its title's (review: dots in og:title, commas in og:description on vi). The
+  // composed fallback sentence is English, so it keeps the English price with it.
+  const ogDesc = titlePrice && bodyDesc ? `${titlePrice} · ${desc}` : desc
 
   // A teacher is a person: the title says so, and no price label ever rides on it (2026-09-30).
   const isTeacher = listing.listingType === TEACHER_LISTING_TYPE
   return {
-    title: isTeacher ? `${displayTitle} — ${(await params).lang === 'vi' ? 'Giáo viên tại Việt Nam' : 'Teacher in Vietnam'} | ${SITE_NAME}` : priceLabel ? `${displayTitle} — ${priceLabel} | ${SITE_NAME}` : `${displayTitle} | ${SITE_NAME}`,
+    title: isTeacher ? `${titleFor} — ${vi ? 'Giáo viên tại Việt Nam' : 'Teacher in Vietnam'} | ${SITE_NAME}` : titlePrice ? `${titleFor} — ${titlePrice} | ${SITE_NAME}` : `${titleFor} | ${SITE_NAME}`,
     description: desc,
     // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
     // ⛔ An imported vehicle-hire reference is live but noindex — src/lib/rental-places.ts says why.
@@ -257,10 +272,8 @@ export default async function ListingPage({ params }: Props) {
       />
     )
   }
-  // Use the listing's SOURCE title (as posted) for all BAKED, shared output — the
-  // <title> tab, OG tags, JSON-LD, share text. This page is static HTML shared across
-  // users, so it can't vary by language; forcing titleVi made an English app show a
-  // Vietnamese tab. The visible H1 still localizes per-user via <LocalizedTitle>.
+  // The listing's SOURCE title (as posted) for the JSON-LD and the share text. The <title> and the share
+  // cards follow the variant (generateMetadata, V2b); the visible H1 localizes via <LocalizedTitle>.
   const displayTitle = listing.title
   const displayDesc = listing.description
   // Is this one of the visa desk's products? Decides whether "contact the seller" opens an
