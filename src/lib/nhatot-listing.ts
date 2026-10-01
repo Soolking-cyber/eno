@@ -440,9 +440,10 @@ export type NhatotMapped = {
   /** Source photo URLs, full-size, capped — to be RE-HOSTED, never stored as-is. */
   images: string[]
   /**
-   * CREATE-ONLY: the source's own post date (`list_time`), clamped to `now` — never the import time.
-   * The starting rankScore is computed from it (nhatotStartingRank), so a week-old ad does not enter
-   * the default browse ranked as if it were posted today. Never refreshed on update.
+   * The source's own (re-)list date (`list_time`), clamped to `now` — never the import time. The
+   * rankScore is computed from it (nhatotStartingRank), so a week-old ad does not enter the default
+   * browse ranked as if it were posted today. Written at create, at a revival, and on an update only
+   * when it is NEWER than the stored postedAt (nhatot-fresh.ts nhatotExistingRowPlan) — never backwards.
    */
   postedAt: Date
   /** Mixed-language segments the reviewed dictionary does not cover yet (import-i18n.ts) — a report, never stored. */
@@ -471,7 +472,12 @@ export type NhatotMapped = {
   }
 }
 
-export type NhatotMapOptions = { now: number; maxAgeDays: number; maxPhotos: number }
+/**
+ * `now` clamps postedAt (a source date can never be in our future). `ageAt` is the instant the age limit is
+ * judged at — the STAGE's fetch time on a replay, so --apply creates exactly the ads the 7-day fresh set
+ * (judged at that same fetchedAt) counts as fresh; omitted = `now`.
+ */
+export type NhatotMapOptions = { now: number; maxAgeDays: number; maxPhotos: number; ageAt?: number }
 
 /** One staged ad → the row as it would be stored, or the single reason it is dropped. */
 export function mapNhatotAd(ad: NhatotStagedAd, opts: NhatotMapOptions): { ok: true; row: NhatotMapped } | { ok: false; reason: NhatotDropReason } {
@@ -484,7 +490,7 @@ export function mapNhatotAd(ad: NhatotStagedAd, opts: NhatotMapOptions): { ok: t
   const price = nhatotMonthlyPrice(ad)
   if (typeof price !== 'number') return { ok: false, reason: price }
   /** ⚠️ `!(age <= max)`, not `age > max`: a missing or NaN list_time must FAIL the freshness test. */
-  const ageDays = ad.list_time === null ? NaN : (opts.now - ad.list_time) / 86_400_000
+  const ageDays = ad.list_time === null ? NaN : ((opts.ageAt ?? opts.now) - ad.list_time) / 86_400_000
   if (!(ageDays <= opts.maxAgeDays)) return { ok: false, reason: 'stale' }
   /** `maxPhotos` below the floor would drop every row, so the floor wins. */
   const images = [...new Set(ad.images.filter(isNhatotImageUrl))].slice(0, Math.max(NHATOT_MIN_PHOTOS, opts.maxPhotos))
@@ -977,3 +983,9 @@ export function stageNhatotLiveness(raw: unknown): NhatotLiveness | null {
 
 /** Retire on these verdicts, and only these. */
 export const nhatotShouldRetire = (l: NhatotLiveness) => l.verdict === 'gone' || l.verdict === 'inactive'
+
+/**
+ * A check that never got an answer (a timeout, a network failure): 'unknown' with http 0 — it retires
+ * nothing, and it survives the status file's whitelist (stageNhatotLiveness) unchanged.
+ */
+export const nhatotLivenessUndetermined = (listId: number): NhatotLiveness => ({ list_id: listId, verdict: 'unknown', http: 0, status: null })

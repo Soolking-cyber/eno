@@ -13,7 +13,7 @@ import {
   nhatotPhotoPlan, nhatotPostedAt, nhatotRateArg, nhatotRobotsAllows, nhatotSellerRefusal, nhatotShouldRetire,
   nhatotStageAgeProblem, nhatotStartingRank, nhatotStopReason, nhatotStreetName, nhatotWardLabel, parseNhatotCaps,
   NHATOT_LIST_ID_MAX, nhatotApplyExitCode, nhatotCapsProblem, nhatotHostHalt, nhatotProjectName, nhatotRunReadsNetwork, nhatotSliceEnd, NHATOT_TOTAL_CAP,
-  readNewestAcross, sliceQuotas, stageNhatotAd, stageNhatotLiveness, type NhatotStagedAd,
+  readNewestAcross, sliceQuotas, stageNhatotAd, stageNhatotLiveness, nhatotLivenessUndetermined, type NhatotStagedAd,
 } from './nhatot-listing'
 import { DOOR_IN_TEXT, checkRow, projectLineProblems, projectValueProblem, slashDoorLineProblems, streetLineProblems, streetValueProblem, type VerifyRow } from '../../scripts/verify-nhatot-import'
 import { overlayImagePath } from './image-mark-url'
@@ -987,5 +987,35 @@ describe('mapNhatotAd — the English text is English (import-i18n)', () => {
     if (!m.ok) throw new Error(m.reason)
     expect(m.row.mutable.description).toMatch(/^Street: Đường Chưa Dịch$/m)
     expect(m.row.untranslated).toEqual([{ target: 'en', kind: 'desc:Street', src: 'Đường Chưa Dịch' }])
+  })
+})
+
+describe('nhatotLivenessUndetermined — a timed-out liveness check', () => {
+  it('is unknown, retires nothing, and survives the status file’s whitelist unchanged', () => {
+    const u = nhatotLivenessUndetermined(134931296)
+    expect(u).toEqual({ list_id: 134931296, verdict: 'unknown', http: 0, status: null })
+    expect(nhatotShouldRetire(u)).toBe(false)
+    expect(stageNhatotLiveness(JSON.parse(JSON.stringify(u)))).toEqual(u)
+  })
+})
+
+describe('mapNhatotAd ageAt — the age limit judged at the stage\'s fetch time', () => {
+  const FETCHED = NOW
+  const DAYMS = 86_400_000
+  const at = (list_time: number) => ({ ...staged(), list_time })
+  it('an ad 6.9 days old at the fetch is created at an apply hours later, and its postedAt is still clamped to now', () => {
+    const later = FETCHED + 6 * 3_600_000
+    expect(mapNhatotAd(at(FETCHED - 6.9 * DAYMS), { now: later, maxAgeDays: 7, maxPhotos: 6 })).toMatchObject({ ok: false, reason: 'stale' })
+    const m = mapNhatotAd(at(FETCHED - 6.9 * DAYMS), { now: later, ageAt: FETCHED, maxAgeDays: 7, maxPhotos: 6 })
+    expect(m.ok).toBe(true)
+    if (m.ok) expect(m.row.postedAt.getTime()).toBe(FETCHED - 6.9 * DAYMS)
+    // a source date after `now` is still clamped by `now`, never by ageAt
+    const f = mapNhatotAd(at(later + 60_000), { now: later, ageAt: FETCHED, maxAgeDays: 7, maxPhotos: 6 })
+    if (f.ok) expect(f.row.postedAt.getTime()).toBe(later)
+  })
+  it('an ad past the window at the fetch stays out, and an unparsable fetch time fails the test (never "fresh")', () => {
+    expect(mapNhatotAd(at(FETCHED - 7 * DAYMS - 1), { now: FETCHED + DAYMS, ageAt: FETCHED, maxAgeDays: 7, maxPhotos: 6 })).toMatchObject({ ok: false, reason: 'stale' })
+    expect(mapNhatotAd(at(FETCHED - 7 * DAYMS), { now: FETCHED + DAYMS, ageAt: FETCHED, maxAgeDays: 7, maxPhotos: 6 }).ok).toBe(true)
+    expect(mapNhatotAd(at(FETCHED - DAYMS), { now: FETCHED, ageAt: NaN, maxAgeDays: 7, maxPhotos: 6 })).toMatchObject({ ok: false, reason: 'stale' })
   })
 })
