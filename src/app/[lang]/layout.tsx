@@ -9,6 +9,7 @@ import { LANG_VARIANTS, type LangVariant } from "@/lib/lang-variant";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
 import { COMPANY, OPERATOR_REGISTERED } from "@/lib/site-legal";
 import { IOS_APP_URL } from "@/lib/app-store-links";
+import { MARKETPLACE_TAGLINE, SITE_TITLE } from "@/lib/site-title";
 // The Organization/WebSite JSON-LD's entity fields (@id, sameAs, legalName…) — see that block below.
 import { marketplaceOrganizationFields, ogLocaleFor, ORGANIZATION_TYPE, organizationId, POSTING_IS_FREE, registeredOperatorFields, SHARE_CARD, SHARE_CARD_ALT, toE164VN, websiteId } from "@/lib/site-identity";
 // The content-hashed sprite URL, from the generated shim — never a literal here, or a glyph edit
@@ -226,9 +227,7 @@ const SITE_DESCRIPTION = IS_SERVICES
   : `${SITE_NAME} is a ${POSTING_IS_FREE ? "free " : ""}classifieds marketplace for expats, internationals and locals in Vietnam. Find rentals, jobs, furniture, electronics and more — sellers who post here build public trust scores and members can report any listing.`;
 
 /** The short form, for the OG and Twitter cards. */
-const SITE_TAGLINE = IS_SERVICES
-  ? SERVICES_SITE_TAGLINE
-  : `${POSTING_IS_FREE ? "Free classifieds" : "Classifieds"} for expats, internationals and locals in Vietnam. Rentals, jobs, furniture, electronics and more — sellers who post here build trust scores and members can report any listing.`;
+const SITE_TAGLINE = IS_SERVICES ? SERVICES_SITE_TAGLINE : MARKETPLACE_TAGLINE;
 
 // Both schemes are supported (real dark theme in globals.css `.dark`, toggled System/Light/Dark).
 // viewportFit:"cover" activates env(safe-area-inset-*) so the safe-area padding the header/nav/body
@@ -290,14 +289,7 @@ const MYLEAD_VERIFICATION = IS_SERVICES ? null : "0278b78162cad9a93d0071ce2c5cc8
  */
 const PINTEREST_VERIFICATION = IS_SERVICES ? null : "eb401aba4319c3406a643d5aff061606";
 
-/**
- * THE SITEWIDE <title>, BOTH EDITIONS — the home page's English title and every page's fallback.
- * ⛔ NO "TRUSTED" (SEO wave B, V2; CS-3 claim 1, owner 2026-10-01): "eno.vn - Trusted Expat Marketplace in
- * Vietnam" over a shelf mostly linked from other sites was a claim, not a description (the Organization
- * note below says the same). It now mirrors /about's title; "free" follows POSTING_IS_FREE.
- */
-const SITE_TITLE = `${SITE_NAME} — ${POSTING_IS_FREE ? "free " : ""}classifieds for expats and locals in Vietnam`;
-
+// The sitewide <title> (SITE_TITLE) and the marketplace's card line live in src/lib/site-title.ts.
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
   // Google Search Console / Merchant Center domain verification.

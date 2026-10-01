@@ -3,6 +3,8 @@
 import { Button } from '@/components/ui/button'
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
 import { usePathname } from 'next/navigation'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 import { useLanguage } from '@/context/language-context'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 // ⚠️ FORUM_URL IS GONE FROM THIS FILE, goToForum IS NOT. No footer link crosses origin any more,
@@ -564,7 +566,7 @@ function FooterBody() {
                     <li key={cat.slug}>
                       {/* max-sm: a 44px row per link (D-TAP) with no gap between rows, so no row's hit
                           area can overlap its neighbour's — the tap-44 trap, avoided by real height. */}
-                      <a href={`/c/${cat.slug}`} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center max-sm:text-sm">{tr(cat.name, cat.nameVi)}</a>
+                      <a href={localizedHref(`/c/${cat.slug}`, variantOfLanguage(lang))} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center max-sm:text-sm">{tr(cat.name, cat.nameVi)}</a>
                     </li>
                   ))}
                 </ul>

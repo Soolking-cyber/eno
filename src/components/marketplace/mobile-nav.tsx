@@ -20,7 +20,8 @@ import { STROKE_NAV } from '@/lib/icon-tokens'
 // drags its 99-icon map into this route's chunk (see category-glyph.tsx's header).
 import { CategoryGlyphArt } from './category-glyph'
 import { scrollBehavior } from '@/lib/reduced-motion'
-import { stripViPrefix } from '@/lib/lang-pinned'
+import { localizedHref, stripViPrefix } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 
 /**
  * The guest Account sheet (O-09) — loaded on demand: only a signed-out visitor who touches the Account
@@ -248,7 +249,7 @@ export function MobileNav() {
   // pilot is off) — Explore stays lit on `/vi`.
   const pathname = stripViPrefix(usePathname())
   const { count } = useFavorites()
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const { user, loading } = useAuth()
   const { unread } = useChat()
   // The bar auto-hides on scroll like a native app (owner 2026-07-16, reversing the earlier
@@ -397,7 +398,7 @@ export function MobileNav() {
           tab, never just the glyph, so there is no dead band along the pill's top or bottom. No
           text lives in the bar, so the enlarged-text growth the old `min-h` allowed for is moot. */}
       <div className="flex h-full items-stretch">
-      <Link href="/" prefetch={at('/') ? false : undefined} aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
+      <Link href={localizedHref('/', variantOfLanguage(lang))} prefetch={at('/') ? false : undefined} aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
         {/* ⚠️ COMPASS RENDERS AS THE TWO-LAYER DUOTONE, not a single filled svg. The glyph draws
             the needle FIRST and the outer circle SECOND, so a fill applied to the whole svg
             paints the circle over the needle and the glyph collapses into a solid disc (owner,

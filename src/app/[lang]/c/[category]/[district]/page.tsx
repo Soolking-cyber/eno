@@ -19,6 +19,7 @@ import { districtScopeForSlug } from '@/lib/district-slug'
 import { canonicalDistrictSlug, districtLabel, isCuratedDistrict, mergeDistrictGroups } from '@/lib/district-canonical'
 import { MIN_INDEXABLE_LISTINGS, isIndexableCount } from '@/lib/index-floor'
 import { staleBelowFloor } from '@/lib/stale-noindex'
+import { localizedHref } from '@/lib/lang-pinned'
 import { crumbNames, districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
 import { DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentIndexLink } from '../category-text'
 import { RentalCheckHint } from '@/components/marketplace/rental-check-toggle'
@@ -358,11 +359,11 @@ export default async function CategoryDistrictPage({ params }: Props) {
           <BreadcrumbList>
             <BreadcrumbItem>
               {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
-              <BreadcrumbLink render={<Link href="/" />} className="hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
+              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbLink render={<Link href={`/c/${cat.slug}`} />} className="hover:text-accent-foreground"><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /></BreadcrumbLink>
+              <BreadcrumbLink render={<Link href={localizedHref(`/c/${cat.slug}`, lang)} />} className="hover:text-accent-foreground"><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /></BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>
@@ -432,7 +433,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild variant="outline" size="none" className="border-line-strong font-bold hover:bg-muted hover:text-foreground">
-            <Link href={`/c/${cat.slug}`} className="px-5 py-2.5 text-sm">
+            <Link href={localizedHref(`/c/${cat.slug}`, lang)} className="px-5 py-2.5 text-sm">
               ← <Tr text="All" /> <Bilingual en={cat.name} vi={cat.nameVi || cat.name} />
             </Link>
           </Button>

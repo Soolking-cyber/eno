@@ -9,7 +9,8 @@ import { User, Search, MapPin, Map, Clock, X, ChevronLeftIcon, LayoutGrid, Spark
 import { useLanguage } from '@/context/language-context'
 import { preloadSignIn, useAuth } from '@/context/auth-context'
 import { useSafeBack } from '@/lib/safe-back'
-import { LANG_VARIANTS } from '@/lib/lang-variant'
+import { LANG_VARIANTS, variantOfLanguage } from '@/lib/lang-variant'
+import { localizedHref } from '@/lib/lang-pinned'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 import { useIsPhone } from '@/hooks/use-is-phone'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
@@ -608,7 +609,9 @@ export function Header() {
         )}
         {/* Logo */}
         <Link
-          href="/"
+          // The `/vi` pilot (SEO wave B, V3b): a Vietnamese page's logo goes to `/vi` once `/` is piloted —
+          // the identity while the pilot is off (lang-pinned.ts localizedHref).
+          href={localizedHref('/', variantOfLanguage(lang))}
           prefetch={false}
           data-header-logo=""
           onClick={() => window.dispatchEvent(new CustomEvent('eno:reset-home'))}

@@ -1,4 +1,5 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { localizedHref } from '@/lib/lang-pinned'
 import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
 import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
@@ -233,7 +234,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ListingPage({ params }: Props) {
-  const { id } = await params
+  const { id, lang } = await params
+  const pageVariant = lang === 'vi' ? 'vi' : 'en'
   const rawListing = await getListing(id)
 
   // Only publicly-live listings get the full detail page; hidden/held/unverified are
@@ -732,9 +734,9 @@ export default async function ListingPage({ params }: Props) {
             {/* prefetch={false} on both crumbs: they sit above the fold on every PDP, so auto
                 prefetch fires two extra RSC requests per listing view for links most visitors
                 never take (the way back is the tab bar or the browser's back button). */}
-            <Link href="/" prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Tr text="Home" /></Link>
+            <Link href={localizedHref('/', pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Tr text="Home" /></Link>
             <span className="mx-1.5 text-line-strong">/</span>
-            <Link href={`/c/${rawListing.category.slug}`} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Bilingual en={listing.category.name} vi={listing.category.nameVi || listing.category.name} /></Link>
+            <Link href={localizedHref(`/c/${rawListing.category.slug}`, pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Bilingual en={listing.category.name} vi={listing.category.nameVi || listing.category.name} /></Link>
             <span className="mx-1.5 hidden text-line-strong md:inline">/</span>
             <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
           </nav>

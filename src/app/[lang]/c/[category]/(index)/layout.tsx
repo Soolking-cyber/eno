@@ -10,6 +10,9 @@ import { loadRentalsHeadline } from '../category-data'
 import { RentalsHeading } from '../category-text'
 import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
+import { VI_PILOT, localizedHref } from '@/lib/lang-pinned'
+import { LangPilotSwitch } from '@/components/marketplace/lang-pilot-switch'
+import { LangSuggestionBanner } from '@/components/marketplace/lang-suggestion-banner'
 
 /**
  * ⛔ THE CATEGORY PAGE'S HEADER, BREADCRUMB, H1 AND LEDE RENDER HERE, ABOVE `(index)/loading.tsx`, SO
@@ -53,20 +56,25 @@ export default async function CategoryIndexLayout({
   children: React.ReactNode
   params: Promise<{ lang: string; category: string }>
 }) {
-  const { category } = await params
+  const { category, lang } = await params
   const cat = await getCategoryRow(category)
   if (!cat) notFound()
   const headline = cat.slug === 'rentals' ? await loadRentalsHeadline(cat.id) : null
+  // ⛔ THE `/vi` PILOT (SEO wave B, V3b): the switcher and the banner mount only on a live pilot category
+  // (none until V5), and the Home crumb points a Vietnamese page at `/vi` once `/` is piloted — so this
+  // layout's HTML is unchanged while the lists are empty.
+  const piloted = VI_PILOT.live.includes(`/c/${cat.slug}`)
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+        {piloted && <div className="mb-2 flex justify-end"><LangPilotSwitch path={`/c/${cat.slug}`} params={params} /></div>}
         <Breadcrumb className="mb-4">
           <BreadcrumbList>
             <BreadcrumbItem>
               {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
-              <BreadcrumbLink render={<Link href="/" />} className="hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
+              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
             </BreadcrumbItem>
             {/* Literal "/" separator, and the colour stays pinned to --line-strong: the
                 primitive's default is a chevron in text-muted-foreground. */}
@@ -83,6 +91,7 @@ export default async function CategoryIndexLayout({
         {LEDE_PLACEMENT === 'layout' && <CategoryLedeBlock slug={cat.slug} />}
         {children}
       </main>
+      {piloted && <LangSuggestionBanner />}
       <Footer />
     </div>
   )

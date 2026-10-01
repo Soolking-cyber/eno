@@ -22,6 +22,7 @@ import { localizeListingTitles } from '@/lib/translate'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { pageShare } from '@/lib/site-identity'
+import { langAlternates, localizedHref } from '@/lib/lang-pinned'
 import Link from 'next/link'
 import { ArrowRight } from '@/components/ui/icons'
 import { Badge } from '@/components/ui/badge'
@@ -106,10 +107,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME, pageLang(lang))
   // Empty, and empty for the whole window (src/lib/stale-noindex.ts). Queries only when `live` is 0.
   const emptyForTheWindow = await staleBelowFloor({ where: { categoryId: cat.id }, live, floor: MIN_CATEGORY_LISTINGS })
+  /**
+   * ⛔ THE `/vi` PILOT (SEO wave B, V3b — dormant until V5 lists `/c/furniture-appliances`, marketplace
+   * only): the plain URL is the English variant and `/vi/c/<slug>` the Vietnamese one, each self-canonical,
+   * with reciprocal hreflang (V-g) and a share card whose og:url is that canonical. Off the list (every
+   * category today, and /c/rentals always) `pilot` is null and the head is exactly V2's.
+   */
+  const pilot = langAlternates(`/c/${cat.slug}`, pageLang(lang), hostUrl)
+  const url = pilot?.canonical ?? `${hostUrl}/c/${cat.slug}`
   return {
     title,
     description,
-    alternates: { canonical: `${hostUrl}/c/${cat.slug}` },
+    alternates: pilot ? { canonical: pilot.canonical, languages: pilot.languages } : { canonical: url },
     // ⚠️ AN EMPTY CATEGORY DE-INDEXES ITSELF. Eight of the fifteen categories currently hold zero
     // live listings, and such a page is ~40 unique words wrapped around "No listings here yet" —
     // thin content, repeated eight times, on a domain with nothing else to show. `follow: true` is
@@ -125,7 +134,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ...(emptyForTheWindow ? { robots: { index: false, follow: true } } : {}),
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
-    ...pageShare({ title, description, url: `${hostUrl}/c/${cat.slug}` }),
+    ...pageShare({ title, description, url }),
   }
 }
 
@@ -315,7 +324,7 @@ export default async function CategoryPage({ params }: Props) {
             <h2 className="h-section text-foreground"><Tr text="Other categories" /></h2>
             <div className="mt-4 flex flex-wrap gap-2">
               {otherCats.map((c) => (
-                <Badge key={c.slug} size="md" interactive render={<Link href={`/c/${c.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+                <Badge key={c.slug} size="md" interactive render={<Link href={localizedHref(`/c/${c.slug}`, pageLang(lang))} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
                   <Bilingual en={c.name} vi={c.nameVi || c.name} />
                 </Badge>
               ))}
@@ -353,7 +362,7 @@ export default async function CategoryPage({ params }: Props) {
                   <span className="text-xs font-semibold text-ink-4"><Tr text="Explore other categories" /></span>
                   <div className="flex flex-wrap justify-center gap-2">
                     {otherCats.map((c) => (
-                      <Badge key={c.slug} size="md" interactive render={<Link href={`/c/${c.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+                      <Badge key={c.slug} size="md" interactive render={<Link href={localizedHref(`/c/${c.slug}`, pageLang(lang))} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
                         <Bilingual en={c.name} vi={c.nameVi || c.name} />
                       </Badge>
                     ))}

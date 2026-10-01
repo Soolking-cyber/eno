@@ -2,6 +2,16 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SITE_NAME } from '@/lib/edition'
 import { PREPAINT_SCRIPT } from '@/lib/explorer-url'
+import { VI_PILOT } from '@/lib/lang-pinned'
+import { LangPilotSwitch } from '@/components/marketplace/lang-pilot-switch'
+import { LangSuggestionBanner } from '@/components/marketplace/lang-suggestion-banner'
+
+/**
+ * ⛔ THE `/vi` PILOT'S SWITCHER AND BANNER (SEO wave B, V3b) MOUNT ONLY WHILE `/` IS A LIVE PILOT PATH —
+ * never today (VI_PREFIX_PATHS is empty until V5), so this layout's HTML is unchanged. The switcher reads
+ * `params` itself (lang-pilot-switch.tsx), which keeps this file free of any await.
+ */
+const PILOTED = VI_PILOT.live.includes('/')
 
 /**
  * ⛔ THE HOME PAGE'S HEADER, `<main>` AND H1 RENDER HERE, ABOVE `(home)/loading.tsx`, SO THAT CRAWLERS
@@ -28,7 +38,7 @@ import { PREPAINT_SCRIPT } from '@/lib/explorer-url'
  * paint, i.e. in the first chunk: in the page it would sit inside `S:0`, parsed after the skeleton has
  * already been shown. It is a constant string — no data, no await — so the first-chunk rules above hold.
  */
-export default function HomeLayout({ children }: { children: React.ReactNode }) {
+export default function HomeLayout({ children, params }: { children: React.ReactNode; params: Promise<{ lang: string }> }) {
   return (
     <div className="flex min-h-screen flex-col home-wash">
       {/* ⛔ PULL-TO-REFRESH WAS REMOVED HERE ON 2026-09-19 — owner: "pull down to refresh is too
@@ -54,9 +64,11 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         <h1 className="sr-only">{SITE_NAME}</h1>
+        {PILOTED && <div className="flex justify-end"><LangPilotSwitch path="/" params={params} /></div>}
         <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />
         {children}
       </main>
+      {PILOTED && <LangSuggestionBanner />}
       <Footer />
     </div>
   )
