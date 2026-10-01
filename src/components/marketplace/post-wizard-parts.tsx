@@ -306,7 +306,10 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
   )
 }
 
-export function Preview({ cover, title, price, priceUnit, area, categoryIcon, t }: { cover?: string; title: string; price: string; priceUnit: string; area: string; categoryIcon?: string; t: (vi: string, en: string) => string }) {
+/** `emptyPriceLabel`: what the price line says while `price` is empty — "Price" (a prompt) by default;
+ *  a job's salary section passes its NEGOTIABLE state instead, because an empty salary is a real answer
+ *  ("Thỏa thuận"), not a field still to fill (owner, 2026-10-01). */
+export function Preview({ cover, title, price, priceUnit, area, categoryIcon, emptyPriceLabel, t }: { cover?: string; title: string; price: string; priceUnit: string; area: string; categoryIcon?: string; emptyPriceLabel?: string; t: (vi: string, en: string) => string }) {
   const { lang } = useLanguage() // preview price mirrors what buyers in this language will see
   return (
     <div className="w-full">
@@ -339,7 +342,7 @@ export function Preview({ cover, title, price, priceUnit, area, categoryIcon, t 
       </div>
       <h3 className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-foreground">{title || t('Tiêu đề tin của bạn', 'Your listing title')}</h3>
       <p className="mt-0.5 text-sm font-bold text-foreground">
-        {price ? formatMoneyFull(Number(price), '₫', moneyLocale(lang)) : t('Giá', 'Price')}{price && priceUnit ? <span className="font-normal text-ink-4"> {priceUnit}</span> : null}
+        {price ? formatMoneyFull(Number(price), '₫', moneyLocale(lang)) : emptyPriceLabel ?? t('Giá', 'Price')}{price && priceUnit ? <span className="font-normal text-ink-4"> {priceUnit}</span> : null}
       </p>
       {area && <p className="text-xs text-muted-foreground">{area}</p>}
     </div>

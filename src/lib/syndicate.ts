@@ -1,5 +1,6 @@
 import 'server-only'
 import { formatMoneyFull } from './vnd'
+import { priceUnitSuffix } from './price-unit'
 import { db } from './db'
 import { isSellerHiddenHere, isServicesDeskListing } from './edition-scope'
 import { rateLimit } from './ratelimit'
@@ -23,6 +24,10 @@ export type SyndicationInput = {
   title: string
   price: number
   currency: string
+  /** Listing.listingType — a job's line is its SALARY ("Lương: … / tháng", "Lương: thỏa thuận"). */
+  listingType?: string | null
+  /** Listing.priceUnit — the period a job's salary is quoted per. */
+  priceUnit?: string | null
   location: string
   district: string | null
   image: string | null
@@ -35,13 +40,27 @@ function listingUrl(id: string) {
   return `${APP_URL}/listings/${id}`
 }
 
+const VI_UNIT: Record<string, string> = { month: 'tháng', hour: 'giờ', week: 'tuần', day: 'ngày' }
+
+/**
+ * The money line of a caption. 'vi' money format: these channels broadcast to the Vietnamese-market
+ * audience, where "12.000.000 đ" is the trusted native convention.
+ * ⛔ A JOB'S LINE IS A SALARY (taxonomy.ts paysSalary). Its stored price is salaryM × 1,000,000 per
+ * month, and 0 when the pay is agreed with the candidate — so the sale format posted a negotiable job
+ * as "0 đ" and a paid one as "45.000.000 đ" with no period, which reads as a price tag on a job.
+ */
+export function priceLine(l: Pick<SyndicationInput, 'price' | 'currency' | 'listingType' | 'priceUnit'>): string {
+  if (l.listingType !== 'job') return formatMoneyFull(l.price, l.currency, 'vi')
+  if (!(l.price > 0)) return 'Lương: thỏa thuận'
+  const unit = priceUnitSuffix(l.priceUnit) ?? 'month'
+  return `Lương: ${formatMoneyFull(l.price, l.currency, 'vi')} / ${VI_UNIT[unit] ?? unit}`
+}
+
 function caption(l: SyndicationInput): string {
   const where = l.district || l.location
   return [
     l.title,
-    // 'vi' money format: these channels broadcast to the Vietnamese-market
-    // audience, where "12.000.000 đ" is the trusted native convention.
-    `${formatMoneyFull(l.price, l.currency, 'vi')}${where ? ` · ${where}` : ''}`,
+    `${priceLine(l)}${where ? ` · ${where}` : ''}`,
     listingUrl(l.id),
   ].join('\n')
 }

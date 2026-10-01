@@ -1089,7 +1089,7 @@ function ListingCardImpl({
               ⚠️ RENTALS HAVE BEEN MEASURED SINCE (2026-09-29): 48 of 48 rental cards on /c/rentals
               wrap to two lines at 390px ("… đ / month" then "≈ $…"), one line from sm up. The
               skeleton still reserves one; see listing-card-skeleton.tsx for why that is held. */}
-          <Price native price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-base leading-tight sm:text-lg" listingType={listing.listingType} />
+          <Price native price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-base leading-tight sm:text-lg" listingType={listing.listingType} linked={listing.isPartnerBooking} />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, present
               whenever the listing HAS a live drop.
               ⚠️ IT IS NO LONGER TIED TO THE DROP BADGE, AND MUST NOT BE RE-TIED TO IT. The badge

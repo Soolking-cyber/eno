@@ -1,5 +1,5 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
-import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor, isVisaProductSlot } from '@/lib/taxonomy'
+import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
 import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { plainSnippet } from '@/lib/strip-md'
@@ -39,6 +39,8 @@ import { RecentlyViewedRail } from '@/components/marketplace/recently-viewed-rai
 import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
 import { Price } from '@/components/marketplace/price'
 import { Bilingual } from '@/components/marketplace/bilingual'
+import { minPhotosFor } from '@/lib/publish-guard'
+import { priceUnitSuffix } from '@/lib/price-unit'
 import { Tr } from '@/context/language-context'
 import { LocalizedTitle, LocalizedText, ListingDescription, PostedAgo } from '@/components/marketplace/listing-content'
 import { hideRepeatedFacts } from '@/components/marketplace/rich-text'
@@ -144,12 +146,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Bake the price into the social title/description so it shows in every link
   // unfurl (Facebook/Zalo/Telegram scrape OG tags, not our share text). Skip when
   // there's no meaningful price (e.g. some job posts).
-  // A JOB's baked label is the pay AS THE POSTING STATES IT (attributes.salaryText): its stored price is
-  // only the lower bound of a range, and "English Teacher — 10.000.000 đ" would misstate a 10–30 tr job.
+  // A JOB's baked label is the pay AS THE POSTING STATES IT (attributes.salaryText) when a linked job
+  // carries one: a stated RANGE is stored at price 0 (job-listing.ts parseJobPay), so the price alone
+  // would say nothing, and "English Teacher — 10.000.000 đ" would misstate a 10–30 tr job. Otherwise the
+  // stored price IS the monthly salary (an employer's own job: salaryM × 1,000,000 — taxonomy.ts
+  // paysSalary; a linked job that states one figure: that figure), so it is baked like any price.
   const isJobListing = listing.listingType === 'job'
   const jobAttrs = isJobListing ? safeParse<Record<string, unknown>>(listing.attributes ?? '{}', {}) : {}
   const jobSalary = typeof jobAttrs.salaryText === 'string' ? jobAttrs.salaryText : null
-  const priceLabel = isJobListing ? (jobSalary ?? '') : listing.price > 0 ? formatMoneyFull(listing.price, listing.currency) : ''
+  // ⚠️ A SALARY CARRIES ITS PERIOD: "English teacher — 45,000,000 đ" in a tab title or an unfurl reads
+  // as a sale price, so a job's figure is baked with " / month" (" / tháng" on the Vietnamese render)
+  // — the unit <Price> prints after it on the page (review, 2026-10-01). A job's salary is monthly by
+  // construction (salaryPriceFor); a stored 'VND/hour' (an imported hourly job) keeps its own unit.
+  const jobUnit = isJobListing ? (priceUnitSuffix(listing.priceUnit) ?? 'month') : null
+  const jobUnitLabel = jobUnit ? ` / ${(await params).lang === 'vi' ? ({ hour: 'giờ', day: 'ngày', week: 'tuần' } as Record<string, string>)[jobUnit] ?? 'tháng' : jobUnit}` : ''
+  const priceLabel = isJobListing && jobSalary ? jobSalary : listing.price > 0 ? `${formatMoneyFull(listing.price, listing.currency)}${jobUnitLabel}` : ''
   // A linked job closes on its apply-by date, but this page is ISR-cached for 30 days. `unavailable_after`
   // tells Google the date itself, from row data, so it is stable across regenerations.
   // safeAffiliateUrl, the page's own predicate: a link the page will not trust makes it an ordinary listing.
@@ -305,6 +316,12 @@ export default async function ListingPage({ params }: Props) {
   // A JOB reference listing (imported from a job board, applied for on the original posting). Keyed on
   // listingType AND the link: an ordinary employer's own job post has no affiliateUrl and keeps chat.
   const isJob = !!affiliateUrl && listing.listingType === 'job'
+  // ⚠️ NO GALLERY ON A PHOTO-LESS JOB EITHER. A job needs no photo to publish (publish-guard.ts
+  // minPhotosFor('jobs') = 0, owner 2026-10-01), and an empty gallery is a blank 300px tint box with
+  // Share/Save painted in white ink on it — so it opens on the same compact header a linked job uses.
+  // Scoped to the photo-optional category through the same function, so every other listing's PDP is
+  // exactly as it was (the gallery's own empty state never showed a clip either: hasVideo needs a photo).
+  const noGallery = isJob || (minPhotosFor(rawListing.category.slug) === 0 && listing.images.length === 0)
   const jobApplyBy = isJob && typeof listing.attributes?.applyBy === 'string' ? (listing.attributes.applyBy as string) : null
   // No owner account and not an official partner (owner, 2026-10-01 — src/lib/linked-seller.ts): the
   // storefront's trustScore describes nobody, so no trust chip on ANY of its listings; and when this row
@@ -744,7 +761,7 @@ export default async function ListingPage({ params }: Props) {
               generated poster (scripts/import-jobs.ts), which on a PDP spent a full-width square — the
               whole phone fold — on a picture of the words printed below it. Cards keep the poster; the
               PDP opens on the compact job header in the buy box instead (see `isJob` there). */}
-          {!isJob && (
+          {!noGallery && (
           <div className="relative order-2 -mx-3 sm:-mx-6 md:hidden">
             <ListingGallery variant="mobile" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
             <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
@@ -775,9 +792,9 @@ export default async function ListingPage({ params }: Props) {
                     job, Share / Save / Edit lose the photo they were overlaid on, so they sit here in
                     their labelled (non-overlay) form, beside a plain 'Job posting' kicker. The overlay
                     variants are white ink for photos and would vanish on the page ground. */}
-                {isJob && (
+                {noGallery && (
                   <div data-job-header className="flex items-center justify-between gap-2">
-                    <Badge size="md" className="font-semibold text-body">{tr('Job posting', 'Tin tuyển dụng')}</Badge>
+                    {listing.listingType === 'job' ? <Badge size="md" className="font-semibold text-body">{tr('Job posting', 'Tin tuyển dụng')}</Badge> : <span />}
                     <div className="flex items-center gap-1">
                       {/* The border matches the labelled Save beside it (its own base has one; Share's does not). */}
                       <ShareButton url={canonicalUrl} title={displayTitle} className="border border-border" />
@@ -810,12 +827,21 @@ export default async function ListingPage({ params }: Props) {
                         'Salary: see details' in the 30px orange headline tier, which made the loudest thing
                         on the page a sentence saying there is nothing to show. Body ink at 16px says the
                         same without pretending to be a figure; a linked job points at the posting. */}
-                    {listing.listingType === 'job' && listing.price === 0
+                    {/* ⚠️ AN EMPLOYER'S OWN JOB AT PRICE 0 WITH A SALARY is a row stored before the salary rule
+                        (taxonomy.ts paysSalary derives price = salaryM × 1,000,000 on every write since):
+                        its salaryM IS the salary (unlike a linked job's, which is a range's floor), so it is
+                        shown as one rather than called negotiable. */}
+                    {listing.listingType === 'job' && listing.price === 0 && !isJob && (rawListing.salaryM ?? 0) > 0
+                      ? <Price price={salaryPriceFor(rawListing.salaryM)} currency={listing.currency} priceUnit="VND/month" className="text-3xl tracking-tight" approxClassName="text-base" listingType={listing.listingType} />
+                      : listing.listingType === 'job' && listing.price === 0
                       ? (typeof listing.attributes?.salaryText === 'string'
                           ? <span className="text-2xl font-bold tracking-tight text-price [overflow-wrap:anywhere]">{listing.attributes.salaryText}</span>
                           : <span className="text-base font-semibold text-body">{isJob
                               ? <Bilingual en="Salary: see the original posting" vi="Mức lương: xem tin tuyển dụng gốc" />
-                              : <Bilingual en="Salary not stated" vi="Chưa nêu mức lương" />}</span>)
+                              // An employer's own job with no salary: the post wizard frames an empty
+                              // Salary as "Negotiable / Thỏa thuận" (owner, 2026-10-01), so that is
+                              // what the employer chose — said in the job boards' own word.
+                              : <Bilingual en="Salary: negotiable" vi="Lương: thỏa thuận" />}</span>)
                       : <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight" approxClassName="text-base" listingType={listing.listingType} />}
                     {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
                     {/* ⚠️ BOTH CLAIMS ARE WRAPPED IN <LiveUntil> BECAUSE THIS PAGE IS ISR-CACHED
@@ -844,7 +870,8 @@ export default async function ListingPage({ params }: Props) {
                             fills are reserved for user-state per §5, and an unlabeled glyph is a
                             guess); the labelled chip reads instantly and matches the feed. */}
                         <Badge size="md" className="gap-1 self-center bg-foreground text-2xs text-background">
-                          <Zap className="h-3 w-3 fill-current" /> <Tr text="Urgent" />
+                          {/* A job is HIRING: the same flag reads "Tuyển gấp", never "Bán gấp" (card-badges.tsx). */}
+                          <Zap className="h-3 w-3 fill-current" /> {listing.listingType === 'job' ? tr('Urgent hiring', 'Tuyển gấp') : <Tr text="Urgent" />}
                         </Badge>
                       </LiveUntil>
                     )}
@@ -1101,7 +1128,7 @@ export default async function ListingPage({ params }: Props) {
 
             {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens). None on a
                 linked job — see the mobile mount. */}
-            {!isJob && (
+            {!noGallery && (
             <div className="relative order-2 hidden md:block">
               <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
               <div className="absolute right-3 top-3 z-10 flex items-center gap-2">

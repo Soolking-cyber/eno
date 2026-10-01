@@ -14,6 +14,9 @@ export type SuggestListing = {
   image: string | null
   /** For <Price>: a price-0 job reads "Salary: see details", not "Free". */
   listingType?: string
+  /** For <Price>: the listing links out to an original posting (an imported job) — a price-0 job
+   *  without one is an employer's own with the pay left negotiable. */
+  linked?: boolean
   categorySlug: string
 }
 export type SuggestCategory = { slug: string; name: string; nameVi: string }

@@ -70,8 +70,9 @@ const POST_COPY: Record<string, Partial<PostCopy>> = {
   jobs: {
     title: 'e.g. English teacher, full-time — Bình Thạnh',
     titleVi: 'VD: Giáo viên tiếng Anh, toàn thời gian — Bình Thạnh',
-    hint: 'Duties, hours, requirements, pay. Applicants message you in the app.',
-    hintVi: 'Công việc, giờ làm, yêu cầu, mức lương. Ứng viên nhắn tin cho bạn trong ứng dụng.',
+    // The pay has its own Salary section on a job (taxonomy.ts paysSalary), so the body asks for what it cannot say.
+    hint: 'Duties, hours, requirements, benefits. Candidates message you in the app. No phone numbers.',
+    hintVi: 'Công việc, giờ làm, yêu cầu, quyền lợi. Ứng viên nhắn tin cho bạn trong ứng dụng. Đừng ghi số điện thoại.',
   },
   services: {
     title: 'e.g. Airport pickup, 7-seat car',

@@ -29,6 +29,7 @@ import { timeAgo } from '@/lib/types'
  */
 export function QuickReplyChips({
   isSeller,
+  job = false,
   hasPendingBuyerOffer,
   availabilityConfirmedAt,
   onInsert,
@@ -37,6 +38,10 @@ export function QuickReplyChips({
   className,
 }: {
   isSeller: boolean
+  /** A JOB thread (listingType 'job'): the "seller" is an employer and the "buyer" a candidate, so the
+   *  chips are hiring replies — "Still hiring", "Send your CV" — never "Price is firm" or "Is it still
+   *  available?" (a job takes no offers and has no price to be firm about; review, 2026-10-01). */
+  job?: boolean
   hasPendingBuyerOffer: boolean
   availabilityConfirmedAt?: string | null
   /** Insert chip text into the composer (parent focuses it, cursor at the end). */
@@ -95,15 +100,22 @@ export function QuickReplyChips({
     if (onSend) { haptic(); onSend(text) } else onInsert(text)
   }
 
-  const sellerChips: { label: string; text: string; complete: boolean }[] = [
-    { label: tr('Yes, still available', 'Vẫn còn hàng nhé'), text: tr('Yes, still available', 'Vẫn còn hàng nhé'), complete: true },
-    { label: tr('Price is firm', 'Giá cố định ạ'), text: tr('Price is firm', 'Giá cố định ạ'), complete: true },
-    // Trailing space (no ellipsis) so the seller completes the location right away.
-    { label: tr('Can meet in …', 'Có thể gặp ở …'), text: tr('Can meet in ', 'Có thể gặp ở '), complete: false },
-    ...(hasPendingBuyerOffer
-      ? [{ label: tr('Let me think about it', 'Để mình cân nhắc nhé'), text: tr('Let me think about it', 'Để mình cân nhắc nhé'), complete: true }]
-      : []),
-  ]
+  const sellerChips: { label: string; text: string; complete: boolean }[] = job
+    ? [
+        { label: tr('Yes, still hiring', 'Vẫn đang tuyển nhé'), text: tr('Yes, still hiring', 'Vẫn đang tuyển nhé'), complete: true },
+        { label: tr('Please send your CV', 'Bạn gửi CV giúp mình nhé'), text: tr('Please send your CV', 'Bạn gửi CV giúp mình nhé'), complete: true },
+        // The interview place — same meet template (and locate glyph) as a sale's "Can meet in …".
+        { label: tr('Can meet in …', 'Có thể gặp ở …'), text: tr('Can meet in ', 'Có thể gặp ở '), complete: false },
+      ]
+    : [
+        { label: tr('Yes, still available', 'Vẫn còn hàng nhé'), text: tr('Yes, still available', 'Vẫn còn hàng nhé'), complete: true },
+        { label: tr('Price is firm', 'Giá cố định ạ'), text: tr('Price is firm', 'Giá cố định ạ'), complete: true },
+        // Trailing space (no ellipsis) so the seller completes the location right away.
+        { label: tr('Can meet in …', 'Có thể gặp ở …'), text: tr('Can meet in ', 'Có thể gặp ở '), complete: false },
+        ...(hasPendingBuyerOffer
+          ? [{ label: tr('Let me think about it', 'Để mình cân nhắc nhé'), text: tr('Let me think about it', 'Để mình cân nhắc nhé'), complete: true }]
+          : []),
+      ]
 
   const askAvailability = () => {
     if (confirmedFresh && availabilityConfirmedAt) {
@@ -111,7 +123,7 @@ export function QuickReplyChips({
       if (note !== 'dismissed') setNote('shown')
       return
     }
-    fire(tr('Is it still available?', 'Còn hàng không?'))
+    fire(job ? tr('Is this job still open?', 'Vị trí này còn tuyển không ạ?') : tr('Is it still available?', 'Còn hàng không?'))
   }
 
   return (
@@ -121,7 +133,7 @@ export function QuickReplyChips({
           <p className="flex min-w-0 flex-1 items-center gap-1 text-xs font-medium text-success">
             {/* Line glyph, not the '✓' literal — one check mark per icon-language §1. */}
             <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="truncate">{tr('Seller confirmed this is available {timeAgo}', 'Người bán đã xác nhận còn hàng {timeAgo}').replace('{timeAgo}', timeAgo(availabilityConfirmedAt, lang))}</span>
+            <span className="truncate">{(job ? tr('The employer confirmed this job is open {timeAgo}', 'Nhà tuyển dụng đã xác nhận vẫn đang tuyển {timeAgo}') : tr('Seller confirmed this is available {timeAgo}', 'Người bán đã xác nhận còn hàng {timeAgo}')).replace('{timeAgo}', timeAgo(availabilityConfirmedAt, lang))}</span>
           </p>
           <CloseButton
             tapTarget={false}
@@ -152,7 +164,7 @@ export function QuickReplyChips({
           ))
         ) : (
           <Chip size="xs" tone="ghost" onClick={askAvailability}>
-            {tr('Is it still available?', 'Còn hàng không?')}
+            {job ? tr('Is this job still open?', 'Vị trí này còn tuyển không ạ?') : tr('Is it still available?', 'Còn hàng không?')}
           </Chip>
         )}
       </div>

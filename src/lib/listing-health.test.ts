@@ -398,6 +398,14 @@ describe('few_photos', () => {
     const busy = quiet({ categorySlug: 'services', photoCount: 1, viewsInWindow: 40, leadsInWindow: 0, conversationsInWindow: 0 })
     expect(codes(busy)).not.toContain('no_leads_thin_photos')
     expect(codes(busy)).not.toContain('few_photos')
+    // A JOB needs no photo to publish (minPhotosFor('jobs') = 0, owner 2026-10-01), so neither photo
+    // nudge may ask an employer for pictures of nothing — with or without traffic.
+    expect(minPhotosFor('jobs')).toBe(0)
+    expect(conversionPhotoTarget('jobs')).toBe(0)
+    expect(codes(quiet({ categorySlug: 'jobs', photoCount: 0 }))).not.toContain('few_photos')
+    const busyJob = quiet({ categorySlug: 'jobs', photoCount: 0, viewsInWindow: 40, leadsInWindow: 0, conversationsInWindow: 0 })
+    expect(codes(busyJob)).not.toContain('no_leads_thin_photos')
+    expect(codes(busyJob)).not.toContain('few_photos')
   })
 })
 

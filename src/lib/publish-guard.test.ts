@@ -249,6 +249,27 @@ describe('publish-guard · photo minimum by category', () => {
     expect(() => assertEnoughAngles(['a.webp', 'b.webp', 'c.webp', 'd.webp'], 'services')).not.toThrow()
   })
 
+  // Owner, 2026-10-01: the job post must be tailored to hiring. A job has nothing to photograph, so
+  // its photo is OPTIONAL (a logo or the workplace) — and every surface renders a photo-less job.
+  it('jobs publish with NO photo — minPhotosFor is the one source and says 0', () => {
+    expect(minPhotosFor('jobs')).toBe(0)
+    expect(() => assertEnoughAngles([], 'jobs')).not.toThrow()
+    expect(blockCodeOf(() => assertPublishable({ ...goods, images: [], categorySlug: 'jobs' }))).toBeNull()
+  })
+
+  it('a job with photos is not held to a distinct-angle bar either', () => {
+    const dup = 'x-habcdef0123456789.webp'
+    expect(() => assertEnoughAngles([dup, dup], 'jobs')).not.toThrow()
+    expect(() => assertEnoughAngles(one, 'jobs')).not.toThrow()
+  })
+
+  it('relaxing jobs relaxed NOTHING else — unknown/missing still 3, services still 1', () => {
+    expect(minPhotosFor('not-a-real-category')).toBe(3)
+    expect(minPhotosFor(undefined)).toBe(3)
+    expect(minPhotosFor('services')).toBe(1)
+    expect(blockCodeOf(() => assertPublishable({ ...goods, images: [] }))).toBe('photo_required')
+  })
+
   it('a service may repeat the same photo — the angle rule is what got relaxed', () => {
     // Goods reject this (one distinct angle < 3); services only need one photo at all.
     const dup = 'x-habcdef0123456789.webp'

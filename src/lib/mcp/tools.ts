@@ -12,6 +12,7 @@ import { bulkImportCore, rehostListingImage, BULK_MAX_ROWS, type BulkRow } from 
 import { syncListingsCore, SYNC_MAX_ROWS, type SyncRow } from '@/lib/core/sync'
 import { updateSellerCore } from '@/lib/core/seller'
 import { postingGate } from '@/lib/enforcement'
+import { paysSalary, resolveListingType } from '@/lib/taxonomy'
 import { getListingAnalytics } from '@/lib/listing-analytics'
 import { dispatchListingEventsBatch, generateWebhookSecret } from '@/lib/webhooks'
 import { after } from 'next/server'
@@ -123,10 +124,17 @@ export const TOOLS: McpTool[] = [
     name: 'create_listing',
     description: 'Create a listing. Image URLs may be public — they are re-hosted to first-party storage automatically.',
     scope: 'listings:write',
-    input: listingItem.omit({ externalId: true }).extend({ negotiable: z.boolean().optional(), listingType: z.string().optional(), brand: z.string().optional(), model: z.string().optional() }),
+    input: listingItem.omit({ externalId: true }).extend({
+      // Optional HERE because a job needs none; every other listing still has to send one (checked below).
+      price: z.number().nonnegative().optional().describe('Price in VND — required, except for a job (category "jobs"), whose pay is `salaryM`. A job sent with only a price has it read as the monthly salary in VND.'),
+      negotiable: z.boolean().optional(), listingType: z.string().optional(), brand: z.string().optional(), model: z.string().optional(),
+      salaryM: z.number().int().nonnegative().optional().describe('A job (category "jobs"): the monthly salary in million VND; omit it when the pay is agreed with the candidate. A job\'s stored price is derived from it, and a job takes no offers.'),
+    }),
     handler: async (auth, args) => {
       const title = String(args.title || '').trim().slice(0, 140)
-      const price = Number(args.price)
+      // A job is paid a salary: its price is derived from `salaryM` in createListingCore (taxonomy.ts
+      // paysSalary), so it needs no price — one it sends is passed on and read as the salary there.
+      const price = paysSalary(resolveListingType(String(args.categorySlug || ''), args.listingType)) ? 0 : Number(args.price)
       if (title.length < 3 || !Number.isFinite(price) || price < 0 || price > 1e12) throw new ToolError('invalid_input', 'A title (≥3 chars) and a valid price are required.')
       if (containsPhoneNumber(title) || containsPhoneNumber(String(args.description || ''))) throw new ToolError('no_phone_in_listing', 'Phone numbers are not allowed in the title or description.')
       const category = await db.category.findUnique({ where: { slug: String(args.categorySlug || '') }, select: { id: true, slug: true, name: true, nameVi: true } })
@@ -140,7 +148,7 @@ export const TOOLS: McpTool[] = [
         if (gate) throw new ToolError(gate.error, 'Posting is blocked for this account right now.')
       }
       const images = await rehostAll(args.images as string[] | undefined)
-      const body = { description: args.description, images, district: args.district, condition: args.condition, negotiable: args.negotiable, listingType: args.listingType, brand: args.brand, model: args.model }
+      const body = { description: args.description, images, district: args.district, condition: args.condition, negotiable: args.negotiable, listingType: args.listingType, brand: args.brand, model: args.model, salaryM: args.salaryM, price: args.price }
       // Never a guest (an API key authenticated this call) — an ownerless shop is a platform import,
       // as on /api/v1 and in bulk_import / sync_listings.
       try {
@@ -156,14 +164,17 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'update_listing',
-    description: 'Edit one of the shop\'s listings (sparse). Image URLs may be public — re-hosted automatically.',
+    description: 'Edit one of the shop\'s listings (sparse). Image URLs may be public — re-hosted automatically. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND.',
     scope: 'listings:write',
-    input: z.object({ id: z.string(), title: z.string().optional(), description: z.string().optional(), price: z.number().nonnegative().optional(), district: z.string().optional(), condition: z.string().optional(), images: z.array(z.string()).optional() }),
+    input: z.object({
+      id: z.string(), title: z.string().optional(), description: z.string().optional(), price: z.number().nonnegative().optional(), district: z.string().optional(), condition: z.string().optional(), images: z.array(z.string()).optional(),
+      salaryM: z.number().int().nonnegative().nullable().optional().describe('A job: the monthly salary in million VND; null clears it (pay agreed with the candidate). Wins over `price`.'),
+    }),
     handler: async (auth, args) => {
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
       const body: Record<string, unknown> = {}
-      for (const k of ['title', 'description', 'price', 'district', 'condition'] as const) if (args[k] !== undefined) body[k] = args[k]
+      for (const k of ['title', 'description', 'price', 'district', 'condition', 'salaryM'] as const) if (args[k] !== undefined) body[k] = args[k]
       if (Array.isArray(args.images)) body.images = await rehostAll(args.images as string[])
       const res = await updateListingCore(id, body)
       if (!res.ok) throw new ToolError(res.error, res.error)

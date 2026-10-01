@@ -18,6 +18,16 @@ type Props = {
    * for a posting that states its pay.
    */
   listingType?: string | null
+  /**
+   * Whether the listing LINKS OUT to an original posting (SerializedListing.isPartnerBooking — an
+   * imported job). Read only for a price-0 job, which means two different things: a LINKED job states
+   * its pay elsewhere ("Salary: see details" — a range or another currency, on the posting), while an
+   * employer's OWN job at 0 is one whose Salary was left empty in the post wizard, i.e. agreed with
+   * the candidate ("Salary: negotiable" — what the wizard's preview and the listing page say; review,
+   * 2026-10-01). ⚠️ Only an explicit `false` says negotiable: a caller that does not know keeps the
+   * neutral "see details", which is true of both.
+   */
+  linked?: boolean
   currency: string
   priceUnit: string
   compact?: boolean
@@ -79,7 +89,7 @@ type Props = {
  *  number of digits wide. */
 const FX_RESERVE_RATES = { USD: 1 / 26_000 }
 
-export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType }: Props) {
+export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType, linked }: Props) {
   void compact // amounts are always shown in full now
   const { lang, tr } = useLanguage()
   const { currency: displayCur, rates, ratesPending, format } = useCurrency()
@@ -114,7 +124,9 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   const noFigure = isFree && (listingType === 'job' || listingType === 'teacher')
   const amount = isFree
     // A teacher profile (2026-09-30) has no price: it is a person, never "Free".
-    ? (listingType === 'teacher' ? tr('Teacher profile', 'Hồ sơ giáo viên') : noFigure ? tr('Salary: see details', 'Lương: xem chi tiết') : tr('Free', 'Miễn phí'))
+    ? (listingType === 'teacher' ? tr('Teacher profile', 'Hồ sơ giáo viên')
+      : noFigure ? (linked === false ? tr('Salary: negotiable', 'Lương: thỏa thuận') : tr('Salary: see details', 'Lương: xem chi tiết'))
+      : tr('Free', 'Miễn phí'))
     : currency === '₫' && !native ? format(price, locale) : formatMoneyFull(price, currency, locale)
   // ⚠️ NO LEADING SPACE — the space that separates the suffix from the amount is rendered as its
   // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the

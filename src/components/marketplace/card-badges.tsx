@@ -85,7 +85,7 @@ export function CardBadges({
   showNew = true,
   className,
 }: {
-  listing: Pick<SerializedListingCard, 'urgent' | 'prevPrice' | 'price' | 'postedAt'>
+  listing: Pick<SerializedListingCard, 'urgent' | 'prevPrice' | 'price' | 'postedAt' | 'listingType'>
   showNew?: boolean
   className?: string
 }) {
@@ -105,7 +105,9 @@ export function CardBadges({
       <Badge kind="urgent" className={className}>
         {/* Filled mark inside a small filled chip — a stroked bolt disappears at the
             micro step; h-3 is the icon ladder's 12px size for 3xs labels (§4). */}
-        <Zap className="h-3 w-3 fill-current" /> {tr('Urgent', 'Bán gấp')}
+        {/* ⛔ A JOB IS HIRING, NOT SELLING (owner, 2026-10-01): the same urgent flag reads "Tuyển gấp"
+            on a job. "Bán gấp" (urgent SALE) on a job ad told candidates the employer was selling it. */}
+        <Zap className="h-3 w-3 fill-current" /> {listing.listingType === 'job' ? tr('Urgent hiring', 'Tuyển gấp') : tr('Urgent', 'Bán gấp')}
       </Badge>
     )
   }

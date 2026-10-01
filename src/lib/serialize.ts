@@ -3,6 +3,7 @@ import { listedAt } from './stale'
 import { displayPriceUnit } from './price-unit'
 import { isUnratedStorefront, partnerShown } from './linked-seller'
 import { isCommissionLink } from './affiliate-commission'
+import { takesOffers } from './taxonomy'
 import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
@@ -51,7 +52,10 @@ export function serializeListing(
     isPartnerBooking: Boolean(l.affiliateUrl),
     isSponsored: isCommissionLink(l.affiliateUrl),
     currency: l.currency,
-    negotiable: l.negotiable,
+    // ⛔ What the CLIENT is told about offers, not the raw column: a job never takes one (taxonomy.ts
+    // takesOffers), even a job row stored before that rule with negotiable=true — so the offer slider,
+    // the card's "Make an offer" and the PDP composer all close on it without each re-deriving it.
+    negotiable: takesOffers(l),
     affiliateUrl: l.affiliateUrl,
     affiliateDiscountCode: l.affiliateDiscountCode,
     affiliateDiscountPercent: l.affiliateDiscountPercent,
@@ -232,7 +236,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     isSponsored: isCommissionLink(l.affiliateUrl),
     listingType: l.listingType,
     currency: l.currency,
-    negotiable: l.negotiable,
+    negotiable: takesOffers(l), // never on a job — see serializeListing
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),
     urgent: !!l.urgentUntil && l.urgentUntil.getTime() > Date.now(),
     urgentUntil: l.urgentUntil ? l.urgentUntil.toISOString() : null,

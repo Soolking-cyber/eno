@@ -165,7 +165,7 @@ export function AvailabilityClient() {
                         struck-through muted title reads as live asking money on a listing that is
                         gone. dashboard-listing-row is deliberately NOT changed to match: it mutes
                         nothing and states status in a chip, so a red price is consistent there. */}
-                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className={cn('text-sm', sold && 'font-medium text-muted-foreground')} />
+                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact className={cn('text-sm', sold && 'font-medium text-muted-foreground')} />
                   </div>
                   {/* Unchecked = a clearly-STROKED empty box (border-2, like ui/checkbox and the
                       listing-row select box) — a borderless tint blob read as decoration, not as

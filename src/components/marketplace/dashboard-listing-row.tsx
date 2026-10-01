@@ -8,6 +8,7 @@ import { STROKE_MARK } from '@/lib/icon-tokens'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { QuickDiscount } from './quick-discount'
+import { paysSalary } from '@/lib/taxonomy'
 import { ListingSparkline, type SparkPoint } from './listing-sparkline'
 import { useListingActions } from './use-listing-actions'
 import { useLanguage } from '@/context/language-context'
@@ -122,7 +123,9 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   // Demand nudge — interest without conversion is almost always a price problem.
   // One quiet line, one plain action (never a scold). Saves beat views as the signal.
-  const showNudge = status === 'active' && listing.contactCount === 0 && (listing.savedCount >= 5 || listing.views > 50)
+  // Never on a JOB: its price is its salary (taxonomy.ts paysSalary), and "a lower price sells it" is
+  // not advice for an employer.
+  const showNudge = status === 'active' && !paysSalary(listing.listingType) && listing.contactCount === 0 && (listing.savedCount >= 5 || listing.views > 50)
   const nudge = showNudge ? (
     <p className="mt-0.5 text-sm text-warning">
       {listing.savedCount >= 5
@@ -150,7 +153,9 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   const copyLink = async () => { if (await copyText(listingUrl)) toast.success(tr('Link copied', 'Đã sao chép liên kết')) }
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
-      {status === 'active' && listing.price > 0 && (
+      {/* No price cut on a JOB: its price is its salary, derived on the server from the salary facet
+          (taxonomy.ts paysSalary), which ignores a PATCHed price — a discount there would do nothing. */}
+      {status === 'active' && listing.price > 0 && !paysSalary(listing.listingType) && (
         <QuickDiscount listing={{ id: listing.id, price: listing.price, currency: listing.currency }} onChanged={onChanged} className={chip} />
       )}
       {status === 'active' ? (
@@ -202,7 +207,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         </button>
         <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
           <p className="line-clamp-2 text-base font-semibold text-foreground">{title}</p>
-          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-base" />
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} linked={listing.isPartnerBooking} compact className="text-base" />
           {meta}
           {nudge}
           <div className="mt-auto pt-2">{actions}</div>
@@ -226,7 +231,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           <p className="truncate text-base font-semibold text-foreground">{title}</p>
           <Badge variant={statusChip.variant} className={statusChip.className}>{statusChip.label}</Badge>
         </div>
-        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-base" />
+        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} linked={listing.isPartnerBooking} compact className="text-base" />
         <div className="mt-0.5">{meta}</div>
         {nudge}
         <div className="mt-2">{actions}</div>

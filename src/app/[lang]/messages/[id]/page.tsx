@@ -306,7 +306,7 @@ type Thread = {
    * ⚠️ So the guards this change adds are not defensive padding: each one is a crash that was
    * already reachable, listed by tsc the moment the type stopped lying.
    */
-  listing: { id: string; title: string; image: string | null; price?: number; negotiable?: boolean; availabilityConfirmedAt?: string | null; status?: string } | null
+  listing: { id: string; title: string; image: string | null; price?: number; negotiable?: boolean; listingType?: string | null; availabilityConfirmedAt?: string | null; status?: string } | null
   /** A thread about a teacher profile (2026-09-30); optional — pending stubs and cached threads omit it. */
   teacher?: { shared: boolean; live?: boolean } | null
   counterpart: {
@@ -2735,6 +2735,8 @@ export default function ThreadPage() {
           {thread && !visaInfo && thread.kind === 'listing' && thread.listing && (
             <QuickReplyChips
               isSeller={!!thread.iAmSeller}
+              // A job thread is an employer and a candidate: hiring replies, not "Price is firm".
+              job={thread.listing.listingType === 'job'}
               hasPendingBuyerOffer={hasPendingBuyerOffer}
               availabilityConfirmedAt={thread.listing.availabilityConfirmedAt}
               onInsert={insertQuickReply}

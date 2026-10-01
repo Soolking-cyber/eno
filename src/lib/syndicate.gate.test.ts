@@ -29,7 +29,7 @@ const fetchSpy = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => n
 vi.stubGlobal('fetch', fetchSpy)
 vi.stubEnv('TELEGRAM_BOT_TOKEN', 't'); vi.stubEnv('TELEGRAM_CHAT_ID', 'c'); vi.stubEnv('FB_PAGE_ID', 'p'); vi.stubEnv('FB_PAGE_TOKEN', 'k')
 
-const { syndicateListingIfPublic } = await import('./syndicate')
+const { syndicateListingIfPublic, priceLine } = await import('./syndicate')
 const L = { id: 'l1', title: 'Bike', price: 1000000, currency: 'VND', location: 'HCM', district: null, image: null, categoryName: 'Vehicles' }
 // Either channel counts as a post — the gate must stop BOTH.
 const posted = () => fetchSpy.mock.calls.some(([u]) => /api\.telegram\.org|graph\.facebook\.com/.test(String(u)))
@@ -68,5 +68,19 @@ describe('syndicateListingIfPublic', () => {
     await syndicateListingIfPublic(L); expect(posted()).toBe(false)
     h.quotaOk = true; h.quotaThrows = true
     await syndicateListingIfPublic(L); expect(posted()).toBe(false)
+  })
+})
+
+describe('the caption\'s money line — a JOB is posted as a salary, never as a sale price', () => {
+  it('a job with a salary carries its period; one without says the pay is negotiable, never "0 đ"', () => {
+    expect(priceLine({ price: 45_000_000, currency: '₫', listingType: 'job', priceUnit: 'VND/month' })).toBe('Lương: 45.000.000 đ / tháng')
+    expect(priceLine({ price: 0, currency: '₫', listingType: 'job', priceUnit: 'VND/month' })).toBe('Lương: thỏa thuận')
+    // A job whose unit was never stamped (switched from Wanted before the unit rule) is still monthly.
+    expect(priceLine({ price: 12_000_000, currency: '₫', listingType: 'job', priceUnit: 'VND' })).toBe('Lương: 12.000.000 đ / tháng')
+  })
+
+  it('CONTROL: everything else keeps the plain price', () => {
+    expect(priceLine({ price: 12_000_000, currency: '₫', listingType: 'sell', priceUnit: 'VND' })).toBe('12.000.000 đ')
+    expect(priceLine({ price: 12_000_000, currency: '₫' })).toBe('12.000.000 đ')
   })
 })

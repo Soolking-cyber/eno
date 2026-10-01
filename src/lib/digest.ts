@@ -346,6 +346,9 @@ export async function getDigestContent(): Promise<DigestContent> {
       where: await scopedListingWhere({
         verified: true,
         status: 'active',
+        // ⛔ NOT A JOB: an urgent job is "Tuyển gấp" (urgent HIRING), and a "Moving sales — going fast"
+        // section headed over a job ad tells the reader it is for sale (owner, 2026-10-01).
+        listingType: { not: 'job' },
         OR: [
           { previousPrice: { not: null }, priceDropAt: { gte: dropCutoff } },
           { urgentUntil: { gt: now } },

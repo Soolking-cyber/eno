@@ -27,7 +27,9 @@ import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { FieldControl } from '@/components/ui/field'
 import { useLanguage } from '@/context/language-context'
-import { moneyLocale, compactPrice } from '@/lib/vnd'
+import { moneyLocale, compactPrice, formatMoneyFull } from '@/lib/vnd'
+import { salaryPriceFor, parseSalaryInput, type RangeMeta } from '@/lib/taxonomy'
+import { RangeSpecInput } from './range-spec-input'
 import type { PostMedia } from '@/hooks/use-post-media'
 import { Section, Field } from './post-wizard-parts'
 import { VndInput } from './vnd-input'
@@ -50,7 +52,7 @@ export function MediaSection({
 }: {
   media: PostMedia
   errPhoto: boolean
-  /** Category-dependent photo minimum (services = 1, goods = 3). */
+  /** Category-dependent photo minimum (jobs = 0, services = 1, goods = 3) — publish-guard minPhotosFor. */
   minPhotos: number
   aiEnabled: boolean
   aiBusy: 'photo' | 'desc' | null
@@ -128,7 +130,11 @@ export function MediaSection({
     <Section
       id="pw-photo"
       title={t('Ảnh', 'Photos')}
-      hint={minPhotos === 1
+      hint={minPhotos === 0
+        // Jobs (publish-guard.ts minPhotosFor = 0): nothing to photograph, so nothing is required —
+        // a logo or the workplace is what an employer actually has.
+        ? t('Không bắt buộc — logo công ty hoặc ảnh nơi làm việc, tối đa 6. Ảnh đầu là ảnh bìa.', 'Optional — a company logo or a photo of the workplace, up to 6. The first is your cover.')
+        : minPhotos === 1
         // Services: one photo is enough, but say that more still help — the ask is
         // "optional", not "don't bother".
         ? t('Cần 1 ảnh, tối đa 6. Ảnh đầu là ảnh bìa. Thêm ảnh là tuỳ chọn nhưng tin nhiều ảnh được xem nhiều hơn hẳn.', 'One photo is enough, up to 6. The first is your cover. More are optional, but listings with more photos get far more views.')
@@ -463,7 +469,7 @@ export function PriceSection({
           ))}
         </div>
         )}
-        {/* Urgent sale ("Bán gấp") — free, 7 days, auto-expires. Turning it on force-enables offers
+        {/* Urgent sale ("Bán gấp", the UrgentRow below) — free, 7 days, auto-expires. Turning it on force-enables offers
             (the server enforces the same coupling), and choosing "Fixed price" turns it off.
             ⚠️ A SWITCH ROW, NOT A PRESSED PILL: it is an on/off setting beside a choice of two, and
             the canon's control for on/off is <Switch>. The pressed pill also inverted to a solid
@@ -480,29 +486,100 @@ export function PriceSection({
             (measured: the click landed on the row, the switch stayed off); a 60px row still catches
             it. Phrasing content only inside a label, hence spans rather than <p>/<div>. */}
         {!fixedPriceOnly && (
-        <label data-state={urgent ? 'checked' : 'unchecked'} className="mt-3 flex max-w-md cursor-pointer items-center justify-between gap-3 rounded-xl bg-tint px-3.5 py-3 transition-colors hover:bg-muted">
-          <span className="flex min-w-0 items-start gap-2">
-            <Zap className="mt-0.5 h-4 w-4 shrink-0 text-ink-4" />
-            <span>
-              <span id="pw-urgent-label" className="block text-sm font-semibold text-foreground">{t('Bán gấp', 'Urgent sale')}</span>
-              <span id="pw-urgent-hint" className="block text-xs text-ink-4">{t('Nổi bật 7 ngày — cần bán nhanh, sẵn sàng nhận trả giá', 'Highlighted for 7 days — sell fast, open to offers')}</span>
-            </span>
-          </span>
-          {/* ⚠️ aria-labelledby IS LOAD-BEARING, NOT REDUNDANT WITH aria-label. With no explicit
-              value, Base UI's Switch points aria-labelledby at the <label> wrapping it
-              (useAriaLabelledBy → findAssociatedLabel), and aria-labelledby beats aria-label — so the
-              name was the WHOLE ROW, hint included, and aria-describedby then read the hint again.
-              Name = the title; description = the hint, once. */}
-          <Switch
+          <UrgentRow
             checked={urgent}
             onChange={(next) => { setUrgent(next); if (next) setNegotiable(true) }}
-            aria-labelledby="pw-urgent-label"
-            aria-describedby="pw-urgent-hint"
+            label={t('Bán gấp', 'Urgent sale')}
+            hint={t('Nổi bật 7 ngày — cần bán nhanh, sẵn sàng nhận trả giá', 'Highlighted for 7 days — sell fast, open to offers')}
           />
-        </label>
         )}
       </div>
     </Section>
+  )
+}
+
+/* Salary — a JOB's pay section, standing where Price stands for everything else (owner, 2026-10-01:
+   "if job selected it should be salary and urgent hire etc."). A job has NO price input, NO ×1,000
+   chips and NO Negotiable/Fixed choice: the jobs Salary facet (`salaryM`, million ₫ / month) is the
+   one pay field, the server derives the stored price from it and ignores any other (taxonomy.ts
+   paysSalary), and a job never takes offers. Optional — empty is "Negotiable / Thỏa thuận", the job
+   boards' own word for a salary agreed with the candidate.
+   ⚠️ URGENT HERE IS "TUYỂN GẤP" AND IS NOT COUPLED TO OFFERS: on a sale, Urgent forces Negotiable on
+   ("open to offers"); a job is never negotiable, so this switch only sets the flag. */
+export function SalarySection({
+  range,
+  salary,
+  setSalary,
+  urgent,
+  setUrgent,
+  t,
+}: {
+  /** The jobs category's salary facet range (taxonomy.ts, column salaryM). */
+  range: RangeMeta
+  salary: number | null
+  setSalary: (v: number | null) => void
+  urgent: boolean
+  setUrgent: (v: boolean) => void
+  t: T
+}) {
+  const { lang } = useLanguage()
+  const amount = salaryPriceFor(salary)
+  return (
+    <Section id="pw-salary" title={t('Mức lương', 'Salary')} hint={t('Không bắt buộc — để trống nếu lương thỏa thuận với ứng viên.', 'Optional — leave it empty if the pay is agreed with the candidate.')}>
+      <RangeSpecInput
+        range={range}
+        value={salary}
+        onChange={setSalary}
+        // An example, not "Negotiable": the box sits beside its unit ("e.g. 25 million/month" reads; "Negotiable
+        // million/month" did not), and the line below already states the empty, negotiable state.
+        placeholder={t('VD: 25', 'e.g. 25')}
+        unitLabel={t('triệu/tháng', 'million/month')}
+        label={t('Mức lương, triệu đồng mỗi tháng', 'Salary, million dong per month')}
+        // ⛔ NOT THE DIGITS-ONLY SPEC READ: it made "8,5" a 85 tr salary and "8.000.000" a 100 tr one.
+        parse={(raw) => parseSalaryInput(raw, range.max)}
+      />
+      {/* What candidates will read as the pay — the exact figure the card and the PDP print, or the
+          negotiable state. aria-live so a screen reader hears the slider's result, not just its value. */}
+      <p aria-live="polite" className="mt-2 text-sm font-semibold text-foreground">
+        {amount > 0
+          ? <>{formatMoneyFull(amount, '₫', moneyLocale(lang))} <span className="font-normal text-ink-4">/ {t('tháng', 'month')}</span></>
+          : <>{t('Thỏa thuận', 'Negotiable')} <span className="font-normal text-ink-4">· {t('trao đổi với ứng viên trong tin nhắn', 'agreed with the candidate in chat')}</span></>}
+      </p>
+      <UrgentRow
+        checked={urgent}
+        onChange={setUrgent}
+        label={t('Tuyển gấp', 'Urgent hiring')}
+        hint={t('Nổi bật 7 ngày — cho vị trí cần tuyển nhanh', 'Highlighted for 7 days — for roles you need to fill fast')}
+      />
+    </Section>
+  )
+}
+
+/* The urgent switch row — shared by PriceSection ("Bán gấp", Urgent SALE) and SalarySection ("Tuyển gấp",
+   urgent HIRING). One flag, one server mechanism (src/lib/urgent.ts: 7 days, auto-expiry, 2 per seller);
+   only the words and what it is coupled to differ, so the caller passes both. */
+function UrgentRow({ checked, onChange, label, hint }: { checked: boolean; onChange: (next: boolean) => void; label: string; hint: string }) {
+  return (
+    <label data-state={checked ? 'checked' : 'unchecked'} className="mt-3 flex max-w-md cursor-pointer items-center justify-between gap-3 rounded-xl bg-tint px-3.5 py-3 transition-colors hover:bg-muted">
+      <span className="flex min-w-0 items-start gap-2">
+        <Zap className="mt-0.5 h-4 w-4 shrink-0 text-ink-4" />
+        <span>
+          <span id="pw-urgent-label" className="block text-sm font-semibold text-foreground">{label}</span>
+          <span id="pw-urgent-hint" className="block text-xs text-ink-4">{hint}</span>
+        </span>
+      </span>
+      {/* ⚠️ aria-labelledby IS LOAD-BEARING, NOT REDUNDANT WITH aria-label. With no explicit
+          value, Base UI's Switch points aria-labelledby at the <label> wrapping it
+          (useAriaLabelledBy → findAssociatedLabel), and aria-labelledby beats aria-label — so the
+          name was the WHOLE ROW, hint included, and aria-describedby then read the hint again.
+          Name = the title; description = the hint, once. */}
+      <Switch
+        checked={checked}
+        onChange={onChange}
+        aria-labelledby="pw-urgent-label"
+        aria-describedby="pw-urgent-hint"
+      />
+    </label>
   )
 }
 
@@ -604,6 +681,7 @@ export function ContactSection({
   phoneOk,
   errContactName,
   errContactPhone,
+  audience = 'buyers',
   t,
 }: {
   meLoaded: boolean
@@ -616,11 +694,20 @@ export function ContactSection({
   phoneOk: boolean
   errContactName: boolean
   errContactPhone: boolean
+  /** Who messages this poster: buyers, or — on a job — candidates (owner, 2026-10-01). */
+  audience?: 'buyers' | 'candidates'
   t: T
 }) {
+  const candidates = audience === 'candidates'
   const [editingPhone, setEditingPhone] = useState(false) // quick-edit the contact number inline
   return (
-    <Section id="pw-contact" title={t('Liên hệ', 'Contact')} hint={t('Số của bạn được giữ kín — người mua nhắn tin trong ứng dụng, chỉ hiện số sau khi bạn trả lời.', 'Your number stays private — buyers message you in-app; it’s revealed only after you reply.')}>
+    <Section
+      id="pw-contact"
+      title={t('Liên hệ', 'Contact')}
+      hint={candidates
+        ? t('Ứng viên nhắn tin cho bạn trong ứng dụng; số của bạn chỉ hiện sau khi bạn trả lời.', 'Candidates message you in-app; your number is revealed only after you reply.')
+        : t('Số của bạn được giữ kín — người mua nhắn tin trong ứng dụng, chỉ hiện số sau khi bạn trả lời.', 'Your number stays private — buyers message you in-app; it’s revealed only after you reply.')}
+    >
       {!meLoaded ? (
         <div className="h-5 w-56 rounded-lg shimmer" />
       ) : isGuest ? (
@@ -654,7 +741,7 @@ export function ContactSection({
                     // token, so the seller taps their own name instead of retyping it.
                     autoComplete="name"
                     onChange={(e) => setContactName(e.target.value)}
-                    placeholder={t('Tên hiển thị cho người mua', 'Name buyers will see')}
+                    placeholder={candidates ? t('Tên hiển thị cho ứng viên', 'Name candidates will see') : t('Tên hiển thị cho người mua', 'Name buyers will see')}
                     className={cn('max-w-md', errContactName && 'ring-2 ring-destructive/60')}
                   />
                 }
@@ -672,7 +759,7 @@ export function ContactSection({
               </Button>
             </div>
           ) : (
-            <Field label={t('Số điện thoại', 'Phone number')} hint={t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')} error={errContactPhone ? t('Thêm số điện thoại hợp lệ', 'Add a valid phone number') : undefined}>
+            <Field label={t('Số điện thoại', 'Phone number')} hint={candidates ? t('Ứng viên không thấy số cho đến khi bạn trả lời.', 'Candidates never see it until you reply.') : t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')} error={errContactPhone ? t('Thêm số điện thoại hợp lệ', 'Add a valid phone number') : undefined}>
               <FieldControl
                 render={
                   <Input
@@ -710,22 +797,27 @@ export function PostSuccess({
   createdId,
   title,
   price,
+  job = false,
   t,
 }: {
   firstListing: boolean
   createdId: string | null
   title: string
   price: string
+  /** A job post: candidates, not buyers, will message the poster. */
+  job?: boolean
   t: T
 }) {
   return (
     <div className="flex flex-col items-center gap-4 py-16 text-center">
       <Mascot name="success" className="h-52 w-52" />
       <h1 className="h-title text-foreground">
-        {firstListing ? t('Tin đầu tiên của bạn đã lên sóng! 🎉', 'Your first listing is live! 🎉') : t('Tin của bạn đã được đăng!', 'Your listing is live!')}
+        {firstListing ? t('Tin đầu tiên của bạn đã lên sóng! 🎉', 'Your first listing is live! 🎉') : job ? t('Tin tuyển dụng của bạn đã được đăng!', 'Your job post is live!') : t('Tin của bạn đã được đăng!', 'Your listing is live!')}
       </h1>
       <p className="max-w-md text-sm text-body">
-        {t('Tin của bạn đã hiển thị công khai. Người mua sẽ nhắn tin cho bạn ngay trong ứng dụng — số điện thoại của bạn được giữ kín cho đến khi bạn trả lời.', 'It’s now visible to buyers. They’ll message you in-app — your number stays private until you reply.')}
+        {job
+          ? t('Tin tuyển dụng đã hiển thị công khai. Ứng viên sẽ nhắn tin cho bạn ngay trong ứng dụng — số điện thoại của bạn được giữ kín cho đến khi bạn trả lời.', 'It is now visible to candidates. They will message you in-app — your number stays private until you reply.')
+          : t('Tin của bạn đã hiển thị công khai. Người mua sẽ nhắn tin cho bạn ngay trong ứng dụng — số điện thoại của bạn được giữ kín cho đến khi bạn trả lời.', 'It’s now visible to buyers. They’ll message you in-app — your number stays private until you reply.')}
       </p>
       <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
         {createdId && (

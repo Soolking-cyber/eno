@@ -28,7 +28,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, isPostableSubcategory, isPostableCategory } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, isPostableSubcategory, isPostableCategory, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType } from '@/lib/taxonomy'
 import { syndicateListingIfPublic } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
@@ -475,6 +475,8 @@ export async function updateListingCore(
       titleVi: true, descriptionVi: true,
       // Price-drop pipeline + urgent gate inputs
       price: true, createdAt: true, sellerId: true, previousPrice: true, priceDropAt: true, lowestNotifiedPrice: true, priceDropNotifiedAt: true, urgentUntil: true,
+      // A job's pay: its price is re-derived from the salary on every edit, and it never takes offers.
+      negotiable: true, salaryM: true, affiliateUrl: true, priceUnit: true,
       seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
       status: true,
     },
@@ -485,6 +487,20 @@ export async function updateListingCore(
   if (!isPostableCategory(current.category.slug)) return { ok: false, code: 404, error: 'not_found' }
 
   const data: Record<string, unknown> = {}
+
+  // ⛔ THE INTENT THIS LISTING WILL HAVE AFTER THE EDIT (validated exactly as the listingType block
+  // below writes it), decided up front because a JOB is edited by different money rules: its price
+  // is derived from the salary (any `price` in the body is ignored), it never takes offers, and its
+  // urgency does not flip it negotiable. See taxonomy.ts paysSalary.
+  const reqType = body.listingType !== undefined ? String(body.listingType).trim() : undefined
+  const nextType = reqType !== undefined && (typesFor(current.category.slug) as string[]).includes(reqType) ? reqType : current.listingType
+  const salaryPaid = paysSalary(nextType)
+  // ⛔ THE SALARY→PRICE RULE IS FOR JOBS POSTED ON eno, PAID PER MONTH. A LINKED job's salaryM is the FLOOR
+  // of a range (its price stays 0 with the range in salaryText — job-listing.ts), and an imported HOURLY job
+  // is priced per hour: deriving either would print "10.000.000 đ / month" for a 10–30 tr job, or wipe an
+  // hourly rate (codex + opus, 2026-10-01). A switch INTO the job intent re-stamps the unit to monthly below.
+  const derivesSalaryPrice = salaryPaid && current.affiliateUrl == null &&
+    (nextType !== current.listingType || current.priceUnit === 'VND/month')
 
   const title = body.title !== undefined ? String(body.title).trim().slice(0, 140) : undefined
   const description = body.description !== undefined ? String(body.description).trim().slice(0, 5000) : undefined
@@ -554,7 +570,9 @@ export async function updateListingCore(
     return { ok: false, code: 400, error: 'no_phone_in_listing' }
   }
 
-  if (body.price !== undefined) {
+  // A job's `price` is never stored as sent (it is read as the salary, then re-derived, below), so it
+  // is not validated as a price here: an API client resending a job's old price must not fail the edit.
+  if (body.price !== undefined && !salaryPaid) {
     const price = Number(body.price)
     if (!Number.isFinite(price) || price < 0 || price > 1e12) return { ok: false, code: 400, error: 'invalid_price' }
     data.price = price
@@ -578,7 +596,7 @@ export async function updateListingCore(
   if (body.condition !== undefined) data.condition = body.condition ? String(body.condition).trim().slice(0, 60) : null
   // Price-negotiable toggle (edit): honored on the same edit path the wizard resubmits.
   // Same rule on EDIT, or "post as goods, switch category, enable offers" is a bypass.
-  if (body.negotiable !== undefined) data.negotiable = current.category?.slug === 'services' ? false : Boolean(body.negotiable)
+  if (body.negotiable !== undefined) data.negotiable = current.category?.slug === 'services' || salaryPaid ? false : Boolean(body.negotiable)
   // Urgent-sale toggle (edit). Activation runs the full server gate (no-op while
   // already active — never a silent renewal; 7-day re-arm cooldown; 2-per-seller
   // quota) and force-enables offers — urgency IS a promise of flexibility. An early
@@ -592,7 +610,8 @@ export async function updateListingCore(
       // and it may expire mid-edit — failing the whole (price/photo) edit over a stale
       // chip resend would be maddening. So a cooldown just skips re-arming the chip.
       if (gate.ok === false) { if (gate.error === 'urgent_quota') return { ok: false, code: 409, error: gate.error } }
-      else if (gate.ok === true) { data.urgentUntil = gate.urgentUntil; data.negotiable = true }
+      // A job's urgency is "Tuyển gấp", a hiring deadline — it opens no offers (salaryPaid).
+      else if (gate.ok === true) { data.urgentUntil = gate.urgentUntil; if (!salaryPaid) data.negotiable = true }
     } else if (current.urgentUntil && current.urgentUntil.getTime() > Date.now()) {
       data.urgentUntil = new Date()
     }
@@ -601,9 +620,14 @@ export async function updateListingCore(
   // this edit sets a fixed price on a still-urgent listing (and didn't just activate
   // urgent, which forces negotiable=true above), end the urgent run — mirrors the
   // wizard, where picking "Fixed price" clears the urgent chip.
-  if (data.negotiable === false && data.urgentUntil === undefined && current.urgentUntil && current.urgentUntil.getTime() > Date.now()) {
+  // ⚠️ NOT ON A JOB: it is never negotiable, so this rule would end every urgent-hiring run on the
+  // first edit. Its urgency was never a promise of flexibility.
+  if (!salaryPaid && data.negotiable === false && data.urgentUntil === undefined && current.urgentUntil && current.urgentUntil.getTime() > Date.now()) {
     data.urgentUntil = new Date()
   }
+  // ⛔ A job is never negotiable, whatever the body said or the row held (a job written before the
+  // salary rule defaulted to negotiable=true, and an edit is where it is put right).
+  if (salaryPaid && current.negotiable !== false) data.negotiable = false
   if (Array.isArray(body.images)) {
     const images = (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     // An edit must still meet the ≥3-distinct-angles bar (a seller can't quietly strip a live
@@ -693,6 +717,40 @@ export async function updateListingCore(
   // (Scoped to the CURRENT subcategory's facets, even if this edit also changes it —
   // long-standing behavior, kept as-is.)
   Object.assign(data, clampRangeFacets(current.category.slug, current.subcategorySlug, body, { sparse: true }))
+
+  // A job edit that sends a `price` but no `salaryM` (an API client, a sync row, MCP update_listing) is
+  // stating the MONTHLY SALARY in đồng — read as one (taxonomy.ts salaryMFromPrice: whole millions,
+  // rounded down), exactly as the bulk CSV reads it on create, rather than dropped while the call
+  // reports success. An explicit salaryM always wins. Under 1,000,000 ₫ states no salary → null.
+  if (derivesSalaryPrice && data.salaryM === undefined && body.price !== undefined) {
+    data.salaryM = salaryMFromPrice(body.price, current.category.slug)
+  }
+
+  // ⚠️ THE UNIT FOLLOWS THE INTENT ACROSS THE JOB BOUNDARY. listingMoneyFor is otherwise never called
+  // on edit (it would re-stamp a vehicle rental's 'VND/day' to monthly), but a post switched INTO the
+  // job intent (Wanted → Job) kept its bare 'VND', so its derived salary printed without "/ month"; one
+  // switched OUT kept 'VND/month' on a budget. Only a crossing of the job boundary re-stamps it — the
+  // jobs category offers no 'rent', so no rental period can be touched here.
+  if (nextType !== current.listingType && !salaryPaid && paysSalary(current.listingType)) {
+    // OUT of the job intent: a Wanted post carries no salary, and a hiring-urgency run is not a sale's.
+    data.salaryM = null
+    if (current.urgentUntil && current.urgentUntil.getTime() > Date.now() && data.urgentUntil === undefined) data.urgentUntil = new Date()
+  }
+  if (nextType !== current.listingType && salaryPaid !== paysSalary(current.listingType)) {
+    data.priceUnit = listingMoneyFor({ categorySlug: current.category.slug, subcategorySlug: current.subcategorySlug, listingType: nextType }).priceUnit
+  }
+
+  // ⛔ A JOB'S PRICE IS ITS SALARY — re-derived from the salary it will have (this edit's, else the
+  // stored one) whenever an edit touches its pay (the salary, a `price` — read as the salary above,
+  // never stored as sent — or a switch INTO the job intent), so a client can never give a job a price
+  // of its own. The wizard sends the salary column on every save of a job (null when "Negotiable"), so
+  // a job it edits always comes out derived; an API edit of only the title leaves a pre-rule row's
+  // stated pay alone rather than zeroing it. Unchanged → not written.
+  if (derivesSalaryPrice && (data.salaryM !== undefined || body.price !== undefined || nextType !== current.listingType)) {
+    const salaryM = data.salaryM !== undefined ? (data.salaryM as number | null) : current.salaryM
+    const derived = salaryPriceFor(salaryM)
+    if (derived !== current.price) { data.price = derived; data.marketPosition = null }
+  }
 
   if (Object.keys(data).length === 0) return { ok: true }
 
@@ -807,7 +865,14 @@ export async function updateListingCore(
   // instantly. All rules in src/lib/price-drop.ts.
   let dropNotify: (() => Promise<void>) | null = null
   let dropAudit: { listingId: string; oldPrice: number; newPrice: number } | null = null
-  if (data.price !== undefined && (data.price as number) !== current.price) {
+  // ⛔ NOT ON A JOB. A changed salary is not a price drop: no "-20%" badge, no "price dropped"
+  // notification to the candidates who messaged, no PriceChange audit row. A badge a job row may still
+  // carry from before the salary rule is cleared instead.
+  if (salaryPaid && data.price !== undefined && (current.previousPrice != null || current.priceDropAt != null)) {
+    data.previousPrice = null
+    data.priceDropAt = null
+  }
+  if (!salaryPaid && data.price !== undefined && (data.price as number) !== current.price) {
     const effects = await priceChangeEffects(
       {
         id: listingId,
@@ -1000,9 +1065,10 @@ export async function createListingCore(input: {
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category
   // (else its primary type); subcategory falls back to keyword-suggest.
-  const allowedTypes = typesFor(categorySlug) as string[]
-  const reqType = String(body.listingType || '').trim()
-  const listingType = allowedTypes.includes(reqType) ? reqType : allowedTypes[0]
+  const listingType: string = resolveListingType(categorySlug, body.listingType)
+  // ⛔ A JOB IS PAID A SALARY (taxonomy.ts paysSalary): no offers, and its price is DERIVED from the
+  // salary facet below — a `price` the caller sent is at most read as that salary, never stored as sent.
+  const salaryPaid = paysSalary(listingType)
   // ⛔ A NEW listing can only take a POSTABLE subcategory (O-34, 2026-09-30): the marketplace edition
   // withholds `tickets-travel/visa-runs` from the picker, and a restored draft or a crafted request must
   // not get it past the server either. Editing an existing listing is a different path (updateListing).
@@ -1030,6 +1096,16 @@ export async function createListingCore(input: {
   // Structured numeric specs (range facets) → dedicated columns, each clamped to the
   // category's declared range (non-sparse: every declared column is read).
   const rangeData = clampRangeFacets(categorySlug, subcategorySlug, body, { sparse: false })
+  // A job sent with a `price` and no `salaryM` (an API client, MCP, a stale wizard tab) is stating the
+  // MONTHLY SALARY in đồng: read as one (taxonomy.ts salaryMFromPrice), the rule the bulk CSV and every
+  // edit apply. The wizard sends salaryM and no price, so it never reaches this.
+  if (salaryPaid && rangeData.salaryM === undefined && body.price !== undefined) {
+    const fromPrice = salaryMFromPrice(body.price, categorySlug)
+    if (fromPrice != null) rangeData.salaryM = fromPrice
+  }
+  // ⛔ THE STORED PRICE OF A JOB IS ITS SALARY (salaryM × 1,000,000 ₫/month, 0 when unstated) —
+  // never the caller's `price` as sent.
+  const storedPrice = salaryPaid ? salaryPriceFor(rangeData.salaryM) : price
 
   // Brand (product categories only): canonicalize + typo-dedupe into the catalogue,
   // growing it on first sight. Never blocks the post if resolution fails.
@@ -1079,14 +1155,14 @@ export async function createListingCore(input: {
     if (!attributes) return null
     try { return JSON.parse(attributes) as Record<string, string> } catch { return null }
   })()
-  const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price, images, attributes: dupFacets })
+  const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price: storedPrice, images, attributes: dupFacets })
   if (dup) throw new PublishBlockedError('duplicate_listing', dup.id)
 
   const listing = await db.listing.create({
     data: {
       title,
       description,
-      price,
+      price: storedPrice,
       priceUnit,
       currency: money.currency,
       // Default to negotiable when the caller omits it (matches the column default +
@@ -1099,7 +1175,9 @@ export async function createListingCore(input: {
       // renegotiation of scope, which the offer flow cannot express. This also has to beat
       // the urgent coupling below it: Urgent normally FORCES negotiable=true, so without
       // this ordering a service posted as urgent would come back negotiable anyway.
-      negotiable: fixedPriceOnly ? false : urgentOk ? true : body.negotiable === undefined ? true : Boolean(body.negotiable),
+      // ⛔ A JOB TAKES NO OFFERS, and its urgency ("Tuyển gấp") is a hiring deadline, not a promise
+      // to haggle — so for a job Urgent does NOT flip negotiable, and the salary flag wins first.
+      negotiable: fixedPriceOnly || salaryPaid ? false : urgentOk ? true : body.negotiable === undefined ? true : Boolean(body.negotiable),
       ...(urgentOk && !fixedPriceOnly ? { urgentUntil: new Date(Date.now() + URGENT.DURATION_MS) } : {}),
       location,
       district,
@@ -1142,6 +1220,9 @@ export async function createListingCore(input: {
       title: listing.title,
       price: listing.price,
       currency: listing.currency,
+      // A job's caption states its pay as a salary, not a sale price (syndicate.ts priceLine).
+      listingType: listing.listingType,
+      priceUnit: listing.priceUnit,
       location: listing.location,
       district: listing.district,
       image: images[0] || null,
@@ -1172,7 +1253,8 @@ export async function createListingCore(input: {
         // `money.isoCode` rather than a 'VND' literal: it is typed as the literal 'VND'
         // and comes from the same derivation as the stored row, so the reported value and
         // the stored one cannot drift apart.
-        customData: { content_ids: [listing.id], content_type: 'product', content_category: category.name, value: listing.price, currency: money.isoCode },
+        // A job's stored price is a SALARY — not a value this lead is worth, so it reports 0.
+        customData: { content_ids: [listing.id], content_type: 'product', content_category: category.name, value: salaryPaid ? 0 : listing.price, currency: money.isoCode },
       }),
     )
     after(() => reindexListing(listing.id)) // add the new live listing to AI search

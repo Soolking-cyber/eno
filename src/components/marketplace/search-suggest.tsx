@@ -371,7 +371,7 @@ export function SearchSuggest<T extends AnySuggestItem>({
                   <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     {/* `approxClassName="text-3xs"`: this price inherits 12px from the row, and
                         <Price>'s ≈ is a fixed 12px — without it the estimate is as large as the figure. */}
-                    <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} compact approxClassName="text-3xs" />
+                    <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.linked} compact approxClassName="text-3xs" />
                     <span className="truncate">· {l.location}</span>
                   </span>
                 </span>

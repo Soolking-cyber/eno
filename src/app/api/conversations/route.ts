@@ -15,7 +15,7 @@ import { maskEmailHandle } from '@/lib/utils'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
 import { threadKind } from '@/lib/thread-kind'
 import { getVisaShopSeller, isVisaShopListing } from '@/lib/visa-shop'
-import { VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
+import { VISA_SUBCATEGORY_SLUG, takesOffers, paysSalary } from '@/lib/taxonomy'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { startVisaDmFlow } from '@/lib/visa/dm-flow'
 
@@ -249,8 +249,13 @@ export const POST = route(
 
   // Fixed-price listing → no opening offer (UI hides it; this is the bypass/stale-tab
   // path). Reject and dock trust past a grace. Plain first messages are unaffected.
-  if (isOffer && !listing.negotiable) {
-    await recordFixedPriceOfferAttempt(profile.id)
+  // ⛔ …and never on a JOB, whatever its stored `negotiable` (taxonomy.ts takesOffers): a salary is not
+  // haggled through the offer flow, and a job row from before that rule may still say negotiable=true.
+  if (isOffer && !takesOffers(listing)) {
+    // ⚠️ DOCK ONLY A REAL FIXED-PRICE ATTEMPT. A job stored before the salary rule still says
+    // negotiable=true, and its PDP is ISR-cached for up to 30 days — so the offer slider the SITE showed
+    // the buyer can still be on screen. Refusing that offer is right; taking trust for it is not.
+    if (!listing.negotiable && !paysSalary(listing.listingType)) await recordFixedPriceOfferAttempt(profile.id)
     throw new ApiError('not_negotiable', 409)
   }
 

@@ -12,6 +12,7 @@ import { threadKind } from '@/lib/thread-kind'
 import { isSellerHiddenHere } from '@/lib/edition-scope'
 import { syncBadgeToProfile } from '@/lib/native-push'
 import { dayCoarse } from '@/lib/last-seen'
+import { takesOffers } from '@/lib/taxonomy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -308,7 +309,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     // ⛔ NULL ON A SUPPORT THREAD. Every consumer of this payload assumed a listing because every
     // conversation had one; support is the first that does not, and a fabricated placeholder would
     // have to be filtered out of the thread header, the offer bar and the review prompt separately.
-    listing: convo.listing ? { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, negotiable: convo.listing.negotiable, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null, status: convo.listing.status } : null,
+    listing: convo.listing ? { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, negotiable: takesOffers(convo.listing), listingType: convo.listing.listingType, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null, status: convo.listing.status } : null,
     // Buyer already reviewed this conversation → the thread UIs hide the review prompt.
     hasReviewed,
     // `locale` drives the live-translation toggle: the client offers it ONLY when the

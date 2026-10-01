@@ -6,8 +6,16 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { PostWizard, type ListingEditData } from '@/components/marketplace/post-wizard'
 import { safeParse, serializeCategoryBasic } from '@/lib/serialize'
-import { categoryHasBrand, isPostableCategory, NON_POSTING_CATEGORIES } from '@/lib/taxonomy'
+import { categoryHasBrand, isPostableCategory, NON_POSTING_CATEGORIES, paysSalary, salaryMFromPrice } from '@/lib/taxonomy'
 import { LISTING_REMOVED } from '@/lib/listing-removed'
+
+/** A pre-salary-rule job's monthly price as whole millions on the salary facet's scale, or null.
+ *  ⚠️ ROUNDED DOWN (salaryMFromPrice), never to the nearest: an untouched 12,500,000 ₫ job opened and
+ *  saved must not come out advertising 13 tr/tháng. The Salary line under the box shows the figure the
+ *  save will post, so the employer sees the 12 before saving. */
+function legacyJobSalaryM(l: { listingType: string; price: number; category: { slug: string } }): number | null {
+  return paysSalary(l.listingType) ? salaryMFromPrice(l.price, l.category.slug) : null
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +40,7 @@ export default async function EditListingPage({ params }: Props) {
         id: true, sellerId: true, title: true, description: true, price: true, negotiable: true, urgentUntil: true,
         categoryId: true, subcategorySlug: true, listingType: true, condition: true,
         brandSlug: true, model: true, attributes: true,
-        year: true, mileageKm: true, engineL: true, engineCc: true,
+        year: true, mileageKm: true, engineL: true, engineCc: true, areaM2: true, salaryM: true,
         district: true, city: true, lat: true, lng: true, images: true, video: true, status: true,
         category: { select: { slug: true } },
       },
@@ -72,6 +80,12 @@ export default async function EditListingPage({ params }: Props) {
     mileageKm: listing.mileageKm,
     engineL: listing.engineL,
     engineCc: listing.engineCc,
+    areaM2: listing.areaM2,
+    // ⛔ A JOB'S PAY IS ITS SALARY (taxonomy.ts paysSalary), and the wizard edits it through the salary
+    // slider. A job posted before that rule carried a typed monthly PRICE and often no salaryM — seed the
+    // slider from that price (whole millions, clamped to the facet's range) so the employer edits the
+    // pay their post already states instead of finding it blank and saving it away as "Negotiable".
+    salaryM: listing.salaryM ?? legacyJobSalaryM(listing),
     district: listing.district,
     city: listing.city,
     lat: listing.lat,

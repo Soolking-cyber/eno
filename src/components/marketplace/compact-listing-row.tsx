@@ -224,7 +224,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               sm nothing else on this line competes for the width (the place and the trust chip are
               sm-only here), so an ordinary price never wraps; from sm up it stays one line, as the
               note above requires. */}
-          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} compact dual="sm" unit={l.listingType === 'rent' ? true : 'sm'} className="text-base sm:shrink-0" />
+          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact dual="sm" unit={l.listingType === 'rent' ? true : 'sm'} className="text-base sm:shrink-0" />
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line
@@ -232,7 +232,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {l.urgent && (
             <Zap
               className={cn('h-3.5 w-3.5 shrink-0 fill-current text-foreground', offer !== null && 'hidden')}
-              aria-label={tr('Urgent', 'Bán gấp')}
+              aria-label={l.listingType === 'job' ? tr('Urgent hiring', 'Tuyển gấp') : tr('Urgent', 'Bán gấp')}
             />
           )}
           {l.prevPrice != null && dropPercent(l.prevPrice, l.price) && (

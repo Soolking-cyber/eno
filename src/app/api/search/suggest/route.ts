@@ -86,7 +86,7 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
    */
   const SUGGEST_SELECT = {
     ...RANK_SELECT,
-    price: true, currency: true, priceUnit: true, location: true, images: true, listingType: true,
+    price: true, currency: true, priceUnit: true, location: true, images: true, listingType: true, affiliateUrl: true,
   } as const
   const suggestFor = async (where: Prisma.ListingWhereInput, text: string) => {
     const query = parseSearchQuery(text)
@@ -172,6 +172,9 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
         // The display unit (price-unit.ts): Batdongsan/Rever's bare 'VND' reads 'VND/month'.
         currency: l.currency, priceUnit: displayPriceUnit(l.priceUnit, l.sellerId), location: l.location,
         image: typeof l.images[0] === 'string' ? l.images[0] : null, categorySlug: l.category.slug, listingType: l.listingType,
+        // A boolean, never the url: <Price> only needs to tell a linked job ("Salary: see details") from
+        // an employer's own one at 0 ("Salary: negotiable"), as serialize's isPartnerBooking does.
+        linked: Boolean(l.affiliateUrl),
       })),
       categories: categories.map((c) => ({ slug: c.slug, name: c.name, nameVi: c.nameVi })),
       brands: brands.map((b) => ({ slug: b.slug, name: b.name })),

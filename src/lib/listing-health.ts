@@ -378,7 +378,10 @@ export type ListingHealthFacts = {
  * enough, and this module has nothing to say about photos at all.
  */
 export function conversionPhotoTarget(categorySlug: string | null | undefined): number {
-  return minPhotosFor(categorySlug) === 1 ? 1 : HEALTH.GOOD_PHOTOS
+  // ⚠️ AND WHERE NO PHOTO IS NEEDED TO PUBLISH (jobs: minPhotosFor is 0), NONE IS ASKED FOR HERE —
+  // a target of 0 keeps both photo nudges silent for a job, which has nothing to photograph.
+  const floor = minPhotosFor(categorySlug)
+  return floor <= 1 ? floor : HEALTH.GOOD_PHOTOS
 }
 
 /**

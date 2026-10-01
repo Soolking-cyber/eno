@@ -15,12 +15,26 @@ import { cn } from '@/lib/utils'
 // thousands. Typing is NOT clamped/reformatted mid-keystroke (so "2025" or "2.5"
 // survive) — clamping happens on blur.
 export function RangeSpecInput({
-  range, value, onChange, className,
+  range, value, onChange, className, placeholder, unitLabel, label, parse,
 }: {
   range: RangeMeta
   value: number | null
   onChange: (v: number | null) => void
   className?: string
+  /** What an EMPTY box says. Defaults to "Any" — right for a spec, wrong for a job's salary, where
+   *  empty means "Negotiable" (the post wizard's salary section passes that). */
+  placeholder?: string
+  /** The unit as the viewer reads it, when the taxonomy's own (`range.unit`, e.g. 'tr/tháng') is
+   *  Vietnamese shorthand an English reader cannot parse. Display only — the value is unchanged. */
+  unitLabel?: string
+  /** The control's accessible name, when the caller has a better one than "Value (unit)". */
+  label?: string
+  /** Reads the TYPED text into a value on the range's scale (null = empty), in place of the default
+   *  digits-only read. For a field people type in more than one way: a job's salary, where "8,5",
+   *  "8.000.000" and "15tr" all mean a number of millions (taxonomy.ts parseSalaryInput) and the
+   *  default turned them into 85 and 100. The box keeps the raw text while focused; the result is
+   *  rounded and clamped on blur exactly like a typed spec. */
+  parse?: (raw: string) => number | null
 }) {
   const { lang, tr } = useLanguage()
   const decimals = range.step < 1 ? 1 : 0
@@ -62,6 +76,15 @@ export function RangeSpecInput({
   useEffect(() => { if (!focused.current) setText(value == null ? '' : display(value)) }, [value, lang])
 
   const onType = (raw: string) => {
+    if (parse) {
+      // The caller's reader sees what was typed, separators and all; a box nobody can read as a number
+      // ("abc") is an empty value, as in the digits-only path below.
+      const t = raw.slice(0, 24)
+      setText(t)
+      const p = parse(t)
+      onChange(p == null ? null : round(p))
+      return
+    }
     const cleaned = clean(raw)
     setText(cleaned)
     if (cleaned === '' || cleaned === '.') { onChange(null); return }
@@ -70,9 +93,9 @@ export function RangeSpecInput({
   }
   const onBlur = () => {
     focused.current = false
-    if (text === '' || text === '.') { onChange(null); setText(''); return }
+    if (text.trim() === '' || text === '.') { onChange(null); setText(''); return }
     const cleaned = clean(text)
-    const n = cleaned === '' ? NaN : Number(cleaned)
+    const n = parse ? (parse(text) ?? NaN) : cleaned === '' ? NaN : Number(cleaned)
     if (!Number.isFinite(n)) { setText(value == null ? '' : display(value)); return }
     const c = round(clamp(n))
     onChange(c)
@@ -82,7 +105,8 @@ export function RangeSpecInput({
   const slider = value == null ? range.min : clamp(value)
   // The facet's own label lives on the caller's heading, not in RangeMeta — so the
   // control names itself by its unit ("Value (km)"), which is at least a real name.
-  const name = range.unit ? `${tr('Value', 'Giá trị')} (${range.unit})` : tr('Value', 'Giá trị')
+  const unitShown = unitLabel ?? range.unit
+  const name = label ?? (unitShown ? `${tr('Value', 'Giá trị')} (${unitShown})` : tr('Value', 'Giá trị'))
 
   return (
     <div className={cn('space-y-2.5', className)}>
@@ -91,16 +115,17 @@ export function RangeSpecInput({
           <Input
             variant="unstyled"
             type="text"
-            inputMode={decimals > 0 ? 'decimal' : 'numeric'}
+            // A caller-parsed box takes separators ("8,5", "8.000.000"), which iOS's numeric pad cannot type.
+            inputMode={decimals > 0 || parse ? 'decimal' : 'numeric'}
             value={text}
             onFocus={() => { focused.current = true }}
             onChange={(e) => onType(e.target.value)}
             onBlur={onBlur}
             aria-label={name}
-            placeholder={tr('Any', 'Bất kỳ')}
+            placeholder={placeholder ?? tr('Any', 'Bất kỳ')}
             className="w-20"
           />
-          {range.unit && <span className="shrink-0 text-ink-4">{range.unit}</span>}
+          {unitShown && <span className="shrink-0 text-ink-4">{unitShown}</span>}
         </span>
         {value != null && (
           <Button

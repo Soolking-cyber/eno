@@ -115,12 +115,25 @@ describe('createListingCore — stamps ₫, and can stamp nothing else', () => {
 describe('updateListingCore — never touches the currency', () => {
   const update = bodyOf('updateListingCore')
 
-  it('writes neither `currency` nor `priceUnit` on an edit', () => {
+  it('never writes `currency` on an edit', () => {
     // An edit re-stamping the currency was exactly the reverted rule. The update path's
-    // `data` object is what reaches prisma; it must never gain either key.
+    // `data` object is what reaches prisma; it must never gain the key.
     expect(update).not.toMatch(/data\.currency/)
-    expect(update).not.toMatch(/data\.priceUnit/)
     expect(update).not.toMatch(/^\s*currency:/m)
+  })
+
+  it('writes `priceUnit` ONLY when the intent crosses the job boundary, and only from listingMoneyFor', () => {
+    // ⚠️ The unit is otherwise never re-stamped on edit: a vehicle rental's stored 'VND/day' must not
+    // come back monthly from a later save (taxonomy.ts listingMoneyFor). The one exception (review,
+    // 2026-10-01): a post switched into a JOB (Wanted → Job) kept its bare 'VND', so its salary printed
+    // without "/ month" — that switch re-stamps it, and the reverse takes it back. The jobs category
+    // offers no 'rent', so no rental period is reachable from this guard.
+    const writes = update.match(/data\.priceUnit\s*=/g) ?? []
+    expect(writes).toHaveLength(1)
+    const at = update.indexOf('data.priceUnit =')
+    const guard = update.lastIndexOf('if (', at)
+    expect(update.slice(guard, at)).toMatch(/^if \(nextType !== current\.listingType && salaryPaid !== paysSalary\(current\.listingType\)\) \{\s*$/)
+    expect(update.slice(at, update.indexOf('\n', at))).toMatch(/= listingMoneyFor\(\{[^}]*listingType: nextType \}\)\.priceUnit$/)
     expect(update).not.toMatch(/^\s*priceUnit:/m)
   })
 

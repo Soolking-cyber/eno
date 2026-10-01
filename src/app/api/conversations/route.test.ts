@@ -39,6 +39,8 @@ const h = vi.hoisted(() => ({
     // Conversation ids holding a PENDING offer. A thread with a live offer must not be
     // retargeted to another listing — an offer is bound to the conversation, not the listing.
     offerThreads: [] as string[],
+    // Buyers docked by the fixed-price offer guard (recordFixedPriceOfferAttempt).
+    docked: [] as string[],
   },
 }))
 
@@ -155,7 +157,7 @@ vi.mock('@/lib/admin', () => ({
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: () => Promise.resolve({ success: h.state.rateOk }) }))
 vi.mock('@/lib/enforcement', () => ({ conversationGate: () => Promise.resolve(h.state.gate) }))
 vi.mock('@/lib/push', () => ({ sendPushToProfile: () => Promise.resolve() }))
-vi.mock('@/lib/offer-guard', () => ({ recordFixedPriceOfferAttempt: () => Promise.resolve() }))
+vi.mock('@/lib/offer-guard', () => ({ recordFixedPriceOfferAttempt: (id: string) => { h.state.docked.push(id); return Promise.resolve() } }))
 vi.mock('@/lib/messages', () => ({
   insertMessage: (conv: Row, senderId: string, body: string, opts?: Row) => {
     h.state.delivered.push({ conversationId: conv.id, listingId: conv.listingId, senderId, body, ...opts })
@@ -218,6 +220,7 @@ beforeEach(() => {
   h.state.delivered = []
   h.state.seq = 0
   h.state.raceLosesThenVanishes = false
+  h.state.docked = []
   h.state.listings = {
     [TRIP_ANCHOR]: listing(TRIP_ANCHOR, SELLER),
     [VISA_PRODUCT]: listing(VISA_PRODUCT, SELLER),
@@ -355,5 +358,26 @@ describe('the create race: the constraint fires for a thread that is already gon
     expect(json.created).toBe(true)
     expect(h.state.delivered).toEqual([expect.objectContaining({ body: 'hi' })])
     expect(h.state.convos).toHaveLength(1)
+  })
+})
+
+describe('an opening OFFER on a listing that takes none', () => {
+  it('a fixed-price listing refuses it AND docks the buyer, as before', async () => {
+    h.state.listings[SHOP_A] = listing(SHOP_A, OTHER_SELLER, { negotiable: false, listingType: 'sell', seller: { ownerId: 'shop-owner' } })
+    const { status, json } = await post({ listingId: SHOP_A, offerAmount: 1_000_000 })
+    expect(status).toBe(409)
+    expect(json.error).toBe('not_negotiable')
+    expect(h.state.docked).toEqual([BUYER])
+  })
+
+  it('a JOB refuses it but does NOT dock the buyer when its stored row still says negotiable', async () => {
+    // A job stored before the salary rule (negotiable=true) behind a PDP cached for up to 30 days still
+    // shows the offer slider — the site offered it, so the buyer is not penalised for using it.
+    h.state.listings[SHOP_A] = listing(SHOP_A, OTHER_SELLER, { negotiable: true, listingType: 'job', seller: { ownerId: 'shop-owner' } })
+    const { status, json } = await post({ listingId: SHOP_A, offerAmount: 1_000_000 })
+    expect(status).toBe(409)
+    expect(json.error).toBe('not_negotiable')
+    expect(h.state.docked).toEqual([])
+    expect(h.state.convos).toHaveLength(0)
   })
 })

@@ -1152,7 +1152,10 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'remote', label: 'Remote', labelVi: 'Từ xa' },
         { value: 'hybrid', label: 'Hybrid', labelVi: 'Kết hợp' },
       ] },
-      { key: 'english', label: 'English', labelVi: 'Tiếng Anh', options: [
+      // ⚠️ OPTIONAL — IT HAS ONE OPTION. As a required facet the only way to publish a job was to
+      // tick "English: Required", so a role that needs no English could not be posted without
+      // claiming it did (found while tailoring the job post, 2026-10-01). Untouched = not required.
+      { key: 'english', label: 'English', labelVi: 'Tiếng Anh', optional: true, options: [
         { value: 'required', label: 'Required', labelVi: 'Yêu cầu' },
       ] },
     ],
@@ -1622,8 +1625,10 @@ export function listingMoneyFor(input: {
    * it (scripts/import-vehicle-rentals.ts): a self-drive car is priced per DAY, and storing that
    * figure as 'VND/month' would print "850,000 đ / month" on a car that costs that per day.
    * ⚠️ IGNORED for every listingType but 'rent' — a job's unit is its own business (job-listing.ts).
-   * ⚠️ THE EDIT PATH NEVER CALLS THIS (core/listings.ts writes no priceUnit on edit), so a stored
-   * 'VND/day' cannot be re-stamped to monthly by a later save. Keep it that way, or persist the period.
+   * ⚠️ THE EDIT PATH CALLS THIS ONLY WHEN THE INTENT CROSSES THE JOB BOUNDARY (core/listings.ts
+   * updateListingCore — Wanted → Job takes 'VND/month', Job → Wanted takes 'VND'; the jobs category
+   * offers no 'rent'), so a stored 'VND/day' cannot be re-stamped to monthly by a later save. Keep it
+   * that way, or persist the period. (listings.currency.test.ts holds the guard.)
    */
   rentalPeriod?: RentalPeriod | null
 }): ListingMoney {
@@ -1638,6 +1643,112 @@ export function listingMoneyFor(input: {
       : t === 'job' || t === 'teacher' ? 'VND/month' : t === 'service' ? 'VND/service' : 'VND',
     isoCode: 'VND',
   }
+}
+
+// ── Pay: a JOB is paid a SALARY, it is not priced (owner, 2026-10-01) ───────────────────────
+// "when posting a job we have price — if job selected it should be salary and urgent hire etc."
+// The post wizard asked an employer for a price (×1,000 chips, Negotiable / Fixed price) next to
+// the jobs Salary facet, and the price was what every card, map pin and PDP then printed.
+//
+// ⛔ THE SALARY FACET (`salaryM`, million ₫ / month) IS A JOB'S ONLY PAY INPUT, AND `price` IS
+// DERIVED FROM IT ON THE SERVER — create AND edit, web wizard, /api/v1, MCP, bulk, sync. A client's
+// `price` on a job is never stored as sent: when the call carries no `salaryM`, the price is READ AS
+// THE MONTHLY SALARY in đồng (`salaryMFromPrice`: whole millions, rounded DOWN, clamped) — one rule on
+// every path, the one the bulk CSV (which has no salary column) always needed — and the stored price
+// is then derived from that salary like any other. `price` is kept (rather than zeroed) because that is
+// exactly how a LINKED job that states one monthly figure is stored (job-listing.ts `parseJobPay`:
+// price = the amount, salaryM = the amount in millions), so a user-posted job reads on every card,
+// map popup, compact row and PDP headline the same way an imported one does — "45,000,000 đ /
+// month" — through the code those surfaces already run. No salary → price 0 → <Price>'s "Salary:
+// negotiable" (an employer's own job: `linked={false}`, the words the wizard's preview and the PDP use),
+// while a LINKED job at 0 keeps "Salary: see details" (its pay is stated on the original posting).
+// ⛔ AND A JOB TAKES NO OFFERS: `takesOffers()` below is false for one whatever the stored
+// `negotiable` says — a salary is not haggled through the offer slider, and a job row written
+// before this rule (negotiable defaulted to true) must not keep the Counter button.
+// ⚠️ 'job' ONLY, NOT THE WHOLE JOBS CATEGORY: a `wanted` post there keeps its own flow (a budget,
+// fixed, no urgency — see the wizard). Only the jobs category offers the 'job' intent.
+
+/** True when a listing of this intent is paid a salary (`salaryM`) instead of carrying a price. */
+export function paysSalary(listingType: string | null | undefined): boolean {
+  return listingType === 'job'
+}
+
+/** The stored `price` of a salary-paid listing: salaryM × 1,000,000 ₫ (per month), 0 when unstated. */
+export function salaryPriceFor(salaryM: number | null | undefined): number {
+  return typeof salaryM === 'number' && Number.isFinite(salaryM) && salaryM > 0 ? Math.round(salaryM) * 1_000_000 : 0
+}
+
+/** The Salary facet's range for a category ({min 0, max 100, step 1} for jobs), or undefined. */
+function salaryRangeFor(categorySlug: string): RangeMeta | undefined {
+  return rangeFacetsFor(categorySlug).find((f) => f.range.column === 'salaryM')?.range
+}
+
+/**
+ * A job's salary (`salaryM`, whole millions ₫ / month) read from a đồng AMOUNT — the `price` an API
+ * client, a bulk/sync row or a pre-salary-rule job carries. null when it states no monthly salary
+ * (not a number, or under 1,000,000 ₫).
+ * ⚠️ ROUNDED DOWN, NEVER TO THE NEAREST: the facet holds whole millions, and a 12,500,000 ₫ job that
+ * came out as 13 tr/tháng would advertise pay the employer never offered (review, 2026-10-01). The
+ * imported jobs floor the same way (job-listing.ts parseJobPay).
+ */
+export function salaryMFromPrice(price: unknown, categorySlug = 'jobs'): number | null {
+  const n = typeof price === 'number' ? price : typeof price === 'string' && price.trim() !== '' ? Number(price) : NaN
+  if (!Number.isFinite(n) || n < 1_000_000) return null
+  const r = salaryRangeFor(categorySlug)
+  const m = Math.floor(n / 1_000_000)
+  return r ? Math.min(Math.max(m, r.min), r.max) : m
+}
+
+/**
+ * What an employer TYPED in the post wizard's Salary box ("million ₫ / month"), as whole millions —
+ * or null for an empty box. UNCLAMPED (the box clamps on blur, like every range spec).
+ *
+ * ⛔ THE GENERIC SPEC BOX STRIPS EVERY NON-DIGIT, AND ON A SALARY THAT IS A WRONG PAY, NOT A TYPO:
+ * "8.5" and "8,5" became 85 (85,000,000 đ / month), and the full amount "8.000.000" became 8000000,
+ * clamped to 100 tr. People write pay all of those ways (review, 2026-10-01), so this reads them:
+ *   · only the FIRST number counts — "10-15", "15tr", "8 000 000" give 10, 15, 8;
+ *   · "." / "," followed by groups of exactly three digits is a thousands separator ("8.000.000",
+ *     "8,000,000"); any other single "." or "," is a decimal point ("8.5", "8,5");
+ *   · a figure past the box's scale is an amount, not millions: ≥ 1,000,000 is đồng ("8000000" → 8);
+ *     1,000–999,999 is thousands of đồng when that lands in range ("8000", "8.000" → 8 — the "k" way
+ *     of writing pay), else đồng (500000 → 0, never 100 tr);
+ *   · fractions round DOWN to whole millions ("8.5" → 8), for the reason `salaryMFromPrice` gives.
+ * The line under the box prints the result as it will be posted, so whatever this decides is seen.
+ */
+export function parseSalaryInput(raw: string, max = 100): number | null {
+  const token = raw.match(/\d[\d.,]*/)?.[0]
+  if (!token) return null
+  const t = token.replace(/[.,]+$/, '')
+  let n: number
+  if (/^\d{1,3}([.,]\d{3})+$/.test(t)) n = Number(t.replace(/[.,]/g, ''))
+  else {
+    const seps = t.match(/[.,]/g) ?? []
+    if (seps.length === 0) n = Number(t)
+    else {
+      // Several separators that are not clean thousands groups: the LAST is the decimal point.
+      const i = Math.max(t.lastIndexOf('.'), t.lastIndexOf(','))
+      n = Number(`${t.slice(0, i).replace(/[.,]/g, '')}.${t.slice(i + 1)}`)
+    }
+  }
+  if (!Number.isFinite(n)) return null
+  if (n >= 1_000_000) n = n / 1_000_000
+  else if (n >= 1000) n = n / 1000 <= max ? n / 1000 : n / 1_000_000
+  return Math.floor(n)
+}
+
+/** Whether a buyer may send an OFFER on this listing: its own `negotiable`, and never on a job. */
+export function takesOffers(l: { negotiable: boolean; listingType?: string | null }): boolean {
+  return l.negotiable && !paysSalary(l.listingType)
+}
+
+/**
+ * The intent a NEW listing is stored with — the one rule createListingCore applies, exported so
+ * a route can tell a salary-paid post (no price to validate) before it reaches the core.
+ */
+export function resolveListingType(categorySlug: string, requested: unknown): ListingType {
+  const allowed = typesFor(categorySlug)
+  const req = String(requested ?? '').trim()
+  return (allowed as string[]).includes(req) ? (req as ListingType) : allowed[0]
 }
 
 /** The `rentalPeriod` facet values a rent price can be quoted per (taxonomy: rentals › Rental period).

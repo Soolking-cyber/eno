@@ -137,7 +137,7 @@ export function SeoListingGrid({
             </div>
             {/* Same shape as <ListingCard>: price → one-line title → location (owner, 2026-09-13). */}
             <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2">
-              <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} className="text-base leading-tight sm:text-lg" />
+              <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} className="text-base leading-tight sm:text-lg" />
               <span className="truncate text-sm leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">{l.title}</span>
               <span className="truncate text-xs text-muted-foreground">{l.location}</span>
             </div>

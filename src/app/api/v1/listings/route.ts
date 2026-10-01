@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { containsPhoneNumber } from '@/lib/phone'
 import { createListingCore } from '@/lib/core/listings'
+import { paysSalary, resolveListingType } from '@/lib/taxonomy'
 import { postingGate } from '@/lib/enforcement'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
@@ -51,7 +52,9 @@ export async function POST(req: NextRequest) {
 
     const categorySlug = String(body.categorySlug || '').trim()
     const title = String(body.title || '').trim().slice(0, 140)
-    const price = Number(body.price)
+    // A job is paid a salary (`salaryM`, million ₫ / month): its price is derived from that and any
+    // `price` sent is ignored, so none is required (taxonomy.ts paysSalary).
+    const price = paysSalary(resolveListingType(categorySlug, body.listingType)) ? 0 : Number(body.price)
     if (!categorySlug || title.length < 3 || !Number.isFinite(price) || price < 0 || price > 1e12) {
       return { status: 422, body: { error: { code: 'invalid_input', message: 'categorySlug, a title (≥3 chars) and a valid price are required.' } } }
     }

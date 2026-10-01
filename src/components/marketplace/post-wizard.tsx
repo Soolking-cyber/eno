@@ -32,12 +32,13 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { postableSubcategoriesFor, isPostableSubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES } from '@/lib/taxonomy'
+import { postableSubcategoriesFor, isPostableSubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor } from '@/lib/taxonomy'
 import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
 import { PublishButton, PublishLabel, Section, Field, Chips, Preview } from './post-wizard-parts'
-import { MediaSection, PriceSection, LocationSection, ContactSection, PostSuccess } from './post-wizard-sections'
+import { MediaSection, PriceSection, SalarySection, LocationSection, ContactSection, PostSuccess } from './post-wizard-sections'
 import { publishSteps } from './post-wizard-steps'
+import { rangeColumnsPayload } from './post-wizard-payload'
 import { categoryChangeLosesAnswers, categoryChangeReset } from './post-wizard-category'
 import { postCopyFor } from '@/lib/post-copy'
 import { clearDraftPhotos, draftPhotosEpoch, loadDraftPhotos, saveDraftPhotos } from '@/lib/post-draft-photos'
@@ -84,6 +85,11 @@ export type ListingEditData = {
   mileageKm: number | null
   engineL: number | null
   engineCc: number | null
+  // ⚠️ EVERY RANGE COLUMN (taxonomy RANGE_COLUMNS) BELONGS HERE: initRangesFromEdit seeds the sliders
+  // from these keys, so a column missing from this type opened its edit slider EMPTY — a job's salary
+  // read "Negotiable" on the edit screen of a job that states 45 tr/tháng.
+  areaM2: number | null
+  salaryM: number | null
   district: string | null
   city: string | null
   lat: number | null
@@ -570,7 +576,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const hasCondition = catFacets.some((f) => f.key === 'condition')
   const attrFacets = catFacets.filter((f) => f.key !== 'condition')
   const showBrand = categoryHasBrand(categorySlug)
-  const orderedFacets = [...attrFacets].sort((a, b) => Number(!isRequiredFacet(a)) - Number(!isRequiredFacet(b)))
+  // ⛔ A JOB IS PAID A SALARY, NOT PRICED (owner, 2026-10-01; taxonomy.ts paysSalary). Its Salary
+  // facet leaves Specifics and becomes the pay section in Price's place; there is no price, no
+  // ×1,000 chips and no Negotiable/Fixed, the server derives the stored price from the salary and
+  // ignores any other, and the copy speaks to candidates, not buyers.
+  const salaryPaid = paysSalary(listingType)
+  const salaryFacet = salaryPaid ? rangeFacetsFor(categorySlug, subcategorySlug).find((f) => f.range.column === 'salaryM') : undefined
+  const salary = salaryFacet ? ranges[salaryFacet.key] ?? null : null
+  const salaryAmount = salaryPriceFor(salary)
+  const orderedFacets = [...attrFacets].filter((f) => f !== salaryFacet).sort((a, b) => Number(!isRequiredFacet(a)) - Number(!isRequiredFacet(b)))
 
   // Sale-vs-rent quick switch for rentable items (Vehicles/Property ↔ Rentals). AI
   // defaults rentable items to a sale category; one tap flips the WHOLE category to
@@ -695,7 +709,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // read a template literal — writing `t(\`Add ${minPhotos} photos\`)` silently dropped
     // "Add 3 photos" from the batch and turned CI red. minPhotos is only ever
     // 1 or MIN_IMAGE_ANGLES (3), so two literal branches cover it exactly.
-    { key: 'photo', ok: photos.length >= minPhotos, label: minPhotos === 1 ? t('Thêm 1 ảnh', 'Add 1 photo') : t('Thêm 3 ảnh', 'Add 3 photos') },
+    // A photo-optional category (jobs: minPhotos 0) has no photo row at all — "Add 0 photos" is not a step.
+    ...(minPhotos > 0 ? [{ key: 'photo', ok: photos.length >= minPhotos, label: minPhotos === 1 ? t('Thêm 1 ảnh', 'Add 1 photo') : t('Thêm 3 ảnh', 'Add 3 photos') }] : []),
     { key: 'category', ok: !!categorySlug, label: t('Chọn danh mục', 'Pick a category') },
     { key: 'title', ok: title.trim().length >= 3, label: t('Nhập tiêu đề', 'Add a title') },
     // Details are REQUIRED (user decision 2026-07-14): listings without a real
@@ -711,7 +726,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     ...(attrFacets.some(isRequiredFacet)
       ? [{ key: 'details', ok: attrFacets.filter(isRequiredFacet).every((f) => !!attrs[f.key]), label: t('Điền thông số', 'Fill in the specifics') }]
       : []),
-    { key: 'price', ok: price.trim().length > 0, label: t('Nhập giá', 'Set a price') },
+    // A job has no price to set — its pay is the optional salary (see salaryPaid).
+    ...(salaryPaid ? [] : [{ key: 'price', ok: price.trim().length > 0, label: t('Nhập giá', 'Set a price') }]),
     { key: 'location', ok: hasLocation, label: t('Chọn khu vực', 'Set the area') },
     // Guests (draft-first posting): contact comes from the account AFTER the
     // sign-in that submit() triggers — don't block the button on it here.
@@ -759,7 +775,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // The 20-char minimum BLOCKS publish (see `checks`) but used to render no message at
     // all — the seller was bounced by a rule the form never stated.
     description: (touched.description || attempted) && description.trim().length < 20,
-    price: (touched.price || attempted) && price.trim().length === 0,
+    price: !salaryPaid && (touched.price || attempted) && price.trim().length === 0,
     // Condition + specifics BLOCK publish (see `checks`) — flag them red on a failed
     // attempt like every other required field, not silently.
     condition: attempted && hasCondition && !condition,
@@ -777,6 +793,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     ? (description.trim().length === 0 ? t('Hãy viết mô tả — ít nhất 20 ký tự', 'Add a description — at least 20 characters') : t('Mô tả cần tối thiểu 20 ký tự', 'Description needs at least 20 characters'))
     : undefined
   const priceErr = err.price ? t('Hãy nhập giá', 'Set a price') : undefined
+  // The client check and the server's code say the same thing — and on a job, candidates write in.
+  const contactInTextMsg = salaryPaid
+    ? t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — ứng viên sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', 'Do not put a phone number, email, link or street address in your job post — candidates message you in the app. Remove it to post.')
+    : t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post.")
   // Jump to (and focus) the first still-missing field when a publish attempt fails.
   /**
    * Jump to ONE named field. Extracted from scrollToMissing so the mobile "still needed" list can
@@ -867,7 +887,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     const listingText = `${title} ${description}`
     if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsContactInfo(listingText)) {
       countAttempt('client_contact_in_text')
-      setError(t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post."))
+      setError(contactInTextMsg)
       return
     }
     const blob = `${title} ${description} ${contactName}`
@@ -905,16 +925,20 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         subcategorySlug: subcategorySlug || null,
         listingType,
         attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),
-        // Precise numeric specs → dedicated columns (year/mileageKm/engineL).
-        ...Object.fromEntries(
-          rangeFacetsFor(categorySlug, subcategorySlug)
-            .filter((f) => ranges[f.key] != null)
-            .map((f) => [f.range.column, ranges[f.key]]),
+        // Precise numeric specs → dedicated columns (year/mileageKm/engineL/salaryM). A spec cleared on
+        // an edit is sent as null, and a JOB'S SALARY is sent on every edit — the rules and why are in
+        // post-wizard-payload.ts.
+        ...rangeColumnsPayload(
+          rangeFacetsFor(categorySlug, subcategorySlug),
+          ranges,
+          edit as unknown as Record<string, unknown> | undefined,
+          salaryFacet?.range.column,
         ),
         title: title.trim(),
         description: description.trim(),
-        price: Number(price),
-        negotiable,
+        // ⛔ NO PRICE ON A JOB: the server derives it from salaryM and would ignore one anyway (paysSalary).
+        ...(salaryPaid ? {} : { price: Number(price) }),
+        negotiable: salaryPaid ? false : negotiable,
         urgent,
         district: district || null,
         city: province?.name || null,
@@ -942,7 +966,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         return
       }
       const created = (await res.json().catch(() => ({}))) as { id?: string }
-      trackPostListing({ id: created.id, title: title.trim(), price: Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
+      // A job's salary is not a sale value — the post event carries 0 for one (as the server's CAPI Lead does).
+      trackPostListing({ id: created.id, title: title.trim(), price: salaryPaid ? 0 : Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
       try { localStorage.removeItem('eno-listing-draft') } catch {}
       void clearDraftPhotos()
       // First-ever publish gets a distinct celebration moment on the success
@@ -1002,17 +1027,27 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           : msg === 'contact_in_name'
           ? t('Tên liên hệ của bạn không được là email hay số điện thoại. Hãy đổi tên hiển thị trong Cài đặt rồi đăng lại.', "Your contact name can't be an email address or phone number. Change your display name in Settings, then post again.")
           : msg === 'no_phone_in_listing' || msg === 'contact_in_text'
-          ? t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post.")
+          ? contactInTextMsg
           : msg === 'banned_words'
           ? t('Tin của bạn có từ ngữ không được phép. Vui lòng chỉnh sửa rồi đăng lại.', "Your listing contains a word that isn't allowed. Please edit it and try again.")
+          // The urgent quota is ONE pool per seller across sales and jobs (src/lib/urgent.ts), so a job's
+          // copy names its own chip ("Tuyển gấp") while counting the same two slots.
           : msg === 'urgent_quota'
-          ? t('Bạn đã có 2 tin "Bán gấp" đang chạy — chờ một tin hết hạn rồi thử lại.', 'You already have 2 urgent listings running — wait for one to expire and try again.')
+          ? (salaryPaid
+              ? t('Bạn đã có 2 tin gấp ("Tuyển gấp" hoặc "Bán gấp") đang chạy — chờ một tin hết hạn rồi thử lại.', 'You already have 2 urgent listings running (urgent hiring or urgent sale) — wait for one to expire and try again.')
+              : t('Bạn đã có 2 tin "Bán gấp" đang chạy — chờ một tin hết hạn rồi thử lại.', 'You already have 2 urgent listings running — wait for one to expire and try again.'))
           : msg === 'urgent_cooldown'
-          ? t('Tin này vừa hết hạn "Bán gấp" — có thể bật lại sau 7 ngày.', 'This listing just finished an urgent run — you can turn it on again after 7 days.')
+          ? (salaryPaid
+              ? t('Tin này vừa hết hạn "Tuyển gấp" — có thể bật lại sau 7 ngày.', 'This job just finished an urgent-hiring run — you can turn it on again after 7 days.')
+              : t('Tin này vừa hết hạn "Bán gấp" — có thể bật lại sau 7 ngày.', 'This listing just finished an urgent run — you can turn it on again after 7 days.'))
           : msg === 'duplicate_listing'
-          ? t('Bạn đã có tin đang hiển thị cho sản phẩm này. Vào Tin đăng để chỉnh sửa hoặc xác nhận còn hàng thay vì đăng lại.', "You already have a live listing for this item. Open My Listings to edit it or confirm it's still available instead of posting it again.")
+          ? (salaryPaid
+              ? t('Bạn đã có tin tuyển dụng đang hiển thị cho vị trí này. Vào Tin đăng để chỉnh sửa thay vì đăng lại.', 'You already have a live post for this job. Open My Listings to edit it instead of posting it again.')
+              : t('Bạn đã có tin đang hiển thị cho sản phẩm này. Vào Tin đăng để chỉnh sửa hoặc xác nhận còn hàng thay vì đăng lại.', "You already have a live listing for this item. Open My Listings to edit it or confirm it's still available instead of posting it again."))
           : msg === 'location_required'
-          ? t('Hãy chọn vị trí cho tin đăng — người mua cần biết món đồ ở đâu.', 'Pick a location for your listing — buyers need to know where the item is.')
+          ? (salaryPaid
+              ? t('Hãy chọn vị trí cho tin tuyển dụng — ứng viên cần biết nơi làm việc.', 'Pick a location for your job — candidates need to know where the work is.')
+              : t('Hãy chọn vị trí cho tin đăng — người mua cần biết món đồ ở đâu.', 'Pick a location for your listing — buyers need to know where the item is.'))
           : msg === 'photo_required'
           ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
           : msg === 'photos_min'
@@ -1058,7 +1093,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }
 
   if (submitted) {
-    return <PostSuccess firstListing={firstListing} createdId={createdId} title={title} price={price} t={t} />
+    return <PostSuccess firstListing={firstListing} createdId={createdId} title={title} price={salaryPaid ? '' : price} job={salaryPaid} t={t} />
   }
 
   const publishButtonProps = {
@@ -1122,7 +1157,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           <MediaSection media={media} errPhoto={err.photo} minPhotos={minPhotos} aiEnabled={aiEnabled} aiBusy={aiBusy} autofillFromPhoto={autofillFromPhoto} isGuest={isGuest} t={t} />
 
           {/* Category & type */}
-          <Section id="pw-category" title={t('Danh mục', 'Category')} hint={t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
+          <Section id="pw-category" title={t('Danh mục', 'Category')} hint={salaryPaid ? t('Chọn đúng danh mục để ứng viên dễ tìm thấy.', 'Pick the right category so candidates find you.') : t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
             {showRentToggle && (
               <Field group label={t('Bán hay cho thuê?', 'For sale or for rent?')}>
                 {/* Single-select and mutually exclusive = a radio group, not two buttons that
@@ -1371,7 +1406,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             {/* `className="max-w-2xl"` caps the label row to the control's width, so the counter ends
                 at the field's right edge. aria-required, NOT the native `required` attribute: native
                 would light up :invalid styling on a pristine form, and this form validates in state. */}
-            <Field label={t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`} error={titleErr} className="max-w-2xl">
+            <Field label={salaryPaid ? t('Chức danh', 'Job title') : t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`} error={titleErr} className="max-w-2xl">
               {/* `id` goes on the CONTROL, not the wrapper: scrollToMissing() does
                   getElementById('pw-title').focus() and that focus() is guarded by
                   `instanceof HTMLInputElement` — on a wrapper <div> it silently no-ops.
@@ -1442,7 +1477,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     onBlur={() => touch('description')}
                     aria-required
                     rows={5}
-                    placeholder={t('Mô tả chi tiết…', 'Describe it in detail…')}
+                    placeholder={salaryPaid ? t('Mô tả công việc, yêu cầu và quyền lợi…', 'Describe the role, requirements and benefits…') : t('Mô tả chi tiết…', 'Describe it in detail…')}
                     // `relative` so the field keeps its OWN taps: the "Polish with AI" button in the
                     // label row carries tap-44, whose hit area reaches ~4px past the 6px gap into this
                     // box, and a positioned pseudo paints (and hit-tests) above an unpositioned sibling.
@@ -1479,7 +1514,18 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             </Section>
           )}
 
-          {/* Price — moved verbatim to post-wizard-sections.tsx */}
+          {/* Pay. A JOB gets its Salary section here and NO Price section at all (see salaryPaid);
+              everything else keeps Price — moved verbatim to post-wizard-sections.tsx. */}
+          {salaryPaid ? (
+            salaryFacet && <SalarySection
+              range={salaryFacet.range}
+              salary={salary}
+              setSalary={(v) => setRanges((prev) => ({ ...prev, [salaryFacet.key]: v }))}
+              urgent={urgent}
+              setUrgent={setUrgent}
+              t={t}
+            />
+          ) : (
           <PriceSection
             price={price}
             setPrice={setPrice}
@@ -1512,6 +1558,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             maxFactor={!categorySlug || categorySlug === 'vehicles' || categorySlug === 'property' || listingType === 'wholesale' ? 1_000_000_000 : 1_000_000}
             t={t}
           />
+          )}
 
           {/* Location — moved verbatim to post-wizard-sections.tsx (AreaFilter popover
               itself stays below, anchored to areaBtnRef) */}
@@ -1537,6 +1584,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             phoneOk={phoneOk}
             errContactName={err.contactName}
             errContactPhone={err.contactPhone}
+            audience={salaryPaid ? 'candidates' : 'buyers'}
             t={t}
           />
 
@@ -1565,7 +1613,19 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               {/* A heading, not a kicker: eyebrows are retired (owner, wow design pass), and this names
                   the region a screen-reader user would otherwise have to discover by reading it. */}
               <h2 className="text-sm font-semibold text-foreground">{t('Xem trước', 'Preview')}</h2>
-              <Preview cover={photos[0]?.url} title={title} price={price} priceUnit={priceUnit} area={areaLabel} categoryIcon={cat?.icon} t={t} />
+              {/* A job previews its SALARY (or the negotiable state), never a price (see salaryPaid). */}
+              <Preview
+                cover={photos[0]?.url}
+                title={title}
+                price={salaryPaid ? (salaryAmount > 0 ? String(salaryAmount) : '') : price}
+                priceUnit={priceUnit}
+                area={areaLabel}
+                categoryIcon={cat?.icon}
+                // The SAME words the published card prints for a job with no salary (<Price>, linked=false) —
+                // the preview promises the line candidates will read (review, 2026-10-01).
+                emptyPriceLabel={salaryPaid ? t('Lương: thỏa thuận', 'Salary: negotiable') : undefined}
+                t={t}
+              />
             </div>
             <PublishButton {...publishButtonProps} />
             {pendingSteps.length > 0 && (

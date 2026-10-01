@@ -90,8 +90,18 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
         'Chỉ đặt vé trên website chính thức của nhà cung cấp — eno không bao giờ nhận thanh toán hay tiền cọc cho các vé này, và không thể hoàn tiền.',
       )
     :
-    // A seller's OWN vehicle-hire listing gets the vehicles line, not the "hold a place" housing one.
-    categorySlug === 'vehicles' || vehicleHire
+    // ⛔ AN EMPLOYER'S OWN JOB POST IS NOT A SALE (owner, 2026-10-01: "tailored to post for job hiring").
+    // "Meet, inspect, then pay" told a candidate to pay; the loss mode on a job ad is the fee-to-get-hired
+    // scam, and the check that protects a candidate is the workplace itself — the same advice the linked
+    // job's line gives, said for a post whose employer is on eno. "eno", not "eno.vn": this strip renders
+    // on both editions (see the rental line above).
+    categorySlug === 'jobs'
+      ? tr(
+          'Never pay a fee or a deposit to get a job — eno never asks for one. Meet the employer at the workplace before you start.',
+          'Đừng bao giờ trả phí hay đặt cọc để được nhận việc — eno không bao giờ yêu cầu. Hãy gặp nhà tuyển dụng tại nơi làm việc trước khi bắt đầu.',
+        )
+      // A seller's OWN vehicle-hire listing gets the vehicles line, not the "hold a place" housing one.
+      : categorySlug === 'vehicles' || vehicleHire
       ? tr(
           'Check the papers match the chassis before paying — and never pay a deposit through a link.',
           'Kiểm tra giấy tờ trùng số khung, số máy trước khi trả tiền — và đừng bao giờ đặt cọc qua đường link.',
@@ -179,7 +189,8 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
             clears it, so each of the three controls owns its full 44px. */}
         <div className="-mb-1 mt-0.5 flex items-center justify-between gap-3">
           <Link href="/safety" className="relative tap-44 font-semibold text-accent-foreground hover:underline active:opacity-60">
-            {tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}
+            {/* Nothing is TRADED on a job post, so its link is the safety guide by its plain name. */}
+            {categorySlug === 'jobs' && !variant ? tr('Safety guide', 'Cẩm nang an toàn') : tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}
           </Link>
           {action}
         </div>

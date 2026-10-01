@@ -19,8 +19,22 @@ export const MIN_IMAGE_ANGLES = 3
 // it was blocking real service listings. Extra photos stay welcome, just not required.
 const SINGLE_PHOTO_CATEGORIES = new Set(['services'])
 
-/** Minimum DISTINCT photos required to publish in this category. */
+// Categories where a photo is OPTIONAL (owner, 2026-10-01: "make sure posting page is tailored to
+// post for job hiring"). A job has nothing to photograph from three sides either — and unlike a
+// service it has nothing to photograph at all: demanding "Add 3 photos" from an employer produced
+// stock pictures or the same logo three times. A company logo or a photo of the workplace stays
+// welcome. Every surface already renders a photo-less job: the card's category tile (as for any
+// listing with no photo), the PDP's compact job header with no gallery (the linked-job layout), the
+// default share card for og:image, and no item JSON-LD on a job at all.
+const PHOTO_OPTIONAL_CATEGORIES = new Set(['jobs'])
+
+/**
+ * Minimum DISTINCT photos required to publish in this category — 0 (jobs), 1 (services), 3 (goods).
+ * ⚠️ THE ONE SOURCE: the wizard's checklist, its photo hint and inline error, and the server gate
+ * (assertEnoughAngles) all read it. An unknown or missing category keeps the STRICT 3-photo bar.
+ */
 export function minPhotosFor(categorySlug: string | null | undefined): number {
+  if (categorySlug && PHOTO_OPTIONAL_CATEGORIES.has(categorySlug)) return 0
   return categorySlug && SINGLE_PHOTO_CATEGORIES.has(categorySlug) ? 1 : MIN_IMAGE_ANGLES
 }
 
@@ -456,17 +470,22 @@ export function assertHasLocation(input: { district?: string | null; lat?: numbe
   throw new PublishBlockedError('location_required')
 }
 
-/** ≥1 photo (photo_required) AND ≥minPhotosFor(category) DISTINCT angles (photos_min) — the
+/** ≥1 photo (photo_required) AND ≥minPhotosFor(category) DISTINCT angles (photos_min), or nothing
+ *  at all where minPhotosFor is 0 (jobs) — the
  *  same photo uploaded N times still counts as one angle. Shared by CREATE and EDIT so an edit
  *  can't drop a live listing below the bar. Images are the listing's stored URLs (their dHash is
  *  in the URL); older/unhashed images fail open (counted as distinct).
  *  `categorySlug` relaxes the bar to a single photo for service categories — pass it on every
  *  path, or a service listing gets held to the physical-goods rule. */
 export function assertEnoughAngles(images: unknown[], categorySlug?: string | null) {
+  const min = minPhotosFor(categorySlug)
+  // A photo-optional category (jobs) publishes with none — and the photos it does carry are not
+  // held to a distinct-angle bar, since none was required in the first place.
+  if (min === 0) return
   if (images.length < 1) throw new PublishBlockedError('photo_required')
   // One required photo means the distinct-angle check is vacuous — a single image is
   // always one distinct angle — so this collapses to the photo_required check above.
-  if (countDistinctAngles(images as string[]) < minPhotosFor(categorySlug)) throw new PublishBlockedError('photos_min')
+  if (countDistinctAngles(images as string[]) < min) throw new PublishBlockedError('photos_min')
 }
 
 /** The content screens alone (phone / contact / banned words) — shared by CREATE

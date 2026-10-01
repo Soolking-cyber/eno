@@ -223,6 +223,9 @@ describe('isRequiredFacet — the publish gate', () => {
       // importers fill from each source's own property-type field; a resident posting an ordinary
       // flat has no type to pick, so it must never block publishing.
       'rentals/aptType',
+      // 2026-10-01: "English: Required" is the jobs facet's ONLY option. Required, every employer had to
+      // tick it to publish, so a role that needs no English could not be posted without claiming it did.
+      'jobs/english',
     ].sort())
   })
 

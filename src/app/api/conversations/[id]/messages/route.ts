@@ -12,6 +12,7 @@ import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { whatsappRecipientFor } from '@/lib/whatsapp-bridge'
 import { sendWhatsAppText } from '@/lib/whatsapp'
 import { isRemovedStatus } from '@/lib/listing-removed'
+import { paysSalary, takesOffers } from '@/lib/taxonomy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -104,7 +105,7 @@ export const POST = route(
 
     const convo = await db.conversation.findUnique({
       where: { id },
-      select: { id: true, buyerProfileId: true, sellerProfileId: true, sellerId: true, listing: { select: { id: true, negotiable: true, status: true } } },
+      select: { id: true, buyerProfileId: true, sellerProfileId: true, sellerId: true, listing: { select: { id: true, negotiable: true, listingType: true, status: true } } },
     })
     if (!convo) { await release(); throw new ApiError('not_found', 404) }
 
@@ -150,8 +151,13 @@ export const POST = route(
        when this simply is not an offer. The two checks below then read a value TypeScript still
        considers nullable. A local plus its own `&&` says the same thing and is checkable. */
     const offerListing = convo.listing
-    if (isOffer && offerListing && !offerListing.negotiable) {
-      if (iAmBuyer) await recordFixedPriceOfferAttempt(meId)
+    // takesOffers, not the bare column: a job never takes an offer or a counter (taxonomy.ts).
+    if (isOffer && offerListing && !takesOffers(offerListing)) {
+      // Docked only when the STORED listing is fixed-price — a pre-rule job (negotiable=true) is refused
+      // by the job rule, behind a cached page that may still offer the slider (see api/conversations).
+      // …and never on a JOB at all: an employer's edit (which stores negotiable=false) can race a candidate's
+      // offer from a page that still showed the slider (codex, 2026-10-01).
+      if (iAmBuyer && !offerListing.negotiable && !paysSalary(offerListing.listingType)) await recordFixedPriceOfferAttempt(meId)
       await release()
       throw new ApiError('not_negotiable', 409)
     }

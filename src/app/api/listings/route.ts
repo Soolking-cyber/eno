@@ -15,7 +15,7 @@ import { postingGate } from '@/lib/enforcement'
 import { rateLimit } from '@/lib/ratelimit'
 import { createListingCore } from '@/lib/core/listings'
 import { RELEASED_CHARGE_MAX_ACTIVE } from '@/lib/released-charge-copy'
-import { migrateLegacyCategoryParams } from '@/lib/taxonomy'
+import { migrateLegacyCategoryParams, paysSalary, resolveListingType } from '@/lib/taxonomy'
 import { idsFastPath, buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
 import { computeFacetCounts, releasedParams, subcategoryDimension, subcategoryDropPlan, type FacetCounts } from '@/lib/facet-counts'
 import { PROVINCE_NAMES_EN } from '@/lib/province-match'
@@ -531,7 +531,9 @@ async function createListing(req: NextRequest) {
     const title = String(body.title || '').trim().slice(0, 140)
     const contactPhone = normalizePhone(String(body.contactPhone || ''))
     const contactName = String(body.contactName || '').trim().slice(0, 80)
-    const price = Number(body.price)
+    // ⛔ A JOB IS PAID A SALARY (taxonomy.ts paysSalary): the wizard sends no price for one, and
+    // createListingCore derives it from the salary — so there is no price here to require.
+    const price = paysSalary(resolveListingType(categorySlug, body.listingType)) ? 0 : Number(body.price)
 
     if (!categorySlug || title.length < 3 || contactPhone.replace(/\D/g, '').length < 9 || !Number.isFinite(price) || price < 0 || price > 1e12) {
       return NextResponse.json({ error: 'invalid_input' }, { status: 400 })

@@ -17,6 +17,7 @@ import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { storeListingImage, IMG_MAX_BYTES } from '@/lib/core/media'
 import { browseRankScore } from '@/lib/ranking'
 import { parseVnd } from '@/lib/vnd'
+import { paysSalary, resolveListingType, salaryMFromPrice, salaryPriceFor } from '@/lib/taxonomy'
 import { sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 
 // Bulk-import core (Phase 0). The business-tier bulk CSV importer, decoupled from auth:
@@ -195,9 +196,20 @@ export async function bulkImportCore(
       if (createdCount >= releasedBudget) {
         results.push({ row: rowNo, error: 'released_charge_listing_cap' }); continue
       }
+      // ⛔ A JOB ROW IS PAID A SALARY (taxonomy.ts paysSalary), as on every other create path: stored as
+      // the category's 'job' intent, its `price` column read as the MONTHLY salary and kept in whole
+      // millions (salaryM, ROUNDED DOWN and clamped to the Salary facet's range — taxonomy.ts
+      // salaryMFromPrice, the rule every create and edit path shares) so the Salary filter finds it and a
+      // later edit re-derives the same figure, per month, and never negotiable — a job takes no offers.
+      const jobType = resolveListingType(cat.slug, 'job')
+      const salaryRow = paysSalary(jobType)
+      const salaryM = salaryRow ? salaryMFromPrice(price, cat.slug) : null
       const listing = await db.listing.create({
         data: {
-          title, description, price, priceUnit: 'VND', currency: '₫', negotiable: true,
+          title, description, currency: '₫',
+          ...(salaryRow
+            ? { price: salaryPriceFor(salaryM), priceUnit: 'VND/month', negotiable: false, listingType: jobType, salaryM }
+            : { price, priceUnit: 'VND', negotiable: true }),
           location: district || 'Ho Chi Minh City', district, city: 'Ho Chi Minh City',
           condition, images: JSON.stringify(hosted),
           /**

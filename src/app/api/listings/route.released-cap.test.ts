@@ -27,7 +27,7 @@ vi.mock('@/lib/core/listings', () => ({
 }))
 vi.mock('@/lib/publish-funnel', () => ({ publishOutcome: () => 'x', recordPublishOutcome: async () => {} }))
 vi.mock('./feed-query', () => ({}))
-vi.mock('@/lib/taxonomy', () => ({ migrateLegacyCategoryParams: (p: URLSearchParams) => p }))
+vi.mock('@/lib/taxonomy', () => ({ migrateLegacyCategoryParams: (p: URLSearchParams) => p, paysSalary: () => false, resolveListingType: () => 'sell' }))
 vi.mock('@/lib/feed-diversity', () => ({}))
 vi.mock('@/lib/feed-window', () => ({}))
 vi.mock('@/lib/edition-scope', () => ({}))
