@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ageWithin, bdsAgeDays } from './batdongsan-age'
+import { ageWithin, bdsAgeDays, bdsScrapeStartMs, bdsWorstCaseDate } from './batdongsan-age'
 
 describe('bdsAgeDays — the card\'s relative "Đăng …" label', () => {
   it('reads the labels the scraper actually stored', () => {
@@ -34,5 +34,33 @@ describe('ageWithin — a freshness cut on the WORST-case age', () => {
   })
   it('rejects a null age', () => {
     expect(ageWithin(null, 0, 7)).toBe(false)
+  })
+})
+
+describe('bdsWorstCaseDate — the OLDEST instant a label allows', () => {
+  const READ = Date.parse('2026-10-05T03:00:00Z')
+  const DAY = 86_400_000
+  it('counts the far end of the range back from the earliest read', () => {
+    expect(bdsWorstCaseDate(bdsAgeDays('Đăng hôm nay')!, READ).getTime()).toBe(READ - DAY)
+    expect(bdsWorstCaseDate(bdsAgeDays('Đăng 3 ngày trước')!, READ).getTime()).toBe(READ - 4 * DAY)
+    expect(bdsWorstCaseDate(bdsAgeDays('Đăng 1 tuần trước')!, READ).getTime()).toBe(READ - 14 * DAY)
+  })
+  it('floors a fractional read time, so the written ISO date is never newer than the worst case', () => {
+    expect(bdsWorstCaseDate(bdsAgeDays('Đăng hôm qua')!, READ + 0.9).getTime()).toBe(READ - 2 * DAY)
+  })
+})
+
+describe('bdsScrapeStartMs — when the labels were read, at the earliest', () => {
+  const BIRTH = Date.parse('2026-10-05T03:10:00Z')
+  it('is the file birth without a crawl log', () => {
+    expect(bdsScrapeStartMs(BIRTH, null)).toBe(BIRTH)
+    expect(bdsScrapeStartMs(BIRTH, undefined)).toBe(BIRTH)
+    expect(bdsScrapeStartMs(BIRTH, NaN)).toBe(BIRTH)
+  })
+  it("is the crawl's start when that is earlier — the scraper creates the file only at its first checkpoint", () => {
+    expect(bdsScrapeStartMs(BIRTH, BIRTH - 600_000)).toBe(BIRTH - 600_000)
+  })
+  it('never moves LATER than the birth, whatever the log claims', () => {
+    expect(bdsScrapeStartMs(BIRTH, BIRTH + 3_600_000)).toBe(BIRTH)
   })
 })

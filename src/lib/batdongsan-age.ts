@@ -33,3 +33,26 @@ export function bdsAgeDays(published: string | null | undefined): BdsAge | null 
 export function ageWithin(age: BdsAge | null, scrapeAgeDays: number, limitDays: number): boolean {
   return !!age && age.maxDays + scrapeAgeDays <= limitDays
 }
+
+const DAY_MS = 86_400_000
+
+/**
+ * The OLDEST instant a card's label allows — the date the 7-day rule judges (src/lib/apartment-freshness.ts).
+ * `readAtMs` is the EARLIEST moment the label can have been read (bdsScrapeStartMs); the far end of the
+ * label's range is counted back from it. "Đăng 3 ngày trước" read at 10:00 on the 5th → 10:00 on the 1st.
+ * Floored to the millisecond, so the ISO string written to a fresh set is never newer than this.
+ */
+export function bdsWorstCaseDate(age: BdsAge, readAtMs: number): Date {
+  return new Date(Math.floor(readAtMs) - age.maxDays * DAY_MS)
+}
+
+/**
+ * The earliest moment the labels in a scrape can have been read. The file's BIRTH (the importer's scrape-
+ * age rule) — or the crawl log's own start when that is earlier: scraper.py creates all_rentals.json only
+ * at its first checkpoint, after it has already read that many pages, so the birth alone is a few
+ * minutes too late for the first pages' labels. A missing or unparsable start leaves the birth.
+ */
+export function bdsScrapeStartMs(fileBirthMs: number, crawlStartedAtMs: number | null | undefined): number {
+  const c = typeof crawlStartedAtMs === 'number' && Number.isFinite(crawlStartedAtMs) ? crawlStartedAtMs : Infinity
+  return Math.min(fileBirthMs, c)
+}
