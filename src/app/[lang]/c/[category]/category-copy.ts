@@ -190,28 +190,81 @@ export const RENTALS_H1: Record<RentalsHeadline, Record<PageLang, string>> = {
 /* ── every other category ─────────────────────────────────────────────────────────────────────── */
 
 /**
- * `<title>` + meta description for /c/<category> when it is not rentals (English, as before).
+ * The trust sentence a category or district description ends on while nothing in it is linked.
+ * ⛔ NO "— fewer fakes, fewer bait prices" (SEO wave B, V2; CS-3 claim 3, owner 2026-10-01): a comparison
+ * no code measures. What stays is what the code makes true — every `Seller` row carries a public
+ * `trustScore` (trust-score.tsx), and signed-in members can report a listing (api/report/route.ts).
+ * The Vietnamese is the district description's existing sentence, word for word.
+ */
+export const TRUST_SENTENCE: Record<PageLang, string> = {
+  en: 'Every seller has a public trust score and bad listings get reported.',
+  vi: 'Mỗi người bán đều có điểm uy tín công khai, và tin xấu sẽ bị báo cáo.',
+}
+
+/**
+ * ⛔ JOBS ARE LINKED FROM JOB SITES (SEO wave B, V2; CS-3 V2-8, approved 2026-10-01). The linked jobs come
+ * from job boards and employers' own careers sites (`JOB_BOARDS`, src/lib/job-listing.ts) — "a job site"
+ * covers both. Used by the META descriptions only (categoryMetadata, districtMetadata); the on-page
+ * district lede keeps `sourceNoun`'s wording, which V2 does not touch (category-text.tsx).
+ */
+export const JOBS_LINKED_SENTENCE: Record<Exclude<LinkedTier, 'none'>, Record<PageLang, string>> = {
+  all: { en: 'Every listing here links to its original on a job site.', vi: 'Mỗi tin ở đây đều dẫn tới tin gốc trên trang tuyển dụng.' },
+  most: { en: 'Most listings here link to their original on a job site.', vi: 'Phần lớn tin ở đây dẫn tới tin gốc trên trang tuyển dụng.' },
+  some: { en: 'Some listings here link to their original on a job site.', vi: 'Một số tin ở đây dẫn tới tin gốc trên trang tuyển dụng.' },
+}
+const JOBS_NOUN = { en: 'a job site', vi: 'trang tuyển dụng' } as const
+
+/**
+ * ⛔ TEACHERS ARE PEOPLE, NOT LISTINGS (owner, 2026-09-30: no seller-trust or bait-price claim — the
+ * note is in category-lede.tsx). CS-3 V2-9a: the page's own first sentence (category-lede.tsx), then
+ * the share gate — a teacher's phone, email and CV reach a thread only after they tap "Share" there
+ * (src/lib/teachers/share.ts), and the JSON-LD never carries them (teachers/jsonld.ts).
+ */
+const TEACHERS_DESCRIPTION: Record<PageLang, string> = {
+  en: 'English and subject teachers looking for work in Vietnam. Their phone, email and CV are shared only when the teacher chooses to.',
+  vi: 'Giáo viên tiếng Anh và các môn học đang tìm việc tại Việt Nam. Số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý.',
+}
+
+/**
+ * `<title>` + meta description for /c/<category> when it is not rentals with a cached headline, in the
+ * page's language (SEO wave B, V2; copy sheet CS-3, approved by the owner 2026-10-01).
  *
- * ⛔ "— Trusted listings" AND "Every seller has a public trust score" ARE KEPT ONLY WHERE NOTHING IS
- * LINKED. Electronics and furniture carried both over shelves in which every sampled row (100/100,
- * 2026-09-27) links out to a source shop; a trust score says nothing about a listing copied from
- * another site. A category of listings posted here keeps its old copy word for word.
+ * ⛔ NO "— Trusted listings" IN ANY TITLE (CS-3 claim 2, owner 2026-10-01): nothing verifies a listing,
+ * and on /c/teachers it called people "listings". Every tier now reads "{name} in Vietnam | eno.vn" —
+ * the linked tiers' title, which is also the page's own H1 ("{nameVi} ở Việt Nam" in Vietnamese,
+ * `(index)/layout.tsx`).
+ * ⛔ THE TRUST SENTENCE ONLY WHERE NOTHING IS LINKED. Electronics and furniture carried it over shelves in
+ * which every sampled row (100/100, 2026-09-27) links out to a source shop; a trust score says nothing
+ * about a listing copied from another site. Linked tiers say where the listing opens instead: retail
+ * "a source site", jobs "a job site", rentals D-f's sentence (this branch runs for /c/rentals when the
+ * cached headline is null, CS-3 V2-10 — never "partner").
  */
 export function categoryMetadata(
-  cat: { name: string },
+  cat: { slug: string; name: string; nameVi?: string | null },
   linked: LinkedTier,
   siteName: string,
+  lang: PageLang = 'en',
 ): { title: string; description: string } {
-  if (linked === 'none') {
-    return {
-      title: `${cat.name} in Vietnam — Trusted listings | ${siteName}`,
-      description: `Browse ${cat.name.toLowerCase()} for expats in Vietnam. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`,
-    }
-  }
-  return {
-    title: `${cat.name} in Vietnam | ${siteName}`,
-    description: `Browse ${cat.name.toLowerCase()} for expats in Vietnam. ${CATEGORY_LINKED_SENTENCE[linked].en}`,
-  }
+  const name = lang === 'vi' ? cat.nameVi || cat.name : cat.name
+  const title = lang === 'vi' ? `${name} ở Việt Nam | ${siteName}` : `${name} in Vietnam | ${siteName}`
+  if (cat.slug === 'teachers') return { title, description: TEACHERS_DESCRIPTION[lang] }
+  const lead = lang === 'vi' ? `Xem tin ${name.toLowerCase()} tại Việt Nam.` : `Browse ${name.toLowerCase()} for expats in Vietnam.`
+  const tail =
+    linked === 'none' ? TRUST_SENTENCE[lang]
+    : cat.slug === 'rentals' ? RENTALS_LINKED_SENTENCE[linked][lang]
+    : cat.slug === 'jobs' ? JOBS_LINKED_SENTENCE[linked][lang]
+    : CATEGORY_LINKED_SENTENCE[linked][lang]
+  return { title, description: `${lead} ${tail}` }
+}
+
+/**
+ * The JSON-LD BreadcrumbList names of a category and a district page, in the page's language, equal to
+ * the visible crumbs: "Home" / "Trang chủ" (`<Tr text="Home" />`) and the category's own name
+ * (`<Bilingual en={cat.name} vi={cat.nameVi || cat.name} />`). SEO wave B, V2 (CS-3 V2-7, V2-11, V2-12):
+ * the Vietnamese rendering read Home / Rentals / Quận 1.
+ */
+export function crumbNames(cat: { name: string; nameVi?: string | null }, lang: PageLang): { home: string; category: string } {
+  return lang === 'vi' ? { home: 'Trang chủ', category: cat.nameVi || cat.name } : { home: 'Home', category: cat.name }
 }
 
 /**
@@ -396,10 +449,16 @@ export function sourceNoun(categorySlug: string): { en: string; vi: string } {
  * rental on 2026-09-27 and read "1 place for rent … Every one links …" (VI "Tất cả đều …"). At a count
  * of 1 the tier can only be "all" (linkedTier), so the one form covers it.
  */
-export function districtLinkedSentence(tier: Exclude<LinkedTier, 'none'>, categorySlug: string, lang: PageLang, total: number): string {
+export function districtLinkedSentence(
+  tier: Exclude<LinkedTier, 'none'>,
+  categorySlug: string,
+  lang: PageLang,
+  total: number,
+  noun: { en: string; vi: string } = sourceNoun(categorySlug),
+): string {
   // Rentals: D-f's own sentences (CS-2 D1-14…17), not the retail frame with a swapped noun.
   if (categorySlug === 'rentals') return rentalsLinkedSentence(tier, total, lang)
-  const p = sourceNoun(categorySlug)[lang]
+  const p = noun[lang]
   if (total === 1) return lang === 'vi' ? `Tin này dẫn tới tin gốc trên ${p}.` : `It links to its original listing on ${p}.`
   if (lang === 'vi') {
     return { all: `Tất cả đều dẫn tới tin gốc trên ${p}.`, most: `Phần lớn dẫn tới tin gốc trên ${p}.`, some: `Một số tin dẫn tới tin gốc trên ${p}.` }[tier]
@@ -432,15 +491,26 @@ export function districtMetadata(f: DistrictFacts, lang: PageLang, siteName: str
   }
   const city = f.inHcmc ? `, ${HCMC_NAME[lang]}` : ''
   const n = formatCountFull(f.total, lang)
+  /**
+   * The tail after the count. Nothing linked: the trust sentence (TRUST_SENTENCE — CS-3 claim 3 took
+   * "— fewer fakes, fewer bait prices" off the English), except on teachers, which gets none at all
+   * (CS-3 V2-9b: people, not listings). Linked: where the listings open, with jobs naming "a job site"
+   * here in the meta description (CS-3 V2-8d).
+   */
+  const districtTail = (l: PageLang): string =>
+    f.linked === 'none' ? (f.category.slug === 'teachers' ? '' : TRUST_SENTENCE[l])
+    : districtLinkedSentence(f.linked, f.category.slug, l, f.total, f.category.slug === 'jobs' ? JOBS_NOUN : undefined)
+  const withTail = (head: string, tail: string) => (tail ? `${head} ${tail}` : head)
   if (lang === 'vi') {
-    const tail = f.linked === 'none' ? 'Mỗi người bán đều có điểm uy tín công khai, và tin xấu sẽ bị báo cáo.' : districtLinkedSentence(f.linked, f.category.slug, 'vi', f.total)
+    // A row with no Vietnamese name falls back to the English one, as the visible H1, the breadcrumb and
+    // categoryMetadata do (review: it printed "14 tin  tại Quận 1").
+    const nameVi = f.category.nameVi || f.category.name
     return {
-      title: `${f.category.nameVi} tại ${f.place.vi}${city} | ${siteName}`,
-      description: `${n} tin ${f.category.nameVi.toLowerCase()} tại ${f.place.vi}${city}. ${tail}`,
+      title: `${nameVi} tại ${f.place.vi}${city} | ${siteName}`,
+      description: withTail(`${n} tin ${nameVi.toLowerCase()} tại ${f.place.vi}${city}.`, districtTail('vi')),
     }
   }
-  // ⚠️ The no-link tail is the page's old sentence, word for word: own-stock pages lose nothing.
-  const tail = f.linked === 'none' ? 'Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.' : districtLinkedSentence(f.linked, f.category.slug, 'en', f.total)
+  const tail = districtTail('en')
   // "3,741 rentals listings" read as a typo; rentals are counted as places, like /c/rentals does.
   // Singular at exactly 1 — /c/rentals/can-gio held one rental on 2026-09-27.
   const what =
@@ -449,7 +519,7 @@ export function districtMetadata(f: DistrictFacts, lang: PageLang, siteName: str
       : `${f.category.name.toLowerCase()} ${f.total === 1 ? 'listing' : 'listings'}`
   return {
     title: `${f.category.name} in ${f.place.en}${city} | ${siteName}`,
-    description: `${n} ${what} in ${f.place.en}${city}. ${tail}`,
+    description: withTail(`${n} ${what} in ${f.place.en}${city}.`, tail),
   }
 }
 

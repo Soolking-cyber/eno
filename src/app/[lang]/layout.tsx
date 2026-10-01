@@ -218,15 +218,17 @@ const OG_IMAGE = { ...SHARE_CARD, alt: SHARE_CARD_ALT };
  * Organization JSON-LD below uses — shelves with stock — and the trust clause is scoped to sellers who
  * post here, because most of the shelf is linked from partner portals and shops. "Free" follows
  * POSTING_IS_FREE (src/lib/site-identity.ts), which cites the legal clauses it rests on.
+ * ⛔ NOT "THE COMMUNITY KEEPS LISTINGS HONEST" (SEO wave B, V2; CS-3 claim 7, owner 2026-10-01): an outcome
+ * no code measures. What the code does is let a signed-in member report a listing (api/report/route.ts).
  */
 const SITE_DESCRIPTION = IS_SERVICES
   ? SERVICES_SITE_DESCRIPTION
-  : `${SITE_NAME} is a ${POSTING_IS_FREE ? "free " : ""}classifieds marketplace for expats, internationals and locals in Vietnam. Find rentals, jobs, furniture, electronics and more — sellers who post here build public trust scores and the community keeps listings honest.`;
+  : `${SITE_NAME} is a ${POSTING_IS_FREE ? "free " : ""}classifieds marketplace for expats, internationals and locals in Vietnam. Find rentals, jobs, furniture, electronics and more — sellers who post here build public trust scores and members can report any listing.`;
 
 /** The short form, for the OG and Twitter cards. */
 const SITE_TAGLINE = IS_SERVICES
   ? SERVICES_SITE_TAGLINE
-  : `${POSTING_IS_FREE ? "Free classifieds" : "Classifieds"} for expats, internationals and locals in Vietnam. Rentals, jobs, furniture, electronics and more — sellers who post here build trust scores and the community keeps listings honest.`;
+  : `${POSTING_IS_FREE ? "Free classifieds" : "Classifieds"} for expats, internationals and locals in Vietnam. Rentals, jobs, furniture, electronics and more — sellers who post here build trust scores and members can report any listing.`;
 
 // Both schemes are supported (real dark theme in globals.css `.dark`, toggled System/Light/Dark).
 // viewportFit:"cover" activates env(safe-area-inset-*) so the safe-area padding the header/nav/body
@@ -288,6 +290,14 @@ const MYLEAD_VERIFICATION = IS_SERVICES ? null : "0278b78162cad9a93d0071ce2c5cc8
  */
 const PINTEREST_VERIFICATION = IS_SERVICES ? null : "eb401aba4319c3406a643d5aff061606";
 
+/**
+ * THE SITEWIDE <title>, BOTH EDITIONS — the home page's English title and every page's fallback.
+ * ⛔ NO "TRUSTED" (SEO wave B, V2; CS-3 claim 1, owner 2026-10-01): "eno.vn - Trusted Expat Marketplace in
+ * Vietnam" over a shelf mostly linked from other sites was a claim, not a description (the Organization
+ * note below says the same). It now mirrors /about's title; "free" follows POSTING_IS_FREE.
+ */
+const SITE_TITLE = `${SITE_NAME} — ${POSTING_IS_FREE ? "free " : ""}classifieds for expats and locals in Vietnam`;
+
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
   // Google Search Console / Merchant Center domain verification.
@@ -299,7 +309,7 @@ export const metadata: Metadata = {
       ...(PINTEREST_VERIFICATION ? { "p:domain_verify": PINTEREST_VERIFICATION } : {}),
     },
   },
-  title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
+  title: SITE_TITLE,
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "default" },
@@ -322,17 +332,17 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: SITE_NAME }],
   openGraph: {
-    title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
+    title: SITE_TITLE,
     description: SITE_TAGLINE,
     siteName: SITE_NAME,
     type: "website",
     // The language of THESE words (English), not of the reader's variant — see ogLocaleFor.
-    locale: ogLocaleFor(`${SITE_NAME} - Trusted Expat Marketplace in Vietnam`, SITE_TAGLINE),
+    locale: ogLocaleFor(SITE_TITLE, SITE_TAGLINE),
     images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
+    title: SITE_TITLE,
     description: SITE_TAGLINE,
     images: [OG_IMAGE.url],
   },

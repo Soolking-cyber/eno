@@ -1,6 +1,11 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   CATEGORY_LINKED_SENTENCE,
+  categoryMetadata,
+  crumbNames,
+  districtLinkedSentence,
   RENTALS_H1,
   byAreaChips,
   topSubcategories,
@@ -301,5 +306,148 @@ describe('topSubcategories — what the lede may name after "including" (C1-LEDE
 
   it('names nothing that holds the whole category', () => {
     expect(topSubcategories([{ slug: 'phones', count: 40 }], defs, 40)).toEqual([])
+  })
+})
+
+/**
+ * SEO wave B, V2 — the category metadata in the page's language, and the English claims CS-3 fixed
+ * (copy sheet CS-3, approved by the owner 2026-10-01). Every Vietnamese string is the sheet's, verbatim.
+ */
+describe('categoryMetadata in both languages (V2, CS-3)', () => {
+  const furniture = { slug: 'furniture-appliances', name: 'Home', nameVi: 'Nhà cửa' }
+
+  it('the Vietnamese title is the page H1 — "{nameVi} ở Việt Nam" — in every tier (V2-3, V2-4)', () => {
+    for (const tier of ['none', 'all', 'most', 'some'] as const) {
+      expect(categoryMetadata(furniture, tier, 'eno.vn', 'vi').title).toBe('Nhà cửa ở Việt Nam | eno.vn')
+      expect(categoryMetadata(furniture, tier, 'eno.vn', 'en').title).toBe('Home in Vietnam | eno.vn')
+    }
+  })
+
+  it('no "Trusted" and no "fewer fakes" in any title or description, either language (claims 2, 3)', () => {
+    for (const slug of ['furniture-appliances', 'jobs', 'teachers', 'rentals', 'electronics']) {
+      for (const tier of ['none', 'all', 'most', 'some'] as const) {
+        for (const lang of ['en', 'vi'] as const) {
+          const m = categoryMetadata({ ...furniture, slug }, tier, 'eno.vn', lang)
+          expect(`${m.title} ${m.description}`).not.toMatch(/trusted|fewer fakes|bait|giá mồi|hàng giả|partner|đối tác/i)
+        }
+      }
+    }
+  })
+
+  it('tier none: browse lead plus the trust sentence (V2-5)', () => {
+    expect(categoryMetadata(furniture, 'none', 'eno.vn', 'vi').description).toBe(
+      'Xem tin nhà cửa tại Việt Nam. Mỗi người bán đều có điểm uy tín công khai, và tin xấu sẽ bị báo cáo.',
+    )
+    expect(categoryMetadata(furniture, 'none', 'eno.vn', 'en').description).toBe(
+      'Browse home for expats in Vietnam. Every seller has a public trust score and bad listings get reported.',
+    )
+  })
+
+  it('linked retail: the existing CATEGORY_LINKED_SENTENCE pair (V2-6)', () => {
+    for (const tier of ['all', 'most', 'some'] as const) {
+      expect(categoryMetadata(furniture, tier, 'eno.vn', 'vi').description).toBe(`Xem tin nhà cửa tại Việt Nam. ${CATEGORY_LINKED_SENTENCE[tier].vi}`)
+    }
+  })
+
+  it('jobs: "a job site" / "trang tuyển dụng" in every linked tier (V2-8a…c)', () => {
+    const jobs = { slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm' }
+    expect(categoryMetadata(jobs, 'all', 'eno.vn', 'en').description).toBe('Browse jobs for expats in Vietnam. Every listing here links to its original on a job site.')
+    expect(categoryMetadata(jobs, 'all', 'eno.vn', 'vi').description).toBe('Xem tin việc làm tại Việt Nam. Mỗi tin ở đây đều dẫn tới tin gốc trên trang tuyển dụng.')
+    expect(categoryMetadata(jobs, 'most', 'eno.vn', 'en').description).toBe('Browse jobs for expats in Vietnam. Most listings here link to their original on a job site.')
+    expect(categoryMetadata(jobs, 'most', 'eno.vn', 'vi').description).toBe('Xem tin việc làm tại Việt Nam. Phần lớn tin ở đây dẫn tới tin gốc trên trang tuyển dụng.')
+    expect(categoryMetadata(jobs, 'some', 'eno.vn', 'en').description).toBe('Browse jobs for expats in Vietnam. Some listings here link to their original on a job site.')
+    expect(categoryMetadata(jobs, 'some', 'eno.vn', 'vi').description).toBe('Xem tin việc làm tại Việt Nam. Một số tin ở đây dẫn tới tin gốc trên trang tuyển dụng.')
+  })
+
+  it('teachers: people, not listings — the share-gate sentence in any tier (V2-9a)', () => {
+    const t = { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' }
+    for (const tier of ['none', 'all'] as const) {
+      expect(categoryMetadata(t, tier, 'eno.vn', 'en')).toEqual({
+        title: 'Teachers in Vietnam | eno.vn',
+        description: 'English and subject teachers looking for work in Vietnam. Their phone, email and CV are shared only when the teacher chooses to.',
+      })
+      expect(categoryMetadata(t, tier, 'eno.vn', 'vi')).toEqual({
+        title: 'Giáo viên ở Việt Nam | eno.vn',
+        description: 'Giáo viên tiếng Anh và các môn học đang tìm việc tại Việt Nam. Số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý.',
+      })
+    }
+  })
+
+  it('rentals through the generic branch: D-f sentence, never "partner" (V2-10)', () => {
+    const r = { slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê' }
+    expect(categoryMetadata(r, 'all', 'eno.vn', 'en').description).toBe('Browse rentals for expats in Vietnam. Every listing links to its original ad on another listing site.')
+    expect(categoryMetadata(r, 'all', 'eno.vn', 'vi').description).toBe('Xem tin cho thuê tại Việt Nam. Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.')
+    for (const tier of ['all', 'most', 'some'] as const) {
+      for (const lang of ['en', 'vi'] as const) {
+        expect(categoryMetadata(r, tier, 'eno.vn', lang).description.length).toBeLessThanOrEqual(160)
+      }
+    }
+  })
+
+  it('a row with no nameVi falls back to the English name, as the visible H1 does', () => {
+    expect(categoryMetadata({ slug: 'x', name: 'Misc', nameVi: '' }, 'none', 'eno.vn', 'vi').title).toBe('Misc ở Việt Nam | eno.vn')
+  })
+
+  it('every description fits 160 characters', () => {
+    for (const slug of ['furniture-appliances', 'jobs', 'teachers', 'rentals']) {
+      for (const tier of ['none', 'all', 'most', 'some'] as const) {
+        for (const lang of ['en', 'vi'] as const) {
+          expect(categoryMetadata({ ...furniture, slug, name: 'Electronics & Appliances', nameVi: 'Điện tử & Gia dụng' }, tier, 'eno.forum', lang).description.length).toBeLessThanOrEqual(160)
+        }
+      }
+    }
+  })
+})
+
+describe('district metadata claims (V2, CS-3)', () => {
+  const at = { place: { en: 'District 1', vi: 'Quận 1' }, inHcmc: true }
+
+  it('no bait-price comparison on the English trust tail (claim 3)', () => {
+    const own = districtMetadata({ ...at, category: { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' }, total: 12, linked: 'none' }, 'en', 'eno.vn')
+    expect(own.description).toBe('12 services listings in District 1, Ho Chi Minh City. Every seller has a public trust score and bad listings get reported.')
+  })
+
+  it('teachers carry no seller-trust tail in either language (V2-9b)', () => {
+    const t = { ...at, category: { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' }, total: 14, linked: 'none' as const }
+    expect(districtMetadata(t, 'en', 'eno.vn').description).toBe('14 teachers listings in District 1, Ho Chi Minh City.')
+    expect(districtMetadata(t, 'vi', 'eno.vn').description).toBe('14 tin giáo viên tại Quận 1, TP. Hồ Chí Minh.')
+  })
+
+  it('jobs name "a job site" / "trang tuyển dụng" in the meta description (V2-8d)', () => {
+    const j = { ...at, category: { slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm' } }
+    expect(districtMetadata({ ...j, total: 30, linked: 'all' }, 'en', 'eno.vn').description).toMatch(/\. Every one links to its original listing on a job site\.$/)
+    expect(districtMetadata({ ...j, total: 30, linked: 'all' }, 'vi', 'eno.vn').description).toMatch(/\. Tất cả đều dẫn tới tin gốc trên trang tuyển dụng\.$/)
+    expect(districtMetadata({ ...j, total: 30, linked: 'most' }, 'vi', 'eno.vn').description).toMatch(/Phần lớn dẫn tới tin gốc trên trang tuyển dụng\.$/)
+    expect(districtMetadata({ ...j, total: 30, linked: 'some' }, 'en', 'eno.vn').description).toMatch(/Some link to their original listing on a job site\.$/)
+    expect(districtMetadata({ ...j, total: 1, linked: 'all' }, 'vi', 'eno.vn').description).toMatch(/Tin này dẫn tới tin gốc trên trang tuyển dụng\.$/)
+  })
+
+  it('a row with no nameVi falls back to the English name in Vietnamese (review)', () => {
+    const m = districtMetadata({ ...at, category: { slug: 'misc', name: 'Misc', nameVi: '' }, total: 12, linked: 'none' }, 'vi', 'eno.vn')
+    expect(m.title).toBe('Misc tại Quận 1, TP. Hồ Chí Minh | eno.vn')
+    expect(m.description).toMatch(/^12 tin misc tại Quận 1/)
+  })
+
+  it('the on-page lede sentence keeps its own noun (districtLinkedSentence without the override)', () => {
+    expect(districtLinkedSentence('all', 'jobs', 'en', 30)).toBe('Every one links to its original listing on a source site.')
+  })
+})
+
+describe('crumbNames (V2-7, V2-11, V2-12)', () => {
+  it('equals the visible crumbs in each language', () => {
+    expect(crumbNames({ name: 'Rentals', nameVi: 'Cho thuê' }, 'vi')).toEqual({ home: 'Trang chủ', category: 'Cho thuê' })
+    expect(crumbNames({ name: 'Rentals', nameVi: 'Cho thuê' }, 'en')).toEqual({ home: 'Home', category: 'Rentals' })
+    expect(crumbNames({ name: 'Misc', nameVi: '' }, 'vi').category).toBe('Misc')
+  })
+
+  it('both pages build their JSON-LD crumbs from it (source contract)', () => {
+    const read = (f: string) => readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]', f), 'utf8')
+    for (const f of ['(index)/page.tsx', '[district]/page.tsx']) {
+      const s = read(f)
+      expect(s, f).toMatch(/name: crumbs\.home, item: hostUrl/)
+      expect(s, f).toMatch(/name: crumbs\.category, item: `\$\{hostUrl\}\/c\/\$\{cat\.slug\}`/)
+      expect(s, f).not.toMatch(/name: 'Home'/)
+    }
+    expect(read('[district]/page.tsx')).toMatch(/name: place\[lang\]/)
   })
 })

@@ -19,7 +19,7 @@ import { districtScopeForSlug } from '@/lib/district-slug'
 import { canonicalDistrictSlug, districtLabel, isCuratedDistrict, mergeDistrictGroups } from '@/lib/district-canonical'
 import { MIN_INDEXABLE_LISTINGS, isIndexableCount } from '@/lib/index-floor'
 import { staleBelowFloor } from '@/lib/stale-noindex'
-import { districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
+import { crumbNames, districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
 import { DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentIndexLink } from '../category-text'
 import { RentalCheckHint } from '@/components/marketplace/rental-check-toggle'
 import { notFound, permanentRedirect } from 'next/navigation'
@@ -323,6 +323,9 @@ export default async function CategoryDistrictPage({ params }: Props) {
   const listings = await localizeListingTitles(matched.map(serializeListingCard))
   const rent = await rentP
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  // All three crumb names follow the page's language, equal to the visible crumbs below (V2; the
+  // Vietnamese rendering read Home / Rentals / Quận 1).
+  const crumbs = crumbNames(cat, lang)
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -330,8 +333,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: hostUrl },
-          { '@type': 'ListItem', position: 2, name: cat.name, item: `${hostUrl}/c/${cat.slug}` },
+          { '@type': 'ListItem', position: 1, name: crumbs.home, item: hostUrl },
+          { '@type': 'ListItem', position: 2, name: crumbs.category, item: `${hostUrl}/c/${cat.slug}` },
           { '@type': 'ListItem', position: 3, name: place[lang], item: `${hostUrl}/c/${cat.slug}/${district}` },
         ],
       },

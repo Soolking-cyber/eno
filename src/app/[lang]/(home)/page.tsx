@@ -10,12 +10,17 @@ import { topBusinessListings } from '@/lib/core/business-rail'
 import { trendingRailListings } from '@/lib/core/trending-rail'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
+import { homeMetadata } from './home-metadata'
 
 // ISR: near-static homepage data, refreshed at most once a minute (better LCP/TTFB).
 export const revalidate = 21600 // 6h — the client explorer fetches live listings via /api/listings, so the ISR HTML is just first-paint+SEO. Home is a HOT page that regenerates per edge region, so a 6h window (vs 1h) cuts ISR writes ~6× with zero UX/speed change
 
-// Self-canonical so Google attributes ranking signals to the no-redirect www host.
-export const metadata: Metadata = { alternates: { canonical: '/' } }
+// Self-canonical, plus the Vietnamese title and description on the marketplace's `vi` variant (SEO wave
+// B, V2) — home-metadata.ts has the rules.
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  return homeMetadata(lang)
+}
 
 async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListingCard[]; total: number; businesses: Awaited<ReturnType<typeof topBusinessListings>>; trending: Awaited<ReturnType<typeof trendingRailListings>> }> {
   try {

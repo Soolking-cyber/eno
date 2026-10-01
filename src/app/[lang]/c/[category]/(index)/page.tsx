@@ -6,7 +6,7 @@ import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
 // teacher exclusion (scopedListingWhere) can only ever empty /c/teachers — it hides nothing elsewhere.
 import { loadCategory } from '../load-category'
 import { loadDistrictChips, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline } from '../category-data'
-import { byAreaChips, categoryMetadata, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
+import { byAreaChips, categoryMetadata, crumbNames, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
 import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
 import { CategoryLedeBlock } from './category-lede-block'
@@ -93,7 +93,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
    * over 25,502 rentals that were all in Ho Chi Minh City and all linked from other portals — no
    * page answered "apartments for rent in Ho Chi Minh City" (~720 searches/month) while this one
    * held the inventory for it. category-copy.ts words it from live counts; every other category
-   * keeps the generic copy (categoryMetadata) — with its "Trusted" claim only while nothing is linked.
+   * keeps the generic copy (categoryMetadata) — its trust sentence only while nothing is linked.
+   * Both follow the page's language (SEO wave B, V2; CS-3): a Vietnamese reader got the English title.
    */
   // ⚠️ THE TITLE NAMES THE CACHED VARIANT THE H1 PRINTS (`(index)/layout.tsx`), so the two cannot
   // disagree; the description is built from this render's live counts. No variant = no live rental
@@ -102,7 +103,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const facts = headline ? await loadRentalsFacts(cat.id, live) : null
   const rentals = headline && facts ? rentalsMetadata(facts, pageLang(lang), SITE_NAME, headline) : null
   // Every other category keeps its old wording only while none of its stock is linked (category-copy.ts).
-  const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME)
+  const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME, pageLang(lang))
   // Empty, and empty for the whole window (src/lib/stale-noindex.ts). Queries only when `live` is 0.
   const emptyForTheWindow = await staleBelowFloor({ where: { categoryId: cat.id }, live, floor: MIN_CATEGORY_LISTINGS })
   return {
@@ -206,6 +207,8 @@ export default async function CategoryPage({ params }: Props) {
   // guides before the owner decides the cross-host canonicals — /llms.txt and the footer omit them there.
   const guides = total > 0 && !IS_SERVICES ? guidesForCategory(cat.slug, pageLang(lang)) : []
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  // The crumb names follow the page's language, equal to the visible crumbs in `(index)/layout.tsx` (V2).
+  const crumbs = crumbNames(cat, pageLang(lang))
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -213,8 +216,8 @@ export default async function CategoryPage({ params }: Props) {
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: hostUrl },
-          { '@type': 'ListItem', position: 2, name: cat.name, item: `${hostUrl}/c/${cat.slug}` },
+          { '@type': 'ListItem', position: 1, name: crumbs.home, item: hostUrl },
+          { '@type': 'ListItem', position: 2, name: crumbs.category, item: `${hostUrl}/c/${cat.slug}` },
         ],
       },
       {

@@ -220,19 +220,20 @@ describe('CategoryLede — the trust sentence only over stock posted here', () =
 })
 
 describe('categoryMetadata — every non-rentals category', () => {
-  it('drops "Trusted" and the trust sentence once anything is linked', () => {
+  it('drops the trust sentence once anything is linked', () => {
     for (const tier of ['all', 'most', 'some'] as const) {
-      const m = categoryMetadata({ name: 'Electronics' }, tier, 'eno.vn')
+      const m = categoryMetadata({ slug: 'electronics', name: 'Electronics' }, tier, 'eno.vn')
       expect(m.title).toBe('Electronics in Vietnam | eno.vn')
       expect(m.description).toBe(`Browse electronics for expats in Vietnam. ${CATEGORY_LINKED_SENTENCE[tier].en}`)
       expect(`${m.title} ${m.description}`).not.toMatch(/trust/i)
     }
   })
 
-  it('keeps the old copy word for word when nothing is linked', () => {
-    expect(categoryMetadata({ name: 'Sports' }, 'none', 'eno.vn')).toEqual({
-      title: 'Sports in Vietnam — Trusted listings | eno.vn',
-      description: 'Browse sports for expats in Vietnam. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.',
+  // SEO wave B, V2 (CS-3 claims 2 and 3, owner 2026-10-01): no "— Trusted listings", no bait-price comparison.
+  it('keeps the trust sentence, without "Trusted" or the comparison, when nothing is linked', () => {
+    expect(categoryMetadata({ slug: 'sports', name: 'Sports' }, 'none', 'eno.vn')).toEqual({
+      title: 'Sports in Vietnam | eno.vn',
+      description: 'Browse sports for expats in Vietnam. Every seller has a public trust score and bad listings get reported.',
     })
   })
 })
