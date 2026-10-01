@@ -1,6 +1,6 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
-import { TOS_VERSION } from '@/lib/site-legal'
+import { tosAcceptanceStamp } from '@/lib/site-legal'
 import { getVerifiedPhone } from '@/lib/admin'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
@@ -129,7 +129,10 @@ export const POST = route(
       // ⚠️ THE SCREEN ABOVE THE BUTTON MUST SAY WHAT IS BEING ACCEPTED — see onboard-client.tsx.
       // These two columns are EVIDENCE of what a person agreed to and when, and until 2026-08-01
       // this wrote them while the onboarding screen mentioned the Terms nowhere at all.
-      ...(profile.tosVersion === TOS_VERSION ? {} : { tosAcceptedAt: new Date(), tosVersion: TOS_VERSION }),
+      // ⚠️ THE VERSION IN FORCE, NOT THE NEWEST (tosVersionInForce, src/lib/site-legal.ts). During
+      // a notice window the published Terms are not yet binding; stamping TOS_VERSION here would
+      // record agreement to text that has not taken effect. One clock read covers both columns.
+      ...tosAcceptanceStamp(profile.tosVersion),
     },
   })
 

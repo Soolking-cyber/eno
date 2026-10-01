@@ -17,7 +17,7 @@ export const metadata: Metadata = withShare({
 // /safety's "If something goes wrong" list and /about's trust steps, so the whole
 // content family speaks one visual language for "do this, then this".
 const BUYER_STEPS: { title: string; body: string }[] = [
-  { title: 'Search & filter', body: 'Browse by category, area and price. Every seller has a public trust score, so you can see who’s reliable at a glance.' },
+  { title: 'Search & filter', body: 'Browse by category, area and price. Every seller who posts here has a public trust score, so you can see who’s reliable at a glance; a linked listing names the site it comes from instead.' },
   { title: 'Message or make an offer', body: 'Tap Message to chat in-app, or Make an offer to send a price. The seller can accept or counter.' },
   { title: 'Meet & inspect', body: 'Agree a public meeting spot, check the item in person, and only pay once you’re happy.' },
 ]
@@ -43,7 +43,10 @@ const SealGlyph: FeatureGlyph = ({ className, strokeWidth }) => (
   <ShieldCheck className={className} strokeWidth={strokeWidth} />
 )
 const FEATURES: { Icon: typeof Search | FeatureGlyph; id?: string; title: string; body: string }[] = [
-  { Icon: BadgeCheck, id: 'verification', title: 'Trust & reputation', body: 'Listings publish instantly and run automated checks (phone verified, no contact details in the text, at least one real photo). Every seller has a public trust score that rises with good service and falls when buyers report problems — the blue Trusted and gold Exceptional badges are earned, not given. A score is a signal, not a guarantee; always inspect before you pay.' },
+  // ⛔ NOT "PHONE VERIFIED, AT LEAST ONE REAL PHOTO" (2026-10-01): no phone check runs on a post, and the
+  // photo minimum is three for most categories (one for services) — assertPublishable / minPhotosFor in
+  // src/lib/publish-guard.ts. Trust scores belong to sellers who post here, not to linked listings.
+  { Icon: BadgeCheck, id: 'verification', title: 'Trust & reputation', body: 'Listings posted here publish instantly after automated checks (no banned items, no contact details in the text, and enough real photos — three for most categories, one for services). Every seller who posts here has a public trust score that rises with good service and falls when buyers report problems — the blue Trusted and gold Exceptional badges are earned, not given. A score is a signal, not a guarantee; always inspect before you pay.' },
   { Icon: Tag, title: 'Messaging & offers', body: 'All contact happens in-app: tap Message to chat, or Make an offer to send a price the seller can accept or counter. Phone/Zalo is exchanged inside the chat, never published on the listing — which keeps spam out.' },
   { Icon: Bell, title: 'Notifications', body: 'The bell at the top-right alerts you to new messages and offers in real time, on desktop and mobile. Each notification links straight to the conversation.' },
   { Icon: Heart, title: 'Saving listings', body: 'Tap the heart on any card or listing to save it. Your saved items live in the Saved tab — handy for comparing places or items before you decide.' },

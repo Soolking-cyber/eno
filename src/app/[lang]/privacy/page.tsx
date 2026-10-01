@@ -7,6 +7,7 @@ import { CookieSettingsButton } from '@/components/marketplace/cookie-settings-b
 import { LegalLanguageNote } from '@/components/legal/legal-language-note'
 import { LegalTable, LegalText, type LegalCopy } from '@/components/legal/legal-text'
 import { AFFILIATION, COMPANY, PDP_DOSSIERS_FILED } from '@/lib/site-legal'
+import { AMENDED } from '@/lib/compliance/legal-amendment'
 import {
   PRIVACY_SERVICES_COLLECT,
   PRIVACY_SERVICES_CONTROLLER,
@@ -694,6 +695,23 @@ const SECTIONS: Section[] = [
 
 const isTable = (b: Block): b is { table: Table } => 'table' in b
 
+/**
+ * ⚠️ "LAST UPDATED" IS THE AMENDMENT'S PUBLICATION DATE, ON BOTH EDITIONS. This text changed on both
+ * builds (the curated Vietnamese, Consent v2, and the cross-border paragraph that no longer claims a
+ * dossier filing — PDP_DOSSIERS_FILED), and it ships in the deploy that publishes the October legal
+ * amendment, so it carries that deploy's date: LEGAL_AMENDMENT.published
+ * (src/lib/compliance/legal-amendment.ts; infra/vn-node/legal-amendment-gate.sh holds it to the real
+ * deploy day). A typed "October 2026" would silently go wrong if the deploy slipped.
+ * ⚠️ Both dates are passed as authored strings rather than a {date} placeholder: the page stays a
+ * synchronous component with no `lang` param, so <Bilingual> picks the language and each side carries
+ * its own date format (01/10/2026 vs 1 October 2026).
+ * Flipping PDP_DOSSIERS_FILED changes the text again: give this its new date in the same commit.
+ */
+const LAST_UPDATED = {
+  en: `Last updated: ${AMENDED.publishedEn}`,
+  vi: `Cập nhật lần cuối: ${AMENDED.publishedVi}`,
+}
+
 export default function PrivacyPage() {
   return (
     <ContentPage
@@ -701,7 +719,7 @@ export default function PrivacyPage() {
       titleVi="Chính sách bảo vệ dữ liệu cá nhân"
       meta={
         <>
-          <p className="mt-3 text-sm text-ink-4"><Bilingual en="Last updated: October 2026" vi="Cập nhật lần cuối: tháng 10 năm 2026" /></p>
+          <p className="mt-3 text-sm text-ink-4"><Bilingual en={LAST_UPDATED.en} vi={LAST_UPDATED.vi} /></p>
           <LegalLanguageNote />
         </>
       }

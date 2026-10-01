@@ -179,7 +179,7 @@ describe('districtMetadata', () => {
       '1 tin cho thuê tại Huyện Cần Giờ, TP. Hồ Chí Minh. Tin này dẫn tới tin gốc trên một trang đăng tin khác.',
     )
     const elecOne = { ...canGio, category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' } }
-    expect(districtMetadata(elecOne, 'en', 'eno.vn').description).toMatch(/^1 electronics listing in [^.]+\. It links to its original listing on the source site\.$/)
+    expect(districtMetadata(elecOne, 'en', 'eno.vn').description).toMatch(/^1 electronics listing in [^.]+\. It links to its original listing on a source site\.$/)
     for (const lang of ['en', 'vi'] as const) {
       expect(districtMetadata(canGio, lang, 'eno.vn').description).not.toMatch(/Every (one|listing)|Mỗi tin đều/)
       // …and two is still plural.
@@ -202,7 +202,7 @@ describe('districtMetadata', () => {
     expect(own.title).toBe('Services in Binh Trung | eno.vn')
     expect(own.description).toMatch(/public trust score/)
     const linked = districtMetadata({ ...base, category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }, linked: 'most' }, 'en', 'eno.vn')
-    expect(linked.description).toMatch(/Most link to their original listing on the source site\.$/)
+    expect(linked.description).toMatch(/Most link to their original listing on a source site\.$/)
     expect(linked.description).not.toMatch(/trust/)
   })
 })

@@ -49,7 +49,7 @@ vi.mock('@/lib/site-facts', async (importOriginal) => ({
 
 /**
  * Shaped like the 2026-09-27 public API (`facets.category` sums to the 103,966 total): about 99% of
- * listings and every rental in Ho Chi Minh City, about 97% linked from other sites.
+ * listings and every rental in Ho Chi Minh City, about 97% linked from source sites.
  */
 const MEASURED: SiteFacts = {
   live: 103_966,
@@ -134,7 +134,7 @@ describe('/about on the marketplace', () => {
     expect(html).toContain('Almost everything listed is in Ho Chi Minh City.')
     expect(html).toContain('Every rental listed right now is in Ho Chi Minh City.')
     expect(html).toContain('href="/c/rentals"')
-    expect(html).toContain('Almost every listing is linked from another site')
+    expect(html).toContain('Almost every listing is linked from a source site')
     expect(html).toContain('There is no checkout, no escrow and no buyer protection.')
     // "Partner" means a signed agreement since 2026-10-01; no linked source is called one (review P2).
     expect(html).not.toMatch(/partner sites?\b/i)
@@ -162,7 +162,7 @@ describe('/about on the marketplace', () => {
     const html = await render('marketplace')
     expect(html).not.toContain('Ho Chi Minh City')
     expect(html).not.toMatch(/Almost every|Most listings|Every listing/)
-    expect(html).toContain('A listing linked from another site says where it is listed and links to the original posting')
+    expect(html).toContain('A listing linked from a source site says where it is listed and links to the original posting')
     expect(html).toContain('currently free')
   })
 
@@ -191,6 +191,18 @@ describe('/about on the marketplace', () => {
       h.facts = facts
       const html = await render('marketplace')
       expect(html).not.toMatch(/contact the advertiser|deal with the advertiser|enquiries go there|opens? on the site (it|they) came from/)
+    }
+  })
+
+  // ⛔ 2026-10-01: the boards and portals we import from have no agreement with eno — they are SOURCE
+  // sites; "partner" means the signed-agreement badge only. And no phone check runs on a post.
+  it('calls import sources "source sites", never "partner sites", and claims no phone check', async () => {
+    for (const facts of [MEASURED, null]) {
+      h.facts = facts
+      const html = await render('marketplace')
+      expect(html).not.toMatch(/partner sites?\b/i)
+      expect(html).not.toMatch(/phone verified/i)
+      expect(html).toContain('at least 20 days before they apply')
     }
   })
 

@@ -208,7 +208,7 @@ const CONTENT: ArticleContent = {
           <P>
             When you are ready to look, <VnLink href={marketplaceHref('housing')}>apartments and houses for rent
             in Ho Chi Minh City</VnLink> show the asking price, the district and photos, and many link to
-            the original posting on a partner property portal.
+            the original posting on another property listing site.
             {/* ⚠️ It said they were "listed by the people who own or manage them, so you can message
                 directly": most are linked from partner portals, with no in-app chat (2026-09-27). */}
           </P>

@@ -50,22 +50,7 @@ const KNOWN_ENGLISH_ONLY = new Map<string, string>([
   ['For sellers', FOLLOW_ON],
   ['Features & how they work', FOLLOW_ON],
   ['Features', FOLLOW_ON],
-  // /partners
-  ['Official partners', FOLLOW_ON],
-  ['What the badge means', FOLLOW_ON],
-  ['How a partner is chosen', FOLLOW_ON],
-  ['What eno checks before the badge exists', FOLLOW_ON],
-  ['What eno checks', FOLLOW_ON],
-  ['Keeping the badge', FOLLOW_ON],
-  ["eno's position, stated plainly", FOLLOW_ON],
-  ["eno's position", FOLLOW_ON],
-  // /prohibited
-  ['Prohibited items & services', FOLLOW_ON],
-  ['Enforcement', FOLLOW_ON],
-  ['Illegal — never allowed', FOLLOW_ON],
-  ['Regulated — cannot be sold P2P', FOLLOW_ON],
-  ['Platform policy bans', FOLLOW_ON],
-  ['Banned services', FOLLOW_ON],
+  // /partners and /prohibited carry authored Vietnamese since 2026-10-01 (legal-copy pass W-B).
 ])
 
 const ROOT = 'src/app/[lang]'

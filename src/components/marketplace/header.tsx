@@ -322,6 +322,42 @@ export function Header() {
     if (searchWindowRef.current) searchWindowRef.current.scrollTop = 0
   }, [suggestOpen])
 
+  /**
+   * ⛔ THE PHONE PANEL HANGS FROM THE HEADER'S REAL BOTTOM EDGE, MEASURED — NOT FROM "THE HEADER IS AT y=0".
+   * Below 640px the search window is `fixed`, and its top used to be the constant safe-area + 3.75rem: the
+   * header's 64px less the 4px it tucks under the hairline. That holds only while nothing sits above the
+   * header. An in-flow strip above it (the Terms-amendment notice, tos-change-notice.tsx; the pre-launch
+   * banner before it) pushes the sticky header down by its own height at scroll-top, so the panel opened at
+   * y=60 OVER the header's own search field — z-50 over z-40 — and a visitor who tapped search on landing
+   * typed into an input the panel hid (2026-10-01 review). The window now publishes the measured edge as
+   * `--search-panel-top`, and its top and max-height read that; the old constant stays as the fallback, so
+   * with nothing above the header the geometry is byte-for-byte what it was (bottom 64 − 4 = 60).
+   * Re-measured on scroll and resize while open: the header is sticky, so scrolling past the strip moves
+   * it up under a `fixed` window. Only while open — this reads layout, and must not run on page load
+   * (the forced-layout note on the .page-at-top effect above). From sm the window is `absolute`
+   * `top-full` and the class ignores the variable; only its max-height still reads it, correctly.
+   */
+  const headerRef = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const win = searchWindowRef.current
+    const bar = headerRef.current
+    if (!panelOpen || !win || !bar) return
+    let raf = 0
+    const sync = () => {
+      raf = 0
+      win.style.setProperty('--search-panel-top', `${Math.max(Math.round(bar.getBoundingClientRect().bottom) - 4, 0)}px`)
+    }
+    const onMove = () => { if (!raf) raf = requestAnimationFrame(sync) }
+    sync()
+    window.addEventListener('scroll', onMove, { passive: true })
+    window.addEventListener('resize', onMove)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onMove)
+      window.removeEventListener('resize', onMove)
+    }
+  }, [panelOpen])
+
   // Instant matches (debounced typeahead) — brands + categories + listings, with the
   // 'Search for "{q}"' row ALWAYS first: Enter with no arrow-key selection submits the
   // raw free-text search (never a suggestion); arrow keys still navigate suggestions.
@@ -476,6 +512,7 @@ export function Header() {
 
   return (
     <header
+      ref={headerRef}
       id="app-header"
       className={cn(
         // FLAT header (owner 2026-07-17): the SAME background as the page canvas, separated only by a
@@ -887,8 +924,9 @@ export function Header() {
                 ⚠️ BOTH PANELS STOP ABOVE THE ON-SCREEN KEYBOARD. They open on focus, so the keyboard
                 is up whenever they are, and a 70vh cap alone ran them under it (y60–551 for 'Quận 7'
                 against a keyboard top near 508 on a 390×844 phone). `--kb-h` is the app-wide
-                keyboard height (globals.css, KEYBOARD GEOMETRY; 0 when there is none), and 4.5rem is
-                the panel's 3.75rem top plus a 12px gap; the rest scrolls inside the panel.
+                keyboard height (globals.css, KEYBOARD GEOMETRY; 0 when there is none), subtracted with
+                the panel's own top (`--search-panel-top`, measured from the header — see headerRef —
+                falling back to 3.75rem) plus a 12px gap; the rest scrolls inside the panel.
                 ⛔ ONE WINDOW FOR BOTH PANELS, NOT ONE EACH. It used to be two sibling elements, each with its
                 own entrance keyframe — so the 2nd typed character (or a backspace to 1) unmounted one and
                 mounted the other, and the whole window faded + slid in again MID-TYPING. A keystroke never
@@ -903,7 +941,7 @@ export function Header() {
               <div
                 ref={searchWindowRef}
                 className={cn(
-                  'fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-4.5rem-env(safe-area-inset-top)))] overflow-y-auto rounded-2xl bg-popover shadow-pop transition-none animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl',
+                  'fixed inset-x-2 top-[var(--search-panel-top,calc(env(safe-area-inset-top)+3.75rem))] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-var(--search-panel-top,calc(env(safe-area-inset-top)+3.75rem))-0.75rem))] overflow-y-auto rounded-2xl bg-popover shadow-pop transition-none animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl',
                   suggestOpen ? 'space-y-4 p-4' : 'p-3',
                 )}
               >

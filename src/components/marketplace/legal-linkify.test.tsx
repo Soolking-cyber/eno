@@ -40,6 +40,13 @@ describe('linkifyLegal', () => {
     expect(text(html(s))).toBe(s)
   })
 
+  it('links an archived version of the Terms or the Quy chế, and no other versioned path', () => {
+    const out = html('Until then the previous wording applies; it is published at /terms/v1 and /regulations/v1.')
+    expect([...out.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(['/terms/v1', '/regulations/v1'])
+    expect(html('see /privacy/v1')).not.toContain('<a ')
+    expect(html('see /terms/v1x')).not.toContain('<a ')
+  })
+
   it('returns plain text untouched', () => {
     expect(linkifyLegal('Nothing to link here.')).toEqual(['Nothing to link here.'])
   })

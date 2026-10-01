@@ -450,6 +450,16 @@ else
   exit 1
 fi
 
+say "2b. legal amendment dates"
+# ⛔ A LEGAL AMENDMENT IS PUBLISHED ON THE DAY ITS PAGES SAY, OR NOT AT ALL (2026-10-01 review).
+# src/lib/compliance/legal-amendment.ts types the publication and in-force dates that /terms,
+# /regulations, /returns, /prohibited and /privacy print, and the in-force date also switches the
+# Terms version onboarding stamps. Shipped on a later day than `published`, the pages lie about
+# the date and cut the 5 days' notice the Quy chế promises — or, from the in-force date, give none.
+# The gate passes a routine deploy (the deployed commit already carries the same dates) and the
+# publishing deploy on its own day; anything else stops here, before a minute is spent building.
+bash "$APP/infra/vn-node/legal-amendment-gate.sh" "$APP" "$LAST" || exit 1
+
 say "3. pin the rollback"
 pin_prev
 # ⛔ opus's catch: pin_prev only LOGGED when a container was missing. The script then

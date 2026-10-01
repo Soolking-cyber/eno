@@ -13,6 +13,7 @@ export const revalidate = 3600
 import type { Metadata } from 'next'
 import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
+import { FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
 import { RankingContent } from './ranking-content'
 
 // Search & ranking transparency (Luật Thương mại điện tử 122/2025/QH15).
@@ -21,7 +22,8 @@ import { RankingContent } from './ranking-content'
 //
 // The copy lives in ./ranking-content (a client component) so every sentence can carry CURATED
 // Vietnamese via tr(en, vi) rather than machine translation. This file stays a server component
-// purely to own `metadata` and `revalidate`, which client components cannot export.
+// to own `metadata` and `revalidate`, which client components cannot export — and to read
+// FEED_DIVERSITY_WINDOW here, so the client bundle does not pull in feed-diversity's imports.
 
 export const metadata: Metadata = withShare({
   title: `How ${SITE_NAME} ranks results`,
@@ -30,5 +32,5 @@ export const metadata: Metadata = withShare({
 })
 
 export default function RankingPage() {
-  return <RankingContent />
+  return <RankingContent diversityWindow={FEED_DIVERSITY_WINDOW} />
 }

@@ -102,7 +102,7 @@ const CONTENT: ArticleContent = {
                 )
               }
             </LiveCounts>{' '}
-            Many rental listings here are linked from partner property portals: they say where they are
+            Many rental listings here are linked from other property listing sites: they say where they are
             listed, and their button opens the original posting. On any rental here, the check button
             asks the eno team to check availability for you, free.
           </P>

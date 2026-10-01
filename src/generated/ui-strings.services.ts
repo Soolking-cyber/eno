@@ -424,7 +424,7 @@ export const UI_STRINGS_SERVICES: string[] = [
   "eno Concierge can arrange stays and activities, call transport providers, and coordinate the details. The service fee is 10% of the bookings we arrange; you approve every cost first.",
   "eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities.",
   "eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities. Official fees and eno service fees are confirmed separately in writing before payment.",
-  "eno.vn is our marketplace for the international community in Vietnam. Many of its listings come from other sites and link to the original posting. Free to browse, free to post.",
+  "eno.vn is our marketplace for the international community in Vietnam. Many of its listings come from source sites and link to the original posting. Free to browse, free to post.",
   "in its own chat",
   "min travel",
   "night",

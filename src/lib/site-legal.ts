@@ -1,4 +1,5 @@
 import { EDITION, type Edition } from '@/lib/edition'
+import { LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
 
 /**
  * LEGAL IDENTITY OF THIS DEPLOYMENT'S OPERATOR — the single source of truth.
@@ -244,29 +245,87 @@ export const AFFILIATION = {
 }
 
 /**
- * The version stamped onto Profile.tosVersion at acceptance (E-Transactions Law: keep a record of
- * WHAT was accepted and WHEN, not just that something was).
+ * The NEWEST published version of the Terms / Quy chế — the text /terms and /regulations now show.
  *
- * ⚠️ '1' BECAUSE THERE HAS NEVER BEEN ANOTHER ONE. The site is pre-launch with no real users, so
- * the Terms published today are the first Terms anybody could accept — there is no earlier version
- * to transition from and nobody to transition. Dated version strings ('2026-07', '2026-08') implied
- * a history the account table does not contain.
+ * ⚠️ IT IS NOT NECESSARILY THE VERSION IN FORCE, AND NOTHING THAT RECORDS AN ACCEPTANCE MAY READ IT.
+ * '2' is the October 2026 amendment (linked listings, commission disclosure, 20-day fee notice, the
+ * Vietnamese texts — the Terms' `changes` note and Quy chế Article 17 list each edit). It is
+ * published on LEGAL_AMENDMENT.published and binds only from LEGAL_AMENDMENT.inForce
+ * (src/lib/compliance/legal-amendment.ts — the two dates are typed THERE and nowhere else), because
+ * the texts promise at least 5 days' notice before a change takes effect (Quy chế Article 15, Terms
+ * "Changes"). Until that instant
+ * {@link TOS_PREVIOUS_VERSION} governs, and {@link tosVersionInForce} is what says which one.
  *
- * ⚠️ THE FIRST BUMP AFTER REAL USERS EXIST IS NOT A ONE-LINE CHANGE. Decree 52/2013 Đ.38.3 requires
- * a material change to be ANNOUNCED on-platform at least 5 clear days BEFORE it takes effect, and
- * `/regulations` promises exactly that in Vietnamese on the document MoIT reads. Publishing new
- * Terms is not announcing them: an existing user who never visits /terms is told nothing, so
- * binding them off the back of it is not an announcement in any sense a regulator would accept.
+ * ⚠️ RECOVERED, NOT REINVENTED (2026-10-01). The effective instant, stamping the version IN FORCE and
+ * the site-wide notice existed in August (cc799c24, d067d756) and were removed as premature while
+ * there was only version '1'. They are back because this is the first material change: an
+ * existing user who never opens /terms is told nothing by a page they do not visit, so the notice
+ * (src/components/marketplace/tos-change-notice.tsx) comes to them.
  *
- * What that needs, when it is needed: an effective-INSTANT (midnight in Vietnam, compared as a
- * timestamp — Vietnam is UTC+7 with no DST), acceptance stamping the version IN FORCE rather than
- * the newest one, and a site-wide notice during the window. All three existed briefly and were
- * removed here as premature; recover them from git rather than rebuilding from scratch —
- * `git show cc799c24 -- src/lib/site-legal.ts` and `git show d067d756` (the banner, which must stay
- * a CLIENT component: its visibility depends on the clock and it renders on statically prerendered
- * pages).
+ * WHEN THE TERMS CHANGE AGAIN: move this value to TOS_PREVIOUS_VERSION, set the new one here, and
+ * set both dates in LEGAL_AMENDMENT on the DEPLOY day (in force ≥ published + 6 calendar days; its
+ * test enforces the gap). Never backdate the in-force date to "now" to make a diff tidy — the gap
+ * is the whole point.
  */
-export const TOS_VERSION = '1'
+export const TOS_VERSION = '2'
+
+/** The version in force until {@link TOS_VERSION} takes effect. */
+export const TOS_PREVIOUS_VERSION = '1'
+
+/**
+ * The instant {@link TOS_VERSION} takes effect — MIDNIGHT IN VIETNAM on LEGAL_AMENDMENT.inForce,
+ * compared as a TIMESTAMP.
+ *
+ * ⚠️ NOT A DATE-STRING COMPARISON, and an external review is why (cc799c24). Comparing
+ * `now.toISOString().slice(0, 10)` against the date switched at 07:00 Hanoi (UTC), so for seven
+ * hours of the very day the pages NAME as the in-force date they still said the old version
+ * governed; `new Date('nonsense').toISOString()` throws a RangeError; and years past 9999 serialise
+ * as `+010000-…`, which breaks a lexicographic comparison. Instants have none of those faults.
+ *
+ * Vietnam is UTC+7 with NO daylight saving, so a fixed offset is exact — no timezone database.
+ */
+export const TOS_EFFECTIVE_AT = Date.parse(`${LEGAL_AMENDMENT.inForce}T00:00:00+07:00`)
+
+/**
+ * The version legally in force at `now` — THE ONE TO STAMP ON Profile.tosVersion, and the one whose
+ * text binds a user today.
+ *
+ * `Profile.tosVersion` is evidence of what a specific person agreed to on a specific day
+ * (E-Transactions Law). A person accepting during the notice window accepts the version in force at
+ * that moment; stamping the newer one would record agreement to text that has not taken effect and
+ * quietly moot the notice period for everyone who signed up inside it.
+ *
+ * Reads the clock on every call (never cached at module load: a server started before the instant
+ * would otherwise serve the old version for ever). An unparseable date fails toward the OLD version,
+ * i.e. toward more notice — said deliberately rather than left to NaN comparison semantics.
+ */
+export function tosVersionInForce(now: Date = new Date()): string {
+  const t = now.getTime()
+  if (!Number.isFinite(t)) return TOS_PREVIOUS_VERSION
+  return t >= TOS_EFFECTIVE_AT ? TOS_VERSION : TOS_PREVIOUS_VERSION
+}
+
+/** True while {@link TOS_VERSION} is published but not yet binding — the notice window. */
+export function tosInNoticeWindow(now: Date = new Date()): boolean {
+  return tosVersionInForce(now) !== TOS_VERSION
+}
+
+/**
+ * The acceptance stamp for a profile whose stored version is `current`: `{}` when it already holds
+ * the version in force, otherwise both columns.
+ *
+ * ⚠️ ONE CLOCK READ FOR BOTH FIELDS. Calling tosVersionInForce() in the condition AND in the value
+ * reads the clock twice, so a request straddling the instant could test against the old version and
+ * then store the new one — an acceptance record naming a version the user was never shown
+ * (cc799c24). `now` is read once and used for the version and the timestamp alike.
+ */
+export function tosAcceptanceStamp(
+  current: string | null | undefined,
+  now: Date = new Date(),
+): { tosAcceptedAt?: Date; tosVersion?: string } {
+  const accepting = tosVersionInForce(now)
+  return current === accepting ? {} : { tosAcceptedAt: now, tosVersion: accepting }
+}
 
 // True while the site is in pre-launch test operation (before the MoIT sàn TMĐT
 // registration at online.gov.vn is confirmed). Drives the always-visible bilingual
@@ -318,21 +377,36 @@ export const PRELAUNCH = EDITION === 'marketplace'
 export const PRELAUNCH_BANNER = false
 
 /**
- * ⛔ THE PDPL IMPACT-ASSESSMENT DOSSIERS ARE **NOT** FILED (2026-10-01). /privacy used to say we "file them with
- * the Ministry of Public Security" whenever `OPERATOR_REGISTERED` was true — which only means the company
- * certificate exists, so the notice claimed a filing that had not happened (PDPL Art 13 accuracy; ND 330/2026
- * Art 43.1(đ)). The processing-impact assessment (PDPL Art 21) and the cross-border transfer assessment (Art 20)
- * are drafts in docs/compliance/pdpl-dossier-draft.md.
- * Flip to true ONLY when A05 (Bộ Công an) has acknowledged receipt of BOTH dossiers — never on submission alone.
+ * ⛔ THE PDPL IMPACT-ASSESSMENT DOSSIERS ARE **NOT** FILED (2026-10-01) — PER EDITION, because the two
+ * editions are different data controllers (OPERATORS above). The processing-impact assessment (PDPL
+ * Art 21) and the cross-border transfer assessment (Art 20) are drafts in
+ * docs/compliance/pdpl-dossier-draft.md, marked "NOT FILED".
+ *
+ * /privacy's "Processing outside Vietnam" paragraph reads this (src/app/[lang]/privacy/page.tsx). It
+ * used to gate "…file them with the Ministry of Public Security" on OPERATOR_REGISTERED alone — which
+ * only says the company certificate exists — so eno.vn claimed a filing that had not happened from the
+ * day its ERC was issued (PDPL Art 13 accuracy; ND 330/2026 Art 43.1(đ)).
+ *
+ * Flip an edition to true ONLY when A05 (Bộ Công an) has acknowledged receipt of BOTH of its dossiers —
+ * never on submission alone — and give /privacy's "Last updated" its new date in the same commit.
  */
-export const PDP_DOSSIERS_FILED = false
+const PDP_DOSSIERS_FILED_BY: Record<Edition, boolean> = {
+  marketplace: false,
+  services: false,
+}
+
+/** Only a registered operator can have filed anything, whatever the map above says. */
+export const PDP_DOSSIERS_FILED = OPERATOR_REGISTERED && PDP_DOSSIERS_FILED_BY[EDITION]
 
 /**
- * ⚠️ CURATED VIETNAMESE LEGAL TEXT AWAITING COUNSEL (2026-10-01). Terms, Privacy, Returns and Prohibited now carry
- * a curated Vietnamese body (Law 122/2025 Art 11 requires the platform's terms in Vietnamese). Until the lawyer
- * signs the Vietnamese text off, it is shown as a reviewed-translation draft and NO language is declared
- * authoritative on those pages — declaring an unreviewed translation binding would make any translation error the
- * contract. Flip to true after counsel's written sign-off: the pages then state "Bản tiếng Việt là bản có giá trị
- * pháp lý", matching the Quy chế.
+ * ⚠️ CURATED VIETNAMESE LEGAL TEXT AWAITING COUNSEL (2026-10-01). Terms, Privacy, Returns and Prohibited
+ * now carry a curated Vietnamese body (Law 122/2025 Art 11 requires the platform's terms in Vietnamese)
+ * and render LegalLanguageNote (src/components/legal/legal-language-note.tsx), which reads this. Until
+ * the lawyer signs the Vietnamese text off, it is shown as a reviewed-translation draft and NO language
+ * is declared authoritative on those pages — declaring an unreviewed translation binding would make any
+ * translation error the contract. Flip to true after counsel's written sign-off: the pages then state
+ * "Bản tiếng Việt là bản có giá trị pháp lý", matching the Quy chế.
+ * ⚠️ /privacy IS ONE OF THEM since its { en, vi } rewrite (2026-10-01): its "the English version of this
+ * policy is the authoritative one" note was removed on purpose — do not bring it back.
  */
 export const LEGAL_VI_APPROVED = false

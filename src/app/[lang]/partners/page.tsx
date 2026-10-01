@@ -9,7 +9,7 @@ import { Bilingual } from '@/components/marketplace/bilingual'
 export const metadata: Metadata = withShare({
   title: `Official partners — ${SITE_NAME}`,
   description:
-    'What the Partner badge means: how eno picks partner companies, the documents and licences checked before the badge is granted, and what happens if a partner slips.',
+    'What the Official partner badge means on eno: a company that has signed an agreement with eno. Every other shop whose catalogue appears here is a Linked shop — what that means for buyers, and how commissions are disclosed.',
   alternates: { canonical: '/partners' },
 })
 
@@ -17,51 +17,42 @@ export const metadata: Metadata = withShare({
  * THE EXPLAINER BEHIND THE PARTNER BADGE — the /trust of partnerships, and built the same
  * way (ContentPage + ContentSection, flat canvas, hairline rows, no panels).
  *
+ * ⛔ OWNER DECISION 2026-10-01: THE BADGE MEANS A SIGNED AGREEMENT, AND NOTHING ELSE. On 2026-09-17
+ * the badge had been granted to every shop whose catalogue eno imports (Tiki, CellphoneS, FPT Shop,
+ * the eSIM carriers, VinWonders…), none of which signed anything — so this page's "eno chose this
+ * company deliberately, verified its licences and agreed terms with it" was false of most badge
+ * holders. The badge is now kept only for companies with a signed agreement (the DB flip is
+ * scripts/set-official-partner.mjs, run separately); every other imported storefront shows a neutral
+ * "Linked shop" chip, which this page also explains.
+ *
+ * ⛔ SHIPS ONLY WITH: the DB flip, importers that stop creating badged storefronts (import-partners,
+ * import-accesstrade, import-supersports, seed-vinwonders, set-import-partners, set-partner-avatar
+ * --official all write officialPartner:true today), and W-C's "Linked shop" chip, "Ad" marker and
+ * commission note — the `what` and `linked` sections state them as facts. The badge's own tooltip
+ * (partner-badge.tsx, rendered right here) still says "eno carries this shop's catalogue" and must
+ * change with them.
+ *
+ * ⚠️ THE PAGE LISTS NO PARTNER BY NAME, AND THAT IS DELIBERATE. It is not data-driven and it renders on
+ * BOTH editions: one signed partner is the services edition's visa provider, which eno.vn may not even
+ * mention (src/lib/edition.ts). Each partner's storefront carries the badge itself.
+ *
+ * ⚠️ "IT IS NOT ADVERTISING AND IT CANNOT BE BOUGHT" WAS REMOVED. A partner agreement can pay eno a
+ * commission (the services edition's provider does — src/lib/terms-services-copy.ts), so the badge is
+ * a disclosed business relationship, not an independent rating — the page now says exactly that.
+ *
  * ⚠️ THE COPY NAMES THE BADGE BY ITS SHAPE, NEVER BY A COLOUR. It said "a gold Partner badge" for
  * two weeks after the plate turned partner green (partner-badge.tsx, 2026-09-14), and the dark theme
  * still inverts it — any colour word here is a claim one theme contradicts (C-PARTNERS-COPY).
  *
- * ⚠️ THE ONE SENTENCE THIS PAGE MUST NOT CONTAIN. The owner's brief asked it to say eno
- * "guarantee[s] the quality of service". It does not say that, and the omission is deliberate
- * rather than an oversight — the wording is flagged in the commit and to the owner. Every partner
- * storefront's own bio states the opposite in so many words ("eno introduces GMBR; the booking
- * contract is with them"), because eno.vn is a licensed sàn TMĐT — an intermediary — and a
- * marketplace that publicly guarantees a third party's service has, in one sentence, assumed the
- * liability of the seller for a service it is not licensed to perform. A page that contradicts
- * every storefront it links to is also the first thing a sharp buyer notices.
+ * ⚠️ THE ONE SENTENCE THIS PAGE MUST NOT CONTAIN: that eno "guarantee[s] the quality of service". eno.vn
+ * is a licensed sàn TMĐT — an intermediary — and a marketplace that publicly guarantees a third
+ * party's service has, in one sentence, assumed the liability of the seller for a service it is not
+ * licensed to perform.
  *
- * What it does instead is stronger than a bare promise, because each line is a thing eno actually
- * DOES and can be held to: the documents are checked before the badge exists, the badge is
- * revocable, disputes have a room, and partners cannot hide behind a phone number. "No-brainer"
- * comes from specifics a reader can verify, not from the word "guarantee".
+ * ⚠️ COPY IS AUTHORED IN BOTH LANGUAGES (<Bilingual>), so a Vietnamese reader's server HTML carries the
+ * curated Vietnamese rather than a machine translation; the nine other languages translate the English.
  */
-/**
- * ⚠️ `title`/`children` ARE ReactNode, NOT string, AND THAT IS AN i18n REQUIREMENT RATHER THAN
- * TASTE. scripts/gen-ui-strings.mjs harvests copy by scanning source for `<Tr text="…">` and
- * `tr('…','…')` LITERALS. Copy handed to a component as a string prop and rendered inside it as
- * `<Tr text={variable}>` is invisible to that scan, so it never reaches src/generated/ui-strings.ts
- * and a Vietnamese reader gets English — silently, with every gate green. (The generator keeps a
- * VARIABLE_RENDERED_COPY escape hatch for files that genuinely cannot avoid this; a page written
- * today should not need to be on that list.) Taking nodes keeps every literal in the JSX below,
- * where the harvester can see it. Caught by all three reviewers.
- */
-function Step({ n, title, children }: { n: string; title: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-4 py-4">
-      {/* The numeral is the ladder rail — same shape language as /trust's Band, which sets a
-          fixed-size mark beside prose rather than a bullet. */}
-      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold tabular-nums text-accent-foreground">
-        {n}
-      </span>
-      <div className="min-w-0">
-        <div className="text-base font-bold text-foreground">{title}</div>
-        <p className="mt-0.5 text-sm leading-relaxed text-body">{children}</p>
-      </div>
-    </div>
-  )
-}
-
-/** One "what eno checks" row. Nodes, not strings — see the note on Step. */
+/** One "what eno asks for" row. Nodes, not strings, so every literal stays in the JSX below. */
 function Check({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="py-3">
@@ -75,92 +66,128 @@ export default function PartnersPage() {
   return (
     <ContentPage
       title="Official partners"
-      /* ⛔ PHRASING CONTENT ONLY. ContentPage renders `intro` INSIDE a <p>; this used to pass its own
-         <p>, the parser closed the outer one early, and the server DOM stopped matching React's tree —
-         React #418 on every cold load of this page, and the duplicated Organization/WebSite JSON-LD
-         that came from re-rendering the root on the client (C-HYDRATION, measured 2026-09-29).
+      titleVi="Đối tác chính thức"
+      /* ⛔ PHRASING CONTENT ONLY. ContentPage renders `intro` INSIDE a <p>; a block element here closed the
+         outer <p> early and broke hydration (React #418, C-HYDRATION, 2026-09-29).
          src/app/[lang]/html-nesting-contract.test.ts fails the build on a block element here. */
       intro={
         <Bilingual
-          en="A handful of companies on eno carry the Partner badge — a green shield. It is not advertising and it cannot be bought — eno goes looking for the best company in a category, checks who they actually are, and puts its own name next to theirs."
-          vi="Chỉ một số ít công ty trên eno mang huy hiệu Đối tác — hình chiếc khiên màu xanh lá. Đây không phải quảng cáo và không thể mua được — eno tự tìm kiếm công ty tốt nhất trong từng danh mục, xác minh rõ họ thực sự là ai, rồi mới đặt tên mình bên cạnh họ."
+          en="The Official partner badge — a shield — marks a company that has signed an agreement with eno. Every other shop whose catalogue appears on eno is a Linked shop. This page explains both, and what each means for you as a buyer."
+          vi="Huy hiệu Đối tác chính thức — hình chiếc khiên — dành cho công ty đã ký thoả thuận hợp tác với eno. Mọi cửa hàng khác có danh mục sản phẩm xuất hiện trên eno là Cửa hàng liên kết. Trang này giải thích cả hai, và ý nghĩa của từng loại đối với bạn khi mua hàng."
         />
       }
       sections={[
-        { id: 'what', label: 'What the badge means' },
-        { id: 'how', label: 'How a partner is chosen' },
-        { id: 'checks', label: 'What eno checks' },
-        { id: 'keeps', label: 'Keeping the badge' },
-        { id: 'position', label: "eno's position" },
+        { id: 'what', label: 'What the badge means', labelVi: 'Ý nghĩa của huy hiệu' },
+        { id: 'linked', label: 'Linked shops', labelVi: 'Cửa hàng liên kết' },
+        { id: 'checks', label: 'What eno asks for', labelVi: 'eno yêu cầu những gì' },
+        { id: 'keeps', label: 'Keeping the badge', labelVi: 'Duy trì huy hiệu' },
+        { id: 'position', label: "eno's position", labelVi: 'Vai trò của eno' },
       ]}
     >
-      <ContentSection id="what" title="What the badge means">
+      <ContentSection id="what" title="What the badge means" titleVi="Ý nghĩa của huy hiệu">
         <div className="flex items-center gap-2">
           <PartnerBadge size="md" />
           <span className="text-sm text-ink-4"><Tr text="on a storefront, a listing, or a chat header" /></span>
         </div>
         <p className="leading-relaxed">
-          <Tr text="It means eno chose this company deliberately, verified its licences and company documents, and agreed terms with it directly. Any business can sell on eno. Only a partner has been sought out, checked and vouched for by name." />
+          <Bilingual
+            en="It means the company has signed a cooperation agreement with eno. Any business can sell on eno; only a company with a signed agreement carries this badge."
+            vi="Huy hiệu cho biết công ty đó đã ký thoả thuận hợp tác với eno. Doanh nghiệp nào cũng có thể bán hàng trên eno; chỉ công ty đã ký thoả thuận mới mang huy hiệu này."
+          />
         </p>
+        {/* No seller-facing route reaches the column (schema.prisma's note on Seller.officialPartner), so
+            "no seller can give it to itself" is a code fact. ⛔ NOT "granted by a person, never by an
+            algorithm": several import scripts set it in bulk — see the header. */}
         <p className="leading-relaxed">
-          <Tr text="The badge is granted by a person, never by a score or an algorithm, and it is the only badge on eno that cannot be earned by good behaviour alone." />
+          <Bilingual
+            en="The badge is granted and withdrawn by eno, and no seller can give it to itself. It is not a trust score and it is not earned by good behaviour alone: it records a business relationship."
+            vi="Huy hiệu do eno cấp và thu hồi, và không người bán nào tự gán được cho mình. Đây không phải điểm uy tín và không thể có được chỉ nhờ hoạt động tốt: huy hiệu ghi nhận một quan hệ hợp tác kinh doanh."
+          />
         </p>
       </ContentSection>
 
-      <ContentSection id="how" title="How a partner is chosen">
+      <ContentSection id="linked" title="Linked shops" titleVi="Cửa hàng liên kết">
         <p className="leading-relaxed">
-          <Tr text="eno starts from the buyer's side. For each service expats actually need, the team surveys what is available in Vietnam, compares real quoted prices against the market, and approaches the companies that come out best on price and on quality of service — not the ones who ask." />
+          <Bilingual
+            en="Many listings on eno come from shops whose online catalogues we show here — electronics retailers, mobile carriers selling eSIMs, attraction tickets and more. These shops have not signed an agreement with eno, so they do not carry the partner badge: their storefronts are marked Linked shop."
+            vi="Nhiều tin trên eno đến từ các cửa hàng có danh mục sản phẩm trực tuyến được chúng tôi hiển thị tại đây — cửa hàng điện máy, nhà mạng bán eSIM, vé tham quan và nhiều loại khác. Các cửa hàng này chưa ký thoả thuận với eno nên không mang huy hiệu đối tác: gian hàng của họ được gắn nhãn Cửa hàng liên kết."
+          />
         </p>
+        {/* "Takes you to the shop's website", never "opens the product": SuperSports' links land on the
+            shop (scripts/import-supersports.ts, mintLinks) and some affiliate campaigns need a second
+            step to reach the product (AffiliateProductStep, affiliate-booking.tsx). */}
+        <p className="leading-relaxed">
+          <Bilingual
+            en="Their listings are linked listings. Each names the shop and its button takes you to the shop's own website, where you buy under the shop's own price, terms and returns policy. eno has not vetted these shops and takes no payment for what you buy there."
+            vi="Tin của họ là tin đăng liên kết. Mỗi tin ghi rõ tên cửa hàng, và nút trên tin đưa bạn sang chính website của cửa hàng, nơi bạn mua theo giá, điều kiện và chính sách đổi trả của cửa hàng đó. eno chưa thẩm định các cửa hàng này và không nhận thanh toán cho những gì bạn mua tại đó."
+          />
+        </p>
+        <p className="leading-relaxed">
+          <Bilingual
+            en="We may earn a commission when you buy through some of these links. Those links are labelled Ad, with a note saying so. You do not pay the commission, and it does not change your price."
+            vi="Chúng tôi có thể nhận hoa hồng khi bạn mua hàng qua một số đường dẫn này. Các đường dẫn đó được gắn nhãn Quảng cáo kèm ghi chú về việc này. Bạn không phải trả khoản hoa hồng đó, và nó không làm thay đổi giá bạn trả."
+          />
+        </p>
+      </ContentSection>
+
+      <ContentSection id="checks" title="What eno asks for before signing" titleVi="eno yêu cầu những gì trước khi ký">
+        {/* Written out rather than mapped over a tuple array, so every literal stays visible here. */}
         <div className="divide-y divide-border">
-          <Step n="1" title={<Tr text="Survey the category" />}>
-            <Tr text="The team collects the real offers in a category — what is charged, what is included, how fast it is delivered, and what customers say afterwards." />
-          </Step>
-          <Step n="2" title={<Tr text="Compare on price and quality together" />}>
-            <Tr text="The cheapest company is not automatically the answer. A partner has to be strong on both: competitive against the market, and good enough that eno is willing to attach its name." />
-          </Step>
-          <Step n="3" title={<Tr text="Check the paperwork" />}>
-            <Tr text="Before anything is agreed, eno asks for the company's licences and registration documents and verifies them. A company that cannot produce them is not a partner, whatever it charges." />
-          </Step>
-          <Step n="4" title={<Tr text="Agree terms directly" />}>
-            <Tr text="eno deals with the company itself, so there is a named counterpart and a direct line when something goes wrong — not an anonymous seller account." />
-          </Step>
+          <Check title={<Bilingual en="Business registration" vi="Đăng ký doanh nghiệp" />}>
+            <Bilingual
+              en="The company is a registered entity, and the name on the storefront is the name on the paperwork."
+              vi="Công ty là pháp nhân đã đăng ký, và tên trên gian hàng trùng với tên trên giấy tờ."
+            />
+          </Check>
+          <Check title={<Bilingual en="Sector licences" vi="Giấy phép ngành nghề" />}>
+            <Bilingual
+              en="Whatever that line of business legally requires to operate in Vietnam, for that specific company."
+              vi="Những giấy phép mà ngành nghề đó bắt buộc phải có để hoạt động tại Việt Nam, của chính công ty đó."
+            />
+          </Check>
+          <Check title={<Bilingual en="Who is responsible" vi="Ai chịu trách nhiệm" />}>
+            <Bilingual
+              en="A named contact at the company that eno can reach directly, so a problem has somewhere to go."
+              vi="Một đầu mối có tên tuổi tại công ty mà eno liên hệ trực tiếp được, để mọi vấn đề đều có nơi tiếp nhận."
+            />
+          </Check>
+          <Check title={<Bilingual en="What is actually delivered" vi="Những gì thực sự được cung cấp" />}>
+            <Bilingual
+              en="What the service includes, what it costs, and how long it takes — so the offer on eno matches the offer the buyer receives."
+              vi="Dịch vụ gồm những gì, giá bao nhiêu và mất bao lâu — để những gì chào bán trên eno đúng với những gì người mua nhận được."
+            />
+          </Check>
         </div>
       </ContentSection>
 
-      <ContentSection id="checks" title="What eno checks before the badge exists">
-        {/* Written out rather than mapped over a tuple array, for the same harvester reason as
-            Step above: a string inside an array is not a literal the extractor can see. */}
-        <div className="divide-y divide-border">
-          <Check title={<Tr text="Business registration" />}>
-            <Tr text="The company is a real registered entity, and the name on the storefront is the name on the paperwork." />
-          </Check>
-          <Check title={<Tr text="Sector licences" />}>
-            <Tr text="Whatever that category legally requires to operate in Vietnam — checked for that specific company, not assumed from its website." />
-          </Check>
-          <Check title={<Tr text="Who is responsible" />}>
-            <Tr text="A named contact at the company that eno can reach directly, so a problem has somewhere to go." />
-          </Check>
-          <Check title={<Tr text="What is actually delivered" />}>
-            <Tr text="What the service includes, what it costs, and how long it takes — so the offer on eno matches the offer the buyer receives." />
-          </Check>
-        </div>
-      </ContentSection>
-
-      <ContentSection id="keeps" title="Keeping the badge">
+      <ContentSection id="keeps" title="Keeping the badge" titleVi="Duy trì huy hiệu">
         <p className="leading-relaxed">
-          <Tr text="The badge is not permanent. eno watches the same things a buyer would — how fast the company replies, whether reports and disputes are resolved, whether the price stays honest — and removes the badge from a company whose service slips. A partner has more to lose than an ordinary seller, which is the point of granting it at all." />
+          <Bilingual
+            en="The badge lasts only as long as the agreement, and eno can withdraw it at any time — including from a company whose service slips."
+            vi="Huy hiệu chỉ tồn tại khi thoả thuận còn hiệu lực, và eno có thể thu hồi bất cứ lúc nào — kể cả với công ty có chất lượng dịch vụ đi xuống."
+          />
         </p>
+        {/* phoneForSeller() returns null for an official partner (src/lib/contact.ts). */}
         <p className="leading-relaxed">
-          <Tr text="Partners also answer in eno's own chat rather than sending buyers off-platform: there is no phone number to reveal on a partner storefront, so every conversation stays where a dispute can be opened and read later." />
+          <Bilingual
+            en="Partners answer in eno's own chat rather than sending buyers off-platform: there is no phone number to reveal on a partner storefront, so every conversation stays where a dispute can be opened and read later."
+            vi="Đối tác trả lời ngay trong khung chat của eno thay vì kéo người mua ra ngoài nền tảng: gian hàng đối tác không có số điện thoại để hiển thị, nên mọi cuộc trò chuyện đều ở lại nơi có thể mở và xem xét tranh chấp về sau."
+          />
         </p>
       </ContentSection>
 
-      <ContentSection id="position" title="eno's position, stated plainly">
+      <ContentSection id="position" title="eno's position, stated plainly" titleVi="Nói rõ về vai trò của eno">
         <p className="leading-relaxed">
-          <Tr text="eno is the marketplace, not the provider. The partner performs the service under its own licence and the contract for it is between the buyer and the partner — that is true of a partner exactly as it is of any other seller, and each partner storefront says so." />
+          <Bilingual
+            en="eno is the marketplace, not the provider. A partner performs its service under its own licence and the contract for it is between the buyer and the partner — exactly as with any other seller, and each partner storefront says so."
+            vi="eno là sàn giao dịch, không phải bên cung cấp. Đối tác thực hiện dịch vụ theo giấy phép của chính mình và hợp đồng dịch vụ là giữa người mua với đối tác — giống hệt như với mọi người bán khác, và mỗi gian hàng đối tác đều ghi rõ điều này."
+          />
         </p>
         <p className="leading-relaxed">
-          <Tr text="What changes with a partner is everything around that: eno chose them, checked them, agreed terms with them, keeps their conversations on the platform, and can take the badge away. If something goes wrong with a partner, open a dispute in the chat — eno reads it and follows it up with a company it has a direct relationship with." />
+          <Bilingual
+            en="A partner agreement may include a commission paid to eno, so the badge discloses a business relationship — it is not an independent rating and not a guarantee. If something goes wrong with a partner, open a dispute in the chat: eno reads it and follows it up with a company it has a signed agreement with."
+            vi="Thoả thuận đối tác có thể bao gồm khoản hoa hồng trả cho eno, vì vậy huy hiệu là việc công khai một quan hệ kinh doanh — không phải đánh giá độc lập và cũng không phải sự bảo đảm. Nếu có vấn đề với một đối tác, hãy mở tranh chấp ngay trong khung chat: eno sẽ xem xét và làm việc tiếp với công ty mà eno đã ký thoả thuận."
+          />
         </p>
       </ContentSection>
     </ContentPage>

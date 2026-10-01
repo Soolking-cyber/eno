@@ -1,5 +1,7 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
-import { COMPANY, OPERATOR_REGISTERED, TOS_VERSION } from '@/lib/site-legal'
+import { COMPANY, OPERATOR_REGISTERED, TOS_PREVIOUS_VERSION, TOS_VERSION, tosVersionInForce } from '@/lib/site-legal'
+import { AMENDED } from '@/lib/compliance/legal-amendment'
+import { archivedPath } from '@/lib/compliance/legal-archive'
 import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
 
 /**
@@ -12,10 +14,12 @@ import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
  * be complete — vocabulary that must not exist in eno.vn's artifact at all. Enumerating nothing is
  * the only shape that is correct on both editions.
  *
- * ⚠️ THE VERSION STRING IS LOAD-BEARING. `TOS_VERSION` is what gets stamped onto Profile.tosVersion
- * at acceptance, so an agent quoting "version 1" from this document and a user's stored acceptance
- * record refer to the same text by construction. Do not print a date here instead: site-legal.ts
- * explains at length why dated version strings implied a history the account table does not hold.
+ * ⚠️ THE VERSION STRING IS LOAD-BEARING. `tosVersionInForce()` is what gets stamped onto
+ * Profile.tosVersion at acceptance, so an agent quoting "version in force: N" from this document and a
+ * user's stored acceptance record refer to the same text by construction. It is read PER REQUEST
+ * (this route is force-dynamic): during a notice window the newest published version (TOS_VERSION)
+ * is not yet the one in force, and the body says so. Do not print a date in place of the version:
+ * site-legal.ts explains why dated version strings implied a history the account table does not hold.
  *
  * ⚠️ NO CLAUSE IS PARAPHRASED. Summarising a limitation of liability or a governing-law clause in
  * "plainer" words creates a second, weaker statement of the same obligation — and the reader is a
@@ -37,11 +41,30 @@ const operatorLine = OPERATOR_REGISTERED
   ? `${SITE_NAME} is ${WHAT_WE_ARE}, operated by ${COMPANY.name} (${COMPANY.nameEn}), business registration no. ${COMPANY.erc} (${COMPANY.ercIssued}), head office ${COMPANY.address}.`
   : `${SITE_NAME} is ${WHAT_WE_ARE}. The operating company is currently being registered in Vietnam; its registered name, business registration number and head-office address are published on the HTML page as soon as the certificate is issued.`
 
-const BODY = `# Terms of Service — ${SITE_NAME}
+/**
+ * The version line, per request. During a notice window it also names the newer published version
+ * and when it takes effect, so "the text at /terms" and "the version in force" cannot be confused.
+ */
+function versionLine(now: Date): string {
+  const inForce = tosVersionInForce(now)
+  return inForce === TOS_VERSION
+    ? `Version in force: ${inForce}`
+    : `Version in force: ${inForce}. Version ${TOS_VERSION} — the text now published at ${SITE_ORIGIN}/terms — was published on ${AMENDED.publishedEn} and takes effect on ${AMENDED.inForceEn}; until then version ${TOS_PREVIOUS_VERSION} remains in force, and its text is published at ${SITE_ORIGIN}${archivedPath('terms', TOS_PREVIOUS_VERSION)}.`
+}
 
-> This is a short machine-readable summary. **The full Terms of Service at ${SITE_ORIGIN}/terms are the authoritative text** and are the version that binds. Where this summary and that page differ, that page is correct.
+/**
+ * ⛔ THE LINKED-LISTINGS DEFINITION BELOW IS A QUOTATION, NOT A SUMMARY — the header's "no clause is
+ * paraphrased" rule. It is the first sentence of the `linked` section of /terms word for word, and
+ * src/app/md/terms/route.test.ts fails if the two drift apart. Everything that clause goes on to
+ * bind (who sells, where you buy, which links can earn a commission) is pointed at, not restated.
+ */
+const LINKED_DEFINITION = `Many listings on ${SITE_NAME} are linked listings: copies, for reference, of listings published on another website — a classifieds or property portal, a job board, or a shop's online catalogue (the "source site").`
 
-Version in force: ${TOS_VERSION}
+const body = (now: Date) => `# Terms of Service — ${SITE_NAME}
+
+> This is a short machine-readable summary. **The full Terms of Service at ${SITE_ORIGIN}/terms are the authoritative text**, and that page states which version is in force. Where this summary and that page differ, that page is correct.
+
+${versionLine(now)}
 
 ## Operator
 
@@ -49,14 +72,15 @@ ${operatorLine}
 
 Contact: ${COMPANY.email}
 
-## The two points most often needed by an agent
+## The points most often needed by an agent
 
 - **Listings are posted by third parties.** Sellers write their own descriptions and set their own prices, and they are responsible for the accuracy and legality of what they post.
+- **Many listings are linked listings.** The full Terms define them: "${LINKED_DEFINITION}" Who the seller of a linked listing is, where it is bought, and which links can earn the operator a commission are set out in the binding clause: ${SITE_ORIGIN}/terms#linked.
 - **${SITE_NAME} is an intermediary, not a party to peer-to-peer deals.** ${IS_SERVICES ? 'Listings between members carry no checkout and no escrow: buyers and sellers agree and settle between themselves. Services sold by the operator itself are the exception and are paid for on-site; the full Terms govern those.' : 'There is no checkout and no escrow; buyers and sellers agree and settle between themselves.'} Trust scores and badges reduce risk — they are not a guarantee or an endorsement.
 
 ## What the full Terms cover
 
-Acceptance and scope · eligibility and accounts · listings posted by third parties · posting rules and conduct · trust, verification and moderation · the platform's role · fees · your content · disclaimers and limitation of liability · complaints and reports · suspension and termination · governing law and disputes · related sites · how changes are announced.
+Acceptance and scope · eligibility and accounts · who posts the listings · linked listings · posting rules and conduct · trust, verification and moderation · the platform's role · fees · your content · disclaimers and limitation of liability · complaints and reports · suspension and termination · governing law and disputes · related sites · how changes are announced.
 
 ## Related documents
 
@@ -78,5 +102,5 @@ Acceptance and scope · eligibility and accounts · listings posted by third par
 export const dynamic = 'force-dynamic'
 
 export function GET() {
-  return markdownResponse(BODY)
+  return markdownResponse(body(new Date()))
 }

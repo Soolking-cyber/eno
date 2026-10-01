@@ -112,3 +112,38 @@ describe('O-03: ✨ and Map on a phone', () => {
     expect(panel()).toBeNull()
   })
 })
+
+/**
+ * ⛔ THE FIXED PHONE PANEL HANGS FROM THE HEADER'S MEASURED BOTTOM (2026-10-01 review). With a strip in flow
+ * above the sticky header (the Terms-amendment notice), the header starts at y≈N at scroll-top, and a panel
+ * pinned at the constant y=60 covered the header's own search field. jsdom has no layout, so the header's
+ * rect is stubbed: the contract is "top = header bottom − 4, re-measured on scroll", with the old constant
+ * kept as the CSS fallback.
+ */
+describe('the phone panel follows the header, wherever the header is', () => {
+  it('publishes the header bottom − 4 as --search-panel-top, and re-measures on scroll', async () => {
+    let bottom = 130 // a 66px notice above a 64px header, at scroll-top
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { top: bottom - 64, bottom, left: 0, right: 390, width: 390, height: 64, x: 0, y: bottom - 64, toJSON: () => ({}) } as DOMRect
+    })
+    try {
+      render(<Header />)
+      act(() => field().focus())
+      await waitFor(() => expect(panel()).not.toBeNull())
+      const win = panel() as HTMLElement
+      expect(win.style.getPropertyValue('--search-panel-top')).toBe('126px')
+      // The class reads the variable, with the old constant as its fallback — top AND the height cap.
+      expect(win.className).toContain('top-[var(--search-panel-top,calc(env(safe-area-inset-top)+3.75rem))]')
+      expect(win.className).toContain('-var(--search-panel-top,calc(env(safe-area-inset-top)+3.75rem))-0.75rem')
+      // Scrolled past the strip: the sticky header is at y=0 again, and the panel follows it up.
+      bottom = 64
+      await act(async () => {
+        window.dispatchEvent(new Event('scroll'))
+        await new Promise((r) => requestAnimationFrame(() => r(null)))
+      })
+      expect(win.style.getPropertyValue('--search-panel-top')).toBe('60px')
+    } finally {
+      rect.mockRestore()
+    }
+  })
+})

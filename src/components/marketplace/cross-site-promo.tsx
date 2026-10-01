@@ -82,11 +82,11 @@ export function CrossSitePromo({ className }: { className?: string }) {
       </h2>
       <p className="mt-3 text-base leading-relaxed text-body">
         {/* ⚠️ Not "listed by the people who own the things": most rentals, furniture and electronics
-            there are linked from other portals and shops (2026-09-27). ⛔ And not "partner sites" (2026-10-01):
-            "partner" now means a signed agreement (partner-badge.tsx), which none of those sources has. */}
+            there are linked from other portals and shops (2026-09-27). ⛔ "SOURCE sites", not "partner
+            sites" (2026-10-01): "partner" means only the signed-agreement badge (/partners). */}
         {tr(
-          'eno.vn is our marketplace for the international community in Vietnam. Many of its listings come from other sites and link to the original posting. Free to browse, free to post.',
-          'eno.vn là chợ của chúng tôi dành cho cộng đồng quốc tế tại Việt Nam. Nhiều tin đăng trên đó đến từ các trang khác và dẫn tới tin gốc. Xem tin và đăng tin đều miễn phí.',
+          'eno.vn is our marketplace for the international community in Vietnam. Many of its listings come from source sites and link to the original posting. Free to browse, free to post.',
+          'eno.vn là chợ của chúng tôi dành cho cộng đồng quốc tế tại Việt Nam. Nhiều tin đăng trên đó đến từ các trang nguồn và dẫn tới tin gốc. Xem tin và đăng tin đều miễn phí.',
         )}
       </p>
 

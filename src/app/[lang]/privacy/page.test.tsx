@@ -67,10 +67,14 @@ describe('/privacy — which language governs', () => {
   })
 
   it('⛔ while LEGAL_VI_APPROVED is false it says the Vietnamese is under review — and declares no prevailing language', async () => {
-    expect(await policy('marketplace', 'vi')).toContain('Bản tiếng Việt đang được luật sư rà soát.')
+    const vi = await policy('marketplace', 'vi')
+    expect(vi).toContain('Bản tiếng Việt của trang này là bản dịch do eno biên soạn và đang được luật sư rà soát.')
+    expect(vi).toContain('chưa có bản ngôn ngữ nào được xác định là có giá trị ưu tiên')
+    expect(vi).not.toMatch(/có giá trị pháp lý/)
     cleanup()
     const en = await policy('marketplace', 'en')
-    expect(en).toContain('The Vietnamese text is under review by counsel.')
+    expect(en).toContain('The Vietnamese text of this page is a translation prepared by eno that our lawyers are still reviewing.')
+    expect(en).toContain('neither language version prevails over the other')
     expect(en).not.toMatch(/legally binding|có giá trị pháp lý|authoritative/i)
   })
 

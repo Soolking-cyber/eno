@@ -44,7 +44,7 @@ function toPercentages(weights: number[]): number[] {
 const TRUST = {
   key: 'trust',
   labelEn: 'Seller trust score',
-  labelVi: 'Điểm tin cậy của người bán',
+  labelVi: 'Điểm uy tín của người bán', // the UI's term (trust-score.tsx, /trust) — one name for one score
   explainEn:
     'An evidence-based score built from completed transactions, buyer reviews, response behaviour, verified identity, and confirmed reports. It is never adjusted by payment.',
   explainVi:

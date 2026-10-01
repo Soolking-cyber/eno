@@ -102,7 +102,7 @@ describe('RentalsLede', () => {
       '1 tin cho thuê tại Huyện Cần Giờ. Tin này dẫn tới tin gốc trên một trang đăng tin khác.',
     )
     expect(text('en', <DistrictLede total={1} {...canGio} categorySlug="electronics" name="Electronics" linked="all" />)).toBe(
-      '1 electronics listing in Can Gio District. It links to its original listing on the source site.',
+      '1 electronics listing in Can Gio District. It links to its original listing on a source site.',
     )
     // A single own-stock listing is not "each from a seller" / "Mỗi tin đều".
     expect(text('en', <DistrictLede total={1} {...canGio} linked="none" />)).toBe(
@@ -168,7 +168,7 @@ describe('district page copy', () => {
 
   it('keeps "listings" wording for categories other than rentals', () => {
     const t = text('en', <DistrictLede total={3} name="Services" nameVi="Dịch vụ" categorySlug="services" place={{ en: 'Binh Trung', vi: 'Bình Trưng' }} linked="most" />)
-    expect(t).toBe('3 services listings in Binh Trung. Most link to their original listing on the source site.')
+    expect(t).toBe('3 services listings in Binh Trung. Most link to their original listing on a source site.')
   })
 })
 

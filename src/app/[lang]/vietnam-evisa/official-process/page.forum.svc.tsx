@@ -271,7 +271,7 @@ const CONTENT: ArticleContent = {
             the first,{' '}
             <VnLink href={marketplaceHref('housing')}>apartments and houses for rent in Ho Chi Minh
             City</VnLink> show the asking price, the district and photos, and many link to the
-            original posting on a partner property portal. For the second, ride-hailing covers the
+            original posting on another property listing site. For the second, ride-hailing covers the
             first weeks, and renting a scooter monthly before you buy one is the cheaper way to find
             out what you want.
             {/* ⛔ NO MOTORBIKE LINK, AND NOT "LISTED BY THE PEOPLE WHO OWN THEM" (2026-09-27): eno.vn

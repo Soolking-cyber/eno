@@ -116,24 +116,25 @@ const MARKETPLACE_URL = 'https://eno.vn'
 // ⚠️ NO MOTORBIKES AND NO "CHANGE HANDS EVERY TIME SOMEBODY MOVES" in the two lines below (2026-09-27):
 // motorbikes were 0 live listings, and the used furniture here is dealer-supplied — framing it as
 // expats' moving sales is the claim the guides were already corrected for.
-// ⚠️ "EVERY SELLER WHO POSTS HERE", NOT "EVERY SELLER": almost every live listing is linked from
-// another site (the At a glance block below counts it), and a trust score says nothing about those —
+// ⚠️ "EVERY SELLER WHO POSTS HERE", NOT "EVERY SELLER": almost every live listing is linked from a
+// source site (the At a glance block below counts it), and a trust score says nothing about those —
 // the same scoping the layout's Organization description uses.
+// ⛔ "SOURCE SITE", NEVER "PARTNER SITE" (2026-10-01): Chợ Tốt/Nhatot, Muaban, Batdongsan, VietnamWorks
+// and the other boards and portals we import from are not partners — no code or contract records one; "partner" is reserved
+// for the Official partner badge (a signed agreement — /partners).
 const MARKETPLACE_INTRO =
   'eno.vn is a classifieds marketplace for expats, internationals and locals in Vietnam — housing, jobs, everyday services, furniture and electronics. Every seller who posts here carries a public trust score or, for an official partner, a partner badge, automated checks run on every post, and anyone can report a listing that is not what it claims to be.'
 
 const MARKETPLACE_WHAT = [
   'People and businesses post what they are renting out, selling or hiring for: apartments and rooms, jobs, services, furniture, appliances and electronics.',
   // ⚠️ "MESSAGE A SELLER IN THE APP" IS SCOPED TO LISTINGS POSTED HERE. Most live listings are linked
-  // from other sites, with no chat on this site (see src/lib/site-facts.ts); the unscoped sentence
+  // from source sites, with no chat on this site (see src/lib/site-facts.ts); the unscoped sentence
   // was true of the product as designed and false of the shelf as measured.
   // ⛔ AND IT SAYS WHERE A LINKED LISTING POINTS, NOT WHO HANDLES THE ENQUIRY: "you deal with the
   // advertiser there" is the claim the owner removed from the importers on 2026-09-25
   // (src/lib/import-viewing-disclaimer.ts) — the eno team checks availability on any rental, linked
   // or not. A linked listing also has its own page here; only its button opens the source.
-  // ⛔ "ANOTHER SITE", NOT "A PARTNER SITE" (2026-10-01): "partner" now means a company with a signed
-  // agreement (partner-badge.tsx), and the sites this stock is linked from hold none.
-  'The listings belong to the people who post them. eno.vn does not own or supply what you see, and it is not a party to the deal you make — there is no checkout, no escrow and no payment on the platform. For a listing posted here, you message the seller in the app, agree between yourselves, and settle directly; a listing linked from another site says where it is listed and links to the original posting.',
+  'Listings posted here belong to the people who post them, and linked listings to the sites they come from. eno.vn does not own or supply what you see, and it is not a party to the deal you make — there is no checkout, no escrow and no payment on the platform. For a listing posted here, you message the seller in the app, agree between yourselves, and settle directly; a linked listing names the source site it comes from and links to the original posting.',
   'Prices are set in Vietnamese đồng, and the site reads in your own language: listings, chat and the interface are translated as you go.',
 ]
 
@@ -232,7 +233,10 @@ const STEPS = [
   },
   {
     title: 'Automated checks',
-    text: 'Every post runs automated checks — phone verified, no contact details hidden in the text, and enough real photos to show what is being offered.',
+    // ⛔ NOT "PHONE VERIFIED" (2026-10-01): no phone check runs on a post. What does run is
+    // assertPublishable (src/lib/publish-guard.ts): banned words, contact details in the text, the
+    // per-category photo minimum and a location.
+    text: 'Every post runs automated checks — no banned items, no contact details hidden in the text, and enough real photos to show what is being offered.',
   },
   {
     title: 'It goes live instantly',
@@ -347,33 +351,34 @@ function LinkedRow({ facts }: { facts: SiteFacts | null }) {
   const share = facts ? shareOf(facts.linked, facts.live) : null
   const posted = <Tr text="Listings posted directly on this site show the seller’s public trust score, or an official partner’s partner badge, and are answered in the in-app chat." />
   /**
-   * ⛔ "ANOTHER SITE", NOT "A PARTNER SITE" (2026-10-01): "partner" now means a company with a signed
-   * agreement (partner-badge.tsx), and the sites this stock is linked from — shops, portals, job boards —
-   * hold none. Authored pairs (the curated Vietnamese, with that one phrase changed), as literal `tr()`
-   * calls so gen-ui-strings harvests the English; rendered through <Bilingual> (this is a server file).
+   * ⛔ "SOURCE SITE", NOT "PARTNER SITE" (2026-10-01) — see the note above MARKETPLACE_INTRO: "partner"
+   * now means a company with a signed agreement (partner-badge.tsx), and the sites this stock is linked
+   * from — shops, portals, job boards — hold none. Authored pairs (the curated dictionary is keyed on the
+   * old English and cannot follow a rewording), as literal `tr()` calls so gen-ui-strings harvests the
+   * English; rendered through <Bilingual> (this is a server file).
    */
   const tr = (en: string, vi: string) => <Bilingual en={en} vi={vi} />
   return (
     <GlanceRow term={<Tr text="Listings" />}>
       {share === 'all' ? (
-        tr('Every listing right now is linked from another site: each says where it is listed and links to the original posting.', 'Hiện tại, mọi tin đều được liên kết từ một trang khác: mỗi tin ghi rõ nơi đăng và dẫn tới tin gốc.')
+        tr('Every listing right now is linked from a source site: each says where it is listed and links to the original posting.', 'Hiện tại, mọi tin đều là tin liên kết từ trang nguồn: mỗi tin ghi rõ nơi đăng và dẫn tới tin gốc.')
       ) : share === 'almost' ? (
         <>
-          {tr('Almost every listing is linked from another site: those say where they are listed and link to the original posting.', 'Gần như mọi tin đều được liên kết từ một trang khác: các tin này ghi rõ nơi đăng và dẫn tới tin gốc.')} {posted}
+          {tr('Almost every listing is linked from a source site: those say where they are listed and link to the original posting.', 'Gần như mọi tin đều là tin liên kết từ trang nguồn: các tin này ghi rõ nơi đăng và dẫn tới tin gốc.')} {posted}
         </>
       ) : share === 'most' ? (
         <>
-          {tr('Most listings are linked from other sites: those say where they are listed and link to the original posting.', 'Phần lớn tin được liên kết từ các trang khác: các tin này ghi rõ nơi đăng và dẫn tới tin gốc.')} {posted}
+          {tr('Most listings are linked from source sites: those say where they are listed and link to the original posting.', 'Phần lớn tin là tin liên kết từ các trang nguồn: các tin này ghi rõ nơi đăng và dẫn tới tin gốc.')} {posted}
         </>
       ) : share === 'some' ? (
         <>
-          {tr('Some listings are linked from other sites: those say where they are listed and link to the original posting.', 'Một số tin được liên kết từ các trang khác: các tin này ghi rõ nơi đăng và dẫn tới tin gốc.')} {posted}
+          {tr('Some listings are linked from source sites: those say where they are listed and link to the original posting.', 'Một số tin là tin liên kết từ các trang nguồn: các tin này ghi rõ nơi đăng và dẫn tới tin gốc.')} {posted}
         </>
       ) : share === 'none' ? (
         posted
       ) : (
         // No facts: say what is true of either kind of listing, and nothing about how many.
-        tr('A listing linked from another site says where it is listed and links to the original posting; a listing posted directly here shows the seller’s public trust score, or an official partner’s partner badge, and is answered in the in-app chat.', 'Tin liên kết từ một trang khác ghi rõ nơi đăng và dẫn tới tin gốc; tin đăng trực tiếp tại đây hiển thị điểm uy tín công khai của người bán, hoặc huy hiệu đối tác nếu đó là đối tác chính thức, và được trả lời qua chat trong ứng dụng.')
+        tr('A listing linked from a source site says where it is listed and links to the original posting; a listing posted directly here shows the seller’s public trust score, or an official partner’s partner badge, and is answered in the in-app chat.', 'Tin liên kết từ trang nguồn ghi rõ nơi đăng và dẫn tới tin gốc; tin đăng trực tiếp tại đây hiển thị điểm uy tín công khai của người bán, hoặc huy hiệu đối tác nếu đó là đối tác chính thức, và được trả lời qua chat trong ứng dụng.')
       )}
     </GlanceRow>
   )
@@ -386,7 +391,11 @@ function AtAGlance({ facts }: { facts: SiteFacts | null }) {
     <dl className="space-y-4">
       {POSTING_IS_FREE && (
         <GlanceRow term={<Tr text="Cost" />}>
-          <Tr text="Browsing, posting and contacting sellers are currently free. If that changes, prices will be published in Vietnamese đồng at least 5 days before they apply." />
+          {/* 20 days, matching Regulations Art. 8 and the Terms (Decree 248/2026 Art 8.2). */}
+          <Bilingual
+            en="Browsing, posting and contacting sellers are currently free. If that changes, prices will be published in Vietnamese đồng at least 20 days before they apply."
+            vi="Hiện tại, việc xem tin, đăng tin và liên hệ người bán đều miễn phí. Nếu có thay đổi, mức phí sẽ được công bố bằng đồng Việt Nam ít nhất 20 ngày trước khi áp dụng."
+          />
         </GlanceRow>
       )}
       {facts && facts.live > 0 && <WhereRow facts={facts} />}

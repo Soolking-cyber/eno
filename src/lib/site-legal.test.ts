@@ -1,15 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, TOS_VERSION } from './site-legal'
+import { LEGAL_AMENDMENT } from './compliance/legal-amendment'
+import {
+  AFFILIATION,
+  COMPANY,
+  OPERATOR_REGISTERED,
+  TOS_EFFECTIVE_AT,
+  TOS_PREVIOUS_VERSION,
+  TOS_VERSION,
+  tosAcceptanceStamp,
+  tosInNoticeWindow,
+  tosVersionInForce,
+} from './site-legal'
 
 /**
- * ⚠️ THIS FILE USED TO TEST A 5-DAY TERMS-CHANGE NOTICE WINDOW, WHICH WAS PREMATURE AND IS GONE.
- * The site is pre-launch with no real users, so there is one Terms version, nobody accepted an
- * earlier one, and there is no change to announce. What remains worth pinning is narrower and
- * survives that: the legal identity must not start asserting a company that does not exist, and the
- * affiliation statement must not claim the two sites are unrelated.
+ * The legal identity, the affiliation statement, and — since the October 2026 amendment — the
+ * Terms-version notice window.
  *
- * When the first real amendment happens, the notice machinery comes back (see the comment on
- * TOS_VERSION for what it needs and which commits to recover it from) — and so do its tests.
+ * The window is a LEGAL mechanism, not a UI nicety, so it is tested like one. Every failure mode is
+ * SILENT: a wrong comparison, an off-by-one date or a timezone slip does not throw, fail a build or
+ * look wrong on screen — it quietly records an acceptance of text that was not yet in force, or
+ * binds people before the notice the texts promise has run.
  */
 
 describe('the operator identity', () => {
@@ -56,8 +66,85 @@ describe('the affiliation statement', () => {
   })
 })
 
+/** Vietnam is UTC+7 with no DST, so a wall-clock time there is a fixed offset from UTC. */
+const inVietnam = (isoLocal: string) => new Date(`${isoLocal}+07:00`)
+const { published, inForce } = LEGAL_AMENDMENT
+const dayBefore = new Date(Date.parse(`${inForce}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+
 describe('the terms version', () => {
-  it('is a single current version with no transition state', () => {
-    expect(TOS_VERSION).toBe('1')
+  it('has a newer published version and the one it replaces', () => {
+    expect(TOS_VERSION).toBe('2')
+    expect(TOS_PREVIOUS_VERSION).toBe('1')
+  })
+
+  it('takes effect at midnight in Vietnam on the in-force date, read from LEGAL_AMENDMENT', () => {
+    expect(TOS_EFFECTIVE_AT).toBe(Date.parse(`${inForce}T00:00:00+07:00`))
+    // 17:00 UTC the day before — the instant a UTC date-string comparison would have missed by 7 hours.
+    expect(new Date(TOS_EFFECTIVE_AT).toISOString()).toBe(`${dayBefore}T17:00:00.000Z`)
+  })
+})
+
+describe('the version in force', () => {
+  it('is the PREVIOUS version from publication until the instant', () => {
+    expect(tosVersionInForce(inVietnam(`${published}T00:00:00`))).toBe(TOS_PREVIOUS_VERSION)
+    expect(tosVersionInForce(inVietnam(`${published}T12:00:00`))).toBe(TOS_PREVIOUS_VERSION)
+    expect(tosVersionInForce(inVietnam(`${dayBefore}T23:59:59`))).toBe(TOS_PREVIOUS_VERSION)
+  })
+
+  it('switches exactly at midnight in Vietnam, not at UTC midnight', () => {
+    expect(tosVersionInForce(new Date(TOS_EFFECTIVE_AT - 1))).toBe(TOS_PREVIOUS_VERSION)
+    expect(tosVersionInForce(new Date(TOS_EFFECTIVE_AT))).toBe(TOS_VERSION)
+    // Half past midnight in Hanoi is still the previous UTC day: the old UTC-string implementation
+    // returned the PREVIOUS version here, for seven hours of the date the pages name as in force.
+    expect(tosVersionInForce(inVietnam(`${inForce}T00:30:00`))).toBe(TOS_VERSION)
+    expect(tosVersionInForce(new Date(`${inForce}T00:00:00Z`))).toBe(TOS_VERSION)
+  })
+
+  it('stays the new version afterwards', () => {
+    expect(tosVersionInForce(inVietnam(`${inForce}T09:00:00`))).toBe(TOS_VERSION)
+    expect(tosVersionInForce(inVietnam('2027-06-01T00:00:00'))).toBe(TOS_VERSION)
+  })
+
+  it('survives the inputs that broke the string comparison, failing toward more notice', () => {
+    expect(tosVersionInForce(new Date('nonsense'))).toBe(TOS_PREVIOUS_VERSION)
+    expect(tosVersionInForce(new Date('+010000-01-01T00:00:00Z'))).toBe(TOS_VERSION)
+  })
+})
+
+describe('the notice window', () => {
+  it('is open before the instant and closed from it', () => {
+    expect(tosInNoticeWindow(inVietnam(`${published}T08:00:00`))).toBe(true)
+    expect(tosInNoticeWindow(new Date(TOS_EFFECTIVE_AT - 1))).toBe(true)
+    expect(tosInNoticeWindow(new Date(TOS_EFFECTIVE_AT))).toBe(false)
+  })
+
+  it('leaves at least 5 clear days between publication and the instant', () => {
+    // Publication day not counted (Civil Code 2015 Art 147–148): published 01/10 → 02/10–06/10 → 07/10.
+    const fromEndOfPublicationDay = TOS_EFFECTIVE_AT - Date.parse(`${published}T00:00:00+07:00`) - 86_400_000
+    expect(fromEndOfPublicationDay / 86_400_000).toBeGreaterThanOrEqual(5)
+  })
+})
+
+describe('the acceptance stamp', () => {
+  it('records the version IN FORCE, never the newest, during the window', () => {
+    const now = inVietnam(`${published}T15:00:00`)
+    expect(tosAcceptanceStamp(null, now)).toEqual({ tosAcceptedAt: now, tosVersion: TOS_PREVIOUS_VERSION })
+    // Already holding the version in force: nothing is re-stamped.
+    expect(tosAcceptanceStamp(TOS_PREVIOUS_VERSION, now)).toEqual({})
+  })
+
+  it('records the new version from the instant, and re-stamps an older acceptance', () => {
+    const now = new Date(TOS_EFFECTIVE_AT)
+    expect(tosAcceptanceStamp(null, now)).toEqual({ tosAcceptedAt: now, tosVersion: TOS_VERSION })
+    expect(tosAcceptanceStamp(TOS_PREVIOUS_VERSION, now)).toEqual({ tosAcceptedAt: now, tosVersion: TOS_VERSION })
+    expect(tosAcceptanceStamp(TOS_VERSION, now)).toEqual({})
+  })
+
+  it('stamps the time and the version from ONE clock read', () => {
+    // One millisecond before the instant: the version and the timestamp must describe the same moment.
+    const now = new Date(TOS_EFFECTIVE_AT - 1)
+    const stamp = tosAcceptanceStamp(undefined, now)
+    expect(stamp.tosAcceptedAt).toBe(now)
+    expect(stamp.tosVersion).toBe(tosVersionInForce(now))
   })
 })

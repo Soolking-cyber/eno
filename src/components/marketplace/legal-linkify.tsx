@@ -22,8 +22,11 @@ import type { ReactNode } from 'react'
  * and a legal cross-reference is a full navigation anyway — the same choice /returns made for its
  * Dispute Center link and /regulations for its document list. No `'use client'`: server-safe.
  */
+// ⚠️ `/terms/v1` and `/regulations/v1` are the ARCHIVED versions (src/lib/compliance/legal-archive.ts):
+// the amended texts point readers at the version still in force during a notice window. Only those two
+// documents carry versions, so only they take the `/vN` suffix — `/privacy/v1` stays text.
 const TOKEN =
-  /([\w.+-]+@[\w-]+(?:\.[\w-]+)+)|(?<![\w/.])(\/(?:regulations|privacy|prohibited|terms|returns|disputes|contact|trust|safety|legal\/ranking))(?![\w/-])/g
+  /([\w.+-]+@[\w-]+(?:\.[\w-]+)+)|(?<![\w/.])(\/(?:(?:regulations|terms)(?:\/v\d+)?|privacy|prohibited|returns|disputes|contact|trust|safety|legal\/ranking))(?![\w/-])/g
 
 const LINK = 'font-semibold text-accent-foreground hover:underline'
 
