@@ -4,6 +4,15 @@
  *
  * Run (DRY by default):
  *   set -a; . ./.env; set +a; npx tsx scripts/import-batdongsan-rentals.ts --src <all_rentals.json> [--apply]
+ *     [--max-age-days 7 --previous <the archived earlier all_rentals.json>] [--subcat apartment-rental]
+ *
+ * ⚠️ FRESH-ONLY RE-IMPORT (owner, 2026-10-01: "batdongsan 1 photo apartments still fetch only 7 days fresh
+ * ones"). `--max-age-days N` keeps only listings the card says were posted within N days of NOW — the
+ * card's "Đăng 3 ngày trước" is relative to the SCRAPE, so the scrape file must itself be ≤1 day old
+ * (refused otherwise), and the scraper must start from an EMPTY file: it merges into the existing
+ * all_rentals.json, whose carried-over rows keep their old "Đăng hôm nay". A fresh row whose listing
+ * was retired to status 'stale' (scripts/retire-stale-batdongsan.ts) is re-activated — only 'stale',
+ * never 'hidden' (a moderator's or another pipeline's decision); the revived ids are written beside --src.
  *
  * Same shape as import-rever-rentals.ts — outbound `affiliateUrl`, no chat, `negotiable:false`,
  * `listingType:'rent'` (which is also the feed guard) — with TWO deliberate differences:
@@ -33,7 +42,8 @@
  * 2026-09-21 adding `latitude`/`longitude`/`price_type`, so an earlier survey of this same file
  * (18 fields, no coordinates) is stale. Check the field list before trusting notes about it.
  */
-import { readFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, statSync } from 'node:fs'
+import { ageWithin, bdsAgeDays } from '../src/lib/batdongsan-age'
 import { invokedDirectly } from '../src/lib/cli-entry'
 import { buildSearchText } from '../src/lib/fold'
 import { roomAttributes } from '../src/lib/taxonomy'
@@ -61,6 +71,11 @@ const str = (k: string, d: string | null = null) => {
 }
 const SRC = str('--src')
 const LIMIT = Number(str('--limit', '0'))
+const MAX_AGE_DAYS = str('--max-age-days') === null ? null : Number(str('--max-age-days'))
+if (MAX_AGE_DAYS !== null && !(Number.isInteger(MAX_AGE_DAYS) && MAX_AGE_DAYS > 0)) throw new Error('--max-age-days must be a positive integer')
+const SUBCAT_ONLY = str('--subcat')
+const PREVIOUS = str('--previous')
+if (MAX_AGE_DAYS !== null && !PREVIOUS) throw new Error('--max-age-days needs --previous <the archived earlier scrape> — the carry-over check below')
 
 const vnd = (n: number) => new Intl.NumberFormat('vi-VN').format(n) + ' đ'
 const inRange = (n: unknown, lo: number, hi: number): n is number =>
@@ -129,10 +144,37 @@ async function main() {
     log: ['warn', 'error'],
   })
 
+  if (SUBCAT_ONLY && !Object.values(SUBCAT).includes(SUBCAT_ONLY)) throw new Error(`--subcat ${SUBCAT_ONLY} is not one of ${Object.values(SUBCAT).filter(Boolean).join(', ')}`)
+  /**
+   * The card's age is relative to the scrape, so a --max-age-days import needs a scrape that is BOTH
+   * recent (written ≤24 h ago, counted in exact hours — codex) AND started from an EMPTY file (created
+   * ≤36 h ago). ⛔ The second is the one that matters (Opus, commit gate): the scraper merges into an
+   * existing all_rentals.json, rewriting it in place, so carried-over rows keep their old "Đăng hôm nay"
+   * while the file's mtime looks fresh — and a retired, let flat would be revived as "posted today".
+   * Rewriting in place keeps the file's BIRTH time; only moving the old file aside makes a new one.
+   */
+  const st = statSync(SRC)
+  // WORST CASE: a row can date from any point since the file was CREATED, not just its last write
+  // (Opus, commit gate) — so the scrape's age is counted from the file's birth.
+  const scrapeAgeDays = (Date.now() - st.birthtimeMs) / 86_400_000
+  const fileBornHoursAgo = scrapeAgeDays * 24
+  if (MAX_AGE_DAYS !== null && !(fileBornHoursAgo <= 24)) throw new Error(`${SRC} was CREATED ${fileBornHoursAgo.toFixed(0)} h ago — the scraper merged into an old file, so its "Đăng hôm nay" labels cannot be trusted. Move the old file aside and scrape into a new one`)
   const src: Row[] = JSON.parse(readFileSync(SRC, 'utf8'))
-  const drop = { priceType: 0, priceRawPerM2: 0, price: 0, target: 0, area: 0, coords: 0 }
+  /**
+   * ⛔ CONTENT PROOF, NOT JUST TIMESTAMPS (codex + Opus, commit gate): file birth time is circumstantial —
+   * a copy, a rename-save or another filesystem defeats it. A row CARRIED OVER from an earlier scrape
+   * keeps that scrape's label verbatim; a listing genuinely re-posted since shows a NEW label. So a code
+   * present in the previous scrape with the IDENTICAL `published` text is treated as carried over and
+   * dropped. The error is one-sided by design: a re-post that happens to repeat its old label is skipped.
+   */
+  const previousLabel = new Map<string, string>()
+  if (PREVIOUS) for (const r of JSON.parse(readFileSync(PREVIOUS, 'utf8')) as Row[]) if (r.code) previousLabel.set(r.code, String(r.published ?? ''))
+  const drop = { subcat: 0, carried: 0, age: 0, priceType: 0, priceRawPerM2: 0, price: 0, target: 0, area: 0, coords: 0 }
   const keep: Row[] = []
   for (const r of src) {
+    if (SUBCAT_ONLY && SUBCAT[r.property_type] !== SUBCAT_ONLY) { drop.subcat++; continue }
+    if (MAX_AGE_DAYS !== null && previousLabel.get(r.code) === String(r.published ?? '')) { drop.carried++; continue }
+    if (MAX_AGE_DAYS !== null && !ageWithin(bdsAgeDays(r.published), scrapeAgeDays, MAX_AGE_DAYS)) { drop.age++; continue }
     /** ⛔ `price_type` IS THE SOURCE'S OWN FLAG AND BEATS PARSING `price_raw`. 348 rows are quoted
      *  PER M² — publishing those as the monthly rent shows a 200m² office at 1.12tr instead of
      *  224tr. 219 more are "negotiable", i.e. no real figure at all. */
@@ -167,6 +209,10 @@ async function main() {
   console.log(`category          ${category.name}`)
   console.log(`seller            ${seller ? `${seller.name} (${seller.id})` : `(will be created as ${SELLER_ID})`}`)
   console.log(`rows on seller    ${already}`)
+  const staleInBatch = MAX_AGE_DAYS === null ? 0 : await db.listing.count({
+    where: { sellerId: SELLER_ID, status: 'stale', externalId: { in: batch.map((r) => `bds:${r.code}`) } },
+  })
+  if (MAX_AGE_DAYS !== null) console.log(`freshness         ≤${MAX_AGE_DAYS} days worst-case (scrape ${(scrapeAgeDays * 24).toFixed(1)} h old) · ${staleInBatch} retired 'stale' rows are fresh again → re-activated`)
   console.log(`images            NONE — see the header; agent headshots + rival watermarks`)
   console.log(`mode              ${APPLY ? 'APPLY — WRITES TO PRODUCTION' : 'DRY RUN'}`)
   console.log(`untranslated      ${untranslatedSummary(batch.flatMap((r) => compose(r, r.price_vnd).missing)) || 'none — every mixed-language segment has a reviewed translation'}`)
@@ -189,7 +235,8 @@ async function main() {
     })
   }
 
-  let created = 0, updated = 0
+  let created = 0, updated = 0, revived = 0
+  const REVIVED = `${SRC}.revived-${new Date().toISOString().replace(/[:.]/g, '-')}.ids`
   for (const r of batch) {
     const price = r.price_vnd as number
     /** The four text columns only — `missing` is a report (the `untranslated` line above), never a column. */
@@ -232,11 +279,23 @@ async function main() {
       select: { id: true, createdAt: true, updatedAt: true },
     })
     if (res.createdAt.getTime() === res.updatedAt.getTime()) created++; else updated++
+    /** Fresh evidence brings back ONLY a row this pipeline retired as 'stale' — never a 'hidden' one. */
+    if (MAX_AGE_DAYS !== null) {
+      // Record first, then write (codex): a recorded id that was not stale is harmless; a revived one
+      // missing from the record is not. Only this seller's 'stale' rows — retire-stale-batdongsan.ts is
+      // the only writer of that status (grep, 2026-10-01).
+      const was = await db.listing.findUnique({ where: { id: res.id }, select: { status: true } })
+      if (was?.status === 'stale') {
+        appendFileSync(REVIVED, res.id + '\n')
+        const back = await db.listing.updateMany({ where: { id: res.id, sellerId: SELLER_ID, status: 'stale' }, data: { status: 'active' } })
+        revived += back.count
+      }
+    }
     if ((created + updated) % 500 === 0) console.log(`  ${created + updated}/${batch.length}`)
   }
 
   const active = await db.listing.count({ where: { sellerId: SELLER_ID, status: 'active' } })
-  console.log(`\ncreated ${created}   updated ${updated}   active now ${active}`)
+  console.log(`\ncreated ${created}   updated ${updated}   revived from stale ${revived}${revived ? ` (ids: ${REVIVED})` : ''}   active now ${active}`)
   console.log(`\nROLLBACK (safe, reversible):\n  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${SELLER_ID}';`)
   console.log(`  -- hard delete is NOT paste-safe: Order is onDelete:Restrict and six relations Cascade.`)
   await db.$disconnect()

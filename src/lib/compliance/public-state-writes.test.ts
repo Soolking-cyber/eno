@@ -75,7 +75,7 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   'src/app/api/cron/partner-stock/route.ts': { count: 1, why: 'restock of OWNERLESS partner storefronts only — no person to verify' },
   'src/lib/affiliate-price-refresh.ts': { count: 1, why: 'restore of OWNERLESS affiliate storefronts only — no person to verify' },
   'scripts/import-rever-rentals.ts': { count: 2, why: 'reference-listing importer onto a platform-owned (ownerless) seller' },
-  'scripts/import-batdongsan-rentals.ts': { count: 2, why: 'reference-listing importer onto a platform-owned (ownerless) seller' },
+  'scripts/import-batdongsan-rentals.ts': { count: 3, why: 'reference-listing importer onto a platform-owned (ownerless) seller — create-only status/verified (2) + the --max-age-days revival, which re-activates ONLY rows retire-stale-batdongsan.ts marked stale when the listing is freshly posted again (never a hidden/moderated row)' },
   'scripts/import-nhatot-com.ts': { count: 4, why: 'reference-listing importer onto an ownerless platform seller — create-only status/verified (2) + the dry-run sample literal + the printed retire UNDO SQL; refuses an owned or badged seller' },
   'scripts/import-muaban-net.ts': { count: 3, why: 'reference-listing importer onto an ownerless platform seller — the upsert’s create-only status/verified (2) + the dry-run sample literal; refuses an owned or badged seller' },
   'scripts/muaban-net-map.ts': { count: 1, why: 'reference-listing importer onto an ownerless platform seller — retireRollbackSql, the printed undo of a retire pass, scoped to that seller’s rows still hidden' },
