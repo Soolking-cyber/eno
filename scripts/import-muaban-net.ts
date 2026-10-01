@@ -10,18 +10,57 @@
  * Write (ONLY from a reviewed stage): ... --src <staged.jsonl> --journal <durable dir> --apply [--cover-by-mark]
  * Liveness (dry):                    ... --retire [--limit N]
  * Liveness (write, hides only):      ... --retire --journal <durable dir> --apply
+ * The 7-day rule (weekly job):       ... --types apartment --stage <out.jsonl> --fresh-out <fresh.json>
+ *                                    then --src <out.jsonl> --journal <dir> --apply, then
+ *                                    scripts/expire-apartment-rentals.ts --seller muaban-net-import-seller-0001 --fresh <fresh.json>
+ * ⛔ Unknown flags throw (parseRunArgs).
+ *
+ * ⛔ THE 7-DAY RULE (owner, 2026-10-01; src/lib/apartment-freshness.ts). An imported APARTMENT stays live
+ * only while muaban shows it posted within FRESH_DAYS — and for muaban that date is the detail page's
+ * `created_at` (the first post): `publish_at` is re-stamped on every live ad every night, so it says
+ * nothing about age. Hence:
+ *   - `--fresh-out <file>` (with --types apartment, every city, no --limit/--cap/--list-only) switches the
+ *     live crawl to FreshCrawler (muaban-net-map.ts, unit-tested on fake pages): EVERY apartment card of
+ *     every city (a list shows at most 51 pages, so HCMC is read district by district, and a district over
+ *     the cap by price band — the parts must sum to the whole; a list page answering 0/5xx is read once
+ *     more), then the detail page of every card above an ID FLOOR calibrated from those detail pages (ids
+ *     rise with created_at; a detail page answering 0/5xx is read once more too, counted in `retries`). Then a read-only DB NET reads, on their own pages, the live rows we hold that
+ *     neither vouches for: above the floor and on no list page (a hole only if the page is still live
+ *     there), and BELOW the floor with a postedAt inside the window (the floor's per-run evidence). The set
+ *     — every apartment ad created within the window, including ones we already hold and ones the mapper
+ *     refuses for other reasons — is written atomically (tmp + fsync + rename + dir fsync), and only when
+ *     that coverage is proven (freshCoverageProblem) and the set passes freshSetProblem; otherwise no set
+ *     exists, the finished stage is KEPT (what was read is still applied), and the run exits 3
+ *     (COVERAGE_REFUSED_EXIT — the weekly job then skips this source's expiry; a crash exits 1). An --apply of
+ *     an empty stage (a crawl whose lists could not be proven stages nothing) is a clean no-op, exit 0.
+ *   - every rollback line (a retire hide, a revival / re-date) carries `"updatedAt" <=` the stamp its write
+ *     returned (updateManyAndReturn), so an old rollback file cannot undo a later change.
+ *   - mapRecord drops an apartment whose created_at is outside the window ('window'), judged by the set's
+ *     own judgeCreated AT THE SET'S MOMENT (each staged record carries the crawl's setAt). A created_at with
+ *     no explicit offset (`Z` / `±hh:mm`) is unreadable everywhere (parseZonedInstant): undetermined in the
+ *     set, never imported — `Date.parse` would read it in the machine's own zone.
+ *   - --apply REVIVES an existing apartment row in REVIVABLE_STATUSES ('expired'/'stale', never hidden/
+ *     removed/sold) whose ad is in the window again, and RE-DATES a row whose created_at is newer than its
+ *     stored postedAt; both rewrite postedAt + rankScore exactly as create does. The planned change is
+ *     journaled first (fsync); the write is conditional on the status just read (never a removed row); a
+ *     guarded rollback line with its own ISR tombstones is written once it landed; and a revived page is
+ *     tombstoned as it lands (src/lib/pdp-tombstone.ts) and again in a `finally`. No revival runs on a
+ *     database without the next_cache_tag table. By created_at an expired row can hardly re-enter the
+ *     window, so revival is there for symmetry with the other sources.
  *
  * Pipeline contract followed (see import-rever-rentals.ts / import-batdongsan-rentals.ts):
  *   - seller PINNED BY ID, refused when renamed, owned or badged, created ownerless and unbadged;
  *   - `affiliateUrl` always set, host-pinned and BY ID ONLY (never the poster's title slug, which
  *     carries house numbers), `negotiable:false`, `listingType:'rent'`, `priceUnit` the app's own rent
  *     unit ('VND/month'), `city` the vn-units Vietnamese name ('Hồ Chí Minh') like every other row;
- *   - `status`, `verified`, `images`, `postedAt` and `rankScore` are CREATE-ONLY, and `postedAt` is
- *     muaban's own `publish_at` (clamped to now), never the import time — rankScore follows from it;
+ *   - `status`, `verified` and `images` are CREATE-ONLY; `postedAt` is muaban's own `created_at` (clamped
+ *     to now), never the import time, written on create and moved only by the 7-day rule's revival /
+ *     re-date (above) — rankScore always follows from it;
  *   - photos re-hosted CLEAN via makeImageHost({ mark:'overlay' }), all-or-nothing per listing, text
  *     cards refused (galleryPlan — the same rule the dry run's --probe-images reports);
  *   - retirement only on a POSITIVE signal (404/410 or the ad's own inactive flags), to 'hidden',
- *     never DELETE; rollback is a soft hide.
+ *     never DELETE; each hidden page is tombstoned as it lands, and its guarded rollback line (with its own
+ *     tombstones) is written right after its write; rollback of the import itself is a soft hide.
  *
  * ⛔ STAGE, REVIEW, THEN --apply. `--apply` refuses a live crawl and requires `--src`, the JSONL a
  * previous dry run wrote with `--stage` (the partner-fetch.ts pattern: fetching never publishes).
@@ -48,11 +87,12 @@
  * 3,000 newest HCMC rentals rather than 750 of each type.
  *
  * ⚠️ PAGINATION IS CAPPED BY THE SOURCE. Measured 2026-09-24 on the HCMC rentals URL: ?page=100 and
- * ?page=1000 return the SAME 20 items, so one listing URL yields at most ~100 pages (~2,000 cards).
- * The crawler stops a seed when a page repeats; four type seeds reach ~8,000 HCMC cards.
+ * ?page=1000 return the SAME 20 items; re-measured 2026-10-01 on an apartment list, page 52 repeats
+ * page 51 — one listing URL yields at most 51 pages (1,020 cards). The crawler stops a seed when a page
+ * repeats; the --fresh-out crawl instead splits a list until every part fits (see above).
  */
 import 'dotenv/config'
-import { appendFileSync, closeSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
+import { appendFileSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
@@ -63,17 +103,20 @@ import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { HOST_EDGE, measureImage } from '../src/lib/import-photo-check'
 import { MARK_SEED_ROWS, coverByMark, fetchStoredImage, markScore, markSeedUrls, markTemplateFromUrls, type MarkTemplate } from '../src/lib/import-photo-mark'
 import { untranslatedSummary } from '../src/lib/import-i18n'
+import { APARTMENT_SUBCAT, FRESH_DAYS } from '../src/lib/apartment-freshness'
+import { tombstonePdps } from '../src/lib/pdp-tombstone'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
 import {
-  ALLOWED_HOSTS, CITIES, EXTERNAL_PREFIX, MAX_STAGE_AGE_HOURS, PLACEHOLDER_ENTROPY, PLACEHOLDER_FLAT, PROPERTY_TYPES,
-  RENT_PRICE_UNIT, SELLER_ID, SELLER_LOGO_URL, SELLER_NAME,
-  affiliateUrlFor, coverToDetail, createOnlyFields, galleryPlan, imageVerdict, isChallenge, journalDirProblem, listPageUrl,
-  livenessVerdict, mapRecord, massRetireRefusal, modeRefusal, newestHead, oldestStageAgeHours, parseNextData, parseRunArgs,
-  parseStage, retireRollbackSql, robotsAllows, robotsRules, sameMutable, sellerRefusal, sourcePageUrl, stageAgeRefusal,
-  stageDetail, stageItem, compareNewest,
-  type CityKey, type DropReason, type ImageMeasure, type ImageVerdict, type Liveness, type MappedRow, type MuabanDetail, type MuabanListItem,
-  type PhotoOutcome, type StagedRecord,
+  ALLOWED_HOSTS, CITIES, EXTERNAL_PREFIX, FreshCrawler, Infeasible, LEAF_MAX, MAX_FRESH_DETAILS, MAX_STAGE_AGE_HOURS, PLACEHOLDER_ENTROPY,
+  PLACEHOLDER_FLAT, PROPERTY_TYPES, RENT_PRICE_UNIT, SELLER_ID, SELLER_LOGO_URL, SELLER_NAME,
+  COVERAGE_REFUSED_EXIT, affiliateUrlFor, buildFreshSet, coverToDetail, createOnlyFields, datedEntryProblem, datedRollbackSql, emptyStageNoop, existingRowPlan, freshCoverageEvidence,
+  freshCoverageProblem, galleryPlan, imageVerdict, isChallenge, journalDirProblem, listLevelDrop, listPageUrl, livenessVerdict,
+  mapRecord, massRetireRefusal, modeRefusal, newestHead, oldestStageAgeHours, parseNextData, parseRunArgs, parseStage,
+  retireRollbackSql, robotsAllows, robotsRules, sameMutable, sellerRefusal, sourcePageUrl, stageAgeRefusal, stageDetail, stageItem,
+  compareNewest,
+  type CityKey, type DatedEntry, type DropReason, type ImageMeasure, type ImageVerdict, type Liveness, type MappedRow,
+  type MuabanDetail, type MuabanListItem, type PhotoOutcome, type StagedRecord,
 } from './muaban-net-map'
 
 const A = parseRunArgs(process.argv)
@@ -82,7 +125,7 @@ const A = parseRunArgs(process.argv)
  * anything runs) refuses it where it would silently do nothing — --retire, or a run that judges no photo.
  */
 const COVER_BY_MARK = A.coverByMark
-const { apply: APPLY, retire: RETIRE, src: SRC, stage: STAGE, journalDir: JOURNAL_DIR, cities: CITY_KEYS, types: TYPES } = A
+const { apply: APPLY, retire: RETIRE, src: SRC, stage: STAGE, journalDir: JOURNAL_DIR, cities: CITY_KEYS, types: TYPES, freshOut: FRESH_OUT } = A
 const { caps: CAPS, limit: LIMIT, maxPages: MAX_PAGES, delayMs: DELAY_MS, probeImages: PROBE_IMAGES, listOnly: LIST_ONLY } = A
 /**
  * ⚠️ A TRUTHFUL USER-AGENT. Whoever reads muaban's logs can see what this is and block it if they
@@ -93,7 +136,6 @@ const BUCKET = 'listings'
 /** A photo or page larger than this is refused rather than buffered. */
 const MAX_BODY_BYTES = 20 * 1024 * 1024
 
-class Infeasible extends Error {}
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const vnd = (n: number) => new Intl.NumberFormat('vi-VN').format(n) + ' đ'
 
@@ -231,15 +273,19 @@ async function crawl(drops: Drops, onRecord: (r: StagedRecord) => void): Promise
         if (seen.has(item.id)) { bump(drops, 'duplicate'); continue }
         seen.add(item.id)
 
-        const listCheck = mapRecord(item, null, opts)
+        /** Everything but the date: created_at lives on the detail page this check decides to fetch. */
+        const listDrop = listLevelDrop(item, opts)
         let detail: MuabanDetail | null = null
         let detailStatus: number | null = null
         /** Only a card that passes every list-level check costs a detail request. A card that fails
          *  one is still staged (detail null), so the drop histogram and an offline re-map see it. */
-        if (listCheck.ok && !LIST_ONLY) {
+        if (!listDrop && !LIST_ONLY) {
           /** The source's canonical page, held in memory only: the stored id-only link answers a 301
            *  to it, which would cost a second request per row. */
-          const got = await getPage(sourcePageUrl(item.id, raw?.url) ?? listCheck.row.mutable.affiliateUrl)
+          // ⛔ Host-pinned either way: the card's own url only through sourcePageUrl, else the id-only link.
+          const pageUrl = sourcePageUrl(item.id, raw?.url) ?? affiliateUrlFor(item.id, null)
+          if (!pageUrl) { bump(drops, 'detailHttp'); continue }
+          const got = await getPage(pageUrl)
           detailStatus = got.status
           if (got.status === 404 || got.status === 410) bump(drops, 'gone')
           else if (got.status !== 200) bump(drops, 'detailHttp')
@@ -258,6 +304,104 @@ async function crawl(drops: Drops, onRecord: (r: StagedRecord) => void): Promise
     stopped = e.message
   }
   return { records, seeds, cities, pages, stopped }
+}
+
+// ─── The 7-day rule (--fresh-out) ─────────────────────────────────────────────────────────────
+
+/**
+ * The crawl itself is FreshCrawler (scripts/muaban-net-map.ts — every list read and proven whole, the detail
+ * walk down to the id floor, the db net), driven here by the real getPage so that its decisions are unit
+ * tested against fake pages. This file only feeds it the network, the read-only rows, and the files.
+ */
+
+/** fsync a directory, so a rename into it is on disk (the file's own fsync does not cover its entry). */
+function fsyncDir(dir: string): void {
+  const fd = openSync(dir, 'r')
+  try { fsyncSync(fd) } finally { closeSync(fd) }
+}
+
+/**
+ * ⛔ tmp + fsync + rename + fsync of the parent DIRECTORY: the expiry reads the old file or the whole new
+ * one, never half of one — and after a crash the rename either happened or did not.
+ */
+function writeAtomically(file: string, text: string): void {
+  const abs = resolve(file)
+  mkdirSync(dirname(abs), { recursive: true })
+  const tmp = `${abs}.tmp-${process.pid}`
+  const fd = openSync(tmp, 'w')
+  try { writeSync(fd, text); fsyncSync(fd) } finally { closeSync(fd) }
+  renameSync(tmp, abs)
+  fsyncDir(dirname(abs))
+}
+
+/**
+ * The stage, written the same way: records are appended (fsync'd at the end) to a temp file beside it, and
+ * only a crawl that RETURNED renames it into place — a crash mid-crawl leaves no stage for --apply to read.
+ */
+class StageFile {
+  private readonly abs: string
+  private readonly tmp: string
+  constructor(file: string) {
+    this.abs = resolve(file)
+    this.tmp = `${this.abs}.tmp-${process.pid}`
+    mkdirSync(dirname(this.abs), { recursive: true })
+    /** One stage file is one crawl: last run's is removed first, never left beside a refused run. */
+    if (existsSync(this.abs)) unlinkSync(this.abs)
+    writeFileSync(this.tmp, '')
+  }
+  append(r: StagedRecord): void { appendFileSync(this.tmp, JSON.stringify(r) + '\n') }
+  finish(): void {
+    const fd = openSync(this.tmp, 'r+')
+    try { fsyncSync(fd) } finally { closeSync(fd) }
+    renameSync(this.tmp, this.abs)
+    fsyncDir(dirname(this.abs))
+  }
+}
+
+/**
+ * The db net (read-only rows → FreshCrawler.dbNet), the coverage verdict, then the set — built and checked
+ * by freshSetProblem, written only when both pass. Returns why it was NOT written, or null.
+ */
+async function settleFreshSet(db: PrismaClient, fc: FreshCrawler): Promise<string | null> {
+  const rows = await db.listing.findMany({
+    where: { sellerId: SELLER_ID, subcategorySlug: APARTMENT_SUBCAT, status: 'active', affiliateUrl: { not: null } },
+    select: { externalId: true, affiliateUrl: true, postedAt: true },
+  })
+  await fc.dbNet(rows)
+  const cov = fc.coverage()
+  for (const s of cov.seeds) {
+    console.log(`  ${s.ok ? '✓' : '⛔'} ${s.label.padEnd(36)} ${String(s.total).padStart(5)} cards${s.split ? ' (split)' : `, ${s.pages} pages`}${s.why ? ` — ${s.why}` : ''}`)
+  }
+  if (fc.offSeed) console.log(`  ⚠️ ${fc.offSeed} card slots were not an apartment of the list's city (or had no id) — not counted, not judged`)
+  const refusal = freshCoverageProblem(cov)
+  if (refusal) return `coverage not proven — ${refusal}`
+  const evidence = freshCoverageEvidence(cov)
+  const built = buildFreshSet(new Date(fc.setAt), evidence, [...fc.items.values()], [...fc.unknown])
+  if (!built.set) return `the set fails its own validation — ${built.problem}`
+  writeAtomically(FRESH_OUT!, JSON.stringify(built.set) + '\n')
+  console.log(`fresh set         ${FRESH_OUT} — ${built.set.items.length} apartments created within ${FRESH_DAYS} days of ${built.set.fetchedAt}, ${built.set.unknown?.length ?? 0} undetermined`)
+  console.log(`coverage          ${evidence}`)
+  return null
+}
+
+/**
+ * ⛔ Before the first status write on an EXISTING row (a revival, a retire hide): without the tag table its
+ * page keeps rendering its cached state from ISR for 30 days (expire-apartment-rentals.ts refuses the same way).
+ */
+async function requireIsrTable(db: PrismaClient, why: string): Promise<void> {
+  const [{ t }] = await db.$queryRaw<{ t: string | null }[]>`select to_regclass('public.next_cache_tag')::text as t`
+  if (!t) throw new Error(`no next_cache_tag table on this database — ${why} would keep rendering from ISR; refusing before any write`)
+}
+
+/** Tombstones for the pages a run changed, in a `finally`: reported, never allowed to mask the error that got there. */
+async function tombstoneAll(db: PrismaClient, ids: string[], what: string, journal: string): Promise<void> {
+  if (!ids.length) return
+  try {
+    console.log(`ISR tombstones    ${await tombstonePdps(db, ids)} (${what}, again — each was tombstoned as it landed)`)
+  } catch (e) {
+    console.error(`⛔ ISR TOMBSTONES FAILED for ${ids.length} ${what} — their ids are in ${journal}: ${(e as Error).message}`)
+    process.exitCode = 1
+  }
 }
 
 // ─── Photos ──────────────────────────────────────────────────────────────────────────────────
@@ -392,23 +536,36 @@ async function retire(journalDir: string | null) {
 
     if (!APPLY) { console.log('\nDRY RUN — nothing hidden. Re-run with --retire --journal <dir> --apply.'); return }
     if (mass && !A.forceMassRetire) throw new Error(mass)
+    if (toHide.length) await requireIsrTable(db, `${toHide.length} hidden page(s)`)
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
     const JOURNAL = join(journalDir!, `muaban-retired-rows-${stamp}.jsonl`)
     console.log(`retire journal    ${JOURNAL}`)
     const ROLLBACK = join(journalDir!, `muaban-retired-rows-${stamp}.rollback.sql`)
     const hiddenIds: string[] = []
-    for (const h of toHide) {
-      /** Journal first (fsync), then the conditional write — a crash in between leaves a journal
-       *  line for a row that is still active, which the rollback's `status='hidden'` guard ignores. */
-      recordDurably(JOURNAL, JSON.stringify({ ...h, at: new Date().toISOString() }))
-      const res = await db.listing.updateMany({ where: { id: h.id, sellerId: SELLER_ID, status: 'active' }, data: { status: 'hidden' } })
-      if (res.count) hiddenIds.push(h.id)
+    try {
+      for (const h of toHide) {
+        /** The PLANNED hide first (fsync), then the conditional write — a crash in between leaves a journal
+         *  line for a row that is still active, and no rollback line for it. */
+        recordDurably(JOURNAL, JSON.stringify({ ...h, at: new Date().toISOString() }))
+        /** …AndReturn: the row THIS write moved, with the updatedAt it stamped — the rollback line's guard. */
+        const moved = await db.listing.updateManyAndReturn({
+          where: { id: h.id, sellerId: SELLER_ID, status: 'active' }, data: { status: 'hidden' }, select: { id: true, updatedAt: true },
+        })
+        if (!moved.length) continue
+        hiddenIds.push(h.id)
+        /** ⛔ The undo only AFTER the write moved the row, guarded on the state it created (still hidden, and
+         *  "updatedAt" <= the stamp it returned — a later write is never undone), with its own ISR tombstones —
+         *  then the page's tombstone, as it lands. */
+        const sql = retireRollbackSql(moved)
+        if (sql) recordDurably(ROLLBACK, sql)
+        await tombstonePdps(db, [h.id])
+      }
+    } finally {
+      await tombstoneAll(db, hiddenIds, 'hidden rows', JOURNAL)
     }
-    const sql = retireRollbackSql(hiddenIds)
-    if (sql) recordDurably(ROLLBACK, sql)
     const active = await db.listing.count({ where: { sellerId: SELLER_ID, status: 'active' } })
     console.log(`\nhidden ${hiddenIds.length}   active now ${active}`)
-    if (sql) console.log(`ROLLBACK (re-activates exactly the rows this pass hid): psql -v ON_ERROR_STOP=1 -f ${ROLLBACK}`)
+    if (hiddenIds.length) console.log(`ROLLBACK (re-activates exactly the rows this pass hid, while still hidden and untouched since): psql -v ON_ERROR_STOP=1 -f ${ROLLBACK}`)
   } finally {
     await db.$disconnect()
   }
@@ -426,16 +583,30 @@ async function main() {
   const drops: Drops = {}
   let records: StagedRecord[]
   let crawlInfo: Awaited<ReturnType<typeof crawl>> | null = null
+  let freshInfo: FreshCrawler | null = null
+  let stage: StageFile | null = null
   if (SRC) {
     /** ⛔ Every line re-built through the allowlist; one malformed line refuses the file. */
     records = parseStage(readFileSync(SRC, 'utf8'))
+    /** ⛔ An EMPTY stage under --apply is a clean no-op, exit 0 (emptyStageNoop) — before the age check and the database. */
+    const noop = APPLY ? emptyStageNoop(records, SRC) : null
+    if (noop) { console.log(noop); return }
     /** ⛔ A stale stage refuses the write, BEFORE the database or a single photo is touched. */
     if (APPLY) { const why = stageAgeRefusal(records); if (why) throw new Error(why) }
   } else {
-    /** Truncated first: one stage file is one crawl, never two runs interleaved. */
-    if (STAGE) { mkdirSync(dirname(resolve(STAGE)), { recursive: true }); writeFileSync(STAGE, '') }
-    crawlInfo = await crawl(drops, (r) => { if (STAGE) appendFileSync(STAGE, JSON.stringify(r) + '\n') })
-    records = crawlInfo.records
+    /** One stage file is one crawl, written beside its path and renamed in only when the crawl returned. */
+    stage = STAGE ? new StageFile(STAGE) : null
+    /** ⛔ Likewise one --fresh-out file is one crawl: a set an earlier run left there is removed first,
+     *  so a run that refuses to write one can never leave the last run's set for the expiry to read. */
+    if (FRESH_OUT && existsSync(FRESH_OUT)) unlinkSync(FRESH_OUT)
+    const onRecord = (r: StagedRecord) => stage?.append(r)
+    if (FRESH_OUT) {
+      freshInfo = await new FreshCrawler(getPage, { cities: CITY_KEYS, log: (l) => console.log(l), onRecord, onDrop: (k) => bump(drops, k) }).run()
+      records = freshInfo.records
+    } else {
+      crawlInfo = await crawl(drops, onRecord)
+      records = crawlInfo.records
+    }
   }
 
   const rows: MappedRow[] = []
@@ -445,9 +616,16 @@ async function main() {
   // ⛔ THE try OPENS WITH THE CONNECTION: the screen below already queries, and a throw there must
   // still reach the `finally` that disconnects.
   try {
+  /** --fresh-out: settled before anything else reads the DB — the db net (which may stage a few more
+   *  records), the coverage verdict, the set. A refusal is reported at the end of the run, which then exits
+   *  COVERAGE_REFUSED_EXIT (3) — never a throw: the stage, renamed into place right after this, is kept. */
+  const freshRefusal = freshInfo ? await settleFreshSet(db, freshInfo) : null
+  stage?.finish()
   const screen = new ImportScreen('muaban-net', { db, sellerIds: [SELLER_ID] })
   for (const r of records) {
-    const m = mapRecord(r.item, r.detail, { cities: CITY_KEYS, types: TYPES })
+    /** ⛔ The 7-day rule judges an apartment at the FRESH SET'S moment (the record's setAt, from a --fresh-out
+     *  crawl), with judgeCreated — exactly as the set did; an ordinary crawl's record at its own fetchedAt. */
+    const m = mapRecord(r.item, r.detail, { cities: CITY_KEYS, types: TYPES, windowAt: Date.parse(r.setAt ?? r.fetchedAt), readAt: Date.parse(r.fetchedAt) })
     if (!m.ok) { bump(drops, m.reason); continue }
     // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts), on the exact texts the write uses.
     // A refused row is never created (it never reaches `batch`); an existing LIVE one is hidden on
@@ -472,19 +650,23 @@ async function main() {
       (await db.listing.findMany({
         where: { sellerId: SELLER_ID, externalId: { in: batch.map((r) => r.externalId) } },
         select: {
+          id: true, postedAt: true, rankScore: true,
           externalId: true, status: true, title: true, titleVi: true, description: true, descriptionVi: true, price: true,
           priceUnit: true, currency: true, negotiable: true, listingType: true, subcategorySlug: true, location: true,
           district: true, city: true, lat: true, lng: true, areaM2: true, attributes: true, affiliateUrl: true, searchText: true,
         },
       })).map((r) => [r.externalId!, r]),
     )
-    const plan = { create: 0, update: 0, unchanged: 0, removed: 0 }
+    const plan = { create: 0, update: 0, unchanged: 0, removed: 0, revive: 0, redate: 0 }
     for (const r of batch) {
       const ex = existing.get(r.externalId)
       if (ex?.status === 'removed') plan.removed++
       else if (!ex) plan.create++
-      else if (sameMutable(r.mutable, ex)) plan.unchanged++
-      else plan.update++
+      else {
+        const d = existingRowPlan(r, ex)
+        if (sameMutable(r.mutable, ex) && !d.revive && !d.redate) plan.unchanged++
+        else { plan.update++; if (d.revive) plan.revive++; else if (d.redate) plan.redate++ }
+      }
     }
 
     const hist = (f: (r: MappedRow) => string) => Object.fromEntries(
@@ -507,6 +689,15 @@ async function main() {
       }
       if (crawlInfo.stopped) console.log(`⛔ CRAWL STOPPED   ${crawlInfo.stopped}`)
     }
+    if (freshInfo) {
+      const reqs = [...requestCount].map(([h, n]) => `${h} ${n}`).join(', ')
+      const c = freshInfo.coverage()
+      console.log(`fresh crawl       ${freshInfo.pages} list pages (sort=2, price order; every list ≤ ${LEAF_MAX} cards; ${c.retries} re-read after a timeout/5xx), requests: ${reqs}, delay ${DELAY_MS}ms/host, UA "${UA}"`)
+      console.log(`  details         ${JSON.stringify(c.details)}; ${c.belowFloor} cards below the id floor ${c.floor ?? '(none)'}${c.floorCreated ? ` (created ${c.floorCreated})` : ''}${c.detailCapHit ? ` — ⛔ stopped at ${MAX_FRESH_DETAILS}` : ''}; ${c.inversions} id/created_at inversion(s)`)
+      console.log(`  db net          ${c.db ? JSON.stringify(c.db) : 'not run'}`)
+      if (c.stopped) console.log(`⛔ CRAWL STOPPED   ${c.stopped}`)
+      console.log(freshRefusal ? `⛔ FRESH SET NOT WRITTEN — ${freshRefusal}` : `fresh set         written: ${FRESH_OUT}`)
+    }
     console.log(`examined          ${records.length}`)
     console.log(`dropped           ${JSON.stringify(drops)}`)
     console.log(`TO IMPORT         ${batch.length}${LIMIT ? ` (--limit ${LIMIT} of ${rows.length})` : ''}  (before the photo check — see --probe-images)`)
@@ -518,22 +709,18 @@ async function main() {
     console.log(`  with coords     ${batch.filter((r) => r.mutable.lat !== null).length}   with area ${batch.filter((r) => r.mutable.areaM2 !== null).length}`)
     console.log(`  untranslated    ${untranslatedSummary(batch.flatMap((r) => r.untranslated)) || 'none — every mixed-language segment has a reviewed translation'}`)
     {
-      /** What the create-only rank starts at: from muaban's own publish_at, never the import time. */
+      /** What the create-only rank starts at: from muaban's own created_at, never the import time. */
       const now = Date.now()
       const trustNow = seller?.trustScore ?? 100
       const ageH = batch.map((r) => (now - r.postedAt.getTime()) / 3_600_000).sort((a, b) => a - b)
       const ranks = batch.map((r) => createOnlyFields(r, trustNow, now).rankScore).sort((a, b) => a - b)
       const pct = (xs: number[], q: number) => xs.length ? xs[Math.min(xs.length - 1, Math.floor(q * xs.length))] : NaN
       const asImport = createOnlyFields({ postedAt: new Date(now) }, trustNow, now).rankScore
-      console.log(`  postedAt age    ${ageH.length ? `min ${ageH[0].toFixed(1)} h, median ${pct(ageH, 0.5).toFixed(1)} h, max ${ageH[ageH.length - 1].toFixed(1)} h (muaban publish_at, clamped to now)` : 'n/a'}`)
+      console.log(`  postedAt age    ${ageH.length ? `min ${ageH[0].toFixed(1)} h, median ${pct(ageH, 0.5).toFixed(1)} h, max ${ageH[ageH.length - 1].toFixed(1)} h (muaban created_at — the first post — clamped to now; never publish_at, re-stamped nightly)` : 'n/a'}`)
       console.log(`  rankScore       ${ranks.length ? `${ranks[0].toFixed(4)}–${ranks[ranks.length - 1].toFixed(4)}, median ${pct(ranks, 0.5).toFixed(4)} (trust ${trustNow}; stamped "now" it would be ${asImport.toFixed(4)})` : 'n/a'}`)
-      const createdAt = new Map(records.map((x) => [x.item.id, x.detail?.created_at]))
-      const created = batch.map((r) => createdAt.get(r.sourceId))
-        .map((c) => Date.parse(c ?? '')).filter((t) => Number.isFinite(t)).map((t) => (now - t) / 86_400_000).sort((a, b) => a - b)
-      if (created.length) console.log(`  created_at age  median ${pct(created, 0.5).toFixed(1)} d, max ${created[created.length - 1].toFixed(1)} d on ${created.length} rows (NOT used: muaban's first-post date; publish_at moves on each re-publish)`)
     }
     console.log(`  photos to judge ${batch.reduce((n, r) => n + r.imageSources.length, 0)} (≤5/row; text cards refused; kept ones re-hosted clean under listings/affiliate/m/, never hotlinked)`)
-    console.log(`plan              create ${plan.create}   update ${plan.update}   unchanged ${plan.unchanged} (skipped: no write, updatedAt untouched)`)
+    console.log(`plan              create ${plan.create}   update ${plan.update} (incl. revive ${plan.revive} back from expired/stale, re-date ${plan.redate} to a newer source date)   unchanged ${plan.unchanged} (skipped: no write, updatedAt untouched)${plan.removed ? `   removed ${plan.removed} (left alone)` : ''}`)
     console.log(`category          ${category.name} (${category.id})`)
     console.log(`seller            ${sellerLine}`)
     console.log(`seller refusal    ${sellerRefusal(seller) ?? 'none — writable'}`)
@@ -603,6 +790,16 @@ async function main() {
         console.log(`  ${vnd(r.mutable.price)}/tháng (${r.mutable.priceUnit}) · ${r.mutable.city} · ${r.mutable.district} · ${r.mutable.subcategorySlug ?? '(no subcategory)'} -> ${r.mutable.affiliateUrl}`)
       }
       console.log(`\nDRY RUN — nothing uploaded, nothing written.${STAGE ? ` Stage: ${STAGE} — review it, then --src ${STAGE} --journal <durable dir> --apply (within ${MAX_STAGE_AGE_HOURS} h).` : ''}`)
+      /**
+       * ⛔ Last, so the whole report is printed first: a run asked for a set and not writing one exits
+       * COVERAGE_REFUSED_EXIT (3) — NOT a throw (1): the finished stage stays where it is (what was read is
+       * still applied), and the weekly job tells "coverage not proven, skip the expiry" from a crash.
+       */
+      if (freshRefusal) {
+        console.error(`⛔ --fresh-out NOT written (${FRESH_OUT}): ${freshRefusal}`)
+        console.error(`   exit ${COVERAGE_REFUSED_EXIT} (coverage refused) — the stage ${STAGE ? `${STAGE} (${records.length} records) is kept and may be applied` : 'was not asked for'}; skip this source's expiry`)
+        process.exitCode = COVERAGE_REFUSED_EXIT
+      }
       return
     }
 
@@ -622,26 +819,70 @@ async function main() {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
     const UPLOADED = join(journalDir!, `muaban-uploaded-objects-${stamp}.txt`)
     const CREATED = join(journalDir!, `muaban-created-rows-${stamp}.jsonl`)
-    console.log(`upload manifest   ${UPLOADED}\ncreated journal   ${CREATED}`)
+    /** Revived and re-dated rows: the PLANNED change (old + new status/postedAt/rankScore), fsync'd before each write. */
+    const DATED = join(journalDir!, `muaban-dated-rows-${stamp}.jsonl`)
+    /** Their undo, one guarded line per row, written only once that row's write landed. */
+    const DATED_ROLLBACK = join(journalDir!, `muaban-dated-rows-${stamp}.rollback.sql`)
+    console.log(`upload manifest   ${UPLOADED}\ncreated journal   ${CREATED}\ndated journal     ${DATED}\ndated rollback    ${DATED_ROLLBACK}`)
 
     const trust = seller?.trustScore ?? 100
     /** Learnt BEFORE the first row, once — every row this run is judged against the same stamp. */
     const mark = COVER_BY_MARK ? await learnMark(db) : null
-    const stat = { created: 0, updated: 0, unchanged: 0, removed: 0, noRealPhotos: 0, photoFailed: 0, uploadFailed: 0, errored: 0, coverReplaced: 0, coverByMark: 0, imagesRefused: {} as Record<string, number> }
+    /** ⛔ Before the first revival — a status write that brings an existing page back. */
+    if (plan.revive) await requireIsrTable(db, `${plan.revive} revived page(s), cached as gone,`)
+    const stat = { created: 0, updated: 0, unchanged: 0, removed: 0, revived: 0, redated: 0, raced: 0, noRealPhotos: 0, photoFailed: 0, uploadFailed: 0, errored: 0, coverReplaced: 0, coverByMark: 0, imagesRefused: {} as Record<string, number> }
+    const revivedIds: string[] = []
     let stopped: string | null = null
+    try {
     for (const r of batch) {
       try {
         const ex = existing.get(r.externalId)
         // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
         if (ex?.status === 'removed') { stat.removed++; continue }
-        if (ex && sameMutable(r.mutable, ex)) { stat.unchanged++; continue }
-        const where = { sellerId_externalId: { sellerId: SELLER_ID, externalId: r.externalId } }
+        const d = ex ? existingRowPlan(r, ex) : null
+        if (ex && sameMutable(r.mutable, ex) && !d!.revive && !d!.redate) { stat.unchanged++; continue }
         const mutable = { ...r.mutable, sellerId: SELLER_ID, categoryId: category.id }
         if (ex) {
-          /** ⚠️ images/status/verified/postedAt/rankScore are absent: a refresh never undoes moderation,
-           *  photos or the source's date. */
-          await db.listing.update({ where, data: mutable })
+          /** postedAt + rankScore only when the source date moves (existingRowPlan), computed exactly as on
+           *  create — from the source's own date, never now. */
+          const dated = d!.redate ? createOnlyFields(r, trust) : null
+          const entry: DatedEntry | null = dated && {
+            kind: d!.revive ? 'revive' : 'redate', id: ex.id, externalId: r.externalId,
+            oldStatus: ex.status, oldPostedAt: ex.postedAt.toISOString(), oldRankScore: ex.rankScore,
+            newPostedAt: dated.postedAt.toISOString(), newRankScore: dated.rankScore,
+          }
+          /** Its undo is validated BEFORE the write (datedEntryProblem) — the line itself needs the updatedAt
+           *  the write returns, and is written to the rollback file only after it landed. */
+          const undoProblem = entry && datedEntryProblem(entry)
+          if (undoProblem) throw new Error(undoProblem)
+          /** ⛔ The PLANNED change FIRST (fsync): the old values are the undo, and a crash after the write must not lose them. */
+          if (entry) recordDurably(DATED, JSON.stringify({ ...entry, at: new Date().toISOString() }))
+          /**
+           * ⛔ EVERY WRITE TO AN EXISTING ROW IS CONDITIONAL ON THE STATUS JUST READ (never 'removed' — skipped
+           * above): a row a moderator removed or hid meanwhile matches nothing, and is counted as raced.
+           * …AndReturn: the row THIS write moved, with the updatedAt it stamped — the rollback line's last guard.
+           * ⚠️ images/verified are absent: a refresh never undoes moderation or photos.
+           */
+          const guard = { id: ex.id, sellerId: SELLER_ID, status: ex.status }
+          if (d!.revive) {
+            /** ⛔ REVIVAL: an apartment the 7-day rule took down whose ad is inside the set's window again. */
+            /** Owed its tombstone BEFORE the write (a commit whose reply is lost must not strand a cached 404);
+             *  a tombstone on a row the write did not move only re-renders its current state. */
+            revivedIds.push(ex.id)
+            const moved = await db.listing.updateManyAndReturn({ where: guard, data: { ...mutable, ...dated, status: 'active' }, select: { id: true, updatedAt: true } })
+            if (!moved.length) { stat.raced++; continue }
+            stat.revived++
+            /** The undo only now that the write landed (guarded on the state it created, its updatedAt included),
+             *  then the page's tombstone as it lands — its cached 404 would otherwise outlive the revival by 30 days. */
+            recordDurably(DATED_ROLLBACK, datedRollbackSql(entry!, moved[0].updatedAt))
+            await tombstonePdps(db, [ex.id])
+            continue
+          }
+          const moved = await db.listing.updateManyAndReturn({ where: guard, data: { ...mutable, ...(dated ?? {}) }, select: { id: true, updatedAt: true } })
+          if (!moved.length) { stat.raced++; continue }
+          if (entry) recordDurably(DATED_ROLLBACK, datedRollbackSql(entry, moved[0].updatedAt))
           stat.updated++
+          if (dated) stat.redated++
           continue
         }
         /**
@@ -673,21 +914,29 @@ async function main() {
           urls.push(url)
         }
         if (urls.length !== c.keep.length) { stat.uploadFailed++; continue }
-        const res = await db.listing.upsert({
-          where,
-          /** ⛔ status/verified/images/postedAt/rankScore CREATE-ONLY. `verified` is the PUBLICATION
-           *  GATE. postedAt is muaban's own publish_at (never now), and rankScore is computed from it. */
-          create: {
-            ...mutable, externalId: r.externalId, status: 'active', verified: true, images: JSON.stringify(urls),
-            ...createOnlyFields(r, trust),
-          },
-          update: mutable,
-          select: { id: true, createdAt: true, updatedAt: true },
-        })
-        /** createdAt === updatedAt means this call created it; otherwise a concurrent run did, the
-         *  update path ran, and this run's uploads are orphans (they are in the manifest). */
-        if (res.createdAt.getTime() !== res.updatedAt.getTime()) { stat.updated++; continue }
-        recordDurably(CREATED, JSON.stringify({ id: res.id, externalId: r.externalId }))
+        /**
+         * ⛔ A CREATE, NEVER AN UPSERT: the row did not exist when this run read it, and an upsert's update
+         * branch would write into whatever exists by now — a removed row included. A concurrent run that
+         * created it first makes this a unique violation (P2002): counted as raced, and this run's uploads
+         * are orphans (they are in the manifest).
+         */
+        let created: { id: string }
+        try {
+          created = await db.listing.create({
+            /** ⛔ status/verified/images CREATE-ONLY (postedAt/rankScore too, but for a revival/re-date above).
+             *  `verified` is the PUBLICATION GATE. postedAt is muaban's own created_at (never now), and
+             *  rankScore is computed from it. */
+            data: {
+              ...mutable, externalId: r.externalId, status: 'active', verified: true, images: JSON.stringify(urls),
+              ...createOnlyFields(r, trust),
+            },
+            select: { id: true },
+          })
+        } catch (e) {
+          if ((e as { code?: string })?.code === 'P2002') { stat.raced++; continue }
+          throw e
+        }
+        recordDurably(CREATED, JSON.stringify({ id: created.id, externalId: r.externalId }))
         stat.created++
         if (c.moved) stat.coverByMark++
         if (stat.created % 100 === 0) console.log(`  ${stat.created} created`)
@@ -698,11 +947,16 @@ async function main() {
         console.warn(`  ! ${r.externalId}: ${(e as Error).message.slice(0, 160)}`)
       }
     }
+    } finally {
+      /** ⛔ Every revival that landed before a throw keeps its tombstone too (the per-row one may not have run). */
+      await tombstoneAll(db, revivedIds, 'revived rows', DATED)
+    }
     const active = await db.listing.count({ where: { sellerId: SELLER_ID, status: 'active' } })
     console.log(`\n${JSON.stringify(stat)}   active now ${active}${stopped ? `\n⛔ STOPPED ${stopped} — re-run the same --apply to continue (created rows are skipped as unchanged)` : ''}`)
     console.log(`\nROLLBACK (safe, reversible — hides from every public surface):`)
     console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${SELLER_ID}' AND status <> 'removed';`)
     console.log(`  -- only this run's rows: the ids in ${CREATED}`)
+    console.log(`  -- revived / re-dated rows: psql -v ON_ERROR_STOP=1 -f ${DATED_ROLLBACK} (one line per landed write, guarded on the state it left incl. its updatedAt, with its ISR tombstones; planned changes in ${DATED})`)
     console.log(`  -- never DELETE: Order is onDelete:Restrict and six relations Cascade.`)
     console.log(`  -- keep uploaded objects until the edge cache expires. Manifest: ${UPLOADED}`)
     console.log(`  -- priceUnit written: ${RENT_PRICE_UNIT}`)

@@ -16,8 +16,12 @@
  * `pageProps.notFound` (measured on /bat-dong-san/cho-thue-can-ho-ho-chi-minh/x-id1, 2026-09-24).
  */
 import vnUnits from '../src/data/vn-units.json'
+import {
+  APARTMENT_SUBCAT, FRESH_DAYS, FRESH_SET_MAX_AGE_MS, REVIVABLE_STATUSES, freshSetProblem, isInWindow, makeFreshSet, type FreshItem, type FreshSet,
+} from '../src/lib/apartment-freshness'
 import { buildSearchText } from '../src/lib/fold'
 import { localizeImportText, type MissingSegment } from '../src/lib/import-i18n'
+import { pdpTombstoneTags } from '../src/lib/job-listing'
 import { browseRankScore } from '../src/lib/ranking-formula'
 import { listingMoneyFor, roomAttributes } from '../src/lib/taxonomy'
 
@@ -109,6 +113,8 @@ export const PROPERTY_TYPES: Record<number, { key: string; listSlug: string; sub
   2815: { key: 'warehouse', listSlug: 'cho-thue-nha-xuong-kho-dat', subcat: null, en: 'Warehouse / land', vi: 'Nhà xưởng, kho, đất' },
 }
 export const DEFAULT_TYPES = [2812, 2811, 1614, 2814]
+/** 'Căn hộ' — the only type the 7-day rule (src/lib/apartment-freshness.ts) applies to. */
+export const APARTMENT_TYPE = 2812
 
 export function parseCities(arg: string | null): CityKey[] {
   if (!arg) return ['hcm', 'hn', 'dn']
@@ -188,7 +194,18 @@ export type RunArgs = {
   coverByMark: boolean
   listOnly: boolean
   forceMassRetire: boolean
+  /**
+   * --fresh-out <file>: the 7-day rule's FRESH SET (src/lib/apartment-freshness.ts), written by the live
+   * crawl that reads muaban — every apartment ad whose detail page says `created_at` within FRESH_DAYS.
+   * modeRefusal pins what it may be combined with (apartments only, every city, no --limit/--cap).
+   */
+  freshOut: string | null
 }
+
+/** Every flag this importer reads. ⛔ Anything else THROWS: a typo'd `--fresh-ot` must not run a crawl
+ *  that silently writes no set, nor a mistyped safety flag pass as accepted. */
+const VALUED_FLAGS = ['--limit', '--src', '--stage', '--journal', '--city', '--types', '--cap', '--max-pages', '--delay-ms', '--fresh-out']
+const BOOLEAN_FLAGS = ['--apply', '--retire', '--probe-images', '--cover-by-mark', '--list-only', '--force-mass-retire']
 
 /**
  * The whole command line, parsed in one tested place. The importer calls exactly this, so the
@@ -203,8 +220,13 @@ export function parseRunArgs(argv: string[]): RunArgs {
   }
   /** ⛔ A valued flag with no value is refused, not read as "unset": `--limit --apply` used to mean
    *  "no limit" and `--cap --city hcm` "no cap" — the opposite of what was typed. */
-  for (const k of ['--limit', '--src', '--stage', '--journal', '--city', '--types', '--cap', '--max-pages', '--delay-ms']) {
+  for (const k of VALUED_FLAGS) {
     if (argv.includes(k) && arg(k) === null) throw new Error(`${k} needs a value`)
+  }
+  /** Values never start with `--` (arg() refuses them), so every `--` token must be a known flag. Works
+   *  with and without the leading `node script` pair (process.argv, or a test's bare list). */
+  for (const t of argv) {
+    if (t.startsWith('--') && !VALUED_FLAGS.includes(t) && !BOOLEAN_FLAGS.includes(t)) throw new Error(`unknown flag "${t}"`)
   }
   const rawLimit = arg('--limit')
   const limit = rawLimit === null ? 0 : Number(rawLimit)
@@ -225,6 +247,7 @@ export function parseRunArgs(argv: string[]): RunArgs {
     coverByMark: flag('--cover-by-mark'),
     listOnly: flag('--list-only'),
     forceMassRetire: flag('--force-mass-retire'),
+    freshOut: arg('--fresh-out'),
   }
 }
 
@@ -242,6 +265,18 @@ export function modeRefusal(a: RunArgs): string | null {
   if (a.apply && a.stage) return '--stage is for live dry runs; --apply reads --src'
   if (a.src && a.stage) return '--src already is a staged file; --stage is for a live crawl'
   if (a.apply && !a.journalDir) return '--apply needs --journal <durable dir> (not /tmp: macOS clears it on reboot)'
+  if (a.freshOut) {
+    /** ⛔ THE SET IS WRITTEN BY THE RUN THAT READS MUABAN, and it must describe the WHOLE window: the
+     *  expiry marks every live apartment row of this seller that is NOT in it. */
+    if (a.src || a.apply || a.retire) return '--fresh-out is written by the live crawl (a dry run, with --stage); not with --src, --apply or --retire'
+    if (!a.stage) return '--fresh-out needs --stage <file>: a set whose crawl is not kept cannot be applied, so its new ads would never be imported'
+    if (a.types.length !== 1 || a.types[0] !== APARTMENT_TYPE) return '--fresh-out is the 7-day rule for APARTMENTS: pass --types apartment (and nothing else)'
+    const missing = (Object.keys(CITIES) as CityKey[]).filter((k) => !a.cities.includes(k))
+    if (missing.length) return `--fresh-out must cover every city this seller imports — ${missing.join(', ')} missing: the expiry marks every live apartment row NOT in the set, so a partial set would expire those cities' rows`
+    if (a.limit) return '--limit cuts the crawl short; a fresh set must be whole'
+    if (Object.keys(a.caps).length) return '--cap cuts the crawl short; a fresh set must be whole'
+    if (a.listOnly) return '--list-only reads no detail page, and the date this rule uses (created_at) is only on the detail page'
+  }
   return null
 }
 
@@ -390,6 +425,13 @@ export type MuabanDetail = {
 export type StagedRecord = {
   v: 1
   fetchedAt: string
+  /**
+   * --fresh-out crawls only: the moment the fresh set describes (its `fetchedAt` — the crawl's start). The
+   * apply judges the 7-day window of an apartment at THIS moment, exactly as the set did, instead of at the
+   * record's own fetchedAt (which can be 30+ minutes later): an ad near the window's edge is then in the set
+   * AND created/refreshed/revived, or in neither. Absent on an ordinary crawl's records.
+   */
+  setAt?: string
   seed: { city: CityKey; type: number }
   item: MuabanListItem
   detail: MuabanDetail | null
@@ -563,10 +605,22 @@ export function restageRecord(raw: unknown, line: number): StagedRecord {
   if (!Number.isSafeInteger(item.id) || item.id <= 0) throw new Error(`stage line ${line}: item has no numeric id`)
   const detail = r.detail === null || r.detail === undefined ? null : stageDetail(r.detail)
   const detailStatus = Number.isInteger(r.detailStatus) ? Number(r.detailStatus) : null
-  return { v: 1, fetchedAt: r.fetchedAt, seed: { city: city as CityKey, type }, item, detail, detailStatus }
+  /** ⛔ setAt moves the window the apply judges by, so it is pinned: a real instant, no later than this
+   *  record's own read (skew allowed), and no more than a day before it — the age a fresh set may have. */
+  let setAt: string | undefined
+  if (r.setAt !== undefined) {
+    const s = typeof r.setAt === 'string' ? Date.parse(r.setAt) : NaN
+    const f = Date.parse(r.fetchedAt)
+    if (!Number.isFinite(s) || !(s <= f + SKEW_MS) || !(f - s <= FRESH_SET_MAX_AGE_MS)) {
+      throw new Error(`stage line ${line}: setAt ${JSON.stringify(r.setAt)} is not an instant within ${FRESH_SET_MAX_AGE_MS / 3_600_000} h before its fetchedAt`)
+    }
+    setAt = new Date(s).toISOString()
+  }
+  return { v: 1, fetchedAt: r.fetchedAt, ...(setAt ? { setAt } : {}), seed: { city: city as CityKey, type }, item, detail, detailStatus }
 }
 
-/** A whole JSONL stage → allowlisted records. Throws on the first unreadable line. */
+/** A whole JSONL stage → allowlisted records. Throws on the first unreadable line, and on a file that
+ *  mixes crawls (records with different setAt, or with and without one): one stage is one crawl. */
 export function parseStage(text: string): StagedRecord[] {
   const out: StagedRecord[] = []
   text.split('\n').forEach((l, i) => {
@@ -575,6 +629,8 @@ export function parseStage(text: string): StagedRecord[] {
     try { raw = JSON.parse(l) } catch { throw new Error(`stage line ${i + 1}: not JSON`) }
     out.push(restageRecord(raw, i + 1))
   })
+  const sets = new Set(out.map((r) => r.setAt ?? null))
+  if (sets.size > 1) throw new Error(`the stage mixes crawls: ${[...sets].map((s) => s ?? '(no setAt)').join(', ')}`)
   return out
 }
 
@@ -795,12 +851,25 @@ export {
 
 // ─── The mapping ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * 'window': an APARTMENT whose `created_at` is older than FRESH_DAYS at `windowAt` — the 7-day rule
+ * (src/lib/apartment-freshness.ts). Such a row is neither created nor refreshed; the expiry step takes
+ * an existing one down.
+ */
 export type DropReason =
   | 'notRental' | 'city' | 'type' | 'target' | 'location' | PriceDrop
-  | 'expired' | 'detailMismatch' | 'noImages' | 'postDate'
+  | 'expired' | 'detailMismatch' | 'noImages' | 'postDate' | 'window'
 
-/** `now` (epoch ms, default Date.now()) is the ceiling a source post date is clamped to. */
-export type MapOptions = { cities: CityKey[]; types: number[]; now?: number }
+/**
+ * `now` (epoch ms, default Date.now()) is the ceiling a source post date is clamped to. `windowAt` (epoch
+ * ms, default `now`) is the moment an APARTMENT's created_at is judged against the 7-day window, and
+ * `readAt` (default `windowAt`) the moment its detail page was read. The importer passes the record's
+ * `setAt` (a --fresh-out crawl: the fresh set's own fetchedAt) or else its `fetchedAt` as windowAt, and its
+ * fetchedAt as readAt — and the judgement is judgeCreated(), the very function that built the set. So an
+ * apartment the set holds is the apartment the apply creates, refreshes or revives, and vice versa, even
+ * at the window's edge and even when it was posted after the crawl started (the set dates it setAt).
+ */
+export type MapOptions = { cities: CityKey[]; types: number[]; now?: number; windowAt?: number; readAt?: number }
 
 /** Everything `create`/`update` writes that a re-import may refresh. images/status/verified/rankScore/postedAt are NOT here. */
 export type MutableFields = {
@@ -832,7 +901,11 @@ export type MappedRow = {
   mutable: MutableFields
   /** Source photo URLs to re-host at --apply. NEVER stored as-is. */
   imageSources: string[]
-  /** muaban's own post date (sourcePostedAt). CREATE-ONLY, with the rankScore it implies (createOnlyFields). */
+  /**
+   * muaban's FIRST-post date: the detail page's `created_at` (sourcePostedAt), never `publish_at`. Written
+   * on create, on a revival, and on an update when it is newer than the stored one — always with the
+   * rankScore it implies (createOnlyFields).
+   */
   postedAt: Date
   /** Mixed-language segments the reviewed dictionary does not cover yet (import-i18n.ts) — a report, never stored. */
   untranslated: MissingSegment[]
@@ -845,21 +918,46 @@ export type MappedRow = {
  */
 export const MIN_SOURCE_POSTED_AT = Date.parse('2010-01-01T00:00:00Z')
 
+/** ISO 8601 date-time WITH its offset: `Z` or `±hh:mm` (fraction any length, read to the millisecond). */
+const ZONED_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(?:(Z)|([+-])(\d{2}):(\d{2}))$/i
+
+/**
+ * ⛔ A SOURCE DATE IS AN INSTANT ONLY WHEN IT SAYS WHICH ZONE IT IS IN. muaban's created_at carries
+ * `+07:00` (measured 2026-10-01). `Date.parse` reads a date-time WITHOUT an offset as the MACHINE's local
+ * time (ECMA-262 Date Time String Format): the same '2026-09-24T08:00:00' is 7 hours apart on a UTC box and
+ * a Saigon one, which can move an ad across the 7-day edge depending on where the job runs. So only a
+ * date-time with `Z` or `±hh:mm` is read, by hand (no engine leniency, no local zone): anything else —
+ * no offset, a bare date, an impossible day — is NaN, which every caller treats as unreadable.
+ */
+export function parseZonedInstant(s: string | undefined): number {
+  const m = ZONED_DATE_TIME.exec(s ?? '')
+  if (!m) return NaN
+  const [, y, mo, d, h, mi, sec = '0', frac = '', z, sign, oh, om] = m
+  if (+mo < 1 || +mo > 12 || +d < 1 || +h > 23 || +mi > 59 || +sec > 59) return NaN
+  if (!z && (+oh > 23 || +om > 59)) return NaN
+  const wall = Date.UTC(+y, +mo - 1, +d, +h, +mi, +sec, Number(frac.padEnd(3, '0').slice(0, 3)))
+  if (new Date(wall).getUTCDate() !== +d) return NaN                                  // 2026-02-30 is not a day
+  return wall - (z ? 0 : (sign === '-' ? -1 : 1) * (+oh * 60 + +om) * 60_000)
+}
+
 /**
  * ⛔ `postedAt` IS THE SOURCE'S OWN POST DATE, NEVER "NOW" (owner/lead decision, 2026-09-24). An
  * imported row stamped with the import time starts with the recency term at its maximum
  * (browseRankScore: 0.5786 at trust 100) and sits above existing listings (~0.56) in the default
  * browse, which sorts by rankScore — ~5,000 borrowed rows ahead of people's own posts. It also tells
  * the card and the feed's recency key that a flat is fresher than it is.
- * The date is muaban's `publish_at`, clamped to `now` so a clock-skewed or forged future date can
- * never out-rank a real one. Unreadable, or before MIN_SOURCE_POSTED_AT → null, and the row is
- * dropped ('postDate') rather than dated today.
- * ⚠️ muaban RE-PUBLISHES renewed ads (publish_at moves; the detail page's `created_at` does not), so
- * this is "last published on muaban", not "first posted". Measured on the 2026-09-24 newest-first
- * dry run: publish_at 0.7–3.1 h old on 30/30 rows, so the starting rank is within 0.002 of "now".
+ * ⛔ THE DATE IS THE DETAIL PAGE'S `created_at` (the first post), NEVER `publish_at` (2026-10-01). muaban
+ * re-publishes every LIVE ad each night (publish_at ≈ 00:00–00:05 on every card measured 2026-10-01,
+ * e.g. id 71204990: created 2026-09-04, publish_at 2026-10-01T00:00:14), so publish_at says "live
+ * today", not "posted" — it would make every ad fresh every day under the 7-day rule. This takes any
+ * source date string; mapRecord passes `created_at`. Clamped to `now` so a clock-skewed or forged future
+ * date can never out-rank a real one. Unreadable — including a date-time with NO explicit offset
+ * (parseZonedInstant: it would be read in the machine's zone) — or before MIN_SOURCE_POSTED_AT → null, and
+ * the row is dropped ('postDate') rather than dated today — which is also the fate of a row staged with no
+ * detail page (--list-only): the card carries no created_at.
  */
-export function sourcePostedAt(publishAt: string | undefined, now: number = Date.now()): Date | null {
-  const t = Date.parse(publishAt ?? '')
+export function sourcePostedAt(sourceDate: string | undefined, now: number = Date.now()): Date | null {
+  const t = parseZonedInstant(sourceDate)
   if (!Number.isFinite(t) || t < MIN_SOURCE_POSTED_AT) return null
   return new Date(Math.min(t, now))
 }
@@ -879,10 +977,11 @@ export function postedAtProblem(postedAt: Date, createdAt: Date): 'future' | 'im
 }
 
 /**
- * The CREATE-ONLY ranking fields of a new row: its source `postedAt`, and the starting rankScore the
- * importer has always computed (browseRankScore, not featured, no demand yet) — from THAT date
- * instead of from `new Date()`. The nightly recompute re-decays it from `postedAt` afterwards
- * (ranking-formula.ts rankScoreExprSql), so the two agree.
+ * The ranking fields of a row dated from the source: its source `postedAt`, and the starting rankScore
+ * the importer has always computed (browseRankScore, not featured, no demand yet) — from THAT date
+ * instead of from `new Date()`. Used on create, and on a revival / a newer source date (existingRowPlan),
+ * so a re-dated row ranks exactly like a new one would. The nightly recompute re-decays it from
+ * `postedAt` afterwards (ranking-formula.ts rankScoreExprSql), so the two agree.
  */
 export function createOnlyFields(row: Pick<MappedRow, 'postedAt'>, sellerTrustScore: number, now: number = Date.now()): { postedAt: Date; rankScore: number } {
   return { postedAt: row.postedAt, rankScore: browseRankScore({ sellerTrustScore, postedAt: row.postedAt, featured: false }, now) }
@@ -902,6 +1001,19 @@ const areaEn = (a: number) => String(Math.round(a * 100) / 100)
 const areaVi = (a: number) => areaEn(a).replace('.', ',')
 
 export function mapRecord(item: MuabanListItem, detail: MuabanDetail | null, opts: MapOptions): { ok: true; row: MappedRow } | { ok: false; reason: DropReason } {
+  return mapCore(item, detail, opts, false)
+}
+
+/**
+ * The checks a list CARD alone can fail — everything but the date, which lives on the detail page
+ * (`created_at`). The live crawl spends a detail request only on a card this passes. Never returns a row.
+ */
+export function listLevelDrop(item: MuabanListItem, opts: MapOptions): DropReason | null {
+  const m = mapCore(item, null, opts, true)
+  return m.ok ? null : m.reason
+}
+
+function mapCore(item: MuabanListItem, detail: MuabanDetail | null, opts: MapOptions, listLevel: boolean): { ok: true; row: MappedRow } | { ok: false; reason: DropReason } {
   if (item.subcategory_id !== RENT_SUBCATEGORY_ID || (detail?.subcategory_id !== undefined && detail.subcategory_id !== RENT_SUBCATEGORY_ID)) {
     return { ok: false, reason: 'notRental' }
   }
@@ -929,8 +1041,16 @@ export function mapRecord(item: MuabanListItem, detail: MuabanDetail | null, opt
   if (!locationIsSafe(location, c.city)) return { ok: false, reason: 'location' }
 
   if (item.is_expired || detail?.is_expired || detail?.is_outdate || detail?.publish === false) return { ok: false, reason: 'expired' }
-  const postedAt = sourcePostedAt(item.publish_at, opts.now ?? Date.now())
+  const now = opts.now ?? Date.now()
+  /** ⛔ created_at, never publish_at (sourcePostedAt says why). listLevel: the card has no created_at. */
+  const postedAt = listLevel ? new Date(now) : sourcePostedAt(detail?.created_at, now)
   if (!postedAt) return { ok: false, reason: 'postDate' }
+  /** ⛔ THE 7-DAY RULE, apartments only: an ad first posted more than FRESH_DAYS before the set's moment is
+   *  not imported, refreshed or revived. judgeCreated — the set's own verdict — at the set's moment. */
+  if (!listLevel && type.subcat === APARTMENT_SUBCAT) {
+    const at = opts.windowAt ?? now
+    if (judgeCreated(detail?.created_at, opts.readAt ?? at, at).kind !== 'fresh') return { ok: false, reason: 'window' }
+  }
 
   const imageSources = imageUrls(item, detail)
   if (!imageSources.length) return { ok: false, reason: 'noImages' }
@@ -1040,14 +1160,105 @@ export function newestHead(heads: (Pick<MuabanListItem, 'publish_at' | 'id'> | u
   return best
 }
 
+/** A SQL string literal: quotes doubled. */
+const sqlLit = (x: string) => `'${x.replace(/'/g, "''")}'`
+const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/
+
 /**
- * The rollback for a retire pass: re-activates exactly the rows it hid, and only while they are
- * still 'hidden' (a moderator's later decision is not overwritten by a stale file). null when none.
+ * The per-page ISR tombstones of these listing ids, both languages, as SQL — what a ROLLBACK line carries
+ * so that a page it brings back (or takes down) does not keep rendering its cached state for 30 days.
+ * The same tags and upsert as src/lib/pdp-tombstone.ts (and expire-apartment-rentals.ts's rollback).
  */
-export function retireRollbackSql(ids: string[]): string | null {
-  const safe = ids.filter((id) => /^[A-Za-z0-9_-]+$/.test(id))
+export function isrTombstoneSql(ids: readonly string[]): string {
+  const tags = ids.flatMap(pdpTombstoneTags).map(sqlLit).join(',')
+  return `INSERT INTO next_cache_tag (tag, stamp, expires_at) SELECT t, (extract(epoch from clock_timestamp())*1000)::bigint, now() + interval '40 days' FROM unnest(ARRAY[${tags}]) AS t ON CONFLICT (tag) DO UPDATE SET stamp = greatest(next_cache_tag.stamp, excluded.stamp), expires_at = greatest(next_cache_tag.expires_at, excluded.expires_at);`
+}
+
+/**
+ * A row a write moved, as `updateManyAndReturn({ select: { id: true, updatedAt: true } })` returned it. The
+ * `updatedAt` that write stamped (Prisma's @updatedAt) is every rollback line's last guard: any LATER write
+ * moves it forward, so an old rollback file cannot undo a change made after its run.
+ */
+export type MovedRow = { id: string; updatedAt: Date | string }
+
+/** The `"updatedAt" <= '…'` literal of a moved row's stamp (UTC ISO, to the millisecond); null when it is not an instant. */
+function stampLit(t: Date | string): string | null {
+  const ms = t instanceof Date ? t.getTime() : parseZonedInstant(t)
+  return Number.isFinite(ms) ? sqlLit(new Date(ms).toISOString()) : null
+}
+
+/**
+ * The rollback for a retire pass: re-activates exactly the rows it hid, and only while each is still
+ * 'hidden' AND untouched since the hide (`"updatedAt" <=` the stamp the hide returned) — a moderator's later
+ * decision, or a later run's write, is never overwritten by a stale file — and tombstones their pages
+ * (cached as gone while hidden). One UPDATE per row; the importer writes it right AFTER that row's hide
+ * landed. A row with an unsafe id or no readable stamp gets no line; null when none.
+ */
+export function retireRollbackSql(rows: readonly MovedRow[]): string | null {
+  const safe = rows.flatMap((r) => {
+    const at = SAFE_ID.test(r.id) ? stampLit(r.updatedAt) : null
+    return at ? [{ id: r.id, at }] : []
+  })
   if (!safe.length) return null
-  return `UPDATE "Listing" SET status = 'active' WHERE "sellerId" = '${SELLER_ID}' AND status = 'hidden' AND id IN (${safe.map((id) => `'${id}'`).join(', ')});\n`
+  const lines = safe.map((r) => `UPDATE "Listing" SET status = 'active' WHERE "sellerId" = '${SELLER_ID}' AND status = 'hidden' AND id = '${r.id}' AND "updatedAt" <= ${r.at};`)
+  return `${lines.join('\n')}\n${isrTombstoneSql(safe.map((r) => r.id))}\n`
+}
+
+/** One revival or re-date at --apply, journaled (fsync) BEFORE its write: the old values are the undo. */
+export type DatedEntry = {
+  kind: 'revive' | 'redate'
+  id: string
+  externalId: string
+  /** The status the write was conditional on (and, for a revival, the one the rollback restores). */
+  oldStatus: string
+  oldPostedAt: string
+  oldRankScore: number
+  newPostedAt: string
+  newRankScore: number
+}
+
+/** A dated entry's dates as SQL literals; throws on one that is not an instant. */
+const rollbackDate = (iso: string) => {
+  const t = Date.parse(iso)
+  if (!Number.isFinite(t)) throw new Error(`refusing a rollback line with date ${JSON.stringify(iso)}`)
+  return sqlLit(new Date(t).toISOString())
+}
+
+/**
+ * Why a dated entry can have NO rollback line — a value that could not have come from the database — or
+ * null. The importer asks this BEFORE the write (the line itself needs the write's returned updatedAt).
+ */
+export function datedEntryProblem(e: DatedEntry): string | null {
+  if (!SAFE_ID.test(e.id)) return `refusing a rollback line for id ${JSON.stringify(e.id)}`
+  for (const d of [e.oldPostedAt, e.newPostedAt]) {
+    if (!Number.isFinite(Date.parse(d))) return `refusing a rollback line with date ${JSON.stringify(d)}`
+  }
+  if (!Number.isFinite(e.oldRankScore)) return `refusing a rollback line with rankScore ${e.oldRankScore}`
+  const revive = e.kind === 'revive'
+  if (revive ? !(REVIVABLE_STATUSES as readonly string[]).includes(e.oldStatus) : !/^[a-z_]{1,32}$/.test(e.oldStatus) || e.oldStatus === 'removed') {
+    return `refusing a rollback line to status ${JSON.stringify(e.oldStatus)}`
+  }
+  return null
+}
+
+/**
+ * ⛔ THE UNDO OF ONE DATED WRITE, written only AFTER that write moved the row, and GUARDED ON THE STATE IT
+ * CREATED: postedAt back only while it is still the value this run wrote, and the status back (a revival)
+ * only while the row is still 'active' — a re-date's line is guarded on the unchanged status instead, so
+ * neither can touch a row someone hid or removed since — and only while the row is untouched since the
+ * write (`"updatedAt" <=` the stamp updateManyAndReturn returned for it), so an old rollback cannot undo a
+ * later change. Each line carries its page's ISR tombstones (a revival undone takes a live page down).
+ * Throws on a value that could not have come from the database (datedEntryProblem, or no stamp).
+ */
+export function datedRollbackSql(e: DatedEntry, updatedAt: Date | string): string {
+  const problem = datedEntryProblem(e)
+  if (problem) throw new Error(problem)
+  const at = stampLit(updatedAt)
+  if (!at) throw new Error(`refusing a rollback line with updatedAt ${JSON.stringify(updatedAt)}`)
+  const revive = e.kind === 'revive'
+  const sets = [...(revive ? [`status = ${sqlLit(e.oldStatus)}`] : []), `"postedAt" = ${rollbackDate(e.oldPostedAt)}`, `"rankScore" = ${e.oldRankScore}`]
+  const guard = revive ? `status = 'active'` : `status = ${sqlLit(e.oldStatus)}`
+  return `UPDATE "Listing" SET ${sets.join(', ')} WHERE id = ${sqlLit(e.id)} AND "sellerId" = ${sqlLit(SELLER_ID)} AND ${guard} AND "postedAt" = ${rollbackDate(e.newPostedAt)} AND "updatedAt" <= ${at};\n${isrTombstoneSql([e.id])}\n`
 }
 
 /**
@@ -1077,6 +1288,23 @@ export function stageAgeRefusal(records: Pick<StagedRecord, 'fetchedAt'>[], now 
   return h <= MAX_STAGE_AGE_HOURS ? null
     : `stage is ${Number.isFinite(h) ? `${h.toFixed(1)} h` : 'of unknown age (empty, or an unreadable/future fetchedAt)'} old — over ${MAX_STAGE_AGE_HOURS} h; re-crawl with --stage before --apply`
 }
+
+/**
+ * ⛔ --apply OF AN EMPTY STAGE IS A CLEAN NO-OP (exit 0), decided BEFORE the age check (which calls an empty
+ * stage "of unknown age") and before the database is opened. A --fresh-out crawl whose lists could not be
+ * proven reads no detail page, so its finished stage holds nothing — and the weekly job applies it anyway
+ * (scripts/apartments-weekly.sh). The line to print, or null when the stage has work.
+ */
+export function emptyStageNoop(records: readonly unknown[], src: string): string | null {
+  return records.length ? null : `stage ${src} holds no records — nothing to apply (no database connection, no write)`
+}
+
+/**
+ * The exit code of a --fresh-out run that read muaban but could NOT prove whole-window coverage
+ * (freshCoverageProblem / the set's own validation): no set is written, the finished stage is KEPT (what was
+ * read is still applied), and the weekly job skips this source's expiry and alerts. Distinct from 1, a crash.
+ */
+export const COVERAGE_REFUSED_EXIT = 3
 
 /**
  * ⛔ NEVER WRITE INTO A SELLER THAT IS NOT PLAINLY OURS. Renamed → someone else may have claimed the
@@ -1122,4 +1350,680 @@ export function livenessVerdict(sourceId: number, status: number, nextData: any)
 export function massRetireRefusal(gone: number, answered: number, maxShare = 0.5, minSample = 20): string | null {
   if (answered < minSample || gone / answered <= maxShare) return null
   return `${gone}/${answered} checked rows (${Math.round((gone / answered) * 100)}%) look gone — that is more like a site change than churn; refusing to hide them (re-check by hand, then --force-mass-retire)`
+}
+
+// ─── The 7-day rule: the fresh set (--fresh-out) and the apply-side dating ────────────────────
+
+/**
+ * WHAT THE FRESH CRAWL READS, AND WHY (all measured 2026-10-01 with 57 polite GETs):
+ *   · ⛔ A LIST URL SHOWS AT MOST 51 PAGES (1,020 cards): page 52 of the 1,038-card Bình Thạnh apartment
+ *     list repeats page 51. HCMC has 8,906 apartment cards, so the city list cannot reach them all.
+ *   · Every list reports `classified.total` and echoes its filters in `filterResult.filters`. The city
+ *     page's `quicklink.district.items` names 23 HCMC districts; their own totals summed to 8,907 against
+ *     a city total of 8,906 read two minutes earlier (one ad arrived). Two exceed the cap (Bình Thạnh 1,038,
+ *     Tân Bình 1,235); `price=<lo>-<hi>` (inclusive, echoed as {min,max}) splits them exactly:
+ *     0-8000000 + 8000001-1000000000000 = 652 + 386 and 757 + 478. Hà Nội (636) and Đà Nẵng (937) fit.
+ *   · No order is creation order: sort 0 ≈ 1 (publish_at, re-stamped nightly), 2/3 price, 4/5 filter to
+ *     business/personal ads. So the WHOLE list is read, and the age comes from each ad's detail page.
+ *   · Lists include EXPIRED ads (100 of Quận 4's 119 cards) — they are cards like any other here.
+ *   · A list ends with a short page, then an empty one (Hóc Môn: 20, 20, 5, 0 — total still 45).
+ *   · ⛔ Ad ids rise with created_at (71156160 → 2026-08-18, 71172051 → 08-22, 71204990 → 09-04,
+ *     71230410 → 09-13; ~2,000–3,400 ids a day site-wide), which is what lets an ID FLOOR stand in for a
+ *     detail request on a card that is clearly older than the window (IdFloor).
+ *   · Pages are read in PRICE order (sort=2): a bump or the nightly re-publish moves a card in the
+ *     publish-ordered list (a card bumped from an unread page to page 1 is skipped), but not here.
+ *     Quận 4 read whole both ways: 119 distinct ids each, the same 119.
+ */
+export const PAGE_SIZE = 20
+export const SOURCE_PAGE_CAP = 51
+/** A list is read whole only at or under this many cards: headroom under 51×20 for ads arriving mid-read. */
+export const LEAF_MAX = 960
+export const FRESH_SORT = 2
+/**
+ * Price split points, VND/month. A band is a pair of ladder indices [i, j] meaning prices
+ * [i = 0 ? 0 : LADDER[i] + 1, LADDER[j]] — so two halves of one band are contiguous and disjoint.
+ */
+export const PRICE_LADDER = [0, 1e6, 2e6, 3e6, 4e6, 5e6, 6e6, 7e6, 8e6, 9e6, 10e6, 12e6, 15e6, 20e6, 30e6, 50e6, 100e6, 1e12]
+/** A card is CLEARLY older than the window when its created_at is this much earlier than the window's start. */
+export const FLOOR_MARGIN_DAYS = 1
+/** Consecutive clearly-old detail pages (walking ids downward) before the floor is set. */
+export const FLOOR_CONFIRM = 3
+/** A crawl that needs more detail pages than this never found the window's edge — refused, not continued. */
+export const MAX_FRESH_DETAILS = 6000
+/**
+ * Live rows above the floor that no list showed are each read on their own page; this many of them still
+ * LIVE there (200, not expired) means the lists are not whole. A 404/410 is a deleted ad — churn, not a hole.
+ */
+export const DB_MISS_MAX = 20
+export const DB_MISS_MAX_SHARE = 0.05
+/**
+ * The read-only db net reads at most this many held rows on their own pages (≈ 40 min at 1.6 s): the
+ * unlisted ones above the floor, plus every one BELOW the floor whose postedAt is inside the window (the
+ * floor's per-run evidence — see FreshCrawler.dbNet). Needing more refuses the set without reading any.
+ */
+export const DB_RECHECK_MAX = 1500
+const DAY_MS = 86_400_000
+const SKEW_MS = 5 * 60_000
+
+export type Band = [number, number]
+export type FreshSeed = { city: CityKey; district: { id: number; path: string } | null; band: Band | null }
+
+export function priceRange([i, j]: Band): [number, number] {
+  return [i === 0 ? 0 : PRICE_LADDER[i] + 1, PRICE_LADDER[j]]
+}
+
+/** The two halves of a band (null = the whole price range). null when it is one ladder step already. */
+export function splitBand(band: Band | null): [Band, Band] | null {
+  const [i, j] = band ?? [0, PRICE_LADDER.length - 1]
+  if (j - i < 2) return null
+  const m = Math.floor((i + j) / 2)
+  return [[i, m], [m, j]]
+}
+
+export function seedLabel(s: FreshSeed): string {
+  const band = s.band ? ` price ${priceRange(s.band).join('-')}` : ''
+  return `${s.city}${s.district ? ` district ${s.district.id}` : ''}${band}`
+}
+
+/** The apartment list of a seed, price-ordered: the city list, a district list, either narrowed to a band. */
+export function freshSeedUrl(s: FreshSeed, page: number): string {
+  const path = s.district ? s.district.path : `/bat-dong-san/${PROPERTY_TYPES[APARTMENT_TYPE].listSlug}-${CITIES[s.city].slug}`
+  const q = [`sort=${FRESH_SORT}`]
+  if (s.band) q.push(`price=${priceRange(s.band).join('-')}`)
+  if (page > 1) q.push(`page=${page}`)
+  return `${ORIGIN}${path}?${q.join('&')}`
+}
+
+/**
+ * The city page's district lists (`quicklink.district.items`) as seeds. ⛔ null when absent or when ANY
+ * entry is not a plain apartment-list path of this city — a skipped district would be a hole the
+ * parts-sum check has to catch; refusing the list outright is clearer.
+ */
+export function districtSeeds(pageProps: any, city: CityKey): FreshSeed[] | null {
+  const items = pageProps?.quicklink?.district?.items
+  if (!Array.isArray(items) || !items.length) return null
+  const re = new RegExp(`^/bat-dong-san/${PROPERTY_TYPES[APARTMENT_TYPE].listSlug}-[a-z0-9-]+-${CITIES[city].slug}$`)
+  const out: FreshSeed[] = []
+  for (const d of items) {
+    const id = Number(d?.id)
+    if (!Number.isSafeInteger(id) || id <= 0 || typeof d?.url !== 'string' || !re.test(d.url)) return null
+    if (!out.some((o) => o.district!.id === id)) out.push({ city, district: { id, path: d.url }, band: null })
+  }
+  return out
+}
+
+/** The parts a seed splits into: a city by its districts (when the page lists them), anything else by price. */
+export function splitSeed(s: FreshSeed, pageProps: any): FreshSeed[] | null {
+  if (!s.district && !s.band) {
+    const ds = districtSeeds(pageProps, s.city)
+    if (ds) return ds
+  }
+  const halves = splitBand(s.band)
+  return halves ? halves.map((band) => ({ ...s, band })) : null
+}
+
+/**
+ * ⛔ THE PAGE MUST BE THE LIST WE ASKED FOR: rentals, apartments, this city, this district (or none),
+ * this price band (or none), price order. A redirect to a broader list, or a filter muaban stopped
+ * honouring, would otherwise pass another list's cards — and its total — off as this seed's.
+ */
+export function seedEchoProblem(pageProps: any, s: FreshSeed): string | null {
+  const f = pageProps?.filterResult?.filters
+  if (!f) return 'the page echoes no filters'
+  if (f.subcategory_id?.id !== RENT_SUBCATEGORY_ID) return `not the rentals list (subcategory ${JSON.stringify(f.subcategory_id?.id)})`
+  if (f.city_id?.id !== CITIES[s.city].sourceId) return `city ${JSON.stringify(f.city_id?.id)}, expected ${CITIES[s.city].sourceId}`
+  if (f.property_type?.id !== APARTMENT_TYPE) return `property_type ${JSON.stringify(f.property_type?.id)}, expected ${APARTMENT_TYPE}`
+  if (f.sort?.id !== FRESH_SORT) return `sort ${JSON.stringify(f.sort?.id)}, expected ${FRESH_SORT}`
+  if (s.district ? f.district_id?.id !== s.district.id : f.district_id !== undefined) return `district ${JSON.stringify(f.district_id?.id ?? null)}, expected ${s.district?.id ?? 'none'}`
+  if (s.band) {
+    const [lo, hi] = priceRange(s.band)
+    if (f.price?.min !== lo || f.price?.max !== hi) return `price ${JSON.stringify([f.price?.min, f.price?.max])}, expected ${lo}-${hi}`
+  } else if (f.price !== undefined) return 'a price filter we did not ask for'
+  return null
+}
+
+/** One page of a list being read to its end: go on, the end (a short or empty page), or the source's page cap (a repeat). */
+export function leafPageVerdict(ids: readonly number[], prevIds: readonly number[] | null): 'next' | 'end' | 'repeat' {
+  if (prevIds && ids.length && ids.length === prevIds.length && ids.every((x, i) => x === prevIds[i])) return 'repeat'
+  return ids.length < PAGE_SIZE ? 'end' : 'next'
+}
+
+/**
+ * ⛔ A LIST READ TO ITS END STILL HAS TO ADD UP: its distinct ids must reach the total it reported on its
+ * first AND its last page. A card that moved behind the reader (an ad deleted from an earlier page shifts
+ * the next one back onto it; an ad leaving the live block) shows as a shortfall, and the list is re-read.
+ */
+export function leafProblem(distinct: number, firstTotal: number, lastTotal: number): string | null {
+  const need = Math.max(firstTotal, lastTotal)
+  return distinct >= need ? null : `${distinct} distinct cards read, the list reported ${firstTotal === lastTotal ? firstTotal : `${firstTotal} then ${lastTotal}`}`
+}
+
+/**
+ * ⛔ THE PARTS MUST ADD UP TO THE WHOLE: a split is proven only when its parts' totals sum to at least the
+ * parent's — read once before the parts and once after (min: an ad removed in between is not a hole).
+ * An ad in no part (no district, a price outside every band) is exactly what this catches.
+ */
+export function splitProblem(partsTotal: number, before: number, after: number): string | null {
+  const need = Math.min(before, after)
+  return partsTotal >= need ? null : `the parts total ${partsTotal}, the whole ${before === after ? before : `${before}→${after}`} — ${need - partsTotal} card(s) in no part`
+}
+
+export type CreatedVerdict = { kind: 'fresh'; sourceDate: string } | { kind: 'old'; clearlyOld: boolean } | { kind: 'unknown'; why: string }
+
+/**
+ * One ad's age under the 7-day rule, from its detail page's `created_at` (precise to the microsecond,
+ * +07:00 — not day-granular, so its worst case is itself). `setAt` is the moment the fresh set describes
+ * (the crawl's start); an ad created after it (posted mid-crawl) is dated `setAt` — older, never newer.
+ * Unreadable (incl. NO explicit `Z`/`±hh:mm` offset — parseZonedInstant), implausible, or later than the
+ * read itself (beyond clock skew) → unknown: not knowing is not evidence of age, so the expiry keeps it.
+ */
+export function judgeCreated(createdAt: string | undefined, readAt: number, setAt: number): CreatedVerdict {
+  const t = parseZonedInstant(createdAt)
+  if (!Number.isFinite(t) || t < MIN_SOURCE_POSTED_AT) return { kind: 'unknown', why: `created_at ${JSON.stringify(createdAt ?? null)} unreadable` }
+  if (t > readAt + SKEW_MS) return { kind: 'unknown', why: `created_at ${createdAt} is after the page was read` }
+  const d = new Date(Math.min(t, setAt))
+  if (isInWindow(d, setAt)) return { kind: 'fresh', sourceDate: d.toISOString() }
+  return { kind: 'old', clearlyOld: t < setAt - (FRESH_DAYS + FLOOR_MARGIN_DAYS) * DAY_MS }
+}
+
+/**
+ * ⛔ THE ID FLOOR, CALIBRATED FROM DETAIL PAGES, NEVER ASSUMED. Fed the verdicts walking card ids
+ * DOWNWARD; once FLOOR_CONFIRM consecutive cards are clearly old (created over FLOOR_MARGIN_DAYS before
+ * the window opens), the floor is the LOWEST of them: since ids rise with created_at, every lower id was
+ * created earlier still, so it needs no detail request. The floor therefore sits at least a day below the
+ * window's true edge. Unknown verdicts neither count nor break a run; a fresh or recently-old one resets it.
+ */
+export class IdFloor {
+  floor: number | null = null
+  /** created_at of the card that set the floor (evidence for the coverage line). */
+  floorCreated: string | null = null
+  private run: number[] = []
+  private last = Infinity
+  constructor(private readonly confirm = FLOOR_CONFIRM) {}
+  observe(id: number, v: CreatedVerdict, createdAt?: string): void {
+    if (id > this.last) throw new Error(`IdFloor: ids must be fed in descending order (${id} after ${this.last})`)
+    this.last = id
+    if (this.floor !== null || v.kind === 'unknown') return
+    if (v.kind === 'old' && v.clearlyOld) {
+      this.run.push(id)
+      if (this.run.length >= this.confirm) { this.floor = id; this.floorCreated = createdAt ?? null }
+    } else this.run = []
+  }
+  /** Old by the floor alone. */
+  below(id: number): boolean {
+    return this.floor !== null && id < this.floor
+  }
+}
+
+export type FreshSeedReport = { city: CityKey; label: string; ok: boolean; why?: string; total: number; pages: number; split: boolean }
+
+/** The read-only db net (FreshCrawler.dbNet): what it had to read, and what the pages said. */
+export type DbNetReport = {
+  /** Live apartment rows of this seller at or above the floor (or all of them, with no floor). */
+  aboveFloor: number
+  /** Of those, on no list page — each read on its own page. */
+  unlisted: number
+  /** Live rows BELOW the floor whose postedAt is inside the window — each read: the floor's per-run evidence. */
+  recentBelow: number
+  /** unlisted + recentBelow; over DB_RECHECK_MAX → nothing is read and the set is refused. */
+  toRead: number
+  /** Pages actually read. */
+  read: number
+  /** Unlisted rows whose page answered 200 and is still LIVE there — real holes in the lists. */
+  missed: number
+  /** Answered 404/410 (deleted at the source — churn, not a hole). */
+  gone: number
+  /** Answered 200 but expired / out of date / unpublished at the source — not a hole either. */
+  inactive: number
+  /** Could not be judged (no link, a 5xx, a page about another ad) — kept live, counted as undetermined. */
+  unknown: number
+  /** recentBelow rows whose page says created inside the window — the floor alone would have called them old. */
+  floorBreaks: number
+}
+
+export type FreshCoverage = {
+  seeds: FreshSeedReport[]
+  /** A challenge, a 429 or a robots refusal ended the crawl. */
+  stopped: string | null
+  floor: number | null
+  floorCreated: string | null
+  detailCapHit: boolean
+  cards: number
+  belowFloor: number
+  details: { read: number; fresh: number; old: number; gone: number; unknown: number }
+  /** Walked detail pages whose created_at is over FLOOR_MARGIN_DAYS EARLIER than a lower id's (idOrderInversions). */
+  inversions: number
+  /** Pages (list or detail) read a second time after a status 0 / 5xx. */
+  retries: number
+  /** null until the db net ran. */
+  db: DbNetReport | null
+}
+
+/** The list half of the verdict: every city read, every seed whole, the floor formed, nothing stopped. */
+export function listsProblem(c: Omit<FreshCoverage, 'db'>): string | null {
+  if (c.stopped) return `the crawl stopped: ${c.stopped}`
+  for (const city of Object.keys(CITIES) as CityKey[]) {
+    if (!c.seeds.some((s) => s.city === city)) return `no list of ${city} was read`
+  }
+  const bad = c.seeds.find((s) => !s.ok)
+  if (bad) return `${bad.label}: ${bad.why ?? 'not read whole'}`
+  if (c.detailCapHit) return `over ${MAX_FRESH_DETAILS} detail pages without ${FLOOR_CONFIRM} consecutive cards created before the window — the id floor never formed`
+  return null
+}
+
+/**
+ * ⛔ WHEN THE SET MAY BE WRITTEN. The lists (listsProblem), then the db net: it must have run, within its
+ * read budget, and found few held rows that are LIVE at the source yet on no list page. Any failure → the
+ * reason, and no set (the expiry then keeps everything; the backstop still runs).
+ */
+export function freshCoverageProblem(c: FreshCoverage): string | null {
+  const lists = listsProblem(c)
+  if (lists) return lists
+  if (!c.db) return 'the read-only db net did not run'
+  // ⛔ The id floor skips every lower id unread on the premise that ids rise with created_at. One inversion
+  // seen this run means that premise failed, and fresh ads below the floor may have been skipped unseen.
+  if (c.inversions > 0) return `${c.inversions} id/created_at inversion(s) over ${FLOOR_MARGIN_DAYS} day(s) among the pages read — the id floor cannot be trusted this run`
+  if (c.db.toRead > DB_RECHECK_MAX) {
+    return `${c.db.toRead} held rows need their own page read (${c.db.unlisted} above the id floor on no list page, ${c.db.recentBelow} below it dated within the window) — over ${DB_RECHECK_MAX}; nothing was read`
+  }
+  if (c.db.missed > Math.max(DB_MISS_MAX, DB_MISS_MAX_SHARE * c.db.aboveFloor)) {
+    return `${c.db.missed} of ${c.db.aboveFloor} live rows above the id floor are live at the source yet on no list page — the lists are not whole`
+  }
+  return null
+}
+
+/** The set's `coverage` line: the evidence, concretely, for whoever reads the set (and the expiry log). */
+export function freshCoverageEvidence(c: FreshCoverage): string {
+  const cities = (Object.keys(CITIES) as CityKey[]).map((city) => {
+    const mine = c.seeds.filter((s) => s.city === city)
+    const leaves = mine.filter((s) => !s.split)
+    const splits = mine.filter((s) => s.split)
+    const top = mine.find((s) => s.label === city)
+    return `${city} ${top?.total ?? '?'} cards: ${leaves.length} list(s) read to their last page (${leaves.reduce((n, s) => n + s.pages, 0)} pages, each ≤ ${LEAF_MAX} cards, distinct kept ids ≥ reported total)${splits.length ? `, ${splits.length} split(s) whose parts summed to the whole` : ''}`
+  })
+  const d = c.details
+  const db = c.db
+  return [
+    `muaban apartment rentals (property_type ${APARTMENT_TYPE}), price order: ${cities.join('; ')}${c.retries ? ` (${c.retries} page(s) re-read after a timeout/5xx)` : ''}`,
+    `${c.cards} distinct cards; detail page (created_at) read for every card ${c.floor !== null ? `with id ≥ ${c.floor}` : '(no floor)'}: ${d.read} read — ${d.fresh} created within ${FRESH_DAYS} days, ${d.old} older, ${d.gone} gone, ${d.unknown} undetermined; ${c.inversions} id/created_at inversion(s) over ${FLOOR_MARGIN_DAYS} day(s) among them`,
+    c.floor !== null
+      ? `${c.belowFloor} cards below the floor judged older without a request: ids rise with created_at and the floor is the lowest of ${FLOOR_CONFIRM} consecutive cards created over ${FLOOR_MARGIN_DAYS} day(s) before the window (floor card created ${c.floorCreated ?? '?'})`
+      : 'no id floor: every card\'s detail page was read',
+    db
+      ? `db net: ${db.unlisted} of ${db.aboveFloor} live rows above the floor were on no list page and ${db.recentBelow} live rows below it carry a postedAt inside the window — all ${db.read} read on their own page: ${db.missed} live there (list holes), ${db.inactive} expired there, ${db.gone} gone, ${db.unknown} undetermined; ${db.floorBreaks} below the floor were in fact fresh (kept)`
+      : 'db net: not run',
+  ].join('. ')
+}
+
+export const freshItemOf = (sourceId: number, sourceDate: string): FreshItem => ({ externalId: `${EXTERNAL_PREFIX}:${sourceId}`, sourceDate, dateKind: 'created' })
+
+/**
+ * The set, built and then checked by the SAME validator the expiry runs on it (freshSetProblem) — so a
+ * set this run would refuse is never written. An id judged fresh is never also listed as undetermined.
+ */
+export function buildFreshSet(setAt: Date, coverage: string, items: FreshItem[], unknownIds: number[], now: number = Date.now()): { set: FreshSet; problem: null } | { set: null; problem: string } {
+  const fresh = new Set(items.map((i) => i.externalId))
+  const unknown = [...new Set(unknownIds.map((id) => `${EXTERNAL_PREFIX}:${id}`))].filter((x) => !fresh.has(x))
+  const set = makeFreshSet(SELLER_ID, setAt, coverage, items, unknown)
+  const problem = freshSetProblem(set, now, SELLER_ID)
+  return problem ? { set: null, problem } : { set, problem: null }
+}
+
+/**
+ * What --apply does to an EXISTING row beyond the text refresh. `revive`: an apartment row the rule took
+ * down (REVIVABLE_STATUSES — never hidden/removed/sold) whose ad maps again, i.e. its created_at is inside
+ * this run's window (mapRecord refuses it otherwise). `redate`: postedAt becomes the source date — on a
+ * revival, and whenever the source date is NEWER than the stored one (a re-post); rankScore follows it
+ * (createOnlyFields). A re-dated row is written even when every text field is unchanged.
+ */
+export function existingRowPlan(row: Pick<MappedRow, 'postedAt' | 'mutable'>, ex: { status: string; postedAt: Date }): { revive: boolean; redate: boolean } {
+  const revive = row.mutable.subcategorySlug === APARTMENT_SUBCAT && (REVIVABLE_STATUSES as readonly string[]).includes(ex.status)
+  return { revive, redate: revive || row.postedAt.getTime() > ex.postedAt.getTime() }
+}
+
+// ─── The fresh crawl itself: orchestration over an INJECTED page getter (tested against fake pages) ───
+
+/**
+ * ⛔ Thrown by a page getter to END a crawl — a bot challenge, a 429, robots.txt, a host off the pin. It is
+ * never read as one page's failure: the crawl stops where it is, and freshCoverageProblem refuses the set.
+ */
+export class Infeasible extends Error {}
+
+/** One GET as the crawl sees it: the HTTP status (0 = network error / timeout) and the page's __NEXT_DATA__ (null unless 200). */
+export type GetPage = (url: string) => Promise<{ status: number; data: any | null }>
+
+/** A list- or detail-page answer worth exactly one more read (after the getter's politeness gap): none at all, or a 5xx. */
+export const isTransient = (status: number): boolean => status === 0 || status >= 500
+
+/** A live apartment row this seller holds, as the db net reads it (read-only). */
+export type HeldRow = { externalId: string | null; affiliateUrl: string | null; postedAt: Date }
+export type DbNetPlan = { aboveFloor: number; unlisted: { id: number; url: string | null }[]; recentBelow: { id: number; url: string | null }[] }
+
+/**
+ * Which held rows the db net must read on their own page, and why:
+ *   · at or above the floor and on NO list page — the lists may have a hole (a card paginated past mid-read,
+ *     an ad in no district): its page says whether it is fresh, and whether it is a hole at all;
+ *   · BELOW the floor with a postedAt inside the window — ⛔ THE FLOOR'S PER-RUN EVIDENCE. The floor says
+ *     "older" by id alone, which holds only while ids rise with created_at. A row's postedAt is never earlier
+ *     than its ad's created_at (create and revival write created_at itself; a re-date only moves it later; the
+ *     legacy rows carry publish_at, which is later still), so every row we hold that COULD be fresh has a
+ *     recent postedAt, and is read rather than trusted to the floor. An unreadable postedAt is read too.
+ * Rows whose externalId is not a muaban id are not this crawl's to judge (as before).
+ */
+export function planDbNet(rows: readonly HeldRow[], o: { floor: number | null; listed: ReadonlySet<number>; setAt: number }): DbNetPlan {
+  const windowStart = o.setAt - FRESH_DAYS * DAY_MS
+  const plan: DbNetPlan = { aboveFloor: 0, unlisted: [], recentBelow: [] }
+  for (const r of rows) {
+    const ext = String(r.externalId ?? '')
+    const id = ext.startsWith(`${EXTERNAL_PREFIX}:`) ? Number(ext.slice(EXTERNAL_PREFIX.length + 1)) : NaN
+    if (!Number.isSafeInteger(id) || id <= 0) continue
+    const url = affiliateUrlFor(id, r.affiliateUrl)
+    if (o.floor !== null && id < o.floor) {
+      if (!(r.postedAt.getTime() < windowStart)) plan.recentBelow.push({ id, url })
+      continue
+    }
+    plan.aboveFloor++
+    if (!o.listed.has(id)) plan.unlisted.push({ id, url })
+  }
+  return plan
+}
+
+/**
+ * Per-run evidence on the id order the floor rests on: how many read (id, created_at) pairs carry a
+ * created_at over `marginMs` EARLIER than some LOWER id's — the shape of a cloned or migrated ad, a high id
+ * with an old date, which is what would set a floor too high. Reported in the set's coverage line; the db
+ * net's below-floor reads are what protect the rows we hold.
+ */
+export function idOrderInversions(pairs: readonly (readonly [number, number])[], marginMs: number = FLOOR_MARGIN_DAYS * DAY_MS): number {
+  let maxBelow = -Infinity
+  let n = 0
+  for (const [, t] of [...pairs].sort((a, b) => a[0] - b[0])) {
+    if (maxBelow - t > marginMs) n++
+    maxBelow = Math.max(maxBelow, t)
+  }
+  return n
+}
+
+type Head = { ok: true; pp: any; total: number; items: any[] } | { ok: false; why: string }
+type Card = { raw: any; city: CityKey }
+type Tally = { read: number; fresh: number; old: number; gone: number; unknown: number }
+type DetailRead = { verdict: CreatedVerdict | 'gone'; detail: MuabanDetail | null; status: number; liveness: Liveness }
+
+export type FreshCrawlOptions = {
+  cities: readonly CityKey[]
+  /** The clock (epoch ms) — the set's moment is its value when the crawler is built. */
+  now?: () => number
+  log?: (line: string) => void
+  /** Each staged record (a card with its detail page), as it is made — the importer appends it to the stage. */
+  onRecord?: (r: StagedRecord) => void
+  onDrop?: (k: 'gone' | 'detailHttp' | 'detailParse') => void
+}
+
+/**
+ * ⛔ THE FRESH SET'S CRAWL: EVERY apartment card of every city, then a detail page for every card above
+ * the id floor, then (dbNet) the held rows the lists and the floor cannot vouch for. The measurements behind
+ * each step are in "THE 7-DAY RULE" above.
+ *   1. Each city's apartment list, price-ordered. Over LEAF_MAX cards → split (a city by its districts,
+ *      anything else by price): the parts' page 1 in one sweep, then the whole re-read, and the parts must
+ *      add up to the whole (splitProblem). At or under LEAF_MAX → read to its last page, and its distinct
+ *      KEPT ids (this city's apartments only — an injected off-filter card never pads the count) must reach
+ *      its reported total (leafProblem) — else it is read once more. A list page that answers 0 / 5xx is
+ *      read once more before it fails its seed (isTransient).
+ *   2. Every card, highest id first: its detail page's created_at says fresh / old / undetermined, until the
+ *      IdFloor forms; every lower id is older without a request. A detail page that answers 0 / 5xx is read
+ *      once more (the db net's reads too) before it is undetermined.
+ * A list that fails ends the list phase (no detail request is spent on a set that cannot be written); an
+ * Infeasible from the getter stops the crawl. freshCoverageProblem then decides. Every detail page read for
+ * a listed card is staged (with this crawl's setAt); the apply's mapRecord drops the old ones as 'window'.
+ */
+export class FreshCrawler {
+  /** The moment the set describes — its fetchedAt — and the moment every window is judged at. */
+  readonly setAt: number
+  readonly seeds: FreshSeedReport[] = []
+  readonly cards = new Map<number, Card>()
+  readonly records: StagedRecord[] = []
+  readonly items = new Map<number, FreshItem>()
+  readonly unknown = new Set<number>()
+  readonly floor = new IdFloor()
+  readonly details: Tally = { read: 0, fresh: 0, old: 0, gone: 0, unknown: 0 }
+  pages = 0
+  retries = 0
+  offSeed = 0
+  belowFloor = 0
+  detailCapHit = false
+  stopped: string | null = null
+  db: DbNetReport | null = null
+  private readonly dated: [number, number][] = []
+  private readonly now: () => number
+  private readonly log: (line: string) => void
+
+  constructor(private readonly get: GetPage, private readonly o: FreshCrawlOptions) {
+    this.now = o.now ?? Date.now
+    this.log = o.log ?? (() => {})
+    this.setAt = this.now()
+  }
+
+  /** Every card id a list showed (its age is settled by its detail page, or by the floor). */
+  get listed(): ReadonlySet<number> { return new Set(this.cards.keys()) }
+
+  coverage(): FreshCoverage {
+    return {
+      seeds: this.seeds, stopped: this.stopped, floor: this.floor.floor, floorCreated: this.floor.floorCreated,
+      detailCapHit: this.detailCapHit, cards: this.cards.size, belowFloor: this.belowFloor, details: { ...this.details },
+      inversions: idOrderInversions(this.dated), retries: this.retries, db: this.db && { ...this.db },
+    }
+  }
+
+  /** Steps 1 and 2. Never throws an Infeasible: it becomes `stopped`. */
+  async run(): Promise<this> {
+    try {
+      let whole = true
+      for (const city of this.o.cities) {
+        if (!(await this.expand({ city, district: null, band: null }))) { whole = false; break }
+      }
+      this.log(`fresh crawl       ${this.pages} list pages, ${this.cards.size} apartment cards${this.offSeed ? ` (${this.offSeed} off-filter card slots not counted)` : ''}${whole ? '' : ' — ⛔ a list was not read whole; no detail pages requested'}`)
+      if (whole) await this.walk()
+    } catch (e) {
+      if (!(e instanceof Infeasible)) throw e
+      this.stopped = e.message
+    }
+    return this
+  }
+
+  /** One list page of a seed, its echo checked; a status 0 / 5xx is read once more first. */
+  async head(seed: FreshSeed, page = 1): Promise<Head> {
+    const url = freshSeedUrl(seed, page)
+    let got = await this.get(url)
+    this.pages++
+    if (isTransient(got.status)) {
+      this.retries++
+      this.log(`  ↻ ${seedLabel(seed)} page ${page}: HTTP ${got.status} — reading it once more`)
+      got = await this.get(url)
+      this.pages++
+    }
+    const pp = got.data?.props?.pageProps
+    if (got.status !== 200 || !pp) return { ok: false, why: `HTTP ${got.status} on page ${page}` }
+    const echo = seedEchoProblem(pp, seed)
+    if (echo) return { ok: false, why: `${echo} (page ${page})` }
+    const total = Number(pp.classified?.total)
+    if (!Number.isSafeInteger(total) || total < 0) return { ok: false, why: `no total on page ${page}` }
+    const list = pp.classified?.items
+    return { ok: true, pp, total, items: Array.isArray(list) ? list : [] }
+  }
+
+  /**
+   * A page's card ids: `all` (every slot, for the page verdict — a short page ends the list, a repeat is the
+   * cap) and `kept` (this seed's city and apartment type, with a real id — the only ones that count toward
+   * the list's total and go on to be judged).
+   */
+  keep(seed: FreshSeed, list: readonly any[]): { all: number[]; kept: number[] } {
+    const all: number[] = []
+    const kept: number[] = []
+    for (const it of list) {
+      const id = Number(it?.id)
+      all.push(id)
+      if (!Number.isSafeInteger(id) || id <= 0 || Number(it?.city_id) !== CITIES[seed.city].sourceId || Number(it?.property_type) !== APARTMENT_TYPE) { this.offSeed++; continue }
+      kept.push(id)
+      if (!this.cards.has(id)) this.cards.set(id, { raw: it, city: seed.city })
+    }
+    return { all, kept }
+  }
+
+  /** A list at or under LEAF_MAX, read to its last page and proven whole — or read once more, then failed. */
+  async readLeaf(seed: FreshSeed, first: Extract<Head, { ok: true }>): Promise<FreshSeedReport> {
+    const label = seedLabel(seed)
+    let used = 0
+    let why = 'not read'
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const h = attempt === 1 ? first : await this.head(seed)
+      used++
+      if (!h.ok) { why = h.why; continue }
+      const seen = new Set<number>()
+      let page = 1
+      let pageItems = h.items
+      let prev: number[] | null = null
+      let lastTotal = h.total
+      let fail: string | null = null
+      for (;;) {
+        const { all, kept } = this.keep(seed, pageItems)
+        const v = leafPageVerdict(all, prev)
+        if (v === 'repeat') { fail = `page ${page} repeats page ${page - 1} — the source's ${SOURCE_PAGE_CAP}-page cap`; break }
+        for (const id of kept) seen.add(id)
+        if (v === 'end') break
+        if (page >= SOURCE_PAGE_CAP) { fail = `page ${page} is still full — past the source's ${SOURCE_PAGE_CAP}-page cap`; break }
+        prev = all
+        page++
+        const next = await this.head(seed, page)
+        used++
+        if (!next.ok) { fail = next.why; break }
+        lastTotal = next.total
+        pageItems = next.items
+      }
+      fail ??= leafProblem(seen.size, h.total, lastTotal)
+      if (!fail) return { city: seed.city, label, ok: true, total: lastTotal, pages: used, split: false }
+      why = fail
+      if (attempt === 1) this.log(`  ⚠️ ${label}: ${fail} — reading it once more`)
+    }
+    return { city: seed.city, label, ok: false, why, total: first.total, pages: used, split: false }
+  }
+
+  /** A seed: read whole when it fits under LEAF_MAX, else split and its parts expanded (their page 1 reused). */
+  async expand(seed: FreshSeed, given?: Head): Promise<boolean> {
+    const label = seedLabel(seed)
+    const h = given ?? await this.head(seed)
+    if (!h.ok) { this.seeds.push({ city: seed.city, label, ok: false, why: h.why, total: 0, pages: 1, split: false }); return false }
+    if (h.total <= LEAF_MAX) {
+      const r = await this.readLeaf(seed, h)
+      this.seeds.push(r)
+      return r.ok
+    }
+    const parts = splitSeed(seed, h.pp)
+    if (!parts) { this.seeds.push({ city: seed.city, label, ok: false, why: `${h.total} cards, over ${LEAF_MAX}, and no finer split exists`, total: h.total, pages: 1, split: true }); return false }
+    // The parts' page 1 in one sweep, then the whole again: the sum is judged over a minute, not the crawl.
+    const heads: Head[] = []
+    for (const p of parts) heads.push(await this.head(p))
+    const again = await this.head(seed)
+    const failed = heads.find((x): x is Extract<Head, { ok: false }> => !x.ok)
+    const sum = heads.reduce((n, x) => n + (x.ok ? x.total : 0), 0)
+    const why = failed ? `a part failed: ${failed.why}` : !again.ok ? `re-read failed: ${again.why}` : splitProblem(sum, h.total, again.total)
+    this.seeds.push({ city: seed.city, label, ok: !why, ...(why ? { why } : {}), total: h.total, pages: 2, split: true })
+    this.log(`  ${label}: ${h.total} cards → ${parts.length} parts (Σ ${sum}${again.ok ? `, whole re-read ${again.total}` : ''})${why ? ` ⛔ ${why}` : ''}`)
+    if (why) return false
+    for (const [i, p] of parts.entries()) if (!(await this.expand(p, heads[i]))) return false
+    return true
+  }
+
+  /** Step 2: every card's detail page, highest id first, until the floor forms (or MAX_FRESH_DETAILS). */
+  async walk(): Promise<void> {
+    for (const id of [...this.cards.keys()].sort((a, b) => b - a)) {
+      if (this.floor.below(id)) { this.belowFloor++; continue }
+      if (this.details.read >= MAX_FRESH_DETAILS) { this.detailCapHit = true; break }
+      const card = this.cards.get(id)!
+      const url = sourcePageUrl(id, card.raw?.url)
+      if (!url) { this.unknown.add(id); this.details.unknown++; continue }
+      const j = await this.readCreated(id, url, this.details)
+      if (j.verdict === 'gone') continue
+      this.floor.observe(id, j.verdict, j.detail?.created_at)
+      const t = parseZonedInstant(j.detail?.created_at)
+      if (Number.isFinite(t)) this.dated.push([id, t])
+      // ⛔ An ad the source itself shows as inactive (expired, unpublished) is not live there, however new:
+      // in the set it would keep eno's row active. It is simply not fresh.
+      if (j.verdict.kind === 'fresh' && j.liveness !== 'inactive') this.items.set(id, freshItemOf(id, j.verdict.sourceDate))
+      else if (j.verdict.kind === 'unknown') this.unknown.add(id)
+      if (j.detail) this.stage(card, j)
+      if (this.details.read % 100 === 0) this.log(`  ${this.details.read} detail pages (${this.details.fresh} fresh), at id ${id}`)
+    }
+  }
+
+  /**
+   * ⛔ THE SAFETY NET UNDER THE LISTS AND THE FLOOR, over the rows WE hold (the expiry acts on nothing else):
+   * planDbNet's rows, each read on its own page and judged exactly as the walk judges — but only within
+   * DB_RECHECK_MAX reads, and not at all when the lists already failed. Only an unlisted row whose page
+   * answers 200 and is still LIVE there counts as a hole in the lists (a 404/410 is a deleted ad; an expired
+   * one is over); a below-floor row its page calls fresh is kept and counted as a floor break.
+   */
+  async dbNet(rows: readonly HeldRow[]): Promise<DbNetReport> {
+    const plan = planDbNet(rows, { floor: this.floor.floor, listed: this.listed, setAt: this.setAt })
+    const db: DbNetReport = {
+      aboveFloor: plan.aboveFloor, unlisted: plan.unlisted.length, recentBelow: plan.recentBelow.length,
+      toRead: plan.unlisted.length + plan.recentBelow.length, read: 0, missed: 0, gone: 0, inactive: 0, unknown: 0, floorBreaks: 0,
+    }
+    this.db = db
+    this.log(`db check          ${rows.length} live apartment rows; ${db.aboveFloor} at or above the floor, ${db.unlisted} of them on no list page; ${db.recentBelow} below the floor with a postedAt inside the window${db.toRead ? ` — ${db.toRead} to read on their own page` : ''}`)
+    if (listsProblem(this.coverage()) || db.toRead > DB_RECHECK_MAX) return db
+    const tally: Tally = { read: 0, fresh: 0, old: 0, gone: 0, unknown: 0 }
+    const jobs = [...plan.unlisted.map((m) => ({ ...m, below: false })), ...plan.recentBelow.map((m) => ({ ...m, below: true }))]
+    try {
+      for (const m of jobs) {
+        const card = this.cards.get(m.id)
+        const url = (card ? sourcePageUrl(m.id, card.raw?.url) : null) ?? m.url
+        if (!url) { this.unknown.add(m.id); db.unknown++; continue }
+        const j = await this.readCreated(m.id, url, tally)
+        db.read++
+        if (j.verdict === 'gone') { db.gone++; continue }
+        if (j.liveness === 'inactive') db.inactive++
+        else if (j.liveness === 'alive' && !m.below) db.missed++
+        if (j.verdict.kind === 'fresh' && j.liveness !== 'inactive') { this.items.set(m.id, freshItemOf(m.id, j.verdict.sourceDate)); if (m.below) db.floorBreaks++ }
+        else if (j.verdict.kind === 'unknown') { this.unknown.add(m.id); db.unknown++ }
+        if (card && j.detail) this.stage(card, j)
+      }
+    } catch (e) {
+      if (!(e instanceof Infeasible)) throw e
+      this.stopped = e.message
+    }
+    return db
+  }
+
+  /**
+   * One ad's detail page → its created_at verdict at the set's moment ('gone' on 404/410), and its liveness
+   * there. A status 0 / 5xx is read once more first (isTransient) — after the getter's own per-host
+   * politeness gap, exactly as a list page is — and counted in `retries`; `tally.read` counts the ad once.
+   */
+  private async readCreated(id: number, url: string, tally: Tally): Promise<DetailRead> {
+    let got = await this.get(url)
+    if (isTransient(got.status)) {
+      this.retries++
+      this.log(`  ↻ detail id ${id}: HTTP ${got.status} — reading it once more`)
+      got = await this.get(url)
+    }
+    tally.read++
+    if (got.status === 404 || got.status === 410) { tally.gone++; this.o.onDrop?.('gone'); return { verdict: 'gone', detail: null, status: got.status, liveness: 'gone' } }
+    if (got.status !== 200) { tally.unknown++; this.o.onDrop?.('detailHttp'); return { verdict: { kind: 'unknown', why: `HTTP ${got.status}` }, detail: null, status: got.status, liveness: 'unknown' } }
+    const c = got.data?.props?.pageProps?.classified
+    if (!c || Number(c.id) !== id) { tally.unknown++; this.o.onDrop?.('detailParse'); return { verdict: { kind: 'unknown', why: 'page is not this listing' }, detail: null, status: got.status, liveness: 'unknown' } }
+    const detail = stageDetail(c)
+    const verdict = judgeCreated(detail.created_at, this.now(), this.setAt)
+    tally[verdict.kind]++
+    return { verdict, detail, status: got.status, liveness: livenessVerdict(id, got.status, got.data).verdict }
+  }
+
+  /** A listed card with its detail page → a staged record carrying this crawl's setAt. */
+  private stage(card: Card, j: DetailRead): void {
+    const rec: StagedRecord = {
+      v: 1, fetchedAt: new Date(this.now()).toISOString(), setAt: new Date(this.setAt).toISOString(),
+      seed: { city: card.city, type: APARTMENT_TYPE }, item: stageItem(card.raw), detail: j.detail, detailStatus: j.status,
+    }
+    this.records.push(rec)
+    this.o.onRecord?.(rec)
+  }
 }

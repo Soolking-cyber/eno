@@ -11,7 +11,7 @@ import {
   CITIES, IMAGE_RE, MAX_IMAGES, MAX_STAGE_AGE_HOURS, MIN_DELAY_MS, MIN_SOURCE_POSTED_AT, SELLER_ID, SELLER_NAME,
   adminOnly, affiliateUrlFor, bedroomsAttribute, canonicalDistrict, canonicalWard, compareNewest, countFrom, coverToDetail,
   createOnlyFields, flatnessOf, galleryPlan, imageUrls, imageVerdict, isAdminPart, isChallenge, journalDirProblem, listPageUrl,
-  livenessVerdict, locationIsSafe, locationParts, mapRecord, massRetireRefusal, modeRefusal, newestHead, numArg,
+  listLevelDrop, livenessVerdict, locationIsSafe, locationParts, mapRecord, massRetireRefusal, modeRefusal, newestHead, numArg,
   oldestStageAgeHours, parseAreaM2, parseCaps, parseCities, parseDisplayVnd, parseLatLng, parseRunArgs, parseStage, parseTypes,
   postedAtProblem, priceDrop, restageRecord, retireRollbackSql, robotsAllows, robotsRules, sameMutable, sellerRefusal,
   sourcePageUrl, sourcePostedAt, stageAgeRefusal, stageDetail, stageItem, type MuabanDetail, type MuabanListItem,
@@ -71,6 +71,8 @@ const DETAIL = {
   merge_address: '867, Đường Lũy Bán Bích, Phường Phú Thọ Hòa, TP.HCM',
 }
 const ALL = { cities: parseCities(null), types: parseTypes(null) }
+/** A day after the fixture's created_at (2026-06-02): an APARTMENT is mapped only inside the 7-day window. */
+const FIXTURE_NOW = Date.parse('2026-06-03T00:00:00Z')
 /** The id-only outbound link for the fixture: muaban's category segment + the id, no title slug. */
 const LINK = 'https://muaban.net/bat-dong-san/nha-mat-tien-quan-tan-phu-ho-chi-minh/id70946042'
 const card = (over: Partial<MuabanListItem> = {}): MuabanListItem => ({ ...stageItem(CARD), ...over })
@@ -198,20 +200,22 @@ describe('mapRecord — the real card + detail page', () => {
 
   it('maps every source type, and warehouse/land to an honest NULL subcategory', () => {
     const sub = (t: number) => {
-      const m = mapRecord(card({ property_type: t }), detail({ property_type: t }), { cities: ALL.cities, types: [t] })
+      const m = mapRecord(card({ property_type: t }), detail({ property_type: t }), { cities: ALL.cities, types: [t], now: FIXTURE_NOW })
       return m.ok ? m.row.mutable.subcategorySlug : m.reason
     }
     expect([2812, 2811, 1614, 2814, 2815].map(sub)).toEqual(['apartment-rental', 'house-rental', 'room-rental', 'office-rental', null])
   })
 
   it('files serviced / mini apartments (subtype 2531) under apartment-rental, not homestay', () => {
-    const m = mapRecord(card({ property_type: 2812, property_subtype: 2531, category_name: 'Căn hộ dịch vụ, mini' }), detail({ property_type: 2812 }), ALL)
+    const m = mapRecord(card({ property_type: 2812, property_subtype: 2531, category_name: 'Căn hộ dịch vụ, mini' }), detail({ property_type: 2812 }), { ...ALL, now: FIXTURE_NOW })
     expect(m.ok && m.row.mutable.subcategorySlug).toBe('apartment-rental')
   })
 
-  it('works list-only: covers re-pointed at thumb-detail, in order', () => {
-    const m = mapRecord(card(), null, ALL)
-    expect(m.ok && m.row.imageSources).toEqual(DETAIL.images.map((i) => i.url))
+  it('list-only: the card passes every list-level check and its covers map to thumb-detail, but no row without created_at', () => {
+    expect(listLevelDrop(card(), ALL)).toBeNull()
+    expect(imageUrls(card(), null)).toEqual(DETAIL.images.map((i) => i.url))
+    // ⛔ the date is the detail page's created_at (2026-10-01) — a card alone cannot be dated
+    expect(mapRecord(card(), null, ALL)).toEqual({ ok: false, reason: 'postDate' })
   })
 })
 
@@ -233,7 +237,7 @@ describe('city — ⛔ ONE spelling per city: the vn-units Vietnamese name, like
     ['hn', card(HN_CARD), '01', 'Hà Nội'],
     ['dn', card(DN_CARD), '48', 'Đà Nẵng'],
   ] as const)('%s rows store %s — the post wizard\'s string — and still match that province chip', (_k, c, code, expected) => {
-    const row = mapped(c, null)
+    const row = mapped(c, detail({ city_id: c.city_id }))
     expect(row.city).toBe(expected)
     expect(row.city).toBe(unit(code).name)
     expect(row.city).not.toBe(unit(code).nameEn)
@@ -243,15 +247,15 @@ describe('city — ⛔ ONE spelling per city: the vn-units Vietnamese name, like
   })
 
   it('does not leak into the other two provinces', () => {
-    const hn = mapped(card(HN_CARD), null)
+    const hn = mapped(card(HN_CARD), detail({ city_id: 24 }))
     expect(matchesProvince(hn, sent('79'))).toBe(false)
     expect(matchesProvince(hn, sent('48'))).toBe(false)
-    const hcm = mapped(card(), null)
+    const hcm = mapped(card())
     expect(matchesProvince(hcm, sent('01'))).toBe(false)
   })
 
   it('names the city in the title outside HCMC, and in the human location everywhere', () => {
-    const hn = mapped(card(HN_CARD), null)
+    const hn = mapped(card(HN_CARD), detail({ city_id: 24 }))
     expect([hn.district, hn.location]).toEqual(['Quận Ba Đình', 'Phường Đội Cấn, Quận Ba Đình, Hà Nội'])
     expect(hn.title).toMatch(/— Phường Đội Cấn, Quận Ba Đình, Hà Nội$/)
     expect(hn.searchText).toContain('hanoi')
@@ -437,7 +441,7 @@ describe('postedAt + rankScore — ⛔ the SOURCE\'s own post date, clamped to n
   const now = Date.parse('2026-09-24T12:00:00Z')
   const opts = { ...ALL, now }
 
-  it('sourcePostedAt reads publish_at, clamps a future date to now, refuses an unreadable one', () => {
+  it('sourcePostedAt reads a source date, clamps a future date to now, refuses an unreadable one', () => {
     expect(sourcePostedAt('2026-09-14T08:00:00+07:00', now)?.toISOString()).toBe('2026-09-14T01:00:00.000Z')
     expect(sourcePostedAt('2026-09-30T00:00:00Z', now)?.getTime()).toBe(now)              // future → now, never later
     expect(sourcePostedAt(undefined, now)).toBeNull()
@@ -447,12 +451,13 @@ describe('postedAt + rankScore — ⛔ the SOURCE\'s own post date, clamped to n
     expect(sourcePostedAt(new Date(MIN_SOURCE_POSTED_AT).toISOString(), now)?.getTime()).toBe(MIN_SOURCE_POSTED_AT)
   })
 
-  it('mapRecord carries publish_at as postedAt, and drops a row with no readable date instead of dating it today', () => {
-    const m = mapRecord(card({ publish_at: '2026-09-14T08:00:00+07:00' }), detail(), opts)
+  it('⛔ mapRecord carries the detail page\'s created_at as postedAt — never publish_at — and drops a row with no readable date', () => {
+    const m = mapRecord(card({ publish_at: '2026-09-24T00:00:02+07:00' }), detail({ created_at: '2026-09-14T08:00:00+07:00' }), opts)
     expect(m.ok && m.row.postedAt.toISOString()).toBe('2026-09-14T01:00:00.000Z')
-    expect(mapRecord(card({ publish_at: undefined }), detail(), opts)).toEqual({ ok: false, reason: 'postDate' })
-    expect(mapRecord(card({ publish_at: 'garbage' }), detail(), opts)).toEqual({ ok: false, reason: 'postDate' })
-    const future = mapRecord(card({ publish_at: '2027-01-01T00:00:00Z' }), detail(), opts)
+    expect(mapRecord(card(), detail({ created_at: undefined }), opts)).toEqual({ ok: false, reason: 'postDate' })
+    expect(mapRecord(card(), detail({ created_at: 'garbage' }), opts)).toEqual({ ok: false, reason: 'postDate' })
+    expect(mapRecord(card(), null, opts)).toEqual({ ok: false, reason: 'postDate' })
+    const future = mapRecord(card(), detail({ created_at: '2027-01-01T00:00:00Z' }), opts)
     expect(future.ok && future.row.postedAt.getTime()).toBe(now)
   })
 
@@ -466,8 +471,8 @@ describe('postedAt + rankScore — ⛔ the SOURCE\'s own post date, clamped to n
     expect(stampedNow).toBeCloseTo(0.5786, 4)                                             // the value every row used to start at
   })
 
-  it('end to end: the mapped row\'s create-only fields are the card\'s publish_at and its rank', () => {
-    const m = mapRecord(card({ publish_at: '2026-09-10T00:00:00Z' }), detail(), opts)
+  it('end to end: the mapped row\'s create-only fields are the detail page\'s created_at and its rank', () => {
+    const m = mapRecord(card(), detail({ created_at: '2026-09-10T00:00:00Z' }), opts)
     if (!m.ok) throw new Error(m.reason)
     const f = createOnlyFields(m.row, 100, now)
     expect(f.postedAt.toISOString()).toBe('2026-09-10T00:00:00.000Z')
@@ -669,9 +674,17 @@ describe('--retire — ⛔ hide only on a positive signal, and never on a mass 4
     expect(massRetireRefusal(10, 12)).toBeNull()                    // below the sample floor
     expect(massRetireRefusal(90, 100)).toMatch(/site change/)
   })
-  it('the rollback re-activates exactly the hidden ids, and only while still hidden', () => {
-    expect(retireRollbackSql(['cm1', 'cm2'])).toBe(`UPDATE "Listing" SET status = 'active' WHERE "sellerId" = '${SELLER_ID}' AND status = 'hidden' AND id IN ('cm1', 'cm2');\n`)
-    expect(retireRollbackSql(["x'; DROP TABLE"])).toBeNull()
+  it('the rollback re-activates exactly the hidden ids, only while still hidden and untouched since the hide — and tombstones their pages', () => {
+    const at1 = new Date('2026-10-02T03:04:05.678Z'), at2 = '2026-10-02T03:04:07.001Z'
+    const sql = retireRollbackSql([{ id: 'cm1', updatedAt: at1 }, { id: 'cm2', updatedAt: at2 }])!
+    expect(sql.startsWith(
+      `UPDATE "Listing" SET status = 'active' WHERE "sellerId" = '${SELLER_ID}' AND status = 'hidden' AND id = 'cm1' AND "updatedAt" <= '2026-10-02T03:04:05.678Z';\n` +
+      `UPDATE "Listing" SET status = 'active' WHERE "sellerId" = '${SELLER_ID}' AND status = 'hidden' AND id = 'cm2' AND "updatedAt" <= '2026-10-02T03:04:07.001Z';\nINSERT INTO next_cache_tag `)).toBe(true)
+    for (const t of ['en/listings/cm1', 'vi/listings/cm1', 'en/listings/cm2', 'vi/listings/cm2']) expect(sql).toContain(`'eno:isrtag:_N_T_/${t}'`)
+    expect(retireRollbackSql([{ id: "x'; DROP TABLE", updatedAt: at1 }])).toBeNull()
+    // ⛔ no stamp, no line: an unguarded line could undo a later moderator hide
+    expect(retireRollbackSql([{ id: 'cm1', updatedAt: new Date(NaN) }])).toBeNull()
+    expect(retireRollbackSql([{ id: 'cm1', updatedAt: '2026-10-02T03:04:05' }])).toBeNull()             // no offset: not an instant
     expect(retireRollbackSql([])).toBeNull()
   })
 })
