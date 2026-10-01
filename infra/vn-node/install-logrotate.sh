@@ -73,9 +73,21 @@ if ! command -v nginx >/dev/null 2>&1; then
 fi
 # A here-string, never `docker ps | grep -q` under pipefail (grep -q closing the pipe early can fail
 # the pipeline and hide the match — see src/lib/deploy-script.test.ts for the measured case).
-RUNNING=$(command -v docker >/dev/null 2>&1 && docker ps --format '{{.Image}} {{.Names}}' 2>/dev/null)
-if grep -qiE '(^|[/ ])nginx' <<<"$RUNNING"; then
-  bad "an nginx CONTAINER is running — the policy's postrotate signals the HOST nginx; adapt it first"; exit 1
+# ⚠️ WHAT MATTERS IS WHO WRITES $LOG_DIR, NOT WHETHER ANY nginx IMAGE RUNS. The box also runs mailcow's
+# own nginx container (ghcr.io/mailcow/nginx), which logs inside its container — matching on the image
+# name refused the install on the real box (2026-10-01). Refuse only when a container BIND-MOUNTS the
+# host's $LOG_DIR (then its nginx writes these files and the host-signal postrotate cannot reopen them),
+# or when the host nginx is not the one running.
+# `|| true`: a container exiting between `ps` and `inspect`, or no docker daemon, must not abort the
+# script silently under pipefail. Any mount of $LOG_DIR OR AN ANCESTOR (/var/log, /var, /) counts: a
+# container given /var/log writes /var/log/nginx just the same (codex + opus, 2026-10-01).
+MOUNTS=$( { command -v docker >/dev/null 2>&1 && docker ps -aq 2>/dev/null | xargs -r docker inspect --format '{{.Name}} {{range .Mounts}}{{.Source}} {{end}}' 2>/dev/null; } || true)
+ANCESTORS="${LOG_DIR}"; d="$LOG_DIR"; while [ "$d" != "/" ]; do d=$(dirname "$d"); ANCESTORS="$ANCESTORS|$d"; done
+if grep -qE "[[:space:]](${ANCESTORS//\//\\/})(/?)([[:space:]]|$)" <<<"$MOUNTS"; then
+  bad "a CONTAINER (running or stopped) mounts $LOG_DIR or a parent of it — the policy's postrotate signals the HOST nginx; adapt it first"; exit 1
+fi
+if command -v systemctl >/dev/null 2>&1 && [ "$(systemctl is-active nginx 2>/dev/null)" != "active" ]; then
+  bad "the host nginx service is not active — this policy is for the host nginx the origin runs"; exit 1
 fi
 if ! command -v invoke-rc.d >/dev/null 2>&1 || [ ! -x /etc/init.d/nginx ]; then
   bad "invoke-rc.d or /etc/init.d/nginx is missing — the postrotate hook would fail"; exit 1
