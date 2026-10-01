@@ -4,16 +4,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 import { CookieConsent } from './cookie-consent'
-import { getConsent, setConsent } from '@/lib/consent'
+import { consentAnswered, hasAdConsent, hasAnalyticsConsent, personalizationAllowed, readConsent, setConsent } from '@/lib/consent'
+import { CONSENT_COPY_VERSION } from '@/lib/consent-value'
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 // The route, which the /signin deferral reads twice: `usePathname()` for client navigations and
 // `window.location.pathname` inside the timer. Tests move both together through `goTo`.
 const nav = vi.hoisted(() => ({ pathname: '/' }))
 vi.mock('next/navigation', async (orig) => ({ ...(await orig<typeof import('next/navigation')>()), usePathname: () => nav.pathname }))
 
-// ── Consent must be GIVEN, never defaulted (audit #8) ─────────────────────────────────────────────
-// The ad-personalization toggle used to start ON, so "Cookie settings" → Save on a first visit
-// recorded consent to Meta/Google retargeting; and turning Personalized off with ads on saved 'all'.
+// ── Consent v2 on the slim bottom bar ───────────────────────────────────────────────────────────
+// v2 (owner decision 2026-09-23): three purposes — personalization, analytics, advertising — each its
+// own switch, ALL OFF until chosen, refusing exactly as easy as accepting, every choice recorded.
+// The bar (owner, 2026-09-25): one question, Accept / Decline / Settings of equal weight, Settings
+// expands the same bar into the switches. v1 pre-ticked "Personalized", coupled the toggles, and
+// stored one nested level.
 
 // A fresh in-memory localStorage per test: the runtime's global one is not a full Storage here.
 function clearConsent() {
@@ -28,6 +35,8 @@ function clearConsent() {
   })
   document.cookie.split(';').forEach((c) => { document.cookie = `${c.split('=')[0].trim()}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/` })
 }
+
+let beacons: string[] = []
 
 const ui = () => <LanguageProvider><CookieConsent /></LanguageProvider>
 const mount = () => render(ui())
@@ -47,11 +56,24 @@ async function openFirstVisitSettings() {
   await advance(400)
 }
 
-const toggle = (name: RegExp) => screen.getByRole('button', { name })
+const sw = (name: RegExp) => screen.getByRole('switch', { name })
+const btn = (name: RegExp) => screen.getByRole('button', { name })
+const checked = (el: HTMLElement) => el.getAttribute('aria-checked') === 'true'
 const bar = () => screen.queryByRole('dialog', { name: 'Cookie consent' })
 const tokens = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
+/** What is granted right now, as [personalization, analytics, advertising]. */
+const granted = () => [personalizationAllowed(), hasAnalyticsConsent(), hasAdConsent()]
+const ALL = [true, true, true]
+const NONE = [false, false, false]
+const META = { surface: 'banner', action: 'save', locale: 'en' } as const
 
-beforeEach(() => { vi.useFakeTimers(); clearConsent() })
+beforeEach(() => {
+  vi.useFakeTimers()
+  clearConsent()
+  beacons = []
+  Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: (url: string) => { beacons.push(url); return true } })
+  delete (window as unknown as { Capacitor?: unknown }).Capacitor
+})
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
@@ -61,38 +83,7 @@ afterEach(() => {
   goTo('/')
 })
 
-describe('CookieConsent — settings view', () => {
-  it('⛔ first visit → Settings → Save records NO ad consent', async () => {
-    await openFirstVisitSettings()
-    expect(toggle(/Ad personalization/).getAttribute('aria-pressed')).toBe('false')
-    fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
-    expect(getConsent()).toBe('personalized')
-  })
-
-  it('turning ads ON implies personalization on', async () => {
-    await openFirstVisitSettings()
-    fireEvent.click(toggle(/Personalized/)) // off
-    fireEvent.click(toggle(/Ad personalization/)) // on → perso back on
-    expect(toggle(/Personalized/).getAttribute('aria-pressed')).toBe('true')
-    fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
-    expect(getConsent()).toBe('all')
-  })
-
-  it('⛔ turning Personalized OFF with ads on is a "no", not "all"', async () => {
-    await openFirstVisitSettings()
-    fireEvent.click(toggle(/Ad personalization/)) // on
-    fireEvent.click(toggle(/Personalized/)) // off → ads off too
-    expect(toggle(/Ad personalization/).getAttribute('aria-pressed')).toBe('false')
-    fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
-    expect(getConsent()).toBe('essential')
-  })
-})
-
-// ── The slim bottom bar (owner, 2026-09-25) ────────────────────────────────────────────────────────
-// Presentation changed; the legal behaviour did not. The first block pins what each choice stores
-// and when the prompt appears — the same as the centred card it replaced.
-
-describe('CookieConsent — what each choice stores (unchanged)', () => {
+describe('CookieConsent — the question', () => {
   it('appears 4s after mount, not before', async () => {
     mount()
     await advance(3_999)
@@ -101,31 +92,65 @@ describe('CookieConsent — what each choice stores (unchanged)', () => {
     expect(bar()).not.toBeNull()
   })
 
-  it('Accept stores "all" and closes', async () => {
+  it('Accept grants all three purposes, is recorded, and closes', async () => {
     await openFirstVisitBar()
-    fireEvent.click(screen.getByRole('button', { name: /^Accept$/ }))
-    expect(getConsent()).toBe('all')
+    fireEvent.click(btn(/^Accept$/))
+    expect(granted()).toEqual(ALL)
+    expect(beacons).toEqual(['/api/consent'])
     await advance(500)
     expect(bar()).toBeNull()
   })
 
-  it('Decline stores "essential" and closes', async () => {
+  it('Decline is an ANSWER that grants nothing, and is recorded', async () => {
     await openFirstVisitBar()
-    fireEvent.click(screen.getByRole('button', { name: /^Decline$/ }))
-    expect(getConsent()).toBe('essential')
+    fireEvent.click(btn(/^Decline$/))
+    expect(consentAnswered()).toBe(true)
+    expect(granted()).toEqual(NONE)
+    expect(beacons).toEqual(['/api/consent'])
   })
 
-  it('Settings stores nothing — it opens the detailed choices in the same bar', async () => {
+  it('Settings stores nothing — it opens the switches in the same bar, all OFF', async () => {
     await openFirstVisitSettings()
-    expect(getConsent()).toBeNull()
+    expect(consentAnswered()).toBe(false)
     expect(screen.getByRole('dialog', { name: 'Your choices' })).not.toBeNull()
-    expect(toggle(/Personalized/)).not.toBeNull()
+    for (const n of [/^Personalization$/, /^Analytics$/, /^Advertising$/]) expect(checked(sw(n))).toBe(false)
+  })
+
+  it('names every purpose and vendor, says why nothing is on yet, and never promises "keep you signed in"', async () => {
+    await openFirstVisitBar()
+    const text = bar()!.textContent ?? ''
+    expect(text).toContain('Google Analytics')
+    expect(text).toContain('Meta')
+    expect(text).toMatch(/sensitive personal data under Vietnamese law/)
+    expect(text).not.toMatch(/keep you signed in/i)
+  })
+
+  it('asks (a request, not a notice) and says "suggest", never "rank" — /legal/ranking promises results are not reordered by personal data', async () => {
+    await openFirstVisitBar()
+    expect(bar()!.textContent).toMatch(/Can we use cookies to suggest listings for you.*\?/)
+    expect(bar()!.textContent).not.toMatch(/\brank|reorder/i)
   })
 
   it('never auto-opens once a choice is stored', async () => {
-    setConsent('essential')
+    setConsent({ p: false, a: false, d: false }, META)
     mount()
     await advance(10_000)
+    expect(bar()).toBeNull()
+  })
+
+  it('⛔ a visitor holding a bare v1 "all" is ASKED AGAIN, and nothing is granted meanwhile', async () => {
+    localStorage.setItem('eno-cookie-consent', 'all')
+    document.cookie = 'eno-consent=all; path=/'
+    expect(hasAdConsent()).toBe(false)
+    mount()
+    await advance(5_000)
+    expect(bar()).not.toBeNull()
+  })
+
+  it('a visitor who answered "essential" under v1 is NOT asked again', async () => {
+    localStorage.setItem('eno-cookie-consent', 'essential')
+    mount()
+    await advance(5_000)
     expect(bar()).toBeNull()
   })
 
@@ -153,20 +178,138 @@ describe('CookieConsent — what each choice stores (unchanged)', () => {
     await advance(0)
     expect(bar()).not.toBeNull()
   })
+})
 
+describe('CookieConsent — the switches (consent v2)', () => {
+  it('⛔ Save with nothing switched on is a REFUSAL, not a yes', async () => {
+    await openFirstVisitSettings()
+    fireEvent.click(btn(/^Save my choices$/))
+    expect(consentAnswered()).toBe(true)
+    expect(granted()).toEqual(NONE)
+  })
+
+  it.each([
+    [/^Personalization$/, [true, false, false]],
+    [/^Analytics$/, [false, true, false]],
+    [/^Advertising$/, [false, false, true]],
+  ] as const)('⛔ each switch maps ONLY to its own purpose (%s)', async (name, expected) => {
+    await openFirstVisitSettings()
+    fireEvent.click(sw(name))
+    // Independent: flipping one never moves another (v1 coupled ads ⇒ personalized).
+    expect([sw(/^Personalization$/), sw(/^Analytics$/), sw(/^Advertising$/)].map(checked)).toEqual(expected)
+    fireEvent.click(btn(/^Save my choices$/))
+    expect(granted()).toEqual(expected)
+  })
+
+  it('"Allow all" grants all three; "Decline all" grants none — and both are recorded', async () => {
+    await openFirstVisitSettings()
+    fireEvent.click(btn(/^Allow all$/))
+    expect(granted()).toEqual(ALL)
+    expect(beacons).toEqual(['/api/consent'])
+    cleanup()
+    clearConsent()
+    await openFirstVisitSettings()
+    fireEvent.click(btn(/^Decline all$/))
+    expect(consentAnswered()).toBe(true)
+    expect(granted()).toEqual(NONE)
+    expect(beacons).toEqual(['/api/consent', '/api/consent'])
+  })
+
+  it('⛔ Advertising alone reaches META: Google is named only "if Analytics is on too" (GA is never loaded without it)', async () => {
+    await openFirstVisitSettings()
+    const desc = document.getElementById(sw(/^Advertising$/).getAttribute('aria-describedby')!)!.textContent ?? ''
+    expect(desc).toContain('with Meta (and with Google, if Analytics is on too)')
+    expect(desc).not.toMatch(/Meta and Google/)
+  })
+
+  it('⛔ the Vietnamese says the email is HASHED ("băm"), never "mã hoá" — hashing is not encryption', async () => {
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><CookieConsent /></LanguageProvider>)
+    await advance(4_000)
+    await advance(400)
+    fireEvent.click(screen.getByRole('button', { name: /^Tùy chỉnh$/ }))
+    await advance(400)
+    const desc = document.getElementById(screen.getByRole('switch', { name: /^Quảng cáo$/ }).getAttribute('aria-describedby')!)!.textContent ?? ''
+    expect(desc).toContain('được xáo trộn (băm)')
+    expect(desc).toContain('nếu Phân tích cũng bật')
+    expect(desc).not.toMatch(/mã hoá|mã hóa/)
+  })
+
+  it('⛔ the purpose descriptions — where each vendor is named — are text-xs body copy, not the bar’s smallest type', async () => {
+    await openFirstVisitSettings()
+    for (const n of [/^Personalization$/, /^Analytics$/, /^Advertising$/]) {
+      const cls = document.getElementById(sw(n).getAttribute('aria-describedby')!)!.className.split(/\s+/)
+      expect(cls).toContain('text-xs')
+      expect(cls).toContain('text-muted-foreground')
+      expect(cls).not.toContain('text-2xs')
+      expect(cls).not.toContain('text-ink-4')
+    }
+  })
+
+  it('the switches view says declining costs nothing, sign-in included, and never says "rank"', async () => {
+    await openFirstVisitSettings()
+    const text = screen.getByRole('dialog', { name: 'Your choices' }).textContent ?? ''
+    expect(text).toMatch(/including sign-in/)
+    expect(text).not.toMatch(/\brank|reorder/i)
+  })
+
+  it('⛔ "Save my choices", "Decline all" and "Allow all" carry EQUAL weight — identical classes', async () => {
+    await openFirstVisitSettings()
+    const [s, d, a] = [/^Save my choices$/, /^Decline all$/, /^Allow all$/].map(btn)
+    expect(d.className).toBe(a.className)
+    expect(s.className).toBe(a.className)
+  })
+})
+
+describe('CookieConsent — re-open (footer / settings / privacy)', () => {
   it('the footer re-open acts on its first click — a deliberate open is not armed', async () => {
     mount()
     await act(async () => { window.dispatchEvent(new CustomEvent('eno:open-consent')) })
-    fireEvent.click(screen.getByRole('button', { name: /^Decline all$/ }))
-    expect(getConsent()).toBe('essential')
+    fireEvent.click(btn(/^Decline all$/))
+    expect(consentAnswered()).toBe(true)
+    expect(granted()).toEqual(NONE)
   })
 
-  it('the footer re-open ("eno:open-consent") shows the choices at once, seeded from the stored choice', async () => {
-    setConsent('all')
+  it('pre-fills the switches from the stored answer and saves changes (withdrawal)', async () => {
+    setConsent({ p: false, a: true, d: false }, META)
     mount()
     await act(async () => { window.dispatchEvent(new CustomEvent('eno:open-consent')) })
     expect(screen.getByRole('dialog', { name: 'Your choices' })).not.toBeNull()
-    expect(toggle(/Ad personalization/).getAttribute('aria-pressed')).toBe('true')
+    expect([sw(/^Personalization$/), sw(/^Analytics$/), sw(/^Advertising$/)].map(checked)).toEqual([false, true, false])
+    fireEvent.click(sw(/^Analytics$/)) // withdraw
+    fireEvent.click(btn(/^Save my choices$/))
+    expect(hasAnalyticsConsent()).toBe(false)
+    expect(readConsent()).toMatchObject({ p: false, a: false, d: false, source: 'v2' })
+  })
+
+  it('⛔ a deliberate open inside the first-visit delay is NOT overrun by the pending auto-open', async () => {
+    mount()
+    await advance(1_000)
+    await act(async () => { window.dispatchEvent(new CustomEvent('eno:open-consent')) })
+    fireEvent.click(sw(/^Analytics$/))
+    await advance(5_000) // the 4 s auto-open would have fired here
+    expect(checked(sw(/^Analytics$/))).toBe(true)
+    fireEvent.click(btn(/^Save my choices$/))
+    expect(hasAnalyticsConsent()).toBe(true)
+  })
+})
+
+describe('CookieConsent — inside the native app', () => {
+  it('⛔ analytics and advertising are shown LOCKED OFF, and "Accept" grants personalization only', async () => {
+    ;(window as unknown as { Capacitor: unknown }).Capacitor = { isNativePlatform: () => true }
+    await openFirstVisitBar()
+    expect(bar()!.textContent).toMatch(/Analytics and advertising are always off in the app/)
+    fireEvent.click(btn(/^Accept$/))
+    // Stored as p only — the record must not claim a grant the app can never act on.
+    expect(readConsent()).toMatchObject({ p: true, a: false, d: false })
+  })
+
+  it('⛔ the switches render the two locked', async () => {
+    ;(window as unknown as { Capacitor: unknown }).Capacitor = { isNativePlatform: () => true }
+    await openFirstVisitSettings()
+    expect(sw(/^Analytics$/).hasAttribute('data-disabled')).toBe(true)
+    expect(sw(/^Advertising$/).hasAttribute('data-disabled')).toBe(true)
+    fireEvent.click(btn(/^Allow all$/))
+    expect(readConsent()).toMatchObject({ p: true, a: false, d: false })
   })
 })
 
@@ -191,12 +334,6 @@ describe('CookieConsent — the bar', () => {
     expect(tokens(bar()!.parentElement!)).toContain('[html.native-tabs_&]:bottom-[calc(0.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))]')
   })
 
-  it('asks (a request, not a notice) and says "suggest", never "rank" — /legal/ranking promises results are not reordered by personal data', async () => {
-    await openFirstVisitBar()
-    expect(bar()!.textContent).toMatch(/Can we use cookies to suggest listings for you .*\?/)
-    expect(bar()!.textContent).not.toMatch(/\brank|reorder/i)
-  })
-
   it('docks at the bottom, above the tab bar and the safe area — never centred', async () => {
     await openFirstVisitBar()
     const wrapper = bar()!.parentElement!
@@ -213,12 +350,12 @@ describe('CookieConsent — the bar', () => {
   it('⛔ a tap already in flight when the bar appears records nothing (400ms arming)', async () => {
     mount()
     await advance(4_000) // the bar has just appeared
-    fireEvent.click(screen.getByRole('button', { name: /^Accept$/ }))
-    expect(getConsent()).toBeNull()
+    fireEvent.click(btn(/^Accept$/))
+    expect(consentAnswered()).toBe(false)
     expect(bar()).not.toBeNull()
     await advance(400)
-    fireEvent.click(screen.getByRole('button', { name: /^Accept$/ }))
-    expect(getConsent()).toBe('all')
+    fireEvent.click(btn(/^Accept$/))
+    expect(granted()).toEqual(ALL)
   })
 
   it('⛔ a tap on the page does not dismiss it — it stays until it is answered', async () => {
@@ -234,7 +371,7 @@ describe('CookieConsent — the bar', () => {
     fireEvent.click(page, { button: 0 })
     await advance(500)
     expect(bar()).not.toBeNull()
-    expect(getConsent()).toBeNull()
+    expect(consentAnswered()).toBe(false)
     page.remove()
   })
 
@@ -243,22 +380,23 @@ describe('CookieConsent — the bar', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' })
     await advance(500)
     expect(bar()).toBeNull()
-    expect(getConsent()).toBeNull()
+    expect(consentAnswered()).toBe(false)
   })
 
-  it('⛔ a double tap on Settings cannot land its second half on Save', async () => {
+  it('⛔ a double tap on Settings cannot land its second half on a choice', async () => {
     await openFirstVisitBar()
-    fireEvent.click(screen.getByRole('button', { name: /^Settings$/ }))
-    fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
-    expect(getConsent()).toBeNull()
+    fireEvent.click(btn(/^Settings$/))
+    fireEvent.click(btn(/^Allow all$/))
+    expect(consentAnswered()).toBe(false)
     await advance(400)
-    fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
-    expect(getConsent()).toBe('personalized')
+    fireEvent.click(btn(/^Save my choices$/))
+    expect(consentAnswered()).toBe(true)
+    expect(granted()).toEqual(NONE)
   })
 
   it('Settings moves focus into the bar (the pressed button unmounts with the ask view)', async () => {
     await openFirstVisitBar()
-    const settings = screen.getByRole('button', { name: /^Settings$/ })
+    const settings = btn(/^Settings$/)
     settings.focus()
     fireEvent.click(settings)
     expect(document.activeElement).toBe(screen.getByRole('dialog', { name: 'Your choices' }))
@@ -299,11 +437,11 @@ describe('CookieConsent — the bar', () => {
     await advance(250)
     expect(bar()).not.toBeNull()
     // Back under a finger that just closed the overlay: the first 400ms record nothing.
-    fireEvent.click(screen.getByRole('button', { name: /^Accept$/ }))
-    expect(getConsent()).toBeNull()
+    fireEvent.click(btn(/^Accept$/))
+    expect(consentAnswered()).toBe(false)
     await advance(400)
-    fireEvent.click(screen.getByRole('button', { name: /^Accept$/ }))
-    expect(getConsent()).toBe('all')
+    fireEvent.click(btn(/^Accept$/))
+    expect(granted()).toEqual(ALL)
   })
 
   it('is display:none the instant a scrim or the keyboard appears, before the state catches up', async () => {
@@ -341,7 +479,7 @@ describe('CookieConsent — the bar', () => {
     mount()
     document.documentElement.classList.add('kb-open')
     await advance(6_000)
-    setConsent('essential')
+    setConsent({ p: false, a: false, d: false }, META)
     document.documentElement.classList.remove('kb-open')
     await advance(1_000)
     expect(bar()).toBeNull()
@@ -358,5 +496,35 @@ describe('CookieConsent — the bar', () => {
     document.documentElement.classList.remove('kb-open')
     await advance(1_000)
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+/**
+ * ⛔ THE RECORDED COPY VERSION MUST CHANGE WHEN THE WORDS DO. Every consent record carries
+ * CONSENT_COPY_VERSION so it can say which notice a "yes" was given to; a copy edit under an unchanged
+ * version makes every later record claim the OLD words. This fingerprints every tr() pair in the card
+ * (English AND Vietnamese) and pins it to the version.
+ * When this fails: bump CONSENT_COPY_VERSION in src/lib/consent-value.ts (and note why there), then
+ * add the new version with the hash this test prints. Never just update the hash under the old version.
+ */
+const COPY_FINGERPRINTS: Record<string, string> = {
+  '2026-09-24': '2a8cc32679e60f73',
+  '2026-10-01': '70c54c3ebf2cb94c',
+  '2026-10-01b': 'a2d0ceff8ab7b8ca',
+}
+
+describe('CookieConsent — the copy version is held to the words', () => {
+  it('⛔ the card’s copy matches the fingerprint recorded for CONSENT_COPY_VERSION', () => {
+    const src = readFileSync(join(__dirname, 'cookie-consent.tsx'), 'utf8')
+    const pairs = [...src.matchAll(/\btr\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*'((?:[^'\\]|\\.)*)'\s*,?\s*\)/g)].map((m) => [m[1], m[2]])
+    expect(pairs.length).toBeGreaterThan(15) // the extractor is really reading the card
+    // ⛔ …AND IT READS ALL OF IT. Copy written any other way — `<Tr>`, a template literal, a double-quoted
+    // or three-argument tr() — would change the notice without moving the hash, so every tr( outside a
+    // comment must be one the extractor matched, and the card must not use <Tr> at all.
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    expect(code.match(/\btr\(/g)?.length, 'a tr() call the fingerprint cannot read').toBe(pairs.length)
+    expect(code).not.toMatch(/<Tr\b/)
+    const hash = createHash('sha256').update(JSON.stringify(pairs)).digest('hex').slice(0, 16)
+    expect({ version: CONSENT_COPY_VERSION, hash }).toEqual({ version: CONSENT_COPY_VERSION, hash: COPY_FINGERPRINTS[CONSENT_COPY_VERSION] })
   })
 })

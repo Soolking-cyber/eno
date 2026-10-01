@@ -1,14 +1,24 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
-import { getConsent, setConsent, syncConsentCookie } from '@/lib/consent'
+import {
+  consentAnswered,
+  isNativeContext,
+  readConsent,
+  setConsent,
+  syncConsentStorage,
+  type ConsentAction,
+  type ConsentFlags,
+} from '@/lib/consent'
 import { Mascot } from './mascot'
+import { CONSENT_V2_KEY } from '@/lib/consent-value'
 import { cn } from '@/lib/utils'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 
 /**
  * ⚠️ THE ONE ROUTE THIS CARD MUST NOT COVER. `/signin` centres the sign-in card in exactly the
@@ -17,26 +27,39 @@ import { Button } from '@/components/ui/button'
  */
 const SIGNIN_PATH = '/signin'
 
-function Toggle({ title, desc, value, onChange, locked = false }: { title: string; desc: string; value: boolean; onChange?: (v: boolean) => void; locked?: boolean }) {
+const ALL_OFF: ConsentFlags = { p: false, a: false, d: false }
+const ALL_ON: ConsentFlags = { p: true, a: true, d: true }
+
+/**
+ * One purpose: its name, what it does, and its OWN switch (consent v2).
+ *
+ * ⛔ A REAL SWITCH (Base UI via ui/switch — role="switch", aria-checked, Space/Enter), NOT THE
+ * aria-pressed BUTTON THAT WAS HERE. This is a consent decision: its state has to be announced as
+ * on/off, and the house rule is a Base UI primitive before anything hand-rolled.
+ * ⚠️ Named by the visible title and described by the line under it, so a screen reader hears
+ * "Analytics, switch, off — Google Analytics measures …" rather than a bare "switch".
+ * ⛔ THE DESCRIPTION IS `text-xs text-muted-foreground`, NEVER THE BAR'S SMALLEST TYPE. It is the only
+ * place the settings view names each vendor and says a hashed email or phone goes to Meta — the
+ * disclosure a Decree 356 Art 6(3) reading of "clear consent mechanics" hangs on.
+ */
+function PurposeRow({ title, desc, checked, onChange, locked = false }: { title: string; desc: string; checked: boolean; onChange: (v: boolean) => void; locked?: boolean }) {
+  const id = useId()
   return (
-    <Button
-      variant="bare"
-      size="none"
-      type="button"
-      disabled={locked}
-      // The on/off state has to be ANNOUNCED — it is a consent decision, not decoration.
-      aria-pressed={value}
-      onClick={() => onChange?.(!value)}
-      className={cn('flex w-full items-start gap-2.5 whitespace-normal rounded-lg p-1.5 text-left transition-colors font-normal disabled:opacity-70', locked ? 'opacity-70' : 'hover:bg-muted cursor-pointer')}
-    >
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-foreground">{title}</span>
-        <span className="mt-0.5 block text-2xs leading-snug text-ink-4">{desc}</span>
-      </span>
-      <span className={cn('mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors', value ? 'bg-primary' : 'bg-line-strong')}>
-        <span className={cn('h-4 w-4 rounded-full bg-white shadow-sm transition-transform', value && 'translate-x-4')} />
-      </span>
-    </Button>
+    <div className="flex items-start gap-3 py-1.5">
+      <div className="min-w-0 flex-1">
+        <p id={`${id}-t`} className="text-sm font-semibold leading-tight text-foreground">{title}</p>
+        <p id={`${id}-d`} className="mt-0.5 text-xs leading-snug text-muted-foreground">{desc}</p>
+      </div>
+      <Switch
+        size="sm"
+        checked={checked}
+        onChange={locked ? undefined : onChange}
+        disabled={locked}
+        aria-labelledby={`${id}-t`}
+        aria-describedby={`${id}-d`}
+        className="mt-0.5"
+      />
+    </div>
   )
 }
 
@@ -101,17 +124,19 @@ function screenBusy(): boolean {
 const BUSY_POLL_MS = 250
 
 /** The consent bar — a slim strip docked above the tab bar (owner, 2026-09-25: "Slim bottom bar").
- *  One sentence and three equal choices: Accept / Decline / Settings. Settings expands the same bar
- *  into the detailed choices, which is also what the footer's "Cookie settings" opens directly. */
+ *  One question and three equal choices: Accept / Decline / Settings. Settings expands the same bar
+ *  into the per-purpose switches (consent v2: Personalization, Analytics, Advertising — each its own
+ *  switch, all OFF until the visitor turns it on), which is also what the footer's "Cookie settings"
+ *  opens directly. */
 export function CookieConsent() {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   // Where initial focus goes when the dialog opens — see initialFocus on the Popup below.
   const popupRef = useRef<HTMLDivElement>(null)
   /**
    * The pending first-visit timer, so `close()` can CANCEL it.
    *
    * ⚠️ THE GUARD INSIDE THE CALLBACK IS NOT ENOUGH ON ITS OWN, and review had to point that out
-   * twice before this was right. Re-reading `getConsent()` covers "the user DECIDED during the
+   * twice before this was right. Re-reading the stored answer covers "the user DECIDED during the
    * delay". It does not cover "the user LOOKED AND LEFT" — opening the footer's Cookie settings at
    * t=2s, reading it, and closing with Esc without choosing. Consent is still null, so the timer
    * fired and the card reappeared unbidden seconds after they dismissed it. Cancelling on close
@@ -134,25 +159,18 @@ export function CookieConsent() {
   /** The auto-open fired while an overlay or the keyboard held the screen — see screenBusy(). */
   const [waiting, setWaiting] = useState(false)
   const [view, setView] = useState<'ask' | 'settings'>('ask')
-  const [perso, setPerso] = useState(true)
-  // ⛔ AD PERSONALIZATION STARTS OFF. It started ON, so a first visitor who opened "Cookie settings"
-  // from the card and pressed Save without touching anything was recorded as consenting to Meta/Google
-  // retargeting (hasAdConsent() === true) — consent they never gave. (Audit finding #8.)
-  const [ads, setAds] = useState(false)
-  /** Seed the settings view from the stored choice — ONE rule for both ways into it. */
-  const seedFromConsent = () => {
-    const c = getConsent()
-    setPerso(c !== 'essential')
-    setAds(c === 'all')
-  }
   /**
-   * The levels are NESTED (all ⊃ personalized ⊃ essential), so the toggles are coupled here rather
-   * than in storage: ad personalization on implies personalization on, and personalization off
-   * implies ads off. Uncoupled, turning Personalized OFF with ads on was saved as 'all' — the
-   * visitor's explicit "no" recorded as a yes.
+   * ⛔ EVERY SWITCH STARTS OFF, AND NOTHING COUPLES THEM (consent v2). v1 started "Personalized" ON
+   * for a visitor who had not answered (and, until d2dcc590, "Ad personalization" too), so a
+   * first-visit Save recorded a consent nobody gave; and it linked the toggles (ads on ⇒ personalized
+   * on). Consent is per purpose (PDPL 91/2025 Art 9(4)(a)), so each switch writes exactly its own flag.
    */
-  const onPerso = (v: boolean) => { setPerso(v); if (!v) setAds(false) }
-  const onAds = (v: boolean) => { setAds(v); if (v) setPerso(true) }
+  const [flags, setFlags] = useState<ConsentFlags>(ALL_OFF)
+  /** Seed the settings view from the stored answer — ONE rule for both ways into it. No answer ⇒ all off. */
+  const seedFromConsent = () => {
+    const c = readConsent()
+    setFlags(c ? { p: c.p, a: c.a, d: c.d } : ALL_OFF)
+  }
 
   /**
    * ⚠️ THE FIRST-VISIT PROMPT IS DELAYED; THE FOOTER RE-OPEN BELOW IS NOT.
@@ -169,8 +187,10 @@ export function CookieConsent() {
    * Cleared on unmount so a fast navigate-away cannot fire setState on a dead component.
    */
   useEffect(() => {
-    syncConsentCookie()
-    if (getConsent() !== null) return
+    syncConsentStorage()
+    // ⚠️ A v1 'all' / 'personalized' reads as NOT ANSWERED here, so those visitors are asked once more
+    // (consent v2 — see src/lib/consent-value.ts). A v1 'essential' is an answer and is never re-asked.
+    if (consentAnswered()) return
     /**
      * ⛔ DEFERRED, NOT SUPPRESSED, ON THE SIGN-IN ROUTE — AND THE FIRST VERSION OF THIS GUARD GOT
      * THAT WRONG. When this was a centred card it sat dead centre of the viewport, and `/signin`
@@ -199,7 +219,7 @@ export function CookieConsent() {
        * in ANOTHER TAB during the delay. The immediate version could not hit either case, because
        * it read and showed in the same tick.
        */
-      if (getConsent() !== null) return
+      if (consentAnswered()) return
       if (window.location.pathname === SIGNIN_PATH) setDeferred(true)
       else if (screenBusy()) setWaiting(true)
       else setShow(true)
@@ -221,7 +241,7 @@ export function CookieConsent() {
      * renders nothing either way; a reviewer was right that it is exactly the stale state the
      * comment above claims cannot happen.
      */
-    if (getConsent() !== null) { setDeferred(false); return }
+    if (consentAnswered()) { setDeferred(false); return }
     /**
      * ⛔ AND A CARD THAT IS ALREADY OPEN STEPS ASIDE WHEN THE VISITOR ARRIVES AT /signin. The timer
      * check cannot cover this: the card may have opened legitimately on `/` and the visitor then
@@ -248,6 +268,24 @@ export function CookieConsent() {
   }, [deferred, pathname, show, openedByUser])
 
   /**
+   * ⛔ A CHOICE MADE IN ANOTHER TAB CLOSES A CARD THAT OPENED ON ITS OWN HERE. Left open, a click on it
+   * would overwrite the newer decision with whatever this stale card shows (codex, 2026-10-01). `storage`
+   * fires in every OTHER tab when setConsent() writes its local copy (key null = storage cleared). A card
+   * the visitor opened themselves (Cookie settings) stays: closing it under their hand would be worse.
+   */
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== null && e.key !== CONSENT_V2_KEY) return
+      if (!consentAnswered()) return
+      setWaiting(false)
+      setDeferred(false)
+      if (!openedByUser) setShow(false)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [openedByUser])
+
+  /**
    * The other half of `screenBusy()`, for the automatic prompt only. While it WAITS, look again every
    * BUSY_POLL_MS and show it the moment the overlay has closed and the keyboard is down — the same
    * three exits as the timer: decided meanwhile → never; on /signin → the route deferral above takes
@@ -262,7 +300,7 @@ export function CookieConsent() {
     if (!waiting && !autoShown) return
     const iv = setInterval(() => {
       if (waiting) {
-        if (getConsent() !== null) { setWaiting(false); return }
+        if (consentAnswered()) { setWaiting(false); return }
         if (screenBusy()) return
         setWaiting(false)
         if (window.location.pathname === SIGNIN_PATH) setDeferred(true)
@@ -296,6 +334,15 @@ export function CookieConsent() {
   // as easy to change as to give (compliance verification 2026-07-06).
   useEffect(() => {
     const reopen = () => {
+      /**
+       * ⛔ A DELIBERATE OPEN CANCELS THE PENDING AUTO-OPEN, ANY DEFERRAL AND ANY WAIT (consent v2;
+       * agy caught it on that diff). Left pending, the 4s timer or the next navigation would fire into
+       * a bar the visitor is already setting switches on — and the automatic path does not know it
+       * was opened by hand.
+       */
+      if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null }
+      setDeferred(false)
+      setWaiting(false)
       seedFromConsent()
       setView('settings')
       setOpenedByUser(true)
@@ -326,7 +373,7 @@ export function CookieConsent() {
    *   · CANCEL the pending first-visit timer — otherwise dismissing the footer-opened card at t=2s
    *     without choosing let the timer re-open it at t=4s.
    *   · `view` back to 'ask' — otherwise that same re-open landed on the SETTINGS toggles rather
-   *     than the question, pre-filled from a `getConsent()` that had returned null.
+   *     than the question, pre-filled from a stored answer that did not exist.
    *   · `openedByUser` back to false, so a later automatic appearance cannot inherit "the user
    *     asked for this" from an earlier footer click and steal focus.
    * The bar adds two more: the choices disarm, so the next appearance starts its ARM_AFTER_MS
@@ -351,11 +398,32 @@ export function CookieConsent() {
      * branches for that reason, not just on "Allow".
      */
   }
+  /**
+   * ⛔ INSIDE THE NATIVE APPS ANALYTICS AND ADVERTISING ARE NOT OFFERED AT ALL. The app is a web view
+   * of this site, and Apple's App Tracking Transparency covers web views: sending a hashed email to
+   * Meta from inside the app is "tracking", which needs the ATT prompt the apps do not show — and a
+   * consent banner is not a substitute for it. So the two rows render locked OFF, "Accept" there
+   * means personalization only, and src/lib/consent.ts + the server force both off whatever is stored.
+   * Safe to read inline because the dialog never renders before mount (show starts false).
+   */
+  const isNative = isNativeContext()
+
   /** A choice that acts only once the bar has been on screen long enough to be seen — ARM_AFTER_MS. */
   const whenArmed = (act: () => void) => () => { if (armed.current) act() }
-  const allow = whenArmed(() => { setConsent('all'); close() })
-  const save = whenArmed(() => { setConsent(ads ? 'all' : perso ? 'personalized' : 'essential'); close() })
-  const decline = whenArmed(() => { setConsent('essential'); close() })
+  /**
+   * Store the answer (and its record — POST /api/consent), then close. The surface is read BEFORE
+   * close() resets `openedByUser`: the auto-prompt (and its Settings view) is 'banner', the footer /
+   * dashboard / privacy re-open is 'settings'.
+   */
+  const choose = (next: ConsentFlags, action: ConsentAction) => {
+    const f = isNative ? { ...next, a: false, d: false } : next
+    setConsent(f, { surface: openedByUser ? 'settings' : 'banner', action, locale: lang })
+    close()
+  }
+  const allow = whenArmed(() => choose(ALL_ON, 'allow_all'))
+  const save = whenArmed(() => choose(flags, 'save'))
+  const decline = whenArmed(() => choose(ALL_OFF, 'decline_all'))
+  const setFlag = (k: keyof ConsentFlags) => (v: boolean) => setFlags((f) => ({ ...f, [k]: v }))
   /**
    * Settings expands the bar in place. ⚠️ FOCUS MOVES TO THE BAR ITSELF, because the button that was
    * just pressed is about to unmount with the ask view — left alone, a keyboard user's focus falls
@@ -369,16 +437,9 @@ export function CookieConsent() {
     popupRef.current?.focus({ preventScroll: true })
   })
 
-  // Native copy branch is PRESENTATION-ONLY: same trigger, choices, storage and events —
-  // the WebView shares the site's tracking signals, so PDPL consent semantics are identical;
-  // only the browser-cookie framing is swapped for app wording. Safe to read inline because
-  // the dialog never renders before mount (show starts false).
-  const isNative = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
-
-  const primary = 'rounded-lg px-4 py-1.5 text-sm transition-colors active:scale-[0.96] cursor-pointer'
-  const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-body active:scale-[0.96] cursor-pointer'
   /**
-   * ⛔ ONE CLASS STRING FOR ALL THREE FIRST-LAYER CHOICES — equal weight is the owner's brief
+   * ⛔ ONE CLASS STRING FOR ALL THREE CHOICES ON EITHER VIEW — Accept / Decline / Settings on the
+   * question, and Save my choices / Decline all / Allow all on the switches. Equal weight is the owner's brief
    * (2026-09-25: "Accept / Decline / Settings with EQUAL visual weight"), and it REPLACES the
    * 2026-08-28 one-dominant-CTA layout (a filled full-width "Allow cookies" over text-link
    * "Cookie settings" / "Decline"). That layout's own note called its prominence gap "the ceiling,
@@ -520,14 +581,16 @@ export function CookieConsent() {
                   a services variant would belong in its own `.svc.` module. */}
               <DialogPrimitive.Title className="sr-only">{tr('Cookie consent', 'Đồng ý cookie')}</DialogPrimitive.Title>
               {/**
-                * ⛔ ONE SENTENCE, A QUESTION, AND IT SAYS WHAT "ACCEPT" TURNS ON. A question because it is
-                * a request, not a notice: shown while nothing is stored, "We use cookies to…" would
-                * assert processing that has not been agreed to (opus, on the diff). Accept stores 'all', which is
-                * the "For You" suggestions built from the visitor's own activity PLUS Meta/Google ad
-                * signals — the settings view's own rows say the same. The long sentence this replaces
-                * named only the first and promised Allow would "keep you signed in", which was never
-                * true: sign-in is essential storage and works whatever is chosen, so the promise only
-                * made Decline sound like it would sign you out.
+                * ⛔ A QUESTION, AND IT SAYS WHAT "ACCEPT" TURNS ON — ALL THREE PURPOSES, BY VENDOR. A
+                * question because it is a request, not a notice: shown while nothing is stored, "We use
+                * cookies to…" would assert processing that has not been agreed to (opus, on the diff).
+                * Accept stores consent v2 with all three purposes on (src/lib/consent.ts): the For You /
+                * Recently viewed suggestions from the visitor's own activity (`p`), Google Analytics (`a`)
+                * and Meta / Google ad measurement (`d`) — the settings rows say the same, one by one.
+                * ⛔ AND IT SAYS WHY NOTHING IS ON YET: on-site behaviour is sensitive personal data under
+                * Decree 356/2025 (Art 4(1) lists it; Art 6(4) requires saying so). The v1 line promised
+                * Allow would "keep you signed in", which was never true: sign-in is essential storage
+                * and works whatever is chosen.
                 * ⛔ "SUGGEST", NEVER "RANK" OR "REORDER" (codex, on the diff). /legal/ranking — the
                 * disclosure a sàn TMĐT owes — says results are NOT reordered by personal data and two
                 * people running the same search see the same order. Personalization feeds the For You
@@ -536,20 +599,23 @@ export function CookieConsent() {
                 * ⚠️ `text-sm`, never the smallest type on the bar: GDPR Art. 7(2) wants a consent
                 * request "clearly distinguishable" and intelligible, and this is the whole request.
                 * If the bar ever needs to be shorter, cut words — never the size.
-                * ⚠️ Wording is a legal surface: the parked consent v2 (hold/email-consent) carries
-                * counsel-pending text that will replace this; see the report for what it must keep.
+                * ⚠️ LEGAL WORDING IS PENDING COUNSEL. Change it with the lawyer's text and bump
+                * CONSENT_COPY_VERSION (consent-value.ts) — the test fingerprints every tr() here.
+                * ⚠️ No trailing space inside tr(): the warm cron trims, so a padded string never
+                * matched its cached translation. The space before the link is JSX.
                 */}
               <p className="text-sm leading-snug text-muted-foreground md:flex-1">
                 {isNative
                   ? tr(
-                      'Can we use your activity in the app to suggest listings for you and to personalize ads on Meta and Google? ',
-                      'Bạn có đồng ý để chúng tôi dùng hoạt động của bạn trong ứng dụng để gợi ý tin đăng và cá nhân hoá quảng cáo trên Meta và Google? ',
+                      'Can we use your activity in the app to suggest listings for you? It is sensitive personal data under Vietnamese law, so this stays off until you choose. Analytics and advertising are always off in the app.',
+                      'Bạn có đồng ý để chúng tôi dùng hoạt động của bạn trong ứng dụng để gợi ý tin đăng cho bạn? Theo pháp luật Việt Nam đây là dữ liệu cá nhân nhạy cảm, nên mục này tắt cho đến khi bạn chọn. Phân tích và quảng cáo luôn tắt trong ứng dụng.',
                     )
                   : tr(
-                      'Can we use cookies to suggest listings for you and to personalize ads on Meta and Google? ',
-                      'Bạn có đồng ý để chúng tôi dùng cookie gợi ý tin đăng cho bạn và cá nhân hoá quảng cáo trên Meta và Google? ',
+                      'Can we use cookies to suggest listings for you, measure visits (Google Analytics) and measure our ads (Meta, Google)? Your activity here is sensitive personal data under Vietnamese law, so all three stay off until you choose.',
+                      'Bạn có đồng ý để chúng tôi dùng cookie để gợi ý tin đăng cho bạn, đo lượt truy cập (Google Analytics) và đo hiệu quả quảng cáo (Meta, Google)? Theo pháp luật Việt Nam, hoạt động của bạn tại đây là dữ liệu cá nhân nhạy cảm, nên cả ba đều tắt cho đến khi bạn chọn.',
                     )}
-                <Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
+                {' '}
+                <Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>
               </p>
               {/**
                 * ⚠️ ACCEPT · DECLINE · SETTINGS, IN THE OWNER'S ORDER, AND ONE ROW. Three equal
@@ -573,23 +639,75 @@ export function CookieConsent() {
             </div>
           ) : (
             <>
-              {/* THE DETAILED CHOICES, UNCHANGED — "Settings opens the existing detailed choices"
-                  (owner brief). They expand the same bar upward rather than opening a second
-                  surface. The cookie mascot stays beside them from sm up: the owner removed it
-                  from the first layer on 2026-09-17 and kept it here, where it is the only thing
-                  between three toggles and a wall of plain rows. */}
-              <div className="flex items-center gap-3">
+              {/* THE DETAILED CHOICES — consent v2's three purposes, each its own switch, all OFF until
+                  switched on. They expand the same bar upward rather than opening a second surface.
+                  The cookie mascot stays beside them from sm up: the owner removed it from the first
+                  layer on 2026-09-17 and kept it here. */}
+              <div className="flex items-start gap-3">
               <Mascot name="cookie" className="hidden h-20 w-20 shrink-0 self-center text-foreground sm:block" />
               <div className="min-w-0 flex-1">
               <DialogPrimitive.Title className="text-base font-bold leading-tight text-foreground">{tr('Your choices', 'Lựa chọn của bạn')}</DialogPrimitive.Title>
-              <div className="mt-1.5 -ml-1.5 space-y-0">
-                <Toggle locked value title={tr('Essential', 'Cần thiết')} desc={tr('Sign-in & speed. Always on.', 'Đăng nhập & tốc độ. Luôn bật.')} />
-                <Toggle value={perso} onChange={onPerso} title={tr('Personalized', 'Cá nhân hoá')} desc={tr('Rank the most relevant items first from your activity.', 'Xếp hạng mục phù hợp nhất theo hoạt động của bạn.')} />
-                <Toggle value={ads} onChange={onAds} title={tr('Ad personalization', 'Quảng cáo cá nhân hoá')} desc={tr('Ad-network signals (Meta/Google) for retargeting.', 'Tín hiệu mạng quảng cáo (Meta/Google) để tiếp thị lại.')} />
+              <p className="mt-1 text-sm leading-snug text-muted-foreground">
+                {isNative
+                  ? tr(
+                      'Your activity in the app is sensitive personal data under Vietnamese law, so personalization stays off until you switch it on. Analytics and advertising are always off in the app. Decline and everything still works, including sign-in.',
+                      'Theo pháp luật Việt Nam, dữ liệu về hoạt động của bạn trong ứng dụng là dữ liệu cá nhân nhạy cảm, nên cá nhân hóa luôn tắt cho đến khi bạn bật. Phân tích và quảng cáo luôn tắt trong ứng dụng. Nếu từ chối, mọi tính năng vẫn hoạt động, kể cả đăng nhập.',
+                    )
+                  : tr(
+                      'Your activity on this site is sensitive personal data under Vietnamese law, so each use below stays off until you switch it on. Decline and everything still works, including sign-in.',
+                      'Theo pháp luật Việt Nam, dữ liệu về hoạt động của bạn trên trang này là dữ liệu cá nhân nhạy cảm, nên mỗi mục dưới đây đều tắt cho đến khi bạn bật. Nếu từ chối, mọi tính năng vẫn hoạt động, kể cả đăng nhập.',
+                    )}
+              </p>
+              <div className="mt-1">
+                <PurposeRow
+                  title={tr('Personalization', 'Cá nhân hóa')}
+                  /* ⛔ "SUGGESTS", NOT "RANKS" — see the note on the question above (/legal/ranking). */
+                  desc={tr('Suggests listings for you (the For you and Recently viewed rows) from what you search and view here. Never shared with advertisers.', 'Gợi ý tin đăng cho bạn (mục Dành cho bạn và Đã xem gần đây) theo những gì bạn tìm và xem tại đây. Không bao giờ chia sẻ cho bên quảng cáo.')}
+                  checked={flags.p}
+                  onChange={setFlag('p')}
+                />
+                <PurposeRow
+                  title={tr('Analytics', 'Phân tích')}
+                  desc={isNative
+                    ? tr('Always off in the app.', 'Luôn tắt trong ứng dụng.')
+                    : tr('Google Analytics measures visits and pages, and which link brought you here.', 'Google Analytics đo lượt truy cập, trang đã xem và liên kết đã đưa bạn đến đây.')}
+                  checked={isNative ? false : flags.a}
+                  onChange={setFlag('a')}
+                  locked={isNative}
+                />
+                <PurposeRow
+                  title={tr('Advertising', 'Quảng cáo')}
+                  desc={isNative
+                    ? tr('Always off in the app.', 'Luôn tắt trong ứng dụng.')
+                    /* ⚠️ "AND GOOGLE" ONLY WITH ANALYTICS: Google's ad signals travel inside Google
+                       Analytics, which is never loaded without the Analytics switch, so Advertising
+                       alone reaches Meta and nobody else. And the Vietnamese says "băm" (hashed),
+                       never "mã hoá" — hashing is not encryption, and the sentence must not promise
+                       it is. */
+                    : tr('Shares actions like views, contacts and sign-ups with Meta (and with Google, if Analytics is on too) to measure our ads — your email or phone is scrambled (hashed) first.', 'Chia sẻ các hành động như lượt xem, liên hệ và đăng ký với Meta (và với Google, nếu Phân tích cũng bật) để đo hiệu quả quảng cáo — email hoặc số điện thoại được xáo trộn (băm) trước.')}
+                  checked={isNative ? false : flags.d}
+                  onChange={setFlag('d')}
+                  locked={isNative}
+                />
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2.5">
-                <Button variant="cta" size="none" onClick={save} className={primary}>{tr('Save', 'Lưu')}</Button>
-                <Button variant="ghost" size="none" onClick={decline} className={ghost}>{tr('Decline all', 'Từ chối tất cả')}</Button>
+              {/**
+                * ⛔ THREE EQUAL CHOICES HERE TOO (consent v2): "Save my choices" saves EXACTLY the
+                * switches above — all off is a refusal — and "Decline all" / "Allow all" are the two
+                * all-or-nothing answers. Same `choice` class as the question's row, so refusing is
+                * exactly as easy and as visible as accepting (Decree 356/2025 Art 6(3); EDPB 03/2022).
+                * The view change re-arms the ARM_AFTER_MS window, so a double tap on Settings cannot
+                * land on whichever of these sits under it.
+                */}
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <Button variant="outline" size="none" onClick={save} className={choice}>
+                  {tr('Save my choices', 'Lưu lựa chọn')}
+                </Button>
+                <Button variant="outline" size="none" onClick={decline} className={choice}>
+                  {tr('Decline all', 'Từ chối tất cả')}
+                </Button>
+                <Button variant="outline" size="none" onClick={allow} className={choice}>
+                  {tr('Allow all', 'Cho phép tất cả')}
+                </Button>
               </div>
               </div>
               </div>

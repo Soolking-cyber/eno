@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles, TrendingUp } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
@@ -8,14 +8,15 @@ import { ListingCard } from './listing-card'
 import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { personalizationAllowed } from '@/lib/consent'
+import { CONSENT_V2_KEY } from '@/lib/consent-value'
 import { getRecoSignals, getInboundQuery } from '@/lib/reco-signals'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 
 const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district', 'province', 'ward', 'condition', 'priceMin', 'priceMax']
 
 /** "For You" — a horizontal rail at the very top of the home feed. Personalized from
- *  the user's own on-site signals when they've allowed it (consent 'all'); otherwise
- *  Trending. Only shows on the default home view — hides as soon as a filter/search is
+ *  the user's own on-site signals when they switched Personalization on (consent v2 `p`);
+ *  otherwise Trending (plus the search terms they arrived with). Only shows on the default home view — hides as soon as a filter/search is
  *  active (it would be redundant over filtered results) — except where the explorer places it
  *  as the `recovery` rail under a sparse answer (see the prop). */
 export function ForYouRail({ initial, recovery = false }: {
@@ -40,20 +41,36 @@ export function ForYouRail({ initial, recovery = false }: {
   const [active, setActive] = useState(true) // default (unfiltered) home view?
 
   const seeded = initial !== undefined
+  // ⛔ WITHDRAWING PERSONALIZATION TAKES EFFECT ON SCREEN, NOT ON THE NEXT LOAD — /privacy promises
+  // it. `fromHistory` marks content that was ranked from the visitor's stored history (it is NOT the
+  // same as `personalized`: the server also says "personalized" for an answer built only from the
+  // inbound search terms, which need no consent). `gen` drops a response that a newer load or a
+  // withdrawal has overtaken — without it, a history request already in flight when the visitor
+  // switched Personalization off would land afterwards and put the history-ranked rail back.
+  const fromHistory = useRef(false)
+  const gen = useRef(0)
+  // Read through a ref so a parent that passes a fresh array each render cannot re-run the
+  // effect below (and its fetch) on every render.
+  const seed = useRef(initial)
+  seed.current = initial
   const load = useCallback(() => {
+    const my = ++gen.current
     const params = new URLSearchParams()
     const terms: string[] = []
     // Inbound intent (campaign/referrer query) is contextual — used even without
     // stored-history consent, since it's the explicit intent they arrived with.
     const inbound = getInboundQuery()
     if (inbound) terms.push(inbound)
-    // Stored on-site history (searches + viewed categories/brands) — first-party, on by
-    // default (only an explicit "Essential only / Decline" opts out).
+    // Stored on-site history (searches + viewed categories/brands) — only with the
+    // Personalization purpose. ⛔ NOT "on until declined" any more: that sent a visitor's
+    // history to /api/recommendations before they had answered anything (consent v2).
+    let withHistory = false
     if (personalizationAllowed()) {
       const s = getRecoSignals()
       terms.push(...s.terms)
       if (s.categories.length) params.set('cats', s.categories.join(','))
       if (s.brands.length) params.set('brands', s.brands.join(','))
+      withHistory = s.terms.length + s.categories.length + s.brands.length > 0
     }
     const uniqTerms = Array.from(new Set(terms.filter(Boolean))).slice(0, 6)
     if (uniqTerms.length) params.set('terms', uniqTerms.join(','))
@@ -63,23 +80,42 @@ export function ForYouRail({ initial, recovery = false }: {
     fetch(`/api/recommendations?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (!d) return
+        if (!d || my !== gen.current) return
         const next: SerializedListingCard[] = d.listings || []
         // Never collapse a rendered rail: an empty OR sub-floor personalized answer keeps
         // the current (seed/previous) content instead of yanking the section away — the
         // MIN_RAIL_ITEMS render gate below would hide the rail for a 1–2 item answer, so
         // adopting one would collapse a rail the seed had legitimately filled.
         setListings((prev) => (next.length >= MIN_RAIL_ITEMS ? next : seeded ? prev : next))
-        if (next.length >= MIN_RAIL_ITEMS) setPersonalized(!!d.personalized)
+        if (next.length >= MIN_RAIL_ITEMS) {
+          fromHistory.current = withHistory
+          setPersonalized(!!d.personalized)
+        }
       })
       .catch(() => {})
   }, [seeded])
 
   useEffect(() => {
     load()
-    const onConsent = () => load() // re-fetch personalized results the moment consent is granted
+    const onConsent = () => {
+      // Withdrawn: put back what a visitor without Personalization sees — the server seed (or
+      // nothing, which shows the skeletons until the history-free answer lands) — at once, then
+      // let load() fetch that answer: without `p` it sends only the inbound terms, and for a
+      // seeded rail with none it returns early, leaving the seed.
+      if (!personalizationAllowed() && fromHistory.current) {
+        gen.current++ // anything still in flight was asked with the history
+        fromHistory.current = false
+        setListings(seed.current ?? null)
+        setPersonalized(false)
+      }
+      load() // granted: re-fetch personalized results the moment consent is given
+    }
+    // `eno:consent` is same-tab; a withdrawal in ANOTHER tab arrives as `storage` (key null = cleared),
+    // the same filter AnalyticsTags uses — /privacy promises the change takes effect at once on this device.
+    const onStorage = (e: StorageEvent) => { if (e.key === null || e.key === CONSENT_V2_KEY) onConsent() }
     window.addEventListener('eno:consent', onConsent)
-    return () => window.removeEventListener('eno:consent', onConsent)
+    window.addEventListener('storage', onStorage)
+    return () => { window.removeEventListener('eno:consent', onConsent); window.removeEventListener('storage', onStorage) }
   }, [load])
 
   // Hide when the feed is filtered/searched (the explorer broadcasts 'eno:query' on

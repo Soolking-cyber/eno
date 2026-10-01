@@ -1,5 +1,6 @@
 import 'server-only'
 import { clientIp } from '@/lib/client-ip'
+import { serverConsent } from '@/lib/consent-value'
 import crypto from 'crypto'
 
 // ── Meta Conversions API (server-side) ───────────────────────────────────────
@@ -48,8 +49,9 @@ export type MetaUserData = {
   userAgent?: string | null
   fbp?: string | null // _fbp cookie — sent raw (not hashed)
   fbc?: string | null // _fbc cookie — sent raw (not hashed)
-  /** Ad-network consent read from the eno-cookie-consent cookie ('all' tier).
-   *  PDP Law 91/2025 makes server-side conversion events the same opt-in
+  /** The Advertising purpose (consent v2 `d`) as resolved from the request's cookies by
+   *  `serverConsent()` — the SAME rule the browser uses (src/lib/consent-value.ts), false inside
+   *  the native apps. PDP Law 91/2025 makes server-side conversion events the same opt-in
    *  processing as a browser pixel — sendMetaCapiEvent FAILS CLOSED on this. */
   adConsent?: boolean
 }
@@ -85,7 +87,13 @@ export function metaUserDataFromHeaders(
     userAgent: ua,
     fbp: read('_fbp'),
     fbc: read('_fbc'),
-    adConsent: read('eno-cookie-consent') === 'all',
+    /**
+     * ⛔ v1 READ ONLY THE HOST-ONLY `eno-cookie-consent` === 'all' — a different cookie from the one the
+     * browser treats as the truth, and a v1 'all' that consent v2 no longer accepts as consent (it was
+     * collected on a screen that never named advertising). Only a current v2 answer with `d` grants,
+     * never a legacy value, never inside the native apps (UA marker).
+     */
+    adConsent: serverConsent(headers).d,
     ...extra,
   }
 }
@@ -98,9 +106,9 @@ export type MetaEventOpts = {
 }
 
 // Best-effort: never throws, never blocks. Call inside `after()`. No-op until configured.
-// CONSENT-GATED (fail closed): only fires when the request carried the 'all'-tier
-// consent cookie (userData must come from metaUserDataFromHeaders). A user who never
-// consented — or whose cookie predates the mirror — sends nothing.
+// CONSENT-GATED (fail closed): only fires when the request carried a consent v2 answer
+// with the Advertising purpose (userData must come from metaUserDataFromHeaders). A user
+// who never answered, declined, holds only a v1 value, or is inside the app sends nothing.
 export async function sendMetaCapiEvent(eventName: string, opts: MetaEventOpts = {}): Promise<void> {
   if (!metaCapiConfigured()) return
   if (opts.userData?.adConsent !== true) return

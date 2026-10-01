@@ -17,16 +17,18 @@
  * together. Add an export there, add it here.
  */
 
-export type PrivacySection = [string, string, string[]]
+export type PrivacyText = { en: string; vi: string }
 
-export const PRIVACY_SERVICES_CONTROLLER: string[] = []
+export type PrivacySection = [string, PrivacyText, PrivacyText[]]
 
-export const PRIVACY_SERVICES_COLLECT: string[] = []
+export const PRIVACY_SERVICES_CONTROLLER: PrivacyText[] = []
 
-export const PRIVACY_SERVICES_PURPOSES: string[] = []
+export const PRIVACY_SERVICES_COLLECT: PrivacyText[] = []
 
-export const PRIVACY_SERVICES_RECIPIENTS: string[] = []
+export const PRIVACY_SERVICES_PURPOSES: PrivacyText[] = []
 
-export const PRIVACY_SERVICES_RETENTION: string[] = []
+export const PRIVACY_SERVICES_RECIPIENTS: PrivacyText[] = []
+
+export const PRIVACY_SERVICES_RETENTION: PrivacyText[] = []
 
 export const PRIVACY_SERVICES_SECTIONS: PrivacySection[] = []

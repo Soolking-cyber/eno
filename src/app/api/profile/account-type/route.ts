@@ -6,6 +6,7 @@ import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { parseAttributionCookie } from '@/lib/attribution'
+import { serverConsent } from '@/lib/consent-value'
 import { consolidateSellerHandle, revertToPersonalHandle } from '@/lib/handle'
 import { ApiError, route } from '@/lib/api/handler'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
@@ -198,7 +199,11 @@ export const POST = route(
 
   // First-touch acquisition channel for THIS signup (from the eno_attr cookie set on
   // the visitor's first landing) — powers exact CAC-per-channel in our own DB.
-  const attr = firstOnboard ? parseAttributionCookie(req.headers.get('cookie')) : null
+  // ⛔ ONLY WITH THE ANALYTICS PURPOSE, CHECKED HERE ON THE REQUEST. The cookie itself is not proof:
+  // a v1 visitor re-asked under consent v2 who DECLINES may still carry an eno_attr written under the
+  // old consent until the client cleanup deletes it, and this copy writes it onto their account.
+  // `serverConsent` applies the browser's own rule (and forces analytics off inside the native apps).
+  const attr = firstOnboard && serverConsent(req.headers).a ? parseAttributionCookie(req.headers.get('cookie')) : null
 
   if (firstOnboard) {
     // Persist the channel onto the Profile — AFTER the response flushes (never delays

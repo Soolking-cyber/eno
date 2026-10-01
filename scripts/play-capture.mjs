@@ -73,8 +73,9 @@ try {
     const landed = new URL(p.url()).pathname.replace(/\/+$/, '') || '/'
     if (landed !== s.path.replace(/\/+$/, '') && landed !== s.path) throw new Error(`${s.name}: redirected to ${p.url()} — pick another page`)
     await p.waitForTimeout(5000)
-    // Belt and braces: a consent card that still shows is declined.
-    const decline = p.getByRole('button', { name: /^(Decline|Từ chối)$/ })
+    // Belt and braces: a consent card that still shows is declined. (Consent v2 labels it "Decline all";
+    // the seeded legacy 'essential' above is still honoured as a refusal, so this rarely fires.)
+    const decline = p.getByRole('button', { name: /^(Decline( all)?|Từ chối( tất cả)?)$/ })
     if (await decline.count()) { await decline.first().click().catch(() => {}); await p.waitForTimeout(600) }
     // The carousel's own pause control, first: a frozen embla cannot re-lay-out anything below.
     const pause = p.getByRole('button', { name: /^(Pause slideshow|Tạm dừng trình chiếu)$/ })

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { trackSignUp } from '@/lib/analytics'
 import { mayGateOnboarding } from '@/lib/onboarding-gate'
+import { clearAccountDeviceStorage } from '@/lib/sign-out-storage'
 /**
  * ⚠️ THE IDENTITY RULES LIVE IN A PURE MODULE — see auth-identity.ts for why (they shipped wrong
  * once, and testing them must not drag next/navigation and the Supabase browser client along).
@@ -614,22 +615,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await createSupabaseBrowser().auth.signOut()
     setUser(null)
     setIdentity(null)
-    // Clear the per-user functional caches (inbox, threads, saved) so the next
-    // account on this device starts clean.
-    try {
-      localStorage.removeItem('eno-convos')
-      localStorage.removeItem('eno-saved-cache')
-      localStorage.removeItem('eno-account')
-      localStorage.removeItem('eno-dashboard')
-      localStorage.removeItem('eno-notifs')
-      Object.keys(localStorage).filter((k) => k.startsWith('eno-thr:')).forEach((k) => localStorage.removeItem(k))
-      // The unpublished /post draft too — text here, photos in IndexedDB. Both outlive a closed tab
-      // for DRAFT_TTL_MS on purpose (they must survive the Google sign-in redirect), so without this
-      // the next person to open /post on a shared device got the previous seller's draft back,
-      // photos included. Lazy: the module is only needed at sign-out, not in every page's bundle.
-      localStorage.removeItem('eno-listing-draft')
-    } catch {}
+    // Clear the per-account device data (inbox + thread caches, saved, dashboard, notifications, the
+    // AI chat, the /post and teacher drafts, the rental availability basket) so the next account on
+    // this device starts clean. ⛔ THE KEY LIST LIVES IN src/lib/sign-out-storage.ts, held to each
+    // owner's source by its test: this used to remove `eno-convos` / `eno-thr:*` long after the chat
+    // caches had moved to `eno-convos-v2` / `eno-thr2:*`, so the inbox survived every sign-out.
+    // The unpublished /post draft is text in localStorage AND photos in IndexedDB. Both outlive a
+    // closed tab for DRAFT_TTL_MS on purpose (they must survive the Google sign-in redirect), so
+    // without this the next person to open /post on a shared device got the previous seller's draft
+    // back, photos included. Lazy: the modules are only needed at sign-out, not in every page's bundle.
+    clearAccountDeviceStorage()
     void import('@/lib/post-draft-photos').then((m) => m.clearDraftPhotos()).catch(() => {})
+    // The basket's in-memory copy is the tab's source of truth (rental-check/store.ts), so removing
+    // its keys alone would leave the pill and the cards showing the old basket until a reload.
+    void import('@/lib/rental-check/store').then((m) => { m.clearBasket(); m.clearDraft() }).catch(() => {})
   }, [])
 
   /**

@@ -1121,8 +1121,8 @@ const nextConfig: NextConfig = {
   // 2026-07-10: Supabase pinned to the exact project host (not *.supabase.co — connect-src
   // is the post-XSS exfiltration brake), Leaflet self-hosted (unpkg dropped), browser Meta
   // Pixel removed (facebook.net/stape/run.app dropped). Remaining external origins: pinned
-  // Supabase REST+realtime wss, CARTO tiles, GA/GTM, Cloudflare Insights+Turnstile, Vercel
-  // Insights. 'unsafe-inline'/'unsafe-eval' keep Next's inline scripts/styles and the GA
+  // Supabase REST+realtime wss, CARTO tiles, GA/GTM, Cloudflare Turnstile. (Cloudflare Web
+  // Analytics removed 2026-10-01 — it beaconed before consent; Vercel Insights went with Vercel.) 'unsafe-inline'/'unsafe-eval' keep Next's inline scripts/styles and the GA
   // bootstrap working. report-to + report-uri stay wired to the /api/csp-report collector
   // so any future violation is still logged, not just blocked.
   async headers() {
@@ -1168,22 +1168,17 @@ const nextConfig: NextConfig = {
       // SELF-HOSTED (public/vendor/leaflet) and the browser Meta Pixel is REMOVED (server-side
       // CAPI only) — so unpkg.com and the facebook.net/stape/run.app hosts are gone from every
       // directive. (va.vercel-scripts.com dropped with the Vercel→Cloud Run migration.)
-      // ⛔ THE TAG THIS ADMITS IS PAUSED AS OF 2026-08-26, so this entry is DORMANT, not
-      // load-bearing. The Meta Pixel was paused in GTM container GTM-NMN55HBT because its
-      // client-side probes to per-load RANDOMISED hosts (…run.app, …ecs.*.on.aws) are unallowlistable
-      // — the only way to permit them is wildcarding two clouds, which is the post-XSS exfiltration
-      // hole connect-src exists to close — and CSP blocking them cost 8 PageSpeed Best-Practices
-      // points on eno.forum. Verified after the pause: `fbq` undefined, no connect.facebook.net
-      // request, 0 CSP violations, 0 console errors.
-      // ⚠️ KEPT ON PURPOSE ANYWAY. The tag is PAUSED, not deleted, so it is one click from
-      // returning; removing this line would make that click silently do nothing — the tag would
-      // load and be blocked with no visible cause. Delete this entry when the tag is deleted, not
-      // before. Conversions are unaffected either way: those go server-side via lib/meta-capi.ts,
-      // which CSP does not touch.
-      // ⚠️ `connect.facebook.net` IS THE META PIXEL, AND IT IS HERE SO A GTM TAG CAN LOAD IT — the
-      // pixel is NOT in this repo's code. The browser pixel was removed on 2026-07-10 as the
-      // heaviest third party (~233 KiB) and stays removed; what is re-enabled is the ABILITY to
-      // add it as a tag in eno.forum's GTM container, which the owner manages without a deploy.
+      // ⛔ NO META PIXEL HOST, ON EITHER EDITION (2026-10-01) — `connect.facebook.net` (script +
+      // connect) and `www.facebook.com` (the pixel's image beacon) are gone. The pixel is not in this
+      // repo's code: the browser pixel was removed on 2026-07-10 (~233 KiB, the heaviest third party)
+      // and conversions go server-side through lib/meta-capi.ts, consent-gated, which CSP does not
+      // touch. The hosts survived only for a Meta Pixel tag in eno.forum's GTM container
+      // (GTM-NMN55HBT), PAUSED since 2026-08-26 — and that is exactly why they had to go: eno.forum's
+      // container loads for EVERY visitor, before any consent answer (analytics-tags.tsx), and a
+      // non-Google tag is not bound by Google's consent signals. So un-pausing that tag — one click in
+      // a web console, no deploy, no review — would have put a Meta pixel on the page before consent.
+      // Now that click is blocked, and the block shows up in /api/csp-report. Delete the paused tag in
+      // GTM; never re-add these hosts unless the pixel itself is gated on consent v2 Advertising.
       // ⚠️ Widening script-src is the part of GTM that actually costs something: CSP is what stops
       // a tag added in a web console from shipping an arbitrary new third party onto the site, so
       // every domain listed here is a permission granted permanently, in a reviewed commit. Add
@@ -1192,15 +1187,21 @@ const nextConfig: NextConfig = {
       // superset) so the on-device passport MRZ reader's WebAssembly core (Tesseract, self-hosted,
       // lazy-loaded on /dashboard/account/verify) compiles even if 'unsafe-eval' is ever tightened.
       // It grants ONLY WASM compilation, never JS eval — strictly narrower than what is already here.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://static.cloudflareinsights.com https://challenges.cloudflare.com" + gsiScript,
+      // ⛔ CLOUDFLARE WEB ANALYTICS IS NOT ALLOWED (2026-10-01). When a zone has it on, Cloudflare injects
+      // its beacon (static.cloudflareinsights.com script → cloudflareinsights.com) into every page at the
+      // edge — it runs on load, BEFORE any consent answer, and nothing in this repo can gate it. So the
+      // CSP blocks it on both editions. If a zone still injects it, the block shows up in
+      // /api/csp-report: switch Web Analytics off in the Cloudflare dashboard (both zones) rather than
+      // re-adding the hosts here, and never re-add them without a consent gate (consent v2, Analytics).
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://www.googletagmanager.com https://challenges.cloudflare.com" + gsiScript,
       "style-src 'self' 'unsafe-inline'" + gsiStyle,
       // Supabase is PINNED to our exact project host (not *.supabase.co): connect-src is the
       // main post-XSS exfiltration brake, and a wildcard would let stolen data POST to any
       // attacker-owned Supabase project. *.googleusercontent.com = Google account avatars
       // (OAuth sign-in) — without it they render as a broken-image icon.
-      // `www.facebook.com` is the pixel's 1x1 beacon — img-src, not connect-src: the classic pixel
-      // reports by loading an image, and without this the tag runs and every event is dropped.
-      `img-src 'self' capacitor: data: blob: ${SUPABASE_ORIGIN} https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com https://www.facebook.com`,
+      // ⛔ No `www.facebook.com`: that was the Meta pixel's 1x1 image beacon, and with the pixel gone
+      // its only remaining use would be a tag-manager image tag firing before consent (see script-src).
+      `img-src 'self' capacitor: data: blob: ${SUPABASE_ORIGIN} https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com`,
       // <video> sources for listing videos: our public bucket + blob: (the wizard's
       // client-side preview object URL). Without this, default-src 'self' blocks playback.
       `media-src 'self' blob: ${SUPABASE_ORIGIN}`,
@@ -1214,7 +1215,7 @@ const nextConfig: NextConfig = {
       // data: URL that the loader fetch()es into an ArrayBuffer. Without this, connect-src blocks that
       // fetch; Chrome has a fallback path but iOS Safari does not, so the engine silently fails to init
       // and passport autofill never runs on iPhone. data: is inline (no network egress), so this is safe.
-      `connect-src 'self' data: capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com https://connect.facebook.net` + gsiConnect,
+      `connect-src 'self' data: capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com` + gsiConnect,
       "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com" + gsiFrame + xmFrame,
       "worker-src 'self' blob:",
       "manifest-src 'self'",

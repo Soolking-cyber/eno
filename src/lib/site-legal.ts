@@ -316,3 +316,23 @@ export const PRELAUNCH = EDITION === 'marketplace'
  * Quy chế, which is what that paragraph itself promises readers.
  */
 export const PRELAUNCH_BANNER = false
+
+/**
+ * ⛔ THE PDPL IMPACT-ASSESSMENT DOSSIERS ARE **NOT** FILED (2026-10-01). /privacy used to say we "file them with
+ * the Ministry of Public Security" whenever `OPERATOR_REGISTERED` was true — which only means the company
+ * certificate exists, so the notice claimed a filing that had not happened (PDPL Art 13 accuracy; ND 330/2026
+ * Art 43.1(đ)). The processing-impact assessment (PDPL Art 21) and the cross-border transfer assessment (Art 20)
+ * are drafts in docs/compliance/pdpl-dossier-draft.md.
+ * Flip to true ONLY when A05 (Bộ Công an) has acknowledged receipt of BOTH dossiers — never on submission alone.
+ */
+export const PDP_DOSSIERS_FILED = false
+
+/**
+ * ⚠️ CURATED VIETNAMESE LEGAL TEXT AWAITING COUNSEL (2026-10-01). Terms, Privacy, Returns and Prohibited now carry
+ * a curated Vietnamese body (Law 122/2025 Art 11 requires the platform's terms in Vietnamese). Until the lawyer
+ * signs the Vietnamese text off, it is shown as a reviewed-translation draft and NO language is declared
+ * authoritative on those pages — declaring an unreviewed translation binding would make any translation error the
+ * contract. Flip to true after counsel's written sign-off: the pages then state "Bản tiếng Việt là bản có giá trị
+ * pháp lý", matching the Quy chế.
+ */
+export const LEGAL_VI_APPROVED = false

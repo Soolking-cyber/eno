@@ -268,4 +268,25 @@ describe('AuthProvider — signOut leaves nothing of the seller behind on a shar
     expect(localStorage.getItem('eno-listing-draft')).toBeNull()
     expect(clearDraftPhotos).toHaveBeenCalledTimes(1)
   })
+
+  it('⛔ drops the inbox and thread caches under their REAL names, the AI chat, the teacher draft and the rental basket', async () => {
+    createSupabaseBrowser.mockImplementation(() => ({
+      auth: { ...fakeClient().auth, signOut: () => Promise.resolve({ error: null }) },
+    }))
+    // The names chat-context.tsx actually writes (sign-out used to clear `eno-convos` / `eno-thr:` only).
+    localStorage.setItem('eno-convos-v2', JSON.stringify({ userId: 'u1', list: [{ id: 'c1' }] }))
+    localStorage.setItem('eno-thr2:c1', JSON.stringify({ userId: 'u1', data: {} }))
+    localStorage.setItem('eno:ai_chat_v1', JSON.stringify([{ role: 'user', content: 'a flat in D2' }]))
+    localStorage.setItem('eno.teacherDraft.v1', JSON.stringify({ name: 'A' }))
+    localStorage.setItem('eno:rental-check:v1', JSON.stringify({ v: 1, items: [] }))
+    localStorage.setItem('eno:rental-check-draft:v1', JSON.stringify({ requirements: 'pets' }))
+    localStorage.setItem('eno-theme', 'dark') // a device preference — stays
+    render(<AuthProvider><SignOutProbe /></AuthProvider>)
+    await act(async () => { screen.getByRole('button').click() })
+    await act(async () => { await vi.dynamicImportSettled() })
+    for (const k of ['eno-convos-v2', 'eno-thr2:c1', 'eno:ai_chat_v1', 'eno.teacherDraft.v1', 'eno:rental-check:v1', 'eno:rental-check-draft:v1']) {
+      expect(localStorage.getItem(k), k).toBeNull()
+    }
+    expect(localStorage.getItem('eno-theme')).toBe('dark')
+  })
 })

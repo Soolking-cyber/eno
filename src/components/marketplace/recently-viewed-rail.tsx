@@ -9,6 +9,7 @@ import { Shelf, RAIL_CARD_W } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 import { personalizationAllowed } from '@/lib/consent'
+import { CONSENT_V2_KEY } from '@/lib/consent-value'
 import { getViewedListingIds } from '@/lib/reco-signals'
 
 // History floor, deliberately below the promotional rails' MIN_RAIL_ITEMS — see the doc
@@ -17,7 +18,8 @@ const MIN_HISTORY_ITEMS = 2
 
 /** "Recently viewed" — the buyer's own trail of opened listings (device-local),
  *  so they can jump back to the exact item without re-searching. Consent-gated
- *  (same bar as the For-You rail); hidden below MIN_HISTORY_ITEMS = 2. Deliberately
+ *  (the Personalization purpose, same bar as the For-You rail — without it the
+ *  history is not even saved); hidden below MIN_HISTORY_ITEMS = 2. Deliberately
  *  NOT the promotional rails' MIN_RAIL_ITEMS=3 floor: this rail is personal recall,
  *  not manufactured density — a buyer on a PDP with exactly two viewed items still
  *  needs the way back to them (guard-review catch, 2026-08-06; briefly raised to 3
@@ -30,10 +32,30 @@ export function RecentlyViewedRail({ excludeId, sectionClassName }: { excludeId?
   const router = useRouter()
   const { tr, lang } = useLanguage()
   const [listings, setListings] = useState<SerializedListingCard[]>([])
+  // Personalization, read on the client only (the cookie is not known at SSR) and RE-READ on every
+  // `eno:consent`. ⛔ A withdrawal must take the rail off the screen at once — /privacy promises
+  // that switching Personalization off takes effect immediately, and the consent cleanup has just
+  // deleted the history these cards came from (consent-runtime.ts `enforceConsentCleanup`).
+  const [allowed, setAllowed] = useState(false)
   const { ref, near } = useNearViewport<HTMLDivElement>()
 
   useEffect(() => {
-    if (!near || !personalizationAllowed()) return
+    const sync = () => {
+      const ok = personalizationAllowed()
+      setAllowed(ok)
+      if (!ok) setListings((prev) => (prev.length ? [] : prev))
+    }
+    sync()
+    // Another tab's choice arrives as `storage`, not `eno:consent` (same filter as AnalyticsTags).
+    const onStorage = (e: StorageEvent) => { if (e.key === null || e.key === CONSENT_V2_KEY) sync() }
+    window.addEventListener('eno:consent', sync)
+    window.addEventListener('storage', onStorage)
+    return () => { window.removeEventListener('eno:consent', sync); window.removeEventListener('storage', onStorage) }
+  }, [])
+
+  useEffect(() => {
+    // `allowed` is a dependency so a withdrawal also cancels a fetch still in flight (`off`).
+    if (!near || !allowed) return
     let ids = getViewedListingIds()
     if (excludeId) ids = ids.filter((id) => id !== excludeId)
     ids = ids.slice(0, 12)
@@ -44,7 +66,7 @@ export function RecentlyViewedRail({ excludeId, sectionClassName }: { excludeId?
       .then((d) => { if (!off && d?.listings) setListings(d.listings) })
       .catch(() => { /* ignore */ })
     return () => { off = true }
-  }, [near, excludeId, lang])
+  }, [near, excludeId, lang, allowed])
 
   // Sentinel: the observer needs a node in the layout before there is data. It must be
   // OUT OF FLOW (absolute, zero-size): the home landing mounts this rail inside a space-y
@@ -52,7 +74,7 @@ export function RecentlyViewedRail({ excludeId, sectionClassName }: { excludeId?
   // the section gap whenever the rail self-hides. Absolute keeps its static position (IO
   // still fires; zero-area targets intersect at threshold 0) with no layout contribution.
   // NOT `hidden`/display:none — those never intersect and would silently kill the rail.
-  if (listings.length < MIN_HISTORY_ITEMS) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
+  if (!allowed || listings.length < MIN_HISTORY_ITEMS) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
 
   return (
     <Shelf icon={History} title={tr('Recently viewed', 'Đã xem gần đây')} sectionClassName={sectionClassName} watch={listings.length}>

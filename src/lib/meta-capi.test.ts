@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *
  * `sendMetaCapiEvent` transfers a user's HASHED EMAIL, HASHED PHONE, stable id, IP address and user
  * agent to Meta. That is a third-party advertising transfer, so it may happen only for someone who
- * chose the 'all' tier in the consent banner. The gate fails CLOSED: no cookie, an older tier, a
- * malformed value or a hand-built `userData` object all send nothing.
+ * switched on the Advertising purpose (consent v2 `d`). The gate fails CLOSED: no cookie, ANY v1 value
+ * (including the old 'all' tier, collected on a screen that never named advertising), an expired or
+ * malformed v2 value, the native app, or a hand-built `userData` object all send nothing.
  *
  * ⚠️ THE FAILURE MODE THIS GUARDS IS A NEW CALL SITE, NOT A CHANGED FUNCTION. Every current caller
  * builds `userData` with `metaUserDataFromHeaders`, which is what reads the cookie. Someone adding a
@@ -32,33 +33,67 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllGlobals() })
 
-/** A request carrying the given consent cookie value, or none at all. */
-const headers = (consent?: string) =>
-  new Headers({
-    'user-agent': 'Mozilla/5.0 (test)',
-    'x-forwarded-for': '203.0.113.9',
-    ...(consent === undefined ? {} : { cookie: `eno-cookie-consent=${consent}` }),
-  })
+const nowS = () => Math.floor(Date.now() / 1000)
+/** A consent v2 value: `bits` = p a d. */
+const v2 = (bits: string, ts = nowS() - 60) => `v2.${bits}.${ts}.c0ffee00-1234-4abc-8def-001122334455`
 
-const fire = async (consent?: string) => {
+/** A request carrying the given raw Cookie header, or none at all. */
+const headersRaw = (cookie?: string, ua = 'Mozilla/5.0 (test)') =>
+  new Headers({
+    'user-agent': ua,
+    'x-forwarded-for': '203.0.113.9',
+    ...(cookie === undefined ? {} : { cookie }),
+  })
+/** A request carrying a v1 value in the legacy host-only cookie the old gate read. */
+const headers = (consent?: string) => headersRaw(consent === undefined ? undefined : `eno-cookie-consent=${consent}`)
+
+const fireWith = async (h: Headers) => {
   await sendMetaCapiEvent('Contact', {
-    userData: metaUserDataFromHeaders(headers(consent), { email: 'buyer@example.com', externalId: 'p1' }),
+    userData: metaUserDataFromHeaders(h, { email: 'buyer@example.com', externalId: 'p1' }),
   })
 }
+const fire = (consent?: string) => fireWith(headers(consent))
 
 describe('sendMetaCapiEvent consent gate', () => {
-  it('sends for a visitor who chose the ad tier', async () => {
-    await fire('all')
+  it('sends for a visitor who switched Advertising on (consent v2)', async () => {
+    await fireWith(headersRaw(`eno-consent-v2=${v2('001')}`))
     expect(sent).toHaveLength(1)
     expect(sent[0].url).toContain('1234567890')
   })
 
-  it('sends NOTHING when the visitor declined', async () => {
-    await fire('essential')
+  it('⛔ sends NOTHING for a bare v1 "all" — that consent is asked again under v2', async () => {
+    await fire('all')
+    await fireWith(headersRaw('eno-consent=all; eno-cookie-consent=all'))
     expect(sent).toEqual([])
   })
 
-  it('sends NOTHING on the middle tier — personalization is first-party, ads are not', async () => {
+  it('⛔ sends NOTHING for a shared v2 refusal beside a host-only v1 "all"', async () => {
+    await fireWith(headersRaw(`eno-cookie-consent=all; eno-consent-v2=${v2('000')}`))
+    expect(sent).toEqual([])
+  })
+
+  it('sends NOTHING with Personalization and Analytics but not Advertising', async () => {
+    await fireWith(headersRaw(`eno-consent-v2=${v2('110')}`))
+    expect(sent).toEqual([])
+  })
+
+  it('⛔ sends NOTHING from inside the native app, whatever is stored (Apple ATT)', async () => {
+    await fireWith(headersRaw(`eno-consent-v2=${v2('111')}`, 'Mozilla/5.0 (iPhone) AppleWebKit EnoNativeApp/1'))
+    expect(sent).toEqual([])
+  })
+
+  it('sends NOTHING once the answer is older than 12 months', async () => {
+    await fireWith(headersRaw(`eno-consent-v2=${v2('111', nowS() - 366 * 24 * 3600)}`))
+    expect(sent).toEqual([])
+  })
+
+  it('sends NOTHING when the visitor declined', async () => {
+    await fire('essential')
+    await fireWith(headersRaw(`eno-consent-v2=${v2('000')}`))
+    expect(sent).toEqual([])
+  })
+
+  it('sends NOTHING on the old middle tier — personalization is first-party, ads are not', async () => {
     await fire('personalized')
     expect(sent).toEqual([])
   })
@@ -83,7 +118,7 @@ describe('sendMetaCapiEvent consent gate', () => {
 
   it('never puts a raw email or phone on the wire', async () => {
     await sendMetaCapiEvent('Contact', {
-      userData: metaUserDataFromHeaders(headers('all'), { email: 'buyer@example.com', phone: '+84901234567' }),
+      userData: metaUserDataFromHeaders(headersRaw(`eno-consent-v2=${v2('001')}`), { email: 'buyer@example.com', phone: '+84901234567' }),
     })
     const wire = JSON.stringify(sent[0].body)
     expect(wire).not.toContain('buyer@example.com')
