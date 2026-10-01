@@ -75,14 +75,36 @@ import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
 const APPLY = process.argv.includes('--apply')
+/**
+ * ⚠️ ONE SCRIPT, TWO REVIEW SEATS (2026-10-01). `--for=lawyer` creates the account the owner's lawyer uses to
+ * check eno.vn for regulatory compliance (owner: "create a test account for the lawyer to check the
+ * platform"; chose a shared password account knowing it needs the official-partner flag). Same minimal row
+ * set and the same reasoning as the Play seat above; only the address, the public name and the credential
+ * file differ. The default (no flag) is still the Play reviewer, unchanged.
+ */
+// ⛔ FAIL CLOSED ON A MISTYPED SEAT: `--for lawyer` (space) or `--for=Lawyer` must not silently fall
+// through to the Play seat and touch the wrong account (a reviewer's catch).
+const forArg = process.argv.find((a) => a === '--for' || a.startsWith('--for='))
+if (forArg && forArg !== '--for=lawyer') {
+  console.error(`unknown ${forArg} — the only seat flag is --for=lawyer (no flag = the Play reviewer)`)
+  process.exit(1)
+}
+const FOR_LAWYER = forArg === '--for=lawyer'
 
 /**
  * ⚠️ THE ADDRESS IS ON A DOMAIN WE CONTROL AND IS NOT AN ADMIN ONE. ADMIN_EMAILS on the box is
- * support@eno.forum and nothing else; naming that address here would hand Play's reviewers the
- * admin console. Nothing is ever delivered to this mailbox either — the account is created with
- * email_confirm so it can sign in without an inbox round-trip.
+ * support@eno.forum and nothing else (an EXACT allowlist, src/lib/admin.ts — not a domain match);
+ * naming that address here would hand Play's reviewers the admin console. Nothing is ever delivered
+ * to either mailbox — the account is created with email_confirm so it can sign in without an inbox
+ * round-trip. ⚠️ So any chat notification email for the lawyer seat goes nowhere: since 2026-10-01
+ * that seat is also the Luật Hoàng Phi storefront (scripts/seed-hoangphi.ts), whose buyer chats are
+ * read only when the lawyer signs in — unless a Cloudflare routing rule forwards lawyer-review@eno.vn.
  */
-const REVIEWER = {
+const REVIEWER = FOR_LAWYER ? {
+  email: 'lawyer-review@eno.vn',
+  sellerName: 'eno legal review (internal)',
+  displayName: 'Legal review',
+} : {
   email: 'play-review@eno.forum',
   // ⚠️ THIS NAME IS PUBLIC — it renders on /sellers/<id>, which is reachable (see the header).
   // It is written to say plainly what the account is, so a user or a reviewer who ever lands on
@@ -100,7 +122,7 @@ const REVIEWER = {
  */
 const CRED_FILE = join(
   execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim(),
-  '.env.play-reviewer.local',
+  FOR_LAWYER ? '.env.lawyer-review.local' : '.env.play-reviewer.local',
 )
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -294,11 +316,13 @@ try {
             // symlink — see CRED_FILE above.
             writeFileSync(
               CRED_FILE,
-              `# Google Play Console → App content → Sign in details\n` +
+              (FOR_LAWYER ? `# Legal review sign-in for eno.vn (email + password, eno.vn/signin)\n` : `# Google Play Console → App content → Sign in details\n`) +
                 `# Created ${new Date().toISOString()} by scripts/register-play-reviewer.mjs\n` +
-                `# Paste these into the Play form. Treat as a live credential; rotate if it leaks.\n` +
-                `PLAY_REVIEWER_EMAIL=${REVIEWER.email}\n` +
-                `PLAY_REVIEWER_PASSWORD=${password}\n`,
+                (FOR_LAWYER
+                  ? `# Hand to the lawyer only, over a private channel. Treat as a live credential; rotate if it leaks.\n`
+                  : `# Paste these into the Play form. Treat as a live credential; rotate if it leaks.\n`) +
+                `${FOR_LAWYER ? 'LAWYER' : 'PLAY'}_REVIEWER_EMAIL=${REVIEWER.email}\n` +
+                `${FOR_LAWYER ? 'LAWYER' : 'PLAY'}_REVIEWER_PASSWORD=${password}\n`,
               { mode: 0o600, flag: 'wx' },
             )
             console.log(`  ✓ credentials written to ${CRED_FILE} (${password.length} chars, not printed)`)
