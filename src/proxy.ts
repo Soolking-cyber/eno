@@ -190,9 +190,10 @@ const NOT_FOUND_PATH = '/~/not-found'
  * ⛔ A PUBLIC `/en/…` or `/vi/…` IS NOT A SECOND URL FOR THE SAME PAGE. Without this, `/vi/c/rentals`
  * would render — a duplicate of `/c/rentals` for crawlers, and a way to force a variant past the
  * cookie. It 404s in the visitor's own language instead.
- * ⚠️ THE ONE PLACE A VARIANT IS NOT THE VISITOR'S IS A FIXED-LANGUAGE GUIDE (SEO wave B, V1), and it is
- * decided by the PATH it already has, never by a prefix: `/thanh-ly-do-gia-dung-cu-tphcm` renders
- * Vietnamese for everyone (src/lib/lang-pinned.ts). No new URL, no redirect.
+ * ⚠️ THE PLACES A VARIANT IS NOT THE VISITOR'S ARE A FIXED-LANGUAGE GUIDE (SEO wave B, V1), decided by the
+ * PATH it already has — `/thanh-ly-do-gia-dung-cu-tphcm` renders Vietnamese for everyone — and, once V5
+ * switches the pilot on, the `/vi` twin of a piloted path (V3a). Both live in src/lib/lang-pinned.ts; a
+ * `/vi…` it does not pin still 404s here.
  */
 const INTERNAL_PREFIX = /^\/(en|vi)(\/|$)/
 
@@ -354,7 +355,26 @@ export function proxy(req: NextRequest) {
      * ⚠️ NOT ON A STOREFRONT HOST: a shop's host serves the ordinary app on every path but `/`, and those
      * paths keep negotiating, as they did.
      */
+    /**
+     * ⛔ AND THE `/vi` PILOT (SEO wave B, V3a — DORMANT until V5 fills `VI_PREFIX_PATHS`, lang-pinned.ts):
+     * a piloted plain path renders English for everyone (decision V-a); `/vi` + that path renders
+     * Vietnamese, also for everyone, at the plain path's own `vi` ISR entry; `/vi` + a WITHDRAWN path 308s
+     * to the plain path, query kept — never a 404 once such a URL may be indexed (rollback V-R). Any
+     * other `/vi…` is not pinned and keeps 404ing through INTERNAL_PREFIX below. The marketplace only
+     * (`VI_PILOT` is empty on eno.forum), and never on a storefront host.
+     * ⚠️ NO LANGUAGE REDIRECT ANYWHERE: the 308 is path-based, for a retired URL only (plan §5).
+     */
     const pinned = handle ? null : pinnedRoute(req.nextUrl.pathname)
+    if (pinned && 'redirect' in pinned) {
+      // To the canonical origin (behind nginx `req.nextUrl` can carry the internal host), concatenated —
+      // never `new URL(path, base)` (see the underscore-host note). The path is one of our own list entries.
+      const to = `${apexOrigin(process.env.NEXT_PUBLIC_APP_URL) || req.nextUrl.origin}${pinned.redirect}${req.nextUrl.search}`
+      const res = NextResponse.redirect(to, 308)
+      // Bounded (review): a 308 with no lifetime is kept by browsers indefinitely, which would strand a
+      // path ever piloted again behind its old rollback.
+      res.headers.set('Cache-Control', 'public, max-age=86400')
+      return withCors(res, origin)
+    }
     if (pinned) return rewriteToLang(req, pinned.variant, pinned.internalPath)
     return rewriteToLang(req, lang, req.nextUrl.pathname)
   }

@@ -20,6 +20,7 @@ import { STROKE_NAV } from '@/lib/icon-tokens'
 // drags its 99-icon map into this route's chunk (see category-glyph.tsx's header).
 import { CategoryGlyphArt } from './category-glyph'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import { stripViPrefix } from '@/lib/lang-pinned'
 
 /**
  * The guest Account sheet (O-09) — loaded on demand: only a signed-out visitor who touches the Account
@@ -243,7 +244,9 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
  *  there, behind a sticky contact CTA; that bar was deleted and the tab bar came
  *  back, so any layout that still reserves its own clearance on a PDP is stale.) */
 export function MobileNav() {
-  const pathname = usePathname()
+  // `/vi` + a piloted path is that path for every tab check (SEO wave B, V3a; the identity while the
+  // pilot is off) — Explore stays lit on `/vi`.
+  const pathname = stripViPrefix(usePathname())
   const { count } = useFavorites()
   const { tr } = useLanguage()
   const { user, loading } = useAuth()

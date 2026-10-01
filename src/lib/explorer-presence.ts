@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useSyncExternalStore } from 'react'
+import { stripViPrefix } from '@/lib/lang-pinned'
 
 /**
  * Is a <ListingsExplorer> mounted on this page right now?
@@ -67,7 +68,8 @@ export function explorerFallbackUrl(pathname: string | null | undefined, extra: 
 
 /** The category of a /c/<category>[/<district>] landing page, or null anywhere else. */
 export function categoryFromPath(pathname: string | null | undefined): string | null {
-  const raw = pathname?.match(/^\/c\/([^/?#]+)/)?.[1]
+  // `/vi/c/<x>` of a piloted category is category `x` (SEO wave B, V3a; the identity while the pilot is off).
+  const raw = stripViPrefix(pathname)?.match(/^\/c\/([^/?#]+)/)?.[1]
   if (!raw) return null
   try { return decodeURIComponent(raw) } catch { return null }
 }

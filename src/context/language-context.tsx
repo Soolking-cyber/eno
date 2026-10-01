@@ -20,7 +20,7 @@ import {
   seedViDict,
 } from '@/lib/i18n/mt-client'
 import { LANG_COOKIE, variantOfLanguage } from '@/lib/lang-variant'
-import { pinnedPair, pinnedRoute } from '@/lib/lang-pinned'
+import { pinnedPair, pinnedVariant } from '@/lib/lang-pinned'
 
 // Re-exported so the many existing importers of the roster keep working
 // (the canonical definition now lives in the isomorphic @/lib/i18n/langs).
@@ -120,10 +120,14 @@ function isNativePlatform(): boolean {
  * this file, and reviewers showed the copy could disagree with `storefrontHandleFromHost` (reserved,
  * infra and nested labels); the proxy's own rule cannot ship here without the guide registries it
  * imports. The variant the server actually rendered is the one signal both sides share.
+ * ⚠️ THE `/vi` PILOT USES THE SAME RULE (SEO wave B, V3a; dormant until V5): a piloted plain path is pinned
+ * to `en` and its `/vi` twin to `vi`, so the mount never reloads across them, even when the visitor's
+ * stored choice differs — the banner (lang-suggestion-banner.tsx) offers the twin instead — and
+ * `setLang` goes to the twin with `location.assign` (pinnedPair), as on a paired guide.
  */
 function pinnedHere(serverVariant: 'en' | 'vi'): boolean {
   if (typeof window === 'undefined') return false
-  return pinnedRoute(window.location.pathname)?.variant === serverVariant
+  return pinnedVariant(window.location.pathname) === serverVariant
 }
 
 /** The visitor's language as the mount decides it: a stored choice, then a chosen cookie, then the device. */
