@@ -48,6 +48,58 @@ fail() { printf 'STORAGE BACKUP FAILED: %s\n' "$*" >&2; { date -u +%FT%TZ; echo 
 # ⚠️ -E + an ERR trap: anything set -e would kill WITHOUT a marker goes through fail() instead.
 trap 'fail "unexpected error on line $LINENO"' ERR
 
+# ⛔ EVERY rclone CALL HAS A DEADLINE OF ITS OWN. From 2026-09-24 to 2026-10-01 every night died the
+# same way: one rclone call sat for 8h logging the same one-line stats, and systemd's TimeoutStartSec
+# killed the WHOLE unit — so the manifest, roles, verification, retention and orphan steps never ran,
+# and the only trace was "timeout" with no hint of which call stalled. A stall must fail THAT call,
+# loudly and early, with its name in the marker. CALL_LIMIT=<seconds> on a call overrides the
+# default (a function call's env prefix lasts for that call). ⛔ NOT "RCLONE_TIMEOUT": rclone reads
+# every RCLONE_* variable as a flag, and that one silently became its IO idle --timeout (caught by
+# the harness). --kill-after: a stalled rclone took ~2 min to honour SIGTERM on those nights.
+# ⚠️ AND ONE BUDGET FOR THE WHOLE RUN, under the unit's TimeoutStartSec=8h. Per-call limits alone add
+# up past 8h (four listings, the upload, the sync…), and then systemd — not this script — would end the
+# night with no step named. So each call gets min(its own limit, what is left of the budget), minus
+# the 3 min --kill-after grace.
+to_secs() {  # 90 | 90s | 30m | 5h → seconds; anything else → fail
+  case "$1" in
+    *[!0-9smh]*|''|[smh]*) return 1 ;;
+    *h) printf '%s' $(( 10#${1%h} * 3600 )) ;; *m) printf '%s' $(( 10#${1%m} * 60 )) ;;
+    *s) printf '%s' $(( 10#${1%s} )) ;; *[0-9]) printf '%s' $(( 10#$1 )) ;; *) return 1 ;;
+  esac
+}
+RCLONE_BIN=$(command -v rclone) || fail "rclone is not installed"
+for v in CALL:30m LIST:90m UPLOAD:5h SYNC:2h BUDGET:450m; do
+  n=${v%%:*}; d=${v#*:}; e="ENO_STORAGE_${n}_TIMEOUT"; raw="${!e:-}"
+  [ -n "$raw" ] || raw=$d
+  secs=$(to_secs "$raw") || fail "$e='$raw' is not a duration (e.g. 90s, 30m, 5h)"
+  [ "$secs" -ge 1 ] || fail "$e='$raw' must be at least 1s"
+  printf -v "${n}_TIMEOUT" '%s' "$secs"
+done
+# CALL: any call not named below · LIST: one public bucket's listing (§2, §7) · UPLOAD: the public
+# upload (32 GB took 47 min on a fresh bucket) · SYNC: the private sync · BUDGET: the whole run (7.5h).
+RUN_DEADLINE=$(( $(date +%s) + BUDGET_TIMEOUT ))
+rclone() {
+  local limit="${CALL_LIMIT:-$CALL_TIMEOUT}" left rc=0 t0
+  left=$(( RUN_DEADLINE - $(date +%s) - 180 ))
+  if [ "$left" -lt 1 ]; then
+    printf 'rclone %s: not started — the run budget (ENO_STORAGE_BUDGET_TIMEOUT) is spent\n' "$1" >&2; return 124
+  fi
+  [ "$left" -ge "$limit" ] || limit=$left
+  t0=$(date +%s)
+  # 9>&-: rclone must not inherit the run lock. systemd logged "rclone remains running after unit
+  # stopped" on five of those nights; a survivor holding fd 9 would make the next night "skip" with
+  # exit 0 — a silent green.
+  timeout --kill-after=3m "$limit" "$RCLONE_BIN" "$@" 9>&- || rc=$?
+  # 124 = our deadline (TERM worked). 137 = SIGKILL: ours only if the deadline had passed — otherwise
+  # it came from elsewhere, and on this unit that is the MemoryMax OOM killer.
+  if [ "$rc" -eq 124 ] || { [ "$rc" -eq 137 ] && [ $(( $(date +%s) - t0 )) -ge "$limit" ]; }; then
+    printf 'rclone %s: still running after %ss — killed (a stall, not a result)\n' "$1" "$limit" >&2
+  elif [ "$rc" -eq 137 ]; then
+    printf 'rclone %s: SIGKILLed after %ss, before its deadline — out of memory (MemoryMax)? check `journalctl -k`\n' "$1" $(( $(date +%s) - t0 )) >&2
+  fi
+  return "$rc"
+}
+
 # ⚠️ ONE RUN AT A TIME. The first run moves 32 GB and can outlast a night; a timer firing into
 # it would run two uploads against the same bucket. Skipping is exit 0 on purpose — the running
 # job reports its own outcome.
@@ -152,7 +204,8 @@ KEEP_GLOBALS=2      # matches the dumps: a roles file is only useful beside a du
 # below never picks a file the upload could not have seen.
 START_REF=$(mktemp); TMP_MANIFEST=$(mktemp --suffix=.jsonl.gz); SAMPLE=$(mktemp)
 REMOTE_LIST=$(mktemp); LOCAL_LIST=$(mktemp); DUE=$(mktemp)
-trap 'rm -f "$START_REF" "$TMP_MANIFEST" "$SAMPLE" "$REMOTE_LIST" "$LOCAL_LIST" "$DUE"' EXIT
+REMOTE_SIZES=$(mktemp); LOCAL_SIZES=$(mktemp); TODO=$(mktemp); TODO_SIZES=$(mktemp); LIST_ERR=$(mktemp)
+trap 'rm -f "$START_REF" "$TMP_MANIFEST" "$SAMPLE" "$REMOTE_LIST" "$LOCAL_LIST" "$DUE" "$REMOTE_SIZES" "$LOCAL_SIZES" "$TODO" "$TODO_SIZES" "$LIST_ERR" "$LIST_ERR.part" "$REMOTE_LIST.sizes" "$LOCAL_LIST.sizes"' EXIT
 
 # ── 1. floor check — BEFORE anything is mirrored ────────────────────────────
 # ⛔ A SYNC MIRRORS LOSS AS FAITHFULLY AS IT MIRRORS DATA. If the volume is unmounted, emptied
@@ -242,19 +295,111 @@ fi
 # --s3-upload-cutoff 1G: every object goes up in ONE part, so its ETag is its MD5 and §5 can verify
 # it — a multipart ETag is not an MD5 and would read as "could not be checked" (a red night).
 # Largest object today: 7 MB (measured 2026-09-23).
+# Full stats, not --stats-one-line: the one-line form shows bytes only, so a night spent CHECKING
+# (or stalled) logged "0 B / 0 B" for hours and was indistinguishable from either.
 RCLONE_COMMON=(--size-only --transfers 4 --checkers 8 --bwlimit "$BWLIMIT" --s3-upload-cutoff 1G
-               --stats 15m --stats-one-line --stats-log-level NOTICE)
+               --stats 15m --stats-log-level NOTICE)
 
-# ⚠️ --fast-list only where it pays: listing 555k objects in pages of 1,000 is ~560 calls instead of
-# one per directory (every object is its own directory here), at ~1 KB of RAM per object.
-rclone copy "$SRC" "$DEST" "${RCLONE_COMMON[@]}" "${PUBLIC[@]}" --fast-list \
-  || fail "copy of listings/listing-videos (rclone exit $?)"
+# ⛔ THE PUBLIC HALF IS COMPARED BY TWO STREAMED LISTINGS, NOT BY `rclone copy --fast-list`.
+# That copy built the whole bucket as an in-memory directory TREE — and here every object is its own
+# directory, so 555k objects meant ~1.1M tree nodes. It fitted on the first night only because the
+# bucket was empty; every night after (2026-09-24 → 10-01) the unit's memory sat at its MemoryHigh
+# (peak 1.74 GB vs 1.61 GB high, measured 10-01), and with no swap on the box the kernel can reclaim
+# none of rclone's heap: it THROTTLES the process instead of killing it. Result: 1h of CPU in 8h,
+# stats frozen, and systemd's timeout the only thing that ever ended it. (rclone builds the same tree
+# for `lsf` whenever a --filter is set — and the first night, the one whose copy fitted, went silent
+# right after §5, at §7's filtered `lsf --fast-list`.)
+# A listing of ONE bucket path with no filter is streamed by ListR, so each public bucket is listed
+# that way. MEASURED on the box 2026-10-01, read-only, same bucket: the old filtered `lsf --fast-list`
+# reached 1.9 GB RSS and was still grinding CPU with no output after 20+ min; the streamed form
+# listed all 555,792 objects in 42 s at 262 MB peak. Paths are prefixed back and diffed against the volume by
+# path AND size — the same test --size-only applied (§2's header: a path is never rewritten).
+# Only the difference is uploaded, with --no-check-dest: by construction none of it is in the bucket
+# at that size, so a HEAD per file would only re-ask what the listing just answered.
+# ⚠️ This is the FULL comparison every night, not an incremental --max-age pass: a file restored
+# with an old mtime, or missed by a failed night, is still found.
+# A bucket path that does not exist yet lists as empty on S3; on other backends it is "directory not
+# found" — both mean "nothing there", anything else is a failure.
+list_public_remote() {  # <out file>: "<path>\t<size>" for every object in the public half
+  local out="$1" b rc
+  : > "$out"
+  for b in "${PUBLIC_BUCKETS[@]}"; do
+    rc=0; CALL_LIMIT=$LIST_TIMEOUT rclone lsf -R --files-only --fast-list --format ps --separator $'\t' \
+          "$DEST/stub/stub/$b" > "$LIST_ERR.part" 2> "$LIST_ERR" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+      # Only rclone's "directory not found" EXIT CODE (3) with that message means empty — a stall or
+      # a kill that happened to log the phrase earlier must not read as "the bucket is empty".
+      if [ "$rc" -eq 3 ] && grep -q 'directory not found' "$LIST_ERR"; then : > "$LIST_ERR.part"
+      else tail -n 3 "$LIST_ERR" >&2; rm -f "$LIST_ERR.part"; return 1; fi
+    fi
+    awk -v p="stub/stub/$b/" '$0 != "" { print p $0 }' "$LIST_ERR.part" >> "$out"
+  done
+  rm -f "$LIST_ERR.part"
+}
+# ⛔ THIS LIST DECIDES WHAT IS UPLOADED, so an unreadable directory must FAIL the night, not quietly
+# leave its files out (the other `find`s here ignore errors because they only count or sample). The
+# one error that is normal is a file or directory deleted while find walks it — that is a deletion,
+# and §7 handles deletions.
+# Under a deadline too (LIST, capped by the run budget like every rclone call): a hung disk must fail
+# this step by name, not run into the unit's 8h. (Not bounded: §1's counting walks, §3's manifest scan
+# and §7's python — local, measured at 28-41 s each on 620k files; the unit's 8h is their backstop.)
+# (find's ordinary exit 1 for a vanished file is not an error; a timeout is written into the error file.)
+# ⚠️ ONE `grep -qv`, never `grep -v … | grep -q .`: under pipefail, grep -q quitting early SIGPIPEs the
+# first grep, the pipeline returns 141, and a disk spewing errors would read as "no errors".
+list_public_local() {  # <out file> <find -printf format>
+  local err rc limit; err=$(mktemp)
+  limit=$(( RUN_DEADLINE - $(date +%s) - 180 )); [ "$limit" -le "$LIST_TIMEOUT" ] || limit=$LIST_TIMEOUT
+  [ "$limit" -ge 1 ] || { echo "find: not started — the run budget is spent" >&2; rm -f "$err"; return 1; }
+  { rc=0; timeout --kill-after=1m "$limit" find "$SRC" -type f -printf "$2" 2>"$err" || rc=$?
+    case "$rc" in 0) ;; 124|137) echo "find: still running after ${limit}s — killed" >> "$err" ;;
+      *) [ -s "$err" ] || echo "find: exit $rc with no message" >> "$err" ;; esac; } \
+    | { grep -E "$PUBLIC_RE" || true; } > "$1"
+  # ENOENT is a file vanishing mid-walk — but not if what vanished is the volume itself.
+  [ -d "$SRC" ] || echo "the volume $SRC is gone" >> "$err"
+  if grep -qv 'No such file or directory' "$err"; then
+    grep -v 'No such file or directory' "$err" | head -n 3 >&2 || true; rm -f "$err"; return 1
+  fi
+  rm -f "$err"
+}
+# ⚠️ "<path>\t<size>" lines are the protocol, so a path with a tab or a newline would be cut in two
+# and silently mis-handled. Supabase storage keys cannot contain either; if one ever appears the night
+# fails here rather than guessing.
+well_formed() { ! LC_ALL=C grep -qvE $'^[^\t]+\t[0-9]+$' "$1"; }
+list_public_remote "$REMOTE_SIZES" || fail "listing the public part of the bucket"
+list_public_local "$LOCAL_SIZES" '%P\t%s\n' || fail "walking the volume for the public half (an unreadable path?)"
+well_formed "$REMOTE_SIZES" || fail "the bucket listing has a path with a tab or newline — not handled; refusing to guess"
+well_formed "$LOCAL_SIZES" || fail "the volume has a public path with a tab or newline — not handled; refusing to guess"
+LC_ALL=C sort -o "$REMOTE_SIZES" "$REMOTE_SIZES"; LC_ALL=C sort -o "$LOCAL_SIZES" "$LOCAL_SIZES"
+LC_ALL=C comm -23 "$LOCAL_SIZES" "$REMOTE_SIZES" > "$TODO_SIZES"
+cut -f1 "$TODO_SIZES" > "$TODO"
+n_todo=$(wc -l < "$TODO")
+echo "public half: $(wc -l < "$LOCAL_SIZES") files here, $(wc -l < "$REMOTE_SIZES") in the bucket, $n_todo to upload"
+# A file deleted on the box between the listing and the upload is skipped by --files-from (it
+# becomes an orphan tomorrow, like any deletion) — measured in the harness, not assumed.
+if [ "$n_todo" -gt 0 ]; then
+  # ⛔ SECOND LOCK on "nothing private goes to the PLAIN bucket". The list was built with PUBLIC_RE;
+  # this re-checks it by a DIFFERENT mechanism — literal string prefixes from PUBLIC_BUCKETS, no regex —
+  # so a future loosening of the regex cannot alone send a passport up in the clear. (rclone 1.60
+  # refuses --filter beside --files-from: "overrides all other filters", so the copy cannot carry
+  # "${PUBLIC[@]}" itself.)
+  awk -v buckets="${PUBLIC_BUCKETS[*]}" 'BEGIN { n = split(buckets, b, " ") }
+    { ok = 0; for (i = 1; i <= n; i++) if (index($0, "stub/stub/" b[i] "/") == 1) ok = 1
+      if (!ok) { bad = 1; exit } } END { exit bad }' "$TODO" \
+    || fail "upload list holds a non-public path — refusing to upload it unencrypted"
+  # --retries 1: with --no-check-dest a retry re-sends the WHOLE list (rclone's docs say so); the
+  # next night's comparison is the retry. DEFERRED, not fatal: the manifest, roles, verification and
+  # orphan steps still run (the night still fails, in §8). A failed LISTING above stays fatal — without
+  # it there is no list to upload or to judge orphans by.
+  CALL_LIMIT=$UPLOAD_TIMEOUT rclone copy "$SRC" "$DEST" "${RCLONE_COMMON[@]}" \
+    --files-from-raw "$TODO" --no-check-dest --retries 1 \
+    || defer "upload of $n_todo listings/listing-videos files stopped (rclone exit $?) — tomorrow's comparison re-sends whatever did not land"
+fi
 # ⚠️ DEFERRED, not fatal: a retention sweep bigger than the cap is a question for a person, not a
 # reason to skip tonight's manifest, verification and orphan bookkeeping for 555k public files.
 # rclone still uploads everything new; it only stops deleting at the cap.
 if [ -n "$PRIVATE_BLOCKED" ]; then
   defer "$PRIVATE_BLOCKED"
-else rclone sync "$SRC" "$CDEST" "${RCLONE_COMMON[@]}" "${PRIVATE[@]}" --max-delete "$MAX_DELETE" \
+else CALL_LIMIT=$SYNC_TIMEOUT rclone sync "$SRC" "$CDEST" "${RCLONE_COMMON[@]}" "${PRIVATE[@]}" --max-delete "$MAX_DELETE" \
   || defer "sync of private buckets stopped (rclone exit $?) — if more than $MAX_DELETE identity documents were erased on purpose tonight, re-run once by hand with ENO_STORAGE_MAX_DELETE=<n>"
 fi
 echo "bytes backed up: $now_count files on the volume"
@@ -411,10 +556,28 @@ prune_keep_newest "$(join "$CRYPT_BASE" globals)" '^globals-[0-9]{8}T[0-9]{6}Z\.
 # ⚠️ Losing the state file (a new box) only restarts the clock: every orphan waits 14 more days.
 # ⛔ Count-capped (MAX_EXPIRE, its own knob): more than that due at once is not housekeeping, it
 # is something for a person to look at, so nothing is deleted and the run fails.
-rclone lsf -R --files-only --fast-list "${PUBLIC[@]}" "$DEST" > "$REMOTE_LIST" \
-  || fail "listing the public part of the bucket (rclone exit $?)"
-{ find "$SRC" -type f -printf '%P\n' 2>/dev/null || true; } \
-  | { grep -E "$PUBLIC_RE" || true; } > "$LOCAL_LIST"
+# Listed AGAIN, after tonight's uploads, the streamed way (§2 — the filtered `lsf --fast-list` that
+# used to be here held the whole tree in memory and is where the first night stalled).
+list_public_remote "$REMOTE_LIST.sizes" || fail "listing the public part of the bucket"
+LC_ALL=C sort -o "$REMOTE_LIST.sizes" "$REMOTE_LIST.sizes"
+cut -f1 "$REMOTE_LIST.sizes" > "$REMOTE_LIST"
+list_public_local "$LOCAL_LIST.sizes" '%P\t%s\n' || fail "walking the volume for orphan bookkeeping (an unreadable path?)"
+LC_ALL=C sort -o "$LOCAL_LIST.sizes" "$LOCAL_LIST.sizes"
+cut -f1 "$LOCAL_LIST.sizes" > "$LOCAL_LIST"
+# ⚠️ PROVE TONIGHT'S UPLOAD LANDED — path AND size, against this fresh listing. --files-from-raw
+# skips a name it cannot find without an error: right for a file deleted mid-run, silent for anything
+# else (a name rclone encodes differently from find). Tonight's uploads that are still on the volume
+# but not in the bucket at their size fail the night.
+# Sizes from THIS walk, not §2's: a photo Supabase was still writing when §2 listed it has its full
+# size by now, and so does its upload — §2's snapshot would call a correct night red.
+not_landed() {
+  awk -F'\t' 'NR == FNR { want[$0] = 1; next } ($1 in want)' "$TODO" "$LOCAL_LIST.sizes" \
+    | LC_ALL=C comm -23 - "$REMOTE_LIST.sizes" | cut -f1
+}
+n_missing=$(not_landed | wc -l)
+if [ "$n_missing" -gt 0 ]; then
+  defer "$n_missing of tonight's $n_todo public uploads are still not in the bucket at their size (e.g. $(not_landed | head -n 1))"
+fi
 cutoff=$(date -u -d "-$ORPHAN_DAYS days" +%Y%m%dT%H%M%SZ)
 had_orphan_state=no; [ -f "$ORPHANS" ] && had_orphan_state=yes
 read -r n_orphans n_due n_new n_prev < <(python3 - "$REMOTE_LIST" "$LOCAL_LIST" "$ORPHANS" "$STAMP" "$cutoff" "$DUE" <<'PY'

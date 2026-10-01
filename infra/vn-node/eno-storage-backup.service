@@ -26,12 +26,26 @@ CPUSchedulingPolicy=batch
 # would turn a busy night into a timed-out, skipped backup.
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
-# rclone --fast-list holds the bucket listing in RAM (~1 KB per object, ~0.6 GB today). A cap
-# means a runaway listing kills the backup, never the database next to it.
-MemoryHigh=1536M
+# A cap means a runaway listing kills the backup, never the database next to it.
+# ⛔ A HARD CAP ONLY — NO MemoryHigh. This box has NO SWAP, so a cgroup over MemoryHigh cannot have
+# its heap reclaimed: the kernel THROTTLES it, indefinitely, instead of killing it. From 2026-09-24 to
+# 10-01 `MemoryHigh=1536M` turned an over-large rclone listing (peak 1.74 GB) into eight silent hours
+# a night, ended only by TimeoutStartSec. Over MemoryMax the OOM killer ends it in seconds, rclone exits
+# non-zero, and (with OOMPolicy=continue below) the script's marker names the step. The script now streams its listings (§2), so the
+# whole run should stay in the low hundreds of MB.
 MemoryMax=3G
+# ⛔ …AND ONLY IF systemd LETS THE SCRIPT SEE IT. The default OOMPolicy=stop (measured on the box,
+# systemd 255) stops the WHOLE unit when the kernel OOM-kills any process in it: the script would get
+# SIGTERM, never name the step, and skip steps 3-8. `continue` leaves the kill to rclone alone and
+# the script reports that step by name ("SIGKILLed … before its deadline"). Whether the rest of the
+# night then runs is the script's call: an upload or private-sync failure is deferred (steps 3-8 still
+# run), a failed listing is fatal (there is nothing to compare against).
+OOMPolicy=continue
 # The first sync of 32 GB at the 20 MiB/s limit is ~30 min; nightly runs are minutes. A hung
 # upload must end as a visible failure, not an unbounded run the next timer skips behind.
+# The backstop only: every rclone call in the script has its own deadline (the upload 5h, each
+# listing 90 min, everything else 30 min), all capped by one 7.5h run budget, so a stall fails ITS
+# step, by name, before this — keep ENO_STORAGE_BUDGET_TIMEOUT below this value.
 TimeoutStartSec=8h
 # ⛔ A FAILED BACKUP MUST BE VISIBLE: oneshot propagates the exit code to `systemctl --failed`.
 StandardOutput=journal

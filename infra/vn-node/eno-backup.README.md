@@ -145,6 +145,20 @@ When a run fails on purpose — each failure names its own override, run ONCE by
 | cannot reach the crypt remote | an outage | wait; do NOT touch the key or the canary |
 | does not show .key-canary / decrypts to something else | the key in use is not the escrowed one | compare the box's `[eno-offsite-crypt]` section with `vault.sh get eno-offsite-crypt`; restore the escrowed one. ⛔ Never rewrite the canary to silence this — that blesses whatever key is on the box |
 | cannot read the key canary | a transient read failure, a damaged canary, or the wrong key | re-run once; if it persists, treat it as the row above |
+| rclone <cmd>: still running after <limit> — killed | that one rclone call stalled (Bizfly slow/down, or memory) and was ended by its own deadline instead of eating the unit's 8h | re-run once by hand; if it repeats, look at that step. Deadlines: `ENO_STORAGE_LIST_TIMEOUT` (90m per bucket listing), `ENO_STORAGE_UPLOAD_TIMEOUT` (5h), `ENO_STORAGE_SYNC_TIMEOUT` (2h), `ENO_STORAGE_CALL_TIMEOUT` (30m, the rest), all capped by `ENO_STORAGE_BUDGET_TIMEOUT` (450m, under the unit's 8h), as is the volume walk that decides the upload |
+| rclone <cmd>: SIGKILLed … before its deadline | killed from outside — on this unit almost certainly `MemoryMax` (3G) | `journalctl -k \| grep -i oom`; find what grew — do NOT just raise the cap |
+| walking the volume … (an unreadable path?) | `find` hit an error other than a file vanishing mid-walk | fix the path/disk; the night refused rather than skip files |
+
+⛔ **2026-09-24 → 10-01: EVERY night timed out, and nothing said why.** `rclone copy --fast-list` (and
+`lsf --fast-list` with a `--filter`) hold the whole bucket as a directory tree in memory — here every
+object is its own directory — which passed the unit's `MemoryHigh=1536M` once the bucket was full
+(peak 1.74 GB). With no swap the kernel throttles such a process instead of killing it: 8 silent hours,
+then systemd's timeout, so steps 3-8 never ran. Since then the public half is compared by two
+STREAMED listings (each bucket path listed alone, no filter) diffed by path+size, only the
+difference is uploaded, every rclone call has its own deadline, and the unit has a hard
+`MemoryMax` and no `MemoryHigh`. ⚠️ Never put `--fast-list` back on a filtered call over the public
+half. Offline proof: `infra/vn-node/eno-storage-backup.harness.sh` (docker, `--network none`, local
+remotes only).
 
 
 Install (root, once):
