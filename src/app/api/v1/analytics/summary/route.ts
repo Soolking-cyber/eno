@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,8 @@ export async function GET(req: NextRequest) {
   const r = await resolveApiKey(req, 'analytics:read')
   if (!r.ok) return apiAuthError(r)
 
-  const where = { sellerId: r.auth.sellerId }
+  // Tombstones (src/lib/listing-removed.ts) are not the shop's listings any more.
+  const where = { sellerId: r.auth.sellerId, ...NOT_REMOVED }
   const [agg, byStatus, held] = await Promise.all([
     db.listing.aggregate({ where, _sum: { views: true, contactCount: true }, _count: { _all: true } }),
     db.listing.groupBy({ by: ['status'], where, _count: { _all: true } }),

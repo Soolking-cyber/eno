@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { findBannedWord, containsContactInfo, assertPublishable, assertCleanContactName, assertEnoughAngles, minPhotosFor, publicSafeName, PublishBlockedError, type PublishBlockCode } from './publish-guard'
+import { fold } from './fold'
+import { BANNED_ACCENTED, findBannedWordAccentAware, findBannedWord, assertCleanTexts, containsContactInfo, assertPublishable, assertCleanContactName, assertEnoughAngles, minPhotosFor, publicSafeName, PublishBlockedError, type PublishBlockCode } from './publish-guard'
 
 // publish-guard is the automated gate every new/edited listing passes. False NEGATIVES let
 // illegal goods or off-platform contact through; false POSITIVES block legitimate sellers
@@ -44,6 +45,22 @@ describe('findBannedWord — illegal content only', () => {
     // How a carrier listing talks about activation must stay publishable.
     expect(findBannedWord('Quét mã QR để cài eSIM và gọi 900 để kích hoạt')).toBeNull()
     expect(findBannedWord('Viettel eSIM — new prepaid number, activate by QR code')).toBeNull()
+  })
+
+  // Advertising-banned goods /prohibited already lists (2026-10-01): only names that mean nothing else.
+  it('flags vapes, heated tobacco and prescription / veterinary prescription drugs by name', () => {
+    for (const t of ['Pod vape Relx Infinity còn mới', 'Tinh dầu vape 30ml', 'Terea Amber 1 cây', 'E-liquid 60ml mango', 'Thuốc lá thế hệ mới IQOS',
+      'Bravecto cho chó 10-20kg', 'NexGard Spectra 3 viên', 'Simparica Trio', 'Amoxicillin 500mg', 'Ozempic 1mg pen', 'Viagra 100mg']) {
+      expect(findBannedWord(t), t).toBeTruthy()
+    }
+  })
+
+  it('does NOT flag the context-dependent ad-banned categories — those are classified, not word-listed', () => {
+    // A word list cannot tell these from the regulated product; src/lib/ad-banned.ts does, for imports.
+    for (const t of ['Máy hâm bình sữa Fatz Baby', 'Hộp đựng núm ti giả', 'Ly Hennessy pha lê', 'Tủ rượu vang Kadeka 18 chai',
+      'Tỉ giá USD hôm nay', 'Ti gia ngoai te', 'Sữa bột cho bé 2-6 tuổi', 'Bia Tiger thùng 24 lon', 'AirPods Pro 2', 'Anker PowerPort III Pod Lite 65W']) {
+      expect(findBannedWord(t), t).toBeNull()
+    }
   })
 
   it('returns null for empty/nullish input', () => {
@@ -280,4 +297,105 @@ describe('publish-guard · location is required', () => {
   it('accepts a point on the equator or prime meridian', () => {
     expect(blockCodeOf(() => assertPublishable({ ...base, lat: 0, lng: 106.7 }))).toBeNull()
   })
+})
+
+// The import screen's reading of the same list (src/lib/import-screen.ts): a Vietnamese term counts
+// only when the words carry ITS accents. Every collision below refused a live merchant row (2026-10-01).
+describe('findBannedWordAccentAware — the folded list, read with the accents', () => {
+  it('still flags the real thing, with accents, without them, and with old-style tone marks', () => {
+    expect(findBannedWordAccentAware('Cần bán vũ khí tự chế')).toBe('vu khi')
+    expect(findBannedWordAccentAware('MA TÚY giá tốt')).toBe('ma tuy')
+    expect(findBannedWordAccentAware('ma tuý')).toBe('ma tuy') // "tuý" = "túy"
+    expect(findBannedWordAccentAware('bán hoá đơn VAT giá rẻ')).toBe('hoa don vat') // "hoá" = "hóa"
+    expect(findBannedWordAccentAware('ban sung dan gia re')).toBe('sung dan') // no accents typed at all
+    expect(findBannedWordAccentAware('Juul pods')).toBe('juul') // English terms: exactly findBannedWord
+    expect(findBannedWordAccentAware('Samsung Galaxy S24')).toBeNull()
+  })
+
+  it('does not flag a folding collision whose words carry OTHER accents', () => {
+    for (const t of [
+      'Điều hòa Casper thuộc phiên bản 2024', 'Ổ khóa mật mã tùy thích', 'Laptop HP hiệu năng cao hỗ trợ đa nhiệm',
+      'Áo polo xanh cô ban đậm',
+    ]) {
+      expect(findBannedWord(t), t).not.toBeNull() // the folded list does trip…
+      expect(findBannedWordAccentAware(t), t).toBeNull() // …the accented reading does not
+    }
+  })
+
+  // ⛔ Per WORD, not per text (2026-10-01, review): an unaccented banned term inside an accented title
+  // is how an evasion looks, so an unaccented word is always read folded.
+  it('flags an UNACCENTED banned term inside an otherwise accented title', () => {
+    expect(findBannedWordAccentAware('Cần bán sung dan')).toBe('sung dan')
+    expect(findBannedWordAccentAware('Cần bán Ma tuy giá rẻ')).toBe('ma tuy')
+    expect(findBannedWordAccentAware('Thanh lý vu khi cũ')).toBe('vu khi')
+    // Mixed within the term: the accented word must carry the term's accent, the bare one matches folded.
+    expect(findBannedWordAccentAware('Bán vu khí')).toBe('vu khi')
+    expect(findBannedWordAccentAware('Bán súng dan')).toBe('sung dan')
+    expect(findBannedWordAccentAware('Bán sừng dan')).toBeNull() // "sừng" (horn) is not "súng" (gun)
+  })
+
+  it('⚠️ the accepted price: an honestly unaccented phrase that folds onto a term is refused (to review, never live)', () => {
+    // "vi vu khi" has no accents in correct Vietnamese. Measured 2026-10-01: 1 of 111,007 live imported
+    // rows (a Babolat dampener, "tiếng kêu vi vu khi vung vợt").
+    expect(findBannedWordAccentAware('Balo du lịch vi vu khi đi phượt')).toBe('vu khi')
+  })
+
+  it('BANNED_ACCENTED stays in step with the list: every key is a banned term, every spelling folds to it', () => {
+    for (const [key, spellings] of Object.entries(BANNED_ACCENTED)) {
+      expect(findBannedWord(key), key).toBe(key)
+      for (const sp of spellings) expect(fold(sp), sp).toBe(key)
+      // …and every spelling is flagged by the accented reading (a spelling the matcher could not read as
+      // Vietnamese would silently stop matching itself).
+      for (const sp of spellings) expect(findBannedWordAccentAware(sp), sp).toBe(key)
+    }
+  })
+
+  // ⛔ STACKED / STRAY COMBINING MARKS (2026-10-01, review). NFC cannot compose a precomposed vowel with a
+  // SECOND mark, so "tú́y" is ú + U+0301 and "tụ́y" is ụ + U+0301. Splitting words on non-letters cut them
+  // in two, the folded hit matched no run of words, and the import screen answered null where the folded
+  // screen said 'ma tuy'. A mark belongs to its letter; a doubled mark is the same mark; and a word no
+  // Vietnamese spelling produces (two tones, a foreign mark, a mark on nothing) cannot prove itself a
+  // different word, so it is read on its folded letters.
+  it('flags a banned term written with stacked or stray combining marks, exactly as findBannedWord does', () => {
+    for (const t of [
+      'Bán ma tú\u0301y',              // ú + a second acute: "túy", the mark doubled
+      'Cần bán ma tụ\u0301y giá rẻ',   // ụ + an acute: two tone marks on one syllable
+      'Bán ma tüy',                    // a mark Vietnamese never writes
+      'Bán ma \u0301túy',              // a mark with no letter under it
+      'Cần bán vũ\u0303 khí',          // ũ + a second tilde
+    ]) {
+      expect(findBannedWord(t), t).not.toBeNull()
+      expect(findBannedWordAccentAware(t), t).toBe(findBannedWord(t))
+    }
+  })
+
+  it('fails CLOSED when the folded hit cannot be located in the words (the two readings disagree)', () => {
+    // fold() sees a word boundary before "ma" (π is not an ASCII word character); the word split does not.
+    const t = 'Bán πma túy'
+    expect(findBannedWord(t)).toBe('ma tuy')
+    expect(findBannedWordAccentAware(t)).toBe('ma tuy')
+  })
+
+  it('the stricter reading of marks does not cost the real collisions: a properly accented OTHER word still clears', () => {
+    for (const t of [
+      'Ổ khóa mật mã tùy thích',
+      'Bán ma tù\u0300y', // "tùy" with its grave doubled is still "tùy" (deduped), not "túy" and not unreadable
+      'Điều hòa Casper thuộc phiên bản 2024', 'Áo polo xanh cô ban đậm', 'Bán sừng dan',
+    ]) {
+      expect(findBannedWordAccentAware(t), t).toBeNull()
+    }
+  })
+})
+
+// ⛔ A SELLER'S OWN POST IS NOT READ WITH ACCENTS — the accent-aware relaxation is for imports only
+// (src/lib/import-screen.ts). assertCleanTexts — the user-post screen behind createListingCore,
+// updateListingCore, teachers/publish and the linked-job/nhatot importers — keeps the FOLDED match it
+// had before the import screen existed: every collision the import screen lets through is still
+// refused here, exactly as at HEAD (fbd817e4).
+describe('user posts keep the folded banned-word screen', () => {
+  const blocked = (t: string) => { try { assertCleanTexts([t]); return null } catch (e) { return e instanceof PublishBlockedError ? e.code : 'threw' } }
+  it.each([
+    'Cần bán súng đạn', 'Cần bán sung dan', 'ban sung dan gia re', 'Áo polo xanh cô ban đậm', 'Balo du lịch vi vu khi đi phượt',
+    'Điều hòa Casper thuộc phiên bản 2024', 'Ổ khóa mật mã tùy thích', 'Laptop HP hiệu năng cao hỗ trợ đa nhiệm',
+  ])('%s → banned_words', (t) => expect(blocked(t)).toBe('banned_words'))
 })

@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import { parsePageParams, pageQuery, buildPage } from '@/lib/api/pagination'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 
 const DAY_MS = 86_400_000
 const MAX_RANGE_DAYS = 92
@@ -35,7 +36,7 @@ export async function getListingAnalytics(
   const { limit, cursorId } = parsePageParams(sp)
 
   const rows = await db.listing.findMany({
-    where: { sellerId },
+    where: { sellerId, ...NOT_REMOVED }, // never a tombstone (src/lib/listing-removed.ts)
     orderBy: { id: 'desc' },
     ...pageQuery(limit, cursorId),
     select: { id: true, title: true, status: true, views: true, contactCount: true, externalId: true },

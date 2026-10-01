@@ -907,11 +907,17 @@ try {
 
     if (existing) {
       const setSql = fields.map(([column], i) => `"${column}" = $${i + 1}`).join(', ')
-      await db.query(
+      // ⛔ NEVER A TOMBSTONE (src/lib/listing-removed.ts): a product a moderator REMOVED stays removed —
+      // re-asserting status/verified here would republish it. Zero rows = it is a tombstone; left alone.
+      const { rowCount } = await db.query(
         `UPDATE "Listing" SET ${setSql}, negotiable = false, verified = true, "identityHold" = false, "updatedAt" = now()
-         WHERE id = $${fields.length + 1}`,
+         WHERE id = $${fields.length + 1} AND status <> 'removed'`,
         [...fields.map(([, value]) => value), existing.id],
       )
+      if (!rowCount) {
+        summary.push({ product, id: existing.id, action: 'removed by eno — left as it is', price: final.price, images: final.images })
+        continue
+      }
       seededIds.push(existing.id)
       summary.push({ product, id: existing.id, action: 'updated', price: final.price, images: final.images })
     } else {
@@ -954,7 +960,7 @@ try {
   if (anchorExisting) {
     // Structural invariants only — re-asserted every run, copy left alone.
     await db.query(
-      `UPDATE "Listing" SET price = 0, currency = '₫', status = 'hidden', verified = true, "identityHold" = false, negotiable = false, "updatedAt" = now() WHERE id = $1`,
+      `UPDATE "Listing" SET price = 0, currency = '₫', status = 'hidden', verified = true, "identityHold" = false, negotiable = false, "updatedAt" = now() WHERE id = $1 AND status <> 'removed'`, // never a tombstone
       [anchorExisting.id],
     )
     console.log(`  anchor   ${anchorExisting.id} (generic anchor — hidden, ₫0, unsellable by design)`)

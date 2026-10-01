@@ -82,6 +82,8 @@ import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { browseRankScore } from '../src/lib/ranking-formula'
 import { minPhotosFor } from '../src/lib/publish-guard'
 import { untranslatedSummary } from '../src/lib/import-i18n'
+// ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
+import { ImportScreen } from '../src/lib/import-screen'
 import { REVER_BUILDINGS } from '../src/generated/rever-buildings'
 import {
   HONEYCOMB_SELLER_ID as SELLER_ID, HONEYCOMB_SELLER_NAME as SELLER_NAME, HONEYCOMB_LOGO_URL as LOGO_URL,
@@ -423,19 +425,27 @@ async function main() {
   const minImages = minPhotosFor(CATEGORY_SLUG)
   const drop: Record<string, number> = { ...stage.pages.drop }
   const keepAll: (MappedHoneycomb & { postedAt: Date; lastmod: string })[] = []
+  // ── database (read-only until --apply) — opened BEFORE the screen, which looks up a refused row's
+  // existing listing (a live banned row is hidden by finish(); a live ambiguous one is refreshed).
+  const db = makeDb(!APPLY)
+  const screen = new ImportScreen('honeycomb-com-vn', { db, sellerIds: [SELLER_ID], ...(journal ? { dir: journal } : {}) })
   for (const r of stage.records) {
     const t = Date.parse(r.lastmod ?? '')
     if (!(t >= sinceMs)) { drop.beforeSince = (drop.beforeSince ?? 0) + 1; continue }
     const a = assessHoneycomb(r, { vndPerUsd: stage.fx.vndPerUsd, minImages, cityFilter: CITY, buildings: REVER_BUILDINGS })
     if (!a.ok) { drop[a.reason] = (drop[a.reason] ?? 0) + 1; continue }
+    // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a refused row is never created;
+    // an existing live one is hidden (banned) or refreshed and listed for review (ambiguous).
+    const m = a.row
+    if (!(await screen.check({ title: m.title, titleVi: m.titleVi, description: m.description, descriptionVi: m.descriptionVi, category: CATEGORY_SLUG, subcategory: m.subcategorySlug, extraTexts: [m.location, m.district], externalId: m.externalId, url: m.affiliateUrl }))) {
+      drop.contentScreen = (drop.contentScreen ?? 0) + 1; continue
+    }
     /** postedAt = the source's last modification, clamped to now: the card's age and the recency
      *  rank then say how fresh the AGENCY's listing is, not when we copied it. Create-only. */
     keepAll.push({ ...a.row, postedAt: new Date(Math.min(t, Date.now())), lastmod: r.lastmod ?? '' })
   }
   const keep = SRC && LIMIT ? keepAll.slice(0, LIMIT) : keepAll
 
-  // ── database (read-only until --apply) ────────────────────────────────────────────────────
-  const db = makeDb(!APPLY)
   const category = await db.category.findFirst({ where: { slug: CATEGORY_SLUG }, select: { id: true, name: true } })
   if (!category) throw new Error(`no \`${CATEGORY_SLUG}\` category — cannot place these rows`)
   const seller = await db.seller.findUnique({ where: { id: SELLER_ID }, select: { id: true, name: true, ownerId: true, avatarUrl: true, trustScore: true, verified: true, verifiedSeller: true, officialPartner: true } })
@@ -459,7 +469,8 @@ async function main() {
     return { k, s, mutable, changed }
   })
   const toCreate = plan.filter((p) => !p.s)
-  const toUpdate = plan.filter((p) => p.s && p.changed!.length)
+  // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+  const toUpdate = plan.filter((p) => p.s && p.s.status !== 'removed' && p.changed!.length)
   const unchanged = plan.filter((p) => p.s && !p.changed!.length)
   const fieldHist: Record<string, number> = {}
   for (const p of toUpdate) for (const f of p.changed!) fieldHist[f] = (fieldHist[f] ?? 0) + 1
@@ -484,6 +495,7 @@ async function main() {
   if (SRC) console.log(`staged records    ${stage.records.length} (${rejectedOnRead} rejected by the allowlist on read)`)
   if (SAVE) console.log(`staged file       ${resolve(SAVE)}  (${stage.records.length} records)`)
   console.log(`dropped           ${JSON.stringify(drop)}`)
+  screen.report()
   console.log(`TO IMPORT         ${keep.length}${SRC && LIMIT ? ` (--limit ${LIMIT} of ${keepAll.length})` : ''}   (create ${toCreate.length} · update ${toUpdate.length} · unchanged ${unchanged.length})${toUpdate.length ? `  fields ${JSON.stringify(fieldHist)}` : ''}`)
   console.log(`  by subcategory  ${JSON.stringify(hist((k) => k.subcategorySlug))}`)
   console.log(`  by city         ${JSON.stringify(hist((k) => k.city))}   (the vn-units Vietnamese name — what the wizard stores)`)
@@ -557,6 +569,8 @@ async function main() {
   // ── APPLY ─────────────────────────────────────────────────────────────────────────────────
   /** ⛔ Refused BEFORE any write: renamed, owned, verified, verifiedSeller or officialPartner. */
   if (refusal) throw new Error(`seller ${SELLER_ID} ${refusal}; refusing to write`)
+  // ⛔ Live rows the content screen refused as banned are hidden only now, past the storefront refusal.
+  await screen.applyHides()
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '')
   /** ⚠️ SUPABASE_SECRET_KEY, not SERVICE_ROLE — guessing wrong leaves storage null (attach-bds:50-53). */
   const KEY = process.env.SUPABASE_SECRET_KEY
@@ -663,7 +677,7 @@ async function main() {
   console.log(`\nVERIFY:   npx tsx scripts/import-honeycomb-com-vn.ts --verify`)
   /** Never DELETE: Order is onDelete:Restrict and six relations Cascade (contract §13). */
   console.log(`ROLLBACK (safe, reversible — removes them from every public surface):`)
-  console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${SELLER_ID}';`)
+  console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${SELLER_ID}' AND status <> 'removed';`)
   console.log(`  -- hard delete is NOT paste-safe. Uploaded objects: ${UPLOADED} (leave them until the edge cache expires).`)
   console.log(`AFTER AN AVATAR CHANGE: node scripts/purge-isr-listings.mjs (storefront cards are baked into ISR pages).`)
   await db.$disconnect()

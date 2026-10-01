@@ -117,7 +117,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json({ ok: true })
 }
 
-// DELETE — a seller removes their OWN listing (cascades reports/conversations) — or, while the
+// DELETE — a seller removes their OWN listing (a tombstone: gone for them and the public, its reports
+// and conversations kept — src/lib/listing-removed.ts) — or, while the
 // account or the listing is under investigation, it is HIDDEN instead (deleteListingCore):
 // 200 `{ ok: true, deleted: false, hidden: true, reason, message: { en, vi } }`. The web dashboard
 // words it itself (tr); `message` is for the native dashboards, which call this same route and had
@@ -129,5 +130,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.code })
   const r = await deleteListingCore(id)
   if (r.ok && !r.deleted) return NextResponse.json({ ok: true, deleted: false, hidden: true, reason: r.reason, message: DELETE_HOLD_COPY[r.reason] })
+  // A refusal that is NOT "already gone" (the held delete's hide was refused) is answered as itself —
+  // only a 404 is the idempotent no-op below.
+  if (!r.ok && r.code !== 404) return NextResponse.json({ error: r.error }, { status: r.code })
   return NextResponse.json({ ok: true })
 }

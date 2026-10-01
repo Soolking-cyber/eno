@@ -18,6 +18,7 @@ import { after } from 'next/server'
 import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 
 // ── Partner MCP tools ─────────────────────────────────────────────────────────────
 // Each tool is a thin, shop-scoped wrapper over the SAME cores the /api/v1 routes use.
@@ -97,7 +98,11 @@ export const TOOLS: McpTool[] = [
       if (args.limit != null) sp.set('limit', String(args.limit))
       if (args.cursor) sp.set('cursor', String(args.cursor))
       const { limit, cursorId } = parsePageParams(sp)
-      const where = { sellerId: auth.sellerId, ...(args.status ? { status: String(args.status) } : {}) }
+      // Never a tombstone (src/lib/listing-removed.ts); an explicit status (active|sold|hidden) narrows further.
+      // ⛔ AND-ed, NOT spread: `{ ...NOT_REMOVED, status }` let a caller's `status` REPLACE the guard
+      // (status:'removed' listed the tombstones). The zod enum refuses 'removed' today; the AND keeps the
+      // guard standing even if the enum ever widens or a caller reaches the handler unvalidated.
+      const where = { AND: [{ sellerId: auth.sellerId }, NOT_REMOVED, ...(args.status ? [{ status: String(args.status) }] : [])] }
       const rows = await db.listing.findMany({ where, orderBy: { id: 'desc' }, ...pageQuery(limit, cursorId), include: LISTING_INCLUDE })
       const { items, nextCursor } = buildPage(rows, limit)
       return { listings: items.map(serializeListing), next_cursor: nextCursor }
@@ -196,6 +201,8 @@ export const TOOLS: McpTool[] = [
       await ownedListing(id, auth.sellerId)
       const res = await deleteListingCore(id)
       if (res.ok && !res.deleted) return { ok: true, deleted: false, hidden: true, reason: res.reason, message: DELETE_HOLD_MESSAGE[res.reason] }
+      // The held delete's hide was refused for a reason other than "already gone" — never a silent ok.
+      if (!res.ok && res.code !== 404) throw new ToolError(res.error, 'The listing is under review and could not be hidden; it was not deleted.')
       return { ok: true }
     },
   },
@@ -242,7 +249,7 @@ export const TOOLS: McpTool[] = [
     scope: 'analytics:read',
     input: z.object({}),
     handler: async (auth) => {
-      const where = { sellerId: auth.sellerId }
+      const where = { sellerId: auth.sellerId, ...NOT_REMOVED } // tombstones are not the shop's listings
       const [agg, byStatus, held] = await Promise.all([
         db.listing.aggregate({ where, _sum: { views: true, contactCount: true }, _count: { _all: true } }),
         db.listing.groupBy({ by: ['status'], where, _count: { _all: true } }),

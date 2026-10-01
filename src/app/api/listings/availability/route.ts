@@ -8,6 +8,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
 import { ApiError, route } from '@/lib/api/handler'
 import { blocksPosting, normalizeEnforcementState } from '@/lib/enforcement-machine'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -52,7 +53,8 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
   // Ownership-scope the sold set up front: the revalidatePath/removeFromIndex loops below
   // must never run over raw client ids the caller doesn't own (cache-purge amplification).
   const sold = soldRequested.length
-    ? (await db.listing.findMany({ where: { id: { in: soldRequested }, sellerId: seller.id }, select: { id: true } })).map((l) => l.id)
+    // ⛔ NOT a tombstone: marking one 'sold' would bring it back into the seller's dashboard.
+    ? (await db.listing.findMany({ where: { id: { in: soldRequested }, sellerId: seller.id, ...NOT_REMOVED }, select: { id: true } })).map((l) => l.id)
     : []
 
   // ⛔ THE HOLD GUARD, EXTENDED TO THE BATCH (owner, 2026-09-24) — the twin of confirmCore's refusal
@@ -70,7 +72,7 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
   let confirmed = 0
   let markedSold = 0
   if (sold.length) {
-    const r = await db.listing.updateMany({ where: { id: { in: sold }, sellerId: seller.id }, data: { status: 'sold' } })
+    const r = await db.listing.updateMany({ where: { id: { in: sold }, sellerId: seller.id, ...NOT_REMOVED }, data: { status: 'sold' } })
     markedSold = r.count
   }
   if (confirm.length && !holdRefusal) {

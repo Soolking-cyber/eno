@@ -60,6 +60,17 @@ describe('DELETE /api/listings/[id]', () => {
     })
   }
 
+  // 2026-10-01 review: a refused hide used to be relabelled 404 by the core and answered {ok:true} here.
+  it('a hide the core refused for a reason other than "gone" is answered as itself, never {ok:true}', async () => {
+    h.result = { ok: false, code: 403, error: 'account_held' }
+    expect(await del()).toEqual({ status: 403, body: { error: 'account_held' } })
+  })
+
+  it('a 404 (already gone, or a tombstone) stays the idempotent {ok:true}', async () => {
+    h.result = { ok: false, code: 404, error: 'not_found' }
+    expect(await del()).toEqual({ status: 200, body: { ok: true } })
+  })
+
   it('an ownership refusal is unchanged', async () => {
     h.owner = { ok: false, error: 'forbidden', code: 403 }
     expect(await del()).toEqual({ status: 403, body: { error: 'forbidden' } })

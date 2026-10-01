@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { diffPrices, feedPrice, merchantNameFor, repairAffLink, type ExistingListing } from './affiliate-price-refresh'
+import { Prisma } from '@/generated/prisma/client'
+import { applyPriceChanges, diffPrices, feedPrice, merchantNameFor, repairAffLink, type ExistingListing } from './affiliate-price-refresh'
 
 const feed = (rows: [string, number, string | null][]) =>
   new Map(rows.map(([id, price, affiliateUrl]) => [id, { price, affiliateUrl }]))
@@ -103,6 +104,42 @@ describe('diffPrices', () => {
       new Set(['SKU1']),
     )
     expect(r.presentIds).toEqual(['a'])
+  })
+})
+
+/**
+ * ⛔ WHICH ROWS THE NIGHTLY PRICE WRITE MAY LAND ON (2026-10-01, review). It excluded only tombstones, so a
+ * HIDDEN row — an ad-ban sweep or import-screen hide, journaled for --rollback (src/lib/journaled-hide.ts) —
+ * had its price and "updatedAt" rewritten every night, and the rollback then refused it as "touched by a
+ * later write". The guard is in the SQL (atomic with the write), so it is read off the statement itself.
+ */
+describe('applyPriceChanges', () => {
+  const statementFor = async (changes: Parameters<typeof applyPriceChanges>[2]) => {
+    const sqls: Prisma.Sql[] = []
+    const written = await applyPriceChanges({ $executeRaw: async (q) => { sqls.push(q); return 1 } }, Prisma, changes)
+    return { sqls, written }
+  }
+
+  it('writes ACTIVE and SOLD rows only — never a hidden, removed or any other status', async () => {
+    const { sqls } = await statementFor([{ id: 'h1', externalId: 'X', from: 100, to: 120, affiliateUrl: null }])
+    expect(sqls).toHaveLength(1)
+    const where = sqls[0].sql.replace(/\s+/g, ' ').match(/WHERE (.*?)\s*$/)![1]
+    // An ALLOWLIST on l.status, ANDed to the id join: exactly the two states this job moves rows between.
+    expect(where).toMatch(/^l\.id = v\.id AND l\.status IN \('[a-z]+'(, '[a-z]+')*\)$/)
+    const allowed = [...where.matchAll(/'([a-z]+)'/g)].map((m) => m[1]).sort()
+    expect(allowed).toEqual(['active', 'sold'])
+    for (const st of ['hidden', 'removed', 'stale', 'draft']) expect(allowed, st).not.toContain(st)
+    // The write itself is unchanged: price + COALESCEd link + updatedAt, values bound, never interpolated.
+    expect(sqls[0].sql).toMatch(/SET price = v\.price,\s+"affiliateUrl" = COALESCE\(v\.aff, l\."affiliateUrl"\),\s+"updatedAt" = now\(\)/)
+    expect(sqls[0].values).toEqual(['h1', 120, null])
+  })
+
+  it('chunks at 500 rows, every chunk carrying the same guard', async () => {
+    const many = Array.from({ length: 1001 }, (_, i) => ({ id: `l${i}`, externalId: `X${i}`, from: 1, to: 2, affiliateUrl: null }))
+    const { sqls, written } = await statementFor(many)
+    expect(sqls).toHaveLength(3)
+    expect(written).toBe(3)
+    for (const q of sqls) expect(q.sql).toContain("l.status IN ('active', 'sold')")
   })
 })
 

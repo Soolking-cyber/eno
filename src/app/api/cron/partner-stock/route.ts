@@ -5,6 +5,7 @@ import { fetchStore, mayReconcile } from '@/lib/partner-fetch'
 import { PARTNER_STORES } from '@/lib/partner-stores'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { logError } from '@/lib/log'
+import { restockReport, screenRestock } from '@/lib/restock-screen'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -108,12 +109,21 @@ export const GET = route({ auth: 'cron' }, async () => {
 
     let priced = 0, restocked = 0, soldOut = 0, retired = 0
     const touched: string[] = []
+    /** sold rows the shop lists as in stock again — screened before any of them goes back to active. */
+    const restockCandidates: string[] = []
     for (const p of feed.products) {
       const row = byExternal.get(p.externalId)
       if (!row) continue                       // a NEW product — the importer's job, not this one
       seenIds.add(row.id)
+      // ⛔ A TOMBSTONE IS NEVER TOUCHED (src/lib/listing-removed.ts): a moderator's removal keeps the
+      // externalId so the feed still matches it — not to have its price or stock moved on the record.
+      if (row.status === 'removed') continue
       const data: { price?: number; status?: string } = {}
-      if (Number.isFinite(p.price) && p.price > 0 && p.price !== row.price) { data.price = p.price; priced++ }
+      // ⚠️ COUNTED ONLY WHEN THE CONDITIONAL WRITE BELOW CHANGES A ROW (2026-10-01, review): a row removed
+      // or moved by a human since the read matches nothing, and must not be reported as priced/sold out.
+      // ⚠️ PRICE ONLY ON active/sold ROWS: a hidden row (a moderator's, or the journaled ad-ban hide) is
+      // left byte-for-byte, so its rollback is not refused as "touched by a later write" (review 2026-10-01).
+      if ((row.status === 'active' || row.status === 'sold') && Number.isFinite(p.price) && p.price > 0 && p.price !== row.price) data.price = p.price
       /**
        * ⚠️ ONLY BETWEEN active AND sold — a row a human set to `hidden` or `draft` is left alone.
        * That separation is exactly why the importer stopped writing `hidden` for a stock-out: with
@@ -124,15 +134,43 @@ export const GET = route({ auth: 'cron' }, async () => {
       // storefronts (the platform's own feed imports), and there is no person behind one to verify —
       // seller-publish-decision.ts lets ownerless non-guest storefronts through for exactly this.
       // If this job ever runs over an OWNED seller, a restock is a revive and must ask the gate.
-      if (row.status === 'active' && !p.inStock) { data.status = 'sold'; soldOut++ }
-      else if (row.status === 'sold' && p.inStock) { data.status = 'active'; restocked++ }
+      if (row.status === 'active' && !p.inStock) data.status = 'sold'
+      // ⛔ A RESTOCK IS NOT WRITTEN HERE: it re-advertises the row, so it goes through the content
+      // screen first (below, src/lib/restock-screen.ts). Only its price moves in this loop.
+      else if (row.status === 'sold' && p.inStock) restockCandidates.push(row.id)
       if (!Object.keys(data).length) continue
       // ⚠️ ONE ROW'S FAILURE MUST NOT END THE SHOP'S RUN — but it must not be invisible either: a
       // swallowed write here is a price that silently never moved, which is the exact promise this
       // job exists to keep. Non-blocking AND logged.
-      await db.listing.update({ where: { id: row.id }, data })
-        .then(() => touched.push(row.id))
+      // ⛔ CONDITIONAL ON THE STATUS IT WAS READ WITH: a row removed (tombstoned) or moved by a human
+      // since the read above is left alone tonight rather than overwritten.
+      await db.listing.updateMany({ where: { id: row.id, status: row.status }, data })
+        .then(({ count }) => {
+          if (!count) return
+          touched.push(row.id)
+          if (data.price !== undefined) priced++
+          if (data.status === 'sold') soldOut++
+        })
         .catch((e) => logError(e, { op: 'cron.partnerStock.update' }))
+    }
+
+    // The restock, screened (src/lib/restock-screen.ts): a banned row stays down and is hidden (a sold
+    // row is public on the sold page), an ambiguous one is restocked and reported, the rest restock.
+    let screen: Awaited<ReturnType<typeof screenRestock>> | null = null
+    if (restockCandidates.length) {
+      try {
+        screen = await screenRestock(db, restockCandidates, cfg.name)
+        touched.push(...screen.hide.map((f) => f.id))
+        // ⚖️ OUTSIDE THE SELLER IDENTITY GATE BY DESIGN — ownerless partner storefronts only (above).
+        for (const id of screen.restock) {
+          await db.listing.updateMany({ where: { id, status: 'sold' }, data: { status: 'active' } })
+            .then(({ count }) => { if (count) { restocked++; touched.push(id) } })
+            .catch((e) => logError(e, { op: 'cron.partnerStock.restock' }))
+        }
+      } catch (e) {
+        // A failed screen restocks NOTHING — the safe direction — and says so.
+        logError(e, { op: 'cron.partnerStock.restockScreen' })
+      }
     }
 
     /**
@@ -156,8 +194,9 @@ export const GET = route({ auth: 'cron' }, async () => {
     if (complete) {
       for (const row of activeHeld) {
         if (feed.seenExternalIds.has(row.externalId!)) continue
-        await db.listing.update({ where: { id: row.id }, data: { status: 'sold' } })
-          .then(() => { retired++; touched.push(row.id) })
+        // Conditional on still being active — a removal since the read is never turned into 'sold'.
+        await db.listing.updateMany({ where: { id: row.id, status: 'active' }, data: { status: 'sold' } })
+          .then(({ count }) => { if (count) { retired++; touched.push(row.id) } })
           .catch((e) => logError(e, { op: 'cron.partnerStock.retire' }))
       }
     }
@@ -176,6 +215,7 @@ export const GET = route({ auth: 'cron' }, async () => {
       store: cfg.domain, feedRows: feed.products.length, fetchComplete: feed.complete,
       listings: rows.length, activeHeld: activeHeld.length, matched,
       priced, soldOut, restocked, retired,
+      ...(screen ? restockReport(screen) : restockCandidates.length ? { restockScreen: { failed: true, candidates: restockCandidates.length } } : {}),
       // ⚠️ SAY WHEN THE RECONCILE WAS DECLINED, rather than reporting `retired: 0` and letting it
       // read as "nothing to retire". They are different answers and only one needs a human.
       ...(complete ? {} : { reconcileSkipped: 'incomplete_fetch' }),

@@ -2,12 +2,15 @@ import { NextResponse } from 'next/server'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
-import { applyTrustEvent, penalizeSeller, recomputeTrust, recordChargeReversals, settleReportCharges, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
+import { applyTrustEvent, chargedReportIds, penalizeSeller, recomputeTrust, recordChargeReversals, settleReportCharges, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
+import { removalClosedBy, REPORT_CLOSED_BY_REMOVAL_PREFIX } from '@/lib/trust-math'
 import { forgetPulledListings, syncEnforcement } from '@/lib/enforcement'
 import { partitionByIdentityGate, settleHolds } from '@/lib/compliance/seller-publish-gate'
 import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
 import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS, addDisputeMessage, notifyDispute, respondentProfileId } from '@/lib/dispute'
 import { logError } from '@/lib/log'
+import { tombstoneListingsTx } from '@/lib/core/listing-tombstone'
+import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 
 export const dynamic = 'force-dynamic'
 
@@ -191,8 +194,12 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // keeps a retry / concurrent resolve from double-docking trust.
       const reports = await db.report.findMany({
         where: { id: { in: ids } },
-        select: { id: true, targetProfileId: true, targetSellerId: true, listingId: true, reporterProfileId: true },
+        select: { id: true, targetProfileId: true, targetSellerId: true, listingId: true, reporterProfileId: true, appealedAt: true },
       })
+      // ⛔ AN APPEAL NEVER MINTS A FIRST CHARGE — see confirm-report. One ledger read for the appeals in
+      // the batch; a report that was never appealed is charged exactly as before, with no read.
+      const appealed = reports.filter((r) => r.appealedAt)
+      const charged = appealed.length ? await chargedReportIds(appealed) : new Set<string>()
       let confirmed = 0
       // Listing ids whose takedown write failed — the report is docked but the listing is STILL PUBLIC.
       const takedownFailures: string[] = []
@@ -200,11 +207,15 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         const rid = report.id
         const upd = await db.report.updateMany({ where: { id: rid, status: 'open' }, data: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date() } })
         if (upd.count === 0) continue // already resolved — no double-dock
-        if (report.targetProfileId) {
-          const res = await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${rid}`, reportId: rid })
-          // Enforcement ladder: re-derive now that the confirmation landed (fail-quiet inside).
-          if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: rid, onHeld })
-        } else if (report.targetSellerId) await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${rid}`, reportId: rid })
+        // A denied appeal of a case that never charged (closed by a listing removal) is re-closed uncharged.
+        const unchargedAppeal = !!report.appealedAt && !charged.has(rid)
+        if (!unchargedAppeal) {
+          if (report.targetProfileId) {
+            const res = await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${rid}`, reportId: rid })
+            // Enforcement ladder: re-derive now that the confirmation landed (fail-quiet inside).
+            if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: rid, onHeld })
+          } else if (report.targetSellerId) await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${rid}`, reportId: rid })
+        }
         // ⚠️ A FAILED TAKEDOWN MUST NOT BE COUNTED AS A CONFIRMATION. This used to swallow the
         // error and fall through to `confirmed++` and a 200, so staff were told a listing had been
         // pulled while it was still public and still selling. Logging it (WS4) made the failure
@@ -280,12 +291,68 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
     }
 
     case 'reject': {
-      // Remove the listing entirely (cascade deletes its reports).
+      // ⛔ A TOMBSTONE, NOT A DELETE (2026-10-01 — src/lib/listing-removed.ts). This was
+      // `db.listing.delete`, which also CASCADED the listing's reports (and every buyer's chat about
+      // it): the moderation evidence went with the listing. Law 122/2025 Art 17.1(e) keeps posted
+      // information for at least a year. Now: status 'removed' + unpublished, with a compliance_audit
+      // row naming this moderator and the decision note. The partner externalId is KEPT, so a re-sync
+      // cannot republish it.
+      //
+      // ⛔ AND THE CASE CLOSES, AS IT DID WHEN THE DELETE TOOK THE REPORTS WITH IT (2026-10-01, review).
+      // The cascade was what made "Remove listing" close the case: the listing's reports vanished and
+      // so did the queue entry. Kept rows stayed OPEN — the case sat in the queue after the removal,
+      // blocked the tombstone's retention scrub (it skips a tombstone with an open report) and kept the
+      // seller under the "open report" delete hold. So the listing's OPEN reports are resolved in the
+      // same transaction as the tombstone: status 'confirmed' (the listing was removed — the dispute
+      // room tells the reporter "upheld and action was taken"), by this moderator, with the decision
+      // note. ⚠️ WITH NO TRUST CHARGE: the old path docked nothing, and the charge is the Confirm
+      // button's job (a charge is a report_confirmed TrustEvent — trust.ts reads those, not the
+      // status — so a confirmed report without one weighs nothing). An APPEALED report on the listing
+      // (re-opened, its earlier charge still standing) is decided the same way: the charge it already
+      // carries keeps standing, exactly as when the old cascade deleted the report.
       const listing = await db.listing.findUnique({ where: { id }, select: { id: true, verified: true } })
       if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      await db.listing.delete({ where: { id } })
-      revalidatePublicPath(`/listings/${id}`)
-      return NextResponse.json({ ok: true })
+      const stamp = new Date()
+      // ⚠️ LABELLED AS A REMOVAL CLOSURE (`listing-removed:<admin>`, trust-math.ts) so staff can tell this
+      // uncharged 'confirmed' from a Confirm's. Its respondent may still appeal; denying that appeal does
+      // not charge either (confirm-report: an appeal never mints a first charge).
+      const closedBy = removalClosedBy(admin)
+      const { removed, resolved } = await db.$transaction(async (tx) => {
+        const removed = await tombstoneListingsTx(tx, [id], { actor: { kind: 'moderator', email: admin }, reason: 'moderation_rejected', note: decisionNote })
+        // Also when the listing was ALREADY a tombstone (removed from the admin console earlier): the
+        // moderator's decision on the case is the same, and the case must still leave the queue.
+        const upd = await tx.report.updateMany({
+          where: { listingId: id, status: 'open' },
+          data: { status: 'confirmed', resolvedBy: closedBy, resolvedAt: stamp, ...(decisionNote ? { decisionNote } : {}) },
+        })
+        return { removed: removed.length, resolved: upd.count }
+      })
+      // The cached page (/listings/<id>, both languages) AND AI search — refreshListingSurfaces purges
+      // and de-indexes anything no longer public. The old hard delete purged the page only.
+      refreshListingSurfaces([id], 'moderate.reject')
+      // The reporters' case rooms now survive the removal, so tell them how it ended — only for the
+      // rows THIS call resolved (matched by the resolve stamp), as notifyDismissedReporters does.
+      // Best-effort: the decision has landed.
+      if (resolved) {
+        try {
+          const rows = await db.report.findMany({
+            where: { listingId: id, status: 'confirmed', resolvedBy: closedBy, resolvedAt: stamp },
+            select: { id: true, reporterProfileId: true },
+          })
+          // ⛔ ONE REPORTER'S FAILED NOTICE MUST NOT ABANDON THE REST — each is its own best effort.
+          for (const r of rows) {
+            if (!r.reporterProfileId) continue
+            try {
+              await notifyDispute(r.reporterProfileId, r.id, 'decided_upheld_reporter')
+            } catch (e) {
+              logError(e, { op: 'moderate.rejectNotifyReporters', reportId: r.id })
+            }
+          }
+        } catch (e) {
+          logError(e, { op: 'moderate.rejectNotifyReporters' })
+        }
+      }
+      return NextResponse.json({ ok: true, removed, resolved })
     }
 
     case 'unpublish': {
@@ -300,13 +367,25 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // guest sellers (Seller mirror docked directly via penalizeSeller).
       const report = await db.report.findUnique({
         where: { id },
-        select: { id: true, status: true, targetProfileId: true, targetSellerId: true, listingId: true, severity: true },
+        select: { id: true, status: true, targetProfileId: true, targetSellerId: true, listingId: true, severity: true, appealedAt: true },
       })
       if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       const sevInput = String(body.severity || '')
       const severity = (['minor', 'moderate', 'severe'].includes(sevInput)
         ? sevInput
         : report.severity || 'moderate') as 'minor' | 'moderate' | 'severe'
+      // ⛔ AN APPEAL NEVER MINTS A FIRST CHARGE (2026-10-01, review). A case closed by a listing removal
+      // ('reject' above, the admin console's "Remove") is 'confirmed' with NO charge, and its respondent is
+      // offered "Appeal with proof"; the appeal re-opens it (open + appealedAt). Confirming it here — the
+      // moderator DENYING the appeal — used to write report_confirmed for the first time: dedupe in
+      // computeTrustV2 keeps the EARLIEST charge per report, and there was none, so contesting a removal
+      // created the penalty it contested. A denied appeal re-closes the case as it was: one that never
+      // charged stays uncharged (the ledger says so — chargedReportIds; the removal's resolvedBy label is
+      // wiped by the appeal, so it cannot be the test), one that charged is re-confirmed exactly as before.
+      // A report that was never appealed is a first decision and is charged as always, with no read.
+      // ⚠️ READ BEFORE THE FLIP: a failed read must leave the case open (retryable), not confirmed with
+      // the charge decision lost behind the idempotency guard below.
+      const unchargedAppeal = !!report.appealedAt && !(await chargedReportIds([report])).has(id)
       // Idempotent: only the open→confirmed transition applies a penalty (admin
       // double-click / retry can't re-dock the score).
       const upd = await db.report.updateMany({
@@ -315,14 +394,18 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       })
       if (upd.count === 0) return NextResponse.json({ ok: true })
       const penalty = -SEVERITY_PENALTY[severity]
-      if (report.targetProfileId) {
-        const res = await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${id}`, reportId: id })
-        // Enforcement ladder: re-derive the state now that the confirmation landed —
-        // a frozen scam → held (listings pulled), conduct-restricted → throttled,
-        // a corroborated pattern → warned. Fail-quiet inside (deploy-order safe).
-        if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: id, onHeld })
-      } else if (report.targetSellerId) {
-        await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${id}`, reportId: id })
+      // Re-closed uncharged: no ledger row, no enforcement re-derive. The takedown and both notices below
+      // still run — the moderator's decision on the case is still "upheld".
+      if (!unchargedAppeal) {
+        if (report.targetProfileId) {
+          const res = await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${id}`, reportId: id })
+          // Enforcement ladder: re-derive the state now that the confirmation landed —
+          // a frozen scam → held (listings pulled), conduct-restricted → throttled,
+          // a corroborated pattern → warned. Fail-quiet inside (deploy-order safe).
+          if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: id, onHeld })
+        } else if (report.targetSellerId) {
+          await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${id}`, reportId: id })
+        }
       }
       // Reactive: take the reported listing down immediately.
       // ⚠️ IF THIS FAILS, THE REQUEST FAILS. It used to swallow the error and return 200, so an
@@ -438,7 +521,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
               id: { not: id },
               OR: [{ status: 'confirmed' }, { status: 'open', appealedAt: { not: null } }],
             },
-            select: { id: true, targetProfileId: true, targetSellerId: true, severity: true },
+            select: { id: true, targetProfileId: true, targetSellerId: true, severity: true, resolvedBy: true },
             take: 200,
           })
           if (purged.length) {
@@ -460,6 +543,9 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
             // is the source of truth).
             for (const r of purged) {
               if (r.targetProfileId || !r.targetSellerId) continue
+              // A report closed by REMOVING the listing was never charged (moderate reject / admin delete), so
+              // overturning it refunds nothing — crediting here would hand the storefront points it never lost.
+              if (r.resolvedBy?.startsWith(REPORT_CLOSED_BY_REMOVAL_PREFIX)) continue
               const s = await db.seller.findUnique({ where: { id: r.targetSellerId }, select: { ownerId: true } })
               if (!s) continue
               if (s.ownerId) {

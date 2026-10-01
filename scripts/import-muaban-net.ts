@@ -63,6 +63,8 @@ import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { HOST_EDGE, measureImage } from '../src/lib/import-photo-check'
 import { MARK_SEED_ROWS, coverByMark, fetchStoredImage, markScore, markSeedUrls, markTemplateFromUrls, type MarkTemplate } from '../src/lib/import-photo-mark'
 import { untranslatedSummary } from '../src/lib/import-i18n'
+// ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
+import { ImportScreen } from '../src/lib/import-screen'
 import {
   ALLOWED_HOSTS, CITIES, EXTERNAL_PREFIX, MAX_STAGE_AGE_HOURS, PLACEHOLDER_ENTROPY, PLACEHOLDER_FLAT, PROPERTY_TYPES,
   RENT_PRICE_UNIT, SELLER_ID, SELLER_LOGO_URL, SELLER_NAME,
@@ -437,20 +439,34 @@ async function main() {
   }
 
   const rows: MappedRow[] = []
+  // The database is opened BEFORE the screen, which looks up a refused row's existing listing (a live
+  // banned row is hidden on --apply; a live ambiguous one is refreshed and listed for review).
+  const db = openDb()
+  // ⛔ THE try OPENS WITH THE CONNECTION: the screen below already queries, and a throw there must
+  // still reach the `finally` that disconnects.
+  try {
+  const screen = new ImportScreen('muaban-net', { db, sellerIds: [SELLER_ID] })
   for (const r of records) {
     const m = mapRecord(r.item, r.detail, { cities: CITY_KEYS, types: TYPES })
-    if (m.ok) rows.push(m.row); else bump(drops, m.reason)
+    if (!m.ok) { bump(drops, m.reason); continue }
+    // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts), on the exact texts the write uses.
+    // A refused row is never created (it never reaches `batch`); an existing LIVE one is hidden on
+    // --apply (banned) or refreshed and listed for review (ambiguous — check() lets it through).
+    const t = m.row.mutable
+    if (!(await screen.check({ title: t.title, titleVi: t.titleVi, description: t.description, descriptionVi: t.descriptionVi, category: 'rentals', subcategory: t.subcategorySlug, extraTexts: [t.location, t.district], externalId: m.row.externalId, url: t.affiliateUrl }))) continue
+    rows.push(m.row)
   }
+  screen.report()
   const batch = LIMIT ? rows.slice(0, LIMIT) : rows
   const stageAgeH = SRC ? oldestStageAgeHours(records) : 0
 
-  const db = openDb()
-  try {
     const category = await db.category.findFirst({ where: { slug: 'rentals' }, select: { id: true, name: true } })
     if (!category) throw new Error('no `rentals` category — cannot place these rows')
     const seller = await db.seller.findUnique({ where: { id: SELLER_ID }, select: SELLER_SELECT })
     /** ⛔ Refused before a single photo is fetched or uploaded. */
     if (APPLY) { const why = sellerRefusal(seller); if (why) throw new Error(why) }
+    // ⛔ Live rows the content screen refused as banned are hidden only now, past the storefront refusal.
+    if (APPLY) await screen.applyHides()
     const already = await db.listing.count({ where: { sellerId: SELLER_ID } })
     const existing = new Map(
       (await db.listing.findMany({
@@ -462,10 +478,11 @@ async function main() {
         },
       })).map((r) => [r.externalId!, r]),
     )
-    const plan = { create: 0, update: 0, unchanged: 0 }
+    const plan = { create: 0, update: 0, unchanged: 0, removed: 0 }
     for (const r of batch) {
       const ex = existing.get(r.externalId)
-      if (!ex) plan.create++
+      if (ex?.status === 'removed') plan.removed++
+      else if (!ex) plan.create++
       else if (sameMutable(r.mutable, ex)) plan.unchanged++
       else plan.update++
     }
@@ -610,11 +627,13 @@ async function main() {
     const trust = seller?.trustScore ?? 100
     /** Learnt BEFORE the first row, once — every row this run is judged against the same stamp. */
     const mark = COVER_BY_MARK ? await learnMark(db) : null
-    const stat = { created: 0, updated: 0, unchanged: 0, noRealPhotos: 0, photoFailed: 0, uploadFailed: 0, errored: 0, coverReplaced: 0, coverByMark: 0, imagesRefused: {} as Record<string, number> }
+    const stat = { created: 0, updated: 0, unchanged: 0, removed: 0, noRealPhotos: 0, photoFailed: 0, uploadFailed: 0, errored: 0, coverReplaced: 0, coverByMark: 0, imagesRefused: {} as Record<string, number> }
     let stopped: string | null = null
     for (const r of batch) {
       try {
         const ex = existing.get(r.externalId)
+        // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+        if (ex?.status === 'removed') { stat.removed++; continue }
         if (ex && sameMutable(r.mutable, ex)) { stat.unchanged++; continue }
         const where = { sellerId_externalId: { sellerId: SELLER_ID, externalId: r.externalId } }
         const mutable = { ...r.mutable, sellerId: SELLER_ID, categoryId: category.id }
@@ -682,7 +701,7 @@ async function main() {
     const active = await db.listing.count({ where: { sellerId: SELLER_ID, status: 'active' } })
     console.log(`\n${JSON.stringify(stat)}   active now ${active}${stopped ? `\n⛔ STOPPED ${stopped} — re-run the same --apply to continue (created rows are skipped as unchanged)` : ''}`)
     console.log(`\nROLLBACK (safe, reversible — hides from every public surface):`)
-    console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${SELLER_ID}';`)
+    console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${SELLER_ID}' AND status <> 'removed';`)
     console.log(`  -- only this run's rows: the ids in ${CREATED}`)
     console.log(`  -- never DELETE: Order is onDelete:Restrict and six relations Cascade.`)
     console.log(`  -- keep uploaded objects until the edge cache expires. Manifest: ${UPLOADED}`)

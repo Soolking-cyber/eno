@@ -45,6 +45,8 @@ import { brandSlugify, normalizeBrand } from '../src/lib/brand-normalize'
 import { buildSearchText } from '../src/lib/fold'
 import { browseRankScore } from '../src/lib/ranking-formula'
 import { supersportsFacets } from '../src/lib/supersports-taxonomy'
+// ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
+import { ImportScreen } from '../src/lib/import-screen'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
@@ -443,6 +445,7 @@ async function main() {
   let seen = 0, created = 0, updated = 0, skipped = 0, imaged = 0, noShelf = 0, noLink = 0
   const dropped: Record<string, number> = {}
   const drop = (why: string) => { dropped[why] = (dropped[why] || 0) + 1; skipped++ }
+  const screen = new ImportScreen('supersports', { db })
   const failures: string[] = []
 
   for (let i = 0; i < products.length; i += CONCURRENCY) {
@@ -482,6 +485,8 @@ async function main() {
           select: { id: true, images: true, status: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true, brandSlug: true, affiliateUrl: true },
         })
       : null
+    // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+    if (existing?.status === 'removed') { drop('removed listing (tombstone)'); return }
 
     /**
      * ⛔ NO PRICE IS NOT A FREE PRODUCT. 20 products (gift-with-purchase items, "[GIFT – NOT FOR
@@ -521,6 +526,14 @@ async function main() {
     })
     if (!facets.subcategorySlug) noShelf++
     const categoryId = catId.get(facets.categorySlug)!
+    // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a banned product is never
+    // created; if it is already LIVE it is not refreshed and finish() hides it (journaled) — it stays
+    // in `liveIds`, so the retire pass does not touch it as well. An ambiguous product goes to the
+    // review file and, if already live, is refreshed as normal (price AND the stock write below)
+    // rather than frozen.
+    if (!(await screen.check({ title, titleVi, description, descriptionVi, category: facets.categorySlug, subcategory: facets.subcategorySlug, merchant: 'SuperSports', externalId }, existing ? { id: existing.id, status: existing.status } : null))) {
+      drop('content screen'); return
+    }
 
     /**
      * ⚠️ A FAILED MINT MUST NOT FREEZE A LIVE LISTING (a reviewer's catch). Dropping the row when
@@ -715,6 +728,7 @@ async function main() {
   if (noShelf) console.log(`  ⚠️ ${noShelf} product(s) had a product_type this app does not map — filed in the aisle with no shelf`)
   if (noLink) console.log(`  ⚠️ ${noLink} product(s) had no affiliate link`)
   if (Object.keys(dropped).length) console.log(`  dropped: ${JSON.stringify(dropped)}`)
+  await screen.finish({ apply: APPLY })
   if (failures.length) {
     const kinds: Record<string, number> = {}
     for (const f of failures) kinds[f.split(':')[0]] = (kinds[f.split(':')[0]] || 0) + 1

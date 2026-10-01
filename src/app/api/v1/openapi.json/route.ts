@@ -1072,7 +1072,7 @@ export const SPEC = {
       delete: {
         operationId: 'deleteListing',
         summary: 'Delete a listing',
-        description: 'Permanent. Cascades the listing\'s conversations and decrements its brand count; its already-decided reports are kept. There is no undo — prefer `setListingStatus` with "hidden" if you may want it back. ⚠️ While the shop\'s account is held or suspended, or a report about the listing or the shop is still open, the listing is HIDDEN instead of deleted (a delete would erase other people\'s reports and chats): the response is still 200, with `deleted: false`, `hidden: true`, a `reason` and a `message`. It can be deleted once the review or report is resolved.',
+        description: 'Permanent. The listing leaves your catalogue and every public surface, and can no longer be read, edited or restored through the API; its brand count is decremented and its `externalId` is released, so a later sync of the same SKU creates a new listing. eno.vn keeps a record of the removed listing (with its reports and conversations); it is no longer shown publicly or to you. There is no undo — prefer `setListingStatus` with "hidden" if you may want it back. ⚠️ While the shop\'s account is held or suspended, or a report about the listing or the shop is still open, the listing is HIDDEN instead of deleted, so the review can still act on it: the response is still 200, with `deleted: false`, `hidden: true`, a `reason` and a `message`. It can be deleted once the review or report is resolved.',
         security: requires('listings:write'),
         parameters: [{ name: 'id', in: 'path', required: true, description: 'The listing id.', schema: { type: 'string' } }],
         responses: {

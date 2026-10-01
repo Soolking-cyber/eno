@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/lib/db'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 
 // ── Urgent sale "Bán gấp" (2026-07-07) ───────────────────────────────────────────
 // A FREE chip (no paid bumps — strategy decision) that marks a listing as a rush
@@ -34,6 +35,9 @@ export async function urgentQuotaFree(sellerId: string, excludeListingId?: strin
     where: {
       sellerId,
       urgentUntil: { gt: new Date() },
+      // A TOMBSTONE holds no slot: it can never be relisted, so it cannot be used to game the quota
+      // the way hide→unhide could (src/lib/listing-removed.ts). It used to be deleted outright.
+      ...NOT_REMOVED,
       ...(excludeListingId ? { id: { not: excludeListingId } } : {}),
     },
   })

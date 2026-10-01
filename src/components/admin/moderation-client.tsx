@@ -466,7 +466,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
               <Button size="none" variant="ghost" ref={(el) => { decisionRefs.current.abusive = el }} onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className={cn('rounded-lg px-2 py-1 text-2xs font-semibold text-warning hover:bg-warning/10 hover:text-warning disabled:opacity-40 cursor-pointer', aiFocus === 'abusive' && 'ring-2 ring-brand ring-offset-1')} title="False/abusive report — strike the reporter">Abusive</Button>
               <NoteEditor caseId={c.id} initial={c.internalNote} onSaved={refresh} />
               <MoreMenu>
-                {isListing && <DropdownMenuItem variant="destructive" onClick={() => onListing('reject', t.listing!.id)} disabled={busy} className="text-2xs font-semibold cursor-pointer"><X className="size-3" /> Delete listing permanently</DropdownMenuItem>}
+                {isListing && <DropdownMenuItem variant="destructive" onClick={() => onListing('reject', t.listing!.id)} disabled={busy} className="text-2xs font-semibold cursor-pointer"><X className="size-3" /> Remove listing (kept as evidence)</DropdownMenuItem>}
                 {c.communityCount > 1 && <DropdownMenuItem onClick={() => onDismissTarget(c.id)} disabled={busy} className="text-2xs font-semibold cursor-pointer"><Users className="size-3" /> Dismiss all {c.communityCount} on this target</DropdownMenuItem>}
                 {(isListing || c.communityCount > 1) && (msgTargets.length > 0 || t.isGuest) && <DropdownMenuSeparator />}
                 {msgTargets.map((m) => <MacroSender key={m.recipientId} recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} />)}
@@ -581,6 +581,12 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
       // Seller identity gate (only while enforced): an approval for an owner who cannot publish yet
       // is PARKED, not published — the reports are still dismissed, and it goes live on verification.
       if (Number(d?.held) > 0) toast.warning('Approved, but held until the seller verifies their identity — it publishes automatically once verified.')
+      // A removal is a tombstone now (the row is kept as evidence), so the case leaving the queue is no
+      // longer the only sign it worked — say so, with how many open reports it closed.
+      else if (action === 'reject') {
+        const n = Number(d?.resolved) || 0
+        toast.success(`Listing removed (kept as evidence)${n ? ` — ${n} open report${n === 1 ? '' : 's'} on it resolved` : ''}.`)
+      }
       refresh()
     } catch { toast.error('Listing action failed — nothing changed.') } finally { setBusyId(null) }
   }

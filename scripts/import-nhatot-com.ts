@@ -92,6 +92,8 @@ import { HOST_EDGE, imageVerdict, measureImage, MIN_IMAGE_LONG_EDGE, PLACEHOLDER
 import { MARK_SEED_ROWS, fetchStoredImage, markScore, markSeedUrls, markTemplateFromUrls, type MarkTemplate } from '../src/lib/import-photo-mark'
 import { formatMoneyFull } from '../src/lib/vnd'
 import { untranslatedSummary } from '../src/lib/import-i18n'
+// ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
+import { ImportScreen } from '../src/lib/import-screen'
 import {
   NHATOT_API, NHATOT_CATEGORIES, NHATOT_CITIES, NHATOT_DEFAULT_CATEGORIES, NHATOT_GAP_MS_DEFAULT,
   NHATOT_GAP_MS_MIN, NHATOT_LOGO_FALLBACK_URL, NHATOT_LOGO_URL, NHATOT_MIN_PHOTOS, NHATOT_PAGE_MAX,
@@ -643,6 +645,10 @@ async function importMain() {
   const now = Date.now()
   const drop: Record<string, number> = {}
   const keep: NhatotMapped[] = []
+  // The database is opened BEFORE the screen, which looks up a refused row's existing listing (a live
+  // banned row is hidden on --apply; a live ambiguous one is refreshed and listed for review).
+  const db = openDb(APPLY)
+  const screen = new ImportScreen('nhatot-com', { db, sellerIds: [NHATOT_SELLER_ID] })
   /** --city / --cg also narrow a STAGED file, so a replay imports exactly the scope asked for. */
   const regions = new Set<number>(CITIES.map((c) => NHATOT_CITIES[c].region))
   for (const ad of staged.ads) {
@@ -653,11 +659,16 @@ async function importMain() {
     if (!m.ok) { drop[m.reason] = (drop[m.reason] ?? 0) + 1; continue }
     /** Belt and braces: the URL is built from a number, but it becomes a live link. */
     if (!isNhatotAffiliateUrl(m.row.mutable.affiliateUrl)) { drop.badTarget = (drop.badTarget ?? 0) + 1; continue }
+    // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts) — mapNhatotAd already ran the full
+    // assertCleanTexts (contact info included); this adds the advertising-banned classifier.
+    const t = m.row.mutable
+    if (!(await screen.check({ title: t.title, titleVi: t.titleVi, description: t.description, descriptionVi: t.descriptionVi, category: 'rentals', subcategory: t.subcategorySlug, extraTexts: [t.location, t.district], externalId: m.row.externalId, url: t.affiliateUrl }))) {
+      drop.contentScreen = (drop.contentScreen ?? 0) + 1; continue
+    }
     keep.push(m.row)
   }
   const batch = LIMIT ? keep.slice(0, LIMIT) : keep
 
-  const db = openDb(APPLY)
   const category = await db.category.findFirst({ where: { slug: 'rentals' }, select: { id: true, name: true } })
   if (!category) throw new Error('no `rentals` category — cannot place these rows')
   const seller = await db.seller.findUnique({ where: { id: NHATOT_SELLER_ID }, select: SELLER_SELECT })
@@ -693,6 +704,7 @@ async function importMain() {
   }
   console.log(`staged ads        ${staged.ads.length} unique (personal fields stripped; a street is kept only as a bare street NAME)${SAVE ? ` → saved ${SAVE}` : ''}`)
   console.log(`dropped           ${JSON.stringify(drop)}`)
+  screen.report()
   console.log(`TO IMPORT         ${batch.length}  (would create ${newRows.length}, refresh ${batch.length - newRows.length})`)
   console.log(`  by city         ${JSON.stringify(hist((r) => r.mutable.city))}`)
   console.log(`  by district     ${JSON.stringify(hist((r) => r.mutable.district ?? '(none)'))}`)
@@ -754,6 +766,8 @@ async function importMain() {
   // ─── APPLY ──────────────────────────────────────────────────────────────────────────────────
   /** ⛔ Before storage is even opened: no upload may happen for a seller we will not write to. */
   if (refusal) throw new Error(refusal)
+  // ⛔ Live rows the content screen refused as banned are hidden only now, past the storefront refusal.
+  await screen.applyHides()
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '')
   /** ⚠️ SUPABASE_SECRET_KEY, not SERVICE_ROLE — a guessed name leaves storage null and turns one
    *  missing credential into N per-row "failures". Refuse once, up front. */
@@ -791,9 +805,11 @@ async function importMain() {
           id: true, title: true, titleVi: true, description: true, descriptionVi: true, price: true,
           priceUnit: true, currency: true, negotiable: true, listingType: true, categoryId: true,
           subcategorySlug: true, sellerId: true, location: true, district: true, city: true, lat: true,
-          lng: true, areaM2: true, attributes: true, affiliateUrl: true, searchText: true,
+          lng: true, areaM2: true, attributes: true, affiliateUrl: true, searchText: true, status: true,
         },
       })
+      // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+      if (cur?.status === 'removed') { stat.unchanged++; continue }
       if (cur) {
         const was = cur as Record<string, unknown>, next = data as Record<string, unknown>
         if (MUTABLE_KEYS.every((k) => was[k] === next[k])) { stat.unchanged++; continue }
@@ -853,7 +869,7 @@ async function importMain() {
   console.log(`uploaded-object manifest: ${MANIFEST}  (orphans from skipped rows are listed there too)`)
   console.log(`\nNEXT: npx tsx scripts/verify-nhatot-import.ts · set-partner-avatar.ts --seller '${NHATOT_SELLER_NAME}' --logo <url> (no --official) · node scripts/purge-isr-listings.mjs`)
   /** ⛔ Never DELETE: Order is onDelete:Restrict and six relations Cascade. Hiding is total and reversible. */
-  console.log(`\nROLLBACK (safe, reversible):\n  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${NHATOT_SELLER_ID}';`)
+  console.log(`\nROLLBACK (safe, reversible):\n  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${NHATOT_SELLER_ID}' AND status <> 'removed';`)
   console.log(`  -- or only this run's rows: the ids in ${CREATED}`)
   console.log(`  -- hard delete is NOT paste-safe: Order is onDelete:Restrict and six relations Cascade.`)
   await db.$disconnect()

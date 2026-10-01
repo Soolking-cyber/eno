@@ -31,6 +31,8 @@ type Row = {
 
 const STATUS = [
   { v: 'all', label: 'All' }, { v: 'active', label: 'Active' }, { v: 'hidden', label: 'Hidden' }, { v: 'sold', label: 'Sold' },
+  // Tombstones (src/lib/listing-removed.ts): kept as evidence, invisible everywhere else.
+  { v: 'removed', label: 'Removed' },
 ]
 const VERIFIED = [
   { v: 'all', label: 'Any' }, { v: 'true', label: 'Live' }, { v: 'false', label: 'Held' },
@@ -60,7 +62,10 @@ const ACTION_HINT = {
   hide: 'Sets status to hidden — pulls it from the feed, search and its product page without deleting anything. Reversible with Activate.',
   feature: 'Boosts ranking in browse. Not a badge and not a pinned slot — worth about as much as being brand new. Reversible.',
   verify: 'Makes the listing publicly live (sets verified). Until then its product page 404s and it is absent from feed, search and the digest. This is also what clears a listing held by the duplicate/illegal-content guard.',
-  delete: 'Permanently deletes the listing and its data. Cannot be undone — use Hide unless you mean it.',
+  // ⛔ NOT A DELETE SINCE 2026-10-01 (Law 122/2025 keeps posted information ≥ 1 year): the action keeps
+  // its API name but writes a tombstone — see src/lib/listing-removed.ts.
+  // Its open reports close as upheld in the same write (no trust charge) — api/admin/listings 'delete'.
+  delete: 'Removes the listing for good: off the site and out of the seller\'s dashboard, and the seller cannot relist it. The record, its photos, reports and chats are kept as evidence (audit-logged under your name). Its open reports close as upheld, without a trust charge, and the reporters are told. Use Hide for anything you may want back.',
 } as const
 
 export function AdminListingsClient() {
@@ -119,13 +124,15 @@ export function AdminListingsClient() {
       const res = await fetch('/api/admin/listings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ids }) })
       const d = await res.json()
       if (!res.ok) throw new Error()
-      toast.success(`${action} · ${d.affected} listing(s)`)
+      toast.success(`${action === 'delete' ? 'remove' : action} · ${d.affected} listing(s)`)
       // Seller identity gate (only while enforced): approved/activated, but parked until the owner
       // verifies — said separately so the operator never reads "10 published" when 2 are not live.
       if (d.held > 0) toast.warning(`${d.held} held until the seller verifies their identity — they publish automatically once verified.`)
       // Rows the gate had parked BEFORE this action: not counted as done nor as newly held, so they
       // get their own line rather than vanishing from the tally.
       if (d.alreadyHeld > 0) toast.info(`${d.alreadyHeld} were already held for the seller's identity check — still waiting for them to verify.`)
+      // Remove only: the open reports on the removed listings, closed as upheld with them.
+      if (d.resolved > 0) toast.info(`${d.resolved} open report(s) on them closed as upheld — the reporters were told.`)
       load()
     } catch { toast.error('Action failed') } finally { setBusy(false) }
   }
@@ -228,7 +235,7 @@ export function AdminListingsClient() {
                 <DropdownMenuItem disabled={busy} title={ACTION_HINT.feature} onClick={() => act('feature', [row.original.id])}><Star /> Feature</DropdownMenuItem>
                 <DropdownMenuItem disabled={busy} title={ACTION_HINT.verify} onClick={() => act('verify', [row.original.id])}><Check /> Publish</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" disabled={busy} title={ACTION_HINT.delete} onClick={() => act('delete', [row.original.id])}><Trash2 /> Delete</DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" disabled={busy} title={ACTION_HINT.delete} onClick={() => act('delete', [row.original.id])}><Trash2 /> Remove</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -277,7 +284,7 @@ export function AdminListingsClient() {
           hint={ACTION_HINT.feature} />
         <ActionBtn onClick={() => act('verify')} disabled={actionsDisabled} icon={<Check className="h-4 w-4" />} label="Publish"
           hint={ACTION_HINT.verify} />
-        <ActionBtn onClick={() => act('delete')} disabled={actionsDisabled} icon={<Trash2 className="h-4 w-4" />} label="Delete" danger
+        <ActionBtn onClick={() => act('delete')} disabled={actionsDisabled} icon={<Trash2 className="h-4 w-4" />} label="Remove" danger
           hint={ACTION_HINT.delete} />
         {busy && <Loader2 className="ml-1 h-4 w-4 animate-spin text-ink-4" />}
       </div>
@@ -341,12 +348,12 @@ export function AdminListingsClient() {
         </div>
       )}
 
-      {/* Destructive confirm — same copy the old window.confirm carried */}
+      {/* Destructive confirm. A removal is a tombstone (kept as evidence), not a delete — the copy says so. */}
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete listings</AlertDialogTitle>
-            <AlertDialogDescription>{`Delete ${(pendingDelete ?? lastDelete.current).length} listing(s)? This is permanent.`}</AlertDialogDescription>
+            <AlertDialogTitle>Remove listings</AlertDialogTitle>
+            <AlertDialogDescription>{`Remove ${(pendingDelete ?? lastDelete.current).length} listing(s)? They leave the site and the seller's dashboard for good; the records are kept as evidence.`}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -354,7 +361,7 @@ export function AdminListingsClient() {
               variant="destructive"
               onClick={() => { const ids = pendingDelete; setPendingDelete(null); if (ids?.length) void run('delete', ids) }}
             >
-              Delete
+              Remove
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

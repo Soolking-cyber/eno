@@ -2,8 +2,10 @@
  * WHY A SELLER'S DELETE BECAME A HIDE, IN THE SELLER'S WORDS — bilingual.
  *
  * deleteListingCore (src/lib/core/listings.ts) hides instead of deleting while the account is held or
- * suspended, or a report about the listing or the shop is open: a listing delete cascades other
- * people's reports and chats. The WEB route (DELETE /api/listings/[id]) carries these sentences as
+ * suspended, or a report about the listing or the shop is open: an investigated listing stays a plain
+ * hidden row in the seller's dashboard that the investigation can still act on, instead of leaving it
+ * mid-review. (Until 2026-10-01 the reason was that a delete CASCADED other people's reports and chats;
+ * a delete is now a tombstone that erases neither — src/lib/listing-removed.ts.) The WEB route (DELETE /api/listings/[id]) carries these sentences as
  * `message: { en, vi }` for the clients that do not word the outcome themselves — the native iOS and
  * Android dashboards call that same route, and without a sentence a held seller watched a "deleted"
  * listing come back as hidden with no explanation (review, 2026-09-24).

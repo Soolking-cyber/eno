@@ -145,6 +145,11 @@ data/repair-snapshot-*.jsonl
 data/describe-snapshot-*.jsonl
 data/brand-snapshot-*.jsonl
 
+# Content-screen journals + import review files (scripts/hide-ad-banned.ts, src/lib/import-screen.ts).
+# Each one holds listing ids, titles and source URLs of rows that were hidden for a policy reason —
+# operational evidence for a rollback, not source, and this repository is PUBLIC.
+scripts/journals/
+
 # Store screenshots captured from a running build — regenerate rather than version binaries.
 /play-store-assets/
 

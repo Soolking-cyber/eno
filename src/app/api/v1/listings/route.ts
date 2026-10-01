@@ -11,6 +11,7 @@ import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
 import { withIdempotency } from '@/lib/api/idempotency'
 import { parsePageParams, pageQuery, buildPage } from '@/lib/api/pagination'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,7 +25,8 @@ export async function GET(req: NextRequest) {
 
   const { limit, cursorId } = parsePageParams(req.nextUrl.searchParams)
   const rows = await db.listing.findMany({
-    where: { sellerId: r.auth.sellerId },
+    // Every status the shop manages — but never a tombstone (src/lib/listing-removed.ts).
+    where: { sellerId: r.auth.sellerId, ...NOT_REMOVED },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
     ...pageQuery(limit, cursorId),

@@ -6,6 +6,7 @@ import {
   applyPriceChanges, applyStockReconcile, campaignIdFor, diffPrices, fetchFeedPrices, merchantNameFor,
   type ExistingListing,
 } from '@/lib/affiliate-price-refresh'
+import { restockReport, screenRestock } from '@/lib/restock-screen'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -131,7 +132,12 @@ export const GET = route({ auth: 'cron' }, async () => {
       select: { id: true, externalId: true, price: true, affiliateUrl: true, status: true },
     })) as (ExistingListing & { status: string })[]
 
-    const { changes, unchanged, missingFromFeed, missingIds, presentIds } = diffPrices(existing, prices, seenIds)
+    const diff = diffPrices(existing, prices, seenIds)
+    const { unchanged, missingFromFeed, missingIds, presentIds } = diff
+    // Only active/sold rows take a price (applyPriceChanges) — so only they count as changes, or a hidden
+    // row whose feed price moved would be re-flushed every night and push the batch past REVALIDATE_CAP.
+    const live = new Set(existing.filter((e) => e.status === 'active' || e.status === 'sold').map((e) => e.id))
+    const changes = diff.changes.filter((c) => live.has(c.id))
     const written = await applyPriceChanges(db, Prisma, changes)
 
     /**
@@ -183,6 +189,22 @@ export const GET = route({ auth: 'cron' }, async () => {
     const cappedOut = retireCandidates.length > retireCap
     const mayRetire = complete && !cappedOut
       && matchedActive >= MIN_ROWS_TO_RECONCILE && matchedActive >= activeHeld * MIN_FEED_FRACTION
+    /**
+     * ⛔ A RESTORE RE-ADVERTISES THE ROW, SO IT IS SCREENED FIRST (src/lib/restock-screen.ts, 2026-10-01):
+     * a banned word or an ad-classifier 'ban' is NOT restored and is hidden (a sold row is public on
+     * the sold page); 'review' restores and is reported. Only `sold` rows are candidates — a tombstone
+     * ('removed') never is, and applyStockReconcile's SQL re-states `status = 'sold'` in its WHERE.
+     * A screen that throws restores NOTHING tonight (the safe direction) and says so.
+     */
+    const restoreCandidates = presentIds.filter((id) => byId.get(id)?.status === 'sold')
+    let screen: Awaited<ReturnType<typeof screenRestock>> | null = null
+    let screenError = false
+    if (restoreCandidates.length) {
+      try { screen = await screenRestock(db, restoreCandidates, merchantNameFor(campaign)) } catch (e) {
+        screenError = true
+        console.error('affiliate-prices: %s restock screen FAILED — restoring nothing tonight', campaign, e)
+      }
+    }
     const stock = await applyStockReconcile(db, Prisma, {
       retire: mayRetire ? retireCandidates : [],
       /**
@@ -191,7 +213,7 @@ export const GET = route({ auth: 'cron' }, async () => {
        * above: a partial walk cannot falsify a SKU it positively returned. Gating this was also
        * the half that made a rotation deadlock unrecoverable.
        */
-      restore: presentIds.filter((id) => byId.get(id)?.status === 'sold'),
+      restore: screen?.restock ?? [],
     })
     // ⚠️ A BLOCKED RETIRE IS REPORTED, NOT SWALLOWED. A campaign that stops retiring because its
     // merchant rotated most of its catalogue is a thing a human should see, not a silent no-op.
@@ -201,12 +223,13 @@ export const GET = route({ auth: 'cron' }, async () => {
       campaign, feedRows: seen, feedDropped: dropped, listings: existing.length,
       changed: written, unchanged, missingFromFeed, stock, mayRetire, cappedOut,
       matchedActive, activeHeld, retireCandidates: retireCandidates.length, retireCap,
+      ...(screen ? restockReport(screen) : screenError ? { restockScreen: { failed: true, candidates: restoreCandidates.length } } : {}),
       /**
        * ⚠️ RETIRED AND RESTORED ROWS MUST FLUSH TOO. `flushRecent` already sweeps anything whose
        * `updatedAt` moved in the last 48h and the reconcile stamps it, so they are covered — but
        * only because the reconcile runs BEFORE this line. Keep that order.
        */
-      ...(await flushRecent(seller.id, changes.map((c) => c.id))),
+      ...(await flushRecent(seller.id, [...changes.map((c) => c.id), ...(screen?.hide.map((f) => f.id) ?? [])])),
     })
   }
   return { ok: true, results }

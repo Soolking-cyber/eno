@@ -7,6 +7,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { PostWizard, type ListingEditData } from '@/components/marketplace/post-wizard'
 import { safeParse, serializeCategoryBasic } from '@/lib/serialize'
 import { categoryHasBrand, isPostableCategory, NON_POSTING_CATEGORIES } from '@/lib/taxonomy'
+import { LISTING_REMOVED } from '@/lib/listing-removed'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,14 +33,15 @@ export default async function EditListingPage({ params }: Props) {
         categoryId: true, subcategorySlug: true, listingType: true, condition: true,
         brandSlug: true, model: true, attributes: true,
         year: true, mileageKm: true, engineL: true, engineCc: true,
-        district: true, city: true, lat: true, lng: true, images: true, video: true,
+        district: true, city: true, lat: true, lng: true, images: true, video: true, status: true,
         category: { select: { slug: true } },
       },
     }),
     // Categories for the wizard's (locked-in-edit) picker — same shape as /post.
     db.category.findMany({ where: { slug: { notIn: [...NON_POSTING_CATEGORIES] } }, orderBy: { name: 'asc' } }),
   ])
-  if (!listing) notFound()
+  // A tombstone (src/lib/listing-removed.ts) cannot be edited back to life — 404 like a missing row.
+  if (!listing || listing.status === LISTING_REMOVED) notFound()
   // Not your storefront's listing → 404 (don't reveal it exists).
   if (!seller || listing.sellerId !== seller.id) notFound()
   // A teacher profile is edited in the teacher form, never the post wizard (NON_POSTING_CATEGORIES).

@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from './db'
 import { getCurrentProfile } from './admin'
+import { LISTING_REMOVED } from './listing-removed'
 
 /**
  * Every code `checkListingOwner` can put on the wire.
@@ -32,8 +33,10 @@ export async function checkListingOwner(listingId: string): Promise<OwnerCheck> 
   if (!profile) return { ok: false, code: 401, error: 'auth_required' }
   const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
   if (!seller) return { ok: false, code: 403, error: 'no_storefront' }
-  const listing = await db.listing.findUnique({ where: { id: listingId }, select: { sellerId: true } })
-  if (!listing) return { ok: false, code: 404, error: 'not_found' }
+  const listing = await db.listing.findUnique({ where: { id: listingId }, select: { sellerId: true, status: true } })
+  // ⛔ A TOMBSTONE IS NOT FOUND (src/lib/listing-removed.ts): no edit, relist, sale or confirm can be
+  // applied to a removed listing through any of the routes that authorise here.
+  if (!listing || listing.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
   if (listing.sellerId !== seller.id) return { ok: false, code: 403, error: 'forbidden' }
   return { ok: true, sellerId: seller.id, profileId: profile.id }
 }

@@ -37,6 +37,8 @@ import { buildSearchText } from '../src/lib/fold'
 import { browseRankScore } from '../src/lib/ranking-formula'
 import { PARTNER_STORES } from '../src/lib/partner-stores'
 import { isOverlayImageUrl } from '../src/lib/image-mark-url'
+// ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
+import { ImportScreen } from '../src/lib/import-screen'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
@@ -149,6 +151,7 @@ async function main() {
   const failures: string[] = []
   const dropped: Record<string, number> = {}
   const drop = (why: string) => { dropped[why] = (dropped[why] || 0) + 1; skipped++ }
+  const screen = new ImportScreen('partners', { db })
 
   for (let i = 0; i < rows.length; i += CONCURRENCY) {
     await Promise.all(rows.slice(i, i + CONCURRENCY).map(async (r) => {
@@ -225,6 +228,16 @@ async function main() {
         ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId },
             select: { id: true, images: true, status: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true, brandSlug: true, model: true } })
         : null
+      // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+      if (existing?.status === 'removed') { drop('removed listing (tombstone)'); return }
+      // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a banned word or an
+      // advertising-banned product is never created; if it is already LIVE it is not refreshed and
+      // finish() hides it (journaled). An ambiguous one goes to the review file — and, if already
+      // live, is refreshed as normal rather than frozen on a stale price and stock. Runs in the dry
+      // run too (which hides nothing), so the preview shows what would be refused.
+      if (!(await screen.check({ title, description: r.desc, category: slug, subcategory: subcategoryFor(slug, title), merchant: r.domain, externalId, url: r.url }, existing ? { id: existing.id, status: existing.status } : null))) {
+        drop('content screen'); return
+      }
       if (!APPLY) { existing ? updated++ : created++; return }
 
       /**
@@ -346,15 +359,17 @@ async function main() {
       const { status, verified, title: _t, description: _d, descriptionVi: _dv, rankScore: _r, ...refreshable } = fields
       /**
        * ⚠️ STOCK MOVES IN BOTH DIRECTIONS, AND ONLY BETWEEN active AND sold. A row a human set to
-       * `hidden` (or `draft`) is left exactly as it is — that is the moderation state this refresh
-       * must never overwrite, and it is why the stock state needed its own value rather than
-       * sharing `hidden`.
+       * `hidden` (or `draft`, or a `removed` tombstone) is left exactly as it is — that is the
+       * moderation state this refresh must never overwrite, and it is why the stock state needed its
+       * own value rather than sharing `hidden`.
+       * ⛔ AND IT IS NOT PART OF THE UPSERT (2026-10-01). It rode the upsert's `update` branch, gated on
+       * the `existing.status` read above — a read that can be stale by the time the upsert lands (a
+       * moderator, or scripts/hide-ad-banned.ts, hiding the row in between would be overwritten with
+       * `active`). The status now moves in its own conditional statement whose WHERE re-checks
+       * active|sold atomically, so `status` is create-only in the upsert like every other importer.
        */
       const inStock = truthy(r.inStock ?? true)
-      const stock = existing && (existing.status === 'active' || existing.status === 'sold')
-        ? { status: inStock ? 'active' : 'sold' }
-        : {}
-      const update = { ...refreshable, ...stock }
+      const update = refreshable
 
       // ⚠️ ONE ROW'S FAILURE MUST NOT KILL A 9,235-ROW RUN — this talks to the database over an SSH
       // tunnel, and a dropped tunnel surfaces as Prisma `ConnectionClosed`. Retry once, then skip.
@@ -364,6 +379,13 @@ async function main() {
             where: { sellerId_externalId: { sellerId: seller!.id, externalId } },
             update, create: { ...fields, sellerId: seller!.id, externalId },
           })
+          if (existing) {
+            const want = inStock ? 'active' : 'sold'
+            await db.listing.updateMany({
+              where: { sellerId: seller!.id, externalId, status: { in: ['active', 'sold'], not: want } },
+              data: { status: want },
+            })
+          }
           existing ? updated++ : created++
           return
         } catch (e) {
@@ -375,6 +397,7 @@ async function main() {
 
   console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${created} created, ${updated} updated, ${imaged} images hosted, ${skipped} skipped${OVERLAY ? `, ${rehostKept} kept their burned photos (shorter or partial re-fetch)` : ''}`)
   if (Object.keys(dropped).length) console.log(`  dropped: ${JSON.stringify(dropped)}`)
+  await screen.finish({ apply: APPLY })
   if (failures.length) {
     const kinds: Record<string, number> = {}
     for (const f of failures) kinds[f.split(':')[0]] = (kinds[f.split(':')[0]] || 0) + 1

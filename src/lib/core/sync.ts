@@ -9,6 +9,7 @@ import { removeFromIndex } from '@/lib/listing-index'
 import { dispatchListingEventsBatch } from '@/lib/webhooks'
 import { sellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import type { IdentityBlockCode } from '@/lib/publish-guard'
+import { LISTING_REMOVED } from '@/lib/listing-removed'
 
 // Catalogue sync core (Phase 3). Upserts the shop's listings by the partner's OWN id
 // (externalId, unique per shop). `partial` only touches the rows you send; `full` also
@@ -121,6 +122,13 @@ export async function syncListingsCore(
   // (searchText rebuild + reindex + its own 'listing.updated' webhook). Status via setStatusCore.
   for (const { row, ext } of toUpdate) {
     const id = idByExt.get(ext)!
+    // ⛔ A TOMBSTONE IS NOT SYNCABLE (src/lib/listing-removed.ts). Only a MODERATOR's or admin's removal
+    // keeps the externalId (a seller's own delete releases it, so that SKU is simply created again) — so
+    // this is a SKU eno.vn took down, and re-sending it must not edit or relist it. Reported, not hidden.
+    if (statusByExt.get(ext) === LISTING_REMOVED) {
+      results.push({ external_id: ext, id, action: 'failed', error: 'listing_removed' })
+      continue
+    }
     const revives = row.status === 'active' && statusByExt.get(ext) !== 'active'
     // ⚠️ A REFUSED REVIVE FAILS THE ROW BEFORE ANY WRITE. Checking only at setStatusCore would apply
     // the row's edits and then refuse its status, leaving a half-applied row reported as failed.
@@ -173,8 +181,9 @@ export async function syncListingsCore(
     })
     if (toRetire.length) {
       const ids = toRetire.map((l) => l.id)
-      await db.listing.updateMany({ where: { id: { in: ids } }, data: { status: 'hidden' } })
-      retired = ids.length
+      // `status: 'active'` again IN THE WRITE: a row removed (tombstoned) or taken down between the read
+      // above and here must not be turned into 'hidden' — that would un-remove a tombstone.
+      retired = (await db.listing.updateMany({ where: { id: { in: ids }, status: 'active' }, data: { status: 'hidden' } })).count
       after(() => { for (const id of ids) removeFromIndex(id) })
     }
   }

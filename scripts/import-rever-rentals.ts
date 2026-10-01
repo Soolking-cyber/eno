@@ -40,6 +40,8 @@ import { invokedDirectly } from '../src/lib/cli-entry'
 import { buildSearchText } from '../src/lib/fold'
 import { roomAttributes } from '../src/lib/taxonomy'
 import { localizeReferenceImportText, untranslatedSummary, type LocalizedImportTexts } from '../src/lib/import-i18n'
+// ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
+import { ImportScreen } from '../src/lib/import-screen'
 
 /**
  * ⛔ THE SELLER IS PINNED BY ID, NEVER LOOKED UP BY NAME. `Seller.name` has NO unique constraint
@@ -185,8 +187,9 @@ async function main() {
    */
   const statusAgeDays = (Date.now() - statSync(STATUS).mtimeMs) / 86_400_000
 
-  const drop = { unchecked: 0, http: 0, rented: 0, noPrice: 0, noImages: 0, badTarget: 0, tooOld: 0 }
+  const drop = { unchecked: 0, http: 0, rented: 0, noPrice: 0, noImages: 0, badTarget: 0, tooOld: 0, contentScreen: 0 }
   const keep: Row[] = []
+  const screen = new ImportScreen('rever-rentals', { db, sellerIds: [SELLER_ID] })
   for (const r of src) {
     const s = status.get(r.url)
     if (!s) { drop.unchecked++; continue }
@@ -205,6 +208,12 @@ async function main() {
     if (!allowedTarget(r.url)) { drop.badTarget++; continue }
     // ⚠️ `!(y >= YEAR_MIN)`, not `y < YEAR_MIN` — NaN must FAIL the filter, not pass it.
     if (!(year(r.id) >= YEAR_MIN)) { drop.tooOld++; continue }
+    // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts), on the exact texts the upsert writes.
+    // A refused row is never created; an existing LIVE one is hidden (banned, applyHides below) or
+    // refreshed and listed for review (ambiguous). Spread, not field by field: src/lib/reference-listing-import.test.ts pins that the upsert is the
+    // only place in this file that names the title columns.
+    const { missing: _missing, ...texts } = compose(r, s.live_price)
+    if (!(await screen.check({ ...texts, category: 'rentals', subcategory: SUBCAT[r.property_type] ?? null, extraTexts: [r.full_address, r.district], externalId: `rever:${r.id}`, url: r.url }))) { drop.contentScreen++; continue }
     keep.push({ ...r, _price: s.live_price })
   }
   const batch = LIMIT ? keep.slice(0, LIMIT) : keep
@@ -243,6 +252,7 @@ async function main() {
   console.log(`source            ${src.length}`)
   console.log(`status file       ${status.size}  (${(coverage * 100).toFixed(1)}% coverage, ${statusAgeDays.toFixed(1)}d old)`)
   console.log(`dropped           ${JSON.stringify(drop)}`)
+  screen.report()
   console.log(`year-min          ${YEAR_MIN}`)
   console.log(`buildings file    ${BUILDINGS ? `${buildingOf.size} listings mapped` : '(none — buildingKey left untouched)'}`)
   console.log(`TO IMPORT         ${batch.length}${LIMIT ? ` (--limit ${LIMIT} of ${keep.length})` : ''}`)
@@ -286,6 +296,8 @@ async function main() {
   if (seller?.ownerId) {
     throw new Error(`seller ${SELLER_ID} has ownerId ${seller.ownerId} — a real account owns it; refusing to attach imported rows`)
   }
+  // ⛔ Live rows the content screen refused as banned are hidden only now, past the storefront refusals.
+  await screen.applyHides()
   if (!seller) {
     await db.seller.create({
       /** ⚠️ `verified:false` and no owner, deliberately: the badge must never imply we vetted these,
@@ -295,8 +307,11 @@ async function main() {
   }
 
   const seen = new Set<string>()
-  let created = 0, updated = 0
+  // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+  const removed = new Set((await db.listing.findMany({ where: { sellerId: SELLER_ID, status: 'removed' }, select: { externalId: true } })).map((l) => l.externalId))
+  let created = 0, updated = 0, skippedRemoved = 0
   for (const r of batch) {
+    if (removed.has(`rever:${r.id}`)) { skippedRemoved++; continue }
     const price = r._price as number
     /** The four text columns only — `missing` is a report (the `untranslated` line above), never a column. */
     const { title, titleVi, description, descriptionVi } = compose(r, price)
@@ -407,7 +422,7 @@ async function main() {
   }
 
   const active = await db.listing.count({ where: { sellerId: SELLER_ID, status: 'active' } })
-  console.log(`\ncreated ${created}   updated ${updated}   retired ${retired}   active now ${active}`)
+  console.log(`\ncreated ${created}   updated ${updated}   retired ${retired}   removed (left alone) ${skippedRemoved}   active now ${active}`)
   /**
    * ⛔ THE ROLLBACK IS A SOFT ONE, AND `DELETE` IS NOT SAFE TO PASTE. `Order` references `Listing`
    * with `onDelete: Restrict`, so a DELETE fails outright the moment any order points at a row;
@@ -416,7 +431,7 @@ async function main() {
    * import" actually means here.
    */
   console.log(`\nROLLBACK (safe, reversible — removes them from every public surface):`)
-  console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${SELLER_ID}';`)
+  console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${SELLER_ID}' AND status <> 'removed';`)
   console.log(`  -- hard delete is NOT paste-safe: Order is onDelete:Restrict and six relations Cascade.`)
   await db.$disconnect()
 }

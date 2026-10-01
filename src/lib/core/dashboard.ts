@@ -4,6 +4,7 @@ import { taxVerdict } from '@/lib/tax-lookup'
 import { serializeListing } from '@/lib/serialize'
 import { isStale } from '@/lib/stale'
 import type { Profile } from '@/generated/prisma/client'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 
 // Dashboard payload core (Phase 0). Owner-scoped CRM stats for an ALREADY-RESOLVED
 // profile, decoupled from auth — reused by the session GET /api/dashboard and the future
@@ -12,7 +13,8 @@ export async function dashboardStatsCore(profile: Profile) {
   const seller = await db.seller.findUnique({
     where: { ownerId: profile.id },
     include: {
-      listings: { orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
+      // ⛔ NOT tombstones (src/lib/listing-removed.ts): a removed listing is gone from the seller's view.
+      listings: { where: NOT_REMOVED, orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
       handle: { select: { handle: true } }, // clean eno.vn/<name> storefront link
     },
   })

@@ -23,6 +23,10 @@ declare -A SCHED=(
   # Business-registration document retention (SellerVerification). Same shape as visa-retention,
   # half an hour later so the two PII sweeps never share a minute of the pooler.
   [business-verification-retention]="*-*-* 07:30:00 UTC"
+  # Listing-tombstone retention (src/lib/core/listing-tombstone-retention.ts): a removed listing past
+  # its ≥3-year retention loses its personal content; its media is queued for storage-tombstones at
+  # 09:00. Half an hour after the other PII sweep, an hour before the storage sweep.
+  [listing-tombstone-retention]="*-*-* 08:00:00 UTC"
   # Durable erasure queue (StorageTombstone): objects the fast paths could not delete. Every
   # tombstone carries a grace hour, so a row written at the moment another job runs is due only
   # well after it — 09:00 keeps this clear of the 07:30 retention sweep and its own grace.
@@ -67,7 +71,11 @@ declare -A SCHED=(
 # ⚠️ indexnow reaches OUT to www.bing.com with at most a few hundred URLs, twice a day, and only once a
 # key is set. It writes only its own kv rows (indexnow:*). A guard trip exits non-zero on purpose (409):
 # the unit then shows in `systemctl --failed` until the hold re-baselines or someone runs ?rebaseline=1.
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow)
+# ⚠️ listing-tombstone-retention is SAFE to enable now because it cannot act for three years: no listing
+# tombstone existed before 2026-10-01 (measured that day: 0 rows with status 'removed', 0 listing.removed
+# audit rows), so nothing can be past its retention before 2029-10-01. It is enabled now precisely so
+# that date does not depend on anyone remembering it. Until then every run is a 200 with {scrubbed:0}.
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow listing-tombstone-retention)
 # Installed, NOT enabled: these send email to real people.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest teacher-match-emails)
 # Installed, NOT enabled: the FIRST run acts on a policy nobody has acted on yet — every decided

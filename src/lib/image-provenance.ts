@@ -3,6 +3,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { hashFromUrl, hexToBits } from '@/lib/image-hash'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 
 // ── Cross-app image provenance (stolen-photo / duplicate-across-sellers detection) ────────
 // Complements the seller-scoped duplicate guard: this looks across the WHOLE platform. A new
@@ -82,8 +83,14 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
     let originalId = ''
     for (const [id, c] of matchCount) if (c > best) { best = c; originalId = id }
     if (best >= 2 && best > hexes.length / 2) {
+      // ⛔ THE HIDE REFUSES A TOMBSTONE IN ITS OWN WHERE (2026-10-01, review) — the same race as
+      // ai-moderation.ts: the `status === 'active'` read at the top is not a lock, and a removal
+      // committing during the hash queries would otherwise be turned back into the seller's 'hidden'
+      // (relistable, back in "My listings"). One statement, `UPDATE … WHERE id = $1 AND status <>
+      // 'removed'`; zero rows throws P2025, which rolls back the report + notice and is logged below
+      // as a skip.
       const writes: Prisma.PrismaPromise<unknown>[] = [
-        db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false, identityHold: false } }),
+        db.listing.update({ where: { id: l.id, ...NOT_REMOVED }, data: { status: 'hidden', verified: false, identityHold: false } }),
         db.report.create({
           data: {
             listingId: l.id,
@@ -111,6 +118,11 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
       console.warn(`[image-provenance] auto-held ${l.id} (reused ${best}/${hexes.length} from ${originalId})`)
     }
   } catch (e) {
+    // P2025 = the guarded hide matched no row: the listing was removed while it was being checked.
+    if ((e as { code?: string })?.code === 'P2025') {
+      console.warn(`[image-provenance] ${listingId} was removed during the check — hold skipped`)
+      return
+    }
     console.error('[image-provenance] failed (fail-open)', e)
   }
 }

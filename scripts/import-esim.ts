@@ -40,6 +40,8 @@ import { makeImageHost } from '../src/lib/host-product-image'
 import { buildSearchText } from '../src/lib/fold'
 import { browseRankScore } from '../src/lib/ranking-formula'
 import { findBannedWord } from '../src/lib/publish-guard'
+// ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
+import { ImportScreen } from '../src/lib/import-screen'
 import { containsPhoneNumber } from '../src/lib/phone'
 import { facetsFor } from '../src/lib/taxonomy'
 
@@ -212,7 +214,14 @@ type Row = {
   titleEn: string; titleVi: string; descEn: string; descVi: string; price: number; url: string; image: string; code: string
 }
 
-function rowsFor(c: Carrier): { rows: Row[]; problems: string[]; planned: string[] } {
+/** The shared import screen (src/lib/import-screen.ts) on top of screenCopy above — it adds the
+ *  advertising-banned classifier; a refused row is blocked like any other problem. A refused row that
+ *  is already LIVE is hidden by applyHides() (banned) — only in a storefront main() has vetted — or
+ *  refreshed and listed for review (ambiguous); looked up by its externalId, which names the carrier
+ *  ("esim:<carrier>:<id>").
+ *  ⚠️ BUILT IN main(), NOT AT MODULE SCOPE: the database handle is then certainly initialised, and
+ *  one screen serves one run. */
+async function rowsFor(c: Carrier, contentScreen: ImportScreen): Promise<{ rows: Row[]; problems: string[]; planned: string[] }> {
   const problems: string[] = []
   /** Every externalId the data file names for this carrier, blocked or not — see the stale report. */
   const planned: string[] = []
@@ -243,6 +252,9 @@ function rowsFor(c: Carrier): { rows: Row[]; problems: string[]; planned: string
     const d = offerDescription(c, o)
     const screen = screenCopy([o.titleEn, o.titleVi, d.en, d.vi])
     if (screen) { problems.push(`${o.id}: ${screen}`); continue }
+    if (!(await contentScreen.check({ title: o.titleEn, titleVi: o.titleVi, description: d.en, descriptionVi: d.vi, category: 'services', subcategory: SUBCATEGORY, merchant: c.sellerName, externalId: `esim:${c.key}:${o.id}`, url: o.saleUrl }))) {
+      problems.push(`${o.id}: content screen`); continue
+    }
     rows.push({ carrier: c, externalId: `esim:${c.key}:${o.id}`, kind: 'esim', label: o.id, code: o.id, attrs,
       titleEn: o.titleEn, titleVi: o.titleVi, descEn: d.en, descVi: d.vi, price: o.priceVnd, url: o.saleUrl, image: o.imageUrl })
   }
@@ -275,6 +287,9 @@ function rowsFor(c: Carrier): { rows: Row[]; problems: string[]; planned: string
     const d = planDescription(c, p)
     const screen = screenCopy([t.en, t.vi, d.en, d.vi])
     if (screen) { problems.push(`${p.code}: ${screen}`); continue }
+    if (!(await contentScreen.check({ title: t.en, titleVi: t.vi, description: d.en, descriptionVi: d.vi, category: 'services', subcategory: SUBCATEGORY, merchant: c.sellerName, externalId: `plan:${c.key}:${code}`, url: p.url }))) {
+      problems.push(`${p.code}: content screen`); continue
+    }
     rows.push({ carrier: c, externalId: `plan:${c.key}:${code}`, kind: p.kind, label: p.code, code: p.code, attrs,
       titleEn: t.en, titleVi: t.vi, descEn: d.en, descVi: d.vi, price: p.priceVnd, url: p.url, image: image! })
   }
@@ -339,14 +354,18 @@ async function main() {
   const all: Row[] = []
   const plannedFor = new Map<Carrier, string[]>()
   let blocked = 0
+  const contentScreen = new ImportScreen('esim', { db })
   for (const c of carriers) {
-    const { rows, problems, planned } = rowsFor(c)
+    const { rows, problems, planned } = await rowsFor(c, contentScreen)
     plannedFor.set(c, planned)
     console.log(`${c.sellerName.padEnd(14)} ${rows.length} listing(s)${problems.length ? `  ⛔ ${problems.length} blocked` : ''}`)
     for (const p of problems) console.log(`    ⛔ ${p}`)
     blocked += problems.length
     all.push(...rows)
   }
+  // The summary and review file now; the HIDES only after each storefront has passed its refusal checks
+  // below (applyHides with the vetted storefronts), as every other importer does.
+  contentScreen.report()
 
   // Every image is fetched in the dry run too, so an unreachable one is found before anything is written.
   const bytes = new Map<string, Buffer | null>()
@@ -375,14 +394,12 @@ async function main() {
   const hosted = new Map<string, string | null>()
   const avatarCommands: string[] = []
   const touchedSellers: string[] = []
+  /** Existing storefronts that passed every refusal below — the only ones whose banned rows are hidden. */
+  const vetted: string[] = []
   for (const c of carriers) {
     const rows = ready.filter((r) => r.carrier === c)
-    if (!rows.length) {
-      console.log(`\n⚠️ ${c.sellerName}: nothing ready — storefront not touched. Anything a previous run imported for it stays LIVE at its previous prices until the data is fixed.`)
-      continue
-    }
 
-    // ── storefront ──
+    // ── storefront ── (resolved and vetted even when nothing is ready: its live banned rows still go down)
     /**
      * ⛔ PINNED BY ITS LISTINGS FIRST, BY NAME ONLY ON THE FIRST RUN. A name is user-settable and not
      * unique: a storefront an admin renamed would otherwise be missed and a SECOND one created with a
@@ -414,6 +431,11 @@ async function main() {
       if (same[0].phone || foreign) { console.error(`\n⛔ "${same[0].name}" (${same[0].id}) is somebody else's storefront (${same[0].phone ? 'guest phone' : `${foreign} other listing(s)`}) — skipping this carrier`); continue }
       if (same[0].name !== c.sellerName) console.log(`  ℹ️ storefront was renamed to "${same[0].name}" — kept`)
       if (same[0].bio !== c.bioEn) console.log(`  ℹ️ ${same[0].name}: stored bio differs from the data file — left as it is`)
+      vetted.push(same[0].id)
+    }
+    if (!rows.length) {
+      console.log(`\n⚠️ ${c.sellerName}: nothing ready — storefront not touched. Anything a previous run imported for it stays LIVE at its previous prices until the data is fixed (a banned row is hidden below).`)
+      continue
     }
     /**
      * ⛔ STOREFRONT FIELDS ARE CREATE-ONLY. `officialPartner` especially: re-asserting it on every run
@@ -432,7 +454,9 @@ async function main() {
     // old price, and the report below must say so (a reviewer's catch).
     const written = new Set<string>()
     for (const r of rows) {
-      const existing = await db.listing.findFirst({ where: { sellerId: seller.id, externalId: r.externalId }, select: { id: true, images: true } })
+      const existing = await db.listing.findFirst({ where: { sellerId: seller.id, externalId: r.externalId }, select: { id: true, images: true, status: true } })
+      // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+      if (existing?.status === 'removed') { console.log(`  ${r.externalId}: removed by eno — left as it is`); written.add(r.externalId); continue }
       let images = existing?.images
       if (!existing || REIMAGE || !images || images === '[]') {
         if (!hosted.has(r.image)) hosted.set(r.image, await host.fromBuffer(bytes.get(r.image)!, `esim-${c.key}`))
@@ -480,12 +504,16 @@ async function main() {
       select: { id: true, externalId: true },
     })
     for (const l of live) {
-      if (!planned.includes(l.externalId!)) console.log(`  ⚠️ ${c.sellerName}: ${l.externalId} is live but no longer in the data file — hide with: UPDATE "Listing" SET status='hidden' WHERE id='${l.id}';`)
+      if (!planned.includes(l.externalId!)) console.log(`  ⚠️ ${c.sellerName}: ${l.externalId} is live but no longer in the data file — hide with: UPDATE "Listing" SET status='hidden' WHERE id='${l.id}' AND status <> 'removed';`)
       else if (!written.has(l.externalId!)) console.log(`  ⚠️ ${c.sellerName}: ${l.externalId} was BLOCKED this run and is still live at its previous price — fix its data`)
     }
     touchedSellers.push(seller.id)
     console.log(`\n${c.sellerName} (${seller.id}): ${rows.length} listing(s) written`)
   }
+
+  // ⛔ THE CONTENT SCREEN'S HIDES, ONLY NOW AND ONLY IN THE VETTED STOREFRONTS: an owned, ambiguous or
+  // somebody else's storefront was refused above, and so are its rows (journaled, reversible).
+  await contentScreen.applyHides(console.log, { sellerIds: vetted })
 
   console.log(`\nAPPLIED: ${created} created, ${updated} updated, ${imaged} image(s) hosted`)
   if (avatarCommands.length) {
@@ -493,7 +521,7 @@ async function main() {
     for (const cmd of avatarCommands) console.log(`  ${cmd}`)
   }
   if (touchedSellers.length) {
-    console.log(`\nRollback (never DELETE — Order is onDelete:Restrict):\n  UPDATE "Listing" SET status='hidden' WHERE "sellerId" IN (${touchedSellers.map((id) => `'${id}'`).join(', ')});`)
+    console.log(`\nRollback (never DELETE — Order is onDelete:Restrict):\n  UPDATE "Listing" SET status='hidden' WHERE "sellerId" IN (${touchedSellers.map((id) => `'${id}'`).join(', ')}) AND status <> 'removed';`)
   }
   await db.$disconnect()
 }

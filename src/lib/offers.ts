@@ -236,7 +236,9 @@ export function isTerminalOfferStatus(status: OfferStatus | null): boolean {
  *   · accept  → the route tests `listing.status !== 'active'` (409 listing_unavailable) BEFORE
  *               actOnOffer gets to the one-accepted-offer-per-thread count (409 not_actionable).
  *   · counter → sending an offer tests `!listing.negotiable` (409 not_negotiable + a buyer trust
- *               dock) BEFORE `listing.status !== 'active'` (409 listing_unavailable).
+ *               dock) BEFORE `listing.status !== 'active'` (409 listing_unavailable). ⚠️ Except a
+ *               REMOVED listing (a tombstone): the send route answers listing_unavailable first, with
+ *               no dock (2026-10-01). Both refusals hide the control, so this mirror is unaffected.
  *   · decline → NOTHING beyond pending + recipient. This asymmetry is load-bearing and is
  *               copied from the route's own comment: gating decline on the listing being active
  *               would strand a pending offer card forever on every sold listing, with no way for

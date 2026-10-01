@@ -11,6 +11,7 @@ import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { whatsappRecipientFor } from '@/lib/whatsapp-bridge'
 import { sendWhatsAppText } from '@/lib/whatsapp'
+import { isRemovedStatus } from '@/lib/listing-removed'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -133,7 +134,14 @@ export const POST = route(
        below — negotiable, status, the price it is measured against — has nothing to read. Rejecting
        here rather than null-guarding each one keeps the offer rules in one shape and makes the
        impossible case loud instead of silently permitted. */
-    if (isOffer && !convo.listing) {
+    /* ⛔ A TOMBSTONE IS NO LISTING TO OFFER ON (2026-10-01, review). A removed listing used to be
+       hard-deleted, and its conversations with it — an offer in such a thread was a 404. The thread now
+       survives the removal (src/lib/listing-removed.ts), and the negotiable check below runs BEFORE the
+       status check, so an offer on a removed FIXED-PRICE listing would have been answered not_negotiable
+       AND docked the buyer's trust (recordFixedPriceOfferAttempt) — for offering on a listing that is
+       gone, exactly the false positive the status check's own comment refuses. So a removed listing is
+       treated as no listing at all: 409 listing_unavailable, no trust charge. Plain text stays allowed. */
+    if (isOffer && (!convo.listing || isRemovedStatus(convo.listing.status))) {
       await release()
       throw new ApiError('listing_unavailable', 409)
     }

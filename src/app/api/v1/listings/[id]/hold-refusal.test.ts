@@ -14,6 +14,7 @@ type Row = Record<string, any>
 const h = vi.hoisted(() => ({
   status: { ok: true, status: 'active' } as Row,
   confirm: { ok: true, bumped: false } as Row,
+  del: { ok: true, deleted: true } as Row,
 }))
 
 vi.mock('@/lib/api/auth', () => ({
@@ -23,10 +24,14 @@ vi.mock('@/lib/api/auth', () => ({
 vi.mock('@/lib/core/listings', () => ({
   setStatusCore: async () => h.status,
   confirmCore: async () => h.confirm,
+  deleteListingCore: async () => h.del,
+  updateListingCore: async () => ({ ok: true }),
+  DELETE_HOLD_MESSAGE: {},
 }))
 
 const { POST: statusPOST } = await import('./status/route')
 const { POST: confirmPOST } = await import('./confirm/route')
+const { DELETE: listingDELETE } = await import('./route')
 
 const params = { params: Promise.resolve({ id: 'L1' }) }
 const req = (body?: unknown) => new Request('https://eno.vn/api/v1/listings/L1/x', { method: 'POST', headers: { authorization: 'Bearer k' }, ...(body ? { body: JSON.stringify(body) } : {}) })
@@ -83,5 +88,21 @@ describe('POST /api/v1/listings/{id}/confirm', () => {
     h.confirm = { ok: false, code: 404, error: 'not_found' }
     const r = await json(await confirmPOST(req() as never, params))
     expect(r.status).toBe(404)
+  })
+})
+
+// 2026-10-01 review: deleteListingCore passes a refused hide through as itself (it used to relabel every
+// refusal as 404, which this route answers as the idempotent {ok:true}).
+describe('DELETE /api/v1/listings/{id}', () => {
+  const del = () => listingDELETE(new Request('https://eno.vn/api/v1/listings/L1', { method: 'DELETE', headers: { authorization: 'Bearer k' } }) as never, params)
+  it('a refused hide → its own status and code, never {ok:true}', async () => {
+    h.del = { ok: false, code: 403, error: 'account_held' }
+    const r = await json(await del())
+    expect(r.status).toBe(403)
+    expect(r.body.error).toMatchObject({ code: 'account_held' })
+  })
+  it('a 404 (already gone, or a tombstone) stays the idempotent {ok:true}', async () => {
+    h.del = { ok: false, code: 404, error: 'not_found' }
+    expect(await json(await del())).toEqual({ status: 200, body: { ok: true } })
   })
 })

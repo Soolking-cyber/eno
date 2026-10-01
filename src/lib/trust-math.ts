@@ -404,6 +404,18 @@ export const REPORT_NOT_CONFIRMED_STATUSES: ReadonlySet<string> = new Set(['over
 /** Report.resolvedBy for a reporter's own withdrawal (api/disputes/[id]/withdraw). */
 export const REPORT_WITHDRAWN_BY_REPORTER = 'withdrawn-by-reporter'
 
+/**
+ * Report.resolvedBy prefix for a case CLOSED BY A LISTING REMOVAL — the admin console's "Remove"
+ * (api/admin/listings 'delete') and the moderation queue's "Remove listing" (api/admin/moderate
+ * 'reject'), followed by the deciding admin's email. Such a case is status 'confirmed' with NO charge:
+ * a charge is a report_confirmed TrustEvent, which only Confirm writes. The label tells staff (the
+ * console's "confirmed · by …") which confirmed cases never charged anyone.
+ * ⚠️ A LABEL, NOT THE GATE: the appeal route wipes resolvedBy when it re-opens the case, so "may
+ * denying this appeal charge?" is answered from the LEDGER (chargedReportIds, trust.ts), never from it.
+ */
+export const REPORT_CLOSED_BY_REMOVAL_PREFIX = 'listing-removed:'
+export const removalClosedBy = (admin: string): string => `${REPORT_CLOSED_BY_REMOVAL_PREFIX}${admin}`
+
 /** What the conduct ledger needs to know about a Report. */
 export type ReportStanding = { status: string; resolvedBy?: string | null }
 

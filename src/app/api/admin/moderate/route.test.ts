@@ -57,6 +57,10 @@ const h = vi.hoisted(() => ({
   identityHeld: false,
   /** Rows a downgrade restore inside syncEnforcement parked behind the identity gate (via onHeld). */
   syncHeld: 0,
+  /** Report ids whose notifyDispute throws. */
+  notifyFails: [] as string[],
+  /** The TrustEvent ledger chargedReportIds reads: `report_confirmed` rows already written. */
+  ledger: [] as Row[],
 }))
 
 // ── the database ────────────────────────────────────────────────────────────────
@@ -95,7 +99,19 @@ vi.mock('@/lib/db', () => {
         findUnique: async (a: Row) => { rec('profile.findUnique', a); return { locale: h.locale } },
         update: async (a: Row) => { rec('profile.update', a); return {} },
       },
-      seller: { findUnique: async (a: Row) => { rec('seller.findUnique', a); return h.seller } },
+      seller: {
+        findUnique: async (a: Row) => { rec('seller.findUnique', a); return h.seller },
+        findMany: async (a: Row) => { rec('seller.findMany', a); return h.seller ? [h.seller] : [] },
+      },
+      // The REAL chargedReportIds (src/lib/trust.ts) reads the ledger through this — filtered the way the
+      // WHERE says, so a wrong subject / type / reportId clause reads as "never charged".
+      trustEvent: {
+        findMany: async (a: Row) => {
+          rec('trustEvent.findMany', a)
+          const w = a.where
+          return h.ledger.filter((e) => w.subjectProfileId.in.includes(e.subjectProfileId) && e.type === w.type && w.reportId.in.includes(e.reportId))
+        },
+      },
       notification: { create: async (a: Row) => { rec('notification.create', a); return {} } },
       disputeMessage: { create: async (a: Row) => { rec('disputeMessage.create', a); return { id: 'dm-1', createdAt: new Date(0) } } },
       $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -105,11 +121,29 @@ vi.mock('@/lib/db', () => {
       // promises, which is harmless here and lets the two writes be asserted individually.
       $transaction: async (ops: unknown) => {
         rec('$transaction', { n: Array.isArray(ops) ? ops.length : 1 })
+        // The callback form is what `reject` uses (the tombstone, its audit row and the case's report
+        // resolutions commit together). The tx records into the same log as the plain client.
+        if (typeof ops === 'function') {
+          return (ops as (tx: unknown) => unknown)({
+            report: {
+              updateMany: async (a: Row) => {
+                rec('report.updateMany', a)
+                return { count: h.updateManyQueue.length ? h.updateManyQueue.shift()! : h.updateManyCount }
+              },
+            },
+          })
+        }
         return Array.isArray(ops) ? Promise.all(ops) : ops
       },
     },
   }
 })
+
+// ── the tombstone (src/lib/core/listing-tombstone.ts has its own tests) ─────────────
+vi.mock('@/lib/core/listing-tombstone', () => ({
+  tombstoneListingsTx: async (_tx: unknown, ids: string[], opts: Row) => { h.calls.push({ m: 'tombstone', args: { ids, ...opts } }); return ids.map((id) => ({ id })) },
+}))
+vi.mock('@/lib/listing-index', () => ({ reindexListing: async () => {}, removeFromIndex: async () => {} }))
 
 // ── the caller ──────────────────────────────────────────────────────────────────
 vi.mock('@/lib/admin', () => ({
@@ -155,7 +189,10 @@ vi.mock('@/lib/enforcement', () => ({
 }))
 vi.mock('@/lib/dispute', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
-  notifyDispute: async (...a: unknown[]) => { h.fx.push({ m: 'notifyDispute', args: a }) },
+  notifyDispute: async (...a: unknown[]) => {
+    if (h.notifyFails.includes(a[1] as string)) throw new Error('notify exploded')
+    h.fx.push({ m: 'notifyDispute', args: a })
+  },
   addDisputeMessage: async (...a: unknown[]) => { h.fx.push({ m: 'addDisputeMessage', args: a }); return { id: 'dm-1', createdAt: new Date(0) } },
   respondentProfileId: async (...a: unknown[]) => { h.fx.push({ m: 'respondentProfileId', args: a }); return h.report?.__respondent ?? null },
 }))
@@ -187,6 +224,7 @@ vi.mock('next/server', async (orig) => ({
 
 import { POST } from './route'
 import { SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
+import { standingConductEvents } from '@/lib/trust-math'
 import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS } from '@/lib/dispute'
 
 /** Returns status + the RAW body text, because the contract is bytes, not a deep-equal shape. */
@@ -222,6 +260,8 @@ beforeEach(() => {
   h.revalidated = []
   h.identityHeld = false
   h.syncHeld = 0
+  h.notifyFails = []
+  h.ledger = []
 })
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -550,6 +590,37 @@ describe('bulk-confirm — the batch that docks trust', () => {
     expect(called('report.findMany').filter((c) => !(c.args as Row).where.status)).toHaveLength(1)
     expect(called('report.updateMany')).toHaveLength(2)
   })
+
+  // ⛔ An appeal never mints a first charge — the bulk path too (see confirm-report's 'a denied APPEAL').
+  it('⛔ denied appeals in a batch: an uncharged (removal-closure) appeal is re-closed WITHOUT a charge; a charged one and a fresh report are charged as before', async () => {
+    const at = new Date('2026-09-30T00:00:00Z')
+    h.batchReports = [rep({ id: 'r1', appealedAt: at }), rep({ id: 'r2', appealedAt: at }), rep({ id: 'r3' })]
+    h.ledger = [{ subjectProfileId: 'p1', type: 'report_confirmed', reportId: 'r2' }]
+    const r = await post({ action: 'bulk-confirm', ids: ['r1', 'r2', 'r3'], severity: 'minor' })
+    expect(r.text).toBe('{"ok":true,"confirmed":3,"skipped":0}')
+    expect(effects('applyTrustEvent').map((e) => (e.args[3] as Row).reportId)).toEqual(['r2', 'r3'])
+    expect(effects('syncEnforcement').map((e) => (e.args[2] as Row).triggerReportId)).toEqual(['r2', 'r3'])
+    // ONE ledger read, for the appealed reports only.
+    expect(called('trustEvent.findMany').map((c) => (c.args as Row).where.reportId.in)).toEqual([['r1', 'r2']])
+    // All three are still decided: confirmed, and the respondent told each time.
+    expect(called('report.updateMany')).toHaveLength(3)
+    expect(called('notification.create')).toHaveLength(3)
+  })
+
+  it('a batch with no appeal never reads the ledger', async () => {
+    h.batchReports = [rep({ id: 'r1' }), rep({ id: 'r2' })]
+    await post({ action: 'bulk-confirm', ids: ['r1', 'r2'] })
+    expect(called('trustEvent.findMany')).toHaveLength(0)
+    expect(effects('applyTrustEvent')).toHaveLength(2)
+  })
+
+  it('a storefront-only appealed target: its charge is looked up on the storefront OWNER (penalizeSeller\'s subject)', async () => {
+    h.seller = { ownerId: 'o7' }
+    h.batchReports = [rep({ id: 'r1', targetProfileId: null, targetSellerId: 's7', appealedAt: new Date() })]
+    h.ledger = [{ subjectProfileId: 'o7', type: 'report_confirmed', reportId: 'r1' }]
+    await post({ action: 'bulk-confirm', ids: ['r1'], severity: 'minor' })
+    expect(effects('penalizeSeller').map((e) => e.args)).toEqual([['s7', -SEVERITY_PENALTY.minor, { reason: 'report:r1', reportId: 'r1' }]])
+  })
 })
 
 describe('approve / reject / unpublish — the listing actions', () => {
@@ -613,12 +684,60 @@ describe('approve / reject / unpublish — the listing actions', () => {
     expect(called('listing.delete')).toHaveLength(0)
   })
 
-  it('reject → 200 {"ok":true} and deletes the listing', async () => {
+  it('reject → 200 and TOMBSTONES the listing — never a hard delete (Law 122/2025)', async () => {
     h.listing = { id: 'l1' }
-    const r = await post({ action: 'reject', id: 'l1' })
-    expect(r.text).toBe('{"ok":true}')
-    expect(args('listing.delete')).toEqual({ where: { id: 'l1' } })
+    h.updateManyCount = 2
+    const r = await post({ action: 'reject', id: 'l1', decisionNote: 'counterfeit' })
+    expect(r.status).toBe(200)
+    expect(r.text).toBe('{"ok":true,"removed":1,"resolved":2}')
+    expect(called('listing.delete')).toHaveLength(0)
+    expect(args('tombstone')).toMatchObject({ ids: ['l1'], reason: 'moderation_rejected', note: 'counterfeit', actor: { kind: 'moderator', email: expect.any(String) } })
     expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
+  })
+
+  // ⛔ The old hard delete CLOSED THE CASE by cascading its reports away. A tombstone keeps them, so the
+  // removal resolves the listing's OPEN reports itself — in the tombstone's transaction — or the case
+  // sat in the queue, blocked the retention scrub and kept the seller under the open-report delete hold.
+  it('reject CLOSES the case: the listing\'s open reports → confirmed, by this moderator, with the note, in the same transaction', async () => {
+    h.listing = { id: 'l1' }
+    await post({ action: 'reject', id: 'l1', decisionNote: 'counterfeit' })
+    expect(called('$transaction')).toHaveLength(1)
+    const upd = args('report.updateMany')!
+    expect(upd.where).toEqual({ listingId: 'l1', status: 'open' })
+    // `listing-removed:<admin>`: labelled an uncharged removal closure (trust-math.ts), still naming the moderator.
+    expect(upd.data).toEqual({ status: 'confirmed', resolvedBy: 'listing-removed:mod@eno.vn', resolvedAt: expect.any(Date), decisionNote: 'counterfeit' })
+  })
+
+  it('reject docks NO trust (as the old delete did — the charge is Confirm\'s job) and tells each reporter it was upheld', async () => {
+    h.listing = { id: 'l1' }
+    h.batchReports = [{ id: 'r1', reporterProfileId: 'rep-1' }, { id: 'r2', reporterProfileId: null }]
+    await post({ action: 'reject', id: 'l1' })
+    expect(effects('applyTrustEvent')).toHaveLength(0)
+    expect(effects('penalizeSeller')).toHaveLength(0)
+    expect(effects('syncEnforcement')).toHaveLength(0)
+    // Only the rows THIS call resolved — matched by the resolve stamp.
+    expect(args('report.findMany')!.where).toEqual({ listingId: 'l1', status: 'confirmed', resolvedBy: 'listing-removed:mod@eno.vn', resolvedAt: expect.any(Date) })
+    expect(effects('notifyDispute').map((e) => e.args)).toEqual([['rep-1', 'r1', 'decided_upheld_reporter']])
+    // No decision note → an earlier note (an appealed case's) is not blanked.
+    expect(args('report.updateMany')!.data).not.toHaveProperty('decisionNote')
+  })
+
+  it('reject: one reporter\'s failed notice does not abandon the others (per-reporter best effort)', async () => {
+    h.listing = { id: 'l1' }
+    h.batchReports = [{ id: 'r1', reporterProfileId: 'rep-1' }, { id: 'r2', reporterProfileId: 'rep-2' }, { id: 'r3', reporterProfileId: 'rep-3' }]
+    h.notifyFails = ['r1']
+    const r = await post({ action: 'reject', id: 'l1' })
+    expect(r.res.status).toBe(200)
+    expect(effects('notifyDispute').map((e) => e.args)).toEqual([['rep-2', 'r2', 'decided_upheld_reporter'], ['rep-3', 'r3', 'decided_upheld_reporter']])
+  })
+
+  it('reject with no open report on the listing: nothing to notify, and the body says so', async () => {
+    h.listing = { id: 'l1' }
+    h.updateManyCount = 0
+    const r = await post({ action: 'reject', id: 'l1' })
+    expect(r.text).toBe('{"ok":true,"removed":1,"resolved":0}')
+    expect(called('report.findMany')).toHaveLength(0)
+    expect(effects('notifyDispute')).toHaveLength(0)
   })
 
   it('unpublish → 200 {"ok":true}, with NO existence check (it is a blind update, by design)', async () => {
@@ -773,6 +892,82 @@ describe('confirm-report — the single most consequential action', () => {
     expect(r.text).toBe('{"ok":true}')
     expect(effects('penalizeSeller')[0].args).toEqual(['s7', -SEVERITY_PENALTY.minor, { reason: 'report:r1', reportId: 'r1' }])
     expect(called('notification.create')).toHaveLength(0)
+  })
+
+  /**
+   * ⛔ AN APPEAL NEVER MINTS A FIRST CHARGE (2026-10-01, review). A case closed by a listing removal
+   * ('reject', the console's "Remove") is 'confirmed' with NO report_confirmed TrustEvent, and its
+   * respondent is offered "Appeal with proof"; the appeal re-opens it (open + appealedAt). Confirming it
+   * is the moderator DENYING that appeal — and it used to write the case's FIRST charge, because the
+   * dedupe it relied on (earliest event per report) had no earlier event to keep.
+   */
+  describe('a denied APPEAL', () => {
+    const APPEALED = { ...R, listingId: 'l1', appealedAt: new Date('2026-09-30T00:00:00Z') }
+    const charge = (reportId: string, subjectProfileId = 'p1', type = 'report_confirmed') =>
+      ({ id: `te-${reportId}`, subjectProfileId, type, reportId, createdAt: new Date('2026-09-01T00:00:00Z') })
+
+    it('of a REMOVAL closure (never charged) → re-closed confirmed with NO trust event and NO enforcement', async () => {
+      h.report = { ...APPEALED }
+      const r = await post({ action: 'confirm-report', id: 'r1', severity: 'severe' })
+      expect(r.status).toBe(200)
+      expect(r.text).toBe('{"ok":true}')
+      // The ledger was asked about THIS report on THIS respondent — and BEFORE the flip, so a failed read
+      // leaves the case open rather than confirmed behind the idempotency guard.
+      expect(args('trustEvent.findMany')!.where).toEqual({ subjectProfileId: { in: ['p1'] }, type: 'report_confirmed', reportId: { in: ['r1'] } })
+      const order = h.calls.map((c) => c.m)
+      expect(order.indexOf('trustEvent.findMany')).toBeLessThan(order.indexOf('report.updateMany'))
+      expect(args('report.updateMany')!.data).toMatchObject({ status: 'confirmed', severity: 'severe', resolvedBy: 'mod@eno.vn' })
+      expect(effects('applyTrustEvent')).toHaveLength(0)
+      expect(effects('penalizeSeller')).toHaveLength(0)
+      expect(effects('syncEnforcement')).toHaveLength(0)
+      // The decision itself still lands: the listing stays down and both sides hear the outcome.
+      expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false, identityHold: false } })
+      expect(called('notification.create').map((c) => (c.args as Row).data.url)).toEqual(['/disputes/r1'])
+      expect(effects('notifyDispute').map((e) => e.args)).toEqual([['rep1', 'r1', 'decided_upheld_reporter']])
+    })
+
+    it('denied again after a second appeal → still uncharged (the ledger, not a label the appeal wipes, decides)', async () => {
+      h.report = { ...APPEALED, appealedAt: new Date('2026-10-01T00:00:00Z') }
+      await post({ action: 'confirm-report', id: 'r1' })
+      expect(effects('applyTrustEvent')).toHaveLength(0)
+    })
+
+    it('of a confirm that CHARGED → re-confirmed and charged exactly as before, and the ledger still counts it once', async () => {
+      h.report = { ...APPEALED }
+      h.ledger = [charge('r1')]
+      const r = await post({ action: 'confirm-report', id: 'r1', severity: 'severe' })
+      expect(r.text).toBe('{"ok":true}')
+      expect(effects('applyTrustEvent').map((e) => e.args)).toEqual([['p1', 'report_confirmed', -SEVERITY_PENALTY.severe, { reason: 'report:r1', reportId: 'r1' }]])
+      expect(effects('syncEnforcement')[0].args).toEqual(['p1', { bd: true }, { persistedScore: 70, triggerReportId: 'r1', onHeld: expect.any(Function) }])
+      // De-duplicated as before: computeTrustV2 keeps the EARLIEST report_confirmed per report.
+      const second = { id: 'te-r1-again', reportId: 'r1', createdAt: new Date('2026-10-01T00:00:00Z') }
+      expect(standingConductEvents([second, h.ledger[0] as { id: string; reportId: string; createdAt: Date }], { report: () => ({ status: 'confirmed' }) }))
+        .toEqual([h.ledger[0]])
+    })
+
+    it('only THIS report\'s charge counts: another report\'s charge, or a reversal marker on this one, is not a charge', async () => {
+      h.report = { ...APPEALED }
+      h.ledger = [charge('r-other'), charge('r1', 'p1', 'report_dismissed'), charge('r1', 'someone-else')]
+      await post({ action: 'confirm-report', id: 'r1' })
+      expect(effects('applyTrustEvent')).toHaveLength(0)
+    })
+
+    it('a NEVER-appealed report is a first decision: charged, and the ledger is not even read', async () => {
+      h.report = { ...R }
+      await post({ action: 'confirm-report', id: 'r1' })
+      expect(effects('applyTrustEvent')).toHaveLength(1)
+      expect(called('trustEvent.findMany')).toHaveLength(0)
+    })
+
+    it('a failed ledger read → 500 with the case still OPEN: no flip, no charge, retryable', async () => {
+      h.report = { ...APPEALED }
+      h.throwOn = 'trustEvent.findMany'
+      const r = await post({ action: 'confirm-report', id: 'r1' })
+      expect(r.status).toBe(500)
+      expect(r.text).toBe('{"error":"internal_error"}')
+      expect(called('report.updateMany')).toHaveLength(0)
+      expect(h.fx).toEqual([])
+    })
   })
 })
 

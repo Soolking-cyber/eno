@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { rateLimit, type RateLimitSnapshot } from '@/lib/ratelimit'
 import { verifyAccessToken, looksLikeAccessToken } from '@/lib/api/oauth'
 import { logError } from '@/lib/log'
+import { LISTING_REMOVED } from '@/lib/listing-removed'
 
 // ── /api/v1 machine authentication ───────────────────────────────────────────────
 // The ONLY authn for the partner API. Keys are Bearer tokens of the form
@@ -188,6 +189,7 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
 // bypassed, so ownership MUST be checked in app code). True iff the listing exists AND its
 // sellerId matches; a non-owned/absent id is treated as 404 by the caller (no leak).
 export async function listingOwnedBy(listingId: string, sellerId: string): Promise<boolean> {
-  const l = await db.listing.findUnique({ where: { id: listingId }, select: { sellerId: true } }).catch(() => null)
-  return !!l && l.sellerId === sellerId
+  const l = await db.listing.findUnique({ where: { id: listingId }, select: { sellerId: true, status: true } }).catch(() => null)
+  // ⛔ A tombstone (src/lib/listing-removed.ts) is "not found" to its own shop's API key and MCP client.
+  return !!l && l.sellerId === sellerId && l.status !== LISTING_REMOVED
 }

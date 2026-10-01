@@ -92,6 +92,7 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   'scripts/import-supersports.ts': { count: 1, why: 'affiliate importer — payload literal; refuses a storefront with an ownerId' },
   'scripts/import-accesstrade.ts': { count: 1, why: 'affiliate importer — payload literal; refuses a storefront with an ownerId' },
   'scripts/seed-vinwonders.ts': { count: 1, why: 'partner storefront seed — payload literal; the seller stays ownerless (refuses an owned one)' },
+  'scripts/seed-hoangphi.ts': { count: 2, why: 'owner-requested offer (2026-10-01) on ONE owned official-partner storefront pinned by seller id AND owner email (lawyer-review@eno.vn); create-only status/verified; operator act — a signed partner, outside the seller identity gate like the other partner seeds' },
   'scripts/import-esim.ts': { count: 2, why: 'carrier eSIM/plan reference listings onto ownerless partner storefronts — the upsert’s create-only status/verified; refuses an owned or ambiguously named storefront' },
   'scripts/e2e-seed.mjs': { count: 1, why: 'e2e fixture on a disposable target' },
   'scripts/test-account-delete.mjs': { count: 1, why: 'throwaway listing for the account-deletion test' },

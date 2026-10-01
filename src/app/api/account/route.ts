@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { serializeListing } from '@/lib/serialize'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,7 +24,7 @@ export async function GET() {
   const seller = await db.seller.findUnique({ where: { ownerId: profile.id } })
   const listings = seller
     ? await db.listing.findMany({
-        where: { sellerId: seller.id },
+        where: { sellerId: seller.id, ...NOT_REMOVED }, // never a tombstone (src/lib/listing-removed.ts)
         orderBy: { postedAt: 'desc' },
         include: { category: true },
       })

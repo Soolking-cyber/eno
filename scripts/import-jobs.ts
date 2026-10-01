@@ -51,6 +51,8 @@ import { makeImageHost } from '../src/lib/host-product-image'
 import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { browseRankScore } from '../src/lib/ranking-formula'
 import { journalDirProblem, sellerRefusal } from '../src/lib/honeycomb-listing'
+// ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
+import { ImportScreen } from '../src/lib/import-screen'
 import {
   JOB_BOARDS, JOB_SELLER_IDS, isExpiredJob, jobExternalId, jobStageProblem, mapStagedJob, pdpTombstoneTags,
   type JobDrop, type JobStage, type MappedJob,
@@ -214,6 +216,8 @@ async function main() {
   const drops: Partial<Record<JobDrop | 'noCover' | 'dupInStage', string[]>> = {}
   const drop = (why: keyof typeof drops, label: string) => { (drops[why] ??= []).push(label) }
   const keep: MappedJob[] = []
+  // The screen's hide journal and review file go to the durable --journal-dir on --apply, with the rest.
+  const screen = new ImportScreen('jobs', { db, sellerIds: [...JOB_SELLER_IDS], ...(journal ? { dir: journal } : {}) })
   const seen = new Set<string>()
   const stageDir = SRC ? resolve(SRC, '..') : ''
   for (const j of stage?.jobs ?? []) {
@@ -225,8 +229,13 @@ async function main() {
     if (!coverFile || statSync(coverFile).size > 5_000_000) { drop('noCover', r.job.externalId); continue }
     if (seen.has(r.job.externalId)) { drop('dupInStage', r.job.externalId); continue }
     seen.add(r.job.externalId)
+    // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts). mapStagedJob already ran
+    // assertCleanTexts; this is the shared screen every importer runs (a job is not goods, so the
+    // advertising classifier passes it — the banned-word half is what applies).
+    if (!(await screen.check({ title: r.job.title, description: r.job.description, descriptionVi: r.job.descriptionVi, category: 'jobs', subcategory: r.job.subcategorySlug, merchant: r.job.sellerName, extraTexts: [r.job.location], externalId: r.job.externalId, url: r.job.affiliateUrl }))) continue
     keep.push({ ...r.job, coverPath: coverFile })
   }
+  screen.report()
 
   const category = await db.category.findFirst({ where: { slug: 'jobs' }, select: { id: true, name: true } })
   if (!category) throw new Error('no `jobs` category — cannot place these rows')
@@ -256,7 +265,8 @@ async function main() {
     return { k, s, mutable, changed }
   })
   const toCreate = plan.filter((p) => !p.s).slice(0, LIMIT || undefined)
-  const toUpdate = plan.filter((p) => p.s && p.changed!.length)
+  // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+  const toUpdate = plan.filter((p) => p.s && p.s.status !== 'removed' && p.changed!.length)
 
   /** Postings the pipeline re-checked and found removed (stage.gone) → the active rows they map to. */
   const goneKeys = (stage?.gone ?? []).map((g) => jobExternalId(g.source, g.url)).filter((k): k is NonNullable<typeof k> => !!k)
@@ -292,6 +302,8 @@ async function main() {
     await db.$disconnect(); return
   }
   if (refusals.length) throw new Error(`refusing to write: ${refusals.join('; ')}`)
+  // ⛔ Live rows the content screen refused as banned are hidden only now, past the storefront refusals.
+  await screen.applyHides()
 
   // ── APPLY ────────────────────────────────────────────────────────────────────────────────────
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
@@ -377,7 +389,7 @@ async function main() {
   console.log(`\n${JSON.stringify(stat)}   active job rows now ${active}\nISR tombstones    ${ts}`)
   console.log(`\nVERIFY:   npx tsx scripts/import-jobs.ts --verify`)
   console.log(`ROLLBACK (safe, reversible — removes every linked job from every public surface; then run purge-isr-listings.mjs):`)
-  console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" IN ('${JOB_SELLER_IDS.join("','")}');`)
+  console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" IN ('${JOB_SELLER_IDS.join("','")}') AND status <> 'removed';`)
   console.log(`  -- never DELETE: Order is onDelete:Restrict and six relations Cascade.${UPLOADED ? ` Uploaded covers: ${UPLOADED}` : ''}`)
   await db.$disconnect()
 }

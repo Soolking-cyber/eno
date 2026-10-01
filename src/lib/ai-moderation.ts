@@ -8,6 +8,7 @@ import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { db } from '@/lib/db'
 import { safeFetch } from '@/lib/ssrf'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 
 // ── AI illegal-content moderation (Tier 2, async post-publish) ─────────────────────────
 // The inline word-scan (publish-guard) blocks CLEAR prohibited text at publish time. This
@@ -156,8 +157,18 @@ export async function moderateListingById(listingId: string): Promise<void> {
     // listing hidden without an audit card / seller notice if one write fails (it rolls back
     // and stays live, fail-open). Feed requires verified=true AND status='active'. The admin
     // confirming the report is what moves trust — the AI never penalises directly.
+    //
+    // ⛔ THE HIDE REFUSES A TOMBSTONE IN ITS OWN WHERE (2026-10-01, review). The `status === 'active'`
+    // read above is not a lock, and the classify call between it and here takes seconds. A seller
+    // delete, a moderator's "Remove listing" or the admin console's bulk remove committing in that
+    // window writes status 'removed' (src/lib/listing-removed.ts); an unguarded `where: { id }` turned
+    // that tombstone back into the SELLER state 'hidden' — back in "My listings", relistable, with an
+    // open AI report. (Before tombstones the removal was a hard delete and this update failed.) With
+    // the guard it is ONE statement, `UPDATE … WHERE id = $1 AND status <> 'removed'`, which throws
+    // P2025 on zero rows and rolls back the report + notice with it; the catch below logs that as a
+    // skip. Only the tombstone is refused: a row the seller hid or sold meanwhile is still held.
     const writes: Prisma.PrismaPromise<unknown>[] = [
-      db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false, identityHold: false } }),
+      db.listing.update({ where: { id: l.id, ...NOT_REMOVED }, data: { status: 'hidden', verified: false, identityHold: false } }),
       db.report.create({
         data: {
           listingId: l.id,
@@ -185,6 +196,12 @@ export async function moderateListingById(listingId: string): Promise<void> {
     refreshListingSurfaces([l.id], 'aiModeration', { home: true })
     console.warn(`[ai-moderation] auto-held ${l.id} (${result.category}, ${result.confidence.toFixed(2)})`)
   } catch (e) {
+    // P2025 = the guarded hide matched no row: the listing was removed (or erased) while it was being
+    // classified. Nothing was written; that is the intended outcome, not a failure.
+    if ((e as { code?: string })?.code === 'P2025') {
+      console.warn(`[ai-moderation] ${listingId} was removed during the check — hold skipped`)
+      return
+    }
     console.error('[ai-moderation] moderateListingById failed', e)
   }
 }

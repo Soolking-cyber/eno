@@ -658,6 +658,37 @@ export async function recordChargeReversals(
 }
 
 /**
+ * Which of these reports has EVER CHARGED its respondent: a report_confirmed ledger row carrying the
+ * report's id, on the subject a charge lands on (the target account; for a storefront-only target, the
+ * storefront's owner — penalizeSeller). The ledger, not Report.status, is what a charge is: computeTrustV2
+ * reads TrustEvents, so a 'confirmed' report with none (a case closed by a listing removal) weighs nothing.
+ *
+ * ⛔ FOR THE CONFIRM PATHS' "AN APPEAL NEVER MINTS A FIRST CHARGE" RULE (api/admin/moderate). A denied
+ * appeal re-closes the case as it was: one that charged is re-confirmed and the second event dedupes
+ * (standingConductEvents keeps the earliest); one that never charged must stay uncharged.
+ * ⚠️ A GUEST storefront's dock is a direct mirror write with no ledger row, so such a report reads as
+ * uncharged here. Only APPEALED reports are asked about, and those always name an account — the appeal
+ * route admits only report.targetProfileId — so that case never reaches this.
+ * Rides the (subjectProfileId, createdAt) index — TrustEvent has no reportId index.
+ */
+export async function chargedReportIds(
+  reports: ReadonlyArray<{ id: string; targetProfileId: string | null; targetSellerId: string | null }>,
+): Promise<Set<string>> {
+  if (!reports.length) return new Set()
+  const sellerIds = [...new Set(reports.filter((r) => !r.targetProfileId).map((r) => r.targetSellerId).filter((x): x is string => !!x))]
+  const owners = sellerIds.length
+    ? (await db.seller.findMany({ where: { id: { in: sellerIds } }, select: { ownerId: true } })).map((s) => s.ownerId)
+    : []
+  const subjects = [...new Set([...reports.map((r) => r.targetProfileId), ...owners].filter((x): x is string => !!x))]
+  if (!subjects.length) return new Set()
+  const rows = await db.trustEvent.findMany({
+    where: { subjectProfileId: { in: subjects }, type: 'report_confirmed', reportId: { in: reports.map((r) => r.id) } },
+    select: { reportId: true },
+  })
+  return new Set(rows.map((r) => r.reportId).filter((x): x is string => !!x))
+}
+
+/**
  * A report left 'open' (an appeal) was just resolved as NOT a violation (dismissed /
  * abusive) — record the reversal in the ledger and re-derive trust AND enforcement for whoever
  * that report had charged.

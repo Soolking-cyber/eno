@@ -32,6 +32,8 @@ import { buildSearchText } from '../src/lib/fold'
 // of them quietly rots. It is unit-tested in src/lib/affiliate-price-refresh.test.ts.
 import { repairAffLink } from '../src/lib/affiliate-price-refresh'
 import { browseRankScore } from '../src/lib/ranking-formula'
+// ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
+import { ImportScreen } from '../src/lib/import-screen'
 /**
  * ⚠️ THE FEED'S aff_links ARE REPAIRED LOCALLY, NOT MINTED PER PRODUCT. `product_link/create`
  * works and would also be correct, but it is one HTTP round trip per product — 9,728 of them for a
@@ -181,6 +183,7 @@ async function main() {
 
   let seen = 0, matched = 0, created = 0, updated = 0, skipped = 0, imaged = 0
   const failures: string[] = []
+  const screen = new ImportScreen(`accesstrade-${CAMPAIGN}`, { db })
   const PAGE = 200
   for (let page = 1; seen < total; page++) {
     /**
@@ -218,8 +221,18 @@ async function main() {
         const existing = seller
           // ⚠️ `title`/`description` are read so a REFRESH can keep the text a human or a model
           // wrote (see the searchText build below), not just to decide create-vs-update.
-          ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true, images: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true, brandSlug: true, model: true } })
+          ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true, status: true, images: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true, brandSlug: true, model: true } })
           : null
+        // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+        if (existing?.status === 'removed') { skipped++; return }
+        // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a banned word or an
+        // advertising-banned product (Tiki's spirits, formula, feeding bottles, NexGard…) is never
+        // created; if it is already LIVE it is not refreshed and finish() hides it (journaled). An
+        // ambiguous one goes to the review file — and, if already live, is refreshed as normal rather
+        // than frozen on a stale price. Runs in the dry run too (which hides nothing).
+        if (!(await screen.check({ title: p.name, description: p.desc, category: slug, subcategory: subcategoryFor(slug, p.name), merchant: merchantName, externalId, url: p.url }, existing ? { id: existing.id, status: existing.status } : null))) {
+          skipped++; return
+        }
         if (!APPLY) { existing ? updated++ : created++; return }
         let images = existing?.images
         const hasImage = (() => { try { return JSON.parse(images || '[]').length > 0 } catch { return false } })()
@@ -380,6 +393,7 @@ async function main() {
     if (page % 2 === 0 || seen >= total) console.log(`  ${seen}/${total}${MATCH || CATE ? `  matched=${matched}` : ''}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
   }
   console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${created} created, ${updated} updated, ${imaged} images hosted, ${skipped} skipped`)
+  await screen.finish({ apply: APPLY })
   // ⚠️ Name the failures rather than leaving "skipped" to mean four different things.
   if (failures.length) {
     const kinds: Record<string, number> = {}

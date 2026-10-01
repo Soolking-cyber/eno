@@ -88,9 +88,10 @@ export function useListingActions(
         .then(async (res) => {
           if (!res.ok) throw new Error('failed')
           // ⚠️ A 200 IS NOT ALWAYS A DELETE. While the account or this listing is under
-          // investigation the server HIDES it instead — deleting would erase other people's reports
-          // and chats (core/listings.ts deleteListingCore). The row comes back as hidden, and the
-          // seller is told why rather than watching a "deleted" listing reappear.
+          // investigation the server HIDES it instead, so the listing stays where the investigation
+          // can act on it (core/listings.ts deleteListingCore — a delete no longer erases reports or
+          // chats; it is a tombstone, src/lib/listing-removed.ts). The row comes back as hidden, and
+          // the seller is told why rather than watching a "deleted" listing reappear.
           const d = (await res.json().catch(() => ({}))) as { hidden?: boolean; reason?: string }
           if (d.hidden) {
             setGone(false)

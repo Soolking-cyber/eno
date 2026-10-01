@@ -26,6 +26,16 @@ const h = vi.hoisted(() => ({
   creates: 0,
 }))
 
+/** A status write moves the storefront's active count the way the real row would. */
+function move(a: Row): void {
+  const r = h.rows[a.where.id]
+  if (r && a.data.status && a.data.status !== r.status) {
+    if (a.data.status === 'active') h.active++
+    else if (r.status === 'active') h.active--
+    r.status = a.data.status
+  }
+}
+
 vi.mock('@/lib/released-charge-gate', () => {
   const gateFor = async (standing: { waivesRestricted: boolean; limit: number }) =>
     ({ ...standing, active: h.active, remaining: Math.max(0, standing.limit - h.active) })
@@ -54,17 +64,17 @@ vi.mock('@/lib/db', () => ({
     listing: {
       findUnique: async (a: Row) => h.rows[a.where.id] ?? h.current,
       findMany: async () => h.existing,
-      update: async (a: Row) => {
+      update: async (a: Row) => { h.updates.push(a); move(a); return { id: a.where.id } },
+      // setStatusCore / confirmCore write through updateMany by ONE id, conditional on not-removed; the
+      // sync's full-retire writes by `{ in: ids }` (no such call in this file's flows).
+      updateMany: async (a: Row) => {
         h.updates.push(a)
-        const r = h.rows[a.where.id]
-        if (r && a.data.status && a.data.status !== r.status) {
-          if (a.data.status === 'active') h.active++
-          else if (r.status === 'active') h.active--
-          r.status = a.data.status
-        }
-        return { id: a.where.id }
+        if (typeof a.where.id !== 'string') return { count: 0 }
+        const r = h.rows[a.where.id] ?? h.current
+        if (!r || (a.where.status?.not !== undefined && r.status === a.where.status.not)) return { count: 0 }
+        move(a)
+        return { count: 1 }
       },
-      updateMany: async (a: Row) => { h.updates.push(a); return { count: 0 } },
       create: async () => { h.creates++; return { id: `new${h.creates}` } },
       count: async () => 0,
     },
@@ -336,5 +346,34 @@ describe('syncListingsCore — a revive past the allowance fails BEFORE any writ
     h.current = { status: 'sold', sellerId: 's1', seller: { ownerId: 'owner-1', owner: { enforcementState: 'good_standing' } } }
     const out = await syncListingsCore(STANDARD, [{ externalId: 'sold-1', status: 'active' }, { externalId: 'sold-2', status: 'active' }], 'partial')
     expect(out.results.map((x) => x.action)).toEqual(['updated', 'updated'])
+  })
+})
+
+// ⛔ A TOMBSTONE IS NOT SYNCABLE (src/lib/listing-removed.ts). A moderator's removal keeps the partner's
+// externalId precisely so that re-sending the SKU hits the tombstone — which must then be REPORTED, not
+// edited back or relisted (a seller's own delete releases the externalId, so that case never gets here).
+describe('syncListingsCore — a removed listing is reported, never edited or relisted', () => {
+  it('re-sending a moderator-removed SKU fails with listing_removed and writes nothing to it', async () => {
+    h.active = 0
+    h.existing = [{ id: 'R1', externalId: 'gone-1', status: 'removed' }]
+    h.current = { status: 'removed', sellerId: 's1', seller: { ownerId: 'owner-1', owner: { enforcementState: 'good_standing' } } }
+    const out = await syncListingsCore(STANDARD, [{ externalId: 'gone-1', status: 'active', title: 'Back again' }], 'partial')
+    expect(out.results).toEqual([{ external_id: 'gone-1', id: 'R1', action: 'failed', error: 'listing_removed' }])
+    expect(h.updates.filter((u) => u.where?.id === 'R1')).toEqual([])
+  })
+})
+
+// ⛔ The FULL sync's retire reads the shop's active rows and then hides them; a removal (or any take-down)
+// committing in between must not be turned into 'hidden'. The write re-states `status: 'active'` and the
+// reported count is what the write actually changed.
+describe('syncListingsCore — the full-sync retire is conditional on the row still being active', () => {
+  it('retire writes WHERE id IN (…) AND status = active, and reports the rows it actually hid', async () => {
+    h.active = 0
+    // The fake findMany answers both reads (the externalId lookup and the retire candidates) with this.
+    h.existing = [{ id: 'A1', externalId: 'kept-1', status: 'active' }, { id: 'X1', externalId: 'absent-1', status: 'active' }]
+    const out = await syncListingsCore(STANDARD, [{ externalId: 'kept-1' }], 'full')
+    const retire = h.updates.find((u) => u.data?.status === 'hidden' && typeof u.where?.id === 'object')
+    expect(retire?.where).toEqual({ id: { in: ['A1', 'X1'] }, status: 'active' })
+    expect(out.retired).toBe(0) // the fake's batch updateMany changes no row — the count, not ids.length
   })
 })

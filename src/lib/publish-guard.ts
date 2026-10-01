@@ -132,6 +132,27 @@ const BANNED_WORDS = [
   'spy camera', 'gps jammer', 'signal jammer',
   // pre-activated SIMs (the Vietnamese terms are above)
   'pre-activated sim', 'preactivated sim', 'pre-activated esim', 'preactivated esim',
+  // ── ADVERTISING-BANNED GOODS that /prohibited already lists (2026-10-01) ─────────────────────
+  // Advertising Law 16/2012 Art 7 + Resolution 173/2024. ONLY names that mean the regulated product
+  // and nothing else — every term below matched 0 live listings when added, except the genuine
+  // veterinary rows: 'bravecto' 2, 'bravecto24' 1 and 'nexgard' 7 (the 2026-10-01 read-only dry run),
+  // which src/lib/ad-banned.ts also bans.
+  // ⛔ DELIBERATELY NOT HERE: alcohol, infant formula, feeding bottles, teats/pacifiers. Each needs
+  // context a word list does not have — "ly Hennessy" (a glass), "tủ rượu" (a cabinet), "máy hâm
+  // bình sữa" (a bottle warmer), "hộp đựng núm ti giả" (a pacifier case), "Sữa cho bé 2-6 tuổi"
+  // (allowed), and bare "ti gia" is also "tỉ giá" (exchange rate). Those are classified with strength,
+  // age and head-noun parsing in src/lib/ad-banned.ts, which screens every IMPORT; user posts in
+  // those categories rely on reports and the AI moderation pass, per the launch-lenience policy.
+  // vapes, heated tobacco, nicotine products ('vape', 'iqos', 'juul' … are above)
+  'vapes', 'e-cig', 'e-cigs', 'e-liquid', 'eliquid', 'e-juice', 'tinh dau vape', 'pod vape', 'vape pod',
+  'salt nic', 'saltnic', 'heated tobacco', 'thuoc la the he moi', 'terea', 'relx', 'vaporesso', 'voopoo',
+  'geekvape', 'elfbar', 'nicotine pouch', 'nicotine pouches',
+  // veterinary prescription parasiticides ("Medicines of every kind" on /prohibited)
+  'bravecto', 'bravecto24', 'nexgard', 'simparica', 'credelio',
+  // prescription medicines by name ('xanax', 'tramadol', 'codeine' … are above)
+  'amoxicillin', 'amoxicilin', 'augmentin', 'azithromycin', 'cephalexin', 'ciprofloxacin', 'doxycycline',
+  'sildenafil', 'tadalafil', 'viagra', 'cialis', 'isotretinoin', 'accutane', 'ozempic', 'semaglutide',
+  'wegovy', 'mounjaro', 'tirzepatide', 'saxenda', 'misoprostol', 'mifepristone', 'clenbuterol',
 ].map((w) => fold(w))
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const BANNED_RE = new RegExp(`\\b(${BANNED_WORDS.map(escapeRe).join('|')})\\b`)
@@ -141,6 +162,125 @@ export function findBannedWord(text: string | null | undefined): string | null {
   if (!text) return null
   const m = fold(text).match(BANNED_RE)
   return m ? m[1] : null
+}
+
+/**
+ * ── THE ACCENTED SPELLING OF EVERY VIETNAMESE TERM ABOVE (the import screen's accent-aware match) ──
+ *
+ * The folded list cannot tell "bán dâm" (prostitution) from "xanh cô ban đậm" (dark cobalt blue),
+ * "vũ khí" (weapon) from "vi vu khi" (wandering about when…), "thuốc phiện" (opium) from "thuộc phiên
+ * bản" (belongs to the version), "ma túy" from "mật mã tùy thích" (a padlock). Measured 2026-10-01 over
+ * the live imported catalogue, folding collisions like these refused hundreds of merchant rows. A
+ * seller's own post keeps the folded match (findBannedWord — a seller who types without accents must
+ * not slip through); IMPORTED rows, whose merchant copy is written with accents, are read with
+ * findBannedWordAccentAware below.
+ * ⚠️ A TERM MISSING HERE FALLS BACK TO THE FOLDED MATCH — the safe direction: a missing entry can only
+ * keep a false positive, never let a banned word through. Keep it in step with BANNED_WORDS
+ * (publish-guard.test.ts checks every key is a banned word and every spelling folds to its key).
+ */
+export const BANNED_ACCENTED: Readonly<Record<string, readonly string[]>> = {
+  'ma tuy': ['ma túy'], 'can sa': ['cần sa'], 'thuoc lac': ['thuốc lắc'], 'thuoc phien': ['thuốc phiện'], 'bong cuoi': ['bóng cười'],
+  'vu khi': ['vũ khí'], 'sung dan': ['súng đạn'], 'chat no': ['chất nổ'], 'thuoc no': ['thuốc nổ'], 'luu dan': ['lựu đạn'],
+  'phao no': ['pháo nổ'], 'phao hoa': ['pháo hoa'], 'roi dien': ['roi điện'], 'sung dien': ['súng điện'],
+  'binh xit hoi cay': ['bình xịt hơi cay'], 'con nhi khuc': ['côn nhị khúc'], 'kiem nhat': ['kiếm nhật'],
+  'mai dam': ['mại dâm'], 'mua dam': ['mua dâm'], 'ban dam': ['bán dâm'], 'khieu dam': ['khiêu dâm'], 'gai goi': ['gái gọi'],
+  'rua tien': ['rửa tiền'], 'the cao lau': ['thẻ cào lậu'], 'bang lai gia': ['bằng lái giả'], 'giay to gia': ['giấy tờ giả'],
+  'tien gia': ['tiền giả'], 'hoa don do': ['hóa đơn đỏ'], 'hoa don vat': ['hóa đơn vat'], 'dao han ngan hang': ['đáo hạn ngân hàng'],
+  'cho vay nong': ['cho vay nóng'], 'doi no thue': ['đòi nợ thuê'], 'vang mieng': ['vàng miếng'],
+  'thuoc ke don': ['thuốc kê đơn'], 'thuoc khang sinh': ['thuốc kháng sinh'], 'thuoc giam can': ['thuốc giảm cân'],
+  'thuoc kich duc': ['thuốc kích dục'], 'thuoc me': ['thuốc mê'], 'thuoc ngu': ['thuốc ngủ'],
+  'thuoc la dien tu': ['thuốc lá điện tử'], 'tinh dau pod': ['tinh dầu pod'], 'thuoc la nung nong': ['thuốc lá nung nóng'],
+  'nga voi': ['ngà voi'], 'sung te giac': ['sừng tê giác'], 'cao ho': ['cao hổ'], 'mat gau': ['mật gấu'], 'vay te te': ['vảy tê tê'],
+  'dong vat hoang da': ['động vật hoang dã'],
+  'sim kich hoat san': ['sim kích hoạt sẵn'], 'sim rac': ['sim rác'], 'danh sach khach hang': ['danh sách khách hàng'],
+  'data khach hang': ['data khách hàng'], 'esim kich hoat san': ['esim kích hoạt sẵn'],
+  'camera nguy trang': ['camera ngụy trang'], 'camera quay len': ['camera quay lén'], 'thiet bi nghe len': ['thiết bị nghe lén'],
+  'thiet bi pha song': ['thiết bị phá sóng'], 'pha song gps': ['phá sóng gps'],
+  'ban hang da cap': ['bán hàng đa cấp'], 'quan phuc cong an': ['quân phục công an'], 'quan phuc quan doi': ['quân phục quân đội'],
+  'may danh bac': ['máy đánh bạc'], 'sung ban ca': ['súng bắn cá'],
+  'tinh dau vape': ['tinh dầu vape'], 'thuoc la the he moi': ['thuốc lá thế hệ mới'],
+}
+
+const COMBINING = /[̀-ͯ]/g
+/** The five Vietnamese tone marks (huyền, sắc, ngã, hỏi, nặng) — a real syllable carries at most ONE. */
+const VI_TONES = new Set(['\u0300', '\u0301', '\u0303', '\u0309', '\u0323'])
+/** The vowel marks Vietnamese writes besides a tone: circumflex (â ê ô), breve (ă), horn (ơ ư). */
+const VI_VOWEL_MARKS = new Set(['\u0302', '\u0306', '\u031b'])
+/**
+ * One syllable's identity WITH its accents but independent of where the tone mark sits — old-style
+ * "hoá"/"tuý" and new-style "hóa"/"túy" are the same word: the base letters, the SET of marks, and đ.
+ * ⛔ A SET, NOT A LIST (2026-10-01, review): "tú́y" (ú + a second combining acute, which NFC cannot
+ * compose) is "túy" with a doubled mark, not another word.
+ * ⛔ NULL = NOT A VIETNAMESE SPELLING AT ALL — two different tone marks ("tụ́y"), a mark Vietnamese never
+ * writes ("tüy"), or a mark with no letter under it. No real word is spelled that way, so its accents
+ * cannot prove it is a DIFFERENT word from the banned one: the caller reads it on its folded letters,
+ * exactly like a word typed without accents (the safe direction — the row goes to review, never live).
+ */
+function syllableSig(w: string): string | null {
+  const d = w.normalize('NFD').toLowerCase()
+  if (/^\p{M}/u.test(d)) return null
+  const marks = [...new Set(d.match(COMBINING) ?? [])].sort()
+  if (marks.some((m) => !VI_TONES.has(m) && !VI_VOWEL_MARKS.has(m))) return null
+  if (marks.filter((m) => VI_TONES.has(m)).length > 1) return null
+  return `${d.replace(COMBINING, '').replace(/đ/g, 'd')}|${marks.join('')}|${d.includes('đ') ? 'đ' : ''}`
+}
+/** Does this text carry Vietnamese accents at all? One that does was typed WITH them. */
+const isAccented = (raw: string) => /[\u0300-\u036f]/.test(raw.normalize('NFD')) || /[đĐ]/.test(raw) // not COMBINING: a /g regex's .test() is stateful
+/**
+ * ⛔ \p{M} IS PART OF A WORD (2026-10-01, review). Splitting on everything that is not a letter or a
+ * digit cut "tú́y" — ú plus a combining acute NFC has no precomposed form for — into "tú" + "y", so the
+ * folded hit 'ma tuy' matched no run of words and the screen answered null while findBannedWord said
+ * 'ma tuy'. A combining mark belongs to the letter before it.
+ */
+const tokensOf = (raw: string) => raw.normalize('NFC').split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean)
+
+/**
+ * findBannedWord, read with the accents — FOR IMPORTED ROWS ONLY (src/lib/import-screen.ts). A seller's
+ * own post never comes through here: assertCleanTexts / findBannedWord keep the folded match.
+ *
+ * A folded hit on a Vietnamese term is judged WORD BY WORD over the words that produced it:
+ *   · a word typed WITH accents must carry that term's accents ("vũ khí", "bán dâm"; tone-mark
+ *     placement ignored) — "vì vụ khi", "thuộc phiên", "mật mã tùy", "cô ban đậm" do not;
+ *   · a word typed WITHOUT accents matches on its folded letters alone — it carries no accent that
+ *     could tell it apart, so the term counts.
+ * ⛔ PER WORD, NOT PER TEXT (2026-10-01, review). The first version asked "does the TEXT carry accents
+ * at all?" and, if it did, required every word of the term to carry the term's accents — so "Cần bán
+ * sung dan" (an unaccented banned term inside an otherwise accented title) passed. A title that mixes
+ * the two is exactly what an evasion looks like, so an unaccented word is now always read folded.
+ * ⚠️ THE PRICE: an unaccented phrase that honestly folds onto a term is refused again — "vi vu khi"
+ * ("wandering about when", no accents in correct Vietnamese) reads as "vũ khí". That is the safe
+ * direction: the row goes to the review file, never live.
+ * English terms and any term without an entry in BANNED_ACCENTED match exactly as findBannedWord does.
+ */
+export function findBannedWordAccentAware(text: string | null | undefined): string | null {
+  if (!text) return null
+  const folded = fold(text)
+  const hits = [...folded.matchAll(new RegExp(BANNED_RE.source, 'g'))].map((m) => m[1])
+  if (!hits.length) return null
+  if (!isAccented(text)) return hits[0]
+  const raw = tokensOf(text)
+  const foldedTokens = raw.map((t) => fold(t))
+  for (const term of hits) {
+    const spellings = BANNED_ACCENTED[term]
+    if (!spellings) return term
+    const want = term.split(' ')
+    const sigs = spellings.map((s) => s.split(' ').map(syllableSig))
+    let located = false
+    for (let i = 0; i + want.length <= raw.length; i++) {
+      if (!want.every((w, j) => foldedTokens[i + j] === w)) continue
+      located = true
+      const span = raw.slice(i, i + want.length)
+      // An unaccented word already matched on its folded letters (the line above), and so does one whose
+      // accents are no Vietnamese spelling (syllableSig → null); a properly accented one must carry the
+      // term's own accents.
+      const spanSigs = span.map((w) => (isAccented(w) ? syllableSig(w) : null))
+      if (sigs.some((sig) => sig.every((s, j) => spanSigs[j] === null || s === spanSigs[j]))) return term
+    }
+    // ⛔ FAIL CLOSED: the folded text holds this term, yet no run of words reproduces it — the two readings
+    // of the text disagree, so nothing here can show the accents clear it. It counts, as findBannedWord says.
+    if (!located) return term
+  }
+  return null
 }
 
 // ── Off-platform contact / address bypass ───────────────────────────────────────────

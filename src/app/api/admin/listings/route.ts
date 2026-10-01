@@ -7,6 +7,11 @@ import { fold } from '@/lib/fold'
 import { LISTING_CARD_SELECT, serializeListingCard } from '@/lib/serialize'
 import { partitionByIdentityGate, settleHolds } from '@/lib/compliance/seller-publish-gate'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
+import { tombstoneListingsTx } from '@/lib/core/listing-tombstone'
+import { LISTING_REMOVED, NOT_REMOVED } from '@/lib/listing-removed'
+import { notifyDispute } from '@/lib/dispute'
+import { removalClosedBy } from '@/lib/trust-math'
+import { logError } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +38,8 @@ export const dynamic = 'force-dynamic'
 // `{"error":"bad_request"}` · no usable ids → 400 `{"error":"no_ids"}` · unrecognised action → 400
 // `{"error":"bad_action"}` · success → 200 `{"ok":true,"affected":n}` (+ `"held":h` when the seller identity
 // gate parked any in this request, + `"alreadyHeld":k` when the batch included rows it had parked before
-// — neither ever appears while IDENTITY_GATE_ENFORCED is off, so the off-state body is unchanged).
+// — neither ever appears while IDENTITY_GATE_ENFORCED is off, so the off-state body is unchanged; + on
+// "delete" only, `"resolved":r` when the removal closed r open reports — absent when it closed none).
 //
 // ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, ON EACH METHOD: neither had a try/catch around its Prisma
 // calls, so a DB rejection (GET's findMany/count, POST's deleteMany/updateMany, or bumpBrandCount)
@@ -42,7 +48,7 @@ export const dynamic = 'force-dynamic'
 export const GET = route({ auth: 'admin' }, async ({ req }) => {
   const { searchParams } = new URL(req.url)
   const q = searchParams.get('q')?.trim()
-  const status = searchParams.get('status') // active | hidden | sold | all
+  const status = searchParams.get('status') // active | hidden | sold | removed | all
   const verified = searchParams.get('verified') // true | false | all
   const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 50, 1), 100)
   const offset = Math.max(Number(searchParams.get('offset')) || 0, 0)
@@ -85,7 +91,7 @@ export const GET = route({ auth: 'admin' }, async ({ req }) => {
   return NextResponse.json({ listings, total })
 })
 
-export const POST = route({ auth: 'admin' }, async ({ req }) => {
+export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
   let body: { action?: string; ids?: string[] }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
   const ids = Array.isArray(body.ids) ? body.ids.filter((x) => typeof x === 'string').slice(0, 500) : []
@@ -106,18 +112,86 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
   // make them so) nor "held" (this request did not park them) — so they get their own count, and the
   // console says they are still waiting on the seller. Always 0 while the gate is off.
   let alreadyHeld = 0
+  // "delete" only: the open reports on the listings this request removed, closed with them.
+  let resolvedReports = 0
+  /**
+   * ⛔ A TOMBSTONE IS NOT ACTIONABLE FROM HERE — EVERY NON-REMOVE WRITE BELOW ANDs `NOT_REMOVED`
+   * (2026-10-01, review). The console's "Removed" filter makes selecting tombstones one click away, and
+   * without the guard "Hide" turned a removed row into the SELLER state 'hidden' (back in the seller's
+   * dashboard, relistable by the seller), "Activate" + "Publish" republished a moderator's removal, and
+   * none of it wrote a compliance_audit row — contradicting the console's own "the seller cannot relist
+   * it" and src/lib/listing-removed.ts. The guard is in each WHERE (atomic with the write), so a row
+   * removed between the console's read and this request is skipped too, and `affected` never counts one.
+   * There is deliberately no "restore" action: undoing a removal is an audited decision nobody has
+   * specified yet, not a bulk toggle.
+   * ⚠️ SPREAD INTO THE `where` LITERAL, NOT WRAPPED IN A HELPER CALL: public-state-writes.test.ts audits
+   * this file's publishing writes by reading the literal, and a `where: helper({...})` reads to it as
+   * a second `status: 'active'` write.
+   */
   switch (body.action) {
     case 'delete': {
-      // Decrement brand counts for any branded listings before they're gone.
-      const branded = await db.listing.findMany({ where: { id: { in: ids }, brandSlug: { not: null } }, select: { brandSlug: true } })
+      // ⛔ "DELETE" IS A TOMBSTONE (2026-10-01 — src/lib/listing-removed.ts). This was `deleteMany`,
+      // which cascaded every report and buyer conversation on up to 500 listings at a click; Law
+      // 122/2025 Art 17.1(e) keeps posted information for at least a year. The action keeps its wire
+      // name (the console sends 'delete'); what it does is status 'removed' + unpublished, one
+      // compliance_audit row per listing naming this admin. `affected` counts the rows THIS request
+      // removed (already-removed ones are skipped), and only those decrement their brand's count.
+      // ⚠️ 500 audit appends serialise on one advisory lock — hence the longer transaction timeout.
+      //
+      // ⛔ AND THE REMOVED LISTINGS' OPEN CASES CLOSE WITH THEM — exactly as the moderation queue's
+      // "Remove listing" does (api/admin/moderate 'reject'; 2026-10-01, review). The old deleteMany
+      // CASCADED the reports, which is what used to take the cases out of the queue. Kept rows stayed
+      // OPEN: the case sat in the moderation queue after the removal (sections/reports-inbox.tsx reads
+      // status 'open'), every report also names the seller (targetSellerId), so deleteHoldReason
+      // (core/listings.ts) turned each later seller delete of ANY of their listings into a hide, and the
+      // retention scrub skips a tombstone with an open report (core/listing-tombstone-retention.ts).
+      // Resolved in the SAME transaction as the tombstones: 'confirmed' (the listing was removed — the
+      // reporter's case room says "upheld, action taken"), by this admin, one stamp for the batch.
+      // ⚠️ WITH NO TRUST CHARGE, as in 'reject': a charge is a report_confirmed TrustEvent (the
+      // Confirm button's job), not the status. Only the rows THIS request removed: a listing that was
+      // already a tombstone keeps its reports as they are (re-clicking Remove decides nothing new).
+      // Labelled `listing-removed:<admin>` (trust-math.ts) — an uncharged confirm. Its respondent may still
+      // appeal, and denying that appeal charges nothing either (api/admin/moderate confirm-report).
+      const stamp = new Date()
+      const closedBy = removalClosedBy(admin)
+      const { removed, resolved } = await db.$transaction(async (tx) => {
+        const removed = await tombstoneListingsTx(tx, ids, { actor: { kind: 'admin', email: admin }, reason: 'admin_removed' })
+        if (!removed.length) return { removed, resolved: 0 }
+        const upd = await tx.report.updateMany({
+          where: { listingId: { in: removed.map((r) => r.id) }, status: 'open' },
+          data: { status: 'confirmed', resolvedBy: closedBy, resolvedAt: stamp },
+        })
+        return { removed, resolved: upd.count }
+      }, { timeout: 60_000 })
+      affected = removed.length
+      resolvedReports = resolved
       const byBrand = new Map<string, number>()
-      for (const b of branded) if (b.brandSlug) byBrand.set(b.brandSlug, (byBrand.get(b.brandSlug) ?? 0) + 1)
-      const res = await db.listing.deleteMany({ where: { id: { in: ids } } })
-      affected = res.count
+      for (const r of removed) if (r.brandSlug) byBrand.set(r.brandSlug, (byBrand.get(r.brandSlug) ?? 0) + 1)
       await Promise.all([...byBrand].map(([slug, n]) => bumpBrandCount(slug, -n)))
+      // The reporters' case rooms survive the removal, so tell them how it ended — only the rows THIS
+      // request resolved (matched by the resolve stamp). Best-effort: the decision has landed.
+      if (resolved) {
+        try {
+          const rows = await db.report.findMany({
+            where: { listingId: { in: removed.map((r) => r.id) }, status: 'confirmed', resolvedBy: closedBy, resolvedAt: stamp },
+            select: { id: true, reporterProfileId: true },
+          })
+          // ⛔ ONE REPORTER'S FAILED NOTICE MUST NOT ABANDON THE REST — each is its own best effort.
+          for (const r of rows) {
+            if (!r.reporterProfileId) continue
+            try {
+              await notifyDispute(r.reporterProfileId, r.id, 'decided_upheld_reporter')
+            } catch (e) {
+              logError(e, { op: 'admin.listings.removeNotifyReporters', reportId: r.id })
+            }
+          }
+        } catch (e) {
+          logError(e, { op: 'admin.listings.removeNotifyReporters' })
+        }
+      }
       break
     }
-    case 'hide': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { status: 'hidden' } })).count; break
+    case 'hide': affected = (await db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { status: 'hidden' } })).count; break
     case 'activate': {
       // ⚖️ Activating a VERIFIED row that is not live yet publishes it, so for an owner the identity
       // gate refuses that row is parked instead: the status the admin asked for is applied, with
@@ -127,15 +201,15 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
       //   · already active AND verified — already public. The gate governs ENTERING public state; an
       //     "activate" that changes nothing must not quietly become a takedown.
       const { allowed, held: gated } = await partitionByIdentityGate(ids)
-      affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed } }, data: { status: 'active' } })).count : 0
+      affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed }, ...NOT_REMOVED }, data: { status: 'active' } })).count : 0
       if (gated.length) {
         // ⚠️ THE UNPARKED ROWS FIRST: once a row is parked it is itself `verified: false`, and running
         // this second would match it again and double-count. The two WHEREs are disjoint as ordered.
         // An ALREADY-parked row lands here too (it is unverified): its status is applied, so it goes
         // live as the admin asked once the seller verifies — but it is counted as `alreadyHeld`, not
         // as affected. The returned flags are the rows' own, untouched by this status-only write.
-        const rest = await db.listing.updateManyAndReturn({ where: { id: { in: gated }, OR: [{ verified: false }, { status: 'active' }] }, data: { status: 'active' }, select: { verified: true, identityHold: true } })
-        const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: true, status: { not: 'active' } }, data: { status: 'active', verified: false, identityHold: true }, select: { id: true } })).map((r) => r.id)
+        const rest = await db.listing.updateManyAndReturn({ where: { id: { in: gated }, OR: [{ verified: false }, { status: 'active' }], ...NOT_REMOVED }, data: { status: 'active' }, select: { verified: true, identityHold: true } })
+        const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: true, status: { notIn: ['active', LISTING_REMOVED] } }, data: { status: 'active', verified: false, identityHold: true }, select: { id: true } })).map((r) => r.id)
         // A verification that landed between the decision and the park is released here (see
         // settleHolds); those rows went live after all, so they count as affected, not held. Only
         // the ids parked HERE are re-checked, so only they can be counted as released.
@@ -151,8 +225,8 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
       }
       break
     }
-    case 'feature': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { featured: true } })).count; break
-    case 'unfeature': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { featured: false } })).count; break
+    case 'feature': affected = (await db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { featured: true } })).count; break
+    case 'unfeature': affected = (await db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { featured: false } })).count; break
     case 'verify': {
       // ⚖️ "Publish" — for an owner the identity gate refuses, the admin's approval is recorded as a
       // HOLD (identityHold) and becomes a publish the moment they verify. Never a silent no-op.
@@ -163,15 +237,15 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
       // been switched off, or the owner verified and the release missed it) must not go live still
       // carrying a hold. Only the response is pinned byte-identical with the gate off — this column
       // is already false on every row the gate never touched.
-      affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed } }, data: { verified: true, identityHold: false } })).count : 0
+      affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed }, ...NOT_REMOVED }, data: { verified: true, identityHold: false } })).count : 0
       if (gated.length) {
         // Read BEFORE the park and the re-check: afterwards a parked row and a pre-existing hold look
         // the same, and a pre-existing hold the re-check released would look "already verified".
-        const before = await db.listing.findMany({ where: { id: { in: gated } }, select: { verified: true, identityHold: true } })
+        const before = await db.listing.findMany({ where: { id: { in: gated }, ...NOT_REMOVED }, select: { verified: true, identityHold: true } })
         alreadyHeld = before.filter((r) => !r.verified && r.identityHold).length
         // `identityHold: false` in the WHERE: an already-parked row is not parked again, so it can
         // never be counted as held by this request.
-        const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: false, identityHold: false }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
+        const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: false, identityHold: false, ...NOT_REMOVED }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
         const released = parked.length ? await settleHolds(parked) : 0
         held = parked.length - released
         // Already verified (left as asked, as the allowed path counts it) + parked-then-released here.
@@ -181,7 +255,7 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
     }
     // ⛔ A TAKEDOWN CLEARS identityHold TOO — otherwise a listing parked by the identity gate and then
     // pulled here would be republished by releaseIdentityHolds() the day its seller verifies.
-    case 'unverify': affected = (await db.listing.updateMany({ where: { id: { in: ids } }, data: { verified: false, identityHold: false } })).count; break
+    case 'unverify': affected = (await db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { verified: false, identityHold: false } })).count; break
     default: return NextResponse.json({ error: 'bad_action' }, { status: 400 })
   }
 
@@ -191,7 +265,7 @@ export const POST = route({ auth: 'admin' }, async ({ req }) => {
   // kept serving the cached 404/sold page. The helper also re-syncs AI search (upsert if still
   // public, else drop), which is what the after(reindex) here used to do on its own.
   refreshListingSurfaces(ids, 'admin.listings')
-  // `held` / `alreadyHeld` only when non-zero, so with the gate off the body is byte-for-byte what it
-  // always was.
-  return NextResponse.json({ ok: true, affected, ...(held ? { held } : {}), ...(alreadyHeld ? { alreadyHeld } : {}) })
+  // `held` / `alreadyHeld` / `resolved` only when non-zero, so with the gate off (and no report closed)
+  // the body is byte-for-byte what it always was.
+  return NextResponse.json({ ok: true, affected, ...(held ? { held } : {}), ...(alreadyHeld ? { alreadyHeld } : {}), ...(resolvedReports ? { resolved: resolvedReports } : {}) })
 })

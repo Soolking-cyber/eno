@@ -61,7 +61,12 @@ vi.mock('@/lib/db', () => ({
       findUnique: async () => { h.reads.push('listing.findUnique'); return h.current },
       findMany: async () => { h.reads.push('listing.findMany'); return h.existing },
       update: async (a: Row) => { h.updates.push(a); return { id: a.where.id } },
-      updateMany: async (a: Row) => { h.updates.push(a); return { count: 0 } },
+      // setStatusCore / confirmCore write through updateMany by ONE id, conditional on not-removed: one
+      // row unless the faked current row is a tombstone. Batch writes (`{ in: ids }`) → 0.
+      updateMany: async (a: Row) => {
+        h.updates.push(a)
+        return { count: typeof a.where.id === 'string' && h.current?.status !== a.where.status?.not ? 1 : 0 }
+      },
       create: async () => { h.creates++; return { id: 'new' } },
       count: async () => 0,
     },
@@ -291,7 +296,8 @@ describe('setStatusCore — relisting is refused, never held', () => {
     expect(h.reads).toEqual(['listing.findUnique'])
     expect(h.decisionCalls).toEqual([])
     expect(h.updates).toHaveLength(1)
-    expect(h.updates[0].where).toEqual({ id: 'l1' })
+    // The write is conditional on "not a tombstone" (a removal racing the read is never overwritten).
+    expect(h.updates[0].where).toEqual({ id: 'l1', status: { not: 'removed' } })
     expect(h.updates[0].data).toMatchObject({ status: 'active', marketPosition: null, soldAt: null, soldChannel: null, soldToProfileId: null, soldPlatform: null })
   })
 })

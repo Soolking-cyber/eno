@@ -190,6 +190,8 @@ export async function applyStockReconcile(
      */
     // ⚖️ OUTSIDE THE SELLER IDENTITY GATE BY DESIGN — only the ownerless affiliate storefronts reach
     // this (no person to verify; see seller-publish-decision.ts). An owned seller here would need it.
+    // ⛔ The restore list is the restock screen's (src/lib/restock-screen.ts) — banned rows are not in it.
+    // `status = 'sold'` also keeps a tombstone ('removed') from ever being revived by a stale id.
     restored += await dbc.$executeRaw(sql.sql`
       UPDATE "Listing" SET status = 'active', "updatedAt" = now()
        WHERE id IN (${sql.join(chunk.map((id) => sql.sql`${id}`))})
@@ -298,13 +300,26 @@ export async function applyPriceChanges(
     const values = sql.join(chunk.map((c) => sql.sql`(${c.id}, ${c.to}::double precision, ${c.affiliateUrl}::text)`))
     // COALESCE keeps the existing link when this row's link did not move — the diff passes null
     // for "unchanged", and overwriting a good link with null would break the buy button.
+    // ⛔ ONLY `active` AND `sold` ROWS (2026-10-01, review) — the two states this job itself moves rows
+    // between. A `sold` row must stay current: applyStockReconcile restores it the night its SKU returns,
+    // and it is restored at the price written here. Everything else is someone else's decision:
+    //   · a TOMBSTONE ('removed', src/lib/listing-removed.ts) keeps what was posted, as it was posted — a
+    //     moderator's removal keeps the externalId, so the feed still matches it, but its price and link
+    //     are the record;
+    //   · a HIDDEN row (the ad-ban sweep, the import screen, the restock screen, a moderator's Hide) was
+    //     taken down on purpose. Refreshing it bumped "updatedAt" every night, and the journaled hide's
+    //     --rollback (src/lib/journaled-hide.ts) reads a moved "updatedAt" as "touched by a later write"
+    //     and refuses to restore it — one nightly price tick made every ad-ban hide irreversible. Nothing
+    //     needs a hidden row's price: it is not shown, and the first run after it is restored (to active
+    //     or sold) refreshes it like any other row.
+    // An allowlist, not `NOT IN (...)`: a status added later is left alone until someone decides otherwise.
     written += await dbc.$executeRaw(sql.sql`
       UPDATE "Listing" AS l
          SET price = v.price,
              "affiliateUrl" = COALESCE(v.aff, l."affiliateUrl"),
              "updatedAt" = now()
         FROM (VALUES ${values}) AS v(id, price, aff)
-       WHERE l.id = v.id
+       WHERE l.id = v.id AND l.status IN ('active', 'sold')
     `)
   }
   return written

@@ -1,6 +1,7 @@
 import 'server-only'
 import { after } from 'next/server'
-import { writeTombstones } from '@/lib/core/storage-tombstones'
+import { clearTombstones, writeTombstones } from '@/lib/core/storage-tombstones'
+import { purgeStorageObjects } from '@/lib/core/storage-purge'
 import { TEACHER_CVS_BUCKET } from '@/lib/supabase-admin'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
@@ -44,6 +45,8 @@ import { logError } from '@/lib/log'
 import { blocksPosting, normalizeEnforcementState } from '@/lib/enforcement-machine'
 import { releasedChargeGate } from '@/lib/released-charge-gate'
 import type { DeleteHoldReason } from '@/lib/delete-hold-copy'
+import { LISTING_REMOVED, NOT_REMOVED } from '@/lib/listing-removed'
+import { tombstoneListingsTx } from '@/lib/core/listing-tombstone'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
 // These hold the business logic for mutating a listing, decoupled from HOW the caller
@@ -250,6 +253,8 @@ export async function setStatusCore(
       select: { status: true, sellerId: true, listingType: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } } },
     })
     listingType = row?.listingType
+    // ⛔ A TOMBSTONE IS NOT RELISTABLE (src/lib/listing-removed.ts) — not by its seller, not by a sync.
+    if (row?.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
     if (row && row.status !== 'active') {
       // ⛔ The hold leak (enforcementBlockForRevive) — checked FIRST: a held seller is refused whatever
       // the identity gate would say, and the refusal names the hold rather than a verification step.
@@ -275,6 +280,7 @@ export async function setStatusCore(
     ? await db.listing.findUnique({ where: { id: listingId }, select: { status: true, soldAt: true, updatedAt: true, listingType: true } })
     : null
   if (prior) listingType = prior.listingType
+  if (prior?.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
   // A person is never "sold": a teacher listing can only be shown or hidden (dashboard, API, MCP alike).
   if (status === 'sold' && listingType === TEACHER_LISTING_TYPE) return { ok: false, code: 400, error: 'invalid_status' }
   const wasSold = prior?.status === 'sold' ? prior : null
@@ -314,8 +320,16 @@ export async function setStatusCore(
         : status === 'hidden' && wasSold && !wasSold.soldAt
           ? { soldAt: wasSold.updatedAt }
           : {}
-  await db.listing.update({
-    where: { id: listingId },
+  /**
+   * ⛔ THE WRITE ITSELF REFUSES A TOMBSTONE, NOT ONLY THE READ ABOVE (review, 2026-10-01). The status
+   * checks above read the row, and a removal (a moderator, the admin console, the seller's own delete
+   * in another tab) can commit between that read and this write — an unconditional update by id would
+   * then turn the 'removed' tombstone back into 'hidden'/'sold'/'active', i.e. un-remove it. So the
+   * status guard is IN the UPDATE's WHERE (one statement: `… WHERE id = $1 AND status <> 'removed'`)
+   * and zero rows is answered exactly as the read path answers a tombstone or a missing row: 404.
+   */
+  const { count } = await db.listing.updateMany({
+    where: { id: listingId, ...NOT_REMOVED },
     // ⚠️ marketPosition is cleared on REACTIVATION for the same reason the edit path clears it on a
     // price change: it is the denormalized "Good price / Gia tot" verdict, the nightly cron only
     // recomputes rows with status='active', and a hidden/sold row therefore keeps a FROZEN verdict.
@@ -323,6 +337,7 @@ export async function setStatusCore(
     // that has since moved. No badge until the cron re-derives one is the correct fail-safe.
     data: { status, ...(status === 'active' ? { availabilityConfirmedAt: new Date(), marketPosition: null } : {}), ...saleData },
   })
+  if (count === 0) return { ok: false, code: 404, error: 'not_found' }
   revalidatePublicPath(`/listings/${listingId}`) // sold/hidden must drop from the cached page (it 404s non-active)
   after(() => reindexListing(listingId)) // active → (re)index for AI search; sold/hidden → remove
   if (status === 'active') after(() => recomputeRankScoreForListing(listingId)) // re-decay on re-activation
@@ -354,8 +369,8 @@ export async function confirmCore(listingId: string, profileId: string): Promise
     },
   })
   // Typed 404 instead of letting the update's P2025 surface as a 500 — the row can
-  // vanish between the route's ownership check and this call (delete race).
-  if (!current) return { ok: false, code: 404, error: 'not_found' }
+  // vanish between the route's ownership check and this call (delete race). A tombstone is "gone" too.
+  if (!current || current.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
   // ⛔ THE HOLD LEAK (enforcementBlockForRevive) — EVERY confirm while the owner is held or suspended,
   // not only a revive. A revive would republish a sold/hidden row the hold never pulled; an ordinary
   // confirm on a pulled row would bump its postedAt (so it came back at the top of the feed the day
@@ -384,24 +399,23 @@ export async function confirmCore(listingId: string, profileId: string): Promise
     if (cap && cap.remaining <= 0) return { ok: false, code: 403, error: 'released_charge_listing_cap' }
   }
   const bump = canBump(current.postedAt, now.getTime())
-  try {
-    await db.listing.update({
-      where: { id: listingId },
-      data: {
-        status: 'active',
-        availabilityConfirmedAt: now,
-        // Same reason as setStatusCore above — a reactivated listing must not carry a stale
-        // market-position verdict the cron could not refresh while it was inactive.
-        ...(wasInactive ? { soldChannel: null, soldToProfileId: null, soldPlatform: null, soldAt: null, marketPosition: null } : {}),
-        // A bump resets recency (postedAt=now) → recompute rankScore at age 0 so the listing
-        // jumps up immediately. No bump (within cooldown) leaves recency to the daily decay.
-        ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current.sellerTrustScore ?? 100, postedAt: now, featured: current.featured, views: current.views, contactCount: current.contactCount }) } : {}),
-      },
-    })
-  } catch (e) {
-    if ((e as { code?: string })?.code === 'P2025') return { ok: false, code: 404, error: 'not_found' }
-    throw e
-  }
+  // ⛔ CONDITIONAL ON "NOT A TOMBSTONE" IN THE WRITE ITSELF (review, 2026-10-01) — a removal that
+  // commits after the read above must not be revived to 'active' by this update (setStatusCore has
+  // the same guard and says why). Zero rows — removed, or gone — is the read path's 404.
+  const { count: confirmed } = await db.listing.updateMany({
+    where: { id: listingId, ...NOT_REMOVED },
+    data: {
+      status: 'active',
+      availabilityConfirmedAt: now,
+      // Same reason as setStatusCore above — a reactivated listing must not carry a stale
+      // market-position verdict the cron could not refresh while it was inactive.
+      ...(wasInactive ? { soldChannel: null, soldToProfileId: null, soldPlatform: null, soldAt: null, marketPosition: null } : {}),
+      // A bump resets recency (postedAt=now) → recompute rankScore at age 0 so the listing
+      // jumps up immediately. No bump (within cooldown) leaves recency to the daily decay.
+      ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current.sellerTrustScore ?? 100, postedAt: now, featured: current.featured, views: current.views, contactCount: current.contactCount }) } : {}),
+    },
+  })
+  if (confirmed === 0) return { ok: false, code: 404, error: 'not_found' }
   if (wasInactive) {
     revalidatePublicPath(`/listings/${listingId}`)
     after(() => reindexListing(listingId))
@@ -462,9 +476,11 @@ export async function updateListingCore(
       // Price-drop pipeline + urgent gate inputs
       price: true, createdAt: true, sellerId: true, previousPrice: true, priceDropAt: true, lowestNotifiedPrice: true, priceDropNotifiedAt: true, urgentUntil: true,
       seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
+      status: true,
     },
   })
-  if (!current) return { ok: false, code: 404, error: 'not_found' }
+  // ⛔ A tombstone cannot be edited back to life (src/lib/listing-removed.ts).
+  if (!current || current.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
   // ⛔ A teacher profile is edited through the teacher form only; to every generic editor it does not exist.
   if (!isPostableCategory(current.category.slug)) return { ok: false, code: 404, error: 'not_found' }
 
@@ -812,13 +828,28 @@ export async function updateListingCore(
   // Commit the audit row and the listing update ATOMICALLY — a failed update must not
   // leave a phantom PriceChange (it would drag the 30-day reference down and mis-anchor
   // the "was" price on a future drop). Plain update when the price didn't change.
-  if (dropAudit) {
-    await db.$transaction([
-      db.priceChange.create({ data: dropAudit }),
-      db.listing.update({ where: { id: listingId }, data }),
-    ])
-  } else {
-    await db.listing.update({ where: { id: listingId }, data })
+  /**
+   * ⛔ BOTH WRITES REFUSE A TOMBSTONE IN THEIR OWN WHERE (review, 2026-10-01). The `current` read at the
+   * top is not a lock: a removal committing between it and here would otherwise be overwritten with
+   * the seller's edit (and, on the partner sync, a whole re-sent row). `update` with the extra
+   * `status` filter is ONE statement — `UPDATE … WHERE id = $1 AND status <> 'removed' RETURNING …`
+   * (measured against Prisma 7's query compiler) — and throws P2025 on zero rows, which also rolls the
+   * array transaction back, so no PriceChange row is left for an edit that never landed. P2025 is
+   * answered as the read path answers a tombstone: 404 not_found.
+   */
+  const where = { id: listingId, ...NOT_REMOVED }
+  try {
+    if (dropAudit) {
+      await db.$transaction([
+        db.priceChange.create({ data: dropAudit }),
+        db.listing.update({ where, data }),
+      ])
+    } else {
+      await db.listing.update({ where, data })
+    }
+  } catch (e) {
+    if ((e as { code?: string })?.code === 'P2025') return { ok: false, code: 404, error: 'not_found' }
+    throw e
   }
   if (dropNotify) after(dropNotify) // buyer fan-out never delays the response
   // The replaced/removed clip is only NOW (post-commit) safe to evict — and only if no other
@@ -1158,12 +1189,18 @@ export type DeleteListingResult =
   | { ok: true; deleted: true }
   | { ok: true; deleted: false; hidden: true; reason: DeleteHoldReason }
   | { ok: false; code: 404; error: 'not_found' }
+  /** The hide a held delete turns into was refused (hideInsteadOfDelete) — setStatusCore's own answer,
+   *  passed through. Today a hide can only be refused as not_found; anything else must not be relabelled. */
+  | { ok: false; code: number; error: ListingStatusErrorCode }
 
 /** Plain-English answer for the API/MCP callers (the web dashboard words it itself, bilingual). */
+// ⚠️ THESE SENTENCES USED TO SAY "deleting would also erase buyers' reports and chats about it". Since
+// 2026-10-01 a delete is a tombstone that erases nothing (src/lib/listing-removed.ts), so that reason
+// would now be false — the hold itself stays (an investigated listing stays manageable by the review).
 export const DELETE_HOLD_MESSAGE: Record<DeleteHoldReason, string> = {
-  account_suspended: 'The listing was hidden, not deleted: this account is under review, and deleting would also erase buyers\' reports and chats about it. It can be deleted once the review is over.',
-  account_held: 'The listing was hidden, not deleted: this account is under review, and deleting would also erase buyers\' reports and chats about it. It can be deleted once the review is over.',
-  open_report: 'The listing was hidden, not deleted: a report about it or this shop is still open, and deleting would also erase that report and buyers\' chats. It can be deleted once the report is resolved.',
+  account_suspended: 'The listing was hidden, not deleted: this account is under review. It can be deleted once the review is over.',
+  account_held: 'The listing was hidden, not deleted: this account is under review. It can be deleted once the review is over.',
+  open_report: 'The listing was hidden, not deleted: a report about it or this shop is still open. It can be deleted once the report is resolved.',
 }
 
 // The seller-facing, bilingual words for the same outcome live in @/lib/delete-hold-copy (DELETE_HOLD_COPY):
@@ -1171,12 +1208,13 @@ export const DELETE_HOLD_MESSAGE: Record<DeleteHoldReason, string> = {
 // can all read them without importing this server-only core.
 
 /**
- * Should this seller-initiated delete become a hide? A listing delete CASCADES its reports (and their
- * dispute threads) and every buyer's conversation about it — so a held or suspended seller, or one
- * with an OPEN report against them or the listing, deleting a listing destroys OTHER people's
- * evidence: the very reports an investigation (and the 14-day window before a scam-hold release)
- * exists to collect. Same predicate account erasure applies (core/account-erasure.ts, "INVESTIGATION
- * HOLD"), at listing scope. Null = delete as asked.
+ * Should this seller-initiated delete become a hide? Same predicate account erasure applies
+ * (core/account-erasure.ts, "INVESTIGATION HOLD"), at listing scope: a held or suspended seller, or one
+ * with an OPEN report against them or the listing, keeps the listing as a plain hidden row the
+ * investigation can still act on. Null = delete (tombstone) as asked.
+ * (Historically the reason was that a delete CASCADED the reports and buyers' chats; since 2026-10-01 a
+ * delete is a tombstone and destroys nothing, but an investigated listing still stays in the seller's
+ * hands as `hidden` rather than leaving their dashboard mid-review.)
  */
 async function deleteHoldReason(listingId: string, sellerId: string, ownerId: string | null): Promise<DeleteHoldReason | null> {
   const [owner, openReports] = await Promise.all([
@@ -1201,38 +1239,58 @@ class DeleteRaced extends Error {}
  * Delete an OWNED listing — or, when it is under investigation (deleteHoldReason), HIDE it instead and
  * say so. The one core behind every seller-initiated delete: the dashboard (DELETE /api/listings/[id]),
  * the partner API (DELETE /api/v1/listings/[id]) and the MCP `delete_listing` tool. Bulk import and the
- * partner sync never hard-delete (the sync RETIRES by hiding). Admin deletes (moderation reject, the
- * admin listings console) do not come through here and are unchanged.
+ * partner sync never delete (the sync RETIRES by hiding).
  *
- * A real delete: RESOLVED reports on the listing are detached first (listingId → null, the
- * account-erasure pattern) so the decided record — a confirmed charge's report included — survives for
- * the retention window instead of cascading away; then the listing goes, conditionally on still having
- * no open report, so a report filed between the check and the delete turns it into a hide rather than
- * erasing it. Conversations still cascade, as before. Then: brand count, cached page, AI search.
+ * ⛔ A "DELETE" IS A TOMBSTONE (2026-10-01, Law 122/2025 Art 17.1(e) — src/lib/listing-removed.ts):
+ * status → 'removed', unpublished, with a compliance_audit row, conditionally on the listing still
+ * having no open report (a report filed between the check and the write turns it into a hide). The
+ * row, its photos (and video), its reports and every buyer's conversation are KEPT; to the seller and
+ * the public it is gone. The partner's externalId is released (kept in the audit row) so a later sync
+ * of the same SKU can create a fresh listing, as it could after a hard delete. Then: brand count,
+ * cached page, AI search, the partner webhook.
+ * ⛔ EXCEPT A TEACHER'S PROFILE LISTING, whose tombstone is SCRUBBED of the person (name, bio, photo,
+ * video, location — PERSONAL_SCRUB_DATA) and whose photo and clip are purged: see `personal` below.
+ * Tombstones in general are kept for the retention period and then scrubbed the same way
+ * (src/lib/core/listing-tombstone-retention.ts).
  */
 export async function deleteListingCore(listingId: string): Promise<DeleteListingResult> {
   const gone = await db.listing.findUnique({
     where: { id: listingId },
     select: {
-      brandSlug: true, sellerId: true, video: true, status: true, seller: { select: { ownerId: true } },
+      brandSlug: true, sellerId: true, status: true, listingType: true, seller: { select: { ownerId: true } },
       // A teacher's listing IS their profile — deleting it deletes the profile too (below).
       teacherProfile: { select: { id: true } },
     },
   })
-  // Vanished between the caller's ownership check and here (concurrent delete) — a typed not-found;
-  // callers that ignore it treat it as an idempotent no-op.
-  if (!gone) return { ok: false, code: 404, error: 'not_found' }
+  // Vanished, or ALREADY a tombstone (a second delete, a concurrent one) — a typed not-found; callers
+  // that ignore it treat it as an idempotent no-op.
+  if (!gone || gone.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
 
   const hold = await deleteHoldReason(listingId, gone.sellerId, gone.seller.ownerId)
   if (hold) return hideInsteadOfDelete(listingId, gone.status, hold)
 
+  /**
+   * ⛔ A TEACHER'S LISTING IS A PERSON, NOT AN ADVERTISEMENT — ITS TOMBSTONE IS SCRUBBED (2026-10-01,
+   * review). The row holds the teacher's full name, headline, bio, photo, video and location, and the
+   * teacher form promises "Delete your profile, video link and CV for good". A plain tombstone kept all
+   * of it indefinitely. So the removal record stays (status 'removed', the audit row) but every column
+   * that describes the person is blanked in the same write (PERSONAL_SCRUB_DATA), and the first-party
+   * photo and clip are tombstoned for the storage sweep and purged on the fast path below.
+   */
+  const personal = gone.listingType === TEACHER_LISTING_TYPE || !!gone.teacherProfile
+  let scrubbedMedia: string[] = []
   try {
     await db.$transaction(async (tx) => {
-      await tx.report.updateMany({ where: { listingId, status: { not: 'open' } }, data: { listingId: null } })
-      const { count } = await tx.listing.deleteMany({ where: { id: listingId, reports: { none: { status: 'open' } } } })
-      // ⚠️ THROW, DO NOT RETURN (agy, plan review): a zero-row delete must also undo the detach above,
-      // or a report race would leave the listing standing with its resolved reports cut loose.
-      if (count === 0) throw new DeleteRaced()
+      const removed = await tombstoneListingsTx(tx, [listingId], {
+        actor: { kind: 'seller', profileId: gone.seller.ownerId, sellerId: gone.sellerId },
+        reason: 'seller_deleted',
+        releaseExternalId: true,
+        where: { reports: { none: { status: 'open' } } },
+        ...(personal ? { scrub: { storageReason: 'teacher_profile_deleted' as const } } : {}),
+      })
+      // ⚠️ THROW, DO NOT RETURN (agy, plan review): a zero-row write must roll the transaction back.
+      if (removed.length === 0) throw new DeleteRaced()
+      scrubbedMedia = removed[0].scrubbedMedia ?? []
       // ⛔ A TEACHER'S LISTING IS THEIR PROFILE (2026-09-30). The dashboard's generic delete used to
       // remove only the listing, and the FK nulled TeacherProfile.listingId — a "live" profile nobody
       // could see (found on prod the first evening). The profile, its private row and its matches go
@@ -1246,13 +1304,28 @@ export async function deleteListingCore(listingId: string): Promise<DeleteListin
     })
   } catch (e) {
     if (!(e instanceof DeleteRaced)) throw e
-    // Zero rows: the listing vanished (concurrent delete) or an OPEN report landed after the check.
+    // Zero rows: the listing vanished / was removed concurrently, or an OPEN report landed after the check.
     const still = await db.listing.findUnique({ where: { id: listingId }, select: { status: true } })
-    if (!still) return { ok: false, code: 404, error: 'not_found' }
+    if (!still || still.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
     return hideInsteadOfDelete(listingId, still.status, 'open_report')
   }
   if (gone.brandSlug) after(() => bumpBrandCount(gone.brandSlug!, -1))
-  if (gone.video) after(() => removeVideoIfOrphaned(gone.video!)) // don't strand the clip — unless another listing still references it
+  // ⚠️ A GOODS LISTING'S VIDEO IS NOT EVICTED ANY MORE: it is part of what was posted, kept with the
+  // tombstone (the tombstone row still references it, so removeVideoIfOrphaned would find it
+  // referenced anyway). A SCRUBBED (teacher) tombstone references nothing: its photo and clip go now —
+  // reference-checked, so an object another row still uses is kept — and whatever this fast path does
+  // not settle, the StorageTombstones written with the scrub let /api/cron/storage-tombstones finish.
+  if (scrubbedMedia.length) {
+    const media = scrubbedMedia
+    after(async () => {
+      try {
+        const { settled } = await purgeStorageObjects(media)
+        if (settled.length) await clearTombstones(settled)
+      } catch (e) {
+        logError(e, { op: 'listings.deleteScrubbedMedia' })
+      }
+    })
+  }
   revalidatePublicPath(`/listings/${listingId}`)
   after(() => removeFromIndex(listingId)) // drop the deleted listing from AI search
   after(() => dispatchListingEvent('listing.deleted', listingId, gone.sellerId)) // the listing is gone — pass sellerId explicitly
@@ -1268,12 +1341,12 @@ export async function deleteListingCore(listingId: string): Promise<DeleteListin
  */
 async function hideInsteadOfDelete(listingId: string, currentStatus: string, reason: DeleteHoldReason): Promise<DeleteListingResult> {
   if (currentStatus !== 'hidden') {
-    try {
-      await setStatusCore(listingId, 'hidden')
-    } catch (e) {
-      if ((e as { code?: string })?.code === 'P2025') return { ok: false, code: 404, error: 'not_found' }
-      throw e
-    }
+    // setStatusCore's write is conditional on "not a tombstone" and answers zero rows (gone, or removed
+    // concurrently) with a typed 404 rather than a P2025 throw. ⛔ Its refusal is passed through AS IT
+    // IS — relabelling every refusal as 404 would turn any future refusal of a hide (a gate, a 400) into
+    // the "already gone" answer the callers treat as an idempotent success.
+    const r = await setStatusCore(listingId, 'hidden')
+    if (!r.ok) return r
   }
   return { ok: true, deleted: false, hidden: true, reason }
 }

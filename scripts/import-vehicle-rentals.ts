@@ -43,6 +43,8 @@ import {
 } from '../src/lib/vehicle-rental-listing'
 import { VND_PER_USD_BAND, vndPerUsdFrom } from '../src/lib/honeycomb-listing'
 import { browseRankScore } from '../src/lib/ranking-formula'
+// ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
+import { ImportScreen } from '../src/lib/import-screen'
 
 const argv = process.argv
 const APPLY = argv.includes('--apply')
@@ -264,12 +266,25 @@ async function importRows(rows: StagedVehicle[]) {
    */
   const ready: { row: StagedVehicle; images: string[] }[] = []
   let notHosted = 0, foreign = 0
+  // The database is opened BEFORE the screen, which looks up a refused row's existing listing (a live
+  // banned row is hidden on --apply; a live ambiguous one is refreshed and listed for review).
+  const { PrismaClient } = await import('../src/generated/prisma/client')
+  const { PrismaPg } = await import('@prisma/adapter-pg')
+  const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL }), log: ['warn', 'error'] })
+  // ⛔ THE try OPENS WITH THE CONNECTION: the screen below already queries, and a throw there must
+  // still reach the `finally` that disconnects.
+  try {
+  const screen = new ImportScreen('vehicle-rentals', { db, sellerIds: Object.values(VEHICLE_SELLERS).map((v) => v.id) })
   for (const row of rows) {
     const images = row.photos.map((p) => hosted.get(p.local))
     if (images.some((u) => !u)) { notHosted++; continue }
     if (images.some((u) => !u!.startsWith(HOSTED_PREFIX))) { foreign++; continue }
+    // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a refused row is never created; an
+    // existing live one is hidden on --apply (banned) or refreshed and listed for review (ambiguous).
+    if (!(await screen.check({ title: row.title, titleVi: row.titleVi, description: row.description, descriptionVi: row.descriptionVi, category: 'rentals', subcategory: row.subcategorySlug, merchant: row.seller, extraTexts: [row.location], externalId: row.externalId, url: row.affiliateUrl }))) continue
     ready.push({ row, images: images as string[] })
   }
+  screen.report()
 
   /**
    * ⛔ A STALE SCRAPE REFUSES THE WRITE. Price and availability both come from the scrape, so a
@@ -283,10 +298,6 @@ async function importRows(rows: StagedVehicle[]) {
     oldest.set(row.seller, Math.max(oldest.get(row.seller) ?? 0, age))
   }
 
-  const { PrismaClient } = await import('../src/generated/prisma/client')
-  const { PrismaPg } = await import('@prisma/adapter-pg')
-  const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL }), log: ['warn', 'error'] })
-  try {
     const category = await db.category.findFirst({ where: { slug: 'rentals' }, select: { id: true, name: true } })
     if (!category) throw new Error('no `rentals` category — cannot place these rows')
     const used = [...new Set(ready.map((r) => r.row.seller))] as SellerKey[]
@@ -322,6 +333,8 @@ async function importRows(rows: StagedVehicle[]) {
         await db.seller.create({ data: { id: want.id, name: want.name, verified: false, verifiedSeller: false, officialPartner: false } })
       }
     }
+    // ⛔ Live rows the content screen refused as banned are hidden only now, past the storefront refusals.
+    await screen.applyHides()
 
     /**
      * ⛔ AN UNCHANGED ROW IS NOT WRITTEN. `updatedAt` is `@updatedAt`, so every Prisma update stamps
@@ -335,12 +348,12 @@ async function importRows(rows: StagedVehicle[]) {
     const MUTABLE_KEYS = ['title', 'titleVi', 'description', 'descriptionVi', 'price', 'priceUnit', 'currency', 'negotiable',
       'listingType', 'categoryId', 'subcategorySlug', 'sellerId', 'location', 'district', 'city', 'lat', 'lng',
       'attributes', 'facetTokens', 'affiliateUrl', 'searchText'] as const
-    type Stored = Record<(typeof MUTABLE_KEYS)[number], unknown> & { externalId: string | null }
+    type Stored = Record<(typeof MUTABLE_KEYS)[number], unknown> & { externalId: string | null; status: string }
     const stored = new Map<string, Stored>()
     const sellerIds = used.map((s) => VEHICLE_SELLERS[s].id)
     for (const r of await db.listing.findMany({
       where: { sellerId: { in: sellerIds }, externalId: { not: null } },
-      select: { externalId: true, ...Object.fromEntries(MUTABLE_KEYS.map((k) => [k, true])) },
+      select: { externalId: true, status: true, ...Object.fromEntries(MUTABLE_KEYS.map((k) => [k, true])) },
     }) as unknown as Stored[]) {
       stored.set(`${r.sellerId}|${r.externalId}`, r)
     }
@@ -367,6 +380,8 @@ async function importRows(rows: StagedVehicle[]) {
         searchText: row.searchText,
       }
       const prev = stored.get(`${sellerId}|${row.externalId}`)
+      // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+      if (prev?.status === 'removed') { unchanged++; continue }
       if (prev && MUTABLE_KEYS.every((k) => Object.is(prev[k] ?? null, (mutable as Record<string, unknown>)[k] ?? null))) {
         unchanged++
         if ((created + updated + unchanged) % 250 === 0) console.log(`  ${created + updated + unchanged}/${ready.length}`)
@@ -406,7 +421,7 @@ async function importRows(rows: StagedVehicle[]) {
     }
     console.log(`\ncreated ${created}   updated ${updated}   unchanged ${unchanged} (not written)   retired ${retired}`)
     console.log(`\nROLLBACK (soft, reversible — takes every row off every public surface):`)
-    console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" IN (${used.map((s) => `'${VEHICLE_SELLERS[s].id}'`).join(', ')});`)
+    console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" IN (${used.map((s) => `'${VEHICLE_SELLERS[s].id}'`).join(', ')}) AND status <> 'removed';`)
     console.log(`  -- hard DELETE is NOT paste-safe: Order is onDelete:Restrict and six relations Cascade.`)
   } finally {
     await db.$disconnect()
