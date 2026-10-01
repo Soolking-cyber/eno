@@ -850,7 +850,12 @@ export type HoneycombStage = {
   source: typeof STAGE_SOURCE
   fetchedAt: string
   userAgent: string
-  params: { since: string; limit: number; city: CityKey | null }
+  /**
+   * `sinceDays` is set only by a `--since-days N` stage (the weekly 7-day run): its apply then keeps an ad
+   * only when its lastmod is within N days of `fetchedAt` EXACTLY — `since` is that date's Vietnam day,
+   * up to 24 h wider, and stays only the detail read's window. Absent (null) in a `--since` stage.
+   */
+  params: { since: string; limit: number; city: CityKey | null; sinceDays: number | null }
   fx: { vndPerUsd: number; source: string }
   /** The full sitemap URL set — the retire pass's candidate list — and whether every map was read. */
   sitemap: { maps: number; mapsOk: number; complete: boolean; entries: SitemapEntry[] }
@@ -933,6 +938,11 @@ export function readHoneycombStage(json: unknown): { ok: true; stage: HoneycombS
   }
   const drop: Record<string, number> = {}
   if (pg.drop && typeof pg.drop === 'object') for (const [k, v] of Object.entries(pg.drop)) if (typeof v === 'number') drop[k] = v
+  // ⛔ A present-but-malformed sinceDays is refused, never read as "no day window": that would quietly widen a
+  // weekly stage's apply to its broader --since date and create ads older than 7 days.
+  if (p.sinceDays !== undefined && p.sinceDays !== null && !(typeof p.sinceDays === 'number' && Number.isInteger(p.sinceDays) && p.sinceDays >= 1 && p.sinceDays <= 3650)) {
+    return { ok: false, reason: `params.sinceDays ${JSON.stringify(p.sinceDays)} is not a whole number of days (1–3650)` }
+  }
   return {
     ok: true,
     rejected,
@@ -944,6 +954,7 @@ export function readHoneycombStage(json: unknown): { ok: true; stage: HoneycombS
         since: optStr(p.since, 10) ?? '',
         limit: typeof p.limit === 'number' && Number.isInteger(p.limit) && p.limit >= 0 ? p.limit : 0,
         city: CITY_KEYS.includes(p.city as CityKey) ? (p.city as CityKey) : null,
+        sinceDays: typeof p.sinceDays === 'number' && Number.isInteger(p.sinceDays) && p.sinceDays >= 1 && p.sinceDays <= 3650 ? p.sinceDays : null,
       },
       fx: { vndPerUsd: fx.vndPerUsd as number, source: optStr(fx.source, 200) ?? '' },
       sitemap: {
@@ -980,11 +991,28 @@ export function stageAgeProblem(fetchedAt: unknown, now: number, maxH: number = 
  * value quietly meant a live crawl. The flag is refused instead (the nhatot and muaban importers do
  * the same).
  */
-export const HONEYCOMB_VALUED_FLAGS = ['--limit', '--city', '--since', '--vnd-per-usd', '--src', '--save', '--journal-dir', '--delay-ms'] as const
+export const HONEYCOMB_VALUED_FLAGS = ['--limit', '--city', '--since', '--since-days', '--vnd-per-usd', '--src', '--save', '--fresh-out', '--journal-dir', '--delay-ms'] as const
+export const HONEYCOMB_BOOLEAN_FLAGS = ['--apply', '--verify', '--retire'] as const
 export function valuedFlagProblem(argv: readonly string[]): string | null {
   for (const k of HONEYCOMB_VALUED_FLAGS) {
     const i = argv.indexOf(k)
     if (i > -1 && (argv[i + 1] === undefined || argv[i + 1] === '' || argv[i + 1].startsWith('--'))) return `${k} needs a value`
+  }
+  return null
+}
+
+/**
+ * An argument this importer does not know, or null. `args` is argv WITHOUT node and the script path.
+ * ⚠️ A misspelt flag used to be ignored: `--fresh-outt f.json` would crawl, write no fresh set and exit 0,
+ * and `--since-day 7` would read the default 90 days. Run AFTER valuedFlagProblem, which owns the
+ * "needs a value" message.
+ */
+export function unknownFlagProblem(args: readonly string[]): string | null {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if ((HONEYCOMB_BOOLEAN_FLAGS as readonly string[]).includes(a)) continue
+    if ((HONEYCOMB_VALUED_FLAGS as readonly string[]).includes(a)) { i++; continue }
+    return a.startsWith('--') ? `unknown flag "${a}"` : `unexpected argument "${a}"`
   }
   return null
 }
@@ -1070,8 +1098,10 @@ export function robotsFromResponse(got: { status: number; refusedRedirect: strin
 }
 
 /** A response as the importer sees it. `refusedRedirect` is set when the chain stopped at a 3xx
- *  this fetcher would not follow; `status` and `finalUrl` are then that 3xx and the URL that sent it. */
-export type Got = { status: number; finalUrl: string; body: Buffer; type: string; refusedRedirect: string | null }
+ *  this fetcher would not follow; `status` and `finalUrl` are then that 3xx and the URL that sent it.
+ *  `litespeedCache` is the last response's `x-litespeed-cache` header ('hit' | 'miss' | …; null when the
+ *  page cache sent none) — the sitemap reads refuse a fresh set built from a cached copy. */
+export type Got = { status: number; finalUrl: string; body: Buffer; type: string; refusedRedirect: string | null; litespeedCache?: string | null }
 type FetchInit = { headers: Record<string, string>; redirect: 'manual'; signal: AbortSignal }
 type FetchLike = (url: string, init: FetchInit) =>
   Promise<{ status: number; headers: { get(name: string): string | null }; arrayBuffer(): Promise<ArrayBuffer> }>
@@ -1111,7 +1141,7 @@ export function makePoliteGet(o: {
         throw new Infeasible(`${url} answered a bot challenge (HTTP ${res.status}) — INFEASIBLE; not bypassing it`)
       }
       if (res.status === 429) throw new Infeasible(`${url} answered 429 — the site is rate-limiting us; stopping`)
-      return { status: res.status, body, type: res.headers.get('content-type') ?? '', location: res.headers.get('location') }
+      return { status: res.status, body, type: res.headers.get('content-type') ?? '', location: res.headers.get('location'), cache: res.headers.get('x-litespeed-cache') ?? null }
     } finally {
       last = o.now()
     }
@@ -1120,11 +1150,11 @@ export function makePoliteGet(o: {
     let current = url
     for (let hop = 0; ; hop++) {
       const r = await once(current)
-      if (!REDIRECT_STATUSES.has(r.status)) return { status: r.status, finalUrl: current, body: r.body, type: r.type, refusedRedirect: null }
+      if (!REDIRECT_STATUSES.has(r.status)) return { status: r.status, finalUrl: current, body: r.body, type: r.type, refusedRedirect: null, litespeedCache: r.cache }
       const next = hop >= MAX_REDIRECTS
         ? { ok: false as const, reason: `more than ${MAX_REDIRECTS} redirects` }
         : redirectTarget(current, r.location, o.robotsTxt())
-      if (!next.ok) return { status: r.status, finalUrl: current, body: r.body, type: r.type, refusedRedirect: next.reason }
+      if (!next.ok) return { status: r.status, finalUrl: current, body: r.body, type: r.type, refusedRedirect: next.reason, litespeedCache: r.cache }
       current = next.url
     }
   }

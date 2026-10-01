@@ -624,6 +624,20 @@ describe('⛔ the fetcher: ≥1.2 s between requests, redirects only within hone
     expect(gaps()[0]).toBeGreaterThanOrEqual(1200)
   })
 
+  it('surfaces the x-litespeed-cache header of the response that answered (null when absent) — the sitemap reads record it', async () => {
+    const { getter } = net({
+      [`${HC}/wp-sitemap.xml?eno=1`]: { status: 200, headers: { 'x-litespeed-cache': 'miss' } },
+      [`${HC}/wp-sitemap.xml`]: { status: 200, headers: { 'x-litespeed-cache': 'hit' } },
+      [`${HC}/old/`]: { status: 301, location: '/wp-sitemap.xml', headers: { 'x-litespeed-cache': 'miss' } },
+      [`${HC}/plain/`]: { status: 200 },
+    })
+    expect((await getter.get(`${HC}/wp-sitemap.xml?eno=1`)).litespeedCache).toBe('miss')
+    expect((await getter.get(`${HC}/wp-sitemap.xml`)).litespeedCache).toBe('hit')
+    // Through a redirect: the FINAL response's header, not the hop's.
+    expect(await getter.get(`${HC}/old/`)).toMatchObject({ finalUrl: `${HC}/wp-sitemap.xml`, litespeedCache: 'hit' })
+    expect((await getter.get(`${HC}/plain/`)).litespeedCache).toBeNull()
+  })
+
   it.each([
     'https://evil.example/x',
     'https://honeycomb.com.vn.evil.io/property/x/',

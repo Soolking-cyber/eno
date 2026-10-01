@@ -16,10 +16,29 @@
  *   4. VERIFY — read-only invariants of what is stored; exits non-zero on failure:
  *        … import-honeycomb-com-vn.ts --verify
  *
+ * THE 7-DAY RULE (owner, 2026-10-01 — src/lib/apartment-freshness.ts, src/lib/honeycomb-freshness.ts): an
+ * imported apartment stays live only while its sitemap `lastmod` is within 7 days. The weekly job runs
+ *        … import-honeycomb-com-vn.ts --since-days 7 --save <staged.json> --fresh-out <fresh.json>
+ *        … import-honeycomb-com-vn.ts --src <staged.json> --apply --journal-dir <durable dir>
+ *        … expire-apartment-rentals.ts --seller honeycomb-import-seller-0001 --fresh <fresh.json> …
+ *   The STAGE writes the fresh set (every url whose lastmod is in the window, by post id) only when the read
+ *   provably covered the window (every sitemap page whole and closed, pages before the last exactly 2,000
+ *   urls, no page missing, none served by the LiteSpeed page cache, every in-window page read), and exits
+ *   non-zero without it otherwise. --fresh-out needs --since-days 7. The APPLY — within 24 h of that stage —
+ *   creates and keeps only ads whose lastmod is within 7 days of the stage's fetchedAt, revives an 'expired'
+ *   or 'stale' row judged the same way, and moves postedAt (and rankScore) to a newer lastmod. Every revival
+ *   and retire is owed its ISR tombstone BEFORE the write is attempted and paid as it lands (finally-guarded),
+ *   and gets a rollback line — guarded on the state it created, with its own tombstone — once the write has
+ *   moved the row.
+ *
  * Flags
  *   --limit N        stage: read at most N pages, newest `lastmod` first. apply: import at most N rows.
  *   --city C         hcmc | hanoi | danang — keep only that city (the source is HCMC-only today)
  *   --since D        skip listings last modified before D (default: 90 days ago — owner, 2026-09-24)
+ *   --since-days N   the same, as N days back from now (the weekly job: 7); not with --since
+ *   --fresh-out F    stage only: write the 7-day fresh set to F (atomically), or exit non-zero and write
+ *                    nothing when the read did not provably cover the window. Needs --since-days 7; not
+ *                    with --since, --limit or --src.
  *   --vnd-per-usd R  stage only: pin the conversion rate instead of reading open.er-api.com
  *   --delay-ms N     ms between requests: 1200 by default AND the floor — a smaller value is raised to 1200,
  *                    a non-number falls back to the default
@@ -54,7 +73,9 @@
  * ⚠️ 3. AVAILABILITY IS NOT PUBLISHED. No page carries a "rented" marker and a 2020 listing still
  * answers 200. The sitemap `lastmod` window (--since, 90 days) is the freshness filter; --retire acts
  * only on a POSITIVE signal (404/410), never on absence or age. A row that ages out of the window
- * stays active and is REPORTED, not hidden.
+ * stays active and is REPORTED, not hidden — by THIS script. Since 2026-10-01 an APARTMENT row is
+ * expired by age elsewhere: scripts/expire-apartment-rentals.ts, from the --fresh-out set this script
+ * writes (the 7-day rule above).
  *
  * ⚠️ 4. NO COORDINATES, NO AREA ON THE SOURCE. When the page's "Project" names a building that
  * src/generated/rever-buildings.ts knows, the row gets that `buildingKey` and the building's
@@ -71,9 +92,9 @@
  * (makePoliteGet / redirectTarget in the lib). A refused robots.txt redirect stops the run.
  */
 import 'dotenv/config'
-import { openSync, writeSync, fsyncSync, closeSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, realpathSync } from 'node:fs'
+import { existsSync, openSync, writeSync, fsyncSync, closeSync, mkdirSync, readFileSync, unlinkSync, realpathSync, renameSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
@@ -85,20 +106,30 @@ import { untranslatedSummary } from '../src/lib/import-i18n'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
 import { REVER_BUILDINGS } from '../src/generated/rever-buildings'
+import { FRESH_DAYS, FRESH_SET_MAX_AGE_MS, REVIVABLE_STATUSES, freshSetProblem, type FreshSet } from '../src/lib/apartment-freshness'
+import { tombstonePdps } from '../src/lib/pdp-tombstone'
+import {
+  NO_DATE_CHANGE, buildHoneycombFreshSet, cacheBustedUrl, sitemapCacheProblem, datePlan, datedRollbackSql, freshOutPreflight, honeycombSourceDate, isCacheHit,
+  keepVerdict, lastmodTrust, makeTombstoneLedger, parseSinceDays, pdpTombstoneSql, readDetailPages, sitemapCacheSummary, sitemapFileRead,
+  sitemapReadProblem,
+  type DatedJournalEntry, type DetailOutcome, type SitemapFileRead,
+} from '../src/lib/honeycomb-freshness'
 import {
   HONEYCOMB_SELLER_ID as SELLER_ID, HONEYCOMB_SELLER_NAME as SELLER_NAME, HONEYCOMB_LOGO_URL as LOGO_URL,
   HONEYCOMB_MONEY, HONEYCOMB_ORIGIN, CITY_KEYS, CITY_NAME, DEFAULT_SINCE_DAYS, MIN_LOGO_VISIBLE_PCT, STAGE_MAX_AGE_H, STAGE_SOURCE,
-  VND_PER_USD_BAND, Infeasible, allowedImage, allowedTarget, applyPreflight, assessHoneycomb, defaultSince, hasHouseNumber, runSince, valuedFlagProblem,
-  isGoneStatus, isPropertySitemap, journalDirProblem, makePoliteGet, parseDelayMs, parseHoneycombPage, parseSitemapIndex,
-  parseUrlset, priceToStore, readHoneycombStage, retireCandidates, robotsAllows, robotsFromResponse, sellerRefusal,
-  stageAgeProblem, stageHoneycombRecord, visiblePct, vndPerUsdFrom,
-  type CityKey, type Got, type HoneycombStage, type MappedHoneycomb, type SitemapEntry, type StagedHoneycomb,
+  VND_PER_USD_BAND, Infeasible, allowedImage, applyPreflight, assessHoneycomb, defaultSince, hasHouseNumber, runSince, valuedFlagProblem,
+  isGoneStatus, isPropertySitemap, journalDirProblem, makePoliteGet, parseDelayMs, parseSitemapIndex,
+  priceToStore, readHoneycombStage, retireCandidates, robotsAllows, robotsFromResponse, sellerRefusal,
+  stageAgeProblem, unknownFlagProblem, visiblePct, vndPerUsdFrom,
+  type CityKey, type HoneycombStage, type MappedHoneycomb, type SitemapEntry,
 } from '../src/lib/honeycomb-listing'
 
 const CATEGORY_SLUG = 'rentals'
 const BUCKET = 'listings'
 
 const argv = process.argv
+/** ⛔ The sitemaps' cache-busting key (`?eno=<this>`, cacheBustedUrl): one value for the whole run. */
+const RUN_START_MS = Date.now()
 const APPLY = argv.includes('--apply')
 const VERIFY = argv.includes('--verify')
 const RETIRE = argv.includes('--retire')
@@ -108,7 +139,11 @@ const str = (k: string, d: string | null = null) => {
 }
 const LIMIT = Number(str('--limit', '0'))
 const CITY = str('--city') as CityKey | null
-const SINCE_ARG = str('--since')
+/** `--since`, or the date `--since-days N` resolves to in main() (both are refused together). */
+let SINCE_ARG = str('--since')
+const SINCE_DAYS_RAW = str('--since-days')
+/** `--since-days N` once parsed in main(): the exact window (fetchedAt − N days) creates and keeps judge by. */
+let SINCE_DAYS: number | null = null
 /** The run's window (runSince): reassigned once a replay has read the window its file was staged with. */
 let SINCE = runSince(SINCE_ARG, null, Date.now())
 const DEFAULT_SINCE_LABEL = `${defaultSince(Date.now())}, ${DEFAULT_SINCE_DAYS} days`
@@ -116,6 +151,7 @@ const FX_OVERRIDE = str('--vnd-per-usd')
 /** ⛔ PATH ARGUMENTS, NOT CONSTANTS. */
 const SRC = str('--src')
 const SAVE = str('--save')
+const FRESH_OUT = str('--fresh-out')
 const JOURNAL_DIR = str('--journal-dir')
 /** ⛔ Finite-number guard and 1200 ms floor: a typo such as `--delay-ms 1500ms` falls back to 1200,
  *  and `--delay-ms 1000` is raised to 1200 — never faster. */
@@ -134,6 +170,11 @@ const pad = (s: string, n: number) => (s.length >= n ? s.slice(0, n) : s + ' '.r
 /** honeycomb.com.vn's robots.txt once `checkRobots` has read it; redirect hops are checked against it. */
 let robotsTxtSeen: string | null = null
 /**
+ * What a LIVE read saw, beyond the staged file: each property sitemap's outcome and each detail page's.
+ * In memory only — the fresh set is written by the run that read the site, never from a replay.
+ */
+let crawlProbe: { maps: SitemapFileRead[]; indexCache: string | null; detail: Map<string, DetailOutcome> } | null = null
+/**
  * ⛔ THE ONLY WAY THIS SCRIPT TOUCHES THE NETWORK (src/lib/honeycomb-listing.ts `makePoliteGet`):
  * one request at a time, ≥DELAY_MS (floor 1200) after the previous one FINISHED — so ≥1.2 s per
  * host — with every redirect hop gated the same way and followed only within honeycomb.com.vn.
@@ -151,6 +192,25 @@ const politeGet = polite.get
 function recordDurably(file: string, line: string) {
   const fd = openSync(file, 'a')
   try { writeSync(fd, line + '\n'); fsyncSync(fd) } finally { closeSync(fd) }
+}
+
+/**
+ * Write-then-rename, fsync'd: a reader sees the old file or the whole new one, never half of one — and the
+ * rename itself is durable only once the DIRECTORY entry is on disk, so the directory is fsync'd too (a
+ * crash right after a bare rename can come back with no file, or the old one).
+ */
+function writeAtomically(file: string, text: string, mode = 0o644) {
+  const tmp = `${file}.tmp-${process.pid}`
+  try {
+    const fd = openSync(tmp, 'w', mode)
+    try { writeSync(fd, text); fsyncSync(fd) } finally { closeSync(fd) }
+    renameSync(tmp, file)
+  } catch (e) {
+    try { unlinkSync(tmp) } catch { /* never created, or already renamed */ }
+    throw e
+  }
+  const dfd = openSync(dirname(resolve(file)), 'r')
+  try { fsyncSync(dfd) } finally { closeSync(dfd) }
 }
 
 /**
@@ -220,7 +280,9 @@ async function checkRobots() {
   const verdict = robotsFromResponse({ status: robots.status, refusedRedirect: robots.refusedRedirect, body: robots.body.toString('utf8') })
   if (!verdict.ok) throw new Infeasible(verdict.reason)
   const robotsTxt = verdict.robotsTxt
-  for (const p of ['/wp-sitemap.xml', '/wp-sitemap-posts-estate_property-1.xml', '/property/x/', '/wp-content/uploads/2026/09/x.jpg']) {
+  /** The sitemaps are requested cache-busted (crawl): robots.txt must allow that form too. */
+  for (const p of ['/wp-sitemap.xml', cacheBustedUrl('/wp-sitemap.xml', RUN_START_MS), cacheBustedUrl('/wp-sitemap-posts-estate_property-1.xml', RUN_START_MS),
+    '/property/x/', '/wp-content/uploads/2026/09/x.jpg']) {
     if (!robotsAllows(robotsTxt, p)) throw new Infeasible(`robots.txt disallows ${p} for user-agent * — INFEASIBLE`)
   }
   robotsTxtSeen = robotsTxt
@@ -267,62 +329,93 @@ async function crawl(sinceMs: number): Promise<HoneycombStage> {
     fxSource = `open.er-api.com USD base, updated ${(json as { time_last_update_utc?: string }).time_last_update_utc ?? '?'}`
   }
 
-  const index = await politeGet(`${HONEYCOMB_ORIGIN}/wp-sitemap.xml`)
+  /**
+   * ⛔ CACHE-BUSTED: the site's LiteSpeed page cache serves the plain sitemap urls up to 7 days stale (measured
+   * 2026-10-02: `x-litespeed-cache: hit`, max-age=604800). The index and every page are REQUESTED with
+   * `?eno=<run start>`; the canonical url (`m`) is still what is parsed, kept and reported. Each response's
+   * x-litespeed-cache header is recorded — a 'hit' refuses the fresh set (sitemapCacheProblem).
+   */
+  const index = await politeGet(cacheBustedUrl(`${HONEYCOMB_ORIGIN}/wp-sitemap.xml`, RUN_START_MS))
   if (index.status !== 200) throw new Error(`sitemap index answered ${index.status}${index.refusedRedirect ? ` (${index.refusedRedirect})` : ''}`)
+  const indexCache = index.litespeedCache ?? null
+  if (isCacheHit(indexCache)) console.warn(`  ! /wp-sitemap.xml answered x-litespeed-cache: ${indexCache} despite the cache-busting query`)
   const maps = parseSitemapIndex(index.body.toString('utf8')).filter(isPropertySitemap)
   const byUrl = new Map<string, SitemapEntry>()
+  const mapReads: SitemapFileRead[] = []
   let mapsOk = 0
   for (const m of maps) {
-    const res = await politeGet(m)
+    const res = await politeGet(cacheBustedUrl(m, RUN_START_MS))
+    const { read: r, entries: kept } = sitemapFileRead(m, res)
+    mapReads.push(r)
+    if (isCacheHit(r.cache)) console.warn(`  ! ${m} answered x-litespeed-cache: ${r.cache} despite the cache-busting query`)
     if (res.status !== 200) { console.warn(`  ! ${m} answered ${res.status}${res.refusedRedirect ? ` (${res.refusedRedirect})` : ''}`); continue }
+    for (const e of kept) byUrl.set(e.url, e)
+    /** ⛔ A 200 with no <url> in it is a broken page of the sitemap, not an empty one: not "read". */
+    if (!r.urls) { console.warn(`  ! ${m} answered 200 with no <url> entries`); continue }
+    /** ⛔ Nor is a body cut off before its </urlset> — it parses to fewer urls and looks whole. */
+    if (!r.closed) { console.warn(`  ! ${m} does not end with </urlset> — cut off`); continue }
     mapsOk++
-    for (const e of parseUrlset(res.body.toString('utf8'))) if (allowedTarget(e.url)) byUrl.set(e.url, e)
   }
+  /** ⛔ Whole = every page read whole AND the page counts say no page is missing (sitemapReadProblem). */
+  const mapsProblem = maps.length ? sitemapReadProblem(mapReads) : 'the sitemap index lists no estate_property sitemap'
+  if (mapsProblem) console.warn(`  ! the property sitemap is not provably whole: ${mapsProblem}`)
   const entries = [...byUrl.values()]
   const inWindow: (SitemapEntry & { t: number })[] = []
   for (const e of entries) {
-    const t = Date.parse(e.lastmod ?? '')
-    // ⚠️ `t >= since` keeps; NaN (a missing or malformed lastmod) compares false and is left out.
+    // The worst case (oldest instant) the lastmod can mean — honeycombSourceDate; null (a missing,
+    // malformed or offset-less lastmod) → NaN, which compares false and is left out.
+    const t = honeycombSourceDate(e.lastmod)?.getTime() ?? NaN
     if (t >= sinceMs) inWindow.push({ ...e, t })
   }
   inWindow.sort((a, b) => b.t - a.t)
   const batch = LIMIT ? inWindow.slice(0, LIMIT) : inWindow
 
-  const drop: Record<string, number> = {}
-  const bump = (k: string) => { drop[k] = (drop[k] ?? 0) + 1 }
-  const records: StagedHoneycomb[] = []
-  let read = 0
-  let stopped: string | null = null
-  for (const e of batch) {
-    let res: Got
-    try { res = await politeGet(e.url) } catch (err) {
-      /** A 429 or a challenge ends the READ, not the run: what was read so far is still staged. */
-      if (err instanceof Infeasible) { stopped = err.message; break }
-      bump('fetchError'); continue
-    }
-    read++
-    /** ⛔ A redirect off the site (or to a robots-disallowed path) was NOT followed: drop the page. */
-    if (res.refusedRedirect) { bump('redirectRefused'); continue }
-    if (isGoneStatus(res.status)) { bump('gone'); continue }
-    if (res.status !== 200) { bump(`http${res.status}`); continue }
-    if (res.finalUrl !== e.url || !allowedTarget(res.finalUrl)) { bump('redirected'); continue }
-    const parsed = parseHoneycombPage(res.body.toString('utf8'), e.url)
-    if (typeof parsed === 'string') { bump(parsed); continue }
-    /** ⛔ Through the allowlist on the way IN, as well as on the way back out of the file. */
-    const staged = stageHoneycombRecord({ ...parsed, lastmod: e.lastmod })
-    if (!staged) { bump('allowlist'); continue }
-    records.push(staged)
-  }
+  /** Every page requested gets an outcome (readDetailPages → crawlProbe.detail) — the fresh set's proof that
+   *  the window was read. A 429 or a challenge ends the READ, not the run: what was read so far is staged. */
+  const { detail, records, read, drop, stopped } = await readDetailPages(batch, politeGet)
+  crawlProbe = { maps: mapReads, indexCache, detail }
   return {
     source: STAGE_SOURCE,
     fetchedAt: new Date().toISOString(),
     userAgent: UA,
-    params: { since: SINCE, limit: LIMIT, city: CITY },
+    params: { since: SINCE, limit: LIMIT, city: CITY, sinceDays: SINCE_DAYS },
     fx: { vndPerUsd, source: fxSource },
-    sitemap: { maps: maps.length, mapsOk, complete: maps.length > 0 && mapsOk === maps.length && entries.length > 0, entries },
+    sitemap: { maps: maps.length, mapsOk, complete: !mapsProblem && entries.length > 0, entries },
     pages: { read, drop, stopped },
     records,
   }
+}
+
+/** ⛔ --fresh-out's directory must exist and take a write BEFORE the crawl: a run that cannot record its
+ *  evidence fails while it has done nothing. */
+function probeFreshOutDir(file: string) {
+  const dir = dirname(resolve(file))
+  if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`--fresh-out ${file}: directory ${dir} does not exist`)
+  const probe = join(dir, `.honeycomb-fresh-probe-${process.pid}`)
+  recordDurably(probe, 'ok')
+  unlinkSync(probe)
+}
+
+/**
+ * ⛔ THE FRESH SET IS WRITTEN LAST, AND ONLY WHOLE: re-checked with freshSetProblem at the moment of writing
+ * (the report took time), then tmp + fsync + rename. A refused set writes NOTHING and the run exits 1, so
+ * the weekly job's expiry has no file to act on — and the backstop still runs.
+ */
+function writeFreshOut(file: string, result: ReturnType<typeof buildHoneycombFreshSet>) {
+  if (!result.ok) {
+    console.error(`\n⛔ FRESH SET NOT WRITTEN (${file}): ${result.reason}`)
+    process.exitCode = 1
+    return
+  }
+  const set: FreshSet = result.set
+  const problem = freshSetProblem(JSON.parse(JSON.stringify(set)), Date.now(), SELLER_ID)
+  if (problem) {
+    console.error(`\n⛔ FRESH SET NOT WRITTEN (${file}): ${problem}`)
+    process.exitCode = 1
+    return
+  }
+  writeAtomically(file, JSON.stringify(set, null, 1) + '\n')
+  console.log(`fresh set         WRITTEN ${resolve(file)} — ${set.items.length} items, ${set.unknown?.length ?? 0} undetermined (fetched ${set.fetchedAt})`)
 }
 
 async function verify() {
@@ -378,19 +471,44 @@ async function verify() {
 }
 
 async function main() {
-  if (VERIFY) return verify()
-
   // ── preflight: flags, then the journal dir — BEFORE any network or database call ─────────
   const flagProblem = valuedFlagProblem(argv)
   if (flagProblem) throw new Error(flagProblem)
+  const unknownFlag = unknownFlagProblem(argv.slice(2))
+  if (unknownFlag) throw new Error(unknownFlag)
+  if (VERIFY) return verify()
+  if (SINCE_DAYS_RAW !== null) {
+    if (SINCE_ARG) throw new Error('pass --since or --since-days, not both')
+    const days = parseSinceDays(SINCE_DAYS_RAW)
+    if (days === null) throw new Error('--since-days must be a whole number of days, 1–3650')
+    /** The Vietnam date N days back; its 00:00 +07:00 start is at or before now − N days. It picks the
+     *  detail pages to read; what is created or kept is judged at fetchedAt − N days exactly (keepVerdict). */
+    SINCE_ARG = defaultSince(Date.now(), days)
+    SINCE = SINCE_ARG
+    SINCE_DAYS = days
+  }
   if (!Number.isInteger(LIMIT) || LIMIT < 0) throw new Error('--limit must be a non-negative integer')
   const pre = applyPreflight({ apply: APPLY, src: SRC, save: SAVE, journalDir: JOURNAL_DIR, retire: RETIRE, limit: LIMIT })
   if (pre) throw new Error(pre)
-  const journal = APPLY ? prepareJournalDir(JOURNAL_DIR!) : null
   if (CITY && !CITY_KEYS.includes(CITY)) throw new Error(`--city must be one of ${CITY_KEYS.join(', ')}`)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(SINCE)) throw new Error('--since must be YYYY-MM-DD')
   let sinceMs = Date.parse(`${SINCE}T00:00:00+07:00`)
   if (!Number.isFinite(sinceMs)) throw new Error('--since must be YYYY-MM-DD')
+  const freshPre = freshOutPreflight({ freshOut: FRESH_OUT, src: SRC, apply: APPLY, limit: LIMIT, sinceDays: SINCE_DAYS, sinceMs, now: Date.now() })
+  if (freshPre) throw new Error(freshPre)
+  if (FRESH_OUT) {
+    if (SAVE && resolve(SAVE) === resolve(FRESH_OUT)) throw new Error('--fresh-out and --save name the same file: the set would overwrite the stage')
+    probeFreshOutDir(FRESH_OUT)
+    // ⛔ A set left by an EARLIER run must not survive a run that refuses to write one: the expiry would act
+    // on the old evidence. Only a file that is a fresh set is removed; anything else there is refused.
+    if (existsSync(FRESH_OUT)) {
+      let prior: unknown = null
+      try { prior = JSON.parse(readFileSync(FRESH_OUT, 'utf8')) } catch { /* not JSON */ }
+      if ((prior as { kind?: unknown } | null)?.kind !== 'apartment-fresh-set') throw new Error(`--fresh-out ${FRESH_OUT} exists and is not a fresh set — refusing to overwrite it`)
+      unlinkSync(FRESH_OUT)
+    }
+  }
+  const journal = APPLY ? prepareJournalDir(JOURNAL_DIR!) : null
   if (SRC && FX_OVERRIDE) throw new Error('--vnd-per-usd is a stage option; a staged file carries the rate it was reviewed with')
 
   // ── the staged data: a reviewed file, or a live read ──────────────────────────────────────
@@ -409,6 +527,12 @@ async function main() {
     /** ⛔ A STALE FILE REFUSES THE WRITE, IT DOES NOT WARN. */
     if (stale && APPLY) throw new Error(`${SRC}: ${stale}`)
     if (stale) console.warn(`  ! ${stale} — fine to read, refused by --apply`)
+    /** ⛔ A 7-DAY STAGE IS EVIDENCE FOR AS LONG AS ITS FRESH SET IS: creates and revivals are judged at its
+     *  fetchedAt (keepVerdict, datePlan), so an apply a day later would publish ads already past the window. */
+    if (APPLY && (SINCE_DAYS ?? (SINCE_ARG ? null : stage.params.sinceDays)) !== null) {
+      const late = stageAgeProblem(stage.fetchedAt, Date.now(), FRESH_SET_MAX_AGE_MS / 3_600_000)
+      if (late) throw new Error(`${SRC}: a --since-days stage applies within ${FRESH_SET_MAX_AGE_MS / 3_600_000} h, like its fresh set — ${late}`)
+    }
     /** Politeness and robots apply to every request a replay makes: the photos and retire fetches of
      *  an apply, and the logo and cover a dry-run replay checks (it skipped robots.txt until 2026-09-24,
      *  so those hops had no rules to be checked against). */
@@ -416,10 +540,20 @@ async function main() {
   } else {
     stage = await crawl(sinceMs)
   }
-  if (SAVE) {
-    writeFileSync(SAVE, JSON.stringify(stage, null, 1), { mode: 0o600 })
-  }
+  /** ⛔ A sitemap the page cache served (a 'hit' despite the busting query) is up to 7 days stale: its lastmods
+   *  are not evidence, so the stage is marked incomplete and its apply neither revives nor re-dates
+   *  (lastmodTrust). */
+  if (crawlProbe && !SRC && sitemapCacheProblem(crawlProbe.indexCache, crawlProbe.maps)) stage.sitemap.complete = false
+  /** Atomically: the weekly job applies whenever this file exists, so it must never exist half-written. */
+  if (SAVE) writeAtomically(SAVE, JSON.stringify(stage, null, 1), 0o600)
   const ageH = (Date.now() - Date.parse(stage.fetchedAt)) / 3_600_000
+  const fetchedMs = Date.parse(stage.fetchedAt)
+  /**
+   * ⛔ THE EXACT 7-DAY WINDOW (keepVerdict): a --since-days run — this one, or the stage a replay reads —
+   * creates and keeps only ads whose lastmod is within N days of fetchedAt, the moment the fresh set is
+   * judged at. An explicit --since on a replay means that window instead.
+   */
+  const exactDays = SINCE_DAYS ?? (SINCE_ARG ? null : stage.params.sinceDays)
 
   // ── map (the same code on stage and apply, so a review sees exactly what will be written) ─
   const minImages = minPhotosFor(CATEGORY_SLUG)
@@ -430,8 +564,10 @@ async function main() {
   const db = makeDb(!APPLY)
   const screen = new ImportScreen('honeycomb-com-vn', { db, sellerIds: [SELLER_ID], ...(journal ? { dir: journal } : {}) })
   for (const r of stage.records) {
-    const t = Date.parse(r.lastmod ?? '')
-    if (!(t >= sinceMs)) { drop.beforeSince = (drop.beforeSince ?? 0) + 1; continue }
+    /** The worst case (oldest instant) of the lastmod — the source date the 7-day rule judges. */
+    const v = keepVerdict(r.lastmod, { sinceMs, exactDays, fetchedAt: fetchedMs })
+    if (!v.keep) { drop[v.why] = (drop[v.why] ?? 0) + 1; continue }
+    const t = v.t
     const a = assessHoneycomb(r, { vndPerUsd: stage.fx.vndPerUsd, minImages, cityFilter: CITY, buildings: REVER_BUILDINGS })
     if (!a.ok) { drop[a.reason] = (drop[a.reason] ?? 0) + 1; continue }
     // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a refused row is never created;
@@ -441,7 +577,8 @@ async function main() {
       drop.contentScreen = (drop.contentScreen ?? 0) + 1; continue
     }
     /** postedAt = the source's last modification, clamped to now: the card's age and the recency
-     *  rank then say how fresh the AGENCY's listing is, not when we copied it. Create-only. */
+     *  rank then say how fresh the AGENCY's listing is, not when we copied it. Set on create; moved
+     *  forward on an update only by the 7-day rule (datePlan: a revival, or a newer lastmod). */
     keepAll.push({ ...a.row, postedAt: new Date(Math.min(t, Date.now())), lastmod: r.lastmod ?? '' })
   }
   const keep = SRC && LIMIT ? keepAll.slice(0, LIMIT) : keepAll
@@ -458,20 +595,33 @@ async function main() {
       price: true, priceUnit: true, currency: true, negotiable: true, listingType: true, categoryId: true,
       subcategorySlug: true, sellerId: true, location: true, district: true, city: true, areaM2: true,
       attributes: true, affiliateUrl: true, searchText: true, buildingKey: true, lat: true, lng: true,
+      postedAt: true, rankScore: true,
     },
   }) : []
   const stored = new Map(storedRows.map((r) => [r.externalId!, r]))
+  /**
+   * ⛔ THE 7-DAY RULE ACTS ON lastmod ONLY WHEN THIS RUN MAY TRUST IT (lastmodTrust): the whole sitemap was
+   * read and under 25% of it was modified in the window — a site-wide re-save is not a re-post.
+   */
+  const trust = lastmodTrust(stage)
   const plan = keep.map((k) => {
     const s = stored.get(k.externalId) ?? null
     const price = priceToStore(s, k.priceUsd, k.price)
     const mutable = mutableOf(k, category.id, price)
     const changed = s ? changedFields(s as unknown as Record<string, unknown>, mutable) : null
-    return { k, s, mutable, changed }
+    /** Revival ('expired'|'stale' → active) and a newer postedAt — src/lib/honeycomb-freshness.ts datePlan.
+     *  Only for rows that passed the mapper AND the content screen: a refused row is never brought back. */
+    const dated = s ? datePlan({ status: s.status, postedAt: s.postedAt, lastmod: k.lastmod, fetchedAt: fetchedMs, now: Date.now(), trusted: trust.ok }) : NO_DATE_CHANGE
+    /** A changed postedAt or a revival IS a change: the row is written. Otherwise unchanged rows are not. */
+    const dirty = !!s && (changed!.length > 0 || dated.revive || dated.postedAt !== null)
+    return { k, s, mutable, changed, dated, dirty }
   })
   const toCreate = plan.filter((p) => !p.s)
-  // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
-  const toUpdate = plan.filter((p) => p.s && p.s.status !== 'removed' && p.changed!.length)
-  const unchanged = plan.filter((p) => p.s && !p.changed!.length)
+  // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated, never revived or re-dated.
+  const toUpdate = plan.filter((p) => p.s && p.s.status !== 'removed' && p.dirty)
+  const unchanged = plan.filter((p) => p.s && !p.dirty)
+  const toRevive = toUpdate.filter((p) => p.dated.revive)
+  const toRedate = toUpdate.filter((p) => p.dated.postedAt !== null)
   const fieldHist: Record<string, number> = {}
   for (const p of toUpdate) for (const f of p.changed!) fieldHist[f] = (fieldHist[f] ?? 0) + 1
   const sampleRank = browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: keep[0]?.postedAt ?? new Date(), featured: false })
@@ -482,7 +632,21 @@ async function main() {
   const lastmodByUrl = new Map(stage.sitemap.entries.map((e) => [e.url, e.lastmod]))
   const activeOnSeller = await db.listing.findMany({ where: { sellerId: SELLER_ID, status: 'active' }, select: { id: true, affiliateUrl: true } })
   const candidates = stage.sitemap.complete ? retireCandidates(activeOnSeller, sitemapUrls) : []
-  const agedOut = activeOnSeller.filter((r) => r.affiliateUrl && sitemapUrls.has(r.affiliateUrl) && !(Date.parse(lastmodByUrl.get(r.affiliateUrl) ?? '') >= sinceMs)).length
+  const agedOut = activeOnSeller.filter((r) => r.affiliateUrl && sitemapUrls.has(r.affiliateUrl) && !((honeycombSourceDate(lastmodByUrl.get(r.affiliateUrl))?.getTime() ?? NaN) >= sinceMs)).length
+
+  /** The 7-day fresh set, from what THIS run read (crawlProbe) — written at the end, only if it holds. */
+  let fresh: ReturnType<typeof buildHoneycombFreshSet> | null = null
+  if (FRESH_OUT) {
+    if (!crawlProbe) throw new Error('--fresh-out needs a live read of the site')
+    /** Every stored row of the seller, any status: names an undetermined page's row by its affiliateUrl. */
+    const storedIds = await db.listing.findMany({ where: { sellerId: SELLER_ID, affiliateUrl: { not: null } }, select: { externalId: true, affiliateUrl: true } })
+    fresh = buildHoneycombFreshSet({
+      fetchedAt: new Date(stage.fetchedAt), now: Date.now(),
+      maps: crawlProbe.maps, indexCache: crawlProbe.indexCache, entries: stage.sitemap.entries,
+      detailSinceMs: sinceMs, limit: LIMIT, stopped: stage.pages.stopped,
+      detail: crawlProbe.detail, stored: storedIds,
+    })
+  }
 
   const logo = !seller?.avatarUrl ? await logoCheck() : null
 
@@ -490,13 +654,14 @@ async function main() {
   console.log(`robots / UA       allowed for every path used · "${stage.userAgent}" · ≥${DELAY_MS} ms between requests`)
   console.log(`fx                ${stage.fx.vndPerUsd} đ/US$  (${stage.fx.source})`)
   console.log(`sitemaps          ${stage.sitemap.mapsOk}/${stage.sitemap.maps} property sitemaps read${stage.sitemap.complete ? '' : ' — INCOMPLETE (no retire pass)'} · ${stage.sitemap.entries.length} urls`)
-  console.log(`window            lastmod ≥ ${SINCE} (default ${DEFAULT_SINCE_LABEL})${SRC ? ` · staged with --since ${stage.params.since}` : ''}`)
+  if (crawlProbe) console.log(`sitemap cache     requested ?eno=${RUN_START_MS} · x-litespeed-cache ${sitemapCacheSummary(crawlProbe.indexCache, crawlProbe.maps)}`)
+  console.log(`window            lastmod ≥ ${SINCE} (default ${DEFAULT_SINCE_LABEL})${SRC ? ` · staged with --since ${stage.params.since}` : ''}${exactDays !== null ? ` · creates/keeps: lastmod within ${exactDays} days of fetchedAt (≥ ${new Date(fetchedMs - exactDays * 86_400_000).toISOString()})` : ''}`)
   console.log(`pages read        ${stage.pages.read}${stage.params.limit ? ` (--limit ${stage.params.limit}, newest first)` : ''}${stage.pages.stopped ? ` — STOPPED: ${stage.pages.stopped}` : ''}`)
   if (SRC) console.log(`staged records    ${stage.records.length} (${rejectedOnRead} rejected by the allowlist on read)`)
   if (SAVE) console.log(`staged file       ${resolve(SAVE)}  (${stage.records.length} records)`)
   console.log(`dropped           ${JSON.stringify(drop)}`)
   screen.report()
-  console.log(`TO IMPORT         ${keep.length}${SRC && LIMIT ? ` (--limit ${LIMIT} of ${keepAll.length})` : ''}   (create ${toCreate.length} · update ${toUpdate.length} · unchanged ${unchanged.length})${toUpdate.length ? `  fields ${JSON.stringify(fieldHist)}` : ''}`)
+  console.log(`TO IMPORT         ${keep.length}${SRC && LIMIT ? ` (--limit ${LIMIT} of ${keepAll.length})` : ''}   (create ${toCreate.length} · update ${toUpdate.length} · unchanged ${unchanged.length})${toUpdate.length ? `  fields ${JSON.stringify(fieldHist)}` : ''}${toRevive.length || toRedate.length ? `  + revive ${toRevive.length} · postedAt ${toRedate.length}` : ''}`)
   console.log(`  by subcategory  ${JSON.stringify(hist((k) => k.subcategorySlug))}`)
   console.log(`  by city         ${JSON.stringify(hist((k) => k.city))}   (the vn-units Vietnamese name — what the wizard stores)`)
   console.log(`  by district     ${JSON.stringify(hist((k) => k.district ?? '(none)'))}`)
@@ -517,12 +682,15 @@ async function main() {
   console.log(`buildings         ${keep.filter((k) => k.buildingKey).length}/${keep.length} rows matched a map building (buildingKey + centroid); the rest get no coordinates`)
   console.log(`aged out          ${agedOut} active rows' pages were last modified before ${SINCE} — REPORTED, not hidden (age is not a retire signal)`)
   console.log(`retire pass       ${!RETIRE ? `OFF (--retire not passed) · ${candidates.length} active rows absent from the sitemap` : !stage.sitemap.complete ? 'OFF — the staged sitemap read is incomplete' : `${candidates.length} active rows absent from the sitemap → re-checked below`}`)
+  console.log(`7-day rule        ${trust.ok ? `lastmod trusted — ${trust.recent} of ${trust.total} property urls modified in the ${FRESH_DAYS} days before the fetch` : `lastmod NOT trusted this run (${trust.reason}) — no revival, no postedAt change`}`)
+  console.log(`                  revive ${toRevive.length} (expired/stale → active, then per-page ISR tombstones) · postedAt → a newer lastmod ${toRedate.length} (rankScore recomputed from it)`)
+  if (fresh) console.log(`fresh set         ${fresh.ok ? `${fresh.set.items.length} items, ${fresh.set.unknown?.length ?? 0} undetermined → ${resolve(FRESH_OUT!)} (written last)\n                  ${fresh.set.coverage}` : `⛔ REFUSED — ${fresh.reason}`}`)
 
   if (keep.length) {
     console.log(`\n── rows (${keep.length}) ──`)
     for (const k of keep) {
       const p = plan.find((x) => x.k === k)!
-      console.log(`  ${pad(k.externalId, 17)} ${pad(k.subcategorySlug, 17)} ${pad(`US$${k.priceUsd}`, 10)} ${pad(vnd(p.mutable.price), 16)} ${pad(k.location, 28)} ${pad(k.buildingKey ?? '-', 26)} ${k.images.length}img ${k.lastmod.slice(0, 10)} ${p.s ? (p.changed!.length ? 'UPDATE' : 'same') : 'CREATE'}  ${k.title}`)
+      console.log(`  ${pad(k.externalId, 17)} ${pad(k.subcategorySlug, 17)} ${pad(`US$${k.priceUsd}`, 10)} ${pad(vnd(p.mutable.price), 16)} ${pad(k.location, 28)} ${pad(k.buildingKey ?? '-', 26)} ${k.images.length}img ${k.lastmod.slice(0, 10)} ${!p.s ? 'CREATE' : p.s.status === 'removed' ? 'removed' : p.dated.revive ? 'REVIVE' : p.changed!.length ? 'UPDATE' : p.dated.postedAt ? 'REDATE' : 'same'}  ${k.title}`)
     }
     console.log(`\n── sample rows, composed exactly as stored (images: SOURCE urls here; on --apply they are re-hosted first) ──`)
     for (const p of plan.slice(0, 3)) {
@@ -559,7 +727,8 @@ async function main() {
 
   if (!APPLY) {
     console.log(`requests total    ${polite.count()}`)
-    console.log(`mode              DRY RUN (database session read-only) — nothing written, nothing uploaded.`)
+    console.log(`mode              DRY RUN (database session read-only) — nothing written to the database, nothing uploaded.`)
+    if (FRESH_OUT && fresh) writeFreshOut(FRESH_OUT, fresh)
     console.log(SRC
       ? `\nNEXT: --src ${SRC} --apply --journal-dir <durable dir>   (within ${STAGE_MAX_AGE_H} h of ${stage.fetchedAt})`
       : `\nNEXT: stage with --save <file>, review it, then --src <file> --apply --journal-dir <durable dir>`)
@@ -569,6 +738,13 @@ async function main() {
   // ── APPLY ─────────────────────────────────────────────────────────────────────────────────
   /** ⛔ Refused BEFORE any write: renamed, owned, verified, verifiedSeller or officialPartner. */
   if (refusal) throw new Error(`seller ${SELLER_ID} ${refusal}; refusing to write`)
+  /**
+   * ⛔ CHECKED BEFORE THE FIRST STATUS WRITE (the screen's hides just below, then revivals and retires):
+   * without the tag table a revived page keeps its cached 404 and a retired one keeps rendering, for 30
+   * days — tombstonePdps would only print SKIPPED. Same refusal as scripts/expire-apartment-rentals.ts.
+   */
+  const [{ t: isrTable }] = await db.$queryRaw<{ t: string | null }[]>`select to_regclass('public.next_cache_tag')::text as t`
+  if (!isrTable) throw new Error('no next_cache_tag table on this database — a revived or retired page would keep its cached render for 30 days; refusing before any write')
   // ⛔ Live rows the content screen refused as banned are hidden only now, past the storefront refusal.
   await screen.applyHides()
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '')
@@ -581,7 +757,13 @@ async function main() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const UPLOADED = join(journal!, `honeycomb-uploaded-objects-${stamp}.txt`)
   const CREATED = join(journal!, `honeycomb-created-rows-${stamp}.jsonl`)
-  console.log(`\nmode              APPLY — WRITES TO PRODUCTION\njournal           ${CREATED}\nupload manifest   ${UPLOADED}`)
+  /** The 7-day rule's writes: the PLANNED old/new status, postedAt and rankScore per row (before each write). */
+  const DATED = join(journal!, `honeycomb-dated-rows-${stamp}.jsonl`)
+  /** One line per row a write MOVED (written after it), each guarded on the state it created + its tombstone. */
+  const ROLLBACK = join(journal!, `honeycomb-rollback-${stamp}.sql`)
+  /** Pages still owed an ISR tombstone if this run could not write one (see the finally below). */
+  const OWED = join(journal!, `honeycomb-tombstones-owed-${stamp}.sql`)
+  console.log(`\nmode              APPLY — WRITES TO PRODUCTION\njournal           ${CREATED}\nupload manifest   ${UPLOADED}\ndated journal     ${DATED}\nrollback          ${ROLLBACK}`)
 
   if (!seller) {
     /** ⚠️ No owner and no badges: the badge must never imply we vetted them (contract §2). */
@@ -602,83 +784,165 @@ async function main() {
   } else if (!seller?.avatarUrl) console.warn(`  ! seller avatar NOT set: ${logo?.line ?? 'no check ran'}`)
 
   const sharp = (await import('sharp')).default
-  const stat = { created: 0, updated: 0, unchanged: unchanged.length, photosShort: 0, uploadFailed: 0, raced: 0, errored: 0, uploaded: 0, retired: 0 }
-  for (const p of [...toUpdate, ...toCreate]) {
-    try {
-      if (p.s) {
-        /** Only the fields that differ — an unchanged column is not rewritten. */
-        const data: Partial<Mutable> = {}
-        for (const f of p.changed! as (keyof Mutable)[]) Object.assign(data, { [f]: p.mutable[f] })
-        await db.listing.update({ where: { id: p.s.id }, data })
-        stat.updated++
-        continue
+  const stat = { created: 0, updated: 0, unchanged: unchanged.length, revived: 0, redated: 0, photosShort: 0, uploadFailed: 0, raced: 0, errored: 0, uploaded: 0, retired: 0 }
+  const lit = (x: string) => `'${x.replace(/'/g, "''")}'`
+  /**
+   * ⛔ EVERY PAGE WHOSE VISIBILITY A WRITE MAY CHANGE IS TOMBSTONED (makeTombstoneLedger): owed BEFORE the
+   * revival or retire write is attempted (a write that commits and then throws never reaches a line after
+   * it; a tombstone on a row it did not move is harmless), paid straight after its rollback line — and the
+   * whole write phase sits in try/finally, so a later throw (an Infeasible 429 on a create's photos, a
+   * failed retire, a failed tombstone) still pays what is owed before the process exits. Anything still
+   * owed after that is written to OWED as paste-ready SQL and the run exits non-zero.
+   */
+  const ledger = makeTombstoneLedger((ids) => tombstonePdps(db, ids))
+  try {
+    for (const p of [...toUpdate, ...toCreate]) {
+      try {
+        if (p.s) {
+          /** Only the fields that differ — an unchanged column is not rewritten. */
+          const data: Partial<Mutable> & { postedAt?: Date; rankScore?: number } = {}
+          for (const f of p.changed! as (keyof Mutable)[]) Object.assign(data, { [f]: p.mutable[f] })
+          /** A newer lastmod (or a revival) moves postedAt, and rankScore with it — computed exactly as at
+           *  create, from the SOURCE's date, never from now. */
+          const rankScore = p.dated.postedAt ? browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: p.dated.postedAt, featured: false }) : null
+          if (p.dated.postedAt && rankScore !== null) Object.assign(data, { postedAt: p.dated.postedAt, rankScore })
+          const datedWrite = p.dated.revive || p.dated.postedAt !== null
+          const entry: DatedJournalEntry | null = datedWrite ? {
+            id: p.s.id, externalId: p.k.externalId,
+            oldStatus: p.s.status, oldPostedAt: p.s.postedAt.toISOString(), oldRankScore: p.s.rankScore,
+            revive: p.dated.revive, newPostedAt: p.dated.postedAt?.toISOString() ?? null, newRankScore: rankScore,
+          } : null
+          /** Composed BEFORE the write (a value it refuses stops the row unwritten), recorded only after it. */
+          const undo = entry ? datedRollbackSql(entry, SELLER_ID) : ''
+          /** ⛔ THE PLAN FIRST (fsync), THEN THE WRITE: the old values are the only way back. */
+          if (entry) recordDurably(DATED, JSON.stringify(entry))
+          /**
+           * ⛔ updateMany WITH THE STATE THE PLAN READ AS ITS GUARD — never a bare update by id:
+           *   · a revival moves the row ONLY FROM 'expired' | 'stale' (a row hidden, removed or sold since the
+           *     read stays as it is; `verified` is untouched, so a held row stays held), in ONE write with its
+           *     postedAt/rankScore and any changed text, so the rollback line describes exactly what landed;
+           *   · any other write skips a row that became 'removed' — the Law 122/2025 tombstone record;
+           *   · a dated write also requires the postedAt it read: a concurrent move is not overwritten, and the
+           *     rollback's "old" value is exact.
+           */
+          /** ⛔ OWED BEFORE THE WRITE IS ATTEMPTED: a revival that commits and then throws (the reply lost) is
+           *  still paid by the next pay() or the finally — never left on its cached 404. */
+          if (p.dated.revive) ledger.owe(p.s.id)
+          const moved = p.dated.revive
+            ? await db.listing.updateMany({
+              where: { id: p.s.id, sellerId: SELLER_ID, status: { in: [...REVIVABLE_STATUSES] }, postedAt: p.s.postedAt },
+              data: { ...data, status: 'active' },
+            })
+            : Object.keys(data).length
+              ? await db.listing.updateMany({
+                where: { id: p.s.id, sellerId: SELLER_ID, status: { not: 'removed' }, ...(datedWrite ? { postedAt: p.s.postedAt } : {}) },
+                data,
+              })
+              : { count: 0 }
+          if (!moved.count) { if (Object.keys(data).length || p.dated.revive) stat.raced++; continue }
+          /** The rollback line only now — the write moved the row — guarded on what it created, with its tombstone. */
+          if (undo) recordDurably(ROLLBACK, undo)
+          if (p.dated.revive) { stat.revived++; await ledger.pay() }
+          if (p.changed!.length) stat.updated++
+          if (p.dated.postedAt) stat.redated++
+          continue
+        }
+        /**
+         * ⛔ ALL-OR-NOTHING, BEFORE THE ROW EXISTS. Every usable photo is uploaded first; a single upload
+         * failure abandons the row (orphans are in the manifest), so a listing is never born with a
+         * short gallery that later runs would treat as done (attach-rever-photos.ts:36-40).
+         * A photo that is not a real full-size image — undecodable, redirected off the uploads folder,
+         * or under 300 px on its short edge (a thumbnail or a headshot-sized crop) — is LEFT OUT,
+         * failing closed; the row still needs the category's minimum after that.
+         */
+        const usable: Buffer[] = []
+        for (const src of p.k.images) {
+          const got = await politeGet(src)
+          if (got.status !== 200 || !allowedImage(got.finalUrl) || !/^image\//.test(got.type) || !got.body.length || got.body.length > 15_000_000) continue
+          const meta = await sharp(got.body).metadata().catch(() => null)
+          if (!meta?.width || !meta?.height || Math.min(meta.width, meta.height) < 300) continue
+          usable.push(got.body)
+        }
+        if (usable.length < minImages) { stat.photosShort++; continue }
+        const slug = p.k.externalId.replace(/[^a-z0-9]/gi, '-')
+        const urls: string[] = []
+        for (const buf of usable) {
+          const url = await host.fromBuffer(buf, slug)
+          if (!url) break
+          /** Recorded BEFORE it is judged, so even a rejected upload is on the cleanup list. */
+          recordDurably(UPLOADED, url)
+          if (!isOverlayImageUrl(url)) break
+          urls.push(url)
+        }
+        if (urls.length !== usable.length) { stat.uploadFailed++; continue }
+        stat.uploaded += urls.length
+        const created = await db.listing.create({
+          data: {
+            ...p.mutable,
+            externalId: p.k.externalId,
+            /** ⛔ CREATE-ONLY: `verified` is the PUBLICATION GATE (feed-query.ts:143-150), status and
+             *  images are owned by moderation and by this create — a refresh must never reset them. */
+            status: 'active', verified: true,
+            images: JSON.stringify(urls),
+            postedAt: p.k.postedAt,
+            rankScore: browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: p.k.postedAt, featured: false }),
+          },
+          select: { id: true },
+        })
+        recordDurably(CREATED, JSON.stringify({ id: created.id, externalId: p.k.externalId, images: urls.length }))
+        stat.created++
+        if (stat.created % 25 === 0) console.log(`  ${stat.created} created · ${stat.uploaded} photos`)
+      } catch (e) {
+        if (e instanceof Infeasible) throw e
+        /** P2002 = the unique (sellerId, externalId) — another run created it between read and write. */
+        if ((e as { code?: string }).code === 'P2002') stat.raced++
+        else { stat.errored++; console.warn(`  ! ${p.k.externalId}: ${(e as Error).message.slice(0, 160)}`) }
       }
-      /**
-       * ⛔ ALL-OR-NOTHING, BEFORE THE ROW EXISTS. Every usable photo is uploaded first; a single upload
-       * failure abandons the row (orphans are in the manifest), so a listing is never born with a
-       * short gallery that later runs would treat as done (attach-rever-photos.ts:36-40).
-       * A photo that is not a real full-size image — undecodable, redirected off the uploads folder,
-       * or under 300 px on its short edge (a thumbnail or a headshot-sized crop) — is LEFT OUT,
-       * failing closed; the row still needs the category's minimum after that.
-       */
-      const usable: Buffer[] = []
-      for (const src of p.k.images) {
-        const got = await politeGet(src)
-        if (got.status !== 200 || !allowedImage(got.finalUrl) || !/^image\//.test(got.type) || !got.body.length || got.body.length > 15_000_000) continue
-        const meta = await sharp(got.body).metadata().catch(() => null)
-        if (!meta?.width || !meta?.height || Math.min(meta.width, meta.height) < 300) continue
-        usable.push(got.body)
-      }
-      if (usable.length < minImages) { stat.photosShort++; continue }
-      const slug = p.k.externalId.replace(/[^a-z0-9]/gi, '-')
-      const urls: string[] = []
-      for (const buf of usable) {
-        const url = await host.fromBuffer(buf, slug)
-        if (!url) break
-        /** Recorded BEFORE it is judged, so even a rejected upload is on the cleanup list. */
-        recordDurably(UPLOADED, url)
-        if (!isOverlayImageUrl(url)) break
-        urls.push(url)
-      }
-      if (urls.length !== usable.length) { stat.uploadFailed++; continue }
-      stat.uploaded += urls.length
-      const created = await db.listing.create({
-        data: {
-          ...p.mutable,
-          externalId: p.k.externalId,
-          /** ⛔ CREATE-ONLY: `verified` is the PUBLICATION GATE (feed-query.ts:143-150), status and
-           *  images are owned by moderation and by this create — a refresh must never reset them. */
-          status: 'active', verified: true,
-          images: JSON.stringify(urls),
-          postedAt: p.k.postedAt,
-          rankScore: browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: p.k.postedAt, featured: false }),
-        },
-        select: { id: true },
-      })
-      recordDurably(CREATED, JSON.stringify({ id: created.id, externalId: p.k.externalId, images: urls.length }))
-      stat.created++
-      if (stat.created % 25 === 0) console.log(`  ${stat.created} created · ${stat.uploaded} photos`)
-    } catch (e) {
-      if (e instanceof Infeasible) throw e
-      /** P2002 = the unique (sellerId, externalId) — another run created it between read and write. */
-      if ((e as { code?: string }).code === 'P2002') stat.raced++
-      else { stat.errored++; console.warn(`  ! ${p.k.externalId}: ${(e as Error).message.slice(0, 160)}`) }
     }
-  }
 
-  /** 'hidden', never 'sold' — it was not sold through eno. Never DELETE. One-way: status is create-only. */
-  if (gone.length) {
-    stat.retired = (await db.listing.updateMany({ where: { id: { in: gone }, sellerId: SELLER_ID, status: 'active' }, data: { status: 'hidden' } })).count
-    recordDurably(CREATED, JSON.stringify({ retired: gone }))
+    /**
+     * 'hidden', never 'sold' — it was not sold through eno. Never DELETE. One-way: status is create-only.
+     * The PLANNED ids first (fsync) and every planned id OWED its tombstone BEFORE the write is attempted (a
+     * retire that commits and then throws would otherwise keep rendering); then exactly the rows THIS write
+     * moved (…AndReturn) are journalled and given a rollback line guarded on the state the write left (still
+     * 'hidden' with the updatedAt it stamped — a later moderator hide moves updatedAt and is not undone by it).
+     */
+    if (gone.length) {
+      recordDurably(CREATED, JSON.stringify({ retirePlanned: gone }))
+      for (const id of gone) ledger.owe(id)
+      const hid = await db.listing.updateManyAndReturn({
+        where: { id: { in: gone }, sellerId: SELLER_ID, status: 'active' },
+        data: { status: 'hidden' },
+        select: { id: true, updatedAt: true },
+      })
+      stat.retired = hid.length
+      if (hid.length) {
+        recordDurably(CREATED, JSON.stringify({ retired: hid.map((r) => r.id) }))
+        recordDurably(ROLLBACK, hid.map((r) =>
+          `UPDATE "Listing" SET status='active' WHERE id = ${lit(r.id)} AND "sellerId" = ${lit(SELLER_ID)} AND status = 'hidden' AND "updatedAt" = ${lit(r.updatedAt.toISOString())};\n${pdpTombstoneSql([r.id])}`).join('\n'))
+      }
+      await ledger.pay()
+    }
+  } finally {
+    /** ⛔ Reached on every exit from the write phase, a throw included: nothing owed is left unpaid silently. */
+    try { await ledger.pay() } catch (e) {
+      const owed = ledger.owed()
+      let sql = ''
+      try { sql = pdpTombstoneSql(owed); recordDurably(OWED, sql) } catch { /* the ids are printed below either way */ }
+      console.error(`\n⛔ ${owed.length} page(s) changed visibility but have NO ISR tombstone (${(e as Error).message.slice(0, 160)}): ${owed.join(', ')}\n  run ${OWED}, or:\n${sql}`)
+      process.exitCode = 1
+    }
   }
 
   const active = await db.listing.count({ where: { sellerId: SELLER_ID, status: 'active' } })
   console.log(`\n${JSON.stringify(stat)}   active now ${active}   requests ${polite.count()}`)
+  console.log(`ISR tombstones    ${ledger.paid()} pages × en/vi — every revival and retire ATTEMPTED (owed before its write, paid as it landed; an attempt that moved nothing costs a harmless re-render)${ledger.owed().length ? ` — ⛔ ${ledger.owed().length} STILL OWED: ${OWED}` : ''}`)
   console.log(`\nVERIFY:   npx tsx scripts/import-honeycomb-com-vn.ts --verify`)
   /** Never DELETE: Order is onDelete:Restrict and six relations Cascade (contract §13). */
   console.log(`ROLLBACK (safe, reversible — removes them from every public surface):`)
   console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${SELLER_ID}' AND status <> 'removed';`)
   console.log(`  -- hard delete is NOT paste-safe. Uploaded objects: ${UPLOADED} (leave them until the edge cache expires).`)
+  if (stat.revived || stat.redated || stat.retired) console.log(`  revivals, postedAt moves and retires: ${ROLLBACK} (each line only while the row still holds what this run wrote; each carries its page's tombstone)`)
   console.log(`AFTER AN AVATAR CHANGE: node scripts/purge-isr-listings.mjs (storefront cards are baked into ISR pages).`)
   await db.$disconnect()
 }
