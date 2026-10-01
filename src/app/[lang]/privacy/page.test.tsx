@@ -177,6 +177,31 @@ describe('/privacy — the facts it states match the code', () => {
     }
   })
 
+  it('⛔ the "Join eno" reminder’s two keys are listed, hold no personal data, and the page does not claim sign-out clears them', async () => {
+    const { DEVICE_KEY, TAB_KEY } = await import('@/lib/signup-prompt')
+    const text = await policy('marketplace')
+    expect(text).toContain(`Sign-up reminder (${DEVICE_KEY}, ${TAB_KEY})`)
+    expect(text).toContain('Timings, counts and that one yes/no — no page, listing or identifier.')
+    expect(text).toContain('signing out does not remove it')
+    const vi = await policy('marketplace', 'vi')
+    expect(vi).toContain('Lời nhắc đăng ký')
+    expect(vi).toContain('đăng xuất không xóa mục này')
+    // No "Maybe later" button any more (owner, 2026-10-01) — the copy must not name one.
+    expect(text).not.toMatch(/maybe later/i)
+    expect(vi).not.toContain('Để sau')
+  })
+
+  it('⛔ the reminder’s anonymous daily totals are disclosed — on both editions — as counted without the Analytics choice and keeping nothing about the visitor', async () => {
+    for (const site of ['marketplace', 'services'] as const) {
+      const text = await policy(site)
+      expect(text, site).toContain('Sign-up reminder counts')
+      expect(text, site).toContain('no IP address, account, cookie, browser details or page')
+      expect(text, site).toContain('counted whatever you choose for Analytics')
+      const vi = await policy(site, 'vi')
+      expect(vi, site).toContain('Số liệu lời nhắc đăng ký')
+    }
+  })
+
   it('⛔ on-device lifetimes promise no deletion that nothing performs — the draft TTLs apply only when the form opens again', async () => {
     // post-draft-photos.ts checks PHOTO_TTL_MS only inside loadDraftPhotos; rental-check/store.ts applies
     // DRAFT_TTL_MS only inside readDraft. No timer sweeps either.

@@ -44,8 +44,15 @@ export const CONSENT_VERSION = 2
  *   2026-10-01b — the link is named after the page it opens (“Privacy Policy” / “Chính sách bảo vệ
  *                dữ liệu cá nhân”, the /privacy title), and the Vietnamese uses the site's spelling
  *                (“Cá nhân hóa”, not “hoá”). Same day, so a suffix rather than a new date.
+ *   2026-10-01c — the friendly rewrite (owner: "help us to deliver you best service … friendly to
+ *                accept"): a visible title “Help us make eno better for you” (the accessible name
+ *                still starts “Cookie consent”), the question names each use by its benefit then its
+ *                vendor, says the choice can be changed in Cookie settings; the three choices read
+ *                “Sounds good” / “No thanks” / “Choose” with aria-labels stating accept all / decline
+ *                all / pick (recorded actions unchanged); each purpose line opens with what it does
+ *                for the visitor. Still a question, still all-off, still equal weight.
  */
-export const CONSENT_COPY_VERSION = '2026-10-01b'
+export const CONSENT_COPY_VERSION = '2026-10-01c'
 
 /**
  * A choice is remembered for 12 months from the moment it was made, then asked again. The cookie's

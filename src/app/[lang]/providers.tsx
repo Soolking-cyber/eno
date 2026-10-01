@@ -17,6 +17,7 @@ import { SkipLink } from "@/components/marketplace/skip-link";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
+import { SignupPrompt } from "@/components/marketplace/signup-prompt";
 import { AppSplash } from "@/components/marketplace/app-splash";
 import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
@@ -139,6 +140,11 @@ export function Providers({
                     <SaveSignupSheet />
                     <ImageShield />
                     <CookieConsent />
+                    {/* The "Join eno" prompt (owner, 2026-10-01: ask after a minute of browsing; dismissible,
+                        and it returns). Renders nothing — it counts visible time across client navigations,
+                        which is why it lives here under the layout that never unmounts, and opens THE
+                        sign-in popup (AuthProvider above) in its join presentation. Both editions. */}
+                    <SignupPrompt />
                     {/* ⛔ THE FIRST-RUN TOUR IS GONE (owner, 2026-09-16: "remove onboarding autoplay
                         where it shows top seach bar and taps the category brand too jittery"). It typed
                         into the header search itself and then pointed at the category/brand chips for the

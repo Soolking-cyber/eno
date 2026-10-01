@@ -159,7 +159,19 @@ export function emailSendErrorToCode(code: unknown, retryAfterSec?: number): Sig
 /** All sign-in logic + UI, with NO outer chrome — rendered by both the modal
  *  (SignInDialog) and the dedicated /signin page so they share identical
  *  handlers (Google OAuth, email magic-link, phone OTP). */
-export function SignInForm({ className }: { className?: string }) {
+export function SignInForm({ className, collapseEmail = false, onMethod }: {
+  className?: string
+  /**
+   * THE JOIN PRESENTATION (the "Join eno" prompt, signup-prompt.tsx): Google first, and the email tabs
+   * folded behind one "Use email instead" button that opens them IN PLACE — the same form, the same
+   * state, no navigation (agy + opus, plan review: a link to /signin would be a second surface).
+   * ⚠️ IGNORED WHERE GOOGLE CANNOT FINISH HERE — hidden (the native iOS tabs) or blocked (an in-app
+   * browser, whose hint says "email below works right here"): there the email form shows at once.
+   */
+  collapseEmail?: boolean
+  /** Told which method the visitor reached for — Google pressed, or email opened. Analytics only. */
+  onMethod?: (method: 'google' | 'email') => void
+}) {
   const { tr, lang } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
 
@@ -231,6 +243,26 @@ export function SignInForm({ className }: { className?: string }) {
   // Native iOS app's embedded tabs: Google can't work there at all (no escape
   // hatch, no session handoff) — hide it and lead with Phone/Email.
   const [hideGoogle, setHideGoogle] = useState(false)
+  // The join presentation's fold — see `collapseEmail`. Opening it is one-way for this form's life.
+  const [emailOpened, setEmailOpened] = useState(false)
+  const emailCollapsed = collapseEmail && !emailOpened && !hideGoogle && !oauthBlocked
+  // The form's own box, so the fold can find its email field (ui/input takes no ref).
+  const formRef = useRef<HTMLDivElement>(null)
+  /**
+   * ⚠️ FOCUS FOLLOWS THE FOLD. The button that was just pressed unmounts as the tabs replace it, so
+   * without this a keyboard user's focus falls to the dialog's edge and a screen reader is told nothing
+   * opened. The email field is where they were going.
+   */
+  useEffect(() => {
+    if (emailOpened) formRef.current?.querySelector<HTMLInputElement>('input[type="email"]')?.focus({ preventScroll: true })
+  }, [emailOpened])
+  /**
+   * Email is reported ONCE per form, at the first sign of choosing it: opening the fold, or — where
+   * there is no fold (Google hidden or blocked, so the email form shows at once) — the first send.
+   */
+  const emailReported = useRef(false)
+  const reportEmail = () => { if (emailReported.current) return; emailReported.current = true; onMethod?.('email') }
+  const openEmail = () => { setEmailOpened(true); reportEmail() }
   useEffect(() => {
     setOauthBlocked(googleOauthBlocked() && !isNativeApp())
     setHideGoogle(isNativeTabs() && !isNativeApp())
@@ -543,6 +575,7 @@ export function SignInForm({ className }: { className?: string }) {
   // and took email sign-in down for three days). The captcha token and the redirect are
   // the same values signInWithOtp received; only the sender changed.
   const sendEmail = async () => {
+    reportEmail()
     setLoading(true); setError(null)
     const captchaToken = await getCaptchaToken()
     try {
@@ -1029,7 +1062,7 @@ export function SignInForm({ className }: { className?: string }) {
   }
 
   return (
-    <div className={cn('space-y-3', className)}>
+    <div ref={formRef} className={cn('space-y-3', className)}>
       {/* OAuth — in an in-app browser / iOS PWA, Google rejects OAuth, so this hands
           off to the real browser (Android: automatic; iOS: shows the manual hint).
           In the native app's embedded tabs it's hidden outright (isNativeTabs). */}
@@ -1051,7 +1084,7 @@ export function SignInForm({ className }: { className?: string }) {
               `variant="bare"`, NOT ghost/outline: both force `hover:text-accent-foreground`, which
               would turn the label brand-blue on hover. The G is `size-5` (20px) — ui/button's base
               clamps any svg WITHOUT a `size-` class to 16px, so h-5/w-5 would silently lose. */}
-          <Button variant="bare" size="none" disabled={loading} onClick={() => oauth('google')} className="flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer">
+          <Button variant="bare" size="none" disabled={loading} onClick={() => { onMethod?.('google'); void oauth('google') }} className="flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer">
             {googleBusy ? <Loader2 className="size-5 animate-spin" /> : <GoogleIcon />}
             {googleBusy
               ? t('Signing you in…', 'Đang đăng nhập…')
@@ -1066,14 +1099,25 @@ export function SignInForm({ className }: { className?: string }) {
             </p>
           )}
 
-          <div className="flex items-center gap-3 py-1">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
+          {!emailCollapsed && (
+            <div className="flex items-center gap-3 py-1">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          )}
         </>
       )}
 
+      {/* The join presentation's fold (`collapseEmail`): one quiet button where the email tabs go.
+          `outline`, a real 44px target, and quieter than Google's — Google is the ask, email the
+          alternative. Opening it renders the tabs below in this same form and moves focus into them. */}
+      {emailCollapsed ? (
+        <Button variant="outline" size="none" onClick={openEmail} className="flex min-h-11 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold text-foreground cursor-pointer">
+          {t('Use email instead', 'Dùng email')}
+        </Button>
+      ) : (
+      <>
       {/* Email / Phone tabs — real tab semantics (role=tablist/tab/tabpanel, aria-selected,
           roving arrow-key focus) via ui/tabs, CONTROLLED by our own `tab` state: the OTP
           flow below is driven by that state + `stage`, not by Tabs' internal value.
@@ -1361,10 +1405,13 @@ export function SignInForm({ className }: { className?: string }) {
           )}
         </TabsContent>
       </Tabs>
+      </>
+      )}
 
       {error && <p role="alert" className="text-center text-xs font-semibold text-destructive">{signInErrorText(error, t)}</p>}
-      {/* Invisible Turnstile — renders a visible challenge only if one is required. */}
-      <Turnstile />
+      {/* Invisible Turnstile — renders a visible challenge only if one is required. Only the email/phone
+          SENDS need its token (OAuth is not gated), so the folded join form leaves it unmounted. */}
+      {!emailCollapsed && <Turnstile />}
       <p className="pt-1 text-center text-2xs text-ink-4">
         {t('By continuing you confirm you are 18 or older and agree to our', 'Tiếp tục nghĩa là bạn xác nhận đủ 18 tuổi và đồng ý với')}{' '}
         {/* ⚠️ THE QUY CHẾ IS PART OF WHAT IS ACCEPTED (2026-10-01). Opening an account binds the user to the

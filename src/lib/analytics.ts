@@ -162,3 +162,19 @@ export function trackSignUp(method: string): void {
   const a = getAttribution()
   ga('sign_up', clean({ method, source: a?.source, medium: a?.medium, campaign: a?.campaign }))
 }
+
+/** What the "Join eno" prompt reports — shown, closed without signing in, or which method was chosen. */
+export type SignupPromptEvent = 'shown' | 'dismissed' | 'google' | 'email'
+
+/**
+ * The "Join eno" prompt (signup-prompt.tsx): GA4 `signup_prompt_shown` / `_dismissed` / `_google` /
+ * `_email`. Through `ga()`, so it re-checks the ANALYTICS purpose on every event — without that switch
+ * nothing leaves the device, exactly like every other event here. `prompt_count` is which ask this was
+ * in the tab session (1 or 2), so the second ask can be measured against the first.
+ * ⚠️ NOT a Meta event: the conversion that matters (sign_up) is already counted by trackSignUp and
+ * server-side CAPI; these only say how the prompt itself performs. The anonymous daily totals the owner
+ * reviews are a SEPARATE path (signup-prompt.tsx countSignupPrompt → /api/signup-prompt), not this one.
+ */
+export function trackSignupPrompt(event: SignupPromptEvent, p?: { count?: number }): void {
+  ga(`signup_prompt_${event}`, clean({ prompt_count: p?.count }))
+}

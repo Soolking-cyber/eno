@@ -83,7 +83,8 @@ const OPENAPI_FILE = 'openapi.json'
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    // `data-error-page`: the "Join eno" prompt never asks on a 404 (src/lib/signup-prompt.ts).
+    <div data-error-page="" className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="relative flex flex-1 items-center justify-center overflow-hidden px-3 py-16">
         {/* Brand glow — pure CSS gradients, no images */}

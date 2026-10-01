@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useLanguage } from '@/context/language-context'
 import { IS_SERVICES } from '@/lib/edition'
 import { SignInForm } from '@/components/marketplace/sign-in-form'
+import { Bell, MessageCircle, Tag } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 
 /**
@@ -31,6 +32,7 @@ export function SignInCard({
   listingImage,
   sellerName,
   note,
+  join,
 }: {
   className?: string
   /**
@@ -51,9 +53,50 @@ export function SignInCard({
    * eno team replies in Messages"). A context line, never a title — the title stays the site's own.
    */
   note?: string
+  /**
+   * THE JOIN PRESENTATION — the "Join eno" prompt (signup-prompt.tsx) asking a guest who has been
+   * browsing for a minute. Only the dialog passes it. See `SignInPrompt` in auth-context.tsx.
+   */
+  join?: { onMethod?: (method: 'google' | 'email') => void }
 }) {
   const { tr } = useLanguage()
   const seller = sellerName || tr('the seller', 'người bán')
+  if (join) {
+    return (
+      <div className={cn('w-full', className)}>
+        <Title className="block px-8 text-center text-lg font-bold text-foreground">
+          {tr('Join eno — it’s free', 'Tham gia eno — miễn phí')}
+        </Title>
+        {/**
+          * ⛔ EVERY LINE HERE IS SOMETHING ONLY AN ACCOUNT DOES — CHECKED IN THE CODE, NOT ASSUMED.
+          * · Messaging a seller needs an account (the composer opens THIS popup for a guest), and a
+          *   price drop is pushed to the buyers who messaged or revealed the contact on that listing
+          *   (price-drop.ts notifyPriceDrop) — so "on what you ask about", never "on saved items".
+          * · New-listing alerts are saved searches (SavedSearch + the saved-search-alerts cron).
+          * · Posting needs an account and costs nothing (no commission, no paid bumps).
+          * ⛔ NOT "save listings": saves are device-local for EVERYONE, guests included, and do not
+          *   follow an account between devices (favorites-context.tsx) — save-signup-sheet.tsx records
+          *   the same trap. Core-sprite glyphs only (scripts/critical-icons.mjs): this card must not be
+          *   the thing that pulls the 188 KB deferred sprite onto every page a guest reads for a minute.
+          */}
+        <ul className="mx-auto mt-3 max-w-xs space-y-2 text-left text-sm leading-snug text-body">
+          <li className="flex items-start gap-2.5">
+            <MessageCircle className="mt-0.5 size-4 shrink-0 text-accent-foreground" aria-hidden />
+            <span>{tr('Message sellers directly, and get price-drop alerts on what you ask about', 'Nhắn tin trực tiếp với người bán, và nhận thông báo giảm giá cho tin bạn đã hỏi')}</span>
+          </li>
+          <li className="flex items-start gap-2.5">
+            <Bell className="mt-0.5 size-4 shrink-0 text-accent-foreground" aria-hidden />
+            <span>{tr('Get alerts when new listings match a search you save', 'Nhận thông báo khi có tin mới khớp với tìm kiếm bạn đã lưu')}</span>
+          </li>
+          <li className="flex items-start gap-2.5">
+            <Tag className="mt-0.5 size-4 shrink-0 text-accent-foreground" aria-hidden />
+            <span>{tr('Post your own listings for free', 'Đăng tin bán miễn phí')}</span>
+          </li>
+        </ul>
+        <SignInForm className="mt-4" collapseEmail onMethod={join.onMethod} />
+      </div>
+    )
+  }
   return (
     <div className={cn('w-full', className)}>
       {listingTitle ? (

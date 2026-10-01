@@ -117,7 +117,7 @@ const ARM_AFTER_MS = 400
  * custom select — and none of them keep it mounted when closed, so it is the "something else owns
  * the screen" signal (back-to-top reads the same idea off data-slots).
  */
-function screenBusy(): boolean {
+export function screenBusy(): boolean {
   return document.documentElement.classList.contains('kb-open') || document.querySelector('.overlay-scrim') !== null
 }
 /** How often the auto-prompt re-checks `screenBusy()` — only while it is waiting or on screen. */
@@ -518,6 +518,11 @@ export function CookieConsent() {
         >
           <DialogPrimitive.Popup
             ref={popupRef}
+            // The sign-up prompt (signup-prompt.ts OPEN_LAYER_SELECTOR) may open over the card ONLY while it is the
+            // unanswered auto-prompt — a visitor who never answers it is exactly who the prompt is for; the card
+            // hides itself under any overlay scrim. A card the visitor OPENED (Cookie settings) still blocks it.
+            // …and only on its first view: once the visitor presses "Choose" they are mid-decision (opus).
+            data-consent-auto={autoShown && view === 'ask' ? '' : undefined}
             /**
              * ⚠️ THE AUTO-PROMPT TAKES NO FOCUS AT ALL; THE USER-OPENED ONE FOCUSES THE CARD.
              * This split exists because of the delay. Focus used to move in the same breath as the
@@ -579,11 +584,22 @@ export function CookieConsent() {
                   marketplace string table — an eno.forum-only sentence naming trips or e-visa would
                   ship in eno.vn's bundle. The copy below names no service and must stay that way;
                   a services variant would belong in its own `.svc.` module. */}
-              <DialogPrimitive.Title className="sr-only">{tr('Cookie consent', 'Đồng ý cookie')}</DialogPrimitive.Title>
+              {/* ⚠️ THE TITLE IS NOW VISIBLE — AND THE ACCESSIBLE NAME STILL STARTS "Cookie consent"
+                  (owner, 2026-10-01: "we use your data for these, help us to deliver you best service
+                  … friendly to accept"). The warm headline is what a sighted reader sees; the sr-only
+                  prefix keeps the dialog's name saying what the surface IS, for the reason above. */}
+              <div className="md:flex-1">
+              <DialogPrimitive.Title className="text-sm font-bold leading-tight text-foreground">
+                <span className="sr-only">{tr('Cookie consent', 'Đồng ý cookie')}{': '}</span>
+                {tr('Help us make eno better for you', 'Giúp eno phục vụ bạn tốt hơn')}
+              </DialogPrimitive.Title>
               {/**
-                * ⛔ A QUESTION, AND IT SAYS WHAT "ACCEPT" TURNS ON — ALL THREE PURPOSES, BY VENDOR. A
-                * question because it is a request, not a notice: shown while nothing is stored, "We use
-                * cookies to…" would assert processing that has not been agreed to (opus, on the diff).
+                * ⛔ STILL A QUESTION, AND IT SAYS WHAT "SOUNDS GOOD" TURNS ON — ALL THREE PURPOSES, BY
+                * VENDOR. Warmer since 2026-10-01 (owner: friendly to accept) — benefit first, vendor in
+                * brackets — but a question because it is a request, not a notice: shown while nothing is
+                * stored, "We use cookies to…" would assert processing that has not been agreed to (opus,
+                * on the diff; agy and opus both refused a conditional "If you agree, we’ll…" at plan
+                * time for the same reason).
                 * Accept stores consent v2 with all three purposes on (src/lib/consent.ts): the For You /
                 * Recently viewed suggestions from the visitor's own activity (`p`), Google Analytics (`a`)
                 * and Meta / Google ad measurement (`d`) — the settings rows say the same, one by one.
@@ -604,19 +620,20 @@ export function CookieConsent() {
                 * ⚠️ No trailing space inside tr(): the warm cron trims, so a padded string never
                 * matched its cached translation. The space before the link is JSX.
                 */}
-              <p className="text-sm leading-snug text-muted-foreground md:flex-1">
+              <p className="mt-1 text-sm leading-snug text-muted-foreground">
                 {isNative
                   ? tr(
-                      'Can we use your activity in the app to suggest listings for you? It is sensitive personal data under Vietnamese law, so this stays off until you choose. Analytics and advertising are always off in the app.',
-                      'Bạn có đồng ý để chúng tôi dùng hoạt động của bạn trong ứng dụng để gợi ý tin đăng cho bạn? Theo pháp luật Việt Nam đây là dữ liệu cá nhân nhạy cảm, nên mục này tắt cho đến khi bạn chọn. Phân tích và quảng cáo luôn tắt trong ứng dụng.',
+                      'Can we use your activity in the app to suggest listings you’ll like? It is sensitive personal data under Vietnamese law, so this stays off until you choose, and you can change it anytime in Cookie settings. Analytics and advertising are always off in the app.',
+                      'Bạn có đồng ý để chúng tôi dùng hoạt động của bạn trong ứng dụng để gợi ý tin đăng hợp với bạn không? Theo pháp luật Việt Nam đây là dữ liệu cá nhân nhạy cảm, nên mục này tắt cho đến khi bạn chọn, và bạn có thể đổi bất cứ lúc nào trong Cài đặt cookie. Phân tích và quảng cáo luôn tắt trong ứng dụng.',
                     )
                   : tr(
-                      'Can we use cookies to suggest listings for you, measure visits (Google Analytics) and measure our ads (Meta, Google)? Your activity here is sensitive personal data under Vietnamese law, so all three stay off until you choose.',
-                      'Bạn có đồng ý để chúng tôi dùng cookie để gợi ý tin đăng cho bạn, đo lượt truy cập (Google Analytics) và đo hiệu quả quảng cáo (Meta, Google)? Theo pháp luật Việt Nam, hoạt động của bạn tại đây là dữ liệu cá nhân nhạy cảm, nên cả ba đều tắt cho đến khi bạn chọn.',
+                      'Can we use cookies to suggest listings you’ll like, see what works so we can improve (Google Analytics) and measure our ads (Meta, Google)? Your activity here is sensitive personal data under Vietnamese law, so all three stay off until you choose, and you can change this anytime in Cookie settings.',
+                      'Bạn có đồng ý để chúng tôi dùng cookie để gợi ý tin đăng hợp với bạn, tìm hiểu điều gì hữu ích để cải thiện dịch vụ (Google Analytics) và đo hiệu quả quảng cáo (Meta, Google) không? Theo pháp luật Việt Nam, hoạt động của bạn tại đây là dữ liệu cá nhân nhạy cảm, nên cả ba đều tắt cho đến khi bạn chọn, và bạn có thể đổi bất cứ lúc nào trong Cài đặt cookie.',
                     )}
                 {' '}
                 <Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>
               </p>
+              </div>
               {/**
                 * ⚠️ ACCEPT · DECLINE · SETTINGS, IN THE OWNER'S ORDER, AND ONE ROW. Three equal
                 * columns on a phone; beside the sentence from md up. Settings sits under the right
@@ -624,16 +641,22 @@ export function CookieConsent() {
                 * detailed choices instead of writing a decision.
                 * ⛔ Do NOT move Decline behind a second screen, give it less weight than Accept, or
                 * add a tap to refuse. Those are the changes that turn a layout into a finding.
+                * ⚠️ FRIENDLIER WORDS, SAME THREE ANSWERS (owner, 2026-10-01). "Sounds good" / "No
+                * thanks" / "Choose" are equally warm — the refusal is not a guilt line — and each
+                * button's aria-label STARTS with its visible words (WCAG 2.5.3, so voice control still
+                * finds it) and then says the effect, so a screen reader hears "Sounds good — accept
+                * all", never a bare pleasantry. The recorded actions are unchanged: allow_all /
+                * decline_all, and Choose records nothing.
                 */}
               <div className="grid grid-cols-3 gap-2 md:w-80 md:shrink-0">
-                <Button variant="outline" size="none" onClick={allow} className={choice}>
-                  {tr('Accept', 'Chấp nhận')}
+                <Button variant="outline" size="none" onClick={allow} className={choice} aria-label={tr('Sounds good — accept all', 'Đồng ý — chấp nhận tất cả')}>
+                  {tr('Sounds good', 'Đồng ý')}
                 </Button>
-                <Button variant="outline" size="none" onClick={decline} className={choice}>
-                  {tr('Decline', 'Từ chối')}
+                <Button variant="outline" size="none" onClick={decline} className={choice} aria-label={tr('No thanks — decline all', 'Không, cảm ơn — từ chối tất cả')}>
+                  {tr('No thanks', 'Không, cảm ơn')}
                 </Button>
-                <Button variant="outline" size="none" onClick={openSettings} className={choice}>
-                  {tr('Settings', 'Tùy chỉnh')}
+                <Button variant="outline" size="none" onClick={openSettings} className={choice} aria-label={tr('Choose — pick what to allow', 'Tùy chọn — chọn từng mục')}>
+                  {tr('Choose', 'Tùy chọn')}
                 </Button>
               </div>
             </div>
@@ -650,19 +673,19 @@ export function CookieConsent() {
               <p className="mt-1 text-sm leading-snug text-muted-foreground">
                 {isNative
                   ? tr(
-                      'Your activity in the app is sensitive personal data under Vietnamese law, so personalization stays off until you switch it on. Analytics and advertising are always off in the app. Decline and everything still works, including sign-in.',
-                      'Theo pháp luật Việt Nam, dữ liệu về hoạt động của bạn trong ứng dụng là dữ liệu cá nhân nhạy cảm, nên cá nhân hóa luôn tắt cho đến khi bạn bật. Phân tích và quảng cáo luôn tắt trong ứng dụng. Nếu từ chối, mọi tính năng vẫn hoạt động, kể cả đăng nhập.',
+                      'Switch on what you’re happy with. Your activity in the app is sensitive personal data under Vietnamese law, so personalization stays off until you switch it on. Analytics and advertising are always off in the app. Decline and everything still works, including sign-in.',
+                      'Hãy bật những gì bạn thấy phù hợp. Theo pháp luật Việt Nam, dữ liệu về hoạt động của bạn trong ứng dụng là dữ liệu cá nhân nhạy cảm, nên cá nhân hóa luôn tắt cho đến khi bạn bật. Phân tích và quảng cáo luôn tắt trong ứng dụng. Nếu từ chối, mọi tính năng vẫn hoạt động, kể cả đăng nhập.',
                     )
                   : tr(
-                      'Your activity on this site is sensitive personal data under Vietnamese law, so each use below stays off until you switch it on. Decline and everything still works, including sign-in.',
-                      'Theo pháp luật Việt Nam, dữ liệu về hoạt động của bạn trên trang này là dữ liệu cá nhân nhạy cảm, nên mỗi mục dưới đây đều tắt cho đến khi bạn bật. Nếu từ chối, mọi tính năng vẫn hoạt động, kể cả đăng nhập.',
+                      'Switch on what you’re happy with. Your activity on this site is sensitive personal data under Vietnamese law, so each use below stays off until you switch it on. Decline and everything still works, including sign-in.',
+                      'Hãy bật những gì bạn thấy phù hợp. Theo pháp luật Việt Nam, dữ liệu về hoạt động của bạn trên trang này là dữ liệu cá nhân nhạy cảm, nên mỗi mục dưới đây đều tắt cho đến khi bạn bật. Nếu từ chối, mọi tính năng vẫn hoạt động, kể cả đăng nhập.',
                     )}
               </p>
               <div className="mt-1">
                 <PurposeRow
                   title={tr('Personalization', 'Cá nhân hóa')}
                   /* ⛔ "SUGGESTS", NOT "RANKS" — see the note on the question above (/legal/ranking). */
-                  desc={tr('Suggests listings for you (the For you and Recently viewed rows) from what you search and view here. Never shared with advertisers.', 'Gợi ý tin đăng cho bạn (mục Dành cho bạn và Đã xem gần đây) theo những gì bạn tìm và xem tại đây. Không bao giờ chia sẻ cho bên quảng cáo.')}
+                  desc={tr('Suggests listings you’ll like (the For you and Recently viewed rows) from what you search and view here. Never shared with advertisers.', 'Gợi ý tin đăng hợp với bạn (mục Dành cho bạn và Đã xem gần đây) theo những gì bạn tìm và xem tại đây. Không bao giờ chia sẻ cho bên quảng cáo.')}
                   checked={flags.p}
                   onChange={setFlag('p')}
                 />
@@ -670,7 +693,7 @@ export function CookieConsent() {
                   title={tr('Analytics', 'Phân tích')}
                   desc={isNative
                     ? tr('Always off in the app.', 'Luôn tắt trong ứng dụng.')
-                    : tr('Google Analytics measures visits and pages, and which link brought you here.', 'Google Analytics đo lượt truy cập, trang đã xem và liên kết đã đưa bạn đến đây.')}
+                    : tr('Helps us see what works so we can improve: Google Analytics measures visits and pages, and which link brought you here.', 'Giúp chúng tôi biết điều gì hữu ích để cải thiện: Google Analytics đo lượt truy cập, trang đã xem và liên kết đã đưa bạn đến đây.')}
                   checked={isNative ? false : flags.a}
                   onChange={setFlag('a')}
                   locked={isNative}
@@ -684,7 +707,7 @@ export function CookieConsent() {
                        alone reaches Meta and nobody else. And the Vietnamese says "băm" (hashed),
                        never "mã hoá" — hashing is not encryption, and the sentence must not promise
                        it is. */
-                    : tr('Shares actions like views, contacts and sign-ups with Meta (and with Google, if Analytics is on too) to measure our ads — your email or phone is scrambled (hashed) first.', 'Chia sẻ các hành động như lượt xem, liên hệ và đăng ký với Meta (và với Google, nếu Phân tích cũng bật) để đo hiệu quả quảng cáo — email hoặc số điện thoại được xáo trộn (băm) trước.')}
+                    : tr('Helps us measure our ads, so we spend on the ones that bring people here: shares actions like views, contacts and sign-ups with Meta (and with Google, if Analytics is on too) — your email or phone is scrambled (hashed) first.', 'Giúp chúng tôi đo hiệu quả quảng cáo, để chỉ chi cho những quảng cáo thật sự đưa mọi người đến đây: chia sẻ các hành động như lượt xem, liên hệ và đăng ký với Meta (và với Google, nếu Phân tích cũng bật) — email hoặc số điện thoại được xáo trộn (băm) trước.')}
                   checked={isNative ? false : flags.d}
                   onChange={setFlag('d')}
                   locked={isNative}

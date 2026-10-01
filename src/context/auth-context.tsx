@@ -76,6 +76,26 @@ export type SignInContext = {
    * the title; with a listing in hand it replaces the generic "Free · takes 20 seconds" line.
    */
   note?: string
+  /**
+   * THE "JOIN ENO" PROMPT (signup-prompt.tsx) OPENING THIS POPUP IN ITS JOIN PRESENTATION — a "Join
+   * eno — it's free" title, what an account unlocks, Google first with email one tap away, and the ×.
+   * ⛔ IT IS THIS POPUP, NOT A SECOND ONE (owner, 2026-08-28: "only 1 popup dont use other than
+   * this anywhere"): the framing rides in, exactly as `note` does for the first save, and the Google
+   * button is SignInForm's own — same oauth(), same native and in-app-browser handling, same `next`.
+   */
+  prompt?: SignInPrompt
+}
+
+/** The join presentation's two hooks back to the prompt that opened it. */
+export type SignInPrompt = {
+  /** A method was chosen inside the card — Google pressed, or email opened. For the prompt's analytics. */
+  onMethod?: (method: 'google' | 'email') => void
+  /**
+   * Closed by the visitor without signing in: the × (the only button for it), Esc or the backdrop. ⚠️ Fires only from
+   * the dialog's own onOpenChange — a successful sign-in closes it from onAuthStateChange instead and is
+   * never counted as a dismissal; the prompt also re-checks for a user before counting (opus, plan review).
+   */
+  onDismiss?: () => void
 }
 
 type AuthCtx = {
@@ -430,7 +450,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // (e.g. a guest hitting a login-only AI endpoint) — keeps gating DRY without
   // threading openSignIn through every caller.
   useEffect(() => {
-    const onReq = () => { bootAuth.current?.(); setSignInOpen(true) }
+    // A plain open — so it must not inherit the context of the last one (see the dialog's onOpenChange).
+    const onReq = () => { bootAuth.current?.(); setSignInCtx(null); setSignInOpen(true) }
     window.addEventListener('eno:require-signin', onReq)
     return () => window.removeEventListener('eno:require-signin', onReq)
   }, [])
@@ -685,11 +706,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {everOpened && (
         <SignInDialog
           open={signInOpen}
-          onOpenChange={(o) => { setSignInOpen(o); if (!o) setSignInCtx(null) }}
+          /**
+           * ⚠️ THE CONTEXT OUTLIVES THE CLOSE, ON PURPOSE. It used to be cleared here, in the same commit
+           * that starts the exit animation — so the card's listing header or note blinked back to the
+           * generic card for the 100ms it was fading out, and the join presentation would have jumped
+           * from a bottom sheet to a centred card mid-exit. Every way IN sets it afresh instead:
+           * `openSignIn(ctx)` writes it (null when none) and `eno:require-signin` clears it.
+           * A close the VISITOR made (×, Esc, backdrop) is the prompt's dismissal.
+           */
+          onOpenChange={(o) => { setSignInOpen(o); if (!o) signInCtx?.prompt?.onDismiss?.() }}
           listingTitle={signInCtx?.listingTitle}
           listingImage={signInCtx?.listingImage}
           sellerName={signInCtx?.sellerName}
           note={signInCtx?.note}
+          prompt={signInCtx?.prompt}
         />
       )}
     </AuthContext.Provider>

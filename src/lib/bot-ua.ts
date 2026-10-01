@@ -7,8 +7,12 @@
  * client bundle of every page on the site. This list is ~50 crawler names that only the server ever
  * reads, and shipping it to every human visitor is exactly the bloat that split was made to stop.
  * It cannot live in site-stats.ts either — that module pulls `node:crypto` and Prisma at the top
- * level, which would make this untestable without them. So: its own file, no imports, server-only
- * by convention and by the fact that nothing on the client references it.
+ * level, which would make this untestable without them. So: its own file, no imports, and kept out
+ * of every first-load bundle.
+ * ⚠️ ONE CLIENT READER SINCE 2026-10-01, AND IT IMPORTS THIS LAZILY: the "Join eno" prompt
+ * (signup-prompt.tsx) must never ask a crawler, and `import()`s this module only at the moment the
+ * prompt is due — a minute into a visit — so it is its own small chunk, never part of first load.
+ * Keep it import-free so that stays cheap.
  *
  * ⛔ THIS EXISTS BECAUSE THE COUNTER WAS MEASURABLY WRONG, NOT AS A PRECAUTION. eno.forum showed
  * "5 here now" on 2026-09-17; Cloudflare's own log for POST /api/site-stats over the same ten
@@ -72,6 +76,8 @@ const BOT_TOKENS = [
   'skypeuripreview', 'embedly', 'iframely',
   // Headless/synthetic browsers and the clients that declare themselves.
   'headlesschrome', 'phantomjs', 'puppeteer', 'playwright', 'lighthouse', 'chrome-lighthouse',
+  // PageSpeed Insights runs Lighthouse (`Chrome-Lighthouse`, above); its older agent named itself.
+  'google page speed',
   // ⚠️ `headlesschrome`/`playwright`/`lighthouse` also match THIS REPO'S OWN e2e and CI runs, which
   // is intended and currently costless: nothing under e2e/ asserts the footer counters (grepped).
   // If a suite ever does, it will see zeros — give that test a normal user-agent rather than

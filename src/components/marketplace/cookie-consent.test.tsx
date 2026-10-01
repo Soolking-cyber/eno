@@ -52,14 +52,14 @@ async function openFirstVisitBar() {
 /** …then Settings, and past the window that re-arms on the view change. */
 async function openFirstVisitSettings() {
   await openFirstVisitBar()
-  fireEvent.click(screen.getByRole('button', { name: /^Settings$/ }))
+  fireEvent.click(screen.getByRole('button', { name: /^Choose/ }))
   await advance(400)
 }
 
 const sw = (name: RegExp) => screen.getByRole('switch', { name })
 const btn = (name: RegExp) => screen.getByRole('button', { name })
 const checked = (el: HTMLElement) => el.getAttribute('aria-checked') === 'true'
-const bar = () => screen.queryByRole('dialog', { name: 'Cookie consent' })
+const bar = () => screen.queryByRole('dialog', { name: /^Cookie consent/ })
 const tokens = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
 /** What is granted right now, as [personalization, analytics, advertising]. */
 const granted = () => [personalizationAllowed(), hasAnalyticsConsent(), hasAdConsent()]
@@ -94,7 +94,7 @@ describe('CookieConsent — the question', () => {
 
   it('Accept grants all three purposes, is recorded, and closes', async () => {
     await openFirstVisitBar()
-    fireEvent.click(btn(/^Accept$/))
+    fireEvent.click(btn(/^Sounds good/))
     expect(granted()).toEqual(ALL)
     expect(beacons).toEqual(['/api/consent'])
     await advance(500)
@@ -103,7 +103,7 @@ describe('CookieConsent — the question', () => {
 
   it('Decline is an ANSWER that grants nothing, and is recorded', async () => {
     await openFirstVisitBar()
-    fireEvent.click(btn(/^Decline$/))
+    fireEvent.click(btn(/^No thanks/))
     expect(consentAnswered()).toBe(true)
     expect(granted()).toEqual(NONE)
     expect(beacons).toEqual(['/api/consent'])
@@ -127,8 +127,39 @@ describe('CookieConsent — the question', () => {
 
   it('asks (a request, not a notice) and says "suggest", never "rank" — /legal/ranking promises results are not reordered by personal data', async () => {
     await openFirstVisitBar()
-    expect(bar()!.textContent).toMatch(/Can we use cookies to suggest listings for you.*\?/)
+    expect(bar()!.textContent).toMatch(/Can we use cookies to suggest listings you’ll like.*\?/)
     expect(bar()!.textContent).not.toMatch(/\brank|reorder/i)
+  })
+
+  it('⛔ the friendly rewrite (2026-10-01c): a visible warm title, while the dialog’s name still starts "Cookie consent"', async () => {
+    await openFirstVisitBar()
+    expect(bar()!.textContent).toContain('Help us make eno better for you')
+    expect(bar()!.getAttribute('aria-labelledby')).toBeTruthy()
+    expect(document.getElementById(bar()!.getAttribute('aria-labelledby')!)!.textContent).toBe('Cookie consent: Help us make eno better for you')
+    // …and it says the choice is not final — the withdrawal path is named in the first layer.
+    expect(bar()!.textContent).toMatch(/change this anytime in Cookie settings/)
+  })
+
+  it('⛔ each friendly label is unambiguous to a screen reader: the aria-label starts with the visible words, then says the effect', async () => {
+    await openFirstVisitBar()
+    for (const [visible, effect] of [['Sounds good', 'accept all'], ['No thanks', 'decline all'], ['Choose', 'pick what to allow']]) {
+      const b = screen.getByRole('button', { name: new RegExp(`^${visible}`) })
+      expect(b.textContent).toBe(visible)
+      expect(b.getAttribute('aria-label')).toBe(`${visible} — ${effect}`)
+    }
+  })
+
+  it('⛔ "Sounds good" records allow_all and "No thanks" records decline_all, each under the CURRENT copy version', async () => {
+    const sent: Blob[] = []
+    Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: (_u: string, b: Blob) => { sent.push(b); return true } })
+    await openFirstVisitBar()
+    fireEvent.click(btn(/^Sounds good/))
+    cleanup()
+    clearConsent()
+    await openFirstVisitBar()
+    fireEvent.click(btn(/^No thanks/))
+    const bodies = await Promise.all(sent.map(async (b) => JSON.parse(await b.text())))
+    expect(bodies.map((x) => [x.action, x.copy])).toEqual([['allow_all', CONSENT_COPY_VERSION], ['decline_all', CONSENT_COPY_VERSION]])
   })
 
   it('never auto-opens once a choice is stored', async () => {
@@ -226,7 +257,7 @@ describe('CookieConsent — the switches (consent v2)', () => {
     render(<LanguageProvider initialLang="vi" initialViDict={{}}><CookieConsent /></LanguageProvider>)
     await advance(4_000)
     await advance(400)
-    fireEvent.click(screen.getByRole('button', { name: /^Tùy chỉnh$/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Tùy chọn/ }))
     await advance(400)
     const desc = document.getElementById(screen.getByRole('switch', { name: /^Quảng cáo$/ }).getAttribute('aria-describedby')!)!.textContent ?? ''
     expect(desc).toContain('được xáo trộn (băm)')
@@ -298,7 +329,7 @@ describe('CookieConsent — inside the native app', () => {
     ;(window as unknown as { Capacitor: unknown }).Capacitor = { isNativePlatform: () => true }
     await openFirstVisitBar()
     expect(bar()!.textContent).toMatch(/Analytics and advertising are always off in the app/)
-    fireEvent.click(btn(/^Accept$/))
+    fireEvent.click(btn(/^Sounds good/))
     // Stored as p only — the record must not claim a grant the app can never act on.
     expect(readConsent()).toMatchObject({ p: true, a: false, d: false })
   })
@@ -320,9 +351,9 @@ describe('CookieConsent — the bar', () => {
     expect(document.querySelector('img[src*="consent-team"]')).toBeNull()
   })
 
-  it('⛔ Accept, Decline and Settings carry EQUAL weight — identical classes, only the word differs', async () => {
+  it('⛔ Sounds good, No thanks and Choose carry EQUAL weight — identical classes, only the word differs', async () => {
     await openFirstVisitBar()
-    const [a, d, s] = ['Accept', 'Decline', 'Settings'].map((n) => screen.getByRole('button', { name: new RegExp(`^${n}$`) }))
+    const [a, d, s] = ['Sounds good', 'No thanks', 'Choose'].map((n) => screen.getByRole('button', { name: new RegExp(`^${n}`) }))
     expect(a.getAttribute('class')).toBe(d.getAttribute('class'))
     expect(a.getAttribute('class')).toBe(s.getAttribute('class'))
     // A real 44px target each, not a text link beside a filled button.
@@ -350,11 +381,11 @@ describe('CookieConsent — the bar', () => {
   it('⛔ a tap already in flight when the bar appears records nothing (400ms arming)', async () => {
     mount()
     await advance(4_000) // the bar has just appeared
-    fireEvent.click(btn(/^Accept$/))
+    fireEvent.click(btn(/^Sounds good/))
     expect(consentAnswered()).toBe(false)
     expect(bar()).not.toBeNull()
     await advance(400)
-    fireEvent.click(btn(/^Accept$/))
+    fireEvent.click(btn(/^Sounds good/))
     expect(granted()).toEqual(ALL)
   })
 
@@ -385,7 +416,7 @@ describe('CookieConsent — the bar', () => {
 
   it('⛔ a double tap on Settings cannot land its second half on a choice', async () => {
     await openFirstVisitBar()
-    fireEvent.click(btn(/^Settings$/))
+    fireEvent.click(btn(/^Choose/))
     fireEvent.click(btn(/^Allow all$/))
     expect(consentAnswered()).toBe(false)
     await advance(400)
@@ -396,7 +427,7 @@ describe('CookieConsent — the bar', () => {
 
   it('Settings moves focus into the bar (the pressed button unmounts with the ask view)', async () => {
     await openFirstVisitBar()
-    const settings = btn(/^Settings$/)
+    const settings = btn(/^Choose/)
     settings.focus()
     fireEvent.click(settings)
     expect(document.activeElement).toBe(screen.getByRole('dialog', { name: 'Your choices' }))
@@ -437,10 +468,10 @@ describe('CookieConsent — the bar', () => {
     await advance(250)
     expect(bar()).not.toBeNull()
     // Back under a finger that just closed the overlay: the first 400ms record nothing.
-    fireEvent.click(btn(/^Accept$/))
+    fireEvent.click(btn(/^Sounds good/))
     expect(consentAnswered()).toBe(false)
     await advance(400)
-    fireEvent.click(btn(/^Accept$/))
+    fireEvent.click(btn(/^Sounds good/))
     expect(granted()).toEqual(ALL)
   })
 
@@ -511,6 +542,7 @@ const COPY_FINGERPRINTS: Record<string, string> = {
   '2026-09-24': '2a8cc32679e60f73',
   '2026-10-01': '70c54c3ebf2cb94c',
   '2026-10-01b': 'a2d0ceff8ab7b8ca',
+  '2026-10-01c': '428474a228f1b272',
 }
 
 describe('CookieConsent — the copy version is held to the words', () => {

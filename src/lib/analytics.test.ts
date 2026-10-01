@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url": "https://www.eno.vn/listings/abc"}
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { trackContactSeller, trackSearch, trackViewListing } from './analytics'
+import { trackContactSeller, trackSearch, trackSignupPrompt, trackViewListing } from './analytics'
 import { setConsent } from './consent'
 
 /**
@@ -120,5 +120,55 @@ describe('analytics — per-event consent checks', () => {
     expect(gtag).not.toHaveBeenCalled()
     expect(fbq).not.toHaveBeenCalled()
     expect(beacons).toEqual([])
+  })
+})
+
+/**
+ * ⛔ THE "JOIN ENO" PROMPT'S FOUR EVENTS ARE ANALYTICS EVENTS AND NOTHING ELSE. They go through ga(), so
+ * without the Analytics switch nothing leaves the device — an unanswered visitor (the usual state at
+ * 60 s) sends nothing at all — and they never reach Meta or the CAPI beacon, whatever is allowed.
+ */
+describe('analytics — the sign-up prompt events', () => {
+  const all = () => {
+    trackSignupPrompt('shown', { count: 1 })
+    trackSignupPrompt('dismissed', { count: 1 })
+    trackSignupPrompt('google', { count: 2 })
+    trackSignupPrompt('email', { count: 2 })
+  }
+
+  it('⛔ an unanswered visitor sends nothing', () => {
+    all()
+    expect(gtag).not.toHaveBeenCalled()
+  })
+
+  it('⛔ Decline all sends nothing; Advertising alone sends nothing either (these are not ad events)', () => {
+    decide(false, false, false, 'decline_all')
+    all()
+    decide(false, false, true)
+    all()
+    expect(gtag).not.toHaveBeenCalled()
+    expect(fbq).not.toHaveBeenCalled()
+    expect(beacons).toEqual([])
+  })
+
+  it('with Analytics on, each reaches GA under its own name with the ask number — and never Meta', () => {
+    decide(false, true, true)
+    all()
+    expect(gtag.mock.calls).toEqual([
+      ['event', 'signup_prompt_shown', { prompt_count: 1 }],
+      ['event', 'signup_prompt_dismissed', { prompt_count: 1 }],
+      ['event', 'signup_prompt_google', { prompt_count: 2 }],
+      ['event', 'signup_prompt_email', { prompt_count: 2 }],
+    ])
+    expect(fbq).not.toHaveBeenCalled()
+    expect(beacons).toEqual([])
+  })
+
+  it('⛔ a withdrawal in the same tab stops the very next one', () => {
+    decide(true, true, true, 'allow_all')
+    trackSignupPrompt('shown', { count: 1 })
+    decide(false, false, false, 'decline_all')
+    trackSignupPrompt('dismissed', { count: 1 })
+    expect(gtag.mock.calls.map((c) => c[1])).toEqual(['signup_prompt_shown'])
   })
 })

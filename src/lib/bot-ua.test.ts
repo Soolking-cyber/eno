@@ -38,6 +38,12 @@ describe('a crawler is not a visitor', () => {
       'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
       'curl/8.7.1',
       'python-requests/2.32.3',
+      // PageSpeed Insights (Lighthouse) and its older self-named agent — the "Join eno" prompt reads
+      // this list too, and must never ask an audit run. ⚠️ NOT from our Cloudflare log like the rest:
+      // these are the published PSI user-agent shapes (the `Chrome-Lighthouse` suffix, and the legacy
+      // `Google Page Speed Insights` token), so they pin the tokens, not an observed visit.
+      'Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.118 Safari/537.36 Google Page Speed Insights',
     ]) expect(isBotUserAgent(ua)).toBe(true)
   })
 

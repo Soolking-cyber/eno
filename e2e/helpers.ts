@@ -49,7 +49,8 @@ export async function expectNoA11yViolations(page: Page, context = 'page') {
 // Belt-and-suspenders: if any overlay/consent banner still slips through, dismiss it so it
 // can't intercept clicks. Best-effort, never fails the test.
 export async function dismissOverlays(page: Page) {
-  for (const name of [/^(decline|reject|necessary only|essential only|got it)/i]) {
+  // "No thanks" is the consent bar's refusal since 2026-10-01c (named "No thanks — decline all").
+  for (const name of [/^(decline|reject|no thanks|necessary only|essential only|got it)/i]) {
     const btn = page.getByRole('button', { name }).first()
     if (await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}) }
   }
