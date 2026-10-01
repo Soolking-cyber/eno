@@ -17,7 +17,9 @@ import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { isBookingCategory } from '@/lib/affiliate-kind'
-import { isImportSeller } from '@/lib/import-sellers'
+import { cardHidesTrust } from '@/lib/linked-seller'
+import { rentalCheckApplies } from '@/lib/rental-check/shared'
+import { Badge as UiBadge } from '@/components/ui/badge'
 import { formatMoneyFull, moneyLocale, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
 import { cardSlots, isSwipe } from '@/lib/card-slots'
@@ -770,7 +772,9 @@ function ListingCardImpl({
             listing. ⚠️ IT SITS BEFORE THE OFFER OVERLAY IN THE TREE ON PURPOSE: both are z-10, so the
             overlay's click-away layer paints over the chip while a quick offer is open. The component
             renders nothing for a non-rental or for the viewer's own listing. */}
-        {listing.category?.slug === 'rentals' && <RentalCheckToggle variant="card" listing={listing} />}
+        {/* ⚠️ NOT ON VEHICLE HIRE (2026-10-01): the check is a HOUSING service ("meet the landlord or
+            agent"), so a car or motorbike card must not offer it — rentalCheckApplies owns the rule. */}
+        {rentalCheckApplies(listing.category?.slug, listing.subcategorySlug) && <RentalCheckToggle variant="card" listing={listing} />}
 
         {/* Quick actions (5a #6) — desktop ONLY: Chat · Offer · Locate unfurl
             horizontally OUT of the save heart (top-right), sliding LEFT into place
@@ -1256,9 +1260,22 @@ function ListingCardImpl({
               This was the linked-jobs rule (same as pdp-shop-link's) and it now covers every id in
               src/lib/import-sellers.ts, jobs boards included — so the job clause folded into it. The
               number itself is untouched: rankScore still reads it (whole-app audit, 2026-09-23). */}
+          {/* ⛔ …AND NONE FOR AN UNRATED STOREFRONT (no owner, not a partner — owner, 2026-10-01): one rule
+              for every card surface, src/lib/linked-seller.ts cardHidesTrust, which keeps the two above. */}
+          {/* "Quảng cáo / Ad" — a COMMISSION-BEARING outbound listing (owner, 2026-10-01: ad labelling).
+              `isSponsored` is the AccessTrade-link subset of the partner rows (src/lib/affiliate-commission.ts),
+              so a linked rental, a vehicle-hire reference or a linked job — which pay nothing — never carry
+              it. It takes the trust chip's slot — every such row sits on an importer-created storefront with
+              no owner, which shows no trust chip — so the row spends ~10-20px more than the 45px chip did
+              (wider in Vietnamese), taken from the truncating span on the left, never a wrap. */}
+          {listing.isSponsored && <UiBadge variant="neutral" size="sm" data-ad-marker="" className="shrink-0">{tr('Ad', 'Quảng cáo')}</UiBadge>}
+          {/* ⚠️ AD WINS THE SLOT OVER THE PARTNER PLATE (2026-10-01). A sponsored row on a partner storefront
+              would put two chips in a meta row that already truncates at 320px; the ad label is the disclosure
+              the law asks for, the plate is not. The badge stays on the PDP and storefront, the sr-only name
+              above still announces it, and neither branch brings the trust chip back (partner replaces trust). */}
           {listing.seller.officialPartner
-            ? <PartnerBadge asLink={false} className="shrink-0" />
-            : isImportSeller(listing.sellerId) || (listing.isPartnerBooking && listing.listingType === 'job')
+            ? listing.isSponsored ? null : <PartnerBadge asLink={false} className="shrink-0" />
+            : cardHidesTrust(listing)
               ? null
               : <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />}
         </div>

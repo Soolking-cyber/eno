@@ -1367,7 +1367,12 @@ export function SignInForm({ className }: { className?: string }) {
       <Turnstile />
       <p className="pt-1 text-center text-2xs text-ink-4">
         {t('By continuing you confirm you are 18 or older and agree to our', 'Tiếp tục nghĩa là bạn xác nhận đủ 18 tuổi và đồng ý với')}{' '}
+        {/* ⚠️ THE QUY CHẾ IS PART OF WHAT IS ACCEPTED (2026-10-01). Opening an account binds the user to the
+            platform's Operating regulations (/regulations — the Quy chế hoạt động the sàn TMĐT publishes), so
+            the assent line links it beside the Terms and the Privacy Policy, as onboard-client.tsx does. */}
         <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Terms', 'Điều khoản')}</a>
+        {', '}
+        <a href="/regulations" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Operating regulations', 'Quy chế hoạt động')}</a>
         {' '}{t('and', 'và')}{' '}
         <a href="/privacy" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo mật')}</a>.
       </p>

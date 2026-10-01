@@ -119,6 +119,15 @@ describe('weekly digest email', () => {
     expect(text).toContain('(1 apartment, 2 houses, 1 room)')
   })
 
+  // "Partner" means a signed agreement since 2026-10-01 (partner-badge.tsx); the portals hold none (review P2).
+  it('calls the portals the homes are linked from listing sites, never partners', () => {
+    for (const r of [render(), render({ ...full, homeCounts: { apartments: 0, houses: 0, rooms: 0, total: 0 } })]) {
+      // What a reader SEES — HTML comments (the layout's own notes) never render.
+      expect(r.html.replace(/<!--[\s\S]*?-->/g, '')).not.toMatch(/partner/i)
+      expect(r.html).toContain('linked from other property listing sites.')
+    }
+  })
+
   it('says how many cards follow instead of a hard-coded six', () => {
     expect(render().html).toContain('Here are three worth a look.')
     expect(render({ ...full, homes: [home('a')] }).html).toContain('Here is one worth a look.')

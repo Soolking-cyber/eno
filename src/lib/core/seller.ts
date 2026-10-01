@@ -8,6 +8,7 @@ import { recordProfileComplete } from '@/lib/trust'
 import { lookupTaxCode, TAX_FACTS_TTL_MS } from '@/lib/tax-lookup'
 import { sellerIdentityHash } from '@/lib/business-verification'
 import { logError } from '@/lib/log'
+import { refreshSellerPdps } from '@/lib/seller-pdp-refresh'
 
 // Storefront (Seller) edit core — decoupled from auth, takes the already-resolved
 // sellerId + owning profileId. Shared by the dashboard PATCH /api/seller and the partner
@@ -83,7 +84,11 @@ export async function updateSellerCore(
     data.phone = phone || null
   }
   // ── Legal identity (Đ.29 ND52 / Law 122/2025 collection duty). Stored, provided
-  //    to buyers on request + authorities; idNumber/taxCode never render publicly. ──
+  //    to buyers on request + authorities. idNumber never renders publicly. ⚠️ Since 2026-10-01 a
+  //    BUSINESS seller's legalName (and, for a company, legalAddress + taxCode) CAN render in the
+  //    PDP/storefront "Seller information" block — only once SELLER_INFO_NOTICE_SINCE is set and only for
+  //    an identity saved on/after it (src/lib/seller-info.ts); the editor's notice follows the same switch.
+  //    That is why `identityUpdatedAt` below must move on EVERY identity save. ──
   let identityTouched = false
   if (body.legalName !== undefined) {
     data.legalName = String(body.legalName).trim().slice(0, 160) || null
@@ -182,6 +187,9 @@ export async function updateSellerCore(
     if ((e as { code?: string })?.code === 'P2002') return { ok: false, code: 409, error: 'phone_taken' } // Seller.phone unique
     throw e
   }
+  // ⚠️ THE PDP IS ISR FOR 30 DAYS AND PRINTS "Seller information" off this row: an identity edit (a removed
+  // address, a new legal name) purges the seller's listing pages, or the old values stay up for a month.
+  if (identityTouched) await refreshSellerPdps(sellerId, 'seller.identity')
   // One-time trust bonus once the storefront is fully filled out.
   if (updated.name && updated.bio && updated.location && updated.avatarUrl && updated.phone) {
     after(() => recordProfileComplete(profileId).catch((e) => logError(e, { op: 'seller.recordProfileComplete' })))

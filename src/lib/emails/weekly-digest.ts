@@ -227,7 +227,7 @@ export function renderWeeklyDigest(opts: {
       <tr><td style="padding:4px 24px 0;">
         <p style="margin:12px 0 0;font-size:15px;color:${INK};">${esc(hi)}</p>
         <h1 style="margin:10px 0 0;font-size:24px;line-height:1.25;font-weight:800;color:${INK};letter-spacing:-0.02em;">${counted ? `${n(c.homeCounts.total)} ${c.homeCounts.total === 1 ? 'home for rent was' : 'homes for rent were'} added this week` : 'Homes for rent worth a look'}</h1>
-        <p style="margin:8px 0 0;font-size:14px;color:${MUTED};line-height:1.5;">${counted ? `${count(c.homeCounts.apartments, 'apartment')} · ${count(c.homeCounts.houses, 'house')} · ${count(c.homeCounts.rooms, 'room')}, linked from partner property portals.` : `Recently added to ${esc(siteName)}, linked from partner property portals.`} Here ${c.homes.length === 1 ? 'is one' : `are ${word(c.homes.length)}`} worth a look.</p>
+        <p style="margin:8px 0 0;font-size:14px;color:${MUTED};line-height:1.5;">${counted ? `${count(c.homeCounts.apartments, 'apartment')} · ${count(c.homeCounts.houses, 'house')} · ${count(c.homeCounts.rooms, 'room')}, linked from other property listing sites.` : `Recently added to ${esc(siteName)}, linked from other property listing sites.`} Here ${c.homes.length === 1 ? 'is one' : `are ${word(c.homes.length)}`} worth a look.</p>
         ${chips(c.districts, origin)}
       </td></tr>
       <tr><td style="padding:8px 16px 0;">

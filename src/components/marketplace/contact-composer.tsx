@@ -7,6 +7,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { EnoSlider } from './eno-slider'
+import { OfferPartiesNote } from './chat-safety-note'
 import { Button } from '@/components/ui/button'
 import { stashCompose } from '@/lib/quick-contact'
 import { hapticTap, hapticConfirm } from '@/lib/haptics'
@@ -26,7 +27,7 @@ export { COMPOSE_KEY } from '@/lib/quick-contact' // re-export: the key + writer
  */
 export function ContactComposer({
   listingId, listingTitle, listingImage, sellerName, price, currency, negotiable = true,
-  intent = 'buy',
+  intent = 'buy', sellerIsPartner = false,
 }: {
   listingId: string
   listingTitle?: string
@@ -51,6 +52,15 @@ export function ContactComposer({
    * variant.
    */
   intent?: 'buy' | 'plan'
+  /**
+   * Seller.officialPartner. ⛔ A PARTNER NEVER SHARES A NUMBER — `phoneForSeller` returns null for one
+   * (src/lib/contact.ts) and the reveal route refuses it outright with `partner_chat_only`
+   * (src/app/api/listings/[id]/contact/route.ts) — so the default footnote, "Request their number once
+   * they reply", promised the buyer something the server will always refuse (2026-10-01). A partner
+   * gets a line that says what does happen instead. The thread page already hides its reveal strip for
+   * the same reason (`sellerIsPartner`, messages/[id]/page.tsx).
+   */
+  sellerIsPartner?: boolean
 }) {
   const { user, loading, openSignIn } = useAuth()
   const { lang, tr } = useLanguage()
@@ -222,7 +232,9 @@ export function ContactComposer({
         // alarming here. Say what the tap actually does instead, including that it is free —
         // that reassurance was the one thing worth keeping from the block this replaced.
         ? tr('Free — you answer a few questions in the chat and get a day-by-day plan.', 'Miễn phí — bạn trả lời vài câu hỏi trong khung chat và nhận lịch trình theo từng ngày.')
-        : tr('Request their number once they reply — one number works for both Zalo and WhatsApp.', 'Yêu cầu số điện thoại sau khi họ trả lời — một số dùng được cho cả Zalo và WhatsApp.')}
+        : sellerIsPartner
+          ? tr('Official partners talk with buyers in eno chat — no phone number is shared.', 'Đối tác chính thức trao đổi với người mua qua chat trên eno — không chia sẻ số điện thoại.')
+          : tr('Request their number once they reply — one number works for both Zalo and WhatsApp.', 'Yêu cầu số điện thoại sau khi họ trả lời — một số dùng được cho cả Zalo và WhatsApp.')}
     </p>
   )
   const chatButton = (
@@ -347,6 +359,8 @@ export function ContactComposer({
             <MessageCircle className="h-4 w-4 shrink-0" /> <span className="truncate">{tr('Chat now', 'Chat ngay')}</span>
           </Button>
         </div>
+        {/* eno is not a party to an offer, under the button that sends one (2026-10-01) — a label only. */}
+        <OfferPartiesNote className="mt-2" />
       </div>
 
       {safetyLine}

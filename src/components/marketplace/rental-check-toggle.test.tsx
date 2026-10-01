@@ -91,6 +91,18 @@ describe('card chip', () => {
     expect(container.querySelector('[data-rental-check-toggle]')).toBeNull()
   })
 
+  // 2026-10-01: car and motorbike PDPs offered the HOUSING check. Vehicle hire is a rentals subcategory,
+  // so the category alone cannot tell — the subcategory does (rentalCheckApplies).
+  it('is absent on vehicle hire — car, motorbike, bicycle, e-bike — and present on a home', () => {
+    for (const sub of ['car-rental', 'motorbike-rental', 'bicycle-rental', 'ebike-rental']) {
+      const { container } = render(<RentalCheckToggle variant="card" listing={{ ...listing(1), subcategorySlug: sub }} />)
+      expect(container.querySelector('[data-rental-check-toggle]'), sub).toBeNull()
+      cleanup()
+    }
+    render(<RentalCheckToggle variant="card" listing={{ ...listing(1), subcategorySlug: 'apartment-rental' }} />)
+    expect(chip()).toBeTruthy()
+  })
+
   it('toggles with a constant name; aria-pressed carries the state; the glyph swaps', () => {
     render(<RentalCheckToggle variant="card" listing={listing(1)} />)
     expect(chip().getAttribute('aria-pressed')).toBe('false')

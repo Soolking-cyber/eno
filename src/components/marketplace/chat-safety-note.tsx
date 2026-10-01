@@ -3,6 +3,8 @@
 import { TriangleAlert } from '@/components/ui/icons'
 import { Alert } from '@/components/ui/alert'
 import { useLanguage } from '@/context/language-context'
+import { IS_SERVICES } from '@/lib/edition'
+import { cn } from '@/lib/utils'
 
 // Off-platform lure detection: bare URLs (link shorteners for Telegram/WhatsApp/
 // Zalo included) or "move the chat" phrases, matched case-insensitively. The
@@ -85,6 +87,45 @@ export function OfferAcceptedNote() {
         'Hẹn nơi công cộng, kiểm tra hàng rồi mới thanh toán.',
       )}
     </Alert>
+  )
+}
+
+/**
+ * "eno is not a party to this offer" (2026-10-01) — said where the BUYER makes or sees a price offer:
+ * the chat's offer composer, a pending offer card in the thread, and the PDP's offer panel.
+ *
+ * Why it exists: an offer here is a structured chat message with Accept / Decline (offers.ts). Nothing
+ * about accepting it forms a purchase on the platform — eno takes no payment and holds no money (Terms,
+ * src/app/[lang]/terms/page.tsx: "We process no payments between buyers and sellers and we hold no money
+ * at any point") — and a buyer who reads "Accepted" as a binding sale on eno is the one who pays a stranger
+ * in advance. So the note says who is NOT in the deal, and where the deal actually happens.
+ *
+ * ⛔ NEVER "AN OFFER IS NOT A CONTRACT" — the first wording, withdrawn in review the same day. Whether an
+ * offer binds the person who makes it, and whether accepting it concludes a contract, is a question of
+ * civil law the repo cannot answer (it is with counsel), and a buyer could read that line as "my offer is
+ * not binding even once accepted". What IS verifiable, from the Quy chế (src/app/[lang]/regulations/
+ * page.tsx, Article 7 step 5 and Article 11): the operator is not the seller or the buyer, and the parties
+ * agree and carry out the transaction themselves, off the platform. The note says only that.
+ *
+ * ⚠️ BUYER-WORDED ("you and the seller"), so the callers show it to the buyer only.
+ * ⚠️ TWO LITERAL PAIRS BEHIND THE EDITION, NEVER `${SITE_NAME}` INSIDE THE COPY: gen-ui-strings harvests
+ * literals only (see the note at the top of this section), and a chat on eno.forum must not name
+ * eno.vn. A LABEL ONLY — it renders no control and changes no send path.
+ */
+export function OfferPartiesNote({ className }: { className?: string }) {
+  const { tr } = useLanguage()
+  return (
+    <p data-offer-parties="" className={cn('text-2xs leading-snug text-ink-4', className)}>
+      {IS_SERVICES
+        ? tr(
+            'eno.forum is not a party to this offer — you and the seller agree and complete any deal yourselves, off eno.forum.',
+            'eno.forum không phải là một bên của đề nghị giá này — hai bên tự thoả thuận và hoàn tất giao dịch, ngoài eno.forum.',
+          )
+        : tr(
+            'eno.vn is not a party to this offer — you and the seller agree and complete any deal yourselves, off eno.vn.',
+            'eno.vn không phải là một bên của đề nghị giá này — hai bên tự thoả thuận và hoàn tất giao dịch, ngoài eno.vn.',
+          )}
+    </p>
   )
 }
 

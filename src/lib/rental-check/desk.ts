@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { logError } from '@/lib/log'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { RENTAL_DESK_SELLER_ID } from './desk-ids'
-import { RENTAL_CHECK_CATEGORY_SLUG } from './shared'
+import { RENTAL_CHECK_CATEGORY_SLUG, RENTAL_CHECK_EXCLUDED_SUBCATS } from './shared'
 
 /**
  * WHO ANSWERS AN AVAILABILITY CHECK, AND WHICH LISTINGS MAY BE CHECKED.
@@ -102,7 +102,14 @@ export type CheckableRental = {
 
 /**
  * The subset of `ids` that may be checked on THIS edition: live (`active` + `verified` — the
- * publication gate), in the rentals category, and visible here.
+ * publication gate), in the rentals category, NOT vehicle hire, and visible here.
+ *
+ * ⛔ VEHICLE HIRE IS REFUSED HERE TOO (2026-10-01) — the server half of rentalCheckApplies (shared.ts).
+ * The toggle no longer offers the check on a car or motorbike, but a device can still hold one added
+ * before that gate, and a body is just ids anyone can post. A refused id comes back in the route's
+ * 409 `listings_unavailable`, and nothing is written. ⚠️ `OR subcategorySlug IS NULL`: a rentals row
+ * with no subcategory is a place (rental-places.ts RENTAL_PLACES), and SQL's NOT IN over NULL is NULL,
+ * so a bare `notIn` would refuse every unmapped Rever home.
  *
  * ⛔ THROUGH `scopedListingWhere`, NEVER A BARE `where`. That is the licensing predicate every
  * marketplace listing read goes through (desk exclusion + the allow-list), so a request can only ever
@@ -117,6 +124,7 @@ export async function resolveCheckableRentals(ids: readonly string[]): Promise<C
       status: 'active',
       verified: true,
       category: { slug: RENTAL_CHECK_CATEGORY_SLUG },
+      OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: [...RENTAL_CHECK_EXCLUDED_SUBCATS] } }],
     }),
     select: CHECKABLE_RENTAL_SELECT,
   })

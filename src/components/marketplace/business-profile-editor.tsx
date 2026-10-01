@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Field, FieldControl, FieldDescription, FieldError } from '@/components/ui/field'
 import { getInitials } from '@/lib/utils'
 import { compressImageFile } from '@/lib/normalize-image'
+import { SELLER_INFO_NOTICE_SINCE } from '@/lib/seller-info'
 
 type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; bannerUrl?: string | null; phone: string | null; legalName?: string | null; legalAddress?: string | null; idNumber?: string | null; taxCode?: string | null; taxVerdict?: 'verified' | 'mismatch' | 'inactive' | 'not_found' | 'unchecked'; taxRegisteredName?: string | null }
 
@@ -238,12 +239,20 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
       </Field>
 
       {/* Legal information — Đ.29 ND52 + Law 122/2025: platforms must collect the
-          seller's legal name, address, ID/registration number and tax code. Shown
-          to authorities/buyers on request only — never on the public storefront. */}
+          seller's legal name, address, ID/registration number and tax code.
+          ⛔ THIS NOTICE MUST SAY WHAT IS SHOWN, SO IT SHARES ONE SWITCH WITH THE DISPLAY (src/lib/seller-info.ts,
+          SELLER_INFO_NOTICE_SINCE). While the switch is off, nothing here is shown and the original "Kept
+          private … Never shown on your storefront" is true. Once it is on, an identity saved from then on IS
+          shown in "Seller information" (seller-info.tsx; Decree 248 Art 18.1.c): the legal name, plus the
+          registered address and tax code when the number is a business registration (sellerIdentityHolder).
+          Identities saved under the old notice stay private. The ID / registration number is never shown
+          (SellerInfo takes no such prop). */}
       <div className="mt-6">
         <h3 className="text-sm font-bold text-foreground">{tr('Legal information', 'Thông tin pháp lý')}</h3>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-          {tr('Required of sellers by Vietnamese e-commerce law. Kept private — provided only to authorities, or to a buyer on lawful request. Never shown on your storefront.', 'Pháp luật TMĐT Việt Nam yêu cầu người bán cung cấp. Được bảo mật — chỉ cung cấp cho cơ quan chức năng hoặc người mua theo yêu cầu hợp pháp. Không hiển thị trên gian hàng.')}
+          {SELLER_INFO_NOTICE_SINCE
+            ? tr('Required of sellers by Vietnamese e-commerce law. Your legal name is shown to buyers under “Seller information” on your listings and storefront — and, when the number below is a business registration number rather than a CCCD, the registered address and tax code too. The number itself is never shown: it is provided only to authorities, or to a buyer on lawful request.', 'Pháp luật TMĐT Việt Nam yêu cầu người bán cung cấp. Tên pháp lý của bạn được hiển thị cho người mua ở mục “Thông tin người bán” trên tin đăng và gian hàng — kèm địa chỉ đăng ký và mã số thuế nếu số bên dưới là số đăng ký kinh doanh (không phải CCCD). Bản thân số này không bao giờ được hiển thị: chỉ cung cấp cho cơ quan chức năng hoặc người mua theo yêu cầu hợp pháp.')
+            : tr('Required of sellers by Vietnamese e-commerce law. Kept private — provided only to authorities, or to a buyer on lawful request. Never shown on your storefront.', 'Pháp luật TMĐT Việt Nam yêu cầu người bán cung cấp. Được bảo mật — chỉ cung cấp cho cơ quan chức năng hoặc người mua theo yêu cầu hợp pháp. Không hiển thị trên gian hàng.')}
         </p>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">

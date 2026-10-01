@@ -192,6 +192,25 @@ describe('the list', () => {
     expect(screen.queryByText('No longer available')).toBeNull()
   })
 
+  /**
+   * ⛔ A CAR OR MOTORBIKE ADDED BEFORE THE VEHICLE-HIRE GATE (2026-10-01). Such a row was stored with no
+   * subcategory, so the store cannot drop it on read — the live refresh is what sees `car-rental`. It is
+   * still live, so "No longer available" would be false: it is taken out of the list, with a one-line why.
+   */
+  it('takes a pre-gate car or motorbike out of the list — never marks it "No longer available"', async () => {
+    addToBasket(rental(1))
+    addToBasket(rental(2))
+    addToBasket(rental(3))
+    const sub: Record<string, string> = { r2: 'car-rental', r3: 'motorbike-rental', r1: 'apartment-rental' }
+    listingsAnswer = (ids) => ({ listings: ids.map((id) => ({ ...rental(Number(id.slice(1))), id, subcategorySlug: sub[id] })), evaluated: ids })
+    await mount()
+    await waitFor(() => expect(getBasket().map((i) => i.id)).toEqual(['r1']))
+    expect(toast).toHaveBeenCalledWith('Vehicle hire is not part of this check — removed from your list.')
+    expect(screen.queryByText('No longer available')).toBeNull()
+    expect(document.querySelector('[data-rental-row="r2"]')).toBeNull()
+    expect(document.querySelector('[data-rental-row="r1"]')).toBeTruthy()
+  })
+
   it('ignores an answer that does not say what it evaluated (no verdict, no marks)', async () => {
     addToBasket(rental(1))
     listingsAnswer = () => ({ listings: [] } as unknown as { listings: unknown[]; evaluated: string[] })

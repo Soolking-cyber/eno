@@ -72,3 +72,32 @@ describe('promo artwork network recovery', () => {
     expect(container.querySelector('picture')).toBeNull()
   })
 })
+
+/**
+ * THE VISIBLE "Advertisement · <partner>" PILL — restored by the owner on 2026-10-01 (it was removed on
+ * 2026-08-11). On every slide with an advertiser, never on a slide that is eno's own (`partner: null`), and
+ * present even while the artwork is held back, so the label never waits on the bytes.
+ */
+describe('promo ad pill', () => {
+  const ads = PROMO_SLIDES.filter(s => s.art && s.art.partner !== null)
+  it('every advertiser slide shows one pill naming the advertiser, hidden from the a11y tree (the label says it)', () => {
+    expect(ads.length).toBeGreaterThan(0)
+    for (const s of ads) {
+      const { container } = render(<SlidePanel slide={s} />)
+      const pills = container.querySelectorAll('[data-ad-pill]')
+      expect(pills, s.key).toHaveLength(1)
+      expect(pills[0].textContent).toBe(`Advertisement · ${s.art!.partner}`)
+      expect(pills[0].getAttribute('aria-hidden')).toBe('true')
+      cleanup()
+    }
+  })
+  it('the pill does not wait for held-back artwork', () => {
+    const { container } = render(<SlidePanel slide={ads[0]} artReady={false} />)
+    expect(container.querySelectorAll('[data-ad-pill]')).toHaveLength(1)
+  })
+  it("eno's own art slide (partner: null) shows no pill", () => {
+    const own = { ...ads[0], art: { ...ads[0].art!, partner: null } }
+    const { container } = render(<SlidePanel slide={own} />)
+    expect(container.querySelectorAll('[data-ad-pill]')).toHaveLength(0)
+  })
+})

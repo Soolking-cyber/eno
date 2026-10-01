@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Tr } from '@/context/language-context'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import { ArrowRight } from '@/components/ui/icons'
 import { Price } from '@/components/marketplace/price'
 import type { PriceRow } from './lowest-prices'
@@ -106,9 +107,18 @@ export function PriceTable({ rows, known, updated, seeAll = true }: {
  * (opus). A page that earns commission says so for as long as it shows a price.
  */
 export function AffiliateNote() {
+  /* ⛔ "AFFILIATE LINK", NOT "PARTNER LINK" (2026-10-01): "partner" now means a company with a signed
+     agreement (partner-badge.tsx), and the retailers behind these tracked links (AccessTrade — the
+     tie-break in lowest-prices.ts `isTracked`) hold none. Same disclosure, same tie-break, named for what
+     it is. An authored pair (the curated Vietnamese with that phrase changed), a literal `tr()` so
+     gen-ui-strings harvests the English, rendered through <Bilingual> because this is a server file. */
+  const tr = (en: string, vi: string) => <Bilingual en={en} vi={vi} />
   return (
     <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-      <Tr text="Some listings reach the retailer through a tracked partner link, which may earn this site a commission at no cost to you. The lowest price always wins; when two retailers charge exactly the same, the partner is the one shown. The price you pay is the retailer's." />
+      {tr(
+        "Some listings reach the retailer through a tracked affiliate link, which may earn this site a commission at no cost to you. The lowest price always wins; when two retailers charge exactly the same, the one with the tracked link is shown. The price you pay is the retailer's.",
+        'Một số tin đăng dẫn đến người bán qua liên kết affiliate có theo dõi, trang web có thể nhận hoa hồng mà bạn không phải trả thêm chi phí nào. Mức giá thấp nhất luôn được ưu tiên; khi hai người bán có giá hoàn toàn bằng nhau, người bán có liên kết được theo dõi sẽ được hiển thị. Mức giá bạn thanh toán là giá của người bán.',
+      )}
     </p>
   )
 }

@@ -20,7 +20,8 @@ import { useLanguage, useTr } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
-import { isImportSeller } from '@/lib/import-sellers'
+import { cardHidesTrust } from '@/lib/linked-seller'
+import { rentalCheckApplies } from '@/lib/rental-check/shared'
 import { radiusBoundingBox } from '@/lib/geo-radius'
 import { MAP_GLYPH_LABEL, MAP_GLYPH_PATH, mapGlyphFor, type MapGlyph } from '@/lib/listing-map-glyph'
 import { MapBuildingCard } from './map-building-card'
@@ -1626,7 +1627,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                 </Button>
                 {card.seller.officialPartner
                   ? <PartnerBadge asLink={false} className="shrink-0" />
-                  : isImportSeller(card.sellerId) ? null
+                  : cardHidesTrust(card) ? null
                   : <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />}
                 <MapsDirectionsButton to={getListingCoordinates(card)} className="h-8 w-8 shrink-0" />
               </div>
@@ -1685,10 +1686,11 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                       <span className="min-w-0 flex-1 truncate"><PopupPlace district={card.district} location={card.location} /></span>
                       {/* PARTNER REPLACES TRUST, as on the card — a partner must read the same one tap later.
                           And a REFERENCE listing (portal import, linked job) shows neither, as on the card:
-                          eno.vn never rated its source. */}
+                          eno.vn never rated its source. Since 2026-10-01 nor does any unrated storefront
+                          (no owner, not a partner) — cardHidesTrust is the card's own rule. */}
                       {card.seller.officialPartner
                         ? <PartnerBadge asLink={false} className="shrink-0" />
-                        : isImportSeller(card.sellerId) ? null
+                        : cardHidesTrust(card) ? null
                         : <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />}
                     </div>
                   </div>
@@ -1701,7 +1703,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     `pointer-events-none` lets a tap on the rest of the photo reach the button beneath;
                     pointer-events inherits, so the chip opts back in. Absolute, so the popup's height
                     sync never sees it. The component renders nothing on the viewer's own listing. */}
-                {card.category?.slug === 'rentals' && (
+                {/* Not on vehicle hire (2026-10-01) — rentalCheckApplies, as on the grid card. */}
+                {rentalCheckApplies(card.category?.slug, card.subcategorySlug) && (
                   <div className="pointer-events-none absolute inset-x-0 top-0 aspect-square">
                     <RentalCheckToggle variant="card" listing={card} className="pointer-events-auto" />
                   </div>

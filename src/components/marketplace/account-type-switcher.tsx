@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Field, FieldControl, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
+import { SELLER_INFO_NOTICE_SINCE } from '@/lib/seller-info'
 
 // Self-serve account-type switch in dashboard Settings — onboarding promises "you
 // can change this later", and this is the "later". POSTs to the existing
@@ -132,7 +133,13 @@ export function AccountTypeSwitcher({ isBusiness, businessName, onSaved }: { isB
                     render={<Input id="switch-id-number" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} maxLength={20} inputMode="numeric" placeholder={tr('CCCD 12 digits · ERC 10 digits', 'CCCD 12 số · ĐKKD 10 số')} />}
                   />
                   <FieldDescription className="text-muted-foreground">
-                    {tr('Required by Vietnamese e-commerce law. Shared with buyers on request and authorities — never shown publicly.', 'Theo quy định TMĐT Việt Nam. Chỉ cung cấp cho người mua khi có yêu cầu và cơ quan chức năng — không hiển thị công khai.')}
+                    {/* ⛔ ONE SWITCH WITH THE DISPLAY (src/lib/seller-info.ts): while SELLER_INFO_NOTICE_SINCE is null
+                        nothing typed here is shown, so the original "never shown publicly" stays true; once it is
+                        set, an identity saved from then on IS shown in "Seller information" — the name, and the
+                        address only for a business registration number (sellerIdentityHolder). This number never. */}
+                    {SELLER_INFO_NOTICE_SINCE
+                      ? tr('Required by Vietnamese e-commerce law. Your legal name is shown to buyers under “Seller information” on your listings and storefront — with the address too when this is a business registration number rather than a CCCD. The number itself is never shown: it goes only to authorities, or to a buyer on lawful request.', 'Theo quy định TMĐT Việt Nam. Tên pháp lý của bạn được hiển thị cho người mua ở mục “Thông tin người bán” trên tin đăng và gian hàng — kèm địa chỉ nếu đây là số đăng ký kinh doanh (không phải CCCD). Bản thân số này không bao giờ được hiển thị: chỉ cung cấp cho cơ quan chức năng hoặc người mua theo yêu cầu hợp pháp.')
+                      : tr('Required by Vietnamese e-commerce law. Shared with buyers on request and authorities — never shown publicly.', 'Theo quy định TMĐT Việt Nam. Chỉ cung cấp cho người mua khi có yêu cầu và cơ quan chức năng — không hiển thị công khai.')}
                   </FieldDescription>
                   {legalErr.idNumber && <FieldError className="font-semibold">{legalErr.idNumber}</FieldError>}
                 </Field>

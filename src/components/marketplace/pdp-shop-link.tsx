@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { lastSeenBucket } from '@/lib/last-seen'
 import { useMounted } from '@/hooks/use-mounted'
 import { PartnerListingCount } from './partner-listing-count'
+import { LinkedShopChip } from './linked-shop-chip'
 import type { SellerMetrics } from '@/lib/seller-metrics'
 
 /** Shopee "shop on top": the SINGLE seller surface on the PDP, sitting directly above the media.
@@ -21,7 +22,7 @@ import type { SellerMetrics } from '@/lib/seller-metrics'
  *  reviews) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
  *  buy box is gone (its "Chat now" lives on in the ContactComposer). The whole strip is a div (not
  *  one anchor) so the trust chip and the Shop link can each be their own real link. */
-export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linked = null, partnerListingCount = null }: {
+export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linked = null, partnerListingCount = null, unrated = false, linkedShop = false }: {
   name: string
   avatarColor?: string | null
   avatarUrl?: string | null
@@ -50,6 +51,17 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
    * the one line that says how much of the partner is on the site. null → nothing.
    */
   partnerListingCount?: number | null
+  /**
+   * No owner account and not an official partner (src/lib/linked-seller.ts isUnratedStorefront): the
+   * storefront's trustScore mirrors nobody's behaviour, so NO trust chip — on any listing of it, linked
+   * or not (owner, 2026-10-01). Ranking still reads the number; only the display is withheld.
+   */
+  unrated?: boolean
+  /**
+   * A LINKED SHOP (isLinkedShop): the neutral "Linked shop" chip takes the partner badge's place in
+   * this row (owner, 2026-10-01). Only ever true for an unrated, non-partner storefront.
+   */
+  linkedShop?: boolean
 }) {
   const { tr } = useLanguage()
   const { responseBucket, lastSeenDay, memberSinceYear, reviewCount, rating, trustScore } = metrics
@@ -68,8 +80,11 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
   const strip: React.ReactNode[] = []
   // First in the strip: for a partner it is the fact that sizes the claim the P plate makes.
   if (officialPartner && typeof partnerListingCount === 'number' && partnerListingCount > 0) strip.push(<PartnerListingCount key="partner-count" n={partnerListingCount} />)
-  if (linked === 'job') strip.push(tr('Linked job posting — not vetted by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa kiểm duyệt'))
-  else if (linked === 'listing') strip.push(tr('Linked listing — not vetted by eno.vn', 'Tin đăng dẫn link — eno.vn chưa kiểm duyệt'))
+  // ⚠️ "VERIFIED", NOT "VETTED" / "KIỂM DUYỆT" (2026-10-01). "eno.vn chưa kiểm duyệt" read as the platform
+  // admitting it had not done its statutory pre-display moderation; what is true, and what this line
+  // means, is that eno.vn has not VERIFIED the source's ad or the business behind it.
+  if (linked === 'job') strip.push(tr('Linked job posting — not verified by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa xác minh'))
+  else if (linked === 'listing') strip.push(tr('Linked listing — not verified by eno.vn', 'Tin đăng dẫn link — eno.vn chưa xác minh'))
   else if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
   if (!linked && lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
   if (!linked) strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
@@ -133,9 +148,13 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
               partner badge INSTEAD of a trust score — the partner claim is the stronger of the two
               and showing both spends two chips on one point. Same swap in seller-card,
               pdp-shop-link and compact-listing-row, so a partner reads identically everywhere. */}
+          {/* ⚠️ …AND A LINKED SHOP SHOWS THE NEUTRAL "Linked shop" CHIP IN THE PARTNER BADGE'S PLACE, while
+              an unrated storefront (no owner, not a partner) shows no trust chip at all (owner, 2026-10-01;
+              src/lib/linked-seller.ts). A linked reference listing never showed one either. */}
           {officialPartner
             ? <PartnerBadge />
-            : linked ? null : <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />}
+            : linkedShop ? <LinkedShopChip />
+            : linked || unrated ? null : <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />}
         </div>
         {strip.length > 0 && (
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">

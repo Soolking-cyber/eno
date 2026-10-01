@@ -147,18 +147,16 @@ async function main() {
     console.log(`storefront "${merchantName}" does not exist — ${APPLY ? 'creating' : 'would create'}`)
     if (APPLY) {
       seller = await db.seller.create({
-        // ⛔ officialPartner IS TRUE SINCE 2026-09-17, REVERSING WHAT THIS COMMENT USED TO SAY.
-        // It read "STAYS FALSE — that badge is for negotiated partners like VinWonders; stamping it
-        // on an imported datafeed devalues the real one". Owner: "also give all fetching stores a
-        // partner badge" — a shop whose catalogue eno carries is a partner of the site, and the
-        // badge says so. scripts/set-import-partners.mjs grants it to the storefronts created
-        // before this change. ⚠️ It is not only decoration: an official partner shares no phone
-        // number. That is a no-op here (a catalogue storefront has none) and the reason the bulk
-        // script refuses any seller that does.
+        // ⛔ officialPartner IS FALSE AGAIN SINCE 2026-10-01 — OWNER DECISION, REVERSING 2026-09-17
+        // ("also give all fetching stores a partner badge"). The badge is kept ONLY for companies with
+        // a signed agreement; an imported datafeed shows the neutral "Linked shop" chip
+        // (src/lib/linked-seller.ts). That is what this comment said before 2026-09-17 too: "that
+        // badge is for negotiated partners; stamping it on an imported datafeed devalues the real
+        // one". Granting it is per-seller: scripts/set-official-partner.mjs.
         // ⚠️ Written from the campaign, not hardcoded: this script takes --campaign, so baking
         // CellphoneS's bio and city in would mislabel the next merchant imported through it.
         data: { name: merchantName, bio: `Products are bought and paid for on the ${merchantName} website.`,
-                location: MERCHANT_CITY, officialPartner: true, verified: false },
+                location: MERCHANT_CITY, officialPartner: false, verified: false },
         // ⚠️ `trustScore` is selected because rankScore is computed from it at create — see the
         // note at the field. A new storefront takes the schema default, which is what a brand-new
         // human seller gets too.

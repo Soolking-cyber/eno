@@ -404,11 +404,12 @@ export function DistrictLede({
   }
   // Literal tr() per form so the harvester can pre-translate each. At 1 the tier is always "all".
   // Rentals never reach here while linked (D-f's own sentences, above).
+  // "the source site", not "a partner site" (2026-10-01) — category-copy.ts sourceNoun has the reason.
   const tail =
-    total === 1 ? tr('It links to its original listing on a partner site.')
-    : linked === 'all' ? tr('Every one links to its original listing on a partner site.')
-    : linked === 'most' ? tr('Most link to their original listing on a partner site.')
-    : tr('Some link to their original listing on a partner site.')
+    total === 1 ? tr('It links to its original listing on the source site.')
+    : linked === 'all' ? tr('Every one links to its original listing on the source site.')
+    : linked === 'most' ? tr('Most link to their original listing on the source site.')
+    : tr('Some link to their original listing on the source site.')
   return (
     <>
       {n} {what} {place.en}. {tail}

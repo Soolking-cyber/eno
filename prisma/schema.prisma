@@ -461,7 +461,11 @@ model Seller {
   phone                    String?              @unique // KEEP: the guest-claim join key
   // ── Seller legal identity (Đ.29 ND52 + Law 122/2025 collection duty; VNeID
   //    verification enforceable 1 Jan 2027). Provided to buyers on request and to
-  //    authorities — idNumber/taxCode must NEVER appear in public serializations. ──
+  //    authorities — idNumber/taxCode must NEVER appear in public serializations (serialize.ts).
+  //    ⚠️ Since 2026-10-01 a BUSINESS seller's legalName (+ legalAddress/taxCode for a company) CAN be
+  //    displayed in the "Seller information" block, read server-side off the raw row — not serialized —
+  //    but only once SELLER_INFO_NOTICE_SINCE is set and only for an identity saved on/after it
+  //    (identityUpdatedAt; src/lib/seller-info.ts). idNumber is never displayed. ──
   legalName                String? // full legal name (individual) or registered company name
   legalAddress             String? // residence (individual) / head office (business)
   idNumber                 String? // CCCD (individual) or ERC number (business)

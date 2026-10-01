@@ -1,6 +1,8 @@
 import type { Listing, Category, Seller, Prisma } from '@/generated/prisma/client'
 import { listedAt } from './stale'
 import { displayPriceUnit } from './price-unit'
+import { isUnratedStorefront, partnerShown } from './linked-seller'
+import { isCommissionLink } from './affiliate-commission'
 import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
@@ -35,6 +37,8 @@ function fixMockImage(u: string): string {
 export function serializeListing(
   l: Listing & { category: Category; seller: Seller & { owner?: { accountType: string | null } | null } },
 ): SerializedListing {
+  // The partner flag AS THIS LISTING SHOWS IT — never on a row that links out (linked-seller.ts partnerShown).
+  const officialPartner = partnerShown(l.seller.officialPartner, !!l.affiliateUrl)
   return {
     id: l.id,
     title: l.title,
@@ -45,6 +49,7 @@ export function serializeListing(
     // ⚠️ THE DISPLAY UNIT (price-unit.ts): Batdongsan/Rever's bare 'VND' reads 'VND/month'.
     priceUnit: displayPriceUnit(l.priceUnit, l.sellerId),
     isPartnerBooking: Boolean(l.affiliateUrl),
+    isSponsored: isCommissionLink(l.affiliateUrl),
     currency: l.currency,
     negotiable: l.negotiable,
     affiliateUrl: l.affiliateUrl,
@@ -97,7 +102,9 @@ export function serializeListing(
       verifiedSeller: l.seller.verifiedSeller,
       // eno's own commercial partners. Public by design — it is a claim eno makes about the
       // seller, unlike the phone beside it, and the badge has to reach cards and the PDP.
-      officialPartner: l.seller.officialPartner,
+      // ⛔ THE SHOWN FLAG, NOT THE COLUMN (2026-10-01): false on a row that links out, whatever is
+      // stored — see partnerShown. `unrated` below is asked of the same value.
+      officialPartner,
       affiliateDiscountCode: l.seller.affiliateDiscountCode,
       affiliateDiscountPercent: l.seller.affiliateDiscountPercent,
       trustTier: l.seller.trustTier,
@@ -114,6 +121,9 @@ export function serializeListing(
       // True when the storefront is owned by a business account (false unless the
       // query included seller.owner — safe default).
       isBusiness: l.seller.owner?.accountType === 'business',
+      // No owner and not an official partner → no trust chip anywhere (src/lib/linked-seller.ts).
+      // A BOOLEAN, never the ownerId: that is a real person's account UUID on every other row.
+      unrated: isUnratedStorefront({ ownerId: l.seller.ownerId, officialPartner }),
     },
     verified: l.verified,
     status: l.status,
@@ -168,7 +178,9 @@ export const LISTING_CARD_SELECT = {
   /** <Price> labels a price-0 JOB "Salary: see details" instead of "Free" — it needs the type. */
   listingType: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
-  seller: { select: { trustScore: true, officialPartner: true, owner: { select: { accountType: true } } } },
+  // `ownerId` is read for ONE boolean (`unrated`, src/lib/linked-seller.ts) and never leaves the server:
+  // it is a real person's account UUID on every storefront a human owns.
+  seller: { select: { trustScore: true, officialPartner: true, ownerId: true, owner: { select: { accountType: true } } } },
 } as const
 
 type ListingCardRow = {
@@ -185,10 +197,14 @@ type ListingCardRow = {
   affiliateUrl: string | null
   listingType?: string
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
-  seller: { trustScore: number; officialPartner: boolean; owner?: { accountType: string | null } | null }
+  /** `ownerId` REQUIRED, so a card query that forgets it fails to compile instead of showing every
+   *  ownerless storefront's default 100 as a trust chip. */
+  seller: { trustScore: number; officialPartner: boolean; ownerId: string | null; owner?: { accountType: string | null } | null }
 }
 
 export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
+  // The partner flag AS THIS CARD SHOWS IT — never on a row that links out (linked-seller.ts partnerShown).
+  const officialPartner = partnerShown(l.seller.officialPartner, !!l.affiliateUrl)
   return {
     id: l.id,
     /**
@@ -212,6 +228,8 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     // ⚠️ THE DISPLAY UNIT (price-unit.ts): Batdongsan/Rever's bare 'VND' reads 'VND/month'.
     priceUnit: displayPriceUnit(l.priceUnit, l.sellerId),
     isPartnerBooking: Boolean(l.affiliateUrl),
+    // The commission-bearing subset (the card's "Ad" marker) — computed here so the link never ships.
+    isSponsored: isCommissionLink(l.affiliateUrl),
     listingType: l.listingType,
     currency: l.currency,
     negotiable: l.negotiable,
@@ -249,7 +267,8 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     seller: {
       trustScore: l.seller.trustScore,
       isBusiness: l.seller.owner?.accountType === 'business',
-      officialPartner: l.seller.officialPartner,
+      officialPartner,
+      unrated: isUnratedStorefront({ ownerId: l.seller.ownerId, officialPartner }),
     },
   }
 }

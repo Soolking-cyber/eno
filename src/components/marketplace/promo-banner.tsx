@@ -722,18 +722,39 @@ export function SlidePanel({ slide, first = false, artReady = true }: { slide: P
             {tr(slide.art.alt, slide.art.altVi)}
           </span>
         )}
-        {/* ⛔ NO VISIBLE "Advertisement" CHIP — REMOVED BY THE OWNER, 2026-08-11, AND NOT AN OVERSIGHT.
-            A pill reading "Quảng cáo · <partner>" was rendered over this artwork and taken out on the
-            owner's instruction. Whether a paid placement is labelled on its face is a commercial and
-            compliance decision that belongs to them, not a styling one, so do not "restore" it as a
-            polish item.
-            ⚠️ THE ATTRIBUTION SURVIVES WHERE IT COSTS NOTHING: the link's accessible name still opens
-            with that word (see the aria-label above), so a screen-reader user is still told this is an
-            ad before they are told what it says — but ONLY when there is an advertiser (see `isAd`
-            above; eno.forum's own e-visa banner is `partner: null` and is not announced as an ad).
-            And `art.partner` stays REQUIRED at the type level, now as `string | null`, with its
-            vitest — the point of that guard was never the chip, it was that a slide which deletes
-            both languages must still state who bought it, or state that nobody did. */}
+        {/* ⛔ THE VISIBLE "Quảng cáo · <partner>" PILL IS BACK — OWNER REVERSAL, 2026-10-01 (ad labelling).
+            It was removed on the owner's instruction on 2026-08-11 (907b3543), which left sighted
+            visitors with no on-face label while screen-reader users still heard one in the aria-label
+            above. The owner has now restored it: a paid placement says so where it appears, as
+            /regulations Article 14 promises. ONLY when there is an advertiser (`isAd`): eno.forum's own
+            e-visa banner is `partner: null` and is not an ad, so it gets no pill.
+            What the 2026-08-11 version learned, and this one keeps:
+            ⚠️ AFTER THE <picture>, AND THAT ORDER IS THE STACKING — both are positioned with no z-index,
+            so paint order is DOM order; above the image in the DOM it would sit under the artwork. It
+            stays BELOW the focus ring's `after:z-20`, so the ring still paints over it.
+            ⚠️ bg-black/60, NOT /40 OR /50: the scrim is the only contrast guarantee over a partner's
+            artwork we do not control. Worst case (pure white art) composites to #666, and white text on
+            it measures 5.7:1; at /50 the same case is 4.0:1 and fails.
+            ⚠️ text-2xs (11px, the canon's chip-label step), not 3xs — a disclosure too small to read is
+            not a disclosure.
+            ⛔ BOTTOM-LEFT, NOT TOP-LEFT: at top-left the pill sat on the partner's own lockup at every
+            phone width (measured: the 390px mobile cut put the kite mark and wordmark at x31–200,
+            y5–60). Bottom-right is the slide dots' (the parent's `bottom-1 … justify-end pr-3`). This
+            remains a bet on artwork we do not control — re-measure when a new partner slide lands.
+            ⚠️ aria-hidden: the word already leads the link's accessible name, so a screen reader that
+            also read the pill would say it twice. pointer-events-none: not a dead spot in the swipe.
+            ⚠️ NO LCP COST, BY CONSTRUCTION: it is absolutely positioned inside a box that owns its own
+            height (aspect + min-h), so it moves nothing (CLS unchanged), it loads nothing, and a ~20px
+            line of text can never be the largest paint over the full-bleed artwork that IS the LCP. */}
+        {isAd && (
+          <span
+            aria-hidden
+            data-ad-pill=""
+            className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-2xs font-semibold text-white sm:bottom-3 sm:left-3"
+          >
+            {adWord} · {slide.art.partner}
+          </span>
+        )}
       </Link>
     )
   }

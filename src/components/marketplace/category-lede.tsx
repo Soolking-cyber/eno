@@ -113,13 +113,15 @@ function Provenance({ name, nameVi, slug, linked }: { name: string; nameVi: stri
   /**
    * ⛔ NOR ON A SHELF THAT LINKS OUT. Electronics and furniture printed "every listing comes from a
    * seller with a public trust score" over stock in which every sampled row (100/100, 2026-09-27)
-   * opens on a partner shop — the score belongs to listings posted here, not to a copied one. The
+   * opens on a source shop — the score belongs to listings posted here, not to a copied one. The
    * page counts the linked rows at render and passes the tier; the trust sentence below survives only
-   * where that count is zero. The pairs equal CATEGORY_LINKED_SENTENCE (category-copy.test.ts).
+   * where that count is zero. The pairs equal CATEGORY_LINKED_SENTENCE (category-copy.ts).
+   * ⛔ "THE SOURCE SITE", NOT "A PARTNER SITE" (2026-10-01): "partner" now means a signed agreement
+   * (partner-badge.tsx), which none of these shops has — CATEGORY_LINKED_SENTENCE has the note.
    */
-  if (linked === 'all') return <>{tr('Every listing here links to its original on a partner site.', 'Mỗi tin ở đây đều dẫn tới tin gốc trên trang đối tác.')}</>
-  if (linked === 'most') return <>{tr('Most listings here link to their original on a partner site.', 'Phần lớn tin ở đây dẫn tới tin gốc trên trang đối tác.')}</>
-  if (linked === 'some') return <>{tr('Some listings here link to their original on a partner site.', 'Một số tin ở đây dẫn tới tin gốc trên trang đối tác.')}</>
+  if (linked === 'all') return <>{tr('Every listing here links to its original on the source site.', 'Mỗi tin ở đây đều dẫn tới tin gốc trên trang nguồn.')}</>
+  if (linked === 'most') return <>{tr('Most listings here link to their original on the source site.', 'Phần lớn tin ở đây dẫn tới tin gốc trên trang nguồn.')}</>
+  if (linked === 'some') return <>{tr('Some listings here link to their original on the source site.', 'Một số tin ở đây dẫn tới tin gốc trên trang nguồn.')}</>
   if (lang === 'vi') {
     return <>{`Mỗi tin đăng ${nameVi.toLowerCase()} trên ${SITE_NAME} đều đến từ người bán có điểm uy tín công khai, và tin xấu sẽ bị báo cáo — ít hàng giả, ít giá mồi hơn.`}</>
   }

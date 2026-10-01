@@ -86,7 +86,9 @@ const truthy = (v: unknown) => v === true || v === 'True' || v === 'true' || v =
 function imagesOf(r: Staged): string[] {
   const raw = r.images
   if (Array.isArray(raw)) return raw.filter((u) => typeof u === 'string' && /^https?:\/\//.test(u))
-  if (typeof raw === 'string') { try { const p = JSON.parse(raw.replace(/'/g, '"')); return Array.isArray(p) ? p.filter((u: unknown) => typeof u === 'string') : [] } catch { return [] } }
+  // `\x27` is the apostrophe: spelled as an escape so no bare quote sits inside a regex literal — the
+  // source scanners in src/lib/compliance/public-state-writes.test.ts read a bare one as a string start.
+  if (typeof raw === 'string') { try { const p = JSON.parse(raw.replace(/\x27/g, '"')); return Array.isArray(p) ? p.filter((u: unknown) => typeof u === 'string') : [] } catch { return [] } }
   return []
 }
 
@@ -115,11 +117,15 @@ async function main() {
    * ⛔ ONE STOREFRONT PER SHOP, AND A SHOP WITH AN OWNER IS REFUSED — the same rule
    * import-accesstrade.ts learned from VinWonders' seeder. A Seller carrying an `ownerId` belongs
    * to a real account; hanging a scraped catalogue off it hands someone a shop they never posted.
-   * ⛔ officialPartner IS TRUE SINCE 2026-09-17, REVERSING WHAT THIS COMMENT USED TO SAY ("STAYS
-   * FALSE. These 13 shops have not been contacted yet, so the negotiated-partner badge would be a
-   * claim the business has not made"). Owner: "also give all fetching stores a partner badge".
-   * `verified` still stays FALSE — that one is an identity check on the business, which nobody has
-   * performed, and it is a different claim from "eno carries this shop's catalogue".
+   * ⛔ officialPartner IS FALSE AGAIN SINCE 2026-10-01 — OWNER DECISION, REVERSING 2026-09-17. The
+   * badge is kept ONLY for companies with a signed agreement (VietKite, GMBR, Luật Hoàng Phi); every
+   * fetched shop shows the neutral Linked shop chip instead (src/lib/linked-seller.ts). History: on
+   * 2026-09-17 the owner asked to give all fetching stores a partner badge and this created them with
+   * it; before that this comment said the badge STAYS FALSE because these 13 shops had not been
+   * contacted, so the negotiated-partner badge would be a claim the business had not made — which is
+   * the rule again. Granting it is per-seller work: scripts/set-official-partner.mjs (handle or id).
+   * The verified flag stays FALSE — that one is an identity check on the business, which nobody has
+   * performed.
    */
   const sellerFor = new Map<string, { id: string; trustScore: number }>()
   /**
@@ -140,7 +146,7 @@ async function main() {
     if (!APPLY) continue
     const made = await db.seller.create({
       data: { name: store.name, bio: `Products are bought and paid for on the ${store.name} website (${domain}).`,
-              location: store.city, officialPartner: true, verified: false },
+              location: store.city, officialPartner: false, verified: false },
       select: { id: true, trustScore: true },
     })
     sellerFor.set(domain, made)
@@ -347,8 +353,8 @@ async function main() {
          * EVERY public query unconditionally, so `false` does not mean "pending review", it means
          * the row is invisible to the entire site and to search. On a Seller it means "this
          * business's identity has been checked", which these thirteen shops have NOT been — hence
-         * `verified: false` there — deliberately, and unchanged by the 2026-09-17 badge decision,
-         * which grants `officialPartner` and leaves the identity check exactly where it was.
+         * `verified: false` there — deliberately, and unchanged by either badge decision (granted
+         * 2026-09-17, withdrawn 2026-10-01); `officialPartner` is a separate, per-seller claim.
          * import-accesstrade.ts makes exactly the same pairing for the 9,726 CellphoneS rows.
          */
         verified: true, status: truthy(r.inStock ?? true) ? 'active' : 'sold',

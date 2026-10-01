@@ -56,6 +56,7 @@ import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { RentalCheckToggle } from '@/components/marketplace/rental-check-toggle'
+import { rentalCheckApplies } from '@/lib/rental-check/shared'
 import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/affiliate-booking'
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { importProvenance } from '@/lib/import-provenance'
@@ -63,6 +64,9 @@ import { JobApplyGuard } from '@/components/marketplace/job-apply-guard'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { isBookingCategory } from '@/lib/affiliate-kind'
 import { isImportSeller } from '@/lib/import-sellers'
+import { isLinkedShop, isUnratedStorefront } from '@/lib/linked-seller'
+import { SellerInfo } from '@/components/marketplace/seller-info'
+import { buildSellerInfo } from '@/lib/seller-info'
 import { approximateArea, hasRealCoords } from '@/lib/geo'
 import { isVehicleHireReference } from '@/lib/rental-places'
 import { VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
@@ -302,10 +306,30 @@ export default async function ListingPage({ params }: Props) {
   // listingType AND the link: an ordinary employer's own job post has no affiliateUrl and keeps chat.
   const isJob = !!affiliateUrl && listing.listingType === 'job'
   const jobApplyBy = isJob && typeof listing.attributes?.applyBy === 'string' ? (listing.attributes.applyBy as string) : null
-  // A REFERENCE listing from an import storefront (a job board, or a rental portal such as Chợ Tốt):
-  // eno.vn never rated the source, so the shop row shows "not vetted" instead of a trust chip — its
-  // storefront's 100 is a ranking default, not the /trust Trusted tier. See PdpShopLink's `linked`.
-  const linkedSeller = isJob ? 'job' as const : affiliateUrl && isImportSeller(listing.sellerId) ? 'listing' as const : null
+  // No owner account and not an official partner (owner, 2026-10-01 — src/lib/linked-seller.ts): the
+  // storefront's trustScore describes nobody, so no trust chip on ANY of its listings; and when this row
+  // links out, the storefront is a LINKED SHOP (the neutral chip, and "Source" in Seller information).
+  // ⚠️ The STORED column for "links out", like `imported` below: the row is an import even if its link
+  // fails safeAffiliateUrl.
+  // ⛔ Asked of the partner flag AS SHOWN (`listing.seller.officialPartner` — serialize.ts partnerShown),
+  // never the raw column: a storefront still FLAGGED but whose row links out (a stale import-shop grant)
+  // must read as the unrated linked shop it is, not fall through to its default-100 trust chip.
+  const shownSeller = { id: rawListing.seller.id, ownerId: rawListing.seller.ownerId, officialPartner: listing.seller.officialPartner }
+  const sellerUnrated = isUnratedStorefront(shownSeller)
+  const sellerLinkedShop = isLinkedShop(shownSeller, !!listing.affiliateUrl)
+  // A REFERENCE listing from an import storefront (a job board, or a rental portal such as Chợ Tốt) — and
+  // since 2026-10-01 from ANY unrated storefront (a shop's affiliate catalogue included): eno.vn never
+  // rated the source, so the shop row shows "not verified by eno.vn" instead of a trust chip. See
+  // PdpShopLink's `linked`.
+  const linkedSeller = isJob ? 'job' as const : affiliateUrl && (isImportSeller(listing.sellerId) || sellerUnrated) ? 'listing' as const : null
+  // "Seller information" (Decree 248 Art 18.1.c — name and address of the seller; owner, 2026-10-01): a
+  // linked shop names its SOURCE; a business seller's legal rows are SWITCHED OFF until owner + counsel
+  // sign off (buildSellerInfo, src/lib/seller-info.ts — they were typed under a "never shown" notice).
+  // Never the phone, never `idNumber` (SellerInfo takes neither). Read off the RAW row: the serialized
+  // seller carries none of these columns, on purpose. ⚠️ ISR: an identity edit purges this page
+  // (refreshSellerPdps, src/lib/seller-pdp-refresh.ts), or a removed address would stay up for 30 days.
+  // The caption's verb follows THIS row's listingType: apply for a job, contact/book for a rental (sourceActionFor).
+  const sellerInfo = buildSellerInfo({ linkedShop: sellerLinkedShop, isBusiness: listing.seller.isBusiness, storefrontName: listing.seller.name, identity: rawListing.seller, linkedListingTypes: [rawListing.listingType] })
   // Where an IMPORTED listing came from, and the date that is true for that source (SEO wave B, P1):
   // a rental portal's own post date, the day eno imported it, or — for a partner shop's item — no date.
   // ⚠️ The RAW columns: `listing.postedAt` is serialized as the later of postedAt and createdAt.
@@ -709,7 +733,7 @@ export default async function ListingPage({ params }: Props) {
               from the same 772px budget, and this page has no sticky mobile CTA to fall back on —
               `PdpMobileBar` was deleted deliberately and must not come back. */}
           <div className="order-7 md:hidden">
-            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} />
+            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} />
           </div>
 
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
@@ -981,6 +1005,8 @@ export default async function ListingPage({ params }: Props) {
                          the thread on THIS listing, which is the anchor the wizard is gated to, so
                          the traveller lands exactly where the planner runs. */
                       intent={isTripProduct ? 'plan' : 'buy'}
+                      /* A partner shares no number (phoneForSeller) — the footnote must not offer one. */
+                      sellerIsPartner={listing.seller.officialPartner}
                     />}
                 {/* The availability check (owner, 2026-09-25): add this rental to the basket the eno team
                     checks for free. Under whichever contact block rendered above — a partner rental still
@@ -988,12 +1014,15 @@ export default async function ListingPage({ params }: Props) {
                     it is repeated so this line does not depend on that. ⚠️ A NARROW PROP, NOT `listing`:
                     this is a client component, so whatever it is handed is serialised into the page's
                     RSC payload a second time, description and all. */}
-                {rawListing.category.slug === 'rentals' && listing.status === 'active' && (
+                {/* ⚠️ NOT ON VEHICLE HIRE (2026-10-01): a car or motorbike PDP showed this housing check —
+                    rentalCheckApplies is the one gate (src/lib/rental-check/shared.ts). */}
+                {rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug) && listing.status === 'active' && (
                   <RentalCheckToggle
                     variant="pdp"
                     listing={{
                       id: listing.id,
                       sellerId: listing.sellerId,
+                      subcategorySlug: rawListing.subcategorySlug,
                       title: listing.title,
                       titleVi: listing.titleVi,
                       images: listing.images.slice(0, 1),
@@ -1040,6 +1069,7 @@ export default async function ListingPage({ params }: Props) {
                   */}
                 <SafetyStrip
                   categorySlug={rawListing.category.slug}
+                  subcategorySlug={rawListing.subcategorySlug}
                   variant={affiliateUrl ? (isJob ? 'affiliate-job' : isBooking ? 'affiliate' : listing.listingType === 'rent' ? 'affiliate-rental' : 'affiliate-purchase') : undefined}
                   protections={affiliateUrl ? undefined : <ProtectionsRow inline />}
                   action={<ReportButton listingId={listing.id} />}
@@ -1066,7 +1096,7 @@ export default async function ListingPage({ params }: Props) {
             {/* Shop-on-top (Shopee): storefront link above the media, DESKTOP/TABLET. order-1 so it
                 leads the left column from md (above the gallery); hidden below md (mobile twin above). */}
             <div className="order-1 hidden md:block">
-              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} />
+              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} />
             </div>
 
             {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens). None on a
@@ -1168,6 +1198,11 @@ export default async function ListingPage({ params }: Props) {
               )}
             </div>
             )}
+
+            {/* 8b — Seller information (owner, 2026-10-01): right after Description/Details, sharing their
+                `order-8` slot so DOM order places it below them on phones too. Renders nothing when there is
+                nothing to state (an individual seller, or a business that entered no legal details). */}
+            {sellerInfo && <SellerInfo info={sellerInfo} className="order-8" />}
 
             {/* 11 — Map. Not on a linked job or a partner row without a stored coordinate: the map would
                 pin a city centroid (±1km jitter, geo.ts getListingCoordinates) that is not the item's

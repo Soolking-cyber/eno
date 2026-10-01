@@ -112,4 +112,51 @@ describe('ListingCard — the trust chip is for sellers eno.vn rated, and only t
     expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
     expect(c.querySelectorAll('[data-partner-chip]')).toHaveLength(1)
   })
+
+  // Owner, 2026-10-01: an ownerless storefront that is not a partner (`seller.unrated`, serialize.ts) shows
+  // no trust number anywhere — a shop's affiliate catalogue (Tiki, CellphoneS) included, whose id is NOT in
+  // IMPORT_SELLERS, which is exactly why the old rule missed it.
+  it('an unrated storefront (no owner, not a partner) shows no trust chip, whatever its id', () => {
+    const c = card({ sellerId: 'cm-tiki-storefront', isPartnerBooking: true, listingType: 'sell', category: { icon: 'phone', slug: 'electronics' }, seller: { trustScore: 100, isBusiness: false, officialPartner: false, unrated: true } })
+    expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
+    expect(c.textContent).not.toContain('100')
+  })
+})
+
+// Owner, 2026-10-01 (ad labelling): a small "Ad / Quảng cáo" marker on a COMMISSION-BEARING card only.
+describe('ListingCard — the Ad marker', () => {
+  it('a sponsored (AccessTrade-linked) card carries exactly one Ad marker', () => {
+    const c = card({ sellerId: 'cm-tiki-storefront', isPartnerBooking: true, isSponsored: true, listingType: 'sell', category: { icon: 'phone', slug: 'electronics' }, seller: { trustScore: 100, isBusiness: false, officialPartner: false, unrated: true } })
+    const ad = c.querySelectorAll('[data-ad-marker]')
+    expect(ad).toHaveLength(1)
+    expect(ad[0].textContent).toBe('Ad')
+  })
+
+  // 2026-10-01: Ad + partner plate side by side crowd a meta row that already truncates at 320px. On a card the
+  // Ad marker wins; the plate stays on the PDP and storefront, the status is still announced (sr-only), and the
+  // trust chip does NOT come back (partner replaces trust).
+  it('a sponsored card on a PARTNER storefront shows only the Ad marker — no plate, no trust chip', () => {
+    const c = card({ isPartnerBooking: true, isSponsored: true, listingType: 'sell', category: { icon: 'phone', slug: 'electronics' }, seller: { trustScore: 100, isBusiness: true, officialPartner: true } })
+    expect(c.querySelectorAll('[data-ad-marker]')).toHaveLength(1)
+    expect(c.querySelectorAll('[data-partner-chip]')).toHaveLength(0)
+    expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
+    expect(Array.from(c.querySelectorAll('.sr-only')).some((e) => e.textContent === 'Official partner')).toBe(true)
+  })
+
+  it('a partner card WITHOUT a commission link keeps its plate', () => {
+    const c = card({ isPartnerBooking: false, isSponsored: false, seller: { trustScore: 100, isBusiness: true, officialPartner: true } })
+    expect(c.querySelectorAll('[data-partner-chip]')).toHaveLength(1)
+    expect(c.querySelectorAll('[data-ad-marker]')).toHaveLength(0)
+  })
+
+  it('a linked rental, a linked job and a member listing carry none', () => {
+    for (const patch of [
+      { sellerId: 'nhatot-import-seller-0001', isPartnerBooking: true, isSponsored: false },
+      { sellerId: 'vietnamworks-com-import-seller-0001', isPartnerBooking: true, isSponsored: false, listingType: 'job' },
+      {},
+    ]) {
+      cleanup()
+      expect(card(patch).querySelectorAll('[data-ad-marker]')).toHaveLength(0)
+    }
+  })
 })

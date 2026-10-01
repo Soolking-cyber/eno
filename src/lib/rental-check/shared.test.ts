@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   RENTAL_CHECK_CHANNELS, RENTAL_CHECK_ID_RE, RENTAL_CHECK_REQUEST_ID_RE,
-  normaliseRentalContact, rentalContactHref, type RentalCheckChannel,
+  normaliseRentalContact, rentalContactHref, rentalCheckApplies, type RentalCheckChannel,
 } from './shared'
+import { TAXONOMY } from '../taxonomy'
 
 /**
  * The contact a requester types is the one field of the card that is free text AND is turned into
@@ -131,5 +132,39 @@ describe('id shapes', () => {
     expect(RENTAL_CHECK_REQUEST_ID_RE.test('abcdefg')).toBe(false)
     expect(RENTAL_CHECK_REQUEST_ID_RE.test('3f9c1e2a-5b7d-4c8e-9f01-23456789abcd')).toBe(true)
     expect(RENTAL_CHECK_REQUEST_ID_RE.test('bad id!!')).toBe(false)
+  })
+})
+
+/**
+ * THE ONE GATE FOR EVERY RentalCheckToggle MOUNT (2026-10-01): car and motorbike PDPs offered the HOUSING
+ * availability check. Vehicle hire — and only vehicle hire — is excluded from the rentals category.
+ */
+describe('rentalCheckApplies', () => {
+  it('a home in rentals: yes — and a rentals row with no subcategory is a place (an unmapped Rever row)', () => {
+    for (const sub of ['apartment-rental', 'house-rental', 'room-rental', 'hotel-short-stay', 'homestay-serviced', 'office-rental', null, undefined]) {
+      expect(rentalCheckApplies('rentals', sub), String(sub)).toBe(true)
+    }
+  })
+
+  it('vehicle hire: never — car, motorbike, bicycle, e-bike', () => {
+    for (const sub of ['car-rental', 'motorbike-rental', 'bicycle-rental', 'ebike-rental']) {
+      expect(rentalCheckApplies('rentals', sub), sub).toBe(false)
+    }
+  })
+
+  it('outside rentals: never', () => {
+    expect(rentalCheckApplies('vehicles', 'car-rental')).toBe(false)
+    expect(rentalCheckApplies('electronics', null)).toBe(false)
+    expect(rentalCheckApplies(undefined, undefined)).toBe(false)
+  })
+
+  it('every vehicle-hire slug it excludes is a REAL rentals subcategory (a typo would silently let it through)', () => {
+    const rentals = TAXONOMY.find((c) => c.slug === 'rentals')!
+    const slugs = new Set(rentals.subcategories.map((s) => s.slug))
+    for (const sub of ['car-rental', 'motorbike-rental', 'bicycle-rental', 'ebike-rental']) expect(slugs.has(sub), sub).toBe(true)
+    // …and every OTHER rentals subcategory still gets the check.
+    for (const sub of slugs) {
+      if (!['car-rental', 'motorbike-rental', 'bicycle-rental', 'ebike-rental'].includes(sub)) expect(rentalCheckApplies('rentals', sub), sub).toBe(true)
+    }
   })
 })

@@ -33,7 +33,7 @@ import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/chat-composer'
 import { useSafeBack } from '@/lib/safe-back'
-import { FirstContactNote, OfferAcceptedNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
+import { FirstContactNote, OfferAcceptedNote, OfferPartiesNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
 import {
   VisaCheckoutCard, VisaPickerCard, VisaResendChip, VisaResultCard, VisaStepCard, VisaThreadStrip,
   parseVisaCheckoutMeta, parseVisaPickerMeta, parseVisaResultMeta, parseVisaStepMeta, parseVisaThreadInfo,
@@ -2403,6 +2403,10 @@ export default function ThreadPage() {
                     {m.mine && m.offerStatus === 'pending' && (
                       <div className="mt-1 text-xs text-ink-4">{tr('Waiting for a response…', 'Đang chờ phản hồi…')}</div>
                     )}
+                    {/* "eno is not a party to this offer" (2026-10-01) — a LABEL, no control: the buyer sees it on a
+                        live (pending) offer, either side's. `=== false`, not `!iAmSeller`: an older cached thread
+                        carries no iAmSeller, and the note is worded to the buyer ("you and the seller"). */}
+                    {m.offerStatus === 'pending' && thread?.iAmSeller === false && <OfferPartiesNote className="mt-1" />}
                     {/* §10.2 — THE SAFETY LINE AT THE MOMENT OF AGREEMENT. Inside the card, to
                         BOTH parties, immediately above the Mark-as-sold action below. The buyer
                         gets the line on its own (there is no sold action on their side, and the
@@ -2790,6 +2794,10 @@ export default function ThreadPage() {
               onOpenChange={(o) => setReportFor(o ? reportFor : null)}
             />
           )}
+
+          {/* The buyer composing an offer reads that eno is not a party to it (2026-10-01). A LABEL above the bar, outside
+              it: nothing inside the composer row moves, and ChatSendButton's focus-hold is untouched. */}
+          {showOffer && thread?.iAmSeller === false && <OfferPartiesNote className="bg-background px-4 pt-2" />}
 
           {/* Composer — the Tag toggle flips this same bar between a message field
               and the offer-amount field (no separate input bar). In offer mode the

@@ -55,6 +55,11 @@ export type SerializedListingCard = {
   /// ⚠️ A BOOLEAN, NOT THE URL. The affiliate href is a tracker with our publisher id in it; the
   /// card grid never needs it, and shipping it would put that id in every feed payload on the site.
   isPartnerBooking: boolean
+  /// TRUE when that outbound link can earn eno a commission (an AccessTrade tracker link —
+  /// src/lib/affiliate-commission.ts). The card shows a small "Ad / Quảng cáo" marker for it (owner,
+  /// 2026-10-01). A rental portal, a vehicle-hire site or a job board pays nothing and gets no marker.
+  /// Optional: a card built from a payload that predates it shows no marker.
+  isSponsored?: boolean
   /** Listing.listingType ('sell' | 'rent' | 'job' | …) — <Price> labels a price-0 job. Optional: some card builders predate it. */
   listingType?: string
   // Active price-drop anchor (server-normalized): the struck-through "was" price
@@ -104,6 +109,10 @@ export type SerializedListingCard = {
      *  Optional so a projection that predates the column degrades to the business glyph rather
      *  than to a missing badge that looks like a bug. */
     officialPartner?: boolean
+    /** No owner account and not an official partner (src/lib/linked-seller.ts): the trust score is a
+     *  ranking default that describes nobody, so no card shows it. Optional for the same reason as
+     *  `officialPartner` — an older projection falls back to the IMPORT_SELLERS rule in cardHidesTrust. */
+    unrated?: boolean
   }
 }
 
@@ -127,6 +136,8 @@ export type SerializedListing = {
   /// The same fact as a boolean, so a full listing satisfies SerializedListingCard — several
   /// surfaces (saved, storefront, similar-listings) hand a full listing straight to <ListingCard>.
   isPartnerBooking: boolean
+  /// See SerializedListingCard.isSponsored — the commission-bearing subset of the above.
+  isSponsored: boolean
   /// Per-product checkout discount. Null falls back to the seller's partner-wide code.
   affiliateDiscountCode: string | null
   affiliateDiscountPercent: number | null
@@ -194,6 +205,8 @@ export type SerializedListing = {
     memberSince: string
     phone: string | null
     isBusiness: boolean
+    /** See SerializedListingCard.seller.unrated — no owner and not an official partner. */
+    unrated: boolean
   }
   verified: boolean
   status: string

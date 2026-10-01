@@ -9,7 +9,7 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { hapticError, hapticTap } from '@/lib/haptics'
-import { RENTAL_CHECK_CATEGORY_SLUG, RENTAL_CHECK_MAX_ITEMS, RENTAL_CHECK_PATH } from '@/lib/rental-check/shared'
+import { RENTAL_CHECK_MAX_ITEMS, RENTAL_CHECK_PATH, rentalCheckApplies } from '@/lib/rental-check/shared'
 import {
   addToBasket,
   removeFromBasket,
@@ -43,7 +43,8 @@ export const rentalFreeShort = (tr: Tr) => tr('Free · same price as listed', 'M
 export const rentalFreeCta = (tr: Tr) =>
   tr('Free service · the price you see is the price you get', 'Dịch vụ miễn phí · thấy giá nào, trả giá đó')
 
-export type RentalCheckToggleListing = RentalCheckSource & { sellerId: string }
+/** `subcategorySlug` decides vehicle hire out (rentalCheckApplies) — every mount passes it. */
+export type RentalCheckToggleListing = RentalCheckSource & { sellerId: string; subcategorySlug?: string | null }
 
 /**
  * Add a rental to the availability check, or take it out again.
@@ -74,7 +75,8 @@ export function RentalCheckToggle({
   className?: string
 }) {
   const { sellerId } = useAuth()
-  if (listing.category?.slug !== RENTAL_CHECK_CATEGORY_SLUG) return null
+  // ⚠️ THE SAME GATE THE MOUNTS USE (rentalCheckApplies): a rental, and not vehicle hire (2026-10-01).
+  if (!rentalCheckApplies(listing.category?.slug, listing.subcategorySlug)) return null
   if (sellerId && sellerId === listing.sellerId) return null
   // Two components, not one with a branch: only the PDP shows the count, and a card subscribed to
   // the count would re-render all ~48 of a feed's chips on every add instead of just its own.

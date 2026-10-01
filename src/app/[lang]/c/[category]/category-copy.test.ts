@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CATEGORY_LINKED_SENTENCE,
   RENTALS_H1,
   byAreaChips,
   topSubcategories,
@@ -178,7 +179,7 @@ describe('districtMetadata', () => {
       '1 tin cho thuê tại Huyện Cần Giờ, TP. Hồ Chí Minh. Tin này dẫn tới tin gốc trên một trang đăng tin khác.',
     )
     const elecOne = { ...canGio, category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' } }
-    expect(districtMetadata(elecOne, 'en', 'eno.vn').description).toMatch(/^1 electronics listing in [^.]+\. It links to its original listing on a partner site\.$/)
+    expect(districtMetadata(elecOne, 'en', 'eno.vn').description).toMatch(/^1 electronics listing in [^.]+\. It links to its original listing on the source site\.$/)
     for (const lang of ['en', 'vi'] as const) {
       expect(districtMetadata(canGio, lang, 'eno.vn').description).not.toMatch(/Every (one|listing)|Mỗi tin đều/)
       // …and two is still plural.
@@ -201,8 +202,33 @@ describe('districtMetadata', () => {
     expect(own.title).toBe('Services in Binh Trung | eno.vn')
     expect(own.description).toMatch(/public trust score/)
     const linked = districtMetadata({ ...base, category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }, linked: 'most' }, 'en', 'eno.vn')
-    expect(linked.description).toMatch(/Most link to their original listing on a partner site\.$/)
+    expect(linked.description).toMatch(/Most link to their original listing on the source site\.$/)
     expect(linked.description).not.toMatch(/trust/)
+  })
+})
+
+/**
+ * ⛔ NO "PARTNER" FOR A LINKED SOURCE (review P2, 2026-10-01). "Partner" now means a company with a signed
+ * agreement (partner-badge.tsx's tooltip); the shops and portals this stock is linked from hold none.
+ */
+describe('linked sentences name the source, never a partner', () => {
+  it('CATEGORY_LINKED_SENTENCE, every tier, both languages', () => {
+    for (const tier of ['all', 'most', 'some'] as const) {
+      for (const lang of ['en', 'vi'] as const) expect(CATEGORY_LINKED_SENTENCE[tier][lang]).not.toMatch(/partner|đối tác/i)
+    }
+  })
+  it('the district sentence for a retail category, every tier and the singular, both languages', () => {
+    const elec = { category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }, place: { en: 'District 1', vi: 'Quận 1' }, inHcmc: true }
+    for (const linked of ['all', 'most', 'some'] as const) {
+      for (const total of [1, 40]) {
+        if (total === 1 && linked !== 'all') continue
+        for (const lang of ['en', 'vi'] as const) {
+          const d = districtMetadata({ ...elec, total, linked }, lang, 'eno.vn').description
+          expect(d).not.toMatch(/partner|đối tác/i)
+          expect(d).toMatch(/source site|trang nguồn/)
+        }
+      }
+    }
   })
 })
 

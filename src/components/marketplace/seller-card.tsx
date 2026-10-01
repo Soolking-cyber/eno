@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { BusinessVerifiedBadge } from '@/components/marketplace/business-verified-badge'
 import { PartnerBadge } from './partner-badge'
 import { PartnerListingCount } from './partner-listing-count'
+import { LinkedShopChip } from './linked-shop-chip'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { trustBand } from '@/lib/trust-score'
 import { RatingValue, CountValue } from '@/components/marketplace/rating-value'
@@ -56,6 +57,13 @@ export type SellerCardSeller = {
   /** eno's own commercial partner. Optional for the same reason as businessVerified —
    *  a caller that doesn't send it degrades to no badge, never to a false one. */
   officialPartner?: boolean
+  /** No owner account and not an official partner (src/lib/linked-seller.ts): its trustScore is a
+   *  ranking default that describes nobody, so the card shows NO trust chip (owner, 2026-10-01).
+   *  Optional, and absent reads as "rated" — the pre-2026-10-01 behaviour. */
+  unrated?: boolean
+  /** An unrated storefront that carries imported/affiliate listings: the neutral "Linked shop" chip
+   *  takes the partner badge's place (owner, 2026-10-01). */
+  linkedShop?: boolean
 }
 
 export type SellerCardProps = {
@@ -172,6 +180,8 @@ export function SellerCard({
                 itself. The ring stays: it is the glance, this is the claim, and unlike the ring
                 this one is tappable and explains what a partner actually is. */}
             {seller.officialPartner && <PartnerBadge />}
+            {/* A LINKED SHOP gets the neutral chip where the partner badge used to be (owner, 2026-10-01). */}
+            {!seller.officialPartner && seller.linkedShop && <LinkedShopChip />}
             {/* ⚠️ A PARTNER SUPPRESSES THE PLAIN "Business" CHIP, BUT NOT "Business verified".
                 The two say different things and only one is redundant. "Business" merely reports
                 the account TYPE, which "Official partner" already implies — showing both spends a
@@ -216,7 +226,9 @@ export function SellerCard({
                 trust score is EARNED behaviour, the partner badge is a company eno went and vetted,
                 and showing both spends two chips to make one point. The badge renders above in the
                 same row, so this branch simply withholds the second. */}
-            {!seller.officialPartner && (
+            {/* ⛔ …NOR DOES AN UNRATED STOREFRONT (no owner, not a partner — owner, 2026-10-01): its number
+                is the schema default every importer-created storefront starts at, not anyone's record. */}
+            {!seller.officialPartner && !seller.unrated && (
               <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />
             )}
           </div>

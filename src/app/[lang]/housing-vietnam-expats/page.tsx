@@ -75,7 +75,7 @@ const AREAS_LEAD = 'Rentals by district:'
 const CONTENT: SeoContent = {
   eyebrow: 'Housing · Ho Chi Minh City',
   h1: 'Expat Housing in Vietnam: Renting in Ho Chi Minh City',
-  intro: `Looking for somewhere to live in Vietnam? This page covers Ho Chi Minh City: apartments, houses, rooms and serviced flats for rent, from studios to family houses, furnished or not, on monthly or yearly terms. Many listings are linked from partner property portals: each says where it is listed and links to the original posting. Listings posted directly on ${SITE_NAME} show the seller’s public trust score and can be messaged in-app, and on any rental the eno team will check availability for you, free.`,
+  intro: `Looking for somewhere to live in Vietnam? This page covers Ho Chi Minh City: apartments, houses, rooms and serviced flats for rent, from studios to family houses, furnished or not, on monthly or yearly terms. Many listings are linked from other property listing sites: each says where it is listed and links to the original posting. Listings posted directly on ${SITE_NAME} show the seller’s public trust score and can be messaged in-app, and on any rental the eno team will check availability for you, free.`,
   // ⚠️ `rentals`, not `house-rentals` — that slug does not exist and never did on this taxonomy.
   // Both CTAs on this page fed `/c/house-rentals`, which renders the not-found boundary, and the
   // listing strip queried a category slug matching nothing so it was permanently empty. A rename
@@ -101,7 +101,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'What you’ll find',
-      body: `Apartments, houses, rooms and offices for rent — serviced and unserviced, furnished and unfurnished, from monthly stays to yearly leases. Each listing shows the asking price, the district and photos. A listing linked from a partner portal says where it is listed, and its button opens the original posting. A listing posted directly on ${SITE_NAME} can be messaged in-app. On either kind, the check button asks the eno team to check availability for you, free.`,
+      body: `Apartments, houses, rooms and offices for rent — serviced and unserviced, furnished and unfurnished, from monthly stays to yearly leases. Each listing shows the asking price, the district and photos. A listing linked from another listing site says where it is listed, and its button opens the original posting. A listing posted directly on ${SITE_NAME} can be messaged in-app. On either kind, the check button asks the eno team to check availability for you, free.`,
     },
     {
       title: 'Before you pay anything',
@@ -116,11 +116,11 @@ const CONTENT: SeoContent = {
     },
     {
       q: 'How do I contact a landlord or agent?',
-      a: `It depends on where the listing comes from. A listing linked from a partner portal says where it is listed, and its button opens the original posting on that portal, where you can reach the landlord or agent. A listing posted directly on ${SITE_NAME} has a Message button for in-app chat; you can ask for a phone number or Zalo once the other side replies. On any rental you can also tap the check button, and the eno team checks availability for you, free.`,
+      a: `It depends on where the listing comes from. A listing linked from another listing site says where it is listed, and its button opens the original posting on that site, where you can reach the landlord or agent. A listing posted directly on ${SITE_NAME} has a Message button for in-app chat; you can ask for a phone number or Zalo once the other side replies. On any rental you can also tap the check button, and the eno team checks availability for you, free.`,
     },
     {
       q: `Does ${SITE_NAME} check the rentals listed here?`,
-      a: `It checks availability on request, free: tap the check button on up to 5 rentals and the eno team checks them for you. It does not vet the linked listings themselves — those are the partner portals’ own postings. Listings posted directly here show the seller’s public trust score, built from completed deals, reviews and confirmed reports, and anyone can report a listing that looks wrong. Whichever kind it is, view the place in person before you pay anything.`,
+      a: `It checks availability on request, free: tap the check button on up to 5 rentals and the eno team checks them for you. It does not vet the linked listings themselves — those are the source sites’ own postings. Listings posted directly here show the seller’s public trust score, built from completed deals, reviews and confirmed reports, and anyone can report a listing that looks wrong. Whichever kind it is, view the place in person before you pay anything.`,
     },
   ],
 }

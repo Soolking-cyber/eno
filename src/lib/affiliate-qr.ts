@@ -21,7 +21,7 @@ export function affiliateQrSvg(url: string, opts: { size?: number; title?: strin
   // ⚠️ A THIN WRAPPER SINCE THE PAYMENTS WORK NEEDED THE SAME ENCODER. The QR-to-SVG logic moved to
   // `qr-svg.ts` unchanged; what stays here is the affiliate-specific default label. A second copy
   // of the module-painting loop would be two things to keep right, and a wrong QR still scans.
-  return qrSvg(url, { size: opts.size, title: opts.title ?? 'QR code linking to the partner booking page' })
+  return qrSvg(url, { size: opts.size, title: opts.title ?? 'QR code linking to the booking page' })
 }
 
 /**

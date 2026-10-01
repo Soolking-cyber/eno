@@ -107,8 +107,33 @@ describe('basket', () => {
     const item = basketItemFrom(rental(1, { images: ['https://a/1.jpg', 'https://a/2.jpg'] }), 123)
     expect(item).toEqual({
       id: 'r1', title: 'Flat 1', titleVi: 'Căn 1', image: 'https://a/1.jpg',
-      price: 10_000_001, currency: 'VND', priceUnit: 'VND/month', addedAt: 123,
+      price: 10_000_001, currency: 'VND', priceUnit: 'VND/month', addedAt: 123, subcategorySlug: null,
     })
+    expect(basketItemFrom(rental(2, { subcategorySlug: 'apartment-rental' }), 1)?.subcategorySlug).toBe('apartment-rental')
+  })
+
+  /**
+   * ⛔ VEHICLE HIRE IS NOT A HOUSING CHECK (2026-10-01). Refused on add, AND dropped on read — a device may
+   * hold a car or motorbike added before the toggle's gate existed, and the basket lives as long as the
+   * device keeps it.
+   */
+  it('refuses vehicle hire on add — car, motorbike, bicycle, e-bike', () => {
+    for (const sub of ['car-rental', 'motorbike-rental', 'bicycle-rental', 'ebike-rental']) {
+      expect(addToBasket(rental(1, { subcategorySlug: sub })), sub).toBe('refused')
+      expect(basketItemFrom(rental(1, { subcategorySlug: sub })), sub).toBeNull()
+    }
+    expect(getBasket()).toHaveLength(0)
+    expect(addToBasket(rental(2, { subcategorySlug: 'apartment-rental' }))).toBe('added')
+    expect(addToBasket(rental(3))).toBe('added') // no subcategory = a place
+  })
+
+  it('drops a stored car or motorbike when reading the basket; a home (or a pre-field row) stays', () => {
+    const row = (id: string, sub?: string | null) => ({ id, title: id, titleVi: null, image: null, price: 1, currency: 'VND', priceUnit: 'VND/day', addedAt: 1, ...(sub === undefined ? {} : { subcategorySlug: sub }) })
+    localStorage.setItem(BASKET_KEY, JSON.stringify({ v: 1, items: [row('car', 'car-rental'), row('flat', 'apartment-rental'), row('bike', 'motorbike-rental'), row('old')] }))
+    expect(getBasket().map((i) => i.id)).toEqual(['flat', 'old'])
+    // …and the next write persists the cleaned list.
+    addToBasket(rental(9))
+    expect(stored()?.items.map((i) => i.id)).toEqual(['flat', 'old', 'r9'])
   })
 
   it('remove and clear write through; an empty basket leaves no key behind', () => {

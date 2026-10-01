@@ -403,8 +403,8 @@ export function mapStagedJob(j: StagedJob, now: number): { ok: true; job: Mapped
   // as one run-on line, since the description renderer joins single newlines.
   const pay = salaryText ? ` Salary: ${salaryText}.` : ''
   const payVi = salaryText ? ` Mức lương: ${salaryText}.` : ''
-  const description = `${lead}${employer ? ` at ${employer}` : ''} in ${place}${type ? ` (${EN_TYPE[type]!.toLowerCase()})` : ''}, posted on ${b.name} on ${postedOn}; apply by ${applyBy}.${pay}\n\neno.vn links to the original posting — read the full ad and apply there. eno.vn does not handle applications, has not vetted this employer, and never charges a fee. Never pay to get a job.`
-  const descriptionVi = `${leadVi}${employer ? ` tại ${employer}` : ''}, ${place}${type ? ` (${VI_TYPE[type]!.toLowerCase()})` : ''}, đăng trên ${b.name} ngày ${postedOn}; hạn nộp hồ sơ ${applyBy}.${payVi}\n\neno.vn dẫn link tới tin tuyển dụng gốc — xem đầy đủ và ứng tuyển tại đó. eno.vn không xử lý hồ sơ, chưa kiểm duyệt nhà tuyển dụng này và không bao giờ thu phí. Đừng bao giờ trả tiền để có việc làm.`
+  const description = `${lead}${employer ? ` at ${employer}` : ''} in ${place}${type ? ` (${EN_TYPE[type]!.toLowerCase()})` : ''}, posted on ${b.name} on ${postedOn}; apply by ${applyBy}.${pay}\n\neno.vn links to the original posting — read the full ad and apply there. eno.vn does not handle applications, has not verified this employer, and never charges a fee. Never pay to get a job.`
+  const descriptionVi = `${leadVi}${employer ? ` tại ${employer}` : ''}, ${place}${type ? ` (${VI_TYPE[type]!.toLowerCase()})` : ''}, đăng trên ${b.name} ngày ${postedOn}; hạn nộp hồ sơ ${applyBy}.${payVi}\n\neno.vn dẫn link tới tin tuyển dụng gốc — xem đầy đủ và ứng tuyển tại đó. eno.vn không xử lý hồ sơ, chưa xác minh nhà tuyển dụng này và không bao giờ thu phí. Đừng bao giờ trả tiền để có việc làm.`
 
   const attributes: Record<string, string> = {}
   if (employer) attributes.employer = employer

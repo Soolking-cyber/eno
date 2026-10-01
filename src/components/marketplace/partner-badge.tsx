@@ -46,7 +46,18 @@ import { cn } from '@/lib/utils'
 export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?: 'sm' | 'md'; className?: string; asLink?: boolean }) {
   const { tr } = useLanguage()
   /**
-   * ⛔ THE TOOLTIP NO LONGER CLAIMS A CHECK, BECAUSE SINCE 2026-09-17 THE BADGE IS NOT ONLY FOR
+   * ⛔ 2026-10-01: THE TOOLTIP STATES THE AGREEMENT, BECAUSE THE BADGE MEANS ONE AGAIN. The owner
+   * withdrew the badge from every import/affiliate storefront (scripts/set-import-partners.mjs is
+   * retired; those shops show the neutral "Linked shop" chip, src/lib/linked-seller.ts) and kept it
+   * only for companies with a signed agreement with eno. "eno carries this shop's catalogue" — the
+   * 2026-09-17 wording below — described the imported shops, which no longer hold the badge, and
+   * contradicted /partners ("agreed terms with it directly"). The tooltip still makes NO claim of
+   * vetting or quality: the agreement is the fact; checks are /partners' to explain.
+   * ⛔ THIS SENTENCE IS ONLY TRUE ONCE THE STALE GRANTS ARE REVOKED, AND THE REVOKE IS A DEPLOY PRECONDITION
+   * (revoke → check → deploy → purge; the steps are in scripts/set-import-partners.mjs's header). The callers
+   * also never pass a flag for a row that links out (src/lib/linked-seller.ts partnerShown), so a missed
+   * revoke cannot put this claim on an import shop's card, PDP or storefront.
+   * (HISTORY) ⛔ THE TOOLTIP NO LONGER CLAIMS A CHECK, BECAUSE SINCE 2026-09-17 THE BADGE IS NOT ONLY FOR
    * VETTED PARTNERS. It read "chosen and checked by eno" / "do eno chọn và thẩm định" — accurate
    * while the flag meant a negotiated agreement, and FALSE the moment the owner granted it to every
    * shop whose catalogue eno carries ("also give all fetching stores a partner badge"). None of
@@ -62,7 +73,7 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
     /* ⚠️ NO "tap to find out" IN THE TOOLTIP. A tooltip does not open on touch, so the one
        instruction aimed at touch users is the one they can never read; on desktop it says out
        loud what a cursor already shows. The hint names the thing instead. */
-    <Tooltip content={tr("Official partner — eno carries this shop's catalogue", 'Đối tác chính thức — eno đăng danh mục sản phẩm của cửa hàng này')} side="top">
+    <Tooltip content={tr('Official partner — a company with a signed agreement with eno', 'Đối tác chính thức — doanh nghiệp đã ký thỏa thuận hợp tác với eno')} side="top">
       <LinkOrSpan
         asLink={asLink}
         /* ⚠️ role="img" ON THE SPAN BRANCH, BECAUSE ARIA FORBIDS NAMING A GENERIC ROLE. A bare

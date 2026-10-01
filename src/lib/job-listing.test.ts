@@ -37,6 +37,11 @@ describe('mapStagedJob — a real CareerLink row', () => {
     })
     expect(j.description).toMatch(/^English-teaching job at Tập Đoàn Giáo Dục RES in Đà Nẵng \(full-time\), posted on CareerLink\.vn on 2026-09-23; apply by 2026-10-07\. Salary: 10,000,000–30,000,000 VND \/ month\.\n\n/)
     expect(j.description).toContain('never charges a fee')
+    // "verified", never "vetted" / "kiểm duyệt" (2026-10-01): eno.vn has not VERIFIED the employer; the
+    // statutory pre-display moderation is a different thing, and the old wording read as admitting it unmet.
+    expect(j.description).toContain('has not verified this employer')
+    expect(j.descriptionVi).toContain('chưa xác minh nhà tuyển dụng này')
+    expect(j.descriptionVi).not.toContain('kiểm duyệt')
     expect(j.descriptionVi).toContain('Mức lương: 10,000,000–30,000,000 VND / month.')
     expect(j.descriptionVi).toContain('(toàn thời gian)')
     // A single stated figure IS the price.

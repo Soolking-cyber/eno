@@ -31,6 +31,9 @@ import { sellerMetrics } from '@/lib/seller-metrics'
 import { getEnforcement } from '@/lib/enforcement'
 import { isBusinessVerified } from '@/lib/business-verification'
 import { storefrontDescription } from '@/lib/storefront-description'
+import { isLinkedShop, isUnratedStorefront, partnerShown } from '@/lib/linked-seller'
+import { SellerInfo } from '@/components/marketplace/seller-info'
+import { buildSellerInfo } from '@/lib/seller-info'
 
 // Shared storefront body — rendered by BOTH the canonical clean-handle URL
 // (src/app/[lang]/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
@@ -176,6 +179,13 @@ export function storefrontCard(seller: NonNullable<Awaited<ReturnType<typeof loa
   // Honest, decomposed display metrics for the shared SellerCard (raw responseRate stays server-side;
   // only the bucketed label escapes).
   const metrics = sellerMetrics({ ...seller, lastSeenAt: seller.owner?.lastSeenAt ?? null }, convoCount)
+  // "Links out" is read off the rows this page already loaded: an ownerless storefront only ever holds
+  // imported rows, so its first page answers for all.
+  const carriesLinked = seller.listings.some((l) => !!l.affiliateUrl)
+  // ⛔ The partner flag AS SHOWN (src/lib/linked-seller.ts partnerShown): a storefront still flagged but
+  // whose catalogue links out is a stale import-shop grant, never a signed partner — no badge, and it is
+  // then the unrated linked shop it really is. The grid's cards apply the same rule (serialize.ts).
+  const shown = { id: seller.id, ownerId: seller.ownerId, officialPartner: partnerShown(seller.officialPartner, carriesLinked) }
   const cardSeller = {
     id: seller.id,
     name: seller.name,
@@ -185,9 +195,25 @@ export function storefrontCard(seller: NonNullable<Awaited<ReturnType<typeof loa
     // The verified-business badge — the identity-hash-derived gate (>=2 channels).
     // seller has every scalar column (loadSeller uses include, no explicit select).
     businessVerified: seller.owner?.accountType === 'business' && isBusinessVerified(seller),
-    officialPartner: seller.officialPartner,
+    officialPartner: shown.officialPartner,
+    // No owner + not a partner → no trust chip; and when its listings link out, the "Linked shop" chip
+    // (owner, 2026-10-01 — src/lib/linked-seller.ts).
+    unrated: isUnratedStorefront(shown),
+    linkedShop: isLinkedShop(shown, carriesLinked),
   }
-  return { cardSeller, metrics }
+  // "Seller information" (Decree 248 Art 18.1.c; owner, 2026-10-01) — the same builder as the PDP: a linked
+  // shop names its source (its own name — every importer names the storefront after the site it copies);
+  // a business account's legal rows are SWITCHED OFF until owner + counsel sign off (src/lib/seller-info.ts).
+  // Never phone, never idNumber.
+  // The caption's verb is read off the linked rows this page loaded (all jobs → apply; all rentals → rent; a mix → none).
+  const sellerInfo = buildSellerInfo({
+    linkedShop: !!cardSeller.linkedShop,
+    isBusiness: cardSeller.isBusiness,
+    storefrontName: seller.name,
+    identity: seller,
+    linkedListingTypes: seller.listings.filter((l) => !!l.affiliateUrl).map((l) => l.listingType),
+  })
+  return { cardSeller, metrics, sellerInfo }
 }
 
 export async function SellerStorefront({ id }: { id: string }) {
@@ -281,7 +307,7 @@ export async function SellerStorefront({ id }: { id: string }) {
 
   // Trust score / rating / member-year ride in the card's metrics strip, so the old flat Stat grid
   // is retired to avoid duplicating the same three signals.
-  const { cardSeller, metrics } = storefrontCard(seller, convoCount)
+  const { cardSeller, metrics, sellerInfo } = storefrontCard(seller, convoCount)
   // Anchor "Chat" to the newest active listing (listings already ordered postedAt
   // desc). Null when there's nothing active to talk about → button self-omits.
   // ⚠️ THE NEWEST listing THAT CHAT ACTUALLY WORKS FOR. A partner ticket is booked on the
@@ -454,6 +480,10 @@ export async function SellerStorefront({ id }: { id: string }) {
               : <Tr text="This seller's account is on hold — don't send money or deposits" />}
           </p>
         )}
+
+        {/* Seller information (owner, 2026-10-01) — who is selling, before what others say about them.
+            Renders nothing for an individual, or a business that entered no legal details. */}
+        {sellerInfo && <SellerInfo info={sellerInfo} variant="storefront" className="mt-10 max-w-2xl" />}
 
         {/* Reviews */}
         {reviews.length > 0 && (

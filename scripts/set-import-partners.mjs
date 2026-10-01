@@ -1,4 +1,32 @@
-// GRANT THE OFFICIAL-PARTNER BADGE TO EVERY IMPORT-BACKED STOREFRONT.
+// ⛔⛔ RETIRED 2026-10-01 — THIS SCRIPT NOW REFUSES TO RUN. OWNER DECISION: the official-partner badge is
+// kept ONLY for companies with a signed agreement (VietKite, GMBR, Luật Hoàng Phi). Every other storefront
+// that held it — Tiki, CellphoneS, FPT Shop, the other affiliate/import shops, the nine eSIM carriers,
+// VinWonders — loses it and shows the neutral "Linked shop" chip instead (src/lib/linked-seller.ts). A
+// bulk "grant to every import-backed storefront" is exactly the act that decision forbids, so the script
+// exits before it connects to anything. Granting or revoking is per-seller, naming the company:
+//   node --env-file=.env scripts/set-official-partner.mjs <handle|id> [--off] --apply
+// The code below is kept, unreachable, as the record of what the 2026-09-17 grant did.
+//
+// ⛔⛔ DEPLOY PRECONDITION — THE REVOKE GOES STRICTLY BEFORE THE DEPLOY THAT SHIPS THE NEW BADGE TOOLTIP
+// ("Official partner — a company with a signed agreement with eno", src/components/marketplace/partner-badge.tsx).
+// That sentence is only true once the shops above no longer hold the flag, and the pages are CACHED: a PDP is
+// ISR for 30 days and keyed by build (cache-handler.cjs), and a revoke does not refresh it (set-official-partner.mjs
+// says so) — only a deploy does. So the order is fixed:
+//   1. Revoke, one storefront at a time (there is still no bulk revoke — see below):
+//        node --env-file=.env scripts/set-official-partner.mjs <id> --off             # dry run: read the phone line
+//        node --env-file=.env scripts/set-official-partner.mjs <id> --off --apply
+//      Who: SELECT id, name, phone FROM "Seller" WHERE "officialPartner" ORDER BY name;  — every row but the
+//      companies with a signed agreement. ⚠️ A stored phone makes --off refuse without --republish-phone (the
+//      revoke turns its reveal back on); decide that per seller. A hand-written bulk UPDATE skips that check.
+//   2. Check: SELECT id, name FROM "Seller" WHERE "officialPartner";  returns ONLY VietKite, GMBR, Luật Hoàng Phi.
+//   3. Deploy RIGHT AFTER (infra/vn-node/eno-deploy.sh, on the box). The new BUILD_ID drops every ISR entry. Keep
+//      the gap short: between 1 and 3 the OLD code shows those unowned shops' default trust score (100) as a chip.
+//   4. Purge Cloudflare with purge_everything, on BOTH zones (eno.vn and eno.forum) — never by URL.
+// Belt and braces, not a substitute: partnerShown (src/lib/linked-seller.ts) keeps the badge off any listing or
+// storefront whose rows link out, so a missed revoke cannot print the claim there. The stored flag still answers
+// the contact route and /api/sellers/[id], so step 1 is not optional.
+//
+// (HISTORY) GRANT THE OFFICIAL-PARTNER BADGE TO EVERY IMPORT-BACKED STOREFRONT.
 //
 //   node --env-file=.env scripts/set-import-partners.mjs            # DRY RUN — lists what it would do
 //   node --env-file=.env scripts/set-import-partners.mjs --apply
@@ -29,6 +57,12 @@
 // importer carries — a Seller with an `ownerId` belongs to a real person, and handing their account
 // a commercial badge nobody agreed to is exactly the mistake the guard exists to prevent.
 import { Client } from 'pg'
+
+// ⛔ THE REFUSAL (2026-10-01) — first statement, before any env read or DB connection, dry run included.
+console.error('set-import-partners.mjs is retired (owner decision 2026-10-01): the official-partner badge is kept only for companies with a signed agreement.')
+console.error('Grant or revoke it per seller: node --env-file=.env scripts/set-official-partner.mjs <handle|id> [--off] --apply')
+console.error('Revoking the 2026-09-17 grants is a DEPLOY PRECONDITION: revoke, check, deploy, purge — the steps are in this file\'s header.')
+process.exit(1)
 
 const args = process.argv.slice(2)
 const APPLY = args.includes('--apply')

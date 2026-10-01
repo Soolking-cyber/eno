@@ -17,12 +17,28 @@
  * the meta is re-validated STRICTLY on the server (an unknown key is a reject, not a pass-through).
  */
 import { isVietnamesePhone, normalizePhoneForRouting } from '../phone'
+import { VEHICLE_RENTAL_SUBCATS } from '../rental-places'
 
 export const RENTAL_CHECK_PATH = '/rentals/check'
 export const RENTAL_CHECK_API = '/api/rental-check'
 export const RENTAL_CHECK_MAX_ITEMS = 5
 export const RENTAL_CHECK_MAX_REQUIREMENTS = 1000
 export const RENTAL_CHECK_CATEGORY_SLUG = 'rentals'
+/**
+ * ⛔ VEHICLE HIRE IS NOT CHECKED (2026-10-01). The rentals category also holds cars, motorbikes, bicycles
+ * and e-bikes (taxonomy.ts, the rentals subcategories — vehicle hire is the tail of that list), and the
+ * availability check is a HOUSING service: its copy promises a free check "to find your next home", and
+ * the strip beside it tells the reader to meet the landlord or agent. On a car it was nonsense. The list
+ * IS rental-places.ts's VEHICLE_RENTAL_SUBCATS (the hubs' places/vehicles split), so the two cannot drift;
+ * that module's only Prisma import is `import type`, erased at build, so a client bundle pays nothing.
+ */
+export const RENTAL_CHECK_EXCLUDED_SUBCATS: readonly string[] = VEHICLE_RENTAL_SUBCATS
+/** Does the availability check apply to a listing in this category/subcategory? THE gate for every
+ *  RentalCheckToggle mount (card, map popup, PDP) and for the toggle itself. A null subcategory is a
+ *  place (an unmapped Rever row is still a home — rental-places.ts RENTAL_PLACES). */
+export function rentalCheckApplies(categorySlug: string | null | undefined, subcategorySlug: string | null | undefined): boolean {
+  return categorySlug === RENTAL_CHECK_CATEGORY_SLUG && !(subcategorySlug && RENTAL_CHECK_EXCLUDED_SUBCATS.includes(subcategorySlug))
+}
 export const RENTAL_CHECK_CHANNELS = ['zalo', 'whatsapp', 'email'] as const
 export type RentalCheckChannel = typeof RENTAL_CHECK_CHANNELS[number]
 /** A Listing id — cuid or seed id. No spaces and no punctuation, so it can carry no free text. */

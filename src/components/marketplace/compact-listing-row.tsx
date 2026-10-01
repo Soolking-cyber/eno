@@ -7,13 +7,14 @@ import { ArrowRight, MapPin, MessageCircle, Tag, Zap } from '@/components/ui/ico
 import { PartnerBadge } from './partner-badge'
 import { TrustScore } from './trust-score'
 import { Badge } from './card-badges'
+import { Badge as UiBadge } from '@/components/ui/badge'
 import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { FavoriteHeart } from './favorite-heart'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
 import { timeAgo, type SerializedListingCard } from '@/lib/types'
-import { isImportSeller } from '@/lib/import-sellers'
+import { cardHidesTrust } from '@/lib/linked-seller'
 import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
@@ -167,9 +168,17 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {/* ⛔ …and NO TRUST CHIP ON A REFERENCE LISTING (a portal import or a linked job): eno.vn
               never rated the source, and its storefront's 100 is a ranking default — ListingCard has
               the full note. Partner first, exactly as there, so a partner reads the same in both views. */}
+          {/* "Quảng cáo / Ad" on a commission-bearing row (owner, 2026-10-01) — the grid card's marker, in
+              this row's two chip slots (phone: beside the title; sm+: in the meta line), hidden with them
+              while a quick offer is open. A linked rental, vehicle hire or linked job carries none. */}
+          {l.isSponsored && <UiBadge variant="neutral" size="sm" data-ad-marker="" className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')}>{tr('Ad', 'Quảng cáo')}</UiBadge>}
+          {/* Ad wins over the partner plate when both apply — ListingCard has the note; the PDP and storefront keep it.
+              The status is still ANNOUNCED (sr-only, zero width): this row has no other partner line. One slot only. */}
           {l.seller.officialPartner ? (
-            <PartnerBadge className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')} />
-          ) : isImportSeller(l.sellerId) ? null : (
+            l.isSponsored
+              ? <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>
+              : <PartnerBadge className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')} />
+          ) : cardHidesTrust(l) ? null : (
             <TrustScore
               score={l.seller.trustScore}
               variant="mini"
@@ -240,9 +249,10 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               {tr(`${formatCount(l.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(l.contactCount, moneyLocale(lang))}`)}
             </span>
           )}
+          {l.isSponsored && <UiBadge variant="neutral" size="sm" data-ad-marker="" className={cn('ml-auto hidden shrink-0 sm:inline-flex', offer !== null && 'sm:hidden')}>{tr('Ad', 'Quảng cáo')}</UiBadge>}
           {l.seller.officialPartner ? (
-            <PartnerBadge className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
-          ) : isImportSeller(l.sellerId) ? null : (
+            l.isSponsored ? null : <PartnerBadge className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
+          ) : cardHidesTrust(l) ? null : (
             <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
           )}
         </div>

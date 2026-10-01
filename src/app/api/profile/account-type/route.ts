@@ -11,6 +11,7 @@ import { consolidateSellerHandle, revertToPersonalHandle } from '@/lib/handle'
 import { ApiError, route } from '@/lib/api/handler'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
 import { initialSellerTrust } from '@/lib/trust'
+import { refreshSellerPdps } from '@/lib/seller-pdp-refresh'
 
 export const runtime = 'nodejs'
 
@@ -132,6 +133,8 @@ export const POST = route(
     },
   })
 
+  // The account's own storefront after the branch below — for the PDP purge that follows it.
+  let ownSellerId: string | null = null
   // Business → ensure a storefront exists (name = business, contact phone = rep's).
   if (accountType === 'business') {
     if (ownedSeller) {
@@ -189,12 +192,21 @@ export const POST = route(
     // (a business account gets a single shop handle, not two). Idempotent + best-effort.
     const s = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true } })
     if (s) await consolidateSellerHandle(s.id, s.name, profile.id)
+    ownSellerId = s?.id ?? null
   } else {
     // Switched to individual ("deleted" the business): drop the shop's business-name
     // handle and fall back to a PERSONAL handle from the display name (numbered if the
     // plain name is taken — "alex" → "alex1"). Keeps ONE handle per account.
     const s = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
     await revertToPersonalHandle(profile.id, s?.id ?? null, displayName)
+    ownSellerId = s?.id ?? null
+  }
+
+  // ⚠️ THE PDP IS ISR FOR 30 DAYS and its "Seller information" block (and business glyph) follow the
+  // account type and the legal fields: switching back to individual must take a business's legal name and
+  // address off every listing page now, not in a month. Never throws (src/lib/seller-pdp-refresh.ts).
+  if (ownSellerId && (profile.accountType !== accountType || Object.keys(legalData).length > 0)) {
+    await refreshSellerPdps(ownSellerId, 'accountType.sellerInfo')
   }
 
   // First-touch acquisition channel for THIS signup (from the eno_attr cookie set on

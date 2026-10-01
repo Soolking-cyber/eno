@@ -161,11 +161,32 @@ describe('resolveCheckableRentals', () => {
     await m.resolveCheckableRentals(['L1', 'L2'])
     expect(h.listingWhere).toEqual({
       AND: [
-        { id: { in: ['L1', 'L2'] }, status: 'active', verified: true, category: { slug: 'rentals' } },
+        {
+          id: { in: ['L1', 'L2'] }, status: 'active', verified: true, category: { slug: 'rentals' },
+          OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: ['motorbike-rental', 'car-rental', 'bicycle-rental', 'ebike-rental'] } }],
+        },
         { sellerId: { notIn: ['desk-1'] } },
       ],
     })
     expect(h.listingSelect).toEqual({ id: true, title: true, titleVi: true, images: true, price: true, currency: true, priceUnit: true })
+  })
+
+  /**
+   * ⛔ VEHICLE HIRE IS REFUSED BY THE SERVER (2026-10-01), whatever a device's basket holds: a car or a
+   * motorbike added before the toggle's gate is a plain id in the body. The predicate must (a) exclude
+   * every vehicle-hire slug rentalCheckApplies excludes — the SAME list, so the two halves cannot drift —
+   * and (b) keep a rentals row with NO subcategory (an unmapped Rever home): SQL's NOT IN over NULL is NULL.
+   */
+  it('refuses vehicle hire — car and motorbike included — and keeps a home with no subcategory', async () => {
+    const { RENTAL_CHECK_EXCLUDED_SUBCATS, rentalCheckApplies } = await import('./shared')
+    const m = await load(false)
+    await m.resolveCheckableRentals(['L1'])
+    const where = (h.listingWhere as { AND: [{ OR: Array<{ subcategorySlug: null | { notIn: string[] } }> }] }).AND[0]
+    expect(where.OR).toContainEqual({ subcategorySlug: null })
+    const notIn = where.OR.find((c) => c.subcategorySlug !== null)!.subcategorySlug as { notIn: string[] }
+    expect(notIn.notIn).toEqual(expect.arrayContaining(['car-rental', 'motorbike-rental']))
+    expect([...notIn.notIn].sort()).toEqual([...RENTAL_CHECK_EXCLUDED_SUBCATS].sort())
+    for (const sub of notIn.notIn) expect(rentalCheckApplies('rentals', sub), sub).toBe(false)
   })
 
   it('does not query for an empty list', async () => {

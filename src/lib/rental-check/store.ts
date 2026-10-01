@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from 'react'
 import {
-  RENTAL_CHECK_CATEGORY_SLUG,
   RENTAL_CHECK_CHANNELS,
+  RENTAL_CHECK_EXCLUDED_SUBCATS,
   RENTAL_CHECK_ID_RE,
   RENTAL_CHECK_MAX_ITEMS,
   RENTAL_CHECK_MAX_REQUIREMENTS,
   RENTAL_CHECK_REQUEST_ID_RE,
+  rentalCheckApplies,
   type AvailabilityRequestItem,
   type RentalCheckChannel,
 } from './shared'
@@ -37,7 +38,12 @@ export const HINT_KEY = 'eno:rental-check:hinted'
 export const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
 export const INTENT_TTL_MS = 15 * 60 * 1000
 
-export type BasketItem = AvailabilityRequestItem & { addedAt: number }
+/**
+ * `subcategorySlug` is stored (since 2026-10-01) so a vehicle-hire row can be dropped ON READ — see
+ * cleanItem. Device-only: the request body carries ids alone and the card is snapshotted on the server,
+ * so this never reaches the strict AvailabilityRequestMeta. A row saved before it existed has none (null).
+ */
+export type BasketItem = AvailabilityRequestItem & { addedAt: number; subcategorySlug: string | null }
 
 /** What a card or PDP hands the basket. A full SerializedListingCard satisfies it. */
 export type RentalCheckSource = {
@@ -49,6 +55,8 @@ export type RentalCheckSource = {
   currency: string
   priceUnit: string
   category?: { slug: string } | null
+  /** Decides vehicle hire out (rentalCheckApplies). Every mount passes it; absent reads as a place. */
+  subcategorySlug?: string | null
 }
 
 /**
@@ -78,6 +86,15 @@ function cleanItem(x: unknown): BasketItem | null {
   const currency = str(o.currency, 8)
   const priceUnit = typeof o.priceUnit === 'string' && o.priceUnit.length <= 32 ? o.priceUnit : null
   if (!id || !title || price === null || !currency || priceUnit === null) return null
+  const subcategorySlug = str(o.subcategorySlug, 64)
+  /**
+   * ⛔ VEHICLE HIRE IS DROPPED ON READ, NOT ONLY REFUSED ON ADD (2026-10-01). Before the gate a car or
+   * motorbike PDP offered this HOUSING check, so a device may still hold one — and the basket lives for
+   * as long as the device keeps it. A row that recorded its subcategory is dropped here; a row saved
+   * before the field existed cannot say, so the check page's live refresh drops it once /api/listings
+   * answers (rental-check-view.tsx) and the route refuses it regardless (resolveCheckableRentals).
+   */
+  if (subcategorySlug && RENTAL_CHECK_EXCLUDED_SUBCATS.includes(subcategorySlug)) return null
   return {
     id,
     title,
@@ -87,6 +104,7 @@ function cleanItem(x: unknown): BasketItem | null {
     currency,
     priceUnit,
     addedAt: typeof o.addedAt === 'number' && Number.isFinite(o.addedAt) ? o.addedAt : 0,
+    subcategorySlug,
   }
 }
 
@@ -111,9 +129,9 @@ export function parseBasket(raw: string | null): BasketItem[] {
   return out
 }
 
-/** A listing → a basket row, or null when it is not a rental (the basket holds rentals only). */
+/** A listing → a basket row, or null when the check does not apply (not a rental, or vehicle hire). */
 export function basketItemFrom(l: RentalCheckSource, now = Date.now()): BasketItem | null {
-  if (l.category?.slug !== RENTAL_CHECK_CATEGORY_SLUG) return null
+  if (!rentalCheckApplies(l.category?.slug, l.subcategorySlug)) return null
   return cleanItem({
     id: l.id,
     title: l.title,
@@ -123,6 +141,7 @@ export function basketItemFrom(l: RentalCheckSource, now = Date.now()): BasketIt
     currency: l.currency,
     priceUnit: l.priceUnit,
     addedAt: now,
+    subcategorySlug: l.subcategorySlug ?? null,
   })
 }
 

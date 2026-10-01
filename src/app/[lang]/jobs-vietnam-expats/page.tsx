@@ -52,7 +52,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'Never pay to get a job',
-      body: `${SITE_NAME} has not vetted the employers behind linked postings. A real employer never asks for a fee, a deposit or payment for training before you start. Check the employer independently, and report a listing that looks wrong.`,
+      body: `${SITE_NAME} has not verified the employers behind linked postings. A real employer never asks for a fee, a deposit or payment for training before you start. Check the employer independently, and report a listing that looks wrong.`,
     },
   ],
   faqs: [

@@ -4,12 +4,20 @@ import Link from 'next/link'
 import { ShieldCheck } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { VEHICLE_RENTAL_SUBCATS } from '@/lib/rental-places'
+
+/** The vehicle-hire slugs whose driver needs a licence (a bicycle or an e-bike does not). */
+const LICENSED_VEHICLE_HIRE = ['car-rental', 'motorbike-rental']
 
 // Above-the-fold scam inoculation on the listing page — deposit-link fraud is the
 // #1 marketplace scam, so the warning must be read BEFORE the buyer contacts the
 // seller, not buried in the footer note. Copy is category-aware: vehicles get the
 // papers/chassis check, property & rentals get the visit-before-deposit rule.
-export function SafetyStrip({ categorySlug, action, protections, className, variant }: { categorySlug: string; action?: React.ReactNode; /** The reports-and-disputes row (ProtectionsRow), folded in as the quiet second line — see the note at its render. */ protections?: React.ReactNode; className?: string; /**
+export function SafetyStrip({ categorySlug, subcategorySlug = null, action, protections, className, variant }: { categorySlug: string; /**
+   * The listing's subcategory. Only VEHICLE HIRE inside `rentals` reads it (2026-10-01): a car or a
+   * motorbike is not a home, so the housing lines ("meet the landlord or agent", "hold a place") are
+   * swapped for vehicle ones, and a car or motorbike adds the driving-licence line.
+   */ subcategorySlug?: string | null; action?: React.ReactNode; /** The reports-and-disputes row (ProtectionsRow), folded in as the quiet second line — see the note at its render. */ protections?: React.ReactNode; className?: string; /**
    * ⛔ A VARIANT, FOR LISTINGS WHERE THE CATEGORY COPY WOULD BE A FALSE PROMISE. The default advice
    * below is written for an eno seller you meet: "Meet, inspect, then pay". On a PARTNER affiliate
    * listing there is nobody to meet, eno holds no money and runs no dispute for it, so that line —
@@ -24,6 +32,9 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
    * sentence, on the one line of the page that exists to prevent someone losing money.
    */ variant?: 'affiliate' | 'affiliate-purchase' | 'affiliate-rental' | 'affiliate-job' }) {
   const { tr } = useLanguage()
+  // Vehicle hire inside the one rentals category (taxonomy.ts: vehicle hire is the tail of its list).
+  const vehicleHire = categorySlug === 'rentals' && !!subcategorySlug && VEHICLE_RENTAL_SUBCATS.includes(subcategorySlug)
+  const licensedVehicle = vehicleHire && LICENSED_VEHICLE_HIRE.includes(subcategorySlug!)
 
   // ⚠️ "partner tickets" IS WRONG ON A PHONE. The affiliate line was written for VinWonders and
   // then inherited by an imported electronics catalogue, where it told a reader buying a laptop
@@ -44,6 +55,21 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
     // classifieds site. The advice that stops a loss is to see the place and meet the person first.
     // "eno", not "eno.vn": this strip renders on both editions, and "eno.vn" on eno.forum named the
     // other site. True as written: eno holds no money for any listing (Terms, "we hold no escrow").
+    // ⚠️ AN IMPORTED VEHICLE-HIRE ROW (Mioto, BonbonCar, the bike shops — scripts/import-vehicle-rentals.ts) IS
+    // ALSO `affiliate-rental` (listingType 'rent' + an outbound link), and the housing line below told a
+    // driver to "meet the landlord or agent". Same promise about money, vehicle-shaped advice. "eno", not
+    // "eno.vn", and no "partner", for the same reasons as the rental line.
+    // ⛔ NOT "BOOK ONLY ON THE RENTAL WEBSITE … BEFORE YOU PAY" (2026-10-01). Both halves were false for some
+    // source: Mioto and BonbonCar are booked AND PAID on the platform ("book and pay on Mioto" / "on
+    // bonboncar.vn" — vehicle-rental-listing.ts, the description each import writes), so "check before you pay"
+    // did not match how they work; and the bike shops are booked with the shop itself ("book with the shop"),
+    // not necessarily on a website. What holds for every source: book through the platform or
+    // the shop, and check the vehicle and its papers when it is handed over.
+    : variant === 'affiliate-rental' && vehicleHire
+    ? tr(
+        'Book through the rental platform or the shop itself, and check the vehicle and its papers at handover. eno never takes payment or a deposit for these listings and cannot refund one.',
+        'Đặt thuê qua nền tảng cho thuê hoặc trực tiếp với cửa hàng, và kiểm tra xe cùng giấy tờ xe khi nhận xe. eno không bao giờ nhận thanh toán hay tiền cọc cho các tin này và không thể hoàn tiền.',
+      )
     : variant === 'affiliate-rental'
     ? tr(
         'See the place and meet the landlord or agent before you pay anything. eno never takes rent or a deposit for these listings and cannot refund one.',
@@ -54,13 +80,18 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
         "Buy only on the shop's own website — eno.vn never takes payment for these items, and cannot refund or return one.",
         'Chỉ mua trên website chính thức của cửa hàng — eno.vn không nhận thanh toán cho các sản phẩm này, và không thể hoàn tiền hay đổi trả.',
       )
+    // ⛔ NOT "THE PARTNER'S OWN WEBSITE" / "PARTNER TICKETS" (2026-10-01). Since that day "partner" means a
+    // company with a signed agreement (partner-badge.tsx), and the ticket sellers behind these rows hold none —
+    // VinWonders lost the badge (scripts/seed-vinwonders.ts). Each row's CTA says "Book on <seller>"; this line
+    // names the operator generically. "eno", not "eno.vn", for the same both-editions reason as the rental line.
     : variant === 'affiliate'
     ? tr(
-        "Book only on the partner's own website — eno.vn never takes payment or a deposit for partner tickets, and cannot refund one.",
-        'Chỉ đặt vé trên website chính thức của đối tác — eno.vn không bao giờ nhận thanh toán hay tiền cọc cho vé của đối tác, và không thể hoàn tiền.',
+        "Book only on the operator's own website — eno never takes payment or a deposit for these tickets, and cannot refund one.",
+        'Chỉ đặt vé trên website chính thức của nhà cung cấp — eno không bao giờ nhận thanh toán hay tiền cọc cho các vé này, và không thể hoàn tiền.',
       )
     :
-    categorySlug === 'vehicles'
+    // A seller's OWN vehicle-hire listing gets the vehicles line, not the "hold a place" housing one.
+    categorySlug === 'vehicles' || vehicleHire
       ? tr(
           'Check the papers match the chassis before paying — and never pay a deposit through a link.',
           'Kiểm tra giấy tờ trùng số khung, số máy trước khi trả tiền — và đừng bao giờ đặt cọc qua đường link.',
@@ -111,6 +142,19 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
         {/* `text-warning`, not `text-foreground` — see the note on the container. A warning
             printed in body ink is a sentence; printed in its own ink it is a warning. */}
         <p className="font-semibold text-warning">{line}</p>
+        {/* ⚠️ THE DRIVING-LICENCE LINE — cars and motorbikes only (2026-10-01). Quiet second line: the money
+            warning above stays the loudest thing in the strip.
+            ⛔ SELF-DRIVE, NOT "RENTING". `car-rental` also holds hire WITH a driver (taxonomy.ts: its keywords
+            include 'with driver' and 'thuê xe có tài'), where the hirer needs no licence at all — "renting a
+            car needs a licence" was false on those listings. The claim is about the person who DRIVES. */}
+        {licensedVehicle && (
+          <p data-vehicle-licence-line="" className="text-body">
+            {tr(
+              'Driving a hired car or motorbike yourself needs a valid licence for it — an owner may not hand a vehicle to someone without one.',
+              'Tự lái ô tô hoặc xe máy thuê cần có giấy phép lái xe hợp lệ, đúng hạng xe — chủ xe không được giao xe cho người không có giấy phép lái xe.',
+            )}
+          </p>
+        )}
         {/* ⚠️ The reports-and-disputes row MOVED IN HERE, and the ORDER is the whole design (owner,
             2026-08-11: combine these two). They were two adjacent blocks — a neutral
             protections panel at order-7 and this warning at order-9 — saying related things

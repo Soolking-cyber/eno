@@ -81,7 +81,7 @@ describe('displayPriceUnit', () => {
       urgentUntil: null, lat: null, lng: null, images: '[]', video: null, brandSlug: null, model: null, condition: null,
       marketPosition: null, verified: true, postedAt: new Date(), createdAt: new Date(), savedCount: 0, contactCount: 0,
       affiliateUrl: null, category: { id: 'c', name: 'Rentals', nameVi: 'Cho thuê', slug: 'rentals', icon: 'Home', color: 'sky' },
-      seller: { trustScore: 100, officialPartner: false },
+      seller: { trustScore: 100, officialPartner: false, ownerId: null },
     })
     expect(card.priceUnit).toBe('VND/month')
     expect(priceUnitSuffix(card.priceUnit)).toBe('month')

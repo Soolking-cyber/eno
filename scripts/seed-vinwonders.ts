@@ -91,7 +91,7 @@ async function main() {
   /**
    * ⛔ A STOREFRONT WITH AN OWNER IS SOMEBODY'S ACCOUNT, NOT OUR PARTNER. Matching on name alone
    * means anyone who registers a shop called "VinWonders" would be silently adopted here — and
-   * this script then stamps officialPartner=true on it and hangs 19 listings off it. Refuse and
+   * this script then hangs 19 listings off it (and, until 2026-10-01, stamped officialPartner=true). Refuse and
    * make a human look, rather than promote an impersonator to verified partner.
    */
   const owned = existingSellers.find((x) => x.ownerId)
@@ -113,8 +113,14 @@ async function main() {
    * those defaults would put a fabricated 5-star rating on 19 product pages. The schema itself
    * calls responseRate=100 "the fabricated default". Start at zero and let the real signals arrive.
    */
+  /**
+   * ⛔ NO `officialPartner` HERE SINCE 2026-10-01 (owner decision): the badge is kept only for companies
+   * with a signed agreement, and VinWonders loses it. This object is ALSO the `update` of an existing
+   * storefront, so writing `true` here would have re-granted the badge on every re-seed and silently
+   * undone the per-seller revoke (scripts/set-official-partner.mjs). Left out entirely: a new storefront
+   * takes the schema default (false), and an existing one keeps whatever was decided for it.
+   */
   const partnerFields = {
-    officialPartner: true,
     rating: 0,
     reviewCount: 0,
     affiliateDiscountCode: partner.discountCode,

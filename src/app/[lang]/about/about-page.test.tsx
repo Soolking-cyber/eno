@@ -49,7 +49,7 @@ vi.mock('@/lib/site-facts', async (importOriginal) => ({
 
 /**
  * Shaped like the 2026-09-27 public API (`facets.category` sums to the 103,966 total): about 99% of
- * listings and every rental in Ho Chi Minh City, about 97% linked from partner sites.
+ * listings and every rental in Ho Chi Minh City, about 97% linked from other sites.
  */
 const MEASURED: SiteFacts = {
   live: 103_966,
@@ -134,8 +134,10 @@ describe('/about on the marketplace', () => {
     expect(html).toContain('Almost everything listed is in Ho Chi Minh City.')
     expect(html).toContain('Every rental listed right now is in Ho Chi Minh City.')
     expect(html).toContain('href="/c/rentals"')
-    expect(html).toContain('Almost every listing is linked from a partner site')
+    expect(html).toContain('Almost every listing is linked from another site')
     expect(html).toContain('There is no checkout, no escrow and no buyer protection.')
+    // "Partner" means a signed agreement since 2026-10-01; no linked source is called one (review P2).
+    expect(html).not.toMatch(/partner sites?\b/i)
     // The eleven interface languages, by native name, each tagged with its own language.
     expect(html).toContain('<span lang="km">, ភាសាខ្មែរ</span>')
     expect((html.match(/<span lang="/g) ?? []).length).toBe(11)
@@ -160,7 +162,7 @@ describe('/about on the marketplace', () => {
     const html = await render('marketplace')
     expect(html).not.toContain('Ho Chi Minh City')
     expect(html).not.toMatch(/Almost every|Most listings|Every listing/)
-    expect(html).toContain('A listing linked from a partner site says where it is listed and links to the original posting')
+    expect(html).toContain('A listing linked from another site says where it is listed and links to the original posting')
     expect(html).toContain('currently free')
   })
 

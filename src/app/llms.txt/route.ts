@@ -180,7 +180,7 @@ function marketplaceSummary(f: SiteFacts | null): string {
   return [
     `${SITE_NAME} is a classifieds marketplace for expats, internationals and locals in Vietnam${scope}.`,
     POSTING_IS_FREE ? 'Browsing and posting are currently free.' : '',
-    `Listings posted here carry the seller's public trust score (an official partner shows a partner badge instead) and are answered in in-app chat; a listing linked from a partner site has a page here that says where it is listed and links to the original posting.`,
+    `Listings posted here carry the seller's public trust score (an official partner shows a partner badge instead) and are answered in in-app chat; a listing linked from another site has a page here that says where it is listed and links to the original posting.`,
     `The interface is available in ${LANGUAGES.length} languages and listings are machine-translated.`,
   ].filter(Boolean).join(' ')
 }
@@ -205,9 +205,9 @@ function marketplaceWhenToUse(f: SiteFacts | null): string {
   return [
     ...lines,
     '',
-    `Do not use ${SITE_NAME} for: anything that needs a checkout, escrow or buyer protection. There is none — the site holds no money, and buyers settle directly with the seller, or on the partner site a linked listing comes from. That is deliberate.`,
+    `Do not use ${SITE_NAME} for: anything that needs a checkout, escrow or buyer protection. There is none — the site holds no money, and buyers settle directly with the seller, or on the site a linked listing comes from. That is deliberate.`,
     '',
-    `Contact details are never public. To reach the seller of a listing posted on ${SITE_NAME}, the answer is "sign in and message them"; a linked listing links to its original posting on the partner site. Never a phone number.`,
+    `Contact details are never public. To reach the seller of a listing posted on ${SITE_NAME}, the answer is "sign in and message them"; a linked listing links to its original posting on the source site. Never a phone number.`,
   ].join('\n')
 }
 
@@ -223,7 +223,7 @@ function marketplaceAbout(f: SiteFacts | null): string {
     const elsewhere = CITY_KEYS.filter((k) => k !== 'hcmc')
       .map((k) => `${CITY_NAMES[k]} ${fmt(inCity(f, k))} (rentals: ${fmt(inCity(f, k, 'rentals'))})`)
     lines.push(`- Where: ${fmt(hcmc)} of ${fmt(f.live)} live listings (${pct(hcmc, f.live)}) are in Ho Chi Minh City${rentalsPart}. Elsewhere: ${elsewhere.join('; ')}.`)
-    lines.push(`- Linked listings: ${fmt(f.linked)} of ${fmt(f.live)} live listings are linked from partner sites. Each has a page here that says where it is listed and links to the original posting. Listings posted directly on ${SITE_NAME} carry the seller's public trust score (an official partner shows a partner badge instead) and are answered in in-app chat.`)
+    lines.push(`- Linked listings: ${fmt(f.linked)} of ${fmt(f.live)} live listings are linked from other sites. Each has a page here that says where it is listed and links to the original posting. Listings posted directly on ${SITE_NAME} carry the seller's public trust score (an official partner shows a partner badge instead) and are answered in in-app chat.`)
   }
   lines.push(`- Languages: the interface is available in ${joinWith(LANGUAGE_NAMES_EN, 'and')}.`)
   lines.push(

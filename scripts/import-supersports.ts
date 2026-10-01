@@ -356,11 +356,11 @@ async function main() {
           // ⚠️ THE LINK LANDS ON THE SHOP, NOT THE PRODUCT (see mintLinks), so the storefront says
           // so in the one place every buyer sees before they click.
           bio: 'Sports brands from the SuperSports Vietnam store. Products are bought and paid for on supersports.com.vn.',
-          // ⛔ officialPartner TRUE since 2026-09-17 (owner: "also give all fetching stores a
-          // partner badge"). `verified` stays FALSE: that is an identity check on the business,
-          // which is a different claim from "eno carries this shop's catalogue". The badge also
-          // suppresses a phone reveal — a no-op for a catalogue storefront, which has no phone.
-          location: MERCHANT_CITY, officialPartner: true, verified: false,
+          // ⛔ officialPartner FALSE since 2026-10-01 (owner decision, reversing 2026-09-17's "also
+          // give all fetching stores a partner badge"): the badge is kept only for companies with a
+          // signed agreement; a fetched catalogue shows the neutral "Linked shop" chip
+          // (src/lib/linked-seller.ts). `verified` stays FALSE: an identity check nobody performed.
+          location: MERCHANT_CITY, officialPartner: false, verified: false,
         },
         select: { id: true, ownerId: true, trustScore: true },
       })

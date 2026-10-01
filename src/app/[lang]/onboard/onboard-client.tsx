@@ -272,6 +272,11 @@ export function OnboardClient() {
             <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">
               {t('Terms of Service', 'Điều khoản dịch vụ')}
             </Link>
+            {/* The Quy chế is part of what is accepted (2026-10-01) — same three documents as sign-in-form.tsx. */}
+            {', '}
+            <Link href="/regulations" className="underline underline-offset-2 hover:text-foreground">
+              {t('Operating regulations', 'Quy chế hoạt động')}
+            </Link>
             {t(' and ', ' và ')}
             <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
               {t('Privacy Policy', 'Chính sách bảo mật')}

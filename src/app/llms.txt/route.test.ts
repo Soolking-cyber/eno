@@ -195,7 +195,9 @@ describe('/llms.txt on the marketplace', () => {
 
     it('says linked listings link to their source instead of implying in-app chat for all', async () => {
       const body = await bodyOf()
-      expect(body).toContain('101,000 of 103,966 live listings are linked from partner sites')
+      expect(body).toContain('101,000 of 103,966 live listings are linked from other sites')
+      // "Partner" means a signed agreement since 2026-10-01; no linked source is called one (review P2).
+      expect(body).not.toMatch(/partner sites?\b/i)
       expect(body).toContain('links to the original posting')
     })
 

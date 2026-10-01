@@ -20,6 +20,7 @@ import { diverseFeedWindow } from '@/lib/feed-window'
 import { diversifyBySeller } from '@/lib/feed-diversity'
 import { loadSeller, OTHER_LISTINGS, storefrontCard, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
 import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
+import { SellerInfo } from '@/components/marketplace/seller-info'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import Link from 'next/link'
 import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
@@ -341,6 +342,8 @@ export default async function Storefront({ params }: Props) {
           </div>
           <ShareButton url={canonical} title={shop.name} compact />
         </div>
+        {/* Seller information (owner, 2026-10-01) — the same block, from the same builder, as eno.vn/<handle>. */}
+        {card.sellerInfo && <SellerInfo info={card.sellerInfo} variant="storefront" className="max-w-2xl pb-4" />}
         {total === 0 ? (
           /**
            * A SHOP WITH NOTHING IN IT GETS A WELCOME, NOT AN EMPTY MARKETPLACE. Owner, 2026-08-30:

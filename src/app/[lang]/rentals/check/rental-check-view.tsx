@@ -31,6 +31,7 @@ import {
   RENTAL_CHECK_MAX_ITEMS,
   RENTAL_CHECK_MAX_REQUIREMENTS,
   normaliseRentalContact,
+  rentalCheckApplies,
   type RentalCheckChannel,
   type RentalCheckRequestBody,
   type RentalContactProblem,
@@ -203,14 +204,24 @@ export function RentalCheckView() {
         const byId = new Map((Array.isArray(body.listings) ? body.listings : []).map((l) => [l.id, l]))
         const live: SerializedListingCard[] = []
         const gone: string[] = []
+        const vehicles: string[] = []
         for (const id of body.evaluated) {
           evaluated.current.add(id)
           const l = byId.get(id)
-          if (l && l.category?.slug === RENTAL_CHECK_CATEGORY_SLUG) live.push(l)
+          if (l && rentalCheckApplies(l.category?.slug, l.subcategorySlug)) live.push(l)
+          // ⛔ VEHICLE HIRE ADDED BEFORE THE GATE (2026-10-01). A car or motorbike saved to this device's basket
+          // before rentalCheckApplies existed carries no subcategory, so the store could not drop it on read
+          // (store.ts cleanItem). It is still live, so "No longer available" would be false — it is taken out
+          // of the list instead, and the route refuses it anyway (resolveCheckableRentals).
+          else if (l && l.category?.slug === RENTAL_CHECK_CATEGORY_SLUG) vehicles.push(id)
           else gone.push(id)
         }
         if (live.length) setFresh((p) => ({ ...p, ...Object.fromEntries(live.map((l) => [l.id, l])) }))
         if (gone.length) setUnavailable((p) => new Set([...p, ...gone]))
+        if (vehicles.length) {
+          for (const id of vehicles) removeFromBasket(id)
+          toast(tr('Vehicle hire is not part of this check — removed from your list.', 'Thuê xe không thuộc dịch vụ kiểm tra này — đã bỏ khỏi danh sách.'))
+        }
       })
       // A failed refresh leaves the saved snapshot on screen; the server checks again at send.
       .catch(() => {})

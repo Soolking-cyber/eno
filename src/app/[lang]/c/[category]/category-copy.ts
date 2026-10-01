@@ -194,7 +194,7 @@ export const RENTALS_H1: Record<RentalsHeadline, Record<PageLang, string>> = {
  *
  * ⛔ "— Trusted listings" AND "Every seller has a public trust score" ARE KEPT ONLY WHERE NOTHING IS
  * LINKED. Electronics and furniture carried both over shelves in which every sampled row (100/100,
- * 2026-09-27) links out to a partner shop; a trust score says nothing about a listing copied from
+ * 2026-09-27) links out to a source shop; a trust score says nothing about a listing copied from
  * another site. A category of listings posted here keeps its old copy word for word.
  */
 export function categoryMetadata(
@@ -216,13 +216,17 @@ export function categoryMetadata(
 
 /**
  * The sentence that replaces the trust claim on a category whose stock is linked. Also rendered by
- * CategoryLede (src/components/marketplace/category-lede.tsx) as literal `tr()` pairs — the test in
- * category-copy.test.ts keeps the two identical.
+ * CategoryLede (src/components/marketplace/category-lede.tsx) as literal `tr()` pairs — the tests in
+ * category-text.test.tsx and category-lede.test.tsx keep the two identical.
+ * ⛔ "THE SOURCE SITE", NOT "A PARTNER SITE" (2026-10-01). Since the owner's decision that day the word
+ * "partner" means one thing on eno — a company with a SIGNED AGREEMENT (the badge's tooltip,
+ * partner-badge.tsx) — and the shops this stock is linked from (Tiki, CellphoneS, FPT Shop…) hold none;
+ * their badge was withdrawn. The sentence says where the listing points, and claims no relationship.
  */
 export const CATEGORY_LINKED_SENTENCE: Record<Exclude<LinkedTier, 'none'>, Record<PageLang, string>> = {
-  all: { en: 'Every listing here links to its original on a partner site.', vi: 'Mỗi tin ở đây đều dẫn tới tin gốc trên trang đối tác.' },
-  most: { en: 'Most listings here link to their original on a partner site.', vi: 'Phần lớn tin ở đây dẫn tới tin gốc trên trang đối tác.' },
-  some: { en: 'Some listings here link to their original on a partner site.', vi: 'Một số tin ở đây dẫn tới tin gốc trên trang đối tác.' },
+  all: { en: 'Every listing here links to its original on the source site.', vi: 'Mỗi tin ở đây đều dẫn tới tin gốc trên trang nguồn.' },
+  most: { en: 'Most listings here link to their original on the source site.', vi: 'Phần lớn tin ở đây dẫn tới tin gốc trên trang nguồn.' },
+  some: { en: 'Some listings here link to their original on the source site.', vi: 'Một số tin ở đây dẫn tới tin gốc trên trang nguồn.' },
 }
 
 /* ── category × district ──────────────────────────────────────────────────────────────────────── */
@@ -232,7 +236,8 @@ export const CATEGORY_LINKED_SENTENCE: Record<Exclude<LinkedTier, 'none'>, Recor
  * copy sheet CS-2 D1-14…D1-17, approved 2026-09-30). The imports are reference listings copied from
  * Batdongsan, Rever, Chợ Tốt Nhà, Muaban and Honeycomb House (import-sellers.ts); no code or contract
  * records a partnership, so "a partner property portal" was a claim. The listing page names the site
- * itself. Retail keeps "partner site": those are affiliate stores (PARTNER_STORES).
+ * itself. (Retail said "partner site" until 2026-10-01, when the affiliate stores lost the partner badge —
+ * it now says "the source site": CATEGORY_LINKED_SENTENCE, sourceNoun.)
  * ONE SET for every rentals surface — the district description and lede, and /c/rentals' description
  * and lede — so the languages and the pages cannot drift. `one` is the singular form, for a total of 1
  * (where the tier can only be `all`, linkedTier).
@@ -374,12 +379,14 @@ export type DistrictFacts = {
 
 /**
  * What the linked rows are linked FROM. Rentals: another listing site (D-f — no partnership is
- * claimed); retail and everything else: a partner site (affiliate stores).
+ * claimed); retail and everything else: the source site — NOT "a partner site" since 2026-10-01, when
+ * "partner" came to mean a signed agreement and the affiliate stores lost the badge (see
+ * CATEGORY_LINKED_SENTENCE).
  */
-export function partnerNoun(categorySlug: string): { en: string; vi: string } {
+export function sourceNoun(categorySlug: string): { en: string; vi: string } {
   return categorySlug === 'rentals'
     ? { en: 'another listing site', vi: 'một trang đăng tin khác' }
-    : { en: 'a partner site', vi: 'trang đối tác' }
+    : { en: 'the source site', vi: 'trang nguồn' }
 }
 
 /**
@@ -390,7 +397,7 @@ export function partnerNoun(categorySlug: string): { en: string; vi: string } {
 export function districtLinkedSentence(tier: Exclude<LinkedTier, 'none'>, categorySlug: string, lang: PageLang, total: number): string {
   // Rentals: D-f's own sentences (CS-2 D1-14…17), not the retail frame with a swapped noun.
   if (categorySlug === 'rentals') return rentalsLinkedSentence(tier, total, lang)
-  const p = partnerNoun(categorySlug)[lang]
+  const p = sourceNoun(categorySlug)[lang]
   if (total === 1) return lang === 'vi' ? `Tin này dẫn tới tin gốc trên ${p}.` : `It links to its original listing on ${p}.`
   if (lang === 'vi') {
     return { all: `Tất cả đều dẫn tới tin gốc trên ${p}.`, most: `Phần lớn dẫn tới tin gốc trên ${p}.`, some: `Một số tin dẫn tới tin gốc trên ${p}.` }[tier]

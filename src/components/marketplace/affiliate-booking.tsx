@@ -8,6 +8,8 @@ import { AffiliateCodeCopy } from './affiliate-code-copy'
 import { AffiliateProductStep } from './affiliate-product-step'
 import { JobApplyBy } from './job-apply-guard'
 import { cn } from '@/lib/utils'
+import { isCommissionLink } from '@/lib/affiliate-commission'
+import { IS_SERVICES } from '@/lib/edition'
 
 /**
  * THE BUY BOX FOR A LISTING WHOSE CHECKOUT HAPPENS ON A PARTNER'S SITE.
@@ -84,6 +86,8 @@ export function AffiliateBooking({
   const qr = affiliateQrSvg(safeUrl, { title: job ? `QR code to open the job posting on ${partnerName}` : rental ? `QR code to open the rental on ${partnerName}` : `QR code to book on ${partnerName}` })
   // The product this link was minted for, when the campaign is one measured not to deep-link.
   const productStep = embeddedProductUrl(safeUrl)
+  // Can this link earn eno a commission? Decides the disclosure at the end of this box (2026-10-01).
+  const commission = isCommissionLink(safeUrl)
 
   return (
     <section aria-labelledby="affiliate-booking-heading" className="flex flex-col gap-4">
@@ -168,8 +172,10 @@ export function AffiliateBooking({
             )}
           </p>
           <AffiliateCodeCopy code={discountCode} />
+          {/* ⛔ THE SELLER'S NAME, NOT "THE PARTNER SITE" (2026-10-01): "partner" now means a signed agreement
+              (partner-badge.tsx), and the shops and ticket sellers whose codes show here hold none. */}
           <p className="text-xs text-body">
-            <Tr text="Sign in on the partner site and enter the code at the payment step." />
+            {tr('Sign in on the {site} website and enter the code at the payment step.', 'Đăng nhập trên website {site} và nhập mã tại bước thanh toán.', { site: partnerName })}
           </p>
         </div>
       ) : null}
@@ -200,19 +206,38 @@ export function AffiliateBooking({
       ) : null}
 
       {/*
-        * ⛔ THE PAID-LINK DISCLOSURE PARAGRAPH WAS REMOVED HERE ON OWNER INSTRUCTION (2026-08-24,
-        * "remove this warning"). What it said is not gone from the page: SafetyStrip's
-        * variant="affiliate" line already tells the reader to book only on the partner's own site
-        * and that eno.vn never takes payment or a deposit for a partner ticket and cannot refund
-        * one, so the "we don't sell this / don't hold your money" half is still stated.
-        *
-        * ⚠️ WHAT IS NO LONGER STATED ANYWHERE IS THE COMMISSION. rel="sponsored" on the anchor
-        * discloses the paid relationship to Google, but not to the person reading the page, and a
-        * reader-facing disclosure is what consumer-protection rules ask for. If that needs to come
-        * back, it is one sentence — "We may earn a commission if you book through this link, at no
-        * extra cost to you." — and this is the element it belongs on.
+        * ⛔ THE COMMISSION DISCLOSURE IS BACK — OWNER REVERSAL, 2026-10-01 (ad labelling). It was removed
+        * here on owner instruction on 2026-08-24 ("remove this warning"), and this comment then recorded
+        * the gap that left: rel="sponsored" tells Google about the paid relationship, but not the person
+        * reading the page, and a reader-facing disclosure is what consumer-protection and advertising
+        * rules ask for. The owner has now restored it, as one sentence, in his wording.
+        * ⚠️ ONLY ON A COMMISSION-BEARING LINK (isCommissionLink — the AccessTrade tracker hosts). A linked
+        * rental, a vehicle-hire reference, a scraped shop's own product URL or a job board pays eno
+        * nothing, and "we may earn a commission" there would be a false statement, however hedged.
+        * The "we don't sell this / don't hold your money" half stays where it was: SafetyStrip's
+        * affiliate lines.
         */}
+      {commission ? <CommissionNote /> : null}
     </section>
+  )
+}
+
+/**
+ * "We may earn a commission…" — the reader-facing ad disclosure beside a commission-bearing CTA (owner,
+ * 2026-10-01, his wording). ONE component for the buy box and its in-flow repeat, so the two cannot
+ * disagree.
+ * ⚠️ The Vietnamese names the site, so it is edition-split; the English says "We" on both. A literal-pair
+ * builder named `tr` (rendered through <Bilingual>, this file is a server component) so gen-ui-strings
+ * harvests the English. Plain body ink at 12px: legible, never louder than the CTA it qualifies.
+ */
+function CommissionNote({ className }: { className?: string }) {
+  const tr = (en: string, vi: string) => <Bilingual en={en} vi={vi} />
+  return (
+    <p data-commission-disclosure="" className={cn('text-xs text-body', className)}>
+      {IS_SERVICES
+        ? tr('We may earn a commission if you buy through this link, at no extra cost to you.', 'eno.forum có thể nhận hoa hồng nếu bạn mua qua liên kết này, bạn không phải trả thêm.')
+        : tr('We may earn a commission if you buy through this link, at no extra cost to you.', 'eno.vn có thể nhận hoa hồng nếu bạn mua qua liên kết này, bạn không phải trả thêm.')}
+    </p>
   )
 }
 
@@ -261,6 +286,8 @@ export function AffiliateCtaRepeat({ url, partnerName, booking, rental = false, 
           <CtaLabel job={job} rental={rental} booking={booking} partnerName={partnerName} />
         </a>
       </Button>
+      {/* The same disclosure as the buy box, under the same CTA (owner, 2026-10-01). */}
+      {isCommissionLink(safeUrl) ? <CommissionNote className="mt-2" /> : null}
     </div>
   )
 }

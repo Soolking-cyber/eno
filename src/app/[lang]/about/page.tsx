@@ -116,8 +116,8 @@ const MARKETPLACE_URL = 'https://eno.vn'
 // ⚠️ NO MOTORBIKES AND NO "CHANGE HANDS EVERY TIME SOMEBODY MOVES" in the two lines below (2026-09-27):
 // motorbikes were 0 live listings, and the used furniture here is dealer-supplied — framing it as
 // expats' moving sales is the claim the guides were already corrected for.
-// ⚠️ "EVERY SELLER WHO POSTS HERE", NOT "EVERY SELLER": almost every live listing is linked from a
-// partner site (the At a glance block below counts it), and a trust score says nothing about those —
+// ⚠️ "EVERY SELLER WHO POSTS HERE", NOT "EVERY SELLER": almost every live listing is linked from
+// another site (the At a glance block below counts it), and a trust score says nothing about those —
 // the same scoping the layout's Organization description uses.
 const MARKETPLACE_INTRO =
   'eno.vn is a classifieds marketplace for expats, internationals and locals in Vietnam — housing, jobs, everyday services, furniture and electronics. Every seller who posts here carries a public trust score or, for an official partner, a partner badge, automated checks run on every post, and anyone can report a listing that is not what it claims to be.'
@@ -125,13 +125,15 @@ const MARKETPLACE_INTRO =
 const MARKETPLACE_WHAT = [
   'People and businesses post what they are renting out, selling or hiring for: apartments and rooms, jobs, services, furniture, appliances and electronics.',
   // ⚠️ "MESSAGE A SELLER IN THE APP" IS SCOPED TO LISTINGS POSTED HERE. Most live listings are linked
-  // from partner sites, with no chat on this site (see src/lib/site-facts.ts); the unscoped sentence
+  // from other sites, with no chat on this site (see src/lib/site-facts.ts); the unscoped sentence
   // was true of the product as designed and false of the shelf as measured.
   // ⛔ AND IT SAYS WHERE A LINKED LISTING POINTS, NOT WHO HANDLES THE ENQUIRY: "you deal with the
   // advertiser there" is the claim the owner removed from the importers on 2026-09-25
   // (src/lib/import-viewing-disclaimer.ts) — the eno team checks availability on any rental, linked
   // or not. A linked listing also has its own page here; only its button opens the source.
-  'The listings belong to the people who post them. eno.vn does not own or supply what you see, and it is not a party to the deal you make — there is no checkout, no escrow and no payment on the platform. For a listing posted here, you message the seller in the app, agree between yourselves, and settle directly; a listing linked from a partner site says where it is listed and links to the original posting.',
+  // ⛔ "ANOTHER SITE", NOT "A PARTNER SITE" (2026-10-01): "partner" now means a company with a signed
+  // agreement (partner-badge.tsx), and the sites this stock is linked from hold none.
+  'The listings belong to the people who post them. eno.vn does not own or supply what you see, and it is not a party to the deal you make — there is no checkout, no escrow and no payment on the platform. For a listing posted here, you message the seller in the app, agree between yourselves, and settle directly; a listing linked from another site says where it is listed and links to the original posting.',
   'Prices are set in Vietnamese đồng, and the site reads in your own language: listings, chat and the interface are translated as you go.',
 ]
 
@@ -344,33 +346,42 @@ function WhereRow({ facts }: { facts: SiteFacts }) {
 function LinkedRow({ facts }: { facts: SiteFacts | null }) {
   const share = facts ? shareOf(facts.linked, facts.live) : null
   const posted = <Tr text="Listings posted directly on this site show the seller’s public trust score, or an official partner’s partner badge, and are answered in the in-app chat." />
+  /**
+   * ⛔ "ANOTHER SITE", NOT "A PARTNER SITE" (2026-10-01): "partner" now means a company with a signed
+   * agreement (partner-badge.tsx), and the sites this stock is linked from — shops, portals, job boards —
+   * hold none. Authored pairs (the curated Vietnamese, with that one phrase changed), as literal `tr()`
+   * calls so gen-ui-strings harvests the English; rendered through <Bilingual> (this is a server file).
+   */
+  const tr = (en: string, vi: string) => <Bilingual en={en} vi={vi} />
   return (
     <GlanceRow term={<Tr text="Listings" />}>
       {share === 'all' ? (
-        <Tr text="Every listing right now is linked from a partner site: each says where it is listed and links to the original posting." />
+        tr('Every listing right now is linked from another site: each says where it is listed and links to the original posting.', 'Hiện tại, mọi tin đều được liên kết từ một trang khác: mỗi tin ghi rõ nơi đăng và dẫn tới tin gốc.')
       ) : share === 'almost' ? (
         <>
-          <Tr text="Almost every listing is linked from a partner site: those say where they are listed and link to the original posting." /> {posted}
+          {tr('Almost every listing is linked from another site: those say where they are listed and link to the original posting.', 'Gần như mọi tin đều được liên kết từ một trang khác: các tin này ghi rõ nơi đăng và dẫn tới tin gốc.')} {posted}
         </>
       ) : share === 'most' ? (
         <>
-          <Tr text="Most listings are linked from partner sites: those say where they are listed and link to the original posting." /> {posted}
+          {tr('Most listings are linked from other sites: those say where they are listed and link to the original posting.', 'Phần lớn tin được liên kết từ các trang khác: các tin này ghi rõ nơi đăng và dẫn tới tin gốc.')} {posted}
         </>
       ) : share === 'some' ? (
         <>
-          <Tr text="Some listings are linked from partner sites: those say where they are listed and link to the original posting." /> {posted}
+          {tr('Some listings are linked from other sites: those say where they are listed and link to the original posting.', 'Một số tin được liên kết từ các trang khác: các tin này ghi rõ nơi đăng và dẫn tới tin gốc.')} {posted}
         </>
       ) : share === 'none' ? (
         posted
       ) : (
         // No facts: say what is true of either kind of listing, and nothing about how many.
-        <Tr text="A listing linked from a partner site says where it is listed and links to the original posting; a listing posted directly here shows the seller’s public trust score, or an official partner’s partner badge, and is answered in the in-app chat." />
+        tr('A listing linked from another site says where it is listed and links to the original posting; a listing posted directly here shows the seller’s public trust score, or an official partner’s partner badge, and is answered in the in-app chat.', 'Tin liên kết từ một trang khác ghi rõ nơi đăng và dẫn tới tin gốc; tin đăng trực tiếp tại đây hiển thị điểm uy tín công khai của người bán, hoặc huy hiệu đối tác nếu đó là đối tác chính thức, và được trả lời qua chat trong ứng dụng.')
       )}
     </GlanceRow>
   )
 }
 
 function AtAGlance({ facts }: { facts: SiteFacts | null }) {
+  // Authored pair builder, as in LinkedRow: a literal `tr()` so gen-ui-strings harvests the English.
+  const tr = (en: string, vi: string) => <Bilingual en={en} vi={vi} />
   return (
     <dl className="space-y-4">
       {POSTING_IS_FREE && (
@@ -381,7 +392,8 @@ function AtAGlance({ facts }: { facts: SiteFacts | null }) {
       {facts && facts.live > 0 && <WhereRow facts={facts} />}
       <LinkedRow facts={facts} />
       <GlanceRow term={<Tr text="Payments" />}>
-        <Tr text="There is no checkout, no escrow and no buyer protection. The site holds no money: you pay the seller, or the partner site, directly." />
+        {/* "the source site", not "the partner site" (2026-10-01) — LinkedRow has the reason. */}
+        {tr('There is no checkout, no escrow and no buyer protection. The site holds no money: you pay the seller, or the source site, directly.', 'Trang không có bước thanh toán, không có ký quỹ trung gian và không có chương trình bảo vệ người mua. Trang không giữ tiền: bạn trả tiền trực tiếp cho người bán hoặc cho trang nguồn.')}
       </GlanceRow>
       <GlanceRow term={<Tr text="Languages" />}>
         {LANGUAGES.map((l, i) => (

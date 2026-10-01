@@ -439,13 +439,15 @@ async function main() {
     }
     /**
      * ⛔ STOREFRONT FIELDS ARE CREATE-ONLY. `officialPartner` especially: re-asserting it on every run
-     * would silently undo `set-official-partner.mjs --off`. The owner granted it for these carriers
-     * (2026-09-25: "add them as partner"), the same grant import-partners.ts makes for the fetched
-     * shops; `verified` stays false — that is an identity check on the business nobody has performed.
+     * would silently undo `set-official-partner.mjs`. ⛔ AND A NEW CARRIER IS CREATED WITH IT FALSE SINCE
+     * 2026-10-01 (owner decision): the badge is kept only for companies with a signed agreement, and the
+     * nine carriers lose it — reversing 2026-09-25's "add them as partner". They show the neutral
+     * "Linked shop" chip (src/lib/linked-seller.ts). `verified` stays false — that is an identity check
+     * on the business nobody has performed.
      * ⚠️ rating/reviewCount start at 0: the schema defaults (5 stars) would print a fabricated rating.
      */
     const seller = same[0] ?? await db.seller.create({
-      data: { name: c.sellerName, bio: c.bioEn, location: 'Việt Nam', avatarColor: c.brandColor, officialPartner: true, verified: false, rating: 0, reviewCount: 0 },
+      data: { name: c.sellerName, bio: c.bioEn, location: 'Việt Nam', avatarColor: c.brandColor, officialPartner: false, verified: false, rating: 0, reviewCount: 0 },
       select: { id: true, name: true, ownerId: true, phone: true, trustScore: true, avatarUrl: true, bio: true },
     })
     if (!seller.avatarUrl) avatarCommands.push(`npx tsx scripts/set-partner-avatar.ts --seller ${JSON.stringify(seller.name)} --logo ${JSON.stringify(c.logoUrl)} --apply`)
