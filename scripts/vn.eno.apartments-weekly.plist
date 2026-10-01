@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Weekly eno.vn imported-apartment refresh (scripts/apartments-weekly.sh) — Mondays 06:00. The vehicle
+  job starts at 05:00 and runs for hours; the two crawl different hosts. The 7-day rule (owner 2026-10-01).
+  It runs from ~/eno-apartments-job, a CLEAN detached worktree at origin/main — fast-forward it
+  (a detached checkout of origin/main, then prisma generate) after a change to any
+  importer, as with ~/eno-vehicles-job.
+  Install:
+    mkdir -p ~/eno-import-journals/apartments   # launchd will not start a job whose log dir is missing
+    cp scripts/vn.eno.apartments-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/vn.eno.apartments-weekly.plist
+  Remove: launchctl unload ~/Library/LaunchAgents/vn.eno.apartments-weekly.plist
+  A LaunchAgent runs in the logged-in GUI session, which the Batdongsan step needs (a headed Chrome:
+  Cloudflare refuses headless). caffeinate keeps the Mac awake for the whole run; a run missed while the
+  Mac sleeps fires on wake.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>vn.eno.apartments-weekly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-i</string>
+    <string>/bin/bash</string>
+    <string>/Users/mk1e3/eno-apartments-job/scripts/apartments-weekly.sh</string>
+    <string>--apply</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+  <key>EnvironmentVariables</key>
+  <dict><key>ENO_REPO</key><string>/Users/mk1e3/eno-apartments-job</string><key>APT_ENV_FILE</key><string>/Users/mk1e3/eno.vn/.env</string><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>WorkingDirectory</key><string>/Users/mk1e3/eno-apartments-job</string>
+  <key>StandardOutPath</key><string>/Users/mk1e3/eno-import-journals/apartments/weekly.log</string>
+  <key>StandardErrorPath</key><string>/Users/mk1e3/eno-import-journals/apartments/weekly.log</string>
+</dict>
+</plist>

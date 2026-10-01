@@ -28,15 +28,15 @@
  *     of the rows live when checked were judged (or ≤ REVER_UNKNOWN_FLOOR were not — freshSetProblem's own
  *     floor), the check is not MASS-FRESH, and the set passes freshSetProblem. MASS-FRESH (massFreshRefusal:
  *     ≥ 50% of ≥ 20 judged live rows read fresh in one check — a site-wide "Cập nhật" change) refuses the
- *     set AND the re-date, in the check and in the --src apply alike: exit 3, retirements and revivals
- *     still applied. A mass-retire or mass-revive refusal exits 1 (a site change). Each run needs its own
+ *     set, the re-date AND the revival (both rest on that date), in the check and in the --src apply alike:
+ *     exit 3, retirements still applied. A mass-retire or mass-revive refusal exits 1 (a site change). Each run needs its own
  *     --save file (one that already holds lines is refused).
  *   · --apply (from --src) does three things (planReverApply, unit-tested): let/gone `active` rows →
  *     'stale' (as before); fresh rows in REVIVABLE_STATUSES → 'active' with postedAt = the Rever date (never
  *     a hidden, removed or sold row); fresh `active` rows whose Rever date is STRICTLY NEWER than postedAt →
  *     postedAt moves to it. A row whose URL or externalId moved since the check is not touched. Wherever
  *     postedAt moves, rankScore is recomputed from that date (reverRepostRank). No re-date under MASS-FRESH
- *     (exit 3; retirements and revivals still applied). Both halves come from ONE
+ *     (exit 3; no re-date and no revival — both rest on that date; retirements still applied). Both halves come from ONE
  *     function (reverFreshDecision) over the same saved records, judged at the same instant, so the set
  *     and the revivals can never disagree.
  *
@@ -254,8 +254,8 @@ async function main() {
     console.log(`coverage          ${decision.coverage}`)
     console.log(`mass-fresh        ${decision.counts.liveFresh}/${decision.counts.liveJudged} judged live rows fresh — ${decision.massFresh ? 'REFUSED' : 'ok'}`)
     if (decision.massFresh) {
-      // Not a throw: the retirements and revivals are per-row evidence, each mass-guarded below, and still apply.
-      console.error(`⛔ FRESH SET AND RE-DATE REFUSED: ${decision.massFresh}`)
+      // Not a throw: the retirements are per-row badge evidence, mass-guarded below, and still apply.
+      console.error(`⛔ FRESH SET, RE-DATE AND REVIVAL REFUSED: ${decision.massFresh}`)
       process.exitCode = COVERAGE_REFUSED
     }
 
@@ -270,7 +270,8 @@ async function main() {
       // it — or nothing is written, and the
       // run exits COVERAGE_REFUSED (3), the code every apartment source uses for "read the source, could not
       // prove coverage": the --save file is still whole per row, so its retirements and revivals (per-row
-      // evidence, mass-guarded above) may be applied; only the expiry must be skipped.
+      // evidence, mass-guarded above — and no revival at all under mass-fresh) may be applied; only the
+      // expiry must be skipped.
       const set = decision.fetchedAt ? makeFreshSet(SELLER_ID, decision.fetchedAt, decision.coverage, decision.items, decision.unknown) : null
       const why = records.length !== rows.length ? `${records.length} of ${rows.length} rows were checked`
         : decision.massFresh ? decision.massFresh

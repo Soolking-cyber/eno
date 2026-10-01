@@ -131,8 +131,21 @@ async function main() {
   // One run per seller at a time: two runs would each read, mutate and rename their own copy of the state.
   if (APPLY && stateDir) {
     const lock = join(stateDir, `${SELLER}.lock`)
-    try { closeSync(openSync(lock, 'wx')) } catch { throw new Error(`${lock} exists — another run for this seller is in progress (or crashed: check, then delete it)`) }
-    process.on('exit', () => { try { unlinkSync(lock) } catch { /* already gone */ } })
+    // ⛔ NO AUTOMATIC TAKEOVER: no pid-based takeover is race-free (two runs can both judge a lock stale).
+    // A lock that exists refuses, loudly, naming its holder. scripts/apartments-weekly.sh — the one scheduled
+    // instance (launchd never starts a second) — clears locks whose pid is dead at its own start, so a run
+    // killed by SIGKILL blocks nothing past the next week; a reused pid surfaces as a failed, notified run.
+    try {
+      const fd = openSync(lock, 'wx')
+      try { writeSync(fd, String(process.pid)); fsyncSync(fd) } finally { closeSync(fd) }
+    } catch {
+      let holder = '?'
+      try { holder = readFileSync(lock, 'utf8').trim() || '?' } catch { /* gone meanwhile */ }
+      throw new Error(`${lock} exists (pid ${holder}) — another run for this seller is in progress, or one died: if no such process is running, delete the file`)
+    }
+    const release = () => { try { if (readFileSync(lock, 'utf8').trim() === String(process.pid)) unlinkSync(lock) } catch { /* already gone */ } }
+    process.on('exit', release)
+    for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(sig, () => { release(); process.exit(130) })
   }
   const state = stateDir ? readState(stateDir, SELLER) : null
   // ⛔ MONOTONIC: an older set applied after a newer one would expire rows the newer crawl found.
@@ -221,19 +234,23 @@ async function main() {
       const moved = (await db.listing.updateManyAndReturn({
         where: { id: { in: ids }, sellerId: SELLER, subcategorySlug: APARTMENT_SUBCAT, status: 'active' },
         data: { status: EXPIRED_STATUS },
-        select: { id: true },
-      })).map((r) => r.id)
+        select: { id: true, updatedAt: true },
+      }))
       if (!moved.length) continue
+      // updateMany stamps one updatedAt on every row it moves; a LATER change (a revival, another run's
+      // expiry) moves it forward, so the rollback below cannot undo anything that happened after this run.
+      const stampedAt = new Date(Math.max(...moved.map((r) => r.updatedAt.getTime()))).toISOString()
       // The rollback names only the rows this run moved, so it can never revive one another run expired.
-      recordDurably(CHANGED, moved.join('\n'))
+      const movedIds = moved.map((r) => r.id)
+      recordDurably(CHANGED, movedIds.join('\n'))
       // …and carries its own tombstones: a row brought back keeps a cached 404 for 30 days otherwise.
       const lit = (x: string) => `'${x.replace(/'/g, "''")}'`
-      const tags = moved.flatMap(pdpTombstoneTags).map(lit).join(',')
-      recordDurably(ROLLBACK, `UPDATE "Listing" SET status='active' WHERE status='${EXPIRED_STATUS}' AND "sellerId"=${lit(SELLER)} AND id IN (${moved.map(lit).join(',')});\n` +
+      const tags = movedIds.flatMap(pdpTombstoneTags).map(lit).join(',')
+      recordDurably(ROLLBACK, `UPDATE "Listing" SET status='active' WHERE status='${EXPIRED_STATUS}' AND "sellerId"=${lit(SELLER)} AND "updatedAt" <= ${lit(stampedAt)} AND id IN (${movedIds.map(lit).join(',')});\n` +
         `INSERT INTO next_cache_tag (tag, stamp, expires_at) SELECT t, (extract(epoch from clock_timestamp())*1000)::bigint, now() + interval '40 days' FROM unnest(ARRAY[${tags}]) AS t ON CONFLICT (tag) DO UPDATE SET stamp = greatest(next_cache_tag.stamp, excluded.stamp), expires_at = greatest(next_cache_tag.expires_at, excluded.expires_at);`)
       // After: a page rendered in the gap between the first tombstone and the write is invalidated too.
-      await tombstonePdps(db, moved)
-      changed.push(...moved)
+      await tombstonePdps(db, movedIds)
+      changed.push(...movedIds)
     }
     const done = changed.length
     console.log(`marked ${EXPIRED_STATUS}    ${done} of ${expire.length}${done ? `   (exact ids: ${CHANGED}; rollback: ${ROLLBACK})` : ''}`)
