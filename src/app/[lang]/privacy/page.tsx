@@ -147,9 +147,9 @@ const RECIPIENTS: Table = {
       // src/lib/tax-lookup.ts:25 (server-side fetch, URL only, no headers) · called from
       // src/lib/core/seller.ts:130 when a business profile is saved with a tax code · operator: Casso,
       // a Vietnamese company (docs/business-verification-vn.md:213-216). ⚠️ Where its SERVERS run is not
-      // recorded — "Vietnam" here is the operator's country.
+      // recorded here, so the cell names only the operator and says the server location is unconfirmed.
       { en: 'VietQR (api.vietqr.io)', vi: 'VietQR (api.vietqr.io)' },
-      { en: 'Vietnam (operated by Casso, a Vietnamese company)', vi: 'Việt Nam (do Casso, một doanh nghiệp Việt Nam, vận hành)' },
+      { en: 'Operated by Casso, a Vietnamese company (we have not confirmed where its servers are)', vi: 'Do Casso, một doanh nghiệp Việt Nam, vận hành (chúng tôi chưa xác nhận nơi đặt máy chủ)' },
       { en: 'Only if you enter a business tax code: that tax code, sent by our server without your account or your IP address.', vi: 'Chỉ khi bạn nhập mã số thuế doanh nghiệp: mã số thuế đó, do máy chủ của chúng tôi gửi, không kèm tài khoản hay địa chỉ IP của bạn.' },
       { en: 'Checking that the business is registered and active.', vi: 'Kiểm tra doanh nghiệp đã đăng ký và đang hoạt động.' },
     ],

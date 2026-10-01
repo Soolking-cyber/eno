@@ -128,6 +128,12 @@ export async function POST(req: Request) {
   // sent, and `clockAhead` marks the row so nobody reads clientTs as the moment of the choice.
   const clockAhead = stored.ts > Math.floor(Date.now() / 1000) + MAX_CLOCK_SKEW_S
 
+  // An "Allow all" with a purpose off, or a "Decline all" with one on, is not something the card can
+  // send (cookie-consent.tsx: allow = ALL_ON, decline = ALL_OFF; the schema requires all three
+  // booleans) — it is a forged record, and an append-only log must not take it (codex, 2026-10-01).
+  const all = b.p && b.a && b.d, none = !b.p && !b.a && !b.d
+  if ((b.action === 'allow_all' && !all) || (b.action === 'decline_all' && !none)) return noContent()
+
   // ⛔ ONE AFTER ANOTHER, NEVER Promise.all. Every rateLimit() call counts its hit, refused or not, so a
   // parallel check let one IP past its own 1,000/h cap keep feeding the GLOBAL counter until it ran out —
   // and then every real visitor's record was dropped for the hour (codex + opus, 2026-10-01). Checked in

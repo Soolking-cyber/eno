@@ -152,6 +152,24 @@ describe('POST /api/consent', () => {
     expect(h.audits[0].detail).not.toHaveProperty('clockAhead')
   })
 
+  it.each([
+    ['allow_all', '101', { p: true, a: false, d: true }],
+    ['decline_all', '100', { p: true, a: false, d: false }],
+  ])('⛔ %s with flags that contradict it is not recorded', async (action, bits, flags) => {
+    await call({ ...valid, ...flags, action }, { cookie: cookieOf(bits) })
+    expect(h.audits).toEqual([])
+  })
+
+  it('decline_all with every purpose off IS recorded (what the card sends)', async () => {
+    await call({ ...valid, p: false, a: false, d: false, action: 'decline_all' }, { cookie: cookieOf('000') })
+    expect(h.audits).toHaveLength(1)
+  })
+
+  it('allow_all with every purpose on IS recorded', async () => {
+    await call({ ...valid, p: true, a: true, d: true, action: 'allow_all' }, { cookie: cookieOf('111') })
+    expect(h.audits).toHaveLength(1)
+  })
+
   it('a guest is recorded without a profile id', async () => {
     await call(valid)
     expect(h.audits[0].actorId).toBeNull()
