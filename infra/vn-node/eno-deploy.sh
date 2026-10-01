@@ -458,6 +458,8 @@ say "2b. legal amendment dates"
 # the date and cut the 5 days' notice the Quy chế promises — or, from the in-force date, give none.
 # The gate passes a routine deploy (the deployed commit already carries the same dates) and the
 # publishing deploy on its own day; anything else stops here, before a minute is spent building.
+# An owner-decided IMMEDIATE amendment (immediate: true — in force the day it is published, no notice)
+# also needs LEGAL_AMENDMENT_IMMEDIATE=<published> exported for the publishing deploy.
 bash "$APP/infra/vn-node/legal-amendment-gate.sh" "$APP" "$LAST" || exit 1
 
 say "3. pin the rollback"

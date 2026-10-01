@@ -249,23 +249,30 @@ export const AFFILIATION = {
  *
  * ⚠️ IT IS NOT NECESSARILY THE VERSION IN FORCE, AND NOTHING THAT RECORDS AN ACCEPTANCE MAY READ IT.
  * '2' is the October 2026 amendment (linked listings, commission disclosure, 20-day fee notice, the
- * Vietnamese texts — the Terms' `changes` note and Quy chế Article 17 list each edit). It is
- * published on LEGAL_AMENDMENT.published and binds only from LEGAL_AMENDMENT.inForce
- * (src/lib/compliance/legal-amendment.ts — the two dates are typed THERE and nowhere else), because
- * the texts promise at least 5 days' notice before a change takes effect (Quy chế Article 15, Terms
- * "Changes"). Until that instant
- * {@link TOS_PREVIOUS_VERSION} governs, and {@link tosVersionInForce} is what says which one.
+ * Vietnamese texts — the Terms' `changes` note and Quy chế Article 17 list each edit). A new version is
+ * published on LEGAL_AMENDMENT.published and binds from LEGAL_AMENDMENT.inForce
+ * (src/lib/compliance/legal-amendment.ts — the dates are typed THERE and nowhere else). By default the
+ * two are ≥ 6 days apart, because the texts promise at least 5 days' notice before a change takes effect
+ * (Quy chế Article 15, Terms "Changes"); until that instant {@link TOS_PREVIOUS_VERSION} governs, and
+ * {@link tosVersionInForce} is what says which one.
+ *
+ * ✅ VERSION 2 IS IN FORCE FROM 01/10/2026 — AN IMMEDIATE AMENDMENT (owner, 2026-10-01: "just change now
+ * we dont have users so its safe to implement just new terms no need for announcement"). It shipped earlier
+ * that day with a window to 07/10; LEGAL_AMENDMENT.immediate now sets in force = published, so there is no
+ * notice window: tosInNoticeWindow() is false at every instant, the strip is unmounted, no bell notice.
  *
  * ⚠️ RECOVERED, NOT REINVENTED (2026-10-01). The effective instant, stamping the version IN FORCE and
  * the site-wide notice existed in August (cc799c24, d067d756) and were removed as premature while
- * there was only version '1'. They are back because this is the first material change: an
- * existing user who never opens /terms is told nothing by a page they do not visit, so the notice
- * (src/components/marketplace/tos-change-notice.tsx) comes to them.
+ * there was only version '1'. They stay for the next amendment with a window: an existing user who
+ * never opens /terms is told nothing by a page they do not visit, so the notice
+ * (src/components/marketplace/tos-change-notice.tsx — kept, but mounted in providers.tsx ONLY while
+ * an amendment has a window; legal-amendment.test.ts holds the mount to the flag) comes to them.
  *
  * WHEN THE TERMS CHANGE AGAIN: move this value to TOS_PREVIOUS_VERSION, set the new one here, and
  * set both dates in LEGAL_AMENDMENT on the DEPLOY day (in force ≥ published + 6 calendar days; its
- * test enforces the gap). Never backdate the in-force date to "now" to make a diff tidy — the gap
- * is the whole point.
+ * test enforces the gap), drop `immediate`, and mount <TosChangeNotice /> again. Never backdate the
+ * in-force date to "now" to make a diff tidy — the gap is the whole point; only the owner can waive it
+ * for a specific amendment, by `immediate: true`.
  */
 export const TOS_VERSION = '2'
 
@@ -305,9 +312,17 @@ export function tosVersionInForce(now: Date = new Date()): string {
   return t >= TOS_EFFECTIVE_AT ? TOS_VERSION : TOS_PREVIOUS_VERSION
 }
 
-/** True while {@link TOS_VERSION} is published but not yet binding — the notice window. */
+/** Midnight in Vietnam on LEGAL_AMENDMENT.published — the instant the amended texts went live. */
+const TOS_PUBLISHED_AT = Date.parse(`${LEGAL_AMENDMENT.published}T00:00:00+07:00`)
+
+/**
+ * True while {@link TOS_VERSION} is published but not yet binding — the notice window, [published,
+ * inForce) in Vietnam time. EMPTY for an immediate amendment (the two instants coincide), so it is false
+ * at every instant today; before the publication day there is nothing published to give notice of.
+ */
 export function tosInNoticeWindow(now: Date = new Date()): boolean {
-  return tosVersionInForce(now) !== TOS_VERSION
+  const t = now.getTime()
+  return Number.isFinite(t) && t >= TOS_PUBLISHED_AT && t < TOS_EFFECTIVE_AT
 }
 
 /**

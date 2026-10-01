@@ -326,12 +326,15 @@ export function Header() {
    * ⛔ THE PHONE PANEL HANGS FROM THE HEADER'S REAL BOTTOM EDGE, MEASURED — NOT FROM "THE HEADER IS AT y=0".
    * Below 640px the search window is `fixed`, and its top used to be the constant safe-area + 3.75rem: the
    * header's 64px less the 4px it tucks under the hairline. That holds only while nothing sits above the
-   * header. An in-flow strip above it (the Terms-amendment notice, tos-change-notice.tsx; the pre-launch
-   * banner before it) pushes the sticky header down by its own height at scroll-top, so the panel opened at
+   * header. An in-flow strip above it (the Terms-amendment notice, tos-change-notice.tsx, whenever an
+   * amendment has a notice window and it is mounted; the pre-launch banner before it) pushes the sticky
+   * header down by its own height at scroll-top, so the panel opened at
    * y=60 OVER the header's own search field — z-50 over z-40 — and a visitor who tapped search on landing
    * typed into an input the panel hid (2026-10-01 review). The window now publishes the measured edge as
    * `--search-panel-top`, and its top and max-height read that; the old constant stays as the fallback, so
-   * with nothing above the header the geometry is byte-for-byte what it was (bottom 64 − 4 = 60).
+   * with nothing above the header the geometry is byte-for-byte what it was (bottom 64 − 4 = 60) — the
+   * state since 2026-10-01, when the strip was unmounted (an immediate amendment has nothing to announce).
+   * Kept rather than reverted: it is exact with or without a strip, and the next one needs it.
    * Re-measured on scroll and resize while open: the header is sticky, so scrolling past the strip moves
    * it up under a `fixed` window. Only while open — this reads layout, and must not run on page load
    * (the forced-layout note on the .page-at-top effect above). From sm the window is `absolute`

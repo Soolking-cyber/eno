@@ -27,6 +27,14 @@
 # Scoped to the date, like SCHEMA_OK is scoped to the commit, so a lingering export cannot wave
 # through the NEXT amendment.
 #
+# ⛔ AN IMMEDIATE AMENDMENT (`immediate: true` in the module — owner, 2026-10-01: "just change now we dont
+# have users so its safe to implement just new terms no need for announcement") is in force on its
+# publication day: no notice window, nothing announced. It must have inForce == published, and it
+# publishes ONLY when today in Vietnam IS that day AND the deploy carries LEGAL_AMENDMENT_IMMEDIATE=
+# <published> — the owner's waiver of the notice, acknowledged for that date and no other. No other
+# override applies to it (LEGAL_AMENDMENT_ACK does not): a later day means re-dating both, which keeps
+# the printed date true. Once deployed, later deploys pass as routine like any other amendment.
+#
 # ⚠️ PORTABLE ON PURPOSE (GNU on the box, BSD on a Mac for the tests): no `date -d`, no tz
 # database — Vietnam is UTC+7 with no DST, so the POSIX TZ string "UTC-7" (sign inverted by POSIX)
 # is exact — and day arithmetic is done by hand (days-from-civil).
@@ -40,6 +48,19 @@ F=src/lib/compliance/legal-amendment.ts
 ok(){   printf '  \033[32m[ok]\033[0m %s\n' "$*"; }
 bad(){  printf '  \033[31m[XX]\033[0m %s\n' "$*"; }
 warn(){ printf '  \033[33m[!!]\033[0m %s\n' "$*"; }
+
+# The lines of `export const LEGAL_AMENDMENT … = {` through its closing `}` (`}` or `} as const`), and
+# nothing else: flag() and field() read ONLY these, so another object in the file — a fixture, an example,
+# a second amendment-shaped const — cannot set the dates or the flag the gate acts on (2026-10-01 review).
+# No such object → nothing → the dates are unreadable → refuse (or, for the deployed commit, "new").
+obj(){
+  awk '/^export const LEGAL_AMENDMENT[ :=]/ { on = 1 } on { print } on && /^}/ { exit }' <<<"$1"
+}
+
+# `true` if the text sets `immediate: true` on a line of its own (the module's field), else nothing.
+flag(){
+  awk 'match($0, "^[ \t]*immediate: true([ \t,]|$)") { print "true"; exit }' <<<"$1"
+}
 
 # The ISO date typed after `<key>: '` — the first such line in the given text, or nothing.
 field(){
@@ -57,25 +78,57 @@ daynum(){
 }
 
 SRC=$(cat "$REPO/$F" 2>/dev/null) || { bad "cannot read $F — refusing"; exit 1; }
+SRC=$(obj "$SRC")
 PUB=$(field "$SRC" published)
 INF=$(field "$SRC" inForce)
 if [ -z "$PUB" ] || [ -z "$INF" ]; then
   bad "cannot read LEGAL_AMENDMENT.published / .inForce from $F — refusing"; exit 1
 fi
+IMM=$(flag "$SRC")
 TODAY=${ENO_GATE_TODAY:-$(TZ=UTC-7 date +%Y-%m-%d)}
 GAP=$(( $(daynum "$INF") - $(daynum "$PUB") ))
-if [ "$GAP" -lt 6 ]; then
+if [ -n "$IMM" ]; then
+  if [ "$GAP" -ne 0 ]; then
+    bad "$F: immediate: true, but in force $INF is not the publication date $PUB. An immediate amendment"
+    bad "takes effect the day it is published: set inForce: '$PUB' — or drop immediate and give ≥6 days."
+    exit 1
+  fi
+elif [ "$GAP" -lt 6 ]; then
   bad "$F: in force $INF is only $GAP day(s) after publication $PUB — the texts promise 5 clear days,"
-  bad "so in force must be at least published + 6. Fix the dates; nothing to override."
+  bad "so in force must be at least published + 6. Fix the dates; only the owner can waive the notice,"
+  bad "for one amendment, by immediate: true with inForce == published."
   exit 1
 fi
 
 PREV=""
 [ -n "$LAST" ] && PREV=$(git -C "$REPO" show "$LAST:$F" 2>/dev/null)
+PREV=$(obj "$PREV")
 PREV_PUB=$(field "$PREV" published)
 PREV_INF=$(field "$PREV" inForce)
-if [ -n "$PREV_PUB" ] && [ "$PREV_PUB" = "$PUB" ] && [ "$PREV_INF" = "$INF" ]; then
-  ok "legal amendment published $PUB (in force $INF) is already live — dates unchanged since the deployed commit"
+PREV_IMM=$(flag "$PREV")
+if [ -n "$PREV_PUB" ] && [ "$PREV_PUB" = "$PUB" ] && [ "$PREV_INF" = "$INF" ] && [ "$PREV_IMM" = "$IMM" ]; then
+  ok "legal amendment published $PUB (in force $INF${IMM:+, immediate}) is already live — unchanged since the deployed commit"
+  exit 0
+fi
+
+if [ -n "$IMM" ]; then
+  if [ "$TODAY" != "$PUB" ]; then
+    bad "this deploy PUBLISHES an IMMEDIATE legal amendment typed in $F —"
+    bad "  published and in force $PUB — but today in Vietnam is $TODAY. The pages would print a false date."
+    bad "Fix: set published: '$TODAY' and inForce: '$TODAY' in $F, commit, push, then re-run with"
+    bad "  LEGAL_AMENDMENT_IMMEDIATE=$TODAY bash eno-deploy.sh"
+    bad "(Bell notices already sent under $PUB keep that date: scripts/notify-legal-amendment.ts --retract --published=$PUB)"
+    exit 1
+  fi
+  if [ "${LEGAL_AMENDMENT_IMMEDIATE:-}" != "$PUB" ]; then
+    bad "this deploy PUBLISHES an IMMEDIATE legal amendment: published AND in force $PUB, with NO notice window"
+    bad "  and no announcement — the new Terms bind from today. That waives the 5 days' notice the texts promise,"
+    bad "  which is the owner's decision alone. If the owner made it for THIS amendment, re-run with:"
+    bad "  LEGAL_AMENDMENT_IMMEDIATE=$PUB bash eno-deploy.sh"
+    exit 1
+  fi
+  warn "this deploy publishes an IMMEDIATE legal amendment: published and in force $PUB (today), no notice"
+  warn "window — proceeding on LEGAL_AMENDMENT_IMMEDIATE=$PUB."
   exit 0
 fi
 

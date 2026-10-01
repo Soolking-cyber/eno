@@ -13,9 +13,10 @@ import { TOS_EFFECTIVE_AT, TOS_PREVIOUS_VERSION, TOS_VERSION } from '@/lib/site-
  *
  * 2. ONBOARDING STAMPS THE TERMS VERSION IN FORCE — NOT THE NEWEST ONE. This route is the only writer
  *    of Profile.tosVersion / tosAcceptedAt, and those two columns are evidence of what a person agreed
- *    to and when (E-Transactions Law). During the notice window the newly published Terms are not yet
+ *    to and when (E-Transactions Law). During a notice window the newly published Terms are not yet
  *    binding, so a person onboarding then accepts the PREVIOUS version; from the in-force instant
- *    (midnight Vietnam time, src/lib/site-legal.ts) they accept the new one.
+ *    (midnight Vietnam time, src/lib/site-legal.ts) they accept the new one. Version 2 had no window
+ *    (immediate, in force 01/10/2026 — owner's decision), so before that instant is the day before.
  */
 
 const h = vi.hoisted(() => ({
@@ -155,5 +156,18 @@ describe('POST /api/profile/account-type — the Terms acceptance stamp', () => 
     h.tosVersion = TOS_PREVIOUS_VERSION
     const data = await onboardAt(TOS_EFFECTIVE_AT + 60_000)
     expect(data.tosVersion).toBe(TOS_VERSION)
+  })
+
+  // ⛔ Version 2 is an IMMEDIATE amendment (owner, 2026-10-01: "just change now … no need for announcement"):
+  // in force from midnight Vietnam time on its publication day, so onboarding on 01/10 accepts version 2.
+  it('stamps version 2 on 01/10/2026 itself — no notice window', async () => {
+    const at = Date.parse('2026-10-01T18:00:00+07:00')
+    expect(TOS_EFFECTIVE_AT).toBe(Date.parse('2026-10-01T00:00:00+07:00'))
+    const data = await onboardAt(at)
+    expect(data.tosVersion).toBe('2')
+    expect((data.tosAcceptedAt as Date).getTime()).toBe(at)
+    // …and an account that accepted version 1 earlier that day is re-stamped on its next onboarding.
+    h.tosVersion = '1'
+    expect((await onboardAt(at + 60_000)).tosVersion).toBe('2')
   })
 })

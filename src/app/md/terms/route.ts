@@ -17,8 +17,8 @@ import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
  * ⚠️ THE VERSION STRING IS LOAD-BEARING. `tosVersionInForce()` is what gets stamped onto
  * Profile.tosVersion at acceptance, so an agent quoting "version in force: N" from this document and a
  * user's stored acceptance record refer to the same text by construction. It is read PER REQUEST
- * (this route is force-dynamic): during a notice window the newest published version (TOS_VERSION)
- * is not yet the one in force, and the body says so. Do not print a date in place of the version:
+ * (this route is force-dynamic): during a notice window (none for the immediate 2026-10 amendment) the
+ * newest published version (TOS_VERSION) is not yet the one in force, and the body says so. Do not print a date in place of the version:
  * site-legal.ts explains why dated version strings implied a history the account table does not hold.
  *
  * ⚠️ NO CLAUSE IS PARAPHRASED. Summarising a limitation of liability or a governing-law clause in
@@ -42,13 +42,15 @@ const operatorLine = OPERATOR_REGISTERED
   : `${SITE_NAME} is ${WHAT_WE_ARE}. The operating company is currently being registered in Vietnam; its registered name, business registration number and head-office address are published on the HTML page as soon as the certificate is issued.`
 
 /**
- * The version line, per request. During a notice window it also names the newer published version
- * and when it takes effect, so "the text at /terms" and "the version in force" cannot be confused.
+ * The version line, per request. In force: the version, the date it took effect and where the one it
+ * replaced is published (version 2 took effect on its publication day — an immediate amendment, owner
+ * 2026-10-01). During a notice window it also names the newer published version and when it takes
+ * effect, so "the text at /terms" and "the version in force" cannot be confused.
  */
 function versionLine(now: Date): string {
   const inForce = tosVersionInForce(now)
   return inForce === TOS_VERSION
-    ? `Version in force: ${inForce}`
+    ? `Version in force: ${inForce}, since ${AMENDED.inForceEn}. The previous version, ${TOS_PREVIOUS_VERSION}, is published at ${SITE_ORIGIN}${archivedPath('terms', TOS_PREVIOUS_VERSION)}.`
     : `Version in force: ${inForce}. Version ${TOS_VERSION} — the text now published at ${SITE_ORIGIN}/terms — was published on ${AMENDED.publishedEn} and takes effect on ${AMENDED.inForceEn}; until then version ${TOS_PREVIOUS_VERSION} remains in force, and its text is published at ${SITE_ORIGIN}${archivedPath('terms', TOS_PREVIOUS_VERSION)}.`
 }
 

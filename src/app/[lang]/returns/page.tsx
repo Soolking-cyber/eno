@@ -222,8 +222,10 @@ const sections: Section[] = [
     titleVi: 'Thay đổi chính sách',
     paras: [
       {
-        en: `This version was published on ${AMENDED.publishedEn} and is in force from ${AMENDED.inForceEn}. Until then the ${WINDOW_DAYS}-day commitment was described as covering the verified business storefronts whose catalogues appear in product listings and shopping results. From ${AMENDED.inForceEn} it covers only business sellers that sell through chat on ${SITE_NAME} and have accepted this policy; linked listings and affiliate shops follow their own shop's policy. A purchase made before ${AMENDED.inForceEn} is governed by the version in force when it was made.`,
-        vi: `Phiên bản này được công bố ngày ${AMENDED.publishedVi} và có hiệu lực từ ngày ${AMENDED.inForceVi}. Trước đó, cam kết ${WINDOW_DAYS} ngày được mô tả là áp dụng cho các gian hàng doanh nghiệp đã xác minh có danh mục sản phẩm hiển thị trong tin đăng và kết quả mua sắm. Từ ngày ${AMENDED.inForceVi}, cam kết chỉ áp dụng cho người bán là doanh nghiệp bán hàng qua kênh nhắn tin trên ${SITE_NAME} và đã chấp nhận chính sách này; tin đăng liên kết và cửa hàng liên kết áp dụng chính sách của chính cửa hàng đó. Giao dịch mua trước ngày ${AMENDED.inForceVi} được điều chỉnh bởi phiên bản có hiệu lực tại thời điểm mua.`,
+        // ONE date: this version was published and took effect the same day (an immediate amendment —
+        // owner, 2026-10-01; LEGAL_AMENDMENT.immediate), so "published X and in force from X" said it twice.
+        en: `This version is in force from ${AMENDED.inForceEn}. Before that date the ${WINDOW_DAYS}-day commitment was described as covering the verified business storefronts whose catalogues appear in product listings and shopping results; it now covers only business sellers that sell through chat on ${SITE_NAME} and have accepted this policy, and linked listings and affiliate shops follow their own shop's policy. A purchase made before ${AMENDED.inForceEn} is governed by the version in force when it was made.`,
+        vi: `Phiên bản này có hiệu lực từ ngày ${AMENDED.inForceVi}. Trước ngày đó, cam kết ${WINDOW_DAYS} ngày được mô tả là áp dụng cho các gian hàng doanh nghiệp đã xác minh có danh mục sản phẩm hiển thị trong tin đăng và kết quả mua sắm; nay cam kết chỉ áp dụng cho người bán là doanh nghiệp bán hàng qua kênh nhắn tin trên ${SITE_NAME} và đã chấp nhận chính sách này, còn tin đăng liên kết và cửa hàng liên kết áp dụng chính sách của chính cửa hàng đó. Giao dịch mua trước ngày ${AMENDED.inForceVi} được điều chỉnh bởi phiên bản có hiệu lực tại thời điểm mua.`,
       },
     ],
   },
@@ -243,10 +245,13 @@ export default async function ReturnsPage({ params }: { params: Promise<{ lang: 
       meta={
         <>
           <p className="mt-3 text-sm text-ink-4">
+            {/* One date: this version was published and took effect the same day
+                (LEGAL_AMENDMENT.immediate), and for a returns policy the date that matters to a purchase
+                is the one it binds from. The changes section below says what it replaced. */}
             <Bilingual
-              en="Last updated: {published} · in force from {inForce} · Applies to purchases in Vietnam"
-              vi="Cập nhật lần cuối: {published} · có hiệu lực từ {inForce} · Áp dụng cho giao dịch tại Việt Nam"
-              values={vi ? { published: AMENDED.publishedVi, inForce: AMENDED.inForceVi } : { published: AMENDED.publishedEn, inForce: AMENDED.inForceEn }}
+              en="In force from {date} · Applies to purchases in Vietnam"
+              vi="Có hiệu lực từ ngày {date} · Áp dụng cho giao dịch tại Việt Nam"
+              values={{ date: vi ? AMENDED.inForceVi : AMENDED.inForceEn }}
             />
           </p>
           <LegalLanguageNote />

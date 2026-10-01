@@ -50,10 +50,11 @@ vi.mock('@/components/marketplace/content-page', () => ({
 
 vi.setConfig({ testTimeout: 30_000 })
 
-async function page<T>(path: string, lang: 'en' | 'vi', edition: 'marketplace' | 'services' = 'marketplace'): Promise<T> {
+async function page<T>(path: string, lang: 'en' | 'vi', edition: 'marketplace' | 'services' = 'marketplace', window = false): Promise<T> {
   vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', edition)
   vi.stubEnv('NEXT_PUBLIC_APP_URL', edition === 'marketplace' ? 'https://eno.vn' : 'https://www.eno.forum')
   vi.resetModules()
+  if (window) withWindow()
   h.lang = lang
   return import(/* @vite-ignore */ path) as Promise<T>
 }
@@ -66,10 +67,28 @@ async function renderLang(path: string, lang: 'en' | 'vi') {
 }
 
 afterEach(() => {
+  vi.doUnmock('@/lib/compliance/legal-amendment')
   vi.unstubAllEnvs()
   vi.useRealTimers()
   h.lang = 'en'
 })
+
+/**
+ * The pages as they would render for an amendment WITH a notice window — the default for the next one
+ * (the dates 110295be shipped: published 01/10, in force 07/10). page(…, window = true) registers it
+ * right after its resetModules, so the import sees it; afterEach removes it.
+ */
+const WINDOW = { published: '2026-10-01', inForce: '2026-10-07' } as const
+const WINDOW_EFFECTIVE_AT = Date.parse('2026-10-07T00:00:00+07:00')
+function withWindow() {
+  vi.doMock('@/lib/compliance/legal-amendment', async (importOriginal) => {
+    const real = await importOriginal<typeof import('@/lib/compliance/legal-amendment')>()
+    return { ...real, LEGAL_AMENDMENT: WINDOW, AMENDED: real.amendedDates(WINDOW) }
+  })
+}
+
+/** 18:00 in Vietnam on 01/10/2026 — the day the owner made version 2 immediate. */
+const OCT_1_EVENING = Date.parse('2026-10-01T18:00:00+07:00')
 
 /** Pin the clock (Date only) so a page that reads the version in force renders deterministically. */
 function clockAt(at: number) {
@@ -106,28 +125,39 @@ describe('/terms', () => {
     expect(html).not.toMatch(ENGLISH_AUTHORITATIVE)
     // The pre-existing promise, kept word for word (it binds a TOS_VERSION bump), and the note's wording.
     expect(html).toContain('the version shown at the top of this page changes with them')
-    expect(html).toContain(`Changes published on ${AMENDED.publishedEn}, in force from ${AMENDED.inForceEn}`)
+    // One date: version 2 was published and took effect the same day (immediate — owner, 2026-10-01).
+    expect(html).toContain(`Changes in force from ${AMENDED.inForceEn}: the section on who posts listings`)
+    expect(html).toContain('The previous wording (version 1) is published at /terms/v1.')
+    expect(html).not.toMatch(/Changes published on|Until .* the previous wording applies/)
     expect(html).toContain('a translation prepared by eno that our lawyers are still reviewing')
     expect(html).not.toContain('reviewed translation')
   })
 
-  it('headlines the version IN FORCE during the notice window and says which text binds', async () => {
-    clockAt(TOS_EFFECTIVE_AT - 1)
+  // ⛔ Version 2 is IN FORCE (owner, 2026-10-01: "just change now … no need for announcement").
+  it('headlines version 2 as in force now, with no "not yet in force" line', async () => {
+    clockAt(OCT_1_EVENING)
     const en = text(await renderLang('./terms/page', 'en'))
-    expect(en).toContain(`Version ${TOS_PREVIOUS_VERSION}</p>`)
-    expect(en).toContain(`The text below is version ${TOS_VERSION}, published on ${AMENDED.publishedEn} and in force from ${AMENDED.inForceEn}. Until then, version ${TOS_PREVIOUS_VERSION} remains in force.`)
+    expect(en).toContain(`Version ${TOS_VERSION}</p>`)
+    expect(en).not.toContain('The text below is version')
+    expect(en).not.toMatch(/7 October|remains in force/)
     const viHtml = text(await renderLang('./terms/page', 'vi'))
-    expect(viHtml).toContain(`Trước ngày đó, phiên bản ${TOS_PREVIOUS_VERSION} vẫn là phiên bản đang có hiệu lực.`)
+    expect(viHtml).toContain(`Version ${TOS_VERSION}</p>`)
+    expect(viHtml).toContain(`Các thay đổi có hiệu lực từ ngày ${AMENDED.inForceVi}:`)
+    expect(viHtml).toContain('Nội dung trước sửa đổi (phiên bản 1) được lưu tại <a href="/terms/v1"')
+    expect(viHtml).not.toMatch(/07\/10\/2026|Trước ngày|vẫn là phiên bản đang có hiệu lực/)
+    // The previous version stays one tap away, from the change note.
+    expect(viHtml.match(/href="\/terms\/v1"/g)?.length).toBe(1)
   })
 
-  it('links the text in force — published, not "write to us for a copy" (Quy chế Article 15)', async () => {
-    clockAt(TOS_EFFECTIVE_AT - 1)
-    const en = text(await renderLang('./terms/page', 'en'))
+  it('headlines the version IN FORCE during a notice window and says which text binds (the default)', async () => {
+    clockAt(WINDOW_EFFECTIVE_AT - 1)
+    const mod = await page<LangPage>('./terms/page', 'en', 'marketplace', true)
+    const en = text(renderToStaticMarkup(await mod.default({ params: Promise.resolve({ lang: 'en' }) })))
+    expect(en).toContain(`Version ${TOS_PREVIOUS_VERSION}</p>`)
+    expect(en).toContain(`The text below is version ${TOS_VERSION}, published on 1 October 2026 and in force from 7 October 2026. Until then, version ${TOS_PREVIOUS_VERSION} remains in force.`)
+    // The text in force is published, not "write to us for a copy" (Quy chế Article 15).
     expect(en).toContain(`<a href="/terms/v${TOS_PREVIOUS_VERSION}" class="font-semibold text-accent-foreground hover:underline">Read version ${TOS_PREVIOUS_VERSION}</a>`)
     expect(en).not.toMatch(/write to us for a copy/i)
-    // The change note names it too, linked (the vi body is linkified on the server).
-    const viHtml = text(await renderLang('./terms/page', 'vi'))
-    expect(viHtml.match(/href="\/terms\/v1"/g)?.length).toBe(2)
   })
 
   it('headlines the new version alone from the in-force instant', async () => {
@@ -163,7 +193,10 @@ describe('/returns', () => {
     expect(html).toContain('applies only to purchases from a business seller that sells through chat on eno.vn and has accepted this policy')
     expect(html).toContain('A linked listing')
     expect(html).toContain('follows that seller&#x27;s own returns and refund policy')
-    expect(html).toContain(`in force from ${AMENDED.inForceEn}`)
+    expect(html).toContain(`In force from ${AMENDED.inForceEn} · Applies to purchases in Vietnam`)
+    expect(html).toContain(`This version is in force from ${AMENDED.inForceEn}. Before that date the`)
+    // One date — published and in force the same day — never "published X and in force from X".
+    expect(html).not.toMatch(/published on|Last updated: .* in force from|7 October/)
     // The old promise survives only as history inside the dated change note.
     expect(html).not.toContain('This policy is the returns commitment of the verified business storefronts')
     expect(html).not.toMatch(ENGLISH_AUTHORITATIVE)
@@ -173,7 +206,9 @@ describe('/returns', () => {
     const html = await renderLang('./returns/page', 'vi')
     expect(html).toContain('<h1>Đổi trả và hoàn tiền</h1>')
     expect(html).toContain('đã chấp nhận chính sách này với chúng tôi')
-    expect(html).toContain(`có hiệu lực từ ngày ${AMENDED.inForceVi}`)
+    expect(html).toContain(`Có hiệu lực từ ngày ${AMENDED.inForceVi} · Áp dụng cho giao dịch tại Việt Nam`)
+    expect(html).toContain(`Phiên bản này có hiệu lực từ ngày ${AMENDED.inForceVi}. Trước ngày đó,`)
+    expect(html).not.toMatch(/được công bố ngày|07\/10\/2026/)
   })
 })
 
@@ -298,12 +333,31 @@ describe('/regulations', () => {
     expect(log).not.toContain('đăng ký website cung cấp dịch vụ thương mại điện tử')
   })
 
-  it('publishes where the version in force lives, linked from META and Article 17', async () => {
+  // ⛔ Version 2 is IN FORCE from 01/10/2026, its publication day (owner, 2026-10-01).
+  it('META: version 2 in force from 01/10/2026, the previous version archived, the standing sentences kept', async () => {
     const html = text(await regs())
     const head = html.slice(0, html.indexOf('<nav>'))
-    expect(head).toContain(`Phiên bản ${TOS_VERSION}, sửa đổi công bố ngày ${AMENDED.publishedVi}`)
+    expect(head).toContain('Phiên bản 2, có hiệu lực từ ngày 01/10/2026 (xem Điều 17). Phiên bản trước được lưu tại <a href="/regulations/v1"')
+    expect(head).toContain('Version 2, in force from 1 October 2026 (see Article 17). The previous version is archived at <a href="/regulations/v1"')
+    expect(head).toContain('Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.')
+    expect(head).toContain('The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.')
+    expect(head).not.toMatch(/trước ngày đó|until then|07\/10\/2026|7 October|công bố ngày/)
     expect(head.match(/href="\/regulations\/v1"/g)?.length).toBe(2) // META, both languages
-    expect(section(html, 'changelog').match(/href="\/regulations\/v1"/g)?.length).toBe(2)
+  })
+
+  it('Article 17: published and in force 01/10/2026, the previous text archived, no "until that date"', async () => {
+    const log = text(section(await regs(), 'changelog'))
+    expect(log).toContain('Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày 01/10/2026; nội dung trước sửa đổi (phiên bản 1) được lưu tại <a href="/regulations/v1"')
+    expect(log).toContain('Amendments published on and in force from 1 October 2026; the previous text (version 1) is archived at <a href="/regulations/v1"')
+    expect(log).not.toMatch(/trước ngày đó|until that date|07\/10\/2026|7 October/)
+    expect(log.match(/href="\/regulations\/v1"/g)?.length).toBe(2)
+  })
+
+  it('META with a notice window (the default): says version 1 governs until the in-force date', async () => {
+    const mod = await page<{ default: () => React.ReactElement }>('./regulations/page', 'en', 'marketplace', true)
+    const html = text(renderToStaticMarkup(mod.default()))
+    const head = html.slice(0, html.indexOf('<nav>'))
+    expect(head).toContain(`Phiên bản ${TOS_VERSION}, sửa đổi công bố ngày 01/10/2026, có hiệu lực từ ngày 07/10/2026 (xem Điều 17); trước ngày đó, phiên bản ${TOS_PREVIOUS_VERSION} vẫn là bản đang áp dụng`)
   })
 
   // ⛔ eno.forum is the edition that will NEVER register with Bộ Công Thương as an intermediary platform
@@ -370,7 +424,8 @@ describe('version 1, archived (/terms/v1, /regulations/v1)', () => {
     const { V1_SUPERSEDED } = await import('@/lib/compliance/legal-archive')
     const mod = await page<LangPage & { metadata: { robots?: unknown; alternates?: { canonical?: string } } }>('./terms/v1/page', 'en')
     const en = text(renderToStaticMarkup(await mod.default({ params: Promise.resolve({ lang: 'en' }) })))
-    expect(en).toContain(`This is version 1 of these Terms. Version 2, published on ${V1_SUPERSEDED.publishedEn}, takes effect on ${V1_SUPERSEDED.inForceEn} and replaces it`)
+    expect(en).toContain(`This is version 1 of these Terms. Version 2 replaced it with effect from ${V1_SUPERSEDED.inForceEn}.`)
+    expect(en).not.toMatch(/until then|takes effect on|7 October/)
     expect(en).toContain('Last updated: August 2026 · Version 1</p>')
     expect(en).toContain('<a href="/terms"')
     // Version 1's own body: no linked-listings section, which version 2 added.
@@ -384,7 +439,9 @@ describe('version 1, archived (/terms/v1, /regulations/v1)', () => {
     for (const edition of ['marketplace', 'services'] as const) {
       const mod = await page<{ default: () => React.ReactElement; metadata: { robots?: unknown } }>('./regulations/v1/page', 'en', edition)
       const html = text(renderToStaticMarkup(mod.default()))
-      expect(html, edition).toContain(`Đây là phiên bản 1 của Quy chế. Phiên bản 2, công bố ngày ${V1_SUPERSEDED.publishedVi}, có hiệu lực từ ngày ${V1_SUPERSEDED.inForceVi}`)
+      expect(html, edition).toContain(`Đây là phiên bản 1 của Quy chế. Phiên bản 2 thay thế phiên bản này kể từ ngày ${V1_SUPERSEDED.inForceVi}. Bản mới nhất được đăng tại`)
+      expect(html, edition).toContain(`This is version 1 of these Regulations. Version 2 replaced it with effect from ${V1_SUPERSEDED.inForceEn}.`)
+      expect(html, edition).not.toMatch(/trước ngày đó, phiên bản 1|until then, version 1|07\/10\/2026/)
       expect(html, edition).toContain('Phiên bản 1. Bản tiếng Việt là bản có giá trị pháp lý')
       expect(html, edition).not.toContain('Phiên bản 2.')
       expect(html, edition).not.toContain('<section id="changelog">')

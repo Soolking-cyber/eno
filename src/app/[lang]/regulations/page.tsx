@@ -19,7 +19,7 @@ import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
 import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
-import { AMENDED } from '@/lib/compliance/legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
 import { V1, V1_PATHS, archivedPath } from '@/lib/compliance/legal-archive'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -35,9 +35,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * LEGAL_BASIS (src/lib/compliance/legal-basis.ts), the single source the takedown notices use too.
  *
  * ⚠️ AMENDED 2026-10 — Article 17 is the change log, and every amendment adds a dated entry there.
- * The two dates come from LEGAL_AMENDMENT (src/lib/compliance/legal-amendment.ts): published = the
- * real deploy day, in force ≥ 6 calendar days later, because the 5-day notice (Article 15) does not
- * count the publication day.
+ * The dates come from LEGAL_AMENDMENT (src/lib/compliance/legal-amendment.ts): published = the real
+ * deploy day, in force ≥ 6 calendar days later by default, because the 5-day notice (Article 15) does
+ * not count the publication day. The 2026-10 amendment is the owner-decided exception (`immediate`):
+ * published and in force on 01/10/2026, no notice window, no announcement.
  *
  * ⛔ SHIPS ONLY WITH W-C AND THE PARTNER DB FLIP. Article 3 (the “Cửa hàng liên kết” label, and the
  * badge meaning a signed agreement), Article 8 and Article 14 (commission links labelled “Quảng cáo”
@@ -117,13 +118,22 @@ const INTRO: Para = {
 }
 
 // ⚠️ THE VERSION IN FORCE IS ALWAYS PUBLISHED, AND THIS LINE SAYS WHERE (2026-10-01 review). Article 15
-// promises "Bản Quy chế đang áp dụng luôn được đăng tại /regulations kèm số phiên bản"; until
-// AMENDED.inForce that version is TOS_PREVIOUS_VERSION, archived at /regulations/v<N>
-// (src/lib/compliance/legal-archive.ts). Worded to stay true after the in-force date too.
-const META: Para = {
-  vi: `Phiên bản ${TOS_VERSION}, sửa đổi công bố ngày ${AMENDED.publishedVi}, có hiệu lực từ ngày ${AMENDED.inForceVi} (xem Điều 17); trước ngày đó, phiên bản ${TOS_PREVIOUS_VERSION} vẫn là bản đang áp dụng và được đăng tại ${archivedPath('regulations', TOS_PREVIOUS_VERSION)}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
-  en: `Version ${TOS_VERSION}, amended on ${AMENDED.publishedEn} with effect from ${AMENDED.inForceEn} (see Article 17); until then version ${TOS_PREVIOUS_VERSION} remains in force, and it is published at ${archivedPath('regulations', TOS_PREVIOUS_VERSION)}. The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.`,
-}
+// promises "Bản Quy chế đang áp dụng luôn được đăng tại /regulations kèm số phiên bản".
+// · IMMEDIATE amendment (2026-10 — owner: in force the day it is published, no notice): the text below IS
+//   the version in force, from that one date; the previous version is archived at /regulations/v<N>.
+// · An amendment WITH a notice window: until AMENDED.inForce the version in force is TOS_PREVIOUS_VERSION,
+//   archived at /regulations/v<N> (src/lib/compliance/legal-archive.ts) — kept for the next amendment,
+//   worded to stay true after its in-force date too.
+// The authoritative-language and future-amendment-notice sentences are the same in both.
+const META: Para = LEGAL_AMENDMENT.immediate
+  ? {
+      vi: `Phiên bản ${TOS_VERSION}, có hiệu lực từ ngày ${AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại ${archivedPath('regulations', TOS_PREVIOUS_VERSION)}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
+      en: `Version ${TOS_VERSION}, in force from ${AMENDED.inForceEn} (see Article 17). The previous version is archived at ${archivedPath('regulations', TOS_PREVIOUS_VERSION)}. The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.`,
+    }
+  : {
+      vi: `Phiên bản ${TOS_VERSION}, sửa đổi công bố ngày ${AMENDED.publishedVi}, có hiệu lực từ ngày ${AMENDED.inForceVi} (xem Điều 17); trước ngày đó, phiên bản ${TOS_PREVIOUS_VERSION} vẫn là bản đang áp dụng và được đăng tại ${archivedPath('regulations', TOS_PREVIOUS_VERSION)}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
+      en: `Version ${TOS_VERSION}, amended on ${AMENDED.publishedEn} with effect from ${AMENDED.inForceEn} (see Article 17); until then version ${TOS_PREVIOUS_VERSION} remains in force, and it is published at ${archivedPath('regulations', TOS_PREVIOUS_VERSION)}. The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.`,
+    }
 
 /**
  * ARTICLE 4's REGISTRATION DUTY — PER EDITION, the same licensing defect the Article 2 note below calls
@@ -748,14 +758,17 @@ const ARTICLES: Article[] = [
   {
     // ⚠️ APPEND-ONLY. One dated entry per amendment, newest last; never rewrite an old entry. Dates are
     // typed, not computed, so nothing here can drift in prerendered HTML.
+    // The 2026-10 entry was re-dated ON ITS OWN PUBLICATION DAY (owner, 2026-10-01: in force at once, no
+    // announcement — LEGAL_AMENDMENT.immediate): it first said "published 01/10, in force 07/10; until then
+    // version 1 applies". One date now, because it was published and took effect the same day.
     id: 'changelog',
     rail: '17. Change history',
     titleVi: 'Điều 17. Lịch sử sửa đổi, bổ sung',
     titleEn: 'Article 17. Change history',
     body: [
       {
-        vi: `Sửa đổi, bổ sung công bố ngày ${AMENDED.publishedVi}, có hiệu lực từ ngày ${AMENDED.inForceVi}; trước ngày đó, nội dung trước sửa đổi (phiên bản ${V1}, đăng tại ${V1_PATHS.regulations}) vẫn được áp dụng. Nội dung sửa đổi, bổ sung gồm: ${numbered('vi')}.`,
-        en: `Amendments published on ${AMENDED.publishedEn}, in force from ${AMENDED.inForceEn}; until that date the previous text (version ${V1}, published at ${V1_PATHS.regulations}) continues to apply. They: ${numbered('en')}.`,
+        vi: `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${AMENDED.inForceVi}; nội dung trước sửa đổi (phiên bản ${V1}) được lưu tại ${V1_PATHS.regulations}. Nội dung sửa đổi, bổ sung gồm: ${numbered('vi')}.`,
+        en: `Amendments published on and in force from ${AMENDED.inForceEn}; the previous text (version ${V1}) is archived at ${V1_PATHS.regulations}. They: ${numbered('en')}.`,
       },
     ],
   },
@@ -812,8 +825,9 @@ export default function RegulationsPage() {
       title="Quy chế hoạt động (Operating Regulations)"
       meta={
         <div className="mt-3 max-w-[70ch] space-y-1">
-          {/* Linkified: META names where the version in force is published (/regulations/v1 during a
-              notice window), and Article 15 promises that version is always one step away. */}
+          {/* Linkified: META names where the previous version is published (/regulations/v1 — the
+              version in force during a notice window, if an amendment has one), and Article 15 promises
+              the version in force is always one step away. */}
           <p className="text-sm text-ink-4" lang="vi">{linkifyLegal(META.vi)}</p>
           <p className="text-sm text-ink-4" lang="en">{linkifyLegal(META.en)}</p>
         </div>

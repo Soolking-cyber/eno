@@ -2,11 +2,13 @@
 //
 // ⛔ WHY ARCHIVES EXIST AT ALL (2026-10-01 review). Quy chế Article 15 promises "Bản Quy chế đang áp dụng
 // luôn được đăng tại /regulations kèm số phiên bản". From LEGAL_AMENDMENT.published /regulations and /terms
-// show version 2, which binds only from LEGAL_AMENDMENT.inForce — so during the notice window the text IN
-// FORCE was published nowhere ("write to us for a copy"). And everyone who accepts before the in-force
-// instant is stamped Profile.tosVersion '1' (tosVersionInForce, src/lib/site-legal.ts): a text they must be
-// able to read for as long as that acceptance record matters. So version 1 stays published, permanently,
-// at the two paths below (src/app/[lang]/terms/v1, src/app/[lang]/regulations/v1).
+// show the new version, which binds only from LEGAL_AMENDMENT.inForce — so during a notice window the text
+// IN FORCE would be published nowhere ("write to us for a copy"). And everyone who accepted before the
+// in-force instant is stamped Profile.tosVersion '1' (tosVersionInForce, src/lib/site-legal.ts): a text
+// they must be able to read for as long as that acceptance record matters. So version 1 stays published,
+// permanently, at the two paths below (src/app/[lang]/terms/v1, src/app/[lang]/regulations/v1).
+// ⚠️ Version 2 turned out to have NO window — an immediate amendment, in force 01/10/2026, the day it was
+// published (owner, 2026-10-01) — but the second reason stands: every acceptance before it names version 1.
 //
 // ⛔ THE SUPERSEDING DATES ARE BORROWED FROM LEGAL_AMENDMENT ONLY WHILE IT STILL DESCRIBES VERSION 2.
 // The next amendment re-uses LEGAL_AMENDMENT (site-legal.ts says how), and from that moment these dates

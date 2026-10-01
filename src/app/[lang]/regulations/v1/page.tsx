@@ -2,8 +2,8 @@
  * ⛔ QUY CHẾ HOẠT ĐỘNG — PHIÊN BẢN 1, THE ARCHIVED TEXT. DO NOT EDIT A WORD OF INTRO, META OR ARTICLES.
  *
  * Why it exists, and why it is permanent: src/lib/compliance/legal-archive.ts. In short, Article 15 below
- * promises the version in force is always published under /regulations with its number, and during the
- * notice window of the October 2026 amendment that version is this one, not the text /regulations shows.
+ * promises the version in force is always published under /regulations with its number, and this is the
+ * version that was in force until the October 2026 amendment (immediate, in force 01/10/2026) replaced it.
  *
  * ⚠️ VERBATIM FROM `git show fbd817e4:src/app/[lang]/regulations/page.tsx` — the text deployed at c9ef3b16
  * (no commit between the two touches that file, site-legal.ts, visa-provider.ts or terms-services-copy.ts).
@@ -429,12 +429,12 @@ const ARTICLES: Article[] = [
 ]
 
 /**
- * What this page is, said first and in both languages. Worded to stay true on both sides of the in-force
- * date: before it, "until then, version 1 is the version in force" is the operative fact; after it, history.
+ * What this page is, said first and in both languages. Version 2 replaced it on its own publication day —
+ * an immediate amendment (owner, 2026-10-01: no notice window) — so there is one date and no "until then".
  */
 const ARCHIVE: Para = {
-  vi: `Đây là phiên bản ${V1} của Quy chế. Phiên bản ${V1_SUPERSEDED_BY.version}, công bố ngày ${V1_SUPERSEDED.publishedVi}, có hiệu lực từ ngày ${V1_SUPERSEDED.inForceVi} và thay thế phiên bản này; trước ngày đó, phiên bản ${V1} là bản đang áp dụng. Bản mới nhất được đăng tại /regulations.`,
-  en: `This is version ${V1} of these Regulations. Version ${V1_SUPERSEDED_BY.version}, published on ${V1_SUPERSEDED.publishedEn}, takes effect on ${V1_SUPERSEDED.inForceEn} and replaces this version; until then, version ${V1} is the version in force. The latest text is published at /regulations.`,
+  vi: `Đây là phiên bản ${V1} của Quy chế. Phiên bản ${V1_SUPERSEDED_BY.version} thay thế phiên bản này kể từ ngày ${V1_SUPERSEDED.inForceVi}. Bản mới nhất được đăng tại /regulations.`,
+  en: `This is version ${V1} of these Regulations. Version ${V1_SUPERSEDED_BY.version} replaced it with effect from ${V1_SUPERSEDED.inForceEn}. The latest text is published at /regulations.`,
 }
 
 export const metadata: Metadata = withShare({

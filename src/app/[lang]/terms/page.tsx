@@ -25,7 +25,7 @@ import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { CROSS_SITE_REL, MARKETPLACE_HOME } from '@/lib/cross-site-links'
 import { TERMS_SERVICES_COPY } from '@/lib/terms-services-copy'
 import { AMENDED } from '@/lib/compliance/legal-amendment'
-import { V1_PATHS, archivedPath } from '@/lib/compliance/legal-archive'
+import { V1, V1_PATHS, archivedPath } from '@/lib/compliance/legal-archive'
 
 // ── Terms of Service — ONE file, rendered by BOTH deployments ───────────────────────────
 // eno.vn is a licensed sàn TMĐT classifieds marketplace. eno.forum is the same marketplace plus
@@ -60,9 +60,10 @@ import { V1_PATHS, archivedPath } from '@/lib/compliance/legal-archive'
 //
 // ⛔ SHIPS ONLY WITH: W-C (the "Ad" marker + commission note the `linked` and `fees` sections promise,
 // and the "Linked shop" chip `trust` names) and the officialPartner DB flip (+ importers that stop
-// creating badged storefronts). The TOS_VERSION bump, its in-force instant and the site-wide notice
-// are in this tree (src/lib/site-legal.ts, tos-change-notice.tsx); a notice SENT to registered users
-// (Quy chế Article 15 promises one alongside the on-platform announcement) is not — owner's call.
+// creating badged storefronts). The TOS_VERSION bump and its in-force instant are in this tree
+// (src/lib/site-legal.ts). Version 2 is an IMMEDIATE amendment — in force from its publication day,
+// 01/10/2026, with no notice window and no announcement (owner, 2026-10-01; LEGAL_AMENDMENT.immediate) —
+// so the "not yet in force" line below never renders for it; it stays for an amendment with a window.
 
 export const metadata: Metadata = withShare({
   title: `Terms of Service | ${SITE_NAME}`,
@@ -348,13 +349,15 @@ const sections: Section[] = [
         vi: `Chúng tôi có thể cập nhật Điều khoản này khi pháp luật hoặc sản phẩm thay đổi. Những thay đổi quan trọng được thông báo trên nền tảng ít nhất 5 ngày trước ngày có hiệu lực, và số phiên bản ghi ở đầu trang thay đổi theo. Việc tiếp tục sử dụng dịch vụ sau ngày có hiệu lực đồng nghĩa với việc bạn chấp nhận nội dung mới; nếu không đồng ý, vui lòng ngừng sử dụng và bạn có thể yêu cầu xoá tài khoản.`,
       },
       {
-        // ⚠️ A DATED CHANGE NOTE, NOT A CLOCK: the dates are typed once in LEGAL_AMENDMENT
-        // (src/lib/compliance/legal-amendment.ts), so nothing here goes stale in HTML.
-        // ⚠️ THE PREVIOUS WORDING IS LINKED, NOT "WRITE TO US FOR A COPY" (2026-10-01 review): during the
-        // window it is the text in force, and anyone who accepts then is stamped version 1 — so it is
+        // ⚠️ A DATED CHANGE NOTE, NOT A CLOCK: the date is typed once in LEGAL_AMENDMENT
+        // (src/lib/compliance/legal-amendment.ts), so nothing here goes stale in HTML. ONE date: version 2
+        // was published and took effect the same day (immediate — owner, 2026-10-01), so "published X,
+        // in force X" would only say it twice.
+        // ⚠️ THE PREVIOUS WORDING IS LINKED, NOT "WRITE TO US FOR A COPY" (2026-10-01 review): everyone who
+        // accepted before 01/10 — and on 01/10 before this deploy — is stamped version 1, so it stays
         // published at /terms/v1 (src/lib/compliance/legal-archive.ts), permanently.
-        en: `Changes published on ${AMENDED.publishedEn}, in force from ${AMENDED.inForceEn}: the section on who posts listings rewritten to tell the two kinds apart, and a new section on linked listings, including where complaints about them go; automated checks before publication and trust scores described as applying to listings posted here; the Official partner badge reserved for companies with a signed agreement, other shops being labelled Linked shop; disclosure that we may earn a commission on some partner and affiliate links; fee changes announced at least 20 days ahead instead of 5; and a Vietnamese text of these Terms. Until ${AMENDED.inForceEn} the previous wording applies; it is published at ${V1_PATHS.terms}.`,
-        vi: `Các thay đổi công bố ngày ${AMENDED.publishedVi}, có hiệu lực từ ngày ${AMENDED.inForceVi}: viết lại mục Ai đăng tin trên sàn để phân biệt hai loại tin đăng, và bổ sung mục Tin đăng liên kết, kể cả nơi tiếp nhận khiếu nại về loại tin này; nêu rõ việc kiểm tra tự động trước khi hiển thị và điểm uy tín chỉ áp dụng cho tin đăng trực tiếp trên sàn; huy hiệu Đối tác chính thức chỉ dành cho công ty đã ký thoả thuận, các cửa hàng khác được gắn nhãn Cửa hàng liên kết; công khai việc chúng tôi có thể nhận hoa hồng từ một số đường dẫn của đối tác và cửa hàng liên kết; mọi thay đổi về phí được công bố trước ít nhất 20 ngày, thay vì 5 ngày như trước đây; và bổ sung bản tiếng Việt của Điều khoản. Trước ngày ${AMENDED.inForceVi}, nội dung cũ vẫn được áp dụng và được đăng tại ${V1_PATHS.terms}.`,
+        en: `Changes in force from ${AMENDED.inForceEn}: the section on who posts listings rewritten to tell the two kinds apart, and a new section on linked listings, including where complaints about them go; automated checks before publication and trust scores described as applying to listings posted here; the Official partner badge reserved for companies with a signed agreement, other shops being labelled Linked shop; disclosure that we may earn a commission on some partner and affiliate links; fee changes announced at least 20 days ahead instead of 5; and a Vietnamese text of these Terms. The previous wording (version ${V1}) is published at ${V1_PATHS.terms}.`,
+        vi: `Các thay đổi có hiệu lực từ ngày ${AMENDED.inForceVi}: viết lại mục Ai đăng tin trên sàn để phân biệt hai loại tin đăng, và bổ sung mục Tin đăng liên kết, kể cả nơi tiếp nhận khiếu nại về loại tin này; nêu rõ việc kiểm tra tự động trước khi hiển thị và điểm uy tín chỉ áp dụng cho tin đăng trực tiếp trên sàn; huy hiệu Đối tác chính thức chỉ dành cho công ty đã ký thoả thuận, các cửa hàng khác được gắn nhãn Cửa hàng liên kết; công khai việc chúng tôi có thể nhận hoa hồng từ một số đường dẫn của đối tác và cửa hàng liên kết; mọi thay đổi về phí được công bố trước ít nhất 20 ngày, thay vì 5 ngày như trước đây; và bổ sung bản tiếng Việt của Điều khoản. Nội dung trước sửa đổi (phiên bản ${V1}) được lưu tại ${V1_PATHS.terms}.`,
       },
       {
         en: `Questions about these Terms: ${COMPANY.email}.`,
@@ -372,8 +375,8 @@ export default async function TermsPage({ params }: { params: Promise<{ lang: st
   const vi = lang === 'vi'
   // ⚠️ READ AT RENDER, AND THIS PAGE IS ISR (revalidate above): the headline can lag the in-force
   // instant by up to one revalidation. It lags toward the OLD version — toward more notice — which is
-  // the direction that is safe to be late in; the site-wide notice (tos-change-notice.tsx) is
-  // client-side and exact.
+  // the direction that is safe to be late in; the site-wide notice (tos-change-notice.tsx, mounted only
+  // while an amendment has a window) is client-side and exact.
   const inForce = tosVersionInForce()
   return (
     <ContentPage

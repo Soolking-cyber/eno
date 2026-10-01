@@ -9,8 +9,16 @@ import { AMENDED } from '@/lib/compliance/legal-amendment'
 import { tosInNoticeWindow } from '@/lib/site-legal'
 
 /**
- * The on-platform announcement of the October 2026 amendment, shown on every page until it takes
- * effect.
+ * The on-platform announcement of a Terms / Quy chế amendment, shown on every page during its notice
+ * window — [LEGAL_AMENDMENT.published, LEGAL_AMENDMENT.inForce) in Vietnam time.
+ *
+ * ⛔ NOT MOUNTED SINCE 2026-10-01. The October 2026 amendment was made IMMEDIATE (owner: "just change now
+ * we dont have users so its safe to implement just new terms no need for announcement") — in force the
+ * day it was published, no window, nothing to announce — so providers.tsx no longer renders it. Kept for
+ * the next amendment with a window, which mounts it again in providers.tsx (after SkipLink);
+ * legal-amendment.test.ts fails until the mount matches the flag. ⚠️ ONE PART IS THAT AMENDMENT'S: the
+ * list of amended texts in the sentence below — rewrite it for each amendment (with the bell copy in
+ * legal-amendment-notice.ts, which must stay word for word the same).
  *
  * ⚠️ IT EXISTS BECAUSE PUBLISHING THE NEW TEXTS IS NOT ANNOUNCING THEM. Quy chế Article 15 and the
  * Terms' "Changes" section promise that a material change is announced on the platform at least 5
@@ -66,6 +74,10 @@ export function TosChangeNotice() {
   // languages, rendered through <Bilingual> so `{date}` is filled after translation.
   const tr = (en: string, vi: string, values?: Record<string, string>) => <Bilingual en={en} vi={vi} values={values} />
   const date = lang === 'vi' ? AMENDED.inForceVi : AMENDED.inForceEn
+
+  // ⚠️ REWRITE THE DOCUMENT LIST FOR EACH AMENDMENT: "Terms of Service, Operating Regulations, Returns
+  // policy and Prohibited items list" are the texts the October 2026 one changed. Change the bell copy
+  // (AMENDMENT_NOTICE, legal-amendment-notice.ts) in the same edit — its test holds the two word for word.
 
   return (
     <div

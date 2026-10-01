@@ -2,8 +2,8 @@
  * ⛔ TERMS OF SERVICE — VERSION 1, THE ARCHIVED TEXT. DO NOT EDIT A WORD OF `operatorPara` OR `sections`.
  *
  * Why it exists, and why it is permanent: src/lib/compliance/legal-archive.ts. In short, everyone who
- * accepts before the October 2026 amendment takes effect is stamped Profile.tosVersion '1', and during the
- * notice window this — not the text /terms shows — is the version in force.
+ * accepted before the October 2026 amendment took effect (01/10/2026 — immediate, no notice window) is
+ * stamped Profile.tosVersion '1', and this is the text they accepted.
  *
  * ⚠️ VERBATIM FROM `git show fbd817e4:src/app/[lang]/terms/page.tsx` — the text deployed at c9ef3b16 (no
  * commit between the two touches that file, site-legal.ts or terms-services-copy.ts). From `type Section`
@@ -184,16 +184,15 @@ export default async function TermsV1Page({ params }: { params: Promise<{ lang: 
       titleVi="Điều khoản dịch vụ"
       meta={
         <>
-          {/* What this page is, first. Worded to stay true on both sides of the in-force date: before
-              it, "until then, version 1 is the version in force" is the operative fact; after it, history. */}
+          {/* What this page is, first. Version 2 replaced it on its own publication day — an immediate
+              amendment (owner, 2026-10-01: no notice window) — so there is one date and no "until then". */}
           <p className="mt-3 max-w-[70ch] text-sm font-semibold text-foreground">
             <Bilingual
-              en="This is version {v1} of these Terms. Version {v2}, published on {published}, takes effect on {inForce} and replaces it; until then, version {v1} is the version in force."
-              vi="Đây là phiên bản {v1} của Điều khoản dịch vụ. Phiên bản {v2}, công bố ngày {published}, có hiệu lực từ ngày {inForce} và thay thế phiên bản này; trước ngày đó, phiên bản {v1} là phiên bản đang có hiệu lực."
+              en="This is version {v1} of these Terms. Version {v2} replaced it with effect from {inForce}."
+              vi="Đây là phiên bản {v1} của Điều khoản dịch vụ. Phiên bản {v2} thay thế phiên bản này kể từ ngày {inForce}."
               values={{
                 v1: V1,
                 v2: V1_SUPERSEDED_BY.version,
-                published: vi ? V1_SUPERSEDED.publishedVi : V1_SUPERSEDED.publishedEn,
                 inForce: vi ? V1_SUPERSEDED.inForceVi : V1_SUPERSEDED.inForceEn,
               }}
             />{' '}

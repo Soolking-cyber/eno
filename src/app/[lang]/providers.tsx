@@ -21,7 +21,6 @@ import { AppSplash } from "@/components/marketplace/app-splash";
 import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
-import { TosChangeNotice } from "@/components/marketplace/tos-change-notice";
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
@@ -52,12 +51,11 @@ export function Providers({
               ThemeProvider, so status-bar theming is unchanged. */}
           <NativeBootstrap />
           <SkipLink />
-          {/* The announcement of a pending Terms / Quy chế amendment (Quy chế Article 15: at least 5
-              days' notice on the platform). After SkipLink so the skip link stays the first tab stop;
-              inside LanguageProvider because it renders the visitor's language. It decides after
-              mount and hides itself at the in-force instant — see the component for why it must
-              stay a CLIENT component. */}
-          <TosChangeNotice />
+          {/* NO AMENDMENT STRIP (owner, 2026-10-01: "just change now … no need for announcement" —
+              LEGAL_AMENDMENT.immediate). For an amendment WITH a notice window, TosChangeNotice
+              (tos-change-notice.tsx) mounts exactly here: after SkipLink so the skip link stays the first
+              tab stop, inside LanguageProvider because it renders the visitor's language.
+              legal-amendment.test.ts holds the mount to the flag, both ways. */}
           <CurrencyProvider>
           <AuthProvider>
             {/* Native push registration — no-op on web + until the plugin is wired (dormant). */}
