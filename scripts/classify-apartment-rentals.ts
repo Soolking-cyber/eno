@@ -40,6 +40,9 @@ const SELLERS: Record<string, string> = {
   'muaban-net-import-seller-0001': 'Muaban.net',
   'cmub0wead0000zrq418bqq27m': 'Rever.vn',
   'honeycomb-import-seller-0001': 'Honeycomb House',
+  // Back since 2026-10-01 (fresh-only re-import). Its URL ends in the agent's own title as a slug, which
+  // factsFromSlug reads like Rever's; it has no structured furnishing field and no page we can fetch.
+  'bds-vn-import-seller-0001': 'Batdongsan.com.vn',
 }
 const APT_TYPES = new Set(['studio', 'duplex', 'penthouse', 'serviced', 'officetel'])
 const FURNISHINGS = new Set(['premium', 'fully', 'partly'])
