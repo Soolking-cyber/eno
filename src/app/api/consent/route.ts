@@ -93,6 +93,7 @@ const CONSENT_LOCK_TIMEOUT = '1000ms'
 const CONSENT_TX_MAX_WAIT_MS = 1_000
 const noContent = () => new NextResponse(null, { status: 204, headers: { 'cache-control': 'no-store' } })
 const MAX_BODY_BYTES = 2_048
+let lastContradictionWarn = 0
 /** How far ahead of the server clock a choice's timestamp may be before its record is flagged `clockAhead`. */
 const MAX_CLOCK_SKEW_S = 300
 
@@ -132,7 +133,19 @@ export async function POST(req: Request) {
   // send (cookie-consent.tsx: allow = ALL_ON, decline = ALL_OFF; the schema requires all three
   // booleans) — it is a forged record, and an append-only log must not take it (codex, 2026-10-01).
   const all = b.p && b.a && b.d, none = !b.p && !b.a && !b.d
-  if ((b.action === 'allow_all' && !all) || (b.action === 'decline_all' && !none)) return noContent()
+  const contradicts = (b.action === 'allow_all' && !all) || (b.action === 'decline_all' && !none)
+  // ⛔ Dropped BEFORE the limiters (a refused payload must not drain the global counter — codex) and the
+  // warn is throttled in-process (so it cannot flood the log either — opus). Visible on purpose: if the
+  // card ever starts sending these (a future GPC override, a stale bundle) the log would quietly stop
+  // growing. `copy` is safe to print: the schema holds it to [\w.-]{1,32}.
+  if (contradicts) {
+    const now = Date.now()
+    if (now - lastContradictionWarn > 60_000) {
+      lastContradictionWarn = now
+      console.warn('[consent] action contradicts flags — record dropped (throttled, 1/min)', { action: b.action, p: b.p, a: b.a, d: b.d, copy: b.copy })
+    }
+    return noContent()
+  }
 
   // ⛔ ONE AFTER ANOTHER, NEVER Promise.all. Every rateLimit() call counts its hit, refused or not, so a
   // parallel check let one IP past its own 1,000/h cap keep feeding the GLOBAL counter until it ran out —

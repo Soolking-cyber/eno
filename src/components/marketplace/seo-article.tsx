@@ -119,7 +119,7 @@ export type ArticleContent = {
    * Additional JSON-LD nodes, emitted verbatim beside the Article and FAQPage blocks.
    *
    * The e-visa pages use this for a `Service` node whose `provider` is the licensed partner and
-   * whose `broker` is this site — see src/app/[lang]/vietnam-evisa/service-jsonld.ts.
+   * whose `broker` is this site — see src/lib/vietnam-evisa/service-jsonld.ts.
    */
   jsonLd?: Record<string, unknown>[]
   /**

@@ -5,8 +5,8 @@ import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { NOT_GOVERNMENT, PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { expatGuidesExcept } from '@/lib/expat-guides'
-import { EVISA_HUB_PATH, evisaChildPath } from '@/app/[lang]/vietnam-evisa/links'
-import { visaServiceLd } from '@/app/[lang]/vietnam-evisa/service-jsonld'
+import { EVISA_HUB_PATH, evisaChildPath } from '@/lib/vietnam-evisa/links'
+import { visaServiceLd } from '@/lib/vietnam-evisa/service-jsonld'
 
 export const revalidate = 604800 // 7d — static SEO copy; weekly regen is plenty (fewer ISR writes)
 

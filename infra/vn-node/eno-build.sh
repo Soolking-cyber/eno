@@ -30,6 +30,16 @@ printf '\nNEXT_PUBLIC_ENO_EDITION=%s\n' "$ED" >> "$B"
 # partner-run visa CHAT, never to payments or eno's own e-visa marketing (those
 # use the stricter .forum.svc. infix no marketplace build lists).
 [ "$ED" = "marketplace" ] && printf 'MARKETPLACE_HOSTS_SERVICES=true\n' >> "$B"
+# ⛔ THE ROUTE-NAME PRUNE (Dockerfile builder stage → scripts/marketplace-route-prune.mjs). It deletes
+# eno.forum's forum-only page directories (src/app/[lang]/itinerary, vietnam-evisa and the three expat
+# guides — PRUNED_ROUTE_DIRS in that script) from the IMAGE'S copy of the source so their names stop
+# shipping in eno.vn's RSC route tree. ON unless the operator exports
+# ENO_PRUNE_FORUM_ROUTE_DIRS=0 for this run — and eno-deploy.sh reads the same variable to decide
+# whether the live leak check refuses or only warns, so the two cannot disagree within one deploy.
+# ⚠️ Validated, not interpolated blindly: anything but 0/1 would silently mean "on" in the Dockerfile.
+PRUNE="${ENO_PRUNE_FORUM_ROUTE_DIRS:-1}"
+case "$PRUNE" in 0|1) ;; *) echo "ENO_PRUNE_FORUM_ROUTE_DIRS must be 0 or 1 (got '$PRUNE')"; exit 1 ;; esac
+[ "$ED" = "marketplace" ] && printf 'ENO_PRUNE_FORUM_ROUTE_DIRS=%s\n' "$PRUNE" >> "$B"
 
 # ⛔ THE BUILD NEEDS A DATABASE, AND NOT THE ONE THE RUNTIME USES. `next build`
 # prerenders 64 static pages and several of them QUERY POSTGRES — src/app/[lang]/brands

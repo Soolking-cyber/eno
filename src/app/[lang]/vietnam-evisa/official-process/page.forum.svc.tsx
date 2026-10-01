@@ -13,8 +13,8 @@ import {
   marketplaceHref,
   type ArticleContent,
 } from '@/components/marketplace/seo-article'
-import { EVISA_HUB_PATH, evisaRelated } from '../links'
-import { visaServiceLd } from '../service-jsonld'
+import { EVISA_HUB_PATH, evisaRelated } from '@/lib/vietnam-evisa/links'
+import { visaServiceLd } from '@/lib/vietnam-evisa/service-jsonld'
 
 /**
  * THE PAGE THAT TELLS PEOPLE THEY CAN DO IT THEMSELVES.

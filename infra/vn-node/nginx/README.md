@@ -37,6 +37,7 @@ this box; nothing reaches it directly.
 | `eno.conf` | `/etc/nginx/sites-available/eno.conf` (symlinked into `sites-enabled/`) |
 | `proxy-params.conf` | `/etc/nginx/snippets/eno-proxy.conf` |
 | `ssl-params.conf` | `/etc/nginx/snippets/eno-ssl.conf` |
+| `logrotate-nginx.conf` | `/etc/logrotate.d/eno-nginx` — keeps nginx logs 400 days instead of the package's 14, **per counsel review, pending lawyer confirmation**, of [Decree 333/2026/ND-CP, Art 20](https://english.luatvietnam.vn/decree-no-333-2026-nd-cp-dated-august-19-2026-of-the-government-detailing-a-number-of-articles-and-measures-for-implementation-of-the-law-on-cyberse-445089-doc1.html) (Art. 20(3): system logs ≥ 12 months). It sits **beside** the package's `/etc/logrotate.d/nginx` and never edits it: that file is a dpkg conffile, and an edited conffile makes unattended-upgrades hold nginx security updates back ("has conffile prompt and needs to be upgraded manually"). `ignoreduplicates` on the eno stanza, which logrotate reads first (`eno-nginx` sorts before `nginx`), is what keeps the package's stanza from claiming the same files — needs logrotate ≥ 3.21.0 (Ubuntu 24.04 ships 3.21.0). Install and verify with `bash infra/vn-node/install-logrotate.sh` (`--check` changes nothing). Keep every `access_log`/`error_log` directly under `/var/log/nginx/` with a `.log` name — the glob does not recurse, and the installer fails on any path it would miss. |
 
 ## Deploy
 

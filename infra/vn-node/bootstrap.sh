@@ -2,7 +2,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # THE VIETNAM COMPLIANCE NODE — COMPLETE BUILD, FROM A BARE UBUNTU 24.04 BOX
 #
-#   scp bootstrap.sh root@NEW_IP:/root/ && ssh root@NEW_IP 'bash /root/bootstrap.sh'
+#   scp -r infra/vn-node root@NEW_IP:/root/vn-node && ssh root@NEW_IP 'bash /root/vn-node/bootstrap.sh'
+#
+# ⚠️ THE WHOLE DIRECTORY, NOT THIS FILE ALONE (2026-10-01): step 6 installs the nginx log-retention
+# policy from install-logrotate.sh + nginx/logrotate-nginx.conf beside this script, and the
+# preflight below refuses to start without them rather than finishing a box that keeps 14 days.
 #
 # Target: 4 GB RAM / 40 GB SSD, replacing the 2 GB trial box when its 7 days end.
 #
@@ -52,13 +56,21 @@ esac
 
 PG_MAJOR=17                                  # ⛔ NOT 16 — see step 3
 
+# ⛔ PREFLIGHT, BEFORE ANYTHING CHANGES: the log-retention installer must be beside this script.
+# Checked here, not at step 6, so a single-file scp fails in the first second instead of after the
+# database and nginx stages have already run.
+HERE=$(cd "$(dirname "$0")" && pwd)
+for f in "$HERE/install-logrotate.sh" "$HERE/nginx/logrotate-nginx.conf"; do
+  [ -f "$f" ] || { echo "missing $f — copy the whole infra/vn-node directory (see the usage line)"; exit 1; }
+done
+
 log(){ printf '\n\033[1;36m── %s\033[0m\n' "$*"; }
 [ "$(id -u)" -eq 0 ] || { echo "run as root"; exit 1; }
 
 log "1/7 · base packages"
 apt-get update -qq
 # `sudo` is not guaranteed on a minimal image and every postgres step below uses it.
-apt-get install -y -qq sudo nginx ufw curl ca-certificates unattended-upgrades gnupg >/dev/null
+apt-get install -y -qq sudo nginx ufw curl ca-certificates unattended-upgrades gnupg logrotate >/dev/null
 
 log "2/7 · firewall"
 # ⚠️ SSH FIRST, ON ITS REAL PORT. `ufw enable` with only 22 allowed, while sshd listens on 24700,
@@ -309,7 +321,14 @@ systemctl daemon-reload
 # `enable` alone arms it for the NEXT boot; --now starts the timer today.
 systemctl enable --now eno-db-sync.timer >/dev/null 2>&1
 
-log "6/7 · log rotation, then unattended security updates"
+log "6/7 · unattended security updates, then log rotation"
+# ⛔ SECURITY UPDATES FIRST, AND NOTHING THAT CAN FAIL GOES ABOVE THEM. A draft of this step ran
+# install-logrotate.sh first, under `set -e` (caught in review, 2026-10-01). That installer is strict
+# on purpose — it exits 1 when ANY file in /etc/logrotate.d fails to parse, eno's or not — so one
+# unrelated logrotate error ended the bootstrap HERE, after the database and nginx stages were live
+# and before the line below ran: a box serving traffic with no automatic security patching.
+printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n' \
+  > /etc/apt/apt.conf.d/20auto-upgrades
 # ⚠️ A DAILY RESTORE THAT ERRORS WRITES TO eno-db-sync.err EVERY NIGHT. Unrotated, that fills the
 # disk and stops PostgreSQL — the sync would take down the thing it exists to protect.
 cat > /etc/logrotate.d/eno-db-sync <<'ROT'
@@ -322,11 +341,27 @@ cat > /etc/logrotate.d/eno-db-sync <<'ROT'
     copytruncate
 }
 ROT
-
-printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n' \
-  > /etc/apt/apt.conf.d/20auto-upgrades
+# ⚠️ NGINX LOGS FOR 400 DAYS — LAST, AND LOUD BUT NOT FATAL. Per counsel review, pending lawyer
+# confirmation: Decree 333/2026/ND-CP Art. 20(3) keeps system logs >= 12 months (source, Art 20:
+# https://english.luatvietnam.vn/decree-no-333-2026-nd-cp-dated-august-19-2026-of-the-government-detailing-a-number-of-articles-and-measures-for-implementation-of-the-law-on-cyberse-445089-doc1.html );
+# the nginx package keeps 14 days. The installer adds /etc/logrotate.d/eno-nginx beside the package's
+# file (never editing that dpkg conffile — see nginx/logrotate-nginx.conf) and verifies the result.
+# It runs after eno-db-sync's file exists, so its whole-config check covers that one too.
+# `if !` keeps `set -e` from ending the run on its exit 1; the failure is printed here and again at
+# the top of step 7, and install-logrotate.sh stays strict when run on its own.
+LOGROTATE_FAILED=0
+if ! bash "$HERE/install-logrotate.sh"; then
+  LOGROTATE_FAILED=1
+  printf '\n\033[1;41m ⛔ NGINX LOG RETENTION NOT VERIFIED — install-logrotate.sh failed (the [XX] lines above say why) \033[0m\n'
+  printf '    Provisioning continues. Fix the cause, then: bash %s/install-logrotate.sh\n' "$HERE"
+fi
 
 log "7/7 · what is left, and it is not optional"
+if [ "$LOGROTATE_FAILED" = 1 ]; then
+  printf '\033[1;31m    ⛔ FIRST: NGINX LOG RETENTION — install-logrotate.sh FAILED in step 6. Until it passes, how long\n'
+  printf '       nginx logs are kept is UNVERIFIED (the package default is 14 days). Re-run:\n'
+  printf '         bash %s/install-logrotate.sh\033[0m\n\n' "$HERE"
+fi
 cat <<EOF
     CREDENTIAL — the sync cannot run without it:
 

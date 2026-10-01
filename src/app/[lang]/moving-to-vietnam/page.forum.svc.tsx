@@ -3,7 +3,7 @@ import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { expatGuidesExcept, guideDates } from '@/lib/expat-guides'
-import { EVISA_HUB_PATH, evisaChildPath } from '@/app/[lang]/vietnam-evisa/links'
+import { EVISA_HUB_PATH, evisaChildPath } from '@/lib/vietnam-evisa/links'
 import {
   HereLink,
   OfficialLink,

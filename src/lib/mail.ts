@@ -14,6 +14,21 @@ const KEY = process.env.RESEND_API_KEY
 // sending domain with the provider (and the API key in use is allowed to send from it). Verify that,
 // then set MAIL_FROM on the services deployment — e.g. "eno.forum <no-reply@eno.forum>".
 const FROM = process.env.MAIL_FROM || 'eno.vn <no-reply@eno.vn>'
+/** The bare sending address out of FROM ("Name <addr>" or "addr") — the part the provider verified. */
+const FROM_ADDRESS = (FROM.match(/<([^>]+)>/)?.[1] ?? FROM).trim()
+
+/**
+ * The From header for one message. A `fromName` replaces only the DISPLAY NAME — the address stays
+ * this deployment's verified sender, so deliverability and SPF/DKIM are untouched. Used by the
+ * finished-visa mail on eno.vn, which is the partner's and must not arrive as "eno.vn"
+ * (src/lib/visa/result-brand.ts).
+ * ⚠️ Quotes, angle brackets, backslashes and line breaks are stripped, not escaped: the name comes from
+ * a Seller row, and a header value is the wrong place to discover what a provider does with `\r\n`.
+ */
+export function fromHeader(fromName?: string | null): string {
+  const clean = (fromName ?? '').replace(/["<>\\\r\n]/g, '').replace(/\s+/g, ' ').trim().slice(0, 64)
+  return clean ? `"${clean}" <${FROM_ADDRESS}>` : FROM
+}
 const resend = KEY ? new Resend(KEY) : null
 
 /** True once RESEND_API_KEY is set — cron can short-circuit instead of looping recipients. */
@@ -53,6 +68,8 @@ export type MailMessage = {
   headers?: Record<string, string>
   /** Files to attach. Omit for ordinary transactional mail. */
   attachments?: MailAttachment[]
+  /** Display name for From (address unchanged) — see fromHeader. sendMail only; batches use FROM. */
+  fromName?: string
 }
 
 /**
@@ -140,7 +157,7 @@ export async function sendMail(msg: MailMessage): Promise<boolean> {
   }
   try {
     const { error } = await resend.emails.send({
-      from: FROM,
+      from: fromHeader(msg.fromName),
       to: msg.to,
       subject: msg.subject,
       html: msg.html,

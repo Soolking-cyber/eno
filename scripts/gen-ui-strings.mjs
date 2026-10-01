@@ -33,6 +33,9 @@ function walk(dir) {
  */
 const SERVICES_SOURCES = [
   'src/app/[lang]/vietnam-evisa/', 'src/app/[lang]/itinerary/', 'src/app/[lang]/services-for-expats-vietnam/',
+  // The e-visa pages' shared modules, moved out of the route directory 2026-10-01 (see
+  // scripts/marketplace-route-prune.mjs). Same surface, new path.
+  'src/lib/vietnam-evisa/',
   'src/app/[lang]/dashboard/visa/', 'src/app/[lang]/dashboard/trips/', 'src/app/[lang]/admin/visas/', 'src/app/[lang]/admin/trips/',
   'src/app/api/visa/', 'src/app/api/trips/', 'src/app/api/itineraries/', 'src/app/api/admin/trips/',
   'src/lib/visa/', 'src/lib/trips/', 'src/lib/itinerary-',

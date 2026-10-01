@@ -62,8 +62,25 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # command here is the pruning `if`, which always succeeds — so a failed `next build` sailed through
 # this step and only surfaced (if at all) as a missing-file error in a later COPY, far from the real
 # failure (2026-09-05 review, O02). With `&&` the stage stops at the build, on the build's own exit.
+#
+# ⛔ AND THE MARKETPLACE IS BUILT WITHOUT eno.forum's FORUM-ONLY PAGE DIRECTORIES — e-visa, itinerary
+# and the three expat guides; the list is PRUNED_ROUTE_DIRS in the script below (2026-10-01).
+# Measured on https://eno.vn: every 404 and storefront page shipped
+# `…"itinerary",…,"vietnam-evisa",…` in its RSC payload — Next lists the STATIC SIBLINGS of a
+# dynamic segment for client routing and takes them from the directory tree, so `pageExtensions`
+# kept the pages out while their NAMES still shipped. Deleting the directories BEFORE `npm run build`
+# is the only lever that removes a name. It runs here, on this stage's throwaway copy (`COPY . .`),
+# for the same reason as the public/ prune below: the box's checkout is what the services build uses
+# next. scripts/marketplace-route-prune.mjs re-proves the deletion is safe (only `.forum.svc.` route
+# files inside, no importer anywhere in what tsconfig typechecks) and EXITS 1 otherwise, which fails
+# this layer and the deploy swaps nothing. ENO_PRUNE_FORUM_ROUTE_DIRS=0 in the build env
+# (eno-build.sh) turns it off.
 RUN --mount=type=secret,id=buildenv \
-    sh -c 'set -a; [ -f /run/secrets/buildenv ] && . /run/secrets/buildenv; set +a; npm run build && \
+    sh -c 'set -a; [ -f /run/secrets/buildenv ] && . /run/secrets/buildenv; set +a; \
+           if [ "$NEXT_PUBLIC_ENO_EDITION" = "marketplace" ] && [ "${ENO_PRUNE_FORUM_ROUTE_DIRS:-1}" = "1" ]; then \
+             node scripts/marketplace-route-prune.mjs --delete || exit 1; \
+           fi; \
+           npm run build && \
            if [ "$NEXT_PUBLIC_ENO_EDITION" = "marketplace" ]; then \
              rm -fv public/banners/evisa-* .next/standalone/public/banners/evisa-* 2>/dev/null || true; \
              rm -rfv public/icons/services .next/standalone/public/icons/services 2>/dev/null || true; \

@@ -155,9 +155,10 @@ describe('POST /api/consent', () => {
   it.each([
     ['allow_all', '101', { p: true, a: false, d: true }],
     ['decline_all', '100', { p: true, a: false, d: false }],
-  ])('⛔ %s with flags that contradict it is not recorded', async (action, bits, flags) => {
+  ])('⛔ %s with flags that contradict it is not recorded, and never touches a limiter', async (action, bits, flags) => {
     await call({ ...valid, ...flags, action }, { cookie: cookieOf(bits) })
     expect(h.audits).toEqual([])
+    expect(h.limits).toEqual([])
   })
 
   it('decline_all with every purpose off IS recorded (what the card sends)', async () => {

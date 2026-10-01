@@ -4,7 +4,7 @@ import type { Metadata } from 'next'
 import { pageShare } from '@/lib/site-identity'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
-import { EVISA_HUB_PATH, evisaRelated } from '../links'
+import { EVISA_HUB_PATH, evisaRelated } from '@/lib/vietnam-evisa/links'
 
 // ⚠️ 24h, NOT the 7d the other landing pages use. Those sell a category; this cluster's whole
 // argument is "compare the prices on the cards below", and those cards render live

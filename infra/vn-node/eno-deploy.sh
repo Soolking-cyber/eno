@@ -15,6 +15,9 @@
 # `|| true` and printed the size of the image it had NOT replaced. Each check below
 # replaced a cheaper one that had already failed in production at least once.
 set -uo pipefail
+# ⛔ The route-name prune switch is read by BOTH eno-build.sh (Dockerfile) and the leak checks below; any
+# value but 0/1 would mean "on" in one place and "advisory" in the other. Refuse before anything runs.
+case "${ENO_PRUNE_FORUM_ROUTE_DIRS:-1}" in 0|1) ;; *) echo "ENO_PRUNE_FORUM_ROUTE_DIRS must be 0 or 1 (got '${ENO_PRUNE_FORUM_ROUTE_DIRS}')"; exit 1 ;; esac
 
 APP=/opt/eno/app
 # ⛔ RUN FROM A COPY, BECAUSE STEP 1 REWRITES THIS FILE. agy's catch, and it is a genuine
@@ -149,6 +152,49 @@ probe(){
   cookiecheck https://eno.vn/
   cookiecheck https://eno.forum/
   cookiecheck https://www.eno.forum/
+  return $fail
+}
+
+# ⛔ THE SERVED 404 MUST NOT NAME eno.forum's ROUTES (2026-10-01). Step 6 reads the IMAGE; this reads
+# what VISITORS get through Cloudflare, because the leak was found there and nowhere else: a random
+# one-segment path renders `[handle]`, a two-segment one `[...rest]`, and both responses carried the
+# whole `src/app/[lang]` directory list — `itinerary` and `vietnam-evisa` included — in their RSC
+# payload. Each probe path is unique, so no cache can answer it, and the sibling list is located by
+# that unique value (`"<path>","d",[…]` once the flight data's \" escapes are removed), which cannot
+# match page copy by accident. The whole page is also scanned for the two names as exact JSON tokens,
+# so a Next format change that moves the list does not turn this into a silent pass.
+# ⚠️ NOT PART OF probe(), ON PURPOSE: restore() re-runs probe() after a rollback, and the images it
+# rolls back to may predate the prune — a rollback must not fail for a leak the rollback did not add.
+# ⚠️ ENO_PRUNE_FORUM_ROUTE_DIRS=0 makes it advisory, matching step 6 and the Dockerfile.
+route_name_leak_live(){
+  local path slug url raw code norm sib fail=0 attempt tokens leaks
+  for path in "eno-route-probe-$RANDOM$$" "eno-route-probe-$RANDOM$$/x"; do
+    slug=$path; url="https://eno.vn/$path"
+    for attempt in 1 2; do
+      raw=$(curl -s --compressed --max-time 25 -H 'Accept-Language: en-US' -w '
+__HTTP_CODE__%{http_code}' "$url")
+      code=${raw##*__HTTP_CODE__}
+      [ "$code" = 404 ] && grep -q '__next_f' <<<"$raw" && break
+      [ "$attempt" = 1 ] && sleep 3
+    done
+    if [ "$code" != 404 ] || ! grep -q '__next_f' <<<"$raw"; then
+      printf '  %-38s %s ⛔ not a readable Next 404 page — cannot check the route tree\n' "/$path" "${code:-none}"; fail=1; continue
+    fi
+    norm=$(tr -d '\\' <<<"$raw")
+    sib=$(grep -oE "\"${slug}\",\"[a-z]+\",\\[[^]]*\\]" <<<"$norm" | head -1)
+    leaks=$(grep -oiE '"[^"]*(visa|itinerar|paypal)[^"]*"' <<<"$sib" | sort -u | tr '\n' ' ')
+    tokens=$(grep -oE '"(itinerary|vietnam-evisa)"' <<<"$norm" | sort -u | tr '\n' ' ')
+    if [ -n "$leaks$tokens" ]; then
+      printf '  %-38s 404 ⛔ ships services route names: %s\n' "/$path" "${leaks:-$tokens}"; fail=1
+    elif [ -z "$sib" ]; then
+      printf '  %-38s 404 clean (no sibling list found next to the probe value — whole page scanned)\n' "/$path"
+    else
+      printf '  %-38s 404 clean (%s route siblings checked)\n' "/$path" "$(grep -o '"[^"]*"' <<<"${sib#*[}" | wc -l | tr -d ' ')"
+    fi
+  done
+  if [ "$fail" = 1 ] && [ "${ENO_PRUNE_FORUM_ROUTE_DIRS:-1}" != 1 ]; then
+    warn "route-name leak check failed, but ENO_PRUNE_FORUM_ROUTE_DIRS=0 — advisory only"; return 0
+  fi
   return $fail
 }
 
@@ -589,6 +635,51 @@ if [ -n "$LEAK" ]; then
 fi
 ok "marketplace: no top-level /visa or /itinerary page, no PayPal surface"
 
+# ⛔ AND NO services ROUTE *NAME* IN THE ROUTE TREE IT SHIPS (2026-10-01). The manifest above proves
+# eno.vn has no /itinerary or /vietnam-evisa PAGE — and still, measured on https://eno.vn, every 404
+# and storefront page carried `…,"itinerary",…,"vietnam-evisa",…` in its RSC payload: Next ships the
+# static SIBLINGS of a dynamic segment (`[handle]`, `[...rest]`) for client routing and builds that
+# list from the DIRECTORY tree, which pageExtensions does not filter. The Dockerfile now builds the
+# marketplace from a copy with those directories deleted (scripts/marketplace-route-prune.mjs); this
+# reads the result out of the IMAGE, before anything is swapped.
+# ⚠️ WHAT IT READS: every sibling list in the server bundle and prerendered pages that is the
+# `[lang]`-level list — recognised by holding both "listings" and "privacy", two of its own entries —
+# and reports any entry naming visa, itinerary or PayPal. Measured on a local compile of this commit:
+# the unpruned bundle yields 2 lists with `itinerary` + `vietnam-evisa`; the pruned one 2 lists, clean.
+# ⛔ ZERO LISTS FOUND IS NOT "CLEAN". It means the read failed or Next changed the format — the exact
+# vacuous pass the manifest gates above were rewritten to rule out — so it refuses, like they do.
+# ⚠️ ENO_PRUNE_FORUM_ROUTE_DIRS=0 (the same switch eno-build.sh passes to the Dockerfile) turns this
+# into a warning: with the prune off the leak is expected, and refusing would block every deploy.
+SIB_JS='const fs=require("fs"),p=require("path");const leaks=[];let arrays=0,files=0;const W=/visa|itinerar|paypal/i;(function w(d){for(const n of fs.readdirSync(d)){const f=p.join(d,n),s=fs.statSync(f);if(s.isDirectory()){w(f);continue}if(!/\.(js|html|rsc)$/.test(n))continue;files++;const t=fs.readFileSync(f,"utf8").replace(/\\"/g,"\"");for(const m of t.matchAll(/\[(?:"[^"\\\n]{1,200}",){8,}"[^"\\\n]{1,200}"\]/g)){let a;try{a=JSON.parse(m[0])}catch{continue}if(!a.includes("listings")||!a.includes("privacy"))continue;arrays++;for(const x of a)if(W.test(x))leaks.push(x)}}})(".next/server");process.stdout.write("files="+files+" lists="+arrays+" leaks="+[...new Set(leaks)].join(",")+"\n__SIBLINGS_END__\n")'
+PRUNE_ON="${ENO_PRUNE_FORUM_ROUTE_DIRS:-1}"
+SIB=""
+: > "$MAN_ERR"
+for attempt in 1 2; do
+  SIB=$(docker run --rm --entrypoint node eno-vn:local -e "$SIB_JS" 2>>"$MAN_ERR")
+  case "$SIB" in *__SIBLINGS_END__*) break ;; esac
+  [ "$attempt" = 1 ] && sleep 3
+done
+SIB_LINE=$(head -1 <<<"$SIB")
+SIB_LISTS=$(sed -n 's/.* lists=\([0-9]*\) .*/\1/p' <<<"$SIB_LINE")
+SIB_LEAKS=$(sed -n 's/.* leaks=//p' <<<"$SIB_LINE")
+sib_refuse(){
+  if [ "$PRUNE_ON" = 1 ]; then bad "$1"; untag_bad; exit 1
+  else warn "$1 (ENO_PRUNE_FORUM_ROUTE_DIRS=0 — advisory only)"; fi
+}
+case "$SIB" in
+  *__SIBLINGS_END__*)
+    if [ -z "$SIB_LISTS" ] || [ "$SIB_LISTS" = 0 ]; then
+      sib_refuse "found NO [lang] route-sibling list in eno-vn:local ($SIB_LINE) — cannot prove the route names are gone; Next's format may have changed (read infra/vn-node/eno-deploy.sh SIB_JS)"
+    elif [ -n "$SIB_LEAKS" ]; then
+      sib_refuse "eno-vn:local SHIPS services route names in its RSC route tree: $SIB_LEAKS ($SIB_LISTS lists) — the Dockerfile prune did not run or missed a directory"
+    else
+      ok "marketplace: no services route name in its route tree ($SIB_LISTS sibling lists read)"
+    fi ;;
+  *)
+    [ -s "$MAN_ERR" ] && sed 's/^/      /' "$MAN_ERR"
+    sib_refuse "COULD NOT READ the route-sibling lists from eno-vn:local after 2 attempts (a READ failure, not evidence about the bundle)" ;;
+esac
+
 # ⛔ opus's catch: the swap starts BOTH containers and only one image was ever inspected.
 # A services build that picked up the wrong env file ships a marketplace bundle onto
 # eno.forum — caught only later by the /itinerary probe, after it is serving. Assert the
@@ -773,6 +864,11 @@ fi
 
 say "9. verify through the edge"
 if ! probe; then restore; exit 1; fi
+# ⛔ AFTER probe() AND OUTSIDE IT — see route_name_leak_live: a rollback re-runs probe() alone.
+if ! route_name_leak_live; then
+  bad "eno.vn's 404 still names eno.forum's routes — rolling back (Dockerfile prune: scripts/marketplace-route-prune.mjs)"
+  restore; exit 1
+fi
 ok "serving $(git log --oneline -1)"
 
 # ⛔ THE MARKER COMES OFF LAST, AFTER THE PROBE PASSED. It used to be cleared right after

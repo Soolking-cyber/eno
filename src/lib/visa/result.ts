@@ -4,7 +4,6 @@ import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { renderVisaResultEmail } from '@/lib/emails/visa-result'
 import { SITE_NAME } from '@/lib/edition'
-import { COMPANY } from '@/lib/site-legal'
 import { sendMail } from '@/lib/mail'
 import { insertMessage, type VisaResultMeta } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
@@ -15,6 +14,7 @@ import { getVisaDb } from './db'
 import { visaConversationIdFor } from './dm-thread'
 import { removeVisaFiles } from './storage'
 import { normalizeVisaReference } from './reference'
+import { visaResultBrand } from './result-brand'
 
 // ── THE FINISHED VISA ─────────────────────────────────────────────────────────────────
 //
@@ -431,6 +431,12 @@ export async function sendVisaResultThankYou(input: {
     // for an address the government accepted.
     if (!address || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) return 'no_address'
 
+    // ⛔ WHO THE MAIL SPEAKS AS — the forum on eno.forum, the PARTNER (via eno.vn) on eno.vn, and on
+    // eno.vn nothing at all if the partner cannot be named: an e-Visa mail signed by the licensed
+    // marketplace is the leak, not a fallback (src/lib/visa/result-brand.ts).
+    const brand = await visaResultBrand()
+    if (!brand) return 'unavailable'
+
     // The applicant's own language preference, from their profile — the payload has no
     // locale field and guessing one from nationality would be worse than defaulting.
     const profile = await db.profile.findUnique({ where: { id: input.userId }, select: { locale: true } }).catch(() => null)
@@ -445,14 +451,17 @@ export async function sendVisaResultThankYou(input: {
       // ⚠️ THE FALLBACK HOST, THE NAME AND THE INBOX ALL FOLLOW THE BUILD. This fell back to
       // https://eno.vn and the copy hardcoded eno.vn / support@eno.vn, so the services build that
       // sends this mail named the LICENSED marketplace as the visa provider and contact.
+      // The ORIGIN stays this deployment's: it is where the applicant's chat and the PDF actually are.
       origin: (process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`).replace(/\/+$/, ''),
       locale,
-      siteName: SITE_NAME,
-      supportEmail: COMPANY.email,
+      siteName: brand.siteName,
+      supportEmail: brand.supportEmail,
+      providedVia: brand.providedVia,
     })
 
     const ok = await sendMail({
       to: address,
+      ...(brand.fromName ? { fromName: brand.fromName } : {}),
       subject: email.subject,
       html: email.html,
       text: email.text,

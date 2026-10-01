@@ -1,4 +1,15 @@
 /**
+ * ⛔ THIS FILE LIVES IN src/lib/vietnam-evisa/, NOT BESIDE THE PAGES IN src/app/[lang]/vietnam-evisa/,
+ * AND IT MUST NOT GO BACK. The marketplace image is built from a copy of the tree with the forum-only
+ * route directories DELETED (scripts/marketplace-route-prune.mjs, run by the Dockerfile), because
+ * Next lists every sibling directory name of a dynamic segment in the RSC route tree of eno.vn's
+ * 404 and storefront pages — pageExtensions does not stop it. A module that other files import
+ * cannot live in a directory that is deleted from one build: the typecheck of that build would fail
+ * on the importer. The prune script refuses to delete a route directory holding anything but
+ * `.forum.svc.` route files, so moving this back fails the marketplace build loudly, not silently.
+ * Edition-lint Rule C still treats this directory as a services tree (SERVICES_TREES).
+ */
+/**
  * The /vietnam-evisa hub and its long-tail children, in ONE list.
  *
  * ⚠️ THE SITEMAP'S LANDING LIST IS HARD-CODED, so a new route is not picked up automatically —

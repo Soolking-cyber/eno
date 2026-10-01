@@ -293,6 +293,13 @@ NGINX
   systemctl restart nginx
   systemctl is-active --quiet nginx || fail "nginx did not come back up"
   echo "    ✓ nginx"
+  # ⛔ 400-DAY LOG RETENTION — per counsel review, pending lawyer confirmation: Decree 333/2026/ND-CP
+  # Art. 20(3), system logs >= 12 months (source, Art 20: https://english.luatvietnam.vn/decree-no-333-2026-nd-cp-dated-august-19-2026-of-the-government-detailing-a-number-of-articles-and-measures-for-implementation-of-the-law-on-cyberse-445089-doc1.html );
+  # the package keeps 14 days. Adds /etc/logrotate.d/eno-nginx BESIDE the package's dpkg conffile
+  # (never edits it — see nginx/logrotate-nginx.conf) and verifies coverage — see install-logrotate.sh.
+  # ⚠️ Fatal here and not in bootstrap.sh, deliberately: this is the LAST thing the nginx stage does,
+  # stage_base (packages, firewall) has already run, and every stage is re-runnable.
+  bash "$(cd "$(dirname "$0")" && pwd)/install-logrotate.sh" || fail "nginx log retention not installed"
 }
 
 case "${1:-}" in

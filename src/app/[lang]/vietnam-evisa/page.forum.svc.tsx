@@ -5,8 +5,8 @@ import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
 import { NOT_GOVERNMENT, PROVIDER_OF_RECORD } from '@/lib/visa-provider'
-import { evisaRelated } from './links'
-import { visaServiceLd } from './service-jsonld'
+import { evisaRelated } from '@/lib/vietnam-evisa/links'
+import { visaServiceLd } from '@/lib/vietnam-evisa/service-jsonld'
 
 // ⚠️ 24h, NOT the 7d the other landing pages use. Those sell a category; this cluster's whole
 // argument is "compare the prices on the cards below", and those cards render live
@@ -126,7 +126,7 @@ Not sure which option is right for you? **Message us before ordering — we’re
   ],
   // The machine-readable half of the same statement: `provider` is the partner, `broker` is this
   // site. Visible copy that disclaims responsibility while the structured data claims the service
-  // would be the worst of both — see src/app/[lang]/vietnam-evisa/service-jsonld.ts.
+  // would be the worst of both — see src/lib/vietnam-evisa/service-jsonld.ts.
   jsonLd: [visaServiceLd()],
   related: evisaRelated(),
   faqs: [

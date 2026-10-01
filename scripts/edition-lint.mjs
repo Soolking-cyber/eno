@@ -26,7 +26,7 @@
  *
  * RULE C — shared files may not import an unaliased module out of a services tree.
  *   Rule B gates ROUTES, and it does that by checking Next SPECIAL files (page/layout/route/…).
- *   A services tree also holds ordinary modules — `src/app/[lang]/vietnam-evisa/links.ts` — and those are
+ *   A services tree also holds ordinary modules — `src/lib/vietnam-evisa/links.ts` — and those are
  *   NOT excluded by `pageExtensions`, because `pageExtensions` only decides what counts as a route.
  *   So a shared file importing one compiles every literal in it straight into the licensed image.
  *   Measured 2026-08-01: the sitemap route imported `VIETNAM_EVISA_PATHS` from that module, putting
@@ -171,6 +171,11 @@ const ALLOW_DIRS = [
  */
 const SERVICES_TREES = [
   'src/app/[lang]/vietnam-evisa/',
+  // ⚠️ THE E-VISA PAGES' SHARED MODULES (links.ts, service-jsonld.ts) MOVED HERE 2026-10-01 so the
+  // marketplace build can delete the route directory above (scripts/marketplace-route-prune.mjs).
+  // Their VALUES are e-visa vocabulary, so for Rule C this is a services tree exactly as before:
+  // a shared file must still reach them only through an aliased module (edition-services-copy).
+  'src/lib/vietnam-evisa/',
   'src/app/[lang]/itinerary/',
   'src/app/[lang]/services-for-expats-vietnam/',
   // ⚠️ THE TWO ARRIVAL GUIDES LOOK HARMLESS AND ARE NOT. "Moving to Vietnam" and "first month in
@@ -301,7 +306,7 @@ const ALIASED = aliasedSpecifiers()
  *
  * ⚠️ THEY MUST BE EXEMPT FROM RULE C, and for the same reason `.svc.` files are: what a module
  * imports only matters if that module is in the build. src/lib/edition-services-copy.ts imports
- * @/app/vietnam-evisa/links ON PURPOSE — that indirection is how the shared sitemap stops importing
+ * @/lib/vietnam-evisa/links ON PURPOSE — that indirection is how the shared sitemap stops importing
  * it directly — and flagging the bridge would leave the rule with no fix available except deleting
  * the mechanism it is recommending.
  */

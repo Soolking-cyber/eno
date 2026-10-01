@@ -82,8 +82,17 @@ export function renderBrandEmail(opts: {
   /** "You're receiving this because…" — pair with unsubscribeUrl for broadcasts. */
   audienceNote?: string
   unsubscribeUrl?: string
+  /**
+   * ⛔ A PARTNER'S MAIL CARRIED BY THIS SITE — the one case where the site may NOT sign it.
+   * The finished e-Visa on eno.vn is the partner desk's service (VietKite, per the owner's 2026-08-13
+   * decision recorded in src/lib/desk-operator.ts); eno.vn only carries the chat and the mail.
+   * With this set the header shows the partner's NAME (text — no partner artwork exists to embed)
+   * instead of this site's wordmark, and the footer is `footer` ("Provided by … via eno.vn")
+   * instead of the legal line, which on eno.vn names Công ty TNHH ENO as if it were the provider.
+   */
+  provider?: { name: string; footer: string }
 }): string {
-  const { preheader, bodyHtml, origin, cta, audienceNote, unsubscribeUrl } = opts
+  const { preheader, bodyHtml, origin, cta, audienceNote, unsubscribeUrl, provider } = opts
   const E = EMAIL
   const audience = audienceNote
     ? `<p style="margin:0;font-size:12px;color:${E.MUTED};line-height:1.6;">${esc(audienceNote)}${
@@ -94,11 +103,13 @@ export function renderBrandEmail(opts: {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${E.CANVAS};margin:0;padding:0;">
   <tr><td align="center" style="padding:24px 12px;font-family:${E.FONT};">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:16px;border:1px solid ${E.BORDER};overflow:hidden;">
-      <!-- header: the real wordmark, linked home -->
+      <!-- header: the real wordmark, linked home — or, for a partner's mail, the partner's name -->
       <tr><td style="padding:22px 24px 6px;">
-        <a href="${esc(origin)}" style="text-decoration:none;">
+        ${provider
+          ? `<div style="font-size:20px;font-weight:800;color:${E.INK};letter-spacing:-0.01em;line-height:28px;">${esc(provider.name)}</div>`
+          : `<a href="${esc(origin)}" style="text-decoration:none;">
           <img src="${esc(origin)}${WORDMARK.path}" width="${WORDMARK.width}" height="${WORDMARK.height}" alt="${esc(SITE_NAME)}" style="display:block;width:${WORDMARK.width}px;height:${WORDMARK.height}px;border:0;" />
-        </a>
+        </a>`}
       </td></tr>
       <!-- body -->
       ${bodyHtml}
@@ -107,7 +118,7 @@ export function renderBrandEmail(opts: {
       <tr><td style="padding:20px 24px 24px;border-top:1px solid ${E.BORDER};">
         ${audience}
         <p style="margin:${audience ? '10px' : '0'} 0 0;font-size:11px;color:${E.MUTED};line-height:1.6;">
-          ${legalFooterHtml()}
+          ${provider ? esc(provider.footer) : legalFooterHtml()}
         </p>
       </td></tr>
     </table>

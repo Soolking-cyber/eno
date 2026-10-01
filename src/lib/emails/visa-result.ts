@@ -35,6 +35,11 @@ export type VisaResultEmail = { subject: string; html: string; text: string }
 /**
  * ⛔ NO SITE NAME OR ADDRESS IS TYPED INTO THIS COPY — both arrive as `site` / `support`.
  *
+ * ⚠️ "SENT ONLY BY THE SERVICES EDITION" BELOW IS NO LONGER TRUE (2026-10-01). eno.vn is built with
+ * MARKETPLACE_HOSTS_SERVICES=true, so the `.svc.` result route compiles there too and the partner desk
+ * uploads results on eno.vn. On that build the caller passes the PARTNER as `site`, no inbox, and
+ * `providedVia: 'eno.vn'` — see src/lib/visa/result-brand.ts. The paragraph is kept for the history.
+ *
  * Every line below used to say "eno.vn" and "support@eno.vn", and this email is sent ONLY by the
  * services edition (its one caller is src/lib/visa/result.ts, behind `.svc.` routes). So the mail
  * that hands a customer their finished visa thanked them "for trusting eno.vn" and told them to
@@ -58,6 +63,11 @@ const COPY = {
     signoff: (site: string) => `Safe travels, and thank you for using ${site}.`,
     noReply: (site: string, support: string) =>
       `This mailbox is not monitored. If anything on the visa looks wrong, reply in your ${site} chat or write to ${support} with your case reference and we will pick it up.`,
+    /** No inbox to name (a partner's mail on eno.vn): the chat is the one channel the desk answers. */
+    noReplyChat: (site: string) =>
+      `This mailbox is not monitored. If anything on the visa looks wrong, reply in your ${site} chat with your case reference and ${site} will pick it up.`,
+    /** The footer of a partner's mail sent through this platform — the platform as channel, not provider. */
+    providedBy: (site: string, via: string) => `Provided by ${site} via ${via}.`,
   },
   vi: {
     subject: (ref: string) => `Thị thực điện tử Việt Nam của bạn đã sẵn sàng — ${ref}`,
@@ -74,6 +84,11 @@ const COPY = {
     signoff: (site: string) => `Chúc bạn thượng lộ bình an, và cảm ơn bạn đã sử dụng dịch vụ của ${site}.`,
     noReply: (site: string, support: string) =>
       `Hộp thư này không nhận phản hồi. Nếu có điều gì chưa đúng trên thị thực, hãy nhắn trong cuộc trò chuyện ${site} hoặc gửi email tới ${support} kèm mã hồ sơ, chúng tôi sẽ xử lý ngay.`,
+    // "nhắn tin cho <partner> trong cuộc trò chuyện của bạn", not "cuộc trò chuyện <partner>": the
+    // chat lives on the platform and the partner is who answers it, so the partner is the recipient.
+    noReplyChat: (site: string) =>
+      `Hộp thư này không nhận phản hồi. Nếu có điều gì chưa đúng trên thị thực, vui lòng nhắn tin cho ${site} trong cuộc trò chuyện của bạn và ghi kèm mã hồ sơ, ${site} sẽ tiếp nhận và xử lý.`,
+    providedBy: (site: string, via: string) => `Dịch vụ do ${site} cung cấp qua ${via}.`,
   },
 } as const
 
@@ -118,19 +133,28 @@ export function renderVisaResultEmail(input: {
   reference: string
   origin: string
   locale: Lang
-  /** This build's own name — pass SITE_NAME. Never typed into the copy (see COPY above). */
+  /** The name the mail speaks as — see src/lib/visa/result-brand.ts. Never typed into the copy. */
   siteName: string
-  /** This build's support inbox — pass COMPANY.email, never a literal. */
-  supportEmail: string
+  /** The inbox to name, never a literal — or null to point only at the chat (a partner's mail on eno.vn). */
+  supportEmail: string | null
+  /**
+   * Set when `siteName` is a PARTNER and this platform only carries the mail: the platform's name.
+   * The header then shows the partner instead of the site wordmark, and the footer reads
+   * "Provided by <partner> via <platform>" instead of the site's legal line (which on eno.vn names
+   * Công ty TNHH ENO — the company that may not offer this service).
+   */
+  providedVia?: string | null
 }): VisaResultEmail {
   const lang: Lang = input.locale === 'vi' ? 'vi' : 'en'
   const c = COPY[lang]
   const site = input.siteName
   const support = input.supportEmail
+  const via = input.providedVia?.trim() || null
   const thanks = c.thanks(site)
   const inChat = c.inChat(site)
   const signoff = c.signoff(site)
-  const noReply = c.noReply(site, support)
+  const noReply = support ? c.noReply(site, support) : c.noReplyChat(site)
+  const providedBy = via ? c.providedBy(site, via) : null
   const name = clean(input.givenName, 40)
   // A blank reference would render "Case reference ·" with a hole in it; an em dash is at
   // least visibly wrong to the desk, where an empty line reads as normal.
@@ -165,6 +189,7 @@ export function renderVisaResultEmail(input: {
     bodyHtml,
     origin,
     cta: { label: c.ctaLabel, url: `${origin}/messages` },
+    ...(providedBy ? { provider: { name: site, footer: providedBy } } : {}),
   })
 
   const text = [
@@ -184,6 +209,7 @@ export function renderVisaResultEmail(input: {
     `${origin}/messages`,
     '',
     noReply,
+    ...(providedBy ? ['', providedBy] : []),
   ].join('\n')
 
   return { subject: c.subject(reference), html, text }

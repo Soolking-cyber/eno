@@ -22,14 +22,14 @@ import { CATEGORY_ART_STAMP } from '@/generated/category-art-stamp'
 // cross-site-links.ts itself is untouched — it still feeds the /about affiliation promo, which is
 // the DISCLOSURE half and may not be removed.
 import { MARKETPLACE_HOME } from '@/lib/cross-site-links'
-import { VIETNAM_EVISA_PATHS } from '@/app/[lang]/vietnam-evisa/links'
+import { VIETNAM_EVISA_PATHS } from '@/lib/vietnam-evisa/links'
 
 /**
  * The services-only URLs the sitemap may submit to Google.
  *
  * ⚠️ THIS RE-EXPORT IS THE POINT OF THE FILE, NOT A CONVENIENCE. src/app/sitemap.xml/route.ts is a
  * SHARED route — a marketplace build compiles it — and it used to `import { VIETNAM_EVISA_PATHS }
- * from '@/app/[lang]/vietnam-evisa/links'` directly. That module is a plain `.ts`, so unlike its
+ * from` the e-visa links module (now `@/lib/vietnam-evisa/links`) directly. That module is a plain `.ts`, so unlike its
  * `page.svc.tsx` neighbours it is NOT excluded by `pageExtensions`, and it was not aliased: every
  * label and blurb in it ("Urgent Vietnam visa in 1 hour", "evisa.gov.vn", "Vietnam e-visa
  * rejected") therefore compiled into eno.vn's server bundle. The sitemap's `IS_SERVICES` gate
@@ -37,7 +37,7 @@ import { VIETNAM_EVISA_PATHS } from '@/app/[lang]/vietnam-evisa/links'
  *
  * Routing the import through this already-aliased module fixes it with no new alias: on a
  * marketplace build `@/lib/edition-services-copy` resolves to the stub, so the sitemap never
- * reaches `@/app/[lang]/vietnam-evisa/links` at all and the vocabulary is absent from the artifact.
+ * reaches `@/lib/vietnam-evisa/links` at all and the vocabulary is absent from the artifact.
  * src/lib/expat-guides.ts documents the same constraint and solves it the other way — by keeping
  * its own values vocabulary-free — which is why it may still be imported directly.
  *
