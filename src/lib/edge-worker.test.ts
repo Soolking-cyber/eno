@@ -58,6 +58,11 @@ const ctx = { waitUntil: (p: Promise<unknown>) => { h.waits.push(p) } }
 const call = (path: string, headers: Record<string, string> = {}) =>
   worker.fetch(new Request(`https://eno.vn${path}`, { headers }), {}, ctx) as Promise<Response>
 const keyVariant = () => new URL(h.matched.at(-1)!).searchParams.get('__k')
+/**
+ * An ADAPTIVE routed page. `/` was the probe path until V5 pinned it to English on eno.vn (the `/vi`
+ * pilot, below), and these suites are about the negotiated key; `/privacy` is routed and negotiates.
+ */
+const ADAPTIVE = '/privacy'
 
 describe('edge Worker — the key is the language the origin renders (audit #127)', () => {
   const COOKIES = [
@@ -82,7 +87,7 @@ describe('edge Worker — the key is the language the origin renders (audit #127
         const headers: Record<string, string> = {}
         if (cookie != null) headers.cookie = cookie
         if (al != null) headers['accept-language'] = al
-        await call('/', headers)
+        await call(ADAPTIVE, headers)
         const expected = langVariantFor(new RequestCookies(new Headers(headers)).get(LANG_COOKIE)?.value, al)
         expect(keyVariant()).toBe(expected)
       })
@@ -105,7 +110,7 @@ describe('edge Worker — the key is the language the origin renders (audit #127
     // to Accept-Language and key `vi` — without the header it would fall to `en` and pass anyway.
     for (const code of LANGS) {
       h.matched = []
-      await call('/', { cookie: `lang=${code}`, 'accept-language': 'vi' })
+      await call(ADAPTIVE, { cookie: `lang=${code}`, 'accept-language': 'vi' })
       expect(keyVariant(), code).toBe(code === 'vi' ? 'vi' : 'en')
     }
   })
@@ -169,7 +174,7 @@ describe('edge Worker — what may be stored', () => {
   it('a response in the wrong language for its key is never stored', async () => {
     // The origin disagrees with the key (a future drift): it renders en for a vi request.
     vi.stubGlobal('fetch', async (req: Request) => { h.origin.push(req); return originResponse({}, 'en') })
-    await call('/', { 'accept-language': 'vi' })
+    await call(ADAPTIVE, { 'accept-language': 'vi' })
     expect(h.store.size).toBe(0)
   })
 
@@ -189,11 +194,11 @@ describe('edge Worker — what may be stored', () => {
     // The mismatch describes this visitor's headers, not the document — the stored copy was checked
     // against its key when it was stored. Evicting would let one visitor empty the entry for all.
     const now = Date.now()
-    await call('/', { 'accept-language': 'vi' })
+    await call(ADAPTIVE, { 'accept-language': 'vi' })
     const before = await h.store.get([...h.store.keys()][0])!.clone().text()
     vi.spyOn(Date, 'now').mockReturnValue(now + 301_000)
     vi.stubGlobal('fetch', async (req: Request) => { h.origin.push(req); return originResponse({ html: 'ENGLISH' }, 'en') })
-    await call('/', { 'accept-language': 'vi' })
+    await call(ADAPTIVE, { 'accept-language': 'vi' })
     await Promise.all(h.waits)
     expect(h.store.size).toBe(1)
     expect(await h.store.get([...h.store.keys()][0])!.clone().text()).toBe(before)

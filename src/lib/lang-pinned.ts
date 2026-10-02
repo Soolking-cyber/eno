@@ -84,22 +84,26 @@ export const FIXED_LANG: Readonly<Record<string, { lang: LangVariant; pair?: str
   'thue-xe-may-tphcm': { lang: 'vi', pair: 'motorbike-rental-ho-chi-minh-city' },
 }
 
-/* ── the `/vi` pilot (SEO wave B, V3a — merged switched off, decision V-h) ────────────────────────── */
+/* ── the `/vi` pilot (SEO wave B: V3a merged switched off, V5 switches it on, decision V-h) ──────── */
 
 /**
- * ⛔ THE PATHS WITH A PUBLIC `/vi` TWIN — EMPTY UNTIL V5 SWITCHES THE PILOT ON (decisions V-a, V-h).
+ * ⛔ THE PATHS WITH A PUBLIC `/vi` TWIN — SWITCHED ON BY V5 (decisions V-a, V-b, V-h; owner's go 2026-10-02).
  *
  * The owner's decision (2026-09-27, V-a): on a piloted path the PLAIN URL is always English, whatever the
  * cookie or Accept-Language says, and `/vi` + the path is its Vietnamese twin. No language redirect: a
  * Vietnamese visitor on the plain URL gets a one-tap banner to the twin (lang-suggestion-banner.tsx, V3b).
- * Both URLs are self-canonical with reciprocal hreflang (V3b). V5 fills this with `/` and
- * `/c/furniture-appliances`, on the marketplace edition only, together with the Worker's
- * `PINNED_EN_PATHS` and the deploy probes — never one without the others (plan §5).
- * ⛔ WHILE IT IS EMPTY NOTHING CHANGES ANYWHERE: `pinnedRoute` falls through to the guides, a public
- * `/vi…` keeps 404ing through the proxy's INTERNAL_PREFIX rule, and every helper below returns its
- * input. That is the dormancy the merge relies on (lang-pinned.test.ts runs every function lists-off).
+ * Both URLs are self-canonical with reciprocal hreflang (V3b), and no `/vi` URL is in any sitemap (V-c).
+ * The marketplace edition only (`viPilotFor`).
+ * ⛔ THREE PLACES MOVE TOGETHER, NEVER ONE WITHOUT THE OTHERS (plan §5): this list; the edge Worker's
+ * `PINNED_EN_PATHS` (infra/cloudflare/eno-html-edge-cache.js — edge-worker.test.ts fails unless the two
+ * are equal), deployed with the `/vi` and `/vi/*` routes on the eno.vn zone; and eno-deploy.sh's
+ * language probes (`PILOT_EXPECT`). Withdrawing a path is rollback V-R: it MOVES to `VI_RETIRED_PATHS`
+ * (its `/vi…` URL may be indexed, so it 308s), it is never just deleted.
+ * ⚠️ EMPTY, NOTHING CHANGES ANYWHERE: `pinnedRoute` falls through to the guides, a public `/vi…` 404s
+ * through the proxy's INTERNAL_PREFIX rule, and every helper below returns its input
+ * (lang-pinned.test.ts runs every function lists-off, on and retired).
  */
-export const VI_PREFIX_PATHS: readonly string[] = []
+export const VI_PREFIX_PATHS: readonly string[] = ['/', '/c/furniture-appliances']
 
 /**
  * ⛔ PATHS THAT WERE PILOTED AND WITHDRAWN (rollback V-R): their `/vi…` URL may be indexed, so it answers

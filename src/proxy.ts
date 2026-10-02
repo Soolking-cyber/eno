@@ -356,7 +356,7 @@ export function proxy(req: NextRequest) {
      * paths keep negotiating, as they did.
      */
     /**
-     * ⛔ AND THE `/vi` PILOT (SEO wave B, V3a — DORMANT until V5 fills `VI_PREFIX_PATHS`, lang-pinned.ts):
+     * ⛔ AND THE `/vi` PILOT (SEO wave B, V3a; switched on by V5 — `VI_PREFIX_PATHS`, lang-pinned.ts):
      * a piloted plain path renders English for everyone (decision V-a); `/vi` + that path renders
      * Vietnamese, also for everyone, at the plain path's own `vi` ISR entry; `/vi` + a WITHDRAWN path 308s
      * to the plain path, query kept — never a 404 once such a URL may be indexed (rollback V-R). Any

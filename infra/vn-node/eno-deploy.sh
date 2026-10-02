@@ -65,12 +65,19 @@ warn(){ printf '  \033[33m[!!]\033[0m %s\n' "$*"; }
 exec 9>"$LOCK" || { bad "cannot open $LOCK"; exit 1; }
 flock -n 9 || { bad "another deploy is running (holding $LOCK) — refusing"; exit 1; }
 
+# ⛔ THE `/vi` PILOT STATE THIS CHECKOUT SHIPS (SEO wave B, V5; src/lib/lang-pinned.ts VI_PREFIX_PATHS):
+# `on` — eno.vn's plain `/` (and /c/furniture-appliances) is ENGLISH FOR EVERYONE and `/vi` is its
+# Vietnamese twin for everyone (decision V-a: no language redirect; a one-tap banner instead). It moves
+# with VI_PREFIX_PATHS and the Worker's PINNED_EN_PATHS, never alone. Rollback V-R sets `retired`.
+PILOT_EXPECT=on
+
 # ⛔ THROUGH CLOUDFLARE, NOT LOOPBACK. Since Authenticated Origin Pulls was enforced the
 # origin answers 400 to anything without our client certificate, so a loopback curl is
 # now guaranteed to fail and proves nothing. The edge is the only honest vantage point,
 # and it exercises nginx routing too.
 probe(){
-  local fail=0 got
+  # `probe rollback` (restore() only) probes what the RESTORED images serve; see the pilot block below.
+  local fail=0 got mode=${1:-deploy}
   check(){ got=$(curl -s -o /dev/null -w '%{http_code}' --max-time 25 "$1?d=$RANDOM$$")
            if [ "$got" = "$2" ]; then printf '  %-38s %s\n' "$1" "$got"
            else printf '  %-38s %s (want %s) ⛔\n' "$1" "$got" "$2"; fail=1; fi; }
@@ -127,31 +134,83 @@ probe(){
   # ⚠️ EVERY HOSTNAME, NOT ONE PER ZONE. The documented past failure was apex-vs-www divergence: a
   # cache rule left on `www.eno.vn` or on the `eno.forum` apex would pass a one-host probe and break
   # real traffic (CLAUDE.md, 2026-08-02).
-  for h in https://eno.vn https://www.eno.vn https://eno.forum https://www.eno.forum; do
+  # ⛔ THE `/vi` PILOT (V5). On eno.vn, `/` is pinned: a Vietnamese browser gets ENGLISH (with the
+  # banner), and `/vi` is Vietnamese even for an English browser. The forum never pilots, so it still
+  # adapts, and `/privacy` is the adaptive eno.vn page. Only the two piloted `/vi` URLs exist: every
+  # other `/vi…` is the old 404, and the forum's `/vi` too.
+  # ⚠️ A ROLLBACK PROBES WHAT THE RESTORED IMAGES SERVE, NOT WHAT THIS SCRIPT SHIPS: restore() puts back
+  # `:prev`, which may predate the pilot, and failing that rollback for being pre-pilot would report a
+  # healthy restore as "DID NOT RESTORE SERVICE". So `probe rollback` reads the state from `/vi`'s own
+  # status (200 on, 404 off) and then holds every other probe to THAT state — a half-switched site
+  # (say `/vi` up but `/` still adapting) still fails.
+  # ⛔ en-US BEFORE vi-VN ON eno.vn, SO THE vi-VN PROBE READS THE EDGE, NOT ONLY THE ORIGIN. These
+  # carry no cache-buster: the en-US request stores `/` under the Worker's `en` key, and the vi-VN
+  # request then shows which key the Worker gives a Vietnamese browser. That is how a WORKER STILL
+  # PINNING `/` in front of origin images that no longer pin it (restore() past V5, or V-R deployed
+  # before the Worker was unpinned) is caught: vi-VN gets the stored English copy and the probe fails,
+  # instead of passing on an empty cache. The fix is the Worker, not the app (V5 switch-on runbook).
+  local pilot=$PILOT_EXPECT vcode
+  if [ "$mode" = rollback ]; then
+    vcode=$(curl -s -o /dev/null --max-time 25 -w '%{http_code}' "https://eno.vn/vi?d=$RANDOM$$")
+    case "$vcode" in
+      200) pilot=on ;;
+      404) pilot=off ;;
+      *) printf '  %-38s %s ⛔ not a pilot state this script knows\n' https://eno.vn/vi "$vcode"; fail=1; pilot=off ;;
+    esac
+    printf '  %-38s probing the restored images as pilot=%s\n' https://eno.vn/vi "$pilot"
+  fi
+  local before p
+  for h in https://eno.vn https://www.eno.vn; do
+    for p in / /c/furniture-appliances; do
+      langcheck "$h$p" en-US en
+      if [ "$pilot" = on ]; then
+        langcheck "$h$p" vi-VN en
+        # …and once past the edge (cache-busted): a pinned Worker serving its stored `en` copy would
+        # otherwise hide an ORIGIN that stopped pinning, which every cache MISS would then expose.
+        langcheck "$h$p?d=$RANDOM$$" vi-VN en
+        langcheck "$h/vi${p%/}" en-US vi
+      else
+        before=$fail
+        langcheck "$h$p" vi-VN vi
+        [ "$fail" != "$before" ] && printf '  %-38s ⚠️ an edge Worker still pinning this path to en? redeploy the unpinned Worker (V5 runbook)\n' "$h$p"
+      fi
+    done
+  done
+  for h in https://eno.forum https://www.eno.forum; do
     langcheck "$h/" vi-VN vi
     langcheck "$h/" en-US en
   done
   langcheck https://eno.vn/privacy vi-VN vi
   langcheck https://eno.vn/privacy en-US en
+  check https://eno.vn/vi/c/rentals 404
+  check https://www.eno.forum/vi    404
   # ⚠️ AND THE COOKIE PATH, WHICH THE HEADER PROBES ABOVE NEVER EXERCISE: a returning visitor carries
   # `lang`, the proxy prefers it over Accept-Language, and the box's micro-cache keys on it. An English
   # browser holding a Vietnamese cookie must get Vietnamese.
-  cookiecheck(){ local got code target
+  # `cookiecheck URL [COOKIE WANT]` — default: cookie `vi`, want `vi`. On the pilot's `/vi` the PATH wins:
+  # a stored English choice must still get Vietnamese there (and the Worker keys it `vi`, V4).
+  cookiecheck(){ local url=$1 cookie=${2:-vi} want=${3:-vi} got code target
                  # Same rule as langcheck: a canonical www↔apex redirect is fine, anything else is not —
                  # a cookie-dependent redirect somewhere else is precisely what this probe must catch.
-                 code=$(curl -s -o /dev/null --max-time 25 -H 'Accept-Language: en-US' -H 'Cookie: lang=vi' -w '%{http_code} %{redirect_url}' "$1")
+                 code=$(curl -s -o /dev/null --max-time 25 -H 'Accept-Language: en-US' -H "Cookie: lang=$cookie" -w '%{http_code} %{redirect_url}' "$url")
                  case "$code" in
                    30*) target=${code#* }
-                        if canonical_pair "$1" "$target"; then printf '  %-38s %s → %s (cookie checked at that host)\n' "$1" "${code%% *}" "$target"
-                        else printf '  %-38s %s → %s ⛔ cookie-dependent redirect\n' "$1" "${code%% *}" "${target:-none}"; fail=1; fi
+                        if canonical_pair "$url" "$target"; then printf '  %-38s %s → %s (cookie checked at that host)\n' "$url" "${code%% *}" "$target"
+                        else printf '  %-38s %s → %s ⛔ cookie-dependent redirect\n' "$url" "${code%% *}" "${target:-none}"; fail=1; fi
                         return 0 ;;
                  esac
-                 got=$(curl -s --max-time 25 -H 'Accept-Language: en-US' -H 'Cookie: lang=vi' "$1" | grep -o '<html[^>]*lang="[a-z]*"' | head -1 | grep -o 'lang="[a-z]*"' | cut -d'"' -f2)
-                 if [ "$got" = vi ]; then printf '  %-38s lang=vi (cookie beats header)\n' "$1"
-                 else printf '  %-38s lang=%s with lang=vi cookie (want vi) ⛔\n' "$1" "${got:-none}"; fail=1; fi; }
-  cookiecheck https://eno.vn/
+                 got=$(curl -s --max-time 25 -H 'Accept-Language: en-US' -H "Cookie: lang=$cookie" "$url" | grep -o '<html[^>]*lang="[a-z]*"' | head -1 | grep -o 'lang="[a-z]*"' | cut -d'"' -f2)
+                 if [ "$got" = "$want" ]; then printf '  %-38s lang=%s (cookie lang=%s)\n' "$url" "$got" "$cookie"
+                 else printf '  %-38s lang=%s with lang=%s cookie (want %s) ⛔\n' "$url" "${got:-none}" "$cookie" "$want"; fail=1; fi; }
+  # ⚠️ eno.vn's cookie check reads /privacy, not `/`: the pinned `/` ignores the cookie by design (V-a),
+  # so only an adaptive page can show the cookie path working.
+  cookiecheck https://eno.vn/privacy
   cookiecheck https://eno.forum/
   cookiecheck https://www.eno.forum/
+  if [ "$pilot" = on ]; then
+    cookiecheck https://eno.vn/vi en vi   # the twin stays Vietnamese for a stored English choice
+    cookiecheck https://eno.vn/ vi en     # and the pinned `/` stays English for a stored Vietnamese one
+  fi
   return $fail
 }
 
@@ -310,7 +369,7 @@ restore(){
   local purged=1
   if [ "$SKIP_PURGE" = 1 ]; then bad "--skip-purge: the rejected build may stay CACHED for 6h"; purged=0
   elif ! purge_edge; then bad "ROLLBACK PURGE FAILED — visitors may still see the bad build"; purged=0; fi
-  if probe; then
+  if probe rollback; then
     # ⛔ CLEAR THE MARKER AND RESYNC THE SHA. Both were missing for one revision and both
     # deadlock the next run: pin_prev refuses while deploy-incomplete exists, and the
     # schema gate would diff against the commit we just rolled BACK from, so a real

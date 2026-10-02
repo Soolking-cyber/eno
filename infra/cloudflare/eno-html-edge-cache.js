@@ -98,10 +98,10 @@ const LANGS = ["en", "vi", "zh-Hans", "ko", "ja", "ru", "km", "ms", "th", "fr", 
  * `/vi` + the path is the Vietnamese twin), so the key must be `en` whatever the visitor's cookie
  * or Accept-Language says. Keyed by variantFor() instead, a Vietnamese browser would key `vi`, the
  * origin would answer `content-language: en`, storable() would refuse it, and every Vietnamese
- * visitor to `/` would pay an uncached origin fetch — correct, only slow. EMPTY UNTIL V5.
+ * visitor to `/` would pay an uncached origin fetch — correct, only slow. Filled by V5 (switch-on).
  * ⚠️ eno.vn ONLY: the forum never pilots, and a storefront host (`apple.eno.vn`) is not routed here.
  */
-const PINNED_EN_PATHS = [];
+const PINNED_EN_PATHS = ["/", "/c/furniture-appliances"];
 const PINNED_HOSTS = ["eno.vn", "www.eno.vn"];
 
 /** Next's cookie parser, byte for byte (next/dist/compiled/@edge-runtime/cookies parseCookie):

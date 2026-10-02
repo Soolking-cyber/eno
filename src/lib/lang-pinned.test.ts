@@ -77,18 +77,21 @@ describe('pinnedPair', () => {
 })
 
 /**
- * ⛔ THE `/vi` PILOT (SEO wave B, V3a/V3b — merged switched OFF, decision V-h). Every function takes the
- * lists as a parameter, so each is tested off (the merged state), on (V5's list), and retired (V-R).
+ * ⛔ THE `/vi` PILOT (SEO wave B, V3a/V3b merged switched OFF, V5 switches it on). Every function takes the
+ * lists as a parameter, so each is tested off (as merged by V3a), on (V5's list), and retired (V-R).
  */
 const OFF: ViPilot = { live: [], retired: [] }
 const ON: ViPilot = { live: ['/', '/c/furniture-appliances'], retired: [] }
 const RETIRED: ViPilot = { live: [], retired: ['/', '/c/furniture-appliances'] }
 
 describe('the pilot lists', () => {
-  it('ship empty — the pilot is dormant until V5', () => {
-    expect(VI_PREFIX_PATHS).toEqual([])
+  it('ship V5\'s list — the pilot is on for `/` and `/c/furniture-appliances`, nothing retired', () => {
+    expect(VI_PREFIX_PATHS).toEqual(ON.live)
     expect(VI_RETIRED_PATHS).toEqual([])
+    // vitest runs as the SERVICES edition (vitest.config.ts), where the pilot is always off; the
+    // marketplace build takes the lists as they are
     expect(VI_PILOT).toEqual(OFF)
+    expect(viPilotFor(false, VI_PREFIX_PATHS, VI_RETIRED_PATHS)).toEqual(ON)
   })
 
   it('⛔ eno.forum never pilots, whatever the lists hold; the marketplace takes them as they are (review)', () => {
