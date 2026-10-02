@@ -39,7 +39,7 @@ import { homedir } from 'node:os'
 import { invokedDirectly } from '../src/lib/cli-entry'
 import { createHash } from 'node:crypto'
 import {
-  VEHICLE_SELLERS, SHOP_KEYS, stageMioto, stageBonbon, stageShopBike, miotoOwnerBlock, usableTranslation,
+  VEHICLE_SELLERS, SHOP_KEYS, stageMioto, stageBonbon, stageShopBike, miotoOwnerBlock, shopTexts, usableTranslation,
   type StagedVehicle, type StageResult, type SellerKey, type Fx, type StageDeps,
 } from '../src/lib/vehicle-rental-listing'
 import { VND_PER_USD_BAND, vndPerUsdFrom } from '../src/lib/honeycomb-listing'
@@ -152,8 +152,12 @@ export async function stageAll(): Promise<{ rows: StagedVehicle[]; drops: Record
   }
 
   const miotoSrc: Row[] = MIOTO ? readJson(join(MIOTO, 'all_rentals.json')) : []
+  const bikesSrc: Row[] = BIKES ? (readJson(join(BIKES, 'all_rentals.json')) as Row[]).filter((r) => (SHOP_KEYS as readonly string[]).includes(r.shop)) : []
   // The blocks each row would look up, computed by the SAME functions the stage uses.
-  const wanted = miotoSrc.map((r) => ({ text: miotoOwnerBlock(r), target: 'en' as const }))
+  const wanted = [
+    ...miotoSrc.map((r) => ({ text: miotoOwnerBlock(r), target: 'en' as const })),
+    ...bikesSrc.map((r) => ({ text: shopTexts(r).block, target: 'vi' as const })),
+  ]
   const cached = STAGE === 'import' ? await readCachedTranslations(wanted) : undefined
   const hits = cached ? wanted.filter((w) => usableTranslation({ cached }, w.text, w.target)).length : 0
   console.log(`  cached translations   ${cached ? `${hits} of ${wanted.filter((w) => w.text).length} owner/shop blocks` : 'not read (photo stage)'}`)
@@ -177,11 +181,8 @@ export async function stageAll(): Promise<{ rows: StagedVehicle[]; drops: Record
   let fx: Fx | null = null
   if (BIKES) {
     fx = await usdRate()
-    const src: Row[] = readJson(join(BIKES, 'all_rentals.json'))
-    for (const r of src) {
-      if (!(SHOP_KEYS as readonly string[]).includes(r.shop)) continue // other shops/cities: out of scope, not a drop
-      tally(r.shop, stageShopBike(r, { resolve: (rel) => join(BIKES, rel), fileOk, fx }))
-    }
+    // bikesSrc holds only the five HCMC shops: other shops/cities are out of scope, not a drop.
+    for (const r of bikesSrc) tally(r.shop, stageShopBike(r, { resolve: (rel) => join(BIKES, rel), fileOk, cached, fx }))
   }
   return { rows: LIMIT ? rows.slice(0, LIMIT) : rows, drops, fx }
 }

@@ -559,6 +559,19 @@ export function cleanBikeName(raw: string): string {
   return raw.replace(/\s*[-–—|]?\s*(for\s+rent|rental|cho\s+thuê)\s*$/i, '').replace(/\s+/g, ' ').trim()
 }
 
+/**
+ * The shop's own English text for a bike, contact details removed, and the block made of it: EXACTLY
+ * the text whose cached Vietnamese the import looks up (sha1 of `block`, target vi). The script calls
+ * this too, to read the cache before staging.
+ */
+export function shopTexts(r: Record<string, any>): { deposit: string; deliveryText: string; blurb: string; block: string } {
+  const deposit = redactContact(text(r.deposit))
+  const deliveryText = redactContact(text(r.delivery))
+  const blurb = redactContact(text(r.description)).slice(0, 1500)
+  const block = [deposit ? `Deposit: ${deposit}` : '', deliveryText ? `Delivery: ${deliveryText}` : '', blurb].filter(Boolean).join('\n')
+  return { deposit, deliveryText, blurb, block }
+}
+
 export function stageShopBike(r: Record<string, any>, deps: StageDeps & { fx: Fx | null }): StageResult {
   const shop = r.shop as ShopKey
   if (!(SHOP_KEYS as readonly string[]).includes(shop)) return { ok: false, reason: 'shopNotInScope' }
@@ -633,9 +646,9 @@ export function stageShopBike(r: Record<string, any>, deps: StageDeps & { fx: Fx
       ? `≈ ${amount}/${per} (cửa hàng báo giá US$${q.usd}/${per}; quy đổi ${vndVi(deps.fx!.vndPerUsd)}/US$)`
       : `≈ ${amount}/${per} (the shop quotes US$${q.usd}/${per}; converted at ${vnd(deps.fx!.vndPerUsd)} per US$)`
   }
-  const deposit = redactContact(text(r.deposit))
-  const deliveryText = redactContact(text(r.delivery))
-  const blurb = redactContact(text(r.description)).slice(0, 1500)
+  const { deposit, deliveryText, blurb, block: shopBlock } = shopTexts(r)
+  // Redacted after translation too (the Mioto owner block has why); a block that redacts to nothing is a miss.
+  const shopVi = redactContact(usableTranslation(deps, shopBlock, 'vi') ?? '') || null
   const factsEn = [
     `Price: ${quotes.map((q) => priceLine(q, false)).join(' · ')}`,
     typeEn ? `Type: ${typeEn}${cc ? `, ${cc}cc` : ''}` : cc ? `Engine: ${cc}cc` : null,
@@ -658,7 +671,21 @@ export function stageShopBike(r: Record<string, any>, deps: StageDeps & { fx: Fx
       externalId: `${shop}:${extId}`,
       title, titleVi,
       description: `Motorbike rental from ${seller.name}, a rental shop in Ho Chi Minh City — book with the shop on its website.\n\n${factsEn}${blurb ? `\n\nFrom the shop:\n${blurb}` : ''}`,
-      descriptionVi: `Xe máy cho thuê của ${seller.name}, cửa hàng cho thuê xe tại TP. Hồ Chí Minh — đặt xe với cửa hàng trên trang web của họ.\n\n${factsVi}${deposit || deliveryText || blurb ? `\n\nThông tin từ cửa hàng (tiếng Anh):\n${[deposit ? `Deposit: ${deposit}` : '', deliveryText ? `Delivery: ${deliveryText}` : '', blurb].filter(Boolean).join('\n')}` : ''}`,
+      /**
+       * ⛔ THE SHOP'S ENGLISH TEXT IS NOT PRINTED IN THE VIETNAMESE COLUMN WHEN ITS VIETNAMESE IS CACHED (translation audit
+       * 2026-10-02, F8). It used to follow the Vietnamese facts under "Thông tin từ cửa hàng (tiếng Anh):"
+       * on 121 live rows, so a Vietnamese reader got the shop's English. Now the block (exactly
+       * shopTexts().block) is looked up in the Translation cache, target vi, and a hit is printed in
+       * Vietnamese.
+       * ⚠️ A MISS KEEPS TODAY'S TEXT, NOT A NULL COLUMN. Measured on the 09-28 scrape: 101 of the 222 shop
+       * rows with shop text have no cached Vietnamese (70 distinct blocks, 24.8k chars; the fill covered
+       * the 121 the audit counted). A null column would send each Vietnamese reader to a live paid
+       * translation of the whole English description, and the Vietnamese facts would be lost with it.
+       * The labelled English block at least says what it is.
+       */
+      descriptionVi: `Xe máy cho thuê của ${seller.name}, cửa hàng cho thuê xe tại TP. Hồ Chí Minh — đặt xe với cửa hàng trên trang web của họ.\n\n${factsVi}${!shopBlock ? ''
+        : shopVi ? `\n\nThông tin từ cửa hàng (dịch từ tiếng Anh):\n${shopVi}`
+          : `\n\nThông tin từ cửa hàng (tiếng Anh):\n${shopBlock}`}`,
       price: lead.vnd, priceUnit: money(lead.period), rentalPeriod: lead.period,
       subcategorySlug: 'motorbike-rental',
       city: HCMC, district,

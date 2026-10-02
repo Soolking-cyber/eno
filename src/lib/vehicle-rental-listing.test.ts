@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BAD_PHOTO_FLAGS, BONBON_FEATURE_EN, MAX_PHOTOS, VEHICLE_SELLERS, cleanBikeName, miotoOwnerBlock, redactContact, sourcePostedAt, stageBonbon, stageMioto, stageShopBike, titleCaseCar,
+  BAD_PHOTO_FLAGS, BONBON_FEATURE_EN, MAX_PHOTOS, VEHICLE_SELLERS, cleanBikeName, miotoOwnerBlock, redactContact, shopTexts, sourcePostedAt, stageBonbon, stageMioto, stageShopBike, titleCaseCar,
   usableTranslation, type StageDeps,
 } from './vehicle-rental-listing'
 import { parseFacetTokens } from './facet-tokens'
@@ -149,6 +149,8 @@ function bike(over: Record<string, unknown> = {}) {
   }
 }
 const fx = { vndPerUsd: 26_000, source: 'test' }
+/** A cache that holds Vietnamese for every shop block: the state after the translation fill. */
+const viCache = { cached: (t: string, target: 'en' | 'vi') => (target === 'vi' ? `Bản dịch của cửa hàng: ${t.length} ký tự, gọi 0909 290 078` : null) }
 
 describe('stageShopBike', () => {
   it("stages Jan's per MONTH (the only period it quotes), ignoring the struck-through regular price", () => {
@@ -165,9 +167,10 @@ describe('stageShopBike', () => {
   })
 
   it('never carries the shop phone or address block into the description', () => {
-    const r = stageShopBike(bike(), { ...deps, fx })
+    const r = stageShopBike(bike(), { ...deps, ...viCache, fx })
     expect(r.ok && r.row.description).not.toMatch(/0078|WhatsApp|Find Us/)
-    expect(r.ok && r.row.descriptionVi).not.toMatch(/0078|WhatsApp|Find Us/)
+    // …including a number that came back inside the cached translation.
+    expect(r.ok && r.row.descriptionVi).not.toMatch(/0078|0909|WhatsApp|Find Us/)
     expect(r.ok && r.row.description).toContain('A great scooter.')
   })
 
@@ -189,7 +192,7 @@ describe('stageShopBike', () => {
       shop: 'dungmotorbikes', source_url: 'https://dungmotorbikes.com/bike/honda-xr-150cc/', availability: 'listed', type: 'manual',
       prices: [{ amount: 13, currency: 'USD', unit: 'day', label: 'per day' }, { amount: 300, currency: 'USD', unit: 'month', label: 'monthly (travel)' }],
     })
-    const r = stageShopBike(usd, { ...deps, fx })
+    const r = stageShopBike(usd, { ...deps, ...viCache, fx })
     expect(r.ok && [r.row.price, r.row.priceUnit]).toEqual([340_000, 'VND/day'])
     expect(r.ok && r.row.description).toContain('the shop quotes US$13/day')
     expect(r.ok && r.row.descriptionVi).toContain('cửa hàng báo giá US$13/ngày')
@@ -353,5 +356,40 @@ describe('Mioto owner text and BonbonCar features in the English description', (
       'Làm mát ghế', 'Vietmap Live', 'Cốp điện', 'Android Box', 'Phanh tay điện tử', 'Nắp thùng xe bán tải']
     expect(Object.keys(BONBON_FEATURE_EN).sort()).toEqual(scraped.sort())
     for (const [vi, en] of Object.entries(BONBON_FEATURE_EN)) expect(en, vi).toMatch(/^[\x20-\x7E°]+$/)
+  })
+})
+
+/**
+ * ⛔ THE SHOP'S ENGLISH TEXT IN THE VIETNAMESE COLUMN (translation audit 2026-10-02, F8): Vietnamese from
+ * the cache, keyed by exactly shopTexts().block; a miss keeps today's labelled English.
+ */
+describe('shop bikes: the Vietnamese column prints the shop’s text in Vietnamese when it is cached', () => {
+  const BLOCK_VI = 'Đặt cọc hoàn lại. Giao xe miễn phí trong Quận 2. Một chiếc xe ga tuyệt vời.'
+  it('keys on exactly the Deposit / Delivery / blurb block the column used to print', () => {
+    expect(shopTexts(bike()).block).toBe('Deposit: Pay the refundable deposit.\nDelivery: Free delivery within District 2.\nType: Automatic\nA great scooter.')
+  })
+
+  it('prints the cached Vietnamese under the Vietnamese facts', () => {
+    const block = shopTexts(bike()).block
+    const r = stageShopBike(bike(), { ...deps, fx, cached: (t, g) => (g === 'vi' && t === block ? BLOCK_VI : null) })
+    expect(r.ok && r.row.descriptionVi).toContain(`Thông tin từ cửa hàng (dịch từ tiếng Anh):\n${BLOCK_VI}`)
+    expect(r.ok && r.row.descriptionVi).not.toContain("(tiếng Anh)")
+    expect(r.ok && r.row.descriptionVi).not.toContain('A great scooter.')
+  })
+
+  it('a miss, an identity row or an English "translation" keeps today’s text: Vietnamese facts, then the labelled English', () => {
+    const block = shopTexts(bike()).block
+    const today = stageShopBike(bike(), { ...deps, fx })
+    expect(today.ok && today.row.descriptionVi).toContain(`Thông tin từ cửa hàng (tiếng Anh):\n${block}`)
+    for (const cached of [() => null, (t: string) => t, () => 'Refundable deposit and free delivery in District 2.']) {
+      const r = stageShopBike(bike(), { ...deps, fx, cached: (t, g) => (g === 'vi' && t === block ? cached(t) : null) })
+      expect(r.ok && r.row.descriptionVi).toBe(today.ok && today.row.descriptionVi)
+    }
+  })
+
+  it('a bike with no shop text keeps its all-Vietnamese template', () => {
+    const r = stageShopBike(bike({ deposit: '', delivery: '', description: '' }), { ...deps, fx })
+    expect(r.ok && r.row.descriptionVi).toMatch(/^Xe máy cho thuê của Jan's Motorbike/)
+    expect(r.ok && r.row.descriptionVi).not.toContain('Thông tin từ cửa hàng')
   })
 })
