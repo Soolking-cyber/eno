@@ -34,6 +34,10 @@ import { repairAffLink } from '../src/lib/affiliate-price-refresh'
 import { browseRankScore } from '../src/lib/ranking-formula'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
+// ⛔ Feed text arrives with HTML entities encoded ("Fun &amp; Online"): decoded on the way in, and repaired
+// in the stored columns on a refresh (translation audit 2026-10-02, F9). See src/lib/feed-text.ts.
+import { cutText, decodeEntities, entityRepairs, feedDescription } from '../src/lib/feed-text'
+import { createHash } from 'node:crypto'
 /**
  * ⚠️ THE FEED'S aff_links ARE REPAIRED LOCALLY, NOT MINTED PER PRODUCT. `product_link/create`
  * works and would also be correct, but it is one HTTP round trip per product — 9,728 of them for a
@@ -179,8 +183,34 @@ async function main() {
     if (missing.length) console.log(`brands created: ${missing.join(', ')}\n`)
   }
 
-  let seen = 0, matched = 0, created = 0, updated = 0, skipped = 0, imaged = 0
+  let seen = 0, matched = 0, created = 0, updated = 0, skipped = 0, imaged = 0, entityRows = 0, carried = 0
   const failures: string[] = []
+  /**
+   * ⚠️ A DECODED TEXT IS A NEW CACHE KEY. The Translation cache is keyed by sha1 of the exact text, so
+   * decoding a stored description would orphan its cached translations: 1,047 of the 1,271 Tiki
+   * descriptions that carry an entity have an `en` row, measured on the audit export. Each of those
+   * would be paid for again on its first English view. So each row's translations are copied to the
+   * decoded key, insert-only (skipDuplicates), with the value decoded too. Nothing is translated.
+   */
+  const sha1 = (t: string) => createHash('sha1').update(t).digest('hex')
+  /** true when every pair was copied (or had nothing to copy). */
+  async function carryTranslations(pairs: { from: string; to: string }[]): Promise<boolean> {
+    for (const { from, to } of pairs) {
+      try {
+        const rows = await db.translation.findMany({ where: { hash: sha1(from) }, select: { target: true, value: true } })
+        if (!rows.length) continue
+        const res = await db.translation.createMany({
+          data: rows.map((r) => ({ hash: sha1(to), target: r.target, value: decodeEntities(r.value) })),
+          skipDuplicates: true,
+        })
+        carried += res.count
+      } catch (e) {
+        failures.push(`carryTranslations: ${(e as Error).message.slice(0, 60)}`)
+        return false
+      }
+    }
+    return true
+  }
   const screen = new ImportScreen(`accesstrade-${CAMPAIGN}`, { db })
   const PAGE = 200
   for (let page = 1; seen < total; page++) {
@@ -200,7 +230,9 @@ async function main() {
     for (let i = 0; i < data.length; i += CONCURRENCY) {
       await Promise.all(data.slice(i, i + CONCURRENCY).map(async (p) => {
         seen++
-        if (MATCH && !MATCH.test(p.name)) return
+        // The DECODED name everywhere below: rules, brand/model, screening and the stored text all read the same words.
+        const name = decodeEntities(p.name)
+        if (MATCH && !MATCH.test(name)) return
         if (CATE && (p as { cate?: string }).cate !== CATE) return
         matched++
         const price = Number(p.status_discount) === 1 && Number(p.discount) > 0 ? Number(p.discount) : Number(p.price)
@@ -209,7 +241,7 @@ async function main() {
         if (!p.image) { skipped++; return }
         const affiliateUrl = repairAffLink(p.aff_link, campaignId)
         if (!affiliateUrl) { skipped++; return }
-        const slug = categoryFor(p.name)
+        const slug = categoryFor(name)
         const categoryId = catId.get(slug)
         if (!categoryId) { skipped++; return }
         const externalId = String(p.sku || p.product_id || '').slice(0, 190)
@@ -228,10 +260,13 @@ async function main() {
         // created; if it is already LIVE it is not refreshed and finish() hides it (journaled). An
         // ambiguous one goes to the review file — and, if already live, is refreshed as normal rather
         // than frozen on a stale price. Runs in the dry run too (which hides nothing).
-        if (!(await screen.check({ title: p.name, description: p.desc, category: slug, subcategory: subcategoryFor(slug, p.name), merchant: merchantName, externalId, url: p.url }, existing ? { id: existing.id, status: existing.status } : null))) {
+        // ⛔ Screened DECODED, the form that is stored: an entity-encoded banned word must not pass as "&#…;".
+        if (!(await screen.check({ title: name, description: decodeEntities(p.desc ?? ''), category: slug, subcategory: subcategoryFor(slug, name), merchant: merchantName, externalId, url: p.url }, existing ? { id: existing.id, status: existing.status } : null))) {
           skipped++; return
         }
-        if (!APPLY) { existing ? updated++ : created++; return }
+        // Stored text that still prints "&amp;": decoded in place, even in the create-only columns.
+        const repairs = existing ? entityRepairs(existing) : {}
+        if (!APPLY) { if (Object.keys(repairs).length) entityRows++; existing ? updated++ : created++; return }
         let images = existing?.images
         const hasImage = (() => { try { return JSON.parse(images || '[]').length > 0 } catch { return false } })()
         if (!hasImage) {
@@ -240,19 +275,24 @@ async function main() {
         }
         if (!images || images === '[]') { skipped++; return }
 
-        const feedTitle = p.name.slice(0, 180)
+        const feedTitle = cutText(name, 180)
         // ⛔ The row's stored category wins over the title rules on a refresh — see refreshPlacement.
         const placed = refreshPlacement(
           existing ? { categorySlug: catSlug.get(existing.categoryId) ?? null, subcategorySlug: existing.subcategorySlug } : null,
-          { categorySlug: slug, subcategorySlug: subcategoryFor(slug, p.name) },
+          { categorySlug: slug, subcategorySlug: subcategoryFor(slug, name) },
         )
         // ⛔ BRAND AND MODEL ARE SET ON CREATE ONLY (2026-09-14). A refresh used to rewrite them from the title rules, which
         // undid every correction the Gemini pass or `backfill-brands --recheck` made — and "fill when missing" refilled a
         // brand those passes had deliberately cleared (an iPhone case is not Apple's). The refresh keeps the stored values;
         // the title rules name a brand/model only for a product seen for the first time (reviewers, three rounds).
-        const effBrand = existing ? existing.brandSlug : brandFor(p.name)
-        const effModel = existing ? existing.model : modelFor(p.name)
-        const feedDesc = (p.desc || p.name).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 1800)
+        const effBrand = existing ? existing.brandSlug : brandFor(name)
+        const effModel = existing ? existing.model : modelFor(name)
+        const feedDesc = feedDescription(p.desc || p.name)
+        // The row's current text, with any entity decoded: what the searchText blob folds below.
+        const cur = existing && {
+          title: repairs.title?.to ?? existing.title, titleVi: repairs.titleVi?.to ?? existing.titleVi,
+          description: repairs.description?.to ?? existing.description, descriptionVi: repairs.descriptionVi?.to ?? existing.descriptionVi,
+        }
         const fields = {
           title: feedTitle, description: feedDesc,
           // ⚠️ THE MERCHANT'S OWN WORDS ALWAYS LIVE IN THE *Vi COLUMNS. `title`/`description` are
@@ -304,10 +344,10 @@ async function main() {
           // VIETNAMESE prose out of the blob on every re-import — silently un-indexing the text
           // most buyers actually read, with nothing to re-select the row afterwards.
           searchText: buildSearchText([
-            existing?.title ?? feedTitle, feedTitle,
-            existing?.titleVi ?? feedTitle,
-            existing?.description ?? feedDesc, feedDesc,
-            existing?.descriptionVi ?? feedDesc,
+            cur?.title ?? feedTitle, feedTitle,
+            cur?.titleVi ?? feedTitle,
+            cur?.description ?? feedDesc, feedDesc,
+            cur?.descriptionVi ?? feedDesc,
             MERCHANT_CITY, placed.categorySlug, effBrand, effModel,
           ]),
           affiliateUrl, verified: true, status: 'active',
@@ -366,6 +406,27 @@ async function main() {
          */
         const { status, verified, title, description, descriptionVi, rankScore, ...refreshable } = fields
         /**
+         * ⛔ THE ONE EXCEPTION TO CREATE-ONLY: an entity decode of the STORED value. It keeps every word
+         * a translator or a model wrote and only stops "&amp;" printing, so the next refresh repairs the
+         * 1,576 live rows without touching what the comment above protects.
+         */
+        /**
+         * ⚠️ THE CACHE IS CARRIED FIRST, AND THE DECODE WAITS FOR IT. Once a stored column is decoded, the old
+         * key is gone from the row, and no later run could find it to copy (review). So the copies go in
+         * first (insert-only; harmless if the listing write then fails). If one fails, this run leaves the
+         * stored text encoded, including titleVi, and the next run tries again.
+         * titleVi is refreshed from the feed name anyway. Its old key is carried only when the stored value
+         * becomes the decoded old text; a renamed product is a different text, and its translation
+         * does not belong to it.
+         */
+        const carryOk = !Object.keys(repairs).length || await carryTranslations(
+          Object.entries(repairs).filter(([k, r]) => k !== 'titleVi' || r!.to === feedTitle).map(([, r]) => r!))
+        const decoded = carryOk ? {
+          ...(repairs.title ? { title: repairs.title.to } : {}),
+          ...(repairs.description ? { description: repairs.description.to } : {}),
+          ...(repairs.descriptionVi ? { descriptionVi: repairs.descriptionVi.to } : {}),
+        } : (repairs.titleVi ? { titleVi: repairs.titleVi.from } : {})
+        /**
          * ⚠️ ONE ROW'S FAILURE MUST NOT KILL A 9,728-ROW RUN. This job talks to the database over
          * an SSH tunnel, and a dropped tunnel surfaces as Prisma `ConnectionClosed` — which,
          * unguarded inside Promise.all, rejected the whole batch and ended the import at 8,354 with
@@ -376,10 +437,11 @@ async function main() {
           try {
             await db.listing.upsert({
               where: { sellerId_externalId: { sellerId: seller!.id, externalId } },
-              update: refreshable,
+              update: { ...refreshable, ...decoded },
               create: { ...fields, sellerId: seller!.id, externalId },
             })
             existing ? updated++ : created++
+            if (Object.keys(repairs).length && carryOk) entityRows++
             return
           } catch (e) {
             if (attempt === 1) { skipped++; failures.push((e as Error).message.slice(0, 80)); return }
@@ -391,6 +453,7 @@ async function main() {
     if (page % 2 === 0 || seen >= total) console.log(`  ${seen}/${total}${MATCH || CATE ? `  matched=${matched}` : ''}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
   }
   console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${created} created, ${updated} updated, ${imaged} images hosted, ${skipped} skipped`)
+  console.log(`  HTML entities decoded in stored text: ${entityRows} rows${APPLY ? ` · ${carried} cached translations carried to the decoded text` : ' (would be)'}`)
   await screen.finish({ apply: APPLY })
   // ⚠️ Name the failures rather than leaving "skipped" to mean four different things.
   if (failures.length) {
