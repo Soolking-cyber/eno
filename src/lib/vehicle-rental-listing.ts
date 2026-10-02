@@ -23,6 +23,7 @@ import { listingMoneyFor, type RentalPeriod } from './taxonomy'
 import { buildFacetTokens } from './facet-tokens'
 import { usdToVnd } from './honeycomb-listing'
 import { formatMoneyFull } from './vnd'
+import { VI_PASSAGE_LABEL, mayBeVietnamese, readsAsVietnamese } from './detect-lang'
 
 // ── Sources and sellers ──────────────────────────────────────────────────────────────────────────
 
@@ -107,6 +108,24 @@ export type StageDeps = {
   resolve: (rel: string) => string
   /** true when the file exists and is non-empty. A zero-byte download is not a photo. */
   fileOk: (abs: string) => boolean
+  /**
+   * The CACHED translation of one exact text, or null. The script reads it from the `Translation` table
+   * (key: sha1 of the exact text, as src/lib/translate.ts writes it) before staging. ⛔ Lookup only: the
+   * import never calls a paid translator, so a miss keeps today's text.
+   */
+  cached?: (text: string, target: 'en' | 'vi') => string | null
+}
+
+/**
+ * A cached translation of `src` that is fit to print in place of it: present, different from the
+ * source, and in the target language by the description test (detect-lang readsAsVietnamese). An
+ * identity row ("translated" to itself) or a Vietnamese "English" row is treated as a miss.
+ */
+export function usableTranslation(deps: Pick<StageDeps, 'cached'>, src: string, target: 'en' | 'vi'): string | null {
+  if (!src) return null
+  const out = deps.cached?.(src, target)?.trim()
+  if (!out || out === src.trim()) return null
+  return readsAsVietnamese(out) === (target === 'vi') ? out : null
 }
 
 export const MAX_PHOTOS = 6
@@ -248,6 +267,15 @@ const FUEL_EN: Record<string, string> = { gasoline: 'Petrol', electric: 'Electri
 const FUEL_VI: Record<string, string> = { gasoline: 'Xăng', electric: 'Điện', diesel: 'Dầu diesel', hybrid: 'Hybrid' }
 
 /**
+ * The owner's own description of a Mioto car, contact details removed: EXACTLY the text whose cached
+ * English the import looks up. The script calls this too, to read the cache before staging, so the
+ * two can never key on different strings.
+ */
+export function miotoOwnerBlock(r: Record<string, any>): string {
+  return redactContact(text(r.desc))
+}
+
+/**
  * @param sharedSha1 sha1s that occur on MORE THAN ONE car anywhere in the scrape — one fleet's
  *   leaflet shot sat on 118 cars; it is not a photo of any one of them.
  * @param sha1Of the per-car sha1 list from the scrape's image manifest, aligned with local_images.
@@ -298,7 +326,17 @@ export function stageMioto(r: Record<string, any>, deps: StageDeps & { sharedSha
   const featVi = list(r.features).map(String).filter(Boolean)
   const papers = list(r.requiredPapers).map(String).filter(Boolean)
   const mortgages = list(r.mortgages).map(String).filter(Boolean)
-  const owner = redactContact(text(r.desc))
+  const owner = miotoOwnerBlock(r)
+  // Redacted AFTER translation as well (see the description below); a block that redacts to nothing is a miss.
+  const ownerMt = usableTranslation(deps, owner, 'en')
+  const ownerEn = redactContact(ownerMt ?? '') || null
+  // A translation that redacts to NOTHING says the owner text was only contact details written out in
+  // words ("Zalo: không chín không chín…"), which the redactor cannot read. The English side drops it.
+  const ownerContactOnly = !!ownerMt && !ownerEn
+  // The translation fill's verdict that the text has nothing to translate ("VINFAST VF3 (AT)"): its row is the
+  // text itself. A shape test cannot say that alone (Vietnamese typed without marks looks like plain Latin),
+  // and an identity row for a text WITH Vietnamese letters is a bad row, not a verdict.
+  const ownerNeutral = !!owner && deps.cached?.(owner, 'en')?.trim() === owner && !mayBeVietnamese(owner)
   const trips = num(r.totalTrips) ?? 0
 
   const factsEn = [
@@ -336,7 +374,23 @@ export function stageMioto(r: Record<string, any>, deps: StageDeps & { sharedSha
       seller: 'mioto',
       externalId: `mioto:${id}`,
       title, titleVi,
-      description: `Self-drive car listed on Mioto.vn — book and pay on Mioto.\n\n${factsEn}${owner ? `\n\nOwner’s description (Vietnamese):\n${owner}` : ''}`,
+      /**
+       * ⛔ THE OWNER'S TEXT IS TRANSLATED ONCE, AS ITS OWN BLOCK (translation audit 2026-10-02, F2). It used
+       * to sit here raw under "(Vietnamese):", so an English reader saw Vietnamese until a live machine
+       * translation of the WHOLE description came back. That translation went stale every Monday, because
+       * this job rewrites the trip count and the price, and 4,884 rows carried it. The block is now looked
+       * up on its own (sha1 of exactly `owner`, target en), and the facts that change weekly stay outside
+       * it, so the key holds from week to week. ⚠️ A MISS KEEPS TODAY'S TEXT, label and all: the label is
+       * what keeps the PDP translating it (detect-lang VI_PASSAGE_LABEL).
+       * An owner text the fill cached as ITSELF ("VINFAST VF3 (AT)": 467 of the 4,878 in the 09-28 scrape)
+       * is printed without the label, since there is nothing in it to translate.
+       * ⛔ THE ENGLISH IS REDACTED AGAIN. A number an owner spells out in Vietnamese words ("không chín
+       * không chín…") passes the redactor and comes back from a translator as digits.
+       */
+      description: `Self-drive car listed on Mioto.vn — book and pay on Mioto.\n\n${factsEn}${!owner || ownerContactOnly ? ''
+        : ownerEn ? `\n\nOwner’s description (translated from Vietnamese):\n${ownerEn}`
+          : ownerNeutral ? `\n\nOwner’s description:\n${owner}`
+            : `\n\nOwner’s description ${VI_PASSAGE_LABEL}\n${owner}`}`,
       descriptionVi: `Xe tự lái đăng trên Mioto.vn — đặt xe và thanh toán trên Mioto.\n\n${factsVi}${owner ? `\n\nMô tả của chủ xe:\n${owner}` : ''}`,
       price, priceUnit: money('daily'), rentalPeriod: 'daily',
       subcategorySlug: 'car-rental',
@@ -362,6 +416,25 @@ export function stageMioto(r: Record<string, any>, deps: StageDeps & { sharedSha
 // ── BonbonCar ────────────────────────────────────────────────────────────────────────────────────
 
 const BONBON_TRANSMISSION: Record<string, 'automatic' | 'manual'> = { 'Số tự động': 'automatic', 'Số sàn': 'manual' }
+/**
+ * BonbonCar's feature names in English. These are the 28 distinct names in the HCMC scrape (2026-09-28).
+ * They used to be printed in Vietnamese under "Features (Vietnamese):" in the English description
+ * (427 live rows). The wording follows MIOTO_FEATURE_EN where the two sources share a feature. A name
+ * missing here is kept in Vietnamese under "Other features (Vietnamese):", so the label keeps it on
+ * the PDP's translate path.
+ */
+export const BONBON_FEATURE_EN: Record<string, string> = {
+  'Bluetooth': 'Bluetooth', 'ETC': 'ETC toll tag', 'Khe cắm USB': 'USB port', 'Camera Lùi': 'Reversing camera',
+  'Camera hành trình': 'Dashcam', 'Số túi khí': 'Airbags', 'Định vị GPS': 'GPS', 'Bản đồ': 'Maps',
+  'Lốp dự phòng': 'Spare tyre', 'Cảnh báo tốc độ': 'Speed warning', 'Màn hình DVD': 'DVD screen',
+  'Cảnh báo tiền va chạm': 'Forward collision warning', 'Cảm biến lốp': 'Tyre-pressure sensors',
+  'Camera 360': '360° camera', 'Camera cập lề': 'Side camera', 'Màn hình cảm ứng': 'Touchscreen',
+  'Giá đỡ điện thoại': 'Phone holder', 'Dây sạc đa năng': 'Multi-device charging cable',
+  'Phanh tay điện tử': 'Electronic parking brake', 'Vietmap Live': 'Vietmap Live navigation',
+  'Bộ bơm lốp': 'Tyre inflator', 'Cửa sổ trời': 'Sunroof', 'Android Box': 'Android head unit',
+  'Bộ kích bình': 'Jump starter', 'Cốp điện': 'Power tailgate', 'Ghế trẻ em': 'Child seat',
+  'Làm mát ghế': 'Ventilated seats', 'Nắp thùng xe bán tải': 'Pickup bed cover',
+}
 const BONBON_FUEL_EN: Record<string, string> = { 'Xăng': 'Petrol', 'Điện': 'Electric', 'Dầu': 'Diesel' }
 
 export function stageBonbon(r: Record<string, any>, deps: StageDeps): StageResult {
@@ -405,6 +478,8 @@ export function stageBonbon(r: Record<string, any>, deps: StageDeps): StageResul
     // A package that costs more than the 24h price is a parse error, not a package.
     .map(([k, v]) => [k, num(v)] as const).filter(([, v]) => v !== null && v > 0 && v < price)
   const features = list(r.features).map(String).filter(Boolean)
+  const featEn = features.map((f) => BONBON_FEATURE_EN[f.normalize('NFC').trim()]).filter((f): f is string => !!f)
+  const featUnknown = features.filter((f) => !BONBON_FEATURE_EN[f.normalize('NFC').trim()])
   const blurb = redactContact(text(r.description))
 
   const spec = [seats ? `${seats} seats` : null, transmission].filter(Boolean).join(' · ')
@@ -442,7 +517,7 @@ export function stageBonbon(r: Record<string, any>, deps: StageDeps): StageResul
       seller: 'bonboncar',
       externalId: `bonboncar:${sku}`,
       title, titleVi,
-      description: `Self-drive car from BonbonCar — book and pay on bonboncar.vn.\n\n${factsEn}${features.length ? `\nFeatures (Vietnamese): ${features.join(', ')}` : ''}`,
+      description: `Self-drive car from BonbonCar — book and pay on bonboncar.vn.\n\n${factsEn}${featEn.length ? `\nFeatures: ${featEn.join(', ')}` : ''}${featUnknown.length ? `\nOther features ${VI_PASSAGE_LABEL} ${featUnknown.join(', ')}` : ''}`,
       descriptionVi: `Xe tự lái của BonbonCar — đặt xe và thanh toán trên bonboncar.vn.\n\n${factsVi}${blurb ? `\n\n${blurb}` : ''}`,
       price, priceUnit: money('daily'), rentalPeriod: 'daily',
       subcategorySlug: 'car-rental',

@@ -37,9 +37,10 @@ import { readFileSync, existsSync, statSync, openSync, writeSync, fsyncSync, clo
 import { dirname, join, resolve as resolvePath } from 'node:path'
 import { homedir } from 'node:os'
 import { invokedDirectly } from '../src/lib/cli-entry'
+import { createHash } from 'node:crypto'
 import {
-  VEHICLE_SELLERS, SHOP_KEYS, stageMioto, stageBonbon, stageShopBike,
-  type StagedVehicle, type StageResult, type SellerKey, type Fx,
+  VEHICLE_SELLERS, SHOP_KEYS, stageMioto, stageBonbon, stageShopBike, miotoOwnerBlock, usableTranslation,
+  type StagedVehicle, type StageResult, type SellerKey, type Fx, type StageDeps,
 } from '../src/lib/vehicle-rental-listing'
 import { VND_PER_USD_BAND, vndPerUsdFrom } from '../src/lib/honeycomb-listing'
 import { browseRankScore } from '../src/lib/ranking-formula'
@@ -94,6 +95,49 @@ async function usdRate(): Promise<Fx | null> {
   } catch { return null }
 }
 
+/** The `Translation` table's key: sha1 of the EXACT text, no trim or normalisation (src/lib/translate.ts hash()). */
+const translationHash = (t: string) => createHash('sha1').update(t).digest('hex')
+
+/**
+ * ⛔ READ-ONLY LOOKUP OF ALREADY-CACHED TRANSLATIONS, NEVER A TRANSLATOR CALL. The weekly job runs
+ * unattended over ~6,400 rows; a paid call in here would bill on every changed owner text, every week.
+ * Rows are written by the translation fill, insert-only, keyed exactly like translate.ts. A text with no
+ * row keeps today's wording (src/lib/vehicle-rental-listing.ts usableTranslation).
+ * Only the import stage reads it: the photo stage never looks at descriptions, and needs no database.
+ */
+export async function readCachedTranslations(wanted: { text: string; target: 'en' | 'vi' }[]): Promise<StageDeps['cached']> {
+  const byTarget = new Map<'en' | 'vi', Set<string>>()
+  for (const w of wanted) if (w.text) (byTarget.get(w.target) ?? byTarget.set(w.target, new Set()).get(w.target)!).add(translationHash(w.text))
+  if (!byTarget.size) return () => null
+  const found = new Map<string, string>()
+  let db: { $disconnect(): Promise<void>; translation: { findMany(a: object): Promise<{ hash: string; value: string }[]> } } | null = null
+  /**
+   * ⛔ A FAILED LOOKUP FAILS THE IMPORT; IT IS NOT A MISS. Read as "nothing cached", one bad week would
+   * rewrite every composed English description back to the labelled Vietnamese, and the next week
+   * would flip them all again (review). The weekly job then reports "import stage FAILED", and the
+   * prices wait a week. The import's own reads go to the same database, so they would most likely
+   * have failed anyway.
+   */
+  try {
+    const { PrismaClient } = await import('../src/generated/prisma/client')
+    const { PrismaPg } = await import('@prisma/adapter-pg')
+    // Short timeouts: a dead or stalled database fails this run in seconds, not after the OS gives up.
+    db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL, connectionTimeoutMillis: 15_000, statement_timeout: 60_000 }), log: ['warn', 'error'] })
+    for (const [target, set] of byTarget) {
+      const hashes = [...set]
+      for (let i = 0; i < hashes.length; i += 1000) {
+        const rows = await db!.translation.findMany({ where: { target, hash: { in: hashes.slice(i, i + 1000) } }, select: { hash: true, value: true } })
+        for (const r of rows) found.set(`${target} ${r.hash}`, r.value)
+      }
+    }
+  } catch (e) {
+    throw new Error(`cached translations unreadable — refusing to stage descriptions without them: ${(e as Error).message.slice(0, 200)}`)
+  } finally {
+    await db?.$disconnect().catch(() => {})
+  }
+  return (t, target) => found.get(`${target} ${translationHash(t)}`) ?? null
+}
+
 export async function stageAll(): Promise<{ rows: StagedVehicle[]; drops: Record<string, Record<string, number>>; fx: Fx | null }> {
   const drops: Record<string, Record<string, number>> = {}
   const rows: StagedVehicle[] = []
@@ -107,15 +151,22 @@ export async function stageAll(): Promise<{ rows: StagedVehicle[]; drops: Record
     d[res.reason] = (d[res.reason] ?? 0) + 1
   }
 
+  const miotoSrc: Row[] = MIOTO ? readJson(join(MIOTO, 'all_rentals.json')) : []
+  // The blocks each row would look up, computed by the SAME functions the stage uses.
+  const wanted = miotoSrc.map((r) => ({ text: miotoOwnerBlock(r), target: 'en' as const }))
+  const cached = STAGE === 'import' ? await readCachedTranslations(wanted) : undefined
+  const hits = cached ? wanted.filter((w) => usableTranslation({ cached }, w.text, w.target)).length : 0
+  console.log(`  cached translations   ${cached ? `${hits} of ${wanted.filter((w) => w.text).length} owner/shop blocks` : 'not read (photo stage)'}`)
+
   if (MIOTO) {
-    const src: Row[] = readJson(join(MIOTO, 'all_rentals.json'))
+    const src = miotoSrc
     const manifest: Record<string, { sha1?: (string | null)[] }> = readJson(join(MIOTO, 'state', 'images_manifest.json'))
     // sha1s on MORE THAN ONE car anywhere in the scrape (not only HCMC): a shared shot is a fleet's
     // stock image — a leaflet in a seat pocket sat on 118 cars — not a photo of any one car.
     const carsBySha = new Map<string, number>()
     for (const m of Object.values(manifest)) for (const h of new Set(m.sha1 ?? [])) if (h) carsBySha.set(h, (carsBySha.get(h) ?? 0) + 1)
     const shared = new Set([...carsBySha].filter(([, n]) => n > 1).map(([h]) => h))
-    const deps = { resolve: (rel: string) => join(MIOTO, rel), fileOk, sharedSha1: shared, sha1Of: (id: string) => manifest[id]?.sha1 ?? [] }
+    const deps = { resolve: (rel: string) => join(MIOTO, rel), fileOk, cached, sharedSha1: shared, sha1Of: (id: string) => manifest[id]?.sha1 ?? [] }
     for (const r of src) tally('mioto', stageMioto(r, deps))
     console.log(`  mioto shared images   ${shared.size} sha1s appear on >1 car (dropped)`)
   }

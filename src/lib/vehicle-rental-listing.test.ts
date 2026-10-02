@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BAD_PHOTO_FLAGS, MAX_PHOTOS, VEHICLE_SELLERS, cleanBikeName, redactContact, sourcePostedAt, stageBonbon, stageMioto, stageShopBike, titleCaseCar,
-  type StageDeps,
+  BAD_PHOTO_FLAGS, BONBON_FEATURE_EN, MAX_PHOTOS, VEHICLE_SELLERS, cleanBikeName, miotoOwnerBlock, redactContact, sourcePostedAt, stageBonbon, stageMioto, stageShopBike, titleCaseCar,
+  usableTranslation, type StageDeps,
 } from './vehicle-rental-listing'
 import { parseFacetTokens } from './facet-tokens'
 
@@ -261,5 +261,97 @@ describe('helpers', () => {
       expect(s.target.test('https://evil.example/')).toBe(false)
     }
     expect(BAD_PHOTO_FLAGS.has('stock')).toBe(true)
+  })
+})
+
+/**
+ * ⛔ THE OWNER'S TEXT IS TRANSLATED ONCE, FROM THE CACHE, KEYED BY EXACTLY ITSELF (translation audit
+ * 2026-10-02, F2). The import never calls a translator: a miss keeps today's text, label and all.
+ */
+describe('Mioto owner text and BonbonCar features in the English description', () => {
+  const OWNER = 'Xe mới, sạch sẽ, có camera hành trình.'
+  const OWNER_EN = 'New, clean car with a dashcam.'
+  const cacheOf = (rows: Record<string, string>) => ({ cached: (t: string, target: 'en' | 'vi') => (target === 'en' ? rows[t] ?? null : null) })
+  const asked: string[] = []
+  const spy = { cached: (t: string) => { asked.push(t); return t === OWNER ? OWNER_EN : null } }
+
+  it('composes the English description from the cached English of the owner block', () => {
+    const r = stageMioto(mioto({ desc: `${OWNER} 0909 123 456` }), { ...miotoDeps(), ...cacheOf({ [OWNER]: OWNER_EN }) })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.row.description).toContain(`Owner’s description (translated from Vietnamese):\n${OWNER_EN}`)
+    expect(r.row.description).not.toContain(OWNER)
+    expect(r.row.description).not.toContain('(Vietnamese):')
+    // The Vietnamese side keeps the owner's own words.
+    expect(r.row.descriptionVi).toContain(`Mô tả của chủ xe:\n${OWNER}`)
+  })
+
+  it('⛔ keys on the owner block alone — the trip count and the price the weekly refresh rewrites are outside it', () => {
+    asked.length = 0
+    const a = stageMioto(mioto({ desc: OWNER, totalTrips: 12, price_vnd_day: 850000 }), { ...miotoDeps(), ...spy })
+    const b = stageMioto(mioto({ desc: OWNER, totalTrips: 13, price_vnd_day: 900000 }), { ...miotoDeps(), ...spy })
+    expect(new Set(asked)).toEqual(new Set([OWNER])) // one key, whatever the trips and the price
+    expect(miotoOwnerBlock(mioto({ desc: OWNER }))).toBe(OWNER)
+    expect(a.ok && b.ok && a.row.description !== b.row.description).toBe(true) // the facts did change…
+    expect(a.ok && a.row.description.endsWith(OWNER_EN)).toBe(true)          // …the translated block did not
+    expect(b.ok && b.row.description.endsWith(OWNER_EN)).toBe(true)
+  })
+
+  it('a miss keeps today’s text byte for byte, label included, so the PDP still translates it', () => {
+    const withCache = stageMioto(mioto({ desc: OWNER }), { ...miotoDeps(), ...cacheOf({}) })
+    const without = stageMioto(mioto({ desc: OWNER }), miotoDeps())
+    expect(withCache.ok && without.ok && withCache.row.description).toBe(without.ok && without.row.description)
+    expect(without.ok && without.row.description).toContain(`\n\nOwner’s description (Vietnamese):\n${OWNER}`)
+  })
+
+  it('an owner text the fill cached as itself is printed as it is, without the label', () => {
+    const r = stageMioto(mioto({ desc: 'VINFAST VF3 (AT)' }), { ...miotoDeps(), ...cacheOf({ 'VINFAST VF3 (AT)': 'VINFAST VF3 (AT)' }) })
+    expect(r.ok && r.row.description).toContain('\n\nOwner’s description:\nVINFAST VF3 (AT)')
+    expect(r.ok && r.row.description).not.toContain('(Vietnamese)')
+    // Without that verdict even an unmarked text keeps the label: "xe moi sach se" is Vietnamese too.
+    const u = stageMioto(mioto({ desc: 'xe moi sach se, giao xe tan noi' }), miotoDeps())
+    expect(u.ok && u.row.description).toContain('Owner’s description (Vietnamese):\nxe moi sach se')
+  })
+
+  it('⛔ redacts the cached English too: a number spelled out in Vietnamese comes back as digits', () => {
+    const spelled = 'Xe đẹp. Gọi không chín không chín một hai ba bốn năm sáu'
+    const r = stageMioto(mioto({ desc: spelled }), { ...miotoDeps(), ...cacheOf({ [spelled]: 'Nice car. Call 0909 123 456' }) })
+    expect(r.ok && r.row.description).toContain('Owner’s description (translated from Vietnamese):\nNice car.')
+    expect(r.ok && r.row.description).not.toMatch(/0909|123 456/)
+    // A translation that is nothing BUT contact details drops the owner section from the English side:
+    // never an empty section, and never the spelled-out number for the page to translate into digits.
+    const only = stageMioto(mioto({ desc: spelled }), { ...miotoDeps(), ...cacheOf({ [spelled]: 'Zalo: 0909 123 456' }) })
+    expect(only.ok && only.row.description).not.toContain('Owner’s description')
+  })
+
+  it('an identity row for a text with Vietnamese letters is a bad row, not "nothing to translate"', () => {
+    const r = stageMioto(mioto({ desc: 'Xe mới' }), { ...miotoDeps(), ...cacheOf({ 'Xe mới': 'Xe mới' }) })
+    expect(r.ok && r.row.description).toContain('Owner’s description (Vietnamese):\nXe mới')
+  })
+
+  it('an identity row or a "translation" that is still Vietnamese counts as a miss', () => {
+    expect(usableTranslation(cacheOf({ [OWNER]: OWNER }), OWNER, 'en')).toBeNull()
+    expect(usableTranslation(cacheOf({ [OWNER]: 'Xe mới, sạch sẽ, có camera.' }), OWNER, 'en')).toBeNull()
+    expect(usableTranslation(cacheOf({ [OWNER]: '   ' }), OWNER, 'en')).toBeNull()
+    expect(usableTranslation(cacheOf({ [OWNER]: ` ${OWNER_EN} ` }), OWNER, 'en')).toBe(OWNER_EN)
+    expect(usableTranslation({}, OWNER, 'en')).toBeNull()
+  })
+
+  it('BonbonCar features print in English from the dictionary; an unknown one stays labelled Vietnamese', () => {
+    const r = stageBonbon(bonbon({ features: ['Bluetooth', 'Cảnh báo tiền va chạm', 'Cửa sổ trời'] }), deps)
+    expect(r.ok && r.row.description).toContain('\nFeatures: Bluetooth, Forward collision warning, Sunroof')
+    expect(r.ok && r.row.description).not.toContain('(Vietnamese)')
+    expect(r.ok && r.row.descriptionVi).toContain('Tiện nghi: Bluetooth, Cảnh báo tiền va chạm, Cửa sổ trời')
+    const u = stageBonbon(bonbon({ features: ['Bluetooth', 'Ghế massage'] }), deps)
+    expect(u.ok && u.row.description).toContain('\nFeatures: Bluetooth\nOther features (Vietnamese): Ghế massage')
+  })
+
+  it('the dictionary covers exactly the 28 feature names in the HCMC scrape (2026-09-28)', () => {
+    const scraped = ['Bluetooth', 'Camera 360', 'Camera hành trình', 'Cảm biến lốp', 'Định vị GPS', 'Khe cắm USB', 'Màn hình DVD',
+      'ETC', 'Bản đồ', 'Camera Lùi', 'Cảnh báo tiền va chạm', 'Lốp dự phòng', 'Số túi khí', 'Cảnh báo tốc độ', 'Cửa sổ trời',
+      'Camera cập lề', 'Ghế trẻ em', 'Bộ bơm lốp', 'Bộ kích bình', 'Màn hình cảm ứng', 'Giá đỡ điện thoại', 'Dây sạc đa năng',
+      'Làm mát ghế', 'Vietmap Live', 'Cốp điện', 'Android Box', 'Phanh tay điện tử', 'Nắp thùng xe bán tải']
+    expect(Object.keys(BONBON_FEATURE_EN).sort()).toEqual(scraped.sort())
+    for (const [vi, en] of Object.entries(BONBON_FEATURE_EN)) expect(en, vi).toMatch(/^[\x20-\x7E°]+$/)
   })
 })
