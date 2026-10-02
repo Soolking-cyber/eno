@@ -41,6 +41,9 @@
  *   /   /c/*   /privacy*   /safety*   /sellers/*   /terms*
  * `/sellers/*` is force-dynamic at the origin (`private, no-store`), so it is passed through
  * uncached — see storable(); the others send `s-maxage` and cache.
+ * ⚠️ THE `/vi` PILOT (SEO wave B, V4/V5) ADDS `/vi` AND `/vi/*` ON THE eno.vn ZONE ONLY, apex and www,
+ * when it is switched on. ⛔ NEVER `/vi*`: that pattern also matches `/vietnam-evisa`. The forum zone
+ * needs neither, because its `/vi` answers 404 (eno.forum never pilots).
  *
  * ⛔ STALE-WHILE-REVALIDATE IS THE POINT OF THE 2026-09-22 REVISION. Measured that day:
  *   eno.vn      HIT ×5, TTFB 0.18 s, age 115
@@ -88,6 +91,19 @@ const SWR_TTL = 21600;
 /** Mirror of src/lib/i18n/langs.ts LANGS — the drift test fails if they differ. */
 const LANGS = ["en", "vi", "zh-Hans", "ko", "ja", "ru", "km", "ms", "th", "fr", "hi"];
 
+/**
+ * ⛔ THE `/vi` PILOT'S PLAIN PATHS, PINNED TO `en` (SEO wave B, V4; decision V-a). Mirror of
+ * src/lib/lang-pinned.ts `VI_PREFIX_PATHS` — src/lib/edge-worker.test.ts fails if the two differ.
+ * On a piloted path the ORIGIN renders English for everyone (its plain URL is always English, and
+ * `/vi` + the path is the Vietnamese twin), so the key must be `en` whatever the visitor's cookie
+ * or Accept-Language says. Keyed by variantFor() instead, a Vietnamese browser would key `vi`, the
+ * origin would answer `content-language: en`, storable() would refuse it, and every Vietnamese
+ * visitor to `/` would pay an uncached origin fetch — correct, only slow. EMPTY UNTIL V5.
+ * ⚠️ eno.vn ONLY: the forum never pilots, and a storefront host (`apple.eno.vn`) is not routed here.
+ */
+const PINNED_EN_PATHS = [];
+const PINNED_HOSTS = ["eno.vn", "www.eno.vn"];
+
 /** Next's cookie parser, byte for byte (next/dist/compiled/@edge-runtime/cookies parseCookie):
  *  split on `; *`, decodeURIComponent each value, the LAST duplicate wins, case is kept. */
 function cookieValue(header, name) {
@@ -132,6 +148,19 @@ function variantFor(request) {
     if (hit) return hit === "vi" ? "vi" : "en";
   }
   return "en";
+}
+
+/**
+ * The variant the ORIGIN renders for this request: `/vi…` is Vietnamese for everyone (a `/vi` path
+ * the pilot does not serve 404s at the origin and is never stored), a piloted plain path on eno.vn is
+ * English for everyone, and every other path negotiates (src/lib/lang-pinned.ts pinnedRoute).
+ */
+function variantOf(url, request) {
+  if (/^\/vi(\/|$)/.test(url.pathname)) return "vi";
+  // A fully-qualified `eno.vn.` is the same site (review): without the strip its pinned path would key
+  // by the visitor, the origin would answer `en`, and storable() would refuse every such response.
+  if (PINNED_HOSTS.includes(url.hostname.replace(/\.$/, "")) && PINNED_EN_PATHS.includes(url.pathname)) return "en";
+  return variantFor(request);
 }
 
 /**
@@ -244,7 +273,7 @@ export default {
      */
     if (/markdown/i.test(request.headers.get("accept") || "")) return fetch(request);
 
-    const variant = variantFor(request);
+    const variant = variantOf(url, request);
     const key = cacheKeyFor(url, variant);
     const cache = caches.default;
     const hit = await cache.match(key);

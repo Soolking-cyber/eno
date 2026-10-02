@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RequestCookies } from 'next/dist/compiled/@edge-runtime/cookies'
 import { langVariantFor, LANG_COOKIE } from '@/lib/lang-variant'
 import { LANGS } from '@/lib/i18n/langs'
@@ -212,5 +212,164 @@ describe('edge Worker — markdown negotiation reaches the origin (audit #88)', 
   it('is case-insensitive, unlike the zone Cache Rule it replaces', async () => {
     await call('/', { accept: 'TEXT/MARKDOWN' })
     expect(h.matched).toEqual([])
+  })
+})
+
+/**
+ * ⛔ THE `/vi` PILOT AT THE EDGE (SEO wave B, V4). On a piloted plain path the origin renders English
+ * for everyone and `/vi` + the path Vietnamese for everyone (src/lib/lang-pinned.ts pinnedRoute), so
+ * the key must follow the PATH there, not the visitor — or a Vietnamese visitor to `/` keys `vi`, the
+ * origin answers `en`, storable() refuses it, and that visitor is never served from the edge.
+ * The Worker ships with `PINNED_EN_PATHS` equal to the app's `VI_PREFIX_PATHS` (the drift test), so
+ * the matrix runs a copy of the REAL Worker with the list filled (as V5 fills it) against an origin
+ * that renders by the app's REAL pinnedRoute, and asserts key === rendered language for every combo.
+ */
+describe('edge Worker — the /vi pilot (V4)', () => {
+  const PILOT = ['/', '/c/furniture-appliances']
+  const SRC_URL = new URL('../../infra/cloudflare/eno-html-edge-cache.js', import.meta.url)
+  const LITERAL = /const PINNED_EN_PATHS = (\[[^\]]*\]);/
+
+  const temps: string[] = []
+  afterAll(async () => {
+    const { rmSync } = await import('node:fs')
+    for (const d of temps.splice(0)) rmSync(d, { recursive: true, force: true })
+  })
+
+  /** The real Worker source with its pinned list replaced, written to a temp dir and imported fresh. */
+  async function workerWith(list: string[]): Promise<typeof worker> {
+    const { readFileSync, writeFileSync, mkdtempSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const src = readFileSync(SRC_URL, 'utf8')
+    expect(LITERAL.test(src), 'PINNED_EN_PATHS literal not found in the Worker').toBe(true)
+    const dir = mkdtempSync(join(tmpdir(), 'eno-worker-'))
+    temps.push(dir)
+    const file = join(dir, 'worker.mjs')
+    writeFileSync(file, src.replace(LITERAL, `const PINNED_EN_PATHS = ${JSON.stringify(list)};`))
+    return (await import(/* @vite-ignore */ file)).default
+  }
+
+  /** The origin: the app's pinnedRoute with the pilot ON for eno.vn (never on the forum), else langVariantFor. */
+  async function pilotOrigin(live: readonly string[] = PILOT) {
+    const { pinnedRoute, viPilotFor } = await import('@/lib/lang-pinned')
+    vi.stubGlobal('fetch', async (req: Request) => {
+      h.origin.push(req)
+      const u = new URL(req.url)
+      // The eno.vn container pilots (the marketplace edition); the forum's never does, and the proxy never
+      // pins a storefront host (`apple.eno.vn`) — modelled here as "not the eno.vn site itself".
+      const lists = viPilotFor(!['eno.vn', 'www.eno.vn'].includes(u.hostname.replace(/\.$/, '')), live, [])
+      const pinned = pinnedRoute(u.pathname, lists)
+      const negotiated = langVariantFor(new RequestCookies(req.headers).get(LANG_COOKIE)?.value, req.headers.get('accept-language'))
+      // Next strips a trailing slash with a 308 before the proxy runs; a `/vi…` the pilot does not serve
+      // is a 404 at the origin (INTERNAL_PREFIX), as before the pilot.
+      if (u.pathname.length > 1 && u.pathname.endsWith('/')) return originResponse({ status: 308, headers: { location: u.pathname.slice(0, -1) } }, negotiated)
+      if (!pinned && /^\/vi(\/|$)/.test(u.pathname)) return originResponse({ status: 404 }, negotiated)
+      return originResponse({}, pinned && 'variant' in pinned ? pinned.variant : negotiated)
+    })
+  }
+
+  const callOn = (w: typeof worker, url: string, headers: Record<string, string> = {}) =>
+    w.fetch(new Request(url, { headers }), {}, ctx) as Promise<Response>
+
+  const COOKIES = [null, 'lang=en', 'lang=vi', 'lang=VI', 'lang=%76%69', 'lang=en; lang=vi', 'lang=ko', 'lang=garbage']
+  const ACCEPT = [null, 'vi', 'vi-VN,vi;q=0.9,en;q=0.8', 'en-US,en;q=0.9', 'fr;q=0,vi', '*']
+  const combos = COOKIES.flatMap((c) => ACCEPT.map((a) => {
+    const headers: Record<string, string> = {}
+    if (c != null) headers.cookie = c
+    if (a != null) headers['accept-language'] = a
+    return headers
+  }))
+
+  it('⛔ drift: the Worker\'s PINNED_EN_PATHS is EXACTLY the app\'s VI_PREFIX_PATHS', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { VI_PREFIX_PATHS } = await import('@/lib/lang-pinned')
+    const literal = LITERAL.exec(readFileSync(SRC_URL, 'utf8'))?.[1]
+    expect(literal, 'PINNED_EN_PATHS literal not found in the Worker').toBeTruthy()
+    expect(JSON.parse(literal!)).toEqual([...VI_PREFIX_PATHS])
+  })
+
+  it('pilot on, eno.vn apex and www: plain piloted paths key en and /vi twins key vi, for EVERY cookie × Accept-Language — and the origin agrees', async () => {
+    const w = await workerWith(PILOT)
+    await pilotOrigin()
+    for (const host of ['https://eno.vn', 'https://www.eno.vn', 'https://ENO.VN', 'https://eno.vn.', 'https://www.eno.vn.']) {
+      for (const [path, want] of [['/', 'en'], ['/c/furniture-appliances', 'en'], ['/vi', 'vi'], ['/vi/c/furniture-appliances', 'vi']] as const) {
+        for (const headers of combos) {
+          h.matched = []; h.store.clear()
+          const r = await callOn(w, `${host}${path}?q=1`, headers)
+          expect(keyVariant(), `${host}${path} ${JSON.stringify(headers)}`).toBe(want)
+          // the origin rendered the key's language, so the entry is stored (guard 2 agrees)
+          expect(r.headers.get('x-eno-cache'), `${host}${path} ${JSON.stringify(headers)}`).toBe('MISS')
+          expect(h.store.size).toBe(1)
+        }
+      }
+    }
+  })
+
+  it('pilot on: a Vietnamese visitor to `/` now HITs the en entry an English visitor stored', async () => {
+    const w = await workerWith(PILOT)
+    await pilotOrigin()
+    await callOn(w, 'https://eno.vn/', { 'accept-language': 'en-US' })
+    const r = await callOn(w, 'https://eno.vn/', { 'accept-language': 'vi', cookie: 'lang=vi' })
+    expect(r.headers.get('x-eno-cache')).toBe('HIT')
+    expect(r.headers.get('content-language')).toBe('en')
+    expect(h.origin).toHaveLength(1)
+  })
+
+  it('pilot on: a /vi path the pilot does not serve keys vi, 404s (or 308s off a slash) at the origin, never stored', async () => {
+    const w = await workerWith(PILOT)
+    await pilotOrigin()
+    for (const [path, status] of [['/vi/c/rentals', 404], ['/vi/c/furniture-appliances/binh-trung', 404], ['/vi/vi', 404], ['/vi/', 308], ['/vi/c/furniture-appliances/', 308]] as const) {
+      h.store.clear()
+      const r = await callOn(w, `https://eno.vn${path}`, { cookie: 'lang=en' })
+      expect(keyVariant(), path).toBe('vi')
+      expect(r.status, path).toBe(status)
+      expect(h.store.size, path).toBe(0)
+    }
+  })
+
+  it('pilot on: every other path still negotiates — /vietnam-evisa, /c/rentals, /privacy, a sub-path, a slash', async () => {
+    const w = await workerWith(PILOT)
+    await pilotOrigin()
+    for (const path of ['/vietnam-evisa', '/vietnam', '/video', '/c/rentals', '/privacy', '/c/furniture-appliances/binh-trung', '/c/furniture-appliances/', '/C/furniture-appliances']) {
+      for (const headers of combos) {
+        h.matched = []
+        await callOn(w, `https://eno.vn${path}`, headers)
+        const expected = langVariantFor(new RequestCookies(new Headers(headers)).get(LANG_COOKIE)?.value, headers['accept-language'] ?? null)
+        expect(keyVariant(), `${path} ${JSON.stringify(headers)}`).toBe(expected)
+      }
+    }
+  })
+
+  it('⛔ forum hosts and storefront hosts are NEVER pinned to en — `/` keeps negotiating there', async () => {
+    const w = await workerWith(PILOT)
+    await pilotOrigin()
+    for (const host of ['https://eno.forum', 'https://www.eno.forum', 'https://apple.eno.vn', 'https://eno.vn.evil.example']) {
+      for (const path of ['/', '/c/furniture-appliances']) {
+        h.matched = []; h.store.clear()
+        const r = await callOn(w, `${host}${path}`, { 'accept-language': 'vi' })
+        expect(keyVariant(), `${host}${path}`).toBe('vi')
+        expect(r.headers.get('content-language'), `${host}${path}`).toBe('vi')
+        expect(h.store.size, `${host}${path}`).toBe(1)
+      }
+    }
+  })
+
+  it('as shipped — the real Worker against an origin on the app\'s real list: every entry is stored, then HITs', async () => {
+    const { VI_PREFIX_PATHS } = await import('@/lib/lang-pinned')
+    await pilotOrigin(VI_PREFIX_PATHS)
+    for (const path of ['/', '/c/furniture-appliances', '/c/rentals', '/privacy']) {
+      for (const headers of combos) {
+        h.matched = []; h.store.clear(); h.origin = []
+        const first = await call(path, headers)
+        const negotiated = langVariantFor(new RequestCookies(new Headers(headers)).get(LANG_COOKIE)?.value, headers['accept-language'] ?? null)
+        const want = VI_PREFIX_PATHS.includes(path) ? 'en' : negotiated
+        expect(keyVariant(), `${path} ${JSON.stringify(headers)}`).toBe(want)
+        expect(first.headers.get('x-eno-cache'), `${path} ${JSON.stringify(headers)}`).toBe('MISS')
+        const again = await call(path, headers)
+        expect(again.headers.get('x-eno-cache')).toBe('HIT')
+        expect(again.headers.get('content-language')).toBe(want)
+        expect(h.origin).toHaveLength(1)
+      }
+    }
   })
 })
