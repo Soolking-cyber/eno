@@ -11,7 +11,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { SellerStorefront, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
+import { loadSeller, SellerStorefront, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
 import { pageShare } from '@/lib/site-identity'
 import SubdomainStorefront from '@/app/[lang]/s/[handle]/page'
 import { isSellerHiddenHere } from '@/lib/edition-scope'
@@ -71,9 +71,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
    * open on the route it redirects FROM. `loadSeller` returns null for a hidden seller, but the
    * title above it is built from `seller.name`, which comes straight off the handle row.
    */
-  if (seller && await isSellerHiddenHere(seller.id)) {
-    return { title: 'Not found', robots: { index: false, follow: false } }
-  }
+  /**
+   * ⛔ AND THE GONE CHECK (src/lib/storefront-gone.ts, owner 2026-10-02): an ownerless shop with no
+   * public listing 404s, so its name must not title the 404 either. `loadSeller` answers both — it
+   * returns null for a hidden OR a gone seller — and it is the cache()d read the description below
+   * and the page body make anyway, so this costs no query of its own.
+   * ⛔ notFound(), NOT A "Not found" TITLE: the 404 contract (not-found-contract.test.ts) wants the throw
+   * HERE, before any boundary could swallow it — a returned title left the status to the body alone,
+   * and SubdomainStorefront would run its listing queries first. The body 404s on both anyway.
+   */
+  if (seller && (await isSellerHiddenHere(seller.id) || !(await loadSeller(seller.id)))) notFound()
   if (seller) {
     // One composition for both storefront routes (src/lib/storefront-description.ts), built from the
     // SAME cache()d loadSeller read SellerStorefront makes for the render. Falls back to the bare name
@@ -155,6 +162,10 @@ export default async function HandlePage({ params }: Props) {
      * handle-less seller is a real state. A person's handle keeps rendering the shop in place.
      */
     if (await isSellerHiddenHere(sellerId)) notFound()
+    // ⚠️ A GONE shop (ownerless, nothing public — src/lib/storefront-gone.ts) 404s one step down, in
+    // BOTH branches: SubdomainStorefront and SellerStorefront each notFound() when `loadSeller` is
+    // null. Not repeated here, where it would serialise that read ahead of their parallel queries on
+    // every storefront view to save work only on the rare gone one.
     if (row.seller?.id) {
       /**
        * ⛔ SUPERSEDED 2026-09-13 — NO REDIRECT, THE SHOP RENDERS RIGHT HERE. Owner: "when seller clicks

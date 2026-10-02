@@ -7,6 +7,7 @@ import { localizeListingTitles } from '@/lib/translate'
 import { topSellerReviews, sellerMetrics } from '@/lib/seller-metrics'
 import { lastSeenBucket } from '@/lib/last-seen'
 import { isBusinessVerified } from '@/lib/business-verification'
+import { isStorefrontGone } from '@/lib/storefront-gone'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -56,7 +57,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     },
   })
-  if (!seller) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  /**
+   * ⛔ A GONE STOREFRONT IS A 404 HERE TOO, byte-for-byte the missing-seller one (src/lib/storefront-gone.ts;
+   * owner 2026-10-02: the emptied SuperSports shop "remove it too"). The web routes 404 it via `loadSeller`;
+   * without this the native apps would still render its header, metrics and an empty grid.
+   * ⚠️ `listings.length` is the scoped active page this route already loaded: any row means a public
+   * listing exists, so only an ownerless seller showing none pays the one probe.
+   */
+  if (!seller || await isStorefrontGone(seller, seller.listings.length)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const [reviews, convoCount] = await Promise.all([
     topSellerReviews(seller.id, 3, { total: seller.reviewCount, avg: seller.rating }),

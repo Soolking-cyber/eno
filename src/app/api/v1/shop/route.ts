@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { updateSellerCore } from '@/lib/core/seller'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
+import { isStorefrontGone } from '@/lib/storefront-gone'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,12 +17,15 @@ export async function GET(req: NextRequest) {
   const s = await db.seller.findUnique({
     where: { id: r.auth.sellerId },
     select: {
-      id: true, name: true, bio: true, location: true, phone: true, avatarUrl: true,
+      id: true, ownerId: true, name: true, bio: true, location: true, phone: true, avatarUrl: true,
       trustScore: true, trustTier: true, responseRate: true, memberSince: true,
       _count: { select: { listings: { where: { verified: true, status: 'active' } } } },
     },
   })
-  if (!s) return apiError(404, 'not_found', 'Shop not found.', r.rate)
+  // ⛔ A GONE storefront (ownerless, nothing public — src/lib/storefront-gone.ts) is "not found" here as on
+  // the web. Keys are minted by a shop's OWNER, so no live key is affected (0 on ownerless sellers,
+  // measured 2026-10-02); the active count above answers it without a query whenever there is stock.
+  if (!s || await isStorefrontGone(s, s._count.listings)) return apiError(404, 'not_found', 'Shop not found.', r.rate)
 
   return apiOk({
     shop: {

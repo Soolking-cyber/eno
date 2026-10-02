@@ -34,6 +34,7 @@ import { storefrontDescription } from '@/lib/storefront-description'
 import { isLinkedShop, isUnratedStorefront, partnerShown } from '@/lib/linked-seller'
 import { SellerInfo } from '@/components/marketplace/seller-info'
 import { buildSellerInfo } from '@/lib/seller-info'
+import { isStorefrontGone } from '@/lib/storefront-gone'
 
 // Shared storefront body — rendered by BOTH the canonical clean-handle URL
 // (src/app/[lang]/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
@@ -78,7 +79,7 @@ export const loadSeller = cache(async (id: string) => {
   // exclusions (owner, 2026-08-17: hide VietKite and GMBR there) never apply. See
   // src/lib/edition-scope.ts.
   if (await isSellerHiddenHere(id)) return null
-  return db.seller.findUnique({
+  const seller = await db.seller.findUnique({
     where: { id },
     include: {
       /**
@@ -101,6 +102,16 @@ export const loadSeller = cache(async (id: string) => {
       owner: { select: { accountType: true, lastSeenAt: true } },
     },
   })
+  /**
+   * ⛔ AN OWNERLESS SHOP WITH NOTHING PUBLIC IS GONE (owner, 2026-10-02: "remove it too" — the emptied
+   * SuperSports storefront). The rule and its reasons live in src/lib/storefront-gone.ts. Null here is
+   * the 404 for BOTH routes and their generateMetadata, and for the subdomain page, which all read this.
+   * ⚠️ `_count.listings` IS THE COUNT THIS PAGE ALREADY RAN, so an owned shop or one with live stock
+   * pays nothing; only an ownerless shop showing zero live rows pays one indexed probe (a sold row
+   * still keeps it — the sold page is public and links here).
+   */
+  if (seller && await isStorefrontGone(seller, seller._count.listings)) return null
+  return seller
 })
 
 /**

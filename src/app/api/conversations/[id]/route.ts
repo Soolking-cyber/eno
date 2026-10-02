@@ -10,6 +10,7 @@ import { globalTopReactions } from '@/lib/reaction-tally'
 import { maskEmailHandle } from '@/lib/utils'
 import { threadKind } from '@/lib/thread-kind'
 import { isSellerHiddenHere } from '@/lib/edition-scope'
+import { isPublicListing, isStorefrontGone } from '@/lib/storefront-gone'
 import { syncBadgeToProfile } from '@/lib/native-push'
 import { dayCoarse } from '@/lib/last-seen'
 import { takesOffers } from '@/lib/taxonomy'
@@ -142,7 +143,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // server's refusal will disagree and the buyer gets a hidden strip on a revealable listing.
       // Belt: the server is authoritative either way, so the failure is a missing affordance, not
       // a leak.
-      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, officialPartner: true, owner: { select: { lastSeenAt: true, locale: true } } } },
+      seller: { select: { id: true, ownerId: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, officialPartner: true, owner: { select: { lastSeenAt: true, locale: true } } } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true, locale: true } },
       // Bounded (audit P2): the full history shipped on EVERY call × a 15s poll per
       // open tab. Last 200 in reverse, un-reversed below — covers any realistic
@@ -224,6 +225,23 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
         select: { id: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true },
       })
   const counterpartSellerId = isRentalDeskThread ? null : iAmBuyer ? convo.seller.id : (buyerStorefront?.id ?? null)
+  /**
+   * ⛔ IS THERE A STOREFRONT TO LINK? The header name deep-links `/sellers/<id>`, and an OWNERLESS shop that
+   * had listings and has no public one left is gone — it 404s (src/lib/storefront-gone.ts, owner 2026-10-02:
+   * the emptied SuperSports shop). The support desks are NOT: unowned but never holding a listing, their
+   * "eno Support" page is live, and the header (and the native apps) open it.
+   * ⚠️ `sellerId` ITSELF IS KEPT — the buyer's review prompt keys on it, and a past deal with a shop that
+   * has since emptied is still a deal. Only the link goes.
+   * ⚠️ THIS ROUTE IS POLLED (~1.5s per open thread), so it is free on the common path: the operator side's
+   * counterpart is the buyer's OWN shop (owned, never gone), an owned seller answers without a query, and
+   * the thread's own listing, when it is public, already proves the shop is live. Only a buyer looking at
+   * an ownerless shop with no public listing in hand pays the indexed probes.
+   * ⚠️ THE SUPPORT DESK SKIPS EVEN THAT. It is unowned with no listings BY CONSTRUCTION (support-thread.ts),
+   * so never gone, and its thread is the one every buyer has — so it is answered by id (linked), not
+   * re-proved every poll. The other edition's desk can't reach this route (`SUPPORT_SELLER_ID` is
+   * build-scoped) and still answers correctly through the probes; the rental desk already has no seller id.
+   */
+  const counterpartStorefront = !!counterpartSellerId && !(iAmBuyer && convo.seller.id !== SUPPORT_SELLER_ID && await isStorefrontGone(convo.seller, isPublicListing(convo.listing) ? 1 : 0))
 
   // Trust meta for the chat header (under the counterpart's name). Only present when
   // the counterpart has a seller identity. `isNew` = account <30d old with no reviews
@@ -318,8 +336,8 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     // name, a listing, or an IP, because a wrong guess translates a message that did not
     // need it and hides the words the other person actually chose.
     counterpart: iAmBuyer
-      ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust, locale: convo.seller.owner?.locale ?? null }
-      : { name: convo.buyer.displayName || maskEmailHandle(convo.buyer.email) || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust, locale: convo.buyer.locale ?? null },
+      ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId, storefront: counterpartStorefront, trust: counterpartTrust, locale: convo.seller.owner?.locale ?? null }
+      : { name: convo.buyer.displayName || maskEmailHandle(convo.buyer.email) || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId, storefront: counterpartStorefront, trust: counterpartTrust, locale: convo.buyer.locale ?? null },
     // The e-Visa case this thread is bound to, and the desk state the cards render against
     // (mode · the picked product · the server-issued USD quote · which providers are live).
     // null on every ordinary conversation, and on a visa thread whose context lookup failed.

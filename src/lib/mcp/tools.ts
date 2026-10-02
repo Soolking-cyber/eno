@@ -20,6 +20,7 @@ import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publis
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { NOT_REMOVED } from '@/lib/listing-removed'
+import { isStorefrontGone } from '@/lib/storefront-gone'
 
 // ── Partner MCP tools ─────────────────────────────────────────────────────────────
 // Each tool is a thin, shop-scoped wrapper over the SAME cores the /api/v1 routes use.
@@ -72,9 +73,10 @@ export const TOOLS: McpTool[] = [
     handler: async (auth) => {
       const s = await db.seller.findUnique({
         where: { id: auth.sellerId },
-        select: { id: true, name: true, bio: true, location: true, phone: true, avatarUrl: true, trustScore: true, trustTier: true, responseRate: true, memberSince: true, _count: { select: { listings: { where: { verified: true, status: 'active' } } } } },
+        select: { id: true, ownerId: true, name: true, bio: true, location: true, phone: true, avatarUrl: true, trustScore: true, trustTier: true, responseRate: true, memberSince: true, _count: { select: { listings: { where: { verified: true, status: 'active' } } } } },
       })
-      if (!s) throw new ToolError('not_found', 'Shop not found.')
+      // Same rule as GET /api/v1/shop: a GONE storefront (src/lib/storefront-gone.ts) is not found.
+      if (!s || await isStorefrontGone(s, s._count.listings)) throw new ToolError('not_found', 'Shop not found.')
       return { shop: { id: s.id, name: s.name, bio: s.bio, location: s.location, phone: s.phone, avatar_url: s.avatarUrl, trust_score: s.trustScore, trust_tier: s.trustTier, response_rate: s.responseRate, member_since: s.memberSince, active_listings: s._count.listings } }
     },
   },

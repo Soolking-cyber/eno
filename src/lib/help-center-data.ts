@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { forumAuthorSelect, serializeForumPost } from '@/lib/forum/serialize'
+import { liveStorefrontWhere } from '@/lib/storefront-gone'
 
 // Server-side reads for the Help Center at /help.
 //
@@ -102,8 +103,10 @@ export async function loadHelpCenter(): Promise<HelpCenterData> {
     // cards that deep-link to the canonical storefront, and are NOT syndicated into
     // ForumPost rows. Review has no status/moderation column and Report cannot target a
     // Review, so a copy on the forum could outlive a removal on the storefront.
+    // ⛔ NOT A REVIEW OF A GONE STOREFRONT (src/lib/storefront-gone.ts, owner 2026-10-02): the card's
+    // only action is the link to the shop, and an ownerless shop with nothing public 404s.
     db.review.findMany({
-      where: { text: { not: '' } },
+      where: { text: { not: '' }, seller: liveStorefrontWhere() },
       orderBy: { createdAt: 'desc' },
       take: 12,
       select: {

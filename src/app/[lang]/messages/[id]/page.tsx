@@ -314,6 +314,10 @@ type Thread = {
     avatarColor: string
     avatarUrl: string | null
     sellerId?: string | null
+    // Whether that seller id has a storefront page to link (false for a GONE shop — ownerless with nothing
+    // public, src/lib/storefront-gone.ts — whose /sellers/<id> 404s). Optional: a cached thread predates it,
+    // and absent keeps the old behaviour (link whenever there is a seller id).
+    storefront?: boolean
     // The counterpart's persisted app language (Profile.locale), for the live-translation
     // toggle. Null when they've never synced a locale — then no mismatch is claimed.
     locale?: string | null
@@ -1967,7 +1971,7 @@ export default function ThreadPage() {
             <Link href="/messages" onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-6 w-6" strokeWidth={STROKE_NAV} aria-hidden /></Link>
             <Avatar name={thread?.counterpart.name} url={thread?.counterpart.avatarUrl} color={thread?.counterpart.avatarColor} size="sm" />
             <div className="min-w-0 flex-1 cursor-pointer">
-              {thread?.counterpart.sellerId ? (
+              {thread?.counterpart.sellerId && thread.counterpart.storefront !== false ? (
                 <Link href={`/sellers/${thread.counterpart.sellerId}`} className="block truncate text-sm font-bold text-foreground hover:underline">{thread.counterpart.name}</Link>
               ) : (
                 <div className="truncate text-sm font-bold text-foreground">{thread?.counterpart.name || '…'}</div>

@@ -71,7 +71,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const shop = await storefrontByLabel(handle)
   // ⚠️ THE SAME GATE AS THE PAGE. generateMetadata runs independently of the body, so without this
   // a hidden seller's NAME still reached the <title> and the OG tags of a page that 404s.
-  if (!shop || await isSellerHiddenHere(shop.sellerId)) return { title: 'Not found', robots: { index: false, follow: false } }
+  // ⚠️ AND A GONE SHOP (ownerless, nothing public — src/lib/storefront-gone.ts): `loadSeller` is null for
+  // it, the page body 404s on that, and the description below makes the same cache()d read anyway.
+  // ⛔ notFound() HERE, not a "Not found" title: the throw lands before getData's listing queries and
+  // before anything downstream could add a boundary — the 404 contract in [handle]/not-found-contract.test.ts.
+  if (!shop || await isSellerHiddenHere(shop.sellerId) || !(await loadSeller(shop.sellerId))) notFound()
   const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   // The same verifiable-facts description as eno.vn/<handle> (ST-META): this subdomain is the shop's
   // CANONICAL address, so it is the snippet search actually shows. `loadSeller` is cache()d — the
@@ -281,6 +285,7 @@ export default async function Storefront({ params }: Props) {
     loadSeller(shop.sellerId),
     db.conversation.count({ where: { sellerId: shop.sellerId, createdAt: { gte: new Date(Date.now() - 90 * 86400000) } } }),
   ])
+  // Null for a hidden seller AND for a gone one (ownerless with nothing public, src/lib/storefront-gone.ts).
   if (!seller) notFound()
   const card = storefrontCard(seller, convoCount)
 
