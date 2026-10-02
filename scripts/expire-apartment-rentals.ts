@@ -1,13 +1,16 @@
 /**
- * The 7-day rule for imported APARTMENT rentals — the write half. Owner, 2026-10-01: "we need only 7 days
+ * The freshness rule for imported APARTMENT rentals — the write half. Owner, 2026-10-01: "we need only 7 days
  * old apartments fetched weekly, remove else, only new active apartments" → chose: live only while the
- * source shows the ad posted OR RE-POSTED within 7 days; apartments only; refreshed weekly. The rule and
- * every per-source date are in src/lib/apartment-freshness.ts.
+ * source shows the ad posted OR RE-POSTED within its window; apartments only; refreshed weekly. The window
+ * is per source — 7 days, Honeycomb 30 (WINDOW_DAYS_BY_SELLER) — and it, the rule and every per-source date
+ * are in src/lib/apartment-freshness.ts.
  *
  *   DRY (read-only session):
  *     set -a; . ./.env; set +a; npx tsx scripts/expire-apartment-rentals.ts --seller <id> --fresh <set.json> --state-dir <dir>
  *   WRITE (journal first):   … --journal-dir <durable dir> --apply
- *   BACKSTOP (no fetch):     … --seller <id> --backstop-days 14 [--journal-dir … --state-dir … --apply]
+ *   BACKSTOP (no fetch):     … --seller <id> --backstop [--journal-dir … --state-dir … --apply]
+ *                            (--backstop = the seller's window + 7 days: 14, Honeycomb 37 — backstopDaysFor;
+ *                            --backstop-days N overrides it, N ≥ the window + 1)
  *
  * WHAT IT DOES: every `active` apartment-rental row of ONE ownerless rental import seller (pinned by id),
  * with an affiliateUrl, whose externalId is NOT in the source step's fresh set → EXPIRED_STATUS. Rows the
@@ -16,16 +19,22 @@
  * ⛔ STRICTLY active → expired. Never touches hidden (moderation, imageless, a source's own gone signal),
  * removed (the compliance tombstone), sold or stale rows; never DELETEs (Law 122/2025 keep ≥1 year).
  * ⛔ THE FRESH SET IS RE-VALIDATED HERE, never trusted from its writer (freshSetProblem): wrong seller,
- * over a day old, not claiming complete coverage, an item outside the window or of another source's id
+ * over a day old, a recorded window that is not the seller's (a 7-day set for Honeycomb, a 30-day one for
+ * anyone else), not claiming complete coverage, an item outside the window or of another source's id
  * space — refused. And planExpiry refuses a set that shrank under MIN_SHARE of the largest of the last
  * BASELINE_RUNS applied sets (read from --state-dir), or one that would take EVERY live row of a source
- * that is not tiny — the two shapes a blocked crawl produces. --force overrides both, for an operator
- * holding independent evidence (the 2026-10-01 one-off cleanup).
+ * that is not tiny — the two shapes a blocked crawl produces. ⛔ A ROLLING seller (a window wider than the
+ * weekly cadence — Honeycomb's 30 days; isRollingWindow) skips those count guards: its set shrinks by design
+ * as a burst of re-touches ages out, so they would refuse every normal week. It is refused instead when under
+ * MIN_SHARE of its live rows whose postedAt is still inside the window are in the set (carry-over) — below
+ * SHARE_FLOOR such rows, from CARRY_MIN_DATED (3) of them, when MIN_SHARE or more are missing — and when the
+ * plan would expire EVERY live row of a source that is not tiny while any of them is still dated inside the window.
+ * --force overrides all of them, for an operator holding independent evidence (the 2026-10-01 one-off cleanup).
  * ⛔ BACKSTOP — ONLY FOR A SOURCE THAT STOPPED REFRESHING, AND ROW BY ROW. A source whose step keeps
  * failing (a Cloudflare challenge, the Mac asleep) would otherwise keep last week's rows forever.
- * --backstop-days N acts only when the state file shows no applied fresh set for more than
+ * --backstop / --backstop-days N acts only when the state file shows no applied fresh set for more than
  * BACKSTOP_MISSED_DAYS (the weekly refresh was missed), and then expires the live rows whose postedAt is
- * older than N days. Both halves matter: the importers keep postedAt at the LATEST source date they have
+ * older than N days (planBackstop). Both halves matter: the importers keep postedAt at the LATEST source date they have
  * seen (create, revival, an update whose source date is newer), so while refreshes succeed postedAt is
  * NOT an age signal on its own (a row kept fresh by the weekly set may still carry an older postedAt from
  * before that rule) — the normal expiry handles those weeks. No state file = refused, never "never".
@@ -40,11 +49,14 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { journalDirProblem } from '../src/lib/honeycomb-listing'
 import { RENTAL_IMPORT_SELLERS } from '../src/lib/import-sellers'
-import { APARTMENT_SUBCAT, EXPIRED_STATUS, baselineOf, freshSetProblem, planExpiry, type FreshSet } from '../src/lib/apartment-freshness'
+import {
+  APARTMENT_SUBCAT, EXPIRED_STATUS, backstopDaysFor, backstopDaysProblem, baselineOf, freshSetProblem, planBackstop, planExpiry, rollingWindowFrom,
+  type FreshSet,
+} from '../src/lib/apartment-freshness'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
 import { pdpTombstoneTags } from '../src/lib/job-listing'
 
-const FLAGS = new Set(['--apply', '--force', '--allow-no-isr'])
+const FLAGS = new Set(['--apply', '--force', '--allow-no-isr', '--backstop'])
 const VALUED = new Set(['--seller', '--fresh', '--state-dir', '--journal-dir', '--backstop-days'])
 const argv = process.argv.slice(2)
 for (let i = 0; i < argv.length; i++) {
@@ -61,11 +73,9 @@ const SELLER = str('--seller')
 const FRESH = str('--fresh')
 const STATE_DIR = str('--state-dir')
 const JOURNAL_DIR = str('--journal-dir')
-const BACKSTOP_DAYS = str('--backstop-days') === null ? null : Number(str('--backstop-days'))
+const BACKSTOP_DEFAULT = argv.includes('--backstop')
+const BACKSTOP_DAYS_ARG = str('--backstop-days') === null ? null : Number(str('--backstop-days'))
 const BATCH = 500
-const DAY_MS = 86_400_000
-/** A weekly refresh plus a day of slack: past this, the source has missed a run. */
-const BACKSTOP_MISSED_DAYS = 8
 
 type RunRecord = { at: string; freshCount: number; expired: number; kept: number; mode: 'fresh' | 'backstop' }
 type State = { sellerId: string; runs: RunRecord[] }
@@ -110,10 +120,13 @@ function writeState(dir: string, s: State) {
 
 async function main() {
   if (!SELLER || !(RENTAL_IMPORT_SELLERS as readonly string[]).includes(SELLER)) throw new Error(`--seller must be one of ${RENTAL_IMPORT_SELLERS.join(', ')}`)
-  const backstop = BACKSTOP_DAYS !== null
-  if (backstop === Boolean(FRESH)) throw new Error('pass exactly one of --fresh <set.json> or --backstop-days <N>')
-  if (backstop && (!Number.isInteger(BACKSTOP_DAYS) || BACKSTOP_DAYS! < 8)) throw new Error('--backstop-days must be an integer ≥ 8 (the 7-day window plus at least a day)')
-  if (backstop && !STATE_DIR) throw new Error('--backstop-days needs --state-dir: it acts only when the state shows a missed refresh')
+  if ([Boolean(FRESH), BACKSTOP_DEFAULT, BACKSTOP_DAYS_ARG !== null].filter(Boolean).length !== 1) throw new Error('pass exactly one of --fresh <set.json>, --backstop or --backstop-days <N>')
+  const backstop = !FRESH
+  /** --backstop: the seller's window + BACKSTOP_SLACK_DAYS (14, Honeycomb 37); --backstop-days N: an operator's N. */
+  const BACKSTOP_DAYS = BACKSTOP_DEFAULT ? backstopDaysFor(SELLER) : BACKSTOP_DAYS_ARG
+  const backstopProblem = backstop ? backstopDaysProblem(SELLER, BACKSTOP_DAYS) : null
+  if (backstopProblem) throw new Error(backstopProblem)
+  if (backstop && !STATE_DIR) throw new Error('--backstop / --backstop-days needs --state-dir: it acts only when the state shows a missed refresh')
   if (APPLY && !JOURNAL_DIR) throw new Error('--apply needs --journal-dir <durable dir>')
   // A fresh-mode apply without state would run with no share guard AND leave no baseline for next week.
   if (APPLY && !backstop && !STATE_DIR) throw new Error('--apply needs --state-dir <durable dir> (the share-guard baseline lives there)')
@@ -177,6 +190,8 @@ async function main() {
       for (let i = 0; i < freshIds.length; i += 1000) {
         knownInDb += await db.listing.count({ where: { sellerId: SELLER, externalId: { in: freshIds.slice(i, i + 1000) } } })
       }
+      // A rolling seller (Honeycomb): the carry-over guard from the window's start at the fetch, not the counts.
+      const rollingFrom = rollingWindowFrom(SELLER, set.fetchedAt)
       const plan = planExpiry({
         active,
         fresh: new Set(freshIds),
@@ -184,31 +199,32 @@ async function main() {
         baseline: state ? baselineOf(state.runs.filter((r) => r.mode === 'fresh').map((r) => r.freshCount)) : null,
         knownInDb,
         force: FORCE,
+        rollingFrom,
       })
       console.log(`known in db       ${knownInDb} of the set's ${freshIds.length} ids are rows of this seller (any status)`)
       console.log(`seller            ${seller.name} (${SELLER})`)
-      console.log(`fresh set         ${set.items.length} items, ${(set.unknown ?? []).length} undetermined, fetched ${set.fetchedAt}`)
+      console.log(`fresh set         ${set.items.length} items, ${(set.unknown ?? []).length} undetermined, fetched ${set.fetchedAt}, ${set.windowDays}-day window (this seller's)`)
       console.log(`coverage          ${set.coverage}`)
-      console.log(`live apartments   ${active.length} → keep ${plan.keep}${plan.noExternalId ? ` (${plan.noExternalId} without an externalId)` : ''}, expire ${plan.expire.length}`)
-      if (!stateDir) console.log('⚠️ NO --state-dir — the share guard has no baseline this run')
-      else if (!state) console.log('⚠️ no state file yet — the share guard has no baseline this run (the first applied run writes one)')
+      console.log(`live apartments   ${active.length} → keep ${plan.keep}${plan.noExternalId ? ` (${plan.noExternalId} without an externalId)` : ''}, expire ${plan.expire.length}${plan.carry ? ` · rolling ${set.windowDays}-day window: ${plan.carry.dated} dated inside it at the fetch (postedAt ≥ ${new Date(rollingFrom!).toISOString()}), ${plan.carry.dated - plan.carry.missing} of them in the set (carry-over guard, and expire-ALL while any is dated inside it; not the baseline or no-history guards)` : ''}`)
+      if (rollingFrom === null) {
+        if (!stateDir) console.log('⚠️ NO --state-dir — the share guard has no baseline this run')
+        else if (!state) console.log('⚠️ no state file yet — the share guard has no baseline this run (the first applied run writes one)')
+      }
       if (plan.refusal) throw new Error(`REFUSED: ${plan.refusal}`)
       expire = plan.expire
       keptCount = plan.keep
     } else {
       if (!state) throw new Error(`no state file for ${SELLER} in ${stateDir ?? '(no --state-dir)'} — the backstop will not read a missing history as "never refreshed"`)
       const lastFresh = state.runs.filter((r) => r.mode === 'fresh').at(-1)
-      const missed = lastFresh ? (now - Date.parse(lastFresh.at)) / DAY_MS : Infinity
-      if (missed <= BACKSTOP_MISSED_DAYS) {
-        console.log(`seller            ${seller.name} (${SELLER})\nBACKSTOP          last applied fresh set ${lastFresh!.at} (${missed.toFixed(1)} days ago) — refreshing normally, nothing to do`)
+      const bp = planBackstop({ active, lastFreshAt: lastFresh?.at ?? null, now, days: BACKSTOP_DAYS! })
+      if (!bp.act) {
+        console.log(`seller            ${seller.name} (${SELLER})\nBACKSTOP          last applied fresh set ${lastFresh!.at} (${bp.missedDays.toFixed(1)} days ago) — refreshing normally, nothing to do`)
         return
       }
-      const cutoff = new Date(now - BACKSTOP_DAYS! * DAY_MS)
-      const old = active.filter((r) => r.postedAt < cutoff)
-      expire = old.map((r) => r.id)
-      keptCount = active.length - old.length
+      expire = bp.expire
+      keptCount = active.length - bp.expire.length
       console.log(`seller            ${seller.name} (${SELLER})`)
-      console.log(`BACKSTOP          no applied fresh set for ${missed === Infinity ? 'ever' : `${missed.toFixed(1)} days`}; ${old.length} of ${active.length} live apartments have postedAt before ${cutoff.toISOString()} (${BACKSTOP_DAYS} days) → expire`)
+      console.log(`BACKSTOP          no applied fresh set for ${bp.missedDays === Infinity ? 'ever' : `${bp.missedDays.toFixed(1)} days`}; ${bp.expire.length} of ${active.length} live apartments have postedAt before ${bp.cutoff.toISOString()} (${BACKSTOP_DAYS} days) → expire`)
     }
 
     if (!APPLY) { console.log('\nDRY RUN — nothing changed. Re-run with --journal-dir <durable dir> --apply.'); return }

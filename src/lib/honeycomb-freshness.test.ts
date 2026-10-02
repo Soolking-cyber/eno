@@ -1,17 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { FRESH_DAYS, freshSetProblem } from './apartment-freshness'
+import { FRESH_DAYS, freshSetProblem, makeFreshSet, planExpiry, rollingWindowFrom, windowDaysFor } from './apartment-freshness'
 import { HONEYCOMB_SELLER_ID, Infeasible, readHoneycombStage, unknownFlagProblem, type Got, type SitemapEntry } from './honeycomb-listing'
 import {
-  BULK_RESAVE_MAX_SHARE, CACHE_BUST_PARAM, NO_DATE_CHANGE, WP_SITEMAP_MAX_URLS, buildHoneycombFreshSet, bulkResaveProblem, cacheBustedUrl,
-  classifyDetailPage, datePlan, datedRollbackSql, freshOutPreflight, honeycombSourceDate, isCacheHit, keepVerdict, lastmodTrust,
+  BULK_RESAVE_MAX_SHARE, CACHE_BUST_PARAM, GONE_MAX_SHARE, GONE_MIN_URLS, HONEYCOMB_WINDOW_DAYS, NO_DATE_CHANGE, WP_SITEMAP_MAX_URLS, buildHoneycombFreshSet, bulkResaveProblem, cacheBustedUrl,
+  classifyDetailPage, datePlan, datedRollbackSql, freshOutPreflight, honeycombSourceDate, inWindowGoneProblem, isCacheHit, keepVerdict, lastmodTrust,
   makeTombstoneLedger, parseSinceDays, pdpTombstoneSql, propertySitemapsProblem, readDetailPages, recentShare, sitemapBodyClosed,
   sitemapCacheProblem, sitemapCacheSummary, sitemapFileRead, sitemapReadProblem,
   type DetailOutcome, type SitemapFileRead,
 } from './honeycomb-freshness'
 
 const DAY = 86_400_000
+/** Honeycomb's window (30 days) — every window edge below is judged by it, never by FRESH_DAYS (7). */
+const W = HONEYCOMB_WINDOW_DAYS
 /** 2026-10-01 12:00 in Vietnam. */
 const NOW = Date.parse('2026-10-01T05:00:00Z')
 const FETCHED = NOW - 10 * 60_000
@@ -21,6 +23,14 @@ const vnStamp = (ms: number) => {
   const d = new Date(ms + 7 * 3_600_000)
   return d.toISOString().slice(0, 19) + '+07:00'
 }
+
+describe("⛔ Honeycomb's window is the per-seller table's 30 days, not the other sources' 7", () => {
+  it('HONEYCOMB_WINDOW_DAYS is windowDaysFor(the seller): 30, while every other source keeps FRESH_DAYS', () => {
+    expect(HONEYCOMB_WINDOW_DAYS).toBe(30)
+    expect(HONEYCOMB_WINDOW_DAYS).toBe(windowDaysFor(HONEYCOMB_SELLER_ID))
+    expect(FRESH_DAYS).toBe(7)
+  })
+})
 
 describe('honeycombSourceDate — the OLDEST instant a lastmod can mean', () => {
   it('reads the shape the site serves (measured 2026-10-01): a full timestamp with +07:00', () => {
@@ -71,12 +81,19 @@ describe('the sitemap must be provably whole', () => {
 describe('⛔ the bulk re-save guard', () => {
   const entries = (recent: number, old: number): SitemapEntry[] => [
     ...Array.from({ length: recent }, (_, i) => ({ url: `https://honeycomb.com.vn/property/r${i}/`, lastmod: vnStamp(FETCHED - DAY) })),
-    ...Array.from({ length: old }, (_, i) => ({ url: `https://honeycomb.com.vn/property/o${i}/`, lastmod: vnStamp(FETCHED - 30 * DAY) })),
+    ...Array.from({ length: old }, (_, i) => ({ url: `https://honeycomb.com.vn/property/o${i}/`, lastmod: vnStamp(FETCHED - (W + 10) * DAY) })),
   ]
   it('counts urls at or after the window start — a future-dated one too', () => {
     expect(recentShare(entries(3, 7), FETCHED)).toEqual({ recent: 3, total: 10 })
-    const edge = [{ url: 'u', lastmod: vnStamp(FETCHED - FRESH_DAYS * DAY) }, { url: 'v', lastmod: vnStamp(FETCHED - FRESH_DAYS * DAY - 1000) }, { url: 'w', lastmod: vnStamp(FETCHED + DAY) }, { url: 'x', lastmod: null }]
+    const edge = [{ url: 'u', lastmod: vnStamp(FETCHED - W * DAY) }, { url: 'v', lastmod: vnStamp(FETCHED - W * DAY - 1000) }, { url: 'w', lastmod: vnStamp(FETCHED + DAY) }, { url: 'x', lastmod: null }]
     expect(recentShare(edge, FETCHED)).toEqual({ recent: 2, total: 4 })
+  })
+  it('⛔ measures the share over the 30-day window: a url touched 20 days ago is recent, one 31 days ago is not', () => {
+    const e = [{ url: 'a', lastmod: vnStamp(FETCHED - 20 * DAY) }, { url: 'b', lastmod: vnStamp(FETCHED - (W + 1) * DAY) }]
+    expect(recentShare(e, FETCHED)).toEqual({ recent: 1, total: 2 })
+    // The 7-day measure would miss it — and let a re-save of the last month re-date the catalogue.
+    expect(recentShare(e, FETCHED, FRESH_DAYS)).toEqual({ recent: 0, total: 2 })
+    expect(bulkResaveProblem(26, 100)).toMatch(/in the 30 days before the fetch/)
   })
   it(`trips above ${BULK_RESAVE_MAX_SHARE * 100}% of ALL property urls, not at it`, () => {
     expect(bulkResaveProblem(25, 100)).toBeNull()
@@ -112,7 +129,8 @@ describe('buildHoneycombFreshSet', () => {
     })
     return buildHoneycombFreshSet({
       fetchedAt: new Date(FETCHED), now: NOW, maps, indexCache: 'miss', entries,
-      detailSinceMs: Date.parse('2026-09-24T00:00:00+07:00'), limit: 0, stopped: null, detail,
+      // The --since-days 30 stage's day window: the start of the Vietnam day 30 days back (≤ fetchedAt − 30 d).
+      detailSinceMs: Date.parse('2026-09-01T00:00:00+07:00'), limit: 0, stopped: null, detail,
       stored: [
         { externalId: 'honeycomb:500', affiliateUrl: url('stored-fresh') },
         { externalId: 'honeycomb:600', affiliateUrl: url('timeout') },
@@ -129,31 +147,36 @@ describe('buildHoneycombFreshSet', () => {
     const r = scene([
       { slug: 'stored-fresh', ago: 2 * DAY, out: rec('500') },
       { slug: 'new-house', ago: 3 * 3_600_000, out: rec('501') },
-      { slug: 'old-stored', ago: 8 * DAY },
+      // 20 days old: outside the other sources' 7 days, inside Honeycomb's 30 — in the set.
+      { slug: 'twenty-days', ago: 20 * DAY, out: rec('502') },
+      { slug: 'old-stored', ago: (W + 1) * DAY },
     ])
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.set.sellerId).toBe(HONEYCOMB_SELLER_ID)
+    expect(r.set.windowDays).toBe(30)
     expect(r.set.items).toEqual([
       { externalId: 'honeycomb:500', sourceDate: iso(Math.floor((FETCHED - 2 * DAY) / 1000) * 1000), dateKind: 'modified' },
       { externalId: 'honeycomb:501', sourceDate: iso(Math.floor((FETCHED - 3 * 3_600_000) / 1000) * 1000), dateKind: 'modified' },
+      { externalId: 'honeycomb:502', sourceDate: iso(Math.floor((FETCHED - 20 * DAY) / 1000) * 1000), dateKind: 'modified' },
     ])
     expect(r.set.unknown).toEqual([])
     expect(freshSetProblem(JSON.parse(JSON.stringify(r.set)), NOW, HONEYCOMB_SELLER_ID)).toBeNull()
     expect(r.set.coverage).toMatch(/estate_property sitemaps 1…7, 7\/7 read \(HTTP 200, non-empty, each ending <\/urlset>; urls per page 2000\/2000\/2000\/2000\/2000\/2000\/822/)
-    expect(r.set.coverage).toMatch(/every in-window page read: 2 posts identified/)
+    expect(r.set.coverage).toMatch(/every in-window page read: 3 posts identified/)
+    expect(r.set.coverage).toMatch(/\(fetchedAt − 30 d\)/)
     expect(r.set.coverage).toMatch(/pages before the last exactly 2000, the last under it/)
     expect(r.set.coverage).toContain(`each requested with ?${CACHE_BUST_PARAM}=<run start>, none from the page cache — x-litespeed-cache: index miss · -1.xml miss · -2.xml miss · -3.xml miss · -4.xml miss · -5.xml miss · -6.xml miss · -7.xml miss`)
   })
 
   it('⛔ a bare-date lastmod is judged at the START of its Vietnam day (the worst case), not at UTC midnight', () => {
-    const at = Date.parse('2026-10-01T20:00:00Z') // 03:00 on 2 Oct in Vietnam: the window opens 2026-09-24T20:00Z
+    const at = Date.parse('2026-10-01T20:00:00Z') // 03:00 on 2 Oct in Vietnam: the 30-day window opens 2026-09-01T20:00Z
     const r = scene([
-      { slug: 'a', ago: null, lastmod: '2026-09-26', out: rec('1') },
-      // Could mean 2026-09-24T17:00Z at the earliest — before the window. Read as UTC midnight it would be in.
-      { slug: 'b', ago: null, lastmod: '2026-09-25', out: rec('2') },
+      { slug: 'a', ago: null, lastmod: '2026-09-03', out: rec('1') },
+      // Could mean 2026-09-01T17:00Z at the earliest — before the window. Read as UTC midnight it would be in.
+      { slug: 'b', ago: null, lastmod: '2026-09-02', out: rec('2') },
     ], { fetchedAt: new Date(at), now: at + 60_000 })
-    expect(r.ok && r.set.items).toEqual([{ externalId: 'honeycomb:1', sourceDate: '2026-09-25T17:00:00.000Z', dateKind: 'modified' }])
+    expect(r.ok && r.set.items).toEqual([{ externalId: 'honeycomb:1', sourceDate: '2026-09-02T17:00:00.000Z', dateKind: 'modified' }])
   })
 
   it('404/410 is not fresh; a page that could not be judged keeps its STORED row as undetermined', () => {
@@ -199,6 +222,46 @@ describe('buildHoneycombFreshSet', () => {
     expect(r.ok && r.set.items).toEqual([])
   })
 
+  it('⛔ end to end at the 30-day window: a flat touched 20 days ago is in the set and KEPT; 31 days ago, EXPIRED', () => {
+    const stored = [
+      { externalId: 'honeycomb:500', affiliateUrl: url('twenty-days') },
+      { externalId: 'honeycomb:501', affiliateUrl: url('edge-in') },
+      { externalId: 'honeycomb:502', affiliateUrl: url('edge-out') },
+      { externalId: 'honeycomb:503', affiliateUrl: url('month-old') },
+      { externalId: 'honeycomb:504', affiliateUrl: url('nine-days') },
+    ]
+    const r = scene([
+      { slug: 'twenty-days', ago: 20 * DAY, out: rec('500') },
+      { slug: 'nine-days', ago: 9 * DAY, out: rec('504') },
+      // 29 d 23 h at the fetch: inside; 30 d + 1 min: outside (no page read needed — it is not in the window).
+      { slug: 'edge-in', ago: W * DAY - 3_600_000, out: rec('501') },
+      { slug: 'edge-out', ago: W * DAY + 60_000 },
+      { slug: 'month-old', ago: (W + 1) * DAY },
+    ], { stored })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    // ⛔ The trap the window must not fall into: an 8–30-day-old url judged by the 7-day default counts as
+    // "future" and is kept live as undetermined. Here every one is judged — none future, none undetermined.
+    expect(r.counts).toMatchObject({ inWindow: 3, items: 3, future: 0, undetermined: 0 })
+    expect(r.set.unknown).toEqual([])
+    expect(r.set.items.map((i) => i.externalId).sort()).toEqual(['honeycomb:500', 'honeycomb:501', 'honeycomb:504'])
+    expect(freshSetProblem(JSON.parse(JSON.stringify(r.set)), NOW, HONEYCOMB_SELLER_ID)).toBeNull()
+    // The expiry as the weekly job runs it: Honeycomb is a ROLLING seller, so the carry-over guard reads each
+    // live row's postedAt — the lastmod the apply wrote — against the window's start at the fetch.
+    const ago: Record<string, number> = {
+      'honeycomb:500': 20 * DAY, 'honeycomb:501': W * DAY - 3_600_000, 'honeycomb:502': W * DAY + 60_000, 'honeycomb:503': (W + 1) * DAY, 'honeycomb:504': 9 * DAY,
+    }
+    const active = stored.map((x) => ({ id: `L-${x.externalId}`, externalId: x.externalId, postedAt: new Date(FETCHED - ago[x.externalId]) }))
+    const rollingFrom = rollingWindowFrom(HONEYCOMB_SELLER_ID, r.set.fetchedAt)
+    expect(rollingFrom).toBe(FETCHED - W * DAY)
+    const plan = planExpiry({ active, fresh: new Set(r.set.items.map((i) => i.externalId)), unknown: new Set(r.set.unknown), baseline: null, rollingFrom })
+    expect(plan.refusal).toBeNull()
+    expect(plan.expire.sort()).toEqual(['L-honeycomb:502', 'L-honeycomb:503'])
+    expect(plan.keep).toBe(3)
+    // The three rows still dated inside the window are all in the set; the two that aged out are not counted.
+    expect(plan.carry).toEqual({ dated: 3, missing: 0 })
+  })
+
   describe('⛔ refuses — and writes nothing — unless the read provably covered the window', () => {
     const fresh: Row[] = [{ slug: 'stored-fresh', ago: DAY, out: rec('500') }]
     const maps7 = (f: (m: SitemapFileRead, i: number) => SitemapFileRead) =>
@@ -231,11 +294,13 @@ describe('buildHoneycombFreshSet', () => {
     it('urls the importer cannot accept — the url shape changed', () => {
       expect(scene(fresh, { maps: maps7((m, i) => (i === 0 ? { ...m, kept: 1800 } : m)) })).toMatchObject({ ok: false, reason: expect.stringMatching(/url shape changed/) })
     })
-    it('--limit, a stopped read, a detail window that starts inside the 7 days', () => {
+    it('--limit, a stopped read, a detail window that starts inside the 30 days', () => {
       expect(scene(fresh, { limit: 30 })).toMatchObject({ ok: false, reason: expect.stringMatching(/--limit/) })
       expect(scene(fresh, { stopped: 'answered 429' })).toMatchObject({ ok: false, reason: expect.stringMatching(/stopped early: answered 429/) })
-      expect(scene(fresh, { detailSinceMs: FETCHED - FRESH_DAYS * DAY + 1 })).toMatchObject({ ok: false, reason: expect.stringMatching(/not read/) })
-      expect(scene(fresh, { detailSinceMs: FETCHED - FRESH_DAYS * DAY }).ok).toBe(true)
+      expect(scene(fresh, { detailSinceMs: FETCHED - W * DAY + 1 })).toMatchObject({ ok: false, reason: expect.stringMatching(/not read/) })
+      expect(scene(fresh, { detailSinceMs: FETCHED - W * DAY }).ok).toBe(true)
+      // ⛔ A 7-day detail read (the old weekly stage) cannot write a 30-day set: urls 8–30 days old were never read.
+      expect(scene(fresh, { detailSinceMs: Date.parse('2026-09-24T00:00:00+07:00') })).toMatchObject({ ok: false, reason: expect.stringMatching(/pages inside the window were not read/) })
     })
     it('an in-window url whose page was never requested', () => {
       expect(scene([...fresh, { slug: 'skipped', ago: 2 * DAY }])).toMatchObject({ ok: false, reason: expect.stringMatching(/1 url\(s\) in the window were never read/) })
@@ -254,6 +319,45 @@ describe('buildHoneycombFreshSet', () => {
     it('a set that is already over a day old', () => {
       expect(scene(fresh, { now: FETCHED + 25 * 3_600_000 })).toMatchObject({ ok: false, reason: expect.stringMatching(/fails its own check: .*h old/) })
     })
+
+    /** `n` in-window urls whose pages answered 404/410, and `k` whose pages were read to a post. */
+    const goneRows = (n: number): Row[] => Array.from({ length: n }, (_, i) => ({ slug: `g${i}`, ago: (2 + i) * DAY, out: { kind: 'gone', status: i % 2 ? 410 : 404 } as DetailOutcome }))
+    const readRows = (k: number): Row[] => Array.from({ length: k }, (_, i) => ({ slug: `ok${i}`, ago: (3 + i) * DAY, out: rec(String(3000 + i)) }))
+    it(`⛔ the in-window pages mostly answering 404/410 (from ${GONE_MIN_URLS}, over ${GONE_MAX_SHARE * 100}%) — the sitemap lists them as published: a site fault, not the market`, () => {
+      expect([GONE_MIN_URLS, GONE_MAX_SHARE]).toEqual([3, 0.5])
+      // The reproduced 2026-10-02 case: every in-window /property/ page 404 (a WordPress rewrite fault).
+      expect(scene(goneRows(6))).toMatchObject({ ok: false, reason: expect.stringMatching(/^6 of the 6 sitemap urls in the window answered 404\/410 — over 50% of pages the sitemap lists as published/) })
+      expect(scene([...goneRows(3), ...readRows(2)])).toMatchObject({ ok: false, reason: expect.stringMatching(/^3 of the 5 sitemap urls in the window/) })
+      expect(scene([...goneRows(4), ...readRows(3)])).toMatchObject({ ok: false, reason: expect.stringMatching(/^4 of the 7/) })
+      // Half or fewer, or under three: judged gone as before, and the set is written.
+      const half = scene([...goneRows(3), ...readRows(3)])
+      expect(half.ok && half.counts).toMatchObject({ inWindow: 6, gone: 3, items: 3 })
+      const two = scene(goneRows(2))
+      expect(two.ok && two.counts).toMatchObject({ inWindow: 2, gone: 2, items: 0 })
+      expect(inWindowGoneProblem(0, 0)).toBeNull()
+      expect(inWindowGoneProblem(2, 2)).toBeNull()
+      expect(inWindowGoneProblem(3, 6)).toBeNull()
+      expect(inWindowGoneProblem(3, 5)).toMatch(/3 of the 5/)
+      expect(inWindowGoneProblem(31, 31)).toMatch(/31 of the 31/)
+    })
+  })
+
+  it('⛔ end to end, the 404 fault (review of 2026-10-02): no set is written — and the set that read would have made is refused by the expiry too', () => {
+    // 24 live apartment rows: 6 re-touched inside the 30 days, 18 aged out; every in-window page now answers 404.
+    const insideAges = [2, 5, 9, 14, 20, 29].map((d) => d * DAY)
+    const stored = [
+      ...insideAges.map((_, i) => ({ externalId: `honeycomb:${4000 + i}`, affiliateUrl: url(`in-${i}`) })),
+      ...Array.from({ length: 18 }, (_, i) => ({ externalId: `honeycomb:${5000 + i}`, affiliateUrl: url(`old-${i}`) })),
+    ]
+    const r = scene(insideAges.map((ago, i) => ({ slug: `in-${i}`, ago, out: { kind: 'gone', status: 404 } as DetailOutcome })), { stored })
+    expect(r).toMatchObject({ ok: false, reason: expect.stringMatching(/6 of the 6 sitemap urls in the window answered 404\/410/) })
+    // Without that guard the read gives 0 items and 0 undetermined — what used to expire all 24.
+    const set = makeFreshSet(HONEYCOMB_SELLER_ID, new Date(FETCHED), 'the same read', [], [], W)
+    expect(freshSetProblem(JSON.parse(JSON.stringify(set)), NOW, HONEYCOMB_SELLER_ID)).toBeNull()
+    const active = stored.map((x, i) => ({ id: `L${i}`, externalId: x.externalId, postedAt: new Date(FETCHED - (i < 6 ? insideAges[i] : (31 + i) * DAY)) }))
+    const plan = planExpiry({ active, fresh: new Set(), unknown: new Set(set.unknown), baseline: 31, knownInDb: 0, rollingFrom: rollingWindowFrom(HONEYCOMB_SELLER_ID, set.fetchedAt) })
+    expect(plan.carry).toEqual({ dated: 6, missing: 6 })
+    expect(plan.refusal).toMatch(/6 of the 6 live rows last seen dated inside the window .* are missing from the set — 60% or more of them gone in one read reads as a source fault/)
   })
 })
 
@@ -275,25 +379,35 @@ describe('datePlan — revival and postedAt at --apply', () => {
   it('an update moves postedAt only FORWARD and only to a lastmod INSIDE the window; an unchanged date is not a change', () => {
     // ⛔ Outside the window nothing moves: the bulk re-save guard measures the window only, so an older
     // site-wide re-save would otherwise re-date (and re-rank) the whole catalogue through a 90-day apply.
-    const tenDays = vnStamp(FETCHED - 10 * DAY)
-    expect(datePlan({ ...base, status: 'active', lastmod: tenDays })).toEqual(NO_DATE_CHANGE)
-    expect(datePlan({ ...base, status: 'expired', lastmod: tenDays })).toEqual(NO_DATE_CHANGE)
+    const older = { ...base, postedAt: new Date(FETCHED - 60 * DAY) }
+    const outside = vnStamp(FETCHED - (W + 1) * DAY)
+    expect(datePlan({ ...older, status: 'active', lastmod: outside })).toEqual(NO_DATE_CHANGE)
+    expect(datePlan({ ...older, status: 'expired', lastmod: outside })).toEqual(NO_DATE_CHANGE)
     const sixDays = vnStamp(FETCHED - 6 * DAY)
     expect(datePlan({ ...base, status: 'active', lastmod: sixDays })).toEqual({ revive: false, postedAt: new Date(Math.floor((FETCHED - 6 * DAY) / 1000) * 1000) })
     expect(datePlan({ ...base, status: 'active', postedAt: freshDate, lastmod: vnStamp(FETCHED - 20 * DAY) })).toEqual(NO_DATE_CHANGE)
     expect(datePlan({ ...base, status: 'active', postedAt: freshDate, lastmod: fresh })).toEqual(NO_DATE_CHANGE)
+  })
+  it("⛔ an 'expired' flat touched 8–30 days ago comes back (the 7-day rule had taken it down) at its source date", () => {
+    for (const days of [8, 10, 20, 29]) {
+      const d = vnStamp(FETCHED - days * DAY)
+      const at = new Date(Math.floor((FETCHED - days * DAY) / 1000) * 1000)
+      expect(datePlan({ ...base, postedAt: new Date(FETCHED - 60 * DAY), status: 'expired', lastmod: d }), `${days} d`).toEqual({ revive: true, postedAt: at })
+      // A live row's postedAt moves forward to it too.
+      expect(datePlan({ ...base, postedAt: new Date(FETCHED - 60 * DAY), status: 'active', lastmod: d }), `${days} d`).toEqual({ revive: false, postedAt: at })
+    }
   })
   it('a revival takes the source date even when the stored one is newer (postedAt = the source date)', () => {
     expect(datePlan({ ...base, status: 'expired', postedAt: new Date(FETCHED), lastmod: fresh })).toEqual({ revive: true, postedAt: freshDate })
     expect(datePlan({ ...base, status: 'expired', postedAt: freshDate, lastmod: fresh })).toEqual({ revive: true, postedAt: null })
   })
   it('⛔ the window is judged at the FETCH, as the fresh set judges it — not at the apply\'s now', () => {
-    // 6 d 23 h old at the fetch, past 7 d by the time the apply runs an hour later: in the set, so revived.
-    const edge = vnStamp(FETCHED - 7 * DAY + 3_600_000)
+    // 29 d 23 h old at the fetch, past 30 d by the time the apply runs an hour later: in the set, so revived.
+    const edge = vnStamp(FETCHED - W * DAY + 3_600_000)
     const r = datePlan({ ...base, now: FETCHED + 2 * 3_600_000, status: 'expired', lastmod: edge })
     expect(r.revive).toBe(true)
-    // 7 d + 1 s old at the fetch: not in the set, never revived — however early the apply.
-    expect(datePlan({ ...base, now: FETCHED, status: 'expired', lastmod: vnStamp(FETCHED - 7 * DAY - 1000) }).revive).toBe(false)
+    // 30 d + 1 s old at the fetch: not in the set, never revived — however early the apply.
+    expect(datePlan({ ...base, now: FETCHED, status: 'expired', lastmod: vnStamp(FETCHED - W * DAY - 1000) }).revive).toBe(false)
   })
   it('⛔ no revival on evidence older than a fresh set may be (24 h) — the newer date still moves', () => {
     const sixDays = vnStamp(FETCHED - 6 * DAY)
@@ -348,22 +462,24 @@ describe('the weekly run’s flags', () => {
     for (const bad of ['0', '-7', '7.5', '7d', '', '99999', null]) expect(parseSinceDays(bad), String(bad)).toBeNull()
   })
   it('⛔ --fresh-out only on a run that reads the whole window of the live site', () => {
-    const ok = { freshOut: '/Users/x/fresh.json', src: null, apply: false, limit: 0, sinceDays: FRESH_DAYS, sinceMs: NOW - FRESH_DAYS * DAY, now: NOW }
+    const ok = { freshOut: '/Users/x/fresh.json', src: null, apply: false, limit: 0, sinceDays: W, sinceMs: NOW - W * DAY, now: NOW }
     expect(freshOutPreflight(ok)).toBeNull()
     expect(freshOutPreflight({ ...ok, freshOut: null, limit: 5, sinceDays: null })).toBeNull()
     expect(freshOutPreflight({ ...ok, src: 'staged.json' })).toMatch(/READS the site/)
     expect(freshOutPreflight({ ...ok, apply: true })).toMatch(/READS the site/)
     expect(freshOutPreflight({ ...ok, limit: 30 })).toMatch(/--limit/)
-    expect(freshOutPreflight({ ...ok, sinceMs: NOW - FRESH_DAYS * DAY + 1 })).toMatch(/--since-days 7/)
+    expect(freshOutPreflight({ ...ok, sinceMs: NOW - W * DAY + 1 })).toMatch(/--since-days 30/)
   })
-  it('⛔ --fresh-out needs --since-days 7: a plain --since (or the default 90 days) stage records no exact window for its apply', () => {
-    const ok = { freshOut: '/Users/x/fresh.json', src: null, apply: false, limit: 0, sinceDays: FRESH_DAYS, sinceMs: NOW - 8 * DAY, now: NOW }
+  it("⛔ --fresh-out needs --since-days 30 (Honeycomb's window): a plain --since (or the default 90 days) stage records no exact window for its apply", () => {
+    const ok = { freshOut: '/Users/x/fresh.json', src: null, apply: false, limit: 0, sinceDays: W, sinceMs: NOW - (W + 1) * DAY, now: NOW }
     expect(freshOutPreflight(ok)).toBeNull()
-    // --since 2026-09-01 (or no window flag at all): covers the 7 days, but the apply would create 30-day-old ads.
-    expect(freshOutPreflight({ ...ok, sinceDays: null, sinceMs: NOW - 30 * DAY })).toMatch(/needs --since-days 7 \(not --since, not the default window\)/)
-    expect(freshOutPreflight({ ...ok, sinceDays: null, sinceMs: NOW - 90 * DAY })).toMatch(/needs --since-days 7/)
-    expect(freshOutPreflight({ ...ok, sinceDays: 8, sinceMs: NOW - 9 * DAY })).toMatch(/needs --since-days 7 \(not 8\)/)
-    expect(freshOutPreflight({ ...ok, sinceDays: 6 })).toMatch(/not 6/)
+    // --since 2026-08-01 (or no window flag at all): covers the 30 days, but the apply would create 60-day-old ads.
+    expect(freshOutPreflight({ ...ok, sinceDays: null, sinceMs: NOW - 60 * DAY })).toMatch(/needs --since-days 30 \(not --since, not the default window\)/)
+    expect(freshOutPreflight({ ...ok, sinceDays: null, sinceMs: NOW - 90 * DAY })).toMatch(/needs --since-days 30/)
+    expect(freshOutPreflight({ ...ok, sinceDays: 31, sinceMs: NOW - 32 * DAY })).toMatch(/needs --since-days 30 \(not 31\)/)
+    expect(freshOutPreflight({ ...ok, sinceDays: 29 })).toMatch(/not 29/)
+    // ⛔ The old weekly stage (--since-days 7) is refused: its set would be refused by the expiry anyway.
+    expect(freshOutPreflight({ ...ok, sinceDays: FRESH_DAYS, sinceMs: NOW - 8 * DAY })).toMatch(/needs --since-days 30 \(not 7\)/)
   })
   it('⛔ an unknown flag is refused — a misspelt --fresh-out must not exit 0 with no set', () => {
     expect(unknownFlagProblem(['--since-days', '7', '--save', 's.json', '--fresh-out', 'f.json'])).toBeNull()
@@ -521,6 +637,12 @@ describe('⛔ keepVerdict — a --since-days run creates and keeps by the EXACT 
   it('inside the 7 days at the fetch: kept, with its worst-case instant', () => {
     const v = keepVerdict(at(FETCHED - 2 * DAY), { sinceMs, exactDays: 7, fetchedAt: FETCHED })
     expect(v).toEqual({ keep: true, t: Math.floor((FETCHED - 2 * DAY) / 1000) * 1000 })
+  })
+  it("a 30-day stage (Honeycomb's weekly run) creates and keeps an ad 20 days old; 30 d + 1 min is outside, 31 d before the day window", () => {
+    const since30 = Date.parse('2026-09-01T00:00:00+07:00')
+    expect(keepVerdict(at(FETCHED - 20 * DAY), { sinceMs: since30, exactDays: W, fetchedAt: FETCHED })).toEqual({ keep: true, t: FETCHED - 20 * DAY })
+    expect(keepVerdict(at(FETCHED - W * DAY - 60_000), { sinceMs: since30, exactDays: W, fetchedAt: FETCHED })).toEqual({ keep: false, why: 'outsideWindow' })
+    expect(keepVerdict(at(FETCHED - (W + 1) * DAY), { sinceMs: since30, exactDays: W, fetchedAt: FETCHED })).toEqual({ keep: false, why: 'beforeSince' })
   })
   it('before the day window, unreadable, or (exact runs) dated after the fetch: dropped', () => {
     expect(keepVerdict(at(FETCHED - 30 * DAY), { sinceMs, exactDays: 7, fetchedAt: FETCHED })).toEqual({ keep: false, why: 'beforeSince' })

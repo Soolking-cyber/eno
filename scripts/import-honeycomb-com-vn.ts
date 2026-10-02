@@ -16,16 +16,18 @@
  *   4. VERIFY — read-only invariants of what is stored; exits non-zero on failure:
  *        … import-honeycomb-com-vn.ts --verify
  *
- * THE 7-DAY RULE (owner, 2026-10-01 — src/lib/apartment-freshness.ts, src/lib/honeycomb-freshness.ts): an
- * imported apartment stays live only while its sitemap `lastmod` is within 7 days. The weekly job runs
- *        … import-honeycomb-com-vn.ts --since-days 7 --save <staged.json> --fresh-out <fresh.json>
+ * THE FRESHNESS RULE (owner, 2026-10-01 — src/lib/apartment-freshness.ts, src/lib/honeycomb-freshness.ts): an
+ * imported apartment stays live only while its sitemap `lastmod` is within Honeycomb's window — 30 days
+ * since 2026-10-02 (HONEYCOMB_WINDOW_DAYS = windowDaysFor(seller); the other sources keep 7). The weekly
+ * job runs
+ *        … import-honeycomb-com-vn.ts --since-days 30 --save <staged.json> --fresh-out <fresh.json>
  *        … import-honeycomb-com-vn.ts --src <staged.json> --apply --journal-dir <durable dir>
  *        … expire-apartment-rentals.ts --seller honeycomb-import-seller-0001 --fresh <fresh.json> …
  *   The STAGE writes the fresh set (every url whose lastmod is in the window, by post id) only when the read
  *   provably covered the window (every sitemap page whole and closed, pages before the last exactly 2,000
  *   urls, no page missing, none served by the LiteSpeed page cache, every in-window page read), and exits
- *   non-zero without it otherwise. --fresh-out needs --since-days 7. The APPLY — within 24 h of that stage —
- *   creates and keeps only ads whose lastmod is within 7 days of the stage's fetchedAt, revives an 'expired'
+ *   non-zero without it otherwise. --fresh-out needs --since-days 30. The APPLY — within 24 h of that stage —
+ *   creates and keeps only ads whose lastmod is within 30 days of the stage's fetchedAt, revives an 'expired'
  *   or 'stale' row judged the same way, and moves postedAt (and rankScore) to a newer lastmod. Every revival
  *   and retire is owed its ISR tombstone BEFORE the write is attempted and paid as it lands (finally-guarded),
  *   and gets a rollback line — guarded on the state it created, with its own tombstone — once the write has
@@ -35,10 +37,10 @@
  *   --limit N        stage: read at most N pages, newest `lastmod` first. apply: import at most N rows.
  *   --city C         hcmc | hanoi | danang — keep only that city (the source is HCMC-only today)
  *   --since D        skip listings last modified before D (default: 90 days ago — owner, 2026-09-24)
- *   --since-days N   the same, as N days back from now (the weekly job: 7); not with --since
- *   --fresh-out F    stage only: write the 7-day fresh set to F (atomically), or exit non-zero and write
- *                    nothing when the read did not provably cover the window. Needs --since-days 7; not
- *                    with --since, --limit or --src.
+ *   --since-days N   the same, as N days back from now (the weekly job: 30); not with --since
+ *   --fresh-out F    stage only: write the 30-day fresh set to F (atomically), or exit non-zero and write
+ *                    nothing when the read did not provably cover the window. Needs --since-days 30 (the
+ *                    window); not with --since, --limit or --src.
  *   --vnd-per-usd R  stage only: pin the conversion rate instead of reading open.er-api.com
  *   --delay-ms N     ms between requests: 1200 by default AND the floor — a smaller value is raised to 1200,
  *                    a non-number falls back to the default
@@ -75,7 +77,7 @@
  * only on a POSITIVE signal (404/410), never on absence or age. A row that ages out of the window
  * stays active and is REPORTED, not hidden — by THIS script. Since 2026-10-01 an APARTMENT row is
  * expired by age elsewhere: scripts/expire-apartment-rentals.ts, from the --fresh-out set this script
- * writes (the 7-day rule above).
+ * writes (the freshness rule above, 30 days for this source).
  *
  * ⚠️ 4. NO COORDINATES, NO AREA ON THE SOURCE. When the page's "Project" names a building that
  * src/generated/rever-buildings.ts knows, the row gets that `buildingKey` and the building's
@@ -106,10 +108,10 @@ import { untranslatedSummary } from '../src/lib/import-i18n'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
 import { REVER_BUILDINGS } from '../src/generated/rever-buildings'
-import { FRESH_DAYS, FRESH_SET_MAX_AGE_MS, REVIVABLE_STATUSES, freshSetProblem, type FreshSet } from '../src/lib/apartment-freshness'
+import { FRESH_SET_MAX_AGE_MS, REVIVABLE_STATUSES, freshSetProblem, type FreshSet } from '../src/lib/apartment-freshness'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
 import {
-  NO_DATE_CHANGE, buildHoneycombFreshSet, cacheBustedUrl, sitemapCacheProblem, datePlan, datedRollbackSql, freshOutPreflight, honeycombSourceDate, isCacheHit,
+  HONEYCOMB_WINDOW_DAYS, NO_DATE_CHANGE, buildHoneycombFreshSet, cacheBustedUrl, sitemapCacheProblem, datePlan, datedRollbackSql, freshOutPreflight, honeycombSourceDate, isCacheHit,
   keepVerdict, lastmodTrust, makeTombstoneLedger, parseSinceDays, pdpTombstoneSql, readDetailPages, sitemapCacheSummary, sitemapFileRead,
   sitemapReadProblem,
   type DatedJournalEntry, type DetailOutcome, type SitemapFileRead,
@@ -527,7 +529,7 @@ async function main() {
     /** ⛔ A STALE FILE REFUSES THE WRITE, IT DOES NOT WARN. */
     if (stale && APPLY) throw new Error(`${SRC}: ${stale}`)
     if (stale) console.warn(`  ! ${stale} — fine to read, refused by --apply`)
-    /** ⛔ A 7-DAY STAGE IS EVIDENCE FOR AS LONG AS ITS FRESH SET IS: creates and revivals are judged at its
+    /** ⛔ A --since-days STAGE IS EVIDENCE FOR AS LONG AS ITS FRESH SET IS: creates and revivals are judged at its
      *  fetchedAt (keepVerdict, datePlan), so an apply a day later would publish ads already past the window. */
     if (APPLY && (SINCE_DAYS ?? (SINCE_ARG ? null : stage.params.sinceDays)) !== null) {
       const late = stageAgeProblem(stage.fetchedAt, Date.now(), FRESH_SET_MAX_AGE_MS / 3_600_000)
@@ -549,7 +551,7 @@ async function main() {
   const ageH = (Date.now() - Date.parse(stage.fetchedAt)) / 3_600_000
   const fetchedMs = Date.parse(stage.fetchedAt)
   /**
-   * ⛔ THE EXACT 7-DAY WINDOW (keepVerdict): a --since-days run — this one, or the stage a replay reads —
+   * ⛔ THE EXACT WINDOW (keepVerdict): a --since-days run — this one, or the stage a replay reads —
    * creates and keeps only ads whose lastmod is within N days of fetchedAt, the moment the fresh set is
    * judged at. An explicit --since on a replay means that window instead.
    */
@@ -564,7 +566,7 @@ async function main() {
   const db = makeDb(!APPLY)
   const screen = new ImportScreen('honeycomb-com-vn', { db, sellerIds: [SELLER_ID], ...(journal ? { dir: journal } : {}) })
   for (const r of stage.records) {
-    /** The worst case (oldest instant) of the lastmod — the source date the 7-day rule judges. */
+    /** The worst case (oldest instant) of the lastmod — the source date the freshness rule judges. */
     const v = keepVerdict(r.lastmod, { sinceMs, exactDays, fetchedAt: fetchedMs })
     if (!v.keep) { drop[v.why] = (drop[v.why] ?? 0) + 1; continue }
     const t = v.t
@@ -578,7 +580,7 @@ async function main() {
     }
     /** postedAt = the source's last modification, clamped to now: the card's age and the recency
      *  rank then say how fresh the AGENCY's listing is, not when we copied it. Set on create; moved
-     *  forward on an update only by the 7-day rule (datePlan: a revival, or a newer lastmod). */
+     *  forward on an update only by the freshness rule (datePlan: a revival, or a newer lastmod). */
     keepAll.push({ ...a.row, postedAt: new Date(Math.min(t, Date.now())), lastmod: r.lastmod ?? '' })
   }
   const keep = SRC && LIMIT ? keepAll.slice(0, LIMIT) : keepAll
@@ -600,7 +602,7 @@ async function main() {
   }) : []
   const stored = new Map(storedRows.map((r) => [r.externalId!, r]))
   /**
-   * ⛔ THE 7-DAY RULE ACTS ON lastmod ONLY WHEN THIS RUN MAY TRUST IT (lastmodTrust): the whole sitemap was
+   * ⛔ THE FRESHNESS RULE ACTS ON lastmod ONLY WHEN THIS RUN MAY TRUST IT (lastmodTrust): the whole sitemap was
    * read and under 25% of it was modified in the window — a site-wide re-save is not a re-post.
    */
   const trust = lastmodTrust(stage)
@@ -634,7 +636,7 @@ async function main() {
   const candidates = stage.sitemap.complete ? retireCandidates(activeOnSeller, sitemapUrls) : []
   const agedOut = activeOnSeller.filter((r) => r.affiliateUrl && sitemapUrls.has(r.affiliateUrl) && !((honeycombSourceDate(lastmodByUrl.get(r.affiliateUrl))?.getTime() ?? NaN) >= sinceMs)).length
 
-  /** The 7-day fresh set, from what THIS run read (crawlProbe) — written at the end, only if it holds. */
+  /** The fresh set (Honeycomb's 30-day window), from what THIS run read (crawlProbe) — written at the end, only if it holds. */
   let fresh: ReturnType<typeof buildHoneycombFreshSet> | null = null
   if (FRESH_OUT) {
     if (!crawlProbe) throw new Error('--fresh-out needs a live read of the site')
@@ -682,7 +684,7 @@ async function main() {
   console.log(`buildings         ${keep.filter((k) => k.buildingKey).length}/${keep.length} rows matched a map building (buildingKey + centroid); the rest get no coordinates`)
   console.log(`aged out          ${agedOut} active rows' pages were last modified before ${SINCE} — REPORTED, not hidden (age is not a retire signal)`)
   console.log(`retire pass       ${!RETIRE ? `OFF (--retire not passed) · ${candidates.length} active rows absent from the sitemap` : !stage.sitemap.complete ? 'OFF — the staged sitemap read is incomplete' : `${candidates.length} active rows absent from the sitemap → re-checked below`}`)
-  console.log(`7-day rule        ${trust.ok ? `lastmod trusted — ${trust.recent} of ${trust.total} property urls modified in the ${FRESH_DAYS} days before the fetch` : `lastmod NOT trusted this run (${trust.reason}) — no revival, no postedAt change`}`)
+  console.log(`${pad(`${HONEYCOMB_WINDOW_DAYS}-day rule`, 18)}${trust.ok ? `lastmod trusted — ${trust.recent} of ${trust.total} property urls modified in the ${HONEYCOMB_WINDOW_DAYS} days before the fetch` : `lastmod NOT trusted this run (${trust.reason}) — no revival, no postedAt change`}`)
   console.log(`                  revive ${toRevive.length} (expired/stale → active, then per-page ISR tombstones) · postedAt → a newer lastmod ${toRedate.length} (rankScore recomputed from it)`)
   if (fresh) console.log(`fresh set         ${fresh.ok ? `${fresh.set.items.length} items, ${fresh.set.unknown?.length ?? 0} undetermined → ${resolve(FRESH_OUT!)} (written last)\n                  ${fresh.set.coverage}` : `⛔ REFUSED — ${fresh.reason}`}`)
 
@@ -757,7 +759,7 @@ async function main() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const UPLOADED = join(journal!, `honeycomb-uploaded-objects-${stamp}.txt`)
   const CREATED = join(journal!, `honeycomb-created-rows-${stamp}.jsonl`)
-  /** The 7-day rule's writes: the PLANNED old/new status, postedAt and rankScore per row (before each write). */
+  /** The freshness rule's writes: the PLANNED old/new status, postedAt and rankScore per row (before each write). */
   const DATED = join(journal!, `honeycomb-dated-rows-${stamp}.jsonl`)
   /** One line per row a write MOVED (written after it), each guarded on the state it created + its tombstone. */
   const ROLLBACK = join(journal!, `honeycomb-rollback-${stamp}.sql`)

@@ -1,7 +1,13 @@
 /**
- * THE 7-DAY RULE, HONEYCOMB HALF — pure (no DB, no network). scripts/import-honeycomb-com-vn.ts uses it
+ * THE FRESHNESS RULE, HONEYCOMB HALF — pure (no DB, no network). scripts/import-honeycomb-com-vn.ts uses it
  * to write the FRESH SET (--fresh-out, on the run that reads the site) and, on --apply, to revive rows
  * and move postedAt. The rule and the set's format live in src/lib/apartment-freshness.ts.
+ *
+ * ⛔ HONEYCOMB'S WINDOW IS 30 DAYS, NOT THE 7 OF THE OTHER SOURCES (2026-10-02): HONEYCOMB_WINDOW_DAYS =
+ * windowDaysFor(HONEYCOMB_SELLER_ID), the one table in apartment-freshness.ts. EVERY window judgement in this
+ * file uses it — the --fresh-out guard (--since-days 30), the detail read's start, the fresh set's items and
+ * the window it records, the bulk re-save share, the revival and the postedAt move — so the stage, the set,
+ * the apply and the expiry can never disagree about which flats are fresh. Never FRESH_DAYS here.
  *
  * THE DATE IS THE SITEMAP <lastmod> of the property's URL (dateKind 'modified'): the agency re-touching a
  * listing is this source's "re-posted". Nothing else on the page carries a date (honeycomb-listing.ts).
@@ -14,7 +20,8 @@
  * </urlset> (a cut-off body is not a page), pages 1…N−1 hold exactly WP_SITEMAP_MAX_URLS (2,000) and page N
  * fewer (a stale index that drops the newest page shows as a full last page — sitemapReadProblem), neither
  * the index nor any page came from the LiteSpeed page cache (sitemapCacheProblem), no --limit, the detail
- * read was not stopped, and every url whose lastmod is in the window had its page read.
+ * read was not stopped, every url whose lastmod is in the window had its page read, and those pages did not
+ * mostly answer 404/410 (inWindowGoneProblem — the sitemap lists them as published).
  * Measured 2026-10-02 (wp-sitemap.xml + pages 1, 6, 7, 8): pages 1…6 hold 2,000 urls each, page 7 holds 822,
  * every body ends "</urlset>\n", and page 8 answers 404.
  * ⛔ THE SITE'S LITESPEED PAGE CACHE SERVES THE SITEMAPS UP TO 7 DAYS STALE (measured 2026-10-02: the plain
@@ -28,7 +35,7 @@
  * neither revives nor moves postedAt on that evidence (lastmodTrust).
  */
 import {
-  FRESH_DAYS, FRESH_SET_MAX_AGE_MS, REVIVABLE_STATUSES, freshSetProblem, isInWindow, makeFreshSet,
+  FRESH_SET_MAX_AGE_MS, REVIVABLE_STATUSES, freshSetProblem, isInWindow, makeFreshSet, windowDaysFor,
   type FreshItem, type FreshSet,
 } from './apartment-freshness'
 import {
@@ -38,12 +45,36 @@ import {
 import { pdpTombstoneTags } from './job-listing'
 
 const DAY_MS = 86_400_000
+/** Honeycomb's freshness window in days (30) — from the per-seller table, never a literal. */
+export const HONEYCOMB_WINDOW_DAYS = windowDaysFor(HONEYCOMB_SELLER_ID)
 /** Asia/Ho_Chi_Minh is UTC+7 all year — no daylight saving. */
 const VN_OFFSET_MS = 7 * 3_600_000
 /** More than this share of ALL property urls modified in the window = a bulk re-save, not re-posting. */
 export const BULK_RESAVE_MAX_SHARE = 0.25
 /** Past this share of sitemap urls that are not /property/<slug>/ urls, the site's url shape changed. */
 export const OFF_SHAPE_MAX_SHARE = 0.01
+/** From this many in-window sitemap urls answering 404/410 … */
+export const GONE_MIN_URLS = 3
+/** … and over this share of all the urls in the window, the read is a site fault, not the market (inWindowGoneProblem). */
+export const GONE_MAX_SHARE = 0.5
+
+/**
+ * ⛔ WHY THE IN-WINDOW PAGES' 404/410s MAKE THE READ UNTRUSTWORTHY, or null (review of 2026-10-02). WordPress's
+ * sitemap lists PUBLISHED posts only, and this run read it (cache-busted, so not last week's copy) minutes
+ * before it requested the pages — so a url in the window answering 404/410 contradicts the sitemap: either the
+ * post was unpublished in those minutes, or the site is not serving its own pages (a rewrite fault, a broken
+ * theme or plugin). Measured 2026-10-02: 31 pages read in the window, 0 gone. A few are noise and are judged
+ * gone as before; from GONE_MIN_URLS with over GONE_MAX_SHARE of the window gone, no set is written — "not in
+ * the set" would otherwise take down every flat whose page the fault hid (the reproduced case: every in-window
+ * page 404, the set 0 items / 0 undetermined, the plan expiring all 24 live rows). planExpiry's carry-over
+ * guard refuses that set too; this refuses it where the cause is visible.
+ */
+export function inWindowGoneProblem(gone: number, inWindow: number): string | null {
+  if (gone >= GONE_MIN_URLS && gone > GONE_MAX_SHARE * inWindow) {
+    return `${gone} of the ${inWindow} sitemap urls in the window answered 404/410 — over ${GONE_MAX_SHARE * 100}% of pages the sitemap lists as published: the site is not serving its own pages (a rewrite or theme fault), not the market taking them down`
+  }
+  return null
+}
 
 const validYmd = (y: number, mo: number, d: number) => {
   const t = new Date(Date.UTC(y, mo - 1, d))
@@ -105,8 +136,8 @@ export function propertySitemapsProblem(urls: readonly string[]): string | null 
 }
 
 /** How many property urls carry a lastmod at or after the window's start (in the window, or later). */
-export function recentShare(entries: readonly SitemapEntry[], fetchedAtMs: number): { recent: number; total: number } {
-  const from = fetchedAtMs - FRESH_DAYS * DAY_MS
+export function recentShare(entries: readonly SitemapEntry[], fetchedAtMs: number, windowDays: number = HONEYCOMB_WINDOW_DAYS): { recent: number; total: number } {
+  const from = fetchedAtMs - windowDays * DAY_MS
   let recent = 0
   for (const e of entries) {
     const d = honeycombSourceDate(e.lastmod)
@@ -116,9 +147,9 @@ export function recentShare(entries: readonly SitemapEntry[], fetchedAtMs: numbe
 }
 
 /** ⛔ The bulk re-save guard: why lastmod is no evidence of re-posting this run, or null. */
-export function bulkResaveProblem(recent: number, total: number): string | null {
+export function bulkResaveProblem(recent: number, total: number, windowDays: number = HONEYCOMB_WINDOW_DAYS): string | null {
   if (total > 0 && recent > BULK_RESAVE_MAX_SHARE * total) {
-    return `${recent} of ${total} property urls (${((recent / total) * 100).toFixed(1)}%) carry a lastmod in the ${FRESH_DAYS} days before the fetch — over ${BULK_RESAVE_MAX_SHARE * 100}%: a site-wide re-save, not the market re-listing`
+    return `${recent} of ${total} property urls (${((recent / total) * 100).toFixed(1)}%) carry a lastmod in the ${windowDays} days before the fetch — over ${BULK_RESAVE_MAX_SHARE * 100}%: a site-wide re-save, not the market re-listing`
   }
   return null
 }
@@ -313,7 +344,8 @@ export type HoneycombFreshCounts = {
  *               lastmod, resolved to an externalId through the page's post id or the stored row with that
  *               affiliateUrl. A url nobody stored has no row to keep, and is only counted.
  * ⛔ Refused — exit non-zero, nothing written — unless the read provably covered the window (see the file
- * header: a sitemap file served from the page cache refuses it too), and when the bulk re-save guard trips. The result is re-validated with freshSetProblem.
+ * header: a sitemap file served from the page cache refuses it too), when the in-window pages mostly answer
+ * 404/410 (inWindowGoneProblem), and when the bulk re-save guard trips. The result is re-validated with freshSetProblem.
  */
 export function buildHoneycombFreshSet(o: {
   fetchedAt: Date
@@ -348,7 +380,7 @@ export function buildHoneycombFreshSet(o: {
   if (o.entries.length !== kept) return { ok: false, reason: `${kept} kept sitemap urls but ${o.entries.length} distinct — pages overlap, so a full count does not prove every url was listed` }
   if (o.limit) return { ok: false, reason: `--limit ${o.limit} read only part of the window` }
   if (o.stopped) return { ok: false, reason: `the detail read stopped early: ${o.stopped}` }
-  const windowFrom = fetched - FRESH_DAYS * DAY_MS
+  const windowFrom = fetched - HONEYCOMB_WINDOW_DAYS * DAY_MS
   if (!(o.detailSinceMs <= windowFrom)) {
     return { ok: false, reason: `the detail read started at ${new Date(o.detailSinceMs).toISOString()}, after the window's start ${new Date(windowFrom).toISOString()} — pages inside the window were not read` }
   }
@@ -372,7 +404,9 @@ export function buildHoneycombFreshSet(o: {
     const out = o.detail.get(e.url)
     if (!d) { counts.noDate++; undetermined(e.url, out); continue }
     if (d.getTime() < windowFrom) continue
-    if (!isInWindow(d, fetched)) { counts.future++; undetermined(e.url, out); continue }
+    // ⛔ The same window as windowFrom: with the 7-day default here, every url 8–30 days old would count as
+    // "future" and be kept live as undetermined instead of being judged.
+    if (!isInWindow(d, fetched, HONEYCOMB_WINDOW_DAYS)) { counts.future++; undetermined(e.url, out); continue }
     counts.inWindow++
     if (!out) { notFetched.push(e.url); continue }
     if (out.kind === 'gone') { counts.gone++; continue }
@@ -383,6 +417,8 @@ export function buildHoneycombFreshSet(o: {
     if (!prev || Date.parse(prev.sourceDate) > d.getTime()) items.set(externalId, { externalId, sourceDate: d.toISOString(), dateKind: 'modified' })
   }
   if (notFetched.length) return { ok: false, reason: `${notFetched.length} url(s) in the window were never read (e.g. ${notFetched[0]}) — the detail read did not cover the window` }
+  const goneProblem = inWindowGoneProblem(counts.gone, counts.inWindow)
+  if (goneProblem) return { ok: false, reason: goneProblem }
   const { recent, total } = recentShare(o.entries, fetched)
   const bulk = bulkResaveProblem(recent, total)
   if (bulk) return { ok: false, reason: bulk }
@@ -396,11 +432,11 @@ export function buildHoneycombFreshSet(o: {
   const coverage = [
     `honeycomb.com.vn /wp-sitemap.xml → estate_property sitemaps 1…${n}, ${n}/${n} read (HTTP 200, non-empty, each ending </urlset>; urls per page ${counts1toN.join('/')}: pages before the last exactly ${WP_SITEMAP_MAX_URLS}, the last under it): ${listed} urls, ${kept} property urls, ${o.entries.length} distinct`,
     `each requested with ?${CACHE_BUST_PARAM}=<run start>, none from the page cache — x-litespeed-cache: ${sitemapCacheSummary(o.indexCache, o.maps)}`,
-    `window lastmod ≥ ${new Date(windowFrom).toISOString()} (fetchedAt − ${FRESH_DAYS} d): ${counts.inWindow} urls, ${recent} of ${total} at or after it (${total ? ((recent / total) * 100).toFixed(2) : '0'}%, bulk re-save guard ${BULK_RESAVE_MAX_SHARE * 100}%)`,
+    `window lastmod ≥ ${new Date(windowFrom).toISOString()} (fetchedAt − ${HONEYCOMB_WINDOW_DAYS} d): ${counts.inWindow} urls, ${recent} of ${total} at or after it (${total ? ((recent / total) * 100).toFixed(2) : '0'}%, bulk re-save guard ${BULK_RESAVE_MAX_SHARE * 100}%)`,
     `detail read from ${new Date(o.detailSinceMs).toISOString()}, no --limit, not stopped — every in-window page read: ${counts.items} posts identified, ${counts.gone} gone (404/410), ${counts.undetermined} undetermined`,
     `${counts.noDate} urls without a readable lastmod, ${counts.future} dated after the fetch; ${counts.unknownStored} stored rows kept as undetermined, ${counts.unresolved} undetermined urls with no stored row`,
   ].join('; ')
-  const set = makeFreshSet(HONEYCOMB_SELLER_ID, o.fetchedAt, coverage, [...items.values()], [...unknown])
+  const set = makeFreshSet(HONEYCOMB_SELLER_ID, o.fetchedAt, coverage, [...items.values()], [...unknown], HONEYCOMB_WINDOW_DAYS)
   const problem = freshSetProblem(set, o.now, HONEYCOMB_SELLER_ID)
   if (problem) return { ok: false, reason: `the set fails its own check: ${problem}` }
   return { ok: true, set, counts }
@@ -411,7 +447,7 @@ export function buildHoneycombFreshSet(o: {
  * is at or after the run's day window `sinceMs`. ⛔ In a --since-days run (`exactDays`), ALSO within that
  * many days of the FETCH, exactly — the same isInWindow judgement the fresh set made at `fetchedAt`. The
  * day window opens at the start of a Vietnam day, up to 24 h earlier than fetchedAt − N days: it chooses
- * which detail pages to read, but an ad 7–8 days old is not in the set, so creating it would upload its
+ * which detail pages to read, but an ad N to N+1 days old is not in the set, so creating it would upload its
  * photos for the expiry to take it down minutes later.
  */
 export function keepVerdict(lastmod: string | null | undefined, o: { sinceMs: number; exactDays: number | null; fetchedAt: number }):
@@ -429,8 +465,9 @@ export const NO_DATE_CHANGE: DateChange = Object.freeze({ revive: false, postedA
 
 /**
  * The revival and postedAt decision for one stored row (owner rule 2026-10-01), from its staged lastmod.
- *   · REVIVE — the lastmod is in the 7-day window AT THE FETCH (`fetchedAt`: the moment the fresh set is
- *     judged at too, so the set and the apply never disagree about a row), the fetch is no older than a
+ *   · REVIVE — the lastmod is in Honeycomb's window (HONEYCOMB_WINDOW_DAYS, 30) AT THE FETCH (`fetchedAt`:
+ *     the moment the fresh set is judged at too, so the set and the apply never disagree about a row),
+ *     the fetch is no older than a
  *     fresh set may be (FRESH_SET_MAX_AGE_MS — the same evidence, trusted for the same time; a plain
  *     --since stage may otherwise be applied up to 72 h later), and the row is in REVIVABLE_STATUSES
  *     ('expired' | 'stale'); ⛔ never 'hidden', 'removed' or 'sold'.
@@ -448,11 +485,13 @@ export function datePlan(o: {
   // Any age (100 years), but not after the fetch beyond the shared clock skew.
   if (!d || !isInWindow(d, o.fetchedAt, 36_500)) return NO_DATE_CHANGE
   const src = new Date(Math.min(d.getTime(), o.now))
-  const revive = isInWindow(d, o.fetchedAt) && o.now - o.fetchedAt <= FRESH_SET_MAX_AGE_MS && (REVIVABLE_STATUSES as readonly string[]).includes(o.status)
+  // ⛔ Honeycomb's window, as the fresh set judges it: with the 7-day default the 8–30-day-old flats the
+  // set keeps would never come back from 'expired'.
+  const inWindow = isInWindow(d, o.fetchedAt, HONEYCOMB_WINDOW_DAYS)
+  const revive = inWindow && o.now - o.fetchedAt <= FRESH_SET_MAX_AGE_MS && (REVIVABLE_STATUSES as readonly string[]).includes(o.status)
   const moved = src.getTime() !== o.postedAt.getTime()
   // ⛔ A re-date only to a lastmod INSIDE the window: the bulk guard measures the window only, so an older
   // site-wide re-save would otherwise re-date (and re-rank) the whole catalogue through a 90-day apply.
-  const inWindow = isInWindow(d, o.fetchedAt)
   const postedAt = moved && inWindow && (revive || src.getTime() > o.postedAt.getTime()) ? src : null
   return { revive, postedAt }
 }
@@ -552,16 +591,18 @@ export function parseSinceDays(raw: string | null | undefined): number | null {
 /**
  * ⛔ CHECKED BEFORE ANY REQUEST: why --fresh-out cannot be honoured by this run, or null. Only a run that
  * reads the site can say what it shows now, and only one that reads every page in the window can say
- * that an ad missing from the set is old. ⛔ And only a `--since-days 7` stage: its file records
- * `sinceDays: 7`, so the apply creates and keeps by exactly the set's 7 days (keepVerdict). A plain
- * --since (or the default 90 days) stage records none, and its apply would create ads up to 90 days old
- * that are not in the set — uploaded, then expired minutes later.
+ * that an ad missing from the set is old. ⛔ And only a `--since-days 30` stage (HONEYCOMB_WINDOW_DAYS): its
+ * file records `sinceDays: 30`, so the apply creates and keeps by exactly the set's 30 days (keepVerdict).
+ * A plain --since (or the default 90 days) stage records none, and its apply would create ads up to 90 days
+ * old that are not in the set — uploaded, then expired minutes later; a 7-day stage would write a set the
+ * expiry refuses (its window is not Honeycomb's).
  */
 export function freshOutPreflight(o: { freshOut: string | null; src: string | null; apply: boolean; limit: number; sinceDays: number | null; sinceMs: number; now: number }): string | null {
   if (!o.freshOut) return null
   if (o.src || o.apply) return '--fresh-out is written by the run that READS the site (a stage); --src/--apply replay a staged file and cannot say what the site shows now'
   if (o.limit) return '--fresh-out needs every page in the window read; drop --limit'
-  if (o.sinceDays !== FRESH_DAYS) return `--fresh-out needs --since-days ${FRESH_DAYS}${o.sinceDays !== null ? ` (not ${o.sinceDays})` : ' (not --since, not the default window)'}: only then does the apply judge creates and keeps by the set's exact ${FRESH_DAYS} days`
-  if (!(o.sinceMs <= o.now - FRESH_DAYS * DAY_MS)) return `--since starts inside the ${FRESH_DAYS}-day window, so older pages in it would not be read — use --since-days ${FRESH_DAYS}`
+  const days = HONEYCOMB_WINDOW_DAYS
+  if (o.sinceDays !== days) return `--fresh-out needs --since-days ${days}${o.sinceDays !== null ? ` (not ${o.sinceDays})` : ' (not --since, not the default window)'}: Honeycomb's window is ${days} days, and only then does the apply judge creates and keeps by the set's exact ${days} days`
+  if (!(o.sinceMs <= o.now - days * DAY_MS)) return `--since starts inside the ${days}-day window, so older pages in it would not be read — use --since-days ${days}`
   return null
 }

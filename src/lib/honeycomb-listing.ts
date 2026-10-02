@@ -851,7 +851,7 @@ export type HoneycombStage = {
   fetchedAt: string
   userAgent: string
   /**
-   * `sinceDays` is set only by a `--since-days N` stage (the weekly 7-day run): its apply then keeps an ad
+   * `sinceDays` is set only by a `--since-days N` stage (the weekly run, N = Honeycomb's 30-day window): its apply then keeps an ad
    * only when its lastmod is within N days of `fetchedAt` EXACTLY — `since` is that date's Vietnam day,
    * up to 24 h wider, and stays only the detail read's window. Absent (null) in a `--since` stage.
    */
@@ -939,7 +939,7 @@ export function readHoneycombStage(json: unknown): { ok: true; stage: HoneycombS
   const drop: Record<string, number> = {}
   if (pg.drop && typeof pg.drop === 'object') for (const [k, v] of Object.entries(pg.drop)) if (typeof v === 'number') drop[k] = v
   // ⛔ A present-but-malformed sinceDays is refused, never read as "no day window": that would quietly widen a
-  // weekly stage's apply to its broader --since date and create ads older than 7 days.
+  // weekly stage's apply to its broader --since date and create ads older than its window.
   if (p.sinceDays !== undefined && p.sinceDays !== null && !(typeof p.sinceDays === 'number' && Number.isInteger(p.sinceDays) && p.sinceDays >= 1 && p.sinceDays <= 3650)) {
     return { ok: false, reason: `params.sinceDays ${JSON.stringify(p.sinceDays)} is not a whole number of days (1–3650)` }
   }

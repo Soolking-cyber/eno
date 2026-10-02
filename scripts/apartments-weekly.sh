@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# Weekly imported-APARTMENT refresh for eno.vn — the 7-day rule. Owner, 2026-10-01: "we need only 7 days
+# Weekly imported-APARTMENT refresh for eno.vn — the freshness rule. Owner, 2026-10-01: "we need only 7 days
 # old apartments fetched weekly, remove else, only new active apartments" → an imported apartment stays
-# live only while its source shows it posted OR RE-POSTED within 7 days (src/lib/apartment-freshness.ts).
+# live only while its source shows it posted OR RE-POSTED within its window: 7 days, Honeycomb 30 (since
+# 2026-10-02) — WINDOW_DAYS_BY_SELLER in src/lib/apartment-freshness.ts is the one table.
 #
 # Per source, in this order:
 #   1. read the source → stage + FRESH SET (every apartment ad dated inside the window, incl. ads we have)
 #   2. apply the stage: create new rows, update, REVIVE rows the rule had expired that are fresh again
 #   3. expire every live row of that source NOT in the fresh set (scripts/expire-apartment-rentals.ts —
-#      share guard against a short crawl, journal + rollback first, per-page ISR tombstones)
+#      share guard against a short crawl — carry-over for a rolling window like Honeycomb's — journal +
+#      rollback first, per-page ISR tombstones)
 #   4. the BACKSTOP, whatever 1–3 did: a source with no applied fresh set for > 8 days has its rows older
-#      than 14 days (postedAt) expired, so a source that keeps failing cannot keep old flats up forever
+#      than its window + 7 days (postedAt: 14 days, Honeycomb 37 — backstopDaysFor, read by the expiry
+#      script's --backstop) expired, so a source that keeps failing cannot keep old flats up forever
 # then classify-apartment-rentals.ts once (every import rewrites `attributes` and drops the aptType /
 # furnishing it derived — its own header).
 #
@@ -44,7 +47,6 @@ STAMP="$(date +%F-%H%M%S)"
 RUN="$JROOT/$STAMP"
 KEY="${ENO_BOX_KEY:-$HOME/.ssh/CS-Linux-20260920135129228.pem}"
 PY=/usr/bin/python3            # the python.org 3.13 here lacks CA certs; the system one works
-BACKSTOP_DAYS=14
 # Every way this job can end badly notifies — including the early exits below, before any source runs.
 notify() { /usr/bin/osascript -e "display notification \"$1\" with title \"eno apartments-weekly FAILED\" sound name \"Basso\"" 2>/dev/null; }
 die() { echo "── $1"; notify "$1"; exit 1; }
@@ -92,10 +94,11 @@ expire() {
   npx tsx scripts/expire-apartment-rentals.ts --seller "$seller" --fresh "$fresh" --state-dir "$STATE" \
     ${JOURNAL[@]+"${JOURNAL[@]}"} $APPLY > "$RUN/$src-expire.log" 2>&1
 }
-# backstop <source> <sellerId> — always runs, success or not
+# backstop <source> <sellerId> — always runs, success or not. --backstop = the seller's own cutoff from the
+# lib (its window + 7 days: 14, Honeycomb 37), never one number for every source.
 backstop() {
   local src="$1" seller="$2"
-  npx tsx scripts/expire-apartment-rentals.ts --seller "$seller" --backstop-days "$BACKSTOP_DAYS" --state-dir "$STATE" \
+  npx tsx scripts/expire-apartment-rentals.ts --seller "$seller" --backstop --state-dir "$STATE" \
     ${JOURNAL[@]+"${JOURNAL[@]}"} $APPLY > "$RUN/$src-backstop.log" 2>&1 \
     || { echo "  ✗ $src backstop FAILED — see $RUN/$src-backstop.log"; FAILED+=("$src-backstop"); }
   grep -E "BACKSTOP|marked|REFUSED" "$RUN/$src-backstop.log" | sed "s/^/  [$src] /"
@@ -149,10 +152,16 @@ run_muaban() {
 }
 
 run_honeycomb() {
-  local S=honeycomb-import-seller-0001 STAGE="$RUN/honeycomb-stage.json" FRESH="$RUN/honeycomb-fresh.json"
-  # The stage exits non-zero when it cannot prove its sitemap read (it still writes the stage); Honeycomb
-  # yields 0–7 fresh posts a week, so a refused week simply skips its apply and expiry.
-  npx tsx scripts/import-honeycomb-com-vn.ts --since-days 7 --save "$STAGE" --fresh-out "$FRESH" \
+  local S=honeycomb-import-seller-0001 STAGE="$RUN/honeycomb-stage.json" FRESH="$RUN/honeycomb-fresh.json" days
+  # ⛔ Its window is 30 days, not 7 (the agency re-touches a listing every few weeks; a 7-day set held 0–7
+  # ads) — READ FROM THE ONE TABLE (windowDaysFor, src/lib/apartment-freshness.ts), never a copy here, so
+  # stage, fresh set, apply and expiry all judge by the same number. The importer refuses --fresh-out with
+  # any other --since-days, and the expiry refuses a set whose window is not the seller's.
+  days="$(npx tsx -e "import { windowDaysFor } from './src/lib/apartment-freshness'; console.log(windowDaysFor('$S'))" 2> "$RUN/honeycomb-window.log")"
+  case "$days" in ''|*[!0-9]*) fail honeycomb "reading its window from src/lib/apartment-freshness.ts"; return ;; esac
+  # The stage exits non-zero when it cannot prove its sitemap read (it still writes the stage); a refused
+  # week simply skips its apply and expiry.
+  npx tsx scripts/import-honeycomb-com-vn.ts --since-days "$days" --save "$STAGE" --fresh-out "$FRESH" \
     > "$RUN/honeycomb-stage.log" 2>&1 || { fail honeycomb stage; return; }
   if [ -n "$APPLY" ]; then
     npx tsx scripts/import-honeycomb-com-vn.ts --src "$STAGE" ${JOURNAL[@]+"${JOURNAL[@]}"} --apply > "$RUN/honeycomb-apply.log" 2>&1 || { fail honeycomb apply; return; }
