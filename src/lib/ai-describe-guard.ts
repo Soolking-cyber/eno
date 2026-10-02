@@ -10,6 +10,7 @@
  * That is the 134-iPhone incident with the safety net removed, so the net goes here, unit-tested.
  */
 import { extractSpecsFromTitles } from './electronics-specs'
+import { vietnameseWordShare } from './detect-lang'
 
 /**
  * What the deterministic extractor makes of a title's capacities, used only to tell RAM from
@@ -138,6 +139,19 @@ export type GuardInput = {
 
 export type GuardResult = { ok: true } | { ok: false; reasons: string[] }
 
+/**
+ * A Vietnamese description written without its diacritics ("LG OLED55B6PSA la Smart TV OLED 55 inch voi
+ * do phan giai 4K…"). A model answer sometimes drops the marks, and a reader then gets Vietnamese that
+ * is hard to read. Also used to re-select such rows (scripts/ai-describe-listings.ts).
+ * ⚠️ NOT ONE MARK ON ANY WORD, NOT A SHARE. Over the 7,995 written CellphoneS descriptionVi (audit export
+ * 2026-10-02) there is a cliff: 66 have no marked word at all, and the next-lowest has 12.5%. That one is
+ * spec-heavy copy with English model words, where a share line would start refusing real Vietnamese.
+ * Partly stripped text (some marks left) passes; none was found.
+ */
+export function accentlessVietnamese(descVi: string): boolean {
+  return /\p{L}/u.test(descVi) && vietnameseWordShare(descVi.normalize('NFC')) === 0
+}
+
 const MIN = 40
 const MAX = 900
 
@@ -150,6 +164,9 @@ export function guardDescription(input: GuardInput): GuardResult {
     if (text.length > MAX) reasons.push(`${label}: longer than ${MAX} chars`)
     for (const c of BANNED_CLAIMS) if (c.re.test(text)) reasons.push(`${label}: ${c.why}`)
   }
+
+  // ⛔ The Vietnamese slot must be written WITH its diacritics (translation audit 2026-10-02, F7).
+  if (descVi && accentlessVietnamese(descVi)) reasons.push('vi: Vietnamese without diacritics')
 
   // ⛔ The English slot must be free of Vietnamese characters or translate-imported-listings.ts
   // will overwrite it. This is the only gate that applies to one language and not the other.

@@ -30,7 +30,7 @@ import { db } from '../src/lib/db'
 import { buildSearchText } from '../src/lib/fold'
 import { GEMINI_MODEL } from '../src/lib/gemini-model'
 import { extractSpecsFromTitles, isLegalSpec, specsFor, type SpecKey } from '../src/lib/electronics-specs'
-import { guardDescription, isGroundedInTitle, reconcileSpecs } from '../src/lib/ai-describe-guard'
+import { accentlessVietnamese, guardDescription, isGroundedInTitle, reconcileSpecs } from '../src/lib/ai-describe-guard'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
@@ -201,14 +201,19 @@ async function verify(rows: Row[]) {
   const described = rows.filter((r) => r.description.trim() !== r.title.trim() && (r.descriptionVi ?? '').trim().length > 0)
   console.log(`${described.length} listings carry a written description — re-gating\n`)
   const failures: { row: Row; reasons: string[] }[] = []
+  let accentlessOnly = 0
   for (const row of described) {
     const v = guardDescription({
       subcategorySlug: row.subcategorySlug, title: row.title, titleVi: row.titleVi,
       attributes: parseAttrs(row.attributes),
       descEn: row.description.trim(), descVi: (row.descriptionVi ?? '').trim(),
     })
-    if (!v.ok) failures.push({ row, reasons: v.reasons })
+    // ⚠️ Missing diacritics alone is not reverted: the English is good, and an ordinary run re-describes the
+    // row in place (the `accentless` selection in main). Reverting would take the English down with it.
+    if (!v.ok && v.reasons.some((r) => r !== 'vi: Vietnamese without diacritics')) failures.push({ row, reasons: v.reasons })
+    else if (!v.ok) accentlessOnly++
   }
+  if (accentlessOnly) console.log(`${accentlessOnly} fail only for Vietnamese without diacritics: not reverted; an ordinary run re-describes them`)
   const tally = new Map<string, number>()
   for (const f of failures) for (const r of f.reasons) {
     const k = r.replace(/=.*/, ''); tally.set(k, (tally.get(k) ?? 0) + 1)
@@ -281,7 +286,14 @@ async function main() {
    */
   if (VERIFY) { await verify(rows); await db.$disconnect(); return }
 
-  const todo = (REDO ? rows : rows.filter((r) => r.description.trim() === r.title.trim()))
+  /**
+   * Undescribed rows, plus written ones whose Vietnamese came back without diacritics (66 CellphoneS
+   * rows, translation audit 2026-10-02). The gate now refuses that answer, so these re-describe in place:
+   * no `--verify --apply` revert first, and the English stays live until a passing answer replaces both.
+   */
+  const accentless = (r: Row) => r.description.trim() !== r.title.trim() && !!r.descriptionVi?.trim() && accentlessVietnamese(r.descriptionVi)
+  // Undescribed rows first: a row the model keeps answering without marks must not fill a --limit every run.
+  const todo = (REDO ? rows : [...rows.filter((r) => r.description.trim() === r.title.trim()), ...rows.filter(accentless)])
     .slice(0, LIMIT || undefined)
   console.log(`${rows.length} listings under "${SELLER}"${SUB ? ` / ${SUB}` : ''} — ${todo.length} to describe${REDO ? ' (--redo)' : ''}\n`)
   if (!todo.length) { await db.$disconnect(); return }

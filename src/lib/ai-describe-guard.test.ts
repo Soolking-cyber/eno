@@ -1,15 +1,17 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { isLegalSpec, type SpecKey } from './electronics-specs'
-import { VI_CHARS, guardDescription, isGroundedInTitle, reconcileSpecs } from './ai-describe-guard'
+import { VI_CHARS, accentlessVietnamese, guardDescription, isGroundedInTitle, reconcileSpecs } from './ai-describe-guard'
 
 const base = {
   subcategorySlug: 'laptops-pcs',
   title: 'Laptop ASUS VivoBook 14 M1407KA-LY849W',
   titleVi: null,
   attributes: { laptopSize: '14' } as Record<string, string>,
-  descVi: 'ASUS VivoBook 14 la chiec laptop mong nhe danh cho cong viec hang ngay va hoc tap.',
+  descVi: 'ASUS VivoBook 14 là chiếc laptop mỏng nhẹ dành cho công việc hằng ngày và học tập.',
 }
+/** Refused for something OTHER than missing diacritics: keeps the unaccented claim cases testing their own regex. */
+const refusedBesidesAccents = (r: ReturnType<typeof guardDescription>) => !r.ok && r.reasons.some((x) => x !== 'vi: Vietnamese without diacritics')
 const ok = (descEn: string, over: Partial<typeof base> = {}) =>
   guardDescription({ ...base, ...over, descEn })
 
@@ -43,7 +45,7 @@ describe('guardDescription — uncorroborated spec claims', () => {
   // ⚠️ The Vietnamese slot is checked too — a fabricated spec is no safer in Vietnamese.
   it('checks the Vietnamese slot for the same fabrication', () => {
     const r = guardDescription({ ...base, descEn: 'A slim 14-inch laptop for everyday study and work at home.',
-      descVi: 'Laptop mong nhe voi 32GB RAM cho cong viec hang ngay.' })
+      descVi: 'Laptop mỏng nhẹ với 32GB RAM cho công việc hằng ngày.' })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.reasons.join(' ')).toContain('vi: uncorroborated spec claim ram=32')
   })
@@ -74,9 +76,9 @@ describe('guardDescription — the gaps reviewers found after the first version'
    */
   it('catches a Vietnamese claim, accented and unaccented', () => {
     const vi = (t: string) => guardDescription({ ...base, descEn: 'A slim 14-inch laptop for everyday study and work.', descVi: t })
-    expect(vi('San pham duoc doi tra trong 7 ngay tai cua hang.').ok).toBe(false)
+    expect(refusedBesidesAccents(vi('San pham duoc doi tra trong 7 ngay tai cua hang.'))).toBe(true)
     expect(vi('Sản phẩm được đổi trả trong 7 ngày tại cửa hàng.').ok).toBe(false)
-    expect(vi('May co bao hanh 12 thang tai trung tam.').ok).toBe(false)
+    expect(refusedBesidesAccents(vi('May co bao hanh 12 thang tai trung tam.'))).toBe(true)
     expect(vi('Laptop mỏng nhẹ dành cho công việc hằng ngày và học tập.').ok).toBe(true)
   })
   // ⚠️ ANY shipping mention, not only a free one — this marketplace never touches the goods.
@@ -247,7 +249,7 @@ describe('reconcileSpecs', () => {
 })
 
 describe('guardDescription — the false positives that a blind revert would have destroyed', () => {
-  const g = (descEn: string, descVi = 'Dien thoai thong minh phu hop cho nhu cau su dung hang ngay cua ban.') =>
+  const g = (descEn: string, descVi = 'Điện thoại thông minh phù hợp cho nhu cầu sử dụng hằng ngày của bạn.') =>
     guardDescription({ subcategorySlug: null, title: 'X', titleVi: null, attributes: {}, descEn, descVi })
 
   /**
@@ -279,6 +281,23 @@ describe('guardDescription — the false positives that a blind revert would hav
   })
   it('still catches a real đồng price', () => {
     const en = 'A neutral English description of this product for everyday use at home today.'
-    expect(g(en, 'San pham nay co gia 18.290.000 đ tai cua hang cua chung toi hom nay.').ok).toBe(false)
+    expect(refusedBesidesAccents(g(en, 'San pham nay co gia 18.290.000 đ tai cua hang cua chung toi hom nay.'))).toBe(true)
+  })
+})
+
+/** Translation audit 2026-10-02, F7: 66 live CellphoneS descriptionVi written without diacritics. */
+describe('guardDescription — Vietnamese without its diacritics', () => {
+  const accentless = 'LG OLED55B6PSA la Smart TV OLED 55 inch voi do phan giai 4K, mang lai hinh anh sac net cho phong khach.'
+  it('refuses it', () => {
+    expect(accentlessVietnamese(accentless)).toBe(true)
+    const r = guardDescription({ ...base, descEn: 'The LG OLED55B6PSA is a 55-inch 4K OLED smart TV for the living room.', descVi: accentless })
+    expect(r.ok).toBe(false)
+    expect(!r.ok && r.reasons).toContain('vi: Vietnamese without diacritics')
+  })
+  it('accepts real Vietnamese, including spec-heavy copy with English model words', () => {
+    for (const t of [base.descVi, 'Laptop ASUS Vivobook S16 S3607CA-SH080W, chip Intel Core 5 120U, RAM 16GB, SSD 512GB, màn hình 16 inch.',
+      'Laptop Dell XPS 13 9340, Intel Core Ultra 7, RAM 32GB, SSD 1TB, OLED 3K, Windows 11 Home, Wi-Fi 7, Thunderbolt 4, bàn phím có đèn.']) {
+      expect(accentlessVietnamese(t), t).toBe(false)
+    }
   })
 })
