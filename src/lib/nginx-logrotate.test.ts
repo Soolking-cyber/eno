@@ -151,11 +151,18 @@ describe('nginx log retention · never edits the package conffile', () => {
 function findLogrotate(): string | null {
   const candidates = [process.env.LOGROTATE_BIN, 'logrotate', '/usr/sbin/logrotate'].filter(Boolean) as string[]
   for (const bin of candidates) {
-    const r = spawnSync(bin, ['--version'], { encoding: 'utf8' })
+    const r = spawnSync(bin, ['--version'], { encoding: 'utf8', timeout: 10_000 })
     const ver = /logrotate\s+(\d+)\.(\d+)\.(\d+)/.exec(`${r.stdout}${r.stderr}`)
     if (r.status === 0 && ver) {
       const [maj, min] = [Number(ver[1]), Number(ver[2])]
-      if (maj > 3 || (maj === 3 && min >= 21)) return bin
+      if (maj > 3 || (maj === 3 && min >= 21)) {
+        // ⛔ ABSOLUTE, never the bare name: the sandbox's `logrotate` shim execs $LOGROTATE with its own bin/
+        // first on PATH, so a bare 'logrotate' resolved to the shim itself and exec'd it forever — CI's Test
+        // step hung for 6 h on every push from 2026-10-01 (found by reproducing on Debian with logrotate 3.21).
+        if (bin.includes('/')) return bin
+        const abs = spawnSync('sh', ['-c', `command -v ${bin}`], { encoding: 'utf8' }).stdout.trim()
+        if (abs.startsWith('/')) return abs
+      }
     }
   }
   return null
@@ -179,7 +186,7 @@ describe.skipIf(!LOGROTATE)('nginx log retention · logrotate resolves the two s
       s.replaceAll('/var/log/nginx', logDir).replaceAll('www-data adm', `${userInfo().username} ${group()}`)
     for (const [name, body] of Object.entries(files)) writeFileSync(join(confDir, name), localise(body), { mode: 0o644 })
     writeFileSync(join(d, 'logrotate.conf'), `include ${confDir}\n`, { mode: 0o644 })
-    const r = spawnSync(LOGROTATE as string, ['-d', '-s', join(d, 'state'), join(d, 'logrotate.conf')], { encoding: 'utf8' })
+    const r = spawnSync(LOGROTATE as string, ['-d', '-s', join(d, 'state'), join(d, 'logrotate.conf')], { encoding: 'utf8', timeout: 60_000 })
     const out = `${r.stdout}${r.stderr}`
     // "considering log X" belongs to the "rotating pattern: … (N rotations)" header above it — the
     // same reading install-logrotate.sh step 4 makes on the box.
@@ -265,19 +272,20 @@ describe.skipIf(!LOGROTATE)('nginx log retention · logrotate resolves the two s
       'invoke-rc.d': 'exit 0',
       docker: 'exit 0',
       'dpkg-query': `case "$*" in *Conffiles*) printf '\\n /etc/nginx/nginx.conf 00\\n ${p('etc/logrotate.d/nginx')} ${md5}\\n' ;; *Version*) printf '1.24.0-2ubuntu7.18' ;; esac`,
-      systemctl: 'case "$1" in is-enabled|is-active) exit 0 ;; show) echo "tomorrow" ;; esac',
+      // Prints what systemctl prints: the installer compares `is-active` OUTPUT to "active" (4ed6aa647).
+      systemctl: 'case "$1" in is-enabled) echo enabled ;; is-active) echo active ;; show) echo "tomorrow" ;; esac',
       install: 'while [ $# -gt 2 ]; do case "$1" in -m|-o|-g) shift 2 ;; *) shift ;; esac; done\ncp "$1" "$2"',
       logrotate: `case " $* " in *" -s "*) exec '${LOGROTATE}' "$@" ;; esac\nexec '${LOGROTATE}' -s '${defaultState}' "$@"`,
     }
     for (const [name, body] of Object.entries(shims)) writeFileSync(p(`bin/${name}`), `#!/bin/sh\n${body}\n`, { mode: 0o755 })
     const env = { ...process.env, PATH: `${p('bin')}:${process.env.PATH}` }
     const run = (...args: string[]) => {
-      const r = spawnSync('bash', [p('vn-node/install-logrotate.sh'), ...args], { encoding: 'utf8', cwd: d, env })
+      const r = spawnSync('bash', [p('vn-node/install-logrotate.sh'), ...args], { encoding: 'utf8', cwd: d, env, timeout: 60_000 })
       return { status: r.status, out: `${r.stdout}${r.stderr}`.replace(/\x1b\[[0-9;]*m/g, '') }
     }
     /** The logrotate the installer runs (the shim at the front of its PATH). */
     const logrotate = (...args: string[]) => {
-      const r = spawnSync(p('bin/logrotate'), args, { encoding: 'utf8', cwd: d, env })
+      const r = spawnSync(p('bin/logrotate'), args, { encoding: 'utf8', cwd: d, env, timeout: 60_000 })
       return { status: r.status, out: `${r.stdout}${r.stderr}` }
     }
     return { p, run, logrotate, pkgStanza }
