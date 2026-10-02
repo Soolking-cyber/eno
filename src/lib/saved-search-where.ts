@@ -5,6 +5,8 @@ import { hasPlainTextFallback, inferDistrictFromQuery, strippedUnderExplicitDist
 import { db } from './db'
 import { scopedListingWhere } from './edition-scope'
 import type { SavedSearchParams } from './saved-search'
+import { attrWhere } from './attr-match'
+import { POSTED_FACET_KEY, postedOffered } from './posted-filter'
 
 // Build the Prisma where for a saved search — IDENTICAL semantics to the public
 // feed (/api/listings) so "matches" line up with what the buyer would see.
@@ -72,6 +74,17 @@ async function whereFor(p: SavedSearchParams, phrase: DistrictInference | null, 
   if (text) and.push({ searchText: { contains: fold(text) } })
   const df = await districtScopeForSlug(districtSlug)
   if (df) and.push(df)
-  if (p.attrs) for (const [k, v] of Object.entries(p.attrs)) and.push({ attributes: { contains: `"${k}":"${v}"` } })
+  if (p.attrs) {
+    for (const [k, v] of Object.entries(p.attrs)) {
+      // `posted` filters `postedAt`, never `attributes` (src/lib/posted-filter.ts) — matched as text it
+      // would match nothing and the alert would never fire. Same clause and same offered-only rule as
+      // the feed; the window is measured back from when the alert runs ("posted this week").
+      if (k === POSTED_FACET_KEY) {
+        if (postedOffered(p.category, p.subcategory)) and.push(attrWhere(k, v))
+        continue
+      }
+      and.push({ attributes: { contains: `"${k}":"${v}"` } })
+    }
+  }
   return { AND: and }
 }

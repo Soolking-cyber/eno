@@ -9,6 +9,7 @@ import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { Prisma } from '@/generated/prisma/client'
 import { isRangeColumn } from '@/lib/taxonomy'
 import { attrFiltersFrom, attrWhere } from '@/lib/attr-match'
+import { POSTED_FACET_KEY, postedOffered } from '@/lib/posted-filter'
 import { fold } from '@/lib/fold'
 import { textPredicate } from '@/lib/search-match'
 import { aliasesFor } from '@/generated/model-lineage'
@@ -174,6 +175,12 @@ export type FeedFilterOptions = {
    * category" — without this the Teachers tile always counts 0 and the rail hides it.
    */
   includeTeachers?: boolean
+  /**
+   * The request's reference instant for time-window filters (the Posted filter, src/lib/posted-filter.ts).
+   * The route passes ONE `now` to the feed and to every facet-count base, so the grid and its chips can
+   * never sit on opposite sides of a 5-minute step. Omitted = the current time.
+   */
+  now?: Date
 }
 
 /** Parse the feed's search params and build the Prisma where clause + the tracked sub-filters. */
@@ -538,7 +545,12 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
    * match could not express — an open-ended "6+" room count, and "Fits" chips whose rows store a
    * device name instead of the chip's slug.
    */
-  for (const { key, value } of attrFiltersFrom(searchParams)) andFilters.push(attrWhere(key, value))
+  for (const { key, value } of attrFiltersFrom(searchParams)) {
+    // `posted` (src/lib/posted-filter.ts) filters a column, so a stray value would narrow ANY feed;
+    // it applies only on a view whose Filter panel offers it — never invisibly on vehicle hire.
+    if (key === POSTED_FACET_KEY && !postedOffered(category, subcategory)) continue
+    andFilters.push(attrWhere(key, value, opts.now))
+  }
 
   // Numeric range facets (year/mileage/engine) live on dedicated columns and filter
   // as a min–max range: `range_<column>=min-max` (either side may be empty/open).
@@ -615,8 +627,8 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
  * facet counts (handed the decision, see releasedParams) and the map's buildings. The typeahead and
  * saved-search alerts apply the same rule over their own queries.
  */
-export async function resolveFeedFilters(searchParams: URLSearchParams) {
-  const f = await buildFeedFilters(searchParams)
+export async function resolveFeedFilters(searchParams: URLSearchParams, opts: { now?: Date } = {}) {
+  const f = await buildFeedFilters(searchParams, { now: opts.now })
   if (!f.districtInference || !hasPlainTextFallback(f.districtInference)) return f
   const anyRow = async (x: { andFilters: Prisma.ListingWhereInput[]; priceFilter: Prisma.ListingWhereInput | null }) =>
     // `{ teachers: true }`: andFilters already carries buildFeedFilters' teacher decision.
@@ -624,7 +636,7 @@ export async function resolveFeedFilters(searchParams: URLSearchParams) {
   // ⚠️ A FAILED PROBE KEEPS THE DISTRICT READING (opus): the net must not turn a search that would
   // have answered into a 500. Failures are not cached, so the next request asks again.
   if (await anyRow(f).catch(() => true)) return f
-  const plain = await buildFeedFilters(searchParams, { inferDistrict: false })
+  const plain = await buildFeedFilters(searchParams, { inferDistrict: false, now: opts.now })
   return (await anyRow(plain).catch(() => false)) ? plain : f
 }
 

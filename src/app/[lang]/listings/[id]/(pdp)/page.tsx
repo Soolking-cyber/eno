@@ -456,7 +456,8 @@ export default async function ListingPage({ params }: Props) {
       : null
 
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []
-  const attrFacets = facetsFor(rawListing.category.slug, rawListing.subcategorySlug)
+  // A filter-only facet (Posted) is never a property of the listing, even if a stray attribute says so.
+  const attrFacets = facetsFor(rawListing.category.slug, rawListing.subcategorySlug).filter((f) => !f.filterOnly)
   // Structured numeric specs (vehicles) — rendered first in Details, with units.
   // `value` is a ReactNode, not a string, so a grouped number can be a client leaf:
   // mileage used to be formatted here with a hardcoded 'en-US' and a vi buyer read

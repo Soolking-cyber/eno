@@ -112,6 +112,13 @@ export type FacetDef = {
   // still whitelists its key, so browse keeps working.
   derived?: boolean
   /**
+   * FILTER-ONLY: the facet narrows browse but is never a property OF a listing — nothing stores it in
+   * `attributes`, the post forms never ask for it, the PDP never prints it, and /api/categories (the
+   * native apps' post schema) does not list it. Today only `posted`, which filters `postedAt`
+   * (src/lib/posted-filter.ts). Always set `derived` with it, so the wizard's own filter skips it too.
+   */
+  filterOnly?: boolean
+  /**
    * `orMore` marks an OPEN-ENDED top bucket ("6+"): the chip matches its own stored value AND every
    * larger count — see `attrNeedles` in src/lib/attr-match.ts, which the feed filter and the chip
    * counts both read, so the count and the tap cannot disagree about what "6+" means.
@@ -523,6 +530,19 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'ebike-rental', name: 'E-bike', nameVi: 'Xe điện', icon: 'Zap', keywords: ['e-bike rental', 'ebike rental', 'electric scooter rental', 'thuê xe điện'] },
     ],
     facets: [
+      // Owner, 2026-10-02: "we need recency filter when property was posted up to 7 days". Filters
+      // `postedAt` (src/lib/posted-filter.ts), not `attributes`. On every rentals view EXCEPT vehicle
+      // hire — on the whole-category view it narrows every row, cars included, which is what a buyer
+      // asking for "posted this week" means; `excludeSubcats` (not `subcats`) is what keeps it there,
+      // since facetsFor() drops a `subcats` facet when no subcategory is chosen.
+      // ⚠️ VI "Ngày đăng" (posting date), NOT "Đăng tin": that phrase is the "post an ad" button, and a
+      // buyer would read the heading as an action (a reviewer's catch). Options read as one series.
+      { key: 'posted', label: 'Posted', labelVi: 'Ngày đăng', kind: 'toggle', derived: true, filterOnly: true,
+        excludeSubcats: ['motorbike-rental', 'car-rental', 'bicycle-rental', 'ebike-rental'], options: [
+        { value: '1d', label: 'Last 24 hours', labelVi: 'Trong 24 giờ' },
+        { value: '3d', label: 'Last 3 days', labelVi: 'Trong 3 ngày' },
+        { value: '7d', label: 'Last 7 days', labelVi: 'Trong 7 ngày' },
+      ] },
       { key: 'rentalPeriod', label: 'Rental period', labelVi: 'Kỳ thuê', kind: 'toggle', options: [
         { value: 'hourly', label: 'Hourly', labelVi: 'Theo giờ' },
         { value: 'daily', label: 'Daily', labelVi: 'Theo ngày' },

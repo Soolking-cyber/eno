@@ -21,6 +21,9 @@ const h = vi.hoisted(() => ({
   groups: {} as Record<string, unknown[]>,
   throwOn: null as string | null,
   categoryCalls: 0,
+  // `count` serves the Posted rail (src/lib/posted-filter.ts): one total, then one per window.
+  counts: [] as Prisma.ListingWhereInput[],
+  countAnswers: [] as number[],
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -31,6 +34,10 @@ vi.mock('@/lib/db', () => ({
         const key = args.by.join('+')
         if (h.throwOn === key) throw new Error('groupBy exploded')
         return h.groups[key] ?? []
+      },
+      count: async (args: { where: Prisma.ListingWhereInput }) => {
+        h.counts.push(args.where)
+        return h.countAnswers[h.counts.length - 1] ?? 0
       },
     },
     category: {
@@ -124,6 +131,8 @@ beforeEach(() => {
   h.groups = {}
   h.throwOn = null
   h.categoryCalls = 0
+  h.counts = []
+  h.countAnswers = []
   seen.length = 0
   __clearFacetCountCache()
 })
@@ -686,6 +695,47 @@ describe('attribute, range and Good-price rails', () => {
     // Range presence: EVERY attr filter applied — only the 10-row bucket survives.
     expect(out.rangePresent).toEqual({ areaM2: 10 })
     expect(out.attrScope).toBe('rentals/apartment-rental')
+  })
+
+  it('counts the Posted rail with its own released base, one count per window, inside the other filters', async () => {
+    h.counts = []
+    h.countAnswers = [40, 3, 9, 21] // total, then 1d / 3d / 7d
+    h.groups['attributes+facetTokens'] = [bucket('{"bedrooms":"2"}', 21)]
+    const out = await run({ category: 'rentals', subcategory: 'apartment-rental', attr_posted: '7d', attr_bedrooms: '2' }, ['attr'])
+    expect(out.attr!.posted).toEqual({ all: 40, values: { '1d': 3, '3d': 9, '7d': 21 } })
+    expect(h.counts).toHaveLength(4)
+    const total = JSON.stringify(h.counts[0])
+    // Its own filter is released from its base; the bedrooms filter is not. (The test's buildFilters
+    // echoes params, so a base shows the PARAM; the windows add the real postedAt clause on top.)
+    expect(total).not.toContain('attr_posted')
+    expect(total).toContain('attr_bedrooms')
+    // Each window narrows that same base by postedAt.
+    for (const w of h.counts.slice(1)) expect(JSON.stringify(w)).toContain('postedAt')
+    // The attribute rails' base keeps the chosen window, so every other chip counts inside it.
+    const attrCall = h.calls.find((c) => c.by.join('+') === 'attributes+facetTokens')
+    expect(JSON.stringify(attrCall!.where)).toContain('attr_posted')
+  })
+
+  it('measures every base and every window from ONE reference instant — the one the route passes', async () => {
+    h.counts = []
+    const instants: (Date | undefined)[] = []
+    const now = new Date('2026-10-02T07:39:59.900Z') // 100 ms before a 5-minute step
+    await computeFacetCounts({
+      searchParams: new URLSearchParams({ category: 'rentals', subcategory: 'apartment-rental', attr_posted: '1d' }),
+      buildFilters: async (p, o) => { instants.push(o?.now); return buildFilters(p) },
+      dimensions: ['attr'],
+      now,
+    })
+    expect(instants.length).toBeGreaterThan(0)
+    for (const t of instants) expect(t).toBe(now)
+    // The 1d window is measured back from that instant's step (07:40), not from the wall clock.
+    expect(JSON.stringify(h.counts[1])).toContain('2026-10-01T07:40:00.000Z')
+  })
+
+  it('asks no Posted counts on vehicle hire, where the filter is not offered', async () => {
+    h.counts = []
+    await run({ category: 'rentals', subcategory: 'car-rental' }, ['attr'])
+    expect(h.counts).toHaveLength(0)
   })
 
   it('counts the open-ended top bucket as ≥6, the way the filter does', async () => {

@@ -94,8 +94,11 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
   // ⚠️ RESOLVED, not merely built: a district read out of `q` that would find nothing where the plain
   // words find something is dropped here (resolveFeedFilters), and every figure below — rows, total,
   // histogram, facet counts — follows that one decision.
+  // ONE reference instant for the grid AND every count below, so a time-window filter (Posted) cannot
+  // put the chips and the results on opposite sides of a 5-minute step (src/lib/posted-filter.ts).
+  const now = new Date()
   const { category, q, inferredDistrict, sort, featuredOnly, limit, offset, priceMin, priceMax, histogram, looseMatch, priorityCategory, andFilters, pgTextFilter, subcategoryFilter, where } =
-    await resolveFeedFilters(searchParams)
+    await resolveFeedFilters(searchParams, { now })
 
   /**
    * HISTOGRAM MODE — the price distribution of EVERY listing matching the active filters, as nice
@@ -170,7 +173,7 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
      * can drop the ones with nothing in them — measured 2026-09-25, 27 of 34 had no public row at all.
      * They are counted out of the `area` groupBy the rail already runs; no extra query.
      */
-    ? computeFacetCounts({ searchParams, buildFilters: buildFeedFilters, inferredDistrict, provinceValues: PROVINCE_NAMES_EN }).catch((e: unknown) => {
+    ? computeFacetCounts({ searchParams, buildFilters: buildFeedFilters, inferredDistrict, provinceValues: PROVINCE_NAMES_EN, now }).catch((e: unknown) => {
         facetsError = e
         return {} as FacetCounts
       })
@@ -235,7 +238,7 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
     subPlans = await Promise.all([...groups.values()].map(async (g) => {
       const p = releasedParams(searchParams, 'subcategory', inferredDistrict)
       for (const k of g.drop) p.delete(k)
-      return { targets: g.targets, base: (await buildFeedFilters(p)).andFilters }
+      return { targets: g.targets, base: (await buildFeedFilters(p, { now })).andFilters }
     }))
   }
 

@@ -123,3 +123,20 @@ describe('buildListingWhere — the feed’s district scope', () => {
     expect(describeParams({ category: 'electronics', district: 'cau-giay' })).toContain('Cau Giay')
   })
 })
+
+describe('buildListingWhere — the Posted filter', () => {
+  const clauses = (w: any) => JSON.stringify(w)
+
+  it('matches postedAt, never the attributes text, so a "posted this week" alert can fire', async () => {
+    const w = await buildListingWhere({ category: 'rentals', subcategory: 'apartment-rental', attrs: { posted: '7d', bedrooms: '2' } } as any)
+    expect(clauses(w)).toContain('postedAt')
+    expect(clauses(w)).not.toContain('\\"posted\\"')
+    expect(clauses(w)).toContain('\\"bedrooms\\":\\"2\\"')
+  })
+
+  it('is dropped where the feed would drop it (vehicle hire)', async () => {
+    const w = await buildListingWhere({ category: 'rentals', subcategory: 'car-rental', attrs: { posted: '7d' } } as any)
+    expect(clauses(w)).not.toContain('postedAt')
+    expect(clauses(w)).not.toContain('posted')
+  })
+})

@@ -40,7 +40,8 @@ export const GET = route({ auth: 'public' }, async () => {
           return { value: v, label: t?.label ?? v, labelVi: t?.labelVi ?? v }
         }),
         brandable: categoryHasBrand(c.slug),
-        facets: c.facets.map((f) => ({
+        // Filter-only facets (Posted) are browse filters, not a field a post carries — not in the post schema.
+        facets: c.facets.filter((f) => !f.filterOnly).map((f) => ({
           key: f.key,
           label: f.label,
           labelVi: f.labelVi,

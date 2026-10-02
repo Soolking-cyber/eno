@@ -4,6 +4,7 @@ import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
 import { CATEGORY_BY_SLUG, LISTING_TYPES, categoryHasBrand, facetsFor, rangeFacetsFor, typesFor, type FacetDef } from '@/lib/taxonomy'
 import { attrFiltersFrom, attrMatcher, viewScope } from '@/lib/attr-match'
+import { POSTED_FACET_KEY, postedCutoff, postedNow } from '@/lib/posted-filter'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { matchesProvinceRow } from '@/lib/province-match'
 import { districtTextMatches, longerDistrictSpellings } from '@/lib/district-match'
@@ -120,6 +121,12 @@ export type DimensionCounts = {
  * previous place.
  */
 export type FacetDimension = 'category' | 'subcategory' | 'brand' | 'model' | 'condition' | 'type' | 'year' | 'area' | 'attr' | 'deal'
+/**
+ * What a count base can release: every rail's dimension, plus `posted` — the Posted rail's base, which
+ * is counted as part of the `attr` dimension (it lives in the attribute Filter panel) and is NOT a
+ * dimension a caller can ask for on its own.
+ */
+type ReleaseKey = FacetDimension | 'posted'
 
 /**
  * The payload. A dimension is ABSENT when it was not requested or could not apply (no brand rail
@@ -333,7 +340,7 @@ const TEXT_PARAMS = ['q', 'match']
  */
 export function releasedParams(
   searchParams: URLSearchParams,
-  dimension: FacetDimension,
+  dimension: ReleaseKey,
   /**
    * The district the feed read out of `q` and APPLIED — the response's `inferredDistrict`, after
    * resolveFeedFilters. Omitted (a caller with no feed decision to hand over), the words are read
@@ -387,8 +394,14 @@ export function releasedParams(
     // ⚠️ EVERY `attr_*` AT ONCE, NOT ONE FACET: one grouped query answers every attribute rail, and
     // each rail re-applies the OTHER attribute filters in memory (attrMatcher, the feed's own needles).
     // `range_*` stays in the base — a range filter narrows the attribute chips like any other filter.
+    // ⚠️ …EXCEPT `attr_posted`, WHICH STAYS IN THE BASE. It filters a column (src/lib/posted-filter.ts),
+    // so it cannot be re-applied in memory like the others; kept in the database `where`, every other
+    // chip is counted inside the chosen window. Its OWN rail releases it below (`posted`).
     case 'attr':
-      for (const k of [...p.keys()]) if (k.startsWith('attr_')) p.delete(k)
+      for (const k of [...p.keys()]) if (k.startsWith('attr_') && k !== `attr_${POSTED_FACET_KEY}`) p.delete(k)
+      break
+    case 'posted':
+      p.delete(`attr_${POSTED_FACET_KEY}`)
       break
     case 'deal':
       p.delete('deal')
@@ -478,7 +491,7 @@ export function subcategoryDropPlan(searchParams: URLSearchParams, category: str
  * can drive the release semantics with a builder it controls. The route passes `buildFeedFilters`
  * from `src/app/api/listings/feed-query.ts` — there is exactly one implementation.
  */
-export type FeedFilterBuilder = (params: URLSearchParams, opts?: { includeTeachers?: boolean }) => Promise<{
+export type FeedFilterBuilder = (params: URLSearchParams, opts?: { includeTeachers?: boolean; now?: Date }) => Promise<{
   andFilters: Prisma.ListingWhereInput[]
   pgTextFilter: Prisma.ListingWhereInput | null
 }>
@@ -660,13 +673,15 @@ export function __clearFacetCountCache() {
  */
 export async function computeFacetCounts(opts: FacetCountOptions): Promise<FacetCounts> {
   const { searchParams, buildFilters, provinceValues, now, inferredDistrict } = opts
+  /** ONE reference instant for every time-window filter in every base (the route passes the feed's). */
+  const refNow = now ?? new Date()
   const dimensions = opts.dimensions ?? defaultDimensions(searchParams)
 
   /** Every filter for `dimension`'s count: the feed's own AND-array minus the free-text clause. */
-  const baseFor = async (dimension: FacetDimension): Promise<Prisma.ListingWhereInput[]> => {
+  const baseFor = async (dimension: ReleaseKey): Promise<Prisma.ListingWhereInput[]> => {
     // The category dimension counts every category side by side, teachers included — the teacher
     // rows then land ONLY in the teachers bucket, so no other count moves (2026-09-30).
-    const { andFilters, pgTextFilter } = await buildFilters(releasedParams(searchParams, dimension, inferredDistrict), dimension === 'category' ? { includeTeachers: true } : undefined)
+    const { andFilters, pgTextFilter } = await buildFilters(releasedParams(searchParams, dimension, inferredDistrict), dimension === 'category' ? { includeTeachers: true, now: refNow } : { now: refNow })
     return andFilters.filter((f) => f !== pgTextFilter)
   }
 
@@ -693,7 +708,15 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
      * Postgres flattens it — cheaper than a leak.
      */
     const view = want.has('attr') ? attrView(searchParams) : null
-    const [catBase, subBase, brandBase, condBase, typeBase, yearBase, areaBase, attrBase, dealBase] = await Promise.all([
+    /**
+     * The "Posted" rail (src/lib/posted-filter.ts) is in the view's facet list like any chip rail, but
+     * it is counted by its own queries: its base releases only `attr_posted`, and each option is that
+     * base AND `postedAt >= cutoff`. The cutoffs move in 5-minute steps, so the memo key below changes
+     * once per step, not on every request. Its base is built in the SAME batch as every other base.
+     */
+    const postedFacet = view?.facets.find((f) => f.key === POSTED_FACET_KEY) ?? null
+    const postedStep = postedFacet ? postedNow(refNow) : null
+    const [catBase, subBase, brandBase, condBase, typeBase, yearBase, areaBase, attrBase, dealBase, postedBase] = await Promise.all([
       want.has('category') ? baseFor('category').then((b) => scopedListingWhere({ AND: b }, { teachers: true })) : null,
       want.has('subcategory') ? baseFor('subcategory').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
       want.has('brand') || want.has('model') ? baseFor('brand').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
@@ -703,7 +726,15 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
       want.has('area') ? baseFor('area').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
       view ? baseFor('attr').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
       want.has('deal') ? baseFor('deal').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
+      postedFacet ? baseFor('posted').then((b) => scopedListingWhere({ AND: b }, { teachers: onTeachers })) : null,
     ])
+    // Each window is the (already scoped) Posted base AND its cutoff — no second scope resolution.
+    const postedWindows = postedFacet && postedBase && postedStep
+      ? postedFacet.options.map((o) => {
+          const cutoff = postedCutoff(o.value, postedStep)
+          return cutoff ? { AND: [postedBase, { postedAt: { gte: cutoff } }] } : null
+        })
+      : null
     /** The request's own `attr_*` filters — released from `attrBase`, re-applied per rail in memory. */
     const activeAttrs = attrFiltersFrom(searchParams)
     /**
@@ -759,6 +790,7 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
       activeAttrs,
       modelInCategory ? modelCategory : null,
       catBase, subBase, brandBase, condBase, typeBase, yearBase, areaBase, attrBase, dealBase,
+      postedBase, postedStep?.toISOString() ?? null,
     ])
     const hit = facetCache.get(cacheKey)
     if (hit && Date.now() - hit.at < FACET_TTL) return hit.data
@@ -786,7 +818,7 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
     // Fired together: each groupBy is an independent aggregate on its own pooled connection, so
     // six of them cost ~one round trip rather than six. Grouped by SHARED BASE, not by rail —
     // brand+model come out of one query, and so do the district and province rails.
-    const [categoryGroups, categoryNames, subRes, brandRes, conditionRes, typeRes, yearRes, areaRes, attrRes, dealRes] = await Promise.all([
+    const [categoryGroups, categoryNames, subRes, brandRes, conditionRes, typeRes, yearRes, areaRes, attrRes, dealRes, postedRes] = await Promise.all([
       catBase ? db.listing.groupBy({ by: ['categoryId'], where: catBase, _count: { _all: true } }) : null,
       catBase || modelInCategory ? categoryIdToSlug() : null,
       subBase ? db.listing.groupBy({ by: ['subcategorySlug'], where: subBase, _count: { _all: true } }) : null,
@@ -828,6 +860,14 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
           })
         : null,
       dealBase && !typeAndDeal ? db.listing.groupBy({ by: ['marketPosition'], where: dealBase, _count: { _all: true } }) : null,
+      // The Posted rail: the released base's total, then one count per window. Indexed
+      // ([verified, status, categoryId, subcategorySlug, postedAt]); asked only on property-rental views.
+      postedBase && postedWindows
+        ? Promise.all([
+            db.listing.count({ where: postedBase }),
+            ...postedWindows.map((w) => (w ? db.listing.count({ where: w }) : Promise.resolve(0))),
+          ])
+        : null,
     ])
     const categoryRes = categoryGroups && categoryNames ? { grouped: categoryGroups, byId: categoryNames } : null
 
@@ -939,6 +979,7 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
       const survives = (b: Bucket, skipKey: string | null) => actives.every((a) => a.key === skipKey || a.test(b))
       const attr: Record<string, DimensionCounts> = {}
       for (const f of view.facets) {
+        if (f.key === POSTED_FACET_KEY) continue // counted from postedRes below
         const options = f.options.map((o) => ({ value: o.value, test: attrMatcher(f.key, o.value) }))
         const values: Record<string, number> = Object.fromEntries(options.map((o) => [o.value, 0]))
         let all = 0
@@ -953,6 +994,10 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
       for (const b of buckets) {
         if (!survives(b, null)) continue
         for (const col of view.rangeColumns) present[col] += b.cols[col] ?? 0
+      }
+      if (postedRes && postedFacet) {
+        const [all, ...counts] = postedRes
+        attr[POSTED_FACET_KEY] = { all, values: Object.fromEntries(postedFacet.options.map((o, i) => [o.value, counts[i] ?? 0])) }
       }
       out.attr = attr
       out.attrScope = view.scope

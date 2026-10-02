@@ -21,6 +21,7 @@ import type { Prisma } from '@/generated/prisma/client'
 import { TAXONOMY } from '@/lib/taxonomy'
 import { facetTokenFor } from '@/lib/facet-tokens'
 import { COMPAT_DISPLAY_PREFIXES } from '@/lib/electronics-specs'
+import { POSTED_FACET_KEY, postedCutoff } from '@/lib/posted-filter'
 
 /**
  * The largest count an open-ended bucket enumerates. A bound, because `attributes` is a JSON STRING
@@ -86,7 +87,14 @@ export function attrNeedles(key: string, value: string): AttrNeedles {
 }
 
 /** The feed's WHERE clause for one attribute filter. */
-export function attrWhere(key: string, value: string): Prisma.ListingWhereInput {
+export function attrWhere(key: string, value: string, now?: Date): Prisma.ListingWhereInput {
+  // ⚠️ `posted` is a facet in the taxonomy and a COLUMN here (src/lib/posted-filter.ts): it filters
+  // `postedAt`, never `attributes`. An unknown window is no filter at all, never an error.
+  if (key === POSTED_FACET_KEY) {
+    // `now`: the request's ONE reference instant, so the grid and every count share a cutoff.
+    const cutoff = postedCutoff(value, now)
+    return cutoff ? { postedAt: { gte: cutoff } } : {}
+  }
   const n = attrNeedles(key, value)
   return {
     OR: [
@@ -103,6 +111,9 @@ type AttrRow = { attributes?: string | null; facetTokens?: string | null }
  * predicate so the needles are built once per chip, not once per row.
  */
 export function attrMatcher(key: string, value: string): (row: AttrRow) => boolean {
+  // `posted` cannot be tested on a grouped (attributes, facetTokens) row — it is a column. Its counts
+  // keep it IN the database `where` instead (facet-counts.ts), so in memory it passes every row.
+  if (key === POSTED_FACET_KEY) return () => true
   const n = attrNeedles(key, value)
   return (row) => {
     const a = row.attributes ?? ''
