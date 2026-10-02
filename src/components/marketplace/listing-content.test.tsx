@@ -357,8 +357,10 @@ describe("localizedPlan — 'english' (an official help answer)", () => {
 
   it('a Vietnamese reader gets the curated twin from the embed — not the English body read AS Vietnamese', () => {
     expect(localizedPlan(HELP_VND, null, { vi: HELP_VND_VI }, 'vi', 'english')).toEqual({ embedded: HELP_VND_VI, tr: '', en: '' })
-    // The per-letter rule it replaces showed the English body to the Vietnamese reader.
-    expect(localizedPlan(HELP_VND, null, { vi: HELP_VND_VI }, 'vi', 'description').embedded).toBe(HELP_VND)
+    // A member's post ('description') no longer reads as Vietnamese on one "đ" either (2026-10-02,
+    // detect-lang readsAsVietnamese); a 'title' still does.
+    expect(localizedPlan(HELP_VND, null, { vi: HELP_VND_VI }, 'vi', 'description').embedded).toBe(HELP_VND_VI)
+    expect(localizedPlan(HELP_VND, null, { vi: HELP_VND_VI }, 'vi', 'title').embedded).toBe(HELP_VND)
   })
 
   it('without an embed a non-English reader falls back to useTr (never target=en); another language to its own embed', () => {
@@ -407,5 +409,68 @@ describe("useLocalized — 'english' rendered", () => {
   it('under the Vietnamese UI: the curated twin, synchronously', () => {
     const { container } = renderIn('vi', <Probe text={HELP_VND} i18n={{ vi: HELP_VND_VI }} />)
     expect(container.textContent).toBe(HELP_VND_VI)
+  })
+})
+
+/**
+ * ⛔ DESCRIPTIONS: THE ENGLISH SLOT, AND WHICH SIDE A TEXT IS ON (2026-10-02). Live rows from the audit
+ * export (translation-audit-2026-10-02.md §8), cut down. `en` in the plan is the only text sent to
+ * /api/translate target=en, so '' there means no English request.
+ */
+const BDS_EN = 'Listed on Batdongsan.com.vn.\n\nType: Apartment\nArea: 68 m²\nBedrooms: 2\nBathrooms: 2\nLocation: District 2 (An Khánh Ward, new)\nRent: 20,000,000 đ/month'
+const BDS_VI = 'Tin đăng trên Batdongsan.com.vn.\n\nLoại hình: Căn hộ / Chung cư\nDiện tích: 68 m²\nPhòng ngủ: 2\nPhòng vệ sinh: 2\nKhu vực: Quận 2 (P. An Khánh mới)\nGiá thuê: 20.000.000 đ/tháng'
+const MIOTO_EN = 'Self-drive car listed on Mioto.vn — book and pay on Mioto.\n\nPrice: 461,000 đ/day\nPickup area: Xã Phong Phú, Huyện Bình Chánh\nTrips completed on Mioto: 10\n\nOwner’s description (Vietnamese):\nXe đã trang bị Màn hình giải trí , nghe nhạc xem bản đồ, bộ bơm lốp kích bình'
+const MIOTO_VI = 'Xe tự lái đăng trên Mioto.vn — đặt xe và thanh toán trên Mioto.\n\nGiá thuê: 461.000 đ/ngày\nKhu vực nhận xe: Xã Phong Phú, Huyện Bình Chánh\n\nMô tả của chủ xe:\nXe đã trang bị Màn hình giải trí , nghe nhạc xem bản đồ, bộ bơm lốp kích bình'
+const SPEC_SRC = 'Hãng sản xuất: Màn hình Dell · Model: E2225HM · Kích thước màn hình: 21.5 inch · Độ phân giải: Full HD (1920 x 1080) · Tỉ lệ: 16:9 · Tấm nền màn hình: VA. New, supplied by BỀN COMPUTER.'
+const SPEC_VI = 'Hãng sản xuất: Màn hình Dell · Mẫu: E2225HM · Kích thước màn hình: 21.5 inch · Độ phân giải: Full HD (1920 x 1080) · Tỉ lệ: 16:9 · Tấm nền màn hình: VA. Hàng mới, phân phối bởi BỀN COMPUTER.'
+const USED_PHONE = 'Apple iPhone 14 Pro Max 128GB cũ 99%'
+const TGDD = 'Xiaomi Mi Band 10 Pro viền gốm dây cao su Fluoro chính hãng, giá rẻ. Mua online giao nhanh toàn quốc 1 giờ, xem hàng không mua không sao. Click ngay!'
+const ENO_COFFEE = 'Commercial grade green Robusta, sold by the kilogram.\n\nPrice shown is per kg. Minimum order and delivery terms by arrangement — message us for a quote on your volume.\n\nGreen (unroasted) coffee beans from Đắk Lắk. Moisture, screen size and defect ratio to the grade named in the title.'
+const ENO_COFFEE_VI = 'Cà phê Robusta xanh thương phẩm, bán theo kilogram.'
+
+describe("localizedPlan — 'description': the English slot and the reader's side", () => {
+  it('⛔ an English rental description beside its descriptionVi is the English slot: no target=en request', () => {
+    expect(detectContentLang(BDS_EN)).toBe('vi') // "Khánh" — the one letter that used to send it to vi→en
+    expect(localizedPlan(BDS_EN, BDS_VI, null, 'en', 'description')).toEqual({ embedded: BDS_EN, tr: '', en: '' })
+    // …even when an English→English row was already paid for and cached: the source wins.
+    expect(localizedPlan(BDS_EN, BDS_VI, { en: 'MT of the same English' }, 'en', 'description').embedded).toBe(BDS_EN)
+    expect(localizedPlan(BDS_EN, BDS_VI, null, 'vi', 'description').embedded).toBe(BDS_VI)
+  })
+
+  it('⚠️ a description carrying an importer\'s "(Vietnamese):" passage keeps the translate path', () => {
+    expect(localizedPlan(MIOTO_EN, MIOTO_VI, null, 'en', 'description')).toEqual({ embedded: null, tr: '', en: MIOTO_EN })
+    expect(localizedPlan(MIOTO_EN, MIOTO_VI, { en: 'cached English' }, 'en', 'description').embedded).toBe('cached English')
+  })
+
+  it('⚠️ a re-labelled COPY beside it is not a translation, so the Vietnamese spec sheet still translates', () => {
+    expect(localizedPlan(SPEC_SRC, SPEC_VI, null, 'en', 'description')).toEqual({ embedded: null, tr: '', en: SPEC_SRC })
+  })
+
+  it('⛔ an English reader gets Vietnamese with no Vietnamese-EXCLUSIVE letter translated ("cũ 99%", "chính hãng")', () => {
+    for (const t of [USED_PHONE, TGDD]) {
+      expect(detectContentLang(t), t).toBeNull() // why it was never requested
+      expect(localizedPlan(t, t, null, 'en', 'description'), t).toEqual({ embedded: null, tr: '', en: t })
+    }
+  })
+
+  it('⛔ a Vietnamese reader of an English description that names "Đắk Lắk" gets the cached Vietnamese (eno Trading)', () => {
+    expect(localizedPlan(ENO_COFFEE, null, { vi: ENO_COFFEE_VI }, 'vi', 'description').embedded).toBe(ENO_COFFEE_VI)
+    expect(localizedPlan(ENO_COFFEE, null, null, 'vi', 'description')).toEqual({ embedded: null, tr: ENO_COFFEE, en: '' })
+    // The English reader still reads it as it is — a translation request is the cost of the "đ" (no slot).
+    expect(localizedPlan(ENO_COFFEE, null, { en: ENO_COFFEE }, 'en', 'description').embedded).toBe(ENO_COFFEE)
+  })
+
+  it('a Vietnamese source with a run of English model words is still shown as it is to a Vietnamese reader', () => {
+    const src = 'Sạc nhanh Apple iPhone 15 Pro Max USB-C 20W chính hãng, bảo hành 12 tháng, giao hàng toàn quốc'
+    expect(localizedPlan(src, null, null, 'vi', 'description')).toEqual({ embedded: src, tr: '', en: '' })
+    expect(ownDescriptionVi(src, src)).toBe(src)
+    // Through the real path: the copy in both columns is kept (ẻ, ề are Vietnamese-specific), then shown.
+    expect(ownDescriptionVi(TGDD, TGDD)).toBe(TGDD)
+    expect(localizedPlan(TGDD, ownDescriptionVi(TGDD, TGDD), null, 'vi', 'description').embedded).toBe(TGDD)
+  })
+
+  it('TITLES are unchanged: one exclusive letter still decides, and the English slot needs it', () => {
+    expect(localizedPlan(USED_PHONE, null, null, 'en', 'title')).toEqual({ embedded: USED_PHONE, tr: '', en: '' })
+    expect(localizedPlan(ENO_COFFEE, null, { vi: ENO_COFFEE_VI }, 'vi', 'title').embedded).toBe(ENO_COFFEE)
   })
 })

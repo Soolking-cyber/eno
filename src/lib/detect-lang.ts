@@ -73,3 +73,73 @@ export function looksVietnamese(text: string): boolean {
   const t = text.normalize('NFC')
   return VI_SPECIFIC.test(t) && longestUndiacritickedRun(t) <= 3
 }
+
+/** Share of the words that carry letters which also carry a Vietnamese diacritic (0 when none do). */
+export function vietnameseWordShare(text: string): number {
+  let words = 0
+  let marked = 0
+  for (const word of text.split(/\s+/)) {
+    if (!/\p{L}/u.test(word)) continue
+    words++
+    if (VI_DIACRITIC.test(word)) marked++
+  }
+  return words ? marked / words : 0
+}
+
+/**
+ * The share of diacritic-bearing words at which a text that has Vietnamese letters counts as
+ * Vietnamese. Measured on the 77,990 live descriptions a PDP shows (audit export 2026-10-02): nearly all
+ * Vietnamese texts sit at 0.40–0.95, and the few below 0.2 are spec sheets made mostly of English model
+ * words. ⚠️ English import templates dense with place names reach 0.35 ("Location: District 2 (An Khánh
+ * Ward, new)"), so this line is only drawn where no separate Vietnamese column exists. Every rental
+ * carries one, and it always comes first (listing-content.tsx localizedPlan).
+ */
+const VI_WORD_SHARE = 0.2
+
+/**
+ * Is a DESCRIPTION already Vietnamese, so a Vietnamese reader is shown it as it is?
+ *
+ * ⚠️ NOT detectContentLang, WHICH NAMES A TEXT VIETNAMESE FROM ONE LETTER. "…green Robusta from Đắk Lắk"
+ * counted as Vietnamese, so a Vietnamese reader got the English text and never the `vi` row cached
+ * for it. That hit 81 live descriptions, all 16 eno Trading ones among them (audit, 2026-10-02).
+ * ⚠️ AND NOT looksVietnamese ON ITS OWN. Its ≤3-word cut-off fails real Vietnamese product copy
+ * with a run of English model words ("Sạc nhanh Apple iPhone 15 Pro Max USB-C 20W chính hãng"). Used
+ * alone it would have sent 10,230 Vietnamese descriptions that a feed copied into both columns to
+ * Vietnamese→Vietnamese machine translation.
+ * So a text passes either test: looksVietnamese's shape, or a Vietnamese-specific letter with at least
+ * a fifth of its words diacritic-marked. Measured on the same export: English shown to a Vietnamese
+ * reader as Vietnamese went from 81 to 3; Vietnamese sent to paid vi→vi translation went from 156 to 98.
+ * ⚠️ THE KNOWN COST, MEASURED: a terse spec line with one Vietnamese word in five ("iPhone 15 Pro Max
+ * 256GB, pin 100%, fullbox, bảo hành") is under the line, so it now takes the translation path where
+ * one exclusive letter used to show it as it is. That moved 51 live descriptions: 20 BỀN COMPUTER spec
+ * sheets, each already with a cached `vi` row, 28 Tiki book blurbs that are mostly English, and 3 others.
+ * A second, lower line for texts with an exclusive letter (0.1) kept 47 of them but put 39 English
+ * descriptions back in front of Vietnamese readers, so it was not taken.
+ */
+export function readsAsVietnamese(text: string): boolean {
+  const t = text.normalize('NFC')
+  return looksVietnamese(t) || (VI_SPECIFIC.test(t) && vietnameseWordShare(t) >= VI_WORD_SHARE)
+}
+
+/**
+ * Should an ENGLISH reader get this description in translation? The broad test: any Vietnamese-specific
+ * letter, or Latin-1 diacritics on at least a fifth of the words.
+ *
+ * ⚠️ BROADER THAN detectContentLang ON PURPOSE. "Apple iPhone 14 Pro Max 128GB cũ 99%" and
+ * "…chính hãng, giá rẻ" have no Vietnamese-EXCLUSIVE letter, so English readers got them raw and no
+ * translation was ever requested (211 live descriptions). A false hit only costs a request:
+ * English→English comes back unchanged. The English-slot rule (listing-content.tsx localizedPlan)
+ * keeps that cost off English imports that name a ward.
+ */
+export function mayBeVietnamese(text: string): boolean {
+  const t = text.normalize('NFC')
+  return VI_SPECIFIC.test(t) || (VI_DIACRITIC.test(t) && vietnameseWordShare(t) >= VI_WORD_SHARE)
+}
+
+/**
+ * The label an importer puts in front of an untranslated Vietnamese passage it embeds in an English
+ * description: "Owner’s description (Vietnamese):" (Mioto) and "Features (Vietnamese):" (BonbonCar).
+ * See src/lib/vehicle-rental-listing.ts. A description that carries it is not wholly English, so it
+ * keeps the translate path for an English reader even beside a Vietnamese column.
+ */
+export const VI_PASSAGE_LABEL = '(Vietnamese):'

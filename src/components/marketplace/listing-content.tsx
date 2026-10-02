@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { RelativeTime } from './relative-time'
 import { useLanguage, useTr } from '@/context/language-context'
-import { detectContentLang } from '@/lib/detect-lang'
+import { VI_PASSAGE_LABEL, detectContentLang, looksVietnamese, mayBeVietnamese, readsAsVietnamese } from '@/lib/detect-lang'
 import { trCache, translateText } from '@/lib/i18n/mt-client'
 import { formatRichText } from '@/components/marketplace/rich-text'
 
@@ -44,10 +44,21 @@ import { formatRichText } from '@/components/marketplace/rich-text'
  * ("the title must not also LOOK Vietnamese") caught no Vietnamese title there and 2,684 English ones
  * — "300 m² for rent — Tân Định Ward (new), District 1" runs only 3 unmarked words — and sent those
  * straight back to English→English translation, so it was removed.
- * ⚠️ TITLES ONLY. A description beside a different descriptionVi is NOT reliably English: one computer
- * shop's 30 spec sheets hold the scraped Vietnamese original ("Hãng sản xuất: Dell · Model: P2723D ·
- * Kích thước màn hình …") in `description` and a re-labelled copy in descriptionVi (same sample). So a
- * description keeps the translate path — one request per PDP view, where a title costs one per card.
+ * ⛔ A DESCRIPTION GETS THE SAME RULE, WITH THREE GUARDS (2026-10-02). 16,418 English rental descriptions
+ * ("Ward: Phú Thuận Ward") sat beside a proper descriptionVi and were still sent to vi→en translation,
+ * one paid request per first English view, and 1,650 had been paid for as English→English. A
+ * description beside a different descriptionVi is the English slot unless one of these holds:
+ *  · it looks Vietnamese by shape (looksVietnamese);
+ *  · it shares ≥70% of its words with the column beside it. One computer shop's spec sheets hold the
+ *    scraped Vietnamese original ("Hãng sản xuất: Dell · Model: P2723D · Kích thước màn hình …") in
+ *    `description` and a re-labelled copy in descriptionVi. A copy shares about 90% of its words; the
+ *    English slots share at most 60%;
+ *  · it carries an importer's "(Vietnamese):" label (detect-lang VI_PASSAGE_LABEL). Mioto and BonbonCar
+ *    embed the owner's Vietnamese text that way when no English for it is cached.
+ * Measured on the 77,990 live descriptions shown on a PDP: English sent to translation for an English
+ * reader fell from 20,503 to 2,606, and 2,322 of those carry the label. No rental that stopped
+ * translating is anything but English. Vietnamese shown raw to an English reader fell from 210 to 23,
+ * with the broader mayBeVietnamese entry below.
  *
  * ⛔ `'english'` — A TEXT THE SCHEMA SAYS IS ENGLISH-AUTHORED, SO NO LETTER IN IT IS EVIDENCE. An official
  * help answer: sync-help-center.ts writes the English seed as the post and caches its authored
@@ -75,11 +86,24 @@ export function localizedPlan(
   let embedded: string | null
   if (column === 'english') {
     embedded = lang === 'en' ? text : lang === 'vi' ? (vi || i18n?.vi || null) : (i18n?.[lang] || null)
+  } else if (column === 'description') {
+    const srcLang = detectContentLang(text)
+    // A Hangul, Han or Cyrillic text really is in that script, whatever sits beside it.
+    const otherScript = !!srcLang && srcLang !== 'vi'
+    const englishSlot =
+      !!vi && sameText(vi) !== sameText(text) && !looksVietnamese(text) && !text.includes(VI_PASSAGE_LABEL) && sharedWordShare(text, vi) < 0.7
+    embedded =
+      lang === 'en'
+        ? (otherScript || (mayBeVietnamese(text) && !englishSlot) ? (i18n?.en || null) : text)
+        : lang === 'vi'
+          // Already Vietnamese by the dominance test, not by one letter (detect-lang readsAsVietnamese).
+          ? (vi || (readsAsVietnamese(text) ? text : i18n?.vi || null))
+          : (i18n?.[lang] || null)
   } else {
     const srcLang = detectContentLang(text)
     // Only the Vietnamese answer can be a false positive (one letter decides it); a Hangul, Han or
     // Cyrillic text really is in that script, so it keeps the translate path whatever sits beside it.
-    const englishSlot = column === 'title' && srcLang === 'vi' && !!vi && sameText(vi) !== sameText(text)
+    const englishSlot = srcLang === 'vi' && !!vi && sameText(vi) !== sameText(text)
     embedded =
       lang === 'en'
         ? (srcLang && !englishSlot ? (i18n?.en || null) : text)
@@ -181,8 +205,9 @@ export function RichText({ text, className }: { text: string; className?: string
  * Vietnamese translation, exactly as for a listing with no descriptionVi. A Vietnamese source keeps
  * it — there the copy IS the Vietnamese text.
  *
- * ⚠️ THE KNOWN COST, CHOSEN: "not Vietnamese" is detectContentLang's answer — the rule the page already
- * uses to decide what the source language is. Vietnamese typed WITHOUT marks ("Giay chay bo nhe") has
+ * ⚠️ "Not Vietnamese" is readsAsVietnamese's answer (detect-lang.ts), not detectContentLang's: one letter
+ * made "…beans from Đắk Lắk" Vietnamese, so a copy of it in both columns showed a Vietnamese reader the
+ * English (2026-10-02). ⚠️ THE KNOWN COST, CHOSEN: Vietnamese typed WITHOUT marks ("Giay chay bo nhe") has
  * nothing that detector can see, so an identical copy of it takes the translation path too: the
  * reader gets a Vietnamese→Vietnamese translation of the seller's text instead of the text itself. A
  * narrower "is it English?" test was tried in review (2026-09-24) and every version of it either
@@ -198,10 +223,20 @@ export function ownDescriptionVi(text: string, vi: string | null | undefined): s
   const same = vi === text || sameText(vi) === src
   // Detected on the NFC form: the detector knows Vietnamese by its PRECOMPOSED letters (ơ, ư, đ …),
   // and a column stored NFD would otherwise read as plain Latin (opus, review round 2).
-  return same && detectContentLang(src) !== 'vi' ? null : vi
+  return same && !readsAsVietnamese(src) ? null : vi
 }
 /** The same text whatever the column's Unicode form, line endings or outer whitespace. */
 const sameText = (s: string) => s.normalize('NFC').replace(/\r\n?/g, '\n').trim()
+
+const words = (s: string) => s.normalize('NFC').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
+/** The share of `text`'s words that also occur in `other`: about 0.9 for a re-labelled copy, at most
+ *  0.6 for a translation (the shared part is numbers and place names). */
+function sharedWordShare(text: string, other: string): number {
+  const mine = words(text)
+  if (!mine.length) return 0
+  const theirs = new Set(words(other))
+  return mine.filter((w) => theirs.has(w)).length / mine.length
+}
 
 /** Localized listing description rendered with light markdown (bullets / bold / paragraphs). */
 export function ListingDescription({ text, vi, i18n, className }: { text: string; vi?: string | null; i18n?: Record<string, string> | null; className?: string }) {
