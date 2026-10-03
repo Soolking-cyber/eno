@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { getTrending, logSearch } from '@/lib/trending'
 import { getCategoriesByDemand } from '@/lib/categories'
+import { RETIRED_NAV_CATEGORIES } from '@/lib/retired-categories'
 import { clientIp } from '@/lib/client-ip'
 import { route } from '@/lib/api/handler'
 
@@ -33,7 +34,8 @@ export const runtime = 'nodejs'
 async function shortcutCategories(): Promise<{ slug: string; name: string; nameVi: string }[]> {
   try {
     return (await getCategoriesByDemand())
-      .filter((c) => c.verifiedCount > 0)
+      // ⛔ Not a retired shelf either (second-hand focus, 2026-10-03 — src/lib/retired-categories.ts).
+      .filter((c) => c.verifiedCount > 0 && !RETIRED_NAV_CATEGORIES.has(c.slug))
       .slice(0, 6)
       .map(({ slug, name, nameVi }) => ({ slug, name, nameVi }))
   } catch {

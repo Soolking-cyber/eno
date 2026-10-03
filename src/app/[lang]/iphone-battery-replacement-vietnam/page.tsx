@@ -238,10 +238,9 @@ const CONTENT: ArticleContent = {
             One last piece of arithmetic. When a tired battery is only one of several tired things
             &mdash; a dim screen, a rattling camera, a charging port that needs a wiggle &mdash; the
             replacement stops being an obvious yes, because you are spending real money on a handset
-            near the end of its life. Put the quote next to what the phone is worth and what a newer
-            one costs today on{' '}
-            <HereLink href="/iphone-18-vietnam">the live iPhone 18 price page</HereLink>, which reads
-            the marketplace&rsquo;s own listings rather than a press release.
+            near the end of its life. Put the quote next to what the phone is worth and what a newer one costs on{' '}
+            <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink> &mdash; Apple
+            Vietnam&rsquo;s prices, and what second-hand iPhones are listed for here.
           </P>
         </>
       ),

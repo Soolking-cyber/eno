@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { Tr } from '@/context/language-context'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { ArrowRight } from '@/components/ui/icons'
@@ -6,15 +7,24 @@ import { Price } from '@/components/marketplace/price'
 import type { PriceRow } from './lowest-prices'
 
 /**
- * The answer the visitor searched for, at the top of the page: what each iPhone 18 variant costs
- * here today, per storage tier, with the listing behind every figure.
+ * The answer the visitor searched for, at the top of the page: what each iPhone variant sells for
+ * SECOND-HAND here today, per storage tier, with the listing behind every figure (used only since the
+ * second-hand focus, 2026-10-03 — lowest-prices.ts).
  *
  * ⚠️ EVERY NUMBER IS A LINK TO THE LISTING IT CAME FROM. A price table that cannot be checked is a
  * claim; one that can is the marketplace's own inventory, which is also what makes this page
  * something other than a scrape of retail prices (both plan reviewers flagged the difference).
  */
-export function PriceTable({ rows, known, updated, seeAll = true }: {
+export function PriceTable({ rows, known, updated, heading, id, seeAll = true }: {
   rows: PriceRow[]; known: boolean; updated: string
+  /**
+   * ⛔ PER CALL SITE, NOT HARD-CODED: the hub renders two of these (iPhone 18 and iPhone 17), and a fixed
+   * "iPhone 18 prices" h2 with one fixed id put the wrong title on the second and a duplicate id in the page
+   * (review, 2026-10-03). Pass a literal `<Tr text="…" />` so gen-ui-strings harvests it.
+   */
+  heading: ReactNode
+  /** The section's anchor id — unique on the page. */
+  id: string
   /**
    * false on the hub, whose CTAs above the table already lead to each model's page. The link below
    * goes to the explorer's search URL, which canonicalises to `/` — the one place the hub no longer
@@ -42,12 +52,14 @@ export function PriceTable({ rows, known, updated, seeAll = true }: {
   const offers = rows.reduce((n, r) => n + r.offers, 0)
 
   return (
-    <section className="mt-8" aria-labelledby="live-prices">
-      <h2 id="live-prices" className="h-section text-foreground mb-1">
-        <Tr text="iPhone 18 prices in Vietnam today" />
+    <section className="mt-8" aria-labelledby={id}>
+      <h2 id={id} className="h-section text-foreground mb-1">
+        {heading}
       </h2>
       <p className="text-sm text-muted-foreground mb-4">
-        <Tr text="The lowest live price across every listing from a Vietnamese retailer. Tap a price to open the listing." />{' '}
+        {/* ⚠️ THE EXCLUSION IS NAMED (review, 2026-10-03): "the lowest price" would be untrue the day the
+            outlier guard in lowest-prices.ts leaves a typo-priced listing out. */}
+        <Tr text="The lowest price among the second-hand phone shops' live listings here, for each storage tier. A price far out of line with the other listings of the same model, or with Apple's own price, is left out as a likely typo. Tap a price to open the listing." />{' '}
         {/* ⚠️ THE NOUN IS TRANSLATED, THE NUMBER AND DATE ARE NOT. An English "24 listings" baked
             into the stamp is the one fragment a Vietnamese reader would still see in English. */}
         <span className="whitespace-nowrap">{offers} <Tr text="listings" /> · {updated}</span>
@@ -89,10 +101,12 @@ export function PriceTable({ rows, known, updated, seeAll = true }: {
       </div>
       {seeAll && (
         <Link
-          href="/?category=electronics&subcategory=phones-tablets&brand=apple&q=iPhone+18"
+          href={models.length === 1
+            ? `/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used&model=${encodeURIComponent(models[0])}`
+            : '/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used'}
           className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
         >
-          <Tr text="See every iPhone 18 listing" /> <ArrowRight className="h-4 w-4" />
+          <Tr text="See every second-hand listing" /> <ArrowRight className="h-4 w-4" />
         </Link>
       )}
     </section>
@@ -105,7 +119,12 @@ export function PriceTable({ rows, known, updated, seeAll = true }: {
  * listings lapse and only the Duo pre-orders remain, the page would still print a monetised price
  * table, ordered by a tie-break that favours tracked partner links, with no disclosure anywhere
  * (opus). A page that earns commission says so for as long as it shows a price.
+ * ⚠️ AND ONLY THEN (2026-10-03): the call sites render it when a QUOTED row is tracked (`showAffiliateNote`)
+ * — most second-hand rows link a shop directly or are people's own posts, and a commission disclosure on
+ * a table with no tracked link would be a claim about nothing.
  */
+export const showAffiliateNote = (...tables: PriceRow[][]): boolean => tables.some((rows) => rows.some((r) => r.tracked))
+
 export function AffiliateNote() {
   /* ⛔ "AFFILIATE LINK", NOT "PARTNER LINK" (2026-10-01): "partner" now means a company with a signed
      agreement (partner-badge.tsx), and the retailers behind these tracked links (AccessTrade — the
@@ -116,8 +135,8 @@ export function AffiliateNote() {
   return (
     <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
       {tr(
-        "Some listings reach the retailer through a tracked affiliate link, which may earn this site a commission at no cost to you. The lowest price always wins; when two retailers charge exactly the same, the one with the tracked link is shown. The price you pay is the retailer's.",
-        'Một số tin đăng dẫn đến người bán qua liên kết affiliate có theo dõi, trang web có thể nhận hoa hồng mà bạn không phải trả thêm chi phí nào. Mức giá thấp nhất luôn được ưu tiên; khi hai người bán có giá hoàn toàn bằng nhau, người bán có liên kết được theo dõi sẽ được hiển thị. Mức giá bạn thanh toán là giá của người bán.',
+        "Some listings reach the shop through a tracked affiliate link, which may earn this site a commission at no cost to you. The lowest price always wins; when two listings ask exactly the same, the one with the tracked link is shown. The price you pay is the shop's.",
+        'Một số tin đăng dẫn đến cửa hàng qua liên kết affiliate có theo dõi, trang web có thể nhận hoa hồng mà bạn không phải trả thêm chi phí nào. Mức giá thấp nhất luôn được ưu tiên; khi hai tin đăng có giá hoàn toàn bằng nhau, tin có liên kết được theo dõi sẽ được hiển thị. Mức giá bạn thanh toán là giá của cửa hàng.',
       )}
     </p>
   )

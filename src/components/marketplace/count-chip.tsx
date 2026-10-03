@@ -6,6 +6,7 @@ import { groupVnd, moneyLocale } from '@/lib/vnd'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import type { DimensionCounts, FacetCounts } from '@/lib/facet-counts'
 import type { TrFn } from './result-line'
+import { RETIRED_NAV_CATEGORIES } from '@/lib/retired-categories'
 
 /**
  * THE NUMBER BESIDE A CHIP — "how many results if I tap this".
@@ -235,11 +236,15 @@ export function offeredKeys(
  * own live total, `verifiedCount`, decides — the same "has public rows" test, so the server-rendered
  * strip already omits the empty ones and nothing shifts on hydration.
  * ⚠️ THE ACTIVE CATEGORY ALWAYS STAYS, so a deep link into an empty one can still be read and left.
+ * ⛔ AND A RETIRED ONE IS NOT A TILE EITHER (second-hand focus, owner 2026-10-03 — src/lib/retired-categories.ts):
+ * vehicles, pets, books-stationery and hobbies-sports kept a handful of rows (2, 0, 6, 4), enough to clear the
+ * zero test above, so they are dropped by name — unless the visitor is already in one.
  */
 export function offeredCategories<C extends { slug: string; verifiedCount: number }>(all: C[], facets: FacetCounts | undefined, activeCategory: string): C[] {
   const catDim = railDimension(facets?.category, all.map((c) => c.slug))
   return all.filter((c) => {
     if (c.slug === activeCategory) return true
+    if (RETIRED_NAV_CATEGORIES.has(c.slug)) return false
     const n = catDim ? optionCount(catDim, c.slug) : c.verifiedCount
     return !(typeof n === 'number' && Number.isSafeInteger(n) && n === 0)
   })

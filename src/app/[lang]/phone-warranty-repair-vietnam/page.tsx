@@ -263,9 +263,8 @@ const CONTENT: ArticleContent = {
             If the repair quote approaches the resale value of the handset, price the alternative
             before committing: what a working example of the same model is going for second-hand
             (there is a checklist in{' '}
-            <HereLink href="/buying-a-used-iphone-vietnam">the used-iPhone guide</HereLink>) and what
-            retailers are asking for current stock, which you can see on{' '}
-            <HereLink href="/iphone-18-vietnam">the live iPhone 18 price page</HereLink>.
+            <HereLink href="/buying-a-used-iphone-vietnam">the used-iPhone guide</HereLink>) and what Apple Vietnam charges for the current model, which is on{' '}
+            <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink>.
           </P>
         </>
       ),

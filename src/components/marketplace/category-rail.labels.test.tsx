@@ -24,7 +24,8 @@ type Cats = React.ComponentProps<typeof CategoryRail>['categories']
 const CATS = [
   { id: 'rentals', slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê', icon: 'Home' },
   { id: 'books', slug: 'books', name: 'Books', nameVi: 'Sách', icon: 'Book' },
-  { id: 'vehicles', slug: 'vehicles', name: 'Vehicles', nameVi: 'Xe cộ', icon: 'Car' },
+  // Not 'vehicles' since 2026-10-03: a retired shelf is not a tile (src/lib/retired-categories.ts).
+  { id: 'electronics', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', icon: 'Smartphone' },
 ] as unknown as Cats
 
 function renderIn(lang: 'en' | 'vi') {
@@ -41,13 +42,13 @@ describe('<CategoryRail> tile labels', () => {
     const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     const { container } = renderIn('vi')
-    expect(tiles(container)).toEqual(['Cho thuê', 'Sách', 'Xe cộ'])
+    expect(tiles(container)).toEqual(['Cho thuê', 'Sách', 'Điện tử'])
     await new Promise((r) => setTimeout(r, 120)) // past the batcher's 60ms window
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('an English reader gets the English names', () => {
     const { container } = renderIn('en')
-    expect(tiles(container)).toEqual(['Rentals', 'Books', 'Vehicles'])
+    expect(tiles(container)).toEqual(['Rentals', 'Books', 'Electronics'])
   })
 })

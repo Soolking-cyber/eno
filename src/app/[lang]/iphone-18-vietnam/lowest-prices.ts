@@ -1,10 +1,24 @@
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { categoryFor, subcategoryFor, withoutGiftClause } from '@/lib/feed-taxonomy'
+import { conditionWhere } from '@/lib/listing-condition'
 import { safeParse } from '@/lib/serialize'
+import { APPLE_VN_FROM_PRICE, onSaleYet, plausibleTier } from './price-guard'
 
 /**
- * The live floor price for each iPhone 18 variant sold on this marketplace.
+ * The live floor price for each iPhone variant, from SECOND-HAND listings on this marketplace.
+ *
+ * ⛔ USED ONLY, SINCE THE SECOND-HAND FOCUS (owner, 2026-10-03: "tight focus on second hand stores and
+ * rentals plus job postings"). These tables used to read new-retail rows (CellphoneS, Thế Giới Di Động,
+ * Bạch Long's sealed stock), all hidden that day. They now read `condition: 'used'` rows of the SHOPS —
+ * ownerless import storefronts (24hStore, Minh Tuấn Mobile, Điện Thoại Vui, CellphoneS' used shelf…).
+ * ⛔ SHOPS ONLY, NOT PRIVATE SELLERS (commit-gate review, two rounds): with a person's own listing in the
+ * set, one typo or one scam lure priced to be clicked becomes the page's headline, its FAQ answer and the
+ * Product `lowPrice`, with their photo in the rich result — and every threshold guard tried was beaten by
+ * a price inside it. Measured 2026-10-03: all 869 live Apple phones-tablets rows are shop rows, so this
+ * costs nothing today. `listingType: 'sell'` is pinned and price-guard.ts still drops a shop's typo.
+ * Apple Vietnam's own prices are quoted as Apple's,
+ * in the page copy, never as a row here.
  *
  * ⚠️ THE PAGE AND ITS STRUCTURED DATA READ THE SAME ROWS. Markup assembled from a second query can
  * disagree with the table a human sees — different sort, different moment, different answer — and
@@ -20,11 +34,16 @@ import { safeParse } from '@/lib/serialize'
 export const IPHONE_18_MODELS = ['iPhone 18 Pro', 'iPhone 18 Pro Max']
 
 /**
- * ⚠️ THE FOLDABLE IS LISTED HERE ALREADY — MEASURED, AFTER ASSUMING OTHERWISE. The affiliate sweep
- * found no iPhone Duo row in any of the 22 approved feeds, and the first version of this page said
- * so in prose. It was wrong: Thế Giới Di Động and Bạch Long both carry pre-order pages, 8 live
- * listings from 64.990.000 ₫ to 103.990.000 ₫, imported by the partner-shop crawler rather than an
- * affiliate feed. A claim about inventory belongs in a query, not in a sentence.
+ * The 2025 line — the newest phones with real second-hand supply here (measured 2026-10-03: used iPhone 17
+ * 17 rows, 17 Pro 25, 17 Pro Max 40, Air 14, from 4–7 shops each), so the hub can show a second-hand price
+ * table while the iPhone 18 has none.
+ */
+export const IPHONE_17_MODELS = ['iPhone 17', 'iPhone 17 Pro', 'iPhone 17 Pro Max', 'iPhone Air']
+
+/**
+ * ⚠️ A CLAIM ABOUT INVENTORY BELONGS IN A QUERY, NOT IN A SENTENCE — the first version of the Duo card said
+ * no retailer listed one while eight pre-order rows were live. Those were new retail stock (hidden
+ * 2026-10-03); the card now reads second-hand Duo rows, of which there are none until units resell.
  */
 export const IPHONE_DUO_MODEL = 'iPhone Duo'
 
@@ -37,9 +56,14 @@ export type PriceRow = {
   price: number
   currency: string
   listingId: string
+  /** The shop's storefront name (only ownerless import storefronts are read). */
   seller: string
-  /** How many live listings offer this exact variant. */
+  /** How many live listings offer this exact variant (after the price guard). */
   offers: number
+  /** Every row here is second-hand — `lowestPrices` selects nothing else; model-product-ld.ts checks it. */
+  condition: 'used'
+  /** The quoted listing reaches its shop through a tracked affiliate link — the AffiliateNote shows only then. */
+  tracked: boolean
   /**
    * The first photo of `listingId` — the same listing the price links to, so the model page's
    * Product image is a photo of a unit this table is actually quoting. Null when it has none.
@@ -117,6 +141,30 @@ const isTracked = (url: string | null) => /isclix\.com|accesstrade/i.test(url ??
  */
 export type PriceLookup = { rows: PriceRow[]; known: boolean }
 
+/**
+ * The rows a price table quotes — exported so the sitemap dates the page by the same set (build.ts).
+ * ⛔ BRAND AND MODEL ARE NOT ENOUGH:
+ *   · `subcategorySlug` — an accessory that kept a phone's model would otherwise underbid every phone;
+ *   · `currency` — a USD listing is a smaller NUMBER and would win a đồng comparison;
+ *   · `listingType: 'sell'` — a "wanted, budget X" post is a price nobody is selling at;
+ *   · `condition: 'used'` (conditionWhere — the feed's own used predicate) and `seller.ownerId: null`
+ *     (a shop, not a person) — see the header.
+ */
+export function usedPriceWhere(models: readonly string[]) {
+  return {
+    status: 'active',
+    verified: true,
+    listingType: 'sell',
+    brandSlug: 'apple',
+    model: { in: [...models] },
+    subcategorySlug: 'phones-tablets',
+    currency: '₫',
+    // ⛔ A SHOP's listing, never a person's own (see the header).
+    seller: { ownerId: null },
+    AND: [conditionWhere('used')!],
+  }
+}
+
 export async function lowestPrices(models: string[] = IPHONE_18_MODELS): Promise<PriceLookup> {
   let rows: {
     id: string; title: string; titleVi: string | null; price: number; currency: string
@@ -124,28 +172,7 @@ export async function lowestPrices(models: string[] = IPHONE_18_MODELS): Promise
   }[] = []
   try {
     rows = await db.listing.findMany({
-      /**
-       * ⛔ BRAND AND MODEL ARE NOT ENOUGH, AND BOTH REVIEWERS REACHED THE SAME STATE FROM DIFFERENT
-       * DIRECTIONS. This query publishes a headline price and a schema.org Offer that the copy
-       * attributes to "a Vietnamese retailer with the Apple Vietnam warranty", so it has to select
-       * exactly those rows:
-       *   · `subcategorySlug` — an accessory that kept a phone's model (the repair script skips
-       *     human sellers by design) would otherwise underbid every phone at ₫200,000.
-       *   · `seller.ownerId: null` — imported retail catalogues only. One private listing of a used
-       *     handset at ₫18,000,000 would become "the lowest price", under a sentence promising a
-       *     retailer's warranty.
-       *   · `currency` — a USD listing is a smaller NUMBER, so it wins a đồng comparison and then
-       *     renders as "1.200 ₫". Cross-currency minima need a rate; this page needs one currency.
-       */
-      where: await scopedListingWhere({
-        status: 'active',
-        verified: true,
-        brandSlug: 'apple',
-        model: { in: models },
-        subcategorySlug: 'phones-tablets',
-        currency: '₫',
-        seller: { ownerId: null },
-      }),
+      where: await scopedListingWhere(usedPriceWhere(models)),
       select: {
         id: true, title: true, titleVi: true, price: true, currency: true, model: true,
         affiliateUrl: true, images: true, seller: { select: { name: true } },
@@ -157,7 +184,8 @@ export async function lowestPrices(models: string[] = IPHONE_18_MODELS): Promise
     return { rows: [], known: false }
   }
 
-  const best = new Map<string, PriceRow & { tracked: boolean }>()
+  // Group by (model, storage) first, so the outlier guard sees each tier whole.
+  const tiers = new Map<string, PriceRow[]>()
   for (const r of rows) {
     const name = r.titleVi || r.title
     if (looksLikeAnAccessory(name)) continue
@@ -165,23 +193,30 @@ export async function lowestPrices(models: string[] = IPHONE_18_MODELS): Promise
     if (!parsed || !r.model) continue
     const { label: storage, gb: storageGb } = parsed
     const key = `${r.model}|${storage}`
-    const tracked = isTracked(r.affiliateUrl)
-    const current = best.get(key)
-    const candidate = {
+    const tier = tiers.get(key) ?? []
+    tier.push({
       model: r.model, storage, storageGb, price: Number(r.price), currency: r.currency,
-      listingId: r.id, seller: r.seller?.name ?? '', offers: (current?.offers ?? 0) + 1, tracked,
-      image: firstImage(r.images),
-    }
-    if (!current) { best.set(key, candidate); continue }
-    const cheaper = candidate.price < current.price
-    const tiedAndTracked = candidate.price === current.price && candidate.tracked && !current.tracked
-    best.set(key, cheaper || tiedAndTracked ? { ...candidate, offers: current.offers + 1 } : { ...current, offers: current.offers + 1 })
+      listingId: r.id, seller: r.seller?.name ?? '', offers: 1, condition: 'used',
+      tracked: isTracked(r.affiliateUrl), image: firstImage(r.images),
+    })
+    tiers.set(key, tier)
+  }
+
+  const byModel = new Map<string, PriceRow[]>()
+  for (const tier of tiers.values()) byModel.set(tier[0].model, [...(byModel.get(tier[0].model) ?? []), ...tier])
+
+  const best: PriceRow[] = []
+  for (const tier of tiers.values()) {
+    if (!onSaleYet(tier[0].model)) continue
+    const kept = plausibleTier(tier, byModel.get(tier[0].model) ?? tier, APPLE_VN_FROM_PRICE[tier[0].model])
+    if (!kept.length) continue
+    // ⚠️ Price first, always; a tie goes to the tracked link (see `isTracked`).
+    const floor = kept.reduce((a, b) => (b.price < a.price || (b.price === a.price && b.tracked && !a.tracked) ? b : a))
+    best.push({ ...floor, offers: kept.length })
   }
 
   return {
-    rows: [...best.values()]
-      .map(({ tracked: _tracked, ...row }) => row)
-      .sort((a, b) => a.model.localeCompare(b.model) || a.storageGb - b.storageGb),
+    rows: best.sort((a, b) => a.model.localeCompare(b.model) || a.storageGb - b.storageGb),
     known: true,
   }
 }

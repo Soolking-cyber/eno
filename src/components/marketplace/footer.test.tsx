@@ -58,7 +58,11 @@ afterEach(() => {
 })
 
 const EDITIONS: Edition[] = ['marketplace', 'services']
-const DEAD = ['/motorbikes-for-sale-vietnam', '/c/property', '/c/moving-sale', '/c/community-events']
+// + the shelves the second-hand focus emptied (2026-10-03) and sports (0 live since 2026-10-02).
+const DEAD = [
+  '/motorbikes-for-sale-vietnam', '/c/property', '/c/moving-sale', '/c/community-events',
+  '/c/vehicles', '/c/pets', '/c/books-stationery', '/c/hobbies-sports', '/c/sports',
+]
 
 describe('Footer links', () => {
   for (const edition of EDITIONS) {
@@ -79,9 +83,11 @@ describe('Footer links', () => {
       expect(hrefs).toContain('/renting-an-apartment-vietnam-foreigner')
       expect(hrefs).toContain('/hcmc-rent-index')
       expect(container.textContent).toContain(lang === 'vi' ? 'Chỉ số giá thuê nhà TP.HCM' : 'HCMC Rent Index')
-      // A bilingual pair: the href follows the language.
-      expect(hrefs).toContain(lang === 'vi' ? '/mua-iphone-o-dau-uy-tin' : '/best-place-to-buy-iphone-vietnam')
-      expect(hrefs).not.toContain(lang === 'vi' ? '/best-place-to-buy-iphone-vietnam' : '/mua-iphone-o-dau-uy-tin')
+      // A bilingual pair: the href follows the language. The used-iPhone guide since 2026-10-03.
+      expect(hrefs).toContain(lang === 'vi' ? '/kinh-nghiem-mua-iphone-cu' : '/buying-a-used-iphone-vietnam')
+      expect(hrefs).not.toContain(lang === 'vi' ? '/buying-a-used-iphone-vietnam' : '/kinh-nghiem-mua-iphone-cu')
+      expect(container.textContent).toContain(lang === 'vi' ? 'Kinh nghiệm mua iPhone cũ' : 'Buying a used iPhone in Vietnam')
+      for (const href of ['/best-place-to-buy-iphone-vietnam', '/mua-iphone-o-dau-uy-tin']) expect(hrefs).not.toContain(href)
     })
 
     // ⚠️ Not on eno.forum: there they would promote eno.forum's duplicate copies of eno.vn's pages
@@ -89,7 +95,7 @@ describe('Footer links', () => {
     it(`services/${lang}: does not promote the forum's copies of the rentals page or the guides`, async () => {
       const { hrefs, container } = await renderFooter('services', lang)
       expect(container.textContent).not.toContain(lang === 'vi' ? 'Căn hộ cho thuê tại TP.HCM' : 'Apartments for rent in Ho Chi Minh City')
-      for (const href of ['/renting-an-apartment-vietnam-foreigner', '/best-place-to-buy-iphone-vietnam', '/mua-iphone-o-dau-uy-tin']) {
+      for (const href of ['/renting-an-apartment-vietnam-foreigner', '/buying-a-used-iphone-vietnam', '/kinh-nghiem-mua-iphone-cu']) {
         expect(hrefs).not.toContain(href)
       }
     })

@@ -10,6 +10,7 @@ import { Header } from './header'
 import { Footer } from './footer'
 import { keepReading } from './seo-article-related'
 import { SeoListingRail, type SeoRailTarget } from './seo-listing-rail'
+import { phoneGuideRail } from '@/lib/phone-guides-rail'
 /**
  * ⚠️ `@/components/marketplace/cross-site-promo`, NOT `./cross-site-promo`, AND THE DIFFERENCE IS
  * THE WHOLE STUB MECHANISM. next.config.ts aliases this module away on a marketplace build, and a
@@ -279,6 +280,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
   // and the block grew with every guide added; seo-article-related.ts picks at most six (the most
   // related first, plus alphabetical neighbours so no sibling is left without an inbound card).
   const related = keepReading(content.related, { canonical: content.canonical, h1: content.h1 })
+  const rail = content.rail ?? phoneGuideRail(content.canonical)
 
   /**
    * ⚠️ THE PUBLISHER IS THIS DEPLOYMENT, DERIVED FROM ITS OWN ORIGIN. It is the same defect the
@@ -383,7 +385,8 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
         {/* Full width, not the 3xl prose column: in 768px the grid's four cards were ~180px and every
             price broke onto two lines, against the owner's one-line card price (2026-09-13). At the
             page width the cards are the SEO landing pages' own size. */}
-        {content.rail && <SeoListingRail {...content.rail} className="mt-14" heading="h-title" />}
+        {/* A phone guide gets the second-hand phones rail by default (phone-guides-rail.ts, 2026-10-03). */}
+        {rail && <SeoListingRail {...rail} className="mt-14" heading="h-title" />}
 
         {related.length > 0 && (
           <section className="mt-14 max-w-3xl">

@@ -248,9 +248,9 @@ const CONTENT: ArticleContent = {
             applies to Android just as well.
           </P>
           <P>
-            For what things actually cost this week rather than what a guide claimed last quarter,{' '}
-            <HereLink href="/iphone-18-vietnam">the live price page</HereLink> reads the
-            marketplace&rsquo;s own listings. Bank transfer and cash are both normal; get the warranty
+            For what second-hand phones actually cost this week rather than what a guide claimed last
+            quarter, <HereLink href="/iphone-18-vietnam">the iPhone price page</HereLink> reads the
+            marketplace&rsquo;s own second-hand listings. Bank transfer and cash are both normal; get the warranty
             terms in writing with the IMEI on them, and meet in person for anything bought privately.
           </P>
         </>

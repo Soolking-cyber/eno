@@ -110,7 +110,8 @@ const CONTENT: ArticleContent = {
             that holds resale value best, which argues against over-buying.
           </P>
           <P>
-            Live prices for every variant are on{' '}
+            Apple Vietnam&rsquo;s prices for every variant, and what second-hand iPhone 18 and 17 units are
+            listed for here, are on{' '}
             <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink>, with{' '}
             <HereLink href="/iphone-18-pro-vietnam">the Pro</HereLink> and{' '}
             <HereLink href="/iphone-18-pro-max-vietnam">the Pro Max</HereLink> broken out by tier.

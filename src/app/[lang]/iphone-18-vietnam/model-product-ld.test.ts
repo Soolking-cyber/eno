@@ -27,12 +27,11 @@ const CFG = {
   model: 'iPhone 18 Pro',
   slug: 'iphone-18-pro-vietnam',
   intro: 'The iPhone 18 Pro is the smaller of Apple’s two autumn 2026 flagships.',
-  shipDate: SHIP,
 }
 
 const row = (over: Partial<PriceRow>): PriceRow => ({
   model: 'iPhone 18 Pro', storage: '256GB', storageGb: 256, price: 38_490_000, currency: '₫',
-  listingId: 'l-256', seller: 'CellphoneS', offers: 3,
+  listingId: 'l-256', seller: 'Minh Tuấn Mobile', offers: 3, condition: 'used', tracked: false,
   image: 'https://sb.eno.vn/storage/v1/object/public/listings/affiliate/m/pro-256.webp',
   ...over,
 })
@@ -66,12 +65,14 @@ describe('modelProductLd', () => {
       '@type': 'Product',
       name: 'iPhone 18 Pro',
       brand: { '@type': 'Brand', name: 'Apple' },
+      itemCondition: 'https://schema.org/UsedCondition',
       url: 'https://eno.vn/iphone-18-pro-vietnam',
     })
     const offers = ld.offers as Record<string, unknown>
     // 37.990.000 is the 512GB row — the minimum is the table's, not the first row's.
     expect(offers).toEqual({
       '@type': 'AggregateOffer',
+      itemCondition: 'https://schema.org/UsedCondition',
       lowPrice: 37_990_000,
       priceCurrency: 'VND',
       // 3 + 4 + 2 + 3: the "12 listings" PriceTable prints (it sums `offers` the same way), not 4 rows.
@@ -112,12 +113,17 @@ describe('modelProductLd', () => {
     expect(modelProductLd(CFG, [...ROWS, row({ currency: '$', price: 1_200 })])).toBeNull()
   })
 
-  it('is a PreOrder before the ship date and InStock from it', () => {
+  // A second-hand unit exists only once someone owns one — no PreOrder branch since 2026-10-03.
+  it('is InStock whatever the date — a live used listing is stock by definition', () => {
     vi.useFakeTimers()
-    vi.setSystemTime(SHIP - 1)
-    expect((modelProductLd(CFG, ROWS)?.offers as Record<string, unknown>).availability).toBe('https://schema.org/PreOrder')
-    vi.setSystemTime(SHIP)
+    vi.setSystemTime(SHIP - 86_400_000)
     expect((modelProductLd(CFG, ROWS)?.offers as Record<string, unknown>).availability).toBe('https://schema.org/InStock')
+  })
+
+  // ⛔ itemCondition is a claim about every row, so one row that is not second-hand publishes nothing.
+  it('publishes nothing when any row is not second-hand', () => {
+    const rows = [...ROWS, { ...row({}), condition: 'new' as unknown as 'used' }]
+    expect(modelProductLd(CFG, rows)).toBeNull()
   })
 })
 

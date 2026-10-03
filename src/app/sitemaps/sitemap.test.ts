@@ -28,6 +28,8 @@ type Row = {
   listingType?: string | null
   condition?: string | null
   model?: string | null
+  brandSlug?: string | null
+  currency?: string | null
 }
 
 type HelpRow = { id: string; editedAt: Date | null; createdAt: Date; updatedAt: Date }
@@ -73,6 +75,11 @@ function matches(row: Record<string, unknown>, where: Where | undefined): boolea
     if (key === 'NOT') return !matches(row, cond as Where)
     // The landing pages narrow by `category: { slug }` (seo-landing-where.ts).
     if (key === 'category') return CATEGORY_SLUGS[row.categoryId as string] === (cond as { slug: string }).slug
+    // The price pages read SHOP rows only (`seller: { ownerId: null }`, lowest-prices.ts). Owned here: the
+    // person's own storefront and the desk.
+    if (key === 'seller' && cond && typeof cond === 'object' && 'ownerId' in (cond as object) && (cond as { ownerId: unknown }).ownerId === null) {
+      return !['own-seller', 'desk-seller'].includes(row.sellerId as string)
+    }
     const value = row[key] ?? null
     if (cond !== null && typeof cond === 'object' && !(cond instanceof Date)) {
       const c = cond as { in?: unknown[]; notIn?: unknown[]; not?: unknown; contains?: string }
@@ -231,6 +238,12 @@ import { join } from 'node:path'
 const HOST = 'https://eno.vn'
 const locs = (xml: string) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
 const child = async (file: string) => childGET(new Request(`${HOST}/sitemaps/${file}`), { params: Promise.resolve({ file }) })
+
+/** A second-hand iPhone as the price pages select it (usedPriceWhere, lowest-prices.ts). */
+const USED_IPHONE: Partial<Row> = {
+  categoryId: 'cat-electronics', subcategorySlug: 'phones-tablets', brandSlug: 'apple', currency: '₫', listingType: 'sell', condition: 'used',
+  sellerId: 'import-seller',
+}
 
 function row(over: Partial<Row> & Pick<Row, 'id'>): Row {
   const updatedAt = over.updatedAt ?? new Date('2026-01-01T00:00:00Z')
@@ -599,8 +612,14 @@ describe('the pages child: lastmod from what each page shows', () => {
       row({ id: 'coffee', categoryId: 'cat-food', subcategorySlug: 'coffee-tea', listingType: 'wholesale', postedAt: d(4) }),
       row({ id: 'coffee-retail', categoryId: 'cat-food', subcategorySlug: 'coffee-tea', listingType: 'sell', postedAt: d(21) }),
       // The price pages read the last write to a row they price: posted early, re-priced on the 5th.
-      row({ id: 'pro', categoryId: 'cat-electronics', model: 'iPhone 18 Pro', postedAt: d(1), updatedAt: d(5) }),
-      row({ id: 'duo', categoryId: 'cat-electronics', model: 'iPhone Duo', postedAt: d(1), updatedAt: d(6) }),
+      // ⛔ SECOND-HAND ONLY since 2026-10-03 (usedPriceWhere): a NEW unit of the model must not date the page.
+      row({ id: 'pro', ...USED_IPHONE, model: 'iPhone 18 Pro', postedAt: d(1), updatedAt: d(5) }),
+      row({ id: 'pro-new', ...USED_IPHONE, condition: 'Mới 100%', model: 'iPhone 18 Pro', postedAt: d(1), updatedAt: d(22) }),
+      // ⛔ A PERSON's own used unit does not date it either: the price pages quote shops only.
+      row({ id: 'pro-private', ...USED_IPHONE, sellerId: 'own-seller', model: 'iPhone 18 Pro', postedAt: d(1), updatedAt: d(23) }),
+      row({ id: 'duo', ...USED_IPHONE, model: 'iPhone Duo', postedAt: d(1), updatedAt: d(6) }),
+      // The hub also prices the second-hand iPhone 17 line.
+      row({ id: '17pm', ...USED_IPHONE, model: 'iPhone 17 Pro Max', postedAt: d(1), updatedAt: d(7) }),
       // The freshest row on the site, in a category no landing rails.
       row({ id: 'book', categoryId: 'cat-books', postedAt: d(25) }),
     ]
@@ -613,15 +632,15 @@ describe('the pages child: lastmod from what each page shows', () => {
       'wholesale-green-coffee-vietnam': d(4).toISOString(),
       'iphone-18-pro-vietnam': d(5).toISOString(),
       'iphone-duo-vietnam': d(6).toISOString(),
-      // The hub prices both Pro models and the Duo.
-      'iphone-18-vietnam': d(6).toISOString(),
+      // The hub prices both Pro models, the Duo and the second-hand iPhone 17 line.
+      'iphone-18-vietnam': d(7).toISOString(),
       // No row of the model: listed, undated.
       'iphone-18-pro-max-vietnam': undefined,
       'hcmc-rent-index': '2026-09-29T01:00:00.000Z',
     }
     for (const [path, want] of Object.entries(landings)) expect(lastmodOf(xml, `${HOST}/${path}`), path).toBe(want)
     for (const path of Object.keys(landings)) expect(lastmodOf(xml, `${HOST}/${path}`), path).not.toBe(home)
-    // Empty jobs and motorbike rails: not submitted at all (they answer noindex).
+    // An empty jobs rail: not submitted at all (it answers noindex).
     expect(locs(xml)).not.toContain(`${HOST}/jobs-vietnam-expats`)
     expect(locs(xml)).not.toContain(`${HOST}/motorbikes-for-sale-vietnam`)
   })
@@ -629,12 +648,28 @@ describe('the pages child: lastmod from what each page shows', () => {
   it('submits a gated landing once it has a listing, dated by it', async () => {
     h.rows = [
       row({ id: 'job', categoryId: 'cat-empty', postedAt: new Date('2026-09-10T00:00:00Z') }),
-      row({ id: 'bike', categoryId: 'cat-vehicles', subcategorySlug: 'motorbike', postedAt: new Date('2026-09-11T00:00:00Z') }),
-      row({ id: 'car', categoryId: 'cat-vehicles', subcategorySlug: 'car', postedAt: new Date('2026-09-12T00:00:00Z') }),
     ]
     const xml = await (await pagesGET()).text()
     expect(lastmodOf(xml, `${HOST}/jobs-vietnam-expats`)).toBe('2026-09-10T00:00:00.000Z')
-    expect(lastmodOf(xml, `${HOST}/motorbikes-for-sale-vietnam`)).toBe('2026-09-11T00:00:00.000Z')
+  })
+
+  /**
+   * ⛔ SECOND-HAND FOCUS, 2026-10-03: /c/vehicles (and its district pages) and /motorbikes-for-sale-vietnam
+   * 308 to the motorbike-rental hub on the marketplace (src/lib/retired-categories.ts). A submitted URL that
+   * redirects is a Search Console error, so neither is submitted there, however many bikes are listed. On
+   * eno.forum nothing redirects, and /c/vehicles is submitted by its own live count as before.
+   */
+  it('never submits a URL that redirects: no /c/vehicles and no /motorbikes-for-sale-vietnam on the marketplace', async () => {
+    h.rows = [
+      ...many(MIN_INDEXABLE_LISTINGS, 'bike', { categoryId: 'cat-vehicles', subcategorySlug: 'motorbike', district: 'Quận 5', postedAt: new Date('2026-09-11T00:00:00Z') }),
+    ]
+    const urls = locs(await (await pagesGET()).text())
+    expect(urls.filter((u) => u.includes('/c/vehicles'))).toEqual([])
+    expect(urls).not.toContain(`${HOST}/motorbikes-for-sale-vietnam`)
+    h.services = true
+    const forum = locs(await (await pagesGET()).text())
+    expect(forum).toContain(`${HOST}/c/vehicles`)
+    expect(forum).not.toContain(`${HOST}/motorbikes-for-sale-vietnam`)
   })
 
   it('keeps every landing, undated, when its read fails', async () => {
@@ -643,7 +678,7 @@ describe('the pages child: lastmod from what each page shows', () => {
     const xml = await (await pagesGET()).text()
     for (const path of [
       'housing-vietnam-expats', 'iphone-18-vietnam', 'iphone-18-pro-vietnam', 'iphone-18-pro-max-vietnam', 'iphone-duo-vietnam',
-      'jobs-vietnam-expats', 'motorbikes-for-sale-vietnam', 'moving-sales-vietnam', 'wholesale-green-coffee-vietnam',
+      'jobs-vietnam-expats', 'moving-sales-vietnam', 'wholesale-green-coffee-vietnam',
     ]) {
       expect(lastmodOf(xml, `${HOST}/${path}`), path).toBeUndefined()
     }

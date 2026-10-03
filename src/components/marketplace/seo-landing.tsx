@@ -31,6 +31,12 @@ type SeoContentFields = {
   /** Heading of the live listing rail; default "Trusted listings". A page whose rail is mostly LINKED
    *  postings eno.vn has not vetted (jobs) must not call them trusted. */
   railTitle?: string
+  /**
+   * `recent` — the rail lists featured-then-newest, not cheapest-first (seo-listing-rail.tsx). For a page
+   * that quotes prices: a price-sorted rail would put the cheapest listing — a typo, or a lure priced to be
+   * clicked — first, right under a table built to leave such prices out (review, 2026-10-03).
+   */
+  order?: 'recent'
   /** false = no "every seller has a public trust score" strip — untrue where the rail is linked
    *  postings whose "seller" is a job board eno.vn never rated. */
   trustStrip?: boolean

@@ -32,7 +32,9 @@ const TestResizeObserver = class {
 HTMLElement.prototype.scrollTo = () => {}
 
 type Cats = React.ComponentProps<typeof CategoryRail>['categories']
-const POOL = ['vehicles', 'electronics', 'services', 'property', 'jobs', 'rentals', 'fashion-beauty', 'sports', 'pets', 'baby-kids']
+// ⚠️ No retired shelf (vehicles, pets, books-stationery, hobbies-sports — src/lib/retired-categories.ts): since
+// 2026-10-03 the rail drops those by name, so they would not be tiles and the counts below would not hold.
+const POOL = ['furniture-appliances', 'electronics', 'services', 'property', 'jobs', 'rentals', 'fashion-beauty', 'sports', 'food-drink', 'baby-kids']
 const cats = (n: number) =>
   POOL.slice(0, n).map((slug) => ({ id: slug, slug, name: slug, nameVi: slug, icon: 'Car' })) as unknown as Cats
 /** The three live intent tiles (INTENT_SHORTCUTS' shape). `shortcuts` is fed from DESK_SHORTCUTS,
@@ -129,7 +131,7 @@ describe('<CategoryRail> grid shape', () => {
   it('changes no tile span when a category is pressed', () => {
     const spansOf = (active: string) => renderRail(cats(10), active).tiles.map((t) => t.className.match(/(?:^|\s)row-span-\d/)?.[0].trim())
     const idle = spansOf('all')
-    for (const active of ['electronics', 'services', 'vehicles', 'jobs']) expect(spansOf(active), active).toEqual(idle)
+    for (const active of ['electronics', 'services', 'furniture-appliances', 'jobs']) expect(spansOf(active), active).toEqual(idle)
   })
 
   it('renders no "All" tile, at any rail length', () => {

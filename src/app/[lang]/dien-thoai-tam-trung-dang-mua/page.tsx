@@ -159,9 +159,8 @@ const CONTENT: ArticleContent = {
             nhật là tất cả.
           </P>
           <P>
-            Giá thị trường hôm nay của dòng mới nhất có trên{' '}
-            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>, đọc trực tiếp từ tin
-            rao đang có chứ không phải từ bảng giá niêm yết cũ.
+            Giá chính hãng của dòng mới nhất và giá máy cũ đang rao trên sàn có trên{' '}
+            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>.
           </P>
         </>
       ),

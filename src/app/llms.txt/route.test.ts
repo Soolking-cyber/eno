@@ -83,7 +83,7 @@ const MEASURED: SiteFacts = {
   byCategory: cats({
     electronics: 63_932, rentals: 25_502, 'furniture-appliances': 6_308, sports: 5_591, 'fashion-beauty': 1_184,
     services: 447, 'books-stationery': 422, 'baby-kids': 380, vehicles: 100, jobs: 39, 'hobbies-sports': 26,
-    'tickets-travel': 17, 'food-drink': 17, pets: 1,
+    'tickets-travel': 17, 'food-drink': 17, pets: 1, teachers: 1,
   }),
   byCity: {
     hcmc: cats({ electronics: 63_900, rentals: 25_502, 'furniture-appliances': 6_308, jobs: 29, services: 447 }),
@@ -220,13 +220,24 @@ describe('/llms.txt on the marketplace', () => {
   it('lists only categories with stock, with their live counts, largest first', async () => {
     const body = await bodyOf()
     const section = body.split('## Categories')[1].split('## Guides')[0]
-    expect(section).toContain('- [Electronics](https://eno.vn/c/electronics): phones, laptops, tablets, audio and accessories — 63,932 live listings.')
+    // Second-hand focus (2026-10-03): the electronics left are used stock.
+    expect(section).toContain('- [Electronics](https://eno.vn/c/electronics): second-hand phones, laptops, cameras and accessories — 63,932 live listings.')
     expect(section.indexOf('/c/electronics')).toBeLessThan(section.indexOf('/c/rentals'))
-    // One listing is "1 live listing", not "1 live listings" (pets held exactly one on 2026-09-27).
-    expect(section).toMatch(/\/c\/pets\)[^\n]* — 1 live listing\.\n?/)
+    // One listing is "1 live listing", not "1 live listings".
+    expect(section).toMatch(/\/c\/teachers\)[^\n]* — 1 live listing\.\n?/)
     expect(section).not.toContain(' — 1 live listings')
     expect(section).not.toContain('/c/moving-sale')
     expect(section).not.toContain('/c/community-events')
+  })
+
+  // ⛔ SECOND-HAND FOCUS, 2026-10-03: the retired shelves are not offered — /c/vehicles redirects to a rental hub,
+  // and pets, books and hobbies are out of every browse surface (src/lib/retired-categories.ts) — and the
+  // services blurb no longer names the AppleCare+/Samsung Care+ plans that were CellphoneS products.
+  it('lists no retired shelf, whatever its count, and no device protection plans', async () => {
+    const section = (await bodyOf()).split('## Categories')[1].split('## Guides')[0]
+    for (const slug of ['vehicles', 'pets', 'books-stationery', 'hobbies-sports']) expect(section, slug).not.toContain(`/c/${slug})`)
+    expect(section).toContain('- [Services](https://eno.vn/c/services): eSIMs, SIM cards and expat services')
+    expect(section).not.toMatch(/protection plan/i)
   })
 
   it('names the eleven interface languages in English', async () => {

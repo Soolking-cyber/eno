@@ -1,24 +1,31 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
+import { Tr } from '@/context/language-context'
 import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { formatMoneyFull } from '@/lib/vnd'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
-import { IPHONE_18_MODELS, IPHONE_DUO_MODEL, lowestPrices, type PriceRow } from './lowest-prices'
-import { AffiliateNote, PriceTable } from './price-table'
+import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, lowestPrices, type PriceRow } from './lowest-prices'
+import { AffiliateNote, PriceTable, showAffiliateNote } from './price-table'
 import { DuoCard } from './duo-card'
+import { APPLE_VN_FROM_PRICE } from './price-guard'
 
 /**
  * ⚠️ ONE HOUR, AND HERE IT IS THE PRICES RATHER THAN THE EMPTY-INVENTORY COPY. The sibling landing
  * pages dropped to 3600 because a weekly regeneration kept telling visitors a filling category was
  * empty; this page additionally PRINTS PRICES, and a stale figure on a page that ranks for "iPhone
- * 18 price" is worse than no page. The affiliate refresh cron re-reads retailer prices nightly, so
- * an hour is the shortest window that costs nothing.
+ * 18 price" is worse than no page. Second-hand listings come and go daily, so an hour is the shortest
+ * window that costs nothing.
+ *
+ * ⛔ SECOND-HAND FOCUS (owner, 2026-10-03): the tables read USED listings only (lowest-prices.ts) — the new
+ * retail stock they used to quote (CellphoneS, Thế Giới Di Động, Bạch Long) was taken off the site. Apple
+ * Vietnam's prices are quoted as Apple's. The iPhone 17 table is the second-hand market that exists today.
  */
 export const revalidate = 3600
 
 const TITLE = `iPhone 18 Price in Vietnam — Pro, Pro Max & iPhone Duo | ${SITE_NAME}`
 const DESCRIPTION =
-  'What an iPhone 18 costs in Vietnam right now: live Pro and Pro Max prices by storage size from Vietnamese retailers, Apple’s official iPhone Duo prices, launch dates, and what “chính hãng VN/A” means when you buy as a foreigner.'
+  'What an iPhone 18 costs in Vietnam: Apple Vietnam’s official Pro, Pro Max and Duo prices, what second-hand iPhone 18 and iPhone 17 units are listed for here, launch dates, and what “chính hãng VN/A” means when you buy as a foreigner.'
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -27,7 +34,7 @@ export const metadata: Metadata = {
   ...pageShare({
     title: 'iPhone 18 Price in Vietnam — Pro, Pro Max & iPhone Duo',
     description:
-      'Live iPhone 18 Pro and Pro Max prices from Vietnamese retailers, the official iPhone Duo prices, and the launch dates.',
+      'Apple Vietnam’s iPhone 18 and iPhone Duo prices, what second-hand iPhone 18 and iPhone 17 units are listed for here, and the launch dates.',
   }),
 }
 
@@ -58,7 +65,27 @@ const floorFor = (rows: PriceRow[], model: string) =>
  */
 const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
-function content(rows: PriceRow[]): SeoContent {
+/**
+ * A second-hand iPhone 17 FAQ — only when there are rows to quote, so the answer (and the FAQPage markup
+ * built from it) never states a price nobody is asking.
+ */
+function secondHand17Faq(rows17: PriceRow[]): { q: string; a: string }[] {
+  const floors = IPHONE_17_MODELS.map((m) => floorFor(rows17, m)).filter((f): f is PriceRow => f !== null)
+  if (!floors.length) return []
+  return [{
+    q: 'How much is a second-hand iPhone 17 in Vietnam?',
+    a: `The cheapest second-hand shop listings on ${SITE_NAME} right now: ${floors.map((f) => `${f.model} ${money(f.price)} (${f.storage})`).join(', ')}. Check the model number ends in VN/A for the Apple Vietnam warranty, and look at the battery health before you pay.`,
+  }]
+}
+
+/** Apple Vietnam's price for the 256GB iPhone 18 Pro — read from the one table the price pages share. */
+const PRO_FROM = APPLE_VN_FROM_PRICE['iPhone 18 Pro']
+
+/**
+ * `known` is false when a price read failed (a build with the database unreachable): then nothing here says
+ * "no second-hand one is listed" — that would be a claim about stock the page never looked at (review).
+ */
+function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoContent {
   const proFloor = floorFor(rows, 'iPhone 18 Pro')
   const maxFloor = floorFor(rows, 'iPhone 18 Pro Max')
   /**
@@ -71,28 +98,37 @@ function content(rows: PriceRow[]): SeoContent {
   // should still lead the page (agy).
   const floors = [proFloor, maxFloor].filter((f): f is PriceRow => f !== null)
   const priceClause = floors.length
-    ? ` Right now ${floors.map((f) => `the cheapest ${f.model} listed here is ${money(f.price)} for the ${f.storage} model`).join(', and ')}.`
+    ? ` Right now ${floors.map((f) => `the cheapest second-hand ${f.model} from a shop here is ${money(f.price)} for the ${f.storage} model`).join(', and ')}.`
     : ''
 
   return {
     eyebrow: 'Apple · Vietnam',
     h1: 'iPhone 18 price in Vietnam',
     intro:
-      'Apple’s iPhone 18 Pro and iPhone 18 Pro Max reach Vietnamese buyers on 18 September 2026, and the folding iPhone Duo goes on sale on 23 October.' +
+      'Apple’s iPhone 18 Pro and iPhone 18 Pro Max reached Vietnamese buyers on 18 September 2026, and the folding iPhone Duo goes on sale on 23 October. ' +
+      `Apple Vietnam’s own price for the 256GB iPhone 18 Pro is ${money(PRO_FROM)}.` +
       priceClause +
       /**
-       * ⚠️ THE PROMISE IS CONDITIONAL ON THERE BEING A TABLE TO POINT AT. "Every price below comes
-       * from a live listing … not a press release" sat above Apple's announced RRP whenever the
-       * catalogue had no rows — the sentence contradicting the block beneath it (opus).
+       * ⚠️ THE PROMISE IS CONDITIONAL ON THERE BEING A TABLE TO POINT AT (opus) — and since 2026-10-03 on
+       * what the tables are: live SECOND-HAND listings, never a retailer's shelf price.
        */
-      (rows.length > 0
-        ? ' Every price in the table below comes from a live listing by a Vietnamese retailer, updated hourly — not a press release.'
-        : ' Prices below are Apple Vietnam’s own, until retailers list theirs here.'),
+      (rows.length + rows17.length > 0
+        ? ' The tables below read the second-hand phone shops’ live listings on this marketplace — the iPhone 18 as units resell, and the iPhone 17 line, where the second-hand market is today.'
+        : known ? ' Second-hand units usually appear a few weeks after launch.' : ''),
     categorySlug: 'electronics',
     subcategorySlug: 'phones-tablets',
     brandSlug: 'apple',
-    models: IPHONE_18_MODELS,
-    browseQuery: 'iPhone 18',
+    /**
+     * ⛔ THE RAIL SHOWS WHAT THE TABLES QUOTE: used iPhone 18 AND 17 (review, 2026-10-03). Narrowed to the
+     * iPhone 18 alone it found nothing, so the page printed "just getting started … not much to browse"
+     * directly above a table of used iPhone 17s — and that empty-state branch also drops `browseLinks`, the
+     * hub's only CTA links to its model pages (they are in `related` too now, for every state).
+     */
+    condition: 'used',
+    models: [...IPHONE_18_MODELS, ...IPHONE_17_MODELS],
+    browseQuery: 'iPhone',
+    railTitle: 'Second-hand iPhones listed now',
+    order: 'recent',
     /**
      * ⛔ THE HUB'S CTAs GO TO ITS CHILDREN, NOT TO THE EXPLORER. "Browse every iPhone 18" linked
      * `/?category=electronics&…&q=iPhone+18`, which canonicalises to `/` — three followed links (the
@@ -129,20 +165,29 @@ function content(rows: PriceRow[]): SeoContent {
       {
         title: 'Where these prices come from',
         body:
-          'The table above reads the marketplace’s own listings from Vietnamese retailers — CellphoneS, Thế Giới Di Động and Bạch Long among them — and shows the lowest live price per variant. Retail prices in Vietnam move: the usual pattern after an iPhone launch is a 1–3 million đồng slide over the first two months as the pre-order rush clears, so a page checked in November will not read like one checked in September.',
+          'The tables read live second-hand listings from the used-phone shops on this marketplace, and show the lowest price per storage tier; a price far out of line with the other listings of the same model, or with Apple’s own price, is left out as a likely typo. Apple Vietnam’s own prices are quoted as Apple’s, never as a listing. Second-hand prices follow new ones down: the usual pattern after an iPhone launch is a 1–3 million đồng slide over the first two months as the pre-order rush clears, and a used unit lists below that.',
       },
     ],
     related: [
-      { href: '/c/electronics', label: 'Phones & electronics in Vietnam', blurb: 'Every phone, laptop and camera listed on the marketplace, from retailers and private sellers.' },
+      // ⚠️ The model pages, here AS WELL AS in browseLinks: the empty-inventory branch of SeoLanding drops
+      // browseLinks, and a hub must reach its children in every state (review, 2026-10-03).
+      { href: '/iphone-18-pro-vietnam', label: 'iPhone 18 Pro price', blurb: 'The 6.3-inch model — Apple Vietnam’s price per storage tier, and any second-hand unit listed here.' },
+      { href: '/iphone-18-pro-max-vietnam', label: 'iPhone 18 Pro Max price', blurb: 'The 6.9-inch model — Apple Vietnam’s price per storage tier, and any second-hand unit listed here.' },
+      { href: '/iphone-duo-vietnam', label: 'iPhone Duo price', blurb: 'Apple’s first foldable, on sale in Vietnam from 23 October 2026.' },
+      { href: '/buying-a-used-iphone-vietnam', label: 'Buying a used iPhone in Vietnam', blurb: 'What to check before you pay for a second-hand iPhone here — the model number, the IMEI, the battery and the parts history.' },
+      { href: '/c/electronics', label: 'Phones & electronics in Vietnam', blurb: 'Second-hand phones, laptops and cameras from used-goods shops and private sellers.' },
       { href: '/brands', label: 'Browse by brand', blurb: 'Apple, Samsung, Xiaomi and the rest — jump straight to a brand’s live listings.' },
     ],
     faqs: [
       {
         q: 'How much is an iPhone 18 Pro in Vietnam?',
         a: proFloor
-          ? `The cheapest iPhone 18 Pro listed on ${SITE_NAME} right now is ${money(proFloor.price)} for the ${proFloor.storage} model, from a Vietnamese retailer. Check the listing for whether it is a VN/A unit with the Apple Vietnam warranty — prices for the other storage tiers are in the table above.`
-          : `Apple Vietnam’s recommended price for the 256GB iPhone 18 Pro is ${money(38_999_000)}. Retailers discount it: the live listings on ${SITE_NAME} are the figures to compare.`,
+          ? `Apple Vietnam’s recommended price for the 256GB iPhone 18 Pro is ${money(PRO_FROM)}. The cheapest second-hand one a shop lists on ${SITE_NAME} right now is ${money(proFloor.price)} for the ${proFloor.storage} model — check the listing for a VN/A model number and the battery health; the other storage tiers are in the table above.`
+          : known
+            ? `Apple Vietnam’s recommended price for the 256GB iPhone 18 Pro is ${money(PRO_FROM)}. No second-hand shop lists one on ${SITE_NAME} yet; used units usually appear a few weeks after launch.`
+            : `Apple Vietnam’s recommended price for the 256GB iPhone 18 Pro is ${money(PRO_FROM)}.`,
       },
+      ...secondHand17Faq(rows17),
       {
         q: 'When does the iPhone Duo go on sale in Vietnam?',
         a: `Pre-orders open at 7pm on 16 October 2026 and deliveries begin on 23 October 2026. Apple Vietnam prices run from ${money(64_999_000)} for 256GB to ${money(103_999_000)} for 2TB — the first iPhone sold officially in Vietnam above 100 million đồng.`,
@@ -157,7 +202,7 @@ function content(rows: PriceRow[]): SeoContent {
       },
       {
         q: 'Can a foreigner buy an iPhone in Vietnam on a passport?',
-        a: 'Yes. A passport is enough for an outright purchase at any retailer. Instalment plans usually require a Vietnamese ID or residence card, and tourists leaving within 60 days can claim most of the 10% VAT back at the airport on invoices over 2,000,000 ₫.',
+        a: 'Yes. A passport is enough for an outright purchase at any shop. Instalment plans usually require a Vietnamese ID or residence card, and tourists leaving within 60 days can claim most of the 10% VAT back at the airport on invoices over 2,000,000 ₫ from a registered shop.',
       },
       {
         q: 'Is it cheaper to buy an iPhone 18 in Vietnam or abroad?',
@@ -169,7 +214,7 @@ function content(rows: PriceRow[]): SeoContent {
       },
       {
         q: 'Will the price drop?',
-        a: 'Usually, yes — Vietnamese retail prices for a new iPhone typically settle 1–3 million đồng below launch within the first two months as pre-orders clear. This page re-reads live listings every hour, so it shows the fall as it happens.',
+        a: 'Usually, yes — new-iPhone prices in Vietnam typically settle 1–3 million đồng below launch within the first two months as pre-orders clear, and second-hand prices follow them down. The tables above show what second-hand units were listed for when the page was last checked, not a forecast.',
       },
     ],
     /**
@@ -194,8 +239,9 @@ function content(rows: PriceRow[]): SeoContent {
 }
 
 export default async function IPhone18VietnamPage() {
-  const [phones, duo] = await Promise.all([lowestPrices(), lowestPrices([IPHONE_DUO_MODEL])])
+  const [phones, phones17, duo] = await Promise.all([lowestPrices(), lowestPrices(IPHONE_17_MODELS), lowestPrices([IPHONE_DUO_MODEL])])
   const rows = phones.rows
+  const rows17 = phones17.rows
   const duoRows = duo.rows
   /**
    * ⚠️ A DATE, NOT A TIME, AND IT COMES FROM THE RENDER. An "updated 14:05" stamp on an ISR page is
@@ -205,12 +251,24 @@ export default async function IPhone18VietnamPage() {
   const updated = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   return (
     <SeoLanding
-      content={content(rows)}
+      content={content(rows, rows17, phones.known && phones17.known)}
       lede={
         <>
-          <PriceTable rows={rows} known={phones.known} updated={updated} seeAll={false} />
+          {/* ⛔ NO EMPTY TABLE AND NO SILENCE EITHER: with no second-hand iPhone 18 yet, one line says so —
+              and only when the catalogue was actually read (PriceTable owns the could-not-read state). */}
+          {phones.known && rows.length === 0 ? (
+            <p className="mt-8 max-w-prose text-sm leading-relaxed text-body">
+              <Tr text="No second-hand shop lists an iPhone 18 here yet — used units usually appear a few weeks after launch." />{' '}
+              <Link href="/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used" rel="nofollow" prefetch={false} className="font-semibold text-accent-foreground hover:underline">
+                <Tr text="Browse second-hand iPhones" />
+              </Link>
+            </p>
+          ) : (
+            <PriceTable rows={rows} known={phones.known} updated={updated} seeAll={false} id="used-iphone-18-prices" heading={<Tr text="Second-hand iPhone 18 prices today" />} />
+          )}
+          <PriceTable rows={rows17} known={phones17.known} updated={updated} seeAll={false} id="used-iphone-17-prices" heading={<Tr text="Second-hand iPhone 17 prices today" />} />
           <DuoCard rows={duoRows} known={duo.known} checked={updated} />
-          {rows.length + duoRows.length > 0 && <AffiliateNote />}
+          {showAffiliateNote(rows, rows17, duoRows) && <AffiliateNote />}
         </>
       }
     />

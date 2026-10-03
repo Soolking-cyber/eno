@@ -5,6 +5,7 @@ import { EXPAT_GUIDES, MARKETPLACE_GUIDES, expatGuidePath } from '@/lib/expat-gu
 import { PHONE_GUIDES } from '@/lib/phone-guides'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
+import { RETIRED_NAV_CATEGORIES } from '@/lib/retired-categories'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { CITY_KEYS, CITY_NAMES, inCity, loadSiteFacts, type SiteFacts } from '@/lib/site-facts'
@@ -121,13 +122,14 @@ const DEVELOPER_SECTION = `## For developers and agents
  */
 const CATEGORY_COPY: Record<string, { label: string; blurb: string }> = {
   rentals: { label: 'Rentals', blurb: 'apartments, houses, rooms and offices to rent' },
-  electronics: { label: 'Electronics', blurb: 'phones, laptops, tablets, audio and accessories' },
+  // Second-hand focus (2026-10-03): the new-goods catalogues are gone; what is left is used stock.
+  electronics: { label: 'Electronics', blurb: 'second-hand phones, laptops, cameras and accessories' },
   'furniture-appliances': { label: 'Home', blurb: 'furniture and home appliances' },
   sports: { label: 'Sports', blurb: 'sportswear and sports gear' },
   'fashion-beauty': { label: 'Fashion', blurb: 'clothing, shoes, bags and cosmetics' },
-  // Named from the shelf (2026-09-27: eSIMs and SIMs, AppleCare+/Samsung Care+ plans, a few others),
-  // not the taxonomy's "local services" — none of which were listed. Says less, never more.
-  services: { label: 'Services', blurb: 'eSIMs and SIM cards, device protection plans and other services' },
+  // Named from the shelf, not the taxonomy's "local services". The AppleCare+/Samsung Care+ plans it named
+  // until 2026-10-03 were CellphoneS products and are hidden with the rest of its new goods.
+  services: { label: 'Services', blurb: 'eSIMs, SIM cards and expat services' },
   'books-stationery': { label: 'Books', blurb: 'books and stationery' },
   'baby-kids': { label: 'Kids', blurb: 'baby gear, toys and kids clothing' },
   vehicles: { label: 'Vehicles', blurb: 'vehicles, parts and accessories' },
@@ -242,6 +244,9 @@ function marketplaceCategories(f: SiteFacts | null): string {
     return `- Browse every category from the [home page](${SITE_ORIGIN}/).`
   }
   const rows = Object.entries(f.byCategory)
+    // ⛔ Not a retired shelf (src/lib/retired-categories.ts): /c/vehicles redirects to a rental hub, and the
+    // other three are no longer offered anywhere a visitor browses.
+    .filter(([slug]) => !RETIRED_NAV_CATEGORIES.has(slug))
     .sort(([, a], [, b]) => b - a)
     .map(([slug, n]) => {
       const copy = CATEGORY_COPY[slug]

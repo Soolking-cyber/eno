@@ -13,6 +13,7 @@ import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { guidesForCategory } from '@/lib/category-guides'
 import { MIN_CATEGORY_LISTINGS } from '@/lib/index-floor'
+import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
 import { staleBelowFloor } from '@/lib/stale-noindex'
 import { db } from '@/lib/db'
 import { diverseFeedWindow } from '@/lib/feed-window'
@@ -194,7 +195,9 @@ export default async function CategoryPage({ params }: Props) {
     // Card projection: this page only renders <ListingCard> slots — the full row (description,
     // attributes, searchText, whole Seller) tripled the ISR payload. The order is buildFeedOrderBy('newest').
     diverseFeedWindow(scopedWhere, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats }),
-    db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),
+    // ⛔ Not the shelves no browse surface links (src/lib/retired-categories.ts — the footer reads the same
+    // set): /c/vehicles redirects to a rental hub, and the empty ones are noindex dead ends.
+    db.category.findMany({ where: { NOT: { id: cat.id }, slug: { notIn: [...UNLINKED_CATEGORIES] } }, orderBy: { name: 'asc' } }),
     // ⚠️ CANONICAL CHIPS (category-data.ts): one per place, linking the one URL that place has — the
     // stored spellings (`quan-2`, `huyen-cu-chi`) now 308 there instead of standing beside it — and
     // only places at the indexing floor (SEO wave B, I1), so no chip links a `noindex` page.

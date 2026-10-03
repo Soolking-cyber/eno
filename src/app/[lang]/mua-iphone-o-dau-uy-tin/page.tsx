@@ -141,9 +141,8 @@ const CONTENT: ArticleContent = {
             đến.
           </P>
           <P>
-            Giá thị trường hôm nay của dòng mới nhất có trên{' '}
-            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>, đọc trực tiếp từ tin
-            rao của các nhà bán lẻ chứ không phải từ thông cáo báo chí.
+            Giá chính hãng của dòng mới nhất và giá máy cũ đang rao trên sàn có trên{' '}
+            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>.
           </P>
         </>
       ),

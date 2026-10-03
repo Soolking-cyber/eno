@@ -6,7 +6,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { LanguageProvider, useLanguage, type Language } from '@/context/language-context'
 import { formatCount } from '@/lib/vnd'
 import { resultCountLabel, type TrFn } from './result-line'
-import { CountChip, countChipLabel, countDigits, optionCount, railDimension } from './count-chip'
+import { CountChip, countChipLabel, countDigits, offeredCategories, optionCount, railDimension } from './count-chip'
 import { CategoryRail } from './category-rail'
 import { BrandRail } from './brand-rail'
 
@@ -452,19 +452,25 @@ describe('<CategoryRail> — counts at the call site', () => {
   })
 
   it('draws no tile for a category with nothing in it — unless it is the active one', () => {
+    // ⚠️ Fashion, not this file's Vehicles: since 2026-10-03 vehicles is a RETIRED shelf, dropped by name
+    // whatever its count (see the last describe), so it can no longer stand for "a non-empty category".
+    const cats = [
+      { id: '3', slug: 'fashion-beauty', name: 'Fashion', nameVi: 'Thời trang', icon: 'Shirt' },
+      CATS[1],
+    ] as unknown as React.ComponentProps<typeof CategoryRail>['categories']
     renderIn(
       'en',
       <CategoryRail
-        categories={CATS}
+        categories={cats}
         activeCategory="all"
         activeSubcategory="all"
         subcategoryCounts={{}}
-        facets={{ category: { all: 40, values: { vehicles: 40, electronics: 0 } } }}
+        facets={{ category: { all: 40, values: { 'fashion-beauty': 40, electronics: 0 } } }}
         onCategory={() => {}}
         onSubcategory={() => {}}
       />,
     )
-    expect(screen.getByRole('button', { name: /^Vehicles$/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Fashion$/ })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Electronics$/ })).toBeNull()
   })
 
@@ -677,5 +683,24 @@ describe('<BrandRail> — counts at the call site', () => {
     )
     await screen.findByText('Vision', undefined, WAIT)
     expect(screen.queryByRole('button', { name: /listings/ })).toBeNull()
+  })
+})
+
+// ⛔ SECOND-HAND FOCUS, 2026-10-03: vehicles (2 live), books (6) and hobbies (4) clear the "not zero" test, so
+// they are dropped by name — unless the visitor is already in one, which must stay readable and leavable.
+describe('offeredCategories — the retired shelves', () => {
+  const all = [
+    { slug: 'rentals', verifiedCount: 23_314 },
+    { slug: 'vehicles', verifiedCount: 2 },
+    { slug: 'books-stationery', verifiedCount: 6 },
+    { slug: 'hobbies-sports', verifiedCount: 4 },
+    { slug: 'pets', verifiedCount: 0 },
+    { slug: 'electronics', verifiedCount: 4_647 },
+  ]
+  it('drops vehicles, books, hobbies and pets from the tiles', () => {
+    expect(offeredCategories(all, undefined, '').map((c) => c.slug)).toEqual(['rentals', 'electronics'])
+  })
+  it('keeps the active one, retired or not', () => {
+    expect(offeredCategories(all, undefined, 'vehicles').map((c) => c.slug)).toEqual(['rentals', 'vehicles', 'electronics'])
   })
 })

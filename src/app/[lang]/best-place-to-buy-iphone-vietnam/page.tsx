@@ -152,9 +152,8 @@ const CONTENT: ArticleContent = {
             issues eSIM, so an eSIM-only imported handset works here without a physical SIM at all.
           </P>
           <P>
-            You can see what Vietnamese retailers are asking today on <HereLink href="/iphone-18-vietnam">
-            the live iPhone 18 price page</HereLink>, which reads the marketplace&rsquo;s own listings
-            rather than a press release.
+            Apple Vietnam&rsquo;s prices, and what second-hand iPhones are listed for here, are on{' '}
+            <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink>.
           </P>
         </>
       ),

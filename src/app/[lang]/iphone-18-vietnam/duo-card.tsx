@@ -5,8 +5,8 @@ import { Price } from '@/components/marketplace/price'
 import type { PriceRow } from './lowest-prices'
 
 /**
- * Apple's first foldable: what Vietnamese retailers are charging for it, and what Apple says it
- * costs.
+ * Apple's first foldable: what Apple says it costs, and — once units resell — what second-hand ones are
+ * listed for here (second-hand focus, 2026-10-03; the rows are used-only, lowest-prices.ts).
  *
  * ⛔ THE INVENTORY SENTENCE IS A QUERY, NOT A CLAIM. This card first read "no retailer is listing
  * the Duo yet — it has not shipped", written from the affiliate sweep (zero Duo rows across all 22
@@ -93,18 +93,18 @@ export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boo
             reported as "nobody is listing one": that sentence would then be a build outage
             masquerading as a fact, cached for an hour (opus). */}
         {listed
-          ? <><Tr text="Live pre-order prices from Vietnamese retailers, checked" /> {checked}. <Tr text="Apple Vietnam's own recommended price starts at" /> <Price native price={64_999_000} currency="₫" priceUnit="" dual={false} className="inline text-xs" />.</>
+          ? <><Tr text="The cheapest second-hand iPhone Duo from a shop here, per storage tier, checked" /> {checked}. <Tr text="Apple Vietnam's own recommended price starts at" /> <Price native price={64_999_000} currency="₫" priceUnit="" dual={false} className="inline text-xs" />.</>
           : known
-            ? <><Tr text="Apple Vietnam recommended retail prices, announced 9 September 2026. No retailer has listed one here yet, as of" /> {checked}.</>
+            ? <><Tr text="Apple Vietnam recommended retail prices, announced 9 September 2026. No second-hand shop lists an iPhone Duo here yet, as of" /> {checked}.</>
             : <Tr text="Apple Vietnam recommended retail prices, announced 9 September 2026." />}
       </p>
       <Link
         href={listed
-          ? '/?category=electronics&subcategory=phones-tablets&brand=apple&model=iPhone+Duo'
-          : '/?category=electronics&subcategory=phones-tablets&brand=apple'}
+          ? '/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used&model=iPhone+Duo'
+          : '/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used'}
         className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
       >
-        {listed ? <Tr text="See every iPhone Duo listing" /> : <Tr text="Browse Apple phones listed today" />}
+        {listed ? <Tr text="See every second-hand iPhone Duo" /> : <Tr text="Browse second-hand Apple phones" />}
         {' '}<ArrowRight className="h-4 w-4" />
       </Link>
     </section>

@@ -1,8 +1,9 @@
 import { SITE_NAME } from '@/lib/edition'
+import { Tr } from '@/context/language-context'
 import { formatMoneyFull } from '@/lib/vnd'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { lowestPrices, type PriceRow } from './lowest-prices'
-import { AffiliateNote, PriceTable } from './price-table'
+import { AffiliateNote, PriceTable, showAffiliateNote } from './price-table'
 import { modelProductLd } from './model-product-ld'
 import { pageShare } from '@/lib/site-identity'
 
@@ -34,8 +35,6 @@ export type ModelPageConfig = {
   intro: string
   /** Apple Vietnam's own RRP for the entry tier — printed only when no live listing was read. */
   rrp: number
-  /** When the model actually reaches buyers. Before it, every offer is a PRE-ORDER. */
-  shipDate: number
   cta: string
   browseQuery: string
   sections: { title: string; body: string }[]
@@ -66,7 +65,8 @@ const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
  */
 const floorOf = (rows: PriceRow[]) => [...rows].sort((a, b) => a.price - b.price)[0] ?? null
 
-export function modelContent(cfg: ModelPageConfig, rows: PriceRow[]): SeoContent {
+/** `known` false = the price read failed: Apple's price only, no claim that nothing is listed (review). */
+export function modelContent(cfg: ModelPageConfig, rows: PriceRow[], known = true): SeoContent {
   const floor = floorOf(rows)
   const product = modelProductLd(cfg, rows)
   /**
@@ -74,9 +74,16 @@ export function modelContent(cfg: ModelPageConfig, rows: PriceRow[]): SeoContent
    * that exists to answer "how much" is the failure worth guarding, and the intro has to read
    * correctly with the clause absent.
    */
+  /**
+   * ⛔ SECOND-HAND ONLY (2026-10-03): the rows are used listings (lowest-prices.ts). With none, the page
+   * says so and quotes Apple's own price as Apple's — never "no retailer has listed one", which named a
+   * source the page no longer reads.
+   */
   const priceClause = floor
-    ? ` The cheapest one listed here right now is ${money(floor.price)} for the ${floor.storage} model.`
-    : ` No Vietnamese retailer has listed one here yet; Apple Vietnam's own price starts at ${money(cfg.rrp)}.`
+    ? ` The cheapest second-hand one from a shop here right now is ${money(floor.price)} for the ${floor.storage} model.`
+    : known
+      ? ` No second-hand shop lists the ${cfg.model} here yet; Apple Vietnam's own price starts at ${money(cfg.rrp)}.`
+      : ` Apple Vietnam's own price starts at ${money(cfg.rrp)}.`
 
   return {
     eyebrow: cfg.eyebrow,
@@ -91,13 +98,18 @@ export function modelContent(cfg: ModelPageConfig, rows: PriceRow[]): SeoContent
        * which is the honest version of the same reassurance.
        */
       (rows.length > 0
-        ? ' Every price in the table below comes from a live listing by a Vietnamese retailer, not a press release — each one links to the listing it was read from.'
+        ? ' Every price in the table below is a live listing from a second-hand phone shop on this marketplace — each one links to the listing it was read from.'
         : ''),
     categorySlug: 'electronics',
     subcategorySlug: 'phones-tablets',
     brandSlug: 'apple',
+    // ⛔ USED, LIKE THE TABLE (review, 2026-10-03): with an any-condition rail a sealed unit from a person's
+    // shop would sit under "No second-hand iPhone 18 Pro is listed here yet", and the CTA would browse it.
+    condition: 'used',
     // ⚠️ ONE model, so the page's own rail cannot show a sibling variant the copy never mentions.
     models: [cfg.model],
+    // Newest first, not cheapest first — see `order` on SeoContent.
+    order: 'recent',
     browseQuery: cfg.browseQuery,
     cta: cfg.cta,
     sections: cfg.sections,
@@ -124,8 +136,9 @@ export function modelContent(cfg: ModelPageConfig, rows: PriceRow[]): SeoContent
 }
 
 /** The shared title/description pair, so a route file cannot drift from the page it describes. */
+// ⚠️ NO "— live prices" IN THE TITLE (2026-10-03): it promised a table that is empty until second-hand units appear.
 export const modelMeta = (cfg: ModelPageConfig, description: string) => ({
-  title: `${cfg.h1} — live prices | ${SITE_NAME}`,
+  title: `${cfg.h1} | ${SITE_NAME}`,
   description,
   alternates: { canonical: `/${cfg.slug}` },
   ...pageShare({ title: cfg.h1, description }),
@@ -141,11 +154,11 @@ export async function ModelLanding({ cfg }: { cfg: ModelPageConfig }) {
   const updated = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   return (
     <SeoLanding
-      content={modelContent(cfg, rows)}
+      content={modelContent(cfg, rows, known)}
       lede={
         <>
-          <PriceTable rows={rows} known={known} updated={updated} />
-          {rows.length > 0 && <AffiliateNote />}
+          <PriceTable rows={rows} known={known} updated={updated} id="used-prices" heading={<Tr text="Second-hand prices on this marketplace today" />} />
+          {showAffiliateNote(rows) && <AffiliateNote />}
         </>
       }
     />

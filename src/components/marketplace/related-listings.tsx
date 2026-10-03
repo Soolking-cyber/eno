@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListingCard } from './listing-card'
+import { categoryBrowsePath } from '@/lib/retired-categories'
 import { Shelf, RAIL_CARD_W } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { useNearViewport } from '@/hooks/use-near-viewport'
@@ -84,7 +85,7 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
     // the See-all into the category page gives every PDP shelf the same header + See-all shape.
     <Shelf
       title={variant === 'sold' ? tr('Similar items still available', 'Tin tương tự vẫn còn bán') : tr('More like this', 'Tin tương tự')}
-      seeAllHref={`/c/${categorySlug}`}
+      seeAllHref={categoryBrowsePath(categorySlug)}
       sectionClassName="mt-12"
       watch={items.length}
     >

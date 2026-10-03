@@ -233,9 +233,9 @@ const CONTENT: ArticleContent = {
             expensive handset. An imported budget phone usually has no local manufacturer warranty at
             all; what that leaves you with is set out in{' '}
             <HereLink href="/phone-warranty-repair-vietnam">the warranty and repair guide</HereLink>.
-            For a sense of what Vietnamese retailers are asking today at the other end of the market,{' '}
-            <HereLink href="/iphone-18-vietnam">the live iPhone 18 price page</HereLink> reads the
-            marketplace&rsquo;s own listings rather than a press release.
+            For the other end of the market,{' '}
+            <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink> has Apple Vietnam&rsquo;s
+            prices and what second-hand iPhones are listed for here.
           </P>
         </>
       ),

@@ -32,7 +32,14 @@ import { seoBrowseHref, type SeoBrowseTarget } from './seo-landing-href'
 /** Shelves whose products are made FOR a device. A model page's rail must never show one. */
 const ACCESSORY_SHELVES = new Set(['phone-cases', 'screen-protectors', 'cables-chargers', 'power-banks', 'accessories'])
 
-export type SeoRailTarget = SeoLandingTarget & SeoBrowseTarget
+export type SeoRailTarget = SeoLandingTarget & SeoBrowseTarget & {
+  /**
+   * `recent` — featured-then-newest even on a narrowed rail. A guide's rail is a window on what is for sale,
+   * not a price ranking (phone-guides-rail.ts); the landing pages keep the default, which sorts a narrowed
+   * rail by price because their question is what a thing costs.
+   */
+  order?: 'recent'
+}
 type RailListing = ReturnType<typeof serializeListing>
 
 /**
@@ -53,7 +60,7 @@ export async function loadSeoRail(target: SeoRailTarget): Promise<{ listings: Ra
       // Narrowed pages sort by price: these are products (one entry type × one speed), and the
       // question a visitor arrives with is what it costs. Category pages keep featured-then-newest.
       // Narrowed pages sort by price — and a brand/model page is the narrowest of them.
-      orderBy: target.subcategorySlug || target.models?.length ? [{ price: 'asc' }] : [{ featured: 'desc' }, { postedAt: 'desc' }],
+      orderBy: target.order !== 'recent' && (target.subcategorySlug || target.models?.length) ? [{ price: 'asc' }] : [{ featured: 'desc' }, { postedAt: 'desc' }],
       // A model page over-fetches so the accessory guard below can drop rows and still fill the rail;
       // a subcategory-set page, so the photo partition below has rows to choose from.
       take: target.models?.length ? 64 : target.subcategoryIn?.length ? 24 : 8,

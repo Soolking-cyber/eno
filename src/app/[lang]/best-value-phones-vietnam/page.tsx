@@ -232,9 +232,9 @@ const CONTENT: ArticleContent = {
             </li>
           </Ul>
           <P>
-            For what things actually cost this week rather than what they cost when this was written,
-            the live figures on <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink>{' '}
-            read the marketplace&rsquo;s own listings, which is the only price that is ever current.
+            For what second-hand phones actually cost this week rather than when this was written,{' '}
+            <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink> reads the
+            marketplace&rsquo;s own second-hand listings, which is the only price that is ever current.
           </P>
         </>
       ),

@@ -164,7 +164,8 @@ describe('localizedHref at each link site (source contract)', () => {
     ['src/components/marketplace/footer.tsx', [/<a href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, variantOfLanguage\(lang\)\)\}/]],
     ['src/app/[lang]/c/[category]/(index)/layout.tsx', [/<Link href=\{localizedHref\('\/', lang\)\} \/>/]],
     ['src/app/[lang]/c/[category]/[district]/page.tsx', [/<Link href=\{localizedHref\('\/', lang\)\} \/>/, /<Link href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, lang\)\} \/>/, /<Link href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, lang\)\} className=/]],
-    ['src/app/[lang]/listings/[id]/(pdp)/page.tsx', [/<Link href=\{localizedHref\('\/', pageVariant\)\}/, /<Link href=\{localizedHref\(`\/c\/\$\{rawListing\.category\.slug\}`, pageVariant\)\}/]],
+    // The category crumb goes through categoryBrowsePath since 2026-10-03 (a retired shelf crumbs to the explorer).
+    ['src/app/[lang]/listings/[id]/(pdp)/page.tsx', [/<Link href=\{localizedHref\('\/', pageVariant\)\}/, /<Link href=\{localizedHref\(categoryBrowsePath\(rawListing\.category\.slug\), pageVariant\)\}/]],
   ]
   it.each(SITES)('%s', (file, patterns) => {
     const s = src(file)

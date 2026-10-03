@@ -179,10 +179,9 @@ const CONTENT: ArticleContent = {
             somewhere around 150,000 ₫, against forty-five minutes and two queues. The argument for
             doing it is that the refund scales with the purchase and the queue does not. On a
             mid-range handset it is a decent meal; on a current flagship it is a meaningful fraction
-            of an accessory budget, and it costs the same three-quarters of an hour either way. You
-            can see what Vietnamese retailers are asking today on{' '}
-            <HereLink href="/iphone-18-vietnam">the live iPhone 18 price page</HereLink> and work the
-            arithmetic against your own departure.
+            of an accessory budget, and it costs the same three-quarters of an hour either way. Apple Vietnam&rsquo;s prices for the current iPhones are on{' '}
+            <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink>, if you want to work
+            the arithmetic against your own departure.
           </P>
           <P>
             If you are buying accessories anyway, buy them at the same shop on the same day and put

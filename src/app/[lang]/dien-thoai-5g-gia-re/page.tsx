@@ -218,9 +218,8 @@ const CONTENT: ArticleContent = {
             Mua trả góp thì hỏi tổng số tiền phải trả đến hết kỳ chứ đừng hỏi lãi suất, vì chỉ con số
             tổng mới so sánh được giữa các nơi;{' '}
             <HereLink href="/mua-dien-thoai-tra-gop">bài về trả góp</HereLink> nói rõ các khoản phí hay
-            bị bỏ sót. Còn giá thị trường theo thời gian thực của dòng máy mới nhất thì xem{' '}
-            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>, đọc thẳng từ tin rao
-            của các nhà bán lẻ chứ không phải từ thông cáo báo chí.
+            bị bỏ sót. Còn giá chính hãng của dòng máy mới nhất và giá máy cũ đang rao trên sàn thì xem{' '}
+            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>.
           </P>
         </>
       ),

@@ -114,9 +114,9 @@ const CONTENT: ArticleContent = {
           <P>
             Những thứ gần như không ảnh hưởng: màu máy, ốp tặng kèm, cường lực đã dán. Dung lượng có
             ảnh hưởng, nhưng phần chênh giữa các mức dung lượng khi bán lại nhỏ hơn phần chênh lúc mua
-            máy mới. Muốn biết mặt bằng tuần này, xem{' '}
-            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>, đọc trực tiếp từ tin
-            rao thật chứ không phải từ thông cáo.
+            máy mới. Muốn biết mặt bằng giá máy cũ tuần này, xem{' '}
+            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>, đọc trực tiếp từ tin rao
+            thật trên sàn.
           </P>
         </>
       ),

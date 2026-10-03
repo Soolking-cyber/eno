@@ -39,9 +39,9 @@ const CONTENT: ArticleContent = {
           </P>
           <P>
             The iPhone Duo is sold under that name rather than as an &ldquo;iPhone 18 Fold&rdquo;,
-            though Vietnamese retailers write it both ways in their own listings. Pre-orders open at
+            though shops and sellers write it both ways in their own listings. Pre-orders open at
             7pm on 16 October and deliveries begin on 23 October; its top storage tier is the first
-            iPhone sold officially in Vietnam above 100 million đồng. Live retailer prices are on{' '}
+            iPhone sold officially in Vietnam above 100 million đồng. Apple Vietnam&rsquo;s prices for every storage tier are on{' '}
             <HereLink href="/iphone-duo-vietnam">the iPhone Duo page</HereLink>.
           </P>
         </>

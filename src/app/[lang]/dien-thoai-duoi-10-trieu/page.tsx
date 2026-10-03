@@ -243,9 +243,8 @@ const CONTENT: ArticleContent = {
             </li>
           </Ul>
           <P>
-            Mức giá thật của thị trường tuần này có trên{' '}
-            <HereLink href="/iphone-18-vietnam">trang giá iPhone</HereLink>, đọc thẳng từ tin rao chứ
-            không phải từ bảng giá niêm yết. Phần kiểm tra máy cũ chi tiết hơn nằm ở{' '}
+            Giá máy cũ đang rao trên sàn tuần này có trên{' '}
+            <HereLink href="/iphone-18-vietnam">trang giá iPhone</HereLink>, đọc thẳng từ tin rao. Phần kiểm tra máy cũ chi tiết hơn nằm ở{' '}
             <HereLink href="/kinh-nghiem-mua-iphone-cu">bài kinh nghiệm mua iPhone cũ</HereLink>, và
             các bước đó áp dụng được cho cả máy Android.
           </P>

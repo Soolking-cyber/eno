@@ -254,9 +254,9 @@ const CONTENT: ArticleContent = {
             original accessories matters later too, because a complete phone sells for meaningfully
             more &mdash; the{' '}
             <HereLink href="/selling-your-phone-vietnam">guide to selling a phone here</HereLink>{' '}
-            covers what moves that number. For what handsets are going for today,{' '}
-            <HereLink href="/iphone-18-vietnam">the live price page</HereLink> reads the
-            marketplace&rsquo;s own listings rather than a press release.
+            covers what moves that number. For what handsets are going for second-hand today,{' '}
+            <HereLink href="/iphone-18-vietnam">the iPhone price page</HereLink> reads the
+            marketplace&rsquo;s own second-hand listings.
           </P>
         </>
       ),

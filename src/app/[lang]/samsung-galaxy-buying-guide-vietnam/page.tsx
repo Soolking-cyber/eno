@@ -123,9 +123,9 @@ const CONTENT: ArticleContent = {
             The practical consequence: the first three to six months of a Galaxy flagship&rsquo;s
             life is the most expensive window to buy in, and the phone you get later is commercially
             a different product but physically the same one. If you are comparing brands rather than
-            models, the live Apple side of the picture is on{' '}
-            <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink>, which reads the
-            marketplace&rsquo;s own listings rather than a press release, and{' '}
+            models, the Apple side of the picture is on{' '}
+            <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink> &mdash; Apple
+            Vietnam&rsquo;s prices and what second-hand iPhones are listed for here &mdash; and{' '}
             <HereLink href="/iphone-vs-samsung-vietnam">the iPhone-or-Samsung guide</HereLink> works
             through resale and repair side by side.
           </P>

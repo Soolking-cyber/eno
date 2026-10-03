@@ -14,12 +14,12 @@ import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { seoLandingWhere, type SeoLandingTarget } from '@/components/marketplace/seo-landing-where'
 import { LANDING_TARGET as JOBS_TARGET } from '@/app/[lang]/jobs-vietnam-expats/landing-target'
-import { LANDING_TARGET as MOTORBIKE_TARGET } from '@/app/[lang]/motorbikes-for-sale-vietnam/landing-target'
 import { LANDING_TARGET as HOUSING_TARGET } from '@/app/[lang]/housing-vietnam-expats/landing-target'
 import { LANDING_TARGET as MOVING_SALES_TARGET } from '@/app/[lang]/moving-sales-vietnam/landing-target'
 import { LANDING_TARGET as COFFEE_TARGET } from '@/app/[lang]/wholesale-green-coffee-vietnam/landing-target'
 // Read only: the model lists the iPhone pages price, so the sitemap dates the rows those pages show.
-import { IPHONE_18_MODELS, IPHONE_DUO_MODEL } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
+import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, usedPriceWhere } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
+import { redirectedCategories } from '@/lib/retired-categories'
 import { loadRentIndex } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
 import type { RentIndex } from '@/lib/rent-index'
 import { publishableCells } from '@/lib/district-rent-cells'
@@ -436,19 +436,22 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   type Landing = { path: string; where: object; by: 'postedAt' | 'updatedAt'; gated?: boolean }
   const railLanding = (path: string, target: SeoLandingTarget, gated = false): Landing =>
     ({ path, where: seoLandingWhere(target), by: 'postedAt', gated })
+  // ⛔ THE PRICE PAGES' OWN PREDICATE (usedPriceWhere, lowest-prices.ts): second-hand only since 2026-10-03,
+  // so a new or wanted row cannot date a page that does not show it (review, 2026-10-03).
   const priceLanding = (path: string, models: readonly string[]): Landing =>
-    ({ path, where: { verified: true, status: 'active', model: { in: [...models] } }, by: 'updatedAt' })
+    ({ path, where: usedPriceWhere(models), by: 'updatedAt' })
   const LANDINGS: Landing[] = [
     railLanding('housing-vietnam-expats', HOUSING_TARGET),
     // Product pages, not category funnels — they rank for "iPhone 18 price Vietnam" and link into
     // the phone listings. Both editions: marketplace commerce copy, like the coffee page below and
     // unlike anything licensed. The hub prices both Pro models and the Duo.
-    priceLanding('iphone-18-vietnam', [...IPHONE_18_MODELS, IPHONE_DUO_MODEL]),
+    priceLanding('iphone-18-vietnam', [...IPHONE_18_MODELS, IPHONE_DUO_MODEL, ...IPHONE_17_MODELS]),
     // One page per model so each ranks for its own query; the path is the model's own name
     // (`iPhone 18 Pro` → /iphone-18-pro-vietnam), and sitemap.test.ts pins that each page prices it.
     ...[...IPHONE_18_MODELS, IPHONE_DUO_MODEL].map((m) => priceLanding(iphoneModelPath(m), [m])),
     railLanding('jobs-vietnam-expats', JOBS_TARGET, true),
-    railLanding('motorbikes-for-sale-vietnam', MOTORBIKE_TARGET, true),
+    // ⛔ NO /motorbikes-for-sale-vietnam (2026-10-03): it 308s to the motorbike-rental hub on the marketplace
+    // (src/lib/retired-categories.ts) and stays an unlinked noindex page on eno.forum.
     railLanding('moving-sales-vietnam', MOVING_SALES_TARGET),
     // Marketplace commerce copy, not a licensed service — both editions, no IS_SERVICES gate.
     railLanding('wholesale-green-coffee-vietnam', COFFEE_TARGET),
@@ -593,14 +596,17 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    * predicate here would drop good pages; a looser one would keep submitting the dead ends.
    */
   const liveCategoryIds = new Set(byCategory.map((g) => g.categoryId))
+  // ⛔ A category whose /c/ pages REDIRECT on this edition is never submitted (vehicles → the rental hub on
+  // the marketplace, 2026-10-03 — src/lib/retired-categories.ts): a submitted URL that redirects is a GSC error.
+  const redirected = redirectedCategories(IS_SERVICES ? 'services' : 'marketplace')
   for (const c of categories) {
-    if (!liveCategoryIds.has(c.id)) continue
+    if (!liveCategoryIds.has(c.id) || redirected.has(c.slug)) continue
     urls.push(`  <url><loc>${hostUrl}/c/${c.slug}</loc>${lm(catMax.get(c.slug))}</url>\n`)
   }
 
   // Faceted category × district pages — only at the floor of own listings (rule A, above).
   for (const [combo, { max, n }] of combos) {
-    if (!isIndexableCount(n)) continue
+    if (!isIndexableCount(n) || redirected.has(combo.split('/')[0])) continue
     urls.push(`  <url><loc>${hostUrl}/c/${combo}</loc>${lm(max)}</url>\n`)
   }
 

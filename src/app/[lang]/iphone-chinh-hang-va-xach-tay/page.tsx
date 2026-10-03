@@ -106,8 +106,8 @@ const CONTENT: ArticleContent = {
             năm, đây là yếu tố nên tính từ đầu chứ không phải lúc rao bán.
           </P>
           <P>
-            Giá các đời máy mới nhất tại các nhà bán lẻ có trên{' '}
-            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>.
+            Giá chính hãng của Apple Việt Nam cho các đời máy mới nhất, cùng giá máy cũ đang rao trên sàn,
+            có trên <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>.
           </P>
         </>
       ),

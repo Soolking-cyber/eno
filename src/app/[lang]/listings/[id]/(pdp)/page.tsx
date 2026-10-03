@@ -1,5 +1,6 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
+import { categoryBrowsePath, isRetiredNavCategory } from '@/lib/retired-categories'
 import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
 import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
@@ -570,11 +571,21 @@ export default async function ListingPage({ params }: Props) {
   const breadcrumbLd = {
     '@context': 'https://schema.org/',
     '@type': 'BreadcrumbList',
-    'itemListElement': [
-      { '@type': 'ListItem', 'position': 1, 'name': 'eno.vn', 'item': hostUrl },
-      { '@type': 'ListItem', 'position': 2, 'name': listing.category.name, 'item': `${hostUrl}/c/${rawListing.category.slug}` },
-      { '@type': 'ListItem', 'position': 3, 'name': displayTitle, 'item': canonicalUrl },
-    ],
+    /**
+     * ⛔ A RETIRED SHELF HAS NO CATEGORY CRUMB IN THE MARKUP (review, 2026-10-03): its browse link is the
+     * explorer filtered to it (`/?category=…`, retired-categories.ts), which canonicalises to `/` — a
+     * BreadcrumbList item whose canonical is another page. The visible crumb still links it for people.
+     */
+    'itemListElement': (isRetiredNavCategory(rawListing.category.slug)
+      ? [
+          { '@type': 'ListItem', 'name': 'eno.vn', 'item': hostUrl },
+          { '@type': 'ListItem', 'name': displayTitle, 'item': canonicalUrl },
+        ]
+      : [
+          { '@type': 'ListItem', 'name': 'eno.vn', 'item': hostUrl },
+          { '@type': 'ListItem', 'name': listing.category.name, 'item': `${hostUrl}/c/${rawListing.category.slug}` },
+          { '@type': 'ListItem', 'name': displayTitle, 'item': canonicalUrl },
+        ]).map((item, i) => ({ ...item, 'position': i + 1 })),
   }
 
   const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
@@ -737,7 +748,7 @@ export default async function ListingPage({ params }: Props) {
                 never take (the way back is the tab bar or the browser's back button). */}
             <Link href={localizedHref('/', pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Tr text="Home" /></Link>
             <span className="mx-1.5 text-line-strong">/</span>
-            <Link href={localizedHref(`/c/${rawListing.category.slug}`, pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Bilingual en={listing.category.name} vi={listing.category.nameVi || listing.category.name} /></Link>
+            <Link href={localizedHref(categoryBrowsePath(rawListing.category.slug), pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Bilingual en={listing.category.name} vi={listing.category.nameVi || listing.category.name} /></Link>
             <span className="mx-1.5 hidden text-line-strong md:inline">/</span>
             <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
           </nav>

@@ -17,8 +17,13 @@ import type { PriceRow } from './lowest-prices'
  *
  * ⚠️ AN AggregateOffer, BECAUSE THIS PAGE SELLS NOTHING. Google's merchant-listing docs: "merchant
  * listings require an Offer as the merchant has to be the seller"; product snippets accept an
- * AggregateOffer. The retailers are the sellers, each on their own listing page — so this node
- * summarises their offers rather than claiming one.
+ * AggregateOffer. The sellers are the shops and people behind each listing — so this node summarises
+ * their offers rather than claiming one.
+ *
+ * ⛔ SECOND-HAND ONLY, SINCE 2026-10-03 (lowest-prices.ts): the node carries `itemCondition: UsedCondition`
+ * on the Product AND the offer, and is built only from rows that say `condition: 'used'` — the contract
+ * is checked here, not assumed, so a future caller passing new-stock rows publishes nothing rather than a
+ * new phone marked used.
  */
 
 /** Same origin rule as the breadcrumb beside it: absolute URLs inside JSON-LD, never relative. */
@@ -31,8 +36,10 @@ function absoluteImage(src: string): string | null {
   return null
 }
 
+const USED = 'https://schema.org/UsedCondition'
+
 export function modelProductLd(
-  cfg: Pick<ModelPageConfig, 'model' | 'slug' | 'intro' | 'shipDate'>,
+  cfg: Pick<ModelPageConfig, 'model' | 'slug' | 'intro'>,
   rows: PriceRow[],
 ): Record<string, unknown> | null {
   /**
@@ -41,6 +48,8 @@ export function modelProductLd(
    * depend on that contract visibly instead of silently.
    */
   if (rows.length === 0 || rows.some((r) => r.currency !== '₫')) return null
+  // ⛔ Every row second-hand, or no node: `itemCondition` below is a claim about all of them.
+  if (rows.some((r) => r.condition !== 'used')) return null
   const floor = rows.reduce((a, b) => (b.price < a.price ? b : a))
   /**
    * ⛔ NO IMAGE, NO Product. Search Console's first complaint about these pages was a Product
@@ -62,9 +71,11 @@ export function modelProductLd(
     description: cfg.intro,
     image,
     brand: { '@type': 'Brand', name: 'Apple' },
+    itemCondition: USED,
     url: `${ORIGIN}/${cfg.slug}`,
     offers: {
       '@type': 'AggregateOffer',
+      itemCondition: USED,
       lowPrice: floor.price,
       priceCurrency: 'VND',
       /**
@@ -76,10 +87,10 @@ export function modelProductLd(
        * ⚠️ NO `highPrice`. The table shows the LOWEST price per tier, so its largest cell is not the
        * highest offer on the marketplace; publishing it would state a ceiling nobody measured.
        *
-       * ⚠️ A PRE-ORDER IS NOT IN STOCK, and each page's copy says so. The flag flips by itself on the
-       * ship date rather than waiting for somebody to remember.
+       * ⚠️ IN STOCK, ALWAYS. The PreOrder branch went with the new-retail rows (2026-10-03): a second-hand
+       * unit exists only once someone owns one, so a live used listing is stock by definition.
        */
-      availability: Date.now() < cfg.shipDate ? 'https://schema.org/PreOrder' : 'https://schema.org/InStock',
+      availability: 'https://schema.org/InStock',
     },
   }
 }

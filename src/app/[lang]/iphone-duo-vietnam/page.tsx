@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { ModelLanding, modelMeta, type ModelPageConfig } from '../iphone-18-vietnam/model-landing'
 import { IPHONE_DUO_MODEL } from '../iphone-18-vietnam/lowest-prices'
+import { APPLE_VN_FROM_PRICE } from '../iphone-18-vietnam/price-guard'
 
 /** ⚠️ ONE HOUR — see the note on the sibling pages; a stale price is worse than no page. */
 export const revalidate = 3600
@@ -17,9 +18,8 @@ const CFG: ModelPageConfig = {
   h1: 'iPhone Duo price in Vietnam',
   intro:
     'The iPhone Duo is Apple’s first folding iPhone — sold under that name rather than as an “iPhone 18 Fold” — announced alongside the Pro models on 9 September 2026 and on sale in Vietnam from 23 October, with pre-orders from 7pm on 16 October. It is the first iPhone officially sold here above 100 million đồng at its top tier.',
-  rrp: 64_999_000,
-  shipDate: Date.UTC(2026, 9, 23),
-  cta: 'Browse every iPhone Duo',
+  rrp: APPLE_VN_FROM_PRICE[IPHONE_DUO_MODEL],
+  cta: 'Browse second-hand iPhone Duo listings',
   browseQuery: 'iPhone Duo',
   sections: [
     {
@@ -35,7 +35,7 @@ const CFG: ModelPageConfig = {
     {
       title: 'Repairs, and the question to ask before you buy',
       body:
-        'A folding screen is the single most expensive component on the phone and it is not covered by the standard warranty when it fails from wear rather than defect. Before paying, ask the retailer what an out-of-warranty inner-screen replacement costs and whether an authorised centre in Vietnam can do it at all, or whether the unit ships abroad — on a first-generation device the answer is often the latter, which means weeks without the phone. AppleCare+ is worth more on this model than on any other iPhone sold here.',
+        'A folding screen is the single most expensive component on the phone and it is not covered by the standard warranty when it fails from wear rather than defect. Before paying, ask the seller what an out-of-warranty inner-screen replacement costs and whether an authorised centre in Vietnam can do it at all, or whether the unit ships abroad — on a first-generation device the answer is often the latter, which means weeks without the phone. AppleCare+ is worth more on this model than on any other iPhone sold here.',
     },
     {
       title: 'Chính hãng VN/A, and buying as a foreigner',
@@ -46,15 +46,15 @@ const CFG: ModelPageConfig = {
   faqs: [
     {
       q: 'When does the iPhone Duo go on sale in Vietnam?',
-      a: 'Pre-orders open at 7pm on 16 October 2026 and deliveries begin on 23 October 2026. Listings before that date are pre-orders, whatever the retailer’s page says.',
+      a: 'Pre-orders open at 7pm on 16 October 2026 and deliveries begin on 23 October 2026, from Apple and the authorised resellers. A second-hand Duo can only appear after that date.',
     },
     {
       q: 'How much is the iPhone Duo in Vietnam?',
-      a: 'Apple Vietnam prices run from 64.999.000 ₫ for 256GB to 103.999.000 ₫ for 2TB — the first iPhone sold officially here above 100 million đồng. The table above shows what Vietnamese retailers are actually listing, with the date it was last checked printed beside it.',
+      a: 'Apple Vietnam prices run from 64.999.000 ₫ for 256GB to 103.999.000 ₫ for 2TB — the first iPhone sold officially here above 100 million đồng. Once second-hand units are listed here, the table above shows the cheapest per storage tier, with the date it was checked.',
     },
     {
       q: 'Is it called the iPhone 18 Fold?',
-      a: 'No. Apple sells it as iPhone Duo, outside the numbered line entirely, which is why it has its own page here and its own row in the family comparison. Vietnamese retailers sometimes list it as “iPhone Fold” or “iPhone 18 Fold” in their own copy.',
+      a: 'No. Apple sells it as iPhone Duo, outside the numbered line entirely, which is why it has its own page here and its own row in the family comparison. Shops and sellers sometimes list it as “iPhone Fold” or “iPhone 18 Fold” in their own copy.',
     },
     {
       q: 'Should I buy a first-generation foldable?',
@@ -72,13 +72,14 @@ const CFG: ModelPageConfig = {
   related: [
     { href: '/iphone-18-pro-vietnam', label: 'iPhone 18 Pro price', blurb: 'The 6.3-inch flagship — roughly half the Duo’s price at the same storage tier.' },
     { href: '/iphone-18-pro-max-vietnam', label: 'iPhone 18 Pro Max price', blurb: 'The 6.9-inch flagship, if you want the big screen without the fold.' },
-    { href: '/iphone-18-vietnam', label: 'The whole iPhone 18 line', blurb: 'Pro, Pro Max and Duo compared on one page, with every live price.' },
+    { href: '/iphone-18-vietnam', label: 'The whole iPhone 18 line', blurb: 'Pro, Pro Max and Duo on one page — Apple Vietnam’s prices, and what second-hand iPhones are listed for here.' },
+    { href: '/buying-a-used-iphone-vietnam', label: 'Buying a used iPhone in Vietnam', blurb: 'What to check before you pay for a second-hand iPhone here — the model number, the IMEI, the battery and the parts history.' },
   ],
 }
 
 export const metadata: Metadata = modelMeta(
   CFG,
-  'What Apple’s folding iPhone Duo costs in Vietnam: live retailer prices by storage tier, the 23 October on-sale date, repair costs to ask about before buying, and how it compares with the Galaxy Z Fold.',
+  'What Apple’s folding iPhone Duo costs in Vietnam: Apple Vietnam’s prices by storage tier, the 23 October on-sale date, repair costs to ask about before buying, and how it compares with the Galaxy Z Fold.',
 )
 
 export default function IPhoneDuoVietnamPage() {

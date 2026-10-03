@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { Store, ArrowRight, Home } from '@/components/ui/icons'
 import { Header } from './header'
 import { Footer } from './footer'
+import { categoryBrowsePath } from '@/lib/retired-categories'
 import { Mascot } from './mascot'
 import { SameSellerShelf } from './same-seller-shelf'
 import { RelatedListings } from './related-listings'
@@ -30,7 +31,8 @@ export function SoldListing({
   sellerHref: string
 }) {
   const cover = listing.images[0] ?? null
-  const categoryHref = `/c/${listing.category.slug}`
+  // A retired shelf (vehicles redirects to a rental hub) browses in the explorer instead — retired-categories.ts.
+  const categoryHref = categoryBrowsePath(listing.category.slug)
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">

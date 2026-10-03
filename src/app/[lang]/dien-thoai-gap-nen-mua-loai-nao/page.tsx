@@ -41,7 +41,7 @@ const CONTENT: ArticleContent = {
             Apple bán máy với tên <strong>iPhone Duo</strong>, không phải &ldquo;iPhone 18 Fold&rdquo;,
             dù nhiều cửa hàng trong nước vẫn rao theo cả hai cách. Đặt trước từ 19h ngày 16/10, giao
             máy từ 23/10; bản dung lượng cao nhất là chiếc iPhone đầu tiên bán chính hãng tại Việt Nam
-            vượt mốc 100 triệu đồng. Giá thực tế có trên{' '}
+            vượt mốc 100 triệu đồng. Giá chính hãng của Apple Việt Nam theo từng dung lượng có trên{' '}
             <HereLink href="/iphone-duo-vietnam">trang giá iPhone Duo</HereLink>.
           </P>
         </>

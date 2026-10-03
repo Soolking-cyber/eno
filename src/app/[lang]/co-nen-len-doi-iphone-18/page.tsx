@@ -105,7 +105,7 @@ const CONTENT: ArticleContent = {
             khi chạy bản đồ và xem video cả ngày.
           </P>
           <P>
-            Giá thực tế từng phiên bản có trên{' '}
+            Giá chính hãng từng phiên bản và giá máy cũ đang rao trên sàn có trên{' '}
             <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>, tách riêng{' '}
             <HereLink href="/iphone-18-pro-vietnam">bản Pro</HereLink> và{' '}
             <HereLink href="/iphone-18-pro-max-vietnam">bản Pro Max</HereLink> theo từng dung lượng.

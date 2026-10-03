@@ -140,8 +140,8 @@ const CONTENT: ArticleContent = {
             </li>
           </Ul>
           <P>
-            Current retailer prices for the newest models, VN/A and otherwise, are on{' '}
-            <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink>.
+            Apple Vietnam&rsquo;s official prices for the newest models, and what second-hand ones are listed
+            for here, are on <HereLink href="/iphone-18-vietnam">the iPhone 18 price page</HereLink>.
           </P>
         </>
       ),

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { appRootSegments, markdown404Source } from "./src/lib/root-segments";
 import { INDEXNOW_KEY_REWRITE } from "./src/lib/indexnow-key";
+import { retiredCategoryRedirects } from "./src/lib/retired-categories";
 import type { NextConfig } from "next";
 
 /**
@@ -908,6 +909,12 @@ const nextConfig: NextConfig = {
       ...(EDITION_ENV === "services"
         ? [{ source: '/travel', destination: '/vietnam-evisa', permanent: false }]
         : []),
+      /**
+       * `/c/vehicles` (+ district pages) and `/motorbikes-for-sale-vietnam` → the HCMC motorbike-rental
+       * hub, 308, MARKETPLACE ONLY (second-hand focus, owner 2026-10-03). The rules, and why there is no
+       * language twin and why the forum keeps its page, are in src/lib/retired-categories.ts.
+       */
+      ...retiredCategoryRedirects(EDITION_ENV),
     ];
   },
   async rewrites() {

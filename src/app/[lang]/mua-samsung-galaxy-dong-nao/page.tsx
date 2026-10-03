@@ -117,9 +117,9 @@ const CONTENT: ArticleContent = {
           <P>
             Hệ quả thực tế: ba đến sáu tháng đầu sau khi ra mắt là khoảng thời gian đắt nhất để mua
             một chiếc flagship Samsung, và chiếc máy mua sau đó vẫn là đúng chiếc máy ấy. Nếu bạn
-            đang so sánh hai hãng chứ không so hai model, giá phía Apple hôm nay có trên{' '}
-            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>, đọc trực tiếp từ tin
-            rao của các nhà bán lẻ, còn{' '}
+            đang so sánh hai hãng chứ không so hai model, giá phía Apple có trên{' '}
+            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink> &mdash; giá chính hãng và
+            giá máy cũ đang rao trên sàn &mdash; còn{' '}
             <HereLink href="/nen-mua-iphone-hay-samsung">bài nên mua iPhone hay Samsung</HereLink> so
             giá bán lại và hệ thống bảo hành cạnh nhau.
           </P>

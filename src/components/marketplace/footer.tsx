@@ -15,6 +15,7 @@ import { handleExternalClick } from '@/lib/native-browser'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
 import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
+import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
 import { FooterStats } from '@/components/marketplace/footer-stats'
 import { FooterPreferences } from '@/components/marketplace/footer-preferences'
 import { SOCIALS, formatFollowers, type Social } from '@/lib/socials'
@@ -102,8 +103,13 @@ function TiktokIcon(props: { className?: string }) {
  * routes and must not query anything. When one of these fills, delete its slug here (re-measure with
  * the curl above first). footer.test.tsx fails if a slug here stops existing in NAV_CATEGORIES, so a
  * rename cannot leave dead entries behind.
+ *
+ * ⛔ SINCE 2026-10-03 THE LIST LIVES IN src/lib/retired-categories.ts (UNLINKED_CATEGORIES): the second-hand
+ * focus emptied vehicles, pets, books-stationery and hobbies-sports, SuperSports' hide emptied sports, and
+ * the "Other categories" chips on every /c/<slug> page must skip the same set — a server page cannot read
+ * a constant out of this client module, so the one list sits in a plain one.
  */
-export const FOOTER_HIDDEN_CATEGORIES: ReadonlySet<string> = new Set(['property', 'moving-sale', 'community-events'])
+export const FOOTER_HIDDEN_CATEGORIES: ReadonlySet<string> = UNLINKED_CATEGORIES
 
 const SOCIAL_ICON: Record<Social['key'], (p: { className?: string }) => React.ReactElement> = {
   facebook: FacebookIcon,
@@ -249,9 +255,12 @@ function FooterBody() {
               // Vietnamese article rather than a Vietnamese label on an English page. The slugs are the
               // reciprocal pair in src/lib/phone-guides.ts — not imported, because this client component
               // ships on every page and that registry is 17 guides × 2 of copy it would never render.
+              // ⛔ THE USED-iPHONE GUIDE SINCE 2026-10-03 (second-hand focus): it was "Where to buy an iPhone",
+              // a buying-new guide, and the site's most-repeated link to the phone cluster now leads to the
+              // guide for what the marketplace sells.
               {
-                label: tr('Where to buy an iPhone in Vietnam', 'Mua iPhone ở đâu uy tín'),
-                href: lang === 'vi' ? '/mua-iphone-o-dau-uy-tin' : '/best-place-to-buy-iphone-vietnam',
+                label: tr('Buying a used iPhone in Vietnam', 'Kinh nghiệm mua iPhone cũ'),
+                href: lang === 'vi' ? '/kinh-nghiem-mua-iphone-cu' : '/buying-a-used-iphone-vietnam',
               },
             ]),
         /* ⚠️ SERVICES EDITION ONLY. eno.vn is a licensed sàn TMĐT and may not advertise visa,

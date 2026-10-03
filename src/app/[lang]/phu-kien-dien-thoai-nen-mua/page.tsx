@@ -244,10 +244,8 @@ const CONTENT: ArticleContent = {
             Chỗ đáng tiêu tiền thì ngắn và chán: một miếng cường lực full keo được dán tử tế, một củ
             sạc ghi rõ chuẩn, một sợi cáp tốt, một chiếc ốp có gờ và đệm góc. Giữ lại hộp và phụ
             kiện theo máy cũng là tiền: máy đủ hộp{' '}
-            <HereLink href="/ban-dien-thoai-cu-duoc-gia">bán lại được giá hơn</HereLink>. Còn giá
-            máy hôm nay thì xem ở{' '}
-            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>, đọc trực tiếp từ tin
-            rao chứ không phải từ bảng giá niêm yết.
+            <HereLink href="/ban-dien-thoai-cu-duoc-gia">bán lại được giá hơn</HereLink>. Còn giá máy cũ hôm nay thì xem ở{' '}
+            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>, đọc trực tiếp từ tin rao trên sàn.
           </P>
         </>
       ),

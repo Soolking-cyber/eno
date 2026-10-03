@@ -99,8 +99,9 @@ describe('linked ticket and code copy names the seller or the operator, never a 
   it('the iPhone price table’s commission note calls the link an affiliate link, both languages', () => {
     const { en, vi } = both(() => text(renderToString(<AffiliateNote />)))
     expect(en).toContain('through a tracked affiliate link, which may earn this site a commission at no cost to you.')
-    expect(en).toContain('when two retailers charge exactly the same, the one with the tracked link is shown.')
-    expect(vi).toContain('người bán có liên kết được theo dõi sẽ được hiển thị')
+    // "shop", not "retailer" since the second-hand focus (2026-10-03): the rows are used listings.
+    expect(en).toContain('when two listings ask exactly the same, the one with the tracked link is shown.')
+    expect(vi).toContain('tin có liên kết được theo dõi sẽ được hiển thị')
     for (const t of [en, vi]) expect(t).not.toMatch(/partner|đối tác/i)
   })
   it('the discount-code step names the seller’s site, both languages', () => {

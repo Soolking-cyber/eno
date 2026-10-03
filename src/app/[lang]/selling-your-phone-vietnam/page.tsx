@@ -126,10 +126,9 @@ const CONTENT: ArticleContent = {
           <P>
             What barely moves the number: colour, the charger, a case you are throwing in, and
             anything you paid for that the next owner cannot verify. Storage does matter, but the
-            premium a larger tier holds second-hand is smaller than the premium it cost new. For where
-            the market sits this week, the{' '}
-            <HereLink href="/iphone-18-vietnam">live iPhone price page</HereLink> reads the
-            marketplace&rsquo;s own listings rather than a press release.
+            premium a larger tier holds second-hand is smaller than the premium it cost new. For where the second-hand market sits this week,{' '}
+            <HereLink href="/iphone-18-vietnam">the iPhone price page</HereLink> reads the
+            marketplace&rsquo;s own second-hand listings.
           </P>
         </>
       ),

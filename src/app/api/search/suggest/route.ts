@@ -12,6 +12,7 @@ import { textClauses } from '@/lib/search-match'
 import { parseSearchQuery } from '@/lib/text-relevance'
 import { diversifyRail } from '@/lib/feed-diversity'
 import { displayPriceUnit } from '@/lib/price-unit'
+import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
 import { RANK_SELECT, rankCandidates, relevanceOrder } from '@/app/api/listings/keyword-rank'
 import type { Prisma } from '@/generated/prisma/client'
 import { ENTITY_GRACE_MS, brandWhere, lineCandidates, lineStats, pickScope, rankBrands, scopeGroups, settledWithin, type ScopeGroup } from './suggest-entities'
@@ -147,7 +148,11 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
     settledWithin(groupsP, ENTITY_GRACE_MS, []),
   ])
 
+  // ⛔ A retired or empty shelf is not suggested (second-hand focus, 2026-10-03): the header routes a category
+  // suggestion to /c/<slug>, and /c/vehicles now redirects to a rental hub. The same set the footer and the
+  // "Other categories" chips leave out (UNLINKED_CATEGORIES). Their LISTINGS still match below.
   const categories = allCategories
+    .filter((c) => !UNLINKED_CATEGORIES.has(c.slug))
     .filter((c) => fold(c.name).includes(folded) || fold(c.nameVi).includes(folded))
     .slice(0, 4)
   const categoriesById = new Map(allCategories.map((c) => [c.id, c]))

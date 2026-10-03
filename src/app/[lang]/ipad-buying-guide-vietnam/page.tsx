@@ -239,10 +239,9 @@ const CONTENT: ArticleContent = {
             coverage page. One iPad-specific check phones do not need: sight down the edge of the
             glass against a light and look for a raised lip or a gap at the bezel, the tell for a
             swollen battery. ⛔ Look, do not press &mdash; a swollen cell is a damaged cell, and
-            pressing one is how it vents. If you see a lift, walk away rather than testing it. For a current read
-            on Apple pricing here, the{' '}
-            <HereLink href="/iphone-18-vietnam">live price page</HereLink> reads the
-            marketplace&rsquo;s own listings rather than a press release.
+            pressing one is how it vents. If you see a lift, walk away rather than testing it. For a current read on Apple pricing here,{' '}
+            <HereLink href="/iphone-18-vietnam">the iPhone price page</HereLink> has Apple Vietnam&rsquo;s
+            prices and what second-hand units are listed for on the marketplace.
           </P>
         </>
       ),

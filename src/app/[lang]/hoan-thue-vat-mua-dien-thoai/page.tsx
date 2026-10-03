@@ -192,9 +192,8 @@ const CONTENT: ArticleContent = {
             đầu đều khép lại. Nếu bạn vẫn chọn hướng đó, hãy đổi sang thứ thay thế được: phiếu
             bảo hành của chính cửa hàng, ảnh chụp IMEI và biên nhận có chữ ký &mdash;{' '}
             <HereLink href="/kinh-nghiem-mua-iphone-cu">kinh nghiệm mua iPhone cũ</HereLink> nói kỹ
-            phần này. Giá thị trường hôm nay của dòng mới nhất thì có trên{' '}
-            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>, đọc trực tiếp từ tin
-            rao chứ không phải từ thông cáo báo chí.
+            phần này. Giá chính hãng của dòng mới nhất và giá máy cũ đang rao trên sàn thì có trên{' '}
+            <HereLink href="/iphone-18-vietnam">trang giá iPhone 18</HereLink>.
           </P>
         </>
       ),
