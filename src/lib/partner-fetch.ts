@@ -59,6 +59,22 @@ export type StoreConfig = {
   note?: string
   /** ⚠️ A CLAIM ABOUT THE GOODS, from the endpoint's own evidence — `null` where there is none. */
   condition: 'used' | 'new' | null
+  /**
+   * ⛔ A NEW-RETAIL SHOP RETIRED BY THE SECOND-HAND FOCUS (owner, 2026-10-03) — the reason and date.
+   * scripts/import-partners.ts refuses it (an import CREATES active rows), the partner-stock cron skips it
+   * without fetching, and scripts/partner-fetch.ts leaves it out of `--all`. The entry and its measured
+   * `note` stay: src/lib/import-provenance.ts still reads them for the rows already imported.
+   */
+  retired?: string
+  /**
+   * A shop selling new AND used stock (Bạch Long, Điện Thoại Giá Kho) — the reason. The importer CREATES
+   * NOTHING for it; its existing live rows (all labelled used since 2026-10-03) refresh as before.
+   * ⛔ NOT "create what the title calls used": that was the first cut, and two rounds of commit-gate review
+   * each found new goods a text cue would have published as `condition: 'used'` ("lọc bụi 99%", "Kệ trưng
+   * bày", "cu-chuyen-doi"). A heuristic that keeps growing exceptions is the wrong place to make a public
+   * claim about the goods; how to tell these shops' used stock apart is the owner's call (plan D4).
+   */
+  refreshOnly?: string
 }
 
 /** The one shape every adapter normalises to — deliberately the same fields the AccessTrade feed

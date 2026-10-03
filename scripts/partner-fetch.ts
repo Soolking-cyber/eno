@@ -40,7 +40,12 @@ async function main() {
   // ⚠️ ONE SOURCE, AND IT IS A MODULE — see src/lib/partner-stores.ts for why the JSON file went
   // away: `output: 'standalone'` traces imports, so a file read by path never reached the container.
   const stores: StoreConfig[] = PARTNER_STORES
-  const targets = ALL ? stores : stores.filter((s) => s.domain === STORE)
+  // ⛔ `--all` LEAVES A RETIRED SHOP OUT (second-hand focus, owner 2026-10-03 — StoreConfig.retired). Naming
+  // one with --store still fetches it — staging is read-only and nothing publishes — but says so, because
+  // scripts/import-partners.ts will refuse every row of it.
+  const targets = ALL ? stores.filter((s) => !s.retired) : stores.filter((s) => s.domain === STORE)
+  for (const s of targets) if (s.retired) console.warn(`⚠️  ${s.domain} is retired — ${s.retired}. Fetching because --store named it; the importer will refuse its rows.`)
+  if (ALL) for (const s of stores) if (s.retired) console.log(`  skip ${s.domain} (retired)`)
   if (!targets.length) {
     console.error(STORE ? `no config for "${STORE}"` : 'pass --store <domain> or --all')
     console.error(`known: ${stores.map((s) => s.domain).join(', ')}`)

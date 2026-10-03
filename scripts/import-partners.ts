@@ -24,6 +24,15 @@
  * `title`/`description` hold the ENGLISH translation, `descriptionVi` the good Vietnamese prose,
  * `status`/`verified` are moderation state, and `rankScore` is only right at age 0. A refresh moves
  * price, stock, images, taxonomy and the merchant's own title.
+ *
+ * ⛔ SECOND-HAND FOCUS (owner, 2026-10-03) — three rules, each closing a way this script could undo it:
+ *   · a `retired` shop (src/lib/partner-stores.ts) is refused outright: an import CREATES active rows;
+ *   · a `refreshOnly` shop (new AND used stock: Bạch Long, Điện Thoại Giá Kho) gets NO new listing — its
+ *     existing live rows refresh; the dry run counts the skipped products and how many of them say used;
+ *   · a refresh writes LIVE rows only (active|sold), in a statement that re-checks it, and `condition`
+ *     is create-only. The refresh used to upsert every matched row: on a hidden row that bumped
+ *     `updatedAt` (and the hide's rollback refuses a row touched after it), and on the 1,014 rows the
+ *     owner relabelled used on 2026-10-03 it wrote the store's `condition: null` back over 'used'.
  */
 import 'dotenv/config'
 import { readFileSync } from 'node:fs'
@@ -39,6 +48,8 @@ import { PARTNER_STORES } from '../src/lib/partner-stores'
 import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
+import { isUsedTitle } from '../src/lib/used-signal'
+import { blockedCreate, isLiveForRefresh } from '../src/lib/partner-import-rules'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
@@ -78,7 +89,7 @@ const hostImage = makeImageHost({ storage, storageUrl: storageUrl!, bucket: BUCK
 
 type Staged = { domain: string; externalId: string; name: string; price: string | number
                 url: string; images: string[] | string; desc?: string; inStock?: boolean | string }
-type Store = { domain: string; name: string; city: string; condition: 'used' | 'new' | null }
+type Store = { domain: string; name: string; city: string; condition: 'used' | 'new' | null; retired?: string; refreshOnly?: string }
 
 /** ⚠️ Python's json.dump wrote `True`/`False` for booleans in some rows — accept both spellings. */
 const truthy = (v: unknown) => v === true || v === 'True' || v === 'true' || v === 1 || v === '1'
@@ -138,6 +149,8 @@ async function main() {
   for (const domain of new Set(rows.map((r) => r.domain))) {
     const store = storeByDomain.get(domain)
     if (!store) { console.error(`  ⚠️ ${domain}: not in partner-stores.ts — skipping its products`); continue }
+    // ⛔ A RETIRED SHOP IS NOT IMPORTED — in the dry run too (see the header).
+    if (store.retired) { console.error(`  ⛔ ${domain}: retired — ${store.retired}. Skipping its products.`); continue }
     const existing = await db.seller.findFirst({ where: { name: store.name }, select: { id: true, ownerId: true, trustScore: true } })
     if (existing?.ownerId) { console.error(`  ⛔ "${store.name}" is owned by a real account — skipping`); continue }
     allowedDomains.add(domain)
@@ -236,6 +249,16 @@ async function main() {
         : null
       // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
       if (existing?.status === 'removed') { drop('removed listing (tombstone)'); return }
+      // ⛔ A ROW THAT IS NOT LIVE IS LEFT BYTE-FOR-BYTE (hidden by a journaled hide or a moderator, stale,
+      // expired). The write below re-checks this in its own WHERE; this early exit is what keeps the dry
+      // run's counts honest and spares the image work.
+      if (existing && !isLiveForRefresh(existing.status)) { drop(`not live (${existing.status}) — left untouched`); return }
+      // ⛔ A MIXED SHOP CREATES NOTHING (second-hand focus; StoreConfig.refreshOnly). An existing row refreshes as before.
+      if (blockedCreate(storeByDomain.get(r.domain)!, existing)) {
+        // Counted by what the shop's words say, for the owner's D4 call — never acted on here.
+        drop(isUsedTitle(title, null, r.url) ? 'refresh-only shop: new product NOT created (its title/URL says used)' : 'refresh-only shop: new product NOT created')
+        return
+      }
       // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a banned word or an
       // advertising-banned product is never created; if it is already LIVE it is not refreshed and
       // finish() hides it (journaled). An ambiguous one goes to the review file — and, if already
@@ -311,6 +334,7 @@ async function main() {
          * neither chip — it declines to make a claim instead of guessing one. Asserting `'new'`
          * there because nothing said "cũ" would be the same error in the other direction.
          */
+        // ⛔ CREATE-ONLY since 2026-10-03 (dropped from `refreshable` below).
         condition: store.condition,
         images, categoryId: catId.get(placed.categorySlug) ?? categoryId, location: store.city, city: store.city,
         // Brand/model: set on create only — see effBrand above.
@@ -362,7 +386,9 @@ async function main() {
         // first partner import's 152 rows sat invisible for a day because of exactly this.
         rankScore: browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: new Date(), featured: false }),
       }
-      const { status, verified, title: _t, description: _d, descriptionVi: _dv, rankScore: _r, ...refreshable } = fields
+      // ⛔ `condition` IS CREATE-ONLY (2026-10-03): it is a claim about the goods, and the stored value may be
+      // a human's correction — 1,014 rows were relabelled 'used' that day, over the store's `null`.
+      const { status, verified, title: _t, description: _d, descriptionVi: _dv, rankScore: _r, condition: _c, ...refreshable } = fields
       /**
        * ⚠️ STOCK MOVES IN BOTH DIRECTIONS, AND ONLY BETWEEN active AND sold. A row a human set to
        * `hidden` (or `draft`, or a `removed` tombstone) is left exactly as it is — that is the
@@ -371,28 +397,53 @@ async function main() {
        * ⛔ AND IT IS NOT PART OF THE UPSERT (2026-10-01). It rode the upsert's `update` branch, gated on
        * the `existing.status` read above — a read that can be stale by the time the upsert lands (a
        * moderator, or scripts/hide-ad-banned.ts, hiding the row in between would be overwritten with
-       * `active`). The status now moves in its own conditional statement whose WHERE re-checks
-       * active|sold atomically, so `status` is create-only in the upsert like every other importer.
+       * `active`). The status now moves inside the refresh's one conditional statement
+       * (`refreshLive` below), whose WHERE re-checks active|sold atomically.
        */
       const inStock = truthy(r.inStock ?? true)
       const update = refreshable
 
       // ⚠️ ONE ROW'S FAILURE MUST NOT KILL A 9,235-ROW RUN — this talks to the database over an SSH
       // tunnel, and a dropped tunnel surfaces as Prisma `ConnectionClosed`. Retry once, then skip.
+      /**
+       * ⛔ THE REFRESH OF AN EXISTING ROW IS ONE CONDITIONAL STATEMENT: the refreshed fields AND the stock
+       * move (active ↔ sold) land together, in a WHERE that re-checks a live status. The `existing.status`
+       * read above can be stale by the time it lands (a moderator, hide-ad-banned.ts or the 2026-10-03
+       * retirement hiding the row in between); a row hidden since is not written — not its price, and not
+       * its `updatedAt`, which its hide's rollback depends on. ONE statement, not a write then a stock move
+       * (commit-gate review): a failure between two writes left fresh prices on stale availability.
+       * Shared by the existing-row path and a create that lost a race to a sibling task.
+       */
+      const refreshLive = async (): Promise<boolean> => {
+        const { count } = await db.listing.updateMany({
+          where: { sellerId: seller!.id, externalId, status: { in: ['active', 'sold'] } },
+          data: { ...update, status: inStock ? 'active' : 'sold' },
+        })
+        return count > 0
+      }
+
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          await db.listing.upsert({
-            where: { sellerId_externalId: { sellerId: seller!.id, externalId } },
-            update, create: { ...fields, sellerId: seller!.id, externalId },
-          })
           if (existing) {
-            const want = inStock ? 'active' : 'sold'
-            await db.listing.updateMany({
-              where: { sellerId: seller!.id, externalId, status: { in: ['active', 'sold'], not: want } },
-              data: { status: want },
-            })
+            if (!(await refreshLive())) { drop('not live at write time — left untouched'); return }
+          } else {
+            /**
+             * ⛔ A PLAIN CREATE, AND A LOST RACE FALLS BACK TO THE SAME CONDITIONAL REFRESH (commit-gate
+             * review). This was an upsert, whose `update` branch is unconditional: a SKU the feed repeats
+             * lets a sibling task insert first, and a row hidden in the moments between would then have
+             * been refreshed — `updatedAt` bumped, its rollback lost.
+             */
+            try {
+              await db.listing.create({ data: { ...fields, sellerId: seller!.id, externalId } })
+              created++
+              return
+            } catch (e) {
+              // P2002 here can only be Listing_sellerId_externalId_key — Listing's one unique index besides its cuid id.
+              if ((e as { code?: string }).code !== 'P2002') throw e
+              if (!(await refreshLive())) { drop('not live at write time — left untouched'); return }
+            }
           }
-          existing ? updated++ : created++
+          updated++
           return
         } catch (e) {
           if (attempt === 1) { skipped++; failures.push((e as Error).message.slice(0, 80)); return }

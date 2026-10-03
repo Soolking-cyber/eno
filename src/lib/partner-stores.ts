@@ -18,10 +18,15 @@ import type { StoreConfig } from './partner-fetch'
  * endpoint is a used/liquidation collection, `new` for the one components retailer, and `null`
  * where the shop exposes no signal at all — which is excluded from both facet chips rather than
  * guessed. See the note on each entry.
+ *
+ * ⛔ SECOND-HAND FOCUS (owner, 2026-10-03): the new-goods retailers carry `retired` (not imported, not
+ * fetched by the stock cron) and the two shops with new AND used stock carry `refreshOnly` (their live,
+ * used rows keep refreshing; the importer creates nothing new for them). See StoreConfig in partner-fetch.ts.
  */
 export const PARTNER_STORES: StoreConfig[] = [
   {
     "domain": "fptshop.com.vn",
+    "retired": "Second-hand focus, owner 2026-10-03: a new-goods retailer — its listings were hidden and it is not re-imported or re-fetched",
     "name": "FPT Shop",
     "city": "Hồ Chí Minh",
     "adapter": "sitemap-jsonld",
@@ -81,6 +86,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "dienmaycholon.com",
+    "retired": "Second-hand focus, owner 2026-10-03: a new-goods retailer — its listings were hidden and it is not re-imported or re-fetched",
     "name": "Siêu Thị Điện Máy - Nội Thất Chợ Lớn",
     "city": "Hồ Chí Minh",
     "adapter": "sitemap-jsonld",
@@ -173,6 +179,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "thegioididong.com",
+    "retired": "Second-hand focus, owner 2026-10-03: a new-goods retailer — its listings were hidden and it is not re-imported or re-fetched",
     "name": "Thế Giới Di Động",
     "city": "Hồ Chí Minh",
     "adapter": "sitemap-jsonld",
@@ -329,6 +336,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "bachlongstore.vn",
+    "refreshOnly": "Second-hand focus, owner 2026-10-03: sells new AND used stock — existing (used) listings refresh, no new listing is created until the owner decides how its used stock is told apart",
     "name": "Bạch Long Store",
     "city": "Hồ Chí Minh",
     "adapter": "collection-crawl",
@@ -346,6 +354,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "dienthoaigiakho.vn",
+    "refreshOnly": "Second-hand focus, owner 2026-10-03: sells new AND used stock — existing (used) listings refresh, no new listing is created until the owner decides how its used stock is told apart",
     "name": "Điện Thoại Giá Kho",
     "city": "Hồ Chí Minh",
     "adapter": "sitemap-jsonld",
@@ -359,6 +368,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "daitailoc.com",
+    "retired": "Second-hand focus, owner 2026-10-03: a new-goods retailer — its listings were hidden and it is not re-imported or re-fetched",
     "name": "Đại Tài Lộc",
     "city": "Hồ Chí Minh",
     "adapter": "sitemap-jsonld",
@@ -370,6 +380,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "hoanghamobile.com",
+    "retired": "Second-hand focus, owner 2026-10-03: a new-goods retailer — its listings were hidden and it is not re-imported or re-fetched",
     "name": "Hoàng Hà Mobile",
     "city": "Hồ Chí Minh",
     "adapter": "sitemap-jsonld",
@@ -500,6 +511,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "hshop.vn",
+    "retired": "Second-hand focus, owner 2026-10-03: a new-goods retailer — its listings were hidden and it is not re-imported or re-fetched",
     "name": "HShop",
     "city": "Hồ Chí Minh",
     "adapter": "sapo",

@@ -44,16 +44,27 @@ export type HideJournalRow = {
   rule: string
   matched: string | null
   title: string
+  /** The storefront — written by scripts/retire-new-retail.ts so a rollback can be scoped to one shop. */
+  sellerId?: string | null
 }
 
 export type HideJournal = {
-  kind: 'hide-ad-banned' | 'import-screen-hide'
+  /** `retire-new-retail`: the second-hand focus' retirement of new-goods catalogues (scripts/retire-new-retail.ts). */
+  kind: 'hide-ad-banned' | 'import-screen-hide' | 'retire-new-retail'
   createdAt: string
   importer?: string
   rows: HideJournalRow[]
 }
 
-export type HideCandidate = Omit<HideJournalRow, 'priorStatus' | 'updatedAt'>
+export type HideCandidate = Omit<HideJournalRow, 'priorStatus' | 'updatedAt'> & {
+  /**
+   * The `"updatedAt"::text` the caller JUDGED the row at. When set, a row written since (a human relabelling
+   * it used, a re-categorisation) is skipped rather than hidden on a verdict about its older self — the
+   * snapshot below would otherwise journal the new `updatedAt` and the hide would succeed (commit-gate
+   * review, retire-new-retail). Not written to the journal.
+   */
+  expectUpdatedAt?: string
+}
 
 /** An ownerless storefront's imported or linked row — the only rows this module ever writes. */
 const IMPORTED_ROW = `s."ownerId" IS NULL AND (l."externalId" IS NOT NULL OR l."affiliateUrl" IS NOT NULL)`
@@ -110,9 +121,9 @@ export async function journaledHide(
     for (const r of rows) snap.set(r.id, { status: r.status, updatedAt: r.updatedAt })
   }
   const rows: HideJournalRow[] = []
-  for (const [id, c] of byId) {
+  for (const [id, { expectUpdatedAt, ...c }] of byId) {
     const s = snap.get(id)
-    if (s) rows.push({ ...c, priorStatus: s.status, updatedAt: s.updatedAt })
+    if (s && (expectUpdatedAt === undefined || expectUpdatedAt === s.updatedAt)) rows.push({ ...c, priorStatus: s.status, updatedAt: s.updatedAt })
   }
   if (!rows.length) return { journal: null, journaled: 0, hidden: [] }
   const j: HideJournal = { kind: journal.kind, createdAt: new Date().toISOString(), ...(journal.importer ? { importer: journal.importer } : {}), rows }

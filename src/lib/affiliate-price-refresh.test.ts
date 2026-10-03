@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Prisma } from '@/generated/prisma/client'
-import { applyPriceChanges, diffPrices, feedPrice, merchantNameFor, repairAffLink, type ExistingListing } from './affiliate-price-refresh'
+import { applyPriceChanges, campaignsFromEnv, diffPrices, feedPrice, merchantNameFor, repairAffLink, type ExistingListing } from './affiliate-price-refresh'
 
 const feed = (rows: [string, number, string | null][]) =>
   new Map(rows.map(([id, price, affiliateUrl]) => [id, { price, affiliateUrl }]))
@@ -155,10 +155,19 @@ describe('merchantNameFor', () => {
    * `no_storefront`, and those listings keep their import-day price forever. Measured
    * 2026-09-09 — `ben` and `dienthoaivui` had never once been refreshed.
    */
-  it('knows every storefront imported under a display name', () => {
-    expect(merchantNameFor('ben')).toBe('BỀN COMPUTER')
+  it('knows every storefront imported under a display name that is still refreshed', () => {
+    expect(merchantNameFor('cellphones_cps')).toBe('CellphoneS')
     expect(merchantNameFor('dienthoaivui')).toBe('Điện Thoại Vui')
-    expect(merchantNameFor('tiki_creator')).toBe('Tiki')
+  })
+
+  /**
+   * ⛔ SECOND-HAND FOCUS, 2026-10-03: every Tiki and BỀN COMPUTER row is hidden, so their campaigns are
+   * out of the map. A stale env entry then resolves to the bare slug — no storefront has that name —
+   * and the route reports `no_storefront` instead of walking a whole feed for rows it may not touch.
+   */
+  it('a retired campaign falls back to its slug, which names no storefront', () => {
+    expect(merchantNameFor('tiki_creator')).toBe('tiki_creator')
+    expect(merchantNameFor('ben')).toBe('ben')
   })
 
   it('falls back to the slug for an unmapped campaign, rather than inventing a name', () => {
@@ -175,5 +184,18 @@ describe('merchantNameFor', () => {
     for (const slug of ['constructor', 'toString', 'hasOwnProperty', 'valueOf', '__proto__']) {
       expect(merchantNameFor(slug)).toBe(slug)
     }
+  })
+})
+
+describe('campaignsFromEnv', () => {
+  // ⛔ The route used to fall back to 'cellphones_cps' on an empty value, so "stop the job" re-armed it.
+  it('unset or empty means no campaigns at all — never a default', () => {
+    expect(campaignsFromEnv(undefined)).toEqual([])
+    expect(campaignsFromEnv(null)).toEqual([])
+    expect(campaignsFromEnv('')).toEqual([])
+    expect(campaignsFromEnv(' , ,')).toEqual([])
+  })
+  it('trims, drops empties and de-duplicates, keeping the order', () => {
+    expect(campaignsFromEnv(' cellphones_cps, dienthoaivui,,cellphones_cps ')).toEqual(['cellphones_cps', 'dienthoaivui'])
   })
 })

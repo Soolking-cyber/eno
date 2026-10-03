@@ -18,19 +18,24 @@ import {
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
-const CAMPAIGN = arg('campaign') ?? 'cellphones_cps'
+// ⛔ NO DEFAULT CAMPAIGN (second-hand focus, 2026-10-03) — the same rule as the cron's campaignsFromEnv:
+// the only way to walk a feed is to name it.
+const CAMPAIGN = arg('campaign')
+if (!CAMPAIGN || CAMPAIGN.startsWith('--')) { console.error('--campaign <slug> required (e.g. cellphones_cps, dienthoaivui)'); process.exit(1) }
 const KEY = process.env.ACCESSTRADE_KEY
 if (!KEY) { console.error('ACCESSTRADE_KEY missing from .env'); process.exit(1) }
 
 async function main() {
   console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} — campaign=${CAMPAIGN}\n`)
-  const campaignId = await campaignIdFor(CAMPAIGN, KEY!)
+  const campaignId = await campaignIdFor(CAMPAIGN!, KEY!)
   if (!campaignId) { console.error(`"${CAMPAIGN}" is not an APPROVED campaign for this publisher.`); process.exit(1) }
 
-  const seller = await db.seller.findFirst({ where: { name: merchantNameFor(CAMPAIGN) }, select: { id: true, name: true } })
-  if (!seller) { console.error(`no storefront named "${merchantNameFor(CAMPAIGN)}"`); process.exit(1) }
+  // ⛔ `ownerId: null`, as the cron route has it: Seller.name is not unique, and an owned storefront that
+  // happens to share a merchant's name belongs to a real person — never a datafeed target.
+  const seller = await db.seller.findFirst({ where: { name: merchantNameFor(CAMPAIGN!), ownerId: null }, select: { id: true, name: true } })
+  if (!seller) { console.error(`no ownerless storefront named "${merchantNameFor(CAMPAIGN!)}"`); process.exit(1) }
 
-  const { prices, seen, dropped } = await fetchFeedPrices(CAMPAIGN, KEY!, campaignId,
+  const { prices, seen, dropped } = await fetchFeedPrices(CAMPAIGN!, KEY!, campaignId,
     (n, t) => { if (n % 1000 < 200) console.log(`  feed ${n}/${t}`) })
   console.log(`\nfeed: ${seen} rows, ${prices.size} usable, ${dropped} dropped (no sku or no price)\n`)
 

@@ -8,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 type Row = Record<string, any>
 
 const h = vi.hoisted(() => ({
+  stores: [{ name: 'Shop', domain: 'shop.example' }] as Array<{ name: string; domain: string; retired?: string }>,
+  fetched: [] as string[],
   rows: [] as Row[],
   products: [] as Array<{ externalId: string; price: number; inStock: boolean }>,
   complete: false,
@@ -20,9 +22,9 @@ vi.mock('server-only', () => ({}))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
 vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: Row) => w }))
-vi.mock('@/lib/partner-stores', () => ({ PARTNER_STORES: [{ name: 'Shop', domain: 'shop.example' }] }))
+vi.mock('@/lib/partner-stores', () => ({ get PARTNER_STORES() { return h.stores } }))
 vi.mock('@/lib/partner-fetch', () => ({
-  fetchStore: async () => ({ products: h.products, complete: h.complete, seenExternalIds: new Set(h.products.map((p) => p.externalId)) }),
+  fetchStore: async (cfg: Row) => { h.fetched.push(cfg.domain); return { products: h.products, complete: h.complete, seenExternalIds: new Set(h.products.map((p) => p.externalId)) } },
   mayReconcile: () => h.complete,
 }))
 
@@ -63,6 +65,8 @@ const status = (id: string) => h.rows.find((r) => r.id === id)?.status
 
 beforeEach(() => {
   process.env.CRON_SECRET = 'cron-secret'
+  h.stores = [{ name: 'Shop', domain: 'shop.example' }]
+  h.fetched = []
   h.rows = []
   h.products = []
   h.complete = false
@@ -144,5 +148,22 @@ describe('GET /api/cron/partner-stock — the counters report what was written',
     const out = await run()
     expect(out.results[0]).toMatchObject({ priced: 2, soldOut: 2 })
     expect(h.rows.find((r) => r.id === 'raced')).toMatchObject({ status: 'hidden', price: 100 })
+  })
+})
+
+// ⛔ SECOND-HAND FOCUS, 2026-10-03: a retired new-goods shop is not fetched at all (cost: Thế Giới Di Động
+// alone is ~an hour of crawling). Its rows are hidden, and this job leaves hidden rows alone regardless.
+describe('GET /api/cron/partner-stock — retired shops', () => {
+  it('skips a retired store without fetching it or touching its rows, and reports the skip', async () => {
+    h.stores = [
+      { name: 'Retired Shop', domain: 'retired.example', retired: 'second-hand focus, 2026-10-03' },
+      { name: 'Shop', domain: 'shop.example' },
+    ]
+    h.rows = [{ id: 'live', externalId: 'e1', price: 100, status: 'active', title: 'Áo' }]
+    h.products = [{ externalId: 'e1', price: 120, inStock: true }]
+    const out = await run()
+    expect(h.fetched).toEqual(['shop.example'])
+    expect(out.results).toContainEqual({ store: 'retired.example', skipped: 'retired' })
+    expect(out.results.find((r: Row) => r.store === 'shop.example')).toMatchObject({ priced: 1 })
   })
 })

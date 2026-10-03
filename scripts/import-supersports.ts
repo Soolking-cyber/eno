@@ -1,6 +1,12 @@
 /**
  * Import the SuperSports Vietnam catalogue (Shopify) as affiliate listings.
  *
+ * ⛔ RETIRED — THIS SCRIPT REFUSES TO RUN (src/lib/retired-imports.ts). Every SuperSports row was hidden on
+ * 2026-10-02 (journal supersports-hide-20261002T025207Z.csv) and the owner's 2026-10-03 second-hand focus
+ * keeps new-goods catalogues off the site. A run would re-create the catalogue as active and bump
+ * `updatedAt` on the hidden rows, which is what that journal's rollback guard refuses. Kept in the tree
+ * for its history and its notes; restoring it is a code change, not a flag.
+ *
  *   npx tsx --env-file=.env scripts/import-supersports.ts                 # DRY RUN (fetches, places, prices, prints)
  *   npx tsx --env-file=.env scripts/import-supersports.ts --limit 50      # a slice, for eyeballing
  *   npx tsx --env-file=.env scripts/import-supersports.ts --apply         # write
@@ -47,6 +53,10 @@ import { browseRankScore } from '../src/lib/ranking-formula'
 import { supersportsFacets } from '../src/lib/supersports-taxonomy'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
+import { SUPERSPORTS_RETIRED } from '../src/lib/retired-imports'
+
+// ⛔ EVERY MODE, DRY RUN INCLUDED — see the header.
+if (SUPERSPORTS_RETIRED) { console.error(`⛔ refusing to run: ${SUPERSPORTS_RETIRED}`); process.exit(1) }
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')

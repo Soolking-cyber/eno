@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 type Row = Record<string, any>
 
 const h = vi.hoisted(() => ({
+  feedCalls: 0,
   rows: [] as Row[],
   feed: new Map<string, { price: number; affiliateUrl: string | null }>(),
   sql: [] as Array<{ text: string; values: unknown[] }>,
@@ -20,7 +21,7 @@ vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
 vi.mock('@/lib/affiliate-price-refresh', async (orig) => ({
   ...(await orig<typeof import('@/lib/affiliate-price-refresh')>()),
   campaignIdFor: async () => '123',
-  fetchFeedPrices: async () => ({ prices: h.feed, seenIds: new Set(h.feed.keys()), seen: h.feed.size, complete: true, total: h.feed.size, dropped: 0 }),
+  fetchFeedPrices: async () => { h.feedCalls++; return { prices: h.feed, seenIds: new Set(h.feed.keys()), seen: h.feed.size, complete: true, total: h.feed.size, dropped: 0 } },
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -51,6 +52,8 @@ const run = async () => (await GET(new Request('https://eno.vn/api/cron/affiliat
 beforeEach(() => {
   process.env.CRON_SECRET = 'cron-secret'
   process.env.ACCESSTRADE_KEY = 'k'
+  // Named explicitly: an unset ACCESSTRADE_CAMPAIGNS walks nothing (see the last describe below).
+  process.env.ACCESSTRADE_CAMPAIGNS = 'cellphones_cps'
   h.rows = [
     { id: 'ok', externalId: 'e-ok', price: 100, status: 'sold', title: 'Áo thun nam cotton' },
     { id: 'ban', externalId: 'e-ban', price: 100, status: 'sold', title: 'Bình sữa Pigeon 240ml' },
@@ -60,6 +63,7 @@ beforeEach(() => {
   h.feed = new Map(h.rows.map((r) => [r.externalId, { price: 200, affiliateUrl: null }]))
   h.sql = []
   h.updateMany = []
+  h.feedCalls = 0
 })
 
 describe('GET /api/cron/affiliate-prices — the restore is screened', () => {
@@ -87,5 +91,26 @@ describe('GET /api/cron/affiliate-prices — the restore is screened', () => {
     // The hidden row is not a restore candidate either (only 'sold' is), and keeps its status.
     expect(h.rows.find((r) => r.id === 'hid')!.status).toBe('hidden')
     expect(h.sql.find((q) => q.text.includes("SET status = 'active'"))!.values).not.toContain('hid')
+  })
+})
+
+// ⛔ SECOND-HAND FOCUS, 2026-10-03: the route read `ACCESSTRADE_CAMPAIGNS || 'cellphones_cps'`, so emptying
+// the env to stop the job re-armed CellphoneS. Unset or empty now walks nothing — and still answers 200.
+describe('GET /api/cron/affiliate-prices — the campaign list', () => {
+  it.each([undefined, '', ' , '])('ACCESSTRADE_CAMPAIGNS=%j walks no feed and writes nothing', async (value) => {
+    if (value === undefined) delete process.env.ACCESSTRADE_CAMPAIGNS
+    else process.env.ACCESSTRADE_CAMPAIGNS = value
+    const out = await run()
+    expect(out).toEqual({ ok: true, results: [], skipped: 'no_campaigns' })
+    expect(h.feedCalls).toBe(0)
+    expect(h.sql).toEqual([])
+    expect(h.updateMany).toEqual([])
+  })
+
+  it('walks exactly the campaigns named', async () => {
+    process.env.ACCESSTRADE_CAMPAIGNS = 'cellphones_cps,dienthoaivui'
+    const out = await run()
+    expect(out.results.map((r: Row) => r.campaign)).toEqual(['cellphones_cps', 'dienthoaivui'])
+    expect(h.feedCalls).toBe(2)
   })
 })

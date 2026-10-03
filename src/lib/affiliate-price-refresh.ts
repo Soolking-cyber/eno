@@ -3,9 +3,11 @@
  *
  * ⛔ WHY THIS IS NOT `import-accesstrade.ts --apply` ON A TIMER. The importer's refresh set
  * includes category, subcategory, brand and model — fields that were REDONE BY HAND across all
- * 9,726 CellphoneS products (classify-cellphones.ts, extract-specs.ts) because the feed's own
- * taxonomy put wallets and kickstands in "phones". Running the importer nightly would silently
- * undo that classification every night. This job writes TWO columns and nothing else.
+ * 9,726 CellphoneS products (classify-cellphones.ts, since deleted 2026-10-03 — see git history;
+ * extract-specs.ts) because the feed's own taxonomy put wallets and kickstands in "phones". Running
+ * the importer nightly would silently undo that classification every night — and since the
+ * second-hand focus (2026-10-03) the importer refuses these campaigns outright
+ * (src/lib/retired-imports.ts). This job writes TWO columns and nothing else.
  *
  * ⛔ IT ALSO MUST NOT WRITE `previousPrice` / `priceDropAt`. Those drive the "price dropped" badge
  * AND the saved-search alert sweep (saved-search-alerts.ts:118) — a merchant feed that moves a few
@@ -47,11 +49,15 @@ export type FeedRow = {
  * day they were imported. Adding a campaign here is half the fix; the other half is putting its
  * slug in ACCESSTRADE_CAMPAIGNS on the box, and neither half works alone.
  *
- * ✅ THE OTHER HALF IS DONE. ACCESSTRADE_CAMPAIGNS was written to both container env files and
- * verified live on 2026-09-09 (`docker exec eno-vn-app printenv` and the forum sibling both
- * return `cellphones_cps,ben,dienthoaivui,tiki_creator`), and all four storefronts exist in prod
- * under exactly these names, NFC-normalized: CellphoneS 9,726 listings · Tiki 17,435 ·
- * BỀN COMPUTER 258 · Điện Thoại Vui 152. This mapping is therefore live, not inert.
+ * ✅ THE OTHER HALF WAS DONE 2026-09-09 (`cellphones_cps,ben,dienthoaivui,tiki_creator` in both
+ * container env files). ⛔ SINCE THE SECOND-HAND FOCUS (owner, 2026-10-03) ONLY TWO CAMPAIGNS ARE
+ * LIVE: `cellphones_cps` (its used "cũ" shelf, ~1,264 rows, was kept) and `dienthoaivui` (a used-phone
+ * shop, 152 rows). `tiki_creator` and `ben` were REMOVED from this map — every one of their rows is
+ * hidden — so a stale env entry naming them resolves to the bare slug, finds no storefront and reports
+ * `no_storefront` instead of walking a 45,000-row feed for nothing. The box env is set to
+ * `cellphones_cps,dienthoaivui` alongside the deploy (see the second-hand plan, §6).
+ * ⚠️ A KEPT CAMPAIGN STILL REACHES ITS HIDDEN ROWS IN `existing` — and leaves them alone: prices land
+ * on active|sold only (applyPriceChanges), restores take sold rows only (applyStockReconcile).
  *
  * ⛔ A `Map`, NOT AN OBJECT LITERAL — and that is a correctness fix, not a style preference.
  * With a plain object, `MERCHANT_NAMES[campaign] ?? campaign` reads through Object.prototype, so
@@ -65,13 +71,23 @@ export type FeedRow = {
  */
 const MERCHANT_NAMES = new Map<string, string>([
   ['cellphones_cps', 'CellphoneS'],
-  ['ben', 'BỀN COMPUTER'],
   ['dienthoaivui', 'Điện Thoại Vui'],
-  ['tiki_creator', 'Tiki'],
 ])
 
 export function merchantNameFor(campaign: string): string {
   return MERCHANT_NAMES.get(campaign) ?? campaign
+}
+
+/**
+ * The campaigns the nightly job walks, from `ACCESSTRADE_CAMPAIGNS`.
+ *
+ * ⛔ UNSET OR EMPTY MEANS NONE. The route used to read `ACCESSTRADE_CAMPAIGNS || 'cellphones_cps'`, so
+ * emptying the env to stop the job silently re-armed CellphoneS — "remove the campaigns" and "walk the
+ * one campaign we started with" were the same configuration. Now the only way to walk a campaign is to
+ * name it. Trimmed, empties dropped, de-duplicated (a doubled slug would walk the feed twice).
+ */
+export function campaignsFromEnv(raw: string | null | undefined): string[] {
+  return [...new Set((raw ?? '').split(',').map((s) => s.trim()).filter(Boolean))]
 }
 
 /**

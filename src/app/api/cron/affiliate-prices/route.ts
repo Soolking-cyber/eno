@@ -3,7 +3,7 @@ import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
 import {
-  applyPriceChanges, applyStockReconcile, campaignIdFor, diffPrices, fetchFeedPrices, merchantNameFor,
+  applyPriceChanges, applyStockReconcile, campaignIdFor, campaignsFromEnv, diffPrices, fetchFeedPrices, merchantNameFor,
   type ExistingListing,
 } from '@/lib/affiliate-price-refresh'
 import { restockReport, screenRestock } from '@/lib/restock-screen'
@@ -19,7 +19,8 @@ export const maxDuration = 600
 // ⚠️ CALLED ON 127.0.0.1 WITH A Host HEADER, NOT THROUGH CLOUDFLARE — which is what makes a
 // multi-minute walk of a ~9,700-row datafeed legal. Cloudflare cuts a request at 100s; the timer's
 // eno-cron.sh curl allows 900. Do not "helpfully" expose this on the public hostname.
-const CAMPAIGNS = (process.env.ACCESSTRADE_CAMPAIGNS || 'cellphones_cps').split(',').map((s) => s.trim()).filter(Boolean)
+// ⛔ THE CAMPAIGN LIST IS READ PER REQUEST, AND UNSET/EMPTY MEANS NONE (campaignsFromEnv). It was a
+// module constant defaulting to 'cellphones_cps', so emptying the env re-armed CellphoneS.
 // Wider than the 24h cadence on purpose: a missed night, a manual CLI run, or the sibling edition
 // calling later in the day must all still find the rows that moved.
 const REVALIDATE_LOOKBACK_MS = 48 * 60 * 60 * 1000
@@ -101,8 +102,17 @@ async function flushRecent(sellerId: string, alsoIds: string[] = []) {
 export const GET = route({ auth: 'cron' }, async () => {
   const key = process.env.ACCESSTRADE_KEY
   const results: Record<string, unknown>[] = []
+  const campaigns = campaignsFromEnv(process.env.ACCESSTRADE_CAMPAIGNS)
+  // A 200, not an error: an empty list is a configuration ("walk nothing"), and a red unit every night
+  // would train everyone to ignore failed units.
+  if (!campaigns.length) {
+    // ⚠️ SAID OUT LOUD (commit-gate review): a 200 that walks nothing must still show in the journal, or an
+    // env that lost its value looks like a healthy night while the kept stock's prices go stale.
+    console.warn('affiliate-prices: ACCESSTRADE_CAMPAIGNS is unset or empty — no campaign walked (expected: cellphones_cps,dienthoaivui)')
+    return { ok: true, results, skipped: 'no_campaigns' }
+  }
 
-  for (const campaign of CAMPAIGNS) {
+  for (const campaign of campaigns) {
     // ⛔ `ownerId: null`. Seller.name is NOT unique — anyone can open a storefront called
     // "CellphoneS" — and this job rewrites prices and buy links in bulk. An owned storefront
     // belongs to a real person and is never a datafeed target.

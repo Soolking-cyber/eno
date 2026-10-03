@@ -1,9 +1,15 @@
 /**
  * Import an AccessTrade campaign's product feed as affiliate listings.
  *
- *   npx tsx scripts/import-accesstrade.ts --campaign cellphones_cps            # DRY RUN
- *   npx tsx scripts/import-accesstrade.ts --campaign cellphones_cps --limit 20 # small slice
- *   npx tsx scripts/import-accesstrade.ts --campaign cellphones_cps --apply
+ * ⛔ EVERY CAMPAIGN IS REFUSED UNLESS ALLOW-LISTED, AND tiki_creator, cellphones_cps, ben AND dienthoaivui
+ * BY NAME (second-hand focus, owner 2026-10-03 — src/lib/retired-imports.ts). Their new goods were hidden by a journaled hide; a re-import would create
+ * them again as active, bump `updatedAt` on the hidden rows (which disables the hide's rollback), and
+ * write `condition: 'new'` over the used rows that were kept. Their nightly PRICE refresh is a separate,
+ * narrower job (src/lib/affiliate-price-refresh.ts) and keeps running for the shops with kept stock.
+ *
+ *   npx tsx scripts/import-accesstrade.ts --campaign <slug>            # DRY RUN
+ *   npx tsx scripts/import-accesstrade.ts --campaign <slug> --limit 20 # small slice
+ *   npx tsx scripts/import-accesstrade.ts --campaign <slug> --apply
  *
  * ⚠️ ONLY APPROVED CAMPAIGNS EARN. `datafeeds` with no campaign filter reports 16.7M products
  * across AccessTrade's whole network; their aff_links resolve but pay nothing unless the campaign
@@ -37,6 +43,7 @@ import { ImportScreen } from '../src/lib/import-screen'
 // ⛔ Feed text arrives with HTML entities encoded ("Fun &amp; Online"): decoded on the way in, and repaired
 // in the stored columns on a refresh (translation audit 2026-10-02, F9). See src/lib/feed-text.ts.
 import { cutText, decodeEntities, entityRepairs, feedDescription } from '../src/lib/feed-text'
+import { retiredImportReason } from '../src/lib/retired-imports'
 import { createHash } from 'node:crypto'
 /**
  * ⚠️ THE FEED'S aff_links ARE REPAIRED LOCALLY, NOT MINTED PER PRODUCT. `product_link/create`
@@ -45,9 +52,15 @@ import { createHash } from 'node:crypto'
  * verified end to end: it 302s and resolves 200 at click.accesstrade.vn.
  */
 
+const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
+// ⛔ BEFORE ANYTHING ELSE, INCLUDING THE DRY RUN: a refused campaign has no preview worth reading. Since
+// 2026-10-03 every campaign is refused unless it is on the allow-list (src/lib/retired-imports.ts).
+// Unconditional (commit-gate review): a missing or empty --campaign is refused here too, not later.
+const campaignArg = arg('campaign')
+const retired = retiredImportReason(campaignArg)
+if (retired) { console.error(`⛔ refusing --campaign ${campaignArg ?? '(none)'}: ${retired}`); process.exit(1) }
 const KEY = process.env.ACCESSTRADE_KEY
 if (!KEY) { console.error('ACCESSTRADE_KEY missing from .env'); process.exit(1) }
-const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
 const CAMPAIGN = arg('campaign')
 const LIMIT = Number(arg('limit') ?? 0)
@@ -255,6 +268,10 @@ async function main() {
           : null
         // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
         if (existing?.status === 'removed') { skipped++; return }
+        // ⛔ AND A ROW THAT IS NOT LIVE IS LEFT AS IT IS — hidden (a journaled hide: ad-ban, import screen,
+        // the 2026-10-03 new-goods retirement), stale, expired. A Prisma write here bumps `updatedAt`, and a
+        // row touched after its hide is one the hide's --rollback refuses; the refresh has no business there.
+        if (existing && existing.status !== 'active' && existing.status !== 'sold') { skipped++; return }
         // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a banned word or an
         // advertising-banned product (Tiki's spirits, formula, feeding bottles, NexGard…) is never
         // created; if it is already LIVE it is not refreshed and finish() hides it (journaled). An
@@ -404,7 +421,10 @@ async function main() {
          * describe script's resume predicate is "description still equals title" — which is now
          * false — so it would never re-select the row to repair it.
          */
-        const { status, verified, title, description, descriptionVi, rankScore, ...refreshable } = fields
+        // ⛔ `condition` IS CREATE-ONLY TOO (2026-10-03, commit-gate review): this importer hard-codes 'new',
+        // and on a refresh that would relabel a row a human marked used — the second-hand focus kept 1,264
+        // such CellphoneS rows. Moot for the four refused campaigns; not for the next one added.
+        const { status, verified, title, description, descriptionVi, rankScore, condition: _condition, ...refreshable } = fields
         /**
          * ⛔ THE ONE EXCEPTION TO CREATE-ONLY: an entity decode of the STORED value. It keeps every word
          * a translator or a model wrote and only stops "&amp;" printing, so the next refresh repairs the
@@ -435,12 +455,32 @@ async function main() {
          */
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
-            await db.listing.upsert({
-              where: { sellerId_externalId: { sellerId: seller!.id, externalId } },
-              update: { ...refreshable, ...decoded },
-              create: { ...fields, sellerId: seller!.id, externalId },
+            /**
+             * ⛔ A REFRESH LANDS ON A LIVE ROW ONLY, RE-CHECKED IN ITS OWN WHERE (2026-10-03, commit-gate
+             * review — the same fix as import-partners.ts). The `existing.status` read above can be stale; an
+             * upsert's `update` branch is unconditional, so a row hidden in between would be rewritten and
+             * its `updatedAt` bumped, which is what a journaled hide's rollback refuses. A create that loses a
+             * race to a duplicate SKU falls back to the same conditional write.
+             */
+            const refresh = () => db.listing.updateMany({
+              where: { sellerId: seller!.id, externalId, status: { in: ['active', 'sold'] } },
+              data: { ...refreshable, ...decoded },
             })
-            existing ? updated++ : created++
+            // A create that lost the race is counted as the refresh it became, through the same tail.
+            let refreshed = !!existing
+            if (existing) {
+              if (!(await refresh()).count) { skipped++; return }
+            } else {
+              try {
+                await db.listing.create({ data: { ...fields, sellerId: seller!.id, externalId } })
+              } catch (e) {
+                // P2002 here can only be Listing_sellerId_externalId_key — Listing's one unique index besides its cuid id.
+                if ((e as { code?: string }).code !== 'P2002') throw e
+                if (!(await refresh()).count) { skipped++; return }
+                refreshed = true
+              }
+            }
+            refreshed ? updated++ : created++
             if (Object.keys(repairs).length && carryOk) entityRows++
             return
           } catch (e) {

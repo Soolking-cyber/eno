@@ -66,6 +66,28 @@ describe('journaledHide', () => {
     expect(j).toMatchObject({ kind: 'hide-ad-banned', rows: [{ id: 'A', priorStatus: 'sold', updatedAt: '2026-09-30 10:00:00.123', rule: 'spirits' }] })
   })
 
+  it('expectUpdatedAt: a row written since the caller judged it is skipped, and the field never reaches the journal', async () => {
+    const path = join(tmp(), 'j.json')
+    const db: HideDb = {
+      $queryRawUnsafe: (async (sql: string, ...values: unknown[]) => {
+        if (sql === SNAPSHOT_SQL) return [
+          { id: 'A', status: 'active', updatedAt: '2026-10-03 01:00:00' },
+          { id: 'B', status: 'active', updatedAt: '2026-10-03 05:00:00' }, // relabelled since it was judged
+        ]
+        if (sql === HIDE_SQL) { expect(values[0]).toEqual(['A']); return [{ id: 'A' }] }
+        throw new Error(sql)
+      }) as HideDb['$queryRawUnsafe'],
+    }
+    const out = await journaledHide(db, [
+      { id: 'A', rule: 'retire-new-retail', matched: 'condition new', title: 'a', expectUpdatedAt: '2026-10-03 01:00:00' },
+      { id: 'B', rule: 'retire-new-retail', matched: 'condition new', title: 'b', expectUpdatedAt: '2026-10-03 01:00:00' },
+    ], { path, kind: 'retire-new-retail' })
+    expect(out).toEqual({ journal: path, journaled: 1, hidden: ['A'] })
+    const j = JSON.parse(readFileSync(path, 'utf8'))
+    expect(j.rows).toHaveLength(1)
+    expect(j.rows[0]).not.toHaveProperty('expectUpdatedAt')
+  })
+
   it('nothing live → no journal, no write', async () => {
     const path = join(tmp(), 'j.json')
     const sqls: string[] = []

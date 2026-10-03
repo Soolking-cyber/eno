@@ -67,9 +67,18 @@ const rotationOffset = (count: number) => (count ? Math.floor(Date.now() / 86_40
 export const GET = route({ auth: 'cron' }, async () => {
   const results: Record<string, unknown>[] = []
   const startedAt = Date.now()
-  const offset = rotationOffset(PARTNER_STORES.length)
+  /**
+   * ⛔ RETIRED SHOPS ARE NOT FETCHED (second-hand focus, owner 2026-10-03 — StoreConfig.retired). This is
+   * about COST, not safety: their rows are hidden, and this job already leaves a hidden row alone (price
+   * only on active|sold, status only active↔sold, a restock only from sold). But Thế Giới Di Động alone is
+   * ~an hour of crawling, and spending the night's budget re-reading a shop we do not list starves the
+   * shops we do. Reported, so the skip is visible.
+   */
+  const live = PARTNER_STORES.filter((s) => !s.retired)
+  for (const s of PARTNER_STORES) if (s.retired) results.push({ store: s.domain, skipped: 'retired' })
+  const offset = rotationOffset(live.length)
   // Rotate the list so tonight begins where the budget ran out on a previous night.
-  const tonight = [...PARTNER_STORES.slice(offset), ...PARTNER_STORES.slice(0, offset)]
+  const tonight = [...live.slice(offset), ...live.slice(0, offset)]
   let ranOutOfTime = 0
   for (const cfg of tonight) {
     /**

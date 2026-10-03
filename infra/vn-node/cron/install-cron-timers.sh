@@ -43,12 +43,15 @@ declare -A SCHED=(
   # Merchant price refresh for the imported affiliate catalogue. 20:00 UTC = 03:00 ICT, after
   # CellphoneS's own overnight repricing and well outside VN shopping hours — a ~50-page datafeed
   # walk plus a few thousand row updates should not compete with real traffic.
+  # ⚠️ SINCE THE SECOND-HAND FOCUS (2026-10-03) it walks two campaigns, ACCESSTRADE_CAMPAIGNS=
+  # cellphones_cps,dienthoaivui (the kept used stock); unset or empty walks NOTHING (campaignsFromEnv).
   [affiliate-prices]="*-*-* 20:00:00 UTC"
   # Availability + price refresh for the thirteen SCRAPED partner shops (owner, 2026-09-08: "a
   # daily cron to fetch availability for all partner stores and price updates for existing
   # products"). 19:00 UTC = 02:00 ICT — an hour before affiliate-prices, so the two multi-minute
   # outbound jobs never overlap, and squarely outside VN shopping hours because this one re-reads
   # thirteen small shops on shared hosting rather than calling one datafeed API.
+  # ⚠️ Retired new-goods shops (StoreConfig.retired, 2026-10-03) are skipped without a fetch.
   [partner-stock]="*-*-* 19:00:00 UTC"
   # IndexNow pings for eno.vn's changed URLs (SEO wave B, I4). Twice a day, so a trip's hold ripens on
   # its third run, 24 h after the first (src/lib/indexnow-diff.ts); the deploy also calls it once.
@@ -57,7 +60,9 @@ declare -A SCHED=(
   [indexnow]="*-*-* 01,13:30:00 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It is safe to
-# enable because it writes only price/affiliateUrl on imported rows and emails nobody — and it
+# enable because it writes only price/affiliateUrl on imported rows and emails nobody — never on a
+# hidden row (prices land on active|sold, restores take sold only), so the 2026-10-03 new-goods hide
+# survives it and stays in SAFE — and it
 # NO-OPS with `{skipped:"no_key"}` until ACCESSTRADE_KEY is present in the container env, so
 # installing it before the secret lands is harmless. eno-cron.sh already allows 900s.
 # Enabled now: they only touch this box's own data.
