@@ -11,6 +11,7 @@ import {
 } from '@/lib/forum/serialize'
 import { rateLimit } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
+import { isBotRequest } from '@/lib/bot-ua'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -103,7 +104,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       if (blocked) return forumJson(request, { error: 'not_found' }, { status: 404 }, 'GET, PATCH, DELETE, OPTIONS')
     }
 
-    void db.forumPost.update({ where: { id }, data: { viewCount: { increment: 1 } } }).catch((e) => logError(e, { op: 'forumPost.incrementViews' }))
+    // ⚠️ NOT FOR A CRAWLER (bot-ua.ts). This is a plain GET, so anything that finds the URL bumps it,
+    // and viewCount is what orders the Help Centre's popular answers (help-center-data.ts). The
+    // crawler still gets the post — only the count is skipped.
+    if (!isBotRequest(request)) {
+      void db.forumPost.update({ where: { id }, data: { viewCount: { increment: 1 } } }).catch((e) => logError(e, { op: 'forumPost.incrementViews' }))
+    }
     const comments = post.comments.map((comment) => serializeForumComment({
       ...comment,
       body: comment.status === 'removed' ? '[removed]' : comment.body,

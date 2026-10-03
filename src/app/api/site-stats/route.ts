@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { recordAndRead, HEARTBEAT_MS } from '@/lib/site-stats'
+import { isBotRequest } from '@/lib/bot-ua'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -43,6 +44,13 @@ export async function POST(req: NextRequest) {
     try { ok = new URL(origin).host === req.headers.get('host') } catch { ok = false }
     if (!ok) return NextResponse.json(zeros, { headers: { 'cache-control': 'no-store' } })
   }
+  /**
+   * ⚠️ A CRAWLER STOPS HERE, BEFORE THE LIMITER — recordAndRead() already returns zeros for one
+   * (bot-ua.ts, 2026-09-17), but only after rl_check has INSERTed its row, so Meta's renderer
+   * (~58% of visitor traffic on 2026-10-02) still cost a database write per heartbeat. The same
+   * zeros, the same 200; recordAndRead keeps its own check for any other caller.
+   */
+  if (isBotRequest(req)) return NextResponse.json(zeros, { headers: { 'cache-control': 'no-store' } })
   const ip = clientIp(req)
   const rl = await rateLimit('site-stats', ip, PER_MINUTE, '1 m').catch(() => ({ success: true }))
   if (!rl.success) return NextResponse.json(zeros, { headers: { 'cache-control': 'no-store' } })

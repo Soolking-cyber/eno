@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/ratelimit'
 import { getCurrentProfileId } from '@/lib/admin'
 import { bumpListingCounter } from '@/lib/listing-counters'
+import { isBotRequest } from '@/lib/bot-ua'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,6 +37,22 @@ export const dynamic = 'force-dynamic'
 // (It is already the cheap local-JWT call, so there is nothing to gain here anyway; never upgrade
 // this hot counter to 'profile'.)
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  /**
+   * ⛔ A CRAWLER IS NOT A VIEWER, AND THIS WAS THE ONE COUNTER STILL COUNTING THEM. Measured
+   * 2026-10-02 on Cloudflare: `meta-externalagent` (Meta's AI crawler, from EWR) was 58% of all
+   * visitor traffic and fired ~6.9k POSTs a day at this route, /api/site-stats and /api/csp-report —
+   * it renders the listing page, so <TrackView>'s effect runs for it exactly as for a person. The
+   * limiters below do not hold it either: they are per ADDRESS, and its crawl is spread thin. Measured
+   * 2026-10-03 on this route's own dedup rows (rl_window 'listing-view', 06:00–16:17 UTC): 1,883 of
+   * the 1,912 keys that landed on a live listing — 98.5% — came from Meta's 2a03:2880::/32, 130
+   * addresses across 1,574 listings, ~15 per address, nowhere near the 200/h cap. 29 came from
+   * anyone else. The footer counters had been guarded since 2026-09-17 (bot-ua.ts); `Listing.views`
+   * — the number a seller actually reads — had not.
+   * ⚠️ FIRST, before the limiter: rl_check INSERTs a row per call, so checking after it would still
+   * write twice per crawl. And the same 200 `counted:false` a deduped human gets — never a 4xx.
+   */
+  if (isBotRequest(req)) return NextResponse.json({ ok: true, counted: false })
+
   const { id } = await params
   const ip = clientIp(req)
 

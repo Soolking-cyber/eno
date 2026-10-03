@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { isBotUserAgent } from './bot-ua'
+import { isBotUserAgent, isBotRequest } from './bot-ua'
 import { coarseUserAgent } from './site-stats-shared'
+import { CRAWLER_UAS, PERSON_UAS } from './__fixtures__/user-agents'
 
 /**
  * ⛔ THESE USER-AGENTS ARE NOT INVENTED. Every string below was read out of Cloudflare's own log
@@ -74,5 +75,37 @@ describe('a crawler is not a visitor', () => {
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
       'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
     ]) expect(isBotUserAgent(ua)).toBe(false)
+  })
+})
+
+/**
+ * The counter guard (`isBotRequest`) that every crawler-reachable counter reads since 2026-10-03 —
+ * the listing view, the footer heartbeat and the forum post view. One table of strings, shared with
+ * those routes' own tests (src/lib/__fixtures__/user-agents.ts).
+ */
+describe('isBotRequest — may this request move a count?', () => {
+  const req = (ua: string | null) => ({ headers: new Headers(ua === null ? {} : { 'user-agent': ua }) })
+
+  for (const [name, ua] of Object.entries(CRAWLER_UAS)) {
+    it(`no — ${name}`, () => expect(isBotRequest(req(ua))).toBe(true))
+  }
+
+  it('no — a request that sends no user-agent header at all (no browser does)', () => {
+    expect(isBotRequest(req(null))).toBe(true)
+    expect(isBotRequest(req('   '))).toBe(true)
+  })
+
+  /**
+   * ⛔ THE HALF THAT MATTERS. A person matched here is a view a seller never sees, silently. The
+   * in-app browsers are the point: Facebook, Messenger, Instagram, Zalo and TikTok are where a shared
+   * listing actually gets opened in this market, and two of them belong to companies whose crawlers
+   * ARE on the list.
+   */
+  for (const [name, ua] of Object.entries(PERSON_UAS)) {
+    it(`yes — ${name}`, () => expect(isBotRequest(req(ua))).toBe(false))
+  }
+
+  it('isBotUserAgent keeps its old answer for an empty string (the signup prompt reads it)', () => {
+    expect(isBotUserAgent('')).toBe(false)
   })
 })

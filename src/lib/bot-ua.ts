@@ -14,6 +14,17 @@
  * prompt is due — a minute into a visit — so it is its own small chunk, never part of first load.
  * Keep it import-free so that stays cheap.
  *
+ * ⛔ EVERY COUNTER A CRAWLER CAN REACH READS THIS, THROUGH `isBotRequest` (2026-10-03). The footer
+ * counters were guarded on 2026-09-17 and the LISTING VIEW counter was not — and it is the number a
+ * seller reads. Cloudflare, 2026-10-02 (~/eno-wb1-backup/plan/edge-5xx-investigation-2026-10-03.md):
+ * `meta-externalagent` made ~130k requests that day, 58% of all visitor traffic, and fired ~6.9k
+ * POSTs at /api/listings/[id]/view, /api/site-stats and /api/csp-report, because it renders pages and
+ * so runs <TrackView>'s effect like any browser. The readers now: listings/[id]/view (Listing.views),
+ * site-stats (before its limiter as well as in recordAndRead), and forum/posts/[id] GET
+ * (ForumPost.viewCount, which orders the Help Centre's popular answers and is a plain GET any
+ * crawler can fetch). Saves and contact reveals are left alone: a save needs a device-local tap and a
+ * reveal needs a session, so neither is a page load a renderer makes.
+ *
  * ⛔ THIS EXISTS BECAUSE THE COUNTER WAS MEASURABLY WRONG, NOT AS A PRECAUTION. eno.forum showed
  * "5 here now" on 2026-09-17; Cloudflare's own log for POST /api/site-stats over the same ten
  * minutes held ONE real visitor (a Chrome/152 session on a VN residential IPv6) and SIX hits from
@@ -25,11 +36,11 @@
  * single request. It is not merely "here now" that was overstated — `site_visit_total` is durable,
  * so the all-time figure has been absorbing one phantom visitor per crawl with no path back.
  *
- * ⚠️ IT ONLY CATCHES CRAWLERS THAT RUN JAVASCRIPT, AND THERE IS NOTHING TO CATCH BESIDES. The
- * heartbeat is a POST issued by a React effect in a visible tab, so curl, a plain Googlebot fetch,
- * an uptime probe and every non-rendering scraper were never counted in the first place. The list
- * below is therefore short on purpose: the renderers that actually reach this endpoint, plus the
- * generic tokens every well-behaved automated client self-identifies with.
+ * ⚠️ THE TWO POSTS ONLY EVER SEE CRAWLERS THAT RUN JAVASCRIPT. The heartbeat and the view beacon are
+ * POSTs issued by React effects, so curl, a plain Googlebot fetch, an uptime probe and every
+ * non-rendering scraper were never counted by them in the first place. The forum post GET is the
+ * exception — any client can fetch it — and is why the self-declaring HTTP clients below earn
+ * their place rather than merely costing nothing.
  *
  * ⛔ TIGHT PATTERNS, BECAUSE A FALSE POSITIVE IS SILENT. A real reader matched here loses the
  * footer counters and their visit is never recorded, with nothing to notice. So this matches
@@ -53,20 +64,29 @@
  * whose footer counters silently vanish, with nothing anywhere to notice. The list rots slowly and
  * safely; the clever pattern fails immediately and invisibly.
  *
- * ⚠️ IT ONLY NEEDS THE CRAWLERS THAT RUN JAVASCRIPT. The heartbeat is a POST issued by a React
- * effect in a visible tab, so curl, a plain Googlebot HTML fetch, an uptime probe and every
- * non-rendering scraper were never counted in the first place — `curl` and `python-requests` are
- * here only because a client that declares itself costs nothing to honour.
+ * ⚠️ RENDERERS FIRST, BECAUSE THEY ARE WHAT REACHES A POST. The heartbeat and the view beacon only
+ * fire from a page that ran its JavaScript, so a non-rendering fetcher never counted there; `curl`,
+ * `python-requests` and friends matter for the forum GET (any client can fetch it) and otherwise
+ * cost nothing to honour.
  */
 const BOT_TOKENS = [
-  // The one measured in our own logs, and its stablemate.
-  'meta-externalagent', 'facebookexternalhit',
-  // Search + SEO.
-  'googlebot', 'google-inspectiontool', 'bingbot', 'yandexbot', 'duckduckbot', 'baiduspider',
-  'applebot', 'petalbot', 'seznambot', 'ahrefsbot', 'semrushbot', 'mj12bot', 'dotbot', 'dataforseobot',
-  // AI crawlers.
-  'gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 'claude-web', 'anthropic-ai',
-  'perplexitybot', 'amazonbot', 'bytespider', 'ccbot', 'google-extended',
+  // The one measured in our own logs, and its stablemates. ⚠️ NOT `facebook`/`fban`/`fb_iab`: the
+  // Facebook, Messenger and Instagram IN-APP browsers (`[FBAN/FBIOS;FBAV/…]`, `[FB_IAB/FB4A;…]`)
+  // are where a real person lands after tapping a shared listing — bot-ua.test.ts pins them as
+  // people. Only Meta's declared agents go here.
+  'meta-externalagent', 'meta-externalfetcher', 'meta-webindexer', 'facebookexternalhit', 'facebookcatalog',
+  'facebookbot',
+  // Search + SEO. `coccocbot` is Vietnam's own engine; its BROWSER is `coc_coc_browser`, which this
+  // token does not match (pinned in the test — that browser is a large share of VN desktops).
+  'googlebot', 'google-inspectiontool', 'googleother', 'storebot-google', 'adsbot-google',
+  'mediapartners-google', 'bingbot', 'bingpreview', 'msnbot', 'adidxbot', 'yandexbot', 'duckduckbot',
+  'baiduspider', 'coccocbot', 'applebot', 'petalbot', 'seznambot', 'ahrefsbot', 'ahrefssiteaudit',
+  'semrushbot', 'siteauditbot', 'mj12bot', 'dotbot', 'dataforseobot', 'blexbot', 'barkrowler', 'serpstatbot',
+  // AI crawlers. ⚠️ NOT `bytedance`: TikTok's in-app browser carries `BytedanceWebview/…` and is a
+  // person; `bytespider` is the crawler and the only ByteDance token here.
+  'gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 'claude-web', 'claude-user', 'claude-searchbot',
+  'anthropic-ai', 'perplexitybot', 'perplexity-user', 'duckassistbot', 'amazonbot', 'bytespider', 'ccbot',
+  'google-extended', 'diffbot', 'youbot', 'timpibot', 'imagesiftbot',
   // Link unfurlers. ⛔ `whatsapp` WAS HERE AND CAME STRAIGHT BACK OUT (reviewer, same round as the
   // Cubot finding). WhatsApp's unfurler is `WhatsApp/2.x` — but so is the in-app browser a real
   // person lands in after tapping a shared link, on a messenger this market actually uses. The
@@ -79,10 +99,10 @@ const BOT_TOKENS = [
   // PageSpeed Insights runs Lighthouse (`Chrome-Lighthouse`, above); its older agent named itself.
   'google page speed',
   // ⚠️ `headlesschrome`/`playwright`/`lighthouse` also match THIS REPO'S OWN e2e and CI runs, which
-  // is intended and currently costless: nothing under e2e/ asserts the footer counters (grepped).
-  // If a suite ever does, it will see zeros — give that test a normal user-agent rather than
-  // reopening this list.
-  'pingdom', 'uptimerobot', 'statuscake', 'python-requests', 'curl', 'wget', 'go-http-client',
+  // is intended and currently costless: nothing under e2e/ asserts the footer counters or a
+  // listing's view count (grepped again 2026-10-03). If a suite ever does, it will see zeros — give
+  // that test a normal user-agent rather than reopening this list.
+  'pingdom', 'uptimerobot', 'statuscake', 'python-requests', 'curl', 'wget', 'go-http-client', 'scrapy',
   // Generic self-declarations. ⚠️ `crawler`/`spider` are safe as substrings (no consumer device
   // name contains either); `bot` on its own is NOT, which is the whole note above.
   'crawler', 'crawling', 'spider', 'slurp',
@@ -92,4 +112,19 @@ const BOT_UA = new RegExp(BOT_TOKENS.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g,
 
 export function isBotUserAgent(userAgent: string): boolean {
   return BOT_UA.test(userAgent)
+}
+
+/**
+ * The counter guard: may this request move a count? `false` for a declared crawler — and for a
+ * request with NO user-agent at all, which no browser sends (every browser stamps one on fetch and
+ * sendBeacon, the native shell's WebView included). Only counter writers use this; the signup
+ * prompt keeps `isBotUserAgent`, where an empty string is not evidence of anything.
+ *
+ * ⛔ A BOT STILL GETS ITS ORDINARY 2xx. Callers skip the WRITE, never the answer: a 4xx/5xx here is
+ * a crawl error in Search Console and a red line in a renderer's log, for a request that did
+ * nothing wrong but exist.
+ */
+export function isBotRequest(req: { headers: Headers }): boolean {
+  const ua = req.headers.get('user-agent')
+  return !ua || !ua.trim() || BOT_UA.test(ua)
 }

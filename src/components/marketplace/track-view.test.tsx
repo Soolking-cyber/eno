@@ -34,7 +34,7 @@ beforeEach(() => {
   Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: () => true })
   document.cookie.split(';').forEach((c) => { document.cookie = `${c.split('=')[0].trim()}=; max-age=0; path=/` })
 })
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete (navigator as { webdriver?: boolean }).webdriver })
 
 const view = (id = 'l1') => render(
   <TrackView id={id} title="Phone" price={100} currency="VND" category="Phones" categorySlug="phones" brandSlug="apple" />,
@@ -69,5 +69,25 @@ describe('TrackView dedup', () => {
     sessionStorage.setItem(VIEW_DEDUP_KEY, '[1,2,3]')
     expect(markViewedOnce('l1')).toBe(true)
     expect(markViewedOnce('l1')).toBe(false)
+  })
+})
+
+/**
+ * ⚠️ AUTOMATION DOES NOT POST A VIEW. The server's crawler check (bot-ua.ts) is the guard, and it
+ * reads the user-agent — so a driven browser that sends a human one (Selenium, Puppeteer without
+ * `HeadlessChrome`) is invisible to it. `navigator.webdriver` is the one signal such a browser
+ * cannot shed without patching itself, and reading it costs no import.
+ */
+describe('TrackView under automation', () => {
+  it('a webdriver-driven browser never fires the view POST', () => {
+    Object.defineProperty(navigator, 'webdriver', { configurable: true, get: () => true })
+    view('l1')
+    expect(posts).not.toContain('/api/listings/l1/view')
+  })
+
+  it('a normal browser (webdriver false) still does', () => {
+    Object.defineProperty(navigator, 'webdriver', { configurable: true, get: () => false })
+    view('l1')
+    expect(posts).toContain('/api/listings/l1/view')
   })
 })
