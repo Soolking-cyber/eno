@@ -27,6 +27,7 @@ import 'dotenv/config'
 import { appendFileSync, writeFileSync } from 'node:fs'
 import { GoogleGenAI, Type } from '@google/genai'
 import { db } from '../src/lib/db'
+import { resolveImportSeller, sellerIdArg } from '../src/lib/script-seller-arg'
 import { buildSearchText } from '../src/lib/fold'
 import { GEMINI_MODEL } from '../src/lib/gemini-model'
 import { extractSpecsFromTitles, isLegalSpec, specsFor, type SpecKey } from '../src/lib/electronics-specs'
@@ -47,7 +48,10 @@ const REDO = process.argv.includes('--redo')
  * undescribed, and re-selected by the next ordinary run.
  */
 const VERIFY = process.argv.includes('--verify')
-const SELLER = arg('seller') ?? 'CellphoneS'
+// ⛔ --seller <id> IS REQUIRED — no CellphoneS default, an id not a name, never an owned storefront
+// (second-hand focus, 2026-10-03; src/lib/script-seller-arg.ts).
+const { id: SELLER_ID, error: sellerArgError } = sellerIdArg(process.argv)
+if (sellerArgError) { console.error(sellerArgError); process.exit(1) }
 const SUB = arg('sub')
 const LIMIT = Number(arg('limit') ?? 0)
 const BATCH = Number(arg('batch') ?? 25)
@@ -258,9 +262,10 @@ async function verify(rows: Row[]) {
 }
 
 async function main() {
+  const seller = await resolveImportSeller(db, SELLER_ID!)
   const rows = (await db.listing.findMany({
     where: {
-      seller: { name: SELLER, ownerId: null },
+      sellerId: seller.id,
       externalId: { not: null },
       /**
        * ⛔ A NULL SUBCATEGORY DISABLES EVERY SPEC GATE. `isLegalSpec(k, v, null)` falls back to the
@@ -295,7 +300,7 @@ async function main() {
   // Undescribed rows first: a row the model keeps answering without marks must not fill a --limit every run.
   const todo = (REDO ? rows : [...rows.filter((r) => r.description.trim() === r.title.trim()), ...rows.filter(accentless)])
     .slice(0, LIMIT || undefined)
-  console.log(`${rows.length} listings under "${SELLER}"${SUB ? ` / ${SUB}` : ''} — ${todo.length} to describe${REDO ? ' (--redo)' : ''}\n`)
+  console.log(`${rows.length} listings under "${seller.name}"${SUB ? ` / ${SUB}` : ''} — ${todo.length} to describe${REDO ? ' (--redo)' : ''}\n`)
   if (!todo.length) { await db.$disconnect(); return }
 
   // Group by subcategory: the allowed-value block is per-subcategory, and mixing them in one call

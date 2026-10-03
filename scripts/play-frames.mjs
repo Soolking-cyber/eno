@@ -36,7 +36,9 @@ const frames = [
   { file: '01-home', raw: 'home', title: 'Buy & sell anything in Vietnam', sub: 'Phones, furniture, homes, jobs and more — in English and Vietnamese' },
   { file: '02-browse', raw: 'home-feed', title: 'Thousands of listings, every day', sub: 'Clear prices in đồng, with dollars alongside' },
   { file: '03-product', raw: 'product', title: 'Every detail before you buy', sub: 'Photos, key specs and the seller, all on one page' },
-  { file: '04-store', raw: 'storefront', title: 'Shop official partner stores', sub: 'Trusted shops like CellphoneS, chosen and checked by eno' },
+  // ⚠️ No "official partner" claim: an imported shop carries the neutral Linked shop chip (2026-10-01), and
+  // the second-hand focus (2026-10-03) took CellphoneS' new goods off the site.
+  { file: '04-store', raw: 'storefront', title: 'Second-hand shops in one place', sub: 'Used phones, laptops and cameras from local shops' },
 ]
 
 // ⚠️ A MISSING `magick` MUST STOP THE RUN, not convert the first frame and leave the rest RGBA (opus).

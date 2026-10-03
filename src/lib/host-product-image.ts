@@ -140,7 +140,8 @@ export function makeImageHost(deps: {
 
 /**
  * 64-bit dHash of the CLEAN photo, 16 hex — the same algorithm as src/lib/image-hash.ts (server-only,
- * which a script cannot import) and scrape-cellphones-gallery.ts: greyscale, 9x8 fill, row gradients.
+ * which a script cannot import) and the former scrape-cellphones-gallery.ts (deleted 2026-10-03, see git
+ * history): greyscale, 9x8 fill, row gradients.
  * Written into the overlay filename so countDistinctAngles / duplicate detection keep working.
  */
 async function dHashPng(sharp: typeof import('sharp').default, png: Buffer): Promise<string | null> {

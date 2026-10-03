@@ -15,12 +15,15 @@
 import 'dotenv/config'
 import { writeFileSync } from 'node:fs'
 import { db } from '../src/lib/db'
+import { resolveImportSeller, sellerIdArg } from '../src/lib/script-seller-arg'
 import { inferBrand, lineBrandSlugs } from '../src/lib/brand-infer'
 import { brandSlugify, normalizeBrand } from '../src/lib/brand-normalize'
 
-const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
-const SELLER = arg('seller') ?? 'CellphoneS'
+// ⛔ --seller <id> IS REQUIRED — no CellphoneS default, an id not a name, never an owned storefront
+// (second-hand focus, 2026-10-03; src/lib/script-seller-arg.ts).
+const { id: SELLER_ID, error: sellerArgError } = sellerIdArg(process.argv)
+if (sellerArgError) { console.error(sellerArgError); process.exit(1) }
 /**
  * ⛔ `--recheck` RE-EVALUATES ROWS THAT ALREADY HAVE A BRAND, because this resolver keeps getting
  * corrected and a fixed function does not fix rows already written. Measured after the first run:
@@ -63,6 +66,7 @@ const SEED_BRANDS = [
 ]
 
 async function main() {
+  const seller = await resolveImportSeller(db, SELLER_ID!)
   const existing = new Set((await db.brand.findMany({ select: { slug: true } })).map((b) => b.slug))
   /**
    * ⚠️ SEEDED BEFORE RESOLVING, and created even in a dry run's plan, because `inferBrand` only
@@ -88,7 +92,7 @@ async function main() {
 
   const rows = await db.listing.findMany({
     // ⛔ `ownerId: null` — Seller.name is not unique and this writes in bulk.
-    where: { seller: { name: SELLER, ownerId: null }, externalId: { not: null }, ...(RECHECK ? {} : { brandSlug: null }) },
+    where: { sellerId: seller.id, externalId: { not: null }, ...(RECHECK ? {} : { brandSlug: null }) },
     select: { id: true, title: true, titleVi: true, subcategorySlug: true, brandSlug: true },
   })
   console.log(`${rows.length} listings ${RECHECK ? 'to re-check' : 'have no brand'}`)

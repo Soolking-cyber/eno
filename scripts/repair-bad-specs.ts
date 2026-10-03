@@ -19,16 +19,20 @@
 import 'dotenv/config'
 import { writeFileSync } from 'node:fs'
 import { db } from '../src/lib/db'
+import { resolveImportSeller, sellerIdArg } from '../src/lib/script-seller-arg'
 import { extractSpecsFromTitles, isLegalSpec, type SpecKey } from '../src/lib/electronics-specs'
 
-const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
-const SELLER = arg('seller') ?? 'CellphoneS'
+// ⛔ --seller <id> IS REQUIRED — no CellphoneS default, an id not a name, never an owned storefront
+// (second-hand focus, 2026-10-03; src/lib/script-seller-arg.ts).
+const { id: SELLER_ID, error: sellerArgError } = sellerIdArg(process.argv)
+if (sellerArgError) { console.error(sellerArgError); process.exit(1) }
 const SPEC_KEYS = ['storage', 'ram', 'screenSize', 'laptopSize', 'caseSize', 'cpu', 'connectivity',
   'resolution', 'refreshRate', 'wattage', 'capacity', 'storageType', 'audioType', 'deviceKind',
   'wifiStandard', 'cameraKind', 'printerKind', 'compatibleWith']
 
 async function main() {
+  const seller = await resolveImportSeller(db, SELLER_ID!)
   const rows = await db.listing.findMany({
     /**
      * ⛔ IMPORTED MERCHANT ROWS ONLY. This scanned EVERY listing with attributes, so a real
@@ -37,7 +41,7 @@ async function main() {
      * repair for one merchant's data must not be able to reach a stranger's listing.
      * `ownerId: null` because Seller.name is not unique and an owned storefront is someone's.
      */
-    where: { attributes: { not: null }, externalId: { not: null }, seller: { name: SELLER, ownerId: null } },
+    where: { attributes: { not: null }, externalId: { not: null }, sellerId: seller.id },
     select: { id: true, title: true, titleVi: true, attributes: true, subcategorySlug: true },
   })
   const fixes: { id: string; attributes: string | null; dropped: string[]; title: string }[] = []

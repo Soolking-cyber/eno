@@ -1,8 +1,8 @@
 /**
  * Fill `Listing.attributes` for feed-imported products so the spec filters actually match.
  *
- *   npx tsx scripts/extract-specs.ts --seller CellphoneS            # DRY RUN + coverage
- *   npx tsx scripts/extract-specs.ts --seller CellphoneS --apply
+ *   npx tsx scripts/extract-specs.ts --seller <id>            # DRY RUN + coverage
+ *   npx tsx scripts/extract-specs.ts --seller <id> --apply
  *
  * ⛔ WITHOUT THIS EVERY SPEC CHIP RETURNS NOTHING. feed-query.ts matches a facet as an exact
  * `"key":"value"` substring of the `attributes` JSON blob, and that column is written on the POST
@@ -15,10 +15,13 @@
  */
 import 'dotenv/config'
 import { db } from '../src/lib/db'
+import { resolveImportSeller, sellerIdArg } from '../src/lib/script-seller-arg'
 
-const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
-const SELLER = arg('seller') ?? 'CellphoneS'
+// ⛔ --seller <id> IS REQUIRED — no CellphoneS default, an id not a name, never an owned storefront
+// (second-hand focus, 2026-10-03; src/lib/script-seller-arg.ts).
+const { id: SELLER_ID, error: sellerArgError } = sellerIdArg(process.argv)
+if (sellerArgError) { console.error(sellerArgError); process.exit(1) }
 
 /** Capacities the storage facet offers, in GB. Anything else is left unset rather than rounded. */
 const STORAGE = new Set([32, 64, 128, 256, 512, 1024, 2048])
@@ -65,8 +68,7 @@ function specsFor(title: string, subcat: string | null): Record<string, string> 
 }
 
 async function main() {
-  const seller = await db.seller.findFirst({ where: { name: SELLER }, select: { id: true } })
-  if (!seller) { console.error(`no storefront "${SELLER}"`); process.exit(1) }
+  const seller = await resolveImportSeller(db, SELLER_ID!)
   const rows = await db.listing.findMany({
     where: { sellerId: seller.id },
     select: { id: true, title: true, titleVi: true, subcategorySlug: true, attributes: true },

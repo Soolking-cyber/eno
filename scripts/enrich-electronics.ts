@@ -2,11 +2,10 @@
  * Fill in electronics specs on imported listings, so the filter chips, search and the AI
  * concierge all have something to work with.
  *
- *   npx tsx scripts/enrich-electronics.ts --report          # coverage per subcategory, writes nothing
- *   npx tsx scripts/enrich-electronics.ts                   # DRY RUN — shows what would change
- *   npx tsx scripts/enrich-electronics.ts --apply
- *   npx tsx scripts/enrich-electronics.ts --apply --seller CellphoneS
- *   npx tsx scripts/enrich-electronics.ts --apply --reextract   # re-derive keys the extractor owns
+ *   npx tsx scripts/enrich-electronics.ts --seller <id> --report   # coverage per subcategory, writes nothing
+ *   npx tsx scripts/enrich-electronics.ts --seller <id>            # DRY RUN — shows what would change
+ *   npx tsx scripts/enrich-electronics.ts --seller <id> --apply
+ *   npx tsx scripts/enrich-electronics.ts --seller <id> --apply --reextract   # re-derive keys the extractor owns
  *
  * ⛔ DETERMINISTIC ONLY. This script never calls a model: it reads specs that are already written
  * in the merchant's own title and validates every one against the closed list in
@@ -24,9 +23,9 @@
 import 'dotenv/config'
 import { appendFileSync, writeFileSync } from 'node:fs'
 import { db } from '../src/lib/db'
+import { resolveImportSeller, sellerIdArg } from '../src/lib/script-seller-arg'
 import { extractSpecsFromTitles, specsFor } from '../src/lib/electronics-specs'
 
-const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
 const REPORT = process.argv.includes('--report')
 /**
@@ -38,7 +37,10 @@ const REPORT = process.argv.includes('--report')
  * hand-set or human-entered attribute it cannot derive is never touched.
  */
 const REEXTRACT = process.argv.includes('--reextract')
-const SELLER = arg('seller') ?? 'CellphoneS'
+// ⛔ --seller <id> IS REQUIRED — no CellphoneS default, an id not a name, never an owned storefront
+// (second-hand focus, 2026-10-03; src/lib/script-seller-arg.ts).
+const { id: SELLER_ID, error: sellerArgError } = sellerIdArg(process.argv)
+if (sellerArgError) { console.error(sellerArgError); process.exit(1) }
 
 type Row = { id: string; title: string; titleVi: string | null; subcategorySlug: string | null; attributes: string | null }
 
@@ -48,14 +50,14 @@ const parseAttrs = (s: string | null): Record<string, string> => {
 }
 
 async function main() {
+  // ⛔ OWNERLESS ONLY (resolveImportSeller refuses an owned storefront): a storefront with an owner
+  // belongs to a real person, and this script rewrites placement and attributes in bulk.
+  const seller = await resolveImportSeller(db, SELLER_ID!)
   const rows = (await db.listing.findMany({
-    // ⛔ `ownerId: null`. `Seller.name` IS NOT UNIQUE — anyone can open a storefront called
-    // "CellphoneS". A storefront with an owner belongs to a real person, and this script rewrites
-    // placement and attributes in bulk; the importer refuses owned storefronts for the same reason.
-    where: { seller: { name: SELLER, ownerId: null } },
+    where: { sellerId: seller.id },
     select: { id: true, title: true, titleVi: true, subcategorySlug: true, attributes: true },
   })) as Row[]
-  console.log(`${rows.length} listings under "${SELLER}"\n`)
+  console.log(`${rows.length} listings under "${seller.name}" (${seller.id})\n`)
 
   type Bucket = { n: number; had: number; gains: number; nowHas: number; keys: Map<string, number> }
   const by = new Map<string, Bucket>()

@@ -30,12 +30,12 @@
  * ⚠️ `attributes` IS `String?`, NOT `Json?`, SO `attributes: null` IS CORRECT. Both review seats
  * called it a `PrismaClientValidationError` that would abort the first batch, and both were wrong —
  * the Json-column rule they were quoting (`Prisma.DbNull`) does not apply to a nullable String.
- * Checked in prisma/schema.prisma before changing anything; classify-by-breadcrumb.ts has written
+ * Checked in prisma/schema.prisma before changing anything; classify-by-breadcrumb.ts (deleted 2026-10-03, see git history) has written
  * it this way for months. Recorded here because it is the kind of claim that sounds authoritative.
  *
- * ⚠️ ATTRIBUTES ARE CLEARED ON ANY PLACEMENT CHANGE, for the reason classify-by-breadcrumb.ts
+ * ⚠️ ATTRIBUTES ARE CLEARED ON ANY PLACEMENT CHANGE, for the reason classify-by-breadcrumb.ts (deleted)
  * records: a spec is only meaningful under the subcategory that offers it, so a row re-filed from
- * `cables-chargers` to `laptops-pcs` must lose its `wattage`. Re-run enrich-electronics.ts after.
+ * `cables-chargers` to `laptops-pcs` must lose its `wattage`. Re-run enrich-electronics.ts --seller <Seller.id> after.
  */
 import 'dotenv/config'
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs'
@@ -87,7 +87,7 @@ const MAX_MOVE_FRACTION = 0.25
  * ⛔ THE DEFAULT RUN MOVES ROWS ONLY *INTO* THESE SHELVES, AND THAT NARROWING IS THE WHOLE POINT.
  * Without it the script did what its name says rather than what its header promises: a
  * catalogue-wide re-classification from the TITLE, overruling every row that
- * `classify-by-breadcrumb.ts` had placed from the merchant's own category path — which is strictly
+ * `classify-by-breadcrumb.ts` (deleted) had placed from the merchant's own category path — which is strictly
  * better evidence than a title heuristic — and wiping each one's attributes on the way past. The
  * 25% brake never trips on that, because it is a few percent at a time. opus caught the gap
  * between the stated scope and the actual one.
@@ -219,7 +219,7 @@ async function main() {
   console.log(`${moves.length} would move (${((moves.length / Math.max(considered, 1)) * 100).toFixed(1)}% of considered)\n`)
 
   /**
-   * ⚠️ PRINT EVERY TRANSITION, NOT A TOP-N. classify-by-breadcrumb.ts records what a silent
+   * ⚠️ PRINT EVERY TRANSITION, NOT A TOP-N. classify-by-breadcrumb.ts (deleted) recorded what a silent
    * truncation cost: nine microwaves sitting in `audio` fell below a top-22 cut, so the table read
    * as complete and sent the reader looking for a bug in the mapping that was never there.
    */
@@ -266,7 +266,7 @@ async function main() {
    * ⚠️ AND THE TRANSACTION WAS NEVER THE SAFETY MECHANISM. The SNAPSHOT is: it is written before
    * the first write and `--restore` replays it. Each update is atomic by itself, a partial run
    * leaves rows correctly placed rather than half-placed, and re-running simply moves the rest.
-   * classify-by-breadcrumb.ts has written its batches this way for months.
+   * classify-by-breadcrumb.ts (deleted) wrote its batches this way for months.
    *
    * ⛔ BATCH 25, NOT 200, BECAUSE `Promise.all` IS CONCURRENT WHERE `$transaction` WAS SEQUENTIAL.
    * Both seats made this point and it is the right one: Prisma's pool defaults to about
@@ -298,7 +298,7 @@ async function main() {
   }
   console.log('\ndone.')
   console.log('⚠️ TWO THINGS ARE NOW STALE AND NEITHER FIXES ITSELF:')
-  console.log('   1. specs — re-run `npx tsx scripts/enrich-electronics.ts` for the new placements;')
+  console.log('   1. specs — re-run `npx tsx scripts/enrich-electronics.ts --seller <Seller.id>` for the new placements;')
   console.log('   2. ISR — the category pages still serve the OLD shelf contents. Purge via')
   console.log('      revalidatePublicPath() (CLAUDE.md: a bare revalidatePath purges nothing under')
   console.log('      src/app/[lang]), then purge Cloudflare with purge_everything — purge-by-URL')

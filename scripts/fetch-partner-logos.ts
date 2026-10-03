@@ -49,15 +49,13 @@ const UA = 'Mozilla/5.0 (compatible; eno-partner-logo/1.0)'
  * (`go.isclix.com/deep_link/…?url=https%3A%2F%2F…`), which is the only place this repo records
  * where those catalogues came from.
  *
- * ⛔ TIKI'S LOGO CAN ONLY BE FETCHED FROM VIETNAM. Measured 2026-09-09: tiki.vn answers a foreign
- * IP with an 18KB bot-challenge page at HTTP **200**, so `res.ok` is true and the "logo" is an
- * HTML document. Run this on the VN box for Tiki, not from a laptop — the same constraint
- * scripts/backfill-tiki-gallery.ts documents at length.
+ * (Tiki's entry was removed 2026-10-03 — second-hand focus; its storefront is empty and 404s. A note
+ * worth keeping from it: tiki.vn answered a foreign IP with a bot-challenge page at HTTP 200, so a
+ * `res.ok` "logo" can be an HTML document — see git history.)
  */
 const EXTRA_DOMAINS: Record<string, string> = {
   'BỀN COMPUTER': 'ben.com.vn',
   'Điện Thoại Vui': 'dienthoaivui.com.vn',
-  Tiki: 'tiki.vn',
   /**
    * ⚠️ `.com.vn`, NOT `.vn` — and the wrong one does not fail loudly, it just times out. The
    * partner with the SECOND-LARGEST catalogue here (5,955 listings) was reported as

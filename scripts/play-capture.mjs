@@ -32,8 +32,10 @@ mkdirSync(OUT, { recursive: true })
 const shots = [
   { name: 'home', path: '/', expectTitle: /eno\.vn/i, requireBanner: true },
   { name: 'home-feed', path: '/', scrollTo: '#listings', scrollExtra: 330, expectTitle: /eno\.vn/i }, // the grid filling the screen
-  { name: 'product', path: '/listings/cmt7e74xd06z12wq4bx4u6npy', expectTitle: /iPhone 17 Pro Max/i }, // CellphoneS
-  { name: 'storefront', path: '/sellers/cmt78nvif0000gpq48kvzmxjw', expectTitle: /CellphoneS/i },
+  // ⚠️ SECOND-HAND FOCUS (2026-10-03): the CellphoneS new iPhone this captured is hidden (it 404s), and the
+  // store frame is a used-phone shop now. Minh Tuấn Mobile: a live, used listing with five photos (measured).
+  { name: 'product', path: '/listings/cmtsglhxu04v3rvq4ocnmwb2f', expectTitle: /iPhone 17 Pro Max/i }, // Minh Tuấn Mobile, used
+  { name: 'storefront', path: '/sellers/cmtsev07l00089zq4tdg845f8', expectTitle: /Minh Tuấn Mobile/i },
 ]
 
 // A stale manifest must not outlive a failed run: it is the certificate for the files that are about to be replaced.
