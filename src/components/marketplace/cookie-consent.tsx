@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
@@ -26,6 +26,27 @@ import { Switch } from '@/components/ui/switch'
  * two separate checks read it and they must never drift apart.
  */
 const SIGNIN_PATH = '/signin'
+
+/**
+ * ⛔ THE BAR PUBLISHES HOW TALL IT IS, SO WHAT SHARES ITS BOTTOM BAND CAN STAND ABOVE IT RATHER THAN UNDER IT.
+ * Measured on prod 2026-10-03 at 390x844: the /vi pilot banner (lang-suggestion-banner.tsx) docks at
+ * the same `bottom` as this bar, so when the bar arrived at t=4s its buttons sat on the banner's
+ * "Xem bản tiếng Việt" link — elementFromPoint at the link's centre was this bar's "No thanks", and on
+ * a local production build a tap aimed at the link RECORDED A REFUSAL nobody chose (the bar is z-[200],
+ * the banner z-50; at 1280x800 the click died on the bar's padding instead). The bar now writes its
+ * height plus a 0.5rem breath to this variable on <html>
+ * while it is on screen, and the banner lifts itself by that much.
+ * ⚠️ IT IS THE BAR'S OWN offsetHeight, read by a ResizeObserver: the question wraps differently in
+ * each language and width, and Choose expands the bar in place. A hidden bar (the keyboard is up, or
+ * an overlay scrim — see the wrapper) measures 0 and clears it, and so does unmounting.
+ * ⚠️ IT MOVES NOTHING ABOUT CONSENT: no choice is stored, the bar keeps its place and its z-index, and
+ * the banner sits beside it instead of beneath it. Both the bar and the banner float at the same
+ * bottom offset on every width the banner appears on (5rem above the tab bar, 1rem from lg up), so
+ * "lift by the bar's height" is exactly enough there; inside the native tab shell the bar sits lower
+ * and the lift is only more than enough.
+ */
+export const CONSENT_CLEARANCE_VAR = '--consent-clearance'
+const CLEARANCE_GAP_PX = 8
 
 const ALL_OFF: ConsentFlags = { p: false, a: false, d: false }
 const ALL_ON: ConsentFlags = { p: true, a: true, d: true }
@@ -132,6 +153,30 @@ export function CookieConsent() {
   const { tr, lang } = useLanguage()
   // Where initial focus goes when the dialog opens — see initialFocus on the Popup below.
   const popupRef = useRef<HTMLDivElement>(null)
+  /**
+   * The popup's ref, which also keeps CONSENT_CLEARANCE_VAR in step with the bar's height for as long
+   * as the bar is mounted — see the constant. A callback ref rather than an effect on `show`: the popup
+   * mounts inside a portal, possibly a render after `show` flips, and this runs exactly when the node
+   * exists. React 19 calls the returned cleanup when the node goes (Base UI's merged ref forwards it).
+   */
+  const popupMeasureRef = useCallback((el: HTMLDivElement | null) => {
+    popupRef.current = el
+    if (!el) return
+    const root = document.documentElement.style
+    const write = () => {
+      const h = el.offsetHeight
+      if (h > 0) root.setProperty(CONSENT_CLEARANCE_VAR, `${h + CLEARANCE_GAP_PX}px`)
+      else root.removeProperty(CONSENT_CLEARANCE_VAR)
+    }
+    write()
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(write) : null
+    ro?.observe(el)
+    return () => {
+      ro?.disconnect()
+      root.removeProperty(CONSENT_CLEARANCE_VAR)
+      popupRef.current = null
+    }
+  }, [])
   /**
    * The pending first-visit timer, so `close()` can CANCEL it.
    *
@@ -517,7 +562,7 @@ export function CookieConsent() {
           )}
         >
           <DialogPrimitive.Popup
-            ref={popupRef}
+            ref={popupMeasureRef}
             // The sign-up prompt (signup-prompt.ts OPEN_LAYER_SELECTOR) may open over the card ONLY while it is the
             // unanswered auto-prompt — a visitor who never answers it is exactly who the prompt is for; the card
             // hides itself under any overlay scrim. A card the visitor OPENED (Cookie settings) still blocks it.
@@ -591,12 +636,14 @@ export function CookieConsent() {
               <div className="md:flex-1">
               <DialogPrimitive.Title className="text-sm font-bold leading-tight text-foreground">
                 <span className="sr-only">{tr('Cookie consent', 'Đồng ý cookie')}{': '}</span>
-                {tr('Help us make eno better for you', 'Giúp eno phục vụ bạn tốt hơn')}
+                {tr('Help us improve eno', 'Giúp eno tốt hơn')}
               </DialogPrimitive.Title>
               {/**
                 * ⛔ STILL A QUESTION, AND IT SAYS WHAT "SOUNDS GOOD" TURNS ON — ALL THREE PURPOSES, BY
-                * VENDOR. Warmer since 2026-10-01 (owner: friendly to accept) — benefit first, vendor in
-                * brackets — but a question because it is a request, not a notice: shown while nothing is
+                * VENDOR. Minimal since 2026-10-03 (owner: "have less text on cookie minimal") — every
+                * clause left is one of the facts below; anything more goes in the Choose view, which
+                * spells each purpose out. Still a question because it is a request, not a notice:
+                * shown while nothing is
                 * stored, "We use cookies to…" would assert processing that has not been agreed to (opus,
                 * on the diff; agy and opus both refused a conditional "If you agree, we’ll…" at plan
                 * time for the same reason).
@@ -606,7 +653,14 @@ export function CookieConsent() {
                 * ⛔ AND IT SAYS WHY NOTHING IS ON YET: on-site behaviour is sensitive personal data under
                 * Decree 356/2025 (Art 4(1) lists it; Art 6(4) requires saying so). The v1 line promised
                 * Allow would "keep you signed in", which was never true: sign-in is essential storage
-                * and works whatever is chosen.
+                * and works whatever is chosen. ⚠️ AND THAT IT CAN BE CHANGED ANYTIME, AND WHERE — the
+                * right to withdraw, with its path ("Cookie settings", the footer link), stated before the
+                * choice. A bare "Change anytime" was tried in the 2026-10-03 cut and both review seats
+                * refused it: being told you can withdraw without being told how is the gap.
+                * ⚠️ EACH USE IS NAMED AS A PURPOSE, THEN ITS VENDOR — "analytics (Google Analytics)", not
+                * the brand alone (opus, same review): consent is to a purpose, and a vendor is not one. And
+                * "listing suggestions", not bare "suggestions" (opus, round 2): bare, it can read as asking
+                * the visitor for feedback, and the Vietnamese has always said "gợi ý tin đăng".
                 * ⛔ "SUGGEST", NEVER "RANK" OR "REORDER" (codex, on the diff). /legal/ranking — the
                 * disclosure a sàn TMĐT owes — says results are NOT reordered by personal data and two
                 * people running the same search see the same order. Personalization feeds the For You
@@ -623,12 +677,12 @@ export function CookieConsent() {
               <p className="mt-1 text-sm leading-snug text-muted-foreground">
                 {isNative
                   ? tr(
-                      'Can we use your activity in the app to suggest listings you’ll like? It is sensitive personal data under Vietnamese law, so this stays off until you choose, and you can change it anytime in Cookie settings. Analytics and advertising are always off in the app.',
-                      'Bạn có đồng ý để chúng tôi dùng hoạt động của bạn trong ứng dụng để gợi ý tin đăng hợp với bạn không? Theo pháp luật Việt Nam đây là dữ liệu cá nhân nhạy cảm, nên mục này tắt cho đến khi bạn chọn, và bạn có thể đổi bất cứ lúc nào trong Cài đặt cookie. Phân tích và quảng cáo luôn tắt trong ứng dụng.',
+                      'Can we use your app activity for listing suggestions? It’s sensitive personal data under Vietnamese law, so it’s off until you choose. Change anytime in Cookie settings. Analytics and advertising are always off in the app.',
+                      'Bạn cho phép eno dùng hoạt động trong ứng dụng để gợi ý tin đăng không? Theo luật Việt Nam, đây là dữ liệu cá nhân nhạy cảm, nên mục này tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie. Phân tích và quảng cáo luôn tắt trong ứng dụng.',
                     )
                   : tr(
-                      'Can we use cookies to suggest listings you’ll like, see what works so we can improve (Google Analytics) and measure our ads (Meta, Google)? Your activity here is sensitive personal data under Vietnamese law, so all three stay off until you choose, and you can change this anytime in Cookie settings.',
-                      'Bạn có đồng ý để chúng tôi dùng cookie để gợi ý tin đăng hợp với bạn, tìm hiểu điều gì hữu ích để cải thiện dịch vụ (Google Analytics) và đo hiệu quả quảng cáo (Meta, Google) không? Theo pháp luật Việt Nam, hoạt động của bạn tại đây là dữ liệu cá nhân nhạy cảm, nên cả ba đều tắt cho đến khi bạn chọn, và bạn có thể đổi bất cứ lúc nào trong Cài đặt cookie.',
+                      'Can we use cookies for listing suggestions, analytics (Google Analytics) and ad measurement (Meta, Google)? Your activity is sensitive personal data under Vietnamese law, so all stay off until you choose. Change anytime in Cookie settings.',
+                      'Bạn cho phép eno dùng cookie để gợi ý tin đăng, phân tích (Google Analytics) và đo lường quảng cáo (Meta, Google) không? Theo luật Việt Nam, hoạt động của bạn là dữ liệu cá nhân nhạy cảm, nên tất cả đều tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie.',
                     )}
                 {' '}
                 <Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>

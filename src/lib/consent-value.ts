@@ -51,8 +51,16 @@ export const CONSENT_VERSION = 2
  *                “Sounds good” / “No thanks” / “Choose” with aria-labels stating accept all / decline
  *                all / pick (recorded actions unchanged); each purpose line opens with what it does
  *                for the visitor. Still a question, still all-off, still equal weight.
+ *   2026-10-03 — the minimal rewrite (owner: "have less text on cookie minimal"): the question is cut
+ *                to the facts it must carry — what "Sounds good" turns on (listing suggestions,
+ *                analytics by Google Analytics, ad measurement by Meta and Google), that the visitor's
+ *                activity is sensitive personal data under Vietnamese law so all stay off until they
+ *                choose, and that it can be changed anytime in Cookie settings — and the title to
+ *                “Help us improve eno”. The in-app sentence is cut the same way. Buttons, aria-labels,
+ *                the Privacy Policy link and the Choose view are unchanged. Recorded only: existing
+ *                answers stand and nobody is re-asked.
  */
-export const CONSENT_COPY_VERSION = '2026-10-01c'
+export const CONSENT_COPY_VERSION = '2026-10-03'
 
 /**
  * A choice is remembered for 12 months from the moment it was made, then asked again. The cookie's

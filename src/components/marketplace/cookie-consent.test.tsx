@@ -127,17 +127,72 @@ describe('CookieConsent — the question', () => {
 
   it('asks (a request, not a notice) and says "suggest", never "rank" — /legal/ranking promises results are not reordered by personal data', async () => {
     await openFirstVisitBar()
-    expect(bar()!.textContent).toMatch(/Can we use cookies to suggest listings you’ll like.*\?/)
+    expect(bar()!.textContent).toMatch(/Can we use cookies for listing suggestions.*\?/)
     expect(bar()!.textContent).not.toMatch(/\brank|reorder/i)
   })
 
-  it('⛔ the friendly rewrite (2026-10-01c): a visible warm title, while the dialog’s name still starts "Cookie consent"', async () => {
+  it('⛔ the minimal rewrite (2026-10-03): a short visible title, while the dialog’s name still starts "Cookie consent"', async () => {
     await openFirstVisitBar()
-    expect(bar()!.textContent).toContain('Help us make eno better for you')
+    expect(bar()!.textContent).toContain('Help us improve eno')
     expect(bar()!.getAttribute('aria-labelledby')).toBeTruthy()
-    expect(document.getElementById(bar()!.getAttribute('aria-labelledby')!)!.textContent).toBe('Cookie consent: Help us make eno better for you')
-    // …and it says the choice is not final — the withdrawal path is named in the first layer.
-    expect(bar()!.textContent).toMatch(/change this anytime in Cookie settings/)
+    expect(document.getElementById(bar()!.getAttribute('aria-labelledby')!)!.textContent).toBe('Cookie consent: Help us improve eno')
+    // …and it says the choice is not final — the withdrawal path is named in the first layer (both review seats
+    // refused a bare "Change anytime" on 2026-10-03) — and that all stay off until then.
+    expect(bar()!.textContent).toMatch(/all stay off until you choose\. Change anytime in Cookie settings\./)
+    // Each use is a PURPOSE first, then its vendor — never the brand alone.
+    expect(bar()!.textContent).toMatch(/analytics \(Google Analytics\)/)
+  })
+
+  it('⛔ --consent-clearance follows the bar: it grows when Choose expands it, clears at 0 (hidden), and clears on an answer', async () => {
+    const root = document.documentElement.style
+    let height = 180
+    const h = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height)
+    // A ResizeObserver jsdom lacks: each instance keeps its callback, and a disconnected one stops firing.
+    const observers: Array<{ cb: () => void; live: boolean }> = []
+    vi.stubGlobal('ResizeObserver', class {
+      o: { cb: () => void; live: boolean }
+      constructor(cb: () => void) { this.o = { cb, live: true }; observers.push(this.o) }
+      observe() {}
+      disconnect() { this.o.live = false }
+    })
+    const resize = () => act(async () => { for (const o of observers) if (o.live) o.cb() })
+    try {
+      await openFirstVisitBar()
+      expect(root.getPropertyValue('--consent-clearance')).toBe('188px')
+      fireEvent.click(btn(/^Choose/))
+      height = 480
+      await resize()
+      expect(root.getPropertyValue('--consent-clearance')).toBe('488px')
+      height = 0 // the wrapper went display:none (keyboard up, or an overlay scrim)
+      await resize()
+      expect(root.getPropertyValue('--consent-clearance')).toBe('')
+      height = 480
+      await resize()
+      await advance(400)
+      fireEvent.click(btn(/^Decline all$/))
+      await advance(500)
+      expect(bar()).toBeNull()
+      expect(root.getPropertyValue('--consent-clearance')).toBe('')
+    } finally {
+      h.mockRestore()
+      root.removeProperty('--consent-clearance')
+    }
+  })
+
+  it('⛔ the bar publishes its height as --consent-clearance while it is up, and clears it when it goes', async () => {
+    const root = document.documentElement.style
+    const h = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(180)
+    try {
+      await openFirstVisitBar()
+      expect(root.getPropertyValue('--consent-clearance')).toBe('188px') // the bar plus a 0.5rem breath
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+      await advance(500)
+      expect(bar()).toBeNull()
+      expect(root.getPropertyValue('--consent-clearance')).toBe('')
+    } finally {
+      h.mockRestore()
+      root.removeProperty('--consent-clearance')
+    }
   })
 
   it('⛔ each friendly label is unambiguous to a screen reader: the aria-label starts with the visible words, then says the effect', async () => {
@@ -543,6 +598,7 @@ const COPY_FINGERPRINTS: Record<string, string> = {
   '2026-10-01': '70c54c3ebf2cb94c',
   '2026-10-01b': 'a2d0ceff8ab7b8ca',
   '2026-10-01c': '428474a228f1b272',
+  '2026-10-03': 'a671c046917e1412',
 }
 
 describe('CookieConsent — the copy version is held to the words', () => {
