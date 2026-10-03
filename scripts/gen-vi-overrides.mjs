@@ -5,6 +5,7 @@
  *   node scripts/gen-vi-overrides.mjs            # fill every gap
  *   node scripts/gen-vi-overrides.mjs --limit 80 # a small slice, for a first look
  *   node scripts/gen-vi-overrides.mjs --dry-run  # report the gap, translate nothing
+ *   node scripts/gen-vi-overrides.mjs --prune    # translate nothing: drop unused (and barred) entries, order kept
  *
  * ⛔ WHY THIS EXISTS: THE HOME MARKET WAS PAYING PER PAGE VIEW. `VI_OVERRIDES` covered 428 of the
  * 2,198 UI strings, and `useTr` (src/context/language-context.tsx) falls through to `/api/translate`
@@ -21,34 +22,33 @@
  * applied to the MERGED set on every write, so a forbidden entry already in the file is dropped even
  * when this run translates nothing. An earlier version of this note claimed the script "only ever
  * adds", which stopped being true the moment the filter gained a removal path.
+ *
+ * ⛔ IT ALSO DROPS EVERY ENTRY WHOSE ENGLISH NO LONGER EXISTS IN THE CODE (2026-10-04). The file grew by
+ * hand edits for a month while this script was never re-run, and copy that was reworded or removed kept
+ * its old entry: 254 of 2,152, retired claims among them ("No fakes, no bait prices, no wasted trips"),
+ * all still downloaded by every Vietnamese page view. What counts as "still used" — and why it is wider
+ * than ui-strings.ts — is scripts/vi-overrides-used.mjs; src/lib/i18n/vi-overrides-unused.guard.test.ts
+ * fails CI when an unused entry is committed.
+ *
+ * ⚠️ USE `--prune` FOR THAT, NOT A FULL RUN. A full run is also a TRANSLATION run: 1,027 catalogue strings
+ * have no curated Vietnamese (measured 2026-10-04), and they would all come back from agy unreviewed —
+ * the reason this file was not regenerated during the SEO waves (src/app/[lang]/hcmc-rent-index/
+ * rent-index-sections.tsx records it).
+ * `--prune` translates nothing and keeps the existing order, so its diff is deletions only.
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { literalAfter, usedEnglishStrings } from './vi-overrides-used.mjs'
 
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const DRY = process.argv.includes('--dry-run')
+const PRUNE = process.argv.includes('--prune')
 const LIMIT = Number(arg('limit') ?? Infinity)
 
 const SRC = 'src/generated/ui-strings.ts'
 const OUT = 'src/generated/vi-overrides.ts'
 
-/** The generated files are literal arrays/objects, so they are parsed as JSON rather than imported
- *  (a .ts module cannot be `import`ed from a .mjs, and the earlier generator in this repo learned
- *  that the hard way — see the note in scripts/gen-category-art.mjs). */
-/* ⚠️ ANCHORED ON THE ASSIGNMENT, NOT ON THE FIRST BRACKET. `indexOf('[')` finds the `[]` in the TYPE
-   (`UI_STRINGS: string[] = [`) and the parse dies on "unexpected character after JSON" — which reads
-   like a corrupt generated file rather than a bad slice. Cut from the `=` that follows the name. */
-const literalAfter = (src, name, open, close) => {
-  const at = src.indexOf(name)
-  if (at < 0) throw new Error(`${name} not found`)
-  const eq = src.indexOf('=', at)
-  const lit = src.slice(src.indexOf(open, eq), src.lastIndexOf(close) + 1)
-  /* ⚠️ TRAILING COMMAS ARE LEGAL TYPESCRIPT AND ILLEGAL JSON, and both generated files carry them.
-     Stripped before parsing rather than banned in the writer, so this reads whatever a previous
-     generator (or a hand edit) left behind. */
-  return JSON.parse(lit.replace(/,(\s*[}\]])/g, '$1'))
-}
 const readStrings = () => literalAfter(readFileSync(SRC, 'utf8'), 'UI_STRINGS', '[', ']')
 const readOverrides = () => literalAfter(readFileSync(OUT, 'utf8'), 'VI_OVERRIDES', '{', '}')
 
@@ -141,8 +141,10 @@ const barred = (k, v = '') => FORBIDDEN.test(k) || FORBIDDEN.test(v) || onlyOnRe
 const strings = readStrings()
 const existing = readOverrides()
 const missing = strings.filter((s) => !(s in existing) && !barred(s))
+const used = usedEnglishStrings()
+const unused = Object.keys(existing).filter((k) => !used.has(k))
 
-console.log(`${strings.length} UI strings · ${Object.keys(existing).length} already curated · ${missing.length} missing`)
+console.log(`${strings.length} UI strings · ${Object.keys(existing).length} already curated · ${missing.length} missing · ${unused.length} unused`)
 /* ⛔ ONLY `--dry-run` EXITS EARLY. `!missing.length` used to short-circuit here too, and a reviewer
    caught what that costs: once every allowed string is covered there is nothing to translate, so the
    script would exit BEFORE the licensing filter runs over the existing file — leaving a forbidden
@@ -150,7 +152,7 @@ console.log(`${strings.length} UI strings · ${Object.keys(existing).length} alr
    happen. A run with nothing to do still has something to check. */
 if (DRY) process.exit(0)
 
-const todo = missing.slice(0, Number.isFinite(LIMIT) ? LIMIT : missing.length)
+const todo = PRUNE ? [] : missing.slice(0, Number.isFinite(LIMIT) ? LIMIT : missing.length)
 const added = {}
 let failed = 0
 
@@ -179,10 +181,12 @@ for (let i = 0; i < todo.length; i += BATCH) {
    hand edit (it did). Screening both the English key and the Vietnamese value, because the guard
    greps the rendered LINE and a translation can introduce "hộ chiếu" from a key that says passport. */
 const merged = Object.fromEntries(
-  Object.entries({ ...existing, ...added }).filter(([k, v]) => !barred(k, v)),
+  Object.entries({ ...existing, ...added }).filter(([k, v]) => used.has(k) && !barred(k, v)),
 )
-/* Sorted, so a rerun produces a reviewable diff instead of a reshuffle. */
-const keys = Object.keys(merged).sort()
+/* Sorted, so a rerun produces a reviewable diff instead of a reshuffle. `--prune` keeps the file's own
+   order instead: the hand-appended entries are not sorted, and a prune that also re-sorted 1,900 lines
+   would bury its deletions in a reshuffle. */
+const keys = PRUNE ? Object.keys(merged) : Object.keys(merged).sort()
 const body = keys.map((k) => `  ${JSON.stringify(k)}: ${JSON.stringify(merged[k])},`).join('\n')
 
 writeFileSync(
@@ -190,8 +194,12 @@ writeFileSync(
   `// AUTO-GENERATED hand-quality Vietnamese for the whole UI string set.\n` +
     `// Maps the English source string -> curated Vietnamese. Consulted FIRST for the\n` +
     `// vi language (before any machine translation) by language-context.\n` +
-    `// Regenerate with: node scripts/gen-vi-overrides.mjs\n` +
+    `// Regenerate with: node scripts/gen-vi-overrides.mjs — which also TRANSLATES every gap with agy,\n` +
+    `// unreviewed. To only drop entries the code no longer uses: node scripts/gen-vi-overrides.mjs --prune\n` +
     `export const VI_OVERRIDES: Record<string, string> = {\n${body}\n}\n`,
 )
 
-console.log(`\n+${Object.keys(added).length} added · ${keys.length} total · ${failed ? `${failed} failed` : 'no failures'}`)
+// Counted apart from `unused` (a key that is both counts once, as unused), so the licensing filter
+// removing a LIVE entry is never silent.
+const barredOut = Object.entries({ ...existing, ...added }).filter(([k, v]) => used.has(k) && barred(k, v)).length
+console.log(`\n+${Object.keys(added).length} added · -${unused.length} unused · -${barredOut} barred · ${keys.length} total · ${failed ? `${failed} failed` : 'no failures'}`)
