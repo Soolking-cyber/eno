@@ -16,6 +16,7 @@
 import 'dotenv/config'
 import { db } from '../src/lib/db'
 import { resolveImportSeller, sellerIdArg } from '../src/lib/script-seller-arg'
+import { liveRowsOnly } from '../src/lib/partner-import-rules'
 
 const APPLY = process.argv.includes('--apply')
 // ⛔ --seller <id> IS REQUIRED — no CellphoneS default, an id not a name, never an owned storefront
@@ -70,7 +71,8 @@ function specsFor(title: string, subcat: string | null): Record<string, string> 
 async function main() {
   const seller = await resolveImportSeller(db, SELLER_ID!)
   const rows = await db.listing.findMany({
-    where: { sellerId: seller.id },
+    // ⛔ LIVE ROWS ONLY (liveRowsOnly): a hidden row edited here bumps `updatedAt` and its hide's rollback refuses it.
+    where: { sellerId: seller.id, ...liveRowsOnly() },
     select: { id: true, title: true, titleVi: true, subcategorySlug: true, attributes: true },
   })
 
@@ -87,12 +89,21 @@ async function main() {
   for (const [k, n] of Object.entries(cover).sort((a, b) => b[1] - a[1])) console.log(`  ${k.padEnd(12)} ${n}`)
   if (!APPLY) { console.log('\nDRY RUN — re-run with --apply.'); await db.$disconnect(); return }
 
-  let n = 0
+  let n = 0, written = 0, failed = 0
   for (const p of planned) {
-    await db.listing.update({ where: { id: p.id }, data: { attributes: p.json } }).catch(() => {})
+    // ⛔ STILL LIVE AT WRITE TIME (liveRowsOnly): a row hidden after the selection is skipped, not bumped. A
+    // database error is counted apart from a skip and printed (commit-gate review, 2026-10-04).
+    const c = await db.listing.updateMany({ where: { id: p.id, ...liveRowsOnly() }, data: { attributes: p.json } })
+      .then((r) => r.count)
+      .catch((e) => { console.error(`  ${p.id}: ${String(e).slice(0, 80)}`); return -1 })
+    if (c > 0) written++
+    else if (c < 0) failed++
     if (++n % 1000 === 0) console.log(`  ${n}/${planned.length}`)
   }
-  console.log(`\nAPPLIED: ${n}`)
+  const skipped = n - written - failed
+  console.log(`\nAPPLIED: ${written} of ${n}${skipped ? ` · ${skipped} skipped: no longer live` : ''}${failed ? `  ⛔ ${failed} FAILED` : ''}`)
+  // A partial apply fails the process, so nothing downstream can read it as a finished one.
+  if (failed) process.exitCode = 1
   await db.$disconnect()
 }
 main().catch((e) => { console.error(e); process.exit(1) })

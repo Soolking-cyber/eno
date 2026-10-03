@@ -258,8 +258,40 @@ export function journalCreatedAt(path: string, text: string): Date | null {
  * named by a journal written AFTER this one (in the same directory, plus any passed explicitly) is
  * therefore left alone. Returns the ids and, per file, how many it contributed.
  */
-export function laterJournalExclusions(self: string, createdAt: Date, extra: readonly string[] = [], alsoDirs: readonly string[] = []): { ids: Set<string>; byFile: { path: string; n: number }[]; dirs: string[] } {
+export function laterJournalExclusions(
+  self: string,
+  createdAt: Date,
+  extra: readonly string[] = [],
+  alsoDirs: readonly string[] = [],
+  /**
+   * ⛔ --ignore-journal: a later condition-fix journal that has ITSELF been rolled back no longer stands for a
+   * decision, so its `restore_used` ids must not keep an earlier rollback from restoring them (verify review,
+   * 2026-10-04: rolling back the 04:21 condition fix and then the 04:08 hide left the 255 rows the fix had
+   * touched hidden).
+   * ⛔ SAFE WHETHER OR NOT THAT ROLLBACK REALLY RAN — the script cannot tell, so the release must not depend on
+   * it (commit-gate review, 2026-10-04: an operator's word alone could undo a standing decision). Hence:
+   *   · ONLY A CONDITION-FIX JOURNAL can be ignored (`refused` otherwise, and the caller refuses). A later HIDE
+   *     never needs it: once its own rollback has run, its rows are live, which no earlier rollback touches;
+   *     while it stands, its ids are exactly what must be held back.
+   *   · ONLY ITS `restore_used` IDS ARE RELEASED; its `label_used` and `hide_new` ids stay held back. While the
+   *     fix stands, a restore_used row is live and `used`, and every earlier rollback restores only a row that
+   *     is hidden and NOT `used` — so releasing it can only matter once the fix's own rollback re-hid it.
+   * IDENTITY = FILE NAME + CONTENT. A byte-identical copy under the same name in another scanned directory
+   * (~/eno-ux-rebase/scripts/journals holds copies of every 2026-10-03 journal) is the same journal and goes
+   * with it; two separate decisions that happen to hold the same rows carry different timestamps in their
+   * names, so ignoring one never releases the other (commit-gate review: content alone could). A file named
+   * with --exclude-journal is NEVER ignored — it is reported in `conflicts` and the caller refuses — and an
+   * ignored file that matches no later journal is reported in `unmatched` (a typo that ignores nothing).
+   */
+  ignore: readonly string[] = [],
+): { ids: Set<string>; byFile: { path: string; n: number }[]; dirs: string[]; ignored: string[]; unmatched: string[]; conflicts: string[]; refused: string[] } {
   const ids = new Set<string>()
+  const identity = (path: string, text: string) => `${basename(path)}\0${createHash('sha256').update(text).digest('hex')}`
+  const skip = new Map(ignore.map((p) => [identity(resolve(p), readFileSync(resolve(p), 'utf8')), resolve(p)] as const))
+  const matched = new Set<string>()
+  const conflicts: string[] = []
+  const ignored: string[] = []
+  const refused: string[] = []
   const byFile: { path: string; n: number }[] = []
   const me = resolve(self)
   // The journal's own directory, plus any the caller names — the default journal directory of the other
@@ -281,12 +313,27 @@ export function laterJournalExclusions(self: string, createdAt: Date, extra: rea
     const at = journalCreatedAt(path, text)
     // A file in the directory counts only when it is LATER; one named with --exclude-journal always counts.
     if (!explicit.has(path) && (!at || at <= createdAt)) continue
+    const key = identity(path, text)
+    if (skip.has(key)) {
+      matched.add(key)
+      // An explicit --exclude-journal always counts; naming the same journal both ways is a contradiction.
+      if (explicit.has(path)) conflicts.push(path)
+      // Not a condition fix: held back in full, and reported for the caller to refuse.
+      else if (journalFormat(text) !== 'condition-fix-csv') refused.push(path)
+      else {
+        ignored.push(path)
+        const held = parseConditionFixCsv(text).filter((r) => r.action !== 'restore_used').map((r) => r.id)
+        for (const id of held) ids.add(id)
+        if (held.length) byFile.push({ path, n: held.length })
+        continue
+      }
+    }
     const list = journalIds(text)
     if (!list) continue
     for (const id of list) ids.add(id)
     byFile.push({ path, n: list.length })
   }
-  return { ids, byFile, dirs }
+  return { ids, byFile, dirs, ignored, unmatched: [...skip].filter(([k]) => !matched.has(k)).map(([, p]) => p), conflicts, refused }
 }
 
 // ── rollback of the psql journals (no per-row updatedAt) ──────────────────────────────────────────────

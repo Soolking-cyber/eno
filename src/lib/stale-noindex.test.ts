@@ -200,7 +200,8 @@ describe('the category and district pages read it', () => {
   it('/c/<slug>: its live count against one listing, over the whole category', () => {
     const meta = metadataOf(readFileSync(join(APP, '(index)/page.tsx'), 'utf8'))
     expect(meta).toMatch(/const emptyForTheWindow = await staleBelowFloor\(\{ where: \{ categoryId: cat\.id \}, live, floor: MIN_CATEGORY_LISTINGS \}\)/)
-    expect(meta).toMatch(/\.\.\.\(emptyForTheWindow \? \{ robots: \{ index: false, follow: true \} \} : \{\}\)/)
+    // …or a retired shelf whatever its count (second-hand focus, 2026-10-03 — src/lib/retired-categories.ts).
+    expect(meta).toMatch(/\.\.\.\(emptyForTheWindow \|\| isRetiredNavCategory\(cat\.slug\) \? \{ robots: \{ index: false, follow: true \} \} : \{\}\)/)
     expect(meta.match(/robots:/g)).toHaveLength(1)
     expect(meta).not.toMatch(/live === 0 \?/)
   })
@@ -209,7 +210,7 @@ describe('the category and district pages read it', () => {
     const src = readFileSync(join(APP, '[district]/page.tsx'), 'utf8')
     expect(src).toMatch(/staleBelowFloor\(\{\s*where: \{ AND: \[placesOnly \? \{ AND: \[\{ categoryId: cat\.id \}, RENTAL_PLACES\] \} : \{ categoryId: cat\.id \}, scope\] \},\s*live: total,\s*floor: MIN_INDEXABLE_LISTINGS,\s*\}\)/)
     const meta = metadataOf(src)
-    expect(meta).toMatch(/\.\.\.\(data\.noindex \? \{ robots: \{ index: false, follow: true \} \} : \{\}\)/)
+    expect(meta).toMatch(/\.\.\.\(data\.noindex \|\| isRetiredNavCategory\(data\.cat\.slug\) \? \{ robots: \{ index: false, follow: true \} \} : \{\}\)/)
     expect(meta.match(/robots:/g)).toHaveLength(1)
   })
 })

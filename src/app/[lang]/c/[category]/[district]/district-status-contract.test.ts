@@ -56,7 +56,8 @@ describe('/c/<category>/<district> status contract', () => {
   it('applies the indexing floor to its own count, in generateMetadata, and regenerates at least daily', () => {
     const src = readFileSync(join(APP, 'c/[category]/[district]/page.tsx'), 'utf8')
     const meta = src.slice(src.indexOf('export async function generateMetadata('), src.indexOf('export default async function'))
-    expect(meta).toMatch(/\.\.\.\(data\.noindex \? \{ robots: \{ index: false, follow: true \} \} : \{\}\)/)
+    // …and a retired shelf's district page whatever its count (second-hand focus, src/lib/retired-categories.ts).
+    expect(meta).toMatch(/\.\.\.\(data\.noindex \|\| isRetiredNavCategory\(data\.cat\.slug\) \? \{ robots: \{ index: false, follow: true \} \} : \{\}\)/)
     expect(src).toMatch(/live: total,\s*floor: MIN_INDEXABLE_LISTINGS,/)
     const revalidate = Number(/^export const revalidate = (\d+)\b/m.exec(src)?.[1])
     expect(revalidate).toBeGreaterThan(0)

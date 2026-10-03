@@ -17,6 +17,17 @@ export function isLiveForRefresh(status: string | null | undefined): boolean {
 }
 
 /**
+ * The same rule as a Prisma `where` fragment, for a maintenance script's SELECTION (enrich-electronics,
+ * extract-specs, repair-bad-specs, backfill-brands, ai-describe-listings): each rewrites the rows it selects
+ * through `db.listing.update`, which bumps `updatedAt`, so selecting a hidden row would silently make it
+ * one its hide's rollback refuses (verify review, 2026-10-04). A fresh object per call: Prisma inputs are
+ * mutable and a shared one could be edited by a caller.
+ */
+export function liveRowsOnly(): { status: { in: string[] } } {
+  return { status: { in: ['active', 'sold'] } }
+}
+
+/**
  * ⛔ A `refreshOnly` shop (new AND used stock) gets no NEW listing — only its existing live rows refresh.
  * True when this staged product would be a create there.
  */

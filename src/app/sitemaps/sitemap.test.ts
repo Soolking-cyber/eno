@@ -50,7 +50,7 @@ const h = vi.hoisted(() => ({
   services: false,
 }))
 const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
-  'cat-rentals': 'rentals', 'cat-books': 'books-stationery', 'cat-services': 'services', 'cat-empty': 'jobs',
+  'cat-rentals': 'rentals', 'cat-fashion': 'fashion-beauty', 'cat-books': 'books-stationery', 'cat-hobbies': 'hobbies-sports', 'cat-pets': 'pets', 'cat-services': 'services', 'cat-empty': 'jobs',
   'cat-furniture': 'furniture-appliances', 'cat-food': 'food-drink', 'cat-electronics': 'electronics', 'cat-vehicles': 'vehicles',
 }))
 /**
@@ -248,7 +248,7 @@ const USED_IPHONE: Partial<Row> = {
 function row(over: Partial<Row> & Pick<Row, 'id'>): Row {
   const updatedAt = over.updatedAt ?? new Date('2026-01-01T00:00:00Z')
   return {
-    sellerId: 'own-seller', categoryId: 'cat-books', district: null, affiliateUrl: null,
+    sellerId: 'own-seller', categoryId: 'cat-fashion', district: null, affiliateUrl: null,
     verified: true, status: 'active', updatedAt, postedAt: updatedAt, ...over,
   }
 }
@@ -388,7 +388,7 @@ describe('the pages child', () => {
 
   /**
    * ⛔ THE STARVATION, REPRODUCED. 45,001 FRESH imported rows (the size of a full nhatot run) sit in
-   * one district under one seller; the only rows in /c/books-stationery/thao-dien and the only rows
+   * one district under one seller; the only rows in /c/fashion-beauty/thao-dien and the only rows
    * of the "oldshop" storefront are older. The old derivation read the newest 45,000 rows, so both
    * URLs vanished. The aggregates see the whole table.
    *
@@ -401,8 +401,8 @@ describe('the pages child', () => {
       ...Array.from({ length: LISTINGS_PER_SITEMAP + 1 }, (_, i) =>
         row({ id: `imp-${i}`, sellerId: 'import-seller', categoryId: 'cat-rentals', district: 'Quận 1', affiliateUrl: 'https://nhatot.com/x', updatedAt: FRESH }),
       ),
-      ...many(6, 'old-a', { sellerId: 'old-shop', categoryId: 'cat-books', district: 'Thảo Điền', updatedAt: OLD }),
-      ...many(4, 'old-b', { sellerId: 'old-shop', categoryId: 'cat-books', district: 'Thao Dien', updatedAt: new Date('2025-07-01T00:00:00Z') }),
+      ...many(6, 'old-a', { sellerId: 'old-shop', categoryId: 'cat-fashion', district: 'Thảo Điền', updatedAt: OLD }),
+      ...many(4, 'old-b', { sellerId: 'old-shop', categoryId: 'cat-fashion', district: 'Thao Dien', updatedAt: new Date('2025-07-01T00:00:00Z') }),
     ]
     const xml = await (await pagesGET()).text()
     const urls = locs(xml)
@@ -410,10 +410,10 @@ describe('the pages child', () => {
     // ⚠️ THE CANONICAL SLUG (district-canonical.ts): "Thảo Điền" is a spelling of the curated District 2
     // entry (SEO wave B, D0), and /c/<cat>/thao-dien now 308s to /c/<cat>/d2 — the sitemap submits
     // where it lands.
-    expect(urls).toContain(`${HOST}/c/books-stationery/d2`)
-    expect(urls).not.toContain(`${HOST}/c/books-stationery/thao-dien`)
+    expect(urls).toContain(`${HOST}/c/fashion-beauty/d2`)
+    expect(urls).not.toContain(`${HOST}/c/fashion-beauty/thao-dien`)
     expect(urls).toContain(`${HOST}/old_shop`)
-    expect(urls).toContain(`${HOST}/c/books-stationery`)
+    expect(urls).toContain(`${HOST}/c/fashion-beauty`)
     // Imported stock still supports its CATEGORY. Its LISTING URLs are withheld (not in this file at
     // all), and so are a category × district combo that ONLY imports reach and — since I2 — the
     // storefront of a seller whose every listing is imported.
@@ -423,8 +423,8 @@ describe('the pages child', () => {
     expect(urls).not.toContain(`${HOST}/c/rentals/quan-1`)
     expect(urls.some((u) => u.includes('/listings/'))).toBe(false)
     // Two spellings of one place are one URL, carrying the later of their two dates.
-    expect(urls.filter((u) => u.endsWith('/c/books-stationery/d2'))).toHaveLength(1)
-    expect(xml).toContain(`<loc>${HOST}/c/books-stationery/d2</loc><lastmod>2025-07-01T00:00:00.000Z</lastmod>`)
+    expect(urls.filter((u) => u.endsWith('/c/fashion-beauty/d2'))).toHaveLength(1)
+    expect(xml).toContain(`<loc>${HOST}/c/fashion-beauty/d2</loc><lastmod>2025-07-01T00:00:00.000Z</lastmod>`)
     // The home page's lastmod is the freshest live row anywhere.
     expect(xml).toContain(`<loc>${HOST}</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
   }, 60_000)
@@ -441,8 +441,8 @@ describe('the pages child', () => {
       ...many(MIN_INDEXABLE_LISTINGS - 1, 'own-q3', { district: 'Quận 3' }),
     ]
     const urls = locs(await (await pagesGET()).text())
-    expect(urls).toContain(`${HOST}/c/books-stationery/d5`)
-    expect(urls).not.toContain(`${HOST}/c/books-stationery/d3`)
+    expect(urls).toContain(`${HOST}/c/fashion-beauty/d5`)
+    expect(urls).not.toContain(`${HOST}/c/fashion-beauty/d3`)
   })
 
   it('adds up the spellings of one place before the floor, and counts no import, hidden or unverified row', async () => {
@@ -464,9 +464,9 @@ describe('the pages child', () => {
     ]
     const xml = await (await pagesGET()).text()
     const urls = locs(xml)
-    expect(urls.filter((u) => u.startsWith(`${HOST}/c/books-stationery/`))).toEqual([`${HOST}/c/books-stationery/d7`])
+    expect(urls.filter((u) => u.startsWith(`${HOST}/c/fashion-beauty/`))).toEqual([`${HOST}/c/fashion-beauty/d7`])
     // The category page still counts imported stock; the import seller's storefront does not (I2).
-    expect(xml).toContain(`<loc>${HOST}/c/books-stationery</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
+    expect(xml).toContain(`<loc>${HOST}/c/fashion-beauty</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
     expect(urls).not.toContain(`${HOST}/sellers/import-seller`)
   })
 
@@ -487,12 +487,12 @@ describe('the pages child', () => {
     expect(urls.some((u) => u.startsWith(`${HOST}/c/rentals/`))).toBe(false)
     expect(urls).toContain(`${HOST}/c/rentals`)
     // A district page that does qualify is dated by OUR newest row, never by an import's fresher sync.
-    expect(xml).toContain(`<loc>${HOST}/c/books-stationery/d3</loc><lastmod>${OLD.toISOString()}</lastmod>`)
+    expect(xml).toContain(`<loc>${HOST}/c/fashion-beauty/d3</loc><lastmod>${OLD.toISOString()}</lastmod>`)
   })
 
   it('keeps the edition boundary and the empty-category rule', async () => {
     h.rows = [
-      ...many(MIN_INDEXABLE_LISTINGS, 'own', { categoryId: 'cat-books', district: 'Quận 3' }),
+      ...many(MIN_INDEXABLE_LISTINGS, 'own', { categoryId: 'cat-fashion', district: 'Quận 3' }),
       ...many(MIN_INDEXABLE_LISTINGS, 'desk', { sellerId: 'desk-seller', categoryId: 'cat-services', district: 'Quận 1' }),
     ]
     const urls = locs(await (await pagesGET()).text())
@@ -500,7 +500,7 @@ describe('the pages child', () => {
     expect(urls.some((u) => u.includes('/c/services/'))).toBe(false)
     expect(urls).not.toContain(`${HOST}/sellers/desk-seller`)
     expect(urls).not.toContain(`${HOST}/c/jobs`) // a category with no live listing is never submitted
-    expect(urls).toContain(`${HOST}/c/books-stationery/d3`)
+    expect(urls).toContain(`${HOST}/c/fashion-beauty/d3`)
     expect(urls).toContain(`${HOST}/sellers/own-seller`)
   })
 
@@ -595,8 +595,8 @@ describe('the pages child: lastmod from what each page shows', () => {
     h.rows = many(MIN_INDEXABLE_LISTINGS, 'own', { sellerId: 'old-shop', district: 'Quận 5', postedAt: POSTED, updatedAt: SYNCED })
     const xml = await (await pagesGET()).text()
     expect(lastmodOf(xml, HOST)).toBe(POSTED.toISOString())
-    expect(lastmodOf(xml, `${HOST}/c/books-stationery`)).toBe(POSTED.toISOString())
-    expect(lastmodOf(xml, `${HOST}/c/books-stationery/d5`)).toBe(POSTED.toISOString())
+    expect(lastmodOf(xml, `${HOST}/c/fashion-beauty`)).toBe(POSTED.toISOString())
+    expect(lastmodOf(xml, `${HOST}/c/fashion-beauty/d5`)).toBe(POSTED.toISOString())
     expect(lastmodOf(xml, `${HOST}/old_shop`)).toBe(POSTED.toISOString())
     expect(xml).not.toContain(SYNCED.toISOString())
   })
@@ -621,7 +621,7 @@ describe('the pages child: lastmod from what each page shows', () => {
       // The hub also prices the second-hand iPhone 17 line.
       row({ id: '17pm', ...USED_IPHONE, model: 'iPhone 17 Pro Max', postedAt: d(1), updatedAt: d(7) }),
       // The freshest row on the site, in a category no landing rails.
-      row({ id: 'book', categoryId: 'cat-books', postedAt: d(25) }),
+      row({ id: 'book', categoryId: 'cat-fashion', postedAt: d(25) }),
     ]
     const xml = await (await pagesGET()).text()
     const home = lastmodOf(xml, HOST)
@@ -654,22 +654,31 @@ describe('the pages child: lastmod from what each page shows', () => {
   })
 
   /**
-   * ⛔ SECOND-HAND FOCUS, 2026-10-03: /c/vehicles (and its district pages) and /motorbikes-for-sale-vietnam
-   * 308 to the motorbike-rental hub on the marketplace (src/lib/retired-categories.ts). A submitted URL that
-   * redirects is a Search Console error, so neither is submitted there, however many bikes are listed. On
-   * eno.forum nothing redirects, and /c/vehicles is submitted by its own live count as before.
+   * ⛔ SECOND-HAND FOCUS, 2026-10-03 (src/lib/retired-categories.ts): a retired shelf is never submitted, on
+   * either edition, however many live rows it holds. /c/vehicles (and its district pages) and
+   * /motorbikes-for-sale-vietnam 308 to the motorbike-rental hub on BOTH editions — a submitted URL that
+   * redirects is a Search Console error; /c/pets, /c/books-stationery and /c/hobbies-sports serve noindex — a
+   * submitted noindex URL is the other one. Each shelf here holds enough rows for its category page AND a
+   * district page to qualify, so only the retirement rule can keep them out.
    */
-  it('never submits a URL that redirects: no /c/vehicles and no /motorbikes-for-sale-vietnam on the marketplace', async () => {
+  it('never submits a retired shelf or its district pages, nor /motorbikes-for-sale-vietnam, on either edition', async () => {
     h.rows = [
       ...many(MIN_INDEXABLE_LISTINGS, 'bike', { categoryId: 'cat-vehicles', subcategorySlug: 'motorbike', district: 'Quận 5', postedAt: new Date('2026-09-11T00:00:00Z') }),
+      ...many(MIN_INDEXABLE_LISTINGS, 'book', { categoryId: 'cat-books', district: 'Quận 5' }),
+      ...many(MIN_INDEXABLE_LISTINGS, 'kite', { categoryId: 'cat-hobbies', district: 'Quận 5' }),
+      ...many(MIN_INDEXABLE_LISTINGS, 'cat', { categoryId: 'cat-pets', district: 'Quận 5' }),
+      // The control: a live shelf with the same rows IS submitted, page and district.
+      ...many(MIN_INDEXABLE_LISTINGS, 'coat', { categoryId: 'cat-fashion', district: 'Quận 5' }),
     ]
-    const urls = locs(await (await pagesGET()).text())
-    expect(urls.filter((u) => u.includes('/c/vehicles'))).toEqual([])
-    expect(urls).not.toContain(`${HOST}/motorbikes-for-sale-vietnam`)
-    h.services = true
-    const forum = locs(await (await pagesGET()).text())
-    expect(forum).toContain(`${HOST}/c/vehicles`)
-    expect(forum).not.toContain(`${HOST}/motorbikes-for-sale-vietnam`)
+    const RETIRED = ['vehicles', 'books-stationery', 'hobbies-sports', 'pets']
+    for (const services of [false, true]) {
+      h.services = services
+      const urls = locs(await (await pagesGET()).text())
+      for (const slug of RETIRED) expect(urls.filter((u) => u.includes(`/c/${slug}`)), `${slug}, services=${services}`).toEqual([])
+      expect(urls).not.toContain(`${HOST}/motorbikes-for-sale-vietnam`)
+      expect(urls).toContain(`${HOST}/c/fashion-beauty`)
+      expect(urls.some((u) => u.startsWith(`${HOST}/c/fashion-beauty/`)), `control district, services=${services}`).toBe(true)
+    }
   })
 
   it('keeps every landing, undated, when its read fails', async () => {

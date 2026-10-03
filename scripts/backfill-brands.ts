@@ -16,6 +16,7 @@ import 'dotenv/config'
 import { writeFileSync } from 'node:fs'
 import { db } from '../src/lib/db'
 import { resolveImportSeller, sellerIdArg } from '../src/lib/script-seller-arg'
+import { liveRowsOnly } from '../src/lib/partner-import-rules'
 import { inferBrand, lineBrandSlugs } from '../src/lib/brand-infer'
 import { brandSlugify, normalizeBrand } from '../src/lib/brand-normalize'
 
@@ -91,8 +92,9 @@ async function main() {
   console.log(`${known.length} brands in the catalogue\n`)
 
   const rows = await db.listing.findMany({
-    // ⛔ `ownerId: null` — Seller.name is not unique and this writes in bulk.
-    where: { sellerId: seller.id, externalId: { not: null }, ...(RECHECK ? {} : { brandSlug: null }) },
+    // ⛔ `ownerId: null` — Seller.name is not unique and this writes in bulk. LIVE ROWS ONLY (liveRowsOnly): a
+    // hidden row edited here bumps `updatedAt` and its hide's rollback refuses it.
+    where: { sellerId: seller.id, externalId: { not: null }, ...liveRowsOnly(), ...(RECHECK ? {} : { brandSlug: null }) },
     select: { id: true, title: true, titleVi: true, subcategorySlug: true, brandSlug: true },
   })
   console.log(`${rows.length} listings ${RECHECK ? 'to re-check' : 'have no brand'}`)
@@ -143,7 +145,9 @@ async function main() {
   writeFileSync(snap, updates.map((u) => JSON.stringify({ id: u.id, brandSlug: rows.find((r) => r.id === u.id)?.brandSlug ?? null })).join('\n'))
   console.log(`snapshot: ${snap}`)
 
-  let n = 0
+  // Outcomes per row, so the APPLIED line counts writes, not plans (commit-gate review, 2026-10-04): a row
+  // branded or hidden since the selection is `skipped`, a database error is `failed` and printed.
+  let n = 0, written = 0, skipped = 0, failed = 0
   for (let i = 0; i < updates.length; i += 200) {
     /**
      * ⚠️ `updateMany` WITH `brandSlug: null` IN THE WHERE, NOT `update` BY ID. The rows were chosen
@@ -151,14 +155,19 @@ async function main() {
      * between — an id-only update would then quietly overwrite a better answer with a title guess.
      * Re-asserting the condition at write time makes the fill genuinely "only if still empty".
      */
-    await Promise.all(updates.slice(i, i + 200).map((u) =>
+    const counts = await Promise.all(updates.slice(i, i + 200).map((u) =>
       // ⚠️ The "still empty" guard applies to a FILL, not to a re-check, which exists to correct a
-      // value this script itself wrote.
-      db.listing.updateMany({ where: { id: u.id, ...(RECHECK ? {} : { brandSlug: null }) }, data: { brandSlug: u.brandSlug } }).catch(() => {})))
+      // value this script itself wrote. Still live, too: a row hidden mid-run is left alone (liveRowsOnly).
+      db.listing.updateMany({ where: { id: u.id, ...liveRowsOnly(), ...(RECHECK ? {} : { brandSlug: null }) }, data: { brandSlug: u.brandSlug } })
+        .then((r) => r.count)
+        .catch((e) => { console.error(`  ${u.id}: ${String(e).slice(0, 80)}`); return -1 })))
+    for (const c of counts) { if (c > 0) written++; else if (c === 0) skipped++; else failed++ }
     n = Math.min(i + 200, updates.length)
     if (n % 2000 === 0 || n === updates.length) console.log(`  ${n}/${updates.length}`)
   }
-  console.log(`\nAPPLIED: ${n} listings branded`)
+  console.log(`\nAPPLIED: ${written} of ${n} listings branded${skipped ? ` · ${skipped} skipped (branded or no longer live since the selection)` : ''}${failed ? `  ⛔ ${failed} FAILED` : ''}`)
+  // A partial apply fails the process, so nothing downstream can read it as a finished one.
+  if (failed) process.exitCode = 1
   await db.$disconnect()
 }
 main().catch((e) => { console.error(e); process.exit(1) })

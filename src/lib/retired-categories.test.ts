@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { RETIRED_NAV_CATEGORIES, categoryBrowsePath, isRetiredNavCategory, retiredCategoryRedirects } from './retired-categories'
 import { NAV_CATEGORIES } from './taxonomy-nav'
@@ -22,16 +24,21 @@ function resolve(rules: ReturnType<typeof retiredCategoryRedirects>, path: strin
 }
 
 describe('retiredCategoryRedirects', () => {
-  const rules = retiredCategoryRedirects('marketplace')
+  const rules = retiredCategoryRedirects()
 
-  it('is permanent, unconditional (one target for every visitor) and absent on the services edition', () => {
+  it('is permanent and unconditional: one target for every visitor, on both editions', () => {
     expect(rules.length).toBe(3)
     for (const r of rules) {
       expect(r.permanent).toBe(true)
-      // ⛔ No language-keyed variant (owner decision V-a; a 308 cached per URL cannot vary by language).
+      // ⛔ No language-keyed variant (owner decision V-a; a 308 cached per URL cannot vary by language), and no
+      // edition switch: the forum serves the same hub, so it redirects too (verify review, 2026-10-04).
       expect(Object.keys(r).sort()).toEqual(['destination', 'permanent', 'source'])
     }
-    expect(retiredCategoryRedirects('services')).toEqual([])
+  })
+
+  it('next.config spreads the rules with no edition argument', () => {
+    const cfg = readFileSync(join(__dirname, '../../next.config.ts'), 'utf8')
+    expect(cfg).toMatch(/\.\.\.retiredCategoryRedirects\(\),/)
   })
 
   it.each(['/c/vehicles', '/c/vehicles/quan-1', '/motorbikes-for-sale-vietnam'])('%s → the motorbike-rental hub', (path) => {

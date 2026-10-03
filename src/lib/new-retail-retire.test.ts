@@ -152,6 +152,76 @@ describe('⛔ a rollback never undoes a later decision', () => {
     expect(ex.dirs).toContain(elsewhere)
   })
 
+  /**
+   * ⛔ --ignore-journal (verify review, 2026-10-04): rolling back the 04:21 fix and THEN the 04:08 hide left the 255
+   * rows the fix had touched hidden, because the (already undone) 04:21 journal still excluded them.
+   * ⛔ …AND IT RELEASES ONLY WHAT IS SAFE WHETHER OR NOT THAT ROLLBACK RAN (commit-gate review, 2026-10-04): a
+   * condition-fix journal's `restore_used` ids, never its `label_used`/`hide_new` ids, never a hide journal's.
+   */
+  it('--ignore-journal releases only the restore_used ids of a later condition fix, with its byte-identical copies', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'retire-journals-'))
+    const self = join(dir, 'new-goods-hide-20261003T040816Z.csv')
+    writeFileSync(self, 'a,active\nb,sold\nc,active\nd,active\ne,active\n')
+    const FIX = 'a,hidden,new,active,restore_used\nd,active,,,label_used\ne,active,,,hide_new\n'
+    const fix = join(dir, 'used-condition-fix-20261003T042132Z.csv')
+    writeFileSync(fix, FIX)
+    writeFileSync(join(dir, 'warranty-products-hide-20261003T075048Z.csv'), 'c,active\n')
+    // The same 04:21 file copied into another journal directory (as ~/eno-ux-rebase/scripts/journals holds it).
+    const copies = mkdtempSync(join(tmpdir(), 'retire-copies-'))
+    const copy = join(copies, 'used-condition-fix-20261003T042132Z.csv')
+    writeFileSync(copy, FIX)
+    const at = createdAtFromFilename(self)!
+    expect([...laterJournalExclusions(self, at, [], [copies]).ids].sort()).toEqual(['a', 'c', 'd', 'e'])
+    const ex = laterJournalExclusions(self, at, [], [copies], [fix])
+    // `a` is released (the copy goes with the original); the fix's other actions and the warranty hide still stand.
+    expect([...ex.ids].sort()).toEqual(['c', 'd', 'e'])
+    expect(ex.ignored.sort()).toEqual([fix, copy].sort())
+    expect(ex.byFile.filter((f) => f.path === fix || f.path === copy).map((f) => f.n)).toEqual([2, 2])
+    expect(ex.unmatched).toEqual([])
+    expect(ex.refused).toEqual([])
+  })
+
+  it('--ignore-journal refuses a HIDE journal (held back in full), and never releases a separate fix or an explicit exclude', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'retire-journals-'))
+    const self = join(dir, 'new-goods-hide-20261003T040816Z.csv')
+    writeFileSync(self, 'a,active\nb,sold\n')
+    const hide = join(dir, 'warranty-products-hide-20261003T075048Z.csv')
+    writeFileSync(hide, 'b,active\n')
+    const at = createdAtFromFilename(self)!
+    // A later hide never needs ignoring: rolled back, its rows are live (no rollback touches them); standing, it must hold.
+    const h = laterJournalExclusions(self, at, [], [], [hide])
+    expect(h.refused).toEqual([hide])
+    expect(h.ignored).toEqual([])
+    expect([...h.ids]).toEqual(['b'])
+    // The same bytes in a condition fix written later by a different run: a decision of its own, still standing.
+    const first = join(dir, 'used-condition-fix-20261003T042132Z.csv')
+    writeFileSync(first, 'a,hidden,new,active,restore_used\n')
+    const second = join(dir, 'used-condition-fix-20261005T010000Z.csv')
+    writeFileSync(second, 'a,hidden,new,active,restore_used\n')
+    const ex = laterJournalExclusions(self, at, [], [], [first])
+    expect(ex.ignored).toEqual([first])
+    expect(ex.ids.has('a')).toBe(true)
+    expect(ex.byFile.map((f) => f.path)).toContain(second)
+    // Named both ways: the explicit exclude wins and the contradiction is reported for the caller to refuse.
+    const both = laterJournalExclusions(self, at, [first], [], [first])
+    expect(both.conflicts).toEqual([first])
+    expect(both.ids.has('a')).toBe(true)
+    expect(both.unmatched).toEqual([])
+  })
+
+  it('--ignore-journal on a file that is no later journal of this rollback is reported, not silently a no-op', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'retire-journals-'))
+    const self = join(dir, 'used-condition-fix-20261003T042132Z.csv')
+    writeFileSync(self, 'a,hidden,new,active,restore_used\n')
+    // EARLIER than the journal rolled back: never a later decision, so ignoring it means a mistaken command.
+    const earlier = join(dir, 'new-goods-hide-20261003T040816Z.csv')
+    writeFileSync(earlier, 'a,active\n')
+    const ex = laterJournalExclusions(self, createdAtFromFilename(self)!, [], [], [earlier])
+    expect(ex.unmatched).toEqual([earlier])
+    expect(ex.ignored).toEqual([])
+    expect(() => laterJournalExclusions(self, createdAtFromFilename(self)!, [], [], [join(dir, 'missing.csv')])).toThrow()
+  })
+
   it('a retire journal is scoped by seller and minus later decisions', () => {
     const rows = [
       { id: 'a', priorStatus: 'active', updatedAt: 'x', rule: 'r', matched: null, title: 't', sellerId: 's1' },

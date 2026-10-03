@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { blockedCreate, isLiveForRefresh } from './partner-import-rules'
+import { blockedCreate, isLiveForRefresh, liveRowsOnly } from './partner-import-rules'
 import { PARTNER_STORES } from './partner-stores'
 
 describe('isLiveForRefresh', () => {
@@ -8,6 +8,36 @@ describe('isLiveForRefresh', () => {
     expect(isLiveForRefresh('active')).toBe(true)
     expect(isLiveForRefresh('sold')).toBe(true)
     for (const s of ['hidden', 'stale', 'expired', 'removed', 'draft', '', null, undefined]) expect(isLiveForRefresh(s)).toBe(false)
+  })
+})
+
+describe('liveRowsOnly', () => {
+  it('selects exactly the statuses isLiveForRefresh accepts, as a fresh object each call', () => {
+    const w = liveRowsOnly()
+    expect(w).toEqual({ status: { in: ['active', 'sold'] } })
+    for (const s of w.status.in) expect(isLiveForRefresh(s)).toBe(true)
+    expect(liveRowsOnly()).not.toBe(w)
+  })
+
+  /**
+   * ⛔ THE FIVE MAINTENANCE SCRIPTS SELECT LIVE ROWS ONLY (verify review, 2026-10-04). Each rewrites what it
+   * selects through Prisma, which bumps `updatedAt`; a hidden row touched that way is one the 2026-10-03
+   * hides' rollback refuses (its guard is `updatedAt` unchanged / before the hide). Read from source: the
+   * scripts open the database at module scope.
+   */
+  it.each(['enrich-electronics', 'extract-specs', 'repair-bad-specs', 'backfill-brands', 'ai-describe-listings'])('scripts/%s.ts selects AND writes with liveRowsOnly()', (name) => {
+    const src = readFileSync(new URL(`../../scripts/${name}.ts`, import.meta.url), 'utf8')
+    const at = src.indexOf('db.listing.findMany({')
+    expect(at, 'one listing selection').toBeGreaterThan(-1)
+    expect(src.indexOf('db.listing.findMany({', at + 1), 'exactly one listing selection').toBe(-1)
+    const where = src.slice(at, src.indexOf('select:', at))
+    expect(where).toContain('...liveRowsOnly()')
+    // …and every write re-checks it (commit-gate review: a row hidden between the selection and its write would
+    // otherwise still be bumped). An id-only `update` cannot carry the condition, so none is left.
+    expect(src).not.toMatch(/db\.listing\.update\(/)
+    const writes = [...src.matchAll(/db\.listing\.updateMany\(\{\s*where: \{([^}]*)\}/g)].map((m) => m[1])
+    expect(writes.length, 'at least one write').toBeGreaterThan(0)
+    for (const w of writes) expect(w).toContain('...liveRowsOnly()')
   })
 })
 

@@ -13,7 +13,7 @@ import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { guidesForCategory } from '@/lib/category-guides'
 import { MIN_CATEGORY_LISTINGS } from '@/lib/index-floor'
-import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
+import { UNLINKED_CATEGORIES, isRetiredNavCategory } from '@/lib/retired-categories'
 import { staleBelowFloor } from '@/lib/stale-noindex'
 import { db } from '@/lib/db'
 import { diverseFeedWindow } from '@/lib/feed-window'
@@ -132,7 +132,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // they filled — /c/vehicles, /c/baby-kids, /c/hobbies-sports, /c/pets and /c/food-drink (URL
     // Inspection, 2026-09-28), as /c/rentals before them. Inside the window an empty category stays indexable
     // and is simply out of the sitemap (pages.xml submits only categories with a live listing).
-    ...(emptyForTheWindow ? { robots: { index: false, follow: true } } : {}),
+    // ⛔ AND A RETIRED SHELF, WHATEVER ITS COUNT (second-hand focus, owner 2026-10-03 — src/lib/retired-categories.ts):
+    // pets, books-stationery and hobbies-sports stay reachable by URL but leave navigation, the sitemap
+    // (pages.xml reads the same isRetiredNavCategory) and the index. Vehicles never renders here: it 308s.
+    ...(emptyForTheWindow || isRetiredNavCategory(cat.slug) ? { robots: { index: false, follow: true } } : {}),
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
     ...pageShare({ title, description, url }),

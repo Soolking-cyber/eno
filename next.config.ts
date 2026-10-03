@@ -911,10 +911,10 @@ const nextConfig: NextConfig = {
         : []),
       /**
        * `/c/vehicles` (+ district pages) and `/motorbikes-for-sale-vietnam` → the HCMC motorbike-rental
-       * hub, 308, MARKETPLACE ONLY (second-hand focus, owner 2026-10-03). The rules, and why there is no
-       * language twin and why the forum keeps its page, are in src/lib/retired-categories.ts.
+       * hub, 308, BOTH EDITIONS (second-hand focus, owner 2026-10-03). The rules, and why there is no
+       * language twin, are in src/lib/retired-categories.ts.
        */
-      ...retiredCategoryRedirects(EDITION_ENV),
+      ...retiredCategoryRedirects(),
     ];
   },
   async rewrites() {

@@ -44,9 +44,13 @@ const ready = (page: import('@playwright/test').Page) =>
  * box, outside the boundary, and the swap replaces only what sits under the H1. The paragraphs above
  * describe the page before that. `streamed()` stays: the grid is still swapped in from `S:0`.
  * ⚠️ THE RACE IS CLOSED ON HOME AND CATEGORY PAGES (H1b, H1c): on both, the only header is in the
- * segment layout, above the boundary. e2e/ci/crawler-html.spec.ts (H2) pins it on /c/vehicles with
+ * segment layout, above the boundary. e2e/ci/crawler-html.spec.ts (H2) pins it on /c/electronics with
  * the reveal held until the text is typed, and asserts one header and one search box in the server
  * HTML of home, category and listing pages.
+ * ⚠️ THE CATEGORY-PAGE TESTS BELOW RAN ON /c/vehicles UNTIL 2026-10-03, which now 308s to the motorbike-rental
+ * hub (second-hand focus, src/lib/retired-categories.ts). They run on /c/electronics with the laptop and phone
+ * fixtures; the scooter and bicycle stay in `vehicles` on purpose — a retired shelf leaves navigation, its
+ * rows stay public, and the feed and search tests below are what hold that.
  */
 const streamed = (page: import('@playwright/test').Page) =>
   page.waitForFunction(() => !document.querySelector('template[id^="B:"], div[hidden][id^="S:"]'))
@@ -96,6 +100,7 @@ function dropAll(baseURL: string, variants: { path: string; accept: string }[]) 
   })))
 }
 
+/** Every fixture the home feed renders. The scooter and bicycle are in the RETIRED `vehicles` category: still public. */
 const FIXTURES = ['Fixture laptop', 'Fixture phone', 'Fixture desk lamp', 'Fixture studio flat', 'Fixture city scooter', 'Fixture bicycle']
 
 test.describe('marketplace, against known fixtures', () => {
@@ -196,15 +201,34 @@ test.describe('marketplace, against known fixtures', () => {
   })
 
   test('a category page shows its own fixtures and no others', async ({ page }) => {
-    await page.goto('/c/vehicles')
-    await expect(page.getByText('Fixture city scooter').first()).toBeVisible()
-    await expect(page.getByText('Fixture bicycle').first()).toBeVisible()
+    await page.goto('/c/electronics')
+    await expect(page.getByText('Fixture laptop').first()).toBeVisible()
+    await expect(page.getByText('Fixture phone').first()).toBeVisible()
     await expect(page.getByText('Fixture desk lamp')).toHaveCount(0)
+    await expect(page.getByText('Fixture bicycle')).toHaveCount(0)
   })
 
+  // A retired shelf's row is still found by search (it left navigation, not the marketplace).
   test('search finds a fixture by title', async ({ page }) => {
     await page.goto('/?q=bicycle')
     await expect(page.getByText('Fixture bicycle').first()).toBeVisible()
+  })
+
+  /**
+   * ⛔ THE RETIRED VEHICLES SHELF IS A REAL 308, NOT A 200 AND NOT A CLIENT REDIRECT (second-hand focus, owner
+   * 2026-10-03; the rules are src/lib/retired-categories.ts, wired in next.config.ts). The category page, a
+   * district page under it and the for-sale landing all go to the HCMC motorbike-rental hub. Not followed, so
+   * the status byte and the Location are what is asserted — and then the hub itself, which must answer 200
+   * even with no rental rows (it serves `noindex` then; a browser-cached 308 into a 404 could not be taken back).
+   */
+  test('the retired vehicles shelf and the motorbike for-sale landing 308 to the motorbike-rental hub', async ({ page }) => {
+    for (const path of ['/c/vehicles', '/c/vehicles/hanoi', '/motorbikes-for-sale-vietnam']) {
+      const res = await page.request.get(path, { maxRedirects: 0, failOnStatusCode: false })
+      expect(res.status(), `${path} must be a permanent redirect`).toBe(308)
+      expect(res.headers()['location'] ?? '', `${path} must land on the motorbike-rental hub`).toMatch(/^(https?:\/\/[^/]+)?\/motorbike-rental-ho-chi-minh-city$/)
+    }
+    const hub = await page.request.get('/motorbike-rental-ho-chi-minh-city', { maxRedirects: 0, failOnStatusCode: false })
+    expect(hub.status(), 'the redirect target renders').toBe(200)
   })
 
   // ⛔ AUDIT #3, REPRODUCED LIVE ON /c/rentals: the header sent search, map, brand and area picks
@@ -212,15 +236,15 @@ test.describe('marketplace, against known fixtures', () => {
   // nothing and no request left the page. This asserts the destination, which is the same whether
   // the header has hydrated (explorerFallbackUrl) or not (the form's native GET + hidden category).
   test('the header search on a category landing page searches — inside that category', async ({ page }) => {
-    await page.goto('/c/vehicles')
+    await page.goto('/c/electronics')
     // The header's search landmark → its combobox named "Search" (the input owns the suggestion list,
     // so it is a combobox: getByRole('searchbox') found nothing on this test's first CI run). Visible
     // only, and the accessible name stays asserted.
     const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
-    await box.fill('bicycle')
+    await box.fill('laptop')
     await box.press('Enter')
-    await expect(page).toHaveURL(/\/\?(?=.*\bcategory=vehicles\b)(?=.*\bq=bicycle\b)/)
-    await expect(page.getByText('Fixture bicycle').first()).toBeVisible()
+    await expect(page).toHaveURL(/\/\?(?=.*\bcategory=electronics\b)(?=.*\bq=laptop\b)/)
+    await expect(page.getByText('Fixture laptop').first()).toBeVisible()
   })
 
   // ⛔ THE RACE THE TEST ABOVE HIT BY CHANCE (CI, 2026-09-27), MADE DETERMINISTIC. Typed before
@@ -235,10 +259,10 @@ test.describe('marketplace, against known fixtures', () => {
     let release!: () => void
     const held = new Promise<void>((resolve) => { release = resolve })
     await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => { await held; await route.continue() })
-    await page.goto('/c/vehicles', { waitUntil: 'domcontentloaded' })
+    await page.goto('/c/electronics', { waitUntil: 'domcontentloaded' })
     await streamed(page)
     const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
-    await box.fill('bicycle')
+    await box.fill('laptop')
     const fx = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/fx')
     release()
     await page.waitForFunction(() => {
@@ -247,9 +271,9 @@ test.describe('marketplace, against known fixtures', () => {
     })
     await fx
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
-    await expect(box).toHaveValue('bicycle')
+    await expect(box).toHaveValue('laptop')
     await box.press('Enter')
-    await expect(page).toHaveURL(/\/\?(?=.*\bcategory=vehicles\b)(?=.*\bq=bicycle\b)/)
+    await expect(page).toHaveURL(/\/\?(?=.*\bcategory=electronics\b)(?=.*\bq=laptop\b)/)
   })
 
   // The same race on a page whose URL already carries a query: the server renders the box EMPTY, so
@@ -259,10 +283,10 @@ test.describe('marketplace, against known fixtures', () => {
     let release!: () => void
     const held = new Promise<void>((resolve) => { release = resolve })
     await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => { await held; await route.continue() })
-    await page.goto('/c/vehicles?q=scooter', { waitUntil: 'domcontentloaded' })
+    await page.goto('/c/electronics?q=phone', { waitUntil: 'domcontentloaded' })
     await streamed(page)
     const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
-    await box.fill('bicycle')
+    await box.fill('laptop')
     const fx = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/fx')
     release()
     await page.waitForFunction(() => {
@@ -271,7 +295,7 @@ test.describe('marketplace, against known fixtures', () => {
     })
     await fx
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
-    await expect(box).toHaveValue('bicycle')
+    await expect(box).toHaveValue('laptop')
   })
 
   // ⚠️ THE OWNER REPORTED THIS TWICE ("the text overlaps"), AND A UNIT TEST CANNOT SEE IT: the

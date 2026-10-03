@@ -1,4 +1,5 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { isRetiredNavCategory } from '@/lib/retired-categories'
 import { loadRentIndex, type RentIndexLookup } from '../../../hcmc-rent-index/load-rent-index'
 import { publishableCells, type RentCell } from '@/lib/district-rent-cells'
 import { rentIndexRetrySoon } from '@/lib/rent-index-retry'
@@ -264,7 +265,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
      * ⛔ AND ONLY ONCE IT HAS BEEN UNDER THE FLOOR FOR 14 DAYS (I1b, decision I-g): `data.noindex`,
      * computed in load(). A dip of days stays indexable, unlinked and unsubmitted.
      */
-    ...(data.noindex ? { robots: { index: false, follow: true } } : {}),
+    // ⛔ A RETIRED SHELF's district page too, whatever its count (src/lib/retired-categories.ts; the sitemap skips it).
+    ...(data.noindex || isRetiredNavCategory(data.cat.slug) ? { robots: { index: false, follow: true } } : {}),
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
     ...pageShare({ title, description, url: `${hostUrl}/c/${data.cat.slug}/${district}` }),

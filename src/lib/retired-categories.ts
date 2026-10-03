@@ -32,7 +32,7 @@ export const isRetiredNavCategory = (slug: string | null | undefined): boolean =
 
 /**
  * Where a link to a category's browse page should point. Normally `/c/<slug>`; for a retired category
- * that 308s away (vehicles, on the marketplace) or is no longer offered, the explorer filtered to it —
+ * that 308s away (vehicles, both editions) or is no longer offered, the explorer filtered to it —
  * `/?category=<slug>` — so a PDP breadcrumb on a bike listed for sale lands on bikes for sale, not on a
  * rental hub. The explorer URL canonicalises to `/`, so it adds no indexable duplicate.
  */
@@ -44,14 +44,11 @@ export function categoryBrowsePath(slug: string): string {
 type Redirect = { source: string; destination: string; permanent: boolean }
 
 /**
- * The categories whose /c/ pages (and district pages) redirect on the marketplace — the sitemap must not
- * submit them there (pages.xml/build.ts). Pets, books and hobbies are only left out of navigation.
+ * The categories whose /c/ pages (and district pages) redirect, on both editions. Pets, books and hobbies
+ * keep their pages, reachable by URL but `noindex` and out of the sitemap (isRetiredNavCategory, read by
+ * c/[category]/(index)/page.tsx, c/[category]/[district]/page.tsx and pages.xml/build.ts).
  */
 export const REDIRECTED_CATEGORY_SLUGS: readonly string[] = ['vehicles']
-
-export function redirectedCategories(edition: string | undefined): ReadonlySet<string> {
-  return new Set(edition === 'services' ? [] : REDIRECTED_CATEGORY_SLUGS)
-}
 
 /**
  * `/c/vehicles` (and its district pages) and `/motorbikes-for-sale-vietnam` → the HCMC motorbike-rental
@@ -66,15 +63,16 @@ export function redirectedCategories(edition: string | undefined): ReadonlySet<s
  * page gets the one-tap banner to its twin, which /motorbike-rental-ho-chi-minh-city has: its pair is
  * /thue-xe-may-tphcm, with reciprocal hreflang).
  *
- * ⛔ MARKETPLACE EDITION ONLY. On eno.forum the hubs are self-canonical copies that no forum surface links
- * (footer.tsx gates them on IS_SERVICES, motorbike-rental-ho-chi-minh-city/page.tsx says why: promoting
- * the forum's duplicates competes with eno.vn's pages). A permanent redirect into one is the same
- * promotion, cached by browsers — so there /c/vehicles stays as it is.
+ * ⛔ BOTH EDITIONS (verify review, 2026-10-04; the repo's "every fix ships to both sites" rule). A first cut
+ * left eno.forum's /c/vehicles live and SUBMITTED in its sitemap, on the reasoning that the forum's hub is a
+ * copy no forum surface links. But eno.forum serves /motorbike-rental-ho-chi-minh-city itself and already
+ * submits it in its own sitemap (MARKETPLACE_GUIDE_PATHS, pages.xml/build.ts), so the redirect promotes
+ * nothing the forum does not already put forward — it folds one more forum duplicate (a 2-row shelf) into
+ * that page. The redirect is same-origin on each host; no cross-host hop.
  * ⚠️ NO `subcategory=car` RULE: nothing links `/c/vehicles?subcategory=…` (the category page reads no
  * query, car chips link the home explorer), so it would never fire (review, 2026-10-03).
  */
-export function retiredCategoryRedirects(edition: string | undefined): Redirect[] {
-  if (edition === 'services') return []
+export function retiredCategoryRedirects(): Redirect[] {
   const sources = [...REDIRECTED_CATEGORY_SLUGS.flatMap((slug) => [`/c/${slug}`, `/c/${slug}/:district`]), '/motorbikes-for-sale-vietnam']
   return sources.map((source) => ({ source, destination: '/motorbike-rental-ho-chi-minh-city', permanent: true }))
 }

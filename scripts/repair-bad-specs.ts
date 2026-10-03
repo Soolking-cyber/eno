@@ -20,6 +20,7 @@ import 'dotenv/config'
 import { writeFileSync } from 'node:fs'
 import { db } from '../src/lib/db'
 import { resolveImportSeller, sellerIdArg } from '../src/lib/script-seller-arg'
+import { liveRowsOnly } from '../src/lib/partner-import-rules'
 import { extractSpecsFromTitles, isLegalSpec, type SpecKey } from '../src/lib/electronics-specs'
 
 const APPLY = process.argv.includes('--apply')
@@ -41,7 +42,8 @@ async function main() {
      * repair for one merchant's data must not be able to reach a stranger's listing.
      * `ownerId: null` because Seller.name is not unique and an owned storefront is someone's.
      */
-    where: { attributes: { not: null }, externalId: { not: null }, sellerId: seller.id },
+    // ⛔ …and LIVE ROWS ONLY (liveRowsOnly): a hidden row edited here bumps `updatedAt` and its hide's rollback refuses it.
+    where: { attributes: { not: null }, externalId: { not: null }, sellerId: seller.id, ...liveRowsOnly() },
     select: { id: true, title: true, titleVi: true, attributes: true, subcategorySlug: true },
   })
   const fixes: { id: string; attributes: string | null; dropped: string[]; title: string }[] = []
@@ -97,11 +99,21 @@ async function main() {
     id: f.id, attributes: rows.find((r) => r.id === f.id)!.attributes,
   })).join('\n'))
   console.log(`snapshot: ${snap}`)
+  let written = 0, failed = 0
   for (let i = 0; i < fixes.length; i += 200) {
-    await Promise.all(fixes.slice(i, i + 200).map((f) =>
-      db.listing.update({ where: { id: f.id }, data: { attributes: f.attributes } })))
+    // ⛔ STILL LIVE AT WRITE TIME (liveRowsOnly): a row hidden after the selection is skipped, not bumped. Each
+    // write settles on its own — a failed row is counted and printed, never a batch abandoned mid-flight
+    // (commit-gate review, 2026-10-04).
+    const res = await Promise.all(fixes.slice(i, i + 200).map((f) =>
+      db.listing.updateMany({ where: { id: f.id, ...liveRowsOnly() }, data: { attributes: f.attributes } })
+        .then((r) => r.count)
+        .catch((e) => { console.error(`  ${f.id}: ${String(e).slice(0, 80)}`); return -1 })))
+    for (const c of res) { if (c > 0) written++; else if (c < 0) failed++ }
   }
-  console.log(`\nAPPLIED: ${fixes.length} rows repaired`)
+  const skipped = fixes.length - written - failed
+  console.log(`\nAPPLIED: ${written} rows repaired${skipped ? ` (${skipped} skipped: no longer live)` : ''}${failed ? `  ⛔ ${failed} FAILED` : ''}`)
+  // A partial apply fails the process, so nothing downstream can read it as a finished one.
+  if (failed) process.exitCode = 1
   await db.$disconnect()
 }
 main().catch((e) => { console.error(e); process.exit(1) })

@@ -5,6 +5,7 @@ import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { route } from '@/lib/api/handler'
 import { diversifyRail } from '@/lib/feed-diversity'
+import { isRetiredNavCategory } from '@/lib/retired-categories'
 
 export const runtime = 'nodejs'
 
@@ -52,8 +53,23 @@ export const GET = route({ auth: 'public' }, async () => {
     _count: { _all: true },
     _sum: { views: true, contactCount: true },
   })
-  const ranked = grouped
-    .filter((g) => g._count._all >= MIN_LISTINGS)
+  const eligible = grouped.filter((g) => g._count._all >= MIN_LISTINGS)
+  // The slugs BEFORE the cut: a retired shelf is dropped by slug, and dropping it after the slice would leave
+  // the page one rail short instead of letting the next category in.
+  const cats = await db.category.findMany({
+    where: { id: { in: eligible.map((g) => g.categoryId) } },
+    select: { id: true, slug: true },
+  })
+  const slugById = new Map(cats.map((c) => [c.id, c.slug]))
+  const ranked = eligible
+    /**
+     * ⛔ NOT A RETIRED SHELF (second-hand focus, owner 2026-10-03 — src/lib/retired-categories.ts). Vehicles,
+     * pets, books-stationery and hobbies-sports left every browse surface, and this one ranks on live rows
+     * alone: on 2026-10-04 hobbies-sports (4 live) ranked 10th and the home page drew a "Hobbies & Sports"
+     * shelf whose title and See-all opened the shelf the owner retired. Filtered BEFORE MAX_RAILS so the
+     * next category takes its place. Its listings still reach the feed and search; only the shelf goes.
+     */
+    .filter((g) => !isRetiredNavCategory(slugById.get(g.categoryId)))
     .map((g) => ({
       categoryId: g.categoryId,
       count: g._count._all,
@@ -61,12 +77,6 @@ export const GET = route({ auth: 'public' }, async () => {
     }))
     .sort((a, b) => b.demand - a.demand || b.count - a.count)
     .slice(0, MAX_RAILS)
-
-  const cats = await db.category.findMany({
-    where: { id: { in: ranked.map((r) => r.categoryId) } },
-    select: { id: true, slug: true },
-  })
-  const slugById = new Map(cats.map((c) => [c.id, c.slug]))
 
   const rails = await Promise.all(
     ranked.map(async (r) => {

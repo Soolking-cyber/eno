@@ -10,7 +10,7 @@
  *   set -a; . ./.env; set +a          # DIRECT_URL; the dry run opens a READ-ONLY session
  *   npx tsx scripts/retire-new-retail.ts --ids-out <file>             # DRY RUN: report + the reviewed id list
  *   npx tsx scripts/retire-new-retail.ts --apply --ids <file> --journal-dir <durable dir>
- *   npx tsx scripts/retire-new-retail.ts --rollback <journal> [--seller <id>] [--exclude-journal <file>]… [--journals-dir <dir>]… [--apply]
+ *   npx tsx scripts/retire-new-retail.ts --rollback <journal> [--seller <id>] [--exclude-journal <file>]… [--ignore-journal <file>]… [--journals-dir <dir>]… [--apply]
  *
  * ⛔ --apply HIDES EXACTLY THE REVIEWED LIST OR NOTHING. It re-selects, and refuses on ANY difference from
  * the --ids file the dry run wrote (an import between the two would otherwise be hidden unseen). Every
@@ -23,13 +23,58 @@
  * ⛔ --rollback READS THREE FORMATS, and restores a row ONLY while it is exactly what the hide left:
  *   · this script's JSON journal → journaledRestore (hidden, same updatedAt, no compliance decision since,
  *     storefront still ownerless);
- *   · the psql `id,prior` CSVs (new-goods-hide-…, supersports-hide-…) → hidden, NOT WRITTEN SINCE
- *     (`updatedAt` < the journal's time, taken from its file name or --journal-created-at), no compliance
- *     decision since, ownerless, not labelled `used`;
+ *   · the psql `id,prior` CSVs (new-goods-hide-…, supersports-hide-…, warranty-products-hide-…) → hidden, NOT
+ *     WRITTEN SINCE (`updatedAt` < the journal's time, taken from its file name or --journal-created-at), no
+ *     compliance decision since, ownerless, not labelled `used`;
  *   · the 04:21 condition-fix CSV (used-condition-fix-…) → each action inverted under the same guards.
  *   In every format, a row named by a LATER journal (its directory, ./scripts/journals, --journals-dir, or
- *   --exclude-journal) is left alone:
- *   a later decision is never undone by rolling back an earlier one. --seller scopes it to one shop.
+ *   --exclude-journal) is left alone: a later decision is never undone by rolling back an earlier one.
+ *   --ignore-journal <file> (repeatable) releases the `restore_used` ids of a later CONDITION-FIX journal
+ *   (used-condition-fix-…), so that once the fix itself is rolled back (those rows re-hidden), rolling back the
+ *   hide before it can restore them too. Matched by file name AND content, so a byte-identical copy under the
+ *   same name in another scanned directory goes with it while a separate decision never does. REFUSED for any
+ *   other journal, when it matches no later journal the run looked at (a typo would otherwise ignore nothing),
+ *   or when the file is also given as --exclude-journal.
+ *   --seller scopes it to one shop.
+ *   Every rollback writes by raw SQL and leaves `updatedAt` alone, so one rollback never trips the
+ *   "not written since" guard of the next.
+ *
+ * ⛔ REVERSING ALL OF 2026-10-03 — NEWEST FIRST, each a dry run, then the same line with --apply.
+ * ⛔ A MISTAKEN --ignore-journal RELEASES NOTHING IT SHOULD NOT, BY CONSTRUCTION (commit-gate review,
+ * 2026-10-04: the script cannot tell an undone journal from a standing one, so safety must not rest on the
+ * operator's word). It takes only a condition-fix journal and releases only its `restore_used` ids; while that
+ * fix stands those rows are live and `used`, and every rollback format restores a row only while it is
+ * hidden, NOT `used`, not written since, under no compliance decision and ownerless. So the release can only
+ * act on a row the fix's own rollback has already re-hidden. Measured 2026-10-04 (read-only): the 255
+ * `restore_used` ids are exactly the overlap of the 04:21 and 04:08 journals, and all 255 are live and `used`
+ * (134 active, 121 sold); the 07:50 hide names none of either.
+ * The journals live in ~/eno-import-journals/second-hand/ (J below). A byte-identical, same-named copy of an
+ * ignored journal in another scanned directory (~/eno-ux-rebase/scripts/journals, given with --journals-dir)
+ * is ignored with it.
+ *   Counts below: what each step restores TODAY, measured 2026-10-04 by psql (read-only) with the same guards.
+ *   1. 07:50 warranty hide (29 rows, id,prior: 28 active, 1 sold):
+ *        --rollback J/warranty-products-hide-20261003T075048Z.csv
+ *      LEAVES: NOTHING CHANGED — 0 of 29 restorable. All 29 were already labelled `used` when hidden, and the
+ *      id,prior guard refuses every `used` row (it is what keeps the 04:08 journal off the 255). Reversing the
+ *      07:50 hide is therefore a deliberate one-off, the owner's call: those 29 ids back to their journaled
+ *      prior under the other guards (hidden, not written since 07:50:48, no compliance decision, ownerless).
+ *      Nothing else moves; the 04:21 and 04:08 states stand.
+ *   2. 04:21 condition fix (1,408 rows):
+ *        --rollback J/used-condition-fix-20261003T042132Z.csv
+ *      LEAVES: restore_used 248 of 255 → hidden again with their old condition (as the 04:08 hide left them);
+ *      label_used 1,147 of 1,151 → live, condition back to NULL/`new` (they leave the used filter and the
+ *      iPhone price pages); hide_new 2 of 2 → back to their prior status. The missing 7 + 4 were written since
+ *      04:21:32 (the nightly price refresh sets `updatedAt`), so they stay live and `used`, here and in step 3.
+ *      (The 07:50 journal is later but names none of these rows, so it needs no flag.)
+ *   3. 04:08 new-goods hide (68,250 rows, id,prior):
+ *        --rollback J/new-goods-hide-20261003T040816Z.csv --ignore-journal J/used-condition-fix-20261003T042132Z.csv
+ *      LEAVES: 67,995 of 68,250 back live (59,756 active, 8,239 sold) plus, after step 2, the 248 it re-hid —
+ *      every row still hidden, not `used`, not written since 04:08:16, under no compliance decision and in an
+ *      ownerless storefront. WITHOUT the --ignore-journal those 248 stay hidden (fail-safe; the count of ids
+ *      held back is printed).
+ *   None of the three touches the 48 ad-banned Tiki rows (hidden 2026-10-01, in none of these journals) nor
+ *   SuperSports (its own 2026-10-02 journal). To undo ONLY the hide and keep the owner's 04:21 fix, run step 3
+ *   alone, with or without --ignore-journal: the 255 are live and `used`, which the 04:08 rollback refuses.
  *
  * ⚠️ AFTER A WRITE: the script runs scripts/purge-isr-listings.mjs (the listing route's ISR tombstone);
  * Cloudflare `purge_everything` on both zones is the main session's step.
@@ -63,6 +108,7 @@ const JOURNAL_DIR = str('--journal-dir')
 const SELLER = str('--seller')
 const CREATED_AT = str('--journal-created-at')
 const EXCLUDE = all('--exclude-journal')
+const IGNORE = all('--ignore-journal')
 if (argv.includes('--seller') && !SELLER) { console.error('--seller needs a seller id'); process.exit(1) }
 
 const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL
@@ -218,12 +264,16 @@ async function rollback(path: string) {
   const format = journalFormat(text)
   const createdAt = CREATED_AT ? new Date(CREATED_AT) : journalCreatedAt(path, text)
   if (!createdAt || Number.isNaN(createdAt.getTime())) throw new Error(`cannot tell when ${path} was written — pass --journal-created-at <ISO, UTC>`)
-  const ex = laterJournalExclusions(path, createdAt, EXCLUDE, [join(process.cwd(), 'scripts', 'journals'), ...all('--journals-dir')])
+  const ex = laterJournalExclusions(path, createdAt, EXCLUDE, [join(process.cwd(), 'scripts', 'journals'), ...all('--journals-dir')], IGNORE)
   console.log(`${APPLY ? 'ROLLBACK — WRITES TO THE DATABASE' : 'ROLLBACK DRY RUN (read-only session)'}: ${path}`)
   console.log(`  format ${format}, written ${createdAt.toISOString()}${SELLER ? `, seller ${SELLER} only` : ''}`)
   console.log(`  left alone because a LATER journal names them: ${ex.ids.size} id(s)${ex.byFile.map((f) => `\n    ${f.n} in ${f.path}`).join('')}`)
   console.log(`  later journals looked for in: ${ex.dirs.join(' · ')} (add more with --journals-dir <dir> or --exclude-journal <file>)`)
   if (!ex.byFile.length) console.log(`  ⚠️ no later journal found — a later hide whose journal lives anywhere else is NOT seen: name it with --exclude-journal <file>`)
+  for (const f of ex.ignored) console.log(`  --ignore-journal: ${f} — its restore_used ids are not held back (its label_used and hide_new ids still are)`)
+  if (ex.unmatched.length) throw new Error(`--ignore-journal names a file that matches no later journal this rollback looked at: ${ex.unmatched.join(', ')}`)
+  if (ex.conflicts.length) throw new Error(`the same journal is named by --ignore-journal and --exclude-journal: ${ex.conflicts.join(', ')}`)
+  if (ex.refused.length) throw new Error(`--ignore-journal takes only a condition-fix journal (id,status,cond,prior,action); a later hide never needs it — once rolled back its rows are live, which this rollback leaves alone: ${ex.refused.join(', ')}`)
 
   let changed = 0
   if (format === 'retire-json') {

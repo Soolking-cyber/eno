@@ -28,6 +28,7 @@ import { appendFileSync, writeFileSync } from 'node:fs'
 import { GoogleGenAI, Type } from '@google/genai'
 import { db } from '../src/lib/db'
 import { resolveImportSeller, sellerIdArg } from '../src/lib/script-seller-arg'
+import { liveRowsOnly } from '../src/lib/partner-import-rules'
 import { buildSearchText } from '../src/lib/fold'
 import { GEMINI_MODEL } from '../src/lib/gemini-model'
 import { extractSpecsFromTitles, isLegalSpec, specsFor, type SpecKey } from '../src/lib/electronics-specs'
@@ -236,15 +237,22 @@ async function verify(rows: Row[]) {
    * extractor would silently delete any legitimate feed- or human-supplied value the regex cannot
    * reproduce, which is a data loss this function has no reason to risk.
    * ⚠️ Errors are COUNTED, not swallowed. The first version discarded them and printed
-   * "REVERTED: N" regardless — the reassuring-line failure this file keeps having to fix.
+   * "REVERTED: N" regardless — the reassuring-line failure this file keeps having to fix. Any failure
+   * also fails the process (exit 1), so a partial revert cannot pass for a finished one.
+   * ⚠️ A HIDDEN ROW IS NOT REVERTED (liveRowsOnly, selection and write — a write would bump `updatedAt` and
+   * make it a row its hide's rollback refuses). Its rejected prose stays stored while it is hidden; the ids
+   * skipped mid-run are printed, and once a rollback brings rows back, re-run --verify --apply: it selects
+   * them again then (commit-gate review, 2026-10-04).
    */
   let reverted = 0, failed = 0
+  const notLive: string[] = []
   for (let i = 0; i < failures.length; i += 100) {
     await Promise.all(failures.slice(i, i + 100).map(async (f) => {
       const r = f.row
       try {
-        await db.listing.update({
-          where: { id: r.id },
+        // ⛔ STILL LIVE AT WRITE TIME (liveRowsOnly): a row hidden after the selection is skipped, not bumped.
+        const { count } = await db.listing.updateMany({
+          where: { id: r.id, ...liveRowsOnly() },
           data: {
             description: r.title,
             descriptionVi: r.titleVi ?? r.title,
@@ -254,11 +262,13 @@ async function verify(rows: Row[]) {
             ]),
           },
         })
-        reverted++
+        if (count) reverted++
+        else notLive.push(r.id)
       } catch (e) { failed++; console.error(`  ${r.id}: ${String(e).slice(0, 80)}`) }
     }))
   }
-  console.log(`\nREVERTED: ${reverted} rows${failed ? `  ⛔ ${failed} FAILED to revert` : ''}`)
+  console.log(`\nREVERTED: ${reverted} rows${notLive.length ? ` (${notLive.length} skipped: no longer live — re-run --verify --apply if they are ever restored: ${notLive.join(' ')})` : ''}${failed ? `  ⛔ ${failed} FAILED to revert` : ''}`)
+  if (failed) process.exitCode = 1
 }
 
 async function main() {
@@ -267,6 +277,9 @@ async function main() {
     where: {
       sellerId: seller.id,
       externalId: { not: null },
+      // ⛔ LIVE ROWS ONLY (liveRowsOnly), for --verify's revert too: a hidden row edited here bumps `updatedAt`
+      // and its hide's rollback refuses it.
+      ...liveRowsOnly(),
       /**
        * ⛔ A NULL SUBCATEGORY DISABLES EVERY SPEC GATE. `isLegalSpec(k, v, null)` falls back to the
        * GLOBAL value list and `specsFor(null)` is empty, so a row with no subcategory would be
@@ -312,7 +325,8 @@ async function main() {
   }
 
   const ai = makeClient()
-  const stats = { described: 0, rejected: 0, batchesDropped: 0, specsAdded: 0, conflicts: 0, ungrounded: 0 }
+  // `written`/`notLive`/`failed` are the --apply outcome per row, so the APPLIED line reports writes, not plans.
+  const stats = { described: 0, rejected: 0, batchesDropped: 0, specsAdded: 0, conflicts: 0, ungrounded: 0, written: 0, notLive: 0, failed: 0 }
   const rejectReasons = new Map<string, number>()
   const updates: { id: string; description: string; descriptionVi: string; attributes: string | null; searchText: string }[] = []
 
@@ -379,10 +393,19 @@ async function main() {
           const row = byId.get(batch.find((b) => b.id === u.id)?.externalId ?? '')
           if (row) appendFileSync(snap!, `${JSON.stringify({ id: row.id, description: row.description, descriptionVi: row.descriptionVi, attributes: row.attributes })}\n`)
         }
-        await Promise.all(written.map((u) => db.listing.update({
-          where: { id: u.id },
+        /**
+         * ⛔ STILL LIVE AT WRITE TIME (liveRowsOnly): a row hidden after the selection is skipped, not bumped,
+         * and COUNTED as skipped (commit-gate review: the APPLIED line counted plans, not writes). Its snapshot
+         * line above stays — snapshot BEFORE write is what survives a crash mid-batch — and holds the values the
+         * row had WHEN SELECTED, not at write time; a replay must carry liveRowsOnly() too. (Like every
+         * maintenance script here, a live row edited between selection and write is overwritten: by id, as before.)
+         */
+        const outcomes = await Promise.all(written.map((u) => db.listing.updateMany({
+          where: { id: u.id, ...liveRowsOnly() },
           data: { description: u.description, descriptionVi: u.descriptionVi, attributes: u.attributes, searchText: u.searchText },
-        }).catch((e) => { console.error(`  ${u.id}: ${String(e).slice(0, 80)}`) })))
+        }).then((r): 'written' | 'notLive' => (r.count ? 'written' : 'notLive'))
+          .catch((e): 'failed' => { console.error(`  ${u.id}: ${String(e).slice(0, 80)}`); return 'failed' })))
+        for (const o of outcomes) stats[o]++
       })
     }
   }
@@ -420,7 +443,9 @@ async function main() {
     await db.$disconnect(); return
   }
 
-  console.log(`\nAPPLIED: ${updates.length} rows (written per batch)`)
+  console.log(`\nAPPLIED: ${stats.written} of ${updates.length} described rows (written per batch)${stats.notLive ? ` · ${stats.notLive} skipped: no longer live` : ''}${stats.failed ? `  ⛔ ${stats.failed} FAILED` : ''}`)
+  // A partial apply fails the process, so nothing downstream can read it as a finished one.
+  if (stats.failed) process.exitCode = 1
   console.log('⚠️ /listings/[id] caches for 30 DAYS — run the affiliate-prices cron on both editions to flush.')
   await db.$disconnect()
 }

@@ -99,6 +99,9 @@ const LISTINGS = [
   // on every phone width (owner, twice). The overflow spec is only a regression guard while at
   // least one fixture carries a unit, so keep one here.
   { id: 'ci-l-4', title: 'Fixture studio flat', price: 12_300_000, unit: 'month', cat: 'rentals', city: 'Ho Chi Minh City' },
+  // ⚠️ `vehicles` IS A RETIRED SHELF since 2026-10-03 (src/lib/retired-categories.ts): /c/vehicles 308s to the
+  // motorbike-rental hub. These two stay here because a retired category's rows stay public — the home feed and
+  // search tests in e2e/ci/marketplace.spec.ts hold that; category-page tests use /c/electronics instead.
   { id: 'ci-l-5', title: 'Fixture city scooter', price: 26_000_000, cat: 'vehicles', city: 'Hanoi' },
   { id: 'ci-l-6', title: 'Fixture bicycle', price: 1_200_000, cat: 'vehicles', city: 'Da Nang' },
 ]

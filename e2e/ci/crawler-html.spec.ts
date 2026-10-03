@@ -212,19 +212,21 @@ test('text typed into the category search box before the reveal survives it and 
   let release!: () => void
   const chunks = new Promise<void>((resolve) => { release = resolve })
   await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => { await chunks; await route.continue().catch(() => {}) })
-  await page.goto('/c/vehicles', { waitUntil: 'domcontentloaded' })
+  // ⚠️ /c/electronics, NOT /c/vehicles (second-hand focus, 2026-10-03): /c/vehicles now 308s to the motorbike-rental
+  // hub (src/lib/retired-categories.ts), so the race needs a category landing page that still renders one.
+  await page.goto(CATEGORY, { waitUntil: 'domcontentloaded' })
   // One `$RC("B:n","S:n")` per pending boundary, so count the boundaries' placeholders: an outlined
   // SEGMENT is also a `div[hidden][id^="S:"]`, but React completes it with `$RS` against a `P:n` template.
   const pending = await page.locator(PLACEHOLDER).count()
   expect(pending, 'the category page outlines its grid behind a B:n placeholder, so there is a reveal to race').toBeGreaterThan(0)
   expect(await page.evaluate(() => (window as unknown as { __enoHeldReveals: unknown[] }).__enoHeldReveals.length), 'every pending boundary\'s $RC is held').toBe(pending)
   const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
-  await box.fill('bicycle')
+  await box.fill('laptop')
   expect(await page.evaluate(() => (window as unknown as { __enoReleaseReveals: () => boolean }).__enoReleaseReveals()), "React's $RC was captured, so the release runs it").toBe(true)
   await page.waitForFunction((sel) => !document.querySelector(sel), `${OUTLINED}, ${PLACEHOLDER}`)
-  await expect(box, 'the reveal must not replace the box the text was typed into').toHaveValue('bicycle')
+  await expect(box, 'the reveal must not replace the box the text was typed into').toHaveValue('laptop')
   await box.press('Enter')
-  await expect(page).toHaveURL(/\/\?(?=.*\bcategory=vehicles\b)(?=.*\bq=bicycle\b)/)
+  await expect(page).toHaveURL(/\/\?(?=.*\bcategory=electronics\b)(?=.*\bq=laptop\b)/)
   release()
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
