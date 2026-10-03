@@ -21,6 +21,13 @@ set -euo pipefail
 ACCOUNT=c91cf27edd31b01aba677ac9e007d569
 NAME=eno-html-edge-cache
 COMPAT=2026-09-01
+# ⛔ ONE NAME FOR THE MODULE, USED FOR BOTH `main_module` AND THE UPLOADED PART'S FILENAME.
+# Cloudflare finds the entry module by the multipart part's FILENAME, not its field name, and
+# `-F "worker.js=@$SRC"` sends the source file's own basename (eno-html-edge-cache.js). The first run
+# with a Workers-capable token (2026-10-03) failed exactly so: 10021 "Uncaught Error: No such module:
+# worker.js"; the same PUT with `;filename=worker.js` added deployed (source sha 7b2251c174578a42).
+# Both now come from this one variable, so they cannot disagree again (deploy-worker.test.ts).
+MODULE=worker.js
 SRC=${1:-"$(cd "$(dirname "$0")" && pwd)/eno-html-edge-cache.js"}
 
 CF_TOKEN_FILE=${CF_TOKEN_FILE:-/opt/eno/secrets/cf-token}
@@ -38,10 +45,11 @@ echo "  deploying $(basename "$SRC") ($(wc -c < "$SRC" | tr -d ' ') bytes, sha $
 # credential with write access to every Worker on the account into the process list, where any
 # other user on the box can read it with `ps`. `--config -` reads the header from stdin instead,
 # so it never appears in the command line. The `-F` file is still read from disk, not stdin.
+# `filename=$MODULE` overrides the basename curl would send (see MODULE above).
 resp=$(printf 'header = "Authorization: Bearer %s"\n' "$CF_TOKEN" | curl -sS -X PUT --config - \
   "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$NAME" \
-  -F "metadata={\"main_module\":\"worker.js\",\"compatibility_date\":\"$COMPAT\",\"bindings\":[],\"compatibility_flags\":[]};type=application/json" \
-  -F "worker.js=@$SRC;type=application/javascript+module")
+  -F "metadata={\"main_module\":\"$MODULE\",\"compatibility_date\":\"$COMPAT\",\"bindings\":[],\"compatibility_flags\":[]};type=application/json" \
+  -F "$MODULE=@$SRC;filename=$MODULE;type=application/javascript+module")
 
 python3 - "$resp" <<'PY'
 import json, sys
