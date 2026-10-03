@@ -15,6 +15,7 @@ import { renderToString } from 'react-dom/server'
 import { hydrateRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedListingCard } from '@/lib/types'
+import { installFakeIntersectionObserver } from '@/test/fake-intersection-observer'
 
 const h = vi.hoisted(() => {
   const router = { push: () => {}, prefetch: () => {}, replace: () => {}, refresh: () => {}, back: () => {} }
@@ -137,20 +138,10 @@ function stubFetch() {
 }
 
 // ─── jsdom gaps the explorer touches ─────────────────────────────────────────────────────────
-type FakeIO = { cb: IntersectionObserverCallback; el: Element | null }
 const viewport = { desktop: false }
-const observers = new Set<FakeIO>()
+let io: ReturnType<typeof installFakeIntersectionObserver>
 function installDomStubs() {
-  observers.clear()
-  class IO {
-    rec: FakeIO
-    constructor(cb: IntersectionObserverCallback) { this.rec = { cb, el: null }; observers.add(this.rec) }
-    observe(el: Element) { this.rec.el = el }
-    unobserve() {}
-    disconnect() { observers.delete(this.rec) }
-    takeRecords() { return [] }
-  }
-  vi.stubGlobal('IntersectionObserver', IO)
+  io = installFakeIntersectionObserver()
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   // Every media query answers `false` — i.e. a PHONE (no `min-width: 768px`). `viewport.desktop = true`
   // makes the md-and-up query match instead.
@@ -160,15 +151,8 @@ function installDomStubs() {
   Element.prototype.scrollIntoView = () => {}
 }
 
-/** "Scroll to the bottom": fire every live observer as intersecting (the load-more sentinel among them). */
-function scrollToSentinel() {
-  act(() => {
-    for (const o of [...observers]) {
-      if (!o.el) continue
-      o.cb([{ isIntersecting: true, target: o.el } as unknown as IntersectionObserverEntry], {} as IntersectionObserver)
-    }
-  })
-}
+/** "Scroll to the bottom" — see src/test/fake-intersection-observer.ts for what the reader's being there means. */
+function scrollToSentinel() { io.scrollToSentinel() }
 
 const cardIds = () => screen.queryAllByTestId('card').map((c) => c.getAttribute('data-id'))
 type FeedKey = readonly [string, { page: number }]
@@ -291,6 +275,9 @@ describe('"Browse everything" reserves the next rows in the tap\'s own frame', (
     await waitFor(() => expect(rows()).toBe(12))
     const release = holdAll()
     scrollToSentinel()
+    // The scroll may reach an observer armed a moment after it (see the fake), so wait for the ask —
+    // and by the time page 2 has been asked for, its twelve rows must already be held in the list.
+    await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('offset') === '12')).toBe(true))
     expect(skeletons()).toBe(12)
     release()
     await waitFor(() => expect(rows()).toBe(24))
@@ -788,7 +775,10 @@ describe('a cold directed deep link waits for its own answer behind the mask (E-
       release()
       await waitFor(() => expect(document.documentElement.hasAttribute('data-explorer-directed')).toBe(false))
       expect(count(v.container)).toMatch(/^30\b/)
-      expect(v.container.querySelector('.feed-grid')!.parentElement!.parentElement!.hasAttribute('inert')).toBe(false)
+      // The effect that lifts the mask drops the attribute itself and `inert` through the render its
+      // setSeedMasked(false) schedules, so a check landing between the two read a still-inert grid
+      // (1 run in 21 under load). Taps come back; that is the assertion, not the frame they come back in.
+      await waitFor(() => expect(v.container.querySelector('.feed-grid')!.parentElement!.parentElement!.hasAttribute('inert')).toBe(false))
     } finally {
       v.unmount()
     }

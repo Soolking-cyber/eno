@@ -24,10 +24,13 @@ import { act, cleanup, configure, render, screen, waitFor } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedListingCard } from '@/lib/types'
+import { installFakeIntersectionObserver } from '@/test/fake-intersection-observer'
 
-// ⚠️ TIMING, NOT BEHAVIOUR: the explorer's render got heavier with the UX program (3c28bd85), and under
-// CI or a loaded machine one waitFor in this file ran past testing-library's 1,000 ms default on a
-// different case each run (CI 36666973345 and 36668180434). The assertions are unchanged; they get time.
+// ⚠️ TIME FOR A HEAVY RENDER ON A LOADED MACHINE — BUT TIME WAS NOT THE FLAKE. The 12 → 24 failures
+// on a different case each run (CI 36666973345 and 36668180434, ~1 local run in 6, and once more AFTER
+// this timeout was raised) were a scroll the old IntersectionObserver fake lost for good when it landed
+// before the explorer had armed its observer. The fake now reports on observe() as a browser does — see
+// src/test/fake-intersection-observer.ts, and the last case in this file, which forces that order.
 configure({ asyncUtilTimeout: 5_000 })
 vi.setConfig({ testTimeout: 30_000 })
 
@@ -36,7 +39,9 @@ const h = vi.hoisted(() => {
   const tr = (en: string) => en
   const language = { lang: 'en', t: (k: string) => k, tr, setLang: () => {} }
   const auth = { user: null, profile: null, loading: false, openSignIn: () => {} }
-  return { router, language, auth }
+  /** Called from each card's layout effect: inside the commit that inserts it, before that commit's passive effects. */
+  const card: { mounted: ((id: string) => void) | null } = { mounted: null }
+  return { router, language, auth, card }
 })
 
 vi.mock('next/navigation', () => ({
@@ -54,11 +59,12 @@ vi.mock('@/context/language-context', () => ({
 vi.mock('@/context/auth-context', () => ({ useAuth: () => h.auth }))
 vi.mock('@/lib/analytics', () => ({ trackSearch: () => {} }))
 // The card is not under test. It keeps the one prop the bug path needs: `onOpen`, which is what
-// writes the back-nav snapshot.
+// writes the back-nav snapshot — and a hook into the commit that mounts it (`h.card.mounted`).
 vi.mock('./listing-card', () => ({
-  ListingCard: ({ listing, onOpen }: { listing: SerializedListingCard; onOpen?: (l: SerializedListingCard) => void }) => (
-    <button type="button" data-testid="card" data-id={listing.id} onClick={() => onOpen?.(listing)}>{listing.title}</button>
-  ),
+  ListingCard: function ListingCard({ listing, onOpen }: { listing: SerializedListingCard; onOpen?: (l: SerializedListingCard) => void }) {
+    React.useLayoutEffect(() => { h.card.mounted?.(listing.id) }, [listing.id])
+    return <button type="button" data-testid="card" data-id={listing.id} onClick={() => onOpen?.(listing)}>{listing.title}</button>
+  },
 }))
 vi.mock('./capture-card', () => ({ CaptureCard: () => null }))
 vi.mock('./brand-rail', () => ({ BrandRail: () => null }))
@@ -129,19 +135,9 @@ function stubFetch() {
 }
 
 // ─── jsdom gaps the explorer touches ─────────────────────────────────────────────────────────
-type FakeIO = { cb: IntersectionObserverCallback; el: Element | null }
-const observers = new Set<FakeIO>()
+let io: ReturnType<typeof installFakeIntersectionObserver>
 function installDomStubs() {
-  observers.clear()
-  class IO {
-    rec: FakeIO
-    constructor(cb: IntersectionObserverCallback) { this.rec = { cb, el: null }; observers.add(this.rec) }
-    observe(el: Element) { this.rec.el = el }
-    unobserve() {}
-    disconnect() { observers.delete(this.rec) }
-    takeRecords() { return [] }
-  }
-  vi.stubGlobal('IntersectionObserver', IO)
+  io = installFakeIntersectionObserver()
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   vi.stubGlobal('matchMedia', (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false }))
   window.scrollTo = (() => {}) as typeof window.scrollTo
@@ -149,15 +145,8 @@ function installDomStubs() {
   Element.prototype.scrollIntoView = () => {}
 }
 
-/** "Scroll to the bottom": fire every live observer as intersecting (the load-more sentinel among them). */
-function scrollToSentinel() {
-  act(() => {
-    for (const o of [...observers]) {
-      if (!o.el) continue
-      o.cb([{ isIntersecting: true, target: o.el } as unknown as IntersectionObserverEntry], {} as IntersectionObserver)
-    }
-  })
-}
+/** "Scroll to the bottom" — see src/test/fake-intersection-observer.ts for what the reader's being there means. */
+function scrollToSentinel() { io.scrollToSentinel() }
 
 const cardIds = () => screen.queryAllByTestId('card').map((c) => c.getAttribute('data-id'))
 const countLine = () => document.querySelector('[data-slot="result-line"] p[aria-live="polite"]')?.textContent ?? ''
@@ -222,6 +211,7 @@ beforeEach(() => {
   requests.length = 0
   held.clear()
   failing.clear()
+  h.card.mounted = null
   sessionStorage.clear()
   installDomStubs()
   stubFetch()
@@ -571,3 +561,28 @@ describe('rows and count always come from the same result set', () => {
   })
 })
 
+describe('the infinite feed never loses a scroll to the order React runs its effects in', () => {
+  it('a reader already at the bottom when page 1 lands gets page 2 from the observer armed after it (the browser\'s first entry)', async () => {
+    // This file's flake, pinned in its worst order. The reader reaches the sentinel in the commit that
+    // paints the twelfth card: the rows are in the DOM, and that commit's passive effects — where the
+    // explorer arms its load-more observer — have not run, so nothing is listening. The old fake lost
+    // the scroll there for good (12 cards, 5 runs of 5); a browser hands the observer armed a moment
+    // later an in-view first entry, and the fake now does too.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000, refetchOnWindowFocus: false } } })
+    window.history.replaceState({}, '', URL_12_PRO_MAX)
+    let listening = -1
+    h.card.mounted = (id) => {
+      if (id !== 'pm12-11') return
+      h.card.mounted = null
+      listening = io.observing()
+      scrollToSentinel()
+    }
+    mount(client)
+    await waitFor(() => expect(cardIds()).toHaveLength(24))
+    expect(listening).toBe(0) // the precondition: the scroll really did land before any observer was armed
+    expect(cardIds()).toEqual(CATALOGUE['iPhone 12 Pro Max'].slice(0, 24).map((l) => l.id))
+    // One scroll, one page: the grid moved, so the reader is no longer at the bottom.
+    await new Promise((r) => setTimeout(r, 50))
+    expect(listingsRequests().map((u) => u.searchParams.get('offset'))).toEqual(['0', '12'])
+  })
+})
