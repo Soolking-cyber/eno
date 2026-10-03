@@ -2,6 +2,7 @@
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from '@testing-library/react'
+import type { Root } from 'react-dom/client'
 
 /**
  * ⛔ THE VIETNAMESE DICTIONARY IS NO LONGER A PROP (audit #1). It rode the root layout into every
@@ -51,7 +52,25 @@ beforeEach(() => {
   document.cookie = 'lang=; path=/; max-age=0'
   Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['vi-VN', 'vi'] })
 })
-afterEach(() => { document.body.innerHTML = '' })
+/**
+ * ⛔ EVERY ROOT THIS FILE MOUNTS IS UNMOUNTED AFTER ITS TEST — that is what runs useTr's effect cleanup,
+ * and the cleanup is the only thing that stops a translation landing later from calling setState.
+ * Until 2026-10-03 no root was ever unmounted, so that guard never tripped: the failed-chunk test left
+ * a <Tr> whose machine-translation batch (60 ms window + an /api/translate that rejects in jsdom) settled
+ * AFTER the file's last test — measured 35 ms past afterAll, with `window` already deleted by vitest's
+ * jsdom teardown — and React's dispatchSetState read `window.event` there. CI run 36978253786 failed on
+ * exactly that ("ReferenceError: window is not defined", 11,714 tests green). Mount through `roots`.
+ * (RTL's auto-cleanup does not run here either: it registers only when `afterEach` is a global, and
+ * vitest.config.ts does not set `globals`.)
+ */
+const roots: Root[] = []
+async function unmountRoots() {
+  await act(async () => { for (const r of roots.splice(0)) r.unmount() })
+}
+afterEach(async () => {
+  await unmountRoots()
+  document.body.innerHTML = ''
+})
 
 describe('the vi dictionary loads as a chunk, not a prop', () => {
   it('the server renders dictionary Vietnamese with no initialViDict', async () => {
@@ -83,9 +102,9 @@ describe('the vi dictionary loads as a chunk, not a prop', () => {
     const { hydrateRoot } = await import('react-dom/client')
     const recoverable: unknown[] = []
     await act(async () => {
-      hydrateRoot(container, <client.LanguageProvider initialLang="vi"><p id="t"><client.Tr text={en} /></p></client.LanguageProvider>, {
+      roots.push(hydrateRoot(container, <client.LanguageProvider initialLang="vi"><p id="t"><client.Tr text={en} /></p></client.LanguageProvider>, {
         onRecoverableError: (e) => { recoverable.push(e) },
-      })
+      }))
     })
     await act(async () => { await new Promise((r) => setTimeout(r, 50)) })
 
@@ -105,9 +124,9 @@ describe('the vi dictionary loads as a chunk, not a prop', () => {
     const { hydrateRoot } = await import('react-dom/client')
     const recoverable: unknown[] = []
     await act(async () => {
-      hydrateRoot(container, <client.LanguageProvider initialLang="vi"><p id="t"><client.Tr text={en} /></p></client.LanguageProvider>, {
+      roots.push(hydrateRoot(container, <client.LanguageProvider initialLang="vi"><p id="t"><client.Tr text={en} /></p></client.LanguageProvider>, {
         onRecoverableError: (e) => { recoverable.push(e) },
-      })
+      }))
     })
     await act(async () => { await new Promise((r) => setTimeout(r, 80)) })
     expect(recoverable).toEqual([])
@@ -151,10 +170,10 @@ describe('the vi dictionary loads as a chunk, not a prop', () => {
     let uncaught: unknown = null
     await act(async () => {
       try {
-        hydrateRoot(container, <client.LanguageProvider initialLang="vi"><p id="t"><client.Tr text={en} /></p></client.LanguageProvider>, {
+        roots.push(hydrateRoot(container, <client.LanguageProvider initialLang="vi"><p id="t"><client.Tr text={en} /></p></client.LanguageProvider>, {
           onRecoverableError: (e) => { recoverable.push(e) },
           onUncaughtError: (e) => { uncaught = e },
-        })
+        }))
       } catch (e) { uncaught = e }
     })
     await act(async () => { await new Promise((r) => setTimeout(r, 80)) })
@@ -179,6 +198,63 @@ describe('the vi dictionary loads as a chunk, not a prop', () => {
       await retry.catch(() => {})
     } finally {
       vi.useRealTimers()
+      vi.doUnmock('@/generated/vi-overrides')
+    }
+  })
+  /**
+   * CI run 36978253786, made deterministic. The machine-translation answer is HELD until the page is
+   * gone and `window` deleted, as vitest's jsdom teardown deletes it — the order a loaded runner
+   * happened to produce. Take out the `unmountRoots()` below and this fails on every run, with that run's
+   * error ("ReferenceError: window is not defined" ← dispatchSetState ← useTr's `.then`) caught here.
+   */
+  it('a translation that lands after the page is gone never reaches React', async () => {
+    const text = 'A sentence no dictionary has'
+    const translated = 'Một câu không từ điển nào có'
+    let release = () => {}
+    const held = vi.fn()
+    // Only THIS test's request is held. An earlier test's batch timer can still fire in here (its root is
+    // unmounted, so it is harmless), and it must neither count as ours nor take our `release`.
+    vi.stubGlobal('fetch', (_url: string, init?: RequestInit) => {
+      if (!String(init?.body).includes(text)) return Promise.reject(new Error("another test's request"))
+      held()
+      return new Promise((resolve) => {
+        release = () => resolve({ ok: true, json: async () => ({ translations: [translated] }) })
+      })
+    })
+    vi.resetModules()
+    vi.doMock('@/generated/vi-overrides', () => { throw new Error('simulated chunk failure') })
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const late: unknown[] = []
+    const onLate = (reason: unknown) => { late.push(reason) }
+    try {
+      const mt = await import('@/lib/i18n/mt-client')
+      const { LanguageProvider, Tr } = await import('@/context/language-context')
+      const { createRoot } = await import('react-dom/client')
+      const root = createRoot(document.body.appendChild(document.createElement('div')))
+      roots.push(root)
+      await act(async () => { root.render(<LanguageProvider initialLang="vi"><p><Tr text={text} /></p></LanguageProvider>) })
+      // No dictionary, so useTr fell back to machine translation and its batch is now in flight.
+      await vi.waitFor(() => expect(held).toHaveBeenCalledTimes(1))
+
+      await unmountRoots() // what afterEach does…
+      const win = Object.getOwnPropertyDescriptor(globalThis, 'window')!
+      // …and then what the environment's teardown does. Asserted, or a window that would not delete
+      // (another environment, a vitest upgrade) would leave this test guarding nothing.
+      expect(Reflect.deleteProperty(globalThis, 'window')).toBe(true)
+      process.on('unhandledRejection', onLate)
+      try {
+        release()
+        // The cache is written just before each waiter of the batch resolves, and this check passes a
+        // macrotask later at the earliest — by then useTr's `.then` has run, however the batch gets there.
+        await vi.waitFor(() => expect(mt.trCache.get(`vi ${text}`)).toBe(translated))
+      } finally {
+        Object.defineProperty(globalThis, 'window', win)
+        process.off('unhandledRejection', onLate)
+      }
+      expect(late.map(String)).toEqual([])
+    } finally {
+      quiet.mockRestore()
+      vi.unstubAllGlobals()
       vi.doUnmock('@/generated/vi-overrides')
     }
   })
