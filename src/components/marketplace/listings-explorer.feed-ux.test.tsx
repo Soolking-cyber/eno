@@ -9,13 +9,24 @@
  * the sync effect — is the real one. Same harness shape as listings-explorer.back-nav-filter.test.tsx.
  */
 import React from 'react'
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, configure, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToString } from 'react-dom/server'
 import { hydrateRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedListingCard } from '@/lib/types'
 import { installFakeIntersectionObserver } from '@/test/fake-intersection-observer'
+
+// ⚠️ TIME FOR A HEAVY RENDER ON A LOADED MACHINE — TIMING, NOT BEHAVIOUR. At load average 120–170, 5 of
+// 20 runs of this file failed on the defaults: "downloads every feed page ONCE" ran past vitest's 5 s
+// test timeout, and "warms the last page" stopped at "12, expected 24" because page 2 landed in
+// 830–960 ms against waitFor's 1,000 ms. Load, not a lost scroll: checked 2026-10-03 with an
+// instrumented observer, and since 48f26b4c5 the fake cannot lose one — see
+// src/test/fake-intersection-observer.ts. Same budget as listings-explorer.back-nav-filter.test.tsx,
+// for this file only (vitest isolates files). Still bounded: a wait that never comes true fails at
+// 5 s, a hung test at 30 s.
+configure({ asyncUtilTimeout: 5_000 })
+vi.setConfig({ testTimeout: 30_000 })
 
 const h = vi.hoisted(() => {
   const router = { push: () => {}, prefetch: () => {}, replace: () => {}, refresh: () => {}, back: () => {} }
