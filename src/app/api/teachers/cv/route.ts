@@ -4,6 +4,7 @@ import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { teacherThread } from '@/lib/teachers/share'
 import { conversationGate } from '@/lib/enforcement'
+import { isBlockedBetween } from '@/lib/user-blocks'
 import { signTeacherCv } from '@/lib/teachers/cv-store'
 
 export const runtime = 'nodejs'
@@ -19,6 +20,10 @@ export const GET = route(
     // A recruiter suspended after the teacher shared reads nothing more.
     if ((await conversationGate(profile.id))?.error === 'account_suspended') throw new ApiError('account_suspended', 403)
     if (!t.shared) throw new ApiError('share_required', 403)
+    // App Store gate `ugc-safety`: a block also closes a share made BEFORE it — the teacher who blocks a
+    // recruiter must not keep handing them a phone, email or CV (share/route.ts only stops NEW shares).
+    // Either direction, like every block. Off ⇒ no query.
+    if (await isBlockedBetween(t.recruiterUserId, t.teacherUserId)) throw new ApiError('blocked', 403)
     const priv = await db.teacherPrivate.findUnique({ where: { teacherProfileId: t.teacherProfileId }, select: { cvPath: true, cvFileName: true } })
     if (!priv?.cvPath) throw new ApiError('cv_missing', 404)
     const url = await signTeacherCv(priv.cvPath, priv.cvFileName ?? 'cv.pdf')

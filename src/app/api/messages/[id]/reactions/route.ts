@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { isReactionEmoji } from '@/lib/reactions'
+import { isBlockedBetween } from '@/lib/user-blocks'
 
 /**
  * TOGGLE ONE PERSON'S REACTION ON ONE MESSAGE.
@@ -63,6 +64,11 @@ export const POST = route(
      * removes. Missing, forbidden and recalled are one 403.
      */
     if (!isParticipant || message?.deletedAt) throw new ApiError('forbidden', 403)
+    // App Store gate `ugc-safety`: a block closes the thread to NEW reactions — the last way left to touch
+    // the other person's messages (opus, gate round 4). Taking your own reaction BACK stays possible (codex,
+    // round 5): it only removes interaction. Decided below, inside the transaction, where add vs remove is
+    // known. Either direction, like every block; off ⇒ no query.
+    const blocked = await isBlockedBetween(convo!.buyerProfileId, convo!.sellerProfileId)
 
     /**
      * ⛔ THE RECALL RACE — AND THE FIRST FIX FOR IT WAS ALSO WRONG. The `deletedAt` read above runs
@@ -103,6 +109,8 @@ export const POST = route(
           where: { messageId, profileId: profile.id, emoji: body.emoji },
         })
         if (removed.count === 0) {
+          // An ADD (or a swap to another emoji) — refused across a block; the transaction rolls back.
+          if (blocked) throw new ApiError('blocked', 403)
           /**
            * ⛔ ONE REACTION PER PERSON PER MESSAGE — A NEW PICK REPLACES THE OLD ONE. Owner,
            * 2026-08-18: "new emoji is added from right to left and not swap places with previously

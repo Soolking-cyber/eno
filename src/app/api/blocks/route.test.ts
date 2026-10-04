@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ── /api/blocks — App Store gate `ugc-safety` (plan R3) ─────────────────────────────────────────────
-// The client names a THREAD or a SHOP; the server resolves the person. A profile id is accepted only
-// for an existing profile (the settings list), and the whole endpoint is a 404 while the gate is off.
+// The client names a THREAD or a SHOP; the server resolves the person. No profile id is ever taken or
+// given: the settings list names a block by an opaque, blocker-bound HANDLE, accepted only to unblock.
+// The whole endpoint is a 404 while the gate is off.
 
 type Row = Record<string, unknown>
 const h = vi.hoisted(() => ({
@@ -11,6 +12,10 @@ const h = vi.hoisted(() => ({
   sellers: {} as Record<string, Row>,
   profiles: new Set<string>(),
   blocks: [] as Array<{ blocker: string; blocked: string; on: boolean; ctx: Row }>,
+  unblocked: [] as Array<{ blocker: string; handle: string }>,
+  rows: [] as Row[],
+  keyMissing: false,
+  dbDown: false,
 }))
 
 vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => h.me, getCurrentProfileId: async () => (h.me?.id as string) ?? null, getAdmin: async () => null }))
@@ -20,13 +25,19 @@ vi.mock('@/lib/db', () => ({
     conversation: { findUnique: async (q: { where: { id: string } }) => h.convos[q.where.id] ?? null },
     seller: { findUnique: async (q: { where: { id: string } }) => h.sellers[q.where.id] ?? null },
     profile: { findUnique: async (q: { where: { id: string } }) => (h.profiles.has(q.where.id) ? { id: q.where.id } : null) },
-    forumUserBlock: { findMany: async () => [] },
+    forumUserBlock: { findMany: async () => h.rows },
   },
 }))
 vi.mock('@/lib/user-blocks', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   setUserBlock: async (blocker: string, blocked: string, on: boolean, ctx: Row) => { h.blocks.push({ blocker, blocked, on, ctx }) },
   isStaffProfile: async (id: string) => id === 'desk-admin' || id === 'staff-me',
+  unblockByHandle: async (blocker: string, handle: string) => {
+    if (h.keyMissing) { const { BlockHandleKeyMissing } = await orig<{ BlockHandleKeyMissing: new () => Error }>(); throw new BlockHandleKeyMissing() }
+    if (h.dbDown) throw new Error('db down')
+    h.unblocked.push({ blocker, handle })
+    return handle === 'K'.repeat(22)
+  },
 }))
 
 const { POST, GET } = await import('./route')
@@ -44,7 +55,13 @@ beforeEach(() => {
   h.sellers = { s1: { ownerId: 'shop-owner' }, linked: { ownerId: null }, mine: { ownerId: 'me' }, desk: { ownerId: 'desk-admin' } }
   h.profiles = new Set([OTHER])
   h.blocks = []
+  h.unblocked = []
+  h.rows = []
+  h.keyMissing = false
+  h.dbDown = false
   vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+  // The real blockHandle signs with a key derived from this (user-blocks.ts).
+  vi.stubEnv('SUPABASE_SECRET_KEY', 'test-secret-for-block-handles')
 })
 afterEach(() => vi.unstubAllEnvs())
 
@@ -84,11 +101,29 @@ describe('POST /api/blocks', () => {
     expect(await post({ sellerId: 'mine', blocked: true })).toEqual({ status: 400, body: { error: 'cannot_block_self' } })
   })
 
-  it('a profile id may only UNBLOCK, and answers the same whether or not the id exists (no oracle)', async () => {
-    expect(await post({ profileId: OTHER, blocked: false })).toEqual({ status: 200, body: { blocked: false } })
-    expect(h.blocks[0]).toMatchObject({ blocked: OTHER, on: false })
-    expect(await post({ profileId: '22222222-2222-4222-8222-222222222222', blocked: false })).toEqual({ status: 200, body: { blocked: false } })
-    expect((await post({ profileId: OTHER, blocked: true })).status).toBe(400)
+  it('a HANDLE may only UNBLOCK, among the caller\'s own blocks; a miss is an honest 404 (the handle is caller-bound, so it is no oracle)', async () => {
+    expect(await post({ handle: 'K'.repeat(22), blocked: false })).toEqual({ status: 200, body: { blocked: false } })
+    expect(await post({ handle: 'Z'.repeat(22), blocked: false })).toEqual({ status: 404, body: { error: 'not_found' } })
+    expect(h.unblocked).toEqual([{ blocker: 'me', handle: 'K'.repeat(22) }, { blocker: 'me', handle: 'Z'.repeat(22) }])
+    expect((await post({ handle: 'K'.repeat(22), blocked: true })).status).toBe(400)
+    expect(h.blocks).toEqual([])
+  })
+
+  it('a profile id is no longer accepted at all, and a malformed handle is a 400', async () => {
+    expect((await post({ profileId: OTHER, blocked: false })).status).toBe(400)
+    expect((await post({ handle: 'short', blocked: false })).status).toBe(400)
+    expect((await post({ handle: 'K'.repeat(21) + '/', blocked: false })).status).toBe(400)
+    expect(h.unblocked).toEqual([])
+  })
+
+  it('without a signing secret an unblock says it is unavailable instead of claiming success', async () => {
+    h.keyMissing = true
+    expect(await post({ handle: 'K'.repeat(22), blocked: false })).toEqual({ status: 503, body: { error: 'blocking_unavailable' } })
+  })
+
+  it('a database failure is an ordinary 500, not a "no secret" 503', async () => {
+    h.dbDown = true
+    expect(await post({ handle: 'K'.repeat(22), blocked: false })).toEqual({ status: 500, body: { error: 'internal_error' } })
   })
 
   it('the eno team cannot be blocked (it owns the e-Visa desk and imported shops)', async () => {
@@ -112,5 +147,18 @@ describe('GET /api/blocks', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
     const res = await GET(new Request('https://www.eno.forum/api/blocks') as never, {} as never)
     expect(await res.json()).toEqual({ enabled: false, blocked: [] })
+  })
+
+  it('lists each block by its opaque handle — the blocked profile id never leaves the server (follow-up 3)', async () => {
+    h.rows = [{ createdAt: new Date('2026-10-01T00:00:00Z'), blocked: { id: OTHER, displayName: null, email: 'lan.nguyen@example.com', avatarUrl: null, avatarColor: '#111111' } }]
+    const res = await GET(new Request('https://www.eno.forum/api/blocks') as never, {} as never)
+    const body = await res.json()
+    expect(body.enabled).toBe(true)
+    expect(body.blocked).toHaveLength(1)
+    expect(body.blocked[0]).toMatchObject({ handle: expect.stringMatching(/^[A-Za-z0-9_-]{22}$/), blockedAt: '2026-10-01T00:00:00.000Z' })
+    expect(Object.keys(body.blocked[0]).sort()).toEqual(['avatarColor', 'avatarUrl', 'blockedAt', 'handle', 'name'])
+    expect(JSON.stringify(body)).not.toContain(OTHER)
+    // Never the raw email either.
+    expect(JSON.stringify(body)).not.toContain('lan.nguyen@example.com')
   })
 })

@@ -14,6 +14,7 @@ import { isPublicListing, isStorefrontGone } from '@/lib/storefront-gone'
 import { syncBadgeToProfile } from '@/lib/native-push'
 import { dayCoarse } from '@/lib/last-seen'
 import { takesOffers } from '@/lib/taxonomy'
+import { blockStateBetween } from '@/lib/user-blocks'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -299,6 +300,17 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
   // "what kind of listing anchors this", and the answer here is "none". See Conversation.listingId.
   const kind = convo.listing ? await threadKind({ listingId: convo.listing.id }) : null
 
+  /**
+   * App Store gate `ugc-safety`: is this thread CLOSED by a block between its two people? The thread page
+   * swaps the composer for a "conversation closed" banner instead of letting a send fail into a toast.
+   * 'you_blocked' tells the blocker the way back (Settings › Privacy); 'blocked' tells the other side the
+   * thread is closed — never who did it, which is the only other party anyway. A support operator is not
+   * a party to a block (the desk has no profile). ⚠️ THIS ROUTE IS THE MOST-POLLED ONE: off ⇒ no query;
+   * on ⇒ one primary-key read per poll (blockStateBetween). The key is OMITTED when open, so the gate-off
+   * payload is byte-for-byte what it was.
+   */
+  const blockState = iAmSupport ? 'none' : await blockStateBetween(meId, iAmBuyer ? convo.sellerProfileId : convo.buyerProfileId)
+
   return {
     id: convo.id,
     me: meId,
@@ -356,6 +368,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     // The site-wide top five, so the quick reaction bar shows what people actually use rather than
     // five glyphs picked in a constant. Cached for an hour per instance — see reaction-tally.ts.
     topReactions: await globalTopReactions(),
+    ...(blockState === 'none' ? {} : { closed: blockState === 'mine' ? 'you_blocked' as const : 'blocked' as const }),
   }
 })
 

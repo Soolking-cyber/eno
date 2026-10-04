@@ -3,13 +3,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // ── src/lib/user-blocks.ts — blocking behind the `ugc-safety` App Store review gate (plan R3) ─────────
 
 type Row = Record<string, unknown>
-const h = vi.hoisted(() => ({ calls: [] as string[], rows: [] as Row[], feedback: [] as Row[], feedbackFails: false }))
+const h = vi.hoisted(() => ({ calls: [] as string[], rows: [] as Row[], feedback: [] as Row[], feedbackFails: false, kv: new Map<string, unknown>(), kvFails: false }))
 
 vi.mock('@/lib/db', () => ({
   db: {
     forumUserBlock: {
       findFirst: async (q: Row) => { h.calls.push('findFirst'); const or = (q.where as { OR: Row[] }).OR; return h.rows.find((r) => or.some((c) => c.blockerProfileId === r.blockerProfileId && c.blockedProfileId === r.blockedProfileId)) ?? null },
-      findMany: async (q: Row) => { h.calls.push('findMany'); return h.rows.filter((r) => r.blockerProfileId === (q.where as Row).blockerProfileId) },
+      findMany: async (q: Row) => {
+        h.calls.push('findMany')
+        const w = q.where as Row
+        // The two-way lookup blockStateBetween makes (an OR of the two directions) …
+        if (w.OR) return h.rows.filter((r) => (w.OR as Row[]).some((c) => c.blockerProfileId === r.blockerProfileId && c.blockedProfileId === r.blockedProfileId))
+        // … and the one-way list profilesBlockedBy / unblockByHandle read.
+        return h.rows.filter((r) => r.blockerProfileId === w.blockerProfileId)
+      },
       // createMany({ skipDuplicates }) — the composite key decides, like the real table.
       createMany: async (q: Row) => {
         h.calls.push('createMany')
@@ -30,11 +37,23 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 vi.mock('@/lib/log', () => ({ logError: () => {} }))
+// The note dedupe claim (kv NX + TTL), the Redis-shaped call shape src/lib/ratelimit.ts exposes.
+vi.mock('@/lib/ratelimit', () => ({
+  kv: {
+    set: async (k: string, v: unknown, o?: { nx?: boolean }) => {
+      if (h.kvFails) throw new Error('kv down')
+      if (o?.nx && h.kv.has(k)) return null
+      h.kv.set(k, v)
+      return 'OK'
+    },
+    del: async (k: string) => { h.kv.delete(k) },
+  },
+}))
 vi.mock('@/lib/admin', () => ({ isAdminEmail: (e: string | null | undefined) => e === 'support@eno.vn' }))
 
-const { blockingOn, isBlockedBetween, profilesBlockedBy, setUserBlock } = await import('./user-blocks')
+const { blockHandle, blockingOn, blockStateBetween, isBlockedBetween, profilesBlockedBy, setUserBlock, unblockByHandle } = await import('./user-blocks')
 
-beforeEach(() => { h.calls = []; h.rows = []; h.feedback = []; h.feedbackFails = false })
+beforeEach(() => { h.calls = []; h.rows = []; h.feedback = []; h.feedbackFails = false; h.kv = new Map(); h.kvFails = false })
 afterEach(() => vi.unstubAllEnvs())
 
 describe('with the gate OFF (the default)', () => {
@@ -43,6 +62,7 @@ describe('with the gate OFF (the default)', () => {
     h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'b' }]
     expect(blockingOn()).toBe(false)
     expect(await isBlockedBetween('a', 'b')).toBe(false)
+    expect(await blockStateBetween('a', 'b')).toBe('none')
     expect([...(await profilesBlockedBy('a'))]).toEqual([])
     expect(h.calls).toEqual([])
   })
@@ -86,8 +106,48 @@ describe('with ugc-safety ON', () => {
     await setUserBlock('a', 'b', true, { surface: 'chat', conversationId: 'c1' })
     expect(h.rows).toEqual([{ blockerProfileId: 'a', blockedProfileId: 'b' }])
     expect(h.feedback).toHaveLength(1)
-    expect(h.feedback[0]).toMatchObject({ kind: 'other', profileId: 'a', url: '/messages/c1' })
+    // The ADMIN thread viewer — /messages/<id> 403s a moderator who is not a party (follow-up 5).
+    expect(h.feedback[0]).toMatchObject({ kind: 'other', profileId: 'a', url: '/admin/conversation/c1' })
     expect(String(h.feedback[0].message)).toContain('blocked profile b')
+    expect(String(h.feedback[0].message)).toContain('/admin/users/b')
+  })
+
+  it('a storefront block links the blocked account\'s admin record', async () => {
+    await setUserBlock('a', 'b', true, { surface: 'storefront', sellerId: 's1' })
+    expect(h.feedback[0]).toMatchObject({ url: '/admin/users/b' })
+    expect(String(h.feedback[0].message)).toContain('from storefront s1')
+  })
+
+  it('a block → unblock → block loop files ONE note per pair per day (follow-up 4)', async () => {
+    await setUserBlock('a', 'b', true, { surface: 'chat', conversationId: 'c1' })
+    await setUserBlock('a', 'b', false, { surface: 'settings' })
+    await setUserBlock('a', 'b', true, { surface: 'chat', conversationId: 'c1' })
+    await setUserBlock('a', 'b', false, { surface: 'settings' })
+    await setUserBlock('a', 'b', true, { surface: 'storefront', sellerId: 's1' })
+    expect(h.rows).toEqual([{ blockerProfileId: 'a', blockedProfileId: 'b' }])
+    expect(h.feedback).toHaveLength(1)
+    expect(h.kv.has('user-block-note:a:b')).toBe(true)
+    // Directional: B blocking A is a different event for a moderator.
+    await setUserBlock('b', 'a', true, { surface: 'chat', conversationId: 'c1' })
+    expect(h.feedback).toHaveLength(2)
+  })
+
+  it('a note that could not be written releases its claim, so the next block of the pair files it', async () => {
+    h.feedbackFails = true
+    await setUserBlock('a', 'b', true, { surface: 'chat', conversationId: 'c1' })
+    expect(h.feedback).toEqual([])
+    expect(h.kv.has('user-block-note:a:b')).toBe(false)
+    h.feedbackFails = false
+    await setUserBlock('a', 'b', false, { surface: 'settings' })
+    await setUserBlock('a', 'b', true, { surface: 'chat', conversationId: 'c2' })
+    expect(h.feedback).toHaveLength(1)
+    expect(h.feedback[0]).toMatchObject({ url: '/admin/conversation/c2' })
+  })
+
+  it('the dedupe fails OPEN: a broken claim still files the note', async () => {
+    h.kvFails = true
+    await setUserBlock('a', 'b', true, { surface: 'chat', conversationId: 'c1' })
+    expect(h.feedback).toHaveLength(1)
   })
 
   it('is idempotent: blocking twice writes one row and one note', async () => {
@@ -114,5 +174,58 @@ describe('with ugc-safety ON', () => {
     await setUserBlock('a', 'b', false, { surface: 'settings' })
     expect(h.rows).toEqual([])
     expect(h.feedback).toEqual([])
+  })
+})
+
+describe('blockStateBetween — which way a block runs (the thread\'s "closed" banner)', () => {
+  beforeEach(() => vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety'))
+
+  it('mine / theirs / none, and a mutual block counts as mine (the blocker always sees the way back)', async () => {
+    h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'b' }]
+    expect(await blockStateBetween('a', 'b')).toBe('mine')
+    expect(await blockStateBetween('b', 'a')).toBe('theirs')
+    expect(await blockStateBetween('a', 'c')).toBe('none')
+    h.rows.push({ blockerProfileId: 'b', blockedProfileId: 'a' })
+    expect(await blockStateBetween('b', 'a')).toBe('mine')
+  })
+
+  it('a block with the eno team on either side is void, as for enforcement', async () => {
+    h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'staff' }]
+    expect(await blockStateBetween('a', 'staff')).toBe('none')
+    expect(await blockStateBetween('staff', 'a')).toBe('none')
+  })
+
+  it('a missing side or the same profile costs no query', async () => {
+    expect(await blockStateBetween('a', null)).toBe('none')
+    expect(await blockStateBetween(null, 'a')).toBe('none')
+    expect(await blockStateBetween('a', 'a')).toBe('none')
+    expect(h.calls).toEqual([])
+  })
+})
+
+describe('the opaque unblock handle (follow-up 3)', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    vi.stubEnv('SUPABASE_SECRET_KEY', 'test-secret-for-block-handles')
+  })
+
+  it('is 22 url-safe characters, stable, and bound to the BLOCKER — never the profile id', () => {
+    const h1 = blockHandle('a', 'b')!
+    expect(h1).toMatch(/^[A-Za-z0-9_-]{22}$/)
+    expect(blockHandle('a', 'b')).toBe(h1)
+    expect(blockHandle('c', 'b')).not.toBe(h1)
+    const uuid = '11111111-1111-4111-8111-111111111111'
+    expect(blockHandle('a', uuid)).not.toContain(uuid.slice(0, 8))
+  })
+
+  it('unblocks only the caller\'s own row; a foreign or unknown handle is inert', async () => {
+    h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'b' }, { blockerProfileId: 'c', blockedProfileId: 'b' }]
+    // c's handle for b, sent by a: matches nothing in a's list.
+    expect(await unblockByHandle('a', blockHandle('c', 'b')!)).toBe(false)
+    expect(await unblockByHandle('a', 'AAAAAAAAAAAAAAAAAAAAAA')).toBe(false)
+    expect(await unblockByHandle('a', 'not a handle')).toBe(false)
+    expect(h.rows).toHaveLength(2)
+    expect(await unblockByHandle('a', blockHandle('a', 'b')!)).toBe(true)
+    expect(h.rows).toEqual([{ blockerProfileId: 'c', blockedProfileId: 'b' }])
   })
 })

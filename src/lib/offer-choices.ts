@@ -79,6 +79,7 @@ type Tr = (en: string, vi: string) => string
  * What to say when the deferred POST is refused. The route's contract (unchanged):
  * 409 `listing_unavailable` — accept on a listing that is no longer active;
  * 409 `not_actionable` — the offer is no longer pending (withdrawn, countered, already answered);
+ * 403 `blocked` — accept across a block (App Store gate `ugc-safety`; decline is never refused for it);
  * anything else (429, 403, 5xx, a dropped connection) — worth trying again.
  * ⚠️ This lands up to ~5s after the tap, possibly after the user has left the thread, so it names the
  * action — "Could not accept the offer", never a bare "Something went wrong".
@@ -88,6 +89,11 @@ export function offerActFailedCopy(action: OfferAction, code: string | undefined
   // through (it must always be possible to clear a stale offer), so this reason never explains a decline.
   if (code === 'listing_unavailable' && action === 'accept') {
     return tr('The listing is no longer available, so the offer was not accepted.', 'Tin đăng không còn khả dụng nên đề nghị chưa được chấp nhận.')
+  }
+  // Accept-only for the same reason: a block refuses ACCEPT and lets a decline through. It names the
+  // conversation, never the person — the thread itself shows the "closed" banner on its next load.
+  if (code === 'blocked' && action === 'accept') {
+    return tr('This conversation is closed, so the offer was not accepted.', 'Cuộc trò chuyện này đã đóng nên đề nghị chưa được chấp nhận.')
   }
   if (code === 'not_actionable') {
     return action === 'accept'

@@ -2,30 +2,36 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { maskEmailHandle } from '@/lib/utils'
-import { blockingOn, isStaffProfile, setUserBlock } from '@/lib/user-blocks'
+import { logError } from '@/lib/log'
+import { BLOCK_HANDLE_RE, BlockHandleKeyMissing, blockHandle, blockingOn, isStaffProfile, setUserBlock, unblockByHandle } from '@/lib/user-blocks'
 
 // Blocking another user — App Store Guideline 1.2 (plan R3), behind the `ugc-safety` review gate.
 // See src/lib/user-blocks.ts for what a block does and why it notifies through the feedback queue.
 //
-// ⚠️ A BLOCK NEVER NAMES A PROFILE ID. The client sends the conversation or the storefront it is looking
-// at and the server resolves the person behind it, so the chat API never hands the other party's
-// profile id to the client. A profile id is accepted ONLY to UNBLOCK (the settings list, which this
-// route returned), and it answers the same whether or not such a block existed — so the endpoint is
-// not an oracle for which profile ids exist (codex + opus, review).
+// ⚠️ THIS ENDPOINT NEVER TAKES OR GIVES A PROFILE ID. The client sends the conversation or the
+// storefront it is looking at and the server resolves the person behind it, so the chat API never hands
+// the other party's profile id to the client. The settings list names each block by an opaque HANDLE
+// (an HMAC bound to the blocker — user-blocks.ts), and a handle is accepted ONLY to UNBLOCK, and only
+// among the CALLER's OWN blocks (follow-up 3 of 0a470ed98). An unmatched handle answers 404 — which is
+// not an oracle: a handle is minted per blocker with a server key, so the only handles that can ever
+// match are ones GET already showed this same caller; a miss says "not one of your blocks (any more)",
+// nothing about any other profile. (It used to answer 200 either way, which let a stale handle — a key
+// rotation, a block already undone elsewhere — show "unblocked" while the block stood; opus, plan review.)
 //
-// Branches: 401 auth_required · 404 blocking_unavailable (gate off) · 400 invalid_body (also: a
-// profile id with blocked:true) · 404 not_found (no such thread / shop, or no person behind it) ·
+// Branches: 401 auth_required · 404 blocking_unavailable (gate off) · 503 blocking_unavailable (no
+// signing secret, unblock only) · 400 invalid_body (also: a handle with blocked:true) · 404 not_found
+// (no such thread / shop, no person behind it, or a handle that is not one of the caller's blocks) ·
 // 403 forbidden (not your thread) · 400 cannot_block_self · 403 cannot_block_staff · 200 {blocked}.
 
 const bodySchema = z
   .object({
     conversationId: z.string().min(1).max(64).optional(),
     sellerId: z.string().min(1).max(64).optional(),
-    profileId: z.string().uuid().optional(),
+    handle: z.string().regex(BLOCK_HANDLE_RE).optional(),
     blocked: z.boolean(),
   })
-  .refine((b) => [b.conversationId, b.sellerId, b.profileId].filter(Boolean).length === 1, { message: 'exactly one target' })
-  .refine((b) => !(b.profileId && b.blocked), { message: 'a profile id may only unblock' })
+  .refine((b) => [b.conversationId, b.sellerId, b.handle].filter(Boolean).length === 1, { message: 'exactly one target' })
+  .refine((b) => !(b.handle && b.blocked), { message: 'a handle may only unblock' })
 
 export const POST = route(
   { auth: 'profile', body: bodySchema, invalidBodyCode: 'invalid_body', rateLimit: { bucket: 'user-block', limit: 30, window: '1 h' } },
@@ -49,10 +55,19 @@ export const POST = route(
       if (!seller) throw new ApiError('not_found', 404)
       target = seller.ownerId // an imported, ownerless shop has nobody to block
       surface = 'storefront'
-    } else if (body.profileId) {
-      // Unblock only (the schema refuses blocked:true here) — idempotent and silent about whether the
-      // id exists or was ever blocked.
-      await setUserBlock(profile.id, body.profileId, false, { surface: 'settings' })
+    } else if (body.handle) {
+      // Unblock only (the schema refuses blocked:true here) — among the caller's OWN blocks.
+      let matched: boolean
+      try {
+        matched = await unblockByHandle(profile.id, body.handle)
+      } catch (e) {
+        // No signing secret: nothing can be verified, so say so rather than claim an unblock. Any OTHER
+        // failure (the database) is not that, and goes to route()'s ordinary 500 (opus, gate round 2).
+        if (!(e instanceof BlockHandleKeyMissing)) throw e
+        logError(e, { op: 'blocks.unblockByHandle' })
+        throw new ApiError('blocking_unavailable', 503)
+      }
+      if (!matched) throw new ApiError('not_found', 404)
       return { blocked: false }
     }
     if (!target) throw new ApiError('not_found', 404)
@@ -66,7 +81,8 @@ export const POST = route(
 )
 
 // The signed-in user's block list, for the settings section. `enabled: false` while the gate is off,
-// so the settings UI can stay hidden without a second flag of its own.
+// so the settings UI can stay hidden without a second flag of its own. Each row carries its opaque
+// `handle` (null only when no signing secret is configured — the row then cannot be unblocked from here).
 export const GET = route({ auth: 'profile' }, async ({ profile }) => {
   if (!blockingOn()) return { enabled: false, blocked: [] }
   const rows = await db.forumUserBlock.findMany({
@@ -81,7 +97,7 @@ export const GET = route({ auth: 'profile' }, async ({ profile }) => {
   return {
     enabled: true,
     blocked: rows.map((r) => ({
-      profileId: r.blocked.id,
+      handle: blockHandle(profile.id, r.blocked.id),
       // Never the raw email — the same masking the inbox uses for a buyer with no display name.
       name: r.blocked.displayName || maskEmailHandle(r.blocked.email) || 'eno user',
       avatarUrl: r.blocked.avatarUrl,
