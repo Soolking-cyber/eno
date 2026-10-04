@@ -160,6 +160,12 @@ model Profile {
   @@index([attrSource])
   @@index([verificationStatus])
   @@index([documentExpiresAt])
+
+  // /schools (2026-10-04) — an erased account takes its votes and reviews with it; reports keep the row.
+  schoolVotes       SchoolVote[]
+  schoolReviews     SchoolReview[]
+  schoolReviewVotes SchoolReviewVote[]
+  schoolReports     SchoolReport[]
 }
 
 /// One row per verification ATTEMPT. APPEND-ONLY: never UPDATE a decided row, never DELETE one —
@@ -504,6 +510,8 @@ model Seller {
   payout                   SellerPayout? // VietQR bank details — a SEPARATE table, see the model
 
   @@index([ownerId])
+
+  school  School? // /schools: the school this shop is linked to, if any (one-to-one: School.sellerId is unique)
 }
 
 /// WHERE A VIETNAMESE BUYER'S MONEY ACTUALLY LANDS.
@@ -2142,4 +2150,176 @@ model WhatsAppInbound {
   @@index([conversationId, createdAt])
   @@index([profileId])
   @@map("whatsapp_inbound")
+}
+
+/// ── SCHOOLS (2026-10-04): teacher-voted ranking of Saigon schools, centres and agencies ──
+/// Plan + review record: ~/.claude/plans/eno-schools-2026-10-04.md. Pure logic in src/lib/schools/.
+/// ⚠️ THE FOREIGN KEYS ARE THE RELATIONS BELOW (diff review: DDL-only FKs came back as DROPs in every
+/// `migrate diff`): Profile CASCADE — account erasure DELETEs the Profile row (src/lib/core/account-erasure.ts),
+/// taking votes and reviews with it — the reporter SET NULL, Seller SET NULL. scripts/schools-ddl.mjs adds
+/// only what Prisma cannot model: CHECK constraints, the report↔review trigger, and RLS.
+/// ⚠️ NO COUNTER COLUMNS. Scores, review counts and pay figures are computed at READ time from the
+/// eligible rows (src/lib/schools/queries.ts): a stored counter drifts under concurrent writes and
+/// cannot apply an eligibility rule that changes as accounts age (plan review, Opus + codex).
+model School {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  name       String
+  /// language_centre | international_school | bilingual_school | agency | university (CHECK in DDL)
+  kind       String
+  website    String?
+  /// HCMC districts of its campuses/branches, plain English labels ("District 7", "Thu Duc City").
+  districts  String[] @default([])
+  /// e.g. IB, Cambridge, American — schools only.
+  curricula  String[] @default([])
+  summary    String   @default("")
+  summaryVi  String?
+  /// The school's own eno.vn shop, when linked: its accounts are excluded from voting on it, and its
+  /// own job posts show on the page.
+  sellerId   String?  @unique // one shop ↔ at most one school (its jobs and its owner's exclusion)
+  /// ⛔ SET NULL: a deleted shop unlinks the school — a dangling id would lift its owner's exclusion.
+  seller     Seller?  @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  /// active | hidden
+  status     String   @default("active")
+  /// Where the directory facts came from (seed provenance).
+  sourceUrls String[] @default([])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  aliases SchoolAlias[]
+  votes   SchoolVote[]
+  reviews SchoolReview[]
+  reports SchoolReport[]
+
+  @@index([status, kind])
+}
+
+/// A normalised employer name (normEmployer) that a job posting may carry. The alias is the PRIMARY
+/// KEY, so one employer string can never belong to two schools — an ambiguous name simply is not added
+/// (plan review: "ILA" must not catch "VILA").
+model SchoolAlias {
+  alias    String @id
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+}
+
+model SchoolVote {
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  profileId String   @db.Uuid
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  /// +1 | -1 (CHECK in DDL). Removing a vote deletes the row.
+  value     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([schoolId, profileId])
+  @@index([profileId])
+}
+
+/// One review per account per school, ever: deleting sets status `removed` and writing again revives
+/// the same row back to `pending`. Every write lands as `pending` — reviews are PRE-MODERATED.
+model SchoolReview {
+  id           String    @id @default(cuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  profileId    String    @db.Uuid
+  profile      Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  /// Still works there.
+  current      Boolean
+  /// lt1 | 1to2 | 2plus — coarse on purpose: exact years identify a teacher at a small centre.
+  tenure       String
+  leftYear     Int?
+  /// The reviewer chose to show "left <year>".
+  showLeftYear Boolean   @default(false)
+  /// teacher | head_teacher | assistant | other
+  role         String
+  /// full_time | part_time | contract
+  employment   String
+  /// Branch / campus district, optional.
+  district     String?
+  pros         String
+  cons         String
+  advice       String?
+  goodTags     String[]  @default([])
+  badTags      String[]  @default([])
+  /// ⛔ PAY IS NEVER SHOWN ON A REVIEW — only as an aggregate of ≥5 eligible reports (k-anonymity).
+  payAmount    Int?
+  /// VND | USD
+  payCurrency  String?
+  /// hour | month
+  payPeriod    String?
+  /// Normalised at submit; USD uses fxRate (VND per 1 USD) as of fxDate.
+  payVnd       Int?
+  fxRate       Float?
+  fxDate       DateTime?
+  /// pending | published | rejected | removed
+  status       String    @default("pending")
+  /// Text-screen flags for the moderator (e.g. "accusation").
+  flags        String[]  @default([])
+  moderatedAt  DateTime?
+  moderatedBy  String?
+  rejectReason String?
+  /// The school's response (right of reply). Entered by eno staff for the school in v1.
+  replyText    String?
+  replyAt      DateTime?
+  /// When the teacher last submitted this review (create OR edit). The public date and the pay report's
+  /// 3-year window use it — an edit restates the pay, so the old createdAt would understate its age.
+  submittedAt  DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  votes   SchoolReviewVote[]
+  reports SchoolReport[]
+
+  @@unique([schoolId, profileId])
+  @@index([schoolId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([profileId])
+}
+
+/// "Helpful / not helpful" on a review. Counted at read time with the same eligibility as school votes.
+model SchoolReviewVote {
+  reviewId  String
+  review    SchoolReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  profileId String       @db.Uuid
+  profile   Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  value     Int
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@id([reviewId, profileId])
+  @@index([profileId])
+}
+
+/// A teacher's report on a review, or a school's complaint (the right-of-reply channel).
+/// ⛔ NEVER AUTO-HIDES ANYTHING — three throwaway accounts must not be able to delete criticism. Every
+/// row goes to the admin queue; complaints carry a 24 h due-by there.
+model SchoolReport {
+  id                String        @id @default(cuid())
+  schoolId          String
+  school            School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  reviewId          String?
+  /// ⛔ SET NULL, not Cascade: erasing the reviewer's account deletes the review, but a complaint or
+  /// report ABOUT it is the moderation trail and stays (diff review, Opus).
+  review            SchoolReview? @relation(fields: [reviewId], references: [id], onDelete: SetNull)
+  /// review_report | school_complaint
+  kind              String
+  reporterProfileId String?       @db.Uuid
+  reporter          Profile?      @relation(fields: [reporterProfileId], references: [id], onDelete: SetNull)
+  reason            String
+  detail            String?
+  /// School complaints only — how staff answer the school.
+  contactEmail      String?
+  /// open | resolved | dismissed
+  status            String        @default("open")
+  resolvedBy        String?
+  resolvedAt        DateTime?
+  createdAt         DateTime      @default(now())
+
+  @@index([status, createdAt])
+  @@index([reviewId])
+  @@index([schoolId])
 }

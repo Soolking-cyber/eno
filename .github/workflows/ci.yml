@@ -206,13 +206,17 @@ jobs:
             echo '::error::migrate diff emitted a destructive statement — refusing to apply'; exit 1
           fi
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /tmp/schema.sql > /dev/null
+          # The parts Prisma cannot model (CHECKs, the report↔review trigger, RLS) — so the probe below tests
+          # the same database rules production has, not a laxer schema.
+          node scripts/schools-ddl.mjs
 
       # ⛔ THE CONCURRENCY PROBES RUN AGAINST THIS THROWAWAY POSTGRES, BEFORE THE FIXTURES.
       # They reproduce defects that only exist at READ COMMITTED — a lost update in the
       # business-verification document append — which a mocked database cannot show. They opt in on
       # RACE_DB_TESTS and refuse any host that is not loopback, so they can only ever run here.
       - name: Concurrency probes (real database)
-        run: npx vitest run src/lib/core/business-verification-race.probe.test.ts
+        # + the /schools read-time eligibility SQL (src/lib/schools/queries.ts), which only a real database can check.
+        run: npx vitest run src/lib/core/business-verification-race.probe.test.ts src/lib/schools/queries.probe.test.ts
         env:
           RACE_DB_TESTS: '1'
 
