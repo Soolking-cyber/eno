@@ -147,11 +147,13 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
     await expect(db.schoolReport.create({ data: { kind: 'review_report', schoolId: SCHOOL_B, reviewId: reviewOfA.id, reason: 'spam' } })).rejects.toThrow(/does not belong to school/)
   })
 
-  it("a new account's APPROVED review waits for the same 7 days its vote does", async () => {
-    await db.schoolReview.create({ data: { schoolId: SCHOOL_B, profileId: P.young, current: true, tenure: 'lt1', role: 'teacher', employment: 'full_time', pros: 'x'.repeat(30), cons: 'y'.repeat(30), status: 'published' } })
+  it("a new account's APPROVED review waits for the same 7 days its vote does — page and sitemap alike", async () => {
+    await db.schoolReview.create({ data: { schoolId: SCHOOL_B, profileId: P.young, current: true, tenure: 'lt1', role: 'teacher', employment: 'full_time', pros: 'x'.repeat(30), cons: 'y'.repeat(30), status: 'published', moderatedAt: new Date() } })
     expect((await q.getSchoolPage(SCHOOL_B))?.reviews.length).toBe(0)
+    expect((await q.schoolsForSitemap()).map((x) => x.slug)).not.toContain(SCHOOL_B)
     await db.profile.update({ where: { id: P.young }, data: { createdAt: new Date(Date.now() - 8 * DAY) } })
     expect((await q.getSchoolPage(SCHOOL_B))?.reviews.length).toBe(1)
+    expect((await q.schoolsForSitemap()).map((x) => x.slug)).toContain(SCHOOL_B)
     await db.profile.update({ where: { id: P.young }, data: { createdAt: new Date(Date.now() - 2 * DAY) } })
   })
 

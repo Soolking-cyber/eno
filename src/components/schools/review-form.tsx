@@ -34,8 +34,6 @@ type Mine = {
 const NONE = 'none'
 /** The tenure labels are lower-case for the review line ("Former teacher · under 1 year"); a control starts a sentence. */
 const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
-const thisYear = new Date().getFullYear()
-const YEARS = Array.from({ length: 12 }, (_, i) => String(thisYear - i))
 
 /**
  * Write or edit a review of one school (plan v2, 2026-10-04). Every save goes to the moderation queue,
@@ -56,6 +54,8 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
   const router = useRouter()
   const loc = moneyLocale(lang)
   const userId = user?.id ?? null
+  // Per mount, not at module load: a long-running server must not offer last year's list after 1 January.
+  const YEARS = React.useMemo(() => { const y = new Date().getFullYear(); return Array.from({ length: 12 }, (_, i) => String(y - i)) }, [])
 
   const [loaded, setLoaded] = React.useState(false)
   const [loadFailed, setLoadFailed] = React.useState(false)

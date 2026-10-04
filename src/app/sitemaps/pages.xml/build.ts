@@ -29,6 +29,7 @@ import { RENTAL_PLACES } from '@/lib/rental-places'
 import { isIndexableCount } from '@/lib/index-floor'
 import { submittedListingWhere, urlsetXml, siteOrigin } from '@/lib/sitemap'
 import { storefrontCanonicals } from '@/lib/storefront'
+import { schoolsForSitemap } from '@/lib/schools/queries'
 
 /**
  * THE BODY OF /sitemaps/pages.xml, MOVED OUT OF ITS ROUTE FILE (SEO wave B, I4) SO A SECOND CALLER CAN
@@ -500,6 +501,27 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   // Known here unless frozen (`'optional'` mode) or eno.forum (never read): the throw above covers the route.
   if (rentIndex?.known) {
     urls.push(`  <url><loc>${hostUrl}/hcmc-rent-index</loc>${lm(rentIndex.index.computedAt)}</url>\n`)
+  }
+
+  /**
+   * THE TEACHER-RANKED SCHOOL DIRECTORY (2026-10-04). Teachers' own reviews, not imported adverts, so the
+   * 2026-09-17 rule does not keep it out. MARKETPLACE ONLY, like its footer link: eno.forum's copy is a
+   * duplicate. A school page is submitted once it has a PUBLISHED review — before it has a review or an
+   * open job it is noindex (src/app/[lang]/schools/[slug]/page.tsx) — and /schools links all the others.
+   * Dated by the newest approval. ⚠️ A failed read submits /schools alone, undated, rather than failing
+   * the whole sitemap over one feature.
+   */
+  if (!IS_SERVICES) {
+    // Inside .then so a SYNCHRONOUS throw (a client built before the School model) is caught too. The PAGE's
+    // visibility rule (schoolsForSitemap), so a school whose only approved review is not public yet is not
+    // submitted while it answers noindex.
+    const reviewed = await Promise.resolve()
+      .then(() => schoolsForSitemap())
+      .catch(() => null)
+    const dates = (reviewed ?? []).map((r) => r.lastmod ?? undefined)
+    const newest = dates.reduce<Date | undefined>((a, d) => (d && (!a || d > a) ? d : a), undefined)
+    urls.push(`  <url><loc>${hostUrl}/schools</loc>${lm(newest)}</url>\n`)
+    for (const [i, r] of (reviewed ?? []).entries()) urls.push(`  <url><loc>${hostUrl}/schools/${r.slug}</loc>${lm(dates[i])}</url>\n`)
   }
 
   // The e-visa cluster: the /vietnam-evisa hub and its long-tail children.

@@ -244,6 +244,8 @@ function FooterBody() {
               },
             ]),
         { label: tr('Jobs in Vietnam for expats', 'Việc làm cho người nước ngoài'), href: '/jobs-vietnam-expats' },
+        // The teacher-ranked school directory (2026-10-04). Marketplace only, for the duplicate reason above.
+        ...(IS_SERVICES ? [] : [{ label: tr('Saigon schools ranked by teachers', 'Trường ở Sài Gòn do giáo viên xếp hạng'), href: '/schools' }]),
         { label: tr('Moving sales in Vietnam', 'Thanh lý chuyển nhà tại Việt Nam'), href: '/moving-sales-vietnam' },
         { label: tr('Wholesale green coffee', 'Cà phê nhân xanh bán sỉ'), href: '/wholesale-green-coffee-vietnam' },
         ...(IS_SERVICES

@@ -31,7 +31,8 @@ type LiveState = {
   setMyReview: (id: string, value: number, prev: number, at?: number) => void
   setMyReviewOnly: (id: string, value: number, at?: number) => void
   undoReviewCount: (id: string, value: number, prev: number, at?: number) => void
-  refresh: () => void
+  /** Re-read live state: everything, or just the ids a vote touched. */
+  refresh: (only?: { schools?: string[]; reviews?: string[] }) => void
 }
 
 const Ctx = React.createContext<LiveState | null>(null)
@@ -70,15 +71,28 @@ export function SchoolLiveProvider({ schoolIds, reviewIds = [], initial, childre
 
   // ⚠️ CHUNKED: every school id in ONE query string outgrows proxy URL limits as the directory grows
   // (diff review). 100 ids ≈ 2.7 KB per request.
-  // ⛔ ONLY THE NEWEST REQUEST MAY WRITE (diff review, both seats): a slower, older response — taken before
-  // a later vote, or for the previous account — must never overwrite fresher state.
-  const generation = React.useRef(0)
-  const refresh = React.useCallback(() => {
-    if (!ids && !rids) return
-    const gen = ++generation.current
+  // ⛔ ONLY THE NEWEST REQUEST FOR AN ID MAY WRITE IT (diff review): a slower, older response — taken before
+  // a later vote, or for the previous account — must never overwrite fresher state. Stamped PER ID, so a
+  // vote can refresh just its own school without racing the rest of the board.
+  const stamp = React.useRef(0)
+  const latest = React.useRef<Record<string, number>>({})
+  // …and the board-wide flags (ready / signedIn) belong to the newest FULL refresh only (diff review: a
+  // previous account's full refresh landing late must not mark the new account's empty state "ready").
+  const fullGen = React.useRef(0)
+  const refresh = React.useCallback((only?: { schools?: string[]; reviews?: string[] }) => {
+    // The generation moves FIRST, even when there is nothing to ask: an older full refresh still in flight
+    // (the previous account's) must lose its say over the board-wide flags either way.
+    const gen = only ? fullGen.current : ++fullGen.current
+    const sIds = only ? only.schools ?? [] : ids ? ids.split(',') : []
+    const rIds = only ? only.reviews ?? [] : rids ? rids.split(',') : []
+    if (!sIds.length && !rIds.length) { if (!only) { setReady(true); setFailed(false) } return }
+    const at = ++stamp.current
+    for (const id of sIds) latest.current[`s:${id}`] = at
+    for (const id of rIds) latest.current[`r:${id}`] = at
+    const fresh = (kind: 's' | 'r', id: string) => latest.current[`${kind}:${id}`] === at
     const chunk = (xs: string[]) => Array.from({ length: Math.ceil(xs.length / 100) }, (_, i) => xs.slice(i * 100, i * 100 + 100))
-    const schoolChunks = chunk(ids ? ids.split(',') : [])
-    const reviewChunks = chunk(rids ? rids.split(',') : [])
+    const schoolChunks = chunk(sIds)
+    const reviewChunks = chunk(rIds)
     const n = Math.max(schoolChunks.length, reviewChunks.length, 1)
     Promise.all(Array.from({ length: n }, (_, i) => {
       const q = new URLSearchParams()
@@ -86,22 +100,32 @@ export function SchoolLiveProvider({ schoolIds, reviewIds = [], initial, childre
       if (reviewChunks[i]?.length) q.set('reviews', reviewChunks[i].join(','))
       return fetch(`/api/schools/state?${q}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
     })).then((parts) => {
-      if (gen !== generation.current) return
-      // MERGE per chunk that answered: an id a successful chunk asked about and did not return has NO vote
-      // (0); a chunk that failed leaves its ids as they were instead of zeroing them (diff review).
+      // MERGE per chunk that answered, and only ids no newer request has claimed: an id a successful chunk
+      // asked about and did not return has NO vote (0); a failed chunk leaves its ids as they were.
       const asked = (list: string[][], i: number) => list[i] ?? []
-      setCounts((c) => Object.assign({ ...c }, ...parts.map((d) => d?.counts ?? {})))
-      setReviewCounts((c) => Object.assign({ ...c }, ...parts.map((d) => d?.reviewCounts ?? {})))
+      setCounts((c) => {
+        const next = { ...c }
+        parts.forEach((d, i) => { if (d) for (const id of asked(schoolChunks, i)) if (fresh('s', id) && d.counts?.[id]) next[id] = d.counts[id] })
+        return next
+      })
+      setReviewCounts((c) => {
+        const next = { ...c }
+        // A review the server no longer counts (unpublished, school hidden) is omitted: drop the live entry so
+        // the card falls back to the page's own numbers rather than keeping a stale one.
+        parts.forEach((d, i) => { if (d) for (const id of asked(reviewChunks, i)) if (fresh('r', id)) { if (d.reviewCounts?.[id]) next[id] = d.reviewCounts[id]; else delete next[id] } })
+        return next
+      })
       setMineState((m) => {
         const next = { ...m }
-        parts.forEach((d, i) => { if (d) for (const id of asked(schoolChunks, i)) next[id] = d.mine?.[id] ?? 0 })
+        parts.forEach((d, i) => { if (d) for (const id of asked(schoolChunks, i)) if (fresh('s', id)) next[id] = d.mine?.[id] ?? 0 })
         return next
       })
       setMyReviews((m) => {
         const next = { ...m }
-        parts.forEach((d, i) => { if (d) for (const id of asked(reviewChunks, i)) next[id] = d.myReviews?.[id] ?? 0 })
+        parts.forEach((d, i) => { if (d) for (const id of asked(reviewChunks, i)) if (fresh('r', id)) next[id] = d.myReviews?.[id] ?? 0 })
         return next
       })
+      if (only || gen !== fullGen.current) return // only the newest full refresh decides the board-wide flags
       if (parts.some(Boolean)) setSignedIn(parts.some((d) => d?.signedIn))
       // Ready only when EVERY chunk answered: a vote judged against an unknown starting point is a guess.
       setReady(parts.every(Boolean))
@@ -112,6 +136,7 @@ export function SchoolLiveProvider({ schoolIds, reviewIds = [], initial, childre
   // ⛔ A DIFFERENT ACCOUNT STARTS FROM NOTHING (diff review): signing out and in as someone else on the
   // same page must not inherit the previous account's votes (a ▲ press would send a retraction).
   React.useEffect(() => {
+    latest.current = {} // any response still in flight belongs to the previous account: drop it
     setMineState({}); setMyReviews({}); setSignedIn(null); setReady(false); setFailed(false)
     refresh()
   }, [refresh, userId])
@@ -174,14 +199,14 @@ export function useSchoolLive(): LiveState {
 }
 
 /**
- * The "I've worked or interviewed here" acknowledgement, once PER ACCOUNT (diff review: per browser let a
- * second account on the same device skip it). A reminder of the rule, not proof — the rule's teeth are
- * the read-time eligibility and moderation.
+ * The "I've worked or interviewed here" acknowledgement, PER ACCOUNT AND PER SCHOOL (diff review): every
+ * vote sends `confirm: true`, a statement about THAT school, so it is asked for each school the account
+ * votes on. A statement, not proof — the rule's teeth are the read-time eligibility and moderation.
  */
-const ackKey = (userId: string) => `eno:schools:vote-ack:v2:${userId}`
-export function readVoteAck(userId: string): boolean {
-  try { return localStorage.getItem(ackKey(userId)) === '1' } catch { return false }
+const ackKey = (userId: string, schoolId: string) => `eno:schools:vote-ack:v3:${userId}:${schoolId}`
+export function readVoteAck(userId: string, schoolId: string): boolean {
+  try { return localStorage.getItem(ackKey(userId, schoolId)) === '1' } catch { return false }
 }
-export function writeVoteAck(userId: string) {
-  try { localStorage.setItem(ackKey(userId), '1') } catch { /* private mode: they will be asked again */ }
+export function writeVoteAck(userId: string, schoolId: string) {
+  try { localStorage.setItem(ackKey(userId, schoolId), '1') } catch { /* private mode: they will be asked again */ }
 }

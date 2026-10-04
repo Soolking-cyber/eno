@@ -127,7 +127,7 @@ function ReviewCard({ review: r, schoolName }: { review: PublicReview; schoolNam
 
 function HelpfulVote({ review }: { review: PublicReview }) {
   const { tr, lang } = useLanguage()
-  const { user, openSignIn } = useAuth()
+  const { user, loading, openSignIn } = useAuth()
   const live = useSchoolLive()
   const mine = live.myReviews[review.id] ?? 0
   const [busy, setBusy] = React.useState(false)
@@ -136,10 +136,10 @@ function HelpfulVote({ review }: { review: PublicReview }) {
   const c = live.reviewCounts[review.id] ?? { up: review.up, down: review.down }
   // Until the visitor's own votes have loaded, a press would be judged against the wrong starting point —
   // but a FAILED load still lets a signed-out visitor reach the sign-in prompt.
-  const ready = live.ready || live.failed || !user
+  const ready = !loading && (live.ready || live.failed || !user)
 
   async function press(dir: 1 | -1) {
-    if (busy) return
+    if (busy || loading) return
     if (!user) { openSignIn({ note: tr('Sign in to rate reviews.', 'Đăng nhập để đánh giá mức hữu ích.') }); return }
     if (!live.ready) { toast.error(tr('Your votes did not load. Refresh the page to vote.', 'Chưa tải được bình chọn của bạn. Hãy tải lại trang để bình chọn.')); return }
     const at = live.epoch
@@ -166,7 +166,7 @@ function HelpfulVote({ review }: { review: PublicReview }) {
       }
       // Stored, but a new account's vote does not count yet: the public number must not show it.
       if (next !== 0 && body?.countsNow === false) live.undoReviewCount(review.id, next, prev, at)
-      live.refresh()
+      live.refresh({ reviews: [review.id] })
     } catch {
       revert()
       toast.error(tr('Not saved. Try again.', 'Chưa lưu được. Thử lại nhé.'))
@@ -194,7 +194,7 @@ function HelpfulVote({ review }: { review: PublicReview }) {
 
 function ReportReview({ reviewId }: { reviewId: string }) {
   const { tr } = useLanguage()
-  const { user, openSignIn } = useAuth()
+  const { user, loading, openSignIn } = useAuth()
   const [open, setOpen] = React.useState(false)
   const [reason, setReason] = React.useState<ReportReason | ''>('')
   const [detail, setDetail] = React.useState('')
@@ -228,7 +228,7 @@ function ReportReview({ reviewId }: { reviewId: string }) {
   return (
     <>
       <Button variant="ghost" size="sm" className="text-muted-foreground"
-        onClick={() => (user ? setOpen(true) : openSignIn({ note: tr('Sign in to report a review.', 'Đăng nhập để báo cáo đánh giá.') }))}>
+        disabled={loading} onClick={() => (user ? setOpen(true) : openSignIn({ note: tr('Sign in to report a review.', 'Đăng nhập để báo cáo đánh giá.') }))}>
         <Flag aria-hidden /> {tr('Report', 'Báo cáo')}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>

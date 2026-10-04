@@ -280,6 +280,23 @@ async function eligibleReviewVotes(reviewIds: string[], schoolId: string): Promi
   return out
 }
 
+/**
+ * Schools for pages.xml: active, with at least one PUBLIC review (the page's own rule — published AND by an
+ * author who counts), dated by the newest approval. ⚠️ The same rule as the page's noindex, so the sitemap
+ * never submits a school page that answers noindex (diff review).
+ */
+export async function schoolsForSitemap(): Promise<{ slug: string; lastmod: Date | null }[]> {
+  return db.$queryRaw<{ slug: string; lastmod: Date | null }[]>`
+    select s.slug as slug, max(r."moderatedAt") as lastmod
+      from "School" s
+      join "SchoolReview" r on r."schoolId" = s.id and r.status = 'published'
+      join "Profile" p on p.id = r."profileId"
+     where s.status = 'active'
+       and ${eligibleSql()}
+     group by s.slug
+     order by s.slug`
+}
+
 // ── live state for the client islands (no-store) ───────────────────────────────────────────────
 
 /** Eligible helpful-vote counts for the given reviews (the school comes from each review). */
@@ -295,11 +312,14 @@ export async function liveReviewCounts(reviewIds: string[]): Promise<Record<stri
       join "School" s on s.id = r."schoolId"
       join "Profile" p on p.id = v."profileId"
      where v."reviewId" in (${Prisma.join(ids)})
+       and r.status = 'published' and s.status = 'active'
        and v."profileId" <> r."profileId"
        and ${eligibleSql()}
      group by v."reviewId"`
-  const out: Record<string, { up: number; down: number }> = Object.fromEntries(ids.map((id) => [id, { up: 0, down: 0 }]))
-  for (const r of rows) out[r.reviewId] = { up: r.up, down: r.down }
+  // Zero-filled only for PUBLIC reviews: a pending or rejected id gets nothing back.
+  const published = await db.schoolReview.findMany({ where: { id: { in: ids }, status: 'published', school: { status: 'active' } }, select: { id: true } })
+  const out: Record<string, { up: number; down: number }> = Object.fromEntries(published.map((r) => [r.id, { up: 0, down: 0 }]))
+  for (const r of rows) if (out[r.reviewId]) out[r.reviewId] = { up: r.up, down: r.down }
   return out
 }
 

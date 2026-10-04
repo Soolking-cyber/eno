@@ -25,7 +25,7 @@ const REASONS = [
  */
 export function SchoolClaim({ schoolId, schoolName }: { schoolId: string; schoolName: string }) {
   const { tr } = useLanguage()
-  const { user, openSignIn } = useAuth()
+  const { user, loading, openSignIn } = useAuth()
   const [open, setOpen] = React.useState(false)
   const [reason, setReason] = React.useState<(typeof REASONS)[number]['k'] | ''>('')
   const [detail, setDetail] = React.useState('')
@@ -59,7 +59,7 @@ export function SchoolClaim({ schoolId, schoolName }: { schoolId: string; school
 
   return (
     <>
-      <Button variant="outline" size="sm"
+      <Button variant="outline" size="sm" disabled={loading}
         onClick={() => (user ? setOpen(true) : openSignIn({ note: tr('Sign in to contact the moderators.', 'Đăng nhập để liên hệ kiểm duyệt viên.') }))}>
         <Building2 aria-hidden /> {tr('Is this your school?', 'Đây là trường của bạn?')}
       </Button>

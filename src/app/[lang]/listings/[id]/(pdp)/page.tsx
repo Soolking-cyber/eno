@@ -65,6 +65,7 @@ import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/a
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { importProvenance } from '@/lib/import-provenance'
 import { JobApplyGuard } from '@/components/marketplace/job-apply-guard'
+import { SchoolLinkForJob } from '@/components/schools/school-link-for-job'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { isBookingCategory } from '@/lib/affiliate-kind'
 import { isImportSeller } from '@/lib/import-sellers'
@@ -1290,6 +1291,13 @@ export default async function ListingPage({ params }: Props) {
                 ticket, an eSIM and a partner's phone alike. None on a partner row: the SafetyStrip's
                 partner variant above already states the only true advice there (buy/book/rent on the
                 partner's own site), and there is nobody to meet. */}
+            {/* A job at a school in the teacher-ranked directory links to what teachers say about it
+                (2026-10-04). Renders nothing without a match, and never throws (schoolForJob).
+                MARKETPLACE ONLY, like the footer link and the sitemap: on eno.forum it would promote
+                the forum's duplicate copy of the directory. */}
+            {!IS_SERVICES && listing.listingType === 'job' && (
+              <SchoolLinkForJob employer={listing.attributes?.employer} sellerId={listing.sellerId} className="order-12 flex items-start gap-2 text-sm" />
+            )}
             {safetyNote && (
               <p className="order-12 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />

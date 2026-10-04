@@ -26,7 +26,7 @@ export function VoteControl({ schoolId, schoolName, layout = 'column', size = 'm
   size?: 'md' | 'lg'
 }) {
   const { tr, lang } = useLanguage()
-  const { user, openSignIn } = useAuth()
+  const { user, loading, openSignIn } = useAuth()
   const live = useSchoolLive()
   const [busy, setBusy] = React.useState(false)
   const [ackOpen, setAckOpen] = React.useState(false)
@@ -72,7 +72,7 @@ export function VoteControl({ schoolId, schoolName, layout = 'column', size = 'm
           'Đã lưu bình chọn. Bình chọn sẽ được tính khi tài khoản của bạn được {n} ngày tuổi.',
         ).replace('{n}', String(ELIGIBLE_ACCOUNT_AGE_DAYS)))
       }
-      live.refresh()
+      live.refresh({ schools: [schoolId] })
     } catch {
       if (value === 0) live.setMineOnly(schoolId, prev, at)
       else live.setMine(schoolId, prev, value, at)
@@ -83,7 +83,8 @@ export function VoteControl({ schoolId, schoolName, layout = 'column', size = 'm
   }
 
   function press(dir: 1 | -1) {
-    if (busy) return
+    // Not while the session is still resolving: a signed-in teacher must not be told to sign in.
+    if (busy || loading) return
     if (!user) { openSignIn({ note: tr('Sign in to vote on schools.', 'Đăng nhập để bình chọn trường.') }); return }
     // Not before the visitor's own vote is known: a ▲ from someone who already voted ▲ must withdraw it.
     if (!live.ready) {
@@ -91,12 +92,12 @@ export function VoteControl({ schoolId, schoolName, layout = 'column', size = 'm
       return
     }
     const next = mine === dir ? 0 : dir
-    if (next !== 0 && !readVoteAck(user.id)) { pending.current = next; setAckChecked(false); setAckOpen(true); return }
+    if (next !== 0 && !readVoteAck(user.id, schoolId)) { pending.current = next; setAckChecked(false); setAckOpen(true); return }
     void send(next)
   }
 
   // Visibly waiting while a signed-in visitor's own votes load (a silent tap reads as broken).
-  const loadingMine = !!user && !live.ready && !live.failed
+  const loadingMine = loading || (!!user && !live.ready && !live.failed)
   const big = size === 'lg'
   const btn = 'text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50'
   return (
@@ -149,7 +150,7 @@ export function VoteControl({ schoolId, schoolName, layout = 'column', size = 'm
               variant="cta"
               disabled={!ackChecked}
               onClick={() => {
-                if (user) writeVoteAck(user.id)
+                if (user) writeVoteAck(user.id, schoolId)
                 setAckOpen(false)
                 const v = pending.current
                 pending.current = null
