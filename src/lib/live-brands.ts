@@ -44,8 +44,8 @@ import { buildFeedFilters } from '@/app/api/listings/feed-query'
  * ⚠️ IT IS EVENTUALLY CONSISTENT, BY WINDOWS STATED HERE RATHER THAN DISCOVERED — in BOTH directions: a
  * brand whose last row sells, or whose first row is published, is seen by the typeahead chips within a
  * minute (plus the response's own 10 s max-age), by the spell-corrector within eleven minutes (its
- * vocabulary's ten-minute memo on top), and by /brands when that ISR page regenerates (6h,
- * the page's existing contract). The minute is the trade against `listingCount`, which a publish moved
+ * vocabulary's ten-minute memo on top), and by /brands when that ISR page regenerates (1h since
+ * 2026-10-04, down from 6h). The minute is the trade against `listingCount`, which a publish moved
  * at once but a sale never did. (The rail reads per request; its only window is its own response's
  * s-maxage=300.)
  * Invalidating on every status write would mean hooking the same dozens of writers that left

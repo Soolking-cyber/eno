@@ -54,6 +54,16 @@ describe('the rail follows the on-sale gate', () => {
     expect(modelContent(cfg('iPhone 18 Pro Max'), [], true, new Date('2020-01-01T00:00:00Z')).rail).toBeUndefined()
   })
 
+  it('before the on-sale date the CTA is the hub, never a browse link onto the ungated feed', () => {
+    const before = modelContent(cfg('iPhone Duo'), [], true, BEFORE)
+    expect(before.cta).toBeUndefined()
+    expect(before.browseLinks).toEqual([{ href: '/iphone-18-vietnam', label: 'Compare the iPhone 18 line' }])
+    const after = modelContent(cfg('iPhone Duo'), [], true, AFTER)
+    expect(after.cta).toBe('Browse second-hand iPhone Duo listings')
+    expect(after.browseLinks).toBeUndefined()
+    expect(modelContent(cfg('iPhone 18 Pro'), [], true, BEFORE).cta).toBe('Browse second-hand iPhone 18 Pro listings')
+  })
+
   it('⚠️ switching the rail off never WIDENS it — `models` still names the one model', () => {
     // An empty `models` would mean "no model filter" (every used Apple phone), the opposite of the intent.
     expect(modelContent(cfg('iPhone Duo'), [], true, BEFORE).models).toEqual(['iPhone Duo'])

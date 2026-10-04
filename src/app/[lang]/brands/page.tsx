@@ -22,7 +22,9 @@ export const metadata: Metadata = {
 
 // Brand directory refreshes hourly — the catalogue grows slowly and rankings are
 // listing-count based, so first-paint can be cached aggressively.
-export const revalidate = 21600 // 6h — fewer ISR writes; the catalogue grows slowly
+// 1h, down from 6h (2026-10-04): tiles now come from LIVE listings (src/lib/live-brands.ts), and a brand that
+// sells out should leave /brands within the hour, not up to six — one cheap regeneration per hour per language.
+export const revalidate = 3600
 
 export default async function BrandsPage() {
   // Brands with LIVE listings only, most-listed first, each with the count `/?brand=<slug>` returns
@@ -35,7 +37,7 @@ export default async function BrandsPage() {
   // brand reappears here by itself once one of its listings is live.
   // Defensive: only a genuinely missing table (pre-migration build, Prisma P2021) falls back to empty.
   // Transient DB errors RETHROW so ISR keeps serving the last good HTML instead of caching a false
-  // "No brands" page for 6h.
+  // "No brands" page for the revalidate window.
   const brands = await liveBrandCounts()
     .then(async (live) => listedBrands(
       await db.brand.findMany({

@@ -119,12 +119,17 @@ export function modelContent(cfg: ModelPageConfig, rows: PriceRow[], known = tru
      * second, ungated query (any used row of `cfg.model`), so before 23 October a mislabelled pre-order
      * "used iPhone Duo" would sit under "Trusted listings" directly beneath that sentence (verify,
      * 2026-10-04). ISR (`revalidate = 3600`) brings the rail back within the hour after the date.
+     *
+     * ⛔ AND THE CTA WITH IT. The button's browse link runs the same ungated query, so "Browse second-hand
+     * iPhone Duo listings" opened a feed holding that mislabelled row (post-deploy verify, 2026-10-04).
+     * Before the date the one CTA is the hub, a real indexable page that says what the model will cost.
      */
-    ...(onSaleYet(cfg.model, now) ? {} : { rail: false as const }),
+    ...(onSaleYet(cfg.model, now)
+      ? { cta: cfg.cta }
+      : { rail: false as const, browseLinks: [{ href: '/iphone-18-vietnam', label: 'Compare the iPhone 18 line' }] }),
     // Newest first, not cheapest first — see `order` on SeoContent.
     order: 'recent',
     browseQuery: cfg.browseQuery,
-    cta: cfg.cta,
     sections: cfg.sections,
     related: cfg.related,
     faqs: cfg.faqs,

@@ -76,8 +76,16 @@ test.describe('Guest · language pipeline', () => {
     await expect(categoryRail(page, 'Danh mục').getByRole('link', { name: /Điện tử/ })).toBeVisible()
   })
 
-  test('renders English when lang=en', async ({ page, baseURL }) => {
+  test('renders English when lang=en — and the stored choice beats a Vietnamese browser', async ({ page, baseURL }) => {
     await seedLang(page, baseURL, 'en')
+    // ⚠️ NOT VACUOUS ON THE PILOT (verify, 2026-10-04): eno.vn's `/` is English for everyone, so the home
+    // alone proves nothing about the cookie there. An adaptive page under a vi-VN Accept-Language would be
+    // Vietnamese WITHOUT the cookie, so English here is the cookie winning, on both editions.
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'vi-VN,vi;q=0.9' })
+    const res = await page.goto(ADAPTIVE_PAGE)
+    expect(res!.ok(), `${ADAPTIVE_PAGE} must load — an error page's <html lang> would prove nothing`).toBe(true)
+    expect(serverHtmlLang(await res!.text()), 'lang=en must beat a vi-VN browser').toBe('en')
+    await page.setExtraHTTPHeaders({})
     await page.goto('/')
     const tile = categoryRail(page, 'Categories').getByRole('link', { name: /Electronics/ })
     await expect(tile).toBeVisible()
