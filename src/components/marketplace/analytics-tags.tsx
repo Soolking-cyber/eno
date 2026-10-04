@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { hasAnalyticsConsent, syncConsentStorage } from '@/lib/consent'
 import { applyConsentMode, enforceConsentCleanup } from '@/lib/consent-runtime'
 import { CONSENT_V2_KEY } from '@/lib/consent-value'
-import { GA_ID } from '@/lib/analytics'
+import { GA_ID, GA_IDS } from '@/lib/analytics'
 import { IS_SERVICES } from '@/lib/edition'
 
 // Google Analytics (GA4) only. The Meta Pixel was removed (heaviest 3rd-party,
@@ -35,6 +35,15 @@ import { IS_SERVICES } from '@/lib/edition'
  * starts denied; later changes arrive as `consent update` pushes (consent-runtime.ts).
  */
 const CONSENT_DEFAULT = `{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:500}`
+
+/**
+ * One `config` per measurement id (src/lib/analytics.ts GA_IDS): on eno.vn the primary property AND the
+ * SEO tool's stream, on eno.forum the primary alone. One gtag.js serves both — the script is loaded for the
+ * primary id, and each `config` adds a destination, so every hit after it (page views, and every
+ * `gtag('event', …)` from analytics.ts, which names no `send_to`) reaches each property. Both commands come
+ * after the denied default and the stored answer, so the second property is gated exactly like the first.
+ */
+const GA_CONFIG = GA_IDS.map((id) => `gtag('config','${id}');`).join('')
 
 /**
  * GOOGLE TAG MANAGER — eno.forum's container, and the reason the Meta Pixel comes back as a TAG
@@ -170,7 +179,7 @@ export function AnalyticsTags() {
         <>
           <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="lazyOnload" />
           <Script id="ga-init" strategy="lazyOnload">
-            {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('consent','default',${CONSENT_DEFAULT});if(window.__enoCm)gtag('consent','update',window.__enoCm);gtag('js',new Date());gtag('config','${GA_ID}');`}
+            {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('consent','default',${CONSENT_DEFAULT});if(window.__enoCm)gtag('consent','update',window.__enoCm);gtag('js',new Date());${GA_CONFIG}`}
           </Script>
         </>
       )}

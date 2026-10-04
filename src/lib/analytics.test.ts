@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url": "https://www.eno.vn/listings/abc"}
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { trackContactSeller, trackSearch, trackSignupPrompt, trackViewListing } from './analytics'
+import { GA_ID, GA_IDS, GA_SEO_ID, gaMeasurementIds, trackContactSeller, trackSearch, trackSignupPrompt, trackViewListing } from './analytics'
 import { setConsent } from './consent'
 
 /**
@@ -170,5 +170,31 @@ describe('analytics — the sign-up prompt events', () => {
     decide(false, false, false, 'decline_all')
     trackSignupPrompt('dismissed', { count: 1 })
     expect(gtag.mock.calls.map((c) => c[1])).toEqual(['signup_prompt_shown'])
+  })
+})
+
+/**
+ * GA dual-send (owner, 2026-10-05): the SEO tool reads GA4 property 553789942 — web stream G-0EXQ7Q17YN — and
+ * saw 0 rows, because production configured only GA_ID (another property). eno.vn configures both; eno.forum
+ * keeps exactly one. The wiring (both `config`s, both kill switches) is pinned in
+ * analytics-tags.marketplace.test.tsx; this is the list itself.
+ */
+describe('gaMeasurementIds — which GA4 properties a build sends to', () => {
+  it('the marketplace: the primary id, then the SEO tool’s stream', () => {
+    expect(GA_SEO_ID).toBe('G-0EXQ7Q17YN')
+    expect(gaMeasurementIds('G-CKTZK62B0X', true)).toEqual(['G-CKTZK62B0X', 'G-0EXQ7Q17YN'])
+  })
+
+  it('⛔ eno.forum: exactly one id', () => {
+    expect(gaMeasurementIds('G-CKTZK62B0X', false)).toEqual(['G-CKTZK62B0X'])
+  })
+
+  it('NEXT_PUBLIC_GA_ID still replaces the primary — and an override equal to the SEO stream is configured once', () => {
+    expect(gaMeasurementIds('G-OVERRIDE01', true)).toEqual(['G-OVERRIDE01', 'G-0EXQ7Q17YN'])
+    expect(gaMeasurementIds('G-0EXQ7Q17YN', true)).toEqual(['G-0EXQ7Q17YN'])
+  })
+
+  it('this suite runs as the services edition (vitest.config.ts), so its build carries GA_ID alone', () => {
+    expect(GA_IDS).toEqual([GA_ID])
   })
 })

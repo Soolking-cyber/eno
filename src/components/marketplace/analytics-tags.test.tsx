@@ -27,7 +27,7 @@ vi.mock('next/script', () => ({
 
 import { AnalyticsTags } from './analytics-tags'
 import { setConsent } from '@/lib/consent'
-import { GA_ID } from '@/lib/analytics'
+import { GA_ID, GA_SEO_ID } from '@/lib/analytics'
 
 function memoryStorage() {
   const m = new Map<string, string>()
@@ -126,6 +126,16 @@ describe('AnalyticsTags — Google Analytics loads only with the Analytics purpo
     await grant(false, true, false)
     expect(gaScript()).not.toBeNull()
     expect(scriptText('ga-init')).toContain(`gtag('config','${GA_ID}')`)
+  })
+
+  it('⛔ eno.forum configures exactly ONE property — the SEO tool’s stream is eno.vn’s (analytics-tags.marketplace.test.tsx)', async () => {
+    await grant(false, true, false)
+    await mount()
+    await interact()
+    const text = scriptText('ga-init')
+    expect(text.match(/gtag\('config'/g)).toHaveLength(1)
+    expect(text).not.toContain(GA_SEO_ID)
+    expect((window as unknown as Record<string, unknown>)[`ga-disable-${GA_SEO_ID}`]).toBeUndefined()
   })
 })
 

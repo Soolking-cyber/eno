@@ -1,10 +1,34 @@
 /**
- * ⚠️ NOT FULLY STATIC — see the long note in src/app/[lang]/terms/page.tsx.
+ * ⛔ QUY CHẾ HOẠT ĐỘNG — PHIÊN BẢN 2, THE ARCHIVED TEXT. DO NOT EDIT A WORD OF INTRO, META OR ARTICLES.
  *
- * This page renders TOS_VERSION and promises, in Vietnamese, that amendments are announced at least
- * 5 days before taking effect. A build-time-frozen copy of that promise is the one thing worse than
- * not making it. It is also the page src/lib/edition.ts cites as having baked "PayPal" and "e-Visa"
- * into on-disk HTML that no runtime gate could reach.
+ * Why it exists, and why it is permanent: src/lib/compliance/legal-archive.ts. In short, Article 15 below
+ * promises the version in force is always published under /regulations with its number, and this is the
+ * version that was in force from 01/10/2026 until the Quy chế-only amendment (version 3 — Article 14,
+ * immediate, REGULATIONS_AMENDMENT) replaced it. The Terms accepted in that period incorporate this text.
+ *
+ * ⚠️ VERBATIM FROM `git show 86f531e10:src/app/[lang]/regulations/page.tsx` — the version-2 text as it was made
+ * immediate, and as deployed (no later commit touched that file; byte-identical at 377542179, the UX program 2
+ * tip this archive was cut from). From `const S` to the end of ARTICLES the code is that file's, byte for byte,
+ * with these substitutions and nothing else:
+ *   · META is version 2's own published sentence — its immediate branch (version 2 had no notice window,
+ *     so the windowed branch was never published), with the version number read from V2, the date from
+ *     V1_SUPERSEDED (the day version 2 replaced version 1) and the previous version's path from V1_PATHS:
+ *     TOS_VERSION, LEGAL_AMENDMENT and archivedPath() have all moved on since;
+ *   · AMENDED (Article 17's date) is a local alias of V1_SUPERSEDED — the same dates, frozen with the
+ *     archive (legal-archive.test.ts holds them to literals once LEGAL_AMENDMENT moves on);
+ *   · FEED_DIVERSITY_WINDOW (Article 14) and RENTAL_CHECK_MAX_ITEMS (Article 7) are local constants at the
+ *     values version 2 printed, 60 and 5: the live constants follow the code, and an archive that re-read
+ *     them would rewrite what version 2 said the day either was tuned.
+ * Operator fields still come from COMPANY and AFFILIATION, the legal basis from LEGAL_BASIS and the edition
+ * gates from edition.ts / site-legal.ts, exactly as they did in version 2 — the v1 archive's choice too.
+ * The design notes (why both languages render unconditionally, the edition rules) are in the live page's
+ * header and apply here unchanged.
+ *
+ * ⚠️ BOTH EDITIONS, LIKE THE ORIGINAL: its only services copy is PROVIDER_OF_RECORD, gated on IS_SERVICES
+ * and imported from a module next.config.ts aliases to a stub on a marketplace build.
+ *
+ * ⚠️ noindex: an archived legal text must never outrank the current one in search. Linked from the live
+ * /regulations META and Article 17.
  */
 export const revalidate = 3600
 
@@ -14,90 +38,17 @@ import { withShare } from '@/lib/site-identity'
 import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { linkifyLegal } from '@/components/marketplace/legal-linkify'
-import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, PRELAUNCH, REGULATIONS_PREVIOUS_VERSION, REGULATIONS_VERSION } from '@/lib/site-legal'
+import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, PRELAUNCH } from '@/lib/site-legal'
 import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
-import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
-import { FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
-import { REGULATIONS_AMENDED, REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
-import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, V2_SUPERSEDED, archivedPath } from '@/lib/compliance/legal-archive'
+import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_SUPERSEDED, V2_SUPERSEDED_BY } from '@/lib/compliance/legal-archive'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-/**
- * QUY CHẾ HOẠT ĐỘNG — the operating regulations of the sàn giao dịch thương mại điện tử.
- *
- * This is the document MoIT reads at platform registration, so it is written to be COMPLETE against
- * Luật Thương mại điện tử 122/2025/QH15 Điều 11 and its implementing Nghị định 248/2026/NĐ-CP
- * Chương II (Điều 4–11: operator identity, privacy, rights and duties, complaint handling with
- * per-issue deadlines, fee policy, display-priority criteria) plus Điều 25.3 (amendments re-filed
- * with MoIT within 20 working days once registered). ⚠️ IT USED TO CITE NĐ 52/2013 + NĐ 85/2021 —
- * both ceased to have effect on 01/07/2026 (NĐ 248 Điều 52.3). Law and decree numbers come from
- * LEGAL_BASIS (src/lib/compliance/legal-basis.ts), the single source the takedown notices use too.
- *
- * ⚠️ AMENDED TWICE IN 2026-10 — Article 17 is the change log, and every amendment adds a dated entry there.
- * Version 2 (01/10/2026, with the Terms) and version 3 (a Quy chế-only amendment of Article 14) were both
- * owner-decided exceptions (`immediate`): published and in force the same day, no notice window, no
- * announcement. The dates come from src/lib/compliance/legal-amendment.ts — version 3's from
- * REGULATIONS_AMENDMENT (META directly, its Article 17 entry through legal-archive.ts V2_SUPERSEDED),
- * version 2's from LEGAL_AMENDMENT through V1_SUPERSEDED — and the version numbers from REGULATIONS_VERSION /
- * REGULATIONS_PREVIOUS_VERSION (site-legal.ts), no longer TOS_VERSION: the Terms stayed at version 2.
- * By default `published` = the real deploy day and in force ≥ 6 calendar days later, because the 5-day
- * notice (Article 15) does not count the publication day; Article 15 still promises that notice for
- * every future amendment.
- *
- * ⛔ SHIPS ONLY WITH W-C AND THE PARTNER DB FLIP. Article 3 (the “Cửa hàng liên kết” label, and the
- * badge meaning a signed agreement), Article 8 and Article 14 (commission links labelled “Quảng cáo”
- * with a note) describe what W-C's Ad marker / commission note / Linked-shop chip, the
- * set-official-partner.mjs DB flip and importers that stop badging new storefronts (see Article 3's
- * note) make true. Deployed without them, those sentences are false.
- *
- * ⚠️ VIETNAMESE IS THE AUTHORITATIVE TEXT AND IS RENDERED UNCONDITIONALLY. Both languages are part
- * of the published document, not alternatives to each other — the filed version is the Vietnamese
- * one, and a reviewer who lands here with an English UI preference must still see it. That is why
- * the body copy below is a pair of fixed literals per paragraph rather than `<Tr text="…">`:
- *
- *   · `<Tr>` renders ONE language at a time. On an English session the Vietnamese would not be on
- *     the page at all, which is the one thing this document cannot afford.
- *   · For `vi` it would fall back to MACHINE TRANSLATION of the English source (there is no curated
- *     entry in vi-overrides for any of this), i.e. the legally operative text of a filed instrument
- *     would be generated at runtime by an MT provider. src/lib/site-legal.ts and
- *     src/lib/visa-provider.ts both say the same thing about their own constants: render the curated
- *     pair, do not send legal copy through the translation layer.
- *
- * The `<Tr>` mechanism still governs this page's CHROME — ContentPage translates the eyebrow, the
- * h1 and the left-rail labels — so the i18n contract is intact where it applies. The eslint i18n
- * gate (react/jsx-no-literals) is satisfied because no copy is typed into JSX: every string is a
- * field on ARTICLES below and reaches the markup as an expression.
- *
- * ⚠️ THIS PAGE RENDERS ON BOTH EDITIONS AND MUST STAY CORRECT ON BOTH (see src/lib/edition.ts).
- * eno.vn is the licensed marketplace and may not so much as mention the e-visa service, so:
- *   · every self-reference uses SITE_NAME, never a hardcoded "eno.vn" — otherwise eno.forum
- *     publishes an operating regulation naming the licensed company as its operator;
- *   · the only services-specific copy is PROVIDER_OF_RECORD, gated on IS_SERVICES *and* imported
- *     from a module next.config.ts aliases to a stub on a marketplace build. The gate stops the
- *     render; only the alias keeps the partner's name out of eno.vn's artifact.
- *
- * ⚠️ WHAT WAS DELIBERATELY REMOVED, 2026-08: the old §7 named PayPal/Stripe and described an
- * "assisted e-Visa application service" sold by eno itself. A licensed marketplace's own compliance
- * text must not describe a payment function it does not have, and eno does not sell visa services at
- * all — a licensed third party does, with the platform as intermediary. Do not reintroduce either.
- *
- * ⚠️ NO COMPANY NAME, ERC OR LICENCE NUMBER IS TYPED HERE. They come from COMPANY (site-legal.ts)
- * and VISA_PROVIDER (visa-provider.ts).
- *
- * ⚠️ THIS NOTE USED TO SAY BOTH WERE "placeholders until the documents exist". Half of that is now
- * false and the correction matters, because the two editions differ for the first time:
- *   · eno.vn — Công ty TNHH ENO is INCORPORATED (ERC 0319679107, 14/08/2026). Every field is real,
- *     OPERATOR_REGISTERED is true, and the "still being registered" paragraph no longer renders.
- *   · eno.forum — its operator is still not incorporated, so the placeholders and that paragraph
- *     remain. It deliberately does NOT borrow the licensed company's identity (see site-legal.ts).
- *
- * ⚠️ AND THE COMPANY BEING REGISTERED IS NOT THE PLATFORM BEING REGISTERED. The ERC makes the
- * company exist; the sàn TMĐT filing with Bộ Công Thương is a SEPARATE, still-pending step tracked
- * by PRELAUNCH. They were welded into one paragraph behind one gate until 2026-08-18, which meant
- * the ERC arriving silently deleted the MoIT disclosure from the document MoIT reads. One fact,
- * one gate — keep it that way.
- */
+// ⚠️ FROZEN AT THE VALUES VERSION 2 PRINTED (see the header) — not the live constants of the same names.
+const FEED_DIVERSITY_WINDOW = 60
+const RENTAL_CHECK_MAX_ITEMS = 5
+/** Version 2's dates — published and in force 01/10/2026 — as its Article 17 printed them (AMENDED there). */
+const AMENDED = V1_SUPERSEDED
 
 const S = SITE_NAME
 /** Law 122/2025 and its implementing Decree 248/2026 — typed once, in legal-basis.ts. */
@@ -122,26 +73,11 @@ const INTRO: Para = {
   en: `These Regulations describe how the ${S} e-commerce trading platform is organised and operated: the scope of its activity, the rights and duties of the operator, of sellers and of buyers, the listing and transaction process, how content is reviewed and breaches are dealt with, how complaints and disputes are handled, how personal data is protected, and the criteria by which listings are sorted and displayed. Publishing this document is mandatory under Article 11 of the ${LAW.en} and Chapter II of ${ND248.en}, which implements that Law, and it forms part of the agreement between ${S} and its users.`,
 }
 
-// ⚠️ THE VERSION IN FORCE IS ALWAYS PUBLISHED, AND THIS LINE SAYS WHERE (2026-10-01 review). Article 15
-// promises "Bản Quy chế đang áp dụng luôn được đăng tại /regulations kèm số phiên bản".
-// · IMMEDIATE amendment (both 2026-10 amendments — owner: in force the day it is published, no notice): the
-//   text below IS the version in force, from that one date; the previous version is archived at
-//   /regulations/v<N>.
-// · An amendment WITH a notice window: until REGULATIONS_AMENDED.inForce the version in force is
-//   REGULATIONS_PREVIOUS_VERSION, archived at /regulations/v<N> (src/lib/compliance/legal-archive.ts) — kept
-//   for the next amendment, worded to stay true after its in-force date too.
-// The authoritative-language and future-amendment-notice sentences are the same in both.
-// ⚠️ REGULATIONS_*, NOT TOS_* (2026-10-05): version 3 amended the Quy chế alone, so its number and dates are
-// the Quy chế's own; TOS_VERSION is the Terms' and still reads '2'.
-const META: Para = REGULATIONS_AMENDMENT.immediate
-  ? {
-      vi: `Phiên bản ${REGULATIONS_VERSION}, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
-      en: `Version ${REGULATIONS_VERSION}, in force from ${REGULATIONS_AMENDED.inForceEn} (see Article 17). The previous version is archived at ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.`,
-    }
-  : {
-      vi: `Phiên bản ${REGULATIONS_VERSION}, sửa đổi công bố ngày ${REGULATIONS_AMENDED.publishedVi}, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17); trước ngày đó, phiên bản ${REGULATIONS_PREVIOUS_VERSION} vẫn là bản đang áp dụng và được đăng tại ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
-      en: `Version ${REGULATIONS_VERSION}, amended on ${REGULATIONS_AMENDED.publishedEn} with effect from ${REGULATIONS_AMENDED.inForceEn} (see Article 17); until then version ${REGULATIONS_PREVIOUS_VERSION} remains in force, and it is published at ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.`,
-    }
+// Version 2's META as it was published (the immediate branch of its code; see the header for the substitutions).
+const META: Para = {
+  vi: `Phiên bản ${V2}, có hiệu lực từ ngày ${AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại ${V1_PATHS.regulations}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
+  en: `Version ${V2}, in force from ${AMENDED.inForceEn} (see Article 17). The previous version is archived at ${V1_PATHS.regulations}. The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.`,
+}
 
 /**
  * ARTICLE 4's REGISTRATION DUTY — PER EDITION, the same licensing defect the Article 2 note below calls
@@ -162,9 +98,7 @@ const REGISTRATION_DUTY: Para = IS_MARKETPLACE
     }
 
 /**
- * ARTICLE 17's ENTRY FOR THE OCTOBER 2026 AMENDMENT (version 2) — one item per substantive edit, numbered
- * here. ⛔ FROZEN SINCE IT WAS PUBLISHED: Article 17 is append-only, so a later amendment gets its own list
- * (CHANGES_V3 below) and never edits this one.
+ * ARTICLE 17's ENTRY FOR THE OCTOBER 2026 AMENDMENT — one item per substantive edit, numbered here.
  *
  * ⚠️ EVERY EDIT TO THE TEXT IN FORCE BELONGS IN THIS LIST, including the quiet ones: a change log that
  * omits an edit tells the reader (and MoIT) that the omitted text did not change. The first draft
@@ -178,7 +112,7 @@ const REGISTRATION_DUTY: Para = IS_MARKETPLACE
  * get it would put a false statement in the change log of a filed document, so every item takes the
  * same gate as the text it describes.
  */
-const CHANGES_V2: Para[] = [
+const CHANGES: Para[] = [
   {
     vi: `cập nhật căn cứ pháp lý tại phần mở đầu và Điều 1 theo ${LAW.vi} và ${ND248.vi}, thay cho Nghị định 52/2013/NĐ-CP và Nghị định 85/2021/NĐ-CP đã hết hiệu lực từ ngày 01/07/2026, và xác định sàn là nền tảng thương mại điện tử trung gian tại Điều 1`,
     en: `update the legal basis in the preamble and Article 1 to the ${LAW.en} and ${ND248.en}, replacing Decree 52/2013/ND-CP and Decree 85/2021/ND-CP, which ceased to have effect on 1 July 2026, and describe the platform in Article 1 as an intermediary e-commerce platform`,
@@ -244,33 +178,7 @@ const CHANGES_V2: Para[] = [
   },
 ]
 
-/**
- * ARTICLE 17's ENTRY FOR VERSION 3 — the Quy chế-only amendment of Article 14 (UX program 2's search and feed
- * ranking; dates: REGULATIONS_AMENDMENT). Same rule as CHANGES_V2: one item per substantive edit, and the
- * quiet ones too. Article 14 is the same on both editions, so no item takes an edition gate.
- * ⚠️ Every item restates WHAT THE TEXT NOW SAYS and, for an amended sentence, what it said before — a reader
- * of the log should not need the archive (/regulations/v2) to know what changed.
- */
-const CHANGES_V3: Para[] = [
-  {
-    vi: 'sửa đổi đoạn về tìm kiếm bằng từ khoá tại Điều 14: kết quả được xếp theo hai nhóm — trước hết là các tin có đủ mọi từ khoá trong tiêu đề, mẫu mã hoặc thương hiệu của chính tin đó, hoặc trong tên của mục mà tin được đăng, sau đó là các tin cần đến danh mục của tin mới khớp được một trong các từ khoá — mỗi nhóm theo điểm tìm kiếm với tỷ trọng không thay đổi, và các tin bằng điểm nhau chỉ được xếp xen kẽ trong cùng một nhóm (trước đây ghi là các tin có đủ mọi từ khoá trong tiêu đề, mẫu mã, thương hiệu hoặc danh mục của chính tin đó được xếp trước, như một nhóm)',
-    en: 'amend the keyword-search paragraph of Article 14: results are ordered in two groups — first the listings whose own title, model or brand, or the name of the aisle they are listed in, contains every search word, then the listings that need their category to match one of the words — each group by the search score, whose weights are unchanged, with listings of equal score interleaved within a group only (it previously put the listings containing every search word in their own title, model, brand or category first, as one group)',
-  },
-  {
-    vi: 'bổ sung tại Điều 14 quy định về các từ chỉ tình trạng hàng hoá, như “cũ”, “đồ cũ”, “đã qua sử dụng”, “second hand” hoặc “used”: các từ này không được dùng để tìm trong nội dung tin đăng và không lọc kết quả theo tình trạng, và một tìm kiếm chỉ gồm những từ này hiển thị các món hàng đang được đăng bán',
-    en: 'add to Article 14 the rule on words that describe condition, such as “cũ”, “đồ cũ”, “đã qua sử dụng”, “second hand” or “used”: they are not looked for in listing text and do not filter results by condition, and a search made only of such words shows the items for sale',
-  },
-  {
-    vi: 'bổ sung tại Điều 14 vị trí dùng chung của tin cho thuê xe dẫn từ các nền tảng và cửa hàng cho thuê xe trong lượt xếp xen kẽ theo người bán, vị trí riêng của từng nền tảng, cửa hàng khi người sử dụng mở một mục cho thuê xe, và việc tin tuyển dụng, tin cho thuê xe do thành viên tự đăng trên sàn vẫn giữ vị trí riêng của người đăng',
-    en: 'add to Article 14 a shared seat in the seller rotation for vehicle rentals linked from rental platforms and shops, each platform’s or shop’s own seat again when the user opens a vehicle-rental aisle, and that job postings and vehicle rentals members post on the platform themselves keep their poster’s own seat',
-  },
-  {
-    vi: 'bổ sung tại Điều 14 quy định về trang chủ: theo thứ tự mặc định, khi có đủ tin, ít nhất hai trong bốn vị trí đầu tiên và ít nhất bốn trong mười hai vị trí đầu tiên là đồ đã qua sử dụng đang được đăng bán',
-    en: 'add to Article 14 the home-page rule: in the default order, where enough such listings exist, at least two of the first four positions and at least four of the first twelve are second-hand goods for sale',
-  },
-]
-
-const numbered = (changes: Para[], lang: 'vi' | 'en') => changes.map((c, i) => `(${i + 1}) ${c[lang]}`).join('; ')
+const numbered = (lang: 'vi' | 'en') => CHANGES.map((c, i) => `(${i + 1}) ${c[lang]}`).join('; ')
 
 const ARTICLES: Article[] = [
   {
@@ -686,19 +594,10 @@ const ARTICLES: Article[] = [
         en: `In discharge of the duty to publish its classification and display criteria, the operator discloses the following. The default ordering when browsing a category is determined by three groups of criteria, in decreasing order of influence: (1) the seller’s trust score, computed from verified activity data — phone and identity verification, selling history, buyer reviews, response rate and speed, and confirmed violations; (2) how much buyer interest the listing has attracted, namely views and contacts; (3) recency, where newer or recently updated listings rank higher.`,
       },
       {
-        // ⚖️ EVERY PARAGRAPH BELOW IS A CODE FACT (2026-10-01, NĐ 248/2026 Điều 11; version 3, 2026-10-05):
+        // ⚖️ EVERY PARAGRAPH BELOW IS A CODE FACT (2026-10-01, NĐ 248/2026 Điều 11):
         //   seller round-robin + shared seats — src/lib/feed-diversity.ts (FEED_DIVERSITY_WINDOW,
-        //     SHARED_SEAT_SUBCATEGORIES ['esim'] — keyed by AISLE, SHARED_SEAT_SELLERS 'job-boards' and
-        //     'vehicle-rentals' — keyed by the import's own SELLER ids, so a member's own job post or vehicle
-        //     rental keeps its own seat; sharedSeatsFor: off inside any aisle and inside Jobs; diversifyRail);
-        //   the two-tier keyword order — src/app/api/listings/keyword-rank.ts (header, steps 1–4: the 'title'
-        //     tier before the 'aside' tier, text-relevance.ts MatchClass; searchScore weights unchanged; exact
-        //     ties dealt out by seller + model and never across a tier);
-        //   condition words — src/lib/search-synonyms.ts CONDITION_PHRASES / splitConditionWords → feed-query.ts:
-        //     dropped from the text, filter NOTHING; a query of only those words gets the sale scope;
-        //   the home feed's second-hand floor (≥2 of the first 4, ≥4 of the first 12, when enough exist) — the
-        //     UX program 2 home-feed package, implemented in parallel with this amendment: ⛔ this text and
-        //     /legal/ranking state it, so neither may deploy without that code;
+        //     SHARED_SEAT_SUBCATEGORIES ['esim'], SHARED_SEAT_SELLERS job boards, sharedSeatsFor, diversifyRail);
+        //   title-match-first search — src/app/api/listings/keyword-rank.ts (header, steps 1–4);
         //   brand search surfacing the browsed category — feed-query.ts `priorityCategory`, applied as a stable
         //     sort of each returned PAGE (api/listings/route.ts, `ordered`), never across pages;
         //   price-ascending SEO rails — src/components/marketplace/seo-listing-rail.tsx `orderBy`;
@@ -716,33 +615,16 @@ const ARTICLES: Article[] = [
         // "Only while it is on" is true of both; the default itself is /privacy's to state.
         // ⚠️ NO "NONE IS FEATURED TODAY" AND NO PROMISED "Featured" LABEL: the first is a database fact
         // one admin click falsifies, and nothing renders the second. Only the rule is stated.
-        // ⚠️ VERSION 3 (2026-10-05) REWROTE THIS PARAGRAPH — two groups instead of one, and seller interleaving
-        // only inside a group; the version-2 wording is in /regulations/v2 and in Article 17's newest entry.
-        vi: `Khi người sử dụng tìm kiếm bằng từ khoá và giữ cách sắp xếp mặc định, kết quả được xếp theo hai nhóm. Nhóm thứ nhất gồm các tin có đủ mọi từ khoá trong tiêu đề, mẫu mã hoặc thương hiệu của chính tin đó, hoặc trong tên của mục mà tin được đăng; nhóm thứ hai gồm các tin cần đến danh mục của tin mới khớp được một trong các từ khoá. Trong mỗi nhóm, tin được xếp theo điểm tìm kiếm kết hợp mức độ phù hợp với từ khoá, điểm uy tín của người bán và độ mới, với tỷ trọng công bố tại /legal/ranking — việc chia nhóm không làm thay đổi tỷ trọng này; các tin bằng điểm nhau được xếp xen kẽ theo người bán và mẫu sản phẩm, chỉ trong phạm vi cùng một nhóm. Các tin chỉ khớp ở phần khác, như phần mô tả, được xếp sau theo thứ tự mặc định. Khi người sử dụng tìm theo một thương hiệu trong lúc đang xem một danh mục, trong mỗi trang kết quả được tải, tin của thương hiệu đó thuộc danh mục đang xem được đưa lên trước các tin còn lại của trang; việc này không chuyển tin từ trang kết quả này sang trang kết quả khác.`,
-        en: `When a user searches by keyword and keeps the default ordering, results are ordered in two groups. The first group is the listings whose own title, model or brand, or the name of the aisle they are listed in, contains every search word; the second is the listings that need their category to match one of the words. Within each group, listings are ordered by a search score combining relevance to the query, seller trust and recency, with the weights published at /legal/ranking — the grouping does not change those weights; listings with equal scores are interleaved by seller and by product model, within the same group only. Listings that match only elsewhere, such as in the description, follow in the default order. When a user searches for a brand while browsing a category, within each page of results as it loads, that brand’s listings in the category being browsed are moved ahead of the rest of that page; no listing is moved from one page of results to another.`,
-      },
-      {
-        // Version 3 (2026-10-05). The list is search-synonyms.ts CONDITION_PHRASES ("such as" — it holds a few
-        // spellings more); "shows the items for sale" is the sale scope feed-query.ts gives such a query.
-        vi: `Các từ chỉ tình trạng hàng hoá, như “second hand”, “used”, “cũ”, “đồ cũ” hoặc “đã qua sử dụng”, không được dùng để tìm trong nội dung tin đăng và không lọc kết quả theo tình trạng. Khi từ khoá chỉ gồm những từ này, kết quả là các món hàng đang được đăng bán. Tình trạng hoặc loại tin do người sử dụng tự chọn trong bộ lọc vẫn được áp dụng như bình thường.`,
-        en: `Words that describe condition, such as “second hand”, “used”, “cũ”, “đồ cũ” or “đã qua sử dụng”, are not looked for in the listing text and do not filter results by condition. A search made only of such words shows the items for sale. A condition or listing type the user picks in the filters applies as usual.`,
+        vi: `Khi người sử dụng tìm kiếm bằng từ khoá và giữ cách sắp xếp mặc định, các tin có đủ mọi từ khoá trong tiêu đề, mẫu mã, thương hiệu hoặc danh mục của chính tin đó được xếp trước, theo điểm tìm kiếm kết hợp mức độ phù hợp với từ khoá, điểm uy tín của người bán và độ mới (tỷ trọng công bố tại /legal/ranking); các tin chỉ khớp ở phần khác, như phần mô tả, được xếp sau theo thứ tự mặc định. Các tin bằng điểm nhau được xếp xen kẽ theo người bán và mẫu sản phẩm. Khi người sử dụng tìm theo một thương hiệu trong lúc đang xem một danh mục, trong mỗi trang kết quả được tải, tin của thương hiệu đó thuộc danh mục đang xem được đưa lên trước các tin còn lại của trang; việc này không chuyển tin từ trang kết quả này sang trang kết quả khác.`,
+        en: `When a user searches by keyword and keeps the default ordering, listings that contain every search term in their own title, model, brand or category come first, ordered by a search score combining relevance to the query, seller trust and recency (the weights are published at /legal/ranking); listings that match only elsewhere, such as in the description, follow in the default order. Listings with equal scores are interleaved by seller and by product model. When a user searches for a brand while browsing a category, within each page of results as it loads, that brand’s listings in the category being browsed are moved ahead of the rest of that page; no listing is moved from one page of results to another.`,
       },
       {
         vi: `Người sử dụng có thể tự chọn cách sắp xếp khác — mới nhất, giá tăng dần, giá giảm dần — và có thể lọc theo danh mục, khu vực, khoảng giá cùng các thuộc tính khác; khi người sử dụng đã chọn, lựa chọn đó được ưu tiên áp dụng thay cho thứ tự mặc định.`,
         en: `Users can choose a different ordering themselves — newest, price ascending, price descending — and can filter by category, area, price range and other attributes; where the user has chosen, that choice is applied instead of the default ordering.`,
       },
       {
-        // ⚠️ VERSION 3 (2026-10-05) ADDED THE VEHICLE-RENTAL SEAT AND THE MEMBERS' OWN SEAT. "Members' own job
-        // posts and vehicle rentals", NOT "members' own listings" at large: the eSIM seat is keyed by AISLE
-        // (SHARED_SEAT_SUBCATEGORIES), so a member's own eSIM listing shares it — only the two seller-keyed
-        // seats (SHARED_SEAT_SELLERS) leave a member's post its own seat.
-        vi: `Đa dạng người bán. Ở trang chủ và khi duyệt một danh mục theo thứ tự mặc định, ${FEED_DIVERSITY_WINDOW} vị trí đầu tiên được xếp xen kẽ theo người bán: tin có điểm cao nhất của mỗi người bán trước, rồi đến tin thứ hai của mỗi người bán, và cứ thế tiếp tục; trong mỗi lượt, thứ tự theo điểm được giữ nguyên và không tin nào bị ẩn. Để một danh mục do nhiều gian hàng cung cấp không chiếm hết trang đầu, ba nhóm tin dùng chung vị trí trong lượt xen kẽ đó: các gói eSIM của mọi nhà mạng dùng chung một vị trí; tin tuyển dụng dẫn từ các trang tuyển dụng dùng chung một vị trí; tin cho thuê xe dẫn từ các nền tảng và cửa hàng cho thuê xe dùng chung một vị trí. Tin tuyển dụng và tin cho thuê xe do thành viên tự đăng trên sàn vẫn giữ vị trí riêng của người đăng. Khi người sử dụng mở riêng mục eSIM, danh mục Việc làm hoặc một mục cho thuê xe, mỗi nhà mạng, mỗi trang tuyển dụng, mỗi nền tảng hoặc cửa hàng cho thuê xe lại có vị trí riêng. Khi có đủ tin, các mục tin đề xuất cũng giới hạn số tin của mỗi người bán và bỏ qua tin trùng mẫu sản phẩm hoặc trùng ảnh bìa.`,
-        en: `Seller diversity. On the home page and when browsing a category in the default order, the first ${FEED_DIVERSITY_WINDOW} positions are interleaved by seller: each seller’s highest-scoring listing first, then each seller’s second, and so on; within each round the score order is kept and no listing is hidden. So that a category supplied by many storefronts cannot fill the first page, three groups share seats in that rotation: eSIM plans from every carrier share one seat; job postings linked from job boards share one; and vehicle rentals linked from rental platforms and shops share one. Job postings and vehicle rentals that members post on the platform themselves keep their poster’s own seat. When the user opens the eSIM aisle, the Jobs category or a vehicle-rental aisle itself, each carrier, each job board and each rental platform or shop has its own seat again. Where enough listings exist, recommendation rails likewise limit how many listings each seller gets and skip listings that repeat a product model or a cover photo.`,
-      },
-      {
-        // Version 3 (2026-10-05) — the home-feed package's second-hand floor; see the code-fact note above.
-        vi: `Ở trang chủ, theo thứ tự mặc định, khi có đủ tin, ít nhất hai trong bốn vị trí đầu tiên và ít nhất bốn trong mười hai vị trí đầu tiên là đồ đã qua sử dụng đang được đăng bán.`,
-        en: `On the home page, in the default order, where enough such listings exist, at least two of the first four positions and at least four of the first twelve are second-hand goods for sale.`,
+        vi: `Đa dạng người bán. Ở trang chủ và khi duyệt một danh mục theo thứ tự mặc định, ${FEED_DIVERSITY_WINDOW} vị trí đầu tiên được xếp xen kẽ theo người bán: tin có điểm cao nhất của mỗi người bán trước, rồi đến tin thứ hai của mỗi người bán, và cứ thế tiếp tục; trong mỗi lượt, thứ tự theo điểm được giữ nguyên và không tin nào bị ẩn. Các gói eSIM của mọi nhà mạng dùng chung một vị trí trong lượt xen kẽ đó, và tin tuyển dụng dẫn từ các trang tuyển dụng cũng vậy, để một danh mục do nhiều gian hàng cung cấp không chiếm hết trang đầu; khi người sử dụng mở riêng mục eSIM hoặc danh mục Việc làm, mỗi nhà mạng, mỗi trang tuyển dụng lại có vị trí riêng. Khi có đủ tin, các mục tin đề xuất cũng giới hạn số tin của mỗi người bán và bỏ qua tin trùng mẫu sản phẩm hoặc trùng ảnh bìa.`,
+        en: `Seller diversity. On the home page and when browsing a category in the default order, the first ${FEED_DIVERSITY_WINDOW} positions are interleaved by seller: each seller’s highest-scoring listing first, then each seller’s second, and so on; within each round the score order is kept and no listing is hidden. eSIM plans from every carrier share one seat in that rotation, as do job postings linked from job boards, so that a category supplied by many storefronts cannot fill the first page; when the user opens the eSIM aisle or the Jobs category itself, each carrier and each job board has its own seat again. Where enough listings exist, recommendation rails likewise limit how many listings each seller gets and skip listings that repeat a product model or a cover photo.`,
       },
       {
         vi: `Trang hướng dẫn và trang giới thiệu theo chủ đề. Danh sách tin đăng trên các trang này lấy tin trực tiếp từ sàn: danh sách dành cho một loại sản phẩm hoặc một mẫu cụ thể được xếp theo giá từ thấp đến cao; danh sách dành cho cả một danh mục được xếp tin nổi bật trước, rồi đến tin mới nhất; danh sách gồm nhiều loại nhà ở ưu tiên tin có từ ba ảnh trở lên.`,
@@ -823,33 +705,33 @@ const ARTICLES: Article[] = [
     // The 2026-10 entry was re-dated ON ITS OWN PUBLICATION DAY (owner, 2026-10-01: in force at once, no
     // announcement — LEGAL_AMENDMENT.immediate): it first said "published 01/10, in force 07/10; until then
     // version 1 applies". One date now, because it was published and took effect the same day.
-    // ⚠️ ITS DATE NOW COMES FROM V1_SUPERSEDED (legal-archive.ts) — the same 01/10/2026 LEGAL_AMENDMENT holds,
-    // but held there to a literal once that record moves on, so this entry can never take a later
-    // amendment's date. Its words are unchanged.
-    // VERSION 3's entry (2026-10-05) is the second — immediate like version 2, so it has one date too. Dated
-    // through V2_SUPERSEDED for the same reason: REGULATIONS_AMENDMENT's dates today, a literal once a
-    // version 4 re-uses that record (legal-archive.test.ts).
     id: 'changelog',
     rail: '17. Change history',
     titleVi: 'Điều 17. Lịch sử sửa đổi, bổ sung',
     titleEn: 'Article 17. Change history',
     body: [
       {
-        vi: `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${V1_SUPERSEDED.inForceVi}; nội dung trước sửa đổi (phiên bản ${V1}) được lưu tại ${V1_PATHS.regulations}. Nội dung sửa đổi, bổ sung gồm: ${numbered(CHANGES_V2, 'vi')}.`,
-        en: `Amendments published on and in force from ${V1_SUPERSEDED.inForceEn}; the previous text (version ${V1}) is archived at ${V1_PATHS.regulations}. They: ${numbered(CHANGES_V2, 'en')}.`,
-      },
-      {
-        vi: `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${V2_SUPERSEDED.inForceVi}; nội dung trước sửa đổi (phiên bản ${V2}) được lưu tại ${V2_PATHS.regulations}. Nội dung sửa đổi, bổ sung gồm: ${numbered(CHANGES_V3, 'vi')}.`,
-        en: `Amendments published on and in force from ${V2_SUPERSEDED.inForceEn}; the previous text (version ${V2}) is archived at ${V2_PATHS.regulations}. They: ${numbered(CHANGES_V3, 'en')}.`,
+        vi: `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${AMENDED.inForceVi}; nội dung trước sửa đổi (phiên bản ${V1}) được lưu tại ${V1_PATHS.regulations}. Nội dung sửa đổi, bổ sung gồm: ${numbered('vi')}.`,
+        en: `Amendments published on and in force from ${AMENDED.inForceEn}; the previous text (version ${V1}) is archived at ${V1_PATHS.regulations}. They: ${numbered('en')}.`,
       },
     ],
   },
 ]
 
+/**
+ * What this page is, said first and in both languages. Version 3 replaced it on its own publication day —
+ * an immediate amendment (owner, 2026-10-05: no notice window) — so there is one date and no "until then".
+ */
+const ARCHIVE: Para = {
+  vi: `Đây là phiên bản ${V2} của Quy chế. Phiên bản ${V2_SUPERSEDED_BY.version} thay thế phiên bản này kể từ ngày ${V2_SUPERSEDED.inForceVi}. Bản mới nhất được đăng tại /regulations.`,
+  en: `This is version ${V2} of these Regulations. Version ${V2_SUPERSEDED_BY.version} replaced it with effect from ${V2_SUPERSEDED.inForceEn}. The latest text is published at /regulations.`,
+}
+
 export const metadata: Metadata = withShare({
-  title: `Quy chế hoạt động | Operating Regulations | ${SITE_NAME}`,
-  description: `Quy chế hoạt động sàn giao dịch thương mại điện tử ${SITE_NAME}: phạm vi hoạt động, quyền và nghĩa vụ của các bên, quy trình đăng tin, rà soát nội dung, khiếu nại và tiêu chí hiển thị. Operating regulations of the ${SITE_NAME} e-commerce platform.`,
-  alternates: { canonical: '/regulations' },
+  title: `Quy chế hoạt động — phiên bản ${V2} | Operating Regulations — version ${V2} | ${SITE_NAME}`,
+  description: `Phiên bản ${V2} của Quy chế hoạt động ${SITE_NAME}, được lưu trữ. Version ${V2} of the ${SITE_NAME} Operating Regulations, archived.`,
+  alternates: { canonical: '/regulations/v2' },
+  robots: { index: false, follow: true },
 })
 
 /**
@@ -891,15 +773,14 @@ function DeadlineTable({ head, rows }: { head: Para[]; rows: Para[][] }) {
 // ⚠️ ContentPage renders `intro` INSIDE a <p>, so only phrasing content may be passed to it —
 // <span className="block">, never a <div> or a nested <p>. `meta` is a sibling of the <h1> and has
 // no such constraint.
-export default function RegulationsPage() {
+export default function RegulationsV2Page() {
   return (
     <ContentPage
       title="Quy chế hoạt động (Operating Regulations)"
       meta={
         <div className="mt-3 max-w-[70ch] space-y-1">
-          {/* Linkified: META names where the previous version is published (/regulations/v2 since
-              version 3 — the version in force during a notice window, if an amendment has one), and
-              Article 15 promises the version in force is always one step away. */}
+          <p className="text-sm font-semibold text-foreground" lang="vi">{linkifyLegal(ARCHIVE.vi)}</p>
+          <p className="text-sm text-foreground" lang="en">{linkifyLegal(ARCHIVE.en)}</p>
           <p className="text-sm text-ink-4" lang="vi">{linkifyLegal(META.vi)}</p>
           <p className="text-sm text-ink-4" lang="en">{linkifyLegal(META.en)}</p>
         </div>

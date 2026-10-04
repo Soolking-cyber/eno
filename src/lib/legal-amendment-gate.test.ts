@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
+import { LEGAL_AMENDMENT, REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
 
 /**
  * infra/vn-node/legal-amendment-gate.sh — the deploy refuses to PUBLISH a legal amendment on any day but
@@ -12,21 +12,55 @@ import { LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
  *
  * Each case runs the real script against a throwaway git repository whose "deployed commit" carries
  * whatever dates the case needs, with the clock replaced by ENO_GATE_TODAY.
+ *
+ * ⚠️ TWO RECORDS SINCE 2026-10-05 (legal-amendment.ts): LEGAL_AMENDMENT and REGULATIONS_AMENDMENT, each held
+ * to the same rules. The cases written for one amendment set BOTH records to the same dates (withDates'
+ * default), so each of them proves the rule for both records at once; the REGULATIONS_AMENDMENT block
+ * further down moves the Quy chế's record on its own.
  */
 const ROOT = join(__dirname, '..', '..')
 const GATE = join(ROOT, 'infra/vn-node/legal-amendment-gate.sh')
 const F = 'src/lib/compliance/legal-amendment.ts'
 const SOURCE = readFileSync(join(ROOT, F), 'utf8')
 
-/**
- * The real module's source with its two dates replaced, and its `immediate: true` line kept or removed —
- * the gate must parse the file as it is written.
- */
+type Dates = [published: string, inForce: string, immediate?: boolean]
+const RECORDS = ['LEGAL_AMENDMENT', 'REGULATIONS_AMENDMENT'] as const
+type Rec = (typeof RECORDS)[number]
+
+/** The `immediate: true` field line — the only form the gate reads as the flag. */
 const IMMEDIATE_LINE = /^[ \t]*immediate: true,?[ \t]*$/m
-const withDates = (published: string, inForce: string, immediate = false) => {
-  const dated = SOURCE.replace(/published: '\d{4}-\d{2}-\d{2}'/, `published: '${published}'`).replace(/inForce: '\d{4}-\d{2}-\d{2}'/, `inForce: '${inForce}'`)
-  if (!immediate) return dated.replace(IMMEDIATE_LINE, '')
-  return IMMEDIATE_LINE.test(dated) ? dated : dated.replace(/^([ \t]*)(inForce: '[^']+',)$/m, '$1$2\n$1immediate: true,')
+
+/** [start, end) of `export const <name>` through its closing `}` line — exactly the lines the gate's obj() reads. */
+function span(src: string, name: string): [number, number] {
+  const start = src.search(new RegExp(`^export const ${name}[ :=]`, 'm'))
+  if (start < 0) throw new Error(`${name} is not in the source`)
+  const close = /^}.*$/m.exec(src.slice(start))
+  if (!close) throw new Error(`${name} has no closing brace`)
+  return [start, start + close.index + close[0].length]
+}
+
+/** The source with one record's two dates replaced and its flag kept or removed — inside its own object only. */
+function setRecord(src: string, name: Rec, [published, inForce, immediate = false]: Dates): string {
+  const [a, b] = span(src, name)
+  let o = src.slice(a, b)
+    .replace(/published: '\d{4}-\d{2}-\d{2}'/, `published: '${published}'`)
+    .replace(/inForce: '\d{4}-\d{2}-\d{2}'/, `inForce: '${inForce}'`)
+    .replace(IMMEDIATE_LINE, '')
+  if (immediate) o = o.replace(/^([ \t]*)(inForce: '[^']+',)$/m, '$1$2\n$1immediate: true,')
+  return src.slice(0, a) + o + src.slice(b)
+}
+
+/**
+ * The real module's source with LEGAL_AMENDMENT set to `legal` and REGULATIONS_AMENDMENT to `regs` — by
+ * default THE SAME, so the two records move together and a case reads as one amendment. It edits the real
+ * text in place: the gate must parse the file as it is written.
+ */
+const withDates = (legal: Dates, regs: Dates = legal) => setRecord(setRecord(SOURCE, 'LEGAL_AMENDMENT', legal), 'REGULATIONS_AMENDMENT', regs)
+
+/** The source without one record's object — a deployed commit from before that record existed. */
+function without(src: string, name: Rec): string {
+  const [a, b] = span(src, name)
+  return src.slice(0, a) + src.slice(b)
 }
 
 /**
@@ -45,22 +79,23 @@ const git = (dir: string, ...args: string[]) =>
   }).trim()
 
 /**
- * A repository whose DEPLOYED commit carries `deployed` dates (or no legal-amendment.ts at all), and whose
- * working tree — what this deploy builds — carries `building`. Plumbing only: no hooks, no branch moves.
+ * A repository whose DEPLOYED commit holds `deployed` (or no legal-amendment.ts at all), and whose
+ * working tree — what this deploy builds — holds `building`. Plumbing only: no hooks, no branch moves.
  */
-type Dates = [published: string, inForce: string, immediate?: boolean]
-
-function box(building: Dates, deployed: Dates | null): { dir: string; sha: string } {
+function boxSrc(building: string, deployed: string | null): { dir: string; sha: string } {
   const dir = mkdtempSync(join(tmpdir(), 'eno-gate-'))
   git(dir, 'init', '-q')
   mkdirSync(join(dir, 'src/lib/compliance'), { recursive: true })
   const file = join(dir, F)
-  writeFileSync(file, deployed ? withDates(...deployed) : '// before the amendment existed\n')
+  writeFileSync(file, deployed ?? '// before the amendment existed\n')
   git(dir, 'add', F)
   const sha = git(dir, 'commit-tree', git(dir, 'write-tree'), '-m', 'deployed')
-  writeFileSync(file, withDates(...building))
+  writeFileSync(file, building)
   return { dir, sha }
 }
+
+/** The same from dates, both records carrying them (withDates' default). */
+const box = (building: Dates, deployed: Dates | null) => boxSrc(withDates(building), deployed ? withDates(deployed) : null)
 
 function gate(at: { dir: string; sha: string }, today: string, env: Record<string, string> = {}) {
   const r = spawnSync('bash', [GATE, at.dir, at.sha], {
@@ -75,20 +110,59 @@ const OCT: Dates = ['2026-10-01', '2026-10-07']
 const NOW: Dates = ['2026-10-01', '2026-10-01', true]
 
 describe('legal-amendment-gate.sh', () => {
-  it('reads the dates and the immediate flag the TypeScript module exports', () => {
+  // ⛔ THE STATE THE NEXT DEPLOY MEETS (2026-10-05): the box's deployed commit carries LEGAL_AMENDMENT exactly
+  // as it is now (immediate, 01/10 — prod since 86f531e1) and NO Quy chế record; the working tree is the real
+  // module, verbatim. So October's amendment is routine and the Quy chế's version 3 publishes, on its day only.
+  it('reads the dates and the flags the module exports, in the state the next deploy meets', () => {
     expect(LEGAL_AMENDMENT.immediate).toBe(true)
-    const day = LEGAL_AMENDMENT.published
-    const unacked = gate({ dir: ROOT, sha: '' }, day)
+    expect(REGULATIONS_AMENDMENT.immediate).toBe(true)
+    const at = boxSrc(SOURCE, without(SOURCE, 'REGULATIONS_AMENDMENT'))
+    const day = REGULATIONS_AMENDMENT.published
+    const unacked = gate(at, day)
     expect(unacked.status).toBe(1)
+    expect(unacked.out).toContain(`legal amendment published ${LEGAL_AMENDMENT.published} (in force ${LEGAL_AMENDMENT.inForce}, immediate) is already live`)
     expect(unacked.out).toContain(`LEGAL_AMENDMENT_IMMEDIATE=${day} bash eno-deploy.sh`)
-    const r = gate({ dir: ROOT, sha: '' }, day, { LEGAL_AMENDMENT_IMMEDIATE: day })
+    const r = gate(at, day, { LEGAL_AMENDMENT_IMMEDIATE: day })
     expect(r.status).toBe(0)
-    expect(r.out).toContain(`IMMEDIATE legal amendment: published and in force ${LEGAL_AMENDMENT.inForce} (today)`)
+    expect(r.out).toContain(`IMMEDIATE Quy chế amendment (REGULATIONS_AMENDMENT): published and in force ${REGULATIONS_AMENDMENT.inForce} (today)`)
+    // Any other day refuses, acknowledged or not — the day after, whatever date the deployer typed.
+    const dayAfter = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+    expect(gate(at, dayAfter, { LEGAL_AMENDMENT_IMMEDIATE: day }).status).toBe(1)
   })
 
-  it('withDates really writes and removes the flag the gate reads', () => {
-    expect(IMMEDIATE_LINE.test(withDates(...OCT))).toBe(false)
-    expect(IMMEDIATE_LINE.test(withDates(...NOW))).toBe(true)
+  it('withDates sets each record inside its own object — dates and flag', () => {
+    const windowed = withDates(OCT)
+    const both = withDates(NOW)
+    const apart = withDates(OCT, ['2026-11-02', '2026-11-02', true])
+    for (const name of RECORDS) {
+      expect(IMMEDIATE_LINE.test(windowed.slice(...span(windowed, name))), name).toBe(false)
+      expect(IMMEDIATE_LINE.test(both.slice(...span(both, name))), name).toBe(true)
+    }
+    expect(apart.slice(...span(apart, 'LEGAL_AMENDMENT'))).toContain("inForce: '2026-10-07'")
+    expect(IMMEDIATE_LINE.test(apart.slice(...span(apart, 'LEGAL_AMENDMENT')))).toBe(false)
+    expect(apart.slice(...span(apart, 'REGULATIONS_AMENDMENT'))).toContain("published: '2026-11-02'")
+    expect(IMMEDIATE_LINE.test(apart.slice(...span(apart, 'REGULATIONS_AMENDMENT')))).toBe(true)
+    expect(() => span(without(SOURCE, 'REGULATIONS_AMENDMENT'), 'REGULATIONS_AMENDMENT')).toThrow()
+  })
+
+  // ⛔ A RECORD THE GATE DOES NOT KNOW SHIPS UNGATED. Every exported object carrying amendment dates is one
+  // `check` line in the script — the annotated LegalAmendment consts and any unannotated look-alike.
+  it('checks exactly the records the module exports, each an object literal of its own', () => {
+    const dated = [...SOURCE.matchAll(/^export const (\w+)[ :=]/gm)]
+      .map((m) => m[1])
+      .filter((name) => {
+        // A const with no object after it (a number, a call) spans to the next closing brace or the end.
+        let body: string
+        try { body = SOURCE.slice(...span(SOURCE, name)) } catch { body = SOURCE.slice(SOURCE.search(new RegExp(`^export const ${name}[ :=]`, 'm'))) }
+        return /published: '\d{4}-\d{2}-\d{2}'/.test(body)
+      })
+      .sort()
+    expect(dated).toEqual([...RECORDS].sort())
+    const annotated = [...SOURCE.matchAll(/^export const (\w+): LegalAmendment\b/gm)].map((m) => m[1]).sort()
+    expect(annotated).toEqual(dated)
+    const gated = [...readFileSync(GATE, 'utf8').matchAll(/^check (\w+) /gm)].map((m) => m[1]).sort()
+    expect(gated).toEqual(dated)
+    for (const name of RECORDS) expect(SOURCE.slice(...span(SOURCE, name)), name).toMatch(/inForce: '\d{4}-\d{2}-\d{2}'/)
   })
 
   it('publishes only on the publication date', () => {
@@ -115,7 +189,7 @@ describe('legal-amendment-gate.sh', () => {
   })
 
   it('treats changed dates as a new publication, re-dated or not', () => {
-    // The next amendment re-uses LEGAL_AMENDMENT: dates that differ from the deployed commit's publish anew.
+    // The next amendment re-uses a record: dates that differ from the deployed commit's publish anew.
     const next = box(['2026-11-02', '2026-11-09'], OCT)
     expect(gate(next, '2026-11-02').status).toBe(0)
     expect(gate(next, '2026-11-05').status).toBe(1)
@@ -148,7 +222,7 @@ describe('legal-amendment-gate.sh', () => {
   // must change nothing; unscoped, this windowed amendment would read as an immediate one dated 2026-01-01.
   it('reads the dates and the flag from LEGAL_AMENDMENT only, never from another object in the file', () => {
     const other = (name: string) => `export const ${name}: LegalAmendment = {\n  published: '2026-01-01',\n  inForce: '2026-01-01',\n  immediate: true,\n}\n`
-    const src = withDates(...OCT).replace(/^export const LEGAL_AMENDMENT\b/m, `${other('EXAMPLE_BEFORE')}\n$&`) + `\n${other('EXAMPLE_AFTER')}`
+    const src = withDates(OCT).replace(/^export const LEGAL_AMENDMENT\b/m, `${other('EXAMPLE_BEFORE')}\n$&`) + `\n${other('EXAMPLE_AFTER')}`
     expect(src.match(/^[ \t]*immediate: true,$/gm)?.length).toBe(2)
     const dir = mkdtempSync(join(tmpdir(), 'eno-gate-'))
     mkdirSync(join(dir, 'src/lib/compliance'), { recursive: true })
@@ -164,18 +238,13 @@ describe('legal-amendment-gate.sh', () => {
   })
 
   it('reads the deployed commit the same way — its `} as const` object (1cf99b2) included', () => {
-    // The shape prod carries: `export const LEGAL_AMENDMENT = {` … `} as const`, then other objects.
+    // The shape prod carries: `export const LEGAL_AMENDMENT = {` … `} as const`, then other objects — and no
+    // Quy chế record, which this deploy then publishes (on its own day, here 2026-10-05, windowed).
     const deployed = "export const LEGAL_AMENDMENT = {\n  published: '2026-10-01',\n  inForce: '2026-10-07',\n} as const\n\nexport const X = {\n  immediate: true,\n}\n"
-    const dir = mkdtempSync(join(tmpdir(), 'eno-gate-'))
-    git(dir, 'init', '-q')
-    mkdirSync(join(dir, 'src/lib/compliance'), { recursive: true })
-    writeFileSync(join(dir, F), deployed)
-    git(dir, 'add', F)
-    const sha = git(dir, 'commit-tree', git(dir, 'write-tree'), '-m', 'deployed')
-    writeFileSync(join(dir, F), withDates(...OCT))
-    const r = gate({ dir, sha }, '2026-10-05')
+    const r = gate(boxSrc(withDates(OCT, ['2026-10-05', '2026-10-11']), deployed), '2026-10-05')
     expect(r.status).toBe(0)
-    expect(r.out).toContain('is already live')
+    expect(r.out).toContain('legal amendment published 2026-10-01 (in force 2026-10-07) is already live')
+    expect(r.out).toContain('publishes the Quy chế amendment (REGULATIONS_AMENDMENT) today (2026-10-05)')
   })
 
   // ⛔ Owner, 2026-10-01: "just change now we dont have users so its safe to implement just new terms no
@@ -225,7 +294,7 @@ describe('legal-amendment-gate.sh', () => {
     it('reads the flag only from the field, never from a comment that mentions it', () => {
       const dir = mkdtempSync(join(tmpdir(), 'eno-gate-'))
       mkdirSync(join(dir, 'src/lib/compliance'), { recursive: true })
-      writeFileSync(join(dir, F), withDates('2026-10-01', '2026-10-01').replace(/^(\s*)(inForce: '[^']+',)$/m, '$1$2\n$1// immediate: true,'))
+      writeFileSync(join(dir, F), withDates(['2026-10-01', '2026-10-01']).replace(/^(\s*)(inForce: '[^']+',)$/m, '$1$2\n$1// immediate: true,'))
       const r = gate({ dir, sha: '' }, '2026-10-01', { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-01' })
       expect(r.status).toBe(1)
       expect(r.out).toContain('only 0 day(s)')
@@ -243,6 +312,89 @@ describe('legal-amendment-gate.sh', () => {
     it('treats dropping or adding the flag on the same dates as a change, not a routine deploy', () => {
       // Deployed immediate, building the same dates without it: a 0-day window — refused before the routine check.
       expect(gate(box(['2026-10-01', '2026-10-01'], NOW), '2026-10-05').status).toBe(1)
+    })
+  })
+
+  // ⛔ THE QUY CHẾ'S OWN RECORD (2026-10-05). Version 3 amended the Quy chế alone (owner: "apply best
+  // recommended" — immediate, the 2026-10-01 precedent), so REGULATIONS_AMENDMENT moves while LEGAL_AMENDMENT
+  // stays as prod has it. The same rules, on its own dates — and nothing about it may lean on the other record.
+  describe('the Quy chế record (REGULATIONS_AMENDMENT), moved on its own', () => {
+    const V3: Dates = ['2026-10-06', '2026-10-06', true]
+    // Prod: October's amendment live, no Quy chế record yet.
+    const PROD = without(withDates(NOW), 'REGULATIONS_AMENDMENT')
+
+    it('publishes on its day with LEGAL_AMENDMENT_IMMEDIATE=<its date>, October staying routine', () => {
+      const at = boxSrc(withDates(NOW, V3), PROD)
+      const bare = gate(at, '2026-10-06')
+      expect(bare.status).toBe(1)
+      expect(bare.out).toContain('legal amendment published 2026-10-01 (in force 2026-10-01, immediate) is already live')
+      expect(bare.out).toContain('IMMEDIATE Quy chế amendment (REGULATIONS_AMENDMENT): published AND in force 2026-10-06, with NO notice window')
+      expect(bare.out).toContain('LEGAL_AMENDMENT_IMMEDIATE=2026-10-06 bash eno-deploy.sh')
+      const acked = gate(at, '2026-10-06', { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-06' })
+      expect(acked.status).toBe(0)
+      expect(acked.out).toContain('proceeding on LEGAL_AMENDMENT_IMMEDIATE=2026-10-06')
+      // October's date does not unlock it, and neither does the late-publication ack.
+      expect(gate(at, '2026-10-06', { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-01' }).status).toBe(1)
+      expect(gate(at, '2026-10-06', { LEGAL_AMENDMENT_ACK: '2026-10-06' }).status).toBe(1)
+    })
+
+    it('refuses any other day, and says to re-date the Quy chế record — with no bell-notice hint', () => {
+      const at = boxSrc(withDates(NOW, V3), PROD)
+      for (const day of ['2026-10-05', '2026-10-07']) {
+        const r = gate(at, day, { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-06', LEGAL_AMENDMENT_ACK: '2026-10-06' })
+        expect(r.status, day).toBe(1)
+        expect(r.out, day).toContain(`set published: '${day}' and inForce: '${day}' in ${F} (REGULATIONS_AMENDMENT)`)
+        // The Quy chế record never sent a bell notice (notify-legal-amendment.ts reads LEGAL_AMENDMENT only).
+        expect(r.out, day).not.toContain('--retract')
+      }
+    })
+
+    it('passes every later deploy once version 3 is deployed, with no ack', () => {
+      const live = boxSrc(withDates(NOW, V3), withDates(NOW, V3))
+      for (const day of ['2026-10-06', '2026-10-07', '2027-03-01']) {
+        const r = gate(live, day)
+        expect(r.status, day).toBe(0)
+        expect(r.out, day).toContain('Quy chế amendment (REGULATIONS_AMENDMENT) published 2026-10-06 (in force 2026-10-06, immediate) is already live')
+      }
+    })
+
+    it('treats a re-dated Quy chế record as a new publication', () => {
+      const at = boxSrc(withDates(NOW, ['2026-10-08', '2026-10-08', true]), withDates(NOW, V3))
+      expect(gate(at, '2026-10-08').status).toBe(1)
+      expect(gate(at, '2026-10-08', { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-08' }).status).toBe(0)
+    })
+
+    it('holds a windowed Quy chế-only amendment to the default 6 days', () => {
+      const next = boxSrc(withDates(NOW, ['2026-11-02', '2026-11-08']), withDates(NOW, V3))
+      const onDay = gate(next, '2026-11-02')
+      expect(onDay.status).toBe(0)
+      expect(onDay.out).toContain('publishes the Quy chế amendment (REGULATIONS_AMENDMENT) today (2026-11-02); in force 2026-11-08, 6 days later')
+      const late = gate(next, '2026-11-03')
+      expect(late.status).toBe(1)
+      expect(late.out).toContain('/regulations and /legal/ranking would print a false publication date')
+      expect(late.out).toContain('only 4 clear day(s) of notice')
+      const short = gate(boxSrc(withDates(NOW, ['2026-11-02', '2026-11-05']), withDates(NOW, V3)), '2026-11-02')
+      expect(short.status).toBe(1)
+      expect(short.out).toContain(`${F} (REGULATIONS_AMENDMENT): in force 2026-11-05 is only 3 day(s) after publication 2026-11-02`)
+    })
+
+    it('refuses a working tree whose Quy chế record cannot be read', () => {
+      const r = gate(boxSrc(PROD, PROD), '2026-10-06', { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-06' })
+      expect(r.status).toBe(1)
+      expect(r.out).toContain('legal amendment published 2026-10-01 (in force 2026-10-01, immediate) is already live')
+      expect(r.out).toContain('cannot read REGULATIONS_AMENDMENT.published')
+    })
+
+    it('reads each record’s dates and flag from its own object, never the other’s', () => {
+      // October immediate + a windowed Quy chế record on the same day: the window is the Quy chế's own.
+      const a = gate(boxSrc(withDates(NOW, OCT), null), '2026-10-01', { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-01' })
+      expect(a.status).toBe(0)
+      expect(a.out).toContain('publishes the Quy chế amendment (REGULATIONS_AMENDMENT) today (2026-10-01); in force 2026-10-07, 6 days later')
+      // …and the reverse: an immediate Quy chế record still wants its ack beside a windowed October.
+      const b = gate(boxSrc(withDates(OCT, NOW), null), '2026-10-01')
+      expect(b.status).toBe(1)
+      expect(b.out).toContain('publishes the legal amendment today (2026-10-01); in force 2026-10-07, 6 days later')
+      expect(b.out).toContain('IMMEDIATE Quy chế amendment (REGULATIONS_AMENDMENT): published AND in force 2026-10-01')
     })
   })
 

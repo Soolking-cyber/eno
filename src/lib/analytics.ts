@@ -47,11 +47,37 @@ declare global {
 
 import { getAttribution } from './attribution'
 import { hasAdConsent, hasAnalyticsConsent } from './consent'
+import { IS_MARKETPLACE } from './edition'
 
 export type Currency = 'VND' | 'USD'
 
 /** GA4 measurement id. NEXT_PUBLIC_GA_ID overrides the public default. */
 export const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-CKTZK62B0X'
+
+/**
+ * THE SEO TOOL'S GA4 STREAM — eno.vn only (owner, 2026-10-05: "apply best recommended").
+ * The SEO tool reads GA4 property 553789942, whose web stream is this id, and showed 0 rows: production
+ * only ever configured GA_ID, which belongs to a different property. So the marketplace configures BOTH
+ * (analytics-tags.tsx: one gtag.js, one `config` per id — Google's documented way to send one page to two
+ * properties) and every event without a `send_to` reaches both. Same consent gate, same kill switch
+ * (consent-runtime.ts sets `ga-disable-<id>` for every id here): nothing loads or sends for either without
+ * the Analytics purpose.
+ * ⚠️ eno.forum KEEPS EXACTLY ONE ID — the property is eno.vn's. A literal rather than an env var, like
+ * GA_ID's default: a measurement id is public (it is in every page), and an env-only value would be one
+ * more per-site setting to forget (CLAUDE.md "the trap is config").
+ */
+export const GA_SEO_ID = 'G-0EXQ7Q17YN'
+
+/**
+ * Every GA4 measurement id this build configures, primary first. Pure, so both editions are testable; an id
+ * equal to the primary (NEXT_PUBLIC_GA_ID set to the SEO stream) is configured once, never twice.
+ */
+export function gaMeasurementIds(primary: string, marketplace: boolean): string[] {
+  return marketplace && primary !== GA_SEO_ID ? [primary, GA_SEO_ID] : [primary]
+}
+
+/** This edition's ids — the marketplace: GA_ID and GA_SEO_ID; eno.forum: GA_ID alone. */
+export const GA_IDS: readonly string[] = gaMeasurementIds(GA_ID, IS_MARKETPLACE)
 
 // Convert eno.vn's display symbol ('₫' / '$') to an ISO currency code for analytics.
 export function currencyCode(symbol: string): Currency {

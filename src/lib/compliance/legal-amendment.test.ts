@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { AMENDED, LEGAL_AMENDMENT, MIN_NOTICE_DAYS, amendmentDatesProblem, dateEn, dateVi } from './legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT, MIN_NOTICE_DAYS, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT, amendmentDatesProblem, dateEn, dateVi } from './legal-amendment'
 
 const ROOT = join(__dirname, '..', '..', '..')
 
 describe('legal-amendment', () => {
-  it('the amendment typed in the module passes its own rule', () => {
+  it('the amendments typed in the module pass their own rule', () => {
     expect(amendmentDatesProblem(LEGAL_AMENDMENT)).toBeNull()
+    expect(amendmentDatesProblem(REGULATIONS_AMENDMENT)).toBeNull()
   })
 
   // Civil Code 2015 Art 147–148: the publication day is not counted, so "at least 5 days" needs the
@@ -56,6 +57,36 @@ describe('legal-amendment', () => {
     expect(dateEn('2026-10-07')).toBe('7 October 2026')
     expect(AMENDED.inForceVi).toBe(dateVi(LEGAL_AMENDMENT.inForce))
     expect(AMENDED.publishedEn).toBe(dateEn(LEGAL_AMENDMENT.published))
+    expect(REGULATIONS_AMENDED.inForceVi).toBe(dateVi(REGULATIONS_AMENDMENT.inForce))
+    expect(REGULATIONS_AMENDED.publishedEn).toBe(dateEn(REGULATIONS_AMENDMENT.published))
     expect(() => dateVi('07/10/2026')).toThrow()
+  })
+
+  // ⛔ Owner, 2026-10-05: "apply best recommended" — the Quy chế's version 3 (Article 14) follows the
+  // 2026-10-01 precedent: in force the day it is published, no window, no announcement. A Quy chế-only
+  // amendment: the Terms' record keeps October's dates.
+  describe('the Quy chế-only amendment (version 3, REGULATIONS_AMENDMENT)', () => {
+    it('is immediate: published and in force on one day, after October’s amendment', () => {
+      expect(REGULATIONS_AMENDMENT.immediate).toBe(true)
+      expect(REGULATIONS_AMENDMENT.inForce).toBe(REGULATIONS_AMENDMENT.published)
+      expect(REGULATIONS_AMENDMENT.published > LEGAL_AMENDMENT.published).toBe(true)
+      // The placeholder the deployer replaces with the real deploy day (the gate holds it there).
+      expect(REGULATIONS_AMENDMENT.published).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    })
+
+    it('leaves the Terms’ record — and with it the Terms runtime switch — on October’s dates', () => {
+      expect(LEGAL_AMENDMENT).toEqual({ published: '2026-10-01', inForce: '2026-10-01', immediate: true })
+    })
+
+    // ⚠️ The strip (tos-change-notice.tsx) and the bell notice (legal-amendment-notice.ts) read LEGAL_AMENDMENT
+    // only. A Quy chế-only amendment WITH a window would therefore be announced by nothing — the very notice
+    // Article 15 promises. Until they learn this record, it is immediate or it IS October's amendment.
+    it('is never a windowed amendment the announcement machinery cannot see', () => {
+      const sameAsTerms = REGULATIONS_AMENDMENT.published === LEGAL_AMENDMENT.published &&
+        REGULATIONS_AMENDMENT.inForce === LEGAL_AMENDMENT.inForce &&
+        REGULATIONS_AMENDMENT.immediate === LEGAL_AMENDMENT.immediate
+      expect(REGULATIONS_AMENDMENT.immediate === true || sameAsTerms,
+        'a windowed Quy chế-only amendment needs its own strip + bell notice first (tos-change-notice.tsx, legal-amendment-notice.ts)').toBe(true)
+    })
   })
 })

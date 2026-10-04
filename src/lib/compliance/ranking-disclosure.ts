@@ -13,6 +13,7 @@
 // ⚠️ Both editions. This is not visa/itinerary-gated.
 
 import { RANK } from '@/lib/ranking-formula'
+import { REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
 
 /** A disclosed ranking factor: what it is, how much it counts, and what it actually measures. */
 export type RankingFactor = {
@@ -100,19 +101,23 @@ export function searchFactors(): RankingFactor[] {
 export const FEATURED_BOOST_PCT = Math.round(RANK.FEATURED_BOOST * 100)
 
 /**
- * The date /legal/ranking prints as "Last updated" (ISO, Vietnam) — the page's OWN date, not a legal
- * amendment's.
+ * The date /legal/ranking prints as "Last updated" (ISO, Vietnam) — the page's OWN date, not
+ * LEGAL_AMENDMENT's.
  *
- * ⛔ '2026-10-05' IS A PLACEHOLDER. The deployer replaces it with the actual deploy day when this change
- * ships (UX program 2: the title tier, the condition words, the vehicle storefronts' shared seat). Do not
- * re-date it at any other time; every later change to the disclosure sets it the same way, on its own
- * deploy day — the day the text went live, never the day it was written.
+ * ⛔ TIED TO THE QUY CHẾ'S VERSION 3 FOR THIS DEPLOY, SO THERE IS ONE DATE TO SET. UX program 2's ranking
+ * change (the title tier, the condition words, the vehicle storefronts' shared seat, the home feed's
+ * second-hand floor) reaches this page and Quy chế Article 14 in the SAME deploy, so the page's date is
+ * REGULATIONS_AMENDMENT.published — the placeholder the deployer replaces with the real deploy day there,
+ * held to that day by the deploy gate. Do not re-date it at any other time.
+ * ⚠️ THE TIE IS FOR THIS CHANGE ONLY. The next change to this page that ships WITHOUT a Quy chế amendment
+ * replaces it with its own literal deploy day; a later Quy chế amendment that does not change this page
+ * must not move it either — legal-copy.test.tsx holds the tie only while REGULATIONS_VERSION is '3'.
  *
  * ⚠️ WHY ITS OWN DATE (review, 2026-10-04). Until then the page printed LEGAL_AMENDMENT.published, which is
  * true only while the page changes WITH an amendment. This disclosure follows the code (a ranking change
  * must reach it at once — docs/compliance-2026.md §4.1), so it is updated between amendments; re-dating
- * the amendment to suit it would falsify the Quy chế's own dates and trip the deploy gate.
+ * an amendment to suit it would falsify the Quy chế's own dates and trip the deploy gate.
  * ⚠️ Typed, never read from the clock: the page prerenders (revalidate 3600), and a build-time date
  * would move with every rebuild.
  */
-export const RANKING_DISCLOSURE_UPDATED = '2026-10-05'
+export const RANKING_DISCLOSURE_UPDATED: string = REGULATIONS_AMENDMENT.published

@@ -116,11 +116,11 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
         {/* keyword-rank.ts, header steps 1–4 (the title/model/brand tier before the category tier — text-relevance.ts
             MatchClass); feed-query.ts `priorityCategory` for the brand rule — a stable sort of each returned PAGE
             (api/listings/route.ts, `ordered`), never across pages.
-            ⚖️ UX PROGRAM 2 (2026-10-04) CHANGED THIS PAGE AND NOT THE QUY CHẾ. The title tier, the condition words
-            (next paragraph) and the vehicle storefronts' shared seat (#diversity) are NOT in Article 14
-            (/regulations#ranking): editing the filed, versioned Quy chế is an amendment (Article 15: 5 days'
-            notice, a new version, an Article 17 entry, MoIT re-filing once registered), which is the owner's
-            and counsel's call. Until they make it, Article 14 still says what it said on 01/10/2026. */}
+            ⚖️ UX PROGRAM 2 (2026-10-04) CHANGED THIS PAGE, AND THE QUY CHẾ FOLLOWED (2026-10-05): Article 14
+            (/regulations#ranking) states the title tier, the condition words (next paragraph), the vehicle
+            storefronts' shared seat and the home feed's second-hand floor (#diversity) in version 3 — an
+            immediate amendment (owner: "apply best recommended"; REGULATIONS_AMENDMENT, legal-amendment.ts),
+            dated with this page (RANKING_DISCLOSURE_UPDATED). Change one, change the other. */}
         <p>
           {tr(
             'With the default order, listings come first when every word you typed is in their own title, model or brand, or is the name of the aisle they are listed in; then come listings that need their category for one of the words, each group ranked by the score above. Listings that match only elsewhere, such as in the description, follow in the browse order. Listings with exactly equal scores are interleaved by seller and by model. If you search for a brand while browsing a category, each page of results puts that brand’s listings in your category ahead of the rest of that page; no listing moves from one page to another.',
@@ -160,6 +160,18 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
           {tr(
             'eSIM plans from every carrier share one seat in that rotation, as do job postings linked from job boards and vehicle rentals linked from rental platforms and shops, so that a catalogue split across many storefronts cannot take over the first page either. Open the eSIM aisle, the Jobs category or a vehicle rental aisle itself and every carrier, job board and rental shop gets its own seat again.',
             'Các gói eSIM của mọi nhà mạng dùng chung một vị trí trong lượt chia đó, tin tuyển dụng dẫn từ các trang tuyển dụng và tin cho thuê xe dẫn từ các nền tảng, cửa hàng cho thuê xe cũng vậy, để một danh mục do nhiều gian hàng cung cấp cũng không chiếm hết trang đầu. Khi bạn mở riêng mục eSIM, danh mục Việc làm hoặc một mục cho thuê xe, mỗi nhà mạng, mỗi trang tuyển dụng, mỗi cửa hàng cho thuê xe lại có vị trí riêng.',
+          )}
+        </p>
+{/* THE HOME FEED'S SECOND-HAND FLOOR — feed-diversity.ts GOODS_SEATS / reserveGoodsSeats (UX program 2,
+            plan C7, owner 2026-10-05). On the home page's unfiltered default feed only (goodsSeatsFor), a USED
+            for-sale listing in a category of things (isSecondHandGoods) is moved up into the seats — nothing is
+            hidden and no score changes. "two of the first four … four of the first twelve" ARE GOODS_SEATS, and
+            Quy chế v3 Article 14 states the same rule; legal-copy.test.tsx holds all three together.
+            ⚠️ The English stays ≤ 400 characters (gen-ui-strings). */}
+        <p>
+          {tr(
+            'On the home page, in the default order, at least two of the first four listings and four of the first twelve are second-hand goods for sale, when there are enough of them.',
+            'Ở trang chủ, theo thứ tự mặc định, ít nhất hai trong bốn tin đầu tiên và bốn trong mười hai tin đầu tiên là đồ đã qua sử dụng đang được đăng bán, khi có đủ tin như vậy.',
           )}
         </p>
       </ContentSection>

@@ -26,7 +26,7 @@ type Tr = (en: string, vi?: string) => string
  * ⛔ THE FREE-CHECK PROMISE, WRITTEN ONCE. Owner, 2026-09-25: *"write shortly on every step that all
  * is free checking and eno team doesnt charge the users for checking prices wont change when they go
  * to see the rentals"*. Every step of the flow says it — the first add, the pill, the list page, the
- * button, the sign-in prompt and the success toast — and they all read these three helpers so the
+ * button, the sign-in prompt and the success toast — and they all read these helpers so the
  * wording cannot drift between steps.
  * ⚠️ WORDED AS WHAT eno DOES, NOT AS A PRICE GUARANTEE. eno cannot promise a landlord's price; it
  * can promise that it charges nothing and adds nothing to the listed rent. "No fee or markup" is the
@@ -42,9 +42,20 @@ export const rentalFreeLine = (tr: Tr) =>
  * approved 2026-10-04). ⚠️ MEASURED AGAINST THE PILL, NOT GUESSED: in Open Runde Regular at 11px the
  * Vietnamese line is ~173px and the English ~225px, against ~216px of text room in the 360px phone's
  * pill (calc(100vw - 5.5rem) minus the padding, glyph and gap — rental-check-pill.tsx). So Vietnamese
- * fits at 360; English fits from 375 and truncates its last word at 360.
+ * fits at 360; English fits from 375 and truncates its last word at 360 — which is what
+ * rentalFreeCompact is for.
  */
 export const rentalFreeShort = (tr: Tr) => tr('Free · the price you see is the price you get', 'Miễn phí · thấy giá nào, trả giá đó')
+/**
+ * The pill's second line BELOW 375px, IN ENGLISH ONLY (UX program 2, 2026-10-05) — the same promise in the
+ * room a 360px phone has. Measured with HarfBuzz on src/fonts/open-runde-regular.woff2 (the cut `font-medium`
+ * resolves to — only 400 and 700 are loaded) at 11px: this line 153.5px, the owner's line 224.8px, the
+ * Vietnamese 172.6px, against 216px of text room at 360 (176 at 320, 231 at 375). The pill shows it from
+ * CSS alone and keeps rentalFreeShort as its accessible name (rental-check-pill.tsx).
+ * ⚠️ The Vietnamese half IS rentalFreeShort's: it already fits, so a Vietnamese reader never sees a second
+ * wording — the pill renders the switch for `lang === 'en'` only.
+ */
+export const rentalFreeCompact = (tr: Tr) => tr('Free · you pay the listed price', 'Miễn phí · thấy giá nào, trả giá đó')
 /** Under the send button: the moment the visitor commits, so it names all three promises. */
 export const rentalFreeCta = (tr: Tr) =>
   tr('Free service · the price you see is the price you get', 'Dịch vụ miễn phí · thấy giá nào, trả giá đó')

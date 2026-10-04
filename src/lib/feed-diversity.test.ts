@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { mergeRoundRobin, diversifyBySeller, diversifyRail, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW, SHARED_SEAT_SELLERS, seatKey, sharedSeatsFor } from './feed-diversity'
+import {
+  mergeRoundRobin, diversifyBySeller, diversifyRail, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW, SHARED_SEAT_SELLERS, seatKey, sharedSeatsFor,
+  GOODS_CATEGORY_SLUGS, GOODS_SEATS, GOODS_SEAT_ROWS, HOME_FEED_SEATS, goodsSeatsFor, isSecondHandGoods, reserveGoodsSeats,
+} from './feed-diversity'
+import { CATEGORY_BY_SLUG, TAXONOMY } from './taxonomy'
 import { JOB_SELLER_IDS } from './job-listing'
 // The importer's own pinned storefront ids — the source of truth the feed's literal copy must equal.
 import { VEHICLE_SELLER_IDS } from './vehicle-rental-listing'
@@ -399,5 +403,181 @@ describe('diversifyRail', () => {
     const distinct = Array.from({ length: 10 }, (_, i) => rail(`r${i}`, 'only', H(i)))
     expect(diversifyRail(distinct, { take: 8, min: 4 })).toEqual(diversifyRail(distinct, { take: 8 }))
     expect(diversifyRail(same, { take: 2, min: 4 })).toHaveLength(2)
+  })
+})
+
+/**
+ * ⛔ C7 (UX program 2, owner 2026-10-05): the home page's default feed seats second-hand goods — at least
+ * two of the first four cards and four of the first twelve, whenever the head holds that many. Measured
+ * read-only on production the same day: every seat the round-robin dealt first was a rental importer or a
+ * shared catalogue, so the first goods card was the ninth. Seats only — rankScore is never read here.
+ */
+describe('the goods seats (home default feed)', () => {
+  type SeatRow = { id: string; sellerId: string; listingType: string; condition?: string | null; category: { slug: string } }
+  const goods = (id: string, sellerId = id, slug = 'electronics'): SeatRow => ({ id, sellerId, listingType: 'sell', condition: 'used', category: { slug } })
+  const rental = (id: string, sellerId = id): SeatRow => ({ id, sellerId, listingType: 'rent', category: { slug: 'rentals' } })
+  const ids = (rows: { id: string }[]) => rows.map((r) => r.id)
+  const goodsIn = (rows: SeatRow[], n: number) => rows.slice(0, n).filter(isSecondHandGoods).length
+  /** Twelve rentals from twelve sellers, then four goods from four shops, then more rentals. */
+  const NO_EARLY_GOODS = [
+    ...Array.from({ length: 12 }, (_, i) => rental(`r${i}`)),
+    goods('g0'), goods('g1'), goods('g2'), goods('g3'),
+    ...Array.from({ length: 6 }, (_, i) => rental(`t${i}`)),
+  ]
+
+  it('pins the minimums the disclosure states in words (legal-copy.test.tsx holds the words)', () => {
+    expect(GOODS_SEATS).toEqual([{ within: 4, min: 2 }, { within: 12, min: 4 }])
+    expect(GOODS_SEAT_ROWS).toBe(4)
+  })
+
+  it('⛔ with no goods among the first twelve, goods take cards 3, 4, 11 and 12 — cards 1 and 2 stay the feed’s own', () => {
+    const out = reserveGoodsSeats(NO_EARLY_GOODS)
+    expect(ids(out).slice(0, 12)).toEqual(['r0', 'r1', 'g0', 'g1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'g2', 'g3'])
+    // The rentals it displaced follow in their own order, and the tail is untouched.
+    expect(ids(out).slice(12)).toEqual(['r8', 'r9', 'r10', 'r11', 't0', 't1', 't2', 't3', 't4', 't5'])
+    expect(goodsIn(out, 4)).toBe(2)
+    expect(goodsIn(out, 12)).toBe(4)
+  })
+
+  it('goods the feed already deals early count where they fall — only the shortfall moves', () => {
+    const head = [goods('g0'), rental('r0'), rental('r1'), rental('r2'), rental('r3'), goods('g1'), ...Array.from({ length: 8 }, (_, i) => rental(`s${i}`)), goods('g2'), goods('g3')]
+    const out = reserveGoodsSeats(head)
+    // Card 1 is already goods; card 4 is the first seat that has to be claimed.
+    expect(ids(out).slice(0, 4)).toEqual(['g0', 'r0', 'r1', 'g1'])
+    expect(goodsIn(out, 12)).toBe(4)
+    expect(ids(out).slice(10, 12)).toEqual(['g2', 'g3'])
+  })
+
+  it('a head that already meets both minimums comes back unchanged', () => {
+    const head = [rental('r0'), goods('g0'), rental('r1'), goods('g1'), rental('r2'), goods('g2'), rental('r3'), goods('g3'), rental('r4'), rental('r5'), rental('r6'), rental('r7'), rental('r8')]
+    expect(ids(reserveGoodsSeats(head))).toEqual(ids(head))
+  })
+
+  it('a claimed seat prefers a shop with no goods card yet — four seats are four shops when four exist', () => {
+    const head = [
+      ...Array.from({ length: 4 }, (_, i) => rental(`r${i}`)),
+      goods('a1', 'A'), goods('a2', 'A'), goods('a3', 'A'), goods('b1', 'B'), goods('c1', 'C'), goods('d1', 'D'),
+      ...Array.from({ length: 8 }, (_, i) => rental(`s${i}`)),
+    ]
+    const out = reserveGoodsSeats(head)
+    expect(ids(out).slice(2, 4)).toEqual(['a1', 'b1'])
+    expect(new Set(out.slice(0, 12).filter(isSecondHandGoods).map((r) => r.sellerId))).toEqual(new Set(['A', 'B', 'C', 'D']))
+  })
+
+  it('…and repeats a shop only when no other shop has goods to offer', () => {
+    const head = [
+      ...Array.from({ length: 6 }, (_, i) => rental(`r${i}`)), goods('a1', 'A'), goods('a2', 'A'),
+      ...Array.from({ length: 6 }, (_, i) => rental(`s${i}`)), goods('a3', 'A'), goods('a4', 'A'),
+    ]
+    const out = reserveGoodsSeats(head)
+    expect(ids(out).slice(0, 4)).toEqual(['r0', 'r1', 'a1', 'a2'])
+    expect(ids(out).slice(4, 12)).toEqual(['r2', 'r3', 'r4', 'r5', 's0', 's1', 'a3', 'a4'])
+  })
+
+  it('⛔ not enough goods: the seats it can fill, then the feed in order; none at all leaves the head untouched', () => {
+    const one = [...Array.from({ length: 10 }, (_, i) => rental(`r${i}`)), goods('g0'), rental('r10')]
+    expect(ids(reserveGoodsSeats(one))).toEqual(['r0', 'r1', 'g0', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10'])
+    const none = Array.from({ length: 20 }, (_, i) => rental(`r${i}`))
+    expect(ids(reserveGoodsSeats(none))).toEqual(ids(none))
+    expect(reserveGoodsSeats([])).toEqual([])
+  })
+
+  it('⛔ a permutation that keeps every non-goods row in order, and meets both minimums whenever it can — 2,000 generated heads', () => {
+    let seed = 7
+    const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648
+    for (let n = 0; n < 2000; n++) {
+      const len = Math.floor(rand() * 40)
+      const share = rand()
+      const head: SeatRow[] = Array.from({ length: len }, (_, i) =>
+        rand() < share ? goods(`g${i}`, `shop${Math.floor(rand() * 5)}`) : rental(`r${i}`, `owner${Math.floor(rand() * 9)}`))
+      const out = reserveGoodsSeats(head)
+      expect(out).toHaveLength(head.length)
+      expect(new Set(ids(out))).toEqual(new Set(ids(head)))
+      const total = head.filter(isSecondHandGoods).length
+      expect(goodsIn(out, 4)).toBeGreaterThanOrEqual(Math.min(2, total))
+      expect(goodsIn(out, 12)).toBeGreaterThanOrEqual(Math.min(4, total))
+      // Only goods rows move: every other row keeps the dealt order.
+      expect(ids(out.filter((r) => !isSecondHandGoods(r)))).toEqual(ids(head.filter((r) => !isSecondHandGoods(r))))
+      // Pure: the same head gives the same order (the SSR head and the API's head must agree).
+      expect(ids(reserveGoodsSeats(head))).toEqual(ids(out))
+    }
+  })
+
+  it('diversifyBySeller reserves them only when asked — every other caller is unchanged', () => {
+    const rows = [...Array.from({ length: 12 }, (_, i) => rental(`r${i}`)), goods('g0'), goods('g1'), goods('g2'), goods('g3')]
+    expect(ids(diversifyBySeller(rows))).toEqual(ids(rows))
+    expect(ids(diversifyBySeller(rows, { sharedSeats: true }))).toEqual(ids(rows))
+    const seated = diversifyBySeller(rows, { sharedSeats: true, goodsSeats: true })
+    expect(goodsIn(seated, 4)).toBe(2)
+    expect(goodsIn(seated, 12)).toBe(4)
+    // The seats apply after the deal, so the seller round-robin still decides everything else.
+    expect(ids(seated)).toEqual(ids(reserveGoodsSeats(diversifyBySeller(rows, { sharedSeats: true }))))
+  })
+
+  it('goods = for sale, in a category of things', () => {
+    expect(isSecondHandGoods(goods('x'))).toBe(true)
+    expect(isSecondHandGoods(goods('x', 'x', 'furniture-appliances'))).toBe(true)
+    expect(isSecondHandGoods(rental('x'))).toBe(false)
+    // VinWonders' tickets are `sell` rows, and a house for sale is real estate — neither is second-hand goods.
+    expect(isSecondHandGoods(goods('x', 'x', 'tickets-travel'))).toBe(false)
+    expect(isSecondHandGoods(goods('x', 'x', 'property'))).toBe(false)
+    expect(isSecondHandGoods({ listingType: 'wanted', category: { slug: 'electronics' } })).toBe(false)
+    expect(isSecondHandGoods({ listingType: 'sell' })).toBe(false)
+    // ⛔ The published sentence says second-hand: a new or unrecorded condition never claims a seat.
+    expect(isSecondHandGoods({ listingType: 'sell', condition: 'used', category: { slug: 'electronics' } })).toBe(true)
+    expect(isSecondHandGoods({ listingType: 'sell', condition: 'new', category: { slug: 'electronics' } })).toBe(false)
+    expect(isSecondHandGoods({ listingType: 'sell', condition: null, category: { slug: 'electronics' } })).toBe(false)
+    expect(isSecondHandGoods({ listingType: 'sell', category: { slug: 'vehicles' } })).toBe(false)
+    expect(isSecondHandGoods({ listingType: 'sell', category: null })).toBe(false)
+  })
+
+  it('⛔ every category that takes `sell` is classified — a new one fails here until somebody decides', () => {
+    // Real estate, bookings, consumables and animals take `sell` and are not second-hand goods.
+    const NOT_GOODS = ['property', 'tickets-travel', 'food-drink', 'pets']
+    for (const c of TAXONOMY) {
+      if (!c.types.includes('sell')) {
+        expect(GOODS_CATEGORY_SLUGS, c.slug).not.toContain(c.slug)
+        continue
+      }
+      expect(GOODS_CATEGORY_SLUGS.includes(c.slug) !== NOT_GOODS.includes(c.slug), `${c.slug} must be goods or not-goods, not both or neither`).toBe(true)
+    }
+    for (const slug of GOODS_CATEGORY_SLUGS) expect(CATEGORY_BY_SLUG[slug]?.types, slug).toContain('sell')
+    for (const slug of ['rentals', 'jobs', 'teachers', 'services']) expect(GOODS_CATEGORY_SLUGS).not.toContain(slug)
+  })
+})
+
+describe('goodsSeatsFor — the API serves the home feed only for the explorer’s default request', () => {
+  const on = (qs: string) => goodsSeatsFor(new URLSearchParams(qs))
+
+  it('⛔ the explorer’s own default request, every page, every language (listings-explorer.tsx fetchFeedPage)', () => {
+    for (const offset of [0, 12, 24, 48]) {
+      expect(on(`sort=newest&verified=true&limit=12&offset=${offset}&lang=en`)).toBe(true)
+      expect(on(`sort=newest&verified=true&limit=12&offset=${offset}&lang=vi`)).toBe(true)
+      expect(on(`lang=ko&sort=newest&verified=all&limit=12&offset=${offset}&lang=ko`)).toBe(true)
+    }
+    expect(on('')).toBe(true)
+    expect(on('facets=0&limit=24')).toBe(true)
+    // An empty value is no value, and `all` is feed-query.ts's "no filter".
+    expect(on('q=&district=all&category=all&type=all&condition=all')).toBe(true)
+  })
+
+  it('⛔ off for anything that chooses: a category, a filter, words, another order, a storefront', () => {
+    for (const qs of [
+      'category=electronics', 'subcategory=phones', 'subcategory=all', 'q=sofa', 'q=all', 'sort=price-low', 'sort=recent',
+      'district=d1', 'province=Ho Chi Minh', 'ward=Ben Nghe', 'seller=abc', 'excludeSeller=abc', 'type=sell',
+      'condition=used', 'priceMin=1000', 'priceMax=5000', 'deal=good', 'featured=true', 'attr_color=red',
+      'range_year=2010-2020', 'hasVideo=1', 'building=sunrise-city', 'lat=10.7&lng=106.6&radiusKm=5',
+      'brand=apple', 'model=iPhone 15', 'line=iPhone', 'priorityCategory=electronics', 'kind=places', 'homes=1',
+      'histogram=1', 'ids=a,b',
+      // ⚠️ An UNKNOWN parameter turns them off too: a filter added next month fails toward "unchanged".
+      'utm_source=fb',
+    ]) expect(on(`sort=newest&verified=true&limit=12&offset=0&${qs}`), qs).toBe(false)
+  })
+
+  it('⛔ the home render’s rules are the rules the API derives for that request — or page 2 repeats or skips a card', () => {
+    const p = new URLSearchParams('sort=newest&verified=true&limit=12&offset=12&lang=vi')
+    expect({ sharedSeats: sharedSeatsFor(p.get('subcategory'), p.get('category')), goodsSeats: goodsSeatsFor(p) }).toEqual(HOME_FEED_SEATS)
+    expect(HOME_FEED_SEATS).toEqual({ sharedSeats: true, goodsSeats: true })
+    expect(Object.isFrozen(HOME_FEED_SEATS)).toBe(true)
   })
 })

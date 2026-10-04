@@ -245,7 +245,9 @@ export const AFFILIATION = {
 }
 
 /**
- * The NEWEST published version of the Terms / Quy chế — the text /terms and /regulations now show.
+ * The NEWEST published version of the Terms — the text /terms now shows. (It was the Quy chế's number too,
+ * through version 2: the two moved together until the Quy chế-only amendment of October 2026 gave the
+ * Quy chế its own, {@link REGULATIONS_VERSION}.)
  *
  * ⚠️ IT IS NOT NECESSARILY THE VERSION IN FORCE, AND NOTHING THAT RECORDS AN ACCEPTANCE MAY READ IT.
  * '2' is the October 2026 amendment (linked listings, commission disclosure, 20-day fee notice, the
@@ -278,6 +280,26 @@ export const TOS_VERSION = '2'
 
 /** The version in force until {@link TOS_VERSION} takes effect. */
 export const TOS_PREVIOUS_VERSION = '1'
+
+/**
+ * The NEWEST published version of the Quy chế (/regulations) — its OWN number since the Quy chế-only
+ * amendment of October 2026, which made it '3' while the Terms stayed at {@link TOS_VERSION} '2'.
+ * Published and in force on REGULATIONS_AMENDMENT's dates (src/lib/compliance/legal-amendment.ts); the
+ * previous version is archived at /regulations/v{@link REGULATIONS_PREVIOUS_VERSION}.
+ *
+ * ⚠️ DISPLAY ONLY — NOTHING STAMPS IT. Profile.tosVersion records the Terms version a person accepted; the
+ * Terms incorporate the Quy chế "published at /regulations" by reference, and Quy chế Article 15 makes
+ * continued use after an amendment's in-force date the acceptance of it.
+ *
+ * WHEN THE QUY CHẾ CHANGES AGAIN: move this value to REGULATIONS_PREVIOUS_VERSION, set the new one here,
+ * archive the outgoing text at src/app/[lang]/regulations/v<N>/page.tsx, type the replaced version's real
+ * dates into legal-archive.ts (legal-archive.test.ts says which), and set REGULATIONS_AMENDMENT's dates on
+ * the DEPLOY day. If the Terms change in the same amendment, TOS_VERSION and LEGAL_AMENDMENT move too.
+ */
+export const REGULATIONS_VERSION = '3'
+
+/** The Quy chế version {@link REGULATIONS_VERSION} replaced — archived, and linked from /regulations' META. */
+export const REGULATIONS_PREVIOUS_VERSION = '2'
 
 /**
  * The instant {@link TOS_VERSION} takes effect — MIDNIGHT IN VIETNAM on LEGAL_AMENDMENT.inForce,

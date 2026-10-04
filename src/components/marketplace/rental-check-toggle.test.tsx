@@ -13,8 +13,9 @@ import React from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { push, toast, auth, nav } = vi.hoisted(() => ({
+const { push, toast, auth, nav, i18n } = vi.hoisted(() => ({
   nav: { pathname: '/c/rentals' },
+  i18n: { lang: 'en' as 'en' | 'vi' | 'ko' },
   push: vi.fn(),
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
   auth: { user: null as unknown, loading: false, sellerId: null as string | null, openSignIn: () => {} },
@@ -28,11 +29,11 @@ vi.mock('@/components/ui/icons', () => {
   const icon = (name: string) => (props: React.SVGProps<SVGSVGElement>) => <svg data-icon={name} {...props} />
   return { Check: icon('check'), ClipboardCheck: icon('clipboard-check') }
 })
-vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
+vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: i18n.lang, tr: (en: string, vi?: string) => (i18n.lang === 'vi' && vi ? vi : en) }) }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 vi.mock('@/lib/haptics', () => ({ hapticTap: vi.fn(), hapticError: vi.fn() }))
 
-import { RentalCheckToggle, rentalFreeLine } from './rental-check-toggle'
+import { RentalCheckToggle, rentalFreeCompact, rentalFreeLine, rentalFreeShort } from './rental-check-toggle'
 import { RentalCheckPill } from './rental-check-pill'
 import { __resetRentalCheckStoreForTests, addToBasket, getBasket } from '@/lib/rental-check/store'
 
@@ -67,6 +68,7 @@ beforeEach(() => {
   __resetRentalCheckStoreForTests()
   auth.sellerId = null
   nav.pathname = '/c/rentals'
+  i18n.lang = 'en'
   toast.mockClear()
   push.mockClear()
 })
@@ -203,5 +205,57 @@ describe('the pill (back-to-top cluster)', () => {
     nav.pathname = '/rentals/check'
     render(<RentalCheckPill />)
     expect(pill()).toBeNull()
+  })
+})
+
+/**
+ * UX program 2 (2026-10-05): the owner's free line ("Free · the price you see is the price you get") loses its
+ * last word in the 360px pill in English — measured at 11px in Open Runde (rental-check-toggle.tsx). Below
+ * 375px, in English only, the pill shows "Free · you pay the listed price" — by CSS, two spans — and keeps the
+ * owner's wording as its one accessible name.
+ */
+describe('the pill’s free line below 375px', () => {
+  const line = (which: 'compact' | 'full') => document.querySelector(`[data-rental-check-pill] [data-free-line="${which}"]`)
+  const classes = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/)
+  const FULL = rentalFreeShort((en) => en)
+  const COMPACT = rentalFreeCompact((en) => en)
+
+  it('the copy: the owner’s line stays, the compact one says the same promise in fewer words', () => {
+    expect(FULL).toBe('Free · the price you see is the price you get')
+    expect(COMPACT).toBe('Free · you pay the listed price')
+    // In Vietnamese there is only one wording — it already fits at 360.
+    expect(rentalFreeCompact((en, vi) => vi ?? en)).toBe(rentalFreeShort((en, vi) => vi ?? en))
+  })
+
+  it('⛔ English: the compact line shows only below 375, the full one only from 375 — one hidden per width', () => {
+    act(() => { addToBasket(listing(1)) })
+    render(<RentalCheckPill />)
+    expect(line('compact')?.textContent).toBe(COMPACT)
+    expect(classes(line('compact'))).toContain('min-[375px]:hidden')
+    expect(line('full')?.textContent).toBe(FULL)
+    expect(classes(line('full'))).toContain('max-[375px]:sr-only')
+  })
+
+  it('⛔ ONE accessible name at every width — the owner’s full line; the compact one is aria-hidden', () => {
+    act(() => { addToBasket(listing(1)) })
+    render(<RentalCheckPill />)
+    expect(line('compact')?.getAttribute('aria-hidden')).toBe('true')
+    // Below 375 the full line is screen-reader-only, never display:none — which would drop it from the name.
+    expect(line('full')?.hasAttribute('aria-hidden')).toBe(false)
+    expect(classes(line('full')).some((c) => c === 'hidden' || c.endsWith(':hidden'))).toBe(false)
+    const link = screen.getByRole('link', { name: (name) => name.includes(FULL) && !name.includes(COMPACT) })
+    expect(link.getAttribute('href')).toBe('/rentals/check')
+  })
+
+  it('Vietnamese (and every other language) keeps its single line, unchanged', () => {
+    for (const lang of ['vi', 'ko'] as const) {
+      i18n.lang = lang
+      act(() => { addToBasket(listing(1)) })
+      render(<RentalCheckPill />)
+      expect(line('compact')).toBeNull()
+      expect(line('full')?.textContent).toBe(lang === 'vi' ? 'Miễn phí · thấy giá nào, trả giá đó' : FULL)
+      expect(classes(line('full'))).not.toContain('max-[375px]:sr-only')
+      cleanup()
+    }
   })
 })

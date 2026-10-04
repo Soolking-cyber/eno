@@ -28,7 +28,9 @@ import type { SerializedListingCard } from '@/lib/types'
 
 /** Minimum 90d buyer conversations before any responsiveness label is shown. */
 export const RESPONSE_MIN_CONVOS = 5
-/** responseRate at/above this reads as "responds quickly". */
+/** responseRate at/above this reads as "responds quickly" with a sub-hour median, and as "usually replies
+ *  within a day" without one. ⚠️ src/lib/response-signal.ts mirrors this number by READING this line
+ *  (response-signal.test.ts) — keep it a plain `const NAME = <number>`. */
 const RESPONSE_FAST_RATE = 80
 /** Below this replied-within-24h rate NO label shows — "Responds within a day" would
  *  be a false claim about a seller who mostly doesn't. Show nothing, never a fake. */
@@ -45,8 +47,16 @@ const RESPONSE_DAY_FLOOR = 50
 // dual external review caught it, 2026-07-23).
 export const RESPONSE_METRIC_IS_REAL: boolean = true
 
+/**
+ * `key` names the CLAIM, one per label: 'fast' (rate ≥ RESPONSE_FAST_RATE AND a sub-hour median),
+ * 'usuallyDay' (rate ≥ RESPONSE_FAST_RATE without it), 'day' (rate ≥ RESPONSE_DAY_FLOOR). ⚠️ Every
+ * consumer today reads only its truthiness — seller-card.tsx, pdp-shop-link.tsx, trust-meta.tsx and
+ * /api/sellers/[id] (which ships `{ en, vi }` and never the key) — so a new key changes no rendering;
+ * it exists so a consumer that ever maps keys to text or style cannot give two different claims one
+ * look.
+ */
 export type ResponseBucket = {
-  key: 'fast' | 'day' | null
+  key: 'fast' | 'usuallyDay' | 'day' | null
   en: string
   vi: string
 }
@@ -79,8 +89,17 @@ export function responseBucket(seller: ResponseSellerInput, convoCount: number):
   // either alone can mislead (a seller who answers 1 of 10 threads instantly has a
   // sub-hour median but is not "quick").
   const subHour = time.includes('hour') || time.includes('minute') || time.includes('min')
+  // ⚠️ "QUICKLY", NEVER "WITHIN AN HOUR": the evidence is a MEDIAN gap, and a median under an hour does
+  // not make "usually replies within an hour" true — half the first replies may take longer.
   if (rate >= RESPONSE_FAST_RATE && subHour) {
     return { key: 'fast', en: 'Responds quickly', vi: 'Phản hồi nhanh' }
+  }
+  // At RESPONSE_FAST_RATE without the sub-hour median, say what was measured: `responseRate` IS the share
+  // of buyer threads answered within 24h, so at ≥80% "usually replies within a day" restates the number
+  // rather than rounding it (UX program 2, 2026-10-05). It used to fall through to the 50–79% label, which
+  // under-told a seller who answers four buyers in five the same day.
+  if (rate >= RESPONSE_FAST_RATE) {
+    return { key: 'usuallyDay', en: 'Usually replies within a day', vi: 'Thường trả lời trong ngày' }
   }
   // "Within a day" must be TYPICAL to be claimed: majority replied within 24h.
   if (rate >= RESPONSE_DAY_FLOOR) {

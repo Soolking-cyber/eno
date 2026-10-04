@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
-import { diversifyBySeller, diversityAppliesTo, sharedSeatsFor } from '@/lib/feed-diversity'
-import { diverseFeedWindow, feedPagePlan } from '@/lib/feed-window'
+import { diversityAppliesTo, goodsSeatsFor, sharedSeatsFor } from '@/lib/feed-diversity'
+import { diverseFeedHead, feedPagePlan } from '@/lib/feed-window'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
@@ -210,6 +210,14 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
   // The migrated request parameters, not a cast into the Prisma filter: the rule must follow the
   // subcategory (and category) the reader chose, whatever shape the filter that implements it takes.
   const sharedSeats = sharedSeatsFor(searchParams.get('subcategory'), searchParams.get('category'))
+  /**
+   * THE GOODS SEATS — at least two of the first four cards and four of the first twelve are second-hand
+   * goods (feed-diversity.ts GOODS_SEATS) — ONLY when this request IS the home page's default feed: no
+   * category, filter, words or sort (goodsSeatsFor, an allow-list of the parameters that change nothing).
+   * ⚠️ The home render passes HOME_FEED_SEATS for the same feed; the explorer's page 2 is cut from this
+   * head, so the two must agree or page 2 repeats a server-rendered card and skips another.
+   */
+  const goodsSeats = goodsSeatsFor(searchParams)
 
   /**
    * ⛔ A SUBCATEGORY-SCOPED FILTER IS COUNTED THE WAY EACH SIBLING'S TAP APPLIES IT. `facetBaseFilters`
@@ -318,7 +326,9 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
        */
       diversityAppliesTo(sort)
         // `teachers: true`: `where` already carries buildFeedFilters' teacher decision (as the tail below).
-        ? diverseFeedWindow(where, orderBy, LISTING_CARD_SELECT, { sharedSeats, teachers: true })
+        // The head is the window dealt by the seat rules — the same function the home render slices its
+        // twelve from (feed-window.ts diverseFeedHead), so page 2 continues exactly where they stop.
+        ? diverseFeedHead(where, orderBy, LISTING_CARD_SELECT, { sharedSeats, goodsSeats, teachers: true })
             /**
              * ⛔ ROWS PAST THE WINDOW MUST EXCLUDE WHAT THE WINDOW ALREADY SERVED. The window no
              * longer contains the natural top 60 — it contains each seller's best — so continuing
@@ -326,12 +336,12 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
              * the ones it pushed down. Measured before this `notIn`: four pages returned 240 rows
              * holding 217 distinct listings, i.e. 23 repeats and 23 listings never shown.
              *
-             * ⚠️ THE WINDOW IS A FIXED 60, so the exclusion list is bounded at 60 ids however deep
-             * the reader scrolls, and the window query itself is the same bounded read on every
-             * page — one extra query past row 60, not a growing one.
+             * ⚠️ THE WINDOW IS A FIXED 60 — plus, on the home feed only, the few goods rows the goods
+             * seats may append (feed-window.ts withGoodsCandidates) — so the exclusion list stays
+             * bounded however deep the reader scrolls, and the window query itself is the same bounded
+             * read on every page — one extra query past the head, not a growing one.
              */
-            .then(async (win) => {
-              const head = diversifyBySeller(win, { sharedSeats })
+            .then(async (head) => {
               const plan = feedPagePlan(head.length, offset, limit)
               /**
                * ⛔ THE TAIL IS FETCHED WITH `skip` ALREADY APPLIED, so it must NOT then be indexed

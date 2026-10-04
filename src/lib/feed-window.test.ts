@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { feedPagePlan, seatOrder } from './feed-window'
 import { JOB_SELLER_IDS } from './job-listing'
-import { SHARED_SEAT_SELLERS } from './feed-diversity'
+import { GOODS_CATEGORY_SLUGS, SHARED_SEAT_SELLERS } from './feed-diversity'
 
 /** The vehicle storefronts' shared seat, exactly as the window reads it (feed-diversity.test.ts holds it equal to the importer's). */
 const VEHICLE_SELLER_IDS = [...SHARED_SEAT_SELLERS['vehicle-rentals']]
@@ -26,7 +26,7 @@ vi.mock('./edition-scope', () => ({
   },
 }))
 
-const { diverseFeedWindow, __resetFeedWindowCache } = await import('./feed-window')
+const { diverseFeedHead, diverseFeedWindow, __resetFeedWindowCache } = await import('./feed-window')
 
 const RANK_DESC = [{ rankScore: 'desc' as const }, { id: 'desc' as const }]
 const SELECT = { id: true } as const
@@ -501,5 +501,143 @@ describe('seatOrder — the order inside the shared eSIM seat', () => {
     const out = seatOrder(rows)
     expect(out.map((r) => r.id)).toEqual(['a1', 'b1', 'a2'])
     expect(new Set(out).size).toBe(rows.length)
+  })
+})
+
+/**
+ * ⛔ C7 — THE GOODS SEATS' CANDIDATES. reserveGoodsSeats (feed-diversity.ts) can only move goods rows the
+ * window holds, and the window is the twelve best-ranked SELLERS: when rentals, job employers and the
+ * shared catalogues fill all twelve, it holds no goods at all. The window then fetches the best goods row
+ * of each best-ranked goods seller it lacks — and nothing at all when it already offers four goods shops.
+ */
+describe('diverseFeedWindow — the goods seats’ candidates (home feed only)', () => {
+  /** A projection the seats can read — the type refuses `goodsSeats` on one that cannot (last case). */
+  const GOODS_SELECT = { id: true, sellerId: true, listingType: true, condition: true, category: { select: { slug: true } } } as const
+  const HOME = { sharedSeats: true, goodsSeats: true } as const
+  const GOODS_CLAUSE = { listingType: 'sell', condition: 'used', category: { slug: { in: [...GOODS_CATEGORY_SLUGS] } } }
+  const isGoodsRead = (where: any) => JSON.stringify(where).includes('"listingType":"sell"')
+  const rentals = (sellerId: string, n: number) => Array.from({ length: n }, (_, i) => ({ id: `${sellerId}-${i}`, sellerId, listingType: 'rent', category: { slug: 'rentals' } }))
+  const goodsRows = (sellerId: string, n: number) => Array.from({ length: n }, (_, i) => ({ id: `${sellerId}-g${i}`, sellerId, listingType: 'sell', condition: 'used', category: { slug: 'electronics' } }))
+  /** Twelve rental sellers fill the fan-out — the window holds no goods at all. */
+  const RENTAL_SELLERS = Array.from({ length: 12 }, (_, i) => `r${String(i).padStart(2, '0')}`)
+  const sellersGroup = (names: string[]) => names.map((s, i) => ({ sellerId: s, _max: { rankScore: 0.9 - i / 100 } }))
+  const seatsEmpty = async () => ({ _max: { rankScore: null } })
+
+  it('⛔ a window with no goods gets the best goods row of the four best goods shops, appended — and the head seats them', async () => {
+    groupBy.mockImplementation(async ({ where }: any) => (isGoodsRead(where)
+      ? sellersGroup(['gA', 'gB', 'gC', 'gD', 'gE'])
+      : sellersGroup(RENTAL_SELLERS)))
+    aggregate.mockImplementation(seatsEmpty)
+    findMany.mockImplementation(async ({ where }: any) => {
+      if (isGoodsRead(where)) return goodsRows(where.AND[1].sellerId, 1)
+      return rentals(where.AND[1].sellerId, 5)
+    })
+    const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, GOODS_SELECT, HOME)
+    // The sixty-row window keeps its order; the four candidates follow it.
+    expect(win).toHaveLength(64)
+    expect(win.slice(60).map((r: any) => r.id)).toEqual(['gA-g0', 'gB-g0', 'gC-g0', 'gD-g0'])
+    const goodsGroupBy = groupBy.mock.calls.map((c) => c[0]).find((a) => isGoodsRead(a.where))
+    // ⛔ The licensing scope, narrowed by the goods clause — never widened.
+    expect(goodsGroupBy.where).toEqual({ AND: [{ AND: [{ status: 'active' }, { sellerId: { notIn: ['desk'] } }] }, GOODS_CLAUSE] })
+    expect(goodsGroupBy.take).toBe(4)
+    // One row per shop, so the four seats are four shops — and never a row the window already holds (a listing
+    // re-typed to goods between the two reads would otherwise come back as a second copy of itself).
+    for (const [arg] of findMany.mock.calls.filter(([a]) => isGoodsRead(a.where))) {
+      expect(arg.take).toBe(1)
+      expect(arg.where.AND[2].id.notIn).toHaveLength(60)
+    }
+
+    __resetFeedWindowCache()
+    const head = await diverseFeedHead({ status: 'active' }, RANK_DESC, GOODS_SELECT, HOME)
+    const goodsAt = head.flatMap((r: any, i: number) => (r.listingType === 'sell' ? [i] : []))
+    expect(goodsAt).toEqual([2, 3, 10, 11])
+    expect(head).toHaveLength(64)
+    expect(new Set(head.map((r: any) => r.id)).size).toBe(64)
+  })
+
+  it('reads nothing more when the window already offers goods from four shops — production’s case on 2026-10-05', async () => {
+    const names = ['gA', 'gB', 'gC', 'gD', ...RENTAL_SELLERS.slice(0, 8)]
+    groupBy.mockImplementation(async () => sellersGroup(names))
+    aggregate.mockImplementation(seatsEmpty)
+    findMany.mockImplementation(async ({ where }: any) => {
+      const s = where.AND[1].sellerId
+      return s.startsWith('g') ? goodsRows(s, 5) : rentals(s, 5)
+    })
+    const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, GOODS_SELECT, HOME)
+    expect(win).toHaveLength(60)
+    expect(groupBy).toHaveBeenCalledTimes(1) // the seller fan-out only
+    expect(findMany.mock.calls.some(([a]) => isGoodsRead(a.where))).toBe(false)
+  })
+
+  it('one goods shop in the whole catalogue: its best row, then the next goods rows until four', async () => {
+    groupBy.mockImplementation(async ({ where }: any) => (isGoodsRead(where) ? sellersGroup(['gA']) : sellersGroup(RENTAL_SELLERS)))
+    aggregate.mockImplementation(seatsEmpty)
+    findMany.mockImplementation(async ({ where, take }: any) => {
+      if (!isGoodsRead(where)) return rentals(where.AND[1].sellerId, 5)
+      const clause = where.AND[1]
+      if (clause.sellerId) return goodsRows('gA', 1)
+      // The top-up: every goods row not already held, in rank order.
+      expect(clause.id.notIn).toContain('gA-g0')
+      expect(clause.id.notIn).toHaveLength(61)
+      return goodsRows('gA', 10).slice(1, 1 + take)
+    })
+    const head = await diverseFeedHead({ status: 'active' }, RANK_DESC, GOODS_SELECT, HOME)
+    expect(head.slice(0, 12).filter((r: any) => r.listingType === 'sell').map((r: any) => r.id)).toEqual(['gA-g0', 'gA-g1', 'gA-g2', 'gA-g3'])
+    expect(head.flatMap((r: any, i: number) => (r.listingType === 'sell' ? [i] : []))).toEqual([2, 3, 10, 11])
+  })
+
+  it('a catalogue smaller than the window is all in it already — no goods read at all', async () => {
+    groupBy.mockImplementation(async () => sellersGroup(['r00', 'r01']))
+    aggregate.mockImplementation(seatsEmpty)
+    findMany.mockImplementation(async ({ where }: any) => (where.AND[1]?.sellerId ? rentals(where.AND[1].sellerId, 3) : []))
+    const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, GOODS_SELECT, HOME)
+    expect(win).toHaveLength(6)
+    expect(groupBy).toHaveBeenCalledTimes(1)
+    expect(findMany.mock.calls.some(([a]) => isGoodsRead(a.where))).toBe(false)
+  })
+
+  it('⛔ a failed goods read serves the window without them — and is NOT memoized, so the next request tries again', async () => {
+    groupBy.mockImplementation(async ({ where }: any) => {
+      if (isGoodsRead(where)) throw new Error('connection reset')
+      return sellersGroup(RENTAL_SELLERS)
+    })
+    aggregate.mockImplementation(seatsEmpty)
+    findMany.mockImplementation(async ({ where }: any) => rentals(where.AND[1].sellerId, 5))
+    const first = await diverseFeedWindow({ status: 'active' }, RANK_DESC, GOODS_SELECT, HOME)
+    expect(first).toHaveLength(60)
+    const before = groupBy.mock.calls.length
+    await diverseFeedWindow({ status: 'active' }, RANK_DESC, GOODS_SELECT, HOME)
+    expect(groupBy.mock.calls.length).toBeGreaterThan(before)
+  })
+
+  it('the goods rule is part of the memo key — with and without it are two windows', async () => {
+    groupBy.mockImplementation(async () => sellersGroup(['gA', 'gB', 'gC', 'gD', 'r00']))
+    aggregate.mockImplementation(seatsEmpty)
+    findMany.mockImplementation(async ({ where }: any) => {
+      const s = where.AND[1].sellerId
+      return s.startsWith('g') ? goodsRows(s, 12) : rentals(s, 12)
+    })
+    await diverseFeedWindow({ status: 'active' }, RANK_DESC, GOODS_SELECT, { sharedSeats: true })
+    const after = groupBy.mock.calls.length
+    await diverseFeedWindow({ status: 'active' }, RANK_DESC, GOODS_SELECT, HOME)
+    expect(groupBy.mock.calls.length).toBe(after + 1)
+  })
+
+  it('without the rule nothing changes: no goods read, and the head is the plain seller deal', async () => {
+    groupBy.mockImplementation(async () => sellersGroup(RENTAL_SELLERS))
+    aggregate.mockImplementation(seatsEmpty)
+    findMany.mockImplementation(async ({ where }: any) => rentals(where.AND[1].sellerId, 5))
+    const head = await diverseFeedHead({ status: 'active' }, RANK_DESC, GOODS_SELECT, { sharedSeats: true })
+    expect(head).toHaveLength(60)
+    expect(groupBy).toHaveBeenCalledTimes(1)
+    expect(findMany.mock.calls.some(([a]) => isGoodsRead(a.where))).toBe(false)
+  })
+
+  it('⛔ the type refuses the goods seats on a projection that cannot say what is goods', () => {
+    // Never called: this case exists for `npx tsc`, which fails if the directive below stops being needed.
+    const narrow = () => diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT,
+      // @ts-expect-error — `{ id: true }` carries no listingType / category, so every row would read "not goods"
+      { goodsSeats: true })
+    expect(typeof narrow).toBe('function')
   })
 })

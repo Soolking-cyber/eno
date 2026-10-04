@@ -1,6 +1,6 @@
 import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
-import { diversifyBySeller } from '@/lib/feed-diversity'
-import { diverseFeedWindow } from '@/lib/feed-window'
+import { HOME_FEED_SEATS } from '@/lib/feed-diversity'
+import { diverseFeedHead } from '@/lib/feed-window'
 import type { Metadata } from 'next'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -59,7 +59,7 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
     categoriesPromise.catch(() => {})
     const publicScope = await scopedListingWhere({ verified: true, status: 'active' })
 
-    const firstPagePromise = diverseFeedWindow(
+    const firstPagePromise = diverseFeedHead(
       // ⚠️ EDITION-SCOPED. eno.vn is a licensed sàn TMĐT; the e-visa SKUs are ordinary Listing
       // rows and they rank into this feed. This is the ISR-baked HTML of the root URL, served
       // from disk to every anonymous visitor and every crawler — the most-seen leak there was.
@@ -68,20 +68,16 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       // tiebreaker) so this SSR seed doesn't reshuffle on hydration into the client feed.
       [{ rankScore: 'desc' }, { id: 'desc' }],
       LISTING_CARD_SELECT,
-      // The API's rule for an unfiltered feed (sharedSeatsFor(null)) — one seat for the eSIM
-      // catalogue — or the SSR head and the hydrated feed disagree.
-      { sharedSeats: true },
+      // The rules /api/listings derives for the explorer's default request (sharedSeatsFor with nothing
+      // chosen + goodsSeatsFor): one seat per shared catalogue, and the goods seats — at least two of the
+      // first four cards and four of the first twelve are second-hand goods (feed-diversity.ts GOODS_SEATS).
+      // Any other rule here and page 2 repeats or skips a card.
+      HOME_FEED_SEATS,
     )
-      // Interleave sellers across the window, then take the page. Slicing AFTER the reorder is the
-      // whole point: slicing first would hand the reorder the same monopolised twelve rows.
-      /**
-       * ⚠️ `diversifyBySeller` STILL RUNS, AND IT IS NOT REDUNDANT. `diverseFeedWindow` decides WHICH
-       * rows are in the window (each seller's best, merged); this reorders whatever came back, which
-       * matters on the fallback paths inside it — a groupBy failure, one seller, or a window the
-       * fan-out under-filled all return the plain top-N. /api/listings applies the identical pair,
-       * which is what keeps the SSR seed and the hydrated client feed in agreement.
-       */
-      .then((rows) => diversifyBySeller(rows, { sharedSeats: true }).slice(0, 12))
+      // The head is the window dealt by the seat rules — the SAME function /api/listings cuts its pages
+      // from (feed-window.ts diverseFeedHead). Slicing AFTER the deal is the whole point: slicing first
+      // would hand the reorder the same monopolised twelve rows.
+      .then((head) => head.slice(0, 12))
 
     const [serializedCategories, firstPage, total, businesses, trending] = await Promise.all([
       // Categories ordered by live DEMAND — most-wanted lead the rail + home grid. Already in

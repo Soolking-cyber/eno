@@ -8,7 +8,7 @@
 // removes whatever belongs to a purpose that is not granted right now — on mount (AnalyticsTags,
 // every page) and again on every `eno:consent`.
 import { ATTR_COOKIE, ATTR_SESSION_KEY } from './attribution'
-import { GA_ID } from './analytics'
+import { GA_IDS } from './analytics'
 import { consentAnswered, hasAdConsent, hasAnalyticsConsent, personalizationAllowed } from './consent'
 import { consentModeState } from './consent-value'
 import { clearViewHistory } from './reco-signals'
@@ -78,12 +78,17 @@ function gtagCommand(..._args: unknown[]): void {
  * LOADED with `a` — see analytics-tags.tsx). Stored on `window.__enoCm` for a bootstrap that has not
  * run yet, and pushed as an `update` to a dataLayer that already exists (GA's, or eno.forum's GTM).
  * Also flips GA's documented kill switch, so an already-loaded gtag.js stops sending on withdrawal.
+ * ⚠️ ONE SWITCH PER MEASUREMENT ID (analytics.ts GA_IDS): the switch is keyed by id, and on eno.vn gtag.js
+ * sends to two properties — a switch for the primary alone would leave the SEO tool's stream sending
+ * after a withdrawal.
  */
 export function applyConsentMode(): Record<string, 'granted' | 'denied'> {
   const state = consentModeState({ a: hasAnalyticsConsent(), d: hasAdConsent() })
   if (typeof window === 'undefined') return state
   window.__enoCm = state
-  try { (window as unknown as Record<string, unknown>)[`ga-disable-${GA_ID}`] = state.analytics_storage !== 'granted' } catch { /* noop */ }
+  for (const id of GA_IDS) {
+    try { (window as unknown as Record<string, unknown>)[`ga-disable-${id}`] = state.analytics_storage !== 'granted' } catch { /* noop */ }
+  }
   if ((window as unknown as { dataLayer?: unknown[] }).dataLayer) gtagCommand('consent', 'update', state)
   return state
 }

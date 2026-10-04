@@ -519,6 +519,9 @@ say "2b. legal amendment dates"
 # publishing deploy on its own day; anything else stops here, before a minute is spent building.
 # An owner-decided IMMEDIATE amendment (immediate: true — in force the day it is published, no notice)
 # also needs LEGAL_AMENDMENT_IMMEDIATE=<published> exported for the publishing deploy.
+# Two records since 2026-10-05, each gated the same way: LEGAL_AMENDMENT (the Terms & co.) and
+# REGULATIONS_AMENDMENT (the Quy chế's own amendments — version 3, immediate: its deploy needs
+# LEGAL_AMENDMENT_IMMEDIATE=<its published date>, set to the deploy day in the module first).
 bash "$APP/infra/vn-node/legal-amendment-gate.sh" "$APP" "$LAST" || exit 1
 
 say "3. pin the rollback"

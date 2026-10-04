@@ -46,3 +46,16 @@ describe('TrustMeta singleLine — the thread header only', () => {
     expect(tokens(presence)).toEqual(expect.arrayContaining(['min-w-0', 'truncate']))
   })
 })
+
+describe('TrustMeta — the response label', () => {
+  // seller-metrics.ts responseBucket: 80% replied within 24h WITHOUT a sub-hour median. Every consumer reads
+  // only the key's truthiness, so the new bucket renders exactly where the others do.
+  it('shows the “usually within a day” bucket like any other, on both layouts', () => {
+    const usual = { key: 'usuallyDay', en: 'Usually replies within a day', vi: 'Thường trả lời trong ngày' } as const
+    const wrapped = render(<TrustMeta {...props} responseBucket={usual} />)
+    expect(wrapped.container.textContent).toContain('Usually replies within a day')
+    cleanup()
+    const line = render(<TrustMeta {...props} responseBucket={usual} singleLine />)
+    expect(line.container.querySelector('[data-trust-meta-line]')?.textContent).toContain('Usually replies within a day')
+  })
+})

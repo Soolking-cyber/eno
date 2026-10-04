@@ -7,12 +7,16 @@ import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { RENTAL_CHECK_PATH } from '@/lib/rental-check/shared'
 import { useRentalBasketCount } from '@/lib/rental-check/store'
-import { rentalFreeShort } from './rental-check-toggle'
+import { rentalFreeCompact, rentalFreeShort } from './rental-check-toggle'
 import { cn } from '@/lib/utils'
+
+/** The free line's type and ink — shared by its two width variants so they cannot drift apart. */
+const FREE_LINE = 'max-w-full truncate text-2xs font-medium text-white/85'
 
 /**
  * The basket's way back: "Check n rentals / Free · the price you see is the price you get"
- * (rentalFreeShort, the owner's final copy).
+ * (rentalFreeShort, the owner's final copy — in English below 375px, "Free · you pay the listed price",
+ * rentalFreeCompact; see `compact` below).
  *
  * ⛔ IT IS MOUNTED BY back-to-top.tsx, NOT IN A FIXED LAYER OF ITS OWN — that component already clears
  * the bottom nav, lifts over every `data-fab-clear` sticky bar (the PDP contact bar among them), hides
@@ -31,13 +35,25 @@ import { cn } from '@/lib/utils'
  * the visitor is already on.
  */
 export function RentalCheckPill({ className }: { className?: string }) {
-  const { tr } = useLanguage()
+  const { lang, tr } = useLanguage()
   const count = useRentalBasketCount()
   const pathname = usePathname()
   if (count === 0 || pathname === RENTAL_CHECK_PATH) return null
   const label = count === 1
     ? tr('Check 1 rental', 'Kiểm tra 1 căn')
     : `${tr('Check', 'Kiểm tra')} ${count} ${tr('rentals', 'căn')}`
+  const free = rentalFreeShort(tr)
+  /**
+   * ⛔ BELOW 375px THE ENGLISH LINE IS THE COMPACT ONE (rentalFreeCompact, measured there): the owner's
+   * wording lost its last word in the 360px pill. Vietnamese fits and keeps its one line, and so do the
+   * other languages (the owner's line, translated) — the switch is English-only.
+   * ⚠️ CSS DOES THE SWITCH, NOT JS: two spans, one hidden per width, so the server render and hydration
+   * agree at every width (no matchMedia, no resize listener) — the messages strip's `max-sm:sr-only`
+   * pattern. ⚠️ AND THE LINK KEEPS ONE ACCESSIBLE NAME, the owner's full line: the compact span is
+   * `aria-hidden`, and below 375 the full one is `sr-only`, never display:none — so a screen reader hears
+   * the same pill at every width.
+   */
+  const compact = lang === 'en' ? rentalFreeCompact(tr) : null
   return (
     <Button
       asChild
@@ -55,7 +71,14 @@ export function RentalCheckPill({ className }: { className?: string }) {
         <ClipboardCheck className="h-5 w-5 shrink-0" aria-hidden />
         <span className="flex min-w-0 flex-col items-start text-left leading-tight">
           <span className="max-w-full truncate text-sm font-bold tabular-nums">{label}</span>
-          <span className="max-w-full truncate text-2xs font-medium text-white/85">{rentalFreeShort(tr)}</span>
+          {compact ? (
+            <>
+              <span aria-hidden data-free-line="compact" className={cn(FREE_LINE, 'min-[375px]:hidden')}>{compact}</span>
+              <span data-free-line="full" className={cn(FREE_LINE, 'max-[375px]:sr-only')}>{free}</span>
+            </>
+          ) : (
+            <span data-free-line="full" className={FREE_LINE}>{free}</span>
+          )}
         </span>
       </Link>
     </Button>

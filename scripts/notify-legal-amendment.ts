@@ -39,7 +39,6 @@
 import pg from 'pg'
 import { invokedDirectly } from '../src/lib/cli-entry'
 import { AMENDED, LEGAL_AMENDMENT } from '../src/lib/compliance/legal-amendment'
-import { TOS_VERSION } from '../src/lib/site-legal'
 import { AMENDMENT_NOTICE, AMENDMENT_NOTICE_ID_PREFIX, AMENDMENT_NOTICE_URL, noticeIdPrefix, noticeSendable, retractable } from '../src/lib/compliance/legal-amendment-notice'
 
 const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3)
@@ -63,11 +62,14 @@ async function liveCheck(origin: string): Promise<string | null> {
 
 /**
  * Does the live /regulations show the amendment as in force from its publication day? The Quy chế renders
- * its Vietnamese META unconditionally (both languages are the document), so the marker holds whatever
+ * its Vietnamese text unconditionally (both languages are the document), so the marker holds whatever
  * language the edge answers in. `?d=` defeats the edge cache.
+ * ⚠️ THE MARKER IS THE AMENDMENT'S ARTICLE 17 ENTRY, NOT THE META LINE (2026-10-05). META names the NEWEST
+ * Quy chế version, which the Quy chế-only version 3 (REGULATIONS_AMENDMENT) moved on from version 2; the
+ * October amendment's own dated entry stays in Article 17 whatever comes after it (append-only).
  */
 async function liveImmediateCheck(origin: string): Promise<string | null> {
-  const marker = `Phiên bản ${TOS_VERSION}, có hiệu lực từ ngày ${AMENDED.inForceVi}`
+  const marker = `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${AMENDED.inForceVi}`
   try {
     const res = await fetch(`${origin}/regulations?d=${Date.now()}`, { headers: { accept: 'text/html', 'accept-language': 'vi' } })
     if (!res.ok) return `${origin}/regulations answered ${res.status}`
@@ -90,12 +92,12 @@ async function retract(url: string, apply: boolean) {
     if (!process.argv.includes('--skip-live-check')) {
       const why = await liveImmediateCheck(origin)
       if (why) throw new Error(`refusing to retract: ${why} (--skip-live-check to override)`)
-      console.log(`live: ${origin}/regulations shows version ${TOS_VERSION} in force from ${AMENDED.inForceVi}`)
+      console.log(`live: ${origin}/regulations logs the amendment as published and in force on ${AMENDED.inForceVi}`)
     }
   } else {
     if (!allowed.ok) console.log(`⚠️  --apply would refuse: ${allowed.reason}`)
     const why = await liveImmediateCheck(origin)
-    console.log(why ? `⚠️  --apply would refuse until deployed: ${why}` : `live: ${origin}/regulations shows version ${TOS_VERSION} in force from ${AMENDED.inForceVi}`)
+    console.log(why ? `⚠️  --apply would refuse until deployed: ${why}` : `live: ${origin}/regulations logs the amendment as published and in force on ${AMENDED.inForceVi}`)
   }
 
   // THE predicate: what the send mode's INSERT (main, below) wrote, and nothing else.

@@ -1,7 +1,10 @@
 import 'server-only'
 import { db } from './db'
 import { Prisma } from '@/generated/prisma/client'
-import { FEED_DIVERSITY_WINDOW, SHARED_SEAT_SELLERS, SHARED_SEAT_SUBCATEGORIES, mergeRoundRobin, type SeatOptions } from './feed-diversity'
+import {
+  FEED_DIVERSITY_WINDOW, GOODS_CATEGORY_SLUGS, GOODS_SEAT_ROWS, SHARED_SEAT_SELLERS, SHARED_SEAT_SUBCATEGORIES,
+  diversifyBySeller, isSecondHandGoods, mergeRoundRobin, type Diversifiable, type SeatOptions,
+} from './feed-diversity'
 import { scopedListingWhere } from './edition-scope'
 
 /**
@@ -90,6 +93,8 @@ const WINDOW_CACHE_MAX = 32
  * hope. Erasing the type outright was worse: it cost `(home)/page.tsx` its concrete card row.
  */
 type WindowRow = Record<string, unknown>
+/** A built window and whether it may be memoized — see `buildWindow`. */
+type WindowBuild = { rows: unknown[]; diverse: boolean }
 const windowCache = new Map<string, { at: number; rows: Promise<WindowRow[]> }>()
 
 /**
@@ -105,6 +110,26 @@ function ranksByRankScoreDesc(orderBy: Prisma.ListingOrderByWithRelationInput[])
 }
 
 /**
+ * A projection the goods seats can read: isSecondHandGoods needs the row's type, condition and category slug.
+ * Under a narrower `select` every row would read as "not goods" and the seats would silently do nothing,
+ * so the type refuses `goodsSeats: true` there — the same reasoning as the `id: true` constraint below.
+ * ⚠️ `[S] extends [GoodsReadable]`, NOT `S extends …`: a bare conditional DISTRIBUTES over a union `select`
+ * and would accept the seats when only one member can read goods. (An `any` select still passes — nothing
+ * a type can do about `any`.)
+ */
+type GoodsReadable = { listingType: true; condition: true; category: { select: { slug: true } } }
+
+type WindowOptions<S> = SeatOptions & {
+  /**
+   * Keep teacher profiles in the window — ONLY for a caller whose `where` already made the teacher
+   * decision (/c/teachers, the API under `category=teachers`). Omitted, the default exclusion applies
+   * exactly as before (home, storefronts): re-applying the scope without it emptied /c/teachers even
+   * though the page passed `{ teachers: true }` to its own scopedListingWhere (disc-03 / rentals-01).
+   */
+  teachers?: boolean
+} & ([S] extends [GoodsReadable] ? unknown : { goodsSeats?: false })
+
+/**
  * ⛔ THE PROJECTION MUST CARRY `id`, AND THE TYPE SAYS SO RATHER THAN TRUSTING THE CALLER. The
  * under-filled path builds the top-up's `notIn` out of `row.id`; a caller passing `{ title: true }`
  * would hand Prisma a list of `undefined` and either error or silently exclude nothing. Both real
@@ -115,15 +140,7 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
   where: Prisma.ListingWhereInput,
   orderBy: Prisma.ListingOrderByWithRelationInput[],
   select: S,
-  opts?: SeatOptions & {
-    /**
-     * Keep teacher profiles in the window — ONLY for a caller whose `where` already made the teacher
-     * decision (/c/teachers, the API under `category=teachers`). Omitted, the default exclusion applies
-     * exactly as before (home, storefronts): re-applying the scope without it emptied /c/teachers even
-     * though the page passed `{ teachers: true }` to its own scopedListingWhere (disc-03 / rentals-01).
-     */
-    teachers?: boolean
-  },
+  opts?: WindowOptions<S>,
 ): Promise<Prisma.ListingGetPayload<{ select: S }>[]> {
   /**
    * ⛔ THE SCOPE IS RE-APPLIED HERE, NOT ASSUMED FROM THE CALLER — and `edition-lint` is why. Both
@@ -148,10 +165,12 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
    * served another caller's shape, or worse, poison the entry for the caller that needs the full
    * card. Both call sites pass LISTING_CARD_SELECT today, which is exactly what made it invisible.
    */
-  // ⚠️ The seat rule is part of the key: the same predicate with and without shared seats is two
-  // different windows, and the SSR head must match the API head for the SAME rule (sharedSeatsFor).
+  // ⚠️ The seat rules are part of the key: the same predicate with and without shared seats (or the
+  // goods seats' candidates) is two different windows, and the SSR head must match the API head for
+  // the SAME rules (sharedSeatsFor, goodsSeatsFor).
   const sharedSeats = !!opts?.sharedSeats
-  const key = JSON.stringify([scoped, orderBy, select, sharedSeats])
+  const goodsSeats = !!opts?.goodsSeats
+  const key = JSON.stringify([scoped, orderBy, select, sharedSeats, goodsSeats])
   const hit = windowCache.get(key)
   /**
    * ⚠️ EVERY CALLER GETS ITS OWN ARRAY. The memo holds one array that would otherwise be handed by
@@ -170,7 +189,8 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
     windowCache.set(key, hit)
     return hit.rows.then((r) => r.slice()) as Promise<Prisma.ListingGetPayload<{ select: S }>[]>
   }
-  const built = buildWindow(scoped, orderBy, select, sharedSeats)
+  const built: Promise<WindowBuild> = buildWindow(scoped, orderBy, select, sharedSeats)
+    .then((w) => (goodsSeats ? withGoodsCandidates(w, scoped, orderBy, select) : w))
   const rows = built.then((r) => r.rows as WindowRow[])
   // Neither a rejection nor a fallback window may stay cached — the next request must be free to
   // try again rather than inherit a head that no other page agrees with.
@@ -183,6 +203,34 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
   if (windowCache.size >= WINDOW_CACHE_MAX) windowCache.delete(windowCache.keys().next().value!)
   windowCache.set(key, { at: Date.now(), rows })
   return rows as Promise<Prisma.ListingGetPayload<{ select: S }>[]>
+}
+
+/**
+ * THE DEFAULT FEED'S HEAD — the window, dealt by the seat rules (diversifyBySeller: the seller
+ * round-robin, the shared seats and, on the home feed, the goods seats).
+ *
+ * ⛔ ONE FUNCTION FOR THE HOME PAGE'S SERVER RENDER AND FOR /api/listings. The home page renders the
+ * head's first twelve and the explorer fetches page 2 from the API, which cuts it from ITS head; if the
+ * two heads were assembled by two copies of "window, then diversify", one copy gaining a rule (the goods
+ * seats did) would make page 2 repeat a card the server rendered and skip another. Same function, same
+ * rules (HOME_FEED_SEATS there, sharedSeatsFor + goodsSeatsFor here), same head.
+ * ⚠️ `diversifyBySeller` STILL RUNS OVER A WINDOW THAT IS ALREADY A ROUND-ROBIN, AND IT IS NOT
+ * REDUNDANT: the window decides WHICH rows (each seller's best, merged); this deals whatever came back,
+ * which matters on the fallback paths inside it — a groupBy failure, one seller, or a window the fan-out
+ * under-filled all return the plain top-N — and it is where the goods seats are reserved.
+ */
+export async function diverseFeedHead<S extends Prisma.ListingSelect & { id: true }>(
+  where: Prisma.ListingWhereInput,
+  orderBy: Prisma.ListingOrderByWithRelationInput[],
+  select: S,
+  opts?: WindowOptions<S>,
+): Promise<Prisma.ListingGetPayload<{ select: S }>[]> {
+  const win = await diverseFeedWindow(where, orderBy, select, opts)
+  // The seat rules read only id / sellerId / subcategorySlug / listingType / category.slug, and a field
+  // the projection lacks reads as "no shared seat" / "not goods" — so the cast through the rule's own
+  // row type is sound for any `S`; the rows themselves come back untouched, in a new order.
+  const seats: SeatOptions = { sharedSeats: !!opts?.sharedSeats, goodsSeats: !!opts?.goodsSeats }
+  return diversifyBySeller(win as unknown as Diversifiable[], seats) as unknown as typeof win
 }
 
 /** `diverse: false` marks a fallback window — a natural top-60, which must never be memoized. */
@@ -335,6 +383,74 @@ async function buildWindow(
    * it. A window is diverse only if the round-robin actually contributed more than one seller.
    */
   return { rows: [...merged, ...top], diverse: groups.length >= 2 }
+}
+
+/** The goods seats' rows as a predicate — feed-diversity.ts isSecondHandGoods: used, for sale, in a category of things. */
+const GOODS_WHERE: Prisma.ListingWhereInput = { listingType: 'sell', condition: 'used', category: { slug: { in: [...GOODS_CATEGORY_SLUGS] } } }
+
+type SeatFields = Diversifiable & { sellerId: string }
+
+/**
+ * THE GOODS SEATS' CANDIDATES (feed-diversity.ts GOODS_SEATS, home feed only). reserveGoodsSeats can only
+ * move goods rows the window holds, and the window is the twelve best-ranked SELLERS — on a day the rental
+ * importers, the job employers and the shared catalogues hold the top of the ranking it can hold no
+ * second-hand goods at all, and the seats would stay empty while thousands of goods rows wait below it.
+ *
+ * So a window offering goods from fewer than GOODS_SEAT_ROWS sellers gets the best goods row of each
+ * best-ranked goods seller it lacks — ONE per seller, so four seats can be four shops (the round-robin's
+ * own rule; a tie-clustered top-N would hand all four to one importer) — and, while that still makes fewer
+ * than GOODS_SEAT_ROWS goods rows (a catalogue with one or two goods sellers), the next goods rows in rank
+ * order. ⚠️ APPENDED, NEVER SPLICED: the window's own rows keep their order; diversifyBySeller deals the
+ * newcomers into their sellers' turns and the reservation lifts only what a seat needs. The head can
+ * therefore run a few rows past FEED_DIVERSITY_WINDOW — feedPagePlan takes any head length, and the API's
+ * tail excludes every head row, so nothing is served twice.
+ * ⚠️ USUALLY NO QUERY AT ALL: measured read-only 2026-10-05, seven of the window's twelve sellers sell goods,
+ * so this returns before reading anything. Otherwise a groupBy and at most five reads — once per memoized
+ * window, never per page — all narrowing the one `scoped` predicate.
+ * ⚠️ A FAILED READ IS NOT A SMALLER WINDOW TO KEEP: it marks the window `diverse: false`, which the memo
+ * refuses, exactly like a failed fan-out — the next request builds the real one.
+ */
+async function withGoodsCandidates(
+  base: WindowBuild,
+  scoped: Prisma.ListingWhereInput,
+  orderBy: Prisma.ListingOrderByWithRelationInput[],
+  select: Prisma.ListingSelect,
+): Promise<WindowBuild> {
+  const rows = base.rows as SeatFields[]
+  // A window short of FEED_DIVERSITY_WINDOW is the whole catalogue — the top-up (or the single query)
+  // ran dry — so every goods row is already in it and there is nothing to fetch.
+  if (rows.length < FEED_DIVERSITY_WINDOW) return base
+  const inWindow = rows.filter(isSecondHandGoods)
+  const sellers = new Set(inWindow.map((r) => r.sellerId))
+  if (sellers.size >= GOODS_SEAT_ROWS) return base
+  const goodsScope: Prisma.ListingWhereInput = { AND: [scoped, GOODS_WHERE] }
+  try {
+    // edition-lint-allow: `scoped` AND-ed with the goods clause — narrowing only, like the seats above.
+    const top = await db.listing.groupBy({
+      by: ['sellerId'],
+      where: goodsScope,
+      _max: { rankScore: true },
+      orderBy: [{ _max: { rankScore: 'desc' } }, { sellerId: 'desc' }],
+      take: GOODS_SEAT_ROWS + sellers.size,
+    })
+    const lacking = top.map((g) => g.sellerId).filter((s) => !sellers.has(s)).slice(0, GOODS_SEAT_ROWS - sellers.size)
+    // ⚠️ `notIn` the window even here, where no row SHOULD match it: a listing re-typed to goods between the
+    // window's read and this one (it was in the window as a rental) would otherwise be appended a second
+    // time — one card twice, memoized for a minute or baked into the 6h ISR home (review, 2026-10-05).
+    const windowIds = rows.map((r) => r.id)
+    const firsts = (await Promise.all(lacking.map((sellerId) =>
+      // edition-lint-allow: the goods scope AND-ed with one sellerId — narrowing only.
+      db.listing.findMany({ where: { AND: [goodsScope, { sellerId }, { id: { notIn: windowIds } }] }, orderBy, take: 1, select })))).flat() as unknown[]
+    const short = GOODS_SEAT_ROWS - inWindow.length - firsts.length
+    if (short <= 0) return { rows: [...base.rows, ...firsts], diverse: base.diverse }
+    const held = [...windowIds, ...(firsts as SeatFields[]).map((r) => r.id)]
+    // edition-lint-allow: the goods scope minus the rows already held — narrowing only.
+    const more = await db.listing.findMany({ where: { AND: [goodsScope, { id: { notIn: held } }] }, orderBy, take: short, select })
+    return { rows: [...base.rows, ...firsts, ...more], diverse: base.diverse }
+  } catch (e) {
+    console.error('[feed-window] goods-seat candidates failed — serving the window without them, unmemoized', e)
+    return { rows: base.rows, diverse: false }
+  }
 }
 
 /**
