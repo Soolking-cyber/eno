@@ -7,6 +7,7 @@ import { ConversationList } from '@/components/marketplace/conversation-list'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { KbDebug } from '@/components/marketplace/kb-debug'
 import { cn } from '@/lib/utils'
+import { isConversationPath } from '@/lib/thread-chrome'
 
 // Desktop messenger shell: a persistent two-pane layout (conversation list left,
 // thread right) — not a stretched mobile card. On mobile it's single-pane: the
@@ -15,6 +16,10 @@ import { cn } from '@/lib/utils'
 export default function MessagesLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const inThread = /^\/messages\/.+/.test(pathname || '') // viewing a specific conversation
+  // Narrower than inThread: a real conversation (/messages/<conversation id>), matched by the ID'S FORMAT —
+  // never the AI chat, the composer's resolver or any sibling route added later. The thread's header is the
+  // only one that owns the status-bar inset, so only a thread drops the site header (src/lib/thread-chrome.ts).
+  const inConversation = isConversationPath(pathname)
 
   // Size the shell to the visible viewport height while the keyboard is up (iOS overlays
   // the keyboard without shrinking dvh). Composer is the bottom flex row. The shell is
@@ -56,7 +61,21 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
        */
       className="flex h-[calc(100dvh-4.5rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden lg:h-[calc(100dvh-var(--banner-h,0px))]"
     >
-      <Header />
+      {/* ⚠️ NO GLOBAL HEADER IN A PHONE THREAD (inbox-01, si-05). On a real iPhone the messages got 352 of
+          654px: the site header (64px of logo + listing search) sat above the thread's own header, which
+          already carries Back, the counterpart and Report. Below lg in a thread it is `hidden`, and that
+          64px goes to the message list — the shell's height is unchanged, the header simply no longer
+          takes a row of it. `contents` everywhere else, so the header stays a direct flex child of
+          this column exactly as before (a plain wrapper would add a box around a sticky element).
+          The thread header takes over the status-bar inset the global header used to pad
+          (THREAD_HEADER_CLASS, src/lib/thread-chrome.ts — the page, its loading skeleton and its
+          guest / not-found bar all wear it). ⛔ `inConversation`, NOT `inThread`: /messages/ai,
+          /messages/pending and any future sibling keep the site header — their own bars do not pad the
+          inset, and the AI chat's Back sat under the status bar in the native app. The tab bar stays —
+          owner decision C15. */}
+      <div className={inConversation ? 'hidden lg:contents' : 'contents'}>
+        <Header />
+      </div>
       <KbDebug />
       {/* Same max-width + gutter as the header navbar so the two-pane edges line up
           with the logo (left) and Post button (right). Mobile stays edge-to-edge. */}

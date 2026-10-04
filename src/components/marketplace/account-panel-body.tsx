@@ -8,7 +8,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LogOut } from '@/components/ui/icons'
+import { LogIn, LogOut } from '@/components/ui/icons'
 import { ICON_SIZE, STROKE_NAV, STROKE_UI } from '@/lib/icon-tokens'
 // ⚠️ FROM category-glyph, NOT category-icons — importing the renderer from the registry file
 // drags its 99-icon map into this route's chunk (see category-glyph.tsx's header).
@@ -28,6 +28,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { useDashboard } from '@/hooks/use-dashboard'
+import { useSignInAgain } from './dashboard-fetch-error'
 import { DASHBOARD_NAV } from './dashboard-nav'
 import { resolveNavGroups, type ResolvedNavItem } from './dashboard-nav-resolve'
 import { useAccountPanel } from './account-panel'
@@ -38,7 +39,10 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   const pathname = usePathname()
   // ONE shared cache-first source, identical to what the /dashboard/* pages read — so the
   // rail's stats/identity and the section pages never diverge or double-fetch.
-  const { dash } = useDashboard()
+  const { dash, error: dashError } = useDashboard()
+  // A refused session (the dashboard answered 401 — inbox-10): the identity row becomes the way back in.
+  // Sign in returns to the page the person is on.
+  const signInAgain = useSignInAgain(pathname || '/dashboard/listings')
   // Live counters for the Messages + Saved rail items — same sources the (now-removed) header
   // icons used, so the counts stay real-time and consistent.
   const { unread } = useChat()
@@ -440,8 +444,30 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
               browsers silently un-nest, which would break BOTH targets. So the link is an
               absolutely-positioned overlay covering the row, and the trust badge is lifted
               above it with relative z-10 so it stays independently clickable. */}
-          {/* Fixed shape like the nav rows: `lg:px-1.5` centres the 36px avatar in the collapsed 48px
-              row — on the same vertical axis as the icons above — and it stays put when the rail opens. */}
+          {/* ⛔ A REFUSED SESSION (inbox-10): the dashboard answered 401, so the rail stops presenting an identity
+              this browser no longer holds — and never sits on an empty one — but offers the one way back:
+              ONE button, the same box as the identity row (36px coin where the avatar sat), so neither the
+              collapsed nor the open rail moves. The text block hides with the rail's labels when collapsed;
+              it stays in the button's accessible name either way. */}
+          {dashError === 'auth' ? (
+            <Button
+              variant="bare"
+              size="none"
+              data-rail-session-expired=""
+              onClick={() => { onClose(); void signInAgain() }}
+              className="group flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition-colors hover:bg-tint lg:px-1.5 cursor-pointer"
+            >
+              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-tint text-accent-foreground">
+                <LogIn className="size-5" />
+              </span>
+              <span className={cn('min-w-0 max-w-[180px] flex-1 overflow-hidden transition-[opacity,translate] ease-out', expanded ? 'lg:translate-x-0 lg:opacity-100 lg:duration-150 lg:delay-50' : 'lg:-translate-x-1 lg:opacity-0 lg:duration-100')}>
+                <span className="block truncate text-sm font-bold text-foreground">{tr('Your session has expired', 'Phiên đăng nhập đã hết hạn')}</span>
+                <span className="block truncate text-xs font-semibold text-accent-foreground">{tr('Sign in', 'Đăng nhập')}</span>
+              </span>
+            </Button>
+          ) : (
+          /* Fixed shape like the nav rows: `lg:px-1.5` centres the 36px avatar in the collapsed 48px
+             row — on the same vertical axis as the icons above — and it stays put when the rail opens. */
           <div className="group relative flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-tint lg:px-1.5">
             <Link
               href="/dashboard/settings"
@@ -464,6 +490,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
               {dash?.profile.email && <p className="truncate text-xs text-ink-4">{dash.profile.email}</p>}
             </div>
           </div>
+          )}
 
           {/* Language + theme — quiet device prefs. Only meaningful expanded (a horizontal control has
               no collapsed icon form), so it's hidden on the collapsed desktop rail; full on mobile.

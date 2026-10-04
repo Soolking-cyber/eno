@@ -115,7 +115,22 @@ async function visaThreadContext(applicationId: string) {
 // visaThreadContext — keep their own catch and are untouched by this.
 export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId }) => {
   const { id } = params
-  const peek = new URL(req.url).searchParams.get('peek') === '1'
+  const search = new URL(req.url).searchParams
+  const peek = search.get('peek') === '1'
+  /**
+   * ⚠️ `?opened=1` IS THE THREAD PAGE'S ONE-TIME "I AM LOOKING AT THIS" CALL (si-04), sent on the first
+   * load of a thread and never by the 15s poll, the focus refetch or a prefetch. It clears this thread's
+   * bell notifications EVEN WHEN NOTHING IS UNREAD: an offer notification can outlive a zero `myUnread`
+   * (the counter was cleared on another device, or a read raced the notification's insert), and the bell
+   * then kept saying "unread" for a thread the person had read. Keeping it off the poll is what keeps the
+   * poll write-free (a poll clears the bell only alongside the unread write it already makes — see the
+   * clear below). `peek` always wins — a prefetch is never an open.
+   */
+  const opened = !peek && search.get('opened') === '1'
+  // What 'Đã xem' can vouch for (inbox-07): `counterpartSeen` below is read from the unread counters AFTER
+  // this instant, so it covers exactly the messages created at or before it. Taken first, on purpose — a
+  // message that lands mid-request falls outside the claim (shown 'Đã gửi'), never inside it.
+  const seenAsOf = new Date().toISOString()
 
   const convo = await db.conversation.findUnique({
     where: { id },
@@ -125,7 +140,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // every visa card is validated against server-side, and the client needs it to tell a
       // LIVE card from the inert history a rebound thread leaves behind.
       visaApplicationId: true,
-      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true, listingType: true, verified: true, teacherProfile: { select: { status: true } } } },
+      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true, listingType: true, verified: true, subcategorySlug: true, category: { select: { slug: true } }, teacherProfile: { select: { status: true } } } },
       // Teachers (2026-09-30): the teacher's revocable share — decides the thread's contact strip.
       teacherContactShare: { select: { revokedAt: true } },
       // `owner.locale` / `buyer.locale` = the counterpart's persisted app language, the ONLY
@@ -192,17 +207,33 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
   // Mark my side read — but only WRITE when there's actually something to clear,
   // so the ~1.5s polling reads stay write-free.
   const myUnread = iAmBuyer ? convo.buyerUnread : convo.sellerUnread
+  // Refresh the app-icon badge — reading messages is one of only two ways the count goes DOWN, and no
+  // ordinary push fires here. Deliberately ONLY when something was cleared (this unread write, or the bell
+  // clear at the end of the handler): this route is polled, and syncing on every poll would hammer APNs to
+  // send the same number. Scheduled ONCE — after() runs when the response is finished, so a sync scheduled
+  // here already counts the bell rows cleared further down.
+  let badgeSyncScheduled = false
+  const syncBadge = () => {
+    if (badgeSyncScheduled) return
+    badgeSyncScheduled = true
+    after(() => syncBadgeToProfile(meId))
+  }
   if (myUnread > 0 && !peek) {
     await db.conversation.update({
       where: { id },
       data: iAmBuyer ? { buyerUnread: 0 } : { sellerUnread: 0 },
     })
-    // Refresh the app-icon badge — reading messages is one of only two ways the count goes
-    // DOWN, and no ordinary push fires here. Deliberately INSIDE the `myUnread > 0` guard:
-    // this route is polled roughly every 1.5s, and syncing on every poll would hammer APNs
-    // to send the same number. after() keeps it off the response path.
-    after(() => syncBadgeToProfile(meId))
+    syncBadge()
   }
+  // The bell clear (si-04) runs at the END of this handler, after the response body is built — see there.
+
+  /**
+   * 'Đã xem' (inbox-07): has the OTHER side read everything in this thread? Their own unread counter is
+   * the only read receipt the schema keeps, so it is exactly that — zero means every message (mine
+   * included) has been seen. Not a per-message timestamp, and the client shows it under my newest
+   * bubble only, where "seen" and "everything seen" are the same claim.
+   */
+  const counterpartSeen = (iAmBuyer ? convo.sellerUnread : convo.buyerUnread) === 0
 
   // Counterpart's public storefront id (so the chat header name can deep-link to
   // their seller/business page). As a buyer that's the listing's seller directly;
@@ -299,7 +330,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
   // "what kind of listing anchors this", and the answer here is "none". See Conversation.listingId.
   const kind = convo.listing ? await threadKind({ listingId: convo.listing.id }) : null
 
-  return {
+  const body = {
     id: convo.id,
     me: meId,
     /** 'visa' | 'itinerary' | 'listing' — what this thread is ABOUT. */
@@ -327,7 +358,14 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     // ⛔ NULL ON A SUPPORT THREAD. Every consumer of this payload assumed a listing because every
     // conversation had one; support is the first that does not, and a fabricated placeholder would
     // have to be filtered out of the thread header, the offer bar and the review prompt separately.
-    listing: convo.listing ? { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, negotiable: takesOffers(convo.listing), listingType: convo.listing.listingType, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null, status: convo.listing.status } : null,
+    // `categorySlug` / `subcategorySlug` feed the buyer's category openers in a fresh thread (inbox-13,
+    // src/lib/openers.ts openersFor) — the same facts the PDP's opener picker reads.
+    listing: convo.listing ? { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, negotiable: takesOffers(convo.listing), listingType: convo.listing.listingType, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null, status: convo.listing.status, categorySlug: convo.listing.category?.slug ?? null, subcategorySlug: convo.listing.subcategorySlug ?? null } : null,
+    // Has the other side read everything here? Drives 'Đã xem / Đã gửi' under my newest bubble — and only
+    // for a message created by `seenAsOf` (server clock): anything of mine appended later, by any path, is
+    // outside what this read could see.
+    counterpartSeen,
+    seenAsOf,
     // Buyer already reviewed this conversation → the thread UIs hide the review prompt.
     hasReviewed,
     // `locale` drives the live-translation toggle: the client offers it ONLY when the
@@ -357,6 +395,48 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     // five glyphs picked in a constant. Cached for an hour per instance — see reaction-tally.ts.
     topReactions: await globalTopReactions(),
   }
+
+  /**
+   * THE BELL CLEARS WITH THE THREAD (si-04) — LAST, after the body above was built. If anything before this
+   * throws, the person gets an error AND keeps the notification, rather than an error that already marked
+   * it read. Still after the edition-404 and participant-403 checks above, still never on a peek.
+   * Every unread notification that deep-links HERE is read — by `conversationId`, with NO type list: the
+   * rental desk writes its notifications under a variable type (messages.ts), and a type allow-list would
+   * leave those behind. Scoped to `recipientId: meId`, so it can only ever touch the caller's own rows.
+   * TWO MOMENTS WRITE IT, and a poll with nothing unread is neither — so polling stays write-free:
+   *   · the one-time OPEN (`?opened=1`), whatever the counter says: a stale offer notification on a
+   *     thread whose messages are already read still clears;
+   *   · any non-peek read that is ALREADY writing because messages were unread (the update above). That
+   *     is the offer that arrives while the thread is open: the page refetches on it (realtime, or the
+   *     15s poll), the counter is >0, and its bell row clears with it instead of waiting for the next
+   *     open. The row is written right after the message's transaction, so the realtime refetch almost
+   *     always finds it; a miss is still cleared by the next open.
+   * ⚠️ FAILS SOFT. A bell that stays lit is a nuisance; a thread that 500s because of it is an outage.
+   * `openCleared` tells the page its open really cleared (the request carried `?opened=1` AND the update
+   * succeeded) — only then does it stop asking; a failed clear is retried on its next refetch.
+   * Rows already stale on threads read before this shipped are a data backfill, not this change.
+   */
+  let notificationsCleared = 0
+  let openCleared = false
+  if (opened || (myUnread > 0 && !peek)) {
+    try {
+      const r = await db.notification.updateMany({
+        // ⚠️ `createdAt <= seenAsOf`: only rows that existed when this request began reading the thread. A
+        // notification inserted mid-request (an offer landing between the read and this update) is about a
+        // message this response may not even carry — it stays unread for the next read to clear.
+        where: { recipientId: meId, conversationId: id, read: false, createdAt: { lte: new Date(seenAsOf) } },
+        data: { read: true },
+      })
+      notificationsCleared = r.count
+      openCleared = opened
+      if (r.count > 0) syncBadge()
+    } catch (e) {
+      console.error('[conversations] notification clear failed', e)
+    }
+  }
+  // How many bell notifications this read just marked read — the page refreshes the bell only when this
+  // is non-zero. Always 0 on a peek, and on a poll with nothing unread.
+  return { ...body, notificationsCleared, openCleared }
 })
 
 // DELETE a conversation from MY inbox only (per-user hide, non-destructive).

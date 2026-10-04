@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAdmin, getCurrentProfile } from '@/lib/admin'
+import { getAdmin, getCurrentProfile, isCurrentUserAdminByClaims, missingProfileReason } from '@/lib/admin'
 import { computeTrustV2 } from '@/lib/trust'
 import { FLAG_REASONS, getEnforcement } from '@/lib/enforcement'
 import { dashboardStatsCore } from '@/lib/core/dashboard'
@@ -77,12 +77,21 @@ async function enforcementPayload(profileId: string, sellerId: string | null) {
 // path with no rate limit and no body, so the wrapper has nothing left to contribute.
 export async function GET() {
   const profile = await getCurrentProfile()
-  if (!profile) return NextResponse.json({ dashboard: null }, { status: 401 })
+  if (!profile) {
+    // ⚠️ 401 MEANS "NO SESSION", NOTHING ELSE: the dashboard page answers it with "your session has expired"
+    // and a sign-out (inbox-10). An auth server that could not be asked is a 503 — the page's Retry state —
+    // or a blip would sign people out of a session that was fine. Same `{ dashboard: null }` envelope both ways.
+    const reason = await missingProfileReason()
+    return NextResponse.json({ dashboard: null }, { status: reason === 'none' ? 401 : 503 })
+  }
   // trustProgress: the REAL v2 tier-gate inputs (src/lib/trust-math.ts tierFor) the
   // client can't derive itself — powers the "Your path to {next tier}" panel.
   // computeTrustV2 is a bounded set of owner-scoped indexed queries.
+  // The unread tile counts exactly what the header badge counts (inbox-11): the same
+  // conversationUnread() options /api/notifications passes, including its admin claims read.
+  const includeSupportDesk = await isCurrentUserAdminByClaims()
   const [dashboard, breakdown] = await Promise.all([
-    dashboardStatsCore(profile),
+    dashboardStatsCore(profile, { includeSupportDesk }),
     computeTrustV2(profile.id).catch(() => null),
   ])
   // Sequential (needs the core's seller id) but cheap: 2–3 indexed PK reads on an

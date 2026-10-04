@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { useFavorites } from '@/context/favorites-context'
 import { useDashboard } from '@/hooks/use-dashboard'
+import { DashboardFetchError } from '@/components/marketplace/dashboard-fetch-error'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -95,7 +96,7 @@ export function AccountClient() {
   const router = useRouter()
   // The SAME cache-first source the rail and the section pages read, so identity and counters
   // can never disagree between surfaces or double-fetch.
-  const { dash } = useDashboard()
+  const { dash, refresh, error } = useDashboard()
   const { unread } = useChat()
   const { count: savedCount } = useFavorites()
 
@@ -189,6 +190,11 @@ export function AccountClient() {
           that means anything here. It is also the way into Settings, exactly as on the desktop
           rail (whose identity card carries the same link) — without this, Settings has no row in
           DASHBOARD_NAV and would be unreachable from the account destination. */}
+      {/* ⛔ A REFUSED SESSION (inbox-10): not an identity that is no longer this browser's, and not a skeleton
+          that will never fill — the way back in. (Outside the Settings link: a button cannot sit in it.) */}
+      {!dash && error === 'auth' ? (
+        <div className="py-3"><DashboardFetchError error="auth" onRetry={refresh} next="/dashboard/account" /></div>
+      ) : (
       <Link
         href="/dashboard/settings"
         aria-label={tr('Settings', 'Cài đặt')}
@@ -196,7 +202,8 @@ export function AccountClient() {
       >
         <Avatar name={name} url={dash?.profile.avatarUrl} color={dash?.profile.avatarColor} size="xl" />
         <div className="min-w-0 flex-1">
-          {dash ? (
+          {/* A failed fetch ('failed') paints the session's own identity, never a skeleton that will not fill. */}
+          {dash || error ? (
             <>
               <p className="truncate text-lg font-bold text-foreground">{name || tr('Your account', 'Tài khoản của bạn')}</p>
               <p className="truncate text-xs text-body">{dash?.profile.email || user?.email}</p>
@@ -220,6 +227,7 @@ export function AccountClient() {
         </div>
         <ChevronRight className="h-5 w-5 shrink-0 text-ink-4" aria-hidden />
       </Link>
+      )}
 
       {/* FLAT (canon §3b): a caption, a hairline above the block, and rows separated by lines —
           no card around the list. RowsSection/Rows carry the semantics (section + ul/li) that the

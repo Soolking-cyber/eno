@@ -20,14 +20,14 @@ export function useListingActions(
   // (the data-table): reports every optimistic transition ('sold'/'active'
   // flip, 'gone' during the undo-delete window, null on rollback/undo) so
   // status badges and row selectability stay in lockstep with the actions.
-  onState?: (state: 'sold' | 'active' | 'gone' | null) => void,
+  onState?: (state: 'sold' | 'active' | 'hidden' | 'gone' | null) => void,
 ) {
   const { tr } = useLanguage()
   const router = useRouter()
   const [gone, setGoneRaw] = useState(false)
   const [optStatus, setOptStatusRaw] = useState<string | null>(null)
   const setGone = (g: boolean) => { setGoneRaw(g); onState?.(g ? 'gone' : null) }
-  const setOptStatus = (s: 'sold' | 'active' | null) => { setOptStatusRaw(s); onState?.(s) }
+  const setOptStatus = (s: 'sold' | 'active' | 'hidden' | null) => { setOptStatusRaw(s); onState?.(s) }
 
   const act = (
     optimistic: () => void,
@@ -66,7 +66,8 @@ export function useListingActions(
       .catch(() => { rollback(); onChanged() })
   }
 
-  const setStatus = (s: 'sold' | 'active') => act(
+  // 'hidden' = pulled from the public feed, kept in the dashboard (the dashboard row's Hide, inbox-12).
+  const setStatus = (s: 'sold' | 'active' | 'hidden') => act(
     () => setOptStatus(s),
     () => setOptStatus(null),
     `/api/listings/${listing.id}/status`, 'POST', { status: s },

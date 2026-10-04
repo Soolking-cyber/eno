@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useDashboard } from '@/hooks/use-dashboard'
+import { DashboardFetchError } from '@/components/marketplace/dashboard-fetch-error'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/ui/page-header'
 import { cn } from '@/lib/utils'
@@ -46,7 +47,7 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
-  const { dash, refresh } = useDashboard()
+  const { dash, refresh, error } = useDashboard()
 
   useEffect(() => {
     if (!loading && !user) router.replace('/signin?next=/dashboard/settings')
@@ -105,7 +106,13 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
             text-xl, 20px, so the title shrank when you moved from Listings to Settings. */}
         {!embedded && <PageHeader title={tr('Settings', 'Cài đặt')} titleClassName="max-lg:sr-only" />}
 
-      {!dash ? (
+      {!dash && error ? (
+        // ⛔ NEVER A SKELETON THAT WILL NOT LOAD (inbox-10): a dashboard fetch that failed (or a session the
+        // server refused) says so, with the one way forward — Retry, or Sign in.
+        <div className="mt-6">
+          <DashboardFetchError error={error} onRetry={refresh} next="/dashboard/settings" />
+        </div>
+      ) : !dash ? (
         // Second stage (auth resolved, `dash` still in flight) — the SAME flat-group shape as
         // the gate above, so the two skeletons agree instead of swapping a 16+10+10 stack for
         // four cards.

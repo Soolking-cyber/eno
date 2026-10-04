@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useParams, usePathname } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { MessagesGuestGate } from '@/components/marketplace/messages-guest-gate'
-import { Search, Trash2, X, Sparkles, Check, Undo2, Tag } from '@/components/ui/icons'
+import { Search, Trash2, X, Sparkles, Check, Undo2, Tag, MoreHorizontal } from '@/components/ui/icons'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
@@ -19,7 +21,10 @@ import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
 import { CloseButton } from '@/components/ui/close-button'
 import { Input } from '@/components/ui/input'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { timeAgo } from '@/lib/types'
+import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 
 // Borderless conversation list — the left pane of the desktop two-pane messenger
 // (and the whole screen on mobile). Highlights the open thread on desktop.
@@ -54,6 +59,21 @@ export function ConversationList() {
     }, 150)
   }
   const [query, setQuery] = useState('')
+  /**
+   * PHONE: conversation search lives behind the title row's search button (inbox-01) — the Zalo / Messenger
+   * pattern. A second PERMANENT box under the global header's listing search read as two searches of the
+   * same thing; no box at all lost conversation search on phones. Desktop keeps its always-on field.
+   * The tap reveals AND focuses in the same gesture: `flushSync` commits the reveal first, because a
+   * display:none field cannot take focus and iOS only raises the keyboard for a focus inside the tap.
+   * Esc or ✕ clears the query and folds it away.
+   */
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchId = useId()
+  const openSearch = () => {
+    flushSync(() => setSearchOpen(true))
+    document.getElementById(searchId)?.focus()
+  }
+  const closeSearch = () => { setQuery(''); setSearchOpen(false) }
 
   useEffect(() => { if (user) refreshConvos() }, [user, refreshConvos])
 
@@ -74,27 +94,54 @@ export function ConversationList() {
   return (
     <div className="flex h-full flex-col">
       <div className="px-2 pt-3">
-        {/* Title only on desktop; on mobile the navbar gives context + the search
-            sits right under it. ⚠️ `max-lg:sr-only`, NOT `hidden lg:block`: display:none took the h1
-            out of the accessibility tree too, so a phone screen reader met /messages with no page
-            heading at all (the same fix DashboardTabs records). Visually nothing changes. */}
-        <PageHeader title={tr('Messages', 'Tin nhắn')} className="px-1" titleClassName="max-lg:sr-only" />
-        {/* Search — filled, borderless. ⚠️ NOT FOR A GUEST: there is nothing of theirs to search, and a
-            search box above a sign-in gate reads as a broken inbox. Pre-hydration, `no-session:hidden`
-            drops it for a cookie-less document while auth is still loading. */}
+        {/* ⚠️ THE TITLE IS VISIBLE ON A PHONE NOW, AND THE SEARCH FIELD FOLDS AWAY (inbox-01, 2026-10-04).
+            The phone inbox stacked the global header's listing search directly over this one — two search
+            boxes, one under the other, the second searching something else. The phone gets the 'Tin nhắn'
+            title with a search button beside it (see `searchOpen`); desktop keeps the always-on field. */}
+        <PageHeader
+          title={tr('Messages', 'Tin nhắn')}
+          className="px-1"
+          actions={!guest ? (
+            <IconButton
+              size="sm"
+              onClick={searchOpen ? closeSearch : openSearch}
+              aria-label={tr('Search messages', 'Tìm tin nhắn')}
+              aria-expanded={searchOpen}
+              aria-controls={searchId}
+              className={cn('text-ink-4 hover:bg-muted lg:hidden', loading && 'no-session:hidden')}
+            >
+              <Search className="h-5 w-5" aria-hidden />
+            </IconButton>
+          ) : undefined}
+        />
+        {/* Search — filled, borderless; always on from lg, revealed by the title row's button below it.
+            ⚠️ NOT FOR A GUEST: there is nothing of theirs to search, and a search box above a sign-in gate
+            reads as a broken inbox. Pre-hydration, `no-session:hidden` drops it for a cookie-less document
+            while auth is still loading. */}
         {!guest && (
-        <div className={cn('relative lg:mt-3', loading && 'no-session:hidden')}>
+        <div className={cn('relative lg:mt-3', searchOpen ? 'max-lg:mt-2' : 'max-lg:hidden', loading && 'no-session:hidden')}>
           {/* Input lead rides the 20px step (icon-language §4: inputs = h-5). */}
           <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-4" aria-hidden />
           <Input
+            id={searchId}
             variant="filled"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeSearch(); e.currentTarget.blur() } }}
             placeholder={tr('Search messages', 'Tìm tin nhắn')}
             autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
             aria-label={tr('Search messages', 'Tìm tin nhắn')}
-            className="py-2.5 pl-10 pr-4 transition-colors focus:bg-muted focus:ring-0"
+            className="py-2.5 pl-10 pr-4 transition-colors focus:bg-muted focus:ring-0 max-lg:pr-11"
           />
+          {/* Phone: ✕ clears the query and folds the field back behind the title row's button. */}
+          {searchOpen && (
+            <CloseButton
+              size="xs"
+              onClick={closeSearch}
+              label={tr('Clear search', 'Xóa tìm kiếm')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 lg:hidden"
+            />
+          )}
         </div>
         )}
       </div>
@@ -229,11 +276,20 @@ export function ConversationList() {
                     a tap showed nothing until the thread painted — and `:active` on the wrapper would
                     also flash while pressing the delete button beside it. */}
                 <Link href={`/messages/${c.id}`} scroll={false} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-2.5 transition-colors active:bg-tint/60">
-                  <Avatar name={c.counterpart.name} url={c.counterpart.avatarUrl} size="md" />
+                  {/* The counterpart's own colour, as the thread header already paints it — the list
+                      was the one place every initial sat on the same brand disc. */}
+                  <Avatar name={c.counterpart.name} url={c.counterpart.avatarUrl} color={c.counterpart.avatarColor} size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-bold text-foreground">{c.counterpart.name}</span>
-                      {c.unread > 0 && <Badge variant="counter-brand" size="count" className="h-5 min-w-5 px-1.5">{c.unread}</Badge>}
+                      {/* When, then how many — right-aligned the Zalo / Chợ Tốt way (inbox-02). The list is
+                          client-fetched data, never server HTML, so a render-time clock cannot mismatch. */}
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {c.lastMessageAt && (
+                          <time dateTime={c.lastMessageAt} className="text-xs tabular-nums text-muted-foreground">{timeAgo(c.lastMessageAt, lang)}</time>
+                        )}
+                        {c.unread > 0 && <Badge variant="counter-brand" size="count" className="h-5 min-w-5 px-1.5">{c.unread}</Badge>}
+                      </span>
                     </div>
                     {/* ⚠️ THE LABEL EXISTS BECAUSE THE COUNTERPART NAME CANNOT DISTINGUISH THESE.
                         The visa desk and the trip desk are ONE Seller row, so both threads show the
@@ -287,6 +343,21 @@ export function ConversationList() {
                       )
                     })()}
                   </div>
+                  {/* What the chat is ABOUT, at a glance — the listing's cover at the trailing edge. A
+                      fixed 44px box, so next/image emits a 1x/2x srcset and never the full upload; the
+                      sources the optimizer would refuse (outside our bucket, seed CDNs) go unoptimized,
+                      exactly as dashboard-listing-row.tsx does. Decorative: the title is in the row. */}
+                  {c.listingImage && (
+                    <Image
+                      src={c.listingImage}
+                      alt=""
+                      width={44}
+                      height={44}
+                      quality={60}
+                      unoptimized={!isListingImageUrl(c.listingImage) || isMockImageUrl(c.listingImage)}
+                      className="h-11 w-11 shrink-0 rounded-lg bg-tint object-cover"
+                    />
+                  )}
                 </Link>
                 {confirmId === c.id ? (
                   <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
@@ -294,17 +365,43 @@ export function ConversationList() {
                     <CloseButton size="xs" onClick={() => setConfirmId(null)} label={tr('Cancel', 'Hủy')} />
                   </div>
                 ) : (
-                  <IconButton
-                    size="sm"
-                    onClick={() => setConfirmId(c.id)}
-                    aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
-                    // Hidden-until-hover only where a fine pointer can hover it back (see the same
-                    // note in notification-bell.tsx): `sm:opacity-0` hid it on iPads and landscape
-                    // phones too, where the invisible 44px target still opened the delete confirm.
-                    className="mr-2 ml-1 text-ink-4 transition hover:bg-destructive/10 hover:text-destructive hover-pointer:pointer-events-none hover-pointer:opacity-0 hover-pointer:group-hover:pointer-events-auto hover-pointer:group-hover:opacity-100 hover-pointer:focus-visible:pointer-events-auto hover-pointer:focus-visible:opacity-100"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </IconButton>
+                  <>
+                    <IconButton
+                      size="sm"
+                      onClick={() => setConfirmId(c.id)}
+                      aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
+                      // Hidden-until-hover only where a fine pointer can hover it back (see the same
+                      // note in notification-bell.tsx): `sm:opacity-0` hid it on iPads and landscape
+                      // phones too, where the invisible 44px target still opened the delete confirm.
+                      // ⚠️ AND NOT DRAWN AT ALL ON TOUCH — the overflow below carries it there.
+                      className="mr-2 ml-1 hidden text-ink-4 transition hover:bg-destructive/10 hover:text-destructive hover-pointer:pointer-events-none hover-pointer:flex hover-pointer:opacity-0 hover-pointer:group-hover:pointer-events-auto hover-pointer:group-hover:opacity-100 hover-pointer:focus-visible:pointer-events-auto hover-pointer:focus-visible:opacity-100"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </IconButton>
+                    {/* TOUCH: a row overflow instead of a bare trash can (inbox-02). A red-adjacent bin on
+                        every row, one thumb-slip from the thread link, is how chats got deleted by
+                        accident; the menu puts one deliberate tap in front of the same confirm.
+                        Swipe-to-delete stays rejected. `hover-pointer:hidden` — a mouse keeps the
+                        hover trash above, which it can aim. */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <IconButton
+                            size="sm"
+                            aria-label={tr('More actions', 'Thêm thao tác')}
+                            className="mr-2 ml-1 text-ink-4 transition hover:bg-muted hover-pointer:hidden"
+                          >
+                            <MoreHorizontal className="h-4 w-4" aria-hidden />
+                          </IconButton>
+                        }
+                      />
+                      <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="min-w-44">
+                        <DropdownMenuItem variant="destructive" onClick={() => setConfirmId(c.id)}>
+                          <Trash2 /> {tr('Delete conversation', 'Xóa cuộc trò chuyện')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
                 )}
               </div>
               </div>

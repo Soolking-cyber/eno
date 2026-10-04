@@ -8,6 +8,7 @@ import { Price } from '@/components/marketplace/price'
 import { Mascot } from '@/components/marketplace/mascot'
 import { useAuth } from '@/context/auth-context'
 import { useDashboard } from '@/hooks/use-dashboard'
+import { DashboardFetchError } from '@/components/marketplace/dashboard-fetch-error'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -30,7 +31,7 @@ export function AvailabilityClient() {
   const router = useRouter()
   // Shared dashboard cache (same source the rail + sibling section pages read) instead
   // of a bespoke /api/dashboard fetch.
-  const { dash, refresh, loading: dashLoading } = useDashboard()
+  const { dash, refresh, error: dashError, fresh } = useDashboard()
   const [soldIds, setSoldIds] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -39,10 +40,15 @@ export function AvailabilityClient() {
   const skips = dash?.profile.availabilitySkips ?? 0
   const canSkip = skips < 2
 
-  // null while the dashboard is still loading (skeletons); [] only once it resolved empty.
+  // The seller's live listings — ONLY ever from a loaded dashboard; null otherwise (skeletons, or the
+  // failure state below).
+  // ⛔ "EMPTY" IS A FACT ABOUT A LOADED DASHBOARD, NEVER AN INFERENCE FROM ITS ABSENCE (inbox-10). Deriving
+  // `[]` from "no dashboard and not loading" fired the nothing-to-review effect below on a failed fetch AND
+  // during a Retry (whose refetch cleared the error before loading again): it marked today's review DONE and
+  // left — a network blip or an expired session skipped the daily availability check.
   const listings = useMemo<SerializedListing[] | null>(
-    () => (dash ? dash.listings.filter((l) => l.status === 'active') : dashLoading ? null : []),
-    [dash, dashLoading],
+    () => (dash ? dash.listings.filter((l) => l.status === 'active') : null),
+    [dash],
   )
 
   useEffect(() => {
@@ -53,10 +59,11 @@ export function AvailabilityClient() {
     try { if (user) localStorage.setItem(reviewKey(user.id), todayStr()) } catch {}
   }, [user])
 
-  // Nothing to review → mark done + leave.
+  // Nothing to review → mark done + leave. ⛔ Only on a dashboard FETCHED this session (`fresh`): a cached copy
+  // painted before the refresh lands — or kept after it failed — may be days old (commit-gate review 2026-10-04).
   useEffect(() => {
-    if (user && listings && listings.length === 0) { markDone(); router.replace('/dashboard') }
-  }, [user, listings, markDone, router])
+    if (user && fresh && listings && listings.length === 0) { markDone(); router.replace('/dashboard') }
+  }, [user, fresh, listings, markDone, router])
 
   const toggle = (id: string) => setSoldIds((prev) => {
     const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n
@@ -136,7 +143,10 @@ export function AvailabilityClient() {
           )}
 
           <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-4 py-3 sm:px-6">
-            {!listings ? (
+            {!dash && dashError ? (
+              // Never a skeleton that will not load: Retry, or (a refused session) Sign in.
+              <DashboardFetchError error={dashError} onRetry={refresh} next="/dashboard/availability" />
+            ) : !listings ? (
               // ⚠️ 76px, NOT h-16. The real row is `rounded-2xl p-2.5` (20px of padding) around
               // an `h-14 w-14` thumb, so a flat 64px bar grew 12px per row — ~48px across the
               // four — the moment the listings landed. Built from the row's own box model so it

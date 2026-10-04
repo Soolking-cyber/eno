@@ -5,11 +5,14 @@ import { serializeListing } from '@/lib/serialize'
 import { isStale } from '@/lib/stale'
 import type { Profile } from '@/generated/prisma/client'
 import { NOT_REMOVED } from '@/lib/listing-removed'
+import { conversationUnread } from '@/lib/unread'
 
 // Dashboard payload core (Phase 0). Owner-scoped CRM stats for an ALREADY-RESOLVED
 // profile, decoupled from auth — reused by the session GET /api/dashboard and the future
 // /api/v1/analytics/summary (which surfaces the `stats` subset). The caller authorizes.
-export async function dashboardStatsCore(profile: Profile) {
+// `includeSupportDesk` is the caller's admin verdict (see the unread tile below) — passed in, never read
+// from the session here, so this stays usable by a caller that authenticated some other way.
+export async function dashboardStatsCore(profile: Profile, { includeSupportDesk = false }: { includeSupportDesk?: boolean } = {}) {
   const seller = await db.seller.findUnique({
     where: { ownerId: profile.id },
     include: {
@@ -19,12 +22,17 @@ export async function dashboardStatsCore(profile: Profile) {
     },
   })
 
-  // Unread messages where this user is the seller side of the conversation.
-  const sellerUnreadAgg = await db.conversation.aggregate({
-    where: { sellerProfileId: profile.id },
-    _sum: { sellerUnread: true },
-  })
-  const unreadMessages = sellerUnreadAgg._sum.sellerUnread ?? 0
+  /**
+   * ⛔ THE SAME NUMBER AS THE MESSAGES BADGE, FROM THE SAME FUNCTION (inbox-11). This tile used its own
+   * aggregate — seller side only, every conversation row, no edition scope, no deleted-thread filter — so
+   * the "Unread messages" tile and the header badge disagreed: a buyer-side unread was missing from the
+   * tile, and a thread the inbox hides (deleted, or a desk thread the edition must not show) was in it.
+   * `conversationUnread` is the one definition (src/lib/unread.ts says why there must be only one), called
+   * with exactly the options /api/notifications passes, so tile, badge and inbox count the same rows.
+   * ⚠️ `includeSupportDesk` comes from the caller: the session route passes the same cheap claims read
+   * that poll makes (isCurrentUserAdminByClaims).
+   */
+  const unreadMessages = await conversationUnread(profile.id, { includeSupportDesk })
 
   const listings = seller ? seller.listings.map(serializeListing) : []
 

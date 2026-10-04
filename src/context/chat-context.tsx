@@ -9,6 +9,12 @@ type View = 'list' | 'thread'
 
 export type InboxConvo = {
   id: string; listingTitle: string; listingImage: string | null
+  /**
+   * The anchor listing's id — NULL on a listing-less thread (support, the rental desk); the server has always
+   * sent it (api/conversations GET). The thread page reads it to skip the item-strip placeholder for a thread
+   * it already knows has no item. Optional: an older cached row lacks it, and absent means "unknown".
+   */
+  listingId?: string | null
   lastMessageAt: string; lastMessageText: string | null; unread: number
   lastOffer?: { mine: boolean; amount: number | null; status: string | null } | null
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null }

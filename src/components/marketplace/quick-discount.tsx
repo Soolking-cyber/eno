@@ -90,20 +90,39 @@ export function QuickDiscount({
   listing,
   onChanged,
   className,
+  trigger = true,
+  open: openProp,
+  onOpenChange,
 }: {
   listing: { id: string; price: number; currency: string }
   onChanged: () => void
   className?: string
+  /** Render the warm "Discount" chip. False when a caller opens the dialog from elsewhere — the
+   *  dashboard row's overflow menu (inbox-12) — and drives `open` itself. */
+  trigger?: boolean
+  /** Controlled open state; omit to let the chip own it (every caller before inbox-12). */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // amounts + live grouping follow the viewer's language
   const errId = useId()
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  const open = openProp ?? openState
+  const setOpen = (o: boolean) => { if (openProp === undefined) setOpenState(o); onOpenChange?.(o) }
   const [pct, setPctState] = useState(10)
   const [amount, setAmount] = useState('') // grouped new-price string, e.g. "3,600,000"
   const [saving, setSaving] = useState(false)
 
   const cur = listing.price
+
+  // A CONTROLLED open skips openDialog(), which is what seeds the VND field from the slider — so seed it
+  // on the opening edge instead (React's adjust-state-during-render pattern: no effect, no extra paint).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open && !amount) setAmount(groupVnd(String(tidyPrice(cur * (1 - pct / 100))), locale))
+  }
 
   // % → price (tidy-rounded). Slider + presets drive this.
   const setPct = (p: number) => {
@@ -161,6 +180,7 @@ export function QuickDiscount({
       {/* Distinct warm "deal" chip so the discount action is findable at a glance
           among the neutral row actions (user ask 2026-07-07). Amber, not the red
           drop-badge / report red, and not the blue primary CTA. */}
+      {trigger && (
       <Button
         variant="bare"
         size="none"
@@ -175,6 +195,7 @@ export function QuickDiscount({
             override lifts it to 16 when this chip joins the unified action cluster. */}
         <TrendingDown className="h-3.5 w-3.5" /> {tr('Discount', 'Giảm giá')}
       </Button>
+      )}
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
         <DialogContent className="rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">

@@ -9,11 +9,13 @@ import { useDashboard } from '@/hooks/use-dashboard'
 import { ListChecks } from '@/components/ui/icons'
 import { timeAgo } from '@/lib/types'
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
+import { DashboardFetchError } from '@/components/marketplace/dashboard-fetch-error'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Segmented } from '@/components/ui/segmented'
+import { Alert } from '@/components/ui/alert'
 
 /** One <DashboardListingRow> placeholder, built from the ROW'S OWN box model rather than a
  *  guessed height — that is what makes it right at every width.
@@ -35,11 +37,11 @@ function ListingRowSkeleton() {
         {/* Price — text-base line box (24), not the 20px glyph height */}
         <Skeleton className="h-6 w-28" />
         <div className="mt-0.5"><Skeleton className="h-4 w-40 max-w-full" /></div>
-        {/* Discount · Mark sold · overflow — same widths, so the same wrap point */}
+        {/* Edit · Mark sold · overflow — the row's chips since inbox-12, at their phone widths (one row at 360) */}
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Skeleton className="h-[34px] w-[108px] rounded-lg" />
-          <Skeleton className="h-[34px] w-[115px] rounded-lg" />
-          <Skeleton className="h-[30px] w-[38px] rounded-lg" />
+          <Skeleton className="h-[34px] w-[48px] rounded-lg" />
+          <Skeleton className="h-[34px] w-[90px] rounded-lg" />
+          <Skeleton className="h-[30px] w-[36px] rounded-lg" />
         </div>
       </div>
     </div>
@@ -83,7 +85,21 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
   const { user, loading } = useAuth()
   const { tr, lang } = useLanguage()
   const router = useRouter()
-  const { dash, refresh } = useDashboard()
+  const { dash: cachedDash, refresh, error } = useDashboard()
+  /**
+   * ⛔ NEVER STUCK (inbox-10). A failed /api/dashboard with no cache used to leave the pill, the tiles and
+   * the rows on their skeletons forever — a loading screen that would never load. Now:
+   *   · 'auth' (with or without a cache) → ONLY "session expired" with Sign in;
+   *   · 'failed', no cache               → an error state with Retry (`refresh()`);
+   *   · 'failed', a cache                → the cached copy, under a one-line notice that it may be out of date.
+   * ⛔ NEVER A CACHED ACCOUNT UNDER AN EXPIRED SESSION (privacy): on a shared device the session that cached
+   * these listings and stats may belong to someone else, so on 'auth' not one row of it renders. The hook
+   * already drops the cache on a 401; this holds even if it ever hands one over.
+   */
+  const dash = error === 'auth' ? null : cachedDash
+  const stuck = !dash && !!error
+  // 'auth' → Sign in: the shared useSignInAgain (dashboard-fetch-error.tsx) — a LOCAL-scope sign-out plus the
+  // app's device cleanup, with /signin always reachable.
   // Native segmented status filter over the seller's own listings (shown only once there are
   // enough to be worth filtering). 'active' includes a held (unverified) listing — its chip reads
   // "Held" but it is still status:'active'.
@@ -149,10 +165,27 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
           auth resolving (the gate above) and auth resolved but /api/dashboard still in flight
           (`!dash`, below). The second one used to render the greeting with NOTHING under it, so
           the pill, the tiles and the filter all landed at once. Both now reserve the same three. */}
-      {dash ? <AvailabilityButton dash={dash} tr={tr} lang={lang} /> : <AvailabilityPillSkeleton />}
+      {/* Only ever 'failed' here — on 'auth' `dash` is null, so the session-expired state below stands alone. */}
+      {dash && error === 'failed' && (
+        <Alert
+          tone="warning"
+          appearance="flat"
+          size="xs"
+          data-dash-stale=""
+          className="mt-4 rounded-xl"
+          action={
+            <Button variant="bare" size="none" onClick={refresh} className="relative text-xs font-semibold underline underline-offset-2 cursor-pointer tap-44">
+              {tr('Try again', 'Thử lại')}
+            </Button>
+          }
+        >
+          {tr('Couldn’t load new data', 'Không tải được dữ liệu mới')}
+        </Alert>
+      )}
+      {dash ? <AvailabilityButton dash={dash} tr={tr} lang={lang} /> : stuck ? null : <AvailabilityPillSkeleton />}
       {/* Marketplace stats live HERE now (owner 2026-07-18: no dedicated dashboard home —
           the sections are the dashboard, and market info belongs to My listings). */}
-      {!dash ? <StatsGridSkeleton /> : (
+      {!dash ? (stuck ? null : <StatsGridSkeleton />) : (
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{dash.stats.activeCount ?? dash.listings.filter((l) => l.status === 'active').length}</p><p className="text-xs text-body">{tr('Active listings', 'Tin đang đăng')}</p></div>
           <Link href="/messages" className="press rounded-xl bg-tint px-3 py-3 transition-colors hover:bg-muted"><p className="text-lg font-bold tabular-nums">{dash.stats.unreadMessages}</p><p className="text-xs text-body">{tr('Unread messages', 'Tin nhắn chưa đọc')}</p></Link>
@@ -161,7 +194,15 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
         </div>
       )}
       <div className="mt-6">
-        {!dash ? (
+        {stuck && error ? (
+          <DashboardFetchError
+            error={error}
+            onRetry={refresh}
+            next="/dashboard/listings"
+            authSubtitle={tr('Sign in again to see your listings.', 'Đăng nhập lại để xem tin đăng của bạn.')}
+            failedTitle={tr('Couldn’t load your listings', 'Không tải được tin đăng')}
+          />
+        ) : !dash ? (
           <>
             <StatusFilterSkeleton />
             <div className="space-y-2.5">

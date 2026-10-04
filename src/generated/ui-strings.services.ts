@@ -58,7 +58,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Check or change my answers first",
   "Check the amount and the account name before confirming.",
   "Check this flight option",
-  "Check your connection and try again.",
   "Checking the portrait…",
   "Choose visa type",
   "Choose your bank",

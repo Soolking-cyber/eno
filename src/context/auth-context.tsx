@@ -139,7 +139,13 @@ type AuthCtx = {
    * an account switch, which is exactly how it once failed. See auth-identity.ts.
    */
   identityLoaded: boolean
-  signOut: () => Promise<void>
+  /**
+   * Sign out and clear this device's per-account data. `scope` is supabase-js's: the default 'global'
+   * revokes the session on EVERY device (the account menu's "Sign out"); 'local' ends only this browser's
+   * session — for a path that signs out because THIS browser's session was refused (a 401), where a false
+   * 401 must not log the person out everywhere. The device cleanup is the same either way.
+   */
+  signOut: (opts?: { scope?: 'global' | 'local' }) => Promise<void>
   openSignIn: (ctx?: SignInContext) => void
   markOnboarded: (type: string) => void
 }
@@ -626,7 +632,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace(`/onboard?next=${encodeURIComponent(here)}`)
   }, [user, identityLoaded, accountType, pathname, router])
 
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(async (opts?: { scope?: 'global' | 'local' }) => {
     // Tear down Web Push FIRST so a shared device never keeps delivering the
     // previous user's reminders to the next person who signs in here.
     try {
@@ -641,7 +647,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch { /* push not supported / no reg — nothing to tear down */ }
 
     const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
-    await createSupabaseBrowser().auth.signOut()
+    // `opts?.scope` only when it is a real scope: a caller that hands `signOut` straight to an onClick passes a
+    // click event here, which must mean the default (global), exactly as before this option existed.
+    const scope = opts?.scope === 'local' || opts?.scope === 'global' ? opts.scope : undefined
+    await createSupabaseBrowser().auth.signOut(scope ? { scope } : undefined)
     setUser(null)
     setIdentity(null)
     // Clear the per-account device data (inbox + thread caches, saved, dashboard, notifications, the

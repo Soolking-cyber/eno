@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 
@@ -30,6 +30,9 @@ vi.mock('@/components/marketplace/account-actions', () => ({ SignInPrompt: () =>
 vi.mock('./mascot', () => ({ Mascot: () => null }))
 
 import { ConversationList } from './conversation-list'
+
+// No vitest globals → Testing Library registers no cleanup of its own; every test starts from an empty DOM.
+afterEach(cleanup)
 
 const wrapperOf = (id: string) => document.querySelector(`a[href="/messages/${id}"]`)!.closest('.grid')!
 
@@ -74,5 +77,98 @@ describe('ConversationList delete', () => {
     render(<ConversationList />)
     // A bare `grid` sizes its one `auto` column to the row's min-content (the full one-line preview).
     expect(wrapperOf('c1').className).toContain('grid-cols-[minmax(0,1fr)]')
+  })
+})
+
+describe('ConversationList rows (inbox-02)', () => {
+  const withRow = (over: Record<string, unknown>) => {
+    const before = chat.convos
+    chat.convos = [{ ...before[0], ...over } as never, before[1]]
+    return () => { chat.convos = before }
+  }
+
+  it('right-aligns the time beside the unread badge, as a <time> the screen reader can read', () => {
+    const restore = withRow({ lastMessageAt: new Date(Date.now() - 3 * 3600_000).toISOString(), unread: 2 })
+    try {
+      render(<ConversationList />)
+      const time = document.querySelector('a[href="/messages/c1"] time')!
+      expect(time.textContent).toBe('3h ago')
+      expect(time.className).toContain('tabular-nums')
+      // Time first, then the count, in one right-hand cluster.
+      expect(time.nextElementSibling?.textContent).toBe('2')
+    } finally { restore() }
+  })
+
+  it('paints the counterpart\'s own avatar colour', () => {
+    const restore = withRow({ counterpart: { name: 'An', avatarUrl: null, avatarColor: '#123456' } })
+    try {
+      render(<ConversationList />)
+      const link = document.querySelector('a[href="/messages/c1"]')!
+      expect(link.innerHTML.toLowerCase()).toMatch(/#123456|rgb\(18, 52, 86\)/)
+    } finally { restore() }
+  })
+
+  it('shows the listing thumbnail at the trailing edge, decorative', () => {
+    const restore = withRow({ listingImage: 'https://picsum.photos/200' })
+    try {
+      render(<ConversationList />)
+      const link = document.querySelector('a[href="/messages/c1"]')!
+      const img = link.querySelector('img')!
+      expect(img.getAttribute('alt')).toBe('')
+      expect(link.lastElementChild).toBe(img)
+    } finally { restore() }
+  })
+
+  it('touch gets a row overflow; the bare trash can is for a hovering mouse only', () => {
+    render(<ConversationList />)
+    const more = screen.getAllByRole('button', { name: 'More actions' })[0]
+    expect(more.className).toContain('hover-pointer:hidden')
+    const trash = screen.getAllByRole('button', { name: 'Delete conversation' })[0]
+    expect(trash.className).toMatch(/(^|\s)hidden(\s|$)/)
+    expect(trash.className).toContain('hover-pointer:flex')
+  })
+})
+
+describe('ConversationList header (inbox-01)', () => {
+  it('the phone gets a visible "Messages" title — and conversation search behind a button, not a second permanent box', () => {
+    render(<ConversationList />)
+    const h1 = screen.getByRole('heading', { name: 'Messages' })
+    expect(h1.className).not.toContain('sr-only')
+    const field = screen.getByRole('textbox', { name: 'Search messages' }) as HTMLInputElement
+    const box = field.closest('div.relative')!
+    // Folded away on a phone until asked for; desktop keeps the always-on field (the button is lg:hidden).
+    expect(box.className).toContain('max-lg:hidden')
+    const btn = screen.getByRole('button', { name: 'Search messages' })
+    expect(btn.className).toContain('lg:hidden')
+    expect(btn.getAttribute('aria-expanded')).toBe('false')
+    expect(btn.getAttribute('aria-controls')).toBe(field.id)
+  })
+
+  it('the button reveals the field AND focuses it in the same tap; typing filters; Esc clears and folds it away', () => {
+    render(<ConversationList />)
+    const field = screen.getByRole('textbox', { name: 'Search messages' }) as HTMLInputElement
+    const box = field.closest('div.relative')!
+    const btn = screen.getByRole('button', { name: 'Search messages' })
+    fireEvent.click(btn)
+    expect(box.className).not.toContain('max-lg:hidden')
+    expect(btn.getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement).toBe(field)
+    fireEvent.change(field, { target: { value: 'zzz-no-such-conversation' } })
+    expect(document.querySelector('a[href="/messages/c1"]')).toBeNull()
+    fireEvent.keyDown(field, { key: 'Escape' })
+    expect(box.className).toContain('max-lg:hidden')
+    expect(field.value).toBe('')
+    expect(document.querySelector('a[href="/messages/c1"]')).not.toBeNull()
+  })
+
+  it('✕ clears the query and folds the field back', () => {
+    render(<ConversationList />)
+    const field = screen.getByRole('textbox', { name: 'Search messages' }) as HTMLInputElement
+    fireEvent.click(screen.getByRole('button', { name: 'Search messages' }))
+    fireEvent.change(field, { target: { value: 'An' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+    expect(field.value).toBe('')
+    expect(field.closest('div.relative')!.className).toContain('max-lg:hidden')
+    expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull()
   })
 })

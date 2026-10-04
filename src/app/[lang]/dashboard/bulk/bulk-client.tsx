@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useDashboard } from '@/hooks/use-dashboard'
+import { DashboardFetchError } from '@/components/marketplace/dashboard-fetch-error'
 import { BulkUploadPanel } from '@/components/marketplace/bulk-upload-panel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SectionHeader } from '@/components/marketplace/section-header'
@@ -15,7 +16,7 @@ import { SectionHeader } from '@/components/marketplace/section-header'
 export function BulkClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
-  const { dash } = useDashboard()
+  const { dash, refresh, error } = useDashboard()
   const router = useRouter()
 
   useEffect(() => {
@@ -26,6 +27,17 @@ export function BulkClient({ embedded = false }: { embedded?: boolean } = {}) {
   useEffect(() => {
     if (dash && dash.tier !== 'business') router.replace('/dashboard/listings')
   }, [dash, router])
+
+  // ⛔ NEVER A SKELETON THAT WILL NOT LOAD (inbox-10): with no payload and a failed fetch (or a refused
+  // session), the gate below would spin forever — say why, with the way forward.
+  if (!loading && user && !dash && error) {
+    return (
+      <>
+        {!embedded && <SectionHeader title={tr('Bulk upload', 'Tải hàng loạt')} />}
+        <div className="mt-4"><DashboardFetchError error={error} onRetry={refresh} next="/dashboard/bulk" /></div>
+      </>
+    )
+  }
 
   const gating = loading || !user || !dash || dash.tier !== 'business'
   if (gating) {

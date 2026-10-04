@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { isAuthApiError, isAuthSessionMissingError } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { after } from 'next/server'
 import { headers } from 'next/headers'
@@ -116,6 +117,43 @@ export async function getCurrentProfile(): Promise<Profile | null> {
     } catch { /* no request scope */ }
   }
   return existing
+}
+
+/** The auth-server STATUSES that mean "this token is no good": an invalid or expired JWT, a refused session. */
+const TOKEN_REFUSED_STATUSES = new Set([401, 403])
+/**
+ * …and the explicit auth-js error CODES that say the session itself is gone, whatever status carries them.
+ * ⛔ NOT `refresh_token_already_used`: that is the refresh-rotation race (two tabs refreshing at once), where
+ * the session may be perfectly good — a 400 like it must read 'unavailable', never "your session expired".
+ */
+const SESSION_GONE_CODES = new Set(['session_not_found', 'session_expired', 'bad_jwt', 'refresh_token_not_found', 'user_not_found', 'no_authorization'])
+
+/**
+ * WHY `getCurrentProfile()` CAME BACK NULL — the one distinction it discards (it ignores getUser()'s error).
+ *   · 'none'        — there is no session to resolve: no cookie / bearer at all, or the auth server REFUSED
+ *                     the token — a 401/403, or an explicit session-gone code (SESSION_GONE_CODES: session not
+ *                     found or expired, a bad JWT, an unknown refresh token, a deleted user). "Sign in again"
+ *                     is the truth.
+ *   · 'unavailable' — everything else: the auth server could not be ASKED (a network failure, a 5xx), it
+ *                     asked us to slow down (429) or timed out (408), a 400 such as the refresh-rotation race
+ *                     (refresh_token_already_used), or a second look finds the session after all. The session may be perfectly good; answering 401 there told a signed-in
+ *                     person their session had expired over a blip, and the page's only offer was a full
+ *                     sign-out they did not need. The caller should answer 503 (retry).
+ * ⚠️ IT ASKS THE AUTH SERVER AGAIN, so call it ONLY on the failure path, after getCurrentProfile() returned
+ * null — never on every request.
+ */
+export async function missingProfileReason(): Promise<'none' | 'unavailable'> {
+  try {
+    const supabase = await createSupabaseServer()
+    const { data, error } = await supabase.auth.getUser(await bearerToken())
+    if (data.user) return 'unavailable' // the first look's miss was transient: retrying will work
+    if (!error || isAuthSessionMissingError(error)) return 'none'
+    const refused = isAuthApiError(error) &&
+      (TOKEN_REFUSED_STATUSES.has(error.status) || (!!error.code && SESSION_GONE_CODES.has(error.code)))
+    return refused ? 'none' : 'unavailable'
+  } catch {
+    return 'unavailable'
+  }
 }
 
 /**

@@ -5,14 +5,15 @@
  */
 import * as React from 'react'
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { SerializedListing } from '@/lib/types'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }) }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
-vi.mock('./use-listing-actions', () => ({ useListingActions: () => ({ gone: false, status: 'active', setStatus: vi.fn(), del: vi.fn() }) }))
-vi.mock('./quick-discount', () => ({ QuickDiscount: () => null }))
+const setStatus = vi.fn()
+vi.mock('./use-listing-actions', () => ({ useListingActions: () => ({ gone: false, status: 'active', setStatus, del: vi.fn() }) }))
+vi.mock('./quick-discount', () => ({ QuickDiscount: ({ open, trigger }: { open?: boolean; trigger?: boolean }) => <span data-quick-discount data-open={String(!!open)} data-trigger={String(trigger !== false)} /> }))
 vi.mock('./listing-sparkline', () => ({ ListingSparkline: () => null }))
 vi.mock('./price', () => ({ Price: () => null }))
 vi.mock('next/image', () => ({
@@ -48,5 +49,50 @@ describe('DashboardListingRow thumbnail', () => {
     const img = container.querySelector('img[data-next-image]') as HTMLImageElement
     expect(img.getAttribute('src')).toBe('https://picsum.photos/400')
     expect(img.dataset.unoptimized).toBe('true')
+  })
+})
+
+/**
+ * ONE ROW OF ACTIONS AT 360px (inbox-12): Sửa · Đã bán · •••, everything else in the overflow. jsdom has
+ * no layout, so the 360px fit itself (scrollWidth === clientWidth) is a preview check; this pins what
+ * makes it: which actions are inline, the tightened chip padding, and what moved into the menu.
+ */
+describe('DashboardListingRow actions', () => {
+  const live = row('https://picsum.photos/400')
+
+  it('inline: Edit, Mark sold and the overflow — nothing else', () => {
+    const { container } = render(<DashboardListingRow listing={live} onChanged={() => {}} />)
+    const edit = screen.getByRole('button', { name: 'Edit' })
+    const sold = screen.getByRole('button', { name: 'Mark sold' })
+    const more = screen.getByRole('button', { name: 'More actions' })
+    const actionRow = edit.parentElement!
+    expect(Array.from(actionRow.querySelectorAll(':scope > button'))).toEqual([edit, sold, more])
+    for (const b of [edit, sold]) expect(b.className).toContain('px-2.5')
+    // The price cut is NOT an inline chip any more: its dialog is mounted without a trigger.
+    const qd = container.querySelector('[data-quick-discount]') as HTMLElement
+    expect(qd.dataset.trigger).toBe('false')
+    expect(qd.dataset.open).toBe('false')
+  })
+
+  it('the pencil steps out below sm (what buys the English row its fit)', () => {
+    render(<DashboardListingRow listing={live} onChanged={() => {}} />)
+    const svg = screen.getByRole('button', { name: 'Edit' }).querySelector('svg')!
+    expect(svg.getAttribute('class')).toContain('max-sm:hidden')
+  })
+
+  it('the overflow carries Discount, Copy link, View, Hide and Delete — and Discount opens the dialog', async () => {
+    const { container } = render(<DashboardListingRow listing={live} onChanged={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Discount' })).toBeTruthy())
+    for (const name of ['Copy link', 'View listing', 'Hide', 'Delete listing']) {
+      expect(screen.getByRole('menuitem', { name })).toBeTruthy()
+    }
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide' }))
+    expect(setStatus).toHaveBeenCalledWith('hidden')
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Discount' })).toBeTruthy())
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Discount' }))
+    await waitFor(() => expect((container.querySelector('[data-quick-discount]') as HTMLElement).dataset.open).toBe('true'))
   })
 })

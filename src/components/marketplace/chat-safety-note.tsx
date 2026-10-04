@@ -4,6 +4,8 @@ import { TriangleAlert } from '@/components/ui/icons'
 import { Alert } from '@/components/ui/alert'
 import { useLanguage } from '@/context/language-context'
 import { IS_SERVICES } from '@/lib/edition'
+import { fold } from '@/lib/fold'
+import { VEHICLE_RENTAL_SUBCATS } from '@/lib/rental-places'
 import { cn } from '@/lib/utils'
 
 // Off-platform lure detection: bare URLs (link shorteners for Telegram/WhatsApp/
@@ -23,6 +25,25 @@ const SAFE_HOSTS =
  *  would be noise — and only the first hit anchors a warning, never one per link. */
 export function findOffPlatformMessageId(messages: { id: string; mine: boolean; body: string }[]): string | null {
   const hit = messages.find((m) => !m.mine && OFF_PLATFORM.test(m.body.replace(SAFE_HOSTS, '')))
+  return hit ? hit.id : null
+}
+
+// Payment / deposit lure (UX program 2, A7 item 8 — from the research sweep): the counterpart asking for
+// money up front, a bank account number, or a one-time code. Matched on the FOLDED body (src/lib/fold.ts:
+// lower-case, no diacritics, đ→d), so "chuyển khoản", "chuyen khoan" and "CHUYỂN KHOẢN" are one spelling —
+// Vietnamese typed on a phone without a Telex IME is the common case, not the edge. Word-bounded where a
+// bare substring would misfire ("stk" inside a word, "otp" inside "hotpot").
+// ⚠️ NOT "ck" / "coc" alone: both are everyday words or abbreviations in a normal chat and would turn
+// the warning into noise. The phrases below are the ones a scam actually needs.
+// ⚠️ "WIRE" ONLY AS A PAYMENT: "wire transfer" / "wire money". A bare `wire` fired on "the wire is frayed"
+// in a listing for a lamp or a charger — goods talk, not a lure.
+export const PAYMENT_LURE =
+  /chuyen khoan|dat coc|coc truoc|\bstk\b|so tai khoan|\botp\b|ma xac (?:nhan|thuc)|bank transfer|\bdeposit|\bwire (?:transfer|money)\b/
+
+/** First INCOMING message that asks for money up front, an account number or a code (null if none).
+ *  Same contract as findOffPlatformMessageId: counterpart messages only, one anchor, never one per hit. */
+export function findPaymentLureMessageId(messages: { id: string; mine: boolean; body: string }[]): string | null {
+  const hit = messages.find((m) => !m.mine && !!m.body && PAYMENT_LURE.test(fold(m.body)))
   return hit ? hit.id : null
 }
 
@@ -145,6 +166,61 @@ export function OffPlatformWarning() {
           'Careful — scammers move deals off eno.vn to erase evidence. Keep the conversation here.',
           'Cẩn thận — kẻ lừa đảo thường kéo giao dịch ra ngoài eno.vn để xóa dấu vết. Hãy tiếp tục trao đổi tại đây.',
         )}
+      </span>
+    </Alert>
+  )
+}
+
+/** Which advice the payment-lure warning gives — see `paymentLureKind`. */
+export type PaymentLureKind = 'rental' | 'job' | 'goods'
+
+/**
+ * The advice follows the thing being paid for. A place to live is paid for after it has been SEEN with its
+ * papers; a job is never paid for at all (the same line the listing page's SafetyStrip gives a candidate —
+ * a job is not a sale, owner 2026-10-01); everything else is paid for after it has been inspected. A cached
+ * thread written before the payload carried a category falls to 'goods', the general rule.
+ */
+export function paymentLureKind(listing: { listingType?: string | null; categorySlug?: string | null; subcategorySlug?: string | null } | null | undefined): PaymentLureKind {
+  if (listing?.listingType === 'job') return 'job'
+  // Vehicle hire lives under `rentals` too but is not somewhere you "view in person" — the one list of its
+  // subcategories is rental-places.ts's, the same the rentals hubs use to keep cars out of "places".
+  if (listing?.categorySlug === 'rentals' && !VEHICLE_RENTAL_SUBCATS.includes(listing.subcategorySlug ?? '')) return 'rental'
+  return 'goods'
+}
+
+/**
+ * Rendered under the first incoming message that asks for a transfer, a deposit, an account number or
+ * a code (PAYMENT_LURE). The OTP clause sits on the goods line because that is where the "send me the
+ * code so I can pay you" scam runs; a rental scam asks for the deposit itself.
+ * ⚠️ THREE LITERAL PAIRS, NOT A LOOKUP — gen-ui-strings harvests `tr('…')` literals only (see the note
+ * at the top of the safety section).
+ */
+export function PaymentLureWarning({ kind }: { kind: PaymentLureKind }) {
+  const { tr } = useLanguage()
+  return (
+    <Alert
+      tone="destructive"
+      appearance="flat"
+      size="xs"
+      data-payment-lure={kind}
+      className="max-w-[92%] rounded-xl px-3.5 py-2.5"
+      icon={<TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+    >
+      <span>
+        {kind === 'rental'
+          ? tr(
+              'Only pay a deposit after you have viewed the place in person and seen the papers.',
+              'Chỉ đặt cọc sau khi đã xem nhà tận nơi và có giấy tờ.',
+            )
+          : kind === 'job'
+            ? tr(
+                'Never pay a fee or a deposit to get a job — eno never asks for one.',
+                'Đừng bao giờ trả phí hay đặt cọc để được nhận việc — eno không bao giờ yêu cầu.',
+              )
+            : tr(
+                'Meet, inspect, then pay — eno never asks for an OTP code.',
+                'Gặp mặt, kiểm tra rồi mới trả tiền — eno không bao giờ yêu cầu mã OTP.',
+              )}
       </span>
     </Alert>
   )

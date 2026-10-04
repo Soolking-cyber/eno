@@ -9,6 +9,23 @@ import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { haptic } from '@/lib/haptics'
 import { timeAgo } from '@/lib/types'
+import { openersFor, openerString, type OpenerListing } from '@/lib/openers'
+
+/**
+ * Who has said what so far — the two facts the chip set keys off (inbox-13). Messages are in the
+ * VIEWER's frame (`mine`), so "the buyer" is `mine` for a buyer and `!mine` for a seller.
+ *   · buyerHasSent — the buyer has written anything at all. Their "Is it still available?" is an
+ *     OPENER: once they have opened, it is a chip asking a question they already asked.
+ *   · sellerRepliedAfterBuyer — the seller has written after the buyer's first message, so the
+ *     opening question has had its answer and "Yes, still available" would say it twice.
+ * Pure, so it is pinned by a test rather than by rendering a thread.
+ */
+export function chipContext(messages: readonly { mine: boolean }[], isSeller: boolean): { buyerHasSent: boolean; sellerRepliedAfterBuyer: boolean } {
+  const isBuyerMsg = (m: { mine: boolean }) => (isSeller ? !m.mine : m.mine)
+  const firstBuyer = messages.findIndex(isBuyerMsg)
+  if (firstBuyer < 0) return { buyerHasSent: false, sellerRepliedAfterBuyer: false }
+  return { buyerHasSent: true, sellerRepliedAfterBuyer: messages.slice(firstBuyer + 1).some((m) => !isBuyerMsg(m)) }
+}
 
 // The one chip look, shared by the quick-reply chips, the "Keep it live" dismiss below and the
 // buyer's opener picker: ui/chip's `xs` `ghost` (a 28px pill, transparent at rest, muted on hover).
@@ -35,6 +52,10 @@ export function QuickReplyChips({
   onInsert,
   onSend,
   composerText,
+  negotiable,
+  buyerHasSent = false,
+  sellerRepliedAfterBuyer = false,
+  openerListing,
   className,
 }: {
   isSeller: boolean
@@ -51,6 +72,20 @@ export function QuickReplyChips({
   /** Live composer value — lets the meet chip auto-complete the location ONLY while
    *  the composer still holds the untouched template (never clobbers typing). */
   composerText?: string
+  /** The listing takes offers. "Price is firm" is then a contradiction of the listing itself. */
+  negotiable?: boolean
+  /** See `chipContext`. */
+  buyerHasSent?: boolean
+  /** See `chipContext`. */
+  sellerRepliedAfterBuyer?: boolean
+  /**
+   * The listing facts `openersFor` needs — passed only for a buyer whose payload carries a category
+   * (an older cached thread does not, and then simply gets no openers). A FRESH buyer thread shows the
+   * category openers (the PDP opener picker's commitment + question) beside the availability chip.
+   * ⚠️ NEVER THE OFFER OPENER: it is a structured offer, and in a thread that belongs to the item
+   * strip's "Make an offer", which goes through the offer composer and its gates.
+   */
+  openerListing?: OpenerListing | null
   className?: string
 }) {
   const { tr, lang } = useLanguage()
@@ -108,14 +143,27 @@ export function QuickReplyChips({
         { label: tr('Can meet in …', 'Có thể gặp ở …'), text: tr('Can meet in ', 'Có thể gặp ở '), complete: false },
       ]
     : [
-        { label: tr('Yes, still available', 'Vẫn còn hàng nhé'), text: tr('Yes, still available', 'Vẫn còn hàng nhé'), complete: true },
-        { label: tr('Price is firm', 'Giá cố định ạ'), text: tr('Price is firm', 'Giá cố định ạ'), complete: true },
+        // Answered already once the seller has written after the buyer's opener.
+        ...(sellerRepliedAfterBuyer
+          ? []
+          : [{ label: tr('Yes, still available', 'Vẫn còn hàng nhé'), text: tr('Yes, still available', 'Vẫn còn hàng nhé'), complete: true }]),
+        // Not on a listing that takes offers, and never while the buyer's offer is waiting — "Price is
+        // firm" as the reply to a pending offer contradicts the Accept/Decline card right above it.
+        ...(negotiable || hasPendingBuyerOffer
+          ? []
+          : [{ label: tr('Price is firm', 'Giá cố định ạ'), text: tr('Price is firm', 'Giá cố định ạ'), complete: true }]),
         // Trailing space (no ellipsis) so the seller completes the location right away.
         { label: tr('Can meet in …', 'Có thể gặp ở …'), text: tr('Can meet in ', 'Có thể gặp ở '), complete: false },
         ...(hasPendingBuyerOffer
           ? [{ label: tr('Let me think about it', 'Để mình cân nhắc nhé'), text: tr('Let me think about it', 'Để mình cân nhắc nhé'), complete: true }]
           : []),
       ]
+
+  // Fresh buyer thread only (see `openerListing`). The clock is read at render: this component is
+  // client-only data (the thread is fetched in the browser), so there is no server HTML to mismatch.
+  const openers = !isSeller && !buyerHasSent && openerListing
+    ? openersFor(openerListing, Date.now()).filter((o) => o.kind !== 'offer')
+    : []
 
   const askAvailability = () => {
     if (confirmedFresh && availabilityConfirmedAt) {
@@ -125,6 +173,9 @@ export function QuickReplyChips({
     }
     fire(job ? tr('Is this job still open?', 'Vị trí này còn tuyển không ạ?') : tr('Is it still available?', 'Còn hàng không?'))
   }
+
+  // A buyer who has already written has no chips left — render nothing rather than an empty padded row.
+  if (!isSeller && buyerHasSent && note !== 'shown') return null
 
   return (
     <div className={className}>
@@ -162,10 +213,17 @@ export function QuickReplyChips({
                   : <LocateFixed className="ml-1.5 size-3.5 text-accent-foreground" />)}
             </Chip>
           ))
-        ) : (
-          <Chip size="xs" tone="ghost" onClick={askAvailability}>
-            {job ? tr('Is this job still open?', 'Vị trí này còn tuyển không ạ?') : tr('Is it still available?', 'Còn hàng không?')}
-          </Chip>
+        ) : buyerHasSent ? null : (
+          <>
+            <Chip size="xs" tone="ghost" onClick={askAvailability}>
+              {job ? tr('Is this job still open?', 'Vị trí này còn tuyển không ạ?') : tr('Is it still available?', 'Còn hàng không?')}
+            </Chip>
+            {openers.map((o) => (
+              <Chip key={o.id} size="xs" tone="ghost" onClick={() => fire(openerString(o, o.text, tr, lang))}>
+                {openerString(o, o.label, tr, lang)}
+              </Chip>
+            ))}
+          </>
         )}
       </div>
     </div>
@@ -213,7 +271,8 @@ export function MarkSoldPrompt({ listingId, listingTitle }: { listingId: string;
   return (
     <div className="mt-2 duration-200 ease-out animate-in fade-in">
       <p className="text-xs font-medium text-foreground">
-        {tr('Deal! Mark "{title}" as sold?', 'Chốt đơn! Đánh dấu "{title}" là đã bán?').replace('{title}', listingTitle)}
+        {/* A replacer FUNCTION: a string replacement would read `$&` / `$$` in a seller's title as patterns. */}
+        {tr('Deal! Mark "{title}" as sold?', 'Chốt đơn! Đánh dấu "{title}" là đã bán?').replace('{title}', () => listingTitle)}
       </p>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         <Button

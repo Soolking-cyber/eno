@@ -4,6 +4,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCal
 import { TeacherThreadStrip } from '@/components/teachers/teacher-thread-strip'
 import { BubbleChrome, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
 import Link from 'next/link'
+import Image from 'next/image'
 
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
@@ -11,10 +12,12 @@ import { cn } from '@/lib/utils'
 import { contactLinksFor, extractPhoneNumber } from '@/lib/phone'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
+import { useNotifications } from '@/context/notifications-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, AlertTriangle, Languages, ChevronDown, Check, X, Undo2, ArrowDown } from '@/components/ui/icons'
 import { STROKE_NAV } from '@/lib/icon-tokens'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { routeSend } from '@/lib/chat-send-route'
 import { ChatCardMetaProvider } from '@/components/marketplace/chat-card-shell'
@@ -29,11 +32,18 @@ import { Input } from '@/components/ui/input'
 import { EnoSlider } from '@/components/ui/slider'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
-import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
+import { QuickReplyChips, MarkSoldPrompt, chipContext } from '@/components/marketplace/quick-reply-chips'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/chat-composer'
 import { useSafeBack } from '@/lib/safe-back'
-import { FirstContactNote, OfferAcceptedNote, OfferPartiesNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
+import { FirstContactNote, OfferAcceptedNote, OfferPartiesNote, OffPlatformWarning, PaymentLureWarning, findOffPlatformMessageId, findPaymentLureMessageId, paymentLureKind } from '@/components/marketplace/chat-safety-note'
+import { Price } from '@/components/marketplace/price'
+import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { seenReceipt } from '@/lib/chat-seen'
+import { THREAD_HEADER_CLASS, threadStripGates } from '@/lib/thread-chrome'
+import { IS_SERVICES } from '@/lib/edition'
+import { ThreadStripSkeleton } from '@/components/marketplace/thread-strip-skeleton'
 import {
   VisaCheckoutCard, VisaPickerCard, VisaResendChip, VisaResultCard, VisaStepCard, VisaThreadStrip,
   parseVisaCheckoutMeta, parseVisaPickerMeta, parseVisaResultMeta, parseVisaStepMeta, parseVisaThreadInfo,
@@ -306,7 +316,15 @@ type Thread = {
    * ⚠️ So the guards this change adds are not defensive padding: each one is a crash that was
    * already reachable, listed by tsc the moment the type stopped lying.
    */
-  listing: { id: string; title: string; image: string | null; price?: number; negotiable?: boolean; listingType?: string | null; availabilityConfirmedAt?: string | null; status?: string } | null
+  listing: { id: string; title: string; image: string | null; price?: number; currency?: string; priceUnit?: string; negotiable?: boolean; listingType?: string | null; availabilityConfirmedAt?: string | null; status?: string; categorySlug?: string | null; subcategorySlug?: string | null } | null
+  /** The other side has read everything here (their unread counter is 0). Optional — a cached thread
+   *  predates it, and absent shows no 'Đã xem / Đã gửi' line at all rather than a guess. */
+  counterpartSeen?: boolean
+  /** The server instant `counterpartSeen` vouches for (src/lib/chat-seen.ts): a message of mine created after
+   *  it says 'Đã gửi', whatever path appended it. */
+  seenAsOf?: string
+  /** Bell notifications the `?opened=1` load just marked read (0 on every poll). */
+  notificationsCleared?: number
   /** A thread about a teacher profile (2026-09-30); optional — pending stubs and cached threads omit it. */
   teacher?: { shared: boolean; live?: boolean } | null
   counterpart: {
@@ -339,7 +357,8 @@ export default function ThreadPage() {
   const { user, loading } = useAuth()
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // offer amounts follow the viewer's language
-  const { getCachedThread, cacheThread, prefetchThread, refreshUnread, refreshConvos } = useChat()
+  const { getCachedThread, cacheThread, prefetchThread, refreshUnread, refreshConvos, convos } = useChat()
+  const { refresh: refreshNotifications } = useNotifications()
   // Back chevron: pop the thread off the stack rather than pushing /messages on top of it.
   const onBack = useSafeBack('/messages')
   // Paint instantly from the cached thread (e.g. one the offer/Message action just
@@ -578,6 +597,9 @@ export default function ThreadPage() {
   const [counterMode, setCounterMode] = useState(false)
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
+  // The item strip's 'Đã bán' (inbox-03): its confirm dialog, and the POST in flight — one tap, one request.
+  const [confirmSoldOpen, setConfirmSoldOpen] = useState(false)
+  const [markingSold, setMarkingSold] = useState(false)
   // The offer THIS seller just accepted in this session → anchors the one-time
   // "Mark as sold?" follow-through under that offer card (never shown to the buyer).
   const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
@@ -610,6 +632,10 @@ export default function ThreadPage() {
   // identity feeds the realtime subscription's deps, and re-subscribing for a string is not worth it.
   const trRef = useRef(tr)
   useEffect(() => { trRef.current = tr }, [tr])
+  // The bell's refetch, read through a ref for the same reason: fetchThread calls it whenever the server
+  // reports it cleared bell rows, and its identity must not reach the realtime subscription's deps.
+  const refreshNotificationsRef = useRef(refreshNotifications)
+  useEffect(() => { refreshNotificationsRef.current = refreshNotifications }, [refreshNotifications])
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false } }, [])
   // Moving to another thread is leaving this one, even if Next reuses the page instance for it: send
   // what is still waiting (each answer carries its own conversation id) rather than let it ride along.
@@ -623,16 +649,27 @@ export default function ThreadPage() {
   // already applied is dropped.
   const loadTicket = useRef(0)
   const appliedTicket = useRef(0)
-  const load = useCallback(async () => {
+  /**
+   * ONE READ OF THE THREAD. `opened` adds `?opened=1` (see fetchThread below — which is what decides it).
+   * Whenever the server reports it cleared bell rows — on the open or on any later read, even one a newer
+   * reply has superseded (the rows are read either way) — the bell refetches now rather than holding a
+   * stale "unread" for up to its 45s poll. Resolves to that count and to the server's word on the open
+   * (`openCleared`); a failed or superseded read reports neither.
+   */
+  const readThread = useCallback(async (opened: boolean): Promise<{ cleared: number; openCleared: boolean }> => {
+    const none = { cleared: 0, openCleared: false }
     const ticket = ++loadTicket.current
-    const res = await fetch(`/api/conversations/${id}`)
+    const res = await fetch(`/api/conversations/${id}${opened ? '?opened=1' : ''}`)
     // Checked BEFORE any branch that paints — a superseded reply answering 403/404 must not swap a live
     // thread a newer reply already painted for the not-found screen (reviewer-caught, round 2).
-    if (ticket < appliedTicket.current) return
-    if (res.status === 404 || res.status === 403) { appliedTicket.current = ticket; setNotFound(true); return }
-    if (!res.ok) return
+    if (ticket < appliedTicket.current) return none
+    if (res.status === 404 || res.status === 403) { appliedTicket.current = ticket; setNotFound(true); return none }
+    if (!res.ok) return none
     const data = await res.json()
-    if (ticket < appliedTicket.current) return
+    const cleared = typeof data?.notificationsCleared === 'number' ? data.notificationsCleared : 0
+    const openCleared = opened && data?.openCleared === true
+    if (cleared > 0) refreshNotificationsRef.current()
+    if (ticket < appliedTicket.current) return { cleared, openCleared }
     appliedTicket.current = ticket
     cacheThread(id, data) // keep the cache warm for an instant paint next time
     // An answer still inside its undo window whose offer the server now reports as ANSWERED (the buyer
@@ -671,7 +708,44 @@ export default function ThreadPage() {
       })
       return pending.length ? { ...fresh, messages: [...fresh.messages, ...pending] } : fresh
     })
+    return { cleared, openCleared }
   }, [id, cacheThread, undoWindow])
+
+  /**
+   * THE ONE-TIME OPEN (si-04): `?opened=1` clears this thread's bell notifications server-side even when no
+   * message is unread. It is sent until the SERVER CONFIRMS it — `openCleared`: the request carried the flag
+   * AND its fail-soft clear succeeded — at most once per conversation per mount:
+   *   · ⛔ never marked sent by ASKING: a first load that failed, or whose clear failed on the server, is
+   *     retried by the next refetch (poll, focus, realtime), instead of leaving the bell lit for the visit;
+   *   · never two at once (`openInFlightFor`): anything that re-runs the open effect, or a refetch landing
+   *     while the open is in flight, sends a plain read;
+   *   · once confirmed, every refetch is a plain read — polling stays write-free (the server clears the
+   *     bell on those only alongside an unread write it is already making, e.g. an offer that arrives while
+   *     the thread is open).
+   * A confirmation lost to a superseded reply just costs one more (idempotent) open on the next refetch.
+   */
+  const openConfirmedFor = useRef<string | null>(null)
+  const openInFlightFor = useRef<string | null>(null)
+  const fetchThread = useCallback(async (): Promise<number> => {
+    const opened = openConfirmedFor.current !== id && openInFlightFor.current !== id
+    if (opened) openInFlightFor.current = id
+    try {
+      const r = await readThread(opened)
+      if (r.openCleared) openConfirmedFor.current = id
+      return r.cleared
+    } catch {
+      // A dropped request (offline, a tunnel): nothing painted, nothing confirmed — the next poll, focus or
+      // realtime refetch tries again, repeating the open if it never landed. Absorbed HERE so no caller (the
+      // 15s poll, the realtime nudge, a reconcile) leaves an unhandled rejection behind.
+      return 0
+    } finally {
+      if (opened && openInFlightFor.current === id) openInFlightFor.current = null
+    }
+  }, [id, readThread])
+  // Every refetch (the poll, focus, realtime, post-action reconciles) — fetchThread decides the open. A plain
+  // no-argument function on purpose: it is handed to setInterval, which in some engines passes its own
+  // argument to the callback.
+  const load = useCallback(async () => { await fetchThread() }, [fetchThread])
 
   /**
    * RECALL ONE OF MY MESSAGES.
@@ -761,7 +835,10 @@ export default function ThreadPage() {
     // load()). Reconcile the inbox caches ONCE so the header Messages badge + the
     // conversation-list unread pill clear immediately, instead of staying stale for
     // up to the 45s poll (glaring on the desktop two-pane next to the open thread).
-    load().then(() => { refreshUnread(); refreshConvos() })
+    // The first load — fetchThread sends it as the OPEN (`?opened=1`) until the server confirms that once
+    // for this conversation, and never again after: a new `user` object (a token refresh) or a re-created
+    // callback re-runs this effect without re-sending an open that already landed.
+    fetchThread().then(() => { refreshUnread(); refreshConvos() })
 
     // supabase-js (~248 KB) is loaded on demand inside join() rather than imported
     // statically, so opening a thread doesn't pay for realtime before it connects.
@@ -861,7 +938,7 @@ export default function ThreadPage() {
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('focus', onFocus)
     }
-  }, [user, load, id])
+  }, [user, load, fetchThread, id])
 
   // Messenger-standard scroll behavior. The pane (listRef) is the ONLY thing that
   // ever moves — never scrollIntoView, which scrolls every ancestor and yanked the
@@ -1072,6 +1149,8 @@ export default function ThreadPage() {
           if (!t) return t
           const without = t.messages.filter((x) => x.id !== tempId)
           if (without.some((x) => x.id === m.id)) return { ...t, messages: without }
+          // No receipt bookkeeping here: the message is newer than the thread's `seenAsOf`, so its receipt
+          // already reads 'Đã gửi' (src/lib/chat-seen.ts — one bound for every path, not a reset per path).
           return { ...t, messages: [...without, m] }
         })
         refreshUnread(); refreshConvos()
@@ -1944,24 +2023,101 @@ export default function ThreadPage() {
   const showFirstContactNote = !!thread && !acceptedOfferId && thread.messages.length <= 3 && !thread.messages.some((m) => m.mine)
   // Off-platform lure: anchor ONE warning under the first suspicious incoming message.
   const offPlatformWarnId = thread ? findOffPlatformMessageId(thread.messages) : null
+  // Payment / deposit lure (transfer, deposit, account number, OTP): same contract — incoming only,
+  // ONE anchor. The advice follows what is being paid for (paymentLureKind).
+  // ⛔ ONLY THE PAYER IS WARNED — the BUYER side (`iAmSeller === false`: the tenant, the buyer, the candidate),
+  // about what the SELLER writes. A landlord whose tenant writes "mình đặt cọc nhé", or a seller whose buyer
+  // says "chuyển khoản nhé", is being offered money, not asked for it: the warning was for the other side.
+  // Explicitly false, never "not true": a payload that does not say which side this is gets no warning.
+  const paymentLureWarnId = thread && thread.iAmSeller === false ? findPaymentLureMessageId(thread.messages) : null
+
+  // 'ĐÃ XEM / ĐÃ GỬI' (inbox-07) — under my NEWEST message only, once the server has it, and 'Đã xem' only for
+  // a message the server's read could vouch for (created by `seenAsOf`). The rule is src/lib/chat-seen.ts.
+  const receipt = thread ? seenReceipt(thread.messages, thread.counterpartSeen, thread.seenAsOf) : null
+
+  /**
+   * THE ITEM STRIP (inbox-03) — what this chat is about, priced, with the one action each side came for.
+   * ⛔ Every gate (the buyer's 'Trả giá', the seller's 'Đã bán', the contact chip and the composer's tag) is
+   * decided in ONE place, threadStripGates (src/lib/thread-chrome.ts), where each is documented and tested:
+   * 'Trả giá' carries the composer's own `negotiable !== false` gate plus a live listing; 'Đã bán' only on an
+   * ordinary listing thread (never a desk, a job or a teacher). The revealed number and the "once they
+   * reply" hint keep their own row under the strip.
+   */
+  const { strip: showStrip, listingLive, offer: stripOffer, sold: stripSold, contact: stripContact, composerTag } =
+    threadStripGates(thread, { contactRevealed: !!contact, showOffer, productThreadStrip: IS_SERVICES })
+  const stripTitle = thread?.listing?.title ?? ''
+  // The inbox list (already in memory: it is the left pane / the page we came from) says this thread has NO
+  // listing — support or the rental desk — so its loading state paints no item-strip placeholder. Unknown
+  // (no row, or an older cached row without `listingId`) keeps the placeholder.
+  const knownListingless = !thread && !!convos?.some((c) => c.id === id && c.listingId === null)
+  // The same POST MarkSoldPrompt makes. Confirmed first (the strip's AlertDialog — ui/alert-dialog, the
+  // canon's confirm, never window.confirm): this button sits on every seller thread, not just after an
+  // accepted offer, so a stray tap must not take the listing off sale.
+  // ⛔ A REFUSED POST IS UNDONE HERE, not left to the reconcile: on the same bad connection that refetch can
+  // fail too, and the strip would keep saying "Sold" about a listing that is still on sale. The rollback
+  // restores the status from before the tap — only if nothing newer has replaced the optimistic one — and
+  // the refetch in `finally` still repaints whatever the server holds.
+  const markSoldFromStrip = async () => {
+    const l = thread?.listing
+    if (!l || markingSold) return
+    const before = l.status
+    setMarkingSold(true)
+    haptic(18)
+    setThread((t) => (t && t.listing ? { ...t, listing: { ...t.listing, status: 'sold' } } : t))
+    try {
+      const res = await fetch(`/api/listings/${l.id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'sold' }),
+      })
+      if (!res.ok) throw new Error('status_failed')
+      toast.success(tr('Marked as sold', 'Đã đánh dấu là đã bán'))
+    } catch {
+      setThread((t) => (t && t.listing && t.listing.id === l.id && t.listing.status === 'sold' ? { ...t, listing: { ...t.listing, status: before } } : t))
+      toast.error(tr('Could not mark as sold — please try again.', 'Chưa đánh dấu được — vui lòng thử lại.'))
+    } finally {
+      setMarkingSold(false)
+      void load()
+    }
+  }
+
+  // The guest and not-found states' own bar, phones only: below lg a conversation thread has no site header
+  // (messages/layout.tsx), so without it those screens had no way out but the OS back gesture. Same box as
+  // the thread header (THREAD_HEADER_CLASS: the status-bar inset), same safe Back.
+  const bareHeader = (
+    <div className={cn(THREAD_HEADER_CLASS, 'lg:hidden')}>
+      <Link href="/messages" onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground relative tap-44"><ChevronLeft className="h-6 w-6" strokeWidth={STROKE_NAV} aria-hidden /></Link>
+      <span className="min-w-0 truncate text-sm font-bold text-foreground">{tr('Messages', 'Tin nhắn')}</span>
+    </div>
+  )
 
   return (
     <div className="flex h-full w-full flex-col bg-background">
       {!loading && !user ? (
-        <div className="flex flex-1 items-center justify-center px-3">
-          <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
-            <p className="text-sm text-muted-foreground">{tr('Sign in to view this conversation.', 'Đăng nhập để xem cuộc trò chuyện này.')}</p>
-            <div className="mt-4"><SignInPrompt /></div>
+        <>
+          {bareHeader}
+          <div className="flex flex-1 items-center justify-center px-3">
+            <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
+              <p className="text-sm text-muted-foreground">{tr('Sign in to view this conversation.', 'Đăng nhập để xem cuộc trò chuyện này.')}</p>
+              <div className="mt-4"><SignInPrompt /></div>
+            </div>
           </div>
-        </div>
+        </>
       ) : notFound ? (
-        <div className="flex flex-1 items-center justify-center px-3">
-          <p className="text-sm text-muted-foreground">{tr('Conversation not found.', 'Không tìm thấy cuộc trò chuyện.')}</p>
-        </div>
+        <>
+          {bareHeader}
+          <div className="flex flex-1 items-center justify-center px-3">
+            <p className="text-sm text-muted-foreground">{tr('Conversation not found.', 'Không tìm thấy cuộc trò chuyện.')}</p>
+          </div>
+        </>
       ) : (
         <div className="flex h-full w-full flex-col overflow-hidden">
-          {/* Thread header (back arrow only on mobile — the list is always shown on desktop) */}
-          <div className="flex items-center gap-3 bg-background px-4 py-3">
+          {/* Thread header (back arrow only on mobile — the list is always shown on desktop)
+              ⚠️ BELOW lg THIS IS THE TOP OF THE SCREEN NOW (inbox-01): messages/layout.tsx drops the site
+              header on a conversation thread, so this header owns the status-bar inset — THREAD_HEADER_CLASS
+              (src/lib/thread-chrome.ts says how, and why there is no `:has()`), the same box loading.tsx and
+              the guest / not-found bar above wear, so swapping between them never moves on native. */}
+          <div className={THREAD_HEADER_CLASS}>
             {/* POPS the thread off the stack (see src/lib/safe-back.ts) and only pushes
                 /messages when there's nothing to pop — a push-notification tap, a shared
                 link, a cold native start. Pushing unconditionally used to grow the stack,
@@ -1976,9 +2132,14 @@ export default function ThreadPage() {
               ) : (
                 <div className="truncate text-sm font-bold text-foreground">{thread?.counterpart.name || '…'}</div>
               )}
+              {/* ONE subtitle line: the trust chip and the presence ("Hoạt động hôm nay") share it, and
+                  the listing title moved down into the item strip below (inbox-01/03). */}
+              {/* Uncached → the same trust-line placeholder loading.tsx paints, so the swap keeps its height. */}
+              {!thread && <div aria-hidden className="mt-1"><Skeleton className="h-2.5 w-24" /></div>}
               {thread?.counterpart.trust && (
                 <div className="mt-0.5">
                   <TrustMeta
+                    singleLine
                     trustScore={thread.counterpart.trust.trustScore}
                     trustTier={thread.counterpart.trust.trustTier}
                     memberSinceYear={thread.counterpart.trust.memberSinceYear}
@@ -1988,15 +2149,116 @@ export default function ThreadPage() {
                   />
                 </div>
               )}
-              {/* ⚠️ `thread.listing &&`, not `thread &&`: a SUPPORT thread has no listing, and this
-                  line is the header's subtitle — it would have rendered a link to /listings/undefined
-                  under the counterpart's name. */}
-              {thread?.listing && <Link href={`/listings/${thread.listing.id}`} className="block truncate text-xs text-accent-foreground hover:underline">{thread.listing.title}</Link>}
             </div>
             {/* Report this conversation (harassment / scam in chat) — the report links
                 the thread so an admin can read the exchange. */}
             {thread && <ReportButton conversationId={thread.id} className="shrink-0" />}
           </div>
+
+          {/* THE ITEM STRIP (inbox-03; the gates are documented where they are computed, above). Hidden on a
+              listing-less thread (support, the rental desk), where there is no item to show. While an
+              uncached thread loads, the placeholder loading.tsx also paints — EXCEPT for a thread the inbox
+              list already knows has no listing, where a 56px row would only appear to vanish. */}
+          {!thread && !knownListingless && <ThreadStripSkeleton />}
+          {thread?.listing && showStrip && (
+            <div data-item-strip="" className="flex items-center gap-2 border-t border-border bg-background px-4 py-2">
+              <Link href={`/listings/${thread.listing.id}`} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg">
+                {thread.listing.image ? (
+                  <Image
+                    src={thread.listing.image}
+                    alt=""
+                    width={40}
+                    height={40}
+                    quality={60}
+                    unoptimized={!isListingImageUrl(thread.listing.image) || isMockImageUrl(thread.listing.image)}
+                    className="h-10 w-10 shrink-0 rounded-lg bg-tint object-cover"
+                  />
+                ) : (
+                  <span aria-hidden className="h-10 w-10 shrink-0 rounded-lg bg-tint" />
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold text-foreground">{thread.listing.title}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+                    {/* No price on a teacher profile: it carries none, and Price would print "Free". */}
+                    {typeof thread.listing.price === 'number' && thread.listing.listingType !== TEACHER_LISTING_TYPE && (
+                      <Price
+                        price={thread.listing.price}
+                        currency={thread.listing.currency || '₫'}
+                        priceUnit={thread.listing.priceUnit || 'VND'}
+                        listingType={thread.listing.listingType}
+                        native
+                        dual={false}
+                        className="truncate text-xs font-bold"
+                      />
+                    )}
+                    {!listingLive && (
+                      <Badge variant="neutral" size="sm" className="shrink-0">
+                        {thread.listing.status === 'sold' ? tr('Sold', 'Đã bán') : tr('No longer listed', 'Ngừng đăng')}
+                      </Badge>
+                    )}
+                  </span>
+                </span>
+              </Link>
+              {/* ⚠️ BELOW sm THE STRIP'S TITLE + PRICE COME FIRST. Beside the item, the plan's 'Lấy số · Zalo /
+                  WhatsApp' and the English "Make an offer" left the title column ~42px at 360. So on a phone the
+                  contact chip is the phone glyph alone — its full label stays as screen-reader text
+                  (`max-sm:sr-only`), so its accessible name never changes — and the offer reads "Offer" in English
+                  ('Trả giá' either way). No native `title=` (design-language §5). */}
+              {stripContact && (
+                <Button
+                  variant="bare"
+                  size="none"
+                  onClick={requestContact}
+                  disabled={revealing}
+                  className="relative shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted cursor-pointer tap-44 max-sm:px-2"
+                >
+                  {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+                  <span className="max-sm:sr-only">{tr('Request number · Zalo / WhatsApp', 'Lấy số · Zalo / WhatsApp')}</span>
+                </Button>
+              )}
+              {/* Its accessible name is "Make an offer" / 'Trả giá' at every width (the short visible word is
+                  aria-hidden) — and never the composer tag's, which reads 'Back to message' while offer mode is on. */}
+              {stripOffer && (
+                <Button
+                  variant="cta"
+                  size="none"
+                  onClick={toggleOffer}
+                  aria-pressed={showOffer}
+                  className="relative shrink-0 rounded-full px-3 py-1.5 text-xs cursor-pointer tap-44"
+                >
+                  <span aria-hidden className="sm:hidden">{tr('Offer', 'Trả giá')}</span>
+                  <span className="max-sm:sr-only">{tr('Make an offer', 'Trả giá')}</span>
+                </Button>
+              )}
+              {stripSold && (
+                <Button
+                  variant="cta"
+                  size="none"
+                  onClick={() => setConfirmSoldOpen(true)}
+                  disabled={markingSold}
+                  className="relative shrink-0 rounded-full px-3 py-1.5 text-xs cursor-pointer tap-44"
+                >
+                  {tr('Mark sold', 'Đã bán')}
+                </Button>
+              )}
+              {/* The confirm for 'Đã bán' (portalled — where it sits in the tree changes nothing on screen).
+                  The action returns nothing, so the dialog closes on the tap and the strip flips at once
+                  (markSoldFromStrip is optimistic); a refused POST repaints through its refetch. */}
+              <AlertDialog open={confirmSoldOpen} onOpenChange={setConfirmSoldOpen}>
+                <AlertDialogContent size="sm">
+                  <AlertDialogHeader>
+                    {/* A replacer FUNCTION: a string replacement would read `$&` / `$$` in a seller's title as patterns. */}
+                    <AlertDialogTitle>{tr('Mark "{title}" as sold?', 'Đánh dấu "{title}" là đã bán?').replace('{title}', () => stripTitle)}</AlertDialogTitle>
+                    <AlertDialogDescription>{tr('It comes off sale for buyers. You can relist it from My listings.', 'Tin sẽ ngừng bán với người mua. Bạn có thể đăng lại trong Tin của tôi.')}</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{tr('Cancel', 'Hủy')}</AlertDialogCancel>
+                    <AlertDialogAction variant="cta" onClick={() => { void markSoldFromStrip() }}>{tr('Mark as sold', 'Đánh dấu đã bán')}</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
 
           {/* Live-translation toggle — shown ONLY when the two participants' app languages
               differ (owner ask). Defaults ON on that mismatch; the choice persists per
@@ -2038,7 +2300,9 @@ export default function ThreadPage() {
           {thread && thread.listing && thread.teacher && (
             <TeacherThreadStrip conversationId={thread.id} iAmTeacher={!!thread.iAmSeller} shared={thread.teacher.shared} live={thread.teacher.live !== false} shareSignal={(thread.messages ?? []).filter((m) => /^(📇|🔒)/.test(m.body ?? '')).length} />
           )}
-          {thread && thread.listing && thread.teacher === null && !thread.iAmSeller && (contact || !thread.sellerIsPartner) && (
+          {/* The REQUEST button itself now lives in the item strip above (stripContact); this row keeps the
+              two states that need a row — the revealed number, and the hint before the seller replies. */}
+          {thread && thread.listing && thread.teacher === null && !thread.iAmSeller && (contact || !thread.sellerIsPartner) && (contact || !thread.messages.some((m) => !m.mine)) && (
             <div className="flex items-center gap-2 border-t border-border bg-background px-4 py-2">
               {contact ? (
                 <>
@@ -2064,11 +2328,6 @@ export default function ThreadPage() {
                     ) : null
                   })()}
                 </>
-              ) : thread.messages.some((m) => !m.mine) ? (
-                <Button variant="bare" size="none" onClick={requestContact} disabled={revealing} className="relative gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted cursor-pointer tap-44">
-                  {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
-                  {tr('Request number · Zalo / WhatsApp', 'Lấy số · Zalo / WhatsApp')}
-                </Button>
               ) : (
                 <p className="flex items-center gap-1.5 text-2xs text-body">
                   <Phone className="h-3.5 w-3.5 shrink-0 text-ink-4" />
@@ -2593,7 +2852,16 @@ export default function ThreadPage() {
                 {/* ⚠️ NOT ON A LISTING-LESS THREAD: there the counterpart is eno staff, and an operator
                     legitimately pasting a landlord's Zalo must not be flagged to the requester as an
                     off-platform lure. */}
+                {receipt && m.id === receipt.anchorId && (
+                  <p data-seen="" className="-mt-1 pr-1 text-right text-2xs text-ink-4">
+                    {receipt.seen ? tr('Seen', 'Đã xem') : tr('Sent', 'Đã gửi')}
+                  </p>
+                )}
                 {thread.listing && m.id === offPlatformWarnId && <OffPlatformWarning />}
+                {/* ORDINARY LISTING THREADS ONLY — `kind === 'listing'` positively. Not on a listing-less
+                    thread (the counterpart is eno staff), and not on the visa or trip desk, where eno's own
+                    operators legitimately take a payment or explain a deposit: neither is a lure. */}
+                {thread.listing && thread.kind === 'listing' && m.id === paymentLureWarnId && <PaymentLureWarning kind={paymentLureKind(thread.listing)} />}
               </Fragment>
               )
             })}
@@ -2742,6 +3010,17 @@ export default function ThreadPage() {
               // A job thread is an employer and a candidate: hiring replies, not "Price is firm".
               job={thread.listing.listingType === 'job'}
               hasPendingBuyerOffer={hasPendingBuyerOffer}
+              negotiable={thread.listing.negotiable !== false}
+              {...chipContext(thread.messages, !!thread.iAmSeller)}
+              openerListing={!thread.iAmSeller && thread.listing.categorySlug ? {
+                categorySlug: thread.listing.categorySlug,
+                subcategorySlug: thread.listing.subcategorySlug,
+                listingType: thread.listing.listingType,
+                price: thread.listing.price,
+                currency: thread.listing.currency,
+                priceUnit: thread.listing.priceUnit || 'VND',
+                negotiable: thread.listing.negotiable === true,
+              } : null}
               availabilityConfirmedAt={thread.listing.availabilityConfirmedAt}
               onInsert={insertQuickReply}
               onSend={(t) => send(t)}
@@ -2814,12 +3093,17 @@ export default function ThreadPage() {
                 thread → allow (server still enforces). */}
             {/* ⛔ Same trap as the counter button above: with no listing, `undefined !== false`
                 is TRUE, so the composer would show "Make an offer" in a support thread. */}
-            {!!thread?.listing && thread.listing.negotiable !== false && (
+            {/* `composerTag` (threadStripGates, src/lib/thread-chrome.ts): the listing check FIRST and
+                `negotiable !== false`, as above — and while the item strip carries 'Trả giá', or the listing
+                is no longer live (an offer would answer 409 listing_unavailable), the Tag is only the way
+                back OUT of offer mode (inbox-03). The seller keeps it on a live negotiable listing.
+                Its name says what a tap does NOW, so it never duplicates the strip's "Make an offer". */}
+            {composerTag && (
               <IconButton
                 size="lg"
                 onClick={toggleOffer}
-                aria-label={tr('Make an offer', 'Gửi đề nghị giá')}
-                title={tr('Make an offer', 'Gửi đề nghị giá')}
+                aria-label={showOffer ? tr('Back to message', 'Quay lại nhắn tin') : tr('Make an offer', 'Gửi đề nghị giá')}
+                title={showOffer ? tr('Back to message', 'Quay lại nhắn tin') : tr('Make an offer', 'Gửi đề nghị giá')}
                 className={`transition-colors ${showOffer ? 'bg-primary/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
               >
                 {/* 20px composer-action step (§4); armed = the location-active duotone (§5):

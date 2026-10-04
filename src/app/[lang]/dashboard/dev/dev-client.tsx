@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useDashboard } from '@/hooks/use-dashboard'
+import { DashboardFetchError } from '@/components/marketplace/dashboard-fetch-error'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DevelopersPanel } from '@/components/marketplace/developers-panel'
 
@@ -14,7 +15,7 @@ import { DevelopersPanel } from '@/components/marketplace/developers-panel'
 export function DevClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
-  const { dash } = useDashboard()
+  const { dash, refresh, error } = useDashboard()
   const router = useRouter()
 
   useEffect(() => {
@@ -24,6 +25,12 @@ export function DevClient({ embedded = false }: { embedded?: boolean } = {}) {
   useEffect(() => {
     if (dash && dash.tier !== 'business') router.replace('/dashboard/listings')
   }, [dash, router])
+
+  // ⛔ NEVER A SKELETON THAT WILL NOT LOAD (inbox-10): with no payload and a failed fetch (or a refused
+  // session), the gate below would spin forever — say why, with the way forward.
+  if (!loading && user && !dash && error) {
+    return <div className="w-full"><DashboardFetchError error={error} onRetry={refresh} next="/dashboard/dev" /></div>
+  }
 
   // Auth gate, plus wait for the dashboard payload to confirm the business tier.
   if (loading || !user || !dash || dash.tier !== 'business') {

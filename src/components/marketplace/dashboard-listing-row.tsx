@@ -1,9 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Eye, MessageSquare, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check, MoreHorizontal, Link2 } from '@/components/ui/icons'
+import { Eye, MessageSquare, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check, MoreHorizontal, Link2, TrendingDown, Share2, EyeOff } from '@/components/ui/icons'
 import { STROKE_MARK } from '@/lib/icon-tokens'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
@@ -30,6 +31,9 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // Optimistic lifecycle actions — shared with the desktop data-table so both
   // surfaces behave identically (instant flip, undo-delete, rollback on failure).
   const { gone, status, setStatus, del } = useListingActions(listing, onChanged)
+  // The price-cut dialog, opened from the overflow menu (inbox-12). It lives OUTSIDE the menu: Base UI
+  // unmounts a closed menu's popup, and a dialog rendered inside it would die the moment the menu shut.
+  const [discountOpen, setDiscountOpen] = useState(false)
 
   const title = lang === 'vi' ? (listing.titleVi || listing.title) : listing.title
   const img = listing.images[0] || null
@@ -64,8 +68,11 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // ⚠️ NO icon color override here (§6/§1 currentColor law): the glyph inherits the chip's own
   // text-foreground, so all three siblings (Discount / Mark sold / …) carry ONE ink. A blue icon
   // beside an ink label made three adjacent chips read as three different controls.
+  // ⚠️ px-2.5, NOT px-3 (inbox-12): the three inline chips must sit on ONE row in the 220px a 360px phone
+  // leaves beside the 80px thumb (336 content − p-3 − thumb − gap). Measured with Open Runde's advance
+  // widths, worst case each language: vi "Sửa · Đăng lại · •••" 196px, en "Edit · Mark sold · •••" 208px.
   const chip =
-    'inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-tint px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-40 cursor-pointer [&_svg]:size-4'
+    'inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-tint px-2.5 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-40 cursor-pointer [&_svg]:size-4'
 
   // Warm the listing page on hover/touch so opening it is instant.
   const prefetch = () => router.prefetch(`/listings/${listing.id}`)
@@ -145,19 +152,39 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   ) : null
 
   // Row density (dashboard native-feel review, codex + Gemini): the old 5-6 wrapping chips read
-  // webby and half were under 44px. Keep the TWO high-value quick actions inline — the price-cut
-  // (only for a priced live listing — the owner's differentiated shortcut) and the status flip
-  // (Mark sold / Relist) — and fold the rest into a trailing "…" overflow menu (native list-row
-  // pattern), so each row is a couple of clean ≥44px taps, not a dense chip grid.
+  // webby and half were under 44px. A couple of quick actions stay inline and the rest fold into a
+  // trailing "…" overflow menu (native list-row pattern). WHICH two changed on 2026-10-04 (inbox-12,
+  // see `actions` below): Edit and the status flip; the price cut moved into the menu.
   const listingUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/listings/${listing.id}`
   const copyLink = async () => { if (await copyText(listingUrl)) toast.success(tr('Link copied', 'Đã sao chép liên kết')) }
+  // No price cut on a JOB: its price is its salary, derived on the server from the salary facet
+  // (taxonomy.ts paysSalary), which ignores a PATCHed price — a discount there would do nothing.
+  const canDiscount = status === 'active' && listing.price > 0 && !paysSalary(listing.listingType)
+  // Public page only for a LIVE, verified listing (held/sold/hidden has none) — gates Share and Copy link.
+  const isPublic = status === 'active' && listing.verified
+  // Native share where the platform has one (the menu only renders once opened, after mount, so reading
+  // `navigator` here cannot mismatch server HTML). Copy link stays beside it: navigator.share is
+  // unreliable in the Android WebView, and a dismissed share sheet is not an error.
+  const canShare = isPublic && typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+  const share = () => { navigator.share({ title, url: listingUrl }).catch(() => {}) }
+  /**
+   * ⛔ ONE ROW AT 360px (inbox-12): Sửa · Đã bán (or Đăng lại) · •••. Everything else — Giảm giá, Chia sẻ,
+   * Ẩn, Xem tin, Sao chép liên kết, Xóa — lives in the overflow. The old row put the price cut inline and
+   * Edit in the menu; at 360 the three chips wrapped to a second line on every listing. Edit is the
+   * action a seller reaches for most, so it is the one that stays out in the open.
+   */
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
-      {/* No price cut on a JOB: its price is its salary, derived on the server from the salary facet
-          (taxonomy.ts paysSalary), which ignores a PATCHed price — a discount there would do nothing. */}
-      {status === 'active' && listing.price > 0 && !paysSalary(listing.listingType) && (
-        <QuickDiscount listing={{ id: listing.id, price: listing.price, currency: listing.currency }} onChanged={onChanged} className={chip} />
-      )}
+      <Button
+        variant="bare"
+        size="none"
+        onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)}
+        onClick={() => router.push(`/listings/${listing.id}/edit`)}
+        className={chip}
+      >
+        {/* The pencil steps out below sm — it is what buys the English row its fit at 360. */}
+        <Pencil className="size-4 max-sm:hidden" /> {tr('Edit', 'Sửa')}
+      </Button>
       {status === 'active' ? (
         <Button variant="bare" size="none" onClick={() => setStatus('sold')} className={chip}>
           <CheckCircle2 className="size-4" /> {tr('Mark sold', 'Đã bán')}
@@ -176,18 +203,36 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           }
         />
         <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="min-w-44">
-          <DropdownMenuItem onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} onClick={() => router.push(`/listings/${listing.id}/edit`)}><Pencil /> {tr('Edit', 'Sửa')}</DropdownMenuItem>
-          <DropdownMenuItem onClick={open}><ExternalLink /> {tr('View listing', 'Xem tin')}</DropdownMenuItem>
+          {canDiscount && (
+            <DropdownMenuItem onClick={() => setDiscountOpen(true)}><TrendingDown /> {tr('Discount', 'Giảm giá')}</DropdownMenuItem>
+          )}
+          {canShare && (
+            <DropdownMenuItem onClick={share}><Share2 /> {tr('Share', 'Chia sẻ')}</DropdownMenuItem>
+          )}
           {/* Copy link — only meaningful for a LIVE, verified listing (held/sold/hidden has no
-              public page). navigator.share is unreliable in the Android WebView, so a copy is the
-              portable action; the PDP keeps the full curated share. */}
-          {status === 'active' && listing.verified && (
+              public page). The portable action beside the native share; the PDP keeps the full
+              curated share. */}
+          {isPublic && (
             <DropdownMenuItem onClick={() => void copyLink()}><Link2 /> {tr('Copy link', 'Sao chép liên kết')}</DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={open}><ExternalLink /> {tr('View listing', 'Xem tin')}</DropdownMenuItem>
+          {/* Hide = pulled from the public feed, kept here (api/listings/[id]/status). Relist brings it back. */}
+          {status === 'active' && (
+            <DropdownMenuItem onClick={() => setStatus('hidden')}><EyeOff /> {tr('Hide', 'Ẩn')}</DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={del}><Trash2 /> {tr('Delete listing', 'Xóa tin')}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {canDiscount && (
+        <QuickDiscount
+          listing={{ id: listing.id, price: listing.price, currency: listing.currency }}
+          onChanged={onChanged}
+          trigger={false}
+          open={discountOpen}
+          onOpenChange={setDiscountOpen}
+        />
+      )}
     </div>
   )
 

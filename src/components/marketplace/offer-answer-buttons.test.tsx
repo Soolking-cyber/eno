@@ -33,14 +33,28 @@ describe('geometry: 44px targets, 12px apart', () => {
     }
   })
 
-  it('the row keeps 12px between targets on both axes, including where it wraps at 320px', () => {
+  it('the row keeps 12px between targets on both axes, and WRAPS rather than overflow at 320px', () => {
     renderRow()
     const row = screen.getByRole('button', { name: 'Accept' }).parentElement!
     const t = tokens(row)
+    expect(t).toContain('flex')
+    // ⚠️ The fallback: below ~340px the three labels no longer fit, and a single-row grid pushed Counter
+    // out of the card. A wrap drops it to its own line instead.
     expect(t).toContain('flex-wrap')
+    expect(t).not.toContain('grid-flow-col')
     expect(t).toContain('gap-3')
     // The old split gap (8px across, 20px down) existed only to keep invisible reaches apart.
     expect(t.some((c) => /^gap-[xy]-/.test(c))).toBe(false)
+  })
+
+  it('ONE row where it fits (si-09): px-1 padding (221px of label + gaps inside 236px at 360 in vi), grow shares the rest', () => {
+    renderRow()
+    for (const name of ['Accept', 'Decline', 'Counter']) {
+      const t = tokens(screen.getByRole('button', { name }))
+      expect(t).toContain('px-1')
+      expect(t).not.toContain('px-4')
+      expect(t).toContain('grow')
+    }
   })
 })
 
