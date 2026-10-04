@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server'
 import { route } from '@/lib/api/handler'
 import { getCurrentProfileId } from '@/lib/admin'
-import { liveState, myReviewVotes } from '@/lib/schools/queries'
+import { liveReviewCounts, liveState, myReviewVotes } from '@/lib/schools/queries'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,6 +17,9 @@ export const GET = route({ auth: 'public', rateLimit: { bucket: 'school-state', 
   const reviewIds = (u.searchParams.get('reviews') ?? '').split(',').filter((x) => ID.test(x)).slice(0, 400)
   const profileId = await getCurrentProfileId()
   const state = await liveState(ids, profileId)
-  const myReviews = profileId && reviewIds.length ? await myReviewVotes(reviewIds, profileId) : {}
-  return NextResponse.json({ ...state, myReviews, signedIn: !!profileId }, { headers: { 'Cache-Control': 'no-store' } })
+  const [myReviews, reviewCounts] = await Promise.all([
+    profileId && reviewIds.length ? myReviewVotes(reviewIds, profileId) : Promise.resolve({}),
+    liveReviewCounts(reviewIds),
+  ])
+  return NextResponse.json({ ...state, myReviews, reviewCounts, signedIn: !!profileId }, { headers: { 'Cache-Control': 'no-store' } })
 })

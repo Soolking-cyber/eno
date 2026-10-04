@@ -92,7 +92,7 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
     // An INELIGIBLE fifth reporter must not unlock the range.
     await db.schoolReview.create({ data: { ...base, profileId: P.business, payAmount: 900_000, payVnd: 900_000 } })
     let page = await q.getSchoolPage(SCHOOL)
-    expect(page?.pay).toEqual([{ period: 'hour', n: 4, shown: false }])
+    expect(page?.pay).toEqual([])
     // ⛔ No profileId, no pay figure and no hidden leaving year on a public review.
     expect(Object.keys(page!.reviews[0])).not.toContain('profileId')
     expect(Object.keys(page!.reviews[0])).not.toContain('payVnd')
@@ -100,7 +100,7 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
 
     // A fifth report published THIS week does not move the range yet…
     const fresh = await db.schoolReview.create({ data: { ...base, profileId: P.old5, payAmount: 600_000, payVnd: 600_000, moderatedAt: new Date() } })
-    expect((await q.getSchoolPage(SCHOOL))?.pay).toEqual([{ period: 'hour', n: 4, shown: false }])
+    expect((await q.getSchoolPage(SCHOOL))?.pay).toEqual([])
     // …it counts from next week.
     await db.schoolReview.update({ where: { id: fresh.id }, data: { moderatedAt: lastWeek } })
     page = await q.getSchoolPage(SCHOOL)
@@ -128,7 +128,7 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
     const page = await q.getSchoolPage(SCHOOL)
     expect(page?.reviews.length).toBe(4)
     // …and its pay report with it: 4 reporters is under the floor again.
-    expect(page?.pay).toEqual([{ period: 'hour', n: 4, shown: false }])
+    expect(page?.pay).toEqual([])
     await db.profile.update({ where: { id: P.old5 }, data: { enforcementState: 'good_standing' } })
   })
 
@@ -153,6 +153,16 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
     await db.profile.update({ where: { id: P.young }, data: { createdAt: new Date(Date.now() - 8 * DAY) } })
     expect((await q.getSchoolPage(SCHOOL_B))?.reviews.length).toBe(1)
     await db.profile.update({ where: { id: P.young }, data: { createdAt: new Date(Date.now() - 2 * DAY) } })
+  })
+
+  it('live helpful counts: eligible voters only, never the author on their own review', async () => {
+    const r = await db.schoolReview.findFirstOrThrow({ where: { schoolId: SCHOOL, profileId: P.old1 } })
+    for (const [profileId, value] of [[P.old2, 1], [P.old3, 1], [P.old1, 1], [P.young, 1], [P.business, -1]] as const) {
+      await db.schoolReviewVote.create({ data: { reviewId: r.id, profileId, value } })
+    }
+    // old2 + old3 count; the author (old1), a young and a business account do not.
+    expect((await q.liveReviewCounts([r.id]))[r.id]).toEqual({ up: 2, down: 0 })
+    await db.schoolReviewVote.deleteMany({ where: { reviewId: r.id } })
   })
 
   it("erasing a reviewer's account keeps the complaint about their review (the moderation trail)", async () => {

@@ -35,7 +35,9 @@ function standingSql(): Prisma.Sql {
 
 /** The full rule. `::int` because a JS number may bind as bigint, and make_interval(days => bigint) does not exist. */
 function eligibleSql(): Prisma.Sql {
-  return Prisma.sql`p."createdAt" <= now() - make_interval(days => ${ELIGIBLE_ACCOUNT_AGE_DAYS}::int) and ${standingSql()}`
+  // ⚠️ UTC EXPLICITLY: Prisma stores naive UTC timestamps, and comparing one with now() (timestamptz)
+  // reads it in the SESSION time zone — a +7 h error on a database whose session runs in Saigon time.
+  return Prisma.sql`p."createdAt" <= (now() at time zone 'UTC') - make_interval(days => ${ELIGIBLE_ACCOUNT_AGE_DAYS}::int) and ${standingSql()}`
 }
 
 type VoteRow = { schoolId: string; up: number; down: number }
@@ -78,13 +80,21 @@ async function publishedReviewCounts(schoolIds: string[]): Promise<Map<string, n
 }
 
 /**
+ * The PUBLIC shape of pay: ONLY the periods that cleared the floor. Below it nothing period-specific leaves
+ * the server — not the count ("1 of 5" tells readers the lone reviewer reported pay) and not even that a
+ * period HAS reports (an "Hourly — not enough yet" card says the same, and hints at part-time work).
+ */
+export type PublicPay = { period: 'hour' | 'month'; shown: true; lo: number; hi: number }
+const publicPay = (xs: PaySummary[]): PublicPay[] => xs.filter((p): p is Extract<PaySummary, { shown: true }> => p.shown)
+
+/**
  * Pay reports from the PUBLIC reviews (the same rule as the reviews themselves), per school.
  * ⚠️ ONLY REVIEWS PUBLISHED BEFORE THIS WEEK (Opus, diff review): if the range moved the moment a review
  * went live, comparing two snapshots would tie that dated review to its pay ("the range rose, so the new
  * teacher reported above it"). Batching by week blurs which review moved it.
  */
 async function payReports(schoolIds: string[]) {
-  if (!schoolIds.length) return new Map<string, PaySummary[]>()
+  if (!schoolIds.length) return new Map<string, PublicPay[]>()
   const rows = await db.$queryRaw<{ schoolId: string; profileId: string; payVnd: number; payPeriod: 'hour' | 'month'; createdAt: Date }[]>`
     select r."schoolId" as "schoolId", r."profileId"::text as "profileId", r."payVnd" as "payVnd",
            r."payPeriod" as "payPeriod", r."submittedAt" as "createdAt"
@@ -93,12 +103,12 @@ async function payReports(schoolIds: string[]) {
       join "School" s on s.id = r."schoolId"
      where r."schoolId" in (${Prisma.join(schoolIds)})
        and r.status = 'published' and r."payVnd" is not null
-       and coalesce(r."moderatedAt", r."submittedAt") < date_trunc('week', now())
+       and coalesce(r."moderatedAt", r."submittedAt") < date_trunc('week', now() at time zone 'UTC')
        and ${eligibleSql()}`
   const by = new Map<string, typeof rows>()
   for (const r of rows) by.set(r.schoolId, [...(by.get(r.schoolId) ?? []), r])
-  const out = new Map<string, PaySummary[]>()
-  for (const [id, list] of by) out.set(id, summarisePay(list))
+  const out = new Map<string, PublicPay[]>()
+  for (const [id, list] of by) out.set(id, publicPay(summarisePay(list)))
   return out
 }
 
@@ -144,7 +154,7 @@ async function jobsBySchool(schools: { id: string; sellerId: string | null }[]):
 
 export type SchoolListRow = {
   id: string; slug: string; name: string; kind: SchoolKind; districts: string[]; aliases: string[]
-  up: number; down: number; reviews: number; jobs: number; pay: PaySummary[]
+  up: number; down: number; reviews: number; jobs: number; pay: PublicPay[]
 }
 
 export async function listSchools(opts: { kind?: SchoolKind | null; area?: string | null; q?: string | null; sort: SchoolSort }): Promise<SchoolListRow[]> {
@@ -271,6 +281,27 @@ async function eligibleReviewVotes(reviewIds: string[], schoolId: string): Promi
 }
 
 // ── live state for the client islands (no-store) ───────────────────────────────────────────────
+
+/** Eligible helpful-vote counts for the given reviews (the school comes from each review). */
+export async function liveReviewCounts(reviewIds: string[]): Promise<Record<string, { up: number; down: number }>> {
+  const ids = [...new Set(reviewIds)].slice(0, 400)
+  if (!ids.length) return {}
+  const rows = await db.$queryRaw<{ reviewId: string; up: number; down: number }[]>`
+    select v."reviewId" as "reviewId",
+           count(*) filter (where v.value = 1)::int as up,
+           count(*) filter (where v.value = -1)::int as down
+      from "SchoolReviewVote" v
+      join "SchoolReview" r on r.id = v."reviewId"
+      join "School" s on s.id = r."schoolId"
+      join "Profile" p on p.id = v."profileId"
+     where v."reviewId" in (${Prisma.join(ids)})
+       and v."profileId" <> r."profileId"
+       and ${eligibleSql()}
+     group by v."reviewId"`
+  const out: Record<string, { up: number; down: number }> = Object.fromEntries(ids.map((id) => [id, { up: 0, down: 0 }]))
+  for (const r of rows) out[r.reviewId] = { up: r.up, down: r.down }
+  return out
+}
 
 /** Eligible counts for the given schools and the caller's own votes (and whether they count yet). */
 export async function liveState(schoolIds: string[], profileId: string | null) {
