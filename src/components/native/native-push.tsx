@@ -4,11 +4,13 @@ import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { canonicalAppPath } from '@/lib/deep-link'
+import { nativePushEnabled } from '@/lib/native-push-flags'
 
 // Native push registration (Capacitor). Mounted inside AuthProvider so it registers only for a
 // signed-in user (the token endpoint is auth-gated).
 //
-// ⚠️ GATED ON `NEXT_PUBLIC_NATIVE_PUSH === '1'`, and that gate is load-bearing, NOT belt-and-braces.
+// ⚠️ GATED PER PLATFORM — `NEXT_PUBLIC_NATIVE_PUSH_IOS === '1'` / `NEXT_PUBLIC_NATIVE_PUSH_ANDROID === '1'`
+// (src/lib/native-push-flags.ts) — and that gate is load-bearing, NOT belt-and-braces.
 // The old comment here claimed push was "DORMANT until cap sync … register() throws not implemented"
 // — that assumption is STALE: @capacitor/push-notifications is now cap-synced (PushNotificationsPlugin
 // is in packageClassList on both platforms), so requestPermissions() is LIVE and shows the real iOS
@@ -17,8 +19,9 @@ import { canonicalAppPath } from '@/lib/deep-link'
 // therefore prompted for a capability that does nothing — burning iOS's one-shot permission grant on
 // a dead feature. So we stay truly dormant behind the flag. ACTIVATION (see NATIVE_PUSH_SETUP.md):
 // add the Push capability + aps-environment entitlement + APNs/FCM config + the AppDelegate
-// didRegisterForRemoteNotifications callbacks, THEN set NEXT_PUBLIC_NATIVE_PUSH=1.
-const PUSH_ENABLED = process.env.NEXT_PUBLIC_NATIVE_PUSH === '1'
+// didRegisterForRemoteNotifications callbacks, THEN set the platform's flag.
+//
+// Per-platform switch — see src/lib/native-push-flags.ts for why there is no shared flag any more.
 //
 // ⚠️ FOREGROUND CONTRACT — ONE signal, and the OS owns it. There is deliberately NO
 // 'pushNotificationReceived' listener here. A push that lands while the app is open is displayed by
@@ -46,7 +49,7 @@ export function NativePush() {
   useEffect(() => { routerRef.current = router }, [router])
 
   useEffect(() => {
-    if (!PUSH_ENABLED || !user || started.current || !cap()?.isNativePlatform?.()) return
+    if (!user || started.current || !cap()?.isNativePlatform?.() || !nativePushEnabled(cap()?.getPlatform?.())) return
     started.current = true
     let disposed = false
     const cleanups: Array<() => void> = []

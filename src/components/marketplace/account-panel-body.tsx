@@ -217,10 +217,12 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
         )}
       </>
     )
+    // `ios-app-hidden`: an App Store review gate hides this row in the iOS app (dashboard-nav.tsx).
+    const rowCls = cn(navItem(isOn), it.iosAppHidden && 'ios-app-hidden')
     const el = it.external ? (
-      <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</a>
+      <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={rowCls}>{inner}</a>
     ) : (
-      <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</Link>
+      <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={rowCls}>{inner}</Link>
     )
     // Collapsed desktop rail: hovering an icon reveals its NAME as a tooltip to the right (Gemini
     // model). Expanded → label already visible, so no tooltip. Mobile never hovers (Base UI Tooltip

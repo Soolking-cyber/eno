@@ -229,7 +229,8 @@ export function AccountClient() {
           <RowsSection key={group.caption} caption={group.caption} first={gi === 0}>
             <Rows>
               {group.items.map((item) => (
-                <RowItem key={item.href + item.label} className="py-0">
+                // `ios-app-hidden` on the ROW, not the link, so no empty hairline row is left behind.
+                <RowItem key={item.href + item.label} className={cn('py-0', item.iosAppHidden && 'ios-app-hidden')}>
                   <NavRow item={item} />
                 </RowItem>
               ))}

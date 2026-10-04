@@ -12,6 +12,8 @@ import { BusinessVerifiedBadge } from '@/components/marketplace/business-verifie
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { lastSeenBucket } from '@/lib/last-seen'
+import { SITE_NAME } from '@/lib/edition'
+import { brandForCopy } from '@/lib/app-review-gates'
 import { useMounted } from '@/hooks/use-mounted'
 import { PartnerListingCount } from './partner-listing-count'
 import { LinkedShopChip } from './linked-shop-chip'
@@ -83,8 +85,17 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
   // ⚠️ "VERIFIED", NOT "VETTED" / "KIỂM DUYỆT" (2026-10-01). "eno.vn chưa kiểm duyệt" read as the platform
   // admitting it had not done its statutory pre-display moderation; what is true, and what this line
   // means, is that eno.vn has not VERIFIED the source's ad or the business behind it.
-  if (linked === 'job') strip.push(tr('Linked job posting — not verified by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa xác minh'))
-  else if (linked === 'listing') strip.push(tr('Linked listing — not verified by eno.vn', 'Tin đăng dẫn link — eno.vn chưa xác minh'))
+  // ⚠️ App Store gate `site-brand-copy` (R7): on eno.forum — the site the apps render — the verifier is
+  // eno.forum, not eno.vn. brandForCopy keeps today's words until the owner switches it on.
+  // Literal strings on both branches, not a template: the i18n harvest (gen-ui-strings) only collects
+  // literals, and the nine machine-translated languages read their keys from it.
+  const forumVerifies = brandForCopy(SITE_NAME) === 'eno.forum'
+  if (linked === 'job') strip.push(forumVerifies
+    ? tr('Linked job posting — not verified by eno.forum', 'Tin tuyển dụng dẫn link — eno.forum chưa xác minh')
+    : tr('Linked job posting — not verified by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa xác minh'))
+  else if (linked === 'listing') strip.push(forumVerifies
+    ? tr('Linked listing — not verified by eno.forum', 'Tin đăng dẫn link — eno.forum chưa xác minh')
+    : tr('Linked listing — not verified by eno.vn', 'Tin đăng dẫn link — eno.vn chưa xác minh'))
   else if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
   if (!linked && lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
   if (!linked) strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))

@@ -7,6 +7,7 @@ import { CookieSettingsButton } from '@/components/marketplace/cookie-settings-b
 import { LegalLanguageNote } from '@/components/legal/legal-language-note'
 import { LegalTable, LegalText, type LegalCopy } from '@/components/legal/legal-text'
 import { AFFILIATION, COMPANY, PDP_DOSSIERS_FILED } from '@/lib/site-legal'
+import { appReviewGate } from '@/lib/app-review-gates'
 import { AMENDED } from '@/lib/compliance/legal-amendment'
 import {
   PRIVACY_SERVICES_COLLECT,
@@ -390,7 +391,16 @@ const SECTIONS: Section[] = [
         vi: 'Chính sách này giải thích chúng tôi xử lý dữ liệu cá nhân nào, vì sao, lưu ở đâu, những ai khác nhận dữ liệu, và các quyền pháp luật Việt Nam dành cho bạn. Chính sách được xây dựng theo Luật Bảo vệ dữ liệu cá nhân số 91/2025/QH15 và Nghị định 356/2025/NĐ-CP. Các văn bản này dùng khái niệm “dữ liệu cá nhân” cho mọi thông tin giúp xác định bạn, và “dữ liệu cá nhân nhạy cảm” cho một nhóm hẹp hơn được pháp luật bảo vệ chặt chẽ hơn — chúng tôi dùng đúng các khái niệm đó và nói rõ dữ liệu nào thuộc nhóm nào.',
       },
       {
-        en: `The data controller — the party that decides why and how your data is processed — is ${COMPANY.name}, ${COMPANY.address}. We acknowledge every request about your personal data within 2 working days.`,
+        // ⚠️ App Store gate `site-brand-copy` (R7): until eno.forum's operator is registered, COMPANY.name
+        // is the VIETNAMESE placeholder "Đơn vị vận hành đang đăng ký thành lập" and the address is
+        // "đang cập nhật" — untranslated, inside an English legal sentence the reviewer reads. With
+        // the gate on, the English says in English what the Vietnamese already says ("Đơn vị vận hành
+        // đang đăng ký thành lập, đang cập nhật" = the operating entity, registration in progress, details
+        // to follow) — "entity", not "company", because nothing is incorporated yet. The Vietnamese is
+        // unchanged.
+        en: appReviewGate('site-brand-copy') && !COMPANY.registered
+          ? 'The data controller — the party that decides why and how your data is processed — is the operating entity of this site, whose business registration is in progress; its name, address and registration number will be published here when they are issued. We acknowledge every request about your personal data within 2 working days.'
+          : `The data controller — the party that decides why and how your data is processed — is ${COMPANY.name}, ${COMPANY.address}. We acknowledge every request about your personal data within 2 working days.`,
         vi: `Bên kiểm soát dữ liệu cá nhân — bên quyết định mục đích và cách thức xử lý dữ liệu của bạn — là ${COMPANY.name}, ${COMPANY.address}. Chúng tôi xác nhận đã nhận mọi yêu cầu liên quan đến dữ liệu cá nhân của bạn trong vòng 2 ngày làm việc.`,
       },
       CONTACT,

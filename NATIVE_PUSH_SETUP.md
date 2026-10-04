@@ -13,8 +13,11 @@ turn it on — just the steps here.
   `requestPermissions()` live: it showed the iOS "Allow Notifications?" dialog even though
   `register()` fails at the APNs layer (no `aps-environment`) — a prompt for a dead capability.
 - **Dormancy gate (so that prompt does NOT fire until push actually works):**
-  `native-push.tsx` is gated on **`NEXT_PUBLIC_NATIVE_PUSH === '1'`** (unset ⇒ no prompt, no
-  register). Flip it in step 5, LAST, after everything below is in place.
+  `native-push.tsx` is gated PER PLATFORM on **`NEXT_PUBLIC_NATIVE_PUSH_IOS === '1'`** and
+  **`NEXT_PUBLIC_NATIVE_PUSH_ANDROID === '1'`** (`src/lib/native-push-flags.ts`; unset ⇒ no prompt, no
+  register). Flip a platform's flag in step 5, LAST, after everything below is in place FOR THAT
+  PLATFORM. ⚠️ The old shared `NEXT_PUBLIC_NATIVE_PUSH` is no longer read (2026-10-04): iOS and Android
+  become ready on different days, and one flag would have prompted Android users the day iOS shipped.
 - **AppDelegate APNs callbacks** (`didRegisterForRemoteNotificationsWithDeviceToken` /
   `…didFailToRegisterWithError`) are present in `ios/App/App/AppDelegate.swift` — the hand-written
   AppDelegate had dropped them, which would have silently defeated push; re-added, so no further
@@ -34,7 +37,8 @@ turn it on — just the steps here.
    Notifications service (APNs)** → download the **`.p8`** key. Note the **Key ID** and your **Team ID**.
 2. In Xcode (`ios/App/App.xcodeproj`) → target App → **Signing & Capabilities → + Capability →
    Push Notifications**. (This adds the `aps-environment` entitlement.)
-3. Set env (Vercel + local):
+3. Set env in `/opt/eno/secrets/eno-forum.env` AND `eno-vn.env` on the box (OWNER-APPROVED prod write;
+   recreate the containers after), plus local `.env` for dev. Base64 the `.p8` so `sh` can source it:
    - `APNS_KEY_ID` = the 10-char Key ID
    - `APNS_TEAM_ID` = your Apple Team ID
    - `APNS_KEY` = the contents of the `.p8` (raw PEM, or base64)
@@ -72,8 +76,10 @@ npx prisma generate
 (Additive table — safe. See CLAUDE.md "Schema changes".)
 
 ## 5. Flip the gate, rebuild + test
-Set **`NEXT_PUBLIC_NATIVE_PUSH=1`** (Cloud Run env + local `.env`) — this is the switch that lets
-`native-push.tsx` prompt + register. Deploy the web (it loads live), then rebuild iOS + Android,
+Set **`NEXT_PUBLIC_NATIVE_PUSH_IOS=1`** and/or **`NEXT_PUBLIC_NATIVE_PUSH_ANDROID=1`** — only for a
+platform whose steps above are done — in `/opt/eno/secrets/eno-forum.env` (and `eno-vn.env`; the
+Cloud Run services this file used to name were deleted 2026-08-23). They are NEXT_PUBLIC values, so
+they need a build: deploy the web on the owner's word, then rebuild the app for that platform,
 install, sign in → the app requests notification permission and registers. Trigger any notification
 (e.g. send yourself a message) → it should arrive natively. Tapping it deep-links to the `url` in the
 payload. ⚠️ Do NOT set the flag before the entitlement (step 1) exists, or you re-introduce the
@@ -81,10 +87,12 @@ payload. ⚠️ Do NOT set the flag before the entitlement (step 1) exists, or y
 
 ---
 
-**Env summary** (set in the Cloud Run env / GCP secret; historically Vercel):
-`NEXT_PUBLIC_NATIVE_PUSH` (the client gate — `1` to enable prompt+register),
+**Env summary** (set in `/opt/eno/secrets/eno-{vn,forum}.env` on the box, then recreate the containers;
+the `NEXT_PUBLIC_*` ones need a rebuild too — historically Vercel, then Cloud Run, both retired):
+`NEXT_PUBLIC_NATIVE_PUSH_IOS` / `NEXT_PUBLIC_NATIVE_PUSH_ANDROID` (the client gates — `1` to enable
+prompt+register on that platform),
 `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY`, `APNS_BUNDLE_ID`, `APNS_PRODUCTION`,
 `FCM_PROJECT_ID`, `FCM_CREDENTIALS`.
-`NEXT_PUBLIC_NATIVE_PUSH` unset → the app never prompts/registers (current state). The APNS/FCM set
+Both platform flags unset → the app never prompts/registers (current state). The APNS/FCM set
 gate the SEND side: missing all → send is a silent no-op; set the iOS set only → iOS works, Android
 no-ops (and vice-versa).

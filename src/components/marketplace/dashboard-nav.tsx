@@ -15,6 +15,7 @@
 
 import type { ComponentType, SVGProps } from 'react'
 import { IS_SERVICES } from '@/lib/edition'
+import { appReviewGate } from '@/lib/app-review-gates'
 import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_PAYMENTS, SERVICES_NAV_SERVICES } from '@/lib/edition-services-copy'
 // Glyph choices follow docs/icon-language.md §3 (soft-cornered object metaphors, one
 // family). Developers = Plug since 2026-08-07 (R3 critic: Braces was the rail's one
@@ -120,6 +121,11 @@ export type NavItem = {
    * reason on the wrong axis, and would still have shown it to any eno.vn user who had a case.
    */
   servicesOnly?: boolean
+  /**
+   * Hidden inside the iOS app (CSS hook `ios-app-hidden`, so the server-rendered first frame is right
+   * too). Set only from an App Store review gate — see src/lib/app-review-gates.ts.
+   */
+  iosAppHidden?: boolean
   /** Live counter to show on this row — the renderer maps it to its real-time source. */
   badge?: 'unread' | 'saved'
   /** Item-level visibility; defaults to the owning group's role. */
@@ -207,7 +213,9 @@ export const DASHBOARD_NAV: NavGroup[] = [
        */
       // ⚠️ ONE Payments ROW — wallet + payout merged into /dashboard/payments (tabbed). Same
       // three-layer gating as before: IS_SERVICES ternary, servicesOnly flag, aliased copy.
-      ...(IS_SERVICES ? [{ ...SERVICES_NAV_PAYMENTS, icon: Wallet, servicesOnly: true, role: 'seller' as const }] : []),
+      // ⚠️ App Store gate `ios-hide-wallet` (plan R6, Guideline 3.1.5): with it on, the iOS app has no
+      // Payments row and the page itself redirects (payments/page.forum.svc.tsx). Off by default.
+      ...(IS_SERVICES ? [{ ...SERVICES_NAV_PAYMENTS, icon: Wallet, servicesOnly: true, role: 'seller' as const, iosAppHidden: appReviewGate('ios-hide-wallet') }] : []),
       /**
        * Public storefront of the signed-in seller — href is computed by the renderer.
        *

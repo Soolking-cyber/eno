@@ -22,6 +22,8 @@ export type ResolvedNavItem = {
    * where `badge` is.
    */
   badgeTone?: 'alert' | 'neutral'
+  /** Hide inside the iOS app — the renderer adds the `ios-app-hidden` CSS hook (globals.css). */
+  iosAppHidden?: boolean
 }
 
 export type ResolvedNavGroup = { caption: string; items: ResolvedNavItem[] }
@@ -79,6 +81,7 @@ const toRail = (it: NavItem, ctx: NavResolveCtx): ResolvedNavItem | null => {
     badge: it.badge === 'unread' ? ctx.counters.unread : it.badge === 'saved' ? ctx.counters.saved : undefined,
     // Saved went grey on 2026-09-30 (O-08) and back to red the same day (owner: "make it red as before").
     badgeTone: it.badge === 'unread' || it.badge === 'saved' ? 'alert' : undefined,
+    ...(it.iosAppHidden ? { iosAppHidden: true } : {}),
   }
 }
 
