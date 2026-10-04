@@ -35,7 +35,7 @@ type Props = {
  * neutral "New user" pill rather than a positive signal.
  */
 export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBucket, isNew, lastSeenDay, singleLine = false }: Props) {
-  const { lang, tr } = useLanguage()
+  const { tr } = useLanguage()
   void trustTier // tier is encoded by TrustScore's color; kept for caller symmetry
   // Thread data arrives via client fetch (never SSR HTML), so render-time bucketing
   // can't hydration-mismatch here — no mounted gate needed, unlike the ISR PDP.
@@ -60,7 +60,7 @@ export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBuck
         {responseBucket.key && (
           <>
             <span aria-hidden>·</span>
-            <span>{lang === 'vi' ? responseBucket.vi : responseBucket.en}</span>
+            <span>{tr(responseBucket.en, responseBucket.vi)}</span>
           </>
         )}
 
@@ -96,7 +96,7 @@ export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBuck
       {responseBucket.key && (
         <>
           <span aria-hidden className="shrink-0">·</span>
-          <span className="min-w-0 truncate">{lang === 'vi' ? responseBucket.vi : responseBucket.en}</span>
+          <span className="min-w-0 truncate">{tr(responseBucket.en, responseBucket.vi)}</span>
         </>
       )}
 

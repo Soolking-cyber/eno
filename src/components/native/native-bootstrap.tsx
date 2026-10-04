@@ -205,6 +205,11 @@ export function NativeBootstrap() {
   const pathname = usePathname()
   const { tr } = useLanguage()
   const [isRefreshing, startRefresh] = useTransition()
+  // Read by the back-gesture listener, which is registered once — a ref keeps its label current (written
+  // in an effect, not during render).
+  const exitLabel = tr('Swipe again to exit', 'Vuốt lại để thoát')
+  const exitLabelRef = useRef(exitLabel)
+  useEffect(() => { exitLabelRef.current = exitLabel }, [exitLabel])
 
   // Native pull-to-refresh: MainViewController's UIRefreshControl (iOS) and MainActivity's
   // SwipeRefreshLayout (Android) both fire `eno:native-refresh` on pull; soft-refresh the current
@@ -506,7 +511,7 @@ export function NativeBootstrap() {
             return
           }
           armedUntil = Date.now() + EXIT_CONFIRM_MS
-          confirmExitToast()
+          confirmExitToast(exitLabelRef.current)
         }
         if (backConsumedByOverlay(navigate)) return
         navigate()

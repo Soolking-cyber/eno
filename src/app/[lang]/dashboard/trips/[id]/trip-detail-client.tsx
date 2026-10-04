@@ -287,6 +287,7 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
   // NOT guaranteed to be a known CityId. Look it up defensively and fall back to the raw id
   // rather than asserting a type the database does not enforce.
   const city = CITY_MAP.get(trip.destinationId as CityId)
+  // i18n-invariant: a city is a place name — never machine-translated (PlaceName's rule).
   const cityName = city ? (lang === 'vi' ? city.nameVi : city.name) : trip.destinationId
   const budget = BUDGETS.find((b) => b.id === trip.budgetId)
 
@@ -307,7 +308,7 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
             <CalendarDays className="h-4 w-4 text-ink-4" />
             {trip.days === 1 ? tr('1 day', '1 ngày') : tr(`${trip.days} days`, `${trip.days} ngày`)}
           </span>
-          {budget && <Badge size="md" className="bg-tint text-body">{lang === 'vi' ? budget.labelVi : budget.label}</Badge>}
+          {budget && <Badge size="md" className="bg-tint text-body">{tr(budget.label, budget.labelVi)}</Badge>}
           {typeof trip.estimatedBudget === 'number' && trip.estimatedBudget > 0 && (
             <span className="font-semibold text-foreground">
               {/* The "≈" is already the estimate's own hedge; useDualMoney adds the second

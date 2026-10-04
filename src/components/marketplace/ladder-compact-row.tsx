@@ -65,7 +65,9 @@ export function LadderCompactRow({
   subcategoryCounts?: Record<string, number>
 }) {
   const { lang, tr } = useLanguage()
-  const label = (x: { name: string; nameVi: string }) => (lang === 'vi' ? x.nameVi : x.name)
+  // tr(name, nameVi): the authored Vietnamese for vi, a translation of the English for the nine others
+  // (it used to hand the Vietnamese to <Tr>, which machine-translated Vietnamese into Vietnamese).
+  const label = (x: { name: string; nameVi: string }) => tr(x.name, x.nameVi || x.name)
   /**
    * ⛔ THE SAME OFFER AS THE FULL RAIL (E-TILES, 2026-09-29): an empty category, subcategory or intent is
    * not a chip here either. This row used to list EVERY subcategory — eleven for Rentals at 390px, most
@@ -97,7 +99,7 @@ export function LadderCompactRow({
           ? <CategoryIcon name={active.icon} stroke={STROKE_UI} selected className="h-4 w-4 shrink-0" />
           : <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />}
         <span className="max-w-[10rem] truncate">
-          {active ? <Tr text={label(active)} /> : tr('All categories', 'Tất cả danh mục')}
+          {active ? label(active) : tr('All categories', 'Tất cả danh mục')}
         </span>
         <ChevronDown
           aria-hidden
@@ -122,7 +124,7 @@ export function LadderCompactRow({
                 const on = activeSubcategory === sub.slug
                 return (
                   <Toggle key={sub.slug} pressed={on} onPressedChange={() => onSubcategory(on ? 'all' : sub.slug)} className={chipCls}>
-                    <Tr text={label(sub)} />
+                    {label(sub)}
                   </Toggle>
                 )
               })}
@@ -130,7 +132,7 @@ export function LadderCompactRow({
                   subcategories would otherwise filter the feed by something this row never shows. */}
               {intents?.filter((it) => it.type === activeType).map((it) => (
                 <Toggle key={it.type} pressed onPressedChange={() => onIntent?.(it.type)} className={chipCls}>
-                  <Tr text={label(it)} />
+                  {label(it)}
                 </Toggle>
               ))}
             </>
@@ -140,13 +142,13 @@ export function LadderCompactRow({
                 const on = cat.slug === activeCategory
                 return (
                   <Toggle key={cat.slug} pressed={on} onPressedChange={() => onCategory(on ? 'all' : cat.slug)} className={chipCls}>
-                    <Tr text={label(cat)} />
+                    {label(cat)}
                   </Toggle>
                 )
               })}
               {shownIntents?.map((it) => (
                 <Toggle key={it.type} pressed={activeType === it.type} onPressedChange={() => onIntent?.(it.type)} className={chipCls}>
-                  <Tr text={label(it)} />
+                  {label(it)}
                 </Toggle>
               ))}
             </>

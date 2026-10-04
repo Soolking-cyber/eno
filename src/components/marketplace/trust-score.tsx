@@ -59,10 +59,10 @@ const SHIELD_GRADIENT: Record<string, { from: string; mid: string; to: string; t
  * and restricted stay quiet (tinted text) — shine is earned.
  */
 export function TrustScore({ score, size = 'sm', showLabel = false, variant = 'shield', href, className }: Props) {
-  const { lang, tr } = useLanguage()
+  const { tr } = useLanguage()
   const { color, label, labelVi, band } = trustScoreColor(score)
   const n = Math.round(score)
-  const title = `${tr('Trust score', 'Điểm uy tín')}: ${n} · ${lang === 'vi' ? labelVi : label}`
+  const title = `${tr('Trust score', 'Điểm uy tín')}: ${n} · ${tr(label, labelVi)}`
   // The 'shield' and 'number' spans carry a NATIVE title only when there is NO href — that is the
   // unwrapped case where it's the sole hint. When href is set the badge is wrapped in a Base UI
   // <Tooltip> below, which owns the hint; leaving the native title on too would fire BOTH bubbles

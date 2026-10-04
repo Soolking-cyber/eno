@@ -12,6 +12,7 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
+import { describeParams, paramsFromUrl } from '@/lib/saved-search'
 
 type SavedSearch = { id: string; label: string; notify: boolean; createdAt: string; url: string }
 
@@ -39,6 +40,15 @@ export function SavedSearches() {
   // Optimistic updates WITH rollback — a silently-failed toggle/delete would
   // otherwise leave the UI lying about what's saved.
   const failed = () => toast.error(tr("Couldn't save that — try again", 'Chưa lưu được — thử lại'))
+  /**
+   * ⚠️ A STORED LABEL IS THE SERVER'S ENGLISH DEFAULT (describeParams with no reader), so it is re-derived
+   * here in the reader's language from the search's own URL. A label that is NOT that default was named
+   * on purpose and is shown as written.
+   */
+  const labelOf = (s: SavedSearch) => {
+    const params = paramsFromUrl(s.url)
+    return s.label === describeParams(params) ? describeParams(params, lang, tr) : s.label
+  }
   const toggle = async (s: SavedSearch) => {
     setSearches((prev) => prev?.map((x) => (x.id === s.id ? { ...x, notify: !s.notify } : x)) ?? prev)
     try {
@@ -79,7 +89,7 @@ export function SavedSearches() {
               className="flex min-w-0 flex-1 shrink items-center justify-start gap-2.5 px-2 text-left cursor-pointer"
             >
               <Search className="h-4 w-4 shrink-0 text-accent-foreground" />
-              <span className="truncate text-sm font-medium text-foreground group-hover:underline">{s.label}</span>
+              <span className="truncate text-sm font-medium text-foreground group-hover:underline">{labelOf(s)}</span>
             </Button>
             <Tooltip content={s.notify ? tr('Alerts on', 'Đang báo') : tr('Alerts off', 'Đã tắt')} side="top">
               <IconButton

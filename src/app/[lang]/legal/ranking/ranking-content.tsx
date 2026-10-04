@@ -47,7 +47,7 @@ import {
 } from '@/lib/compliance/ranking-disclosure'
 
 function FactorList({ factors }: { factors: RankingFactor[] }) {
-  const { lang } = useLanguage()
+  const { tr } = useLanguage()
   return (
     <ul className="space-y-3">
       {factors.map((f) => (
@@ -57,9 +57,9 @@ function FactorList({ factors }: { factors: RankingFactor[] }) {
             {f.weightPct}%
           </span>
           <span className="min-w-0">
-            <strong className="text-foreground">{lang === 'vi' ? f.labelVi : f.labelEn}</strong>
+            <strong className="text-foreground">{tr(f.labelEn, f.labelVi)}</strong>
             {' — '}
-            {lang === 'vi' ? f.explainVi : f.explainEn}
+            {tr(f.explainEn, f.explainVi)}
           </span>
         </li>
       ))}

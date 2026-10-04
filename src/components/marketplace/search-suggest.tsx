@@ -375,7 +375,7 @@ export function SearchSuggest<T extends PanelSuggestItem>({
                 className={chipCls(activeIndex === categoryStart + i)}
               >
                 {/* Same wrap as the brand chip: the Button base is inline-flex with a gap ("Ren tals"). */}
-                <span className="min-w-0 truncate"><Highlight text={lang === 'vi' ? c.nameVi : c.name} query={q} /></span>
+                <span className="min-w-0 truncate"><Highlight text={tr(c.name, c.nameVi || c.name)} query={q} /></span>
               </Button>
             ))}
           </div>

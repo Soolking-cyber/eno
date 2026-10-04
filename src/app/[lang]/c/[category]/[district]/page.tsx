@@ -286,7 +286,7 @@ const RENT_INDEX_WAIT_MS = 10_000
  * no block — that is not a failure, so it keeps the day.
  * The date is the snapshot's, formatted here in Ho Chi Minh City time, so the client block has no clock.
  */
-async function districtRent(slug: string): Promise<{ cells: RentCell[]; asOf: { en: string; vi: string } } | null> {
+async function districtRent(slug: string): Promise<{ cells: RentCell[]; asOf: { en: string; vi: string; iso: string } } | null> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), RENT_INDEX_WAIT_MS) })
   // loadRentIndex() already turns a failed read into `known: false`; the catch is the second belt
@@ -301,7 +301,7 @@ async function districtRent(slug: string): Promise<{ cells: RentCell[]; asOf: { 
   const cells = row ? publishableCells(row) : []
   if (cells.length === 0) return null
   const at = lookup.index.computedAt
-  return { cells, asOf: { en: formatCalendarDay(at, 'en'), vi: formatCalendarDay(at, 'vi') } }
+  return { cells, asOf: { en: formatCalendarDay(at, 'en'), vi: formatCalendarDay(at, 'vi'), iso: at } }
 }
 
 export default async function CategoryDistrictPage({ params }: Props) {
@@ -364,7 +364,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
           <BreadcrumbList>
             <BreadcrumbItem>
               {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
-              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
+              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="hover:text-accent-foreground"><Tr text="Home" ctx="page" /></BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>

@@ -1,5 +1,6 @@
 'use client'
 
+import { getTrSnapshot, subscribeTr } from '@/lib/i18n/mt-client'
 import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition, type CSSProperties } from 'react'
 import Image from 'next/image'
 // Only the glyphs this file actually renders — the vestigial hero-search set
@@ -371,6 +372,8 @@ export function ListingsExplorer({
   // Tell the header an explorer is here to receive its search/area/map events (explorer-presence.ts).
   useRegisterExplorer()
   const { lang, t, tr } = useLanguage()
+  // Bumps whenever a machine translation lands (see the crumbs memo below).
+  const trVersion = useSyncExternalStore(subscribeTr, getTrSnapshot, () => 0)
   const { openSignIn } = useAuth()
   // Desktop ← / → arrows for the horizontally-scrollable category grid (same primitive as the rails).
   const { scrollerRef: catScrollerRef, canLeft: catCanLeft, canRight: catCanRight, page: catPage } = useScrollArrows()
@@ -3103,14 +3106,14 @@ export function ListingsExplorer({
     if (activeCategory !== 'all') {
       const cat = categories.find((c) => c.slug === activeCategory)
       crumbs.push({
-        label: cat ? (lang === 'vi' ? cat.nameVi : cat.name) : activeCategory,
+        label: cat ? tr(cat.name, cat.nameVi || cat.name) : activeCategory,
         onSelect: () => { setActiveSubcategory('all'); setActiveBrand('all'); setActiveLine(''); setActiveModel('all') },
       })
     }
     if (activeSubcategory !== 'all') {
       const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
       crumbs.push({
-        label: sub ? (lang === 'vi' ? sub.nameVi : sub.name) : activeSubcategory,
+        label: sub ? tr(sub.name, sub.nameVi || sub.name) : activeSubcategory,
         onSelect: () => { setActiveBrand('all'); setActiveLine(''); setActiveModel('all') },
       })
     }
@@ -3121,7 +3124,10 @@ export function ListingsExplorer({
     // nothing is worse than plain text, and ResultLine renders a handler-less crumb as text.
     if (activeModel !== 'all') crumbs.push({ label: activeModel })
     return crumbs
-  }, [activeCategory, activeSubcategory, activeBrand, activeModel, categories, lang])
+  // `tr` AND `trVersion`, not just `lang`: the crumbs are translated, and a translation that lands after the
+  // first render changes `tr` (the warmed batch re-renders the provider) or only the store version (a lazy,
+  // per-string arrival) — never `lang`.
+  }, [activeCategory, activeSubcategory, activeBrand, activeModel, categories, lang, tr, trVersion])
 
   /** The words the grid answers: the server's corrected spelling when it corrected them, else the typed ones. */
   const resultsTerm = correctedQuery ?? debouncedQuery.trim()
@@ -3244,7 +3250,7 @@ export function ListingsExplorer({
     }
     if (activeSubcategory !== 'all') {
       const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
-      chips.push({ label: sub ? (lang === 'vi' ? sub.nameVi : sub.name) : activeSubcategory, onClear: () => setActiveSubcategory('all') })
+      chips.push({ label: sub ? tr(sub.name, sub.nameVi || sub.name) : activeSubcategory, onClear: () => setActiveSubcategory('all') })
     }
     if (activeBrand !== 'all') {
       chips.push({ label: activeModel !== 'all' ? `${prettyBrand(activeBrand)} · ${activeModel}` : prettyBrand(activeBrand), onClear: () => { setActiveBrand('all'); setActiveLine(''); setActiveModel('all') } })
@@ -3281,7 +3287,7 @@ export function ListingsExplorer({
     if (goodPriceOnly) chips.push({ label: tr('Good price', 'Giá tốt'), onClear: () => setGoodPriceOnly(false) })
     if (listingType !== 'all') {
       const lt = LISTING_TYPES.find((t) => t.value === listingType)
-      chips.push({ label: lt ? (lang === 'vi' ? lt.labelVi : lt.label) : listingType, onClear: () => setListingType('all'), pill: typePillShows })
+      chips.push({ label: lt ? tr(lt.label, lt.labelVi) : listingType, onClear: () => setListingType('all'), pill: typePillShows })
     }
     // ⛔ NAMED BY THE TAXONOMY, NOT BY THE STATE KEY (E-ACTIVE, 2026-09-29): "bedrooms: 2" and
     // "areaM2: 30-80" read as debug output on the one line that says what is narrowing the feed.

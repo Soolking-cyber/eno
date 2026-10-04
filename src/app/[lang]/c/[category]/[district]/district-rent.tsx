@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { useLanguage } from '@/context/language-context'
+import { Bilingual } from '@/components/marketplace/bilingual'
+import { formatCalendarDay } from '@/lib/calendar-day'
 import { ArrowRight } from '@/components/ui/icons'
 import { formatMoneyFull, groupVnd } from '@/lib/vnd'
 import { roundForDisplay } from '@/lib/rent-index'
@@ -24,8 +26,9 @@ export type DistrictRentProps = {
   place: { en: string; vi: string }
   slug: string
   cells: RentCell[]
-  /** The snapshot day, formatted on the server (formatCalendarDay, HCMC time). */
-  asOf: { en: string; vi: string }
+  /** The snapshot day, formatted on the server (formatCalendarDay, HCMC time); `iso` lets the nine
+   *  machine-translated languages print it with their own month name. */
+  asOf: { en: string; vi: string; iso?: string }
 }
 
 function CellLabel({ kind }: { kind: RentCellKind }) {
@@ -51,7 +54,9 @@ function OverlapNote({ slug }: { slug: string }) {
   if (slug !== 'd2' && slug !== 'd9') return null
   return (
     <p className="mt-1 text-xs text-muted-foreground">
-      {tr('Listings labelled', 'Các tin ghi')} {lang === 'vi' ? FORMER[slug].vi : FORMER[slug].en}.{' '}
+      {/* One template, not "Listings labelled" + a name: word order is the translation's to decide.
+          i18n-invariant: the district name is a place name and stays as written (PlaceName's rule). */}
+      <Bilingual en="Listings labelled {name}." vi="Các tin ghi {name}." values={{ name: lang === 'vi' ? FORMER[slug].vi : FORMER[slug].en }} />{' '}
       {tr('They are also counted in Thu Duc City.', 'Các tin này cũng được tính trong TP Thủ Đức.')}
     </p>
   )
@@ -64,7 +69,8 @@ export function DistrictRent({ place, slug, cells, asOf }: DistrictRentProps) {
   return (
     <section className="mt-6 max-w-3xl border-t border-border pt-4" aria-labelledby="district-rent">
       <h2 id="district-rent" className="text-base font-bold text-foreground">
-        {tr('Median asking rent in', 'Giá thuê chào trung vị tại')} {lang === 'vi' ? place.vi : place.en}
+        {/* i18n-invariant: {place} is a place name (PlaceName's rule); the sentence around it translates. */}
+        <Bilingual en="Median asking rent in {place}" vi="Giá thuê chào trung vị tại {place}" values={{ place: lang === 'vi' ? place.vi : place.en }} />
       </h2>
       <OverlapNote slug={slug} />
       {/* A <dl> of label → figure on a ruled grid (flat-surface canon §3b): no tiles, no boxes. */}
@@ -82,7 +88,7 @@ export function DistrictRent({ place, slug, cells, asOf }: DistrictRentProps) {
       </dl>
       <p className="mt-3 text-xs text-muted-foreground">
         {tr('Asking prices from live listings, not signed rents.', 'Giá chào từ các tin đang đăng, không phải giá thuê đã ký.')}{' '}
-        {tr('As of', 'Số liệu ngày')} {lang === 'vi' ? asOf.vi : asOf.en}.
+        <Bilingual en="As of {date}." vi="Số liệu ngày {date}." values={{ date: lang === 'vi' ? asOf.vi : lang === 'en' || !asOf.iso ? asOf.en : formatCalendarDay(asOf.iso, lang) }} />
       </p>
       <p className="mt-2 text-sm">
         <Link href="/hcmc-rent-index" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">

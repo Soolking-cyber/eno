@@ -48,9 +48,11 @@ export function subtleToast(message: string, opts?: { duration?: number; id?: st
  * ⚠️ Its duration deliberately matches the arming window: a pill still on screen means the next
  * swipe exits, and one that has faded means it does not. The affordance IS the timer.
  */
-export function confirmExitToast() {
+export function confirmExitToast(label?: string) {
+  // The caller passes its tr()'d label (native-bootstrap.tsx) so the nine machine-translated languages get
+  // one; the document-language fallback only knows the two authored ones.
   const vi = typeof document !== 'undefined' && document.documentElement.lang === 'vi'
-  return subtleToast(vi ? 'Vuốt lại để thoát' : 'Swipe again to exit', {
+  return subtleToast(label || (vi ? 'Vuốt lại để thoát' : 'Swipe again to exit'), {
     duration: EXIT_CONFIRM_MS,
     id: 'exit-confirm',
   })

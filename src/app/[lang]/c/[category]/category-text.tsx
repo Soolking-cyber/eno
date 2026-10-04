@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Tr, useLanguage } from '@/context/language-context'
+import { fillBilingual } from '@/components/marketplace/bilingual'
 import { ArrowRight } from '@/components/ui/icons'
 import { Row, Rows } from '@/components/ui/rows'
 import { IS_SERVICES } from '@/lib/edition'
@@ -175,6 +176,7 @@ export function RentalsDistricts({ allHcmc, top }: Pick<RentalsFacts, 'allHcmc' 
     <span key={d.slug}>
       {i > 0 && (i === top.length - 1 ? <> {tr('and', 'và')} </> : <>, </>)}
       <Link href={`/c/rentals/${d.slug}`} className="font-semibold text-accent-foreground hover:underline">
+        {/* i18n-invariant: a district is a place name — never machine-translated (PlaceName's rule). */}
         {lang === 'vi' ? d.label.vi : d.label.en}
       </Link>
     </span>
@@ -211,10 +213,12 @@ export function DistrictHeading({ name, nameVi, place }: { name: string; nameVi:
  */
 export function RentalsDistrictHeading({ headline, place }: { headline: DistrictRentalsHeadline; place: { en: string; vi: string } }) {
   const { lang, tr } = useLanguage()
-  const lead = headline === 'apartments-houses'
-    ? tr('Apartments & houses for rent in', 'Cho thuê căn hộ và nhà tại')
-    : tr('Apartments for rent in', 'Cho thuê căn hộ tại')
-  return <>{lead} {lang === 'vi' ? place.vi : place.en}</>
+  // One template per heading — word order is the translation's to decide, not "lead" + a name glued on.
+  const [en, vi] = headline === 'apartments-houses'
+    ? ['Apartments & houses for rent in {place}', 'Cho thuê căn hộ và nhà tại {place}']
+    : ['Apartments for rent in {place}', 'Cho thuê căn hộ tại {place}']
+  // i18n-invariant: {place} is a place name (PlaceName's rule); the heading around it translates.
+  return <>{fillBilingual(tr(en, vi), en, { place: lang === 'vi' ? place.vi : place.en })}</>
 }
 
 /**
@@ -277,6 +281,7 @@ export function HomesSentence({ homes, place }: { homes: HomeFacts; place: { en:
 export function ThuDucCrossLinks({ slug, linkable }: { slug: string; linkable: readonly string[] }) {
   const { lang, tr } = useLanguage()
   const a = (to: 'd2' | 'd9' | 'thu-duc') => {
+    // i18n-invariant: a district is a place name — never machine-translated (PlaceName's rule).
     const name = lang === 'vi' ? RENTALS_PLACE_LABEL[to].vi : RENTALS_PLACE_LABEL[to].en
     if (!linkable.includes(to)) return <>{name}</>
     return (

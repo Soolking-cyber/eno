@@ -648,6 +648,7 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
                     size="sm"
                     onClick={() => patch({ cityIds: on ? draft.cityIds.filter((id) => id !== city.id) : [...draft.cityIds, city.id] })}
                   >
+                    {/* i18n-invariant: a city is a place name — never machine-translated (PlaceName's rule). */}
                     {lang === 'vi' ? city.nameVi : city.name}
                   </Button>
                 )
@@ -697,7 +698,7 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
                 // Composed OUTSIDE the markup: design-lint refuses bare strings AND template
                 // literals in JSX, and the dollar hint is only meaningful when a rate loaded.
                 const usd = usdPerDay(budget.daily)
-                const detail = (lang === 'vi' ? budget.detailVi : budget.detail)
+                const detail = tr(budget.detail, budget.detailVi)
                   + (usd ? ` · ≈ ${usd}/${tr('day', 'ngày')}` : '')
                 return (
                   <Button
@@ -707,7 +708,7 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
                     onClick={() => { setCustomBudgetOn(false); patch({ budgetId: budget.id }) }}
                     className="w-full flex-col items-start gap-0 rounded-xl px-3 py-2 text-left"
                   >
-                    <span className="text-sm font-bold">{lang === 'vi' ? budget.labelVi : budget.label}</span>
+                    <span className="text-sm font-bold">{tr(budget.label, budget.labelVi)}</span>
                     <span className="text-2xs font-medium opacity-80">{detail}</span>
                   </Button>
                 )
@@ -759,7 +760,7 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(PACE_LABELS).map(([id, option]) => (
                 <Button key={id} size="sm" variant={draft.pace === id ? 'default' : 'outline'} onClick={() => patch({ pace: id })}>
-                  {lang === 'vi' ? option.labelVi : option.label}
+                  {tr(option.label, option.labelVi)}
                 </Button>
               ))}
             </div>
@@ -772,7 +773,7 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
                 const on = draft.interests.includes(id)
                 return (
                   <Button key={id} size="sm" variant={on ? 'default' : 'outline'} onClick={() => patch({ interests: on ? draft.interests.filter((i) => i !== id) : [...draft.interests, id] })}>
-                    {lang === 'vi' ? option.labelVi : option.label}
+                    {tr(option.label, option.labelVi)}
                   </Button>
                 )
               })}
@@ -781,7 +782,7 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(ACCOMMODATION_LABELS).map(([id, option]) => (
                 <Button key={id} size="sm" variant={draft.accommodation === id ? 'default' : 'outline'} onClick={() => patch({ accommodation: id })}>
-                  {lang === 'vi' ? option.labelVi : option.label}
+                  {tr(option.label, option.labelVi)}
                 </Button>
               ))}
             </div>

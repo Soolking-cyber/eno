@@ -32,6 +32,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
     let off = false
     fetch('/api/categories')
       .then((r) => r.json())
+      // i18n-invariant: `name` is never rendered — only the slugs reach the CSV template below.
       .then((d) => { if (!off && d.categories) setCategories(d.categories.map((c: { slug: string; name: string; nameVi: string }) => ({ slug: c.slug, name: lang === 'vi' ? c.nameVi : c.name }))) })
       .catch(() => {})
     return () => { off = true }

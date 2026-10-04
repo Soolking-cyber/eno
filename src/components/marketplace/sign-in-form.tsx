@@ -110,10 +110,13 @@ export function errorAfterCaptchaSolved(current: SignInError): SignInError {
 }
 
 /** The visitor-facing sentence for an error, resolved at RENDER time in their language. */
-export function signInErrorText(e: SignInError, t: (en: string, vi: string) => string): string {
+export function signInErrorText(e: SignInError, t: (en: string, vi?: string) => string): string {
   if (!e) return ''
   switch (e.code) {
     case 'raw':
+      // ⚠️ An auth-provider sentence we have no code for, shown VERBATIM and never sent to the translator:
+      // these can quote the visitor's own e-mail address, and the translation cache is shared and keyed
+      // by the exact text. Known messages are mapped to codes (authErrorToCode) and translated there.
       return e.message
     case 'captcha': {
       const base = t("The security check didn't complete — try again, and tick the verification box if one appears.", 'Kiểm tra bảo mật chưa hoàn tất — thử lại và đánh dấu ô xác minh nếu nó hiện ra nhé.')
@@ -174,7 +177,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
   onMethod?: (method: 'google' | 'email') => void
 }) {
   const { tr, lang } = useLanguage()
-  const t = (en: string, vi: string) => tr(en, vi)
+  const t = (en: string, vi?: string) => tr(en, vi)
 
   // ⛔ PHONE OTP IS OFF AND SAYS SO (owner, 2026-08-17: "phone otp login say coming soon only show
   // google and email magic link login options"). Flip this one constant to bring the whole tab

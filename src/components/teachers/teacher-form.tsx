@@ -68,6 +68,8 @@ const clearStored = () => {
 
 /** Multi-pick chip row — the post wizard's chip look (bare button, pill when picked). */
 function MultiChips({ options, value, onChange, lang }: { options: readonly Opt[]; value: string[]; onChange: (v: string[]) => void; lang: string }) {
+  void lang // kept for the call sites; the label goes through tr() so the nine machine-translated languages get one
+  const { tr } = useLanguage()
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((o) => {
@@ -82,7 +84,7 @@ function MultiChips({ options, value, onChange, lang }: { options: readonly Opt[
             onClick={() => onChange(on ? value.filter((v) => v !== o.value) : [...value, o.value])}
             className={cn('relative rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44', on ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
           >
-            {lang === 'vi' ? o.labelVi : o.label}
+            {tr(o.label, o.labelVi)}
           </Button>
         )
       })}
@@ -91,6 +93,8 @@ function MultiChips({ options, value, onChange, lang }: { options: readonly Opt[
 }
 
 function SingleChips({ options, value, onChange, lang }: { options: readonly Opt[]; value: string | null; onChange: (v: string) => void; lang: string }) {
+  void lang
+  const { tr } = useLanguage()
   return (
     <div className="flex flex-wrap gap-2" role="radiogroup">
       {options.map((o) => (
@@ -104,7 +108,7 @@ function SingleChips({ options, value, onChange, lang }: { options: readonly Opt
           onClick={() => onChange(o.value)}
           className={cn('relative rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44', value === o.value ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
         >
-          {lang === 'vi' ? o.labelVi : o.label}
+          {tr(o.label, o.labelVi)}
         </Button>
       ))}
     </div>
@@ -392,7 +396,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
     )
   }
 
-  const L = (o: Opt) => (lang === 'vi' ? o.labelVi : o.label)
+  const L = (o: Opt) => tr(o.label, o.labelVi)
   const countryOptions = [...COMMON_TEACHER_NATIONALITIES, ...ALL_COUNTRY_CODES.filter((c) => !(COMMON_TEACHER_NATIONALITIES as readonly string[]).includes(c))]
   const countryItems = Object.fromEntries(countryOptions.map((c) => [c, countryName(c, lang)]))
 

@@ -3,6 +3,7 @@
 // contact data lives in TeacherPrivate and is not selected here.
 import { db } from '@/lib/db'
 import { Tr } from '@/context/language-context'
+import { LocalizedText } from '@/components/marketplace/listing-content'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { TeacherContact, TeacherContactJump } from '@/components/teachers/teacher-contact'
@@ -82,7 +83,8 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                 : <span className="size-24 shrink-0 rounded-full bg-muted" />}
               <div className="min-w-0">
                 <h1 className="text-2xl font-semibold text-foreground">{name}</h1>
-                {tp && <p className="mt-1 text-body">{tp.headline}</p>}
+                {/* The teacher's own words, translated for the reader like a listing description is (LocalizedText). */}
+                {tp && <p className="mt-1 text-body"><LocalizedText text={tp.headline} /></p>}
                 {tp && (
                   <p className="mt-2 text-sm text-muted-foreground">
                     {countryName(tp.nationality, lang)}
@@ -107,7 +109,7 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
             {tp?.bio && (
               <section aria-labelledby="t-about">
                 <h2 id="t-about" className="mb-2 text-lg font-semibold text-foreground"><Tr text="About" /></h2>
-                <p className="max-w-prose whitespace-pre-line text-body">{tp.bio}</p>
+                <p className="max-w-prose whitespace-pre-line text-body"><LocalizedText text={tp.bio} /></p>
               </section>
             )}
 

@@ -52,7 +52,17 @@ export function DeleteAccount() {
         if (res.status === 400 && d.error === 'Confirmation required') {
           setConfirmErr(tr('Type DELETE to confirm.', 'Nhập DELETE để xác nhận.'))
         } else {
-          setError(d.message || d.error || tr('Something went wrong — try again.', 'Có lỗi xảy ra — thử lại nhé.'))
+          // The server's sentences are English-only; each known code gets the reader's language here, and
+          // anything unrecognised falls back to the generic line rather than printing raw English.
+          setError(
+            d.error === 'under_review'
+              ? tr('Your account has open reports or an active review — contact support@eno.vn to complete deletion.', 'Tài khoản của bạn đang có báo cáo hoặc đang được xem xét — liên hệ support@eno.vn để hoàn tất việc xoá.')
+              : res.status === 429
+                ? tr('Too many attempts — try again later.', 'Thử quá nhiều lần — vui lòng thử lại sau.')
+                : res.status === 401
+                  ? tr('Your session has expired — sign in again to delete your account.', 'Phiên đăng nhập đã hết hạn — đăng nhập lại để xoá tài khoản.')
+                  : tr('Something went wrong — try again.', 'Có lỗi xảy ra — thử lại nhé.'),
+          )
         }
         setBusy(false)
         return

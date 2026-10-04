@@ -70,9 +70,27 @@ export function toUrlParams(p: SavedSearchParams): string {
   return sp.toString()
 }
 
-// A short human label from the params (used when the client doesn't supply one).
-export function describeParams(p: SavedSearchParams, lang: 'en' | 'vi' = 'en'): string {
+/** The params back out of a saved search's canonical URL (`toUrlParams`'s inverse). */
+export function paramsFromUrl(url: string): SavedSearchParams {
+  const sp = new URLSearchParams(url.includes('?') ? url.slice(url.indexOf('?') + 1) : url)
+  const attrs: Record<string, string> = {}
+  for (const [k, v] of sp) if (k.startsWith('attr_')) attrs[k.slice(5)] = v
+  return normalizeParams({
+    category: sp.get('category'), subcategory: sp.get('subcategory'), brand: sp.get('brand'), model: sp.get('model'),
+    listingType: sp.get('type'), q: sp.get('q'), district: sp.get('district'), condition: sp.get('condition'),
+    priceMin: sp.get('priceMin') ?? undefined, priceMax: sp.get('priceMax') ?? undefined, attrs,
+  })
+}
+
+/**
+ * A short human label from the params (used when the client doesn't supply one).
+ * ⚠️ The server stores it in ENGLISH (it has no reader to ask), so the dashboard re-labels a stored
+ * default in the reader's language by calling this again with their `lang` and `tr` — category and
+ * listing-type names then go through the translator, and a district stays the place name it is.
+ */
+export function describeParams(p: SavedSearchParams, lang: string = 'en', tr?: (en: string, vi?: string) => string): string {
   const parts: string[] = []
+  const pick = (en: string, vi: string) => (tr ? tr(en, vi) : lang === 'vi' ? vi : en)
   if (p.q) parts.push(`"${p.q}"`)
   if (p.brand || p.model) {
     // Brand/model lead the label when present (e.g. "Honda Wave Alpha").
@@ -80,9 +98,12 @@ export function describeParams(p: SavedSearchParams, lang: 'en' | 'vi' = 'en'): 
     parts.push([b, p.model].filter(Boolean).join(' '))
   } else if (p.category) {
     const c = CATEGORY_BY_SLUG[p.category]
-    if (c) parts.push(lang === 'vi' ? c.nameVi : c.name)
+    if (c) parts.push(pick(c.name, c.nameVi || c.name))
   }
-  if (p.listingType) parts.push(LISTING_TYPE_LABEL[p.listingType as ListingType]?.[lang] ?? p.listingType)
+  if (p.listingType) {
+    const l = LISTING_TYPE_LABEL[p.listingType as ListingType]
+    parts.push(l ? pick(l.en, l.vi) : p.listingType)
+  }
   if (p.district) {
     // A /c/<category>/<district> landing slug (`quan-7`, `quan-binh-thanh`) is a real scope too, so it
     // is named rather than left out: by the curated district its words read as (localized, accented),
@@ -99,5 +120,5 @@ export function describeParams(p: SavedSearchParams, lang: 'en' | 'vi' = 'en'): 
     const hi = p.priceMax ? groupVnd(String(p.priceMax), loc) : '∞'
     parts.push(`${lo}–${hi} ${loc === 'vi' ? 'đ' : 'VND'}`)
   }
-  return parts.length ? parts.join(' · ') : (lang === 'vi' ? 'Tất cả tin đăng' : 'All listings')
+  return parts.length ? parts.join(' · ') : pick('All listings', 'Tất cả tin đăng')
 }

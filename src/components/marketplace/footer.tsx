@@ -506,7 +506,9 @@ function FooterBody() {
                   verified one — see the ⛔ note there on why they are empty today. */}
               {SOCIALS.map((s) => {
                 const Icon = SOCIAL_ICON[s.key]
-                const name = lang === 'vi' ? s.labelVi : s.label
+                // A brand name is the same in every language (label === labelVi) and must not go to the translator
+                // ("Threads" would come back as a common noun); the one real phrase does.
+                const name = s.label === s.labelVi ? s.label : tr(s.label, s.labelVi)
                 return (
                   <a
                     key={s.key}

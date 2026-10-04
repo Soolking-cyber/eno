@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation'
 import { Fingerprint, IdCard, ShieldCheck, Camera, User, Pencil, ChevronLeft } from "@/components/ui/icons"
 import { StepWizard, type WizardStep } from '@/components/ui/step-wizard'
 import { useAuth } from '@/context/auth-context'
+import { fillBilingual } from '@/components/marketplace/bilingual'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -698,7 +699,7 @@ export function VerifyClient() {
         const outcome = raw && tier === 'A' && raw.enA && raw.viA ? { ...raw, en: raw.enA, vi: raw.viA } : raw
         if (outcome?.terminal) { setTerminal(outcome); setError(null); return }
         setError(outcome
-          ? (lang === 'vi' ? outcome.vi : outcome.en)
+          ? (tr(outcome.en, outcome.vi))
           : tr(
               'That did not go through, so we cleared the form. Please choose how to verify and start again.',
               'Chưa gửi được nên chúng tôi đã xóa biểu mẫu. Vui lòng chọn cách xác minh và bắt đầu lại.',
@@ -768,6 +769,9 @@ export function VerifyClient() {
   const decl = DECLARATIONS[CURRENT_DECLARATION]
   // ⚠️ Render the language the user is reading, but the HASH covers both (see declaration.ts).
   // What is on screen is a courtesy; what is recorded is the whole declaration.
+  // A legal attestation is shown in one of its two RECORDED texts — the nine machine-translated
+  // languages read the English, never an unreviewed translation of what they sign.
+  // i18n-invariant: the recorded declaration text.
   const body = lang === 'vi' ? decl.vi : decl.en
 
   // The wizard rail — one node per step, in order. Labels are the accessible/announced names; the
@@ -838,22 +842,27 @@ export function VerifyClient() {
   // ⚠️ THE CLIENT MUST NOT "FIX" THIS BY REWRITING LINE 2. That was tried and is a bypass: re-minting
   // check digits over a typed expiry lets anyone with an expired passport edit the date into a valid
   // MRZ. The safe move is to refuse to submit a disagreement and show the seller where it is.
-  const mrzDisagreement: { en: string; vi: string } | null = (() => {
+  // ⛔ TEMPLATES, FILLED AFTER TRANSLATION: these sentences quote the reader's passport number and expiry
+  // date. Sent whole to tr(), each would go to the machine translator and into the shared cache — a
+  // passport number in a table every page reads. The template is translated; the values never leave.
+  const mrzDisagreement: { en: string; vi: string; values: Record<string, string> } | null = (() => {
     if (tier !== 'B' || !mrzValid || !mrzParsed) return null
     const typedNumber = documentNumber.trim().toUpperCase()
     const readNumber = mrzParsed.fields.passportNumber
     if (typedNumber && readNumber && typedNumber !== readNumber) {
       return {
-        en: `The code lines say your passport number is ${readNumber}, but the field above says ${typedNumber}. Correct whichever is wrong — the code lines are what we verify against.`,
-        vi: `Hai dòng mã ghi số hộ chiếu là ${readNumber}, nhưng ô ở trên ghi ${typedNumber}. Hãy sửa phần nào sai — chúng tôi đối chiếu theo hai dòng mã.`,
+        en: 'The code lines say your passport number is {read}, but the field above says {typed}. Correct whichever is wrong — the code lines are what we verify against.',
+        vi: 'Hai dòng mã ghi số hộ chiếu là {read}, nhưng ô ở trên ghi {typed}. Hãy sửa phần nào sai — chúng tôi đối chiếu theo hai dòng mã.',
+        values: { read: readNumber, typed: typedNumber },
       }
     }
     const typedExpiry = documentExpiry.trim()
     const readExpiry = mrzParsed.fields.passportExpiryDate?.slice(0, 10)
     if (typedExpiry && readExpiry && typedExpiry !== readExpiry) {
       return {
-        en: `The code lines say your passport expires on ${readExpiry}, but the field above says ${typedExpiry}. Correct whichever is wrong — the code lines are what we verify against.`,
-        vi: `Hai dòng mã ghi ngày hết hạn là ${readExpiry}, nhưng ô ở trên ghi ${typedExpiry}. Hãy sửa phần nào sai — chúng tôi đối chiếu theo hai dòng mã.`,
+        en: 'The code lines say your passport expires on {read}, but the field above says {typed}. Correct whichever is wrong — the code lines are what we verify against.',
+        vi: 'Hai dòng mã ghi ngày hết hạn là {read}, nhưng ô ở trên ghi {typed}. Hãy sửa phần nào sai — chúng tôi đối chiếu theo hai dòng mã.',
+        values: { read: readExpiry, typed: typedExpiry },
       }
     }
     return null
@@ -964,8 +973,12 @@ export function VerifyClient() {
           )}
         </p>
         <p className="text-xs text-muted-foreground">
+          {/* Statute citations are shown as published, never machine-translated — a translator can mangle
+              the decree and law numbers a reader would look up. */}
+          {/* i18n-invariant: a statute citation. */}
           {lang === 'vi' ? LEGAL_BASIS.identityDecree.vi : LEGAL_BASIS.identityDecree.en}
           {' · '}
+          {/* i18n-invariant: a statute citation. */}
           {lang === 'vi' ? LEGAL_BASIS.ecommerceLaw.vi : LEGAL_BASIS.ecommerceLaw.en}
         </p>
       </header>
@@ -1123,7 +1136,7 @@ export function VerifyClient() {
           // replaced (a renewed passport) and a duplicate can be resolved — just not right now.
           <div className="space-y-3">
             <Alert>
-              <AlertDescription>{lang === 'vi' ? terminal.vi : terminal.en}</AlertDescription>
+              <AlertDescription>{tr(terminal.en, terminal.vi)}</AlertDescription>
             </Alert>
             {/* ⚠️ THE ACTION FOLLOWS THE OUTCOME. Offering "back to verification options" under
                 `already_pending` or `rate_limited` invites exactly the restart the sentence above it
@@ -1306,7 +1319,7 @@ export function VerifyClient() {
                       {/* A name-less read still needs the name typed — surface that here, not just on failure. */}
                       {scanHint && (
                         <Alert>
-                          <AlertDescription className="text-xs">{lang === 'vi' ? scanHint.vi : scanHint.en}</AlertDescription>
+                          <AlertDescription className="text-xs">{tr(scanHint.en, scanHint.vi)}</AlertDescription>
                         </Alert>
                       )}
                     </>
@@ -1315,7 +1328,7 @@ export function VerifyClient() {
                     <Alert>
                       <AlertDescription className="text-xs">
                         {scanHint
-                          ? (lang === 'vi' ? scanHint.vi : scanHint.en)
+                          ? (tr(scanHint.en, scanHint.vi))
                           : tr('We could not read your passport this time — please type the two lines below.', 'Lần này chúng tôi không đọc được hộ chiếu — vui lòng tự nhập hai dòng bên dưới.')}
                       </AlertDescription>
                     </Alert>
@@ -1334,7 +1347,7 @@ export function VerifyClient() {
               {mrzDisagreement && (
                 <Alert variant="destructive">
                   <AlertDescription className="text-xs">
-                    {lang === 'vi' ? mrzDisagreement.vi : mrzDisagreement.en}
+                    {fillBilingual(tr(mrzDisagreement.en, mrzDisagreement.vi), mrzDisagreement.en, mrzDisagreement.values)}
                   </AlertDescription>
                 </Alert>
               )}
